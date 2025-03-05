@@ -195,7 +195,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      z-index: 1; /* Above particles, below content */
+      z-index: 1; /* Above particles */
       pointer-events: none;
       overflow: hidden;
     }
@@ -203,9 +203,28 @@
       position: absolute;
       background: rgba(0, 255, 204, 0.2);
       box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
-      transform: skewX(-10deg); /* Slight skew for 3D effect */
-      bottom: 0; /* Align to bottom */
-      transition: left 0.1s linear; /* Smooth movement */
+      transform: skewX(-10deg);
+      bottom: 0;
+      transition: left 0.1s linear;
+    }
+
+    /* Moving Clouds */
+    .cloudscape {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2; /* Above cityscape, below content */
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .cloud {
+      position: absolute;
+      background: radial-gradient(circle, rgba(0, 255, 204, 0.15) 0%, rgba(0, 255, 204, 0) 70%);
+      border-radius: 50%;
+      box-shadow: 0 0 30px rgba(0, 255, 204, 0.1);
+      transition: left 0.1s linear, opacity 0.5s ease;
     }
 
     /* Container */
@@ -218,7 +237,7 @@
       box-shadow: none;
       animation: fadeIn 1s ease-in;
       position: relative;
-      z-index: 2; /* Above cityscape */
+      z-index: 3; /* Above cloudscape */
       min-height: calc(100vh - 40px);
     }
     @keyframes fadeIn {
@@ -673,6 +692,7 @@
   <div class="scanlines"></div>
   <div class="flowing-particles"></div>
   <div class="cityscape"></div>
+  <div class="cloudscape"></div>
   <main class="container">
     <div class="profile-img-wrapper">
       <img src="http://www.themostusefulsiteintheworld.com/mrprophecypic.jpg" alt="MrProphecy, UK urban artist, gripping a mic in a neon-drenched haze" class="profile-img" loading="lazy">
@@ -768,20 +788,19 @@
     // Continuous 3D Moving Cityscape
     const cityscapeContainer = document.querySelector('.cityscape');
     const viewportWidth = window.innerWidth;
-    const speed = 1; // Pixels per frame (adjust for speed)
+    const citySpeed = 1; // Pixels per frame for cityscape
 
-    // Function to create a new building
     function createBuilding() {
       const building = document.createElement('div');
       building.classList.add('city-building');
       
       const width = Math.random() * 100 + 50; // 50-150px
       const height = Math.random() * 300 + 100; // 100-400px
-      const opacity = Math.random() * 0.3 + 0.1; // 0.1-0.4
+      const opacity = Math.random() * 0.3 + 0.1;
       
       building.style.width = `${width}px`;
       building.style.height = `${height}px`;
-      building.style.left = `${viewportWidth + Math.random() * 200}px`; // Start off-screen right
+      building.style.left = `${viewportWidth + Math.random() * 200}px`;
       building.style.opacity = opacity;
       building.style.transform = `skewX(-10deg) translateZ(${Math.random() * 100 - 50}px)`;
       
@@ -789,37 +808,81 @@
       return building;
     }
 
-    // Initial population with buildings
+    // Initial cityscape population
     const initialBuildings = 20;
     for (let i = 0; i < initialBuildings; i++) {
       const building = createBuilding();
-      building.style.left = `${Math.random() * (viewportWidth + 200)}px`; // Spread across initial view
+      building.style.left = `${Math.random() * (viewportWidth + 200)}px`;
     }
 
-    // Animation loop
-    function animateCityscape() {
+    // Continuous Moving Clouds
+    const cloudscapeContainer = document.querySelector('.cloudscape');
+    const cloudSpeed = 0.5; // Slower than cityscape for depth
+
+    function createCloud() {
+      const cloud = document.createElement('div');
+      cloud.classList.add('cloud');
+      
+      const size = Math.random() * 200 + 100; // 100-300px for cloud-like circles
+      const top = Math.random() * 30; // 0-30% from top
+      const opacity = Math.random() * 0.2 + 0.1; // 0.1-0.3 for subtlety
+      
+      cloud.style.width = `${size}px`;
+      cloud.style.height = `${size}px`;
+      cloud.style.left = `${viewportWidth + Math.random() * 300}px`; // Off-screen right
+      cloud.style.top = `${top}%`;
+      cloud.style.opacity = opacity;
+      
+      cloudscapeContainer.appendChild(cloud);
+      return cloud;
+    }
+
+    // Initial cloud population
+    const initialClouds = 10;
+    for (let i = 0; i < initialClouds; i++) {
+      const cloud = createCloud();
+      cloud.style.left = `${Math.random() * (viewportWidth + 300)}px`;
+    }
+
+    // Animation loop for both cityscape and clouds
+    function animateBackground() {
+      // Cityscape
       const buildings = document.querySelectorAll('.city-building');
       buildings.forEach(building => {
         let currentLeft = parseFloat(building.style.left) || 0;
-        currentLeft -= speed; // Move left
+        currentLeft -= citySpeed;
         building.style.left = `${currentLeft}px`;
 
-        // Remove building if it moves off-screen left
         if (currentLeft + parseFloat(building.style.width) < -200) {
           building.remove();
         }
       });
 
-      // Add new building if right edge needs more
-      if (Math.random() < 0.02) { // 2% chance per frame to add a new building
+      if (Math.random() < 0.02) {
         createBuilding();
       }
 
-      requestAnimationFrame(animateCityscape);
+      // Clouds
+      const clouds = document.querySelectorAll('.cloud');
+      clouds.forEach(cloud => {
+        let currentLeft = parseFloat(cloud.style.left) || 0;
+        currentLeft -= cloudSpeed;
+        cloud.style.left = `${currentLeft}px`;
+
+        if (currentLeft + parseFloat(cloud.style.width) < -300) {
+          cloud.remove();
+        }
+      });
+
+      if (Math.random() < 0.015) { // Slightly less frequent than buildings
+        createCloud();
+      }
+
+      requestAnimationFrame(animateBackground);
     }
 
     // Start the animation
-    animateCityscape();
+    animateBackground();
   </script>
 </body>
 </html>
