@@ -193,12 +193,11 @@
       position: fixed;
       top: 0;
       left: 0;
-      width: 200%; /* Double width for seamless looping */
+      width: 100%;
       height: 100%;
       z-index: 1; /* Above particles, below content */
       pointer-events: none;
       overflow: hidden;
-      animation: cityscapeMove 30s infinite linear;
     }
     .city-building {
       position: absolute;
@@ -206,10 +205,7 @@
       box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
       transform: skewX(-10deg); /* Slight skew for 3D effect */
       bottom: 0; /* Align to bottom */
-    }
-    @keyframes cityscapeMove {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); } /* Moves half its width for loop */
+      transition: left 0.1s linear; /* Smooth movement */
     }
 
     /* Container */
@@ -769,26 +765,61 @@
       });
     });
 
-    // 3D Moving Cityscape
+    // Continuous 3D Moving Cityscape
     const cityscapeContainer = document.querySelector('.cityscape');
-    for (let i = 0; i < 20; i++) { // 20 buildings for depth
+    const viewportWidth = window.innerWidth;
+    const speed = 1; // Pixels per frame (adjust for speed)
+
+    // Function to create a new building
+    function createBuilding() {
       const building = document.createElement('div');
       building.classList.add('city-building');
       
-      // Randomize position, size, and opacity for 3D effect
       const width = Math.random() * 100 + 50; // 50-150px
       const height = Math.random() * 300 + 100; // 100-400px
-      const left = Math.random() * 100; // 0-100% of double width
-      const opacity = Math.random() * 0.3 + 0.1; // 0.1-0.4 for depth
+      const opacity = Math.random() * 0.3 + 0.1; // 0.1-0.4
       
       building.style.width = `${width}px`;
       building.style.height = `${height}px`;
-      building.style.left = `${left}%`;
+      building.style.left = `${viewportWidth + Math.random() * 200}px`; // Start off-screen right
       building.style.opacity = opacity;
-      building.style.transform = `skewX(-10deg) translateZ(${Math.random() * 100 - 50}px)`; // Slight 3D skew
+      building.style.transform = `skewX(-10deg) translateZ(${Math.random() * 100 - 50}px)`;
       
       cityscapeContainer.appendChild(building);
+      return building;
     }
+
+    // Initial population with buildings
+    const initialBuildings = 20;
+    for (let i = 0; i < initialBuildings; i++) {
+      const building = createBuilding();
+      building.style.left = `${Math.random() * (viewportWidth + 200)}px`; // Spread across initial view
+    }
+
+    // Animation loop
+    function animateCityscape() {
+      const buildings = document.querySelectorAll('.city-building');
+      buildings.forEach(building => {
+        let currentLeft = parseFloat(building.style.left) || 0;
+        currentLeft -= speed; // Move left
+        building.style.left = `${currentLeft}px`;
+
+        // Remove building if it moves off-screen left
+        if (currentLeft + parseFloat(building.style.width) < -200) {
+          building.remove();
+        }
+      });
+
+      // Add new building if right edge needs more
+      if (Math.random() < 0.02) { // 2% chance per frame to add a new building
+        createBuilding();
+      }
+
+      requestAnimationFrame(animateCityscape);
+    }
+
+    // Start the animation
+    animateCityscape();
   </script>
 </body>
 </html>
