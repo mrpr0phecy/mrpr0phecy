@@ -55,6 +55,7 @@
       color: #fff;
       scroll-behavior: smooth;
       position: relative;
+      overflow-y: auto; /* Ensure vertical scrolling */
     }
 
     /* Glitchy Neon Background with Horizon Glow */
@@ -136,7 +137,7 @@
         transparent 1px,
         transparent 15px
       );
-      z-index: -1;
+      z-index: 0; /* Adjusted to be below content */
       animation: gridGlitch 3s infinite;
     }
     @keyframes gridGlitch {
@@ -159,7 +160,7 @@
         transparent 1px,
         transparent 3px
       );
-      z-index: 4; /* Above content for visibility */
+      z-index: 4; /* Above content but below HUD */
       pointer-events: none;
       animation: scan 2s infinite linear;
     }
@@ -168,30 +169,27 @@
       100% { background-position: 0 6px; }
     }
 
-    /* Flowing, Zooming, and Spark Particles */
-    .flowing-particles {
+    /* Particles: Shooting Stars, Zooming, and Sparks */
+    .particles {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      z-index: 5; /* Above all background layers */
-      pointer-events: auto; /* Allow mouse interaction */
+      z-index: 1; /* Below content, above background */
+      pointer-events: none;
     }
-    .flowing-particle {
+    .shooting-star {
       position: absolute;
-      border-radius: 50%;
-      background: rgba(0, 255, 204, 0.7);
-      box-shadow: 0 0 10px rgba(0, 255, 204, 0.9);
-      animation: flowParticle infinite ease-in-out;
-      transition: transform 0.2s ease-out;
+      width: 2px;
+      height: 20px;
+      background: rgba(0, 255, 204, 0.9);
+      box-shadow: 0 0 10px rgba(0, 255, 204, 1);
+      animation: shootingStar 1s linear;
     }
-    @keyframes flowParticle {
-      0% { transform: translate(0, 0) scale(1); opacity: 0.7; }
-      25% { transform: translate(30px, -20px) scale(1.2); opacity: 1; }
-      50% { transform: translate(-20px, 40px) scale(0.8); opacity: 0.6; }
-      75% { transform: translate(20px, -30px) scale(1.1); opacity: 0.9; }
-      100% { transform: translate(0, 0) scale(1); opacity: 0.7; }
+    @keyframes shootingStar {
+      0% { opacity: 1; }
+      100% { opacity: 0; }
     }
     .zoom-particle {
       position: absolute;
@@ -225,7 +223,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      z-index: 1;
+      z-index: 2;
       pointer-events: none;
       overflow: hidden;
     }
@@ -245,7 +243,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      z-index: 2;
+      z-index: 3;
       pointer-events: none;
       overflow: hidden;
     }
@@ -267,7 +265,7 @@
       box-shadow: none;
       animation: fadeIn 1s ease-in;
       position: relative;
-      z-index: 3;
+      z-index: 5; /* Above all background layers */
       min-height: calc(100vh - 40px);
     }
     @keyframes fadeIn {
@@ -735,7 +733,7 @@
     <div class="horizon-glow"></div>
   </div>
   <div class="grid-overlay"></div>
-  <div class="flowing-particles"></div>
+  <div class="particles"></div>
   <div class="cityscape"></div>
   <div class="cloudscape"></div>
   <main class="container">
@@ -774,23 +772,40 @@
   <div class="hud">SYSTEM STATUS: ONLINE<br>VERSION: 3.0.1</div>
   <div class="scanlines"></div>
   <script>
-    // Flowing, Zooming, and Spark Particles
-    const particlesContainer = document.querySelector('.flowing-particles');
-    
-    // Flowing Particles (25)
-    for (let i = 0; i < 25; i++) {
-      const particle = document.createElement('div');
-      particle.classList.add('flowing-particle');
-      particle.style.top = `${Math.random() * 100}%`;
-      particle.style.left = `${Math.random() * 100}%`;
-      const size = Math.random() * 5 + 2;
-      particle.style.width = `${size}px`;
-      particle.style.height = `${size}px`;
-      particle.style.background = `rgba(${Math.random() * 100 + 155}, 255, 204, 0.7)`;
-      particle.style.animationDuration = `${Math.random() * 10 + 5}s`;
-      particle.style.animationDelay = `${Math.random() * 3}s`;
-      particlesContainer.appendChild(particle);
+    // Particles: Shooting Stars, Zooming, and Sparks
+    const particlesContainer = document.querySelector('.particles');
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Shooting Stars (Occasional, Random Directions)
+    function createShootingStar() {
+      const star = document.createElement('div');
+      star.classList.add('shooting-star');
+      
+      const startX = Math.random() * viewportWidth;
+      const startY = Math.random() * viewportHeight;
+      const angle = Math.random() * 2 * Math.PI; // Random direction
+      const distance = 200; // Travel distance
+      const endX = startX + Math.cos(angle) * distance;
+      const endY = startY + Math.sin(angle) * distance;
+      
+      star.style.left = `${startX}px`;
+      star.style.top = `${startY}px`;
+      star.style.transform = `rotate(${angle * 180 / Math.PI}deg)`;
+      star.style.animation = `shootingStar ${Math.random() * 0.5 + 0.5}s linear`;
+      
+      particlesContainer.appendChild(star);
+      
+      // Remove after animation
+      star.addEventListener('animationend', () => star.remove());
     }
+
+    // Spawn shooting stars occasionally
+    setInterval(() => {
+      if (Math.random() < 0.1) { // 10% chance every 500ms
+        createShootingStar();
+      }
+    }, 500);
 
     // Zooming Particles (10)
     for (let i = 0; i < 10; i++) {
@@ -812,40 +827,14 @@
       particle.classList.add('spark-particle');
       particle.style.top = `${Math.random() * 100}%`;
       particle.style.left = `${Math.random() * 100}%`;
-      particle.style.animationDuration = `${Math.random() * 0.5 + 0.5}s`; // 0.5-1s
+      particle.style.animationDuration = `${Math.random() * 0.5 + 0.5}s`;
       particle.style.animationDelay = `${Math.random() * 5}s`;
       particlesContainer.appendChild(particle);
     }
 
-    // Mouse Interaction for Flowing Particles
-    document.addEventListener('mousemove', (e) => {
-      const particles = document.querySelectorAll('.flowing-particle');
-      const mouseX = e.clientX;
-      const mouseY = e.clientY;
-
-      particles.forEach(particle => {
-        const rect = particle.getBoundingClientRect();
-        const particleX = rect.left + rect.width / 2;
-        const particleY = rect.top + rect.height / 2;
-
-        const dx = mouseX - particleX;
-        const dy = mouseY - particleY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const maxDistance = 300;
-
-        if (distance < maxDistance) {
-          const force = (maxDistance - distance) / maxDistance;
-          const moveX = dx * force * 0.1;
-          const moveY = dy * force * 0.1;
-          particle.style.transform = `translate(${moveX}px, ${moveY}px)`;
-        }
-      });
-    });
-
     // Continuous 3D Moving Cityscape and Clouds
     const cityscapeContainer = document.querySelector('.cityscape');
     const cloudscapeContainer = document.querySelector('.cloudscape');
-    const viewportWidth = window.innerWidth;
     const citySpeed = 1;
     const cloudSpeed = 0.5;
 
