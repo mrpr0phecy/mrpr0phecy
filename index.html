@@ -475,7 +475,7 @@
       box-shadow: 0 0 25px rgba(0, 204, 153, 0.7);
       z-index: 1;
       animation: glitchRing 1.8s infinite reverse, rotateRing 10s infinite linear reverse;
-      transition: box-shadow 0.3s ease;
+      transition: box-shadow: 0.3s ease;
     }
     .glitch-ring-inner {
       position: absolute;
@@ -1001,7 +1001,7 @@
 
     animateBackground();
 
-    // Three.js Integration for Flocking Birds (Refined)
+    // Three.js Integration for Flocking Birds (Optimized)
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -1013,17 +1013,24 @@
     const birdCount = 20;
     let boundaryX = window.innerWidth / 20;
     let boundaryY = window.innerHeight / 20;
+    const minY = -boundaryY * 0.2; // Keep birds above ~40% of screen height from bottom
 
     class Boid {
       constructor() {
         this.position = new THREE.Vector3(
           (Math.random() - 0.5) * boundaryX * 0.5,
-          Math.random() * boundaryY * 0.5,
+          Math.random() * (boundaryY - minY) + minY, // Start above minY
           -10
         );
-        this.velocity = new THREE.Vector3((Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3, 0); // Lower initial velocity
+        this.velocity = new THREE.Vector3((Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3, 0);
         this.acceleration = new THREE.Vector3();
-        const geometry = new THREE.CircleGeometry(0.2, 8);
+        const geometry = new THREE.BufferGeometry();
+        const vertices = new Float32Array([
+          0, 0.2, 0,  // Top
+          -0.2, -0.2, 0,  // Bottom Left
+          0.2, -0.2, 0   // Bottom Right
+        ]);
+        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         const material = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.6 });
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.copy(this.position);
@@ -1033,14 +1040,15 @@
       update(boids) {
         this.flock(boids);
         this.velocity.add(this.acceleration);
-        this.velocity.clampLength(0, 0.8); // Reduced max speed for smoother motion
+        this.velocity.clampLength(0, 0.8);
         this.position.add(this.velocity);
-        this.acceleration.multiplyScalar(0.9); // Dampening for less abrupt changes
+        this.acceleration.multiplyScalar(0.9);
 
-        // Wrap around boundaries
+        // Wrap around X boundaries
         if (this.position.x < -boundaryX) this.position.x += boundaryX * 2;
         if (this.position.x > boundaryX) this.position.x -= boundaryX * 2;
-        if (this.position.y < -boundaryY) this.position.y += boundaryY * 2;
+        // Restrict Y to stay above buildings
+        if (this.position.y < minY) this.position.y = minY + (minY - this.position.y);
         if (this.position.y > boundaryY) this.position.y -= boundaryY * 2;
 
         this.mesh.position.copy(this.position);
@@ -1054,38 +1062,33 @@
         let alignmentCount = 0;
         let cohesionCount = 0;
 
-        for (let i = 0; i < boids.length; i++) { // Check all boids now for smoother cohesion
+        for (let i = 0; i < boids.length; i += 2) { // Check every other boid
           const other = boids[i];
           if (other === this) continue;
           const distance = this.position.distanceTo(other.position);
 
-          // Separation (close range)
           if (distance < 5) {
             separation.sub(other.position.clone().sub(this.position).normalize().divideScalar(distance || 1));
             separationCount++;
           }
-
-          // Alignment (medium range)
           if (distance < 10) {
             alignment.add(other.velocity);
             alignmentCount++;
           }
-
-          // Cohesion (longer range, weaker effect)
-          if (distance < 20) { // Increased range from 5 to 20
+          if (distance < 20) {
             cohesion.add(other.position);
             cohesionCount++;
           }
         }
 
         if (separationCount > 0) {
-          separation.divideScalar(separationCount).normalize().multiplyScalar(1.0); // Strong separation
+          separation.divideScalar(separationCount).normalize().multiplyScalar(1.0);
         }
         if (alignmentCount > 0) {
-          alignment.divideScalar(alignmentCount).normalize().multiplyScalar(0.8); // Reduced alignment strength
+          alignment.divideScalar(alignmentCount).normalize().multiplyScalar(0.8);
         }
         if (cohesionCount > 0) {
-          cohesion.divideScalar(cohesionCount).sub(this.position).normalize().multiplyScalar(0.3); // Weaker, longer-range cohesion
+          cohesion.divideScalar(cohesionCount).sub(this.position).normalize().multiplyScalar(0.3);
         }
 
         this.acceleration.add(separation).add(alignment).add(cohesion);
@@ -1110,6 +1113,10 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       boundaryX = window.innerWidth / 20;
       boundaryY = window.innerHeight / 20;
+      const newMinY = -boundaryY * 0.2;
+      birds.forEach(bird => {
+        if (bird.position.y < newMinY) bird.position.y = newMinY;
+      });
     });
   </script>
 </body>
