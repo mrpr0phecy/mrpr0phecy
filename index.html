@@ -984,7 +984,7 @@
 
         // Bobbing effect
         const index = parseInt(building.dataset.index);
-        const bobHeight = Math.sin(time + index * 0.3) * 20 + 20; // Adjusted amplitude
+        const bobHeight = Math.sin(time + index * 0.3) * 20 + 20;
         building.style.bottom = `${bobHeight}px`;
 
         if (currentLeft + parseFloat(building.style.width) < -200) {
@@ -1011,7 +1011,7 @@
         createCloud();
       }
 
-      time += 0.05; // Increment time for bobbing animation
+      time += 0.05;
       requestAnimationFrame(animateBackground);
     }
 
@@ -1025,16 +1025,23 @@
     document.getElementById('three-canvas').appendChild(renderer.domElement);
     camera.position.z = 50;
 
-    // Flocking Birds (Small, Star-like, More Bird-like)
+    // Flocking Birds (Small, Star-like, Tight Flock)
     const birds = [];
-    const birdCount = 50; // Increased for more flock density
-    const boundary = 50;
+    const birdCount = 50;
+    const boundaryX = window.innerWidth / 20; // Scale to match viewport (adjusted for Three.js units)
+    const boundaryY = window.innerHeight / 20;
+
     class Boid {
       constructor() {
-        this.position = new THREE.Vector3((Math.random() - 0.5) * boundary * 2, Math.random() * boundary, -10); // Flat plane at z=-10
-        this.velocity = new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, 0); // 2D motion
+        // Start birds closer together for tighter initial grouping
+        this.position = new THREE.Vector3(
+          (Math.random() - 0.5) * boundaryX * 0.5, // Reduced initial spread
+          Math.random() * boundaryY * 0.5,
+          -10
+        );
+        this.velocity = new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, 0);
         this.acceleration = new THREE.Vector3();
-        const geometry = new THREE.CircleGeometry(0.2, 8); // Small, flat circle
+        const geometry = new THREE.CircleGeometry(0.2, 8);
         const material = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.6 });
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.copy(this.position);
@@ -1044,15 +1051,15 @@
       update(boids) {
         this.flock(boids);
         this.velocity.add(this.acceleration);
-        this.velocity.clampLength(0, 1); // Slower max speed for tighter flocking
+        this.velocity.clampLength(0, 1.5); // Slightly higher speed for responsiveness
         this.position.add(this.velocity);
         this.acceleration.multiplyScalar(0);
 
-        // Wraparound effect
-        if (this.position.x < -boundary) this.position.x += boundary * 2;
-        if (this.position.x > boundary) this.position.x -= boundary * 2;
-        if (this.position.y < 0) this.position.y += boundary;
-        if (this.position.y > boundary) this.position.y -= boundary;
+        // Wraparound to full viewport edges
+        if (this.position.x < -boundaryX) this.position.x += boundaryX * 2;
+        if (this.position.x > boundaryX) this.position.x -= boundaryX * 2;
+        if (this.position.y < -boundaryY) this.position.y += boundaryY * 2; // Allow full height
+        if (this.position.y > boundaryY) this.position.y -= boundaryY * 2;
 
         this.mesh.position.copy(this.position);
       }
@@ -1065,12 +1072,12 @@
 
         boids.forEach(other => {
           let distance = this.position.distanceTo(other.position);
-          const dx = Math.min(Math.abs(this.position.x - other.position.x), boundary * 2 - Math.abs(this.position.x - other.position.x));
-          const dy = Math.min(Math.abs(this.position.y - other.position.y), boundary - Math.abs(this.position.y - other.position.y));
+          const dx = Math.min(Math.abs(this.position.x - other.position.x), boundaryX * 2 - Math.abs(this.position.x - other.position.x));
+          const dy = Math.min(Math.abs(this.position.y - other.position.y), boundaryY * 2 - Math.abs(this.position.y - other.position.y));
           distance = Math.sqrt(dx * dx + dy * dy);
 
-          if (other !== this && distance < 10) { // Tighter perception range
-            separation.sub(other.position.clone().sub(this.position).normalize().divideScalar(distance));
+          if (other !== this && distance < 5) { // Smaller perception range for tight flocking
+            separation.sub(other.position.clone().sub(this.position).normalize().divideScalar(distance || 1));
             alignment.add(other.velocity);
             cohesion.add(other.position);
             total++;
@@ -1078,9 +1085,9 @@
         });
 
         if (total > 0) {
-          separation.divideScalar(total).normalize().multiplyScalar(1.2); // Increased separation for bird-like spread
-          alignment.divideScalar(total).normalize().multiplyScalar(0.8); // Stronger alignment for cohesion
-          cohesion.divideScalar(total).sub(this.position).normalize().multiplyScalar(0.6); // Adjusted cohesion
+          separation.divideScalar(total).normalize().multiplyScalar(1.0); // Balanced separation
+          alignment.divideScalar(total).normalize().multiplyScalar(1.5); // Stronger alignment for tight flock
+          cohesion.divideScalar(total).sub(this.position).normalize().multiplyScalar(1.2); // Stronger cohesion
         }
 
         this.acceleration.add(separation).add(alignment).add(cohesion);
@@ -1105,6 +1112,9 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      // Update boundaries on resize
+      boundaryX = window.innerWidth / 20;
+      boundaryY = window.innerHeight / 20;
     });
   </script>
 </body>
