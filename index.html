@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sleek Logical Clockface</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #000;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #00f7d4;
+    }
+    canvas {
+      border: 2px solid #00f7d4;
+      background: radial-gradient(circle at center, #111 0%, #001515 100%);
+      box-shadow: 0 0 10px rgba(0, 247, 212, 0.5);
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="clockface" width="600" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById('clockface');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) {
+      console.error('Canvas context not supported');
+      alert('Canvas not supported in this browser. Try Chrome, Firefox, or Safari.');
+      throw new Error('Canvas context unavailable');
+    }
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const maxRadius = 330;
+    const hourRadius = maxRadius - 200;
+    const clockOuterRadius = hourRadius + 10;
+    const isNorthernHemisphere = true;
+
+    let latitude = 0;
+    let longitude = 0;
+    const spiroPath = [];
+    const spiroPath2 = [];
+    let lastSecond = -1;
+    let staticCanvas = null;
+    let spiroParams = { R: 300, r: 30, d: 45, r2: 28, d2: 42 };
+
+    function createStaticCanvas() {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      if (tempCanvas.width <= 0 || tempCanvas.height <= 0) {
+        console.error('Invalid static canvas dimensions');
+        return null;
+      }
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) {
+        console.error('Static canvas context not supported');
+        return null;
+      }
+      tempCtx.fillStyle = 'radial-gradient(circle at center, #111 0%, #001515 100%)';
+      tempCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const monthRadius = clockOuterRadius + 50;
+      const seasons = [
+        { name: 'Spring', startMonth: 2, endMonth: 4 },
+        { name: 'Summer', startMonth: 5, endMonth: 7 },
+        { name: 'Autumn', startMonth: 8, endMonth: 10 },
+        { name: 'Winter', startMonth: 11, endMonth: 1 }
+      ];
+      seasons.forEach((season, index) => {
+        const startAngle = (index / 4) * 2 * Math.PI - Math.PI / 2;
+        const endAngle = ((index + 1) / 4) * 2 * Math.PI - Math.PI / 2;
+        const labelAngle = startAngle + (endAngle - startAngle) / 2;
+        drawCurvedText(tempCtx, season.name, monthRadius + 5, labelAngle, 12, true);
+      });
+
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      for (let m = 0; m < 12; m++) {
+        const startAngle = (m / 12) * 2 * Math.PI - Math.PI / 2;
+        const endAngle = ((m + 1) / 12) * 2 * Math.PI - Math.PI / 2;
+        tempCtx.beginPath();
+        tempCtx.arc(centerX, centerY, monthRadius - 10, startAngle, endAngle);
+        tempCtx.arc(centerX, centerY, monthRadius - 30, endAngle, startAngle, true);
+        tempCtx.closePath();
+        tempCtx.strokeStyle = '#00f7d4';
+        tempCtx.lineWidth = 1;
+        tempCtx.stroke();
+        drawCurvedText(tempCtx, months[m], monthRadius - 20, startAngle + (endAngle - startAngle) / 2, 10, true);
+      }
+
+      for (let i = 0; i < 144; i++) {
+        const angle = (i / 144) * 2 * Math.PI - Math.PI / 2;
+        tempCtx.beginPath();
+        tempCtx.moveTo(centerX + (hourRadius - 4) * Math.cos(angle), centerY + (hourRadius - 4) * Math.sin(angle));
+        tempCtx.lineTo(centerX + hourRadius * Math.cos(angle), centerY + hourRadius * Math.sin(angle));
+        tempCtx.strokeStyle = 'rgba(0, 247, 212, 0.7)';
+        tempCtx.lineWidth = 1;
+        tempCtx.stroke();
+      }
+
+      for (let h = 0; h < 24; h++) {
+        const startAngle = (h / 24) * 2 * Math.PI - Math.PI / 2;
+        tempCtx.beginPath();
+        tempCtx.moveTo(centerX + (hourRadius - 8) * Math.cos(startAngle), centerY + (hourRadius - 8) * Math.sin(startAngle));
+        tempCtx.lineTo(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle));
+        tempCtx.strokeStyle = '#00f7d4';
+        tempCtx.lineWidth = 1.5;
+        tempCtx.stroke();
+        tempCtx.fillStyle = '#00f7d4';
+        tempCtx.font = '12px Segoe UI';
+        tempCtx.translate(centerX + (hourRadius + 10) * Math.cos(startAngle), centerY + (hourRadius + 10) * Math.sin(startAngle));
+        tempCtx.rotate(startAngle + Math.PI / 2);
+        const romanNum = toRoman(h === 0 ? 24 : h);
+        tempCtx.fillText(romanNum, -tempCtx.measureText(romanNum).width / 2, 4);
+        tempCtx.setTransform(1, 0, 0, 1, 0, 0);
+        tempCtx.font = '8px Segoe UI';
+        tempCtx.translate(centerX + (hourRadius + 20) * Math.cos(startAngle), centerY + (hourRadius + 20) * Math.sin(startAngle));
+        tempCtx.rotate(startAngle + Math.PI / 2);
+        const westernNum = h === 0 ? '24' : h.toString();
+        tempCtx.fillText(westernNum, -tempCtx.measureText(westernNum).width / 2, 4);
+        tempCtx.setTransform(1, 0, 0, 1, 0, 0);
+      }
+
+      return tempCanvas;
+    }
+
+    window.onload = () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            latitude = position.coords.latitude;
+            longitude = position.coords.longitude;
+            console.log('Geolocation: latitude:', latitude.toFixed(2), 'longitude:', longitude.toFixed(2));
+            staticCanvas = createStaticCanvas();
+            if (staticCanvas) {
+              requestAnimationFrame(drawClockface);
+            } else {
+              console.error('Failed to create static canvas');
+            }
+          },
+          (error) => {
+            console.warn('Geolocation denied or unavailable:', error.message);
+            staticCanvas = createStaticCanvas();
+            if (staticCanvas) {
+              requestAnimationFrame(drawClockface);
+            } else {
+              console.error('Failed to create static canvas');
+            }
+          }
+        );
+      } else {
+        console.warn('Geolocation not supported by this browser.');
+        staticCanvas = createStaticCanvas();
+        if (staticCanvas) {
+          requestAnimationFrame(drawClockface);
+        } else {
+          console.error('Failed to create static canvas');
+        }
+      }
+    };
+
+    function drawCurvedText(ctx, text, radius, startAngle, fontSize, clockwise = true, isZodiac = false, textColor = '#00f7d4') {
+      ctx.fillStyle = textColor;
+      ctx.font = `${fontSize}px 'Segoe UI Symbol', 'Segoe UI', Arial, sans-serif`;
+      const chars = text.split('');
+      const charWidth = ctx.measureText('M').width * (isZodiac ? 1.1 : 0.9);
+      const angleStep = (clockwise ? 1 : -1) * charWidth / radius;
+      let currentAngle = startAngle;
+      chars.forEach((char) => {
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(currentAngle);
+        ctx.translate(0, -radius);
+        ctx.fillText(char, -charWidth / 2, 0);
+        ctx.restore();
+        currentAngle += angleStep;
+      });
+    }
+
+    function toRoman(num) {
+      const romanMap = [
+        { value: 1000, numeral: 'M' }, { value: 900, numeral: 'CM' },
+        { value: 500, numeral: 'D' }, { value: 400, numeral: 'CD' },
+        { value: 100, numeral: 'C' }, { value: 90, numeral: 'XC' },
+        { value: 50, numeral: 'L' }, { value: 40, numeral: 'XL' },
+        { value: 10, numeral: 'X' }, { value: 9, numeral: 'IX' },
+        { value: 5, numeral: 'V' }, { value: 4, numeral: 'IV' },
+        { value: 1, numeral: 'I' }
+      ];
+      let result = '';
+      for (let { value, numeral } of romanMap) {
+        while (num >= value) {
+          result += numeral;
+          num -= value;
+        }
+      }
+      return result;
+    }
+
+    function getZodiacSign(date) {
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const zodiacs = {
+        Aries: '♈', Taurus: '♉', Gemini: '♊', Cancer: '♋', Leo: '♌', Virgo: '♍',
+        Libra: '♎', Scorpio: '♏', Sagittarius: '♐', Capricorn: '♑', Aquarius: '♒', Pisces: '♓'
+      };
+      let sign;
+      if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) sign = 'Aries';
+      else if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) sign = 'Taurus';
+      else if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) sign = 'Gemini';
+      else if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) sign = 'Cancer';
+      else if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) sign = 'Leo';
+      else if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) sign = 'Virgo';
+      else if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) sign = 'Libra';
+      else if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) sign = 'Scorpio';
+      else if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) sign = 'Sagittarius';
+      else if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) sign = 'Capricorn';
+      else if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) sign = 'Aquarius';
+      else sign = 'Pisces';
+      return `${sign} ${zodiacs[sign]}`;
+    }
+
+    function getChineseZodiac(year) {
+      const animals = [
+        { name: 'Rat', symbol: '[R]' }, { name: 'Ox', symbol: '[O]' }, { name: 'Tiger', symbol: '[T]' },
+        { name: 'Rabbit', symbol: '[B]' }, { name: 'Dragon', symbol: '[D]' }, { name: 'Snake', symbol: '[S]' },
+        { name: 'Horse', symbol: '[H]' }, { name: 'Goat', symbol: '[G]' }, { name: 'Monkey', symbol: '[M]' },
+        { name: 'Rooster', symbol: '[C]' }, { name: 'Dog', symbol: '[K]' }, { name: 'Pig', symbol: '[P]' }
+      ];
+      const index = (year - 2020) % 12;
+      const animal = animals[index >= 0 ? index : index + 12];
+      return `Year of the ${animal.name} ${animal.symbol}`;
+    }
+
+    function getMoonPhase(date) {
+      const synodicMonth = 29.53058867;
+      const knownNewMoon = new Date('2000-01-06T18:14:00Z').getTime();
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const daysSinceNewMoon = (date.getTime() - knownNewMoon) / msPerDay;
+      const phase = (daysSinceNewMoon % synodicMonth) / synodicMonth;
+      const phaseIndex = Math.floor(phase * 8);
+      const phases = [
+        'New Moon', 'Waxing Crescent', 'First Quarter', 'Waxing Gibbous',
+        'Full Moon', 'Waning Gibbous', 'Last Quarter', 'Waning Crescent'
+      ];
+      return { phase: phases[phaseIndex], fraction: phase };
+    }
+
+    function drawMoon(x, y, radius, phaseFraction) {
+      const illuminatedFraction = Math.abs(phaseFraction - 0.5) * 2;
+      const isWaxing = phaseFraction < 0.5;
+
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = '#222';
+      ctx.fill();
+
+      ctx.save();
+      ctx.translate(x, y);
+      if (!isNorthernHemisphere) ctx.scale(-1, 1);
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, -Math.PI / 2, Math.PI / 2);
+      const cosTheta = 1 - illuminatedFraction * 2;
+      ctx.arc(0, 0, radius, Math.PI / 2, -Math.PI / 2, isWaxing);
+      ctx.closePath();
+      ctx.fillStyle = '#00f7d4';
+      ctx.fill();
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#00f7d4';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    function getSunriseSunset(date, latitude, longitude) {
+      const lat = latitude !== 0 ? latitude : 40.7;
+      const lon = longitude !== 0 ? longitude : -74;
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const a = Math.floor((14 - month) / 12);
+      const y = year + 4800 - a;
+      const m = month + 12 * a - 3;
+      const jd = day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 
+                 Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+      const n = jd - 2451545.0 + 0.0008;
+      const meanAnomaly = (357.5291 + 0.98560028 * n) % 360;
+      const meanAnomalyRad = meanAnomaly * Math.PI / 180;
+      const equationOfCenter = 1.9148 * Math.sin(meanAnomalyRad) + 
+                               0.0200 * Math.sin(2 * meanAnomalyRad) + 
+                               0.0003 * Math.sin(3 * meanAnomalyRad);
+      const eclipticLongitude = (meanAnomaly + equationOfCenter + 102.9372) % 360;
+      const eclipticLongitudeRad = eclipticLongitude * Math.PI / 180;
+      const declination = Math.asin(Math.sin(eclipticLongitudeRad) * Math.sin(23.44 * Math.PI / 180));
+      const latRad = lat * Math.PI / 180;
+      const cosHourAngle = -Math.tan(latRad) * Math.tan(declination);
+      let hourAngle = Math.abs(cosHourAngle) <= 1 ? Math.acos(cosHourAngle) : 0;
+      const eot = equationOfCenter - 0.0053 * Math.sin(meanAnomalyRad) - 
+                  0.0069 * Math.sin(2 * eclipticLongitudeRad);
+      const solarNoon = (720 - 4 * lon - eot) / 1440;
+      let sunriseTime = solarNoon - hourAngle * 4 / 1440;
+      let sunsetTime = solarNoon + hourAngle * 4 / 1440;
+      const timezoneOffset = date.getTimezoneOffset() / 60 / 24;
+      sunriseTime = (sunriseTime - timezoneOffset) * 24 % 24;
+      sunsetTime = (sunsetTime - timezoneOffset) * 24 % 24;
+      if (sunriseTime < 0) sunriseTime += 24;
+      if (sunsetTime < 0) sunsetTime += 24;
+      const formatTime = (hour) => {
+        const h = Math.floor(hour);
+        const m = Math.floor((hour - h) * 60);
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      };
+      return {
+        sunrise: formatTime(sunriseTime),
+        sunset: formatTime(sunsetTime),
+        sunriseHour: sunriseTime,
+        sunsetHour: sunsetTime
+      };
+    }
+
+    function easeInOut(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    let lastHours = 0;
+    let lastMoonFraction = 0;
+    let animationProgress = 0;
+
+    function updateSpiroParams() {
+      const r = 21 + Math.random() * 28; // r in [21, 49]
+      const d = r * (1.5 + Math.random() * 0.5); // d in [1.5r, 2r]
+      const r2 = 21 + Math.random() * 28; // r2 in [21, 49]
+      const d2 = r2 * (1.5 + Math.random() * 0.5); // d2 in [1.5r2, 2r2]
+      spiroParams = {
+        R: 300,
+        r: r,
+        d: d,
+        r2: r2,
+        d2: d2
+      };
+    }
+
+    function drawClockface() {
+      const startTime = performance.now();
+      const now = new Date();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (staticCanvas) {
+        ctx.drawImage(staticCanvas, 0, 0);
+      }
+
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds() + now.getMilliseconds() / 1000;
+      const minutesHand = minutes + seconds / 60;
+      const currentMonth = now.getMonth();
+
+      // Draw spirographs
+      const currentSecond = Math.floor(seconds);
+      if (currentSecond === 0 && lastSecond >= 59) {
+        spiroPath.length = 0;
+        spiroPath2.length = 0;
+        updateSpiroParams();
+      }
+      lastSecond = currentSecond;
+
+      const { R, r, d, r2, d2 } = spiroParams;
+      const n = 50;
+      const dt = 0.01;
+
+      // First spirograph (clockwise)
+      for (let i = 0; i < n; i++) {
+        const t = seconds + i * dt;
+        const theta = t * Math.PI / 6;
+        const x = centerX + (R - r) * Math.cos(theta) + d * Math.cos((R - r) / r * theta);
+        const y = centerY + (R - r) * Math.sin(theta) - d * Math.sin((R - r) / r * theta);
+        spiroPath.push({ x, y });
+      }
+
+      if (spiroPath.length > 360000) {
+        spiroPath.splice(0, spiroPath.length - 360000);
+      }
+
+      if (spiroPath.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(spiroPath[0].x, spiroPath[0].y);
+        for (let i = 1; i < spiroPath.length; i++) {
+          ctx.lineTo(spiroPath[i].x, spiroPath[i].y);
+        }
+        const hue = (seconds / 60 * 360) % 360;
+        ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.5)`;
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+      }
+
+      // Second spirograph (counterclockwise)
+      for (let i = 0; i < n; i++) {
+        const t = seconds + i * dt;
+        const theta = -t * Math.PI / 6; // Opposite rotation
+        const x = centerX + (R - r2) * Math.cos(theta) + d2 * Math.cos((R - r2) / r2 * theta);
+        const y = centerY + (R - r2) * Math.sin(theta) - d2 * Math.sin((R - r2) / r2 * theta);
+        spiroPath2.push({ x, y });
+      }
+
+      if (spiroPath2.length > 360000) {
+        spiroPath2.splice(0, spiroPath2.length - 360000);
+      }
+
+      if (spiroPath2.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(spiroPath2[0].x, spiroPath2[0].y);
+        for (let i = 1; i < spiroPath2.length; i++) {
+          ctx.lineTo(spiroPath2[i].x, spiroPath2[i].y);
+        }
+        const hue = (seconds / 60 * 360) % 360;
+        ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.5)`;
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+      }
+
+      // Draw clockface fill
+      const outerRadius = clockOuterRadius + 90;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, outerRadius, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(0, 247, 212, 0.1)';
+      ctx.fill();
+      ctx.strokeStyle = '#00f7d4';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Draw clockface elements
+      const moon = getMoonPhase(now);
+      const sunTimes = getSunriseSunset(now, latitude, longitude);
+      const interpolatedFraction = lastMoonFraction + (moon.fraction - lastMoonFraction) * easeInOut(animationProgress);
+      const moonAngle = interpolatedFraction * 2 * Math.PI - Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, outerRadius - 10, -Math.PI / 2, moonAngle);
+      ctx.strokeStyle = 'rgba(0, 247, 212, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawMoon(
+        centerX + (outerRadius - 10) * Math.cos(moonAngle),
+        centerY + (outerRadius - 10) * Math.sin(moonAngle),
+        12,
+        interpolatedFraction
+      );
+      drawCurvedText(
+        ctx,
+        `Sunrise: ${sunTimes.sunrise} | Sunset: ${sunTimes.sunset} | Moon: ${moon.phase}`,
+        outerRadius - 25,
+        -Math.PI / 2,
+        9,
+        true
+      );
+
+      const drawSun = (hour) => {
+        const angle = (hour / 24) * 2 * Math.PI - Math.PI / 2;
+        const x = centerX + (outerRadius - 25) * Math.cos(angle);
+        const y = centerY + (outerRadius - 25) * Math.sin(angle);
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = '#00f7d4';
+        ctx.fill();
+        ctx.strokeStyle = '#00f7d4';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      };
+      drawSun(sunTimes.sunriseHour);
+      drawSun(sunTimes.sunsetHour);
+
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      for (let m = 0; m < 12; m++) {
+        const startAngle = (m / 12) * 2 * Math.PI - Math.PI / 2;
+        const endAngle = ((m + 1) / 12) * 2 * Math.PI - Math.PI / 2;
+        const isCurrentMonth = m === currentMonth;
+        drawCurvedText(
+          ctx,
+          months[m],
+          clockOuterRadius + 30,
+          startAngle + (endAngle - startAngle) / 2,
+          10,
+          true,
+          false,
+          isCurrentMonth ? '#ffffff' : '#00f7d4'
+        );
+      }
+
+      const hoursHand = now.getHours() + minutesHand / 60;
+      const interpolatedHours = lastHours + (hoursHand - lastHours) * easeInOut(animationProgress);
+      const hourAngle = (interpolatedHours / 24) * 2 * Math.PI - Math.PI / 2;
+      const hoursRadius = hourRadius * 0.85;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(centerX + hoursRadius * Math.cos(hourAngle), centerY + hoursRadius * Math.sin(hourAngle));
+      ctx.strokeStyle = '#00f7d4';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      const minutesAngle = (minutesHand / 60) * 2 * Math.PI - Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(centerX + hourRadius * Math.cos(minutesAngle), centerY + hourRadius * Math.sin(minutesAngle));
+      ctx.strokeStyle = '#b0fff0';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const secondsAngle = (seconds / 60) * 2 * Math.PI - Math.PI / 2;
+      const secondsRadius = hourRadius * 0.7;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(centerX + secondsRadius * Math.cos(secondsAngle), centerY + secondsRadius * Math.sin(secondsAngle));
+      ctx.strokeStyle = '#b0fff0';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${Math.floor(now.getMilliseconds() / 100)}`;
+      drawCurvedText(ctx, timeString, maxRadius - 230, -Math.PI / 2, 10, true);
+      drawCurvedText(ctx, getZodiacSign(now), maxRadius - 245, -Math.PI / 2, 10, true, true);
+      drawCurvedText(ctx, getChineseZodiac(now.getFullYear()), maxRadius - 260, -Math.PI / 2, 10, true);
+      drawCurvedText(
+        ctx,
+        `Lat: ${latitude !== 0 ? latitude.toFixed(2) : 'N/A'}, Lon: ${longitude !== 0 ? longitude.toFixed(2) : 'N/A'}`,
+        maxRadius - 275,
+        -Math.PI / 2,
+        8,
+        true
+      );
+
+      if (hoursHand >= 12 && lastHours < 12 || hoursHand < 12 && lastHours >= 12) {
+        lastHours = hoursHand;
+        animationProgress = 0;
+      } else {
+        animationProgress = Math.min(animationProgress + 0.1, 1);
+      }
+      lastMoonFraction = interpolatedFraction;
+
+      const frameTime = performance.now() - startTime;
+      if (frameTime > 16.67) console.warn('Frame Time:', frameTime.toFixed(2), 'ms');
+
+      requestAnimationFrame(drawClockface);
+    }
+  </script>
+</body>
+</html>
