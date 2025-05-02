@@ -13,10 +13,10 @@
       margin: 0;
       background-color: #000;
       font-family: 'Segoe UI', Arial, sans-serif;
-      color: #00f7d4;
+      color: #e0e0e0;
     }
     canvas {
-      border: 2px solid #00f7d4;
+      border: 2px solid #e0e0e0;
       background: radial-gradient(circle at center, #111 0%, #001515 100%);
       box-shadow: 0 0 10px rgba(0, 247, 212, 0.5);
       border-radius: 10px;
@@ -33,8 +33,8 @@
       alert('Canvas not supported in this browser. Try Chrome, Firefox, or Safari.');
       throw new Error('Canvas context unavailable');
     }
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
+    let centerX = canvas.width / 2;
+    let centerY = canvas.height / 2;
     const maxRadius = 330;
     const hourRadius = maxRadius - 200;
     const clockOuterRadius = hourRadius + 10;
@@ -44,128 +44,608 @@
     let longitude = 0;
     const spiroPath = [];
     const spiroPath2 = [];
+    let spiroPath2D = new Path2D();
+    let spiroPath2D2 = new Path2D();
+    const prevSpiroPath = [];
+    const prevSpiroPath2 = [];
+    let prevSpiroPath2D = new Path2D();
+    let prevSpiroPath2D2 = new Path2D();
     let lastSecond = -1;
     let staticCanvas = null;
-    let spiroParams = { R: 300, r: 30, d: 45, r2: 28, d2: 42 };
+    let spiroParams = { R: 260, r: 30, d: 45, r2: 25, d2: 40 };
+    let currentThemeIndex = 0;
+    let showSpirographs = true;
+    let use24Hour = true;
+    let showMoon = true;
+    let isZoomed = false;
+    let stopwatchRunning = false;
+    let stopwatchStartTime = 0;
+    let stopwatchElapsed = 0;
+    let lastClickTime = 0;
+    let hoveredButton = null;
+    let isTransitioning = false;
+    let transitionProgress = 0;
+    let transitionStartTime = 0;
+
+    const themes = [
+      {
+        name: 'Default',
+        fillColor: 'rgba(0, 247, 212, 0.3)',
+        handColor: '#00f7d4',
+        secondaryHandColor: '#b0fff0',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#00f7d4',
+        markerStyle: 'roman',
+        hourMarkerColor: '#00f7d4',
+        minuteMarkerColor: 'rgba(0, 247, 212, 0.7)',
+        font: 'Segoe UI'
+      },
+      {
+        name: 'Rolex Submariner',
+        fillColor: 'rgba(0, 0, 50, 0.3)',
+        handColor: '#ffffff',
+        secondaryHandColor: '#e0e0e0',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#00f7d4',
+        markerStyle: 'lume',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.5)',
+        font: 'Helvetica, Arial, sans-serif'
+      },
+      {
+        name: 'Seiko Prospex',
+        fillColor: 'rgba(0, 100, 100, 0.3)',
+        handColor: '#ffffff',
+        secondaryHandColor: '#00f7d4',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#00f7d4',
+        markerStyle: 'rect',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.6)',
+        font: 'Verdana, sans-serif'
+      },
+      {
+        name: 'Omega Seamaster',
+        fillColor: 'rgba(200, 200, 200, 0.3)',
+        handColor: '#000000',
+        secondaryHandColor: '#333333',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#00f7d4',
+        markerStyle: 'circle',
+        hourMarkerColor: '#1a1a1a',
+        minuteMarkerColor: 'rgba(0, 0, 0, 0.5)',
+        font: 'Arial, sans-serif'
+      },
+      {
+        name: 'Patek Philippe Nautilus',
+        fillColor: 'rgba(0, 50, 100, 0.3)',
+        handColor: '#c0c0c0',
+        secondaryHandColor: '#a0a0a0',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#ffd700',
+        markerStyle: 'baton',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.6)',
+        font: 'Georgia, serif'
+      },
+      {
+        name: 'Audemars Piguet Royal Oak',
+        fillColor: 'rgba(20, 20, 20, 0.3)',
+        handColor: '#d0d0d0',
+        secondaryHandColor: '#b0b0b0',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#00f7d4',
+        markerStyle: 'hexagon',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.5)',
+        font: 'Helvetica, Arial, sans-serif'
+      },
+      {
+        name: 'Cartier Santos',
+        fillColor: 'rgba(240, 240, 220, 0.3)',
+        handColor: '#000080',
+        secondaryHandColor: '#0000cc',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#b8860b',
+        markerStyle: 'roman',
+        hourMarkerColor: '#000080',
+        minuteMarkerColor: 'rgba(0, 0, 128, 0.6)',
+        font: 'Helvetica, Arial, sans-serif'
+      },
+      {
+        name: 'IWC Portugieser',
+        fillColor: 'rgba(255, 245, 230, 0.3)',
+        handColor: '#0000ff',
+        secondaryHandColor: '#3333ff',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#ff4500',
+        markerStyle: 'arrow',
+        hourMarkerColor: '#000000',
+        minuteMarkerColor: 'rgba(0, 0, 0, 0.5)',
+        font: 'Times New Roman, serif'
+      },
+      {
+        name: 'Jaeger-LeCoultre Reverso',
+        fillColor: 'rgba(230, 230, 230, 0.3)',
+        handColor: '#4682b4',
+        secondaryHandColor: '#87ceeb',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#b22222',
+        markerStyle: 'baton',
+        hourMarkerColor: '#2f4f4f',
+        minuteMarkerColor: 'rgba(47, 79, 79, 0.6)',
+        font: 'Arial, sans-serif'
+      },
+      {
+        name: 'Vacheron Constantin Overseas',
+        fillColor: 'rgba(0, 0, 80, 0.3)',
+        handColor: '#f0f0f0',
+        secondaryHandColor: '#d3d3d3',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#00ced1',
+        markerStyle: 'lume',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.5)',
+        font: 'Georgia, serif'
+      },
+      {
+        name: 'Blancpain Fifty Fathoms',
+        fillColor: 'rgba(0, 20, 40, 0.3)',
+        handColor: '#ffffff',
+        secondaryHandColor: '#cccccc',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#ffa500',
+        markerStyle: 'circle',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.6)',
+        font: 'Verdana, sans-serif'
+      },
+      {
+        name: 'Breguet Classique',
+        fillColor: 'rgba(245, 245, 220, 0.3)',
+        handColor: '#00008b',
+        secondaryHandColor: '#4169e1',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#8b0000',
+        markerStyle: 'roman',
+        hourMarkerColor: '#000000',
+        minuteMarkerColor: 'rgba(0, 0, 0, 0.5)',
+        font: 'Times New Roman, serif'
+      },
+      {
+        name: 'Glashütte Original Senator',
+        fillColor: 'rgba(200, 220, 240, 0.3)',
+        handColor: '#000080',
+        secondaryHandColor: '#0000cd',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#ff6347',
+        markerStyle: 'diamond',
+        hourMarkerColor: '#191970',
+        minuteMarkerColor: 'rgba(25, 25, 112, 0.6)',
+        font: 'Arial, sans-serif'
+      },
+      {
+        name: 'Zenith El Primero',
+        fillColor: 'rgba(50, 50, 50, 0.3)',
+        handColor: '#ffffff',
+        secondaryHandColor: '#dcdcdc',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#ff4500',
+        markerStyle: 'baton',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.5)',
+        font: 'Helvetica, Arial, sans-serif'
+      },
+      {
+        name: 'Chopard Mille Miglia',
+        fillColor: 'rgba(139, 69, 19, 0.3)',
+        handColor: '#ffffff',
+        secondaryHandColor: '#f5f5f5',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#ffd700',
+        markerStyle: 'rect',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.6)',
+        font: 'Verdana, sans-serif'
+      },
+      {
+        name: 'Hublot Big Bang',
+        fillColor: 'rgba(0, 0, 0, 0.3)',
+        handColor: '#ff0000',
+        secondaryHandColor: '#ff4500',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#00ff00',
+        markerStyle: 'hexagon',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.5)',
+        font: 'Arial, sans-serif'
+      },
+      {
+        name: 'Longines Master',
+        fillColor: 'rgba(220, 220, 220, 0.3)',
+        handColor: '#0000ff',
+        secondaryHandColor: '#1e90ff',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#dc143c',
+        markerStyle: 'arrow',
+        hourMarkerColor: '#000000',
+        minuteMarkerColor: 'rgba(0, 0, 0, 0.5)',
+        font: 'Times New Roman, serif'
+      },
+      {
+        name: 'Montblanc TimeWalker',
+        fillColor: 'rgba(105, 105, 105, 0.3)',
+        handColor: '#ffffff',
+        secondaryHandColor: '#d3d3d3',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#ff69b4',
+        markerStyle: 'circle',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.6)',
+        font: 'Helvetica, Arial, sans-serif'
+      },
+      {
+        name: 'Oris Divers Sixty-Five',
+        fillColor: 'rgba(0, 128, 128, 0.3)',
+        handColor: '#ffffff',
+        secondaryHandColor: '#f0f0f0',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#ffa07a',
+        markerStyle: 'lume',
+        hourMarkerColor: '#ffffff',
+        minuteMarkerColor: 'rgba(255, 255, 255, 0.5)',
+        font: 'Verdana, sans-serif'
+      },
+      {
+        name: 'Tissot Le Locle',
+        fillColor: 'rgba(255, 228, 196, 0.3)',
+        handColor: '#000000',
+        secondaryHandColor: '#333333',
+        textColor: '#e0e0e0',
+        highlightTextColor: '#228b22',
+        markerStyle: 'roman',
+        hourMarkerColor: '#000000',
+        minuteMarkerColor: 'rgba(0, 0, 0, 0.5)',
+        font: 'Georgia, serif'
+      }
+    ];
+
+    const buttons = [
+      { label: 'Theme', startAngle: 0 * Math.PI / 180, endAngle: 45 * Math.PI / 180 },
+      { label: 'Mode', startAngle: 45 * Math.PI / 180, endAngle: 90 * Math.PI / 180 },
+      { label: 'Settings', startAngle: 90 * Math.PI / 180, endAngle: 135 * Math.PI / 180 },
+      { label: 'Spiro', startAngle: 135 * Math.PI / 180, endAngle: 180 * Math.PI / 180 },
+      { label: 'Zoom', startAngle: 180 * Math.PI / 180, endAngle: 225 * Math.PI / 180 },
+      { label: 'Geo', startAngle: 225 * Math.PI / 180, endAngle: 270 * Math.PI / 180 },
+      { label: 'Moon', startAngle: 270 * Math.PI / 180, endAngle: 315 * Math.PI / 180 },
+      { label: 'Timer', startAngle: 315 * Math.PI / 180, endAngle: 360 * Math.PI / 180 }
+    ];
+
+    function lightenColor(hex, factor) {
+      let r = parseInt(hex.slice(1, 3), 16);
+      let g = parseInt(hex.slice(3, 5), 16);
+      let b = parseInt(hex.slice(5, 7), 16);
+      r = Math.min(255, Math.floor(r + (255 - r) * factor));
+      g = Math.min(255, Math.floor(g + (255 - g) * factor));
+      b = Math.min(255, Math.floor(b + (255 - b) * factor));
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    }
 
     function createStaticCanvas() {
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-      if (tempCanvas.width <= 0 || tempCanvas.height <= 0) {
-        console.error('Invalid static canvas dimensions');
+      try {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        if (tempCanvas.width <= 0 || tempCanvas.height <= 0) {
+          console.error('Invalid static canvas dimensions');
+          return null;
+        }
+        const tempCtx = tempCanvas.getContext('2d');
+        if (!tempCtx) {
+          console.error('Static canvas context not supported');
+          return null;
+        }
+        const theme = themes[currentThemeIndex];
+        tempCtx.fillStyle = 'radial-gradient(circle at center, #111 0%, #001515 100%)';
+        tempCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const monthRadius = clockOuterRadius + 50;
+        const seasons = [
+          { name: 'Spring', startMonth: 2, endMonth: 4 },
+          { name: 'Summer', startMonth: 5, endMonth: 7 },
+          { name: 'Autumn', startMonth: 8, endMonth: 10 },
+          { name: 'Winter', startMonth: 11, endMonth: 1 }
+        ];
+        seasons.forEach((season, index) => {
+          const startAngle = (index / 4) * 2 * Math.PI - Math.PI / 2;
+          const endAngle = ((index + 1) / 4) * 2 * Math.PI - Math.PI / 2;
+          const labelAngle = startAngle + (endAngle - startAngle) / 2;
+          drawCurvedText(tempCtx, season.name, monthRadius + 5, labelAngle, 12, true, false, theme.textColor, theme.font);
+        });
+
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        for (let m = 0; m < 12; m++) {
+          const startAngle = (m / 12) * 2 * Math.PI - Math.PI / 2;
+          const endAngle = ((m + 1) / 12) * 2 * Math.PI - Math.PI / 2;
+          tempCtx.beginPath();
+          tempCtx.arc(centerX, centerY, monthRadius - 10, startAngle, endAngle);
+          tempCtx.arc(centerX, centerY, monthRadius - 30, endAngle, startAngle, true);
+          tempCtx.closePath();
+          tempCtx.strokeStyle = theme.textColor;
+          tempCtx.lineWidth = 1;
+          tempCtx.stroke();
+          drawCurvedText(tempCtx, months[m], monthRadius - 20, startAngle + (endAngle - startAngle) / 2, 10, true, false, theme.textColor, theme.font);
+        }
+
+        for (let i = 0; i < 144; i++) {
+          const angle = (i / 144) * 2 * Math.PI - Math.PI / 2;
+          tempCtx.beginPath();
+          tempCtx.moveTo(centerX + (hourRadius - 4) * Math.cos(angle), centerY + (hourRadius - 4) * Math.sin(angle));
+          tempCtx.lineTo(centerX + hourRadius * Math.cos(angle), centerY + hourRadius * Math.sin(angle));
+          tempCtx.strokeStyle = theme.minuteMarkerColor;
+          tempCtx.lineWidth = 1;
+          tempCtx.stroke();
+        }
+
+        for (let h = 0; h < 24; h++) {
+          const startAngle = (h / 24) * 2 * Math.PI - Math.PI / 2;
+          tempCtx.beginPath();
+          tempCtx.moveTo(centerX + (hourRadius - 8) * Math.cos(startAngle), centerY + (hourRadius - 8) * Math.sin(startAngle));
+          tempCtx.lineTo(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle));
+          tempCtx.strokeStyle = theme.hourMarkerColor;
+          tempCtx.lineWidth = 1.5;
+          tempCtx.stroke();
+
+          if (theme.markerStyle === 'roman') {
+            tempCtx.fillStyle = theme.textColor;
+            tempCtx.font = `12px ${theme.font}`;
+            tempCtx.translate(centerX + (hourRadius + 10) * Math.cos(startAngle), centerY + (hourRadius + 10) * Math.sin(startAngle));
+            tempCtx.rotate(startAngle + Math.PI / 2);
+            const hourValue = h === 0 ? 24 : (use24Hour ? h : h % 12 || 12);
+            const romanNum = toRoman(hourValue);
+            tempCtx.fillText(romanNum, -tempCtx.measureText(romanNum).width / 2, 4);
+            tempCtx.setTransform(1, 0, 0, 1, 0, 0);
+            tempCtx.font = `8px ${theme.font}`;
+            tempCtx.translate(centerX + (hourRadius + 20) * Math.cos(startAngle), centerY + (hourRadius + 20) * Math.sin(startAngle));
+            tempCtx.rotate(startAngle + Math.PI / 2);
+            const westernNum = hourValue.toString();
+            tempCtx.fillText(westernNum, -tempCtx.measureText(westernNum).width / 2, 4);
+            tempCtx.setTransform(1, 0, 0, 1, 0, 0);
+          } else if (theme.markerStyle === 'lume') {
+            tempCtx.beginPath();
+            tempCtx.arc(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle), 3, 0, 2 * Math.PI);
+            tempCtx.fillStyle = theme.hourMarkerColor;
+            tempCtx.fill();
+          } else if (theme.markerStyle === 'rect') {
+            tempCtx.save();
+            tempCtx.translate(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle));
+            tempCtx.rotate(startAngle + Math.PI / 2);
+            tempCtx.fillStyle = theme.hourMarkerColor;
+            tempCtx.fillRect(-4, -2, 8, 4);
+            tempCtx.restore();
+          } else if (theme.markerStyle === 'circle') {
+            tempCtx.beginPath();
+            tempCtx.arc(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle), 2, 0, 2 * Math.PI);
+            tempCtx.fillStyle = theme.hourMarkerColor;
+            tempCtx.fill();
+          } else if (theme.markerStyle === 'baton') {
+            tempCtx.save();
+            tempCtx.translate(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle));
+            tempCtx.rotate(startAngle + Math.PI / 2);
+            tempCtx.fillStyle = theme.hourMarkerColor;
+            tempCtx.fillRect(-5, -1.5, 10, 3);
+            tempCtx.restore();
+          } else if (theme.markerStyle === 'hexagon') {
+            tempCtx.save();
+            tempCtx.translate(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle));
+            tempCtx.rotate(startAngle + Math.PI / 2);
+            tempCtx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const angle = (i / 6) * 2 * Math.PI;
+              tempCtx.lineTo(3 * Math.cos(angle), 3 * Math.sin(angle));
+            }
+            tempCtx.closePath();
+            tempCtx.fillStyle = theme.hourMarkerColor;
+            tempCtx.fill();
+            tempCtx.restore();
+          } else if (theme.markerStyle === 'arrow') {
+            tempCtx.save();
+            tempCtx.translate(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle));
+            tempCtx.rotate(startAngle + Math.PI / 2);
+            tempCtx.beginPath();
+            tempCtx.moveTo(0, -4);
+            tempCtx.lineTo(-3, 2);
+            tempCtx.lineTo(3, 2);
+            tempCtx.closePath();
+            tempCtx.fillStyle = theme.hourMarkerColor;
+            tempCtx.fill();
+            tempCtx.restore();
+          } else if (theme.markerStyle === 'diamond') {
+            tempCtx.save();
+            tempCtx.translate(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle));
+            tempCtx.rotate(startAngle + Math.PI / 2);
+            tempCtx.beginPath();
+            tempCtx.moveTo(0, -4);
+            tempCtx.lineTo(-3, 0);
+            tempCtx.lineTo(0, 4);
+            tempCtx.lineTo(3, 0);
+            tempCtx.closePath();
+            tempCtx.fillStyle = theme.hourMarkerColor;
+            tempCtx.fill();
+            tempCtx.restore();
+          }
+        }
+
+        const buttonInnerRadius = 230;
+        const buttonOuterRadius = 250;
+        buttons.forEach((button) => {
+          tempCtx.beginPath();
+          tempCtx.arc(centerX, centerY, buttonOuterRadius, button.startAngle, button.endAngle);
+          tempCtx.arc(centerX, centerY, buttonInnerRadius, button.endAngle, button.startAngle, true);
+          tempCtx.closePath();
+          tempCtx.strokeStyle = theme.textColor;
+          tempCtx.lineWidth = 1;
+          tempCtx.stroke();
+        });
+
+        return tempCanvas;
+      } catch (e) {
+        console.error('Error in createStaticCanvas:', e.message);
         return null;
       }
-      const tempCtx = tempCanvas.getContext('2d');
-      if (!tempCtx) {
-        console.error('Static canvas context not supported');
-        return null;
-      }
-      tempCtx.fillStyle = 'radial-gradient(circle at center, #111 0%, #001515 100%)';
-      tempCtx.fillRect(0, 0, canvas.width, canvas.height);
-
-      const monthRadius = clockOuterRadius + 50;
-      const seasons = [
-        { name: 'Spring', startMonth: 2, endMonth: 4 },
-        { name: 'Summer', startMonth: 5, endMonth: 7 },
-        { name: 'Autumn', startMonth: 8, endMonth: 10 },
-        { name: 'Winter', startMonth: 11, endMonth: 1 }
-      ];
-      seasons.forEach((season, index) => {
-        const startAngle = (index / 4) * 2 * Math.PI - Math.PI / 2;
-        const endAngle = ((index + 1) / 4) * 2 * Math.PI - Math.PI / 2;
-        const labelAngle = startAngle + (endAngle - startAngle) / 2;
-        drawCurvedText(tempCtx, season.name, monthRadius + 5, labelAngle, 12, true);
-      });
-
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      for (let m = 0; m < 12; m++) {
-        const startAngle = (m / 12) * 2 * Math.PI - Math.PI / 2;
-        const endAngle = ((m + 1) / 12) * 2 * Math.PI - Math.PI / 2;
-        tempCtx.beginPath();
-        tempCtx.arc(centerX, centerY, monthRadius - 10, startAngle, endAngle);
-        tempCtx.arc(centerX, centerY, monthRadius - 30, endAngle, startAngle, true);
-        tempCtx.closePath();
-        tempCtx.strokeStyle = '#00f7d4';
-        tempCtx.lineWidth = 1;
-        tempCtx.stroke();
-        drawCurvedText(tempCtx, months[m], monthRadius - 20, startAngle + (endAngle - startAngle) / 2, 10, true);
-      }
-
-      for (let i = 0; i < 144; i++) {
-        const angle = (i / 144) * 2 * Math.PI - Math.PI / 2;
-        tempCtx.beginPath();
-        tempCtx.moveTo(centerX + (hourRadius - 4) * Math.cos(angle), centerY + (hourRadius - 4) * Math.sin(angle));
-        tempCtx.lineTo(centerX + hourRadius * Math.cos(angle), centerY + hourRadius * Math.sin(angle));
-        tempCtx.strokeStyle = 'rgba(0, 247, 212, 0.7)';
-        tempCtx.lineWidth = 1;
-        tempCtx.stroke();
-      }
-
-      for (let h = 0; h < 24; h++) {
-        const startAngle = (h / 24) * 2 * Math.PI - Math.PI / 2;
-        tempCtx.beginPath();
-        tempCtx.moveTo(centerX + (hourRadius - 8) * Math.cos(startAngle), centerY + (hourRadius - 8) * Math.sin(startAngle));
-        tempCtx.lineTo(centerX + hourRadius * Math.cos(startAngle), centerY + hourRadius * Math.sin(startAngle));
-        tempCtx.strokeStyle = '#00f7d4';
-        tempCtx.lineWidth = 1.5;
-        tempCtx.stroke();
-        tempCtx.fillStyle = '#00f7d4';
-        tempCtx.font = '12px Segoe UI';
-        tempCtx.translate(centerX + (hourRadius + 10) * Math.cos(startAngle), centerY + (hourRadius + 10) * Math.sin(startAngle));
-        tempCtx.rotate(startAngle + Math.PI / 2);
-        const romanNum = toRoman(h === 0 ? 24 : h);
-        tempCtx.fillText(romanNum, -tempCtx.measureText(romanNum).width / 2, 4);
-        tempCtx.setTransform(1, 0, 0, 1, 0, 0);
-        tempCtx.font = '8px Segoe UI';
-        tempCtx.translate(centerX + (hourRadius + 20) * Math.cos(startAngle), centerY + (hourRadius + 20) * Math.sin(startAngle));
-        tempCtx.rotate(startAngle + Math.PI / 2);
-        const westernNum = h === 0 ? '24' : h.toString();
-        tempCtx.fillText(westernNum, -tempCtx.measureText(westernNum).width / 2, 4);
-        tempCtx.setTransform(1, 0, 0, 1, 0, 0);
-      }
-
-      return tempCanvas;
     }
 
     window.onload = () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            latitude = position.coords.latitude;
-            longitude = position.coords.longitude;
-            console.log('Geolocation: latitude:', latitude.toFixed(2), 'longitude:', longitude.toFixed(2));
-            staticCanvas = createStaticCanvas();
-            if (staticCanvas) {
-              requestAnimationFrame(drawClockface);
-            } else {
-              console.error('Failed to create static canvas');
-            }
-          },
-          (error) => {
-            console.warn('Geolocation denied or unavailable:', error.message);
-            staticCanvas = createStaticCanvas();
-            if (staticCanvas) {
-              requestAnimationFrame(drawClockface);
-            } else {
-              console.error('Failed to create static canvas');
-            }
-          }
-        );
-      } else {
-        console.warn('Geolocation not supported by this browser.');
+      const initializeClock = () => {
         staticCanvas = createStaticCanvas();
         if (staticCanvas) {
           requestAnimationFrame(drawClockface);
         } else {
           console.error('Failed to create static canvas');
         }
+      };
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            latitude = position.coords.latitude;
+            longitude = position.coords.longitude;
+            console.log('Geolocation: latitude:', latitude.toFixed(2), 'longitude:', longitude.toFixed(2));
+            initializeClock();
+          },
+          (error) => {
+            console.warn('Geolocation denied or unavailable:', error.message);
+            latitude = 0;
+            longitude = 0;
+            initializeClock();
+          }
+        );
+      } else {
+        console.warn('Geolocation not supported by this browser.');
+        latitude = 0;
+        longitude = 0;
+        initializeClock();
       }
+
+      canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - centerX;
+        const y = e.clientY - rect.top - centerY;
+        const radius = Math.sqrt(x * x + y * y);
+        let angle = Math.atan2(y, x);
+        if (angle < -Math.PI / 2) angle += 2 * Math.PI;
+        angle = (angle + Math.PI / 2) % (2 * Math.PI);
+
+        const buttonInnerRadius = 230;
+        const buttonOuterRadius = 250;
+        const now = performance.now();
+        for (let i = 0; i < buttons.length; i++) {
+          const { startAngle, endAngle, label } = buttons[i];
+          if (radius >= buttonInnerRadius && radius <= buttonOuterRadius && angle >= startAngle && angle <= endAngle) {
+            if (label === 'Theme') {
+              currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+              staticCanvas = createStaticCanvas();
+              console.log(`Switched to theme: ${themes[currentThemeIndex].name}`);
+            } else if (label === 'Mode') {
+              use24Hour = !use24Hour;
+              staticCanvas = createStaticCanvas();
+              console.log(`Switched to ${use24Hour ? '24h' : '12h'} mode`);
+            } else if (label === 'Settings') {
+              console.log('Settings button clicked - placeholder for future customization');
+            } else if (label === 'Spiro') {
+              showSpirographs = !showSpirographs;
+              console.log(`Spirographs ${showSpirographs ? 'enabled' : 'disabled'}`);
+            } else if (label === 'Zoom') {
+              isZoomed = !isZoomed;
+              canvas.width = isZoomed ? 700 : 600;
+              canvas.height = isZoomed ? 700 : 600;
+              centerX = canvas.width / 2;
+              centerY = canvas.height / 2;
+              staticCanvas = createStaticCanvas();
+              console.log(`Zoom ${isZoomed ? 'enabled' : 'disabled'}`);
+            } else if (label === 'Geo') {
+              if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                  (position) => {
+                    latitude = position.coords.latitude;
+                    longitude = position.coords.longitude;
+                    console.log('Geolocation updated: latitude:', latitude.toFixed(2), 'longitude:', longitude.toFixed(2));
+                  },
+                  (error) => {
+                    console.warn('Geolocation update failed:', error.message);
+                    latitude = 0;
+                    longitude = 0;
+                  }
+                );
+              } else {
+                console.warn('Geolocation not supported.');
+              }
+            } else if (label === 'Moon') {
+              showMoon = !showMoon;
+              console.log(`Moon phase ${showMoon ? 'enabled' : 'disabled'}`);
+            } else if (label === 'Timer') {
+              if (now - lastClickTime < 300) {
+                stopwatchRunning = false;
+                stopwatchElapsed = 0;
+                console.log('Stopwatch reset');
+              } else {
+                if (stopwatchRunning) {
+                  stopwatchElapsed += performance.now() - stopwatchStartTime;
+                  stopwatchRunning = false;
+                  console.log('Stopwatch stopped');
+                } else {
+                  stopwatchStartTime = performance.now();
+                  stopwatchRunning = true;
+                  console.log('Stopwatch started');
+                }
+              }
+              lastClickTime = now;
+            }
+            break;
+          }
+        }
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - centerX;
+        const y = e.clientY - rect.top - centerY;
+        const radius = Math.sqrt(x * x + y * y);
+        let angle = Math.atan2(y, x);
+        if (angle < -Math.PI / 2) angle += 2 * Math.PI;
+        angle = (angle + Math.PI / 2) % (2 * Math.PI);
+
+        const buttonInnerRadius = 230;
+        const buttonOuterRadius = 250;
+        let newHoveredButton = null;
+        for (let i = 0; i < buttons.length; i++) {
+          const { startAngle, endAngle, label } = buttons[i];
+          if (radius >= buttonInnerRadius && radius <= buttonOuterRadius && angle >= startAngle && angle <= endAngle) {
+            newHoveredButton = label;
+            break;
+          }
+        }
+        if (newHoveredButton !== hoveredButton) {
+          hoveredButton = newHoveredButton;
+          canvas.style.cursor = hoveredButton ? 'pointer' : 'default';
+        }
+      });
     };
 
-    function drawCurvedText(ctx, text, radius, startAngle, fontSize, clockwise = true, isZodiac = false, textColor = '#00f7d4') {
+    function drawCurvedText(ctx, text, radius, startAngle, fontSize, clockwise = true, isZodiac = false, textColor = '#e0e0e0', font = 'Segoe UI') {
       ctx.fillStyle = textColor;
-      ctx.font = `${fontSize}px 'Segoe UI Symbol', 'Segoe UI', Arial, sans-serif`;
+      ctx.font = `${fontSize}px ${isZodiac ? 'Segoe UI Symbol,' : ''}${font}`;
+      if (fontSize <= 8) {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.shadowBlur = 1;
+      } else {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.shadowBlur = 1;
+      }
       const chars = text.split('');
       const charWidth = ctx.measureText('M').width * (isZodiac ? 1.1 : 0.9);
       const angleStep = (clockwise ? 1 : -1) * charWidth / radius;
@@ -179,6 +659,10 @@
         ctx.restore();
         currentAngle += angleStep;
       });
+      ctx.shadowColor = 'transparent';
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.shadowBlur = 0;
     }
 
     function toRoman(num) {
@@ -251,6 +735,7 @@
     }
 
     function drawMoon(x, y, radius, phaseFraction) {
+      const theme = themes[currentThemeIndex];
       const illuminatedFraction = Math.abs(phaseFraction - 0.5) * 2;
       const isWaxing = phaseFraction < 0.5;
 
@@ -267,13 +752,13 @@
       const cosTheta = 1 - illuminatedFraction * 2;
       ctx.arc(0, 0, radius, Math.PI / 2, -Math.PI / 2, isWaxing);
       ctx.closePath();
-      ctx.fillStyle = '#00f7d4';
+      ctx.fillStyle = theme.textColor;
       ctx.fill();
       ctx.restore();
 
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
-      ctx.strokeStyle = '#00f7d4';
+      ctx.strokeStyle = theme.textColor;
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -287,13 +772,13 @@
       const a = Math.floor((14 - month) / 12);
       const y = year + 4800 - a;
       const m = month + 12 * a - 3;
-      const jd = day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 
+      const jd = day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) -
                  Math.floor(y / 100) + Math.floor(y / 400) - 32045;
       const n = jd - 2451545.0 + 0.0008;
       const meanAnomaly = (357.5291 + 0.98560028 * n) % 360;
       const meanAnomalyRad = meanAnomaly * Math.PI / 180;
-      const equationOfCenter = 1.9148 * Math.sin(meanAnomalyRad) + 
-                               0.0200 * Math.sin(2 * meanAnomalyRad) + 
+      const equationOfCenter = 1.9148 * Math.sin(meanAnomalyRad) +
+                               0.0200 * Math.sin(2 * meanAnomalyRad) +
                                0.0003 * Math.sin(3 * meanAnomalyRad);
       const eclipticLongitude = (meanAnomaly + equationOfCenter + 102.9372) % 360;
       const eclipticLongitudeRad = eclipticLongitude * Math.PI / 180;
@@ -301,7 +786,7 @@
       const latRad = lat * Math.PI / 180;
       const cosHourAngle = -Math.tan(latRad) * Math.tan(declination);
       let hourAngle = Math.abs(cosHourAngle) <= 1 ? Math.acos(cosHourAngle) : 0;
-      const eot = equationOfCenter - 0.0053 * Math.sin(meanAnomalyRad) - 
+      const eot = equationOfCenter - 0.0053 * Math.sin(meanAnomalyRad) -
                   0.0069 * Math.sin(2 * eclipticLongitudeRad);
       const solarNoon = (720 - 4 * lon - eot) / 1440;
       let sunriseTime = solarNoon - hourAngle * 4 / 1440;
@@ -324,21 +809,26 @@
       };
     }
 
+    function formatStopwatchTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const tenths = Math.floor((ms % 1000) / 100);
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${tenths}`;
+    }
+
     function easeInOut(t) {
       return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
 
-    let lastHours = 0;
-    let lastMoonFraction = 0;
-    let animationProgress = 0;
-
     function updateSpiroParams() {
-      const r = 21 + Math.random() * 28; // r in [21, 49]
-      const d = r * (1.5 + Math.random() * 0.5); // d in [1.5r, 2r]
-      const r2 = 21 + Math.random() * 28; // r2 in [21, 49]
-      const d2 = r2 * (1.5 + Math.random() * 0.5); // d2 in [1.5r2, 2r2]
+      const r = 21 + Math.random() * 28;
+      const d = r * (1.5 + Math.random() * 0.5);
+      const r2 = 21 + Math.random() * 28;
+      const d2 = r2 * (1.5 + Math.random() * 0.5);
       spiroParams = {
-        R: 300,
+        R: 260,
         r: r,
         d: d,
         r2: r2,
@@ -346,9 +836,14 @@
       };
     }
 
-    function drawClockface() {
+    let lastHours = 0;
+    let lastMoonFraction = 0;
+    let animationProgress = 0;
+
+    function drawClockface(timestamp) {
       const startTime = performance.now();
       const now = new Date();
+      const theme = themes[currentThemeIndex];
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (staticCanvas) {
         ctx.drawImage(staticCanvas, 0, 0);
@@ -360,102 +855,151 @@
       const minutesHand = minutes + seconds / 60;
       const currentMonth = now.getMonth();
 
-      // Draw spirographs
-      const currentSecond = Math.floor(seconds);
-      if (currentSecond === 0 && lastSecond >= 59) {
-        spiroPath.length = 0;
-        spiroPath2.length = 0;
-        updateSpiroParams();
-      }
-      lastSecond = currentSecond;
-
-      const { R, r, d, r2, d2 } = spiroParams;
-      const n = 50;
-      const dt = 0.01;
-
-      // First spirograph (clockwise)
-      for (let i = 0; i < n; i++) {
-        const t = seconds + i * dt;
-        const theta = t * Math.PI / 6;
-        const x = centerX + (R - r) * Math.cos(theta) + d * Math.cos((R - r) / r * theta);
-        const y = centerY + (R - r) * Math.sin(theta) - d * Math.sin((R - r) / r * theta);
-        spiroPath.push({ x, y });
-      }
-
-      if (spiroPath.length > 360000) {
-        spiroPath.splice(0, spiroPath.length - 360000);
-      }
-
-      if (spiroPath.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(spiroPath[0].x, spiroPath[0].y);
-        for (let i = 1; i < spiroPath.length; i++) {
-          ctx.lineTo(spiroPath[i].x, spiroPath[i].y);
+      if (showSpirographs) {
+        const currentSecond = Math.floor(seconds);
+        if (currentSecond === 0 && lastSecond >= 59 && !isTransitioning) {
+          prevSpiroPath.length = 0;
+          prevSpiroPath2.length = 0;
+          prevSpiroPath.push(...spiroPath);
+          prevSpiroPath2.push(...spiroPath2);
+          prevSpiroPath2D = spiroPath2D;
+          prevSpiroPath2D2 = spiroPath2D2;
+          spiroPath.length = 0;
+          spiroPath2.length = 0;
+          spiroPath2D = new Path2D();
+          spiroPath2D2 = new Path2D();
+          updateSpiroParams();
+          isTransitioning = true;
+          transitionStartTime = timestamp || performance.now();
+          transitionProgress = 0;
         }
-        const hue = (seconds / 60 * 360) % 360;
-        ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.5)`;
-        ctx.lineWidth = 1.0;
-        ctx.stroke();
-      }
+        lastSecond = currentSecond;
 
-      // Second spirograph (counterclockwise)
-      for (let i = 0; i < n; i++) {
-        const t = seconds + i * dt;
-        const theta = -t * Math.PI / 6; // Opposite rotation
-        const x = centerX + (R - r2) * Math.cos(theta) + d2 * Math.cos((R - r2) / r2 * theta);
-        const y = centerY + (R - r2) * Math.sin(theta) - d2 * Math.sin((R - r2) / r2 * theta);
-        spiroPath2.push({ x, y });
-      }
-
-      if (spiroPath2.length > 360000) {
-        spiroPath2.splice(0, spiroPath2.length - 360000);
-      }
-
-      if (spiroPath2.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(spiroPath2[0].x, spiroPath2[0].y);
-        for (let i = 1; i < spiroPath2.length; i++) {
-          ctx.lineTo(spiroPath2[i].x, spiroPath2[i].y);
+        if (isTransitioning) {
+          const transitionDuration = 500; // 0.5 seconds
+          const elapsed = (timestamp || performance.now()) - transitionStartTime;
+          transitionProgress = Math.min(elapsed / transitionDuration, 1);
+          if (transitionProgress >= 1) {
+            isTransitioning = false;
+            prevSpiroPath.length = 0;
+            prevSpiroPath2.length = 0;
+            prevSpiroPath2D = new Path2D();
+            prevSpiroPath2D2 = new Path2D();
+          }
         }
-        const hue = (seconds / 60 * 360) % 360;
-        ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.5)`;
-        ctx.lineWidth = 1.0;
-        ctx.stroke();
+
+        const { R, r, d, r2, d2 } = spiroParams;
+        const n = 5; // Reduced for performance
+        const dt = 0.05;
+
+        // Update clockwise spirograph (spiroPath)
+        for (let i = 0; i < n; i++) {
+          const t = seconds + i * dt;
+          const theta = t * Math.PI / 6;
+          const x = centerX + (R - r) * Math.cos(theta) + d * Math.cos((R - r) / r * theta);
+          const y = centerY + (R - r) * Math.sin(theta) - d * Math.sin((R - r) / r * theta);
+          spiroPath.push({ x, y });
+          if (i === 0 && spiroPath.length === 1) {
+            spiroPath2D.moveTo(x, y);
+          } else {
+            spiroPath2D.lineTo(x, y);
+          }
+        }
+
+        // Update anti-clockwise spirograph (spiroPath2)
+        for (let i = 0; i < n; i++) {
+          const t = seconds + i * dt;
+          const theta = -t * Math.PI / 6;
+          const x = centerX + (R - r2) * Math.cos(theta) + d2 * Math.cos((R - r2) / r2 * theta);
+          const y = centerY + (R - r2) * Math.sin(theta) - d2 * Math.sin((R - r2) / r2 * theta);
+          spiroPath2.push({ x, y });
+          if (i === 0 && spiroPath2.length === 1) {
+            spiroPath2D2.moveTo(x, y);
+          } else {
+            spiroPath2D2.lineTo(x, y);
+          }
+        }
+
+        // Draw previous spirographs (fading out)
+        if (isTransitioning && prevSpiroPath.length > 1) {
+          const hue = (seconds / 60 * 360) % 360;
+          ctx.strokeStyle = `hsla(${hue}, 80%, 60%, ${0.15 * (1 - transitionProgress)})`;
+          ctx.lineWidth = 1.0;
+          ctx.stroke(prevSpiroPath2D);
+        }
+        if (isTransitioning && prevSpiroPath2.length > 1) {
+          const hue2 = ((seconds / 60 * 360) + 180) % 360;
+          ctx.strokeStyle = `hsla(${hue2}, 80%, 60%, ${0.15 * (1 - transitionProgress)})`;
+          ctx.lineWidth = 1.0;
+          ctx.stroke(prevSpiroPath2D2);
+        }
+
+        // Draw current spirographs
+        if (spiroPath.length > 1) {
+          const hue = (seconds / 60 * 360) % 360;
+          ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.15)`;
+          ctx.lineWidth = 1.0;
+          ctx.stroke(spiroPath2D);
+        }
+        if (spiroPath2.length > 1) {
+          const hue2 = ((seconds / 60 * 360) + 180) % 360;
+          ctx.strokeStyle = `hsla(${hue2}, 80%, 60%, 0.15)`;
+          ctx.lineWidth = 1.0;
+          ctx.stroke(spiroPath2D2);
+        }
       }
 
-      // Draw clockface fill
       const outerRadius = clockOuterRadius + 90;
       ctx.beginPath();
       ctx.arc(centerX, centerY, outerRadius, 0, 2 * Math.PI);
-      ctx.fillStyle = 'rgba(0, 247, 212, 0.1)';
+      ctx.fillStyle = theme.fillColor;
       ctx.fill();
-      ctx.strokeStyle = '#00f7d4';
+      ctx.strokeStyle = theme.textColor;
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Draw clockface elements
+      const buttonInnerRadius = 230;
+      const buttonOuterRadius = 250;
+      buttons.forEach((button) => {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, buttonOuterRadius, button.startAngle, button.endAngle);
+        ctx.arc(centerX, centerY, buttonInnerRadius, button.endAngle, button.startAngle, true);
+        ctx.closePath();
+        ctx.fillStyle = button.label === hoveredButton ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)';
+        ctx.fill();
+        const labelAngle = (button.startAngle + button.endAngle) / 2;
+        drawCurvedText(ctx, button.label, (buttonInnerRadius + buttonOuterRadius) / 2, labelAngle, 8, true, false, theme.textColor, theme.font);
+      });
+
       const moon = getMoonPhase(now);
       const sunTimes = getSunriseSunset(now, latitude, longitude);
-      const interpolatedFraction = lastMoonFraction + (moon.fraction - lastMoonFraction) * easeInOut(animationProgress);
-      const moonAngle = interpolatedFraction * 2 * Math.PI - Math.PI / 2;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, outerRadius - 10, -Math.PI / 2, moonAngle);
-      ctx.strokeStyle = 'rgba(0, 247, 212, 0.5)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      drawMoon(
-        centerX + (outerRadius - 10) * Math.cos(moonAngle),
-        centerY + (outerRadius - 10) * Math.sin(moonAngle),
-        12,
-        interpolatedFraction
-      );
+      let interpolatedFraction = lastMoonFraction;
+      let moonAngle = -Math.PI / 2;
+      if (showMoon) {
+        interpolatedFraction = lastMoonFraction + (moon.fraction - lastMoonFraction) * easeInOut(animationProgress);
+        moonAngle = interpolatedFraction * 2 * Math.PI - Math.PI / 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, outerRadius - 10, -Math.PI / 2, moonAngle);
+        ctx.strokeStyle = theme.textColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        drawMoon(
+          centerX + (outerRadius - 10) * Math.cos(moonAngle),
+          centerY + (outerRadius - 10) * Math.sin(moonAngle),
+          12,
+          interpolatedFraction
+        );
+      }
       drawCurvedText(
         ctx,
         `Sunrise: ${sunTimes.sunrise} | Sunset: ${sunTimes.sunset} | Moon: ${moon.phase}`,
         outerRadius - 25,
         -Math.PI / 2,
         9,
-        true
+        true,
+        false,
+        theme.textColor,
+        theme.font
       );
 
       const drawSun = (hour) => {
@@ -464,9 +1008,9 @@
         const y = centerY + (outerRadius - 25) * Math.sin(angle);
         ctx.beginPath();
         ctx.arc(x, y, 6, 0, 2 * Math.PI);
-        ctx.fillStyle = '#00f7d4';
+        ctx.fillStyle = theme.textColor;
         ctx.fill();
-        ctx.strokeStyle = '#00f7d4';
+        ctx.strokeStyle = theme.textColor;
         ctx.lineWidth = 1;
         ctx.stroke();
       };
@@ -486,7 +1030,8 @@
           10,
           true,
           false,
-          isCurrentMonth ? '#ffffff' : '#00f7d4'
+          isCurrentMonth ? theme.highlightTextColor : theme.textColor,
+          theme.font
         );
       }
 
@@ -494,42 +1039,57 @@
       const interpolatedHours = lastHours + (hoursHand - lastHours) * easeInOut(animationProgress);
       const hourAngle = (interpolatedHours / 24) * 2 * Math.PI - Math.PI / 2;
       const hoursRadius = hourRadius * 0.85;
+      const hourEndX = centerX + hoursRadius * Math.cos(hourAngle);
+      const hourEndY = centerY + hoursRadius * Math.sin(hourAngle);
+      let hourGradient = ctx.createLinearGradient(centerX, centerY, hourEndX, hourEndY);
+      hourGradient.addColorStop(0, theme.secondaryHandColor);
+      hourGradient.addColorStop(1, theme.handColor);
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
-      ctx.lineTo(centerX + hoursRadius * Math.cos(hourAngle), centerY + hoursRadius * Math.sin(hourAngle));
-      ctx.strokeStyle = '#00f7d4';
+      ctx.lineTo(hourEndX, hourEndY);
+      ctx.strokeStyle = hourGradient;
       ctx.lineWidth = 3;
       ctx.stroke();
 
       const minutesAngle = (minutesHand / 60) * 2 * Math.PI - Math.PI / 2;
+      const minuteEndX = centerX + hourRadius * Math.cos(minutesAngle);
+      const minuteEndY = centerY + hourRadius * Math.sin(minutesAngle);
+      let minuteGradient = ctx.createLinearGradient(centerX, centerY, minuteEndX, minuteEndY);
+      minuteGradient.addColorStop(0, theme.handColor);
+      minuteGradient.addColorStop(1, theme.secondaryHandColor);
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
-      ctx.lineTo(centerX + hourRadius * Math.cos(minutesAngle), centerY + hourRadius * Math.sin(minutesAngle));
-      ctx.strokeStyle = '#b0fff0';
+      ctx.lineTo(minuteEndX, minuteEndY);
+      ctx.strokeStyle = minuteGradient;
       ctx.lineWidth = 2;
       ctx.stroke();
 
       const secondsAngle = (seconds / 60) * 2 * Math.PI - Math.PI / 2;
       const secondsRadius = hourRadius * 0.7;
+      const secondEndX = centerX + secondsRadius * Math.cos(secondsAngle);
+      const secondEndY = centerY + secondsRadius * Math.sin(secondsAngle);
+      let secondGradient = ctx.createLinearGradient(centerX, centerY, secondEndX, secondEndY);
+      secondGradient.addColorStop(0, theme.secondaryHandColor);
+      secondGradient.addColorStop(1, lightenColor(theme.handColor, 0.2));
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
-      ctx.lineTo(centerX + secondsRadius * Math.cos(secondsAngle), centerY + secondsRadius * Math.sin(secondsAngle));
-      ctx.strokeStyle = '#b0fff0';
+      ctx.lineTo(secondEndX, secondEndY);
+      ctx.strokeStyle = secondGradient;
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${Math.floor(now.getMilliseconds() / 100)}`;
-      drawCurvedText(ctx, timeString, maxRadius - 230, -Math.PI / 2, 10, true);
-      drawCurvedText(ctx, getZodiacSign(now), maxRadius - 245, -Math.PI / 2, 10, true, true);
-      drawCurvedText(ctx, getChineseZodiac(now.getFullYear()), maxRadius - 260, -Math.PI / 2, 10, true);
-      drawCurvedText(
-        ctx,
-        `Lat: ${latitude !== 0 ? latitude.toFixed(2) : 'N/A'}, Lon: ${longitude !== 0 ? longitude.toFixed(2) : 'N/A'}`,
-        maxRadius - 275,
-        -Math.PI / 2,
-        8,
-        true
-      );
+      const timeString = `${(use24Hour ? now.getHours() : now.getHours() % 12 || 12).toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${Math.floor(now.getMilliseconds() / 100)}`;
+      drawCurvedText(ctx, timeString, maxRadius - 230, -Math.PI / 2, 10, true, false, theme.textColor, theme.font);
+
+      const stopwatchTime = stopwatchRunning ? stopwatchElapsed + (performance.now() - stopwatchStartTime) : stopwatchElapsed;
+      drawCurvedText(ctx, `Timer: ${formatStopwatchTime(stopwatchTime)}`, maxRadius - 215, -Math.PI / 2, 8, true, false, theme.textColor, theme.font);
+
+      drawCurvedText(ctx, getZodiacSign(now), maxRadius - 245, -Math.PI / 2, 10, true, true, theme.textColor, theme.font);
+      drawCurvedText(ctx, getChineseZodiac(now.getFullYear()), maxRadius - 260, -Math.PI / 2, 10, true, false, theme.textColor, theme.font);
+
+      const latText = latitude !== 0 ? latitude.toFixed(2) : 'N/A';
+      const lonText = longitude !== 0 ? longitude.toFixed(2) : 'N/A';
+      drawCurvedText(ctx, `Lat: ${latText}, Lon: ${lonText}`, maxRadius - 275, -Math.PI / 2, 8, true, false, theme.textColor, theme.font);
 
       if (hoursHand >= 12 && lastHours < 12 || hoursHand < 12 && lastHours >= 12) {
         lastHours = hoursHand;
@@ -543,6 +1103,25 @@
       if (frameTime > 16.67) console.warn('Frame Time:', frameTime.toFixed(2), 'ms');
 
       requestAnimationFrame(drawClockface);
+    }
+
+    console.log('Defining parseColor function');
+    function parseColor(color) {
+      try {
+        if (color.startsWith('#')) {
+          const r = parseInt(color.slice(1, 3), 16);
+          const g = parseInt(color.slice(3, 5), 16);
+          const b = parseInt(color.slice(5, 7), 16);
+          return `${r}, ${g}, ${b}`;
+        } else if (color.startsWith('rgba')) {
+          const rgb = color.match(/\d+/g).slice(0, 3);
+          return rgb.join(', ');
+        }
+        throw new Error(`Invalid color format: ${color}`);
+      } catch (e) {
+        console.error('Color parsing error:', e.message);
+        return '255, 255, 255';
+      }
     }
   </script>
 </body>
