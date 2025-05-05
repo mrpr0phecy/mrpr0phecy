@@ -17,7 +17,6 @@
     }
     canvas {
       border: 2px solid #e0e0e0;
-      background: radial-gradient(circle at center, #111 0%, #001515 100%);
       box-shadow: 0 0 10px rgba(0, 247, 212, 0.5);
       border-radius: 10px;
     }
@@ -42,17 +41,20 @@
 
     let latitude = 0;
     let longitude = 0;
-    const spiroPath = [];
-    const spiroPath2 = [];
-    let spiroPath2D = new Path2D();
-    let spiroPath2D2 = new Path2D();
-    const prevSpiroPath = [];
-    const prevSpiroPath2 = [];
-    let prevSpiroPath2D = new Path2D();
-    let prevSpiroPath2D2 = new Path2D();
+    const spiroPaths = [[], [], [], []];
+    let spiroPath2Ds = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
+    const prevSpiroPaths = [[], [], [], []];
+    let prevSpiroPath2Ds = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
     let lastSecond = -1;
     let staticCanvas = null;
-    let spiroParams = { R: 260, r: 30, d: 45, r2: 25, d2: 40 };
+    let textCanvas = null;
+    let moonCanvas = null;
+    let spiroParams = [
+      { R: 260, r: 30, d: 45, style: 'line' },
+      { R: 260, r: 25, d: 50, style: 'line' },
+      { R: 260, r: 35, d: 40, style: 'line' },
+      { R: 260, r: 20, d: 55, style: 'line' }
+    ];
     let currentThemeIndex = 0;
     let showSpirographs = true;
     let use24Hour = true;
@@ -66,66 +68,69 @@
     let isTransitioning = false;
     let transitionProgress = 0;
     let transitionStartTime = 0;
+    let lastMoonFraction = 0;
+    let frameCount = 0;
+    let gradients = {};
 
     const themes = [
       {
         name: 'Rolex Cosmograph Daytona',
-        backgroundGradient: 'radial-gradient(circle at center, #1a1a1a 0%, #000000 100%)',
-        fillColor: 'rgba(10, 10, 10, 0.4)',
-        handColor: '#ffffff',
-        secondaryHandColor: '#e0e0e0',
-        textColor: '#ffffff',
-        highlightTextColor: '#00a651',
+        backgroundGradient: 'radial-gradient(circle at center, #004d00 0%, #001a00 100%)',
+        fillColor: 'rgba(0, 77, 0, 0.2)',
+        handColor: '#ffd700',
+        secondaryHandColor: '#b8860b',
+        textColor: '#f0e68c',
+        highlightTextColor: '#00ff7f',
         markerStyle: 'lume',
         hourMarkerColor: '#ffffff',
         minuteMarkerColor: 'rgba(255, 255, 255, 0.6)',
         font: 'Helvetica Neue, Arial, sans-serif',
-        bezelColor: '#333333',
+        bezelColor: '#006400',
         handStyle: 'mercedes'
       },
       {
         name: 'Patek Philippe Nautilus',
-        backgroundGradient: 'radial-gradient(circle at center, #1c2526 0%, #001f3f 100%)',
-        fillColor: 'rgba(0, 31, 63, 0.3)',
+        backgroundGradient: 'radial-gradient(circle at center, #000066 0%, #000033 100%)',
+        fillColor: 'rgba(0, 0, 102, 0.15)',
         handColor: '#c0c0c0',
-        secondaryHandColor: '#a0a0a0',
-        textColor: '#e0e0e0',
-        highlightTextColor: '#ffd700',
+        secondaryHandColor: '#87ceeb',
+        textColor: '#add8e6',
+        highlightTextColor: '#1e90ff',
         markerStyle: 'baguette',
-        hourMarkerColor: '#ffffff',
-        minuteMarkerColor: 'rgba(255, 255, 255, 0.5)',
+        hourMarkerColor: '#e6e6fa',
+        minuteMarkerColor: 'rgba(230, 230, 250, 0.5)',
         font: 'Georgia, serif',
-        bezelColor: '#1c2526',
+        bezelColor: '#000099',
         handStyle: 'baton'
       },
       {
         name: 'Audemars Piguet Royal Oak',
-        backgroundGradient: 'radial-gradient(circle at center, #2f2f2f 0%, #000000 100%)',
-        fillColor: 'rgba(20, 20, 20, 0.3)',
-        handColor: '#d0d0d0',
-        secondaryHandColor: '#b0b0b0',
-        textColor: '#e0e0e0',
-        highlightTextColor: '#ff4500',
+        backgroundGradient: 'radial-gradient(circle at center, #3c2f2f 0%, #1c0000 100%)',
+        fillColor: 'rgba(60, 47, 47, 0.15)',
+        handColor: '#ff4040',
+        secondaryHandColor: '#cd5c5c',
+        textColor: '#ff6a6a',
+        highlightTextColor: '#ff0000',
         markerStyle: 'tapisserie',
         hourMarkerColor: '#ffffff',
         minuteMarkerColor: 'rgba(255, 255, 255, 0.5)',
         font: 'Helvetica, Arial, sans-serif',
-        bezelColor: '#2f2f2f',
+        bezelColor: '#8b0000',
         handStyle: 'faceted'
       },
       {
         name: 'Vacheron Constantin Overseas',
-        backgroundGradient: 'radial-gradient(circle at center, #003087 0%, #001f3f 100%)',
-        fillColor: 'rgba(0, 48, 135, 0.3)',
-        handColor: '#f0f0f0',
-        secondaryHandColor: '#d3d3d3',
-        textColor: '#e0e0e0',
-        highlightTextColor: '#00ced1',
+        backgroundGradient: 'radial-gradient(circle at center, #003366 0%, #001133 100%)',
+        fillColor: 'rgba(0, 51, 102, 0.15)',
+        handColor: '#40e0d0',
+        secondaryHandColor: '#20b2aa',
+        textColor: '#48d1cc',
+        highlightTextColor: '#00f5ff',
         markerStyle: 'triangle',
-        hourMarkerColor: '#ffffff',
-        minuteMarkerColor: 'rgba(255, 255, 255, 0.6)',
+        hourMarkerColor: '#e0ffff',
+        minuteMarkerColor: 'rgba(224, 255, 255, 0.6)',
         font: 'Georgia, serif',
-        bezelColor: '#003087',
+        bezelColor: '#006699',
         handStyle: 'sword'
       }
     ];
@@ -166,7 +171,7 @@
           return null;
         }
         const theme = themes[currentThemeIndex];
-        tempCtx.fillStyle = theme.backgroundGradient || 'radial-gradient(circle at center, #111 0%, #001515 100%)';
+        tempCtx.fillStyle = theme.backgroundGradient;
         tempCtx.fillRect(0, 0, canvas.width, canvas.height);
 
         const monthRadius = clockOuterRadius + 50;
@@ -275,7 +280,25 @@
           tempCtx.strokeStyle = theme.textColor;
           tempCtx.lineWidth = 1;
           tempCtx.stroke();
+          const labelAngle = (button.startAngle + button.endAngle) / 2;
+          drawCurvedText(tempCtx, button.label, (buttonInnerRadius + buttonOuterRadius) / 2, labelAngle, 8, true, false, theme.textColor, theme.font);
         });
+
+        const outerRadius = clockOuterRadius + 90;
+        tempCtx.beginPath();
+        tempCtx.arc(centerX, centerY, outerRadius, 0, 2 * Math.PI);
+        tempCtx.fillStyle = theme.fillColor;
+        tempCtx.fill();
+        tempCtx.strokeStyle = theme.textColor;
+        tempCtx.lineWidth = 1;
+        tempCtx.stroke();
+
+        const now = new Date();
+        const latText = latitude !== 0 ? latitude.toFixed(2) : 'N/A';
+        const lonText = longitude !== 0 ? longitude.toFixed(2) : 'N/A';
+        drawCurvedText(tempCtx, `Lat: ${latText}, Lon: ${lonText}`, maxRadius - 275, -Math.PI / 2, 8, true, false, theme.textColor, theme.font);
+        drawCurvedText(tempCtx, getChineseZodiac(now.getFullYear()), maxRadius - 260, -Math.PI / 2, 10, true, false, theme.textColor, theme.font);
+        drawCurvedText(tempCtx, getZodiacSign(now), maxRadius - 245, -Math.PI / 2, 10, true, true, theme.textColor, theme.font);
 
         return tempCanvas;
       } catch (e) {
@@ -284,9 +307,83 @@
       }
     }
 
+    function createTextCanvas(sunTimes, moonPhase, stopwatchTime) {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) {
+        console.error('Text canvas context not supported');
+        return null;
+      }
+      const theme = themes[currentThemeIndex];
+      drawCurvedText(
+        tempCtx,
+        `Sunrise: ${sunTimes.sunrise} | Sunset: ${sunTimes.sunset} | Moon: ${moonPhase}`,
+        clockOuterRadius + 65,
+        -Math.PI / 2,
+        9,
+        true,
+        false,
+        theme.textColor,
+        theme.font
+      );
+      drawCurvedText(
+        tempCtx,
+        `Timer: ${formatStopwatchTime(stopwatchTime)}`,
+        maxRadius - 215,
+        -Math.PI / 2,
+        8,
+        true,
+        false,
+        theme.textColor,
+        theme.font
+      );
+      return tempCanvas;
+    }
+
+    function createMoonCanvas(moonFraction) {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) {
+        console.error('Moon canvas context not supported');
+        return null;
+      }
+      const theme = themes[currentThemeIndex];
+      const moonAngle = moonFraction * 2 * Math.PI - Math.PI / 2;
+      tempCtx.beginPath();
+      tempCtx.arc(centerX, centerY, clockOuterRadius + 80, -Math.PI / 2, moonAngle);
+      tempCtx.strokeStyle = theme.textColor;
+      tempCtx.lineWidth = 2;
+      tempCtx.stroke();
+      drawMoon(
+        centerX + (clockOuterRadius + 80) * Math.cos(moonAngle),
+        centerY + (clockOuterRadius + 80) * Math.sin(moonAngle),
+        12,
+        moonFraction
+      );
+      return tempCanvas;
+    }
+
+    function setupGradients() {
+      const theme = themes[currentThemeIndex];
+      gradients.hour = ctx.createLinearGradient(0, 0, 0, -hourRadius * 0.85);
+      gradients.hour.addColorStop(0, theme.secondaryHandColor);
+      gradients.hour.addColorStop(1, theme.handColor);
+      gradients.minute = ctx.createLinearGradient(0, 0, 0, -hourRadius);
+      gradients.minute.addColorStop(0, theme.handColor);
+      gradients.minute.addColorStop(1, theme.secondaryHandColor);
+      gradients.second = ctx.createLinearGradient(0, 0, 0, -hourRadius * 0.7);
+      gradients.second.addColorStop(0, theme.secondaryHandColor);
+      gradients.second.addColorStop(1, lightenColor(theme.handColor, 0.2));
+    }
+
     window.onload = () => {
       const initializeClock = () => {
         staticCanvas = createStaticCanvas();
+        setupGradients();
         if (staticCanvas) {
           requestAnimationFrame(drawClockface);
         } else {
@@ -334,6 +431,7 @@
             if (label === 'Theme') {
               currentThemeIndex = (currentThemeIndex + 1) % themes.length;
               staticCanvas = createStaticCanvas();
+              setupGradients();
               console.log(`Switched to theme: ${themes[currentThemeIndex].name}`);
             } else if (label === 'Mode') {
               use24Hour = !use24Hour;
@@ -351,6 +449,7 @@
               centerX = canvas.width / 2;
               centerY = canvas.height / 2;
               staticCanvas = createStaticCanvas();
+              setupGradients();
               console.log(`Zoom ${isZoomed ? 'enabled' : 'disabled'}`);
             } else if (label === 'Geo') {
               if (navigator.geolocation) {
@@ -359,11 +458,13 @@
                     latitude = position.coords.latitude;
                     longitude = position.coords.longitude;
                     console.log('Geolocation updated: latitude:', latitude.toFixed(2), 'longitude:', longitude.toFixed(2));
+                    staticCanvas = createStaticCanvas();
                   },
                   (error) => {
                     console.warn('Geolocation update failed:', error.message);
                     latitude = 0;
                     longitude = 0;
+                    staticCanvas = createStaticCanvas();
                   }
                 );
               } else {
@@ -398,7 +499,7 @@
       canvas.addEventListener('mousemove', (e) => {
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left - centerX;
-        const y = e.clientY - rectify.top - centerY;
+        const y = e.clientY - rect.top - centerY;
         const radius = Math.sqrt(x * x + y * y);
         let angle = Math.atan2(y, x);
         if (angle < -Math.PI / 2) angle += 2 * Math.PI;
@@ -424,17 +525,6 @@
     function drawCurvedText(ctx, text, radius, startAngle, fontSize, clockwise = true, isZodiac = false, textColor = '#e0e0e0', font = 'Segoe UI') {
       ctx.fillStyle = textColor;
       ctx.font = `${fontSize}px ${isZodiac ? 'Segoe UI Symbol,' : ''}${font}`;
-      if (fontSize <= 8) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1;
-        ctx.shadowBlur = 1;
-      } else {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1;
-        ctx.shadowBlur = 1;
-      }
       const chars = text.split('');
       const charWidth = ctx.measureText('M').width * (isZodiac ? 1.1 : 0.9);
       const angleStep = (clockwise ? 1 : -1) * charWidth / radius;
@@ -448,10 +538,6 @@
         ctx.restore();
         currentAngle += angleStep;
       });
-      ctx.shadowColor = 'transparent';
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-      ctx.shadowBlur = concept 0;
     }
 
     function toRoman(num) {
@@ -612,28 +698,31 @@
     }
 
     function updateSpiroParams() {
-      const r = 21 + Math.random() * 28;
-      const d = r * (1.5 + Math.random() * 0.5);
-      const r2 = 21 + Math.random() * 28;
-      const d2 = r2 * (1.5 + Math.random() * 0.5);
-      spiroParams = {
-        R: 260,
-        r: r,
-        d: d,
-        r2: r2,
-        d2: d2
-      };
+      spiroParams = [
+        { R: 260, r: 25 + Math.random() * 15, d: 35 + Math.random() * 20, style: 'line' },
+        { R: 260, r: 20 + Math.random() * 10, d: 40 + Math.random() * 15, style: 'line' },
+        { R: 260, r: 30 + Math.random() * 15, d: 30 + Math.random() * 20, style: 'line' },
+        { R: 260, r: 15 + Math.random() * 10, d: 45 + Math.random() * 15, style: 'line' }
+      ];
     }
 
     let lastHours = 0;
-    let lastMoonFraction = 0;
     let animationProgress = 0;
+    let lastTextUpdate = null;
+    let lastMoonUpdate = 0;
 
     function drawClockface(timestamp) {
       const startTime = performance.now();
+      frameCount++;
       const now = new Date();
       const theme = themes[currentThemeIndex];
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.clearRect(
+        centerX - hourRadius - 100,
+        centerY - hourRadius - 100,
+        2 * (hourRadius + 100),
+        2 * (hourRadius + 100)
+      );
       if (staticCanvas) {
         ctx.drawImage(staticCanvas, 0, 0);
       }
@@ -646,151 +735,114 @@
 
       if (showSpirographs) {
         const currentSecond = Math.floor(seconds);
-        if (currentSecond === 0 && lastSecond >= 59 && !isTransitioning) {
-          prevSpiroPath.length = 0;
-          prevSpiroPath2.length = 0;
-          prevSpiroPath.push(...spiroPath);
-          prevSpiroPath2.push(...spiroPath2);
-          prevSpiroPath2D = spiroPath2D;
-          prevSpiroPath2D2 = spiroPath2D2;
-          spiroPath.length = 0;
-          spiroPath2.length = 0;
-          spiroPath2D = new Path2D();
-          spiroPath2D2 = new Path2D();
+        if (currentSecond === 0 && lastSecond !== 0 && !isTransitioning) {
+          prevSpiroPaths.forEach((prevPath, i) => {
+            prevPath.length = 0;
+            prevPath.push(...spiroPaths[i]);
+            prevSpiroPath2Ds[i] = new Path2D();
+            for (let j = 0; j < prevPath.length; j += 5) {
+              if (j === 0) prevSpiroPath2Ds[i].moveTo(prevPath[j].x, prevPath[j].y);
+              else prevSpiroPath2Ds[i].lineTo(prevPath[j].x, prevPath[j].y);
+            }
+          });
+          spiroPaths.forEach((path) => path.length = 0);
+          spiroPath2Ds = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
           updateSpiroParams();
           isTransitioning = true;
           transitionStartTime = timestamp || performance.now();
           transitionProgress = 0;
+          console.log(`Spirograph transition started at seconds=0: ${prevSpiroPaths[0].length} points in prevSpiroPaths[0]`);
         }
         lastSecond = currentSecond;
 
+        const n = 15;
+        const dt = 0.015;
+        for (let i = 0; i < spiroParams.length; i++) {
+          const { R, r, d } = spiroParams[i];
+          const path = spiroPaths[i];
+          for (let j = 0; j < n; j++) {
+            const t = seconds + j * dt;
+            const theta = t * Math.PI / (6 + i * 0.5);
+            const x = centerX + (R - r) * Math.cos(theta) + d * Math.cos((R - r) / r * theta);
+            const y = centerY + (R - r) * Math.sin(theta) - d * Math.sin((R - r) / r * theta);
+            path.push({ x, y });
+          }
+          if (path.length > 10000 && frameCount % 60 === 0) {
+            console.warn(`Spirograph path ${i} point count: ${path.length}. Consider reducing n or dt for performance SHEA.`);
+          }
+          spiroPath2Ds[i] = new Path2D();
+          for (let j = 0; j < path.length; j += 5) {
+            if (j === 0) spiroPath2Ds[i].moveTo(path[j].x, path[j].y);
+            else spiroPath2Ds[i].lineTo(path[j].x, path[j].y);
+          }
+        }
+
         if (isTransitioning) {
-          const transitionDuration = 500;
+          const transitionDuration = 1000;
           const elapsed = (timestamp || performance.now()) - transitionStartTime;
           transitionProgress = Math.min(elapsed / transitionDuration, 1);
           if (transitionProgress >= 1) {
             isTransitioning = false;
-            prevSpiroPath.length = 0;
-            prevSpiroPath2.length = 0;
-            prevSpiroPath2D = new Path2D();
-            prevSpiroPath2D2 = new Path2D();
+            prevSpiroPaths.forEach((path) => path.length = 0);
+            prevSpiroPath2Ds = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
+            console.log(`Spirograph transition completed: ${spiroPaths[0].length} points in spiroPaths[0]`);
           }
         }
 
-        const { R, r, d, r2, d2 } = spiroParams;
-        const n = 5;
-        const dt = 0.05;
+        const rangoliColors = [
+          (seconds / 60 * 360) % 360,
+          ((seconds / 60 * 360) + 90) % 360,
+          ((seconds / 60 * 360) + 180) % 360,
+          ((seconds / 60 * 360) + 270) % 360
+        ];
 
-        for (let i = 0; i < n; i++) {
-          const t = seconds + i * dt;
-          const theta = t * Math.PI / 6;
-          const x = centerX + (R - r) * Math.cos(theta) + d * Math.cos((R - r) / r * theta);
-          const y = centerY + (R - r) * Math.sin(theta) - d * Math.sin((R - r) / r * theta);
-          spiroPath.push({ x, y });
-          if (i === 0 && spiroPath.length === 1) {
-            spiroPath2D.moveTo(x, y);
-          } else {
-            spiroPath2D.lineTo(x, y);
+        if (isTransitioning) {
+          prevSpiroPaths.forEach((path, i) => {
+            if (path.length > 1) {
+              ctx.strokeStyle = `hsla(${rangoliColors[i]}, 80%, 60%, ${0.1 * (1 - transitionProgress)})`;
+              ctx.lineWidth = 1.0;
+              ctx.stroke(prevSpiroPath2Ds[i]);
+            }
+          });
+        }
+
+        spiroPaths.forEach((path, i) => {
+          if (path.length > 1) {
+            ctx.strokeStyle = `hsla(${rangoliColors[i]}, 80%, 60%, 0.1)`;
+            ctx.lineWidth = 1.0;
+            ctx.stroke(spiroPath2Ds[i]);
           }
-        }
-
-        for (let i = 0; i < n; i++) {
-          const t = seconds + i * dt;
-          const theta = -t * Math.PI / 6;
-          const x = centerX + (R - r2) * Math.cos(theta) + d2 * Math.cos((R - r2) / r2 * theta);
-          const y = centerY + (R - r2) * Math.sin(theta) - d2 * Math.sin((R - r2) / r2 * theta);
-          spiroPath2.push({ x, y });
-          if (i === 0 && spiroPath2.length === 1) {
-            spiroPath2D2.moveTo(x, y);
-          } else {
-            spiroPath2D2.lineTo(x, y);
-          }
-        }
-
-        if (isTransitioning && prevSpiroPath.length > 1) {
-          const hue = (seconds / 60 * 360) % 360;
-          ctx.strokeStyle = `hsla(${hue}, 80%, 60%, ${0.15 * (1 - transitionProgress)})`;
-          ctx.lineWidth = 1.0;
-          ctx.stroke(prevSpiroPath2D);
-        }
-        if (isTransitioning && prevSpiroPath2.length > 1) {
-          const hue2 = ((seconds / 60 * 360) + 180) % 360;
-          ctx.strokeStyle = `hsla(${hue2}, 80%, 60%, ${0.15 * (1 - transitionProgress)})`;
-          ctx.lineWidth = 1.0;
-          ctx.stroke(prevSpiroPath2D2);
-        }
-
-        if (spiroPath.length > 1) {
-          const hue = (seconds / 60 * 360) % 360;
-          ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.15)`;
-          ctx.lineWidth = 1.0;
-          ctx.stroke(spiroPath2D);
-        }
-        if (spiroPath2.length > 1) {
-          const hue2 = ((seconds / 60 * 360) + 180) % 360;
-          ctx.strokeStyle = `hsla(${hue2}, 80%, 60%, 0.15)`;
-          ctx.lineWidth = 1.0;
-          ctx.stroke(spiroPath2D2);
-        }
+        });
       }
-
-      const outerRadius = clockOuterRadius + 90;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, outerRadius, 0, 2 * Math.PI);
-      ctx.fillStyle = theme.fillColor;
-      ctx.fill();
-      ctx.strokeStyle = theme.textColor;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      const buttonInnerRadius = 230;
-      const buttonOuterRadius = 250;
-      buttons.forEach((button) => {
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, buttonOuterRadius, button.startAngle, button.endAngle);
-        ctx.arc(centerX, centerY, buttonInnerRadius, button.endAngle, button.startAngle, true);
-        ctx.closePath();
-        ctx.fillStyle = button.label === hoveredButton ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)';
-        ctx.fill();
-        const labelAngle = (button.startAngle + button.endAngle) / 2;
-        drawCurvedText(ctx, button.label, (buttonInnerRadius + buttonOuterRadius) / 2, labelAngle, 8, true, false, theme.textColor, theme.font);
-      });
 
       const moon = getMoonPhase(now);
       const sunTimes = getSunriseSunset(now, latitude, longitude);
-      let interpolatedFraction = lastMoonFraction;
-      let moonAngle = -Math.PI / 2;
       if (showMoon) {
-        interpolatedFraction = lastMoonFraction + (moon.fraction - lastMoonFraction) * easeInOut(animationProgress);
-        moonAngle = interpolatedFraction * 2 * Math.PI - Math.PI / 2;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, outerRadius - 10, -Math.PI / 2, moonAngle);
-        ctx.strokeStyle = theme.textColor;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        drawMoon(
-          centerX + (outerRadius - 10) * Math.cos(moonAngle),
-          centerY + (outerRadius - 10) * Math.sin(moonAngle),
-          12,
-          interpolatedFraction
-        );
+        const interpolatedFraction = lastMoonFraction + (moon.fraction - lastMoonFraction) * easeInOut(animationProgress);
+        if (Math.abs(interpolatedFraction - lastMoonUpdate) > 0.01) {
+          moonCanvas = createMoonCanvas(interpolatedFraction);
+          lastMoonUpdate = interpolatedFraction;
+        }
+        if (moonCanvas) {
+          ctx.drawImage(moonCanvas, 0, 0);
+        }
+        lastMoonFraction = interpolatedFraction;
       }
-      drawCurvedText(
-        ctx,
-        `Sunrise: ${sunTimes.sunrise} | Sunset: ${sunTimes.sunset} | Moon: ${moon.phase}`,
-        outerRadius - 25,
-        -Math.PI / 2,
-        9,
-        true,
-        false,
-        theme.textColor,
-        theme.font
-      );
+
+      const stopwatchTime = stopwatchRunning ? stopwatchElapsed + (performance.now() - stopwatchStartTime) : stopwatchElapsed;
+      const textKey = `${sunTimes.sunrise}|${sunTimes.sunset}|${moon.phase}|${Math.floor(stopwatchTime / 100)}`;
+      if (!lastTextUpdate || lastTextUpdate.key !== textKey) {
+        textCanvas = createTextCanvas(sunTimes, moon.phase, stopwatchTime);
+        lastTextUpdate = { key: textKey, canvas: textCanvas };
+      }
+      if (textCanvas) {
+        ctx.drawImage(textCanvas, 0, 0);
+      }
 
       const drawSun = (hour) => {
         const angle = (hour / 24) * 2 * Math.PI - Math.PI / 2;
-        const x = centerX + (outerRadius - 25) * Math.cos(angle);
-        const y = centerY + (outerRadius - 25) * Math.sin(angle);
+        const x = centerX + (clockOuterRadius + 65) * Math.cos(angle);
+        const y = centerY + (clockOuterRadius + 65) * Math.sin(angle);
         ctx.beginPath();
         ctx.arc(x, y, 6, 0, 2 * Math.PI);
         ctx.fillStyle = theme.textColor;
@@ -829,9 +881,6 @@
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate(angle);
-        let hourGradient = ctx.createLinearGradient(0, 0, 0, -radius);
-        hourGradient.addColorStop(0, theme.secondaryHandColor);
-        hourGradient.addColorStop(1, theme.handColor);
         ctx.beginPath();
         if (theme.handStyle === 'mercedes') {
           ctx.moveTo(-3, 0);
@@ -861,7 +910,7 @@
           ctx.moveTo(0, 0);
           ctx.lineTo(0, -radius);
         }
-        ctx.fillStyle = hourGradient;
+        ctx.fillStyle = gradients.hour;
         ctx.fill();
         ctx.strokeStyle = theme.handColor;
         ctx.lineWidth = 1;
@@ -874,9 +923,6 @@
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate(angle);
-        let minuteGradient = ctx.createLinearGradient(0, 0, 0, -radius);
-        minuteGradient.addColorStop(0, theme.handColor);
-        minuteGradient.addColorStop(1, theme.secondaryHandColor);
         ctx.beginPath();
         if (theme.handStyle === 'mercedes' || theme.handStyle === 'sword') {
           ctx.moveTo(-2, 0);
@@ -898,7 +944,7 @@
           ctx.moveTo(0, 0);
           ctx.lineTo(0, -radius);
         }
-        ctx.fillStyle = minuteGradient;
+        ctx.fillStyle = gradients.minute;
         ctx.fill();
         ctx.strokeStyle = theme.secondaryHandColor;
         ctx.lineWidth = 1;
@@ -912,9 +958,6 @@
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate(angle);
-        let secondGradient = ctx.createLinearGradient(0, 0, 0, -radius);
-        secondGradient.addColorStop(0, theme.secondaryHandColor);
-        secondGradient.addColorStop(1, lightenColor(theme.handColor, 0.2));
         ctx.beginPath();
         if (theme.handStyle === 'mercedes' || theme.handStyle === 'sword') {
           ctx.moveTo(-1, 0);
@@ -936,7 +979,7 @@
           ctx.moveTo(0, 0);
           ctx.lineTo(0, -radius);
         }
-        ctx.fillStyle = secondGradient;
+        ctx.fillStyle = gradients.second;
         ctx.fill();
         ctx.strokeStyle = lightenColor(theme.handColor, 0.2);
         ctx.lineWidth = 0.5;
@@ -950,19 +993,9 @@
 
       const timeString = `${(use24Hour ? now.getHours() : now.getHours() % 12 || 12).toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${Math.floor(now.getMilliseconds() / 100)}`;
       ctx.fillStyle = theme.highlightTextColor;
-      ctx.font = `14px ${theme.font}`;
+      ctx.font = `16px ${theme.font}`;
       ctx.textAlign = 'center';
-      ctx.fillText(timeString, centerX, centerY + maxRadius - 200);
-
-      const stopwatchTime = stopwatchRunning ? stopwatchElapsed + (performance.now() - stopwatchStartTime) : stopwatchElapsed;
-      drawCurvedText(ctx, `Timer: ${formatStopwatchTime(stopwatchTime)}`, maxRadius - 215, -Math.PI / 2, 8, true, false, theme.textColor, theme.font);
-
-      drawCurvedText(ctx, getZodiacSign(now), maxRadius - 245, -Math.PI / 2, 10, true, true, theme.textColor, theme.font);
-      drawCurvedText(ctx, getChineseZodiac(now.getFullYear()), maxRadius - 260, -Math.PI / 2, 10, true, false, theme.textColor, theme.font);
-
-      const latText = latitude !== 0 ? latitude.toFixed(2) : 'N/A';
-      const lonText = longitude !== 0 ? longitude.toFixed(2) : 'N/A';
-      drawCurvedText(ctx, `Lat: ${latText}, Lon: ${lonText}`, maxRadius - 275, -Math.PI / 2, 8, true, false, theme.textColor, theme.font);
+      ctx.fillText(timeString, centerX, centerY + maxRadius - 180);
 
       if (hoursHand >= 12 && lastHours < 12 || hoursHand < 12 && lastHours >= 12) {
         lastHours = hoursHand;
@@ -970,10 +1003,11 @@
       } else {
         animationProgress = Math.min(animationProgress + 0.1, 1);
       }
-      lastMoonFraction = interpolatedFraction;
 
       const frameTime = performance.now() - startTime;
-      if (frameTime > 16.67) console.warn('Frame Time:', frameTime.toFixed(2), 'ms');
+      if (frameTime > 16.67 && frameCount % 60 === 0) {
+        console.warn(`Frame Time: ${frameTime.toFixed(2)} ms at ${new Date().toISOString()}`);
+      }
 
       requestAnimationFrame(drawClockface);
     }
