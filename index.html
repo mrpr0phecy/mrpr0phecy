@@ -211,7 +211,7 @@
       z-index: 1;
       pointer-events: none;
     }
-    .star-layer-1, .star-layer-2, .star-layer-3, .star-layer-shooting {
+    .star-layer-1, .star-layer-2, .star-layer-3, .star-layer-shooting, .bird-layer {
       position: absolute;
       top: 0;
       left: 0;
@@ -223,6 +223,7 @@
     .star-layer-2 { z-index: 2; animation: starDrift 150s infinite linear; }
     .star-layer-3 { z-index: 3; animation: starDrift 100s infinite linear; }
     .star-layer-shooting { z-index: 4; }
+    .bird-layer { z-index: 5; }
     @keyframes starDrift {
       0% { transform: translateX(100vw); }
       100% { transform: translateX(-100vw); }
@@ -260,6 +261,19 @@
     @keyframes shoot {
       0% { transform: translate(0, 0); opacity: 1; }
       100% { transform: translate(300px, 300px); opacity: 0; }
+    }
+    .bird {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: #ffffff;
+      clip-path: polygon(0% 50%, 50% 0%, 100% 50%, 50% 100%);
+      animation: flap 0.5s infinite alternate;
+      opacity: 0.8;
+    }
+    @keyframes flap {
+      0% { transform: scaleY(1); }
+      100% { transform: scaleY(0.8); }
     }
     .moon {
       position: absolute;
@@ -505,7 +519,7 @@
       margin: 20px 0 15px;
       text-transform: uppercase;
       text-shadow: 0 0 30px rgba(0, 255, 204, 1);
-      animation: neonFlicker 3s infinite alternate;
+      animation: neonFicker 3s infinite alternate;
       text-align: center;
     }
     .bio h2 .title-glitch::before,
@@ -681,7 +695,7 @@
       50% { transform: translateY(-10px); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .aurora-layer, .glitch-layer, .grid-overlay, .scanlines, .star, .twinkle-star, .shooting-star, .moon, .city-building, .city-building::after, .cloud, .title-glitch::before, .title-glitch::after {
+      .aurora-layer, .glitch-layer, .grid-overlay, .scanlines, .star, .twinkle-star, .shooting-star, .moon, .city-building, .city-building::after, .cloud, .title-glitch::before, .title-glitch::after, .bird {
         animation: none !important;
         transition: none !important;
       }
@@ -749,6 +763,197 @@
       }
     }
 
+    // Generate flocking birds
+    function generateFlockingBirds() {
+      const container = document.querySelector('.bird-layer');
+      const birdCount = 25;
+      const birds = [];
+      const maxSpeed = 4;
+      const maxForce = 0.03;
+      const separationWeight = 1.5;
+      const alignmentWeight = 1.0;
+      const cohesionWeight = 1.0;
+
+      // Initialize birds
+      for (let i = 0; i < birdCount; i++) {
+        const x = Math.random() * 10 + 45; // 45vw to 55vw
+        const y = Math.random() * 10 + 25; // 25vh to 35vh
+        const bird = document.createElement('div');
+        bird.className = 'bird';
+        bird.style.left = `${x}vw`;
+        bird.style.top = `${y}vh`;
+        container.appendChild(bird);
+        birds.push({
+          element: bird,
+          x: x * window.innerWidth / 100,
+          y: y * window.innerHeight / 100,
+          vx: Math.random() * 2 - 1,
+          vy: Math.random() * 2 - 1,
+          ax: 0,
+          ay: 0
+        });
+      }
+
+      function updateBirds() {
+        const separationDistance = window.innerWidth * 0.039;
+        const neighborDistance = window.innerWidth * 0.078;
+        const margin = window.innerWidth * 0.05;
+        const lowerBoundary = window.innerHeight * 0.7;
+
+        for (let bird of birds) {
+          let sepX = 0, sepY = 0, sepCount = 0;
+          let alignX = 0, alignY = 0, alignCount = 0;
+          let cohX = 0, cohY = 0, cohCount = 0;
+
+          // Reset acceleration
+          bird.ax = 0;
+          bird.ay = 0;
+
+          // Separation
+          for (let other of birds) {
+            if (other !== bird) {
+              let dx = bird.x - other.x;
+              let dy = bird.y - other.y;
+              let distance = Math.sqrt(dx * dx + dy * dy);
+              if (distance > 0 && distance < separationDistance) {
+                let diffX = dx / distance;
+                let diffY = dy / distance;
+                sepX += diffX / distance;
+                sepY += diffY / distance;
+                sepCount++;
+              }
+            }
+          }
+          if (sepCount > 0) {
+            sepX /= sepCount;
+            sepY /= sepCount;
+            let sepMag = Math.sqrt(sepX * sepX + sepY * sepY);
+            if (sepMag > 0) {
+              sepX = (sepX / sepMag) * maxSpeed;
+              sepY = (sepY / sepMag) * maxSpeed;
+              let steerX = sepX - bird.vx;
+              let steerY = sepY - bird.vy;
+              let steerMag = Math.sqrt(steerX * steerX + steerY * steerY);
+              if (steerMag > maxForce) {
+                steerX = (steerX / steerMag) * maxForce;
+                steerY = (steerY / steerMag) * maxForce;
+              }
+              bird.ax += steerX * separationWeight;
+              bird.ay += steerY * separationWeight;
+            }
+          }
+
+          // Alignment
+          for (let other of birds) {
+            if (other !== bird) {
+              let dx = other.x - bird.x;
+              let dy = other.y - bird.y;
+              let distance = Math.sqrt(dx * dx + dy * dy);
+              if (distance < neighborDistance) {
+                alignX += other.vx;
+                alignY += other.vy;
+                alignCount++;
+              }
+            }
+          }
+          if (alignCount > 0) {
+            alignX /= alignCount;
+            alignY /= alignCount;
+            let alignMag = Math.sqrt(alignX * alignX + alignY * alignY);
+            if (alignMag > 0) {
+              alignX = (alignX / alignMag) * maxSpeed;
+              alignY = (alignY / alignMag) * maxSpeed;
+              let steerX = alignX - bird.vx;
+              let steerY = alignY - bird.vy;
+              let steerMag = Math.sqrt(steerX * steerX + steerY * steerY);
+              if (steerMag > maxForce) {
+                steerX = (steerX / steerMag) * maxForce;
+                steerY = (steerY / steerMag) * maxForce;
+              }
+              bird.ax += steerX * alignmentWeight;
+              bird.ay += steerY * alignmentWeight;
+            }
+          }
+
+          // Cohesion
+          for (let other of birds) {
+            if (other !== bird) {
+              let dx = other.x - bird.x;
+              let dy = other.y - bird.y;
+              let distance = Math.sqrt(dx * dx + dy * dy);
+              if (distance < neighborDistance) {
+                cohX += other.x;
+                cohY += other.y;
+                cohCount++;
+              }
+            }
+          }
+          if (cohCount > 0) {
+            cohX /= cohCount;
+            cohY /= cohCount;
+            let desiredX = cohX - bird.x;
+            let desiredY = cohY - bird.y;
+            let desiredMag = Math.sqrt(desiredX * desiredX + desiredY * desiredY);
+            if (desiredMag > 0) {
+              desiredX = (desiredX / desiredMag) * maxSpeed;
+              desiredY = (desiredY / desiredMag) * maxSpeed;
+              let steerX = desiredX - bird.vx;
+              let steerY = desiredY - bird.vy;
+              let steerMag = Math.sqrt(steerX * steerX + steerY * steerY);
+              if (steerMag > maxForce) {
+                steerX = (steerX / steerMag) * maxForce;
+                steerY = (steerY / steerMag) * maxForce;
+              }
+              bird.ax += steerX * cohesionWeight;
+              bird.ay += steerY * cohesionWeight;
+            }
+          }
+
+          // Boundary avoidance
+          let boundarySteerX = 0, boundarySteerY = 0;
+          if (bird.x < margin) {
+            boundarySteerX += (margin - bird.x) / margin * maxForce;
+          }
+          if (bird.x > window.innerWidth - margin) {
+            boundarySteerX -= (bird.x - (window.innerWidth - margin)) / margin * maxForce;
+          }
+          if (bird.y < margin) {
+            boundarySteerY += (margin - bird.y) / margin * maxForce;
+          }
+          if (bird.y > lowerBoundary - margin) {
+            boundarySteerY -= (bird.y - (lowerBoundary - margin)) / margin * maxForce;
+          }
+          bird.ax += boundarySteerX;
+          bird.ay += boundarySteerY;
+
+          // Update velocity
+          bird.vx += bird.ax;
+          bird.vy += bird.ay;
+
+          // Limit speed
+          let speed = Math.sqrt(bird.vx * bird.vx + bird.vy * bird.vy);
+          if (speed > maxSpeed) {
+            bird.vx = (bird.vx / speed) * maxSpeed;
+            bird.vy = (bird.vy / speed) * maxSpeed;
+          }
+
+          // Update position
+          bird.x += bird.vx;
+          bird.y += bird.vy;
+
+          // Update element position and rotation
+          bird.element.style.left = `${(bird.x / window.innerWidth) * 100}vw`;
+          bird.element.style.top = `${(bird.y / window.innerHeight) * 100}vh`;
+          let angle = Math.atan2(bird.vy, bird.vx) * (180 / Math.PI);
+          bird.element.style.transform = `rotate(${angle}deg)`;
+        }
+
+        requestAnimationFrame(updateBirds);
+      }
+
+      updateBirds();
+    }
+
     // Generate clouds for cloudscape with drifting animation
     function generateClouds() {
       const cloudscape = document.querySelector('.cloudscape');
@@ -793,8 +998,7 @@
       for (let i = 0; i < buildingCount; i++) {
         const building = document.createElement('div');
         building.className = 'city-building';
-        // Calculate scale based on position (left to right: larger to smaller)
-        const scaleFactor = 1 - (i / buildingCount) * 0.7; // Scale from 1 to 0.3
+        const scaleFactor = 1 - (i / buildingCount) * 0.7;
         const baseHeight = Math.random() * 250 + 100;
         const baseWidth = 80;
         const height = baseHeight * scaleFactor;
@@ -804,7 +1008,7 @@
         building.style.height = `${height}px`;
         building.style.left = `${i * spacing + (Math.random() * spacing * 0.5)}px`;
         building.style.animation = `zoomAndPan ${duration}s linear infinite`;
-        building.style.animationDelay = `-${i * 0.2}s`; // Stagger animations
+        building.style.animationDelay = `-${i * 0.2}s`;
         cityscape.appendChild(building);
       }
       console.log('Buildings generated successfully.');
@@ -822,6 +1026,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       generateStars();
       generateShootingStars();
+      generateFlockingBirds();
       generateClouds();
       generateBuildings();
       showBio();
@@ -841,6 +1046,7 @@
     <div class="star-layer-2"></div>
     <div class="star-layer-3"></div>
     <div class="star-layer-shooting"></div>
+    <div class="bird-layer"></div>
     <div class="moon"></div>
   </div>
   <div class="cityscape"></div>
@@ -863,19 +1069,19 @@
       <a href="https://www.tiktok.com/@mrprophecy1212" target="_blank" class="button tiktok" aria-label="Visit MrProphecy's TikTok profile" onclick="gtag('event', 'click', {'event_category': 'Social', 'event_label': 'TikTok'});">TikTok</a>
     </nav>
     <div class="video-container">
-      <iframe id="youtube-player" loading="lazy" src="https://www.youtube.com/embed/videoseries?list=PLasqsDl8vf8dX09ZHd9G33ihpdUV2h2G8&vq=hd1080&enablejsapi=1" title="MrProphecy's YouTube Playlist" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope" allowfullscreen></iframe>
+      <iframe id="youtube-player" loading="lazy" src="https://www.youtube.com/embed/videoseries?list=PLasqsDl8vf8dX09ZHd9G33ihpdUV2h2G8&vq=hd1080&enablejsapi=1" title="MrProphecy's YouTube Playlist" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
     </div>
     <section class="bio" aria-labelledby="bio-heading">
       <h2 id="bio-heading"><span class="title-glitch" data-text="Welcome to MrProphecy’s World">Welcome to MrProphecy’s World</span></h2>
       <p>Hey, music lovers! You’re at <a href="http://www.themostusefulsiteintheworld.com">www.themostusefulsiteintheworld.com</a>, the home of MrProphecy, a UK animator, musician, artist, and developer blending high-energy dance music and soulful hip-hop. His latest tracks are waiting for you—head to <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ</a> to dive in!</p>
       <h2><span class="title-glitch" data-text="Vibes That Move You">Vibes That Move You</span></h2>
-      <p>MrProphecy’s sound fuses pulsating dance beats with conscious hip-hop lyrics, creating tracks that hit the dancefloor and the heart. Over the past year, he’s leaned into dance music, bringing fresh energy to the UK scene. Stream his latest releases on <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">YouTube</a> or check out <a href="https://soundcloud.com/mrpr0phecy" target="_blank">SoundCloud</a> for more.</p>
+      <p>MrProphecy’s sound fuses pulsating dance beats with conscious hip-hop lyrics, creating tracks that hit the music scene and the heart. Over the past year, he’s leaned into dance music, bringing fresh energy to the UK scene. Stream his latest releases on <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">YouTube</a> or check out <a href="https://soundcloud.com/mrpr0phecy" target="_blank">SoundCloud</a> for more.</p>
       <h2><span class="title-glitch" data-text="Live Energy & Collaborations">Live Energy & Collaborations</span></h2>
-      <p>MrProphecy has electrified stages across the UK, from Bristol’s Moles Club to the Cambridge Festival, performing as a supporting act for artists like Jehst, Skinnyman, Blade, Respect BA, Klashneckoff, Phi Life Cypher, Tommy Evans etc. As part of Sons of South, he dropped the *All Eyes on the South* mixtape series, a UK classic. Catch his live performances and exclusive content on <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">YouTube</a>.</p>
+      <p>MrProphecy has electrified stages across the UK, from Bristol’s venues to the Cambridge Festival, performing as a supporting act for artists like Jehst, Slimzee,  BPM, and others. Catch his latest performances and exclusive content on <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">YouTube</a>.</p>
       <h2><span class="title-glitch" data-text="Visuals That Pop">Visuals That Pop</span></h2>
       <p>MrProphecy’s <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">YouTube channel</a> is a visual feast, with music videos that blend vibrant dance energy and gritty hip-hop vibes. From pulsing club visuals to storytelling animations, his videos bring his music to life. Subscribe to stay updated with his latest drops!</p>
       <h2><span class="title-glitch" data-text="Why MrProphecy?">Why MrProphecy?</span></h2>
-      <p>MrProphecy is a creative force, crafting not just music but also stunning visuals. His passion for dance and hip-hop shines through in every project, making him a standout in the UK scene. Explore his world on <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ</a> and connect on <a href="https://www.instagram.com/mrpr0phecy" target="_blank">Instagram</a>, <a href="https://soundcloud.com/mrpr0phecy" target="_blank">SoundCloud</a>, and <a href="https://www.tiktok.com/@mrprophecy1212" target="_blank">TikTok</a>.</p>
+      <p>MrProphecy is a creative force, crafting not just music but also stunning visuals. His passion for music shines through in every project, making him a standout in the UK scene. Explore his world on <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ</a> and connect on <a href="https://www.instagram.com/mrpr0phecy" target="_blank">Instagram</a>, <a href="https://soundcloud.com/mrpr0phecy" target="_blank">SoundCloud</a>, and <a href="https://www.tiktok.com/@mrprophecy1212" target="_blank">TikTok</a>.</p>
       <h2><span class="title-glitch" data-text="Join the Movement">Join the Movement</span></h2>
       <p>Ready to vibe? Visit <a href="https://www.youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ" target="_blank">youtube.com/channel/UC4gf97RNmbCHmXcsriT9IzQ</a> to watch his latest videos and hear his newest tracks. Follow him on <a href="https://www.instagram.com/mrpr0phecy" target="_blank">Instagram</a>, <a href="https://www.tiktok.com/@mrprophecy1212" target="_blank">TikTok</a> for updates, and stream on <a href="https://soundcloud.com/mrpr0phecy" target="_blank">SoundCloud</a>. Join MrProphecy’s dance and hip-hop revolution at <a href="http://www.themostusefulsiteintheworld.com">www.themostusefulsiteintheworld.com</a>!</p>
     </section>
