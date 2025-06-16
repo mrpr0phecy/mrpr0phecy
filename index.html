@@ -353,15 +353,40 @@
       right: 10%;
       width: 80px;
       height: 80px;
-      background: #333;
+      background: radial-gradient(circle at 60% 40%, #e8e8e8 0%, #d0d0d0 50%, #b0b0b0 100%);
       border-radius: 50%;
-      box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+      box-shadow: 
+        0 0 20px rgba(0, 255, 204, 0.6),
+        inset -10px -10px 20px rgba(0, 0, 0, 0.3),
+        inset 5px 5px 10px rgba(255, 255, 255, 0.2);
       z-index: 4;
       animation: moonGlow 10s infinite ease-in-out;
+      overflow: hidden;
+      filter: url(#moon-texture);
+    }
+    .moon::before {
+      content: '';
+      position: absolute;
+      top: 20%;
+      left: 30%;
+      width: 15px;
+      height: 15px;
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 50%;
+      box-shadow: 
+        30px 20px 0 5px rgba(0, 0, 0, 0.1),
+        -20px 10px 0 8px rgba(0, 0, 0, 0.12),
+        10px -10px 0 3px rgba(0, 0, 0, 0.08);
     }
     @keyframes moonGlow {
-      0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 204, 0.5); }
-      50% { box-shadow: 0 0 30px rgba(0, 255, 204, 0.7); }
+      0%, 100% { box-shadow: 
+        0 0 20px rgba(0, 255, 204, 0.6),
+        inset -10px -10px 20px rgba(0, 0, 0, 0.3),
+        inset 5px 5px 10px rgba(255, 255, 255, 0.2); }
+      50% { box-shadow: 
+        0 0 30px rgba(0, 255, 204, 0.8),
+        inset -10px -10px 20px rgba(0, 0, 0, 0.3),
+        inset 5px 5px 10px rgba(255, 255, 255, 0.2); }
     }
     .cityscape {
       position: fixed;
@@ -420,9 +445,23 @@
       pointer-events: none;
       overflow: hidden;
     }
+    .cloud-layer-background, .cloud-layer-foreground {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .cloud-layer-background {
+      z-index: 6;
+      opacity: 0.5;
+    }
+    .cloud-layer-foreground {
+      z-index: 7;
+      opacity: 0.8;
+    }
     .cloud-cluster {
       position: absolute;
-      opacity: 0.7;
     }
     .cloud {
       position: absolute;
@@ -433,7 +472,14 @@
         -10px -10px 30px rgba(255, 255, 255, 0.3),
         10px 10px 30px rgba(0, 255, 204, 0.2);
       filter: blur(5px);
-      opacity: 0.7;
+    }
+    .cloud-layer-background .cloud {
+      transform: scale(1.2);
+      filter: blur(8px);
+    }
+    .cloud-layer-foreground .cloud {
+      transform: scale(0.8);
+      filter: blur(4px);
     }
     .cloud::before,
     .cloud::after {
@@ -444,7 +490,6 @@
       width: 50%;
       height: 50%;
       filter: inherit;
-      opacity: inherit;
       box-shadow: inherit;
     }
     .cloud::before {
@@ -455,9 +500,13 @@
       top: 20%;
       left: -30%;
     }
-    @keyframes drift {
+    @keyframes drift-background {
       0% { transform: translateX(100vw) translateY(0); }
-      100% { transform: translateX(-100vw) translateY(-10px); }
+      100% { transform: translateX(-100vw) translateY(-15px); }
+    }
+    @keyframes drift-foreground {
+      0% { transform: translateX(100vw) translateY(0); }
+      100% { transform: translateX(-100vw) translateY(-5px); }
     }
     .container {
       max-width: 1200px;
@@ -806,6 +855,13 @@
       .bird { width: 2px; height: 2px; }
     }
   </style>
+  <svg style="display: none;">
+    <filter id="moon-texture">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" result="noise"/>
+      <feColorMatrix type="matrix" values="0.1 0 0 0 0 0 0.1 0 0 0 0 0 0.1 0 0 0 0 0 0.3 0" result="grayNoise"/>
+      <feBlend mode="multiply" in="SourceGraphic" in2="grayNoise"/>
+    </filter>
+  </svg>
   <script>
     window.onerror = function (msg, url, lineNo, columnNo, error) {
       console.error('Script Error:', {
@@ -829,7 +885,7 @@
           { selector: '.star-layer-1', count: 100, className: 'star' },
           { selector: '.star-layer-2', count: 50, className: 'star' },
           { selector: '.star-layer-3', count: 25, className: 'star' },
-          { selector: '.star-layer-3', count: 10, className: 'twinkle-star' }
+          { selector: '.star-layer-3', count: 15, className: 'twinkle-star' }
         ];
         layers.forEach(layer => {
           const container = document.querySelector(layer.selector);
@@ -842,6 +898,11 @@
             star.className = layer.className;
             star.style.left = `${Math.random() * 100}vw`;
             star.style.top = `${Math.random() * 100}vh`;
+            if (layer.className === 'twinkle-star' && Math.random() > 0.3) {
+              const duration = Math.random() * 2 + 3;
+              const delay = Math.random() * 10;
+              star.style.animation = `twinkle ${duration}s infinite ${delay}s`;
+            }
             container.appendChild(star);
           }
         });
@@ -987,14 +1048,14 @@
         }
         const birdCount = 20;
         const birds = [];
-        const maxSpeed = 4;
-        const maxForce = 0.03;
-        const separationWeight = 1.5;
-        const alignmentWeight = 1.0;
-        const cohesionWeight = 0.8;
-        const lerpFactor = 0.25;
+        const maxSpeed = 3.5;
+        const maxForce = 0.02;
+        const separationWeight = 1.8;
+        const alignmentWeight = 1.2;
+        const cohesionWeight = 1.0;
+        const lerpFactor = 0.35;
         let frameCount = 0;
-        const updateEveryNFrames = 4;
+        const updateEveryNFrames = 6;
         const gridSize = window.innerWidth * 0.1;
         const gridCols = Math.ceil(window.innerWidth / gridSize);
         const gridRows = Math.ceil(window.innerHeight / gridSize);
@@ -1060,8 +1121,8 @@
 
             if (shouldUpdatePhysics) {
               updateGrid();
-              const separationDistance = window.innerWidth * 0.035;
-              const neighborDistance = window.innerWidth * 0.075;
+              const separationDistance = window.innerWidth * 0.04;
+              const neighborDistance = window.innerWidth * 0.08;
               const margin = window.innerWidth * 0.05;
               const lowerBoundary = window.innerHeight * 0.7;
 
@@ -1217,31 +1278,41 @@
           console.warn('Cloudscape container not found');
           return;
         }
-        const clusterCount = 5;
-        for (let i = 0; i < clusterCount; i++) {
-          const cluster = document.createElement('div');
-          cluster.className = 'cloud-cluster';
-          const baseX = Math.random() * 100;
-          const baseY = Math.random() * 30;
-          cluster.style.left = `${baseX}vw`;
-          cluster.style.top = `${baseY}vh`;
-          const duration = Math.random() * 30 + 50;
-          const delay = -(Math.random() * duration);
-          cluster.style.animation = `drift ${duration}s linear ${delay}s infinite`;
-
-          const cloudCount = Math.floor(Math.random() * 3) + 3;
-          for (let j = 0; j < cloudCount; j++) {
-            const cloud = document.createElement('div');
-            cloud.className = 'cloud';
-            const size = Math.random() * 120 + 80;
-            cloud.style.width = `${size}px`;
-            cloud.style.height = `${size * 0.6}px`;
-            cloud.style.left = `${(Math.random() - 0.5) * 180}px`;
-            cloud.style.top = `${(Math.random() - 0.5) * 100}px`;
-            cluster.appendChild(cloud);
+        const layers = [
+          { selector: '.cloud-layer-background', count: 3, animation: 'drift-background' },
+          { selector: '.cloud-layer-foreground', count: 3, animation: 'drift-foreground' }
+        ];
+        layers.forEach(layer => {
+          const container = document.querySelector(layer.selector);
+          if (!container) {
+            console.warn(`Container ${layer.selector} not found for clouds`);
+            return;
           }
-          cloudscape.appendChild(cluster);
-        }
+          for (let i = 0; i < layer.count; i++) {
+            const cluster = document.createElement('div');
+            cluster.className = 'cloud-cluster';
+            const baseX = Math.random() * 100;
+            const baseY = Math.random() * 30;
+            cluster.style.left = `${baseX}vw`;
+            cluster.style.top = `${baseY}vh`;
+            const duration = Math.random() * 30 + (layer.animation === 'drift-background' ? 60 : 40);
+            const delay = -(Math.random() * duration);
+            cluster.style.animation = `${layer.animation} ${duration}s linear ${delay}s infinite`;
+
+            const cloudCount = Math.floor(Math.random() * 3) + 3;
+            for (let j = 0; j < cloudCount; j++) {
+              const cloud = document.createElement('div');
+              cloud.className = 'cloud';
+              const size = Math.random() * 120 + 80;
+              cloud.style.width = `${size}px`;
+              cloud.style.height = `${size * 0.6}px`;
+              cloud.style.left = `${(Math.random() - 0.5) * 180}px`;
+              cloud.style.top = `${(Math.random() - 0.5) * 100}px`;
+              cluster.appendChild(cloud);
+            }
+            container.appendChild(cluster);
+          }
+        });
         console.log('Clouds generated successfully');
       } catch (e) {
         console.error('Error in generateClouds:', e);
@@ -1341,7 +1412,10 @@
     <div class="moon"></div>
   </div>
   <div class="cityscape"></div>
-  <div class="cloudscape"></div>
+  <div class="cloudscape">
+    <div class="cloud-layer-background"></div>
+    <div class="cloud-layer-foreground"></div>
+  </div>
   <main class="container">
     <div class="profile-img-wrapper">
       <img src="/mrprophecypic.jpg" alt="MrProphecy, UK dance and hip-hop artist" class="profile-img" loading="lazy" onerror="this.src='https://via.placeholder.com/250?text=Profile+Image'">
