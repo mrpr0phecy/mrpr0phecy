@@ -187,7 +187,7 @@
     window.onerror = (msg, url, lineNo, columnNo, error) => {
       console.error('Script Error:', { message: msg, url: url || 'inline script', line: lineNo || 'N/A', column: columnNo || 'N/A', stack: error?.stack || 'No stack trace' });
       const hud = document.querySelector('.hud');
-      if (hud) { hud.classList.add('error'); hud.innerHTML = `SYSTEM ERROR: Script failed. Check console.`; }
+      if (hud) { hud.classList.add('error'); hud.innerHTML = `SYSTEM ERROR: Script failed at line ${lineNo || 'N/A'}. Check console.`; }
       return false;
     };
 
@@ -252,51 +252,96 @@
       generate() {
         try {
           if (!this.container) {
-            const staticAirplane = document.createElement('div');
-            staticAirplane.className = 'airplane static';
-            document.querySelector('.starry-night')?.appendChild(staticAirplane);
-            return console.warn('Airplane container not found');
+            console.warn('Airplane container not found');
+            const starryNight = document.querySelector('.starry-night');
+            if (starryNight) {
+              const staticAirplane = document.createElement('div');
+              staticAirplane.className = 'airplane static';
+              starryNight.appendChild(staticAirplane);
+            }
+            this.appendError('Airplane container missing.');
+            return;
           }
-          let activeAirplanes = 0, styleSheets = new Set();
+
+          let activeAirplanes = 0;
+          const styleSheets = new Set();
+
           const createAirplane = () => {
             if (activeAirplanes >= 2) return;
+
             const airplane = document.createElement('div');
             airplane.className = 'airplane';
             const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             const direction = Math.random() < 0.5 ? 1 : -1;
             const startX = direction === 1 ? -20 : 120;
-            const startY = Math.random() * 50 + 10;
-            airplane.style.left = `${startX}px`;
-            airplane.style.top = `${startY}px`;
-            if (!reducedMotion) {
-              const duration = Math.random() * 20 + 20;
-              const endX = direction === 1 ? 120 : -20;
-              const endY = startY + (Math.random() * 20 - 10);
-              const zDepth = Math.random() * 100 + 50;
-              const scaleFactor = 1 - (zDepth - 50) / 500;
-              const angle = Math.atan2(endY - startY, endX - startX) * (180 / Math.PI) + 180;
-              const animationName = `flightPath_${Math.random().toString(36).substr(2, 9)}`;
-              const styleSheet = document.createElement('style');
-              styleSheet.innerHTML = `@keyframes ${animationName} { 0% { transform: translate(0, 0) translateZ(${zDepth}px) rotate(${angle}deg) scale(${scaleFactor}); opacity: 0; } 5% { opacity: 0.9; } 95% { opacity: 0.9; } 100% { transform: translate(${endX - startX}vw, ${endY - startY}px) translateZ(${zDepth}px) rotate(${angle}deg) scale(${scaleFactor}); opacity: 0; } }`;
-              document.head.appendChild(styleSheet);
-              styleSheets.add(styleSheet);
-              airplane.style.animation = `${animationName} ${duration}s linear forwards`;
-              setTimeout(() => {
-                airplane.remove();
-                activeAirplanes--;
-                if (styleSheets.size > 4) { const oldest = styleSheets.values().next().value; oldest.remove(); styleSheets.delete(oldest); }
-                createAirplane();
-              }, duration * 1000);
-            } else {
-              airplane.style.transform = `rotate(${Math.random() * 360}deg) scale(0.8)`;
-              airplane.style.opacity = '0.9';
+            const startY = Math.random() * 40 + 10; // Random height between 10vh and 50vh
+
+            try {
+              airplane.style.left = `${startX}vw`;
+              airplane.style.top = `${startY}vh`;
+
+              if (!reducedMotion) {
+                const duration = Math.random() * 20 + 20;
+                const endX = direction === 1 ? 120 : -20;
+                const zDepth = Math.random() * 100 + 50;
+                const scaleFactor = 1 - (zDepth - 50) / 500;
+                const angle = direction === 1 ? 180 : 0; // Nose right for left-to-right, left for right-to-left
+
+                const animationName = `flightPath_${Math.random().toString(36).substr(2, 9)}`;
+                const styleSheet = document.createElement('style');
+                styleSheet.innerHTML = `@keyframes ${animationName} { 
+                  0% { transform: translate(0, 0) translateZ(${zDepth}px) rotate(${angle}deg) scale(${scaleFactor}); opacity: 0; } 
+                  5% { opacity: 0.9; } 
+                  95% { opacity: 0.9; } 
+                  100% { transform: translate(${endX - startX}vw, 0) translateZ(${zDepth}px) rotate(${angle}deg) scale(${scaleFactor}); opacity: 0; } 
+                }`;
+                document.head.appendChild(styleSheet);
+                styleSheets.add(styleSheet);
+
+                airplane.style.animation = `${animationName} ${duration}s linear forwards`;
+
+                setTimeout(() => {
+                  try {
+                    airplane.remove();
+                    activeAirplanes--;
+                    if (styleSheets.size > 4) {
+                      const oldest = styleSheets.values().next().value;
+                      if (oldest && oldest.parentNode) {
+                        oldest.parentNode.removeChild(oldest);
+                        styleSheets.delete(oldest);
+                      }
+                    }
+                    createAirplane();
+                  } catch (e) {
+                    console.error('Airplane Cleanup Error:', e);
+                    this.appendError('Failed to clean up airplane.');
+                  }
+                }, duration * 1000);
+              } else {
+                airplane.style.transform = `rotate(${direction === 1 ? 180 : 0}deg) scale(0.8)`;
+                airplane.style.opacity = '0.9';
+              }
+
+              this.container.appendChild(airplane);
+              activeAirplanes++;
+            } catch (e) {
+              console.error('Airplane Creation Error:', e);
+              this.appendError('Failed to create airplane.');
             }
-            this.container.appendChild(airplane);
-            activeAirplanes++;
           };
-          createAirplane(); createAirplane();
-          console.log('Airplanes initialized');
-        } catch (e) { console.error('Airplane Error:', e); this.appendError('Airplanes failed to load.'); }
+
+          try {
+            createAirplane();
+            createAirplane();
+            console.log('Airplanes initialized');
+          } catch (e) {
+            console.error('Airplane Initialization Error:', e);
+            this.appendError('Airplane initialization failed.');
+          }
+        } catch (e) {
+          console.error('Airplane Generator Error:', e);
+          this.appendError('Airplanes failed to load.');
+        }
       }
     }
 
