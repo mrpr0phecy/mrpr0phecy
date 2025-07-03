@@ -20,44 +20,46 @@
     let particles = [];
     let shapes = [];
     let glitchTimer = 0;
-    const GLITCH_INTERVAL = 120; // Glitch every 120 frames (~2 seconds at 60 FPS)
-    let noiseScale = 0.002; // For Perlin noise
-    let time = 0; // For animation evolution
+    const GLITCH_INTERVAL = 90; // Glitch every ~1.5 seconds at 60 FPS
+    let time = 0; // Global time for animation evolution
+    let noiseScale = 0.003; // For smoother, faster noise
 
     function setup() {
       createCanvas(windowWidth, windowHeight);
       colorMode(HSB, 360, 100, 100, 1);
-      
-      // Initialize particles with varied properties
-      for (let i = 0; i < 200; i++) {
+
+      // Initialize particles with noise-driven motion
+      for (let i = 0; i < 250; i++) {
         particles.push({
           x: random(width),
           y: random(height),
-          vx: random(-1.5, 1.5),
-          vy: random(-1.5, 1.5),
-          size: random(5, 20),
+          baseX: random(1000), // Base for noise-driven motion
+          baseY: random(1000),
+          size: random(5, 15),
           hue: random(360),
-          alpha: random(0.5, 1),
+          alpha: random(0.6, 1),
           type: random(['circle', 'square', 'triangle'])
         });
       }
-      
+
       // Initialize fractal-inspired shapes
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 15; i++) {
         shapes.push({
           x: random(width),
           y: random(height),
-          size: random(50, 120),
+          baseX: random(1000),
+          baseY: random(1000),
+          size: random(50, 100),
           angle: random(TWO_PI),
-          speed: random(-0.03, 0.03),
+          speed: random(-0.05, 0.05),
           hue: random(360),
           glitchOffsetX: 0,
           glitchOffsetY: 0,
-          variation: random(['linear', 'swirl']) // Inspired by FLAM3 variations
+          variation: random(['linear', 'swirl'])
         });
       }
 
-      // Optional: Initialize audio input (uncomment to enable)
+      // Optional: Audio input setup
       /*
       mic = new p5.AudioIn();
       mic.start();
@@ -65,36 +67,42 @@
     }
 
     function draw() {
-      // Semi-transparent background for smooth trails
-      background(0, 0, 0, 0.15);
-      time += 0.01; // Increment time for evolution
+      // Semi-transparent background for smooth motion trails
+      background(0, 0, 0, 0.2);
+      time += 0.02; // Faster evolution for noticeable motion
 
-      // Layer 1: Perlin noise background (inspired by Electric Sheep’s organic motion)
+      // Layer 1: Evolving noise background
       drawNoiseBackground();
 
-      // Layer 2: Fractal-inspired shapes with glitch effects
+      // Layer 2: Fractal-inspired shapes with continuous motion
       glitchTimer++;
       if (glitchTimer > GLITCH_INTERVAL) {
         glitchTimer = 0;
         applyGlitch();
       }
       for (let s of shapes) {
+        // Noise-driven position for organic motion
+        let nx = noise(s.baseX + time * 0.1) * width;
+        let ny = noise(s.baseY + time * 0.1) * height;
+        s.x = lerp(s.x, nx, 0.05); // Smoothly interpolate position
+        s.y = lerp(s.y, ny, 0.05);
         push();
         translate(s.x + s.glitchOffsetX, s.y + s.glitchOffsetY);
         rotate(s.angle);
-        fill(s.hue, 80, 80, 0.7);
+        let scale = 1 + 0.2 * sin(time + s.baseX); // Pulsating scale
+        scaleMatrix(scale, scale);
+        fill(s.hue, 80, 80, 0.8);
         noStroke();
         if (s.variation === 'swirl') {
-          // Swirl effect inspired by FLAM3 variations
-          let swirl = sin(time + s.x * 0.01) * 20;
+          // Swirl effect inspired by FLAM3
           beginShape();
           for (let a = 0; a < TWO_PI; a += 0.1) {
-            let r = s.size * (1 + 0.2 * sin(a * 6 + time));
-            vertex(r * cos(a + swirl), r * sin(a + swirl));
+            let r = s.size * (1 + 0.3 * sin(a * 8 + time));
+            vertex(r * cos(a + time * 0.5), r * sin(a + time * 0.5));
           }
           endShape(CLOSE);
         } else {
-          // Linear geometric shape
+          // Triangle for geometric hip-hop vibe
           triangle(
             -s.size / 2, s.size / 2,
             s.size / 2, s.size / 2,
@@ -102,22 +110,33 @@
           );
         }
         s.angle += s.speed;
-        s.hue = (s.hue + 0.3) % 360; // Gradual color shift
+        s.hue = (s.hue + 0.5) % 360; // Continuous color shift
         pop();
       }
 
-      // Layer 3: Enhanced particle system
-      // Optional: Audio reactivity (uncomment mic code and add this)
+      // Layer 3: Dynamic particle system
       /*
-      let vol = mic.getLevel();
+      let vol = mic.getLevel(); // Uncomment for audio reactivity
       */
       for (let p of particles) {
+        // Noise-driven motion for fluid paths
+        p.vx = map(noise(p.baseX + time * 0.2), 0, 1, -2, 2);
+        p.vy = map(noise(p.baseY + time * 0.2), 0, 1, -2, 2);
+        p.x += p.vx;
+        p.y += p.vy;
+        // Wrap around edges for continuous flow
+        if (p.x < 0) p.x += width;
+        if (p.x > width) p.x -= width;
+        if (p.y < 0) p.y += height;
+        if (p.y > height) p.y -= height;
+        // Pulsating size
+        p.size = constrain(p.size + sin(time + p.baseX) * 0.2 /* + map(vol, 0, 1, 0, 5) */, 5, 20);
         fill(p.hue, 80, 80, p.alpha);
         noStroke();
         push();
         translate(p.x, p.y);
         if (p.type === 'circle') {
-          ellipse(0, 0, p.size /* * map(vol, 0, 1, 1, 2) */);
+          ellipse(0, 0, p.size);
         } else if (p.type === 'square') {
           rect(-p.size / 2, -p.size / 2, p.size, p.size);
         } else {
@@ -128,58 +147,54 @@
           );
         }
         pop();
-        p.x += p.vx;
-        p.y += p.vy;
-        // Bounce off edges
-        if (p.x < 0 || p.x > width) p.vx *= -1;
-        if (p.y < 0 || p.y > height) p.vy *= -1;
-        p.hue = (p.hue + random(0.5)) % 360; // Random color shift
-        p.size = constrain(p.size + random(-0.2, 0.2), 5, 20); // Slight size variation
+        p.hue = (p.hue + random(0.8)) % 360; // Random color shift
       }
 
       // Layer 4: Glitchy text overlay
-      drawGlitchText("MrProphecy", width - 220, height - 50, 40);
+      let textX = width - 220 + sin(time) * 5; // Subtle wobble
+      let textY = height - 50 + cos(time) * 5;
+      drawGlitchText("MrProphecy", textX, textY, 40);
     }
 
     function drawNoiseBackground() {
-      // Perlin noise background with evolving colors
+      // Fast-evolving noise background
       loadPixels();
-      for (let x = 0; x < width; x += 8) {
-        for (let y = 0; y < height; y += 8) {
-          let n = noise(x * noiseScale, y * noiseScale, time);
+      for (let x = 0; x < width; x += 6) {
+        for (let y = 0; y < height; y += 6) {
+          let n = noise(x * noiseScale, y * noiseScale, time * 0.5);
           let hue = map(n, 0, 1, 0, 360);
-          fill(hue, 50, 50, 0.4);
+          fill(hue, 60, 60, 0.5);
           noStroke();
-          rect(x, y, 8, 8);
+          rect(x, y, 6, 6);
         }
       }
       updatePixels();
     }
 
     function applyGlitch() {
-      // Apply glitch to shapes
+      // Glitch effect for shapes
       for (let s of shapes) {
-        s.glitchOffsetX = random(-15, 15);
-        s.glitchOffsetY = random(-15, 15);
+        s.glitchOffsetX = random(-20, 20);
+        s.glitchOffsetY = random(-20, 20);
         setTimeout(() => {
           s.glitchOffsetX = 0;
           s.glitchOffsetY = 0;
-        }, 100); // Reset after 100ms
+        }, 80); // Brief glitch duration
       }
     }
 
     function drawGlitchText(text, x, y, size) {
-      // Glitchy text with neon effect
+      // Glitchy neon text
       fill(60, 100, 100, 1); // Neon yellow
       textSize(size);
       textStyle(BOLD);
       textFont('Orbitron');
       text(text, x, y);
-      if (random() < 0.1) { // 10% chance per frame for glitch
-        fill(180, 100, 100, 0.6); // Cyan glitch
-        text(text, x + random(-10, 10), y + random(-10, 10));
-        fill(300, 100, 100, 0.6); // Magenta glitch
-        text(text, x + random(-10, 10), y + random(-10, 10));
+      if (random() < 0.15) { // 15% chance for glitch
+        fill(180, 100, 100, 0.7); // Cyan glitch
+        text(text, x + random(-12, 12), y + random(-12, 12));
+        fill(300, 100, 100, 0.7); // Magenta glitch
+        text(text, x + random(-12, 12), y + random(-12, 12));
       }
     }
 
