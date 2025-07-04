@@ -33,9 +33,6 @@
     let time = 0;
     let glitchTimer = 0;
     const GLITCH_INTERVAL = 10;
-    let frameCounter = 0;
-    let lastFrameTime = 0;
-    let fps = 0;
     
     const noise = [];
     const noiseSize = 64;
@@ -46,115 +43,63 @@
       }
     }
     function getNoise(x, y) {
-      try {
-        const xi = Math.floor(x) % noiseSize;
-        const yi = Math.floor(y) % noiseSize;
-        const xf = x - Math.floor(x);
-        const yf = y - Math.floor(y);
-        const v00 = noise[xi][yi];
-        const v10 = noise[(xi + 1) % noiseSize][yi];
-        const v01 = noise[xi][(yi + 1) % noiseSize];
-        const v11 = noise[(xi + 1) % noiseSize][(yi + 1) % noiseSize];
-        const u = xf * xf * (3 - 2 * xf);
-        const v = yf * yf * (3 - 2 * yf);
-        const x0 = v00 + u * (v10 - v00);
-        const x1 = v01 + u * (v11 - v01);
-        return x0 + v * (x1 - x0);
-      } catch (e) {
-        console.error("Error in getNoise:", e);
-        return 0;
-      }
+      const xi = Math.floor(x) % noiseSize;
+      const yi = Math.floor(y) % noiseSize;
+      const xf = x - Math.floor(x);
+      const yf = y - Math.floor(y);
+      const v00 = noise[xi][yi];
+      const v10 = noise[(xi + 1) % noiseSize][yi];
+      const v01 = noise[xi][(yi + 1) % noiseSize];
+      const v11 = noise[(xi + 1) % noiseSize][(yi + 1) % noiseSize];
+      const u = xf * xf * (3 - 2 * xf);
+      const v = yf * yf * (3 - 2 * yf);
+      return v00 + u * (v10 - v00) + v * (v01 - v00 + u * (v11 - v01 - v10 + v00));
     }
     
     const particles = [];
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 30; i++) {
       particles.push({
         x: Math.random() * canvas.width - canvas.width / 2,
         y: Math.random() * canvas.height - canvas.height / 2,
         baseX: Math.random() * 1000,
         baseY: Math.random() * 1000,
-        size: Math.random() * 6 + 4,
-        hue: colors[Math.random() < 0.5 ? 'primary' : Math.random() < 0.75 ? 'secondary' : 'tertiary'],
-        alpha: Math.random() * 0.4 + 0.6,
-        type: Math.random() < 0.25 ? 'circle' : Math.random() < 0.5 ? 'triangle' : Math.random() < 0.75 ? 'square' : 'star',
-        trail: [],
-        angle: Math.random() * Math.PI * 2,
-        speed: Math.random() * 0.02 + 0.01,
-        radius: Math.random() * 100 + 50
-      });
-    }
-    
-    const borderParticles = [];
-    for (let i = 0; i < 20; i++) {
-      borderParticles.push({
-        x: Math.random() * canvas.width - canvas.width / 2,
-        y: Math.random() * canvas.height - canvas.height / 2,
-        baseX: Math.random() * 1000,
+        size: Math.random() * 5 + 3,
         hue: colors[Math.random() < 0.5 ? 'primary' : 'secondary'],
-        alpha: Math.random() * 0.3 + 0.3,
+        alpha: Math.random() * 0.3 + 0.5,
         angle: Math.random() * Math.PI * 2,
         speed: Math.random() * 0.015 + 0.005,
-        radius: Math.random() * 50 + 50
-      });
-    }
-    
-    const flames = [];
-    for (let i = 0; i < 4; i++) {
-      flames.push({
-        scale: Math.random() * 80 + 120,
-        angle: Math.random() * Math.PI * 2,
-        variation: ['swirl', 'spherical', 'handkerchief', 'bubble'][Math.floor(Math.random() * 4)],
-        hue: colors[Math.random() < 0.5 ? 'primary' : 'secondary'],
-        speed: Math.random() * 0.07 + 0.05,
-        offset: Math.random() * 0.1,
-        x: Math.random() * canvas.width - canvas.width / 2,
-        y: Math.random() * canvas.height - canvas.height / 2,
-        radius: Math.random() * 100 + 50
-      });
-    }
-    
-    const splatters = [];
-    for (let i = 0; i < 15; i++) {
-      splatters.push({
-        x: Math.random() * canvas.width - canvas.width / 2,
-        y: Math.random() * canvas.height - canvas.height / 2,
-        size: Math.random() * 20 + 10,
-        hue: colors[Math.random() < 0.5 ? 'accent' : 'tertiary'],
-        alpha: Math.random() * 0.3 + 0.3,
-        shape: Math.random() < 0.5 ? 'circle' : 'drip',
-        angle: Math.random() * Math.PI * 2,
-        speed: Math.random() * 0.01 + 0.005,
         radius: Math.random() * 80 + 40
       });
     }
     
-    const flares = [];
-    for (let i = 0; i < 5; i++) {
-      flares.push({
+    const splatters = [];
+    for (let i = 0; i < 10; i++) {
+      splatters.push({
         x: Math.random() * canvas.width - canvas.width / 2,
         y: Math.random() * canvas.height - canvas.height / 2,
-        size: Math.random() * 30 + 20,
-        hue: colors[Math.random() < 0.5 ? 'primary' : 'secondary'],
-        alpha: Math.random() * 0.2 + 0.2,
+        size: Math.random() * 15 + 8,
+        hue: colors.accent,
+        alpha: Math.random() * 0.2 + 0.3,
+        shape: Math.random() < 0.5 ? 'circle' : 'drip',
         angle: Math.random() * Math.PI * 2,
-        speed: Math.random() * 0.02 + 0.01,
-        radius: Math.random() * 100 + 50
+        speed: Math.random() * 0.01 + 0.005,
+        radius: Math.random() * 60 + 30
       });
     }
     
     let spirographParams = {
-      R: 160,
-      r: 40,
-      d: 30,
+      R: 140,
+      r: 35,
+      d: 25,
       dash: [3, 3]
     };
     
     function updateSpirographParams() {
-      if (Math.random() < 0.02) {
+      if (Math.random() < 0.005) {
         spirographParams = {
-          R: 140 + Math.random() * 40,
-          r: 30 + Math.random() * 20,
-          d: 20 + Math.random() * 20,
+          R: 130 + Math.random() * 20,
+          r: 30 + Math.random() * 10,
+          d: 20 + Math.random() * 10,
           dash: Math.random() < 0.5 ? [3, 3] : [5, 5]
         };
       }
@@ -165,70 +110,17 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
-        time += 0.05; // Slower time increment for smoother motion
-        frameCounter++;
+        time += 0.02; // Very slow time increment
         glitchTimer++;
         if (glitchTimer > GLITCH_INTERVAL) glitchTimer = 0;
         
-        const currentTime = performance.now();
-        if (currentTime - lastFrameTime > 1000) {
-          fps = frameCounter / ((currentTime - lastFrameTime) / 1000);
-          frameCounter = 0;
-          lastFrameTime = currentTime;
-          console.log(`FPS: ${fps.toFixed(1)}`);
-        }
-        
-        console.log("Start drawing background");
         drawDarkGradientBackground();
-        console.log("End drawing background");
-        
-        console.log("Start drawing clouds");
         drawClouds();
-        console.log("End drawing clouds");
-        
-        console.log("Start drawing Spirograph");
         drawSpirograph();
-        console.log("End drawing Spirograph");
-        
-        console.log("Start drawing kaleidoscope");
-        drawKaleidoscope();
-        console.log("End drawing kaleidoscope");
-        
-        console.log("Start drawing particles");
         drawParticles();
-        console.log("End drawing particles");
-        
-        console.log("Start drawing grid");
-        drawGridOverlay();
-        console.log("End drawing grid");
-        
-        console.log("Start drawing splatters");
         drawSplatters();
-        console.log("End drawing splatters");
-        
-        console.log("Start drawing flares");
-        drawFlares();
-        console.log("End drawing flares");
-        
-        console.log("Start drawing border");
-        drawBorderSpirograph();
-        console.log("End drawing border");
-        
-        console.log("Start drawing text");
-        drawGraffitiText("MrProphecy", 
-          canvas.width / 2 + Math.sin(time * 0.3) * (canvas.width / 3), // Smoother, wider orbit
-          canvas.height / 2 + Math.cos(time * 0.3) * (canvas.height / 3), 
-          48);
-        console.log("End drawing text");
-        
-        console.log("Start drawing vignette");
+        drawGraffitiText("www.youtube.com/mrprophecy", canvas.width - 300, canvas.height - 30, 24);
         drawVignette();
-        console.log("End drawing vignette");
-        
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = 'hsla(0, 0%, 100%, 0.5)';
-        ctx.font = '16px GraffitiFont, Arial, sans-serif';
-        ctx.fillText(`FPS: ${fps.toFixed(1)} | Frame: ${frameCounter}`, 10, 20);
         
         requestAnimationFrame(draw);
       } catch (e) {
@@ -237,389 +129,166 @@
     }
     
     function drawDarkGradientBackground() {
-      try {
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, `hsla(${colors.primary}, 70%, 20%, 0.5)`);
-        gradient.addColorStop(1, `hsla(${colors.secondary}, 70%, 20%, 0.5)`);
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        console.log(`Gradient bounds: x=0, y=0, w=${canvas.width}, h=${canvas.height}`);
-        
-        ctx.fillStyle = `hsla(${colors.accent}, 80%, 30%, 0.4)`;
-        ctx.fillRect(0, canvas.height / 2 - 20, canvas.width, 40);
-        console.log(`Horizon bounds: x=0, y=${canvas.height / 2 - 20}, w=${canvas.width}, h=40`);
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawDarkGradientBackground:", e);
-      }
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, `hsla(${colors.primary}, 70%, 20%, 0.5)`);
+      gradient.addColorStop(1, `hsla(${colors.secondary}, 70%, 20%, 0.5)`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
     }
     
     function drawClouds() {
-      try {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        for (let x = -canvas.width / 2; x < canvas.width / 2; x += 50) {
-          for (let y = -canvas.height / 2; y < canvas.height / 2; y += 50) {
-            const dist = Math.sqrt(x * x + y * y);
-            const n = getNoise((x + time * 10) / 50, (y + time * 6) / 50);
-            if (n > 0.5) {
-              const scale = 1 + dist / Math.max(canvas.width, canvas.height) * 3;
-              ctx.fillStyle = `hsla(${colors.tertiary}, 50%, 50%, ${n * 0.08 * (1 - dist / 500)})`;
-              ctx.beginPath();
-              ctx.arc(x * scale, y * scale, 20, 0, Math.PI * 2);
-              ctx.fill();
-            }
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      for (let x = -canvas.width / 2; x < canvas.width / 2; x += 50) {
+        for (let y = -canvas.height / 2; y < canvas.height / 2; y += 50) {
+          const dist = Math.sqrt(x * x + y * y);
+          const n = getNoise((x + time * 8) / 50, (y + time * 5) / 50);
+          if (n > 0.5) {
+            const scale = 1 + dist / Math.max(canvas.width, canvas.height) * 3;
+            ctx.fillStyle = `hsla(${colors.tertiary}, 50%, 50%, ${n * 0.07 * (1 - dist / 500)})`;
+            ctx.beginPath();
+            ctx.arc(x * scale, y * scale, 15, 0, Math.PI * 2);
+            ctx.fill();
           }
         }
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawClouds:", e);
       }
+      ctx.restore();
     }
     
     function drawSpirograph() {
-      try {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        updateSpirographParams();
-        for (let layer = 0; layer < 4; layer++) {
-          const R = spirographParams.R + Math.sin(time * 0.3 + layer) * 40; // Slower, less amplitude
-          const r = spirographParams.r + Math.cos(time * 0.25 + layer) * 15;
-          const d = spirographParams.d + Math.sin(time * 0.2 + layer) * 25;
-          ctx.beginPath();
-          for (let t = 0; t < Math.PI * 5; t += 0.05) {
-            const x = (R - r) * Math.cos(t) + d * Math.cos((R - r) / r * t + layer * 0.4);
-            const y = (R - r) * Math.sin(t) - d * Math.sin((R - r) / r * t + layer * 0.4);
-            const glitchX = glitchTimer > GLITCH_INTERVAL - 3 ? (Math.random() - 0.5) * 4 : 0;
-            if (t === 0) ctx.moveTo(x, y + glitchX);
-            else ctx.lineTo(x, y + glitchX);
-          }
-          // Unique color per layer
-          ctx.strokeStyle = `hsla(${(colors[layer % 2 ? 'primary' : 'secondary'] + layer * 60) % 360}, 90%, 90%, 0.6)`;
-          ctx.lineWidth = 1 + layer * 0.3;
-          if (layer % 2 === 1) ctx.setLineDash(spirographParams.dash);
-          else ctx.setLineDash([]);
-          ctx.stroke();
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(time * 0.02); // Very slow axis spin
+      updateSpirographParams();
+      for (let layer = 0; layer < 3; layer++) {
+        const R = spirographParams.R + Math.sin(time * 0.1 + layer) * 20;
+        const r = spirographParams.r + Math.cos(time * 0.07 + layer) * 6;
+        const d = spirographParams.d + Math.sin(time * 0.05 + layer) * 10;
+        ctx.beginPath();
+        for (let t = 0; t < Math.PI * 5; t += 0.05) {
+          const x = (R - r) * Math.cos(t) + d * Math.cos((R - r) / r * t + layer * 0.3);
+          const y = (R - r) * Math.sin(t) - d * Math.sin((R - r) / r * t + layer * 0.3);
+          const glitchX = glitchTimer > GLITCH_INTERVAL - 3 ? (Math.random() - 0.5) * 3 : 0;
+          if (t === 0) ctx.moveTo(x, y + glitchX);
+          else ctx.lineTo(x, y + glitchX);
         }
-        ctx.setLineDash([]);
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawSpirograph:", e);
+        ctx.strokeStyle = `hsla(${(colors[layer % 2 ? 'primary' : 'secondary'] + layer * 90) % 360}, 90%, 90%, 0.8)`;
+        ctx.lineWidth = 2.5 + layer * 0.6;
+        ctx.shadowColor = `hsla(${(colors[layer % 2 ? 'primary' : 'secondary'] + layer * 90) % 360}, 90%, 90%, 0.6)`;
+        ctx.shadowBlur = 20;
+        ctx.globalCompositeOperation = 'screen';
+        if (layer % 2 === 1) ctx.setLineDash(spirographParams.dash);
+        else ctx.setLineDash([]);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.shadowBlur = 0;
       }
-    }
-    
-    function drawKaleidoscope() {
-      try {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        const segments = 10;
-        flames.forEach((f, i) => {
-          f.angle += f.speed;
-          f.x = f.radius * Math.cos(f.angle + Math.sin(time + i) * 0.1);
-          f.y = f.radius * Math.sin(f.angle + Math.cos(time + i) * 0.1);
-          const radius = f.scale + Math.sin(time * 0.8 + i) * 35;
-          for (let s = 0; s < segments; s++) {
-            ctx.save();
-            ctx.rotate(Math.PI * 2 * s / segments + Math.sin(time * 0.1 + f.offset) * 0.05);
-            ctx.beginPath();
-            for (let t = 0; t < Math.PI * 2; t += 0.05) {
-              let x, y;
-              if (f.variation === 'swirl') {
-                const r = radius * Math.sin(7 * t + time + i);
-                x = r * Math.cos(t + Math.sin(r * 0.06 + time));
-                y = r * Math.sin(t + Math.sin(r * 0.06 + time));
-              } else if (f.variation === 'spherical') {
-                const r = radius / (1 + Math.cos(t * 6 + time + i));
-                x = r * Math.cos(t);
-                y = r * Math.sin(t);
-              } else if (f.variation === 'handkerchief') {
-                const r = radius * Math.cos(t * 8 + time + i);
-                x = r * Math.cos(t) / (1 + Math.sin(t * t + time));
-                y = r * Math.sin(t) / (1 + Math.sin(t * t + time));
-              } else {
-                const r = radius * Math.sin(5 * t + time + i);
-                x = r * Math.cos(t + r * 0.03);
-                y = r * Math.sin(t + r * 0.03);
-              }
-              const glitchY = glitchTimer > GLITCH_INTERVAL - 3 ? (Math.random() - 0.5) * 8 : 0;
-              if (t === 0) ctx.moveTo(f.x + x, f.y + y + glitchY);
-              else ctx.lineTo(f.x + x, f.y + y + glitchY);
-            }
-            ctx.strokeStyle = `hsla(${(f.hue + s * 10) % 360}, 90%, 90%, 0.7)`;
-            ctx.lineWidth = 0.9;
-            ctx.stroke();
-            ctx.restore();
-          }
-          f.hue = (f.hue + 2.2) % 360;
-          f.scale = Math.max(80, Math.min(200, f.scale + Math.sin(time + i) * 3));
-          f.radius = Math.max(50, Math.min(200, f.radius + Math.sin(time + i) * 2));
-        });
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawKaleidoscope:", e);
-      }
+      ctx.setLineDash([]);
+      ctx.restore();
     }
     
     function drawParticles() {
-      try {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        particles.forEach(p => {
-          p.angle += p.speed;
-          p.x = p.radius * Math.cos(p.angle + Math.sin(time + p.baseX) * 0.1);
-          p.y = p.radius * Math.sin(p.angle + Math.cos(time + p.baseY) * 0.1);
-          p.radius = Math.max(50, Math.min(200, p.radius + Math.sin(time + p.baseX) * 2));
-          p.size = Math.max(4, Math.min(10, p.size + Math.sin(time + p.baseX) * 0.3));
-          p.hue = (p.hue + 2.5) % 360;
-          
-          p.trail.push({ x: p.x, y: p.y, alpha: p.alpha });
-          if (p.trail.length > 8) p.trail.shift();
-          ctx.save();
-          p.trail.forEach((t, i) => {
-            ctx.fillStyle = `hsla(${p.hue}, 90%, 90%, ${t.alpha * (i / 8)})`;
-            ctx.beginPath();
-            ctx.arc(t.x, t.y, p.size * (i / 8), 0, Math.PI * 2);
-            ctx.fill();
-          });
-          
-          ctx.fillStyle = `hsla(${p.hue}, 90%, 90%, ${p.alpha})`;
-          ctx.beginPath();
-          if (p.type === 'circle') {
-            ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
-          } else if (p.type === 'triangle') {
-            const s = p.size / 2;
-            ctx.moveTo(p.x - s, p.y + s);
-            ctx.lineTo(p.x + s, p.y + s);
-            ctx.lineTo(p.x, p.y - s);
-            ctx.closePath();
-          } else if (p.type === 'square') {
-            const s = p.size / 2;
-            ctx.rect(p.x - s, p.y - s, p.size, p.size);
-          } else {
-            const s = p.size / 2;
-            ctx.moveTo(p.x, p.y - s);
-            ctx.lineTo(p.x + s * 0.3, p.y - s * 0.3);
-            ctx.lineTo(p.x + s, p.y);
-            ctx.lineTo(p.x + s * 0.3, p.y + s * 0.3);
-            ctx.lineTo(p.x, p.y + s);
-            ctx.lineTo(p.x - s * 0.3, p.y + s * 0.3);
-            ctx.lineTo(p.x - s, p.y);
-            ctx.lineTo(p.x - s * 0.3, p.y - s * 0.3);
-            ctx.closePath();
-          }
-          ctx.fill();
-          ctx.restore();
-        });
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawParticles:", e);
-      }
-    }
-    
-    function drawGridOverlay() {
-      try {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.strokeStyle = `hsla(${colors.accent}, 50%, 50%, ${0.15 + Math.sin(time * 0.5) * 0.05})`;
-        ctx.lineWidth = 0.5;
-        for (let x = -canvas.width / 2; x < canvas.width / 2; x += 50) {
-          ctx.beginPath();
-          ctx.moveTo(x, -canvas.height / 2);
-          ctx.lineTo(x, canvas.height / 2);
-          ctx.stroke();
-        }
-        for (let y = -canvas.height / 2; y < canvas.height / 2; y += 50) {
-          ctx.beginPath();
-          ctx.moveTo(-canvas.width / 2, y);
-          ctx.lineTo(canvas.width / 2, y);
-          ctx.stroke();
-        }
-        if (glitchTimer > GLITCH_INTERVAL - 3) {
-          ctx.strokeStyle = `hsla(${colors.tertiary}, 50%, 50%, 0.1)`;
-          for (let y = -canvas.height / 2; y < canvas.height / 2; y += 10) {
-            ctx.beginPath();
-            ctx.moveTo(-canvas.width / 2, y + Math.random() * 5);
-            ctx.lineTo(canvas.width / 2, y + Math.random() * 5);
-            ctx.stroke();
-          }
-        }
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawGridOverlay:", e);
-      }
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      particles.forEach(p => {
+        p.angle += p.speed;
+        p.x = p.radius * Math.cos(p.angle + Math.sin(time + p.baseX) * 0.08);
+        p.y = p.radius * Math.sin(p.angle + Math.cos(time + p.baseY) * 0.08);
+        p.radius = Math.max(40, Math.min(150, p.radius + Math.sin(time + p.baseX) * 1.5));
+        p.size = Math.max(3, Math.min(8, p.size + Math.sin(time + p.baseX) * 0.2));
+        p.hue = (p.hue + 1.5) % 360;
+        
+        ctx.fillStyle = `hsla(${p.hue}, 90%, 90%, ${p.alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
     }
     
     function drawSplatters() {
-      try {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        splatters.forEach(s => {
-          s.angle += s.speed;
-          s.x = s.radius * Math.cos(s.angle + Math.sin(time + s.x) * 0.1);
-          s.y = s.radius * Math.sin(s.angle + Math.cos(time + s.y) * 0.1);
-          s.radius = Math.max(40, Math.min(150, s.radius + Math.sin(time + s.x) * 1.5));
-          ctx.fillStyle = `hsla(${s.hue}, 80%, 70%, ${s.alpha * (0.5 + Math.sin(time * 0.3) * 0.2)})`;
-          ctx.beginPath();
-          if (s.shape === 'circle') {
-            ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-          } else {
-            const sSize = s.size;
-            ctx.moveTo(s.x, s.y - sSize);
-            ctx.quadraticCurveTo(s.x + sSize * 0.5, s.y, s.x, s.y + sSize);
-            ctx.quadraticCurveTo(s.x - sSize * 0.5, s.y, s.x, s.y - sSize);
-            ctx.closePath();
-          }
-          ctx.fill();
-          s.hue = (s.hue + 1) % 360;
-          s.alpha = Math.max(0.3, Math.min(0.6, s.alpha + Math.sin(time + s.x) * 0.01));
-        });
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawSplatters:", e);
-      }
-    }
-    
-    function drawFlares() {
-      try {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        flares.forEach(f => {
-          f.angle += f.speed;
-          f.x = f.radius * Math.cos(f.angle + Math.sin(time + f.x) * 0.1);
-          f.y = f.radius * Math.sin(f.angle + Math.cos(time + f.y) * 0.1);
-          f.radius = Math.max(50, Math.min(200, f.radius + Math.sin(time + f.x) * 2));
-          const alpha = f.alpha * (0.5 + Math.sin(time * 0.4) * 0.3);
-          ctx.fillStyle = `hsla(${f.hue}, 80%, 70%, ${alpha})`;
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = `hsla(${f.hue}, 80%, 70%, ${alpha * 0.3})`;
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.size * 1.5, 0, Math.PI * 2);
-          ctx.fill();
-          f.hue = (f.hue + 1.5) % 360;
-          f.alpha = Math.max(0.2, Math.min(0.5, f.alpha + Math.sin(time + f.x) * 0.02));
-        });
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawFlares:", e);
-      }
-    }
-    
-    function drawBorderSpirograph() {
-      try {
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        const R = Math.min(canvas.width, canvas.height) / 2 - 20;
-        const r = 50;
-        const d = 30;
-        const gradient = ctx.createLinearGradient(-R, 0, R, 0);
-        gradient.addColorStop(0, `hsla(${colors.primary}, 90%, 90%, 0.8)`);
-        gradient.addColorStop(1, `hsla(${colors.secondary}, 90%, 90%, 0.8)`);
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      splatters.forEach(s => {
+        s.angle += s.speed;
+        s.x = s.radius * Math.cos(s.angle + Math.sin(time + s.x) * 0.08);
+        s.y = s.radius * Math.sin(s.angle + Math.cos(time + s.y) * 0.08);
+        s.radius = Math.max(30, Math.min(120, s.radius + Math.sin(time + s.x) * 1));
+        ctx.fillStyle = `hsla(${s.hue}, 80%, 70%, ${s.alpha * (0.5 + Math.sin(time * 0.2) * 0.2)})`;
         ctx.beginPath();
-        for (let t = 0; t < Math.PI * 6; t += 0.04) {
-          const x = (R - r) * Math.cos(t) + d * Math.cos((R - r) / r * t + time * 0.5);
-          const y = (R - r) * Math.sin(t) - d * Math.sin((R - r) / r * t + time * 0.5);
-          const glitchX = glitchTimer > GLITCH_INTERVAL - 3 ? (Math.random() - 0.5) * 8 : 0;
-          if (t === 0) ctx.moveTo(x + glitchX, y);
-          else ctx.lineTo(x + glitchX, y);
+        if (s.shape === 'circle') {
+          ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        } else {
+          const sSize = s.size;
+          ctx.moveTo(s.x, s.y - sSize);
+          ctx.quadraticCurveTo(s.x + sSize * 0.5, s.y, s.x, s.y + sSize);
+          ctx.quadraticCurveTo(s.x - sSize * 0.5, s.y, s.x, s.y - sSize);
+          ctx.closePath();
         }
-        ctx.strokeStyle = gradient;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        borderParticles.forEach(p => {
-          p.angle += p.speed;
-          p.x = (R - 10) * Math.cos(p.angle + Math.sin(time + p.baseX) * 0.1);
-          p.y = (R - 10) * Math.sin(p.angle + Math.cos(time + p.baseX) * 0.1);
-          ctx.fillStyle = `hsla(${p.hue}, 80%, 70%, ${p.alpha})`;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-          ctx.fill();
-          if (Math.random() < 0.1) {
-            ctx.fillStyle = `hsla(${p.hue}, 80%, 90%, ${p.alpha * 0.5})`;
-            ctx.beginPath();
-            ctx.arc(p.x + (Math.random() - 0.5) * 10, p.y + (Math.random() - 0.5) * 10, 2, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          p.hue = (p.hue + 1) % 360;
-        });
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawBorderSpirograph:", e);
-      }
+        ctx.fill();
+        s.hue = (s.hue + 0.8) % 360;
+      });
+      ctx.restore();
     }
     
     function drawGraffitiText(text, x, y, size) {
-      try {
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(Math.sin(time * 0.3) * 0.03); // Subtler rotation
-        const scale = 1 + Math.sin(time * 1.5) * 0.08; // Slightly less intense pop
-        ctx.scale(scale, scale);
-        ctx.shadowColor = `hsla(${colors.primary}, 100%, 100%, ${0.7 + Math.sin(time * 0.4) * 0.2})`;
-        ctx.shadowBlur = 20;
-        ctx.font = `${size}px GraffitiFont, Arial, sans-serif`;
-        ctx.fillStyle = 'hsla(0, 0%, 0%, 1)'; // Pure black
-        ctx.fillText(text, 0, 0);
-        ctx.strokeStyle = `hsla(${colors.accent}, 100%, 70%, 0.9)`;
-        ctx.lineWidth = 3;
-        ctx.strokeText(text, 0, 0);
-        ctx.shadowBlur = 0;
-        
-        if (glitchTimer > GLITCH_INTERVAL - 3) {
-          ctx.fillStyle = `hsla(${colors.tertiary}, 100%, 100%, 0.8)`;
-          ctx.fillText(text, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
-          ctx.fillStyle = `hsla(${colors.accent}, 100%, 100%, 0.8)`;
-          ctx.fillText(text, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
-        }
-        
-        if (Math.random() < 0.4) {
-          const sx = (Math.random() - 0.5) * 60;
-          const sy = (Math.random() - 0.5) * 30;
-          ctx.fillStyle = `hsla(${colors.primary}, 80%, 70%, 0.5)`;
-          ctx.beginPath();
-          if (Math.random() < 0.5) {
-            ctx.arc(sx, sy, Math.random() * 12 + 6, 0, Math.PI * 2);
-          } else {
-            const sSize = Math.random() * 12 + 6;
-            ctx.moveTo(sx, sy - sSize);
-            ctx.quadraticCurveTo(sx + sSize * 0.5, sy, sx, sy + sSize);
-            ctx.quadraticCurveTo(sx - sSize * 0.5, sy, sx, sy - sSize);
-            ctx.closePath();
-          }
-          ctx.fill();
-        }
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawGraffitiText:", e);
+      ctx.save();
+      ctx.translate(x, y);
+      const scale = 1 + Math.sin(time * 1.2) * 0.06;
+      ctx.scale(scale, scale);
+      ctx.shadowColor = `hsla(${colors.primary}, 100%, 100%, ${0.6 + Math.sin(time * 0.3) * 0.2})`;
+      ctx.shadowBlur = 15;
+      ctx.font = `${size}px GraffitiFont, Arial, sans-serif`;
+      ctx.fillStyle = 'hsla(0, 0%, 0%, 1)';
+      ctx.fillText(text, 0, 0);
+      ctx.strokeStyle = `hsla(${colors.accent}, 100%, 70%, 0.8)`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeText(text, 0, 0);
+      ctx.shadowBlur = 0;
+      
+      if (glitchTimer > GLITCH_INTERVAL - 3) {
+        ctx.fillStyle = `hsla(${colors.tertiary}, 100%, 100%, 0.7)`;
+        ctx.fillText(text, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
       }
+      
+      if (Math.random() < 0.3) {
+        const sx = (Math.random() - 0.5) * 40;
+        const sy = (Math.random() - 0.5) * 20;
+        ctx.fillStyle = `hsla(${colors.primary}, 80%, 70%, 0.4)`;
+        ctx.beginPath();
+        if (Math.random() < 0.5) {
+          ctx.arc(sx, sy, Math.random() * 8 + 4, 0, Math.PI * 2);
+        } else {
+          const sSize = Math.random() * 8 + 4;
+          ctx.moveTo(sx, sy - sSize);
+          ctx.quadraticCurveTo(sx + sSize * 0.5, sy, sx, sy + sSize);
+          ctx.quadraticCurveTo(sx - sSize * 0.5, sy, sx, sy - sSize);
+          ctx.closePath();
+        }
+        ctx.fill();
+      }
+      ctx.restore();
     }
     
     function drawVignette() {
-      try {
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        const gradient = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) / 2);
-        gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.restore();
-      } catch (e) {
-        console.error("Error in drawVignette:", e);
-      }
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const gradient = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) / 2);
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
     }
     
     window.addEventListener('resize', () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      console.log("Canvas resized:", canvas.width, canvas.height);
     });
     
-    console.log("Starting animation");
     draw();
   </script>
 </body>
