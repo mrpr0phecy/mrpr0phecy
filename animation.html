@@ -21,38 +21,39 @@
     let flames = [];
     let time = 0;
     let glitchTimer = 0;
-    const GLITCH_INTERVAL = 60; // Glitch every ~1 second at 60 FPS
-    let noiseScale = 0.002;
+    const GLITCH_INTERVAL = 40; // Glitch every ~0.67 seconds at 60 FPS
+    let frameCounter = 0;
 
     function setup() {
       createCanvas(windowWidth, windowHeight);
       colorMode(HSB, 360, 100, 100, 1);
       translate(width / 2, height / 2);
+      console.log("Setup complete, canvas initialized:", windowWidth, windowHeight);
 
       // Initialize particles
-      for (let i = 0; i < 150; i++) {
+      for (let i = 0; i < 100; i++) {
         particles.push({
           x: random(-width / 2, width / 2),
           y: random(-height / 2, height / 2),
           baseX: random(1000),
           baseY: random(1000),
-          size: random(3, 12),
+          size: random(4, 12),
           hue: random(360),
-          alpha: random(0.5, 0.9),
+          alpha: random(0.6, 1),
           type: random(['circle', 'triangle', 'square'])
         });
       }
 
-      // Initialize fractal flames (inspired by FLAM3)
-      for (let i = 0; i < 3; i++) {
+      // Initialize fractal flames
+      for (let i = 0; i < 5; i++) {
         flames.push({
           x: 0,
           y: 0,
-          scale: random(100, 200),
+          scale: random(120, 250),
           angle: random(TWO_PI),
-          variation: random(['swirl', 'spherical', 'horseshoe']),
+          variation: random(['swirl', 'spherical', 'handkerchief', 'julia']),
           hue: random(360),
-          speed: random(0.02, 0.05)
+          speed: random(0.04, 0.08)
         });
       }
 
@@ -64,11 +65,13 @@
     }
 
     function draw() {
-      background(0, 0, 0, 0.08); // Subtle trails for motion blur
+      background(0, 0, 0, 0.1); // Motion blur trails
       translate(width / 2, height / 2);
-      time += 0.02; // Fast evolution for dynamic motion
+      time += 0.04; // Fast evolution for visible motion
+      frameCounter++;
+      console.log("Frame:", frameCounter); // Debug: Confirm draw loop
 
-      // Layer 1: Noise-based gradient background
+      // Layer 1: Radial gradient background
       drawGradientBackground();
 
       // Layer 2: Spirograph patterns
@@ -82,14 +85,14 @@
       let vol = mic.getLevel();
       */
       for (let p of particles) {
-        p.x += map(noise(p.baseX + time * 0.3), 0, 1, -2, 2);
-        p.y += map(noise(p.baseY + time * 0.3), 0, 1, -2, 2);
+        p.x += map(noise(p.baseX + time * 0.5), 0, 1, -3, 3);
+        p.y += map(noise(p.baseY + time * 0.5), 0, 1, -3, 3);
         if (p.x < -width / 2) p.x += width;
         if (p.x > width / 2) p.x -= width;
         if (p.y < -height / 2) p.y += height;
         if (p.y > height / 2) p.y -= height;
-        p.size = constrain(p.size + sin(time + p.baseX) * 0.2 /* + map(vol, 0, 1, 0, 4) */, 3, 12);
-        fill(p.hue, 80, 80, p.alpha);
+        p.size = constrain(p.size + sin(time + p.baseX) * 0.4 /* + map(vol, 0, 1, 0, 5) */, 4, 12);
+        fill(p.hue, 90, 90, p.alpha);
         noStroke();
         push();
         translate(p.x, p.y);
@@ -101,7 +104,7 @@
           rect(-p.size / 2, -p.size / 2, p.size, p.size);
         }
         pop();
-        p.hue = (p.hue + 1) % 360;
+        p.hue = (p.hue + 1.5) % 360;
       }
 
       // Layer 5: Urban grid overlay
@@ -110,9 +113,15 @@
       // Layer 6: Glitchy text
       push();
       translate(-width / 2, -height / 2);
-      let textX = width - 250 + sin(time * 0.5) * 8;
-      let textY = height - 60 + cos(time * 0.5) * 8;
-      drawGlitchText("MrProphecy", textX, textY, 48);
+      let textX = width - 260 + sin(time * 0.7) * 12;
+      let textY = height - 70 + cos(time * 0.7) * 12;
+      drawGlitchText("MrProphecy", textX, textY, 50);
+
+      // Debug: Frame counter
+      fill(0, 0, 100, 0.5);
+      textSize(20);
+      textFont('Orbitron');
+      text(`Frame: ${frameCounter}`, 10, 30);
       pop();
 
       glitchTimer++;
@@ -122,35 +131,33 @@
     }
 
     function drawGradientBackground() {
-      for (let x = -width / 2; x < width / 2; x += 8) {
-        for (let y = -height / 2; y < height / 2; y += 8) {
-          let n = noise(x * noiseScale, y * noiseScale, time * 0.4);
-          let hue = map(n, 0, 1, 0, 360);
-          fill(hue, 60, 60, 0.25);
-          noStroke();
-          rect(x, y, 8, 8);
-        }
+      // Lightweight radial gradient
+      for (let r = 0; r < max(width, height) / 2; r += 8) {
+        let hue = (sin(time * 0.4 + r * 0.01) * 180 + 180) % 360;
+        fill(hue, 50, 50, 0.25);
+        noStroke();
+        ellipse(0, 0, r * 2, r * 2);
       }
     }
 
     function drawSpirograph() {
-      // Layered Spirograph curves
-      for (let layer = 0; layer < 2; layer++) {
-        let R = 180 + sin(time * 0.6 + layer) * 60;
-        let r = 70 + cos(time * 0.4 + layer) * 30;
-        let d = 50 + sin(time * 0.5 + layer) * 40;
+      // Multi-layered Spirograph curves
+      for (let layer = 0; layer < 4; layer++) {
+        let R = 220 + sin(time * 0.8 + layer * 0.5) * 80;
+        let r = 60 + cos(time * 0.6 + layer * 0.5) * 40;
+        let d = 50 + sin(time * 0.7 + layer * 0.5) * 50;
         let points = [];
-        for (let t = 0; t < TWO_PI * 4; t += 0.01) {
-          let x = (R - r) * cos(t) + d * cos((R - r) / r * t);
-          let y = (R - r) * sin(t) - d * sin((R - r) / r * t);
-          points.push({ x: x * (0.5 + layer * 0.2), y: y * (0.5 + layer * 0.2) });
+        for (let t = 0; t < TWO_PI * 6; t += 0.006) {
+          let x = (R - r) * cos(t) + d * cos((R - r) / r * t + layer * 0.3);
+          let y = (R - r) * sin(t) - d * sin((R - r) / r * t + layer * 0.3);
+          points.push({ x: x * (0.35 + layer * 0.1), y: y * (0.35 + layer * 0.1) });
         }
-        stroke((60 + sin(time + layer) * 60) % 360, 90, 90, 0.7);
-        strokeWeight(1.5 + layer);
+        stroke((60 + sin(time + layer * 1.5) * 120) % 360, 90, 90, 0.75);
+        strokeWeight(1 + layer * 0.4);
         noFill();
         beginShape();
         for (let p of points) {
-          let glitchX = glitchTimer > GLITCH_INTERVAL - 8 ? random(-6, 6) : 0;
+          let glitchX = glitchTimer > GLITCH_INTERVAL - 5 ? random(-10, 10) : 0;
           vertex(p.x + glitchX, p.y);
         }
         endShape();
@@ -158,52 +165,56 @@
     }
 
     function drawKaleidoscope() {
-      // Kaleidoscope with FLAM3-inspired variations
-      let segments = 8;
+      // Kaleidoscope with FLAM3 variations
+      let segments = 12;
       for (let i = 0; i < flames.length; i++) {
         let f = flames[i];
         let points = [];
-        let radius = f.scale + sin(time * 0.3) * 30;
-        for (let t = 0; t < TWO_PI; t += 0.02) {
-          let x, y;
+        let radius = f.scale + sin(time * 0.5 + i) * 50;
+        for (let t = 0; t < TWO_PI; t += 0.01) {
+          let x, y, r;
           if (f.variation === 'swirl') {
-            let r = radius * sin(7 * t + time);
-            x = r * cos(t + sin(r * 0.02 + time));
-            y = r * sin(t + sin(r * 0.02 + time));
+            r = radius * sin(9 * t + time + i);
+            x = r * cos(t + sin(r * 0.04 + time));
+            y = r * sin(t + sin(r * 0.04 + time));
           } else if (f.variation === 'spherical') {
-            let r = radius / (1 + cos(t * 5 + time));
+            r = radius / (1 + cos(t * 7 + time + i));
             x = r * cos(t);
             y = r * sin(t);
-          } else {
-            let r = radius * cos(t * 6 + time);
+          } else if (f.variation === 'handkerchief') {
+            r = radius * cos(t * 8 + time + i);
             x = r * cos(t) / (1 + sin(t * t + time));
             y = r * sin(t) / (1 + sin(t * t + time));
+          } else {
+            r = radius * sin(6 * t + time + i);
+            x = r * cos(t + r * 0.02);
+            y = r * sin(t + r * 0.02);
           }
           points.push({ x, y });
         }
         for (let s = 0; s < segments; s++) {
           push();
           rotate(TWO_PI * s / segments);
-          stroke((f.hue + s * 20) % 360, 90, 90, 0.6);
-          strokeWeight(1);
+          stroke((f.hue + s * 10) % 360, 90, 90, 0.65);
+          strokeWeight(0.8);
           noFill();
           beginShape();
           for (let p of points) {
-            let glitchY = glitchTimer > GLITCH_INTERVAL - 8 ? random(-6, 6) : 0;
+            let glitchY = glitchTimer > GLITCH_INTERVAL - 5 ? random(-10, 10) : 0;
             vertex(p.x, p.y + glitchY);
           }
           endShape();
           pop();
         }
-        f.hue = (f.hue + 0.8) % 360;
+        f.hue = (f.hue + 1.2) % 360;
         f.angle += f.speed;
+        f.scale = constrain(f.scale + sin(time + i * 0.5) * 3, 100, 250);
       }
     }
 
     function drawGridOverlay() {
-      // Subtle urban grid for hip-hop vibe
       stroke(180, 50, 50, 0.2);
-      strokeWeight(0.5);
+      strokeWeight(0.7);
       for (let x = -width / 2; x < width / 2; x += 50) {
         line(x, -height / 2, x, height / 2);
       }
@@ -218,16 +229,17 @@
       textStyle(BOLD);
       textFont('Orbitron');
       text(text, x, y);
-      if (glitchTimer > GLITCH_INTERVAL - 8) {
-        fill(180, 100, 100, 0.8); // Cyan
-        text(text, x + random(-12, 12), y + random(-12, 12));
-        fill(300, 100, 100, 0.8); // Magenta
-        text(text, x + random(-12, 12), y + random(-12, 12));
+      if (glitchTimer > GLITCH_INTERVAL - 5) {
+        fill(180, 100, 100, 0.85); // Cyan
+        text(text, x + random(-15, 15), y + random(-15, 15));
+        fill(300, 100, 100, 0.85); // Magenta
+        text(text, x + random(-15, 15), y + random(-15, 15));
       }
     }
 
     function windowResized() {
       resizeCanvas(windowWidth, windowHeight);
+      console.log("Canvas resized:", windowWidth, windowHeight);
     }
   </script>
 </body>
