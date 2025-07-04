@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MrProphecy Hip-Hop Fractal Animation</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
   <style>
     body { margin: 0; overflow: hidden; background: black; }
     canvas { display: block; }
@@ -21,57 +20,61 @@
     let flames = [];
     let time = 0;
     let glitchTimer = 0;
-    const GLITCH_INTERVAL = 40; // Glitch every ~0.67 seconds at 60 FPS
+    const GLITCH_INTERVAL = 30; // Glitch every ~0.5 seconds
     let frameCounter = 0;
+    let lastFrameTime = 0;
+    let fps = 0;
 
     function setup() {
       createCanvas(windowWidth, windowHeight);
       colorMode(HSB, 360, 100, 100, 1);
       translate(width / 2, height / 2);
-      console.log("Setup complete, canvas initialized:", windowWidth, windowHeight);
+      console.log("Setup complete:", windowWidth, windowHeight);
 
-      // Initialize particles
-      for (let i = 0; i < 100; i++) {
+      // Initialize particles (reduced count)
+      for (let i = 0; i < 50; i++) {
         particles.push({
           x: random(-width / 2, width / 2),
           y: random(-height / 2, height / 2),
           baseX: random(1000),
           baseY: random(1000),
-          size: random(4, 12),
+          size: random(4, 10),
           hue: random(360),
           alpha: random(0.6, 1),
-          type: random(['circle', 'triangle', 'square'])
+          type: random(['circle', 'triangle'])
         });
       }
 
-      // Initialize fractal flames
-      for (let i = 0; i < 5; i++) {
+      // Initialize fractal flames (reduced count)
+      for (let i = 0; i < 2; i++) {
         flames.push({
           x: 0,
           y: 0,
-          scale: random(120, 250),
+          scale: random(100, 200),
           angle: random(TWO_PI),
-          variation: random(['swirl', 'spherical', 'handkerchief', 'julia']),
+          variation: random(['swirl', 'spherical']),
           hue: random(360),
-          speed: random(0.04, 0.08)
+          speed: random(0.05, 0.1)
         });
       }
-
-      // Optional: Audio input
-      /*
-      mic = new p5.AudioIn();
-      mic.start();
-      */
     }
 
     function draw() {
-      background(0, 0, 0, 0.1); // Motion blur trails
+      background(0, 0, 0, 0.12); // Light trails for motion blur
       translate(width / 2, height / 2);
-      time += 0.04; // Fast evolution for visible motion
+      time += 0.05; // Faster evolution
       frameCounter++;
-      console.log("Frame:", frameCounter); // Debug: Confirm draw loop
 
-      // Layer 1: Radial gradient background
+      // Calculate FPS
+      let currentTime = millis();
+      if (currentTime - lastFrameTime > 1000) {
+        fps = frameCounter / (currentTime / 1000);
+        frameCounter = 0;
+        lastFrameTime = currentTime;
+        console.log("FPS:", fps.toFixed(1));
+      }
+
+      // Layer 1: Static gradient with subtle animation
       drawGradientBackground();
 
       // Layer 2: Spirograph patterns
@@ -81,30 +84,25 @@
       drawKaleidoscope();
 
       // Layer 4: Particle system
-      /*
-      let vol = mic.getLevel();
-      */
       for (let p of particles) {
-        p.x += map(noise(p.baseX + time * 0.5), 0, 1, -3, 3);
-        p.y += map(noise(p.baseY + time * 0.5), 0, 1, -3, 3);
+        p.x += map(noise(p.baseX + time * 0.6), 0, 1, -2, 2);
+        p.y += map(noise(p.baseY + time * 0.6), 0, 1, -2, 2);
         if (p.x < -width / 2) p.x += width;
         if (p.x > width / 2) p.x -= width;
         if (p.y < -height / 2) p.y += height;
         if (p.y > height / 2) p.y -= height;
-        p.size = constrain(p.size + sin(time + p.baseX) * 0.4 /* + map(vol, 0, 1, 0, 5) */, 4, 12);
+        p.size = constrain(p.size + sin(time + p.baseX) * 0.2, 4, 10);
         fill(p.hue, 90, 90, p.alpha);
         noStroke();
         push();
         translate(p.x, p.y);
         if (p.type === 'circle') {
           ellipse(0, 0, p.size);
-        } else if (p.type === 'triangle') {
-          triangle(-p.size / 2, p.size / 2, p.size / 2, p.size / 2, 0, -p.size / 2);
         } else {
-          rect(-p.size / 2, -p.size / 2, p.size, p.size);
+          triangle(-p.size / 2, p.size / 2, p.size / 2, p.size / 2, 0, -p.size / 2);
         }
         pop();
-        p.hue = (p.hue + 1.5) % 360;
+        p.hue = (p.hue + 1.8) % 360;
       }
 
       // Layer 5: Urban grid overlay
@@ -113,15 +111,15 @@
       // Layer 6: Glitchy text
       push();
       translate(-width / 2, -height / 2);
-      let textX = width - 260 + sin(time * 0.7) * 12;
-      let textY = height - 70 + cos(time * 0.7) * 12;
-      drawGlitchText("MrProphecy", textX, textY, 50);
+      let textX = width - 220 + sin(time * 0.8) * 10;
+      let textY = height - 60 + cos(time * 0.8) * 10;
+      drawGlitchText("MrProphecy", textX, textY, 40);
 
-      // Debug: Frame counter
+      // Debug: FPS and frame counter
       fill(0, 0, 100, 0.5);
-      textSize(20);
+      textSize(16);
       textFont('Orbitron');
-      text(`Frame: ${frameCounter}`, 10, 30);
+      text(`FPS: ${fps.toFixed(1)} | Frame: ${frameCounter}`, 10, 20);
       pop();
 
       glitchTimer++;
@@ -131,33 +129,33 @@
     }
 
     function drawGradientBackground() {
-      // Lightweight radial gradient
-      for (let r = 0; r < max(width, height) / 2; r += 8) {
-        let hue = (sin(time * 0.4 + r * 0.01) * 180 + 180) % 360;
-        fill(hue, 50, 50, 0.25);
+      // Lightweight animated gradient
+      for (let r = 0; r < max(width, height) / 2; r += 12) {
+        let hue = (sin(time * 0.3 + r * 0.015) * 180 + 180) % 360;
+        fill(hue, 50, 50, 0.2);
         noStroke();
         ellipse(0, 0, r * 2, r * 2);
       }
     }
 
     function drawSpirograph() {
-      // Multi-layered Spirograph curves
-      for (let layer = 0; layer < 4; layer++) {
-        let R = 220 + sin(time * 0.8 + layer * 0.5) * 80;
-        let r = 60 + cos(time * 0.6 + layer * 0.5) * 40;
-        let d = 50 + sin(time * 0.7 + layer * 0.5) * 50;
+      // Optimized Spirograph curves
+      for (let layer = 0; layer < 2; layer++) {
+        let R = 180 + sin(time * 0.9 + layer) * 60;
+        let r = 50 + cos(time * 0.7 + layer) * 30;
+        let d = 40 + sin(time * 0.8 + layer) * 40;
         let points = [];
-        for (let t = 0; t < TWO_PI * 6; t += 0.006) {
-          let x = (R - r) * cos(t) + d * cos((R - r) / r * t + layer * 0.3);
-          let y = (R - r) * sin(t) - d * sin((R - r) / r * t + layer * 0.3);
-          points.push({ x: x * (0.35 + layer * 0.1), y: y * (0.35 + layer * 0.1) });
+        for (let t = 0; t < TWO_PI * 4; t += 0.01) {
+          let x = (R - r) * cos(t) + d * cos((R - r) / r * t + layer * 0.4);
+          let y = (R - r) * sin(t) - d * sin((R - r) / r * t + layer * 0.4);
+          points.push({ x: x * (0.4 + layer * 0.1), y: y * (0.4 + layer * 0.1) });
         }
-        stroke((60 + sin(time + layer * 1.5) * 120) % 360, 90, 90, 0.75);
-        strokeWeight(1 + layer * 0.4);
+        stroke((60 + sin(time + layer * 2) * 90) % 360, 90, 90, 0.8);
+        strokeWeight(1 + layer * 0.3);
         noFill();
         beginShape();
         for (let p of points) {
-          let glitchX = glitchTimer > GLITCH_INTERVAL - 5 ? random(-10, 10) : 0;
+          let glitchX = glitchTimer > GLITCH_INTERVAL - 4 ? random(-8, 8) : 0;
           vertex(p.x + glitchX, p.y);
         }
         endShape();
@@ -165,60 +163,52 @@
     }
 
     function drawKaleidoscope() {
-      // Kaleidoscope with FLAM3 variations
-      let segments = 12;
+      // Optimized kaleidoscope with FLAM3 variations
+      let segments = 8;
       for (let i = 0; i < flames.length; i++) {
         let f = flames[i];
         let points = [];
-        let radius = f.scale + sin(time * 0.5 + i) * 50;
-        for (let t = 0; t < TWO_PI; t += 0.01) {
+        let radius = f.scale + sin(time * 0.6 + i) * 40;
+        for (let t = 0; t < TWO_PI; t += 0.015) {
           let x, y, r;
           if (f.variation === 'swirl') {
-            r = radius * sin(9 * t + time + i);
-            x = r * cos(t + sin(r * 0.04 + time));
-            y = r * sin(t + sin(r * 0.04 + time));
-          } else if (f.variation === 'spherical') {
-            r = radius / (1 + cos(t * 7 + time + i));
+            r = radius * sin(7 * t + time + i);
+            x = r * cos(t + sin(r * 0.05 + time));
+            y = r * sin(t + sin(r * 0.05 + time));
+          } else {
+            r = radius / (1 + cos(t * 6 + time + i));
             x = r * cos(t);
             y = r * sin(t);
-          } else if (f.variation === 'handkerchief') {
-            r = radius * cos(t * 8 + time + i);
-            x = r * cos(t) / (1 + sin(t * t + time));
-            y = r * sin(t) / (1 + sin(t * t + time));
-          } else {
-            r = radius * sin(6 * t + time + i);
-            x = r * cos(t + r * 0.02);
-            y = r * sin(t + r * 0.02);
           }
           points.push({ x, y });
         }
         for (let s = 0; s < segments; s++) {
           push();
           rotate(TWO_PI * s / segments);
-          stroke((f.hue + s * 10) % 360, 90, 90, 0.65);
+          stroke((f.hue + s * 15) % 360, 90, 90, 0.7);
           strokeWeight(0.8);
           noFill();
           beginShape();
           for (let p of points) {
-            let glitchY = glitchTimer > GLITCH_INTERVAL - 5 ? random(-10, 10) : 0;
+            let glitchY = glitchTimer > GLITCH_INTERVAL - 4 ? random(-8, 8) : 0;
             vertex(p.x, p.y + glitchY);
           }
           endShape();
           pop();
         }
-        f.hue = (f.hue + 1.2) % 360;
+        f.hue = (f.hue + 1.5) % 360;
         f.angle += f.speed;
-        f.scale = constrain(f.scale + sin(time + i * 0.5) * 3, 100, 250);
+        f.scale = constrain(f.scale + sin(time + i) * 2, 80, 200);
       }
     }
 
     function drawGridOverlay() {
-      stroke(180, 50, 50, 0.2);
-      strokeWeight(0.7);
-      for (let x = -width / 2; x < width / 2; x += 50) {
+      stroke(180, 50, 50, 0.15);
+      strokeWeight(0.6);
+      for (let x = -width / 2; x < width / 2; x += 70) {
         line(x, -height / 2, x, height / 2);
       }
-      for (let y = -height / 2; y < height / 2; y += 50) {
+      for (let y = -height / 2; y < height / 2; y += 70) {
         line(-width / 2, y, width / 2, y);
       }
     }
@@ -229,11 +219,11 @@
       textStyle(BOLD);
       textFont('Orbitron');
       text(text, x, y);
-      if (glitchTimer > GLITCH_INTERVAL - 5) {
-        fill(180, 100, 100, 0.85); // Cyan
-        text(text, x + random(-15, 15), y + random(-15, 15));
-        fill(300, 100, 100, 0.85); // Magenta
-        text(text, x + random(-15, 15), y + random(-15, 15));
+      if (glitchTimer > GLITCH_INTERVAL - 4) {
+        fill(180, 100, 100, 0.8); // Cyan
+        text(text, x + random(-10, 10), y + random(-10, 10));
+        fill(300, 100, 100, 0.8); // Magenta
+        text(text, x + random(-10, 10), y + random(-10, 10));
       }
     }
 
