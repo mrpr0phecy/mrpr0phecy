@@ -17,38 +17,28 @@
     c.width = innerWidth; c.height = innerHeight;
 
     const baseHue = Math.random() * 360, colors = {
-      primary: baseHue, secondary: (baseHue + 120) % 360, tertiary: (baseHue + 240) % 360, neon: (baseHue + 60) % 360
+      primary: baseHue, secondary: (baseHue + 120) % 360, neon: (baseHue + 60) % 360
     };
 
-    let time = 0, glitchTimer = 0, GLITCH_INTERVAL = 7, frameCounter = 0, lastFrameTime = performance.now(), fps = 0;
+    let time = 0, glitchTimer = 0, GLITCH_INTERVAL = 6;
 
-    const noise = Array(64).fill().map(() => Array(64).fill().map(() => Math.random()));
-    function getNoise(x, y) {
-      const xi = Math.floor(x) % 64, yi = Math.floor(y) % 64, xf = x - Math.floor(x), yf = y - Math.floor(y);
-      const v00 = noise[xi][yi], v10 = noise[(xi + 1) % 64][yi], v01 = noise[xi][(yi + 1) % 64], v11 = noise[(xi + 1) % 64][(yi + 1) % 64];
-      const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-      return v00 + u * (v10 - v00) + v * (v01 + u * (v11 - v01) - v00 - u * (v10 - v00));
-    }
-
-    const particles = Array(60).fill().map(() => ({
+    const particles = Array(40).fill().map(() => ({
       x: Math.random() * c.width - c.width / 2, y: Math.random() * c.height - c.height / 2,
-      baseX: Math.random() * 1000, baseY: Math.random() * 1000, size: Math.random() * 8 + 4,
-      hue: colors[Math.random() < 0.5 ? 'primary' : 'secondary'], alpha: Math.random() * 0.5 + 0.5,
-      type: Math.random() < 0.5 ? 'circle' : 'star', trail: [], angle: Math.random() * Math.PI * 2,
-      speed: Math.random() * 0.04 + 0.02, radius: Math.random() * 100 + 50
+      size: Math.random() * 6 + 3, hue: colors[Math.random() < 0.5 ? 'primary' : 'secondary'],
+      alpha: Math.random() * 0.5 + 0.5, type: Math.random() < 0.5 ? 'circle' : 'star',
+      angle: Math.random() * Math.PI * 2, speed: Math.random() * 0.03 + 0.02, radius: Math.random() * 80 + 40
     }));
 
-    const flames = Array(5).fill().map(() => ({
-      scale: Math.random() * 100 + 120, angle: Math.random() * Math.PI * 2,
-      variation: ['swirl', 'bubble'][Math.floor(Math.random() * 2)], hue: colors.neon,
-      speed: Math.random() * 0.08 + 0.06, x: Math.random() * c.width - c.width / 2,
-      y: Math.random() * c.height - c.height / 2, radius: Math.random() * 100 + 50
+    const flames = Array(3).fill().map(() => ({
+      scale: Math.random() * 80 + 100, angle: Math.random() * Math.PI * 2,
+      hue: colors.neon, speed: Math.random() * 0.07 + 0.05, x: Math.random() * c.width - c.width / 2,
+      y: Math.random() * c.height - c.height / 2, radius: Math.random() * 80 + 40
     }));
 
-    let spiroParams = { R: 160, r: 40, d: 30, dash: [4, 4] };
+    let spiroParams = { R: 120, r: 30, d: 20 };
     function updateSpiroParams() {
-      if (Math.random() < 0.03) spiroParams = {
-        R: 140 + Math.random() * 40, r: 30 + Math.random() * 20, d: 20 + Math.random() * 20, dash: Math.random() < 0.5 ? [4, 4] : [6, 6]
+      if (Math.random() < 0.04) spiroParams = {
+        R: 100 + Math.random() * 30, r: 20 + Math.random() * 15, d: 15 + Math.random() * 15
       };
     }
 
@@ -56,61 +46,34 @@
       ctx.clearRect(0, 0, c.width, c.height); ctx.setTransform(1, 0, 0, 1, 0, 0);
       time += 0.05; glitchTimer++; if (glitchTimer > GLITCH_INTERVAL) glitchTimer = 0;
 
-      const now = performance.now();
-      if (now - lastFrameTime > 1000) { fps = frameCounter / ((now - lastFrameTime) / 1000); frameCounter = 0; lastFrameTime = now; }
+      drawBackground(); drawSpirograph(); drawKaleidoscope(); drawParticles();
+      drawGraffitiText("MrProphecy", c.width - 160 + Math.sin(time) * 8, c.height - 40 + Math.cos(time) * 8, 36);
 
-      drawBackground(); drawClouds(); drawSpirograph(); drawKaleidoscope(); drawParticles();
-      drawGraffitiText("MrProphecy", c.width - 200 + Math.sin(time) * 10, c.height - 50 + Math.cos(time) * 10, 48);
-      drawVignette();
-
-      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = 'hsla(0,0%,100%,0.6)'; ctx.font = '16px Graffiti,Arial';
-      ctx.fillText(`FPS: ${fps.toFixed(1)}`, 10, 20);
-
-      frameCounter++; requestAnimationFrame(draw);
+      requestAnimationFrame(draw);
     }
 
     function drawBackground() {
       ctx.save();
       const g = ctx.createRadialGradient(c.width / 2, c.height / 2, 0, c.width / 2, c.height / 2, Math.max(c.width, c.height) / 1.5);
-      g.addColorStop(0, `hsla(${colors.primary},85%,30%,0.7)`); g.addColorStop(0.5, `hsla(${colors.secondary},85%,25%,0.7)`);
-      g.addColorStop(1, `hsla(${colors.tertiary},85%,20%,0.7)`); ctx.fillStyle = g; ctx.fillRect(0, 0, c.width, c.height);
-      ctx.fillStyle = `hsla(${colors.neon},90%,40%,0.5)`; ctx.fillRect(0, c.height / 2 - 30, c.width, 60);
-      ctx.restore();
-    }
-
-    function drawClouds() {
-      ctx.save(); ctx.translate(c.width / 2, c.height / 2);
-      for (let x = -c.width / 2; x < c.width / 2; x += 30) {
-        for (let y = -c.height / 2; y < c.height / 2; y += 30) {
-          const dist = Math.sqrt(x * x + y * y), n = getNoise((x + time * 10) / 30, (y + time * 6) / 30);
-          if (n > 0.5) {
-            const scale = 1 + dist / Math.max(c.width, c.height) * 2;
-            ctx.fillStyle = `hsla(${colors.tertiary},65%,55%,${n * 0.1 * (1 - dist / 600)})`;
-            ctx.beginPath(); ctx.arc(x * scale, y * scale, 20, 0, Math.PI * 2); ctx.fill();
-          }
-        }
-      }
+      g.addColorStop(0, `hsla(${colors.primary},90%,30%,0.8)`); g.addColorStop(1, `hsla(${colors.secondary},90%,25%,0.8)`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = `hsla(${colors.neon},95%,40%,0.6)`; ctx.fillRect(0, c.height / 2 - 20, c.width, 40);
       ctx.restore();
     }
 
     function drawSpirograph() {
       ctx.save(); ctx.translate(c.width / 2, c.height / 2); updateSpiroParams();
-      for (let layer = 0; layer < 4; layer++) {
-        const R = spiroParams.R + Math.sin(time * 0.6 + layer) * 50, r = spiroParams.r + Math.cos(time * 0.4 + layer) * 20,
-              d = spiroParams.d + Math.sin(time * 0.5 + layer) * 30;
-        const g = ctx.createLinearGradient(-R, 0, R, 0);
-        g.addColorStop(0, `hsla(${colors.neon},95%,90%,0.8)`); g.addColorStop(1, `hsla(${colors.secondary},95%,90%,0.8)`);
-        ctx.beginPath();
-        for (let t = 0; t < Math.PI * 5; t += 0.05) {
-          const x = (R - r) * Math.cos(t) + d * Math.cos((R - r) / r * t + layer * 0.4),
-                y = (R - r) * Math.sin(t) - d * Math.sin((R - r) / r * t + layer * 0.4),
-                glitchX = glitchTimer > GLITCH_INTERVAL - 2 ? (Math.random() - 0.5) * 5 : 0;
-          t === 0 ? ctx.moveTo(x, y + glitchX) : ctx.lineTo(x, y + glitchX);
-        }
-        ctx.strokeStyle = g; ctx.lineWidth = 1 + layer * 0.3; ctx.shadowColor = `hsla(${colors.neon},100%,80%,0.6)`; ctx.shadowBlur = 10;
-        if (layer % 2) ctx.setLineDash(spiroParams.dash); else ctx.setLineDash([]); ctx.stroke();
+      const R = spiroParams.R, r = spiroParams.r, d = spiroParams.d;
+      ctx.beginPath();
+      for (let t = 0; t < Math.PI * 4; t += 0.05) {
+        const x = (R - r) * Math.cos(t) + d * Math.cos((R - r) / r * t + time),
+              y = (R - r) * Math.sin(t) - d * Math.sin((R - r) / r * t + time),
+              glitchX = glitchTimer > GLITCH_INTERVAL - 1 ? (Math.random() - 0.5) * 4 : 0;
+        t === 0 ? ctx.moveTo(x, y + glitchX) : ctx.lineTo(x, y + glitchX);
       }
-      ctx.setLineDash([]); ctx.shadowBlur = 0; ctx.restore();
+      ctx.strokeStyle = `hsla(${colors.neon},95%,90%,0.8)`; ctx.lineWidth = 1.5;
+      ctx.shadowColor = `hsla(${colors.neon},100%,80%,0.6)`; ctx.shadowBlur = 8; ctx.stroke();
+      ctx.shadowBlur = 0; ctx.restore();
     }
 
     function drawKaleidoscope() {
@@ -118,26 +81,20 @@
       flames.forEach((f, i) => {
         f.angle += f.speed; f.x = f.radius * Math.cos(f.angle + Math.sin(time + i) * 0.1);
         f.y = f.radius * Math.sin(f.angle + Math.cos(time + i) * 0.1);
-        const radius = f.scale + Math.sin(time * 0.8 + i) * 35;
-        for (let s = 0; s < 10; s++) {
-          ctx.save(); ctx.rotate(Math.PI * 2 * s / 10 + Math.sin(time * 0.1) * 0.05); ctx.beginPath();
+        const radius = f.scale + Math.sin(time * 0.7 + i) * 30;
+        for (let s = 0; s < 8; s++) {
+          ctx.save(); ctx.rotate(Math.PI * 2 * s / 8); ctx.beginPath();
           for (let t = 0; t < Math.PI * 2; t += 0.05) {
-            let x, y;
-            if (f.variation === 'swirl') {
-              const r = radius * Math.sin(7 * t + time + i);
-              x = r * Math.cos(t + Math.sin(r * 0.06 + time)); y = r * Math.sin(t + Math.sin(r * 0.06 + time));
-            } else {
-              const r = radius * Math.sin(5 * t + time + i);
-              x = r * Math.cos(t + r * 0.03); y = r * Math.sin(t + r * 0.03);
-            }
-            const glitchY = glitchTimer > GLITCH_INTERVAL - 2 ? (Math.random() - 0.5) * 8 : 0;
+            const r = radius * Math.sin(5 * t + time + i),
+                  x = r * Math.cos(t + r * 0.03), y = r * Math.sin(t + r * 0.03),
+                  glitchY = glitchTimer > GLITCH_INTERVAL - 1 ? (Math.random() - 0.5) * 6 : 0;
             t === 0 ? ctx.moveTo(f.x + x, f.y + y + glitchY) : ctx.lineTo(f.x + x, f.y + y + glitchY);
           }
-          ctx.strokeStyle = `hsla(${(f.hue + s * 10) % 360},95%,90%,0.8)`; ctx.lineWidth = 1;
-          ctx.shadowColor = `hsla(${f.hue},100%,80%,0.6)`; ctx.shadowBlur = 8; ctx.stroke(); ctx.restore();
+          ctx.strokeStyle = `hsla(${(f.hue + s * 10) % 360},95%,90%,0.7)`; ctx.lineWidth = 1;
+          ctx.shadowColor = `hsla(${f.hue},100%,80%,0.5)`; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
         }
-        f.hue = (f.hue + 2) % 360; f.scale = Math.max(80, Math.min(200, f.scale + Math.sin(time + i) * 3));
-        f.radius = Math.max(50, Math.min(200, f.radius + Math.sin(time + i) * 2));
+        f.hue = (f.hue + 1.5) % 360; f.scale = Math.max(60, Math.min(180, f.scale + Math.sin(time + i) * 2));
+        f.radius = Math.max(40, Math.min(180, f.radius + Math.sin(time + i) * 1.5));
       });
       ctx.shadowBlur = 0; ctx.restore();
     }
@@ -145,17 +102,8 @@
     function drawParticles() {
       ctx.save(); ctx.translate(c.width / 2, c.height / 2);
       particles.forEach(p => {
-        p.angle += p.speed; p.x = p.radius * Math.cos(p.angle + Math.sin(time + p.baseX) * 0.1);
-        p.y = p.radius * Math.sin(p.angle + Math.cos(time + p.baseY) * 0.1);
-        p.radius = Math.max(50, Math.min(200, p.radius + Math.sin(time + p.baseX) * 2));
-        p.size = Math.max(4, Math.min(10, p.size + Math.sin(time + p.baseX) * 0.3)); p.hue = (p.hue + 2) % 360;
-
-        p.trail.push({ x: p.x, y: p.y, alpha: p.alpha }); if (p.trail.length > 8) p.trail.shift();
-        ctx.save(); p.trail.forEach((t, i) => {
-          ctx.fillStyle = `hsla(${p.hue},95%,90%,${t.alpha * (i / 8)})`;
-          ctx.beginPath(); ctx.arc(t.x, t.y, p.size * (i / 8), 0, Math.PI * 2); ctx.fill();
-        });
-
+        p.angle += p.speed; p.x = p.radius * Math.cos(p.angle + Math.sin(time) * 0.1);
+        p.y = p.radius * Math.sin(p.angle + Math.cos(time) * 0.1); p.hue = (p.hue + 1.5) % 360;
         ctx.fillStyle = `hsla(${p.hue},95%,90%,${p.alpha})`; ctx.beginPath();
         if (p.type === 'circle') {
           ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
@@ -165,28 +113,21 @@
           ctx.lineTo(p.x + s * 0.3, p.y + s * 0.3); ctx.lineTo(p.x, p.y + s); ctx.lineTo(p.x - s * 0.3, p.y + s * 0.3);
           ctx.lineTo(p.x - s, p.y); ctx.lineTo(p.x - s * 0.3, p.y - s * 0.3); ctx.closePath();
         }
-        ctx.shadowColor = `hsla(${p.hue},100%,80%,0.6)`; ctx.shadowBlur = 10; ctx.fill(); ctx.restore();
+        ctx.shadowColor = `hsla(${p.hue},100%,80%,0.5)`; ctx.shadowBlur = 6; ctx.fill();
       });
       ctx.shadowBlur = 0; ctx.restore();
     }
 
     function drawGraffitiText(text, x, y, size) {
-      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(time * 0.5) * 0.05);
-      const scale = 1 + Math.sin(time * 2) * 0.1; ctx.scale(scale, scale);
-      ctx.shadowColor = `hsla(${colors.neon},100%,100%,${0.7 + Math.sin(time * 0.5) * 0.3})`; ctx.shadowBlur = 20;
-      ctx.font = `${size}px Graffiti,Arial`; ctx.fillStyle = 'hsla(0,0%,0%,1)'; ctx.fillText(text, 0, 0);
-      ctx.strokeStyle = `hsla(${colors.secondary},100%,70%,0.9)`; ctx.lineWidth = 3; ctx.strokeText(text, 0, 0);
-      if (glitchTimer > GLITCH_INTERVAL - 2) {
-        ctx.fillStyle = `hsla(${colors.neon},100%,100%,0.8)`; ctx.fillText(text, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(time * 0.4) * 0.04);
+      const scale = 1 + Math.sin(time * 1.5) * 0.08; ctx.scale(scale, scale);
+      ctx.shadowColor = `hsla(${colors.neon},100%,100%,0.7)`; ctx.shadowBlur = 15;
+      ctx.font = `${size}px Graffiti,Arial`; ctx.fillStyle = '#000'; ctx.fillText(text, 0, 0);
+      ctx.strokeStyle = `hsla(${colors.secondary},100%,70%,0.8)`; ctx.lineWidth = 2; ctx.strokeText(text, 0, 0);
+      if (glitchTimer > GLITCH_INTERVAL - 1) {
+        ctx.fillStyle = `hsla(${colors.neon},100%,100%,0.7)`; ctx.fillText(text, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
       }
       ctx.shadowBlur = 0; ctx.restore();
-    }
-
-    function drawVignette() {
-      ctx.save();
-      const g = ctx.createRadialGradient(c.width / 2, c.height / 2, 0, c.width / 2, c.height / 2, Math.max(c.width, c.height) / 1.5);
-      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.7, 'rgba(0,0,0,0.2)'); g.addColorStop(1, 'rgba(0,0,0,0.4)');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, c.width, c.height); ctx.restore();
     }
 
     addEventListener('resize', () => { c.width = innerWidth; c.height = innerHeight; });
