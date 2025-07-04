@@ -4,233 +4,240 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MrProphecy Hip-Hop Fractal Animation</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
   <style>
     body { margin: 0; overflow: hidden; background: black; }
     canvas { display: block; }
     @font-face {
-      font-family: 'HipHopFont';
+      font-family: 'Orbitron';
       src: url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap');
     }
   </style>
 </head>
 <body>
+  <canvas id="canvas"></canvas>
   <script>
-    let particles = [];
-    let flames = [];
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // Animation variables
     let time = 0;
     let glitchTimer = 0;
     const GLITCH_INTERVAL = 30; // Glitch every ~0.5 seconds
     let frameCounter = 0;
     let lastFrameTime = 0;
     let fps = 0;
-
-    function setup() {
-      createCanvas(windowWidth, windowHeight);
-      colorMode(HSB, 360, 100, 100, 1);
-      translate(width / 2, height / 2);
-      console.log("Setup complete:", windowWidth, windowHeight);
-
-      // Initialize particles (reduced count)
-      for (let i = 0; i < 50; i++) {
-        particles.push({
-          x: random(-width / 2, width / 2),
-          y: random(-height / 2, height / 2),
-          baseX: random(1000),
-          baseY: random(1000),
-          size: random(4, 10),
-          hue: random(360),
-          alpha: random(0.6, 1),
-          type: random(['circle', 'triangle'])
-        });
-      }
-
-      // Initialize fractal flames (reduced count)
-      for (let i = 0; i < 2; i++) {
-        flames.push({
-          x: 0,
-          y: 0,
-          scale: random(100, 200),
-          angle: random(TWO_PI),
-          variation: random(['swirl', 'spherical']),
-          hue: random(360),
-          speed: random(0.05, 0.1)
-        });
-      }
+    
+    // Particles
+    const particles = [];
+    for (let i = 0; i < 30; i++) {
+      particles.push({
+        x: Math.random() * canvas.width - canvas.width / 2,
+        y: Math.random() * canvas.height - canvas.height / 2,
+        baseX: Math.random() * 1000,
+        baseY: Math.random() * 1000,
+        size: Math.random() * 6 + 4,
+        hue: Math.random() * 360,
+        alpha: Math.random() * 0.4 + 0.6,
+        type: Math.random() < 0.5 ? 'circle' : 'triangle'
+      });
     }
-
+    
+    // Fractal flames
+    const flames = [];
+    for (let i = 0; i < 2; i++) {
+      flames.push({
+        scale: Math.random() * 80 + 100,
+        angle: Math.random() * Math.PI * 2,
+        variation: Math.random() < 0.5 ? 'swirl' : 'spherical',
+        hue: Math.random() * 360,
+        speed: Math.random() * 0.06 + 0.04
+      });
+    }
+    
     function draw() {
-      background(0, 0, 0, 0.12); // Light trails for motion blur
-      translate(width / 2, height / 2);
-      time += 0.05; // Faster evolution
+      // Semi-transparent background for motion blur
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Center transformations
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      
+      time += 0.06; // Fast evolution
       frameCounter++;
-
+      glitchTimer++;
+      if (glitchTimer > GLITCH_INTERVAL) glitchTimer = 0;
+      
       // Calculate FPS
-      let currentTime = millis();
+      const currentTime = performance.now();
       if (currentTime - lastFrameTime > 1000) {
-        fps = frameCounter / (currentTime / 1000);
+        fps = frameCounter / ((currentTime - lastFrameTime) / 1000);
         frameCounter = 0;
         lastFrameTime = currentTime;
-        console.log("FPS:", fps.toFixed(1));
+        console.log(`FPS: ${fps.toFixed(1)}`);
       }
-
-      // Layer 1: Static gradient with subtle animation
+      
+      // Layer 1: Gradient background
       drawGradientBackground();
-
+      
       // Layer 2: Spirograph patterns
       drawSpirograph();
-
-      // Layer 3: Kaleidoscope with fractal flames
+      
+      // Layer 3: Kaleidoscope patterns
       drawKaleidoscope();
-
-      // Layer 4: Particle system
-      for (let p of particles) {
-        p.x += map(noise(p.baseX + time * 0.6), 0, 1, -2, 2);
-        p.y += map(noise(p.baseY + time * 0.6), 0, 1, -2, 2);
-        if (p.x < -width / 2) p.x += width;
-        if (p.x > width / 2) p.x -= width;
-        if (p.y < -height / 2) p.y += height;
-        if (p.y > height / 2) p.y -= height;
-        p.size = constrain(p.size + sin(time + p.baseX) * 0.2, 4, 10);
-        fill(p.hue, 90, 90, p.alpha);
-        noStroke();
-        push();
-        translate(p.x, p.y);
+      
+      // Layer 4: Particles
+      particles.forEach(p => {
+        // Noise-driven motion (simplified)
+        const nx = Math.sin(time * 0.7 + p.baseX);
+        const ny = Math.cos(time * 0.7 + p.baseY);
+        p.x += nx * 2;
+        p.y += ny * 2;
+        if (p.x < -canvas.width / 2) p.x += canvas.width;
+        if (p.x > canvas.width / 2) p.x -= canvas.width;
+        if (p.y < -canvas.height / 2) p.y += canvas.height;
+        if (p.y > canvas.height / 2) p.y -= canvas.height;
+        p.size = Math.max(4, Math.min(10, p.size + Math.sin(time + p.baseX) * 0.2));
+        p.hue = (p.hue + 2) % 360;
+        
+        ctx.fillStyle = `hsla(${p.hue}, 90%, 90%, ${p.alpha})`;
+        ctx.beginPath();
         if (p.type === 'circle') {
-          ellipse(0, 0, p.size);
+          ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
         } else {
-          triangle(-p.size / 2, p.size / 2, p.size / 2, p.size / 2, 0, -p.size / 2);
+          const s = p.size / 2;
+          ctx.moveTo(p.x - s, p.y + s);
+          ctx.lineTo(p.x + s, p.y + s);
+          ctx.lineTo(p.x, p.y - s);
+          ctx.closePath();
         }
-        pop();
-        p.hue = (p.hue + 1.8) % 360;
-      }
-
-      // Layer 5: Urban grid overlay
+        ctx.fill();
+      });
+      
+      // Layer 5: Grid overlay
       drawGridOverlay();
-
+      
+      ctx.restore();
+      
       // Layer 6: Glitchy text
-      push();
-      translate(-width / 2, -height / 2);
-      let textX = width - 220 + sin(time * 0.8) * 10;
-      let textY = height - 60 + cos(time * 0.8) * 10;
-      drawGlitchText("MrProphecy", textX, textY, 40);
-
+      const textX = canvas.width - 200 + Math.sin(time * 0.9) * 8;
+      const textY = canvas.height - 50 + Math.cos(time * 0.9) * 8;
+      drawGlitchText("MrProphecy", textX, textY, 36);
+      
       // Debug: FPS and frame counter
-      fill(0, 0, 100, 0.5);
-      textSize(16);
-      textFont('Orbitron');
-      text(`FPS: ${fps.toFixed(1)} | Frame: ${frameCounter}`, 10, 20);
-      pop();
-
-      glitchTimer++;
-      if (glitchTimer > GLITCH_INTERVAL) {
-        glitchTimer = 0;
-      }
+      ctx.fillStyle = 'hsla(0, 0%, 100%, 0.5)';
+      ctx.font = '16px Orbitron';
+      ctx.fillText(`FPS: ${fps.toFixed(1)} | Frame: ${frameCounter}`, 10, 20);
+      
+      // Continue animation
+      requestAnimationFrame(draw);
     }
-
+    
     function drawGradientBackground() {
-      // Lightweight animated gradient
-      for (let r = 0; r < max(width, height) / 2; r += 12) {
-        let hue = (sin(time * 0.3 + r * 0.015) * 180 + 180) % 360;
-        fill(hue, 50, 50, 0.2);
-        noStroke();
-        ellipse(0, 0, r * 2, r * 2);
-      }
+      const gradient = ctx.createLinearGradient(0, -canvas.height / 2, 0, canvas.height / 2);
+      const hue1 = (Math.sin(time * 0.3) * 180 + 180) % 360;
+      const hue2 = (hue1 + 180) % 360;
+      gradient.addColorStop(0, `hsla(${hue1}, 50%, 50%, 0.2)`);
+      gradient.addColorStop(1, `hsla(${hue2}, 50%, 50%, 0.2)`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(-canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
     }
-
+    
     function drawSpirograph() {
-      // Optimized Spirograph curves
       for (let layer = 0; layer < 2; layer++) {
-        let R = 180 + sin(time * 0.9 + layer) * 60;
-        let r = 50 + cos(time * 0.7 + layer) * 30;
-        let d = 40 + sin(time * 0.8 + layer) * 40;
-        let points = [];
-        for (let t = 0; t < TWO_PI * 4; t += 0.01) {
-          let x = (R - r) * cos(t) + d * cos((R - r) / r * t + layer * 0.4);
-          let y = (R - r) * sin(t) - d * sin((R - r) / r * t + layer * 0.4);
-          points.push({ x: x * (0.4 + layer * 0.1), y: y * (0.4 + layer * 0.1) });
+        const R = 150 + Math.sin(time * 1 + layer) * 50;
+        const r = 40 + Math.cos(time * 0.8 + layer) * 20;
+        const d = 30 + Math.sin(time * 0.9 + layer) * 30;
+        ctx.beginPath();
+        for (let t = 0; t < Math.PI * 4; t += 0.02) {
+          const x = (R - r) * Math.cos(t) + d * Math.cos((R - r) / r * t + layer * 0.5);
+          const y = (R - r) * Math.sin(t) - d * Math.sin((R - r) / r * t + layer * 0.5);
+          const glitchX = glitchTimer > GLITCH_INTERVAL - 4 ? (Math.random() - 0.5) * 6 : 0;
+          if (t === 0) ctx.moveTo(x * (0.4 + layer * 0.1) + glitchX, y * (0.4 + layer * 0.1));
+          else ctx.lineTo(x * (0.4 + layer * 0.1) + glitchX, y * (0.4 + layer * 0.1));
         }
-        stroke((60 + sin(time + layer * 2) * 90) % 360, 90, 90, 0.8);
-        strokeWeight(1 + layer * 0.3);
-        noFill();
-        beginShape();
-        for (let p of points) {
-          let glitchX = glitchTimer > GLITCH_INTERVAL - 4 ? random(-8, 8) : 0;
-          vertex(p.x + glitchX, p.y);
-        }
-        endShape();
+        ctx.strokeStyle = `hsla(${(60 + Math.sin(time + layer * 2) * 90) % 360}, 90%, 90%, 0.8)`;
+        ctx.lineWidth = 1 + layer * 0.3;
+        ctx.stroke();
       }
     }
-
+    
     function drawKaleidoscope() {
-      // Optimized kaleidoscope with FLAM3 variations
-      let segments = 8;
-      for (let i = 0; i < flames.length; i++) {
-        let f = flames[i];
-        let points = [];
-        let radius = f.scale + sin(time * 0.6 + i) * 40;
-        for (let t = 0; t < TWO_PI; t += 0.015) {
-          let x, y, r;
-          if (f.variation === 'swirl') {
-            r = radius * sin(7 * t + time + i);
-            x = r * cos(t + sin(r * 0.05 + time));
-            y = r * sin(t + sin(r * 0.05 + time));
-          } else {
-            r = radius / (1 + cos(t * 6 + time + i));
-            x = r * cos(t);
-            y = r * sin(t);
-          }
-          points.push({ x, y });
-        }
+      const segments = 6;
+      flames.forEach((f, i) => {
+        const radius = f.scale + Math.sin(time * 0.7 + i) * 30;
         for (let s = 0; s < segments; s++) {
-          push();
-          rotate(TWO_PI * s / segments);
-          stroke((f.hue + s * 15) % 360, 90, 90, 0.7);
-          strokeWeight(0.8);
-          noFill();
-          beginShape();
-          for (let p of points) {
-            let glitchY = glitchTimer > GLITCH_INTERVAL - 4 ? random(-8, 8) : 0;
-            vertex(p.x, p.y + glitchY);
+          ctx.save();
+          ctx.rotate(Math.PI * 2 * s / segments);
+          ctx.beginPath();
+          for (let t = 0; t < Math.PI * 2; t += 0.03) {
+            let x, y;
+            if (f.variation === 'swirl') {
+              const r = radius * Math.sin(6 * t + time + i);
+              x = r * Math.cos(t + Math.sin(r * 0.05 + time));
+              y = r * Math.sin(t + Math.sin(r * 0.05 + time));
+            } else {
+              const r = radius / (1 + Math.cos(t * 5 + time + i));
+              x = r * Math.cos(t);
+              y = r * Math.sin(t);
+            }
+            const glitchY = glitchTimer > GLITCH_INTERVAL - 4 ? (Math.random() - 0.5) * 6 : 0;
+            if (t === 0) ctx.moveTo(x, y + glitchY);
+            else ctx.lineTo(x, y + glitchY);
           }
-          endShape();
-          pop();
+          ctx.strokeStyle = `hsla(${(f.hue + s * 15) % 360}, 90%, 90%, 0.7)`;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          ctx.restore();
         }
-        f.hue = (f.hue + 1.5) % 360;
+        f.hue = (f.hue + 2) % 360;
         f.angle += f.speed;
-        f.scale = constrain(f.scale + sin(time + i) * 2, 80, 200);
-      }
+        f.scale = Math.max(80, Math.min(180, f.scale + Math.sin(time + i) * 2));
+      });
     }
-
+    
     function drawGridOverlay() {
-      stroke(180, 50, 50, 0.15);
-      strokeWeight(0.6);
-      for (let x = -width / 2; x < width / 2; x += 70) {
-        line(x, -height / 2, x, height / 2);
+      ctx.strokeStyle = 'hsla(180, 50%, 50%, 0.15)';
+      ctx.lineWidth = 0.5;
+      for (let x = -canvas.width / 2; x < canvas.width / 2; x += 60) {
+        ctx.beginPath();
+        ctx.moveTo(x, -canvas.height / 2);
+        ctx.lineTo(x, canvas.height / 2);
+        ctx.stroke();
       }
-      for (let y = -height / 2; y < height / 2; y += 70) {
-        line(-width / 2, y, width / 2, y);
+      for (let y = -canvas.height / 2; y < canvas.height / 2; y += 60) {
+        ctx.beginPath();
+        ctx.moveTo(-canvas.width / 2, y);
+        ctx.lineTo(canvas.width / 2, y);
+        ctx.stroke();
       }
     }
-
+    
     function drawGlitchText(text, x, y, size) {
-      fill(60, 100, 100, 1); // Neon yellow
-      textSize(size);
-      textStyle(BOLD);
-      textFont('Orbitron');
-      text(text, x, y);
+      ctx.font = `${size}px Orbitron`;
+      ctx.fillStyle = 'hsla(60, 100%, 100%, 1)';
+      ctx.fillText(text, x, y);
       if (glitchTimer > GLITCH_INTERVAL - 4) {
-        fill(180, 100, 100, 0.8); // Cyan
-        text(text, x + random(-10, 10), y + random(-10, 10));
-        fill(300, 100, 100, 0.8); // Magenta
-        text(text, x + random(-10, 10), y + random(-10, 10));
+        ctx.fillStyle = 'hsla(180, 100%, 100%, 0.8)';
+        ctx.fillText(text, x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 10);
+        ctx.fillStyle = 'hsla(300, 100%, 100%, 0.8)';
+        ctx.fillText(text, x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 10);
       }
     }
-
-    function windowResized() {
-      resizeCanvas(windowWidth, windowHeight);
-      console.log("Canvas resized:", windowWidth, windowHeight);
-    }
+    
+    // Handle resize
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      console.log("Canvas resized:", canvas.width, canvas.height);
+    });
+    
+    // Start animation
+    draw();
   </script>
 </body>
 </html>
