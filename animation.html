@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MrProphecy Hip-Hop Spirograph & Kaleidoscope</title>
+  <title>MrProphecy Hip-Hop Fractal Animation</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
   <style>
@@ -11,35 +11,48 @@
     canvas { display: block; }
     @font-face {
       font-family: 'HipHopFont';
-      src: url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+      src: url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap');
     }
   </style>
 </head>
 <body>
   <script>
     let particles = [];
+    let flames = [];
     let time = 0;
     let glitchTimer = 0;
-    const GLITCH_INTERVAL = 90; // Glitch every ~1.5 seconds
-    let noiseScale = 0.005;
+    const GLITCH_INTERVAL = 60; // Glitch every ~1 second at 60 FPS
+    let noiseScale = 0.002;
 
     function setup() {
       createCanvas(windowWidth, windowHeight);
       colorMode(HSB, 360, 100, 100, 1);
-      // Center for Spirograph and kaleidoscope
       translate(width / 2, height / 2);
 
       // Initialize particles
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 150; i++) {
         particles.push({
           x: random(-width / 2, width / 2),
           y: random(-height / 2, height / 2),
           baseX: random(1000),
           baseY: random(1000),
-          size: random(3, 10),
+          size: random(3, 12),
           hue: random(360),
-          alpha: random(0.6, 1),
-          type: random(['circle', 'triangle'])
+          alpha: random(0.5, 0.9),
+          type: random(['circle', 'triangle', 'square'])
+        });
+      }
+
+      // Initialize fractal flames (inspired by FLAM3)
+      for (let i = 0; i < 3; i++) {
+        flames.push({
+          x: 0,
+          y: 0,
+          scale: random(100, 200),
+          angle: random(TWO_PI),
+          variation: random(['swirl', 'spherical', 'horseshoe']),
+          hue: random(360),
+          speed: random(0.02, 0.05)
         });
       }
 
@@ -51,18 +64,17 @@
     }
 
     function draw() {
-      // Semi-transparent background for motion trails
-      background(0, 0, 0, 0.1);
-      translate(width / 2, height / 2); // Center all drawings
-      time += 0.015; // Smooth evolution
+      background(0, 0, 0, 0.08); // Subtle trails for motion blur
+      translate(width / 2, height / 2);
+      time += 0.02; // Fast evolution for dynamic motion
 
-      // Layer 1: Gradient background with subtle noise
+      // Layer 1: Noise-based gradient background
       drawGradientBackground();
 
       // Layer 2: Spirograph patterns
       drawSpirograph();
 
-      // Layer 3: Kaleidoscope patterns
+      // Layer 3: Kaleidoscope with fractal flames
       drawKaleidoscope();
 
       // Layer 4: Particle system
@@ -70,34 +82,37 @@
       let vol = mic.getLevel();
       */
       for (let p of particles) {
-        // Noise-driven motion
-        p.x += map(noise(p.baseX + time * 0.2), 0, 1, -1.5, 1.5);
-        p.y += map(noise(p.baseY + time * 0.2), 0, 1, -1.5, 1.5);
-        // Wrap around edges
+        p.x += map(noise(p.baseX + time * 0.3), 0, 1, -2, 2);
+        p.y += map(noise(p.baseY + time * 0.3), 0, 1, -2, 2);
         if (p.x < -width / 2) p.x += width;
         if (p.x > width / 2) p.x -= width;
-        if p.y < -height / 2) p.y += height;
+        if (p.y < -height / 2) p.y += height;
         if (p.y > height / 2) p.y -= height;
-        p.size = constrain(p.size + sin(time + p.baseX) * 0.1 /* + map(vol, 0, 1, 0, 3) */, 3, 10);
+        p.size = constrain(p.size + sin(time + p.baseX) * 0.2 /* + map(vol, 0, 1, 0, 4) */, 3, 12);
         fill(p.hue, 80, 80, p.alpha);
         noStroke();
         push();
         translate(p.x, p.y);
         if (p.type === 'circle') {
           ellipse(0, 0, p.size);
-        } else {
+        } else if (p.type === 'triangle') {
           triangle(-p.size / 2, p.size / 2, p.size / 2, p.size / 2, 0, -p.size / 2);
+        } else {
+          rect(-p.size / 2, -p.size / 2, p.size, p.size);
         }
         pop();
-        p.hue = (p.hue + 0.7) % 360;
+        p.hue = (p.hue + 1) % 360;
       }
 
-      // Layer 5: Glitchy text
+      // Layer 5: Urban grid overlay
+      drawGridOverlay();
+
+      // Layer 6: Glitchy text
       push();
-      translate(-width / 2, -height / 2); // Reset for text
-      let textX = width - 220 + sin(time) * 5;
-      let textY = height - 50 + cos(time) * 5;
-      drawGlitchText("MrProphecy", textX, textY, 40);
+      translate(-width / 2, -height / 2);
+      let textX = width - 250 + sin(time * 0.5) * 8;
+      let textY = height - 60 + cos(time * 0.5) * 8;
+      drawGlitchText("MrProphecy", textX, textY, 48);
       pop();
 
       glitchTimer++;
@@ -107,66 +122,93 @@
     }
 
     function drawGradientBackground() {
-      // Subtle noise-based gradient
-      for (let x = -width / 2; x < width / 2; x += 10) {
-        for (let y = -height / 2; y < height / 2; y += 10) {
-          let n = noise(x * noiseScale, y * noiseScale, time * 0.3);
+      for (let x = -width / 2; x < width / 2; x += 8) {
+        for (let y = -height / 2; y < height / 2; y += 8) {
+          let n = noise(x * noiseScale, y * noiseScale, time * 0.4);
           let hue = map(n, 0, 1, 0, 360);
-          fill(hue, 50, 50, 0.3);
+          fill(hue, 60, 60, 0.25);
           noStroke();
-          rect(x, y, 10, 10);
+          rect(x, y, 8, 8);
         }
       }
     }
 
     function drawSpirograph() {
-      // Spirograph-like curves (hypotrochoid)
-      let R = 200 + sin(time * 0.5) * 50; // Large radius
-      let r = 80 + cos(time * 0.3) * 20; // Small radius
-      let d = 60 + sin(time * 0.4) * 30; // Pen distance
-      let points = [];
-      for (let t = 0; t < TWO_PI * 3; t += 0.02) {
-        let x = (R - r) * cos(t) + d * cos((R - r) / r * t);
-        let y = (R - r) * sin(t) - d * sin((R - r) / r * t);
-        points.push({ x: x * 0.5, y: y * 0.5 }); // Scale to fit
-      }
-      // Draw with neon colors and slight glitch
-      stroke((60 + sin(time) * 30) % 360, 80, 80, 0.8);
-      strokeWeight(2);
-      noFill();
-      beginShape();
-      for (let p of points) {
-        let glitchX = glitchTimer > GLITCH_INTERVAL - 10 ? random(-5, 5) : 0;
-        vertex(p.x + glitchX, p.y);
-      }
-      endShape();
-    }
-
-    function drawKaleidoscope() {
-      // Kaleidoscope with radial symmetry
-      let segments = 6; // Number of mirrored segments
-      let radius = 150 + sin(time * 0.4) * 30;
-      for (let i = 0; i < segments; i++) {
-        push();
-        rotate(TWO_PI * i / segments);
-        // Rose curve for complex patterns
+      // Layered Spirograph curves
+      for (let layer = 0; layer < 2; layer++) {
+        let R = 180 + sin(time * 0.6 + layer) * 60;
+        let r = 70 + cos(time * 0.4 + layer) * 30;
+        let d = 50 + sin(time * 0.5 + layer) * 40;
         let points = [];
-        for (let t = 0; t < TWO_PI; t += 0.05) {
-          let r = radius * sin(5 * t + time);
-          let x = r * cos(t);
-          let y = r * sin(t);
-          points.push({ x, y });
+        for (let t = 0; t < TWO_PI * 4; t += 0.01) {
+          let x = (R - r) * cos(t) + d * cos((R - r) / r * t);
+          let y = (R - r) * sin(t) - d * sin((R - r) / r * t);
+          points.push({ x: x * (0.5 + layer * 0.2), y: y * (0.5 + layer * 0.2) });
         }
-        stroke((180 + cos(time) * 30) % 360, 80, 80, 0.7);
-        strokeWeight(1.5);
+        stroke((60 + sin(time + layer) * 60) % 360, 90, 90, 0.7);
+        strokeWeight(1.5 + layer);
         noFill();
         beginShape();
         for (let p of points) {
-          let glitchY = glitchTimer > GLITCH_INTERVAL - 10 ? random(-5, 5) : 0;
-          vertex(p.x, p.y + glitchY);
+          let glitchX = glitchTimer > GLITCH_INTERVAL - 8 ? random(-6, 6) : 0;
+          vertex(p.x + glitchX, p.y);
         }
         endShape();
-        pop();
+      }
+    }
+
+    function drawKaleidoscope() {
+      // Kaleidoscope with FLAM3-inspired variations
+      let segments = 8;
+      for (let i = 0; i < flames.length; i++) {
+        let f = flames[i];
+        let points = [];
+        let radius = f.scale + sin(time * 0.3) * 30;
+        for (let t = 0; t < TWO_PI; t += 0.02) {
+          let x, y;
+          if (f.variation === 'swirl') {
+            let r = radius * sin(7 * t + time);
+            x = r * cos(t + sin(r * 0.02 + time));
+            y = r * sin(t + sin(r * 0.02 + time));
+          } else if (f.variation === 'spherical') {
+            let r = radius / (1 + cos(t * 5 + time));
+            x = r * cos(t);
+            y = r * sin(t);
+          } else {
+            let r = radius * cos(t * 6 + time);
+            x = r * cos(t) / (1 + sin(t * t + time));
+            y = r * sin(t) / (1 + sin(t * t + time));
+          }
+          points.push({ x, y });
+        }
+        for (let s = 0; s < segments; s++) {
+          push();
+          rotate(TWO_PI * s / segments);
+          stroke((f.hue + s * 20) % 360, 90, 90, 0.6);
+          strokeWeight(1);
+          noFill();
+          beginShape();
+          for (let p of points) {
+            let glitchY = glitchTimer > GLITCH_INTERVAL - 8 ? random(-6, 6) : 0;
+            vertex(p.x, p.y + glitchY);
+          }
+          endShape();
+          pop();
+        }
+        f.hue = (f.hue + 0.8) % 360;
+        f.angle += f.speed;
+      }
+    }
+
+    function drawGridOverlay() {
+      // Subtle urban grid for hip-hop vibe
+      stroke(180, 50, 50, 0.2);
+      strokeWeight(0.5);
+      for (let x = -width / 2; x < width / 2; x += 50) {
+        line(x, -height / 2, x, height / 2);
+      }
+      for (let y = -height / 2; y < height / 2; y += 50) {
+        line(-width / 2, y, width / 2, y);
       }
     }
 
@@ -176,11 +218,11 @@
       textStyle(BOLD);
       textFont('Orbitron');
       text(text, x, y);
-      if (glitchTimer > GLITCH_INTERVAL - 10) {
-        fill(180, 100, 100, 0.7); // Cyan glitch
-        text(text, x + random(-10, 10), y + random(-10, 10));
-        fill(300, 100, 100, 0.7); // Magenta glitch
-        text(text, x + random(-10, 10), y + random(-10, 10));
+      if (glitchTimer > GLITCH_INTERVAL - 8) {
+        fill(180, 100, 100, 0.8); // Cyan
+        text(text, x + random(-12, 12), y + random(-12, 12));
+        fill(300, 100, 100, 0.8); // Magenta
+        text(text, x + random(-12, 12), y + random(-12, 12));
       }
     }
 
