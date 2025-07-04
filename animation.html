@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MrProphecy Hip-Hop 2D Animation with Border</title>
+  <title>MrProphecy Hip-Hop 2D Animation with Clouds</title>
   <style>
     body { margin: 0; overflow: hidden; background: black; }
     canvas { display: block; }
@@ -26,19 +26,44 @@
     // Random coordinated color scheme
     const baseHue = Math.random() * 360;
     const colors = {
-      primary: baseHue, // Base hue
-      secondary: (baseHue + 120) % 360, // Triadic color 1
-      tertiary: (baseHue + 240) % 360, // Triadic color 2
-      accent: (baseHue + 30) % 360 // Analogous color
+      primary: baseHue,
+      secondary: (baseHue + 120) % 360,
+      tertiary: (baseHue + 240) % 360,
+      accent: (baseHue + 30) % 360
     };
     
     // Animation variables
     let time = 0;
     let glitchTimer = 0;
-    const GLITCH_INTERVAL = 15; // Glitch every ~0.25 seconds
+    const GLITCH_INTERVAL = 15;
     let frameCounter = 0;
     let lastFrameTime = 0;
     let fps = 0;
+    
+    // Perlin noise for clouds
+    const noise = [];
+    const noiseSize = 64;
+    for (let i = 0; i < noiseSize; i++) {
+      noise[i] = [];
+      for (let j = 0; j < noiseSize; j++) {
+        noise[i][j] = Math.random();
+      }
+    }
+    function getNoise(x, y) {
+      const xi = Math.floor(x) % noiseSize;
+      const yi = Math.floor(y) % noiseSize;
+      const xf = x - Math.floor(x);
+      const yf = y - Math.floor(y);
+      const v00 = noise[xi][yi];
+      const v10 = noise[(xi + 1) % noiseSize][yi];
+      const v01 = noise[xi][(yi + 1) % noiseSize];
+      const v11 = noise[(xi + 1) % noiseSize][(yi + 1) % noiseSize];
+      const u = xf * xf * (3 - 2 * xf);
+      const v = yf * yf * (3 - 2 * yf);
+      const x0 = v00 + u * (v10 - v00);
+      const x1 = v01 + u * (v11 - v01);
+      return x0 + v * (x1 - x0);
+    }
     
     // Particles
     const particles = [];
@@ -89,7 +114,8 @@
         y: Math.random() * canvas.height - canvas.height / 2,
         size: Math.random() * 20 + 10,
         hue: colors[Math.random() < 0.5 ? 'accent' : 'tertiary'],
-        alpha: Math.random() * 0.3 + 0.3
+        alpha: Math.random() * 0.3 + 0.3,
+        shape: Math.random() < 0.5 ? 'circle' : 'drip'
       });
     }
     
@@ -106,7 +132,6 @@
     }
     
     function draw() {
-      // Motion blur
       ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
@@ -127,16 +152,19 @@
         console.log(`FPS: ${fps.toFixed(1)}`);
       }
       
-      // Layer 1: Neon gradient background
-      drawNeonBackground();
+      // Layer 1: Dark gradient background
+      drawDarkGradientBackground();
       
-      // Layer 2: Spirograph patterns
+      // Layer 2: Cloud effects
+      drawClouds();
+      
+      // Layer 3: Spirograph patterns
       drawSpirograph();
       
-      // Layer 3: Kaleidoscope patterns
+      // Layer 4: Kaleidoscope patterns
       drawKaleidoscope();
       
-      // Layer 4: Particles with trails
+      // Layer 5: Particles with trails
       particles.forEach(p => {
         const nx = Math.sin(time * 0.8 + p.baseX);
         const ny = Math.cos(time * 0.8 + p.baseY);
@@ -186,26 +214,26 @@
         ctx.fill();
       });
       
-      // Layer 5: Grid and scanlines
+      // Layer 6: Grid and scanlines
       drawGridOverlay();
       
-      // Layer 6: Graffiti splatters
+      // Layer 7: Graffiti splatters
       drawSplatters();
       
-      // Layer 7: Neon flares
+      // Layer 8: Neon flares
       drawFlares();
       
-      // Layer 8: Border Spirograph
+      // Layer 9: Border Spirograph
       drawBorderSpirograph();
       
       ctx.restore();
       
-      // Layer 9: Graffiti text
+      // Layer 10: Graffiti text
       const textX = canvas.width - 220 + Math.sin(time * 1) * 10;
       const textY = canvas.height - 50 + Math.cos(time * 1) * 10;
       drawGraffitiText("MrProphecy", textX, textY, 40);
       
-      // Layer 10: Vignette
+      // Layer 11: Vignette
       drawVignette();
       
       // Debug: FPS and frame counter
@@ -216,15 +244,29 @@
       requestAnimationFrame(draw);
     }
     
-    function drawNeonBackground() {
+    function drawDarkGradientBackground() {
       const gradient = ctx.createLinearGradient(0, -canvas.height / 2, 0, canvas.height / 2);
-      gradient.addColorStop(0, `hsla(${colors.primary}, 70%, 60%, 0.3)`);
-      gradient.addColorStop(1, `hsla(${colors.secondary}, 70%, 60%, 0.3)`);
+      gradient.addColorStop(0, `hsla(${colors.primary}, 70%, 20%, 0.5)`);
+      gradient.addColorStop(1, `hsla(${colors.secondary}, 70%, 20%, 0.5)`);
       ctx.fillStyle = gradient;
       ctx.fillRect(-canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
       
-      ctx.fillStyle = `hsla(${colors.accent}, 80%, 70%, 0.2)`;
+      ctx.fillStyle = `hsla(${colors.accent}, 80%, 30%, 0.3)`;
       ctx.fillRect(-canvas.width / 2, -20, canvas.width, 40);
+    }
+    
+    function drawClouds() {
+      for (let x = -canvas.width / 2; x < canvas.width / 2; x += 10) {
+        for (let y = -canvas.height / 2; y < canvas.height / 2; y += 10) {
+          const n = getNoise((x + time * 5) / 50, (y + time * 3) / 50);
+          if (n > 0.5) {
+            ctx.fillStyle = `hsla(${colors.tertiary}, 50%, 50%, ${n * 0.1})`;
+            ctx.beginPath();
+            ctx.arc(x, y, 20, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
     }
     
     function drawSpirograph() {
@@ -324,7 +366,15 @@
       splatters.forEach(s => {
         ctx.fillStyle = `hsla(${s.hue}, 80%, 70%, ${s.alpha * (0.5 + Math.sin(time * 0.3) * 0.2)})`;
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        if (s.shape === 'circle') {
+          ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        } else {
+          const sSize = s.size;
+          ctx.moveTo(s.x, s.y - sSize);
+          ctx.quadraticCurveTo(s.x + sSize * 0.5, s.y, s.x, s.y + sSize);
+          ctx.quadraticCurveTo(s.x - sSize * 0.5, s.y, s.x, s.y - sSize);
+          ctx.closePath();
+        }
         ctx.fill();
         s.hue = (s.hue + 1) % 360;
         s.alpha = Math.max(0.3, Math.min(0.6, s.alpha + Math.sin(time + s.x) * 0.01));
@@ -333,9 +383,15 @@
     
     function drawFlares() {
       flares.forEach(f => {
-        ctx.fillStyle = `hsla(${f.hue}, 80%, 70%, ${f.alpha * (0.5 + Math.sin(time * 0.4) * 0.3)})`;
+        const alpha = f.alpha * (0.5 + Math.sin(time * 0.4) * 0.3);
+        ctx.fillStyle = `hsla(${f.hue}, 80%, 70%, ${alpha})`;
         ctx.beginPath();
         ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+        ctx.fill();
+        // Lens flare effect
+        ctx.fillStyle = `hsla(${f.hue}, 80%, 70%, ${alpha * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.size * 1.5, 0, Math.PI * 2);
         ctx.fill();
         f.hue = (f.hue + 1.5) % 360;
         f.alpha = Math.max(0.2, Math.min(0.5, f.alpha + Math.sin(time + f.x) * 0.02));
@@ -363,7 +419,6 @@
       ctx.lineWidth = 2;
       ctx.stroke();
       
-      // Border particles
       borderParticles.forEach(p => {
         const theta = Math.atan2(p.y, p.x) + time * 0.2;
         const dist = Math.sqrt(p.x * p.x + p.y * p.y);
@@ -373,6 +428,13 @@
         ctx.beginPath();
         ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
         ctx.fill();
+        // Spark effect
+        if (Math.random() < 0.1) {
+          ctx.fillStyle = `hsla(${p.hue}, 80%, 90%, ${p.alpha * 0.5})`;
+          ctx.beginPath();
+          ctx.arc(p.x + (Math.random() - 0.5) * 10, p.y + (Math.random() - 0.5) * 10, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
         p.hue = (p.hue + 1) % 360;
       });
     }
@@ -398,12 +460,20 @@
         ctx.fillText(text, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
       }
       
-      if (Math.random() < 0.2) {
+      if (Math.random() < 0.25) {
         const sx = (Math.random() - 0.5) * 50;
         const sy = (Math.random() - 0.5) * 20;
         ctx.fillStyle = `hsla(${colors.primary}, 80%, 70%, 0.4)`;
         ctx.beginPath();
-        ctx.arc(sx, sy, Math.random() * 10 + 5, 0, Math.PI * 2);
+        if (Math.random() < 0.5) {
+          ctx.arc(sx, sy, Math.random() * 10 + 5, 0, Math.PI * 2);
+        } else {
+          const sSize = Math.random() * 10 + 5;
+          ctx.moveTo(sx, sy - sSize);
+          ctx.quadraticCurveTo(sx + sSize * 0.5, sy, sx, sy + sSize);
+          ctx.quadraticCurveTo(sx - sSize * 0.5, sy, sx, sy - sSize);
+          ctx.closePath();
+        }
         ctx.fill();
       }
       ctx.restore();
