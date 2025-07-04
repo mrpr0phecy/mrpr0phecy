@@ -19,11 +19,9 @@
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d', { alpha: true });
     
-    // Set canvas size
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     
-    // Random coordinated color scheme
     const baseHue = Math.random() * 360;
     const colors = {
       primary: baseHue,
@@ -32,7 +30,6 @@
       accent: (baseHue + 30) % 360
     };
     
-    // Animation variables
     let time = 0;
     let glitchTimer = 0;
     const GLITCH_INTERVAL = 15;
@@ -40,7 +37,35 @@
     let lastFrameTime = 0;
     let fps = 0;
     
-    // Particles
+    const noise = [];
+    const noiseSize = 64;
+    for (let i = 0; i < noiseSize; i++) {
+      noise[i] = [];
+      for (let j = 0; j < noiseSize; j++) {
+        noise[i][j] = Math.random();
+      }
+    }
+    function getNoise(x, y) {
+      try {
+        const xi = Math.floor(x) % noiseSize;
+        const yi = Math.floor(y) % noiseSize;
+        const xf = x - Math.floor(x);
+        const yf = y - Math.floor(y);
+        const v00 = noise[xi][yi];
+        const v10 = noise[(xi + 1) % noiseSize][yi];
+        const v01 = noise[xi][(yi + 1) % noiseSize];
+        const v11 = noise[(xi + 1) % noiseSize][(yi + 1) % noiseSize];
+        const u = xf * xf * (3 - 2 * xf);
+        const v = yf * yf * (3 - 2 * yf);
+        const x0 = v00 + u * (v10 - v00);
+        const x1 = v01 + u * (v11 - v01);
+        return x0 + v * (x1 - x0);
+      } catch (e) {
+        console.error("Error in getNoise:", e);
+        return 0;
+      }
+    }
+    
     const particles = [];
     for (let i = 0; i < 50; i++) {
       particles.push({
@@ -56,7 +81,6 @@
       });
     }
     
-    // Border particles
     const borderParticles = [];
     for (let i = 0; i < 20; i++) {
       borderParticles.push({
@@ -68,7 +92,6 @@
       });
     }
     
-    // Fractal flames
     const flames = [];
     for (let i = 0; i < 4; i++) {
       flames.push({
@@ -81,7 +104,6 @@
       });
     }
     
-    // Graffiti splatters
     const splatters = [];
     for (let i = 0; i < 15; i++) {
       splatters.push({
@@ -94,7 +116,6 @@
       });
     }
     
-    // Neon flares
     const flares = [];
     for (let i = 0; i < 5; i++) {
       flares.push({
@@ -108,7 +129,6 @@
     
     function draw() {
       try {
-        // Clear canvas and reset transform
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
@@ -117,7 +137,6 @@
         glitchTimer++;
         if (glitchTimer > GLITCH_INTERVAL) glitchTimer = 0;
         
-        // Calculate FPS
         const currentTime = performance.now();
         if (currentTime - lastFrameTime > 1000) {
           fps = frameCounter / ((currentTime - lastFrameTime) / 1000);
@@ -126,57 +145,50 @@
           console.log(`FPS: ${fps.toFixed(1)}`);
         }
         
-        // Layer 1: Dark gradient background
         console.log("Start drawing background");
         drawDarkGradientBackground();
         console.log("End drawing background");
         
-        // Layer 2: Spirograph patterns
+        console.log("Start drawing clouds");
+        drawClouds();
+        console.log("End drawing clouds");
+        
         console.log("Start drawing Spirograph");
         drawSpirograph();
         console.log("End drawing Spirograph");
         
-        // Layer 3: Kaleidoscope patterns
         console.log("Start drawing kaleidoscope");
         drawKaleidoscope();
         console.log("End drawing kaleidoscope");
         
-        // Layer 4: Particles with trails
         console.log("Start drawing particles");
         drawParticles();
         console.log("End drawing particles");
         
-        // Layer 5: Grid and scanlines
         console.log("Start drawing grid");
         drawGridOverlay();
         console.log("End drawing grid");
         
-        // Layer 6: Graffiti splatters
         console.log("Start drawing splatters");
         drawSplatters();
         console.log("End drawing splatters");
         
-        // Layer 7: Neon flares
         console.log("Start drawing flares");
         drawFlares();
         console.log("End drawing flares");
         
-        // Layer 8: Border Spirograph
         console.log("Start drawing border");
         drawBorderSpirograph();
         console.log("End drawing border");
         
-        // Layer 9: Graffiti text
         console.log("Start drawing text");
         drawGraffitiText("MrProphecy", canvas.width - 220 + Math.sin(time * 1) * 10, canvas.height - 50 + Math.cos(time * 1) * 10, 40);
         console.log("End drawing text");
         
-        // Layer 10: Vignette
         console.log("Start drawing vignette");
         drawVignette();
         console.log("End drawing vignette");
         
-        // Debug: FPS and frame counter
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.fillStyle = 'hsla(0, 0%, 100%, 0.5)';
         ctx.font = '16px GraffitiFont, Arial, sans-serif';
@@ -191,18 +203,41 @@
     function drawDarkGradientBackground() {
       try {
         ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        const gradient = ctx.createLinearGradient(0, -canvas.height / 2, 0, canvas.height / 2);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
         gradient.addColorStop(0, `hsla(${colors.primary}, 70%, 20%, 0.5)`);
         gradient.addColorStop(1, `hsla(${colors.secondary}, 70%, 20%, 0.5)`);
         ctx.fillStyle = gradient;
-        ctx.fillRect(-canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        console.log(`Gradient bounds: x=0, y=0, w=${canvas.width}, h=${canvas.height}`);
         
-        ctx.fillStyle = `hsla(${colors.accent}, 80%, 30%, 0.3)`;
-        ctx.fillRect(-canvas.width / 2, -20, canvas.width, 40);
+        ctx.fillStyle = `hsla(${colors.accent}, 80%, 30%, 0.4)`;
+        ctx.fillRect(0, canvas.height / 2 - 20, canvas.width, 40);
+        console.log(`Horizon bounds: x=0, y=${canvas.height / 2 - 20}, w=${canvas.width}, h=40`);
         ctx.restore();
       } catch (e) {
         console.error("Error in drawDarkGradientBackground:", e);
+      }
+    }
+    
+    function drawClouds() {
+      try {
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        for (let x = -canvas.width / 2; x < canvas.width / 2; x += 50) {
+          for (let y = -canvas.height / 2; y < canvas.height / 2; y += 50) {
+            const n = getNoise((x + time * 5) / 50, (y + time * 3) / 50);
+            if (n > 0.5) {
+              ctx.fillStyle = `hsla(${colors.tertiary}, 50%, 50%, ${n * 0.08})`;
+              ctx.beginPath();
+              ctx.arc(x, y, 20, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+        ctx.restore();
+      } catch (e) {
+        console.error("Error in drawClouds:", e);
       }
     }
     
@@ -269,7 +304,7 @@
                 y = r * Math.sin(t + r * 0.03);
               }
               const glitchY = glitchTimer > GLITCH_INTERVAL - 3 ? (Math.random() - 0.5) * 8 : 0;
-              if (t === 0) ctx.moveTo(x, y + glitchX);
+              if (t === 0) ctx.moveTo(x, y + glitchY);
               else ctx.lineTo(x, y + glitchY);
             }
             ctx.strokeStyle = `hsla(${(f.hue + s * 10) % 360}, 90%, 90%, 0.7)`;
@@ -490,7 +525,7 @@
         ctx.strokeText(text, 0, 0);
         ctx.shadowBlur = 0;
         
-        if (glitchTimer > GLITCH_INTERVAL - 3) {
+        if (glitchTimer > GLITCH_INTERVAL - 3)  {
           ctx.fillStyle = `hsla(${colors.tertiary}, 100%, 100%, 0.8)`;
           ctx.fillText(text, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
           ctx.fillStyle = `hsla(${colors.accent}, 100%, 100%, 0.8)`;
@@ -522,6 +557,7 @@
     function drawVignette() {
       try {
         ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         const gradient = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) / 2);
         gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
         gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
@@ -533,14 +569,12 @@
       }
     }
     
-    // Handle resize
     window.addEventListener('resize', () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       console.log("Canvas resized:", canvas.width, canvas.height);
     });
     
-    // Start animation
     console.log("Starting animation");
     draw();
   </script>
