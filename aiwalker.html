@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Evolution AI Walker</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #1e3c72, #2a5298);
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+
+```
+    #gameContainer {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    #ui {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        z-index: 100;
+        color: white;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+    }
+
+    #stats {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 100;
+        color: white;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        text-align: right;
+    }
+
+    button {
+        padding: 10px 20px;
+        margin: 5px;
+        font-size: 14px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    button:hover { background: #45a049; }
+    button:disabled { background: #666; cursor: not-allowed; }
+</style>
+```
+
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <button id="startBtn">Start Evolution</button>
+            <button id="pauseBtn" disabled>Pause</button>
+            <button id="resetBtn">Reset</button>
+            <div style="margin-top: 15px;">
+                <div>Time: <span id="time">0</span>s</div>
+                <div>Population: <span id="population">20</span></div>
+                <div>Generation: <span id="generation">1</span></div>
+            </div>
+        </div>
+
+```
+    <div id="stats">
+        <div>Best Distance: <span id="bestDistance">0</span>m</div>
+        <div>Pack Average: <span id="packAverage">0</span>m</div>
+        <div>Mutations: <span id="mutations">0</span></div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+    // Global error handler
+    window.onerror = function(msg, url, line) {
+        console.error('Error:', msg, 'at line:', line);
+        return true;
+    };
+
+    let scene, camera, renderer;
+    let creatures = [];
+    let isRunning = false;
+    let startTime = 0;
+    let generation = 1;
+    let mutations = 0;
+
+    const POPULATION_SIZE = 15;
+    const ELIMINATION_DISTANCE = 150;
+
+    // Simple Neural Network
+    class Brain {
+        constructor() {
+            this.weights = [];
+            for (let i = 0; i < 20; i++) {
+                this.weights.push((Math.random() - 0.5) * 2);
+            }
+        }
+
+        think(inputs) {
+            let output = 0;
+            for (let i = 0; i < Math.min(inputs.length, this.weights.length); i++) {
+                output += inputs[i] * this.weights[i];
+            }
+            return Math.tanh(output);
+        }
+
+        mutate() {
+            for (let i = 0; i < this.weights.length; i++) {
+                if (Math.random() < 0.1) {
+                    this.weights[i] += (Math.random() - 0.5) * 0.5;
+                    this.weights[i] = Math.max(-2, Math.min(2, this.weights[i]));
+                }
+            }
+            mutations++;
+        }
+
+        crossover(other) {
+            const child = new Brain();
+            for (let i = 0; i < this.weights.length; i++) {
+                child.weights[i] = Math.random() < 0.5 ? this.weights[i] : other.weights[i];
+            }
+            return child;
+        }
+    }
+
+    class Creature {
+        constructor(x = 0, z = 0) {
+            // Basic genetics
+            this.bodySize = 0.8 + Math.random() * 1.2;
+            this.legLength = 1 + Math.random() * 2;
+            this.numLegs = Math.random() < 0.7 ? 2 : 4;
+            this.hasArms = Math.random() < 0.6;
+            this.armLength = this.hasArms ? 0.8 + Math.random() * 1.5 : 0;
+            this.color = new THREE.Color().setHSL(Math.random(), 0.7, 0.6);
+            
+            // Physics
+            this.position = new THREE.Vector3(x, 0, z);
+            this.velocity = new THREE.Vector3(0, 0, 0);
+            this.rotation = 0;
+            this.walkCycle = Math.random() * Math.PI * 2;
+            
+            this.brain = new Brain();
+            this.fitness = 0;
+            this.alive = true;
+            this.age = 0;
+            
+            this.createModel();
+        }
+
+        createModel() {
+            try {
+                this.group = new THREE.Group();
+                
+                // Body
+                const bodyGeo = new THREE.BoxGeometry(this.bodySize, this.bodySize * 1.2, this.bodySize * 0.8);
+                const bodyMat = new THREE.MeshLambertMaterial({ color: this.color.getHex() });
+                this.bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+                this.bodyMesh.position.y = this.bodySize * 0.6;
+                this.bodyMesh.castShadow = true;
+                this.group.add(this.bodyMesh);
+                
+                // Head
+                const headGeo = new THREE.SphereGeometry(this.bodySize * 0.4);
+                const headMat = new THREE.MeshLambertMaterial({ color: this.color.clone().multiplyScalar(1.2).getHex() });
+                this.headMesh = new THREE.Mesh(headGeo, headMat);
+                this.headMesh.position.y = this.bodySize * 1.4;
+                this.headMesh.castShadow = true;
+                this.group.add(this.headMesh);
+                
+                // Legs
+                this.legMeshes = [];
+                const legGeo = new THREE.CylinderGeometry(0.1, 0.1, this.legLength);
+                const legMat = new THREE.MeshLambertMaterial({ color: this.color.clone().multiplyScalar(0.8).getHex() });
+                
+                for (let i = 0; i < this.numLegs; i++) {
+                    const legMesh = new THREE.Mesh(legGeo, legMat);
+                    const angle = (i / this.numLegs) * Math.PI * 2;
+                    legMesh.position.x = Math.sin(angle) * this.bodySize * 0.4;
+                    legMesh.position.z = Math.cos(angle) * this.bodySize * 0.4;
+                    legMesh.position.y = -this.legLength * 0.5;
+                    legMesh.castShadow = true;
+                    this.group.add(legMesh);
+                    this.legMeshes.push(legMesh);
+                }
+                
+                // Arms (if has them)
+                this.armMeshes = [];
+                if (this.hasArms) {
+                    const armGeo = new THREE.CylinderGeometry(0.08, 0.08, this.armLength);
+                    const armMat = new THREE.MeshLambertMaterial({ color: this.color.clone().multiplyScalar(0.9).getHex() });
+                    
+                    for (let i = 0; i < 2; i++) {
+                        const armMesh = new THREE.Mesh(armGeo, armMat);
+                        armMesh.position.x = (i === 0 ? -1 : 1) * this.bodySize * 0.6;
+                        armMesh.position.y = this.bodySize * 0.8;
+                        armMesh.position.z = 0;
+                        armMesh.castShadow = true;
+                        this.group.add(armMesh);
+                        this.armMeshes.push(armMesh);
+                    }
+                }
+                
+                scene.add(this.group);
+            } catch (e) {
+                console.error('Error creating creature model:', e);
+                this.alive = false;
+            }
+        }
+
+        update(dt) {
+            if (!this.alive) return;
+            
+            try {
+                this.age += dt;
+                
+                // Simple inputs
+                const inputs = [
+                    this.velocity.x,
+                    this.velocity.z,
+                    this.velocity.y,
+                    this.position.y,
+                    Math.sin(this.walkCycle),
+                    Math.cos(this.walkCycle)
+                ];
+                
+                // Get brain output
+                const output = this.brain.think(inputs);
+                
+                // Convert to movement
+                const forwardForce = output * 3;
+                const turnForce = this.brain.think([...inputs, output]) * 0.03;
+                
+                // Update walk cycle
+                this.walkCycle += dt * 3;
+                
+                // Apply forces
+                const forward = new THREE.Vector3(Math.sin(this.rotation), 0, Math.cos(this.rotation));
+                this.velocity.add(forward.multiplyScalar(forwardForce * dt));
+                this.rotation += turnForce;
+                
+                // Physics
+                this.velocity.y -= 12 * dt; // Gravity
+                this.position.add(this.velocity.clone().multiplyScalar(dt));
+                
+                // Ground collision
+                if (this.position.y <= 0) {
+                    this.position.y = 0;
+                    this.velocity.y = 0;
+                    this.velocity.multiplyScalar(0.9); // Friction
+                }
+                
+                // Air resistance
+                this.velocity.multiplyScalar(0.99);
+                
+                // Update model
+                this.group.position.copy(this.position);
+                this.group.rotation.y = this.rotation;
+                
+                // Animate legs
+                for (let i = 0; i < this.legMeshes.length; i++) {
+                    this.legMeshes[i].rotation.x = Math.sin(this.walkCycle + i) * 0.5;
+                }
+                
+                // Animate arms
+                for (let i = 0; i < this.armMeshes.length; i++) {
+                    this.armMeshes[i].rotation.x = Math.sin(this.walkCycle * 0.7 + i * Math.PI) * 0.8;
+                }
+                
+                // Update fitness
+                this.fitness = Math.max(this.fitness, this.position.x);
+                
+                // Check if should die
+                if (this.position.y < -20 || this.position.x < -100) {
+                    this.die();
+                }
+            } catch (e) {
+                console.error('Error updating creature:', e);
+                this.die();
+            }
+        }
+
+        die() {
+            this.alive = false;
+            if (this.group) {
+                scene.remove(this.group);
+            }
+        }
+
+        breed(partner) {
+            try {
+                const childX = (this.position.x + partner.position.x) / 2;
+                const childZ = (this.position.z + partner.position.z) / 2 + (Math.random() - 0.5) * 10;
+                
+                const child = new Creature(childX, childZ);
+                
+                // Inherit traits
+                child.bodySize = (this.bodySize + partner.bodySize) / 2 + (Math.random() - 0.5) * 0.3;
+                child.legLength = (this.legLength + partner.legLength) / 2 + (Math.random() - 0.5) * 0.4;
+                child.armLength = (this.armLength + partner.armLength) / 2 + (Math.random() - 0.5) * 0.3;
+                
+                // Clamp values
+                child.bodySize = Math.max(0.3, Math.min(2.5, child.bodySize));
+                child.legLength = Math.max(0.5, Math.min(3, child.legLength));
+                child.armLength = Math.max(0, Math.min(2.5, child.armLength));
+                
+                // Genetic crossover
+                child.brain = this.brain.crossover(partner.brain);
+                child.brain.mutate();
+                
+                // Recreate model
+                child.die();
+                child.createModel();
+                child.alive = true;
+                
+                return child;
+            } catch (e) {
+                console.error('Error breeding:', e);
+                return null;
+            }
+        }
+    }
+
+    function initScene() {
+        try {
+            // Scene
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x87CEEB);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            document.getElementById('gameContainer').appendChild(renderer.domElement);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(50, 100, 50);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            // Ground
+            const groundGeometry = new THREE.PlaneGeometry(5000, 200);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x3a8c3a });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // Camera position
+            camera.position.set(0, 20, 30);
+            camera.lookAt(0, 0, 0);
+            
+            console.log('Scene initialized successfully');
+            return true;
+        } catch (e) {
+            console.error('Failed to initialize scene:', e);
+            return false;
+        }
+    }
+
+    function createPopulation() {
+        try {
+            creatures = [];
+            for (let i = 0; i < POPULATION_SIZE; i++) {
+                const z = (i - POPULATION_SIZE/2) * 2;
+                creatures.push(new Creature(0, z));
+            }
+            console.log('Population created:', creatures.length);
+        } catch (e) {
+            console.error('Error creating population:', e);
+        }
+    }
+
+    function updateEvolution() {
+        try {
+            const aliveCreatures = creatures.filter(c => c.alive);
+            
+            // Check for breeding
+            if (aliveCreatures.length >= 2 && Math.random() < 0.02) {
+                aliveCreatures.sort((a, b) => b.fitness - a.fitness);
+                const parent1 = aliveCreatures[0];
+                const parent2 = aliveCreatures[1];
+                
+                const child = parent1.breed(parent2);
+                if (child) {
+                    creatures.push(child);
+                    
+                    // Remove weakest if too many
+                    if (aliveCreatures.length > POPULATION_SIZE) {
+                        const weakest = aliveCreatures[aliveCreatures.length - 1];
+                        weakest.die();
+                        creatures = creatures.filter(c => c !== weakest);
+                    }
+                }
+            }
+            
+            // Check for elimination
+            if (aliveCreatures.length > 0) {
+                const leader = Math.max(...aliveCreatures.map(c => c.fitness));
+                aliveCreatures.forEach(c => {
+                    if (c.fitness < leader - ELIMINATION_DISTANCE) {
+                        c.die();
+                    }
+                });
+            }
+            
+            // Emergency repopulation
+            if (aliveCreatures.length === 0) {
+                createPopulation();
+                generation++;
+            }
+        } catch (e) {
+            console.error('Error in evolution update:', e);
+        }
+    }
+
+    function updateCamera() {
+        try {
+            const aliveCreatures = creatures.filter(c => c.alive);
+            if (aliveCreatures.length > 0) {
+                const leader = aliveCreatures.reduce((best, c) => c.fitness > best.fitness ? c : best);
+                const targetX = leader.position.x + 15;
+                camera.position.x += (targetX - camera.position.x) * 0.02;
+                camera.lookAt(leader.position.x, 0, leader.position.z);
+            }
+        } catch (e) {
+            console.error('Camera update error:', e);
+        }
+    }
+
+    function updateUI() {
+        try {
+            const aliveCreatures = creatures.filter(c => c.alive);
+            const elapsed = isRunning ? (Date.now() - startTime) / 1000 : 0;
+            
+            let bestDistance = 0;
+            let avgDistance = 0;
+            
+            if (aliveCreatures.length > 0) {
+                bestDistance = Math.max(...aliveCreatures.map(c => c.fitness));
+                avgDistance = aliveCreatures.reduce((sum, c) => sum + c.fitness, 0) / aliveCreatures.length;
+            }
+            
+            document.getElementById('time').textContent = Math.floor(elapsed);
+            document.getElementById('population').textContent = aliveCreatures.length;
+            document.getElementById('generation').textContent = generation;
+            document.getElementById('bestDistance').textContent = Math.floor(bestDistance);
+            document.getElementById('packAverage').textContent = Math.floor(avgDistance);
+            document.getElementById('mutations').textContent = mutations;
+        } catch (e) {
+            console.error('UI update error:', e);
+        }
+    }
+
+    function animate() {
+        try {
+            if (isRunning) {
+                const dt = 1/60;
+                creatures.forEach(c => c.update(dt));
+                updateEvolution();
+                updateCamera();
+                updateUI();
+            }
+            
+            renderer.render(scene, camera);
+        } catch (e) {
+            console.error('Animation error:', e);
+        }
+        
+        requestAnimationFrame(animate);
+    }
+
+    // Initialize everything
+    try {
+        if (initScene()) {
+            createPopulation();
+            animate();
+            console.log('Game started successfully');
+        } else {
+            document.getElementById('ui').innerHTML = '<div style="color: red;">Failed to initialize 3D scene</div>';
+        }
+    } catch (e) {
+        console.error('Initialization failed:', e);
+        document.getElementById('ui').innerHTML = '<div style="color: red;">Game failed to start</div>';
+    }
+
+    // Event listeners
+    document.getElementById('startBtn').addEventListener('click', () => {
+        isRunning = true;
+        startTime = Date.now();
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('pauseBtn').disabled = false;
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+        isRunning = false;
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('pauseBtn').disabled = true;
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+        try {
+            isRunning = false;
+            creatures.forEach(c => c.die());
+            creatures = [];
+            generation = 1;
+            mutations = 0;
+            createPopulation();
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+        } catch (e) {
+            console.error('Reset error:', e);
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        try {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        } catch (e) {
+            console.error('Resize error:', e);
+        }
+    });
+</script>
+```
+
+</body>
+</html>
