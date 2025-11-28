@@ -1,0 +1,121 @@
+<h2 id="matrices-title" style="margin-top:0;">Matrices Calculator</h2>
+
+<form aria-describedby="matrices-desc">
+  <p id="matrices-desc" class="small">Perform matrix operations: addition, multiplication, determinant, and transpose. Enter matrices and choose an operation.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr;gap:10px;">
+    <div class="field">
+      <label for="mat-a">Matrix A (rows separated by ;, entries by ,)</label>
+      <input id="mat-a" type="text" placeholder="e.g. 1,2;3,4" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="mat-b">Matrix B (optional)</label>
+      <input id="mat-b" type="text" placeholder="e.g. 5,6;7,8" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="mat-operation">Operation</label>
+      <select id="mat-operation" style="width:100%;">
+        <option value="add" selected>Addition (A + B)</option>
+        <option value="multiply">Multiplication (A × B)</option>
+        <option value="det">Determinant of A</option>
+        <option value="transpose">Transpose of A</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="mat-show-steps">Show steps</label>
+      <select id="mat-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="matCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="matReset(this)">Reset</button>
+    <button type="button" onclick="matCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Results</h3>
+  <textarea id="mat-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="mat-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* matrices.html
+   - Matrix operations: add, multiply, determinant, transpose
+   - Scoped with mat- prefix
+*/
+
+function matReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#mat-output').value="";
+  card.querySelector('#mat-hint').textContent="";
+}
+
+function matCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#mat-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#mat-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parseMatrix(str){
+  return str.split(';').map(row=>row.split(',').map(n=>parseFloat(n.trim())));
+}
+
+function matCalculate(btn){
+  const card=btn.closest('.card');
+  const A=(card.querySelector('#mat-a').value||"").trim();
+  const B=(card.querySelector('#mat-b').value||"").trim();
+  const op=card.querySelector('#mat-operation').value;
+  const showSteps=card.querySelector('#mat-show-steps').value==="yes";
+  if(!A){card.querySelector('#mat-hint').textContent="Please enter Matrix A.";return;}
+  let output="";
+  try{
+    const matA=parseMatrix(A);
+    const matB=B?parseMatrix(B):null;
+    if(op==="add"){
+      if(!matB){output="Matrix B required.";}
+      else{
+        const res=matA.map((row,i)=>row.map((val,j)=>val+matB[i][j]));
+        output=`A+B = ${JSON.stringify(res)}`;
+        if(showSteps)output+=`\nSteps: Add corresponding entries.`;
+      }
+    } else if(op==="multiply"){
+      if(!matB){output="Matrix B required.";}
+      else{
+        const res=matA.map((row,i)=>matB[0].map((_,j)=>row.reduce((sum,val,k)=>sum+val*matB[k][j],0)));
+        output=`A×B = ${JSON.stringify(res)}`;
+        if(showSteps)output+=`\nSteps: Multiply rows of A by columns of B.`;
+      }
+    } else if(op==="det"){
+      if(matA.length!==2||matA[0].length!==2){output="Demo: only 2×2 determinant supported.";}
+      else{
+        const det=matA[0][0]*matA[1][1]-matA[0][1]*matA[1][0];
+        output=`det(A) = ${det}`;
+        if(showSteps)output+=`\nSteps: det = ad - bc.`;
+      }
+    } else if(op==="transpose"){
+      const res=matA[0].map((_,j)=>matA.map(row=>row[j]));
+      output=`Aᵀ = ${JSON.stringify(res)}`;
+      if(showSteps)output+=`\nSteps: Flip rows and columns.`;
+    }
+  }catch(e){output="Error calculating.";}
+  card.querySelector('#mat-output').value=output;
+  card.querySelector('#mat-hint').textContent="Results generated.";
+}
+</script>
