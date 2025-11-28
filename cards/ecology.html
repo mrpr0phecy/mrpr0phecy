@@ -1,0 +1,103 @@
+<h2 id="ecology-title" style="margin-top:0;">Ecology Tools</h2>
+
+<form aria-describedby="ecology-desc">
+  <p id="ecology-desc" class="small">Explore ecological calculations. Choose a tool, enter values, and get results with steps.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="eco-tool">Tool</label>
+      <select id="eco-tool" style="width:100%;">
+        <option value="population-density" selected>Population Density</option>
+        <option value="growth-rate">Growth Rate</option>
+        <option value="carbon-footprint">Carbon Footprint (demo)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="eco-values">Values</label>
+      <input id="eco-values" type="text" placeholder="e.g. population=1000,area=50" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="eco-show-steps">Show steps</label>
+      <select id="eco-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="ecoCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="ecoReset(this)">Reset</button>
+    <button type="button" onclick="ecoCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Results</h3>
+  <textarea id="eco-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="eco-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* ecology.html
+   - Calculates ecological values
+   - Scoped with eco- prefix
+*/
+
+function ecoReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#eco-output').value="";
+  card.querySelector('#eco-hint').textContent="";
+}
+
+function ecoCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#eco-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#eco-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parseEco(str){
+  const vals={};
+  str.split(',').forEach(p=>{
+    const [k,v]=p.split('=');
+    if(k&&v)vals[k.trim()]=parseFloat(v);
+  });
+  return vals;
+}
+
+function ecoCalculate(btn){
+  const card=btn.closest('.card');
+  const tool=card.querySelector('#eco-tool').value;
+  const vals=parseEco(card.querySelector('#eco-values').value||"");
+  const showSteps=card.querySelector('#eco-show-steps').value==="yes";
+  let output="";
+  if(tool==="population-density"&&vals.population&&vals.area){
+    const density=vals.population/vals.area;
+    output=`Population Density = ${density} per unit area`;
+    if(showSteps)output+=`\nSteps: Density = population/area.`;
+  } else if(tool==="growth-rate"&&vals.N0&&vals.Nt&&vals.t){
+    const r=(Math.log(vals.Nt/vals.N0))/vals.t;
+    output=`Growth Rate r = ${r.toFixed(3)} per unit time`;
+    if(showSteps)output+=`\nSteps: r = ln(Nt/N0)/t.`;
+  } else if(tool==="carbon-footprint"&&vals.energy){
+    const footprint=vals.energy*0.233; // demo factor
+    output=`Carbon Footprint ≈ ${footprint.toFixed(2)} kg CO₂`;
+    if(showSteps)output+=`\nSteps: Multiply energy use by emission factor.`;
+  } else {
+    output="Please provide correct values.";
+  }
+  card.querySelector('#eco-output').value=output;
+  card.querySelector('#eco-hint').textContent="Results generated.";
+}
+</script>
