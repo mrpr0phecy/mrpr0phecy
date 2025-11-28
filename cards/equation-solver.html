@@ -1,0 +1,110 @@
+<h2 id="equation-solver-title" style="margin-top:0;">Equation Solver</h2>
+
+<form aria-describedby="equation-solver-desc">
+  <p id="equation-solver-desc" class="small">Solve algebraic equations in one variable. Enter an equation, choose type, and generate solutions with steps.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="es-equation">Equation</label>
+      <input id="es-equation" type="text" placeholder="e.g. 2x + 5 = 11" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="es-type">Equation type</label>
+      <select id="es-type" style="width:100%;">
+        <option value="linear" selected>Linear</option>
+        <option value="quadratic">Quadratic</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="es-show-steps">Show steps</label>
+      <select id="es-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="esSolve(this)">Solve</button>
+    <button type="button" class="secondary" onclick="esReset(this)">Reset</button>
+    <button type="button" onclick="esCopy(this)">Copy Solution</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Solution</h3>
+  <textarea id="es-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Steps shown: <span id="es-steps">–</span></div>
+    <div id="es-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* equation-solver.html
+   - Solves linear and quadratic equations
+   - Scoped with es- prefix
+*/
+
+function esReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#es-output').value="";
+  card.querySelector('#es-steps').textContent="–";
+  card.querySelector('#es-hint').textContent="";
+}
+
+function esCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#es-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#es-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function esSolve(btn){
+  const card=btn.closest('.card');
+  const eq=(card.querySelector('#es-equation').value||"").trim();
+  const type=card.querySelector('#es-type').value;
+  const showSteps=card.querySelector('#es-show-steps').value==="yes";
+  if(!eq){card.querySelector('#es-hint').textContent="Please enter an equation.";return;}
+  let solution="";let steps="";
+  try{
+    if(type==="linear"){
+      const match=eq.match(/([0-9]*)x\s*([+\-]\s*[0-9]+)?\s*=\s*([0-9]+)/);
+      if(match){
+        const a=parseFloat(match[1]||"1");
+        const b=parseFloat(match[2]||"0");
+        const c=parseFloat(match[3]);
+        const x=(c-b)/a;
+        solution=`x = ${x}`;
+        if(showSteps){steps=`Step 1: Equation ${a}x+${b}=${c}\nStep 2: Subtract ${b}\nStep 3: Divide by ${a}`;}
+      } else solution="Unable to parse linear equation.";
+    } else if(type==="quadratic"){
+      const match=eq.match(/([+\-]?\d*)x\^2\s*([+\-]\s*\d*)x\s*([+\-]\s*\d+)?\s*=\s*0/);
+      if(match){
+        const a=parseFloat(match[1]||"1");
+        const b=parseFloat(match[2]||"0");
+        const c=parseFloat(match[3]||"0");
+        const disc=b*b-4*a*c;
+        if(disc<0){solution="No real roots.";}
+        else{
+          const r1=(-b+Math.sqrt(disc))/(2*a);
+          const r2=(-b-Math.sqrt(disc))/(2*a);
+          solution=`x₁ = ${r1}, x₂ = ${r2}`;
+          if(showSteps){steps=`Step 1: Equation ${a}x²+${b}x+${c}=0\nStep 2: Δ=b²-4ac=${disc}\nStep 3: Roots=(-b±√Δ)/(2a)`;}
+        }
+      } else solution="Unable to parse quadratic equation.";
+    }
+  }catch(e){solution="Error solving equation.";}
+  card.querySelector('#es-output').value=solution+(showSteps&&steps?`\n\n${steps}`:"");
+  card.querySelector('#es-steps').textContent=showSteps?"Yes":"No";
+  card.querySelector('#es-hint').textContent="Solution generated.";
+}
+</script>
