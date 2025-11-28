@@ -1,0 +1,248 @@
+<h2 id="essay-templates-title" style="margin-top:0;">Essay Templates</h2>
+
+<form aria-describedby="essay-templates-desc">
+  <p id="essay-templates-desc" class="small">Choose an essay type, enter a topic and thesis, then generate a structured template and starter paragraphs you can copy into your document.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="et-type">Template type</label>
+      <select id="et-type" style="width:100%;">
+        <option value="argumentative">Argumentative</option>
+        <option value="persuasive">Persuasive</option>
+        <option value="expository">Expository</option>
+        <option value="compare">Compare and Contrast</option>
+        <option value="literary">Literary Analysis</option>
+        <option value="cause">Cause and Effect</option>
+        <option value="process">Process / How‑to</option>
+        <option value="reflective">Reflective</option>
+        <option value="narrative">Narrative</option>
+        <option value="analytical">Analytical</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="et-length">Approx. length</label>
+      <select id="et-length" style="width:100%;">
+        <option value="300">Short (≈300 words)</option>
+        <option value="600" selected>Medium (≈600 words)</option>
+        <option value="1200">Long (≈1200 words)</option>
+      </select>
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="et-topic">Topic</label>
+      <input id="et-topic" type="text" placeholder="e.g. The impact of social media on attention" style="width:100%;" />
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="et-thesis">Thesis statement</label>
+      <input id="et-thesis" type="text" placeholder="Concise thesis (one sentence)" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="et-audience">Audience (optional)</label>
+      <input id="et-audience" type="text" placeholder="e.g. university tutors, general readers" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="et-tone">Tone</label>
+      <select id="et-tone" style="width:100%;">
+        <option>Formal</option>
+        <option>Academic</option>
+        <option>Neutral</option>
+        <option>Conversational</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="etGenerate(this)">Generate Template</button>
+    <button type="button" class="secondary" onclick="etReset(this)">Reset</button>
+    <button type="button" onclick="etCopy(this)">Copy to clipboard</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Generated template</h3>
+  <textarea id="et-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Estimated words: <span id="et-wordcount">0</span></div>
+    <div class="small" id="et-hint" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* Essay Templates card
+   - Generates structured outlines and starter paragraphs for common essay types
+   - All DOM queries scoped via btn.closest('.card') so multiple instances are safe
+*/
+
+function etReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#et-output').value = "";
+  card.querySelector('#et-wordcount').textContent = "0";
+  card.querySelector('#et-hint').textContent = "";
+}
+
+function etCopy(btn) {
+  const card = btn.closest('.card');
+  const out = card.querySelector('#et-output').value;
+  if (!out.trim()) return;
+  navigator.clipboard?.writeText(out).then(() => {
+    const hint = card.querySelector('#et-hint');
+    hint.textContent = "Copied to clipboard.";
+    setTimeout(() => { if (hint.textContent === "Copied to clipboard.") hint.textContent = ""; }, 1800);
+  }).catch(() => {
+    alert("Copy failed — select the text and copy manually.");
+  });
+}
+
+function etGenerate(btn) {
+  const card = btn.closest('.card');
+  const type = card.querySelector('#et-type').value;
+  const topic = (card.querySelector('#et-topic').value || "").trim();
+  const thesis = (card.querySelector('#et-thesis').value || "").trim();
+  const audience = (card.querySelector('#et-audience').value || "").trim();
+  const tone = (card.querySelector('#et-tone').value || "Formal");
+  const length = parseInt(card.querySelector('#et-length').value, 10) || 600;
+
+  if (!topic || !thesis) {
+    card.querySelector('#et-hint').textContent = "Please enter both a topic and a thesis statement.";
+    return;
+  }
+
+  const outline = buildTemplate({ type, topic, thesis, audience, tone, length });
+  const outputEl = card.querySelector('#et-output');
+  outputEl.value = outline;
+  card.querySelector('#et-wordcount').textContent = estimateWords(outline);
+  card.querySelector('#et-hint').textContent = "Template generated. Edit to add evidence and citations.";
+}
+
+/* Helpers */
+
+function estimateWords(text) {
+  return (text.trim().split(/\s+/).filter(Boolean).length).toString();
+}
+
+function sentenceCase(s) {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function buildTemplate(opts) {
+  const { type, topic, thesis, audience, tone, length } = opts;
+  const introLen = Math.round(length * 0.15);
+  const bodyLen = Math.round(length * 0.7);
+  const conclLen = length - introLen - bodyLen;
+
+  const intro = generateIntro({ topic, thesis, audience, tone, approx: introLen });
+  let body = "";
+  let conclusion = generateConclusion({ thesis, topic, tone, approx: conclLen });
+
+  switch (type) {
+    case "argumentative":
+      body = [
+        generateBodySection("Argument 1", "Present your strongest reason supporting the thesis. Provide evidence or an example.", Math.round(bodyLen/3)),
+        generateBodySection("Argument 2", "Present a second supporting reason; address a potential counterargument and rebut it.", Math.round(bodyLen/3)),
+        generateBodySection("Counterargument and Rebuttal", "Summarize a common opposing view and explain why your thesis still holds.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    case "persuasive":
+      body = [
+        generateBodySection("Reason 1", "Appeal to values or emotions relevant to the audience; provide an example.", Math.round(bodyLen/3)),
+        generateBodySection("Reason 2", "Use facts or statistics to strengthen your case.", Math.round(bodyLen/3)),
+        generateBodySection("Call to Action", "Explain what you want the reader to do and why it matters.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    case "expository":
+      body = [
+        generateBodySection("Point 1", "Explain a key aspect or definition related to the topic.", Math.round(bodyLen/3)),
+        generateBodySection("Point 2", "Describe another important aspect with examples.", Math.round(bodyLen/3)),
+        generateBodySection("Point 3", "Clarify implications or applications.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    case "compare":
+      body = [
+        generateBodySection("Similarities", "List and explain the main similarities between the two subjects or aspects.", Math.round(bodyLen/2)),
+        generateBodySection("Differences", "List and explain the main differences and their significance.", Math.round(bodyLen/2))
+      ].join("\n\n");
+      break;
+
+    case "literary":
+      body = [
+        generateBodySection("Context and Thesis", "Briefly situate the work and restate your thesis about theme/technique/character.", Math.round(bodyLen/3)),
+        generateBodySection("Close Reading 1", "Analyze a passage or device that supports your thesis.", Math.round(bodyLen/3)),
+        generateBodySection("Close Reading 2", "Analyze another passage or device; connect back to thesis.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    case "cause":
+      body = [
+        generateBodySection("Cause 1", "Explain a primary cause with evidence or example.", Math.round(bodyLen/3)),
+        generateBodySection("Cause 2", "Explain a secondary cause and its interaction with the first.", Math.round(bodyLen/3)),
+        generateBodySection("Effects", "Describe the main effects and their significance.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    case "process":
+      body = [
+        generateBodySection("Step 1", "Describe the first step clearly and any tips or warnings.", Math.round(bodyLen/3)),
+        generateBodySection("Step 2", "Describe the next step with expected outcomes.", Math.round(bodyLen/3)),
+        generateBodySection("Final Step", "Describe the final step and how to verify success.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    case "reflective":
+      body = [
+        generateBodySection("Experience", "Describe the experience or event you are reflecting on.", Math.round(bodyLen/3)),
+        generateBodySection("Analysis", "Explain what you learned and how it affected you.", Math.round(bodyLen/3)),
+        generateBodySection("Future Application", "Describe how you will apply this learning going forward.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    case "narrative":
+      body = [
+        generateBodySection("Setting and Characters", "Introduce the setting and main characters.", Math.round(bodyLen/3)),
+        generateBodySection("Conflict or Event", "Describe the central event or conflict.", Math.round(bodyLen/3)),
+        generateBodySection("Resolution and Reflection", "Explain the outcome and what it means.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    case "analytical":
+      body = [
+        generateBodySection("Claim 1", "Present a claim about the text/data and support it with evidence.", Math.round(bodyLen/3)),
+        generateBodySection("Claim 2", "Present another claim and analyze its implications.", Math.round(bodyLen/3)),
+        generateBodySection("Synthesis", "Connect claims and evaluate their combined meaning.", Math.round(bodyLen/3))
+      ].join("\n\n");
+      break;
+
+    default:
+      body = generateBodySection("Main points", "Develop the main points that support your thesis.", bodyLen);
+  }
+
+  const header = `Essay type: ${sentenceCase(type.replace(/-/g, ' '))}\nTopic: ${topic}\nAudience: ${audience || "General"}\nTone: ${tone}\nThesis: ${thesis}\n\n`;
+  const full = `${header}Introduction\n${intro}\n\n${body}\n\nConclusion\n${conclusion}\n\nNotes: Add citations, examples, and transitions between paragraphs.`;
+  return full;
+}
+
+function generateIntro({ topic, thesis, audience, tone, approx }) {
+  const opener = `Hook: Start with a question, surprising fact, or brief anecdote related to ${topic}.`;
+  const context = `Context: Provide 1–2 sentences of background to situate the topic.`;
+  const thesisLine = `Thesis: ${thesis}`;
+  const roadmap = `Roadmap: Briefly outline the main points you will cover.`;
+  return `${opener}\n${context}\n${thesisLine}\n${roadmap}`;
+}
+
+function generateBodySection(heading, prompt, approx) {
+  return `${heading}\n- Topic sentence: (state the main idea of this paragraph)\n- Evidence/example: (insert data, quote, or example)\n- Explanation: (explain how the evidence supports the topic sentence)\n- Mini-conclusion/transition: (link to the next paragraph)\n\nPrompt: ${prompt}`;
+}
+
+function generateConclusion({ thesis, topic, approx }) {
+  return `Restate the thesis in different words and summarise the main points. End with a final thought or call to action that leaves the reader with a clear takeaway about ${topic}.`;
+}
+</script>
