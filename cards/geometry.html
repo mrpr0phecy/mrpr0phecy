@@ -1,0 +1,125 @@
+<h2 id="geometry-title" style="margin-top:0;">Geometry Calculator</h2>
+
+<form aria-describedby="geometry-desc">
+  <p id="geometry-desc" class="small">Calculate areas, perimeters, and volumes for common shapes. Choose a shape, enter dimensions, and get results with formulas shown.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="geo-shape">Shape</label>
+      <select id="geo-shape" style="width:100%;">
+        <option value="circle" selected>Circle</option>
+        <option value="rectangle">Rectangle</option>
+        <option value="triangle">Triangle</option>
+        <option value="sphere">Sphere</option>
+        <option value="cube">Cube</option>
+        <option value="cylinder">Cylinder</option>
+      </select>
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="geo-dimensions">Dimensions</label>
+      <input id="geo-dimensions" type="text" placeholder="e.g. radius=5, height=10" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="geo-show-steps">Show steps</label>
+      <select id="geo-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="geoSolve(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="geoReset(this)">Reset</button>
+    <button type="button" onclick="geoCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Result</h3>
+  <textarea id="geo-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Steps shown: <span id="geo-steps">–</span></div>
+    <div id="geo-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* geometry.html
+   - Calculates area, perimeter, or volume for common shapes
+   - Scoped with geo- prefix
+*/
+
+function geoReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#geo-output').value="";
+  card.querySelector('#geo-steps').textContent="–";
+  card.querySelector('#geo-hint').textContent="";
+}
+
+function geoCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#geo-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#geo-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function geoSolve(btn){
+  const card=btn.closest('.card');
+  const shape=card.querySelector('#geo-shape').value;
+  const dims=(card.querySelector('#geo-dimensions').value||"").trim();
+  const showSteps=card.querySelector('#geo-show-steps').value==="yes";
+  if(!dims){card.querySelector('#geo-hint').textContent="Please enter dimensions.";return;}
+  let result="";let steps="";
+  try{
+    const parsed={};
+    dims.split(',').forEach(p=>{
+      const [k,v]=p.split('=');
+      if(k&&v)parsed[k.trim()]=parseFloat(v);
+    });
+    switch(shape){
+      case "circle":
+        const r=parsed.radius;
+        result=`Area = ${Math.PI*r*r}, Circumference = ${2*Math.PI*r}`;
+        if(showSteps){steps=`Formula: A=πr², C=2πr\nSubstitute r=${r}`;}
+        break;
+      case "rectangle":
+        const w=parsed.width,h=parsed.height;
+        result=`Area = ${w*h}, Perimeter = ${2*(w+h)}`;
+        if(showSteps){steps=`Formula: A=wh, P=2(w+h)\nSubstitute w=${w}, h=${h}`;}
+        break;
+      case "triangle":
+        const b=parsed.base,th=parsed.height;
+        result=`Area = ${(b*th)/2}`;
+        if(showSteps){steps=`Formula: A=½bh\nSubstitute b=${b}, h=${th}`;}
+        break;
+      case "sphere":
+        const rs=parsed.radius;
+        result=`Surface Area = ${4*Math.PI*rs*rs}, Volume = ${(4/3)*Math.PI*rs*rs*rs}`;
+        if(showSteps){steps=`Formula: SA=4πr², V=4/3πr³\nSubstitute r=${rs}`;}
+        break;
+      case "cube":
+        const side=parsed.side;
+        result=`Surface Area = ${6*side*side}, Volume = ${side*side*side}`;
+        if(showSteps){steps=`Formula: SA=6a², V=a³\nSubstitute a=${side}`;}
+        break;
+      case "cylinder":
+        const rc=parsed.radius,hc=parsed.height;
+        result=`Surface Area = ${2*Math.PI*rc*(rc+hc)}, Volume = ${Math.PI*rc*rc*hc}`;
+        if(showSteps){steps=`Formula: SA=2πr(r+h), V=πr²h\nSubstitute r=${rc}, h=${hc}`;}
+        break;
+    }
+  }catch(e){result="Error calculating.";}
+  card.querySelector('#geo-output').value=result+(showSteps&&steps?`\n\n${steps}`:"");
+  card.querySelector('#geo-steps').textContent=showSteps?"Yes":"No";
+  card.querySelector('#geo-hint').textContent="Result generated.";
+}
+</script>
