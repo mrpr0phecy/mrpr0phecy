@@ -1,0 +1,109 @@
+<h2 id="seo-writing-title" style="margin-top:0;">SEO Writing Assistant</h2>
+
+<form aria-describedby="seo-writing-desc">
+  <p id="seo-writing-desc" class="small">Optimize text for search engines. Paste your draft, choose focus keywords, and get suggestions for keyword density, headings, meta description, and readability improvements.</p>
+
+  <div class="row">
+    <div class="field" style="flex:1;">
+      <label for="seo-text">Text</label>
+      <textarea id="seo-text" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;" placeholder="Paste your article or blog draft here..."></textarea>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:8px;gap:12px;">
+    <div class="field" style="flex:1;">
+      <label for="seo-keywords">Focus keywords (comma-separated)</label>
+      <input id="seo-keywords" type="text" placeholder="e.g. productivity, time management" style="width:100%;" />
+    </div>
+
+    <div class="field" style="flex:1;">
+      <label for="seo-max-density">Max keyword density (%)</label>
+      <input id="seo-max-density" type="number" min="1" max="10" value="3" style="width:100%;" />
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:10px;">
+    <button type="button" onclick="seoCheck(this)">Check SEO</button>
+    <button type="button" class="secondary" onclick="seoReset(this)">Reset</button>
+    <button type="button" onclick="seoCopy(this)">Copy Text</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <div class="result">
+    <div class="label">Summary</div>
+    <div class="value small" id="seo-summary">No check performed yet.</div>
+  </div>
+
+  <h3 class="small" style="margin-top:12px;">Suggestions</h3>
+  <ul id="seo-suggestions" class="small" style="list-style:none;padding-left:0;max-height:320px;overflow:auto;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;"></ul>
+
+  <h3 class="small" style="margin-top:12px;">SEO Quick Reference</h3>
+  <div class="small" style="opacity:0.9;line-height:1.5;">
+    • Include focus keywords in the title, first paragraph, and headings.<br/>
+    • Keep keyword density between 1–3%. Avoid stuffing.<br/>
+    • Use descriptive headings (H2/H3) with keywords.<br/>
+    • Write a meta description (≈150 characters) summarizing the content.<br/>
+    • Ensure readability: short sentences, active voice, clear structure.<br/>
+    • Add internal and external links where relevant.<br/>
+    • Use alt text for images with descriptive keywords.
+  </div>
+</div>
+
+<script>
+/* seo-writing.html
+   - Client-side SEO checker
+   - Scoped with seo- prefix
+*/
+
+function seoReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('#seo-text').value="";
+  card.querySelector('#seo-keywords').value="";
+  card.querySelector('#seo-suggestions').innerHTML="";
+  card.querySelector('#seo-summary').textContent="Cleared.";
+}
+
+function seoCopy(btn){
+  const card=btn.closest('.card');
+  const text=card.querySelector('#seo-text').value||"";
+  if(!text.trim())return;
+  navigator.clipboard?.writeText(text).then(()=>{
+    const prev=card.querySelector('#seo-summary').textContent;
+    card.querySelector('#seo-summary').textContent="Copied.";
+    setTimeout(()=>{card.querySelector('#seo-summary').textContent=prev;},1200);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function seoCheck(btn){
+  const card=btn.closest('.card');
+  const text=(card.querySelector('#seo-text').value||"").trim();
+  const keywords=(card.querySelector('#seo-keywords').value||"").split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+  const maxDensity=parseFloat(card.querySelector('#seo-max-density').value)||3;
+  if(!text){card.querySelector('#seo-summary').textContent="Paste text to check.";return;}
+  const words=text.split(/\s+/).filter(Boolean);
+  const suggestions=[];
+  keywords.forEach(k=>{
+    const count=words.filter(w=>w.toLowerCase()===k).length;
+    const density=(count/words.length*100).toFixed(2);
+    if(count===0){suggestions.push({reason:`Keyword "${k}" not found. Add it to title and intro.`});}
+    else if(density>maxDensity){suggestions.push({reason:`Keyword "${k}" density ${density}% exceeds ${maxDensity}%. Reduce usage.`});}
+    else{suggestions.push({reason:`Keyword "${k}" density ${density}%. Good.`});}
+  });
+  if(!/meta/i.test(text)){suggestions.push({reason:"No meta description detected. Add one around 150 characters."});}
+  if(!/<h[2-3]/i.test(text)){suggestions.push({reason:"No subheadings detected. Add H2/H3 headings with keywords."});}
+  seoRender(card,suggestions);
+  card.querySelector('#seo-summary').textContent=`${suggestions.length} suggestion(s).`;
+}
+
+function seoRender(card,suggestions){
+  const list=card.querySelector('#seo-suggestions');list.innerHTML="";
+  if(!suggestions.length){list.innerHTML=`<li class="small" style="padding:8px;">No SEO issues found.</li>`;return;}
+  suggestions.forEach(s=>{
+    const li=document.createElement('li');
+    li.style.padding="8px";li.style.borderBottom="1px solid rgba(255,255,255,0.03)";
+    li.textContent=s.reason;
+    list.appendChild(li);
+  });
+}
+</script>
