@@ -1,0 +1,250 @@
+<h2 id="business-writing-title" style="margin-top:0;">Business Writing Assistant</h2>
+
+<form aria-describedby="business-writing-desc">
+  <p id="business-writing-desc" class="small">Draft clear, professional business documents: memos, executive summaries, proposals, and meeting notes. Choose the document type, enter the purpose and key points, then generate a polished draft you can edit and copy.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="bw-type">Document type</label>
+      <select id="bw-type" style="width:100%;">
+        <option value="memo">Memo</option>
+        <option value="exec-summary">Executive summary</option>
+        <option value="proposal">Proposal</option>
+        <option value="meeting-notes">Meeting notes</option>
+        <option value="status-update">Status update</option>
+        <option value="briefing">Briefing note</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="bw-tone">Tone</label>
+      <select id="bw-tone" style="width:100%;">
+        <option>Formal</option>
+        <option>Neutral</option>
+        <option>Concise</option>
+        <option>Persuasive</option>
+      </select>
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="bw-purpose">Purpose (one sentence)</label>
+      <input id="bw-purpose" type="text" placeholder="e.g. Request approval for Q2 marketing budget" style="width:100%;" />
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="bw-audience">Audience (who will read this)</label>
+      <input id="bw-audience" type="text" placeholder="e.g. Senior leadership, project team, client" style="width:100%;" />
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="bw-keypoints">Key points (comma-separated)</label>
+      <input id="bw-keypoints" type="text" placeholder="e.g. objective, cost, timeline, risks, next steps" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="bw-length">Approx length</label>
+      <select id="bw-length" style="width:100%;">
+        <option value="120">Short (≈120 words)</option>
+        <option value="300" selected>Standard (≈300 words)</option>
+        <option value="600">Detailed (≈600 words)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="bw-format">Include sections</label>
+      <select id="bw-format" style="width:100%;">
+        <option value="auto">Auto (recommended)</option>
+        <option value="bulleted">Bulleted highlights</option>
+        <option value="narrative">Narrative paragraphs</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="bwGenerate(this)">Generate Draft</button>
+    <button type="button" class="secondary" onclick="bwReset(this)">Reset</button>
+    <button type="button" onclick="bwCopy(this)">Copy</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Generated draft</h3>
+  <textarea id="bw-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Estimated words: <span id="bw-wordcount">0</span></div>
+    <div id="bw-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* Business Writing Assistant
+   - Scoped via btn.closest('.card') so multiple instances are safe
+   - Generates structured business drafts from purpose and key points
+*/
+
+function bwReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#bw-output').value = "";
+  card.querySelector('#bw-wordcount').textContent = "0";
+  card.querySelector('#bw-hint').textContent = "";
+}
+
+function bwCopy(btn) {
+  const card = btn.closest('.card');
+  const out = card.querySelector('#bw-output').value;
+  if (!out.trim()) return;
+  navigator.clipboard?.writeText(out).then(() => {
+    const hint = card.querySelector('#bw-hint');
+    hint.textContent = "Copied to clipboard.";
+    setTimeout(() => { if (hint.textContent === "Copied to clipboard.") hint.textContent = ""; }, 1600);
+  }).catch(() => {
+    alert("Copy failed — select the text and copy manually.");
+  });
+}
+
+function bwGenerate(btn) {
+  const card = btn.closest('.card');
+  const type = card.querySelector('#bw-type').value;
+  const tone = card.querySelector('#bw-tone').value;
+  const purpose = (card.querySelector('#bw-purpose').value || "").trim();
+  const audience = (card.querySelector('#bw-audience').value || "").trim();
+  const keypointsRaw = (card.querySelector('#bw-keypoints').value || "").trim();
+  const length = parseInt(card.querySelector('#bw-length').value, 10) || 300;
+  const format = card.querySelector('#bw-format').value;
+
+  if (!purpose) {
+    card.querySelector('#bw-hint').textContent = "Please enter the purpose of the document.";
+    return;
+  }
+
+  const keypoints = keypointsRaw ? keypointsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const draft = buildBusinessDraft({ type, tone, purpose, audience, keypoints, length, format });
+  card.querySelector('#bw-output').value = draft;
+  card.querySelector('#bw-wordcount').textContent = estimateWords(draft);
+  card.querySelector('#bw-hint').textContent = "Draft generated. Edit to add figures, names, and specific data.";
+}
+
+/* Builder */
+
+function buildBusinessDraft(opts) {
+  const { type, tone, purpose, audience, keypoints, length, format } = opts;
+  const header = buildHeader(type, audience);
+  let body = "";
+
+  switch (type) {
+    case 'memo':
+      body = buildMemo({ purpose, keypoints, tone, format, length });
+      break;
+    case 'exec-summary':
+      body = buildExecSummary({ purpose, keypoints, tone, length });
+      break;
+    case 'proposal':
+      body = buildProposal({ purpose, keypoints, tone, length });
+      break;
+    case 'meeting-notes':
+      body = buildMeetingNotes({ purpose, keypoints, tone, length });
+      break;
+    case 'status-update':
+      body = buildStatusUpdate({ purpose, keypoints, tone, length });
+      break;
+    case 'briefing':
+      body = buildBriefing({ purpose, keypoints, tone, length });
+      break;
+    default:
+      body = buildMemo({ purpose, keypoints, tone, format, length });
+  }
+
+  return `${header}\n\n${body}\n\nNotes: Replace placeholders with specific data, dates, and names.`;
+}
+
+function buildHeader(type, audience) {
+  const titleMap = {
+    memo: 'Memo',
+    'exec-summary': 'Executive Summary',
+    proposal: 'Proposal',
+    'meeting-notes': 'Meeting Notes',
+    'status-update': 'Status Update',
+    briefing: 'Briefing Note'
+  };
+  const title = titleMap[type] || 'Document';
+  return `${title}${audience ? ' — ' + audience : ''}`;
+}
+
+function buildMemo({ purpose, keypoints, tone, format, length }) {
+  const intro = `Purpose: ${purpose}\n`;
+  const body = format === 'bulleted' ? buildBulletedPoints(keypoints) : buildParagraphPoints(keypoints, tone);
+  const action = `Action required: ${determineAction(keypoints)}`;
+  return `${intro}\n${body}\n\n${action}`;
+}
+
+function buildExecSummary({ purpose, keypoints, tone, length }) {
+  const lead = `This executive summary outlines: ${purpose}.`;
+  const highlights = buildBulletedPoints(keypoints.slice(0,5));
+  const recommendation = `Recommendation: ${determineRecommendation(keypoints)}.`;
+  return `${lead}\n\nKey points:\n${highlights}\n\n${recommendation}`;
+}
+
+function buildProposal({ purpose, keypoints, tone, length }) {
+  const overview = `Overview: ${purpose}.`;
+  const scope = `Scope: ${keypoints[0] || 'Define scope here.'}`;
+  const timeline = `Timeline: ${keypoints[1] || 'Provide timeline or milestones.'}`;
+  const budget = `Budget: ${keypoints[2] || 'Estimate costs here.'}`;
+  const benefits = `Benefits: ${keypoints.slice(3).join('; ') || 'List expected benefits.'}`;
+  return `${overview}\n\n${scope}\n${timeline}\n${budget}\n\n${benefits}\n\nNext steps: Provide approval and allocate resources.`;
+}
+
+function buildMeetingNotes({ purpose, keypoints, tone, length }) {
+  const header = `Meeting purpose: ${purpose}\nDate: [insert date]\nAttendees: [list attendees]\n`;
+  const notes = keypoints.length ? keypoints.map((k,i) => `${i+1}. ${k}`).join('\n') : 'Notes: [capture discussion points here]';
+  const actions = `Action items:\n- [Owner] — [Action] — [Due date]`;
+  return `${header}\nDiscussion:\n${notes}\n\n${actions}`;
+}
+
+function buildStatusUpdate({ purpose, keypoints, tone, length }) {
+  const summary = `Status: ${purpose}\n`;
+  const progress = keypoints.length ? keypoints.map(k => `• ${k}`).join('\n') : '• No updates provided.';
+  const risks = `Risks/Issues: [list any blockers]`;
+  const next = `Next steps: [short list of next actions]`;
+  return `${summary}\nProgress:\n${progress}\n\n${risks}\n\n${next}`;
+}
+
+function buildBriefing({ purpose, keypoints, tone, length }) {
+  const context = `Context: ${purpose}.`;
+  const analysis = keypoints.length ? keypoints.map((k,i) => `${i+1}. ${k}`).join('\n') : 'Analysis: [add key findings]';
+  const implications = `Implications: [summarise impact]`;
+  const recommendation = `Recommendation: ${determineRecommendation(keypoints)}`;
+  return `${context}\n\n${analysis}\n\n${implications}\n\n${recommendation}`;
+}
+
+/* Small helpers */
+
+function buildBulletedPoints(points) {
+  if (!points || !points.length) return '- [Add key point 1]\n- [Add key point 2]';
+  return points.map(p => `- ${p}`).join('\n');
+}
+
+function buildParagraphPoints(points, tone) {
+  if (!points || !points.length) return 'Details: [Add key points and supporting information here].';
+  return points.map((p, i) => `${i+1}. ${p}`).join(' ');
+}
+
+function determineAction(points) {
+  if (!points || !points.length) return '[Specify required action and owner]';
+  // simple heuristic: if any point contains "approve" or "approval"
+  const joined = points.join(' ').toLowerCase();
+  if (joined.includes('approve') || joined.includes('approval')) return 'Request approval from leadership.';
+  return 'Review and confirm next steps.';
+}
+
+function determineRecommendation(points) {
+  if (!points || !points.length) return 'Proceed with the proposed plan subject to final review.';
+  return `Proceed with ${points[0] || 'the proposed item'} and monitor outcomes.`;
+}
+
+function estimateWords(text) {
+  return (text.trim().split(/\s+/).filter(Boolean).length).toString();
+}
+</script>
