@@ -5,19 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>The Most Useful Site in the World</title>
   <style>
-    body {margin:0;font-family:Inter,system-ui,sans-serif;background:#0b0f1a;color:#e6faff;}
+    :root {
+      --bg1:#0b0f1a; --bg2:#1a1f2b; --bg3:#2a2f3b;
+      --text:#e6faff; --muted:#9ccbe0; --accent:#2dd4ff;
+      --accent-glow:rgba(45,212,255,0.35);
+      --radius:18px; --shadow-strong:0 20px 50px rgba(0,0,0,0.6);
+      --shadow-soft:0 8px 20px rgba(0,0,0,0.35);
+      --ease:cubic-bezier(0.22,1,0.36,1);
+      --wave-offset:0px;
+    }
+    body {
+      margin:0;font-family:Inter,system-ui,sans-serif;
+      background:linear-gradient(-45deg,var(--bg1),var(--bg2),var(--bg3),var(--bg2));
+      background-size:400% 400%;animation:gradientShift 20s ease infinite;
+      color:var(--text);min-height:100vh;display:flex;flex-direction:column;
+    }
+    @keyframes gradientShift {
+      0%{background-position:0% 50%;}
+      50%{background-position:100% 50%;}
+      100%{background-position:0% 50%;}
+    }
     header{text-align:center;padding:40px;}
-    .search-bar{max-width:640px;margin:0 auto;display:flex;background:rgba(255,255,255,0.08);
-      border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 16px;}
+    .search-bar{max-width:640px;margin:0 auto;display:flex;
+      background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);
+      border-radius:12px;padding:12px 16px;}
     .search-bar input{flex:1;border:none;background:transparent;color:#e6faff;font-size:1rem;}
     main{max-width:1280px;margin:0 auto;padding:30px;}
     section{margin-bottom:60px;}
     .section-header{position:relative;text-align:center;margin-bottom:30px;}
     .section-header h2{color:#2dd4ff;text-shadow:0 0 12px rgba(45,212,255,0.35);}
-    .section-header .wave{position:absolute;bottom:-6px;left:0;width:100vw;height:16px;
-      background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="16"><path fill="%232dd4ff" fill-opacity="0.25" d="M0 8 Q50 16 100 8 T200 8 V16 H0 Z"/></svg>') repeat-x;
-      background-size:200px 16px;background-position:var(--wave-offset,0px) 0;
-      filter:drop-shadow(0 0 10px rgba(45,212,255,0.35));}
+    .section-header .wave{
+      position:absolute;bottom:-6px;left:0;width:100vw;height:24px;
+      background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="24"><path fill="%232dd4ff" fill-opacity="0.25" d="M0 12 Q50 24 100 12 T200 12 V24 H0 Z"/></svg>') repeat-x;
+      background-size:200px 24px;
+      background-position:var(--wave-offset) 0;
+      filter:url(#waterRipple) drop-shadow(0 0 10px rgba(45,212,255,0.35));
+      animation:waveFlow 6s linear infinite;
+    }
+    @keyframes waveFlow {
+      from {background-position-x:0;}
+      to {background-position-x:200px;}
+    }
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px;}
     .card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
       border-radius:12px;padding:24px;backdrop-filter:blur(8px);
@@ -34,6 +62,14 @@
   </header>
 
   <main id="playground"></main>
+
+  <!-- SVG filter for ripple distortion -->
+  <svg style="position:absolute;width:0;height:0;">
+    <filter id="waterRipple">
+      <feTurbulence id="turbulence" baseFrequency="0.02" numOctaves="3" seed="2" />
+      <feDisplacementMap in="SourceGraphic" scale="10" />
+    </filter>
+  </svg>
 
   <script>
     const sections = {
@@ -77,8 +113,7 @@
               fetch("cards/" + file)
                 .then(res => res.ok ? res.text() : Promise.reject())
                 .then(html => {
-                  const cleaned = html.replace(/<\/?article[^>]*>/g, "");
-                  wrapper.innerHTML = cleaned || `<p>Error loading ${file}</p>`;
+                  wrapper.innerHTML = html || `<p>Error loading ${file}</p>`;
                 })
                 .catch(() => {
                   wrapper.innerHTML = `<p>Error loading ${file}</p>`;
@@ -104,12 +139,16 @@
       });
     });
 
-    // Wave animation
+    // Enhanced wave animation: reacts to mouse and animates turbulence
     document.addEventListener("mousemove", e => {
       const offset = (e.clientX / window.innerWidth) * 200;
       document.querySelectorAll(".wave").forEach(wave => {
         wave.style.setProperty("--wave-offset", `${offset}px`);
       });
+      // Animate turbulence frequency for ripple shimmer
+      const turb = document.getElementById("turbulence");
+      const freq = 0.02 + (e.clientY / window.innerHeight) * 0.02;
+      turb.setAttribute("baseFrequency", freq.toFixed(3));
     });
   </script>
 </body>
