@@ -1,0 +1,121 @@
+<h2 id="discrete-math-title" style="margin-top:0;">Discrete Math Tools</h2>
+
+<form aria-describedby="discrete-math-desc">
+  <p id="discrete-math-desc" class="small">Work with sets, logic, and combinatorics. Enter values, choose an operation, and get results with formulas and notes.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="dm-input">Input (comma-separated values)</label>
+      <input id="dm-input" type="text" placeholder="e.g. 1,2,3,4" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="dm-second">Second set (optional)</label>
+      <input id="dm-second" type="text" placeholder="e.g. 3,4,5" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="dm-operation">Operation</label>
+      <select id="dm-operation" style="width:100%;">
+        <option value="union" selected>Union</option>
+        <option value="intersection">Intersection</option>
+        <option value="difference">Difference (A − B)</option>
+        <option value="combinations">Combinations (nCr)</option>
+        <option value="permutations">Permutations (nPr)</option>
+        <option value="logic">Logic truth table (AND/OR)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="dm-show-steps">Show steps</label>
+      <select id="dm-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="dmCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="dmReset(this)">Reset</button>
+    <button type="button" onclick="dmCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Results</h3>
+  <textarea id="dm-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="dm-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* discrete-math.html
+   - Provides set operations, combinatorics, and simple logic
+   - Scoped with dm- prefix
+*/
+
+function dmReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#dm-output').value="";
+  card.querySelector('#dm-hint').textContent="";
+}
+
+function dmCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#dm-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#dm-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parseSet(str){
+  return str.split(',').map(s=>s.trim()).filter(Boolean);
+}
+
+function factorial(n){return n<=1?1:n*factorial(n-1);}
+
+function dmCalculate(btn){
+  const card=btn.closest('.card');
+  const A=parseSet(card.querySelector('#dm-input').value||"");
+  const B=parseSet(card.querySelector('#dm-second').value||"");
+  const op=card.querySelector('#dm-operation').value;
+  const showSteps=card.querySelector('#dm-show-steps').value==="yes";
+  if(!A.length){card.querySelector('#dm-hint').textContent="Please enter input values.";return;}
+  let output="";
+  if(op==="union"){
+    const res=[...new Set([...A,...B])];
+    output=`Union = {${res.join(', ')}}`;
+    if(showSteps)output+=`\nSteps: Combine sets A and B, remove duplicates.`;
+  } else if(op==="intersection"){
+    const res=A.filter(x=>B.includes(x));
+    output=`Intersection = {${res.join(', ')}}`;
+    if(showSteps)output+=`\nSteps: Keep elements common to both sets.`;
+  } else if(op==="difference"){
+    const res=A.filter(x=>!B.includes(x));
+    output=`Difference A−B = {${res.join(', ')}}`;
+    if(showSteps)output+=`\nSteps: Keep elements in A not in B.`;
+  } else if(op==="combinations"){
+    const n=A.length;const r=B.length||2;
+    const res=factorial(n)/(factorial(r)*factorial(n-r));
+    output=`Combinations nCr = ${res}`;
+    if(showSteps)output+=`\nSteps: Formula nCr = n!/(r!(n−r)!).`;
+  } else if(op==="permutations"){
+    const n=A.length;const r=B.length||2;
+    const res=factorial(n)/factorial(n-r);
+    output=`Permutations nPr = ${res}`;
+    if(showSteps)output+=`\nSteps: Formula nPr = n!/(n−r)!.`;
+  } else if(op==="logic"){
+    output=`Truth table (demo):\nA B | AND OR\n0 0 | 0   0\n0 1 | 0   1\n1 0 | 0   1\n1 1 | 1   1`;
+    if(showSteps)output+=`\nSteps: Evaluate AND/OR for all input pairs.`;
+  }
+  card.querySelector('#dm-output').value=output;
+  card.querySelector('#dm-hint').textContent="Results generated.";
+}
+</script>
