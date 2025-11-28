@@ -1,0 +1,119 @@
+<h2 id="anatomy-title" style="margin-top:0;">Anatomy Tools & Facts</h2>
+
+<form aria-describedby="anatomy-desc">
+  <p id="anatomy-desc" class="small">Explore anatomy calculations and discover fascinating facts about the human body.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="anat-tool">Tool</label>
+      <select id="anat-tool" style="width:100%;">
+        <option value="bmi" selected>BMI (Body Mass Index)</option>
+        <option value="bmr">Basal Metabolic Rate</option>
+        <option value="blood-volume">Estimated Blood Volume</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="anat-values">Values</label>
+      <input id="anat-values" type="text" placeholder="e.g. weight=70,height=1.75,age=30,sex=male" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="anat-show-facts">Show Body Facts</label>
+      <select id="anat-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="anatCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="anatReset(this)">Reset</button>
+    <button type="button" onclick="anatCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Anatomy Results & Facts</h3>
+  <textarea id="anat-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="anat-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>The human body has <b>206 bones</b>, but babies are born with around 300.</li>
+      <li>Your heart beats about <b>100,000 times per day</b>, pumping ~7,500 liters of blood.</li>
+      <li>The small intestine is about <b>6 meters long</b>, while the large intestine is ~1.5 meters.</li>
+      <li>Skin is the largest organ, covering ~2 square meters in adults.</li>
+      <li>The brain uses about <b>20% of your body’s oxygen</b> and energy.</li>
+      <li>Red blood cells live for ~120 days before being recycled by the spleen.</li>
+      <li>Muscles make up ~40% of body weight; the strongest is the masseter (jaw muscle).</li>
+      <li>The liver performs over <b>500 vital functions</b>, including detox and metabolism.</li>
+      <li>Every second, your body produces ~25 million new cells.</li>
+      <li>DNA in one human cell, if stretched out, is about 2 meters long.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="anat-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* anatomy.html
+   - Calculates anatomy values and shows body facts
+   - Scoped with anat- prefix
+*/
+
+function anatReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#anat-output').value="";
+  card.querySelector('#anat-hint').textContent="";
+  card.querySelector('#anat-facts-container').style.display="none";
+}
+
+function anatCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#anat-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#anat-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parseAnat(str){
+  const vals={};
+  str.split(',').forEach(p=>{
+    const [k,v]=p.split('=');
+    if(k&&v)vals[k.trim()]=isNaN(v)?v.trim():parseFloat(v);
+  });
+  return vals;
+}
+
+function anatCalculate(btn){
+  const card=btn.closest('.card');
+  const tool=card.querySelector('#anat-tool').value;
+  const vals=parseAnat(card.querySelector('#anat-values').value||"");
+  const showFacts=card.querySelector('#anat-show-facts').value==="yes";
+  let output="";
+  if(tool==="bmi"&&vals.weight&&vals.height){
+    const bmi=vals.weight/(vals.height*vals.height);
+    output=`BMI = ${bmi.toFixed(2)}`;
+  } else if(tool==="bmr"&&vals.weight&&vals.height&&vals.age&&vals.sex){
+    let bmr=0;
+    if(vals.sex==="male"){ bmr=88.36+(13.4*vals.weight)+(4.8*(vals.height*100))-(5.7*vals.age); }
+    else { bmr=447.6+(9.2*vals.weight)+(3.1*(vals.height*100))-(4.3*vals.age); }
+    output=`BMR ≈ ${bmr.toFixed(0)} kcal/day`;
+  } else if(tool==="blood-volume"&&vals.weight){
+    const bv=vals.weight*70; // ml/kg average
+    output=`Estimated Blood Volume ≈ ${(bv/1000).toFixed(1)} liters`;
+  } else {
+    output="Please provide correct values.";
+  }
+  card.querySelector('#anat-output').value=output;
+  card.querySelector('#anat-hint').textContent="Result generated.";
+  card.querySelector('#anat-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
