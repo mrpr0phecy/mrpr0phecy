@@ -1,0 +1,133 @@
+<article class="card" id="mortgage-card" aria-labelledby="mortgage-title">
+  <h2 id="mortgage-title">Mortgage calculator</h2>
+
+  <!-- existing form here (unchanged) -->
+
+  <div class="results" aria-live="polite">
+    <div class="result">
+      <div class="label">Monthly payment</div>
+      <div class="value" id="mortgage-res-monthly">–</div>
+    </div>
+    <div class="result">
+      <div class="label">Total interest</div>
+      <div class="value" id="mortgage-res-interest">–</div>
+    </div>
+    <div class="result">
+      <div class="label">Payoff time</div>
+      <div class="value" id="mortgage-res-payoff">–</div>
+    </div>
+  </div>
+
+  <!-- Chart container -->
+  <div style="margin-top:20px;">
+    <canvas id="mortgage-chart" width="400" height="200" aria-label="Amortization chart"></canvas>
+  </div>
+
+  <details class="small" style="margin-top:12px;">
+    <summary>How the math works</summary>
+    <p>
+      Base monthly payment uses the standard amortization formula:
+      M = P · r · (1+r)^n / ((1+r)^n − 1).
+      Extra payments reduce principal each month, shortening payoff time.
+    </p>
+  </details>
+</article>
+
+<script>
+function drawMortgageChart(principal, baseMonthly, extra, r) {
+  const canvas = document.getElementById('mortgage-chart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Simulate payoff
+  let remaining = principal;
+  let month = 0;
+  const balances = [];
+  while (remaining > 0 && month < 100*12) {
+    const interest = remaining * r;
+    const totalPayment = baseMonthly + extra;
+    const principalPaid = r === 0 ? totalPayment : Math.max(0, totalPayment - interest);
+    remaining -= principalPaid;
+    balances.push(remaining > 0 ? remaining : 0);
+    month++;
+    if (principalPaid <= 0) break;
+  }
+
+  // Scale
+  const maxBalance = principal;
+  const maxMonths = balances.length;
+  const w = canvas.width, h = canvas.height;
+  ctx.strokeStyle = '#2dd4ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  balances.forEach((bal, i) => {
+    const x = (i / maxMonths) * w;
+    const y = h - (bal / maxBalance) * h;
+    if (i === 0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // Axes
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0,h); ctx.lineTo(w,h); // x-axis
+  ctx.moveTo(0,0); ctx.lineTo(0,h); // y-axis
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#b0b6bf';
+  ctx.font = '12px Inter, sans-serif';
+  ctx.fillText('0', 2, h-4);
+  ctx.fillText(maxMonths+'m', w-40, h-4);
+  ctx.fillText('£'+Math.round(maxBalance), 4, 12);
+}
+
+function mortgageCalculate(btn) {
+  const card = btn.closest('.card');
+  const get = id => card.querySelector('#'+id);
+  const price = parseFloat(get('mortgage-price').value) || 0;
+  const down  = parseFloat(get('mortgage-down').value)  || 0;
+  const rateA = (parseFloat(get('mortgage-rate').value) || 0) / 100;
+  const years = parseInt(get('mortgage-years').value, 10) || 0;
+  const extra = parseFloat(get('mortgage-extra').value) || 0;
+
+  const principal = Math.max(0, price - down);
+  const months = years * 12;
+  const r = rateA / 12;
+
+  let baseMonthly = 0;
+  if (months > 0) {
+    if (r === 0) baseMonthly = principal / months;
+    else {
+      const pow = Math.pow(1 + r, months);
+      baseMonthly = principal * r * pow / (pow - 1);
+    }
+  }
+
+  // Iterate payoff
+  let remaining = principal;
+  let paidMonths = 0;
+  const maxMonths = 100*12;
+  while (remaining > 0 && paidMonths < maxMonths) {
+    const interest = remaining * r;
+    const totalPayment = baseMonthly + extra;
+    const principalPaid = r === 0 ? totalPayment : Math.max(0, totalPayment - interest);
+    remaining -= principalPaid;
+    paidMonths++;
+    if (principalPaid <= 0) break;
+  }
+
+  const totalPaid = (baseMonthly + extra) * paidMonths;
+  const totalInterest = Math.max(0, totalPaid - principal);
+
+  const fmtMoney = n => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'GBP' }).format(n);
+  card.querySelector('#mortgage-res-monthly').textContent  = fmtMoney(baseMonthly + extra);
+  card.querySelector('#mortgage-res-interest').textContent = fmtMoney(totalInterest);
+  card.querySelector('#mortgage-res-payoff').textContent   = paidMonths >= maxMonths ? 'N/A' : `${Math.floor(paidMonths/12)}y ${paidMonths%12}m`;
+
+  // Draw chart
+  drawMortgageChart(principal, baseMonthly, extra, r);
+}
+</script>
