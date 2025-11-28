@@ -69,6 +69,12 @@
     }
     /* Fall-in animation */
     .card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow-strong);
+      backdrop-filter: blur(16px);
       opacity: 0;
       transform: translateY(40px) scale(0.95);
       transition: transform 0.6s var(--ease), opacity 0.6s var(--ease);
@@ -147,7 +153,8 @@
       grid.className = "grid";
 
       files.forEach((file, i) => {
-        const wrapper = document.createElement("div");
+        const wrapper = document.createElement("article");
+        wrapper.className = "card";
         wrapper.dataset.name = file.replace('.html','');
         wrapper.innerHTML = `<p>Loading ${file.replace('.html','')}...</p>`;
         grid.appendChild(wrapper);
@@ -155,14 +162,18 @@
         const io = new IntersectionObserver(entries => {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
-              // Animate in
-              setTimeout(() => wrapper.classList.add("card","visible"), i * 100);
+              setTimeout(() => wrapper.classList.add("visible"), i * 100);
 
-              // Lazy load content
               fetch("cards/" + file)
                 .then(res => res.ok ? res.text() : Promise.reject())
-                .then(html => { wrapper.innerHTML = html; })
-                .catch(() => { wrapper.innerHTML = `<p>Error loading ${file}</p>`; });
+                .then(html => {
+                  // Strip outer <article> tags if present
+                  const cleaned = html.replace(/<\/?article[^>]*>/g, "");
+                  wrapper.innerHTML = cleaned;
+                })
+                .catch(() => {
+                  wrapper.innerHTML = `<p>Error loading ${file}</p>`;
+                });
 
               io.unobserve(wrapper);
             }
@@ -178,7 +189,7 @@
     // Search filter
     document.getElementById("searchInput").addEventListener("input", e => {
       const term = e.target.value.toLowerCase();
-      document.querySelectorAll("#playground [data-name]").forEach(card => {
+      document.querySelectorAll("#playground .card").forEach(card => {
         const name = card.dataset.name.toLowerCase();
         card.style.display = name.includes(term) ? "" : "none";
       });
