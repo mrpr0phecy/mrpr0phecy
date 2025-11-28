@@ -1,0 +1,335 @@
+<h2 id="spelling-title" style="margin-top:0;">Spelling Check</h2>
+
+<form aria-describedby="spelling-desc">
+  <p id="spelling-desc" class="small">Quick spelling checker focused on common misspellings and obvious typos. Paste text, run the check, then apply individual suggestions or Apply All. This is a lightweight client-side tool — for full dictionary suggestions use your editor or a dedicated spellcheck service.</p>
+
+  <div class="row">
+    <div class="field" style="flex:1;">
+      <label for="sp-text">Text</label>
+      <textarea id="sp-text" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;" placeholder="Paste your text here..."></textarea>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:8px;align-items:center;">
+    <div class="field">
+      <label for="sp-language">Language</label>
+      <select id="sp-language">
+        <option value="en">English (US/UK)</option>
+        <option value="en-uk">English (UK spelling preference)</option>
+      </select>
+    </div>
+
+    <div class="field" style="margin-left:auto;">
+      <label style="display:inline-flex;align-items:center;gap:8px;">
+        <input id="sp-ignore-case" type="checkbox" />
+        <span class="small">Ignore case differences</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:10px;">
+    <button type="button" onclick="spCheck(this)">Check Spelling</button>
+    <button type="button" class="secondary" onclick="spReset(this)">Reset</button>
+    <button type="button" onclick="spApplyAll(this)">Apply All</button>
+    <button type="button" onclick="spCopy(this)">Copy Text</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <div class="result">
+    <div class="label">Summary</div>
+    <div class="value small" id="sp-summary">No check performed yet.</div>
+  </div>
+
+  <h3 class="small" style="margin-top:12px;">Suggestions</h3>
+  <ul id="sp-suggestions" class="small" style="list-style:none;padding-left:0;max-height:260px;overflow:auto;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;"></ul>
+</div>
+
+<script>
+/*
+  Spelling Check card
+  - Lightweight client-side checker for common misspellings and obvious typos
+  - Uses a curated map of frequent misspellings and a few heuristics (double letters, repeated characters, common transpositions)
+  - Scripts scoped via btn.closest('.card') so multiple instances are safe
+*/
+
+const COMMON_MISSPELLINGS = {
+  // very common mistakes -> corrections
+  "teh": "the",
+  "recieve": "receive",
+  "definately": "definitely",
+  "definately.": "definitely.",
+  "accomodate": "accommodate",
+  "occurrence": "occurrence", // keep correct but included for pattern
+  "occurence": "occurrence",
+  "seperate": "separate",
+  "embarass": "embarrass",
+  "goverment": "government",
+  "arguement": "argument",
+  "recomend": "recommend",
+  "beleive": "believe",
+  "acheive": "achieve",
+  "independant": "independent",
+  "occassion": "occasion",
+  "priviledge": "privilege",
+  "refered": "referred",
+  "succesful": "successful",
+  "untill": "until",
+  "wierd": "weird",
+  "adress": "address",
+  "seige": "siege",
+  "seige.": "siege.",
+  "adress.": "address.",
+  "thier": "their",
+  "adresss": "address",
+  "seperate.": "separate.",
+  "wich": "which",
+  "alot": "a lot",
+  "occured": "occurred",
+  "occured.": "occurred.",
+  "tommorow": "tomorrow",
+  "tommorrow": "tomorrow",
+  "tommorow.": "tomorrow.",
+  "wierdly": "weirdly",
+  "becuase": "because",
+  "becuase.": "because.",
+  "adressing": "addressing",
+  "thier.": "their."
+};
+
+// small set of allowed words to avoid flagging common short words (keeps suggestions focused)
+const SAFE_WORDS = new Set([
+  "the","and","a","an","to","of","in","on","for","with","is","are","was","were","be","by","it","this","that","as","at","from","or","but","not","you","I","we","they","their","there","its","has","have","had"
+]);
+
+function spReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('#sp-text').value = "";
+  card.querySelector('#sp-suggestions').innerHTML = "";
+  card.querySelector('#sp-summary').textContent = "Cleared.";
+}
+
+function spCopy(btn) {
+  const card = btn.closest('.card');
+  const text = card.querySelector('#sp-text').value || "";
+  if (!text.trim()) return;
+  navigator.clipboard?.writeText(text).then(() => {
+    const hint = card.querySelector('#sp-summary');
+    const prev = hint.textContent;
+    hint.textContent = "Text copied to clipboard.";
+    setTimeout(() => { hint.textContent = prev; }, 1400);
+  }).catch(() => {
+    alert("Copy failed — select the text and copy manually.");
+  });
+}
+
+function spCheck(btn) {
+  const card = btn.closest('.card');
+  const text = (card.querySelector('#sp-text').value || "").trim();
+  const lang = card.querySelector('#sp-language').value;
+  const ignoreCase = card.querySelector('#sp-ignore-case').checked;
+
+  if (!text) {
+    card.querySelector('#sp-summary').textContent = "Please paste some text to check.";
+    return;
+  }
+
+  const tokens = tokenize(text);
+  const suggestions = [];
+
+  tokens.forEach(tok => {
+    const word = tok.word;
+    if (!word) return;
+
+    const raw = ignoreCase ? word.toLowerCase() : word;
+    // skip safe short words and numbers
+    if (SAFE_WORDS.has(raw) || /^[0-9]+$/.test(raw) || raw.length <= 1) return;
+
+    // 1) direct common misspelling map
+    const lower = raw.toLowerCase();
+    if (COMMON_MISSPELLINGS[lower]) {
+      suggestions.push(makeSuggestion(tok, COMMON_MISSPELLINGS[lower], 'common misspelling'));
+      return;
+    }
+
+    // 2) repeated character sequences (sooo -> so)
+    if (/(.)\1{2,}/i.test(word)) {
+      const cleaned = word.replace(/(.)\1{1,}/g, '$1$1'); // reduce runs to double letters
+      suggestions.push(makeSuggestion(tok, cleaned, 'excessive repeated letters'));
+      return;
+    }
+
+    // 3) simple transposition detection (two adjacent letters swapped) — propose swap if resulting word is shorter or looks normal
+    if (word.length >= 4) {
+      for (let i = 0; i < word.length - 1; i++) {
+        const arr = word.split('');
+        [arr[i], arr[i+1]] = [arr[i+1], arr[i]];
+        const candidate = arr.join('');
+        // if candidate matches a common misspelling correction or is in SAFE_WORDS, suggest it
+        if (COMMON_MISSPELLINGS[candidate.toLowerCase()]) {
+          suggestions.push(makeSuggestion(tok, COMMON_MISSPELLINGS[candidate.toLowerCase()], 'possible transposition'));
+          return;
+        }
+      }
+    }
+
+    // 4) punctuation attached to word (e.g., "word," or "word.") — check base
+    const base = word.replace(/^[^\w']+|[^\w']+$/g, '');
+    if (base && base !== word) {
+      const lowerBase = base.toLowerCase();
+      if (COMMON_MISSPELLINGS[lowerBase]) {
+        // preserve punctuation
+        const prefix = word.match(/^[^\w']+/) ? word.match(/^[^\w']+/)[0] : '';
+        const suffix = word.match(/[^\w']+$/) ? word.match(/[^\w']+$/)[0] : '';
+        suggestions.push(makeSuggestion(tok, prefix + COMMON_MISSPELLINGS[lowerBase] + suffix, 'punctuation attached to misspelling'));
+        return;
+      }
+    }
+
+    // 5) simple heuristic: words with many consonants and uncommon letter combos flagged (avoid overflagging)
+    if (/[bcdfghjklmnpqrstvwxyz]{5,}/i.test(word)) {
+      suggestions.push(makeSuggestion(tok, null, 'unusual letter sequence — check spelling'));
+      return;
+    }
+  });
+
+  renderSpellingSuggestions(card, suggestions);
+  card.querySelector('#sp-summary').textContent = `${suggestions.length} suggestion(s) found.`;
+}
+
+/* Helpers */
+
+function tokenize(text) {
+  // returns array of { word, index, length } for each token (words with surrounding punctuation preserved)
+  const tokens = [];
+  const regex = /[^\s]+/g;
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    tokens.push({ word: m[0], index: m.index, length: m[0].length });
+  }
+  return tokens;
+}
+
+function makeSuggestion(token, replacement, reason) {
+  return {
+    index: token.index,
+    length: token.length,
+    original: token.word,
+    replacement: replacement,
+    message: reason || 'Check spelling'
+  };
+}
+
+function renderSpellingSuggestions(card, suggestions) {
+  const list = card.querySelector('#sp-suggestions');
+  list.innerHTML = "";
+
+  if (!suggestions.length) {
+    list.innerHTML = `<li class="small" style="padding:8px;">No obvious spelling issues found by this quick check.</li>`;
+    return;
+  }
+
+  // sort by index
+  suggestions.sort((a,b) => a.index - b.index);
+
+  suggestions.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.style.padding = "8px";
+    li.style.borderBottom = "1px solid rgba(255,255,255,0.03)";
+    li.style.display = "flex";
+    li.style.justifyContent = "space-between";
+    li.style.alignItems = "center";
+
+    const left = document.createElement('div');
+    left.style.flex = "1";
+    left.innerHTML = `<div style="font-weight:600;">${escapeHtml(s.original)}</div><div class="small" style="opacity:0.9;margin-top:6px;">${escapeHtml(s.message)}</div>`;
+    li.appendChild(left);
+
+    const actions = document.createElement('div');
+    actions.style.display = "flex";
+    actions.style.gap = "8px";
+    actions.style.alignItems = "center";
+
+    if (s.replacement !== null) {
+      const applyBtn = document.createElement('button');
+      applyBtn.className = "tiny";
+      applyBtn.textContent = `Apply "${s.replacement}"`;
+      applyBtn.onclick = () => applySuggestion(card, s);
+      actions.appendChild(applyBtn);
+    } else {
+      const ignoreBtn = document.createElement('button');
+      ignoreBtn.className = "tiny";
+      ignoreBtn.textContent = "Ignore";
+      ignoreBtn.onclick = () => li.remove();
+      actions.appendChild(ignoreBtn);
+    }
+
+    li.appendChild(actions);
+    list.appendChild(li);
+  });
+}
+
+function applySuggestion(card, s) {
+  const textEl = card.querySelector('#sp-text');
+  let text = textEl.value || "";
+
+  // verify substring matches original; if not, attempt to find a nearby match
+  const current = text.slice(s.index, s.index + s.length);
+  if (current !== s.original) {
+    // try to find the original word in the text
+    const foundAt = text.indexOf(s.original);
+    if (foundAt !== -1) {
+      text = text.slice(0, foundAt) + (s.replacement !== null ? s.replacement : s.original) + text.slice(foundAt + s.length);
+    } else {
+      alert('Could not apply suggestion automatically because the text changed. Please apply manually.');
+      return;
+    }
+  } else {
+    text = text.slice(0, s.index) + (s.replacement !== null ? s.replacement : s.original) + text.slice(s.index + s.length);
+  }
+
+  textEl.value = text;
+  // re-run check to refresh suggestions
+  spCheck(card.querySelector('button'));
+}
+
+function spApplyAll(btn) {
+  const card = btn.closest('.card');
+  const listEl = card.querySelector('#sp-suggestions');
+  const textEl = card.querySelector('#sp-text');
+  let text = textEl.value || "";
+
+  // collect suggestions from rendered list (to preserve order)
+  const suggestions = [];
+  listEl.querySelectorAll('li').forEach(li => {
+    const origEl = li.querySelector('div strong');
+    if (!origEl) return;
+    const original = origEl.textContent;
+    const applyBtn = li.querySelector('button');
+    if (applyBtn && applyBtn.textContent.startsWith('Apply')) {
+      // extract replacement from button label
+      const match = applyBtn.textContent.match(/^Apply\s+"?(.+?)"?$/);
+      const replacement = match ? match[1] : null;
+      // find first occurrence of original in text
+      const idx = text.indexOf(original);
+      if (idx !== -1 && replacement !== null) {
+        suggestions.push({ index: idx, length: original.length, original, replacement });
+        // apply immediately to avoid overlapping indices
+        text = text.slice(0, idx) + replacement + text.slice(idx + original.length);
+      }
+    }
+  });
+
+  textEl.value = text;
+  // re-run check
+  spCheck(card.querySelector('button'));
+}
+
+/* small utility */
+function escapeHtml(s) {
+  if (!s) return "";
+  return s.replace(/[&<>"']/g, function (m) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m];
+  });
+}
+</script>
