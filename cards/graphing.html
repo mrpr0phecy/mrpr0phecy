@@ -1,0 +1,98 @@
+<h2 id="graphing-title" style="margin-top:0;">Graphing Tool</h2>
+
+<form aria-describedby="graphing-desc">
+  <p id="graphing-desc" class="small">Plot simple mathematical functions. Enter an expression in x, choose range, and generate graph data with notes.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="graph-function">Function f(x)</label>
+      <input id="graph-function" type="text" placeholder="e.g. x^2 + 2x + 1" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="graph-start">Start x</label>
+      <input id="graph-start" type="number" placeholder="e.g. -5" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="graph-end">End x</label>
+      <input id="graph-end" type="number" placeholder="e.g. 5" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="graph-step">Step size</label>
+      <input id="graph-step" type="number" placeholder="e.g. 1" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="graph-show-steps">Show notes</label>
+      <select id="graph-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="graphCalculate(this)">Generate Data</button>
+    <button type="button" class="secondary" onclick="graphReset(this)">Reset</button>
+    <button type="button" onclick="graphCopy(this)">Copy Data</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Graph Data</h3>
+  <textarea id="graph-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="graph-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* graphing.html
+   - Generates table of values for f(x)
+   - Scoped with graph- prefix
+   - Demo only: simple eval using Function
+*/
+
+function graphReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#graph-output').value="";
+  card.querySelector('#graph-hint').textContent="";
+}
+
+function graphCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#graph-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#graph-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function graphCalculate(btn){
+  const card=btn.closest('.card');
+  const fn=(card.querySelector('#graph-function').value||"").trim();
+  const start=parseFloat(card.querySelector('#graph-start').value);
+  const end=parseFloat(card.querySelector('#graph-end').value);
+  const step=parseFloat(card.querySelector('#graph-step').value);
+  const showSteps=card.querySelector('#graph-show-steps').value==="yes";
+  if(!fn||isNaN(start)||isNaN(end)||isNaN(step)||step<=0){card.querySelector('#graph-hint').textContent="Please enter valid function and range.";return;}
+  let output="x\tf(x)\n";
+  try{
+    const f=new Function("x",`return ${fn.replace(/\^/g,"**")};`);
+    for(let x=start;x<=end;x+=step){
+      output+=`${x}\t${f(x)}\n`;
+    }
+    if(showSteps){
+      output+=`\nNotes: Function evaluated at each step from ${start} to ${end} with step ${step}.`;
+    }
+  }catch(e){output="Error evaluating function.";}
+  card.querySelector('#graph-output').value=output;
+  card.querySelector('#graph-hint').textContent="Data generated.";
+}
+</script>
