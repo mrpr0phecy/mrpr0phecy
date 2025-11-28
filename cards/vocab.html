@@ -1,0 +1,362 @@
+<h2 id="vocab-title" style="margin-top:0;">Vocabulary Trainer</h2>
+
+<form aria-describedby="vocab-desc">
+  <p id="vocab-desc" class="small">Add words with definitions and examples, then practise with flashcards or quick quizzes. Uses local storage in this card so your lists persist in the browser.</p>
+
+  <div class="row">
+    <div class="field" style="flex:1;">
+      <label for="vocab-word">Word</label>
+      <input id="vocab-word" type="text" placeholder="e.g. ameliorate" />
+    </div>
+    <div class="field" style="flex:2;">
+      <label for="vocab-def">Definition</label>
+      <input id="vocab-def" type="text" placeholder="Short definition" />
+    </div>
+    <div class="field" style="flex:2;">
+      <label for="vocab-ex">Example sentence (optional)</label>
+      <input id="vocab-ex" type="text" placeholder="e.g. Policies to ameliorate the situation..." />
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:8px;">
+    <div class="field" style="flex:1;">
+      <label for="vocab-tags">Tags (comma-separated)</label>
+      <input id="vocab-tags" type="text" placeholder="e.g. GRE, business, verbs" />
+    </div>
+
+    <div class="field" style="align-self:end;">
+      <div class="actions">
+        <button type="button" onclick="vocabAdd(this)">Add Word</button>
+        <button type="button" class="secondary" onclick="vocabResetForm(this)">Clear</button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <div class="actions">
+      <button type="button" onclick="vocabStartPractice(this)">Start Flashcards</button>
+      <button type="button" onclick="vocabQuickQuiz(this)">Quick Quiz (4 choices)</button>
+      <button type="button" class="secondary" onclick="vocabExport(this)">Copy List</button>
+      <button type="button" class="secondary" onclick="vocabClearAll(this)">Clear All</button>
+    </div>
+    <div style="margin-left:auto;" class="small">Words: <span id="vocab-count">0</span></div>
+  </div>
+
+  <h3 class="small" style="margin-top:12px;">Word list</h3>
+  <ul id="vocab-list" class="small" style="list-style:none;padding-left:0;max-height:220px;overflow:auto;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;"></ul>
+
+  <div id="vocab-practice" style="margin-top:12px;display:none;">
+    <div id="vocab-card" style="padding:16px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);min-height:120px;">
+      <div id="vocab-front" style="font-size:1.1rem;font-weight:600;"></div>
+      <div id="vocab-back" style="margin-top:10px;display:none;color:rgba(230,250,255,0.9);"></div>
+    </div>
+
+    <div class="actions" style="margin-top:8px;">
+      <button type="button" onclick="vocabFlip(this)">Flip</button>
+      <button type="button" onclick="vocabMarkKnown(this)">I knew this</button>
+      <button type="button" class="secondary" onclick="vocabMarkAgain(this)">Again</button>
+      <button type="button" onclick="vocabEndPractice(this)">End Practice</button>
+    </div>
+  </div>
+
+  <div id="vocab-quiz" style="margin-top:12px;display:none;">
+    <div id="vocab-quiz-question" style="padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);min-height:80px;"></div>
+    <div id="vocab-quiz-choices" style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+    <div class="small" id="vocab-quiz-hint" style="margin-top:8px;"></div>
+  </div>
+</div>
+
+<script>
+/* Vocabulary Trainer
+   - Stores words per-card in localStorage under a key unique to the card
+   - Supports add/remove, flashcards (simple spaced repetition buckets), and quick multiple-choice quiz
+   - All DOM queries scoped to the card via btn.closest('.card') so multiple instances are safe
+*/
+
+function _vocabKey(card) {
+  // unique key per card instance (use dataset.name if present)
+  const base = card.dataset && card.dataset.name ? card.dataset.name : 'vocab-trainer';
+  return `mostuseful:${base}:vocab`;
+}
+
+function _load(card) {
+  try {
+    const raw = localStorage.getItem(_vocabKey(card));
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function _save(card, arr) {
+  localStorage.setItem(_vocabKey(card), JSON.stringify(arr));
+}
+
+function vocabAdd(btn) {
+  const card = btn.closest('.card');
+  const word = (card.querySelector('#vocab-word').value || "").trim();
+  const def = (card.querySelector('#vocab-def').value || "").trim();
+  const ex = (card.querySelector('#vocab-ex').value || "").trim();
+  const tags = (card.querySelector('#vocab-tags').value || "").split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!word || !def) {
+    // require at least word + definition
+    card.querySelector('#vocab-list').insertAdjacentHTML('beforebegin', '');
+    return;
+  }
+
+  const list = _load(card);
+  // simple duplicate check
+  if (list.some(w => w.word.toLowerCase() === word.toLowerCase())) {
+    // update existing entry
+    const idx = list.findIndex(w => w.word.toLowerCase() === word.toLowerCase());
+    list[idx] = { ...list[idx], definition: def, example: ex, tags, box: list[idx].box || 1, lastReviewed: list[idx].lastReviewed || null };
+  } else {
+    list.push({ word, definition: def, example: ex, tags, box: 1, lastReviewed: null });
+  }
+
+  _save(card, list);
+  renderVocabList(card);
+  // clear inputs
+  card.querySelector('#vocab-word').value = "";
+  card.querySelector('#vocab-def').value = "";
+  card.querySelector('#vocab-ex').value = "";
+  card.querySelector('#vocab-tags').value = "";
+}
+
+function renderVocabList(card) {
+  const listEl = card.querySelector('#vocab-list');
+  const list = _load(card);
+  listEl.innerHTML = "";
+  list.forEach((w, i) => {
+    const li = document.createElement('li');
+    li.style.padding = "8px 6px";
+    li.style.borderBottom = "1px solid rgba(255,255,255,0.03)";
+    li.style.display = "flex";
+    li.style.justifyContent = "space-between";
+    li.style.alignItems = "center";
+
+    const left = document.createElement('div');
+    left.innerHTML = `<strong>${escapeHtml(w.word)}</strong> <span style="opacity:0.85">— ${escapeHtml(w.definition)}</span><div style="opacity:0.85;font-size:0.9rem;margin-top:6px;">${w.example ? escapeHtml(w.example) : ''}${w.tags && w.tags.length ? ' • ' + w.tags.join(', ') : ''}</div>`;
+    li.appendChild(left);
+
+    const right = document.createElement('div');
+    right.style.display = "flex";
+    right.style.gap = "8px";
+    right.style.alignItems = "center";
+
+    const box = document.createElement('div');
+    box.className = "small";
+    box.style.opacity = "0.9";
+    box.textContent = `Box ${w.box || 1}`;
+    right.appendChild(box);
+
+    const remove = document.createElement('button');
+    remove.className = "tiny";
+    remove.textContent = "Remove";
+    remove.onclick = () => {
+      const arr = _load(card);
+      arr.splice(i, 1);
+      _save(card, arr);
+      renderVocabList(card);
+    };
+    right.appendChild(remove);
+
+    li.appendChild(right);
+    listEl.appendChild(li);
+  });
+
+  card.querySelector('#vocab-count').textContent = list.length;
+}
+
+function vocabResetForm(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('#vocab-word').value = "";
+  card.querySelector('#vocab-def').value = "";
+  card.querySelector('#vocab-ex').value = "";
+  card.querySelector('#vocab-tags').value = "";
+}
+
+/* Practice: simple Leitner-style boxes (1-5). "I knew this" moves word up a box, "Again" moves to box 1. */
+function vocabStartPractice(btn) {
+  const card = btn.closest('.card');
+  const list = _load(card);
+  if (!list.length) {
+    alert('Add some words first.');
+    return;
+  }
+
+  // create a practice queue prioritizing lower boxes
+  const queue = [];
+  list.forEach((w, i) => {
+    const weight = 6 - (w.box || 1); // box1 weight 5, box5 weight 1
+    for (let k=0;k<weight;k++) queue.push(i);
+  });
+
+  // shuffle queue
+  for (let i = queue.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [queue[i], queue[j]] = [queue[j], queue[i]];
+  }
+
+  // store practice state on card
+  card._vocabPractice = { queue, position: 0, listIndices: queue };
+  card.querySelector('#vocab-practice').style.display = "";
+  card.querySelector('#vocab-quiz').style.display = "none";
+  renderPracticeCard(card);
+}
+
+function renderPracticeCard(card) {
+  const state = card._vocabPractice;
+  const list = _load(card);
+  if (!state || !state.queue || state.position >= state.queue.length) {
+    // finished
+    card.querySelector('#vocab-front').textContent = "Practice complete.";
+    card.querySelector('#vocab-back').style.display = "none";
+    return;
+  }
+  const idx = state.queue[state.position];
+  const item = list[idx];
+  card._vocabCurrentIndex = idx;
+  card.querySelector('#vocab-front').textContent = item.word;
+  const back = `${item.definition}${item.example ? "\n\nExample: " + item.example : ""}`;
+  const backEl = card.querySelector('#vocab-back');
+  backEl.textContent = back;
+  backEl.style.display = "none";
+}
+
+function vocabFlip(btn) {
+  const card = btn.closest('.card');
+  const back = card.querySelector('#vocab-back');
+  back.style.display = back.style.display === 'none' ? '' : 'none';
+}
+
+function vocabMarkKnown(btn) {
+  const card = btn.closest('.card');
+  const idx = card._vocabCurrentIndex;
+  if (idx === undefined || idx === null) return;
+  const list = _load(card);
+  list[idx].box = Math.min(5, (list[idx].box || 1) + 1);
+  list[idx].lastReviewed = new Date().toISOString();
+  _save(card, list);
+  // advance position
+  card._vocabPractice.position++;
+  renderPracticeCard(card);
+  renderVocabList(card);
+}
+
+function vocabMarkAgain(btn) {
+  const card = btn.closest('.card');
+  const idx = card._vocabCurrentIndex;
+  if (idx === undefined || idx === null) return;
+  const list = _load(card);
+  list[idx].box = 1;
+  list[idx].lastReviewed = new Date().toISOString();
+  _save(card, list);
+  card._vocabPractice.position++;
+  renderPracticeCard(card);
+  renderVocabList(card);
+}
+
+function vocabEndPractice(btn) {
+  const card = btn.closest('.card');
+  card._vocabPractice = null;
+  card.querySelector('#vocab-practice').style.display = "none";
+}
+
+/* Quick quiz: show definition, 4 choices (one correct) */
+function vocabQuickQuiz(btn) {
+  const card = btn.closest('.card');
+  const list = _load(card);
+  if (list.length < 2) {
+    alert('Add at least 2 words to quiz.');
+    return;
+  }
+
+  // pick a target
+  const targetIndex = Math.floor(Math.random() * list.length);
+  const target = list[targetIndex];
+
+  // pick 3 distractors
+  const distractors = [];
+  const indices = list.map((_,i) => i).filter(i => i !== targetIndex);
+  while (distractors.length < 3 && indices.length) {
+    const r = Math.floor(Math.random() * indices.length);
+    distractors.push(list[indices.splice(r,1)[0]].word);
+  }
+
+  const choices = [target.word, ...distractors].sort(() => Math.random() - 0.5);
+
+  card.querySelector('#vocab-practice').style.display = "none";
+  card.querySelector('#vocab-quiz').style.display = "";
+  card.querySelector('#vocab-quiz-question').textContent = target.definition;
+  const choicesEl = card.querySelector('#vocab-quiz-choices');
+  choicesEl.innerHTML = "";
+  choices.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'tiny';
+    b.textContent = c;
+    b.style.width = "100%";
+    b.onclick = () => {
+      if (c === target.word) {
+        card.querySelector('#vocab-quiz-hint').textContent = "Correct — well done.";
+        // promote known word slightly
+        list[targetIndex].box = Math.min(5, (list[targetIndex].box || 1) + 1);
+      } else {
+        card.querySelector('#vocab-quiz-hint').textContent = `Not quite — correct answer: ${target.word}`;
+        list[targetIndex].box = 1;
+      }
+      list[targetIndex].lastReviewed = new Date().toISOString();
+      _save(card, list);
+      renderVocabList(card);
+      // after short delay, present another question
+      setTimeout(() => vocabQuickQuiz(btn), 900);
+    };
+    choicesEl.appendChild(b);
+  });
+}
+
+function vocabExport(btn) {
+  const card = btn.closest('.card');
+  const list = _load(card);
+  if (!list.length) return;
+  const text = list.map(w => `${w.word} — ${w.definition}${w.example ? " — Example: " + w.example : ""}${w.tags && w.tags.length ? " — Tags: " + w.tags.join(', ') : ""}`).join('\n');
+  navigator.clipboard?.writeText(text).then(() => {
+    // small visual feedback
+    const count = card.querySelector('#vocab-count').textContent;
+    alert(`Copied ${count} word(s) to clipboard.`);
+  }).catch(() => {
+    alert('Copy failed — select the list and copy manually.');
+  });
+}
+
+function vocabClearAll(btn) {
+  const card = btn.closest('.card');
+  if (!confirm('Clear all saved words in this card? This cannot be undone.')) return;
+  localStorage.removeItem(_vocabKey(card));
+  renderVocabList(card);
+  card.querySelector('#vocab-practice').style.display = "none";
+  card.querySelector('#vocab-quiz').style.display = "none";
+}
+
+/* Utilities */
+function escapeHtml(s) {
+  if (!s) return "";
+  return s.replace(/[&<>"']/g, function (m) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m];
+  });
+}
+
+/* Initialize on load for this card instance */
+document.addEventListener('DOMContentLoaded', () => {
+  // find the nearest card wrapper for this script context
+  // if multiple cards exist, this will run for the first; ensure render for all cards on page
+  document.querySelectorAll('.card').forEach(card => {
+    if (card.querySelector('#vocab-list')) {
+      renderVocabList(card);
+    }
+  });
+});
+</script>
