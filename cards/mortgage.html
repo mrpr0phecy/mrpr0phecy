@@ -1,7 +1,41 @@
 <article class="card" id="mortgage-card" aria-labelledby="mortgage-title">
-  <h2 id="mortgage-title">Mortgage calculator</h2>
+  <h2 id="mortgage-title" style="margin-top:0;">Mortgage Calculator</h2>
 
-  <!-- existing form here (unchanged) -->
+  <form aria-describedby="mortgage-desc">
+    <p id="mortgage-desc" class="small">Estimate monthly payments, total interest, and payoff time. Adjust term, rate, and optional extra payments.</p>
+
+    <div class="field">
+      <label for="mortgage-price">Home price</label>
+      <div class="input"><input id="mortgage-price" type="number" inputmode="decimal" min="0" step="1000" value="350000" /></div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="mortgage-down">Down payment</label>
+        <div class="input"><input id="mortgage-down" type="number" inputmode="decimal" min="0" step="1000" value="35000" /></div>
+      </div>
+      <div class="field">
+        <label for="mortgage-rate">Interest rate (%)</label>
+        <div class="input"><input id="mortgage-rate" type="number" inputmode="decimal" min="0" step="0.01" value="4.5" /></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="mortgage-years">Term (years)</label>
+        <div class="input"><input id="mortgage-years" type="number" min="1" step="1" value="25" /></div>
+      </div>
+      <div class="field">
+        <label for="mortgage-extra">Extra monthly payment</label>
+        <div class="input"><input id="mortgage-extra" type="number" min="0" step="50" value="0" /></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" onclick="mortgageCalculate(this)">Calculate</button>
+      <button type="button" class="secondary" onclick="mortgageReset(this)" aria-label="Reset fields">Reset</button>
+    </div>
+  </form>
 
   <div class="results" aria-live="polite">
     <div class="result">
@@ -18,7 +52,7 @@
     </div>
   </div>
 
-  <!-- Chart container -->
+  <!-- Chart -->
   <div style="margin-top:20px;">
     <canvas id="mortgage-chart" width="400" height="200" aria-label="Amortization chart"></canvas>
   </div>
@@ -26,7 +60,7 @@
   <details class="small" style="margin-top:12px;">
     <summary>How the math works</summary>
     <p>
-      Base monthly payment uses the standard amortization formula:
+      Monthly payment uses the amortization formula:
       M = P · r · (1+r)^n / ((1+r)^n − 1).
       Extra payments reduce principal each month, shortening payoff time.
     </p>
@@ -34,56 +68,6 @@
 </article>
 
 <script>
-function drawMortgageChart(principal, baseMonthly, extra, r) {
-  const canvas = document.getElementById('mortgage-chart');
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // Simulate payoff
-  let remaining = principal;
-  let month = 0;
-  const balances = [];
-  while (remaining > 0 && month < 100*12) {
-    const interest = remaining * r;
-    const totalPayment = baseMonthly + extra;
-    const principalPaid = r === 0 ? totalPayment : Math.max(0, totalPayment - interest);
-    remaining -= principalPaid;
-    balances.push(remaining > 0 ? remaining : 0);
-    month++;
-    if (principalPaid <= 0) break;
-  }
-
-  // Scale
-  const maxBalance = principal;
-  const maxMonths = balances.length;
-  const w = canvas.width, h = canvas.height;
-  ctx.strokeStyle = '#2dd4ff';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  balances.forEach((bal, i) => {
-    const x = (i / maxMonths) * w;
-    const y = h - (bal / maxBalance) * h;
-    if (i === 0) ctx.moveTo(x,y);
-    else ctx.lineTo(x,y);
-  });
-  ctx.stroke();
-
-  // Axes
-  ctx.strokeStyle = '#888';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0,h); ctx.lineTo(w,h); // x-axis
-  ctx.moveTo(0,0); ctx.lineTo(0,h); // y-axis
-  ctx.stroke();
-
-  // Labels
-  ctx.fillStyle = '#b0b6bf';
-  ctx.font = '12px Inter, sans-serif';
-  ctx.fillText('0', 2, h-4);
-  ctx.fillText(maxMonths+'m', w-40, h-4);
-  ctx.fillText('£'+Math.round(maxBalance), 4, 12);
-}
-
 function mortgageCalculate(btn) {
   const card = btn.closest('.card');
   const get = id => card.querySelector('#'+id);
@@ -109,12 +93,14 @@ function mortgageCalculate(btn) {
   // Iterate payoff
   let remaining = principal;
   let paidMonths = 0;
+  const balances = [];
   const maxMonths = 100*12;
   while (remaining > 0 && paidMonths < maxMonths) {
     const interest = remaining * r;
     const totalPayment = baseMonthly + extra;
     const principalPaid = r === 0 ? totalPayment : Math.max(0, totalPayment - interest);
     remaining -= principalPaid;
+    balances.push(remaining > 0 ? remaining : 0);
     paidMonths++;
     if (principalPaid <= 0) break;
   }
@@ -128,6 +114,54 @@ function mortgageCalculate(btn) {
   card.querySelector('#mortgage-res-payoff').textContent   = paidMonths >= maxMonths ? 'N/A' : `${Math.floor(paidMonths/12)}y ${paidMonths%12}m`;
 
   // Draw chart
-  drawMortgageChart(principal, baseMonthly, extra, r);
+  drawMortgageChart(balances, principal);
+}
+
+function mortgageReset(btn) {
+  const card = btn.closest('.card');
+  const form = card.querySelector('form');
+  form.reset();
+  card.querySelector('#mortgage-res-monthly').textContent  = '–';
+  card.querySelector('#mortgage-res-interest').textContent = '–';
+  card.querySelector('#mortgage-res-payoff').textContent   = '–';
+  const ctx = card.querySelector('#mortgage-chart').getContext('2d');
+  ctx.clearRect(0,0,400,200);
+}
+
+function drawMortgageChart(balances, principal) {
+  const canvas = document.getElementById('mortgage-chart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const maxBalance = principal;
+  const maxMonths = balances.length;
+  const w = canvas.width, h = canvas.height;
+
+  // Line
+  ctx.strokeStyle = '#2dd4ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  balances.forEach((bal, i) => {
+    const x = (i / maxMonths) * w;
+    const y = h - (bal / maxBalance) * h;
+    if (i === 0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // Axes
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0,h); ctx.lineTo(w,h); // x-axis
+  ctx.moveTo(0,0); ctx.lineTo(0,h); // y-axis
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#9ccbe0';
+  ctx.font = '12px Inter, sans-serif';
+  ctx.fillText('0', 2, h-4);
+  ctx.fillText(maxMonths+'m', w-40, h-4);
+  ctx.fillText('£'+Math.round(maxBalance), 4, 12);
 }
 </script>
