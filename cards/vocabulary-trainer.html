@@ -1,0 +1,163 @@
+<h2 id="vocab-trainer-title" style="margin-top:0;">Vocabulary Trainer</h2>
+
+<form aria-describedby="vocab-trainer-desc">
+  <p id="vocab-trainer-desc" class="small">Add words with definitions and examples, practise with flashcards or quick quizzes, and track progress with simple Leitner boxes. Data is stored locally in this card.</p>
+
+  <div class="row">
+    <div class="field" style="flex:1;">
+      <label for="vt-word">Word</label>
+      <input id="vt-word" type="text" placeholder="e.g. ameliorate" />
+    </div>
+    <div class="field" style="flex:2;">
+      <label for="vt-def">Definition</label>
+      <input id="vt-def" type="text" placeholder="Short definition" />
+    </div>
+    <div class="field" style="flex:2;">
+      <label for="vt-ex">Example sentence (optional)</label>
+      <input id="vt-ex" type="text" placeholder="e.g. Policies to ameliorate the situation..." />
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:8px;">
+    <div class="field" style="flex:1;">
+      <label for="vt-tags">Tags (comma-separated)</label>
+      <input id="vt-tags" type="text" placeholder="e.g. GRE, business, verbs" />
+    </div>
+
+    <div class="field" style="align-self:end;">
+      <div class="actions">
+        <button type="button" onclick="vtAdd(this)">Add Word</button>
+        <button type="button" class="secondary" onclick="vtClearForm(this)">Clear</button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <div class="actions">
+      <button type="button" onclick="vtStartFlashcards(this)">Start Flashcards</button>
+      <button type="button" onclick="vtQuickQuiz(this)">Quick Quiz</button>
+      <button type="button" class="secondary" onclick="vtExport(this)">Copy List</button>
+      <button type="button" class="secondary" onclick="vtClearAll(this)">Clear All</button>
+    </div>
+    <div style="margin-left:auto;" class="small">Words: <span id="vt-count">0</span></div>
+  </div>
+
+  <h3 class="small" style="margin-top:12px;">Word list</h3>
+  <ul id="vt-list" class="small" style="list-style:none;padding-left:0;max-height:220px;overflow:auto;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;"></ul>
+
+  <div id="vt-practice" style="margin-top:12px;display:none;">
+    <div id="vt-card" style="padding:16px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);min-height:120px;">
+      <div id="vt-front" style="font-size:1.1rem;font-weight:600;"></div>
+      <div id="vt-back" style="margin-top:10px;display:none;color:rgba(230,250,255,0.9);"></div>
+    </div>
+
+    <div class="actions" style="margin-top:8px;">
+      <button type="button" onclick="vtFlip(this)">Flip</button>
+      <button type="button" onclick="vtKnown(this)">I knew this</button>
+      <button type="button" class="secondary" onclick="vtAgain(this)">Again</button>
+      <button type="button" onclick="vtEndPractice(this)">End Practice</button>
+    </div>
+  </div>
+
+  <div id="vt-quiz" style="margin-top:12px;display:none;">
+    <div id="vt-quiz-question" style="padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);min-height:80px;"></div>
+    <div id="vt-quiz-choices" style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+    <div class="small" id="vt-quiz-hint" style="margin-top:8px;"></div>
+  </div>
+</div>
+
+<script>
+/* Vocabulary Trainer (vt- prefix)
+   - Local storage key unique to this card
+   - Simple Leitner boxes (1-5), flashcards, and 4-choice quiz
+*/
+
+function _vtKey(card) {
+  const base = card.dataset && card.dataset.name ? card.dataset.name : 'vocab-trainer';
+  return `mostuseful:${base}:vt`;
+}
+
+function _vtLoad(card) {
+  try { const raw = localStorage.getItem(_vtKey(card)); return raw ? JSON.parse(raw) : []; } catch { return []; }
+}
+function _vtSave(card, arr) { localStorage.setItem(_vtKey(card), JSON.stringify(arr)); }
+
+function vtAdd(btn) {
+  const card = btn.closest('.card');
+  const word = (card.querySelector('#vt-word').value || "").trim();
+  const def = (card.querySelector('#vt-def').value || "").trim();
+  const ex = (card.querySelector('#vt-ex').value || "").trim();
+  const tags = (card.querySelector('#vt-tags').value || "").split(',').map(s => s.trim()).filter(Boolean);
+  if (!word || !def) return;
+  const list = _vtLoad(card);
+  const idx = list.findIndex(w => w.word.toLowerCase() === word.toLowerCase());
+  if (idx !== -1) list[idx] = { ...list[idx], definition: def, example: ex, tags, box: list[idx].box || 1, lastReviewed: list[idx].lastReviewed || null };
+  else list.push({ word, definition: def, example: ex, tags, box: 1, lastReviewed: null });
+  _vtSave(card, list);
+  vtRenderList(card);
+  card.querySelector('#vt-word').value = ""; card.querySelector('#vt-def').value = ""; card.querySelector('#vt-ex').value = ""; card.querySelector('#vt-tags').value = "";
+}
+
+function vtRenderList(card) {
+  const listEl = card.querySelector('#vt-list');
+  const list = _vtLoad(card);
+  listEl.innerHTML = "";
+  list.forEach((w,i) => {
+    const li = document.createElement('li');
+    li.style.padding = "8px 6px"; li.style.borderBottom = "1px solid rgba(255,255,255,0.03)"; li.style.display = "flex"; li.style.justifyContent = "space-between"; li.style.alignItems = "center";
+    const left = document.createElement('div');
+    left.innerHTML = `<strong>${escapeHtml(w.word)}</strong> <span style="opacity:0.85">— ${escapeHtml(w.definition)}</span><div style="opacity:0.85;font-size:0.9rem;margin-top:6px;">${w.example ? escapeHtml(w.example) : ''}${w.tags && w.tags.length ? ' • ' + w.tags.join(', ') : ''}</div>`;
+    li.appendChild(left);
+    const right = document.createElement('div'); right.style.display = "flex"; right.style.gap = "8px"; right.style.alignItems = "center";
+    const box = document.createElement('div'); box.className = "small"; box.style.opacity = "0.9"; box.textContent = `Box ${w.box || 1}`; right.appendChild(box);
+    const remove = document.createElement('button'); remove.className = "tiny"; remove.textContent = "Remove"; remove.onclick = () => { const arr = _vtLoad(card); arr.splice(i,1); _vtSave(card,arr); vtRenderList(card); }; right.appendChild(remove);
+    li.appendChild(right); listEl.appendChild(li);
+  });
+  card.querySelector('#vt-count').textContent = list.length;
+}
+
+function vtClearForm(btn) { const card = btn.closest('.card'); card.querySelector('#vt-word').value = ""; card.querySelector('#vt-def').value = ""; card.querySelector('#vt-ex').value = ""; card.querySelector('#vt-tags').value = ""; }
+
+function vtStartFlashcards(btn) {
+  const card = btn.closest('.card'); const list = _vtLoad(card); if (!list.length) { alert('Add words first.'); return; }
+  const queue = []; list.forEach((w,i) => { const weight = 6 - (w.box || 1); for (let k=0;k<weight;k++) queue.push(i); });
+  for (let i = queue.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [queue[i], queue[j]] = [queue[j], queue[i]]; }
+  card._vtPractice = { queue, pos: 0 }; card.querySelector('#vt-practice').style.display = ""; card.querySelector('#vt-quiz').style.display = "none"; vtRenderCard(card);
+}
+
+function vtRenderCard(card) {
+  const state = card._vtPractice; const list = _vtLoad(card);
+  if (!state || !state.queue || state.pos >= state.queue.length) { card.querySelector('#vt-front').textContent = "Practice complete."; card.querySelector('#vt-back').style.display = "none"; return; }
+  const idx = state.queue[state.pos]; const item = list[idx]; card._vtCurrent = idx; card.querySelector('#vt-front').textContent = item.word; const back = `${item.definition}${item.example ? "\n\nExample: " + item.example : ""}`; const backEl = card.querySelector('#vt-back'); backEl.textContent = back; backEl.style.display = "none";
+}
+
+function vtFlip(btn) { const card = btn.closest('.card'); const back = card.querySelector('#vt-back'); back.style.display = back.style.display === 'none' ? '' : 'none'; }
+
+function vtKnown(btn) { const card = btn.closest('.card'); const idx = card._vtCurrent; if (idx === undefined) return; const list = _vtLoad(card); list[idx].box = Math.min(5, (list[idx].box || 1) + 1); list[idx].lastReviewed = new Date().toISOString(); _vtSave(card, list); card._vtPractice.pos++; vtRenderCard(card); vtRenderList(card); }
+
+function vtAgain(btn) { const card = btn.closest('.card'); const idx = card._vtCurrent; if (idx === undefined) return; const list = _vtLoad(card); list[idx].box = 1; list[idx].lastReviewed = new Date().toISOString(); _vtSave(card, list); card._vtPractice.pos++; vtRenderCard(card); vtRenderList(card); }
+
+function vtEndPractice(btn) { const card = btn.closest('.card'); card._vtPractice = null; card.querySelector('#vt-practice').style.display = "none"; }
+
+function vtQuickQuiz(btn) {
+  const card = btn.closest('.card'); const list = _vtLoad(card); if (list.length < 2) { alert('Add at least 2 words.'); return; }
+  const targetIndex = Math.floor(Math.random() * list.length); const target = list[targetIndex];
+  const distractors = []; const indices = list.map((_,i) => i).filter(i => i !== targetIndex);
+  while (distractors.length < 3 && indices.length) { const r = Math.floor(Math.random() * indices.length); distractors.push(list[indices.splice(r,1)[0]].word); }
+  const choices = [target.word, ...distractors].sort(() => Math.random() - 0.5);
+  card.querySelector('#vt-practice').style.display = "none"; card.querySelector('#vt-quiz').style.display = ""; card.querySelector('#vt-quiz-question').textContent = target.definition;
+  const choicesEl = card.querySelector('#vt-quiz-choices'); choicesEl.innerHTML = "";
+  choices.forEach(c => { const b = document.createElement('button'); b.className = 'tiny'; b.textContent = c; b.style.width = "100%"; b.onclick = () => { if (c === target.word) { card.querySelector('#vt-quiz-hint').textContent = "Correct."; list[targetIndex].box = Math.min(5, (list[targetIndex].box || 1) + 1); } else { card.querySelector('#vt-quiz-hint').textContent = `Answer: ${target.word}`; list[targetIndex].box = 1; } list[targetIndex].lastReviewed = new Date().toISOString(); _vtSave(card, list); vtRenderList(card); setTimeout(() => vtQuickQuiz(btn), 900); }; choicesEl.appendChild(b); });
+}
+
+function vtExport(btn) { const card = btn.closest('.card'); const list = _vtLoad(card); if (!list.length) return; const text = list.map(w => `${w.word} — ${w.definition}${w.example ? " — Example: " + w.example : ""}${w.tags && w.tags.length ? " — Tags: " + w.tags.join(', ') : ""}`).join('\n'); navigator.clipboard?.writeText(text).then(() => alert(`Copied ${list.length} word(s) to clipboard.`)).catch(() => alert('Copy failed.')); }
+
+function vtClearAll(btn) { const card = btn.closest('.card'); if (!confirm('Clear all saved words in this card?')) return; localStorage.removeItem(_vtKey(card)); vtRenderList(card); card.querySelector('#vt-practice').style.display = "none"; card.querySelector('#vt-quiz').style.display = "none"; }
+
+function escapeHtml(s) { if (!s) return ""; return s.replace(/[&<>"']/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]; }); }
+
+/* initialize for this card instance */
+document.addEventListener('DOMContentLoaded', () => { document.querySelectorAll('.card').forEach(card => { if (card.querySelector('#vt-list')) vtRenderList(card); }); });
+</script>
