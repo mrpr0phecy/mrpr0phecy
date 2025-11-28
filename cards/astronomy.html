@@ -1,0 +1,128 @@
+<h2 id="astronomy-title" style="margin-top:0;">Astronomy Tools & Planet Facts</h2>
+
+<form aria-describedby="astronomy-desc">
+  <p id="astronomy-desc" class="small">Explore astronomy calculations and review a color‑coded table of the planets.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="astro-tool">Tool</label>
+      <select id="astro-tool" style="width:100%;">
+        <option value="orbital-period" selected>Orbital Period (Kepler’s Law)</option>
+        <option value="escape-velocity">Escape Velocity</option>
+        <option value="light-years">Light Years to Kilometers</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="astro-values">Values</label>
+      <input id="astro-values" type="text" placeholder="e.g. a=1,M=1" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="astro-show-table">Show Planet Table</label>
+      <select id="astro-show-table" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="astroCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="astroReset(this)">Reset</button>
+    <button type="button" onclick="astroCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Astronomy Results & Planet Facts</h3>
+  <textarea id="astro-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="astro-table-container" style="margin-top:16px;display:none;">
+    <style>
+      .planet-table { width:100%; border-collapse:collapse; font-size:0.9rem; }
+      .planet-table th, .planet-table td {
+        border:1px solid rgba(255,255,255,0.08);
+        padding:6px 8px; text-align:left;
+      }
+      .planet-table th { background:rgba(255,255,255,0.06); font-weight:600; }
+      .type-rocky { background:linear-gradient(90deg,#5b3d1a 0,#7a531f 100%); color:#f7e3b5; }
+      .type-gas   { background:linear-gradient(90deg,#103a5b 0,#1a5b8d 100%); color:#cfe8ff; }
+      .type-ice   { background:linear-gradient(90deg,#0b3b3b 0,#146c6c 100%); color:#d6f5f5; }
+      .planet-name { font-weight:600; }
+      .subtle { opacity:0.8; font-size:0.85em; }
+    </style>
+    <table class="planet-table">
+      <thead>
+        <tr>
+          <th>Planet</th><th>Distance (AU)</th><th>Mass (Earth=1)</th><th>Diameter (km)</th>
+          <th>Moons</th><th>Avg Temp (°C)</th><th>Type</th><th class="subtle">Extra</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="planet-name">Mercury</td><td>0.39</td><td>0.055</td><td>4,879</td><td>0</td><td>167</td><td class="type-rocky">Rocky</td><td class="subtle">Extreme day/night swing</td></tr>
+        <tr><td class="planet-name">Venus</td><td>0.72</td><td>0.815</td><td>12,104</td><td>0</td><td>464</td><td class="type-rocky">Rocky</td><td class="subtle">Runaway greenhouse</td></tr>
+        <tr><td class="planet-name">Earth</td><td>1.00</td><td>1.000</td><td>12,742</td><td>1</td><td>15</td><td class="type-rocky">Rocky</td><td class="subtle">Life & magnetic field</td></tr>
+        <tr><td class="planet-name">Mars</td><td>1.52</td><td>0.107</td><td>6,779</td><td>2</td><td>-63</td><td class="type-rocky">Rocky</td><td class="subtle">Olympus Mons volcano</td></tr>
+        <tr><td class="planet-name">Jupiter</td><td>5.20</td><td>318</td><td>139,820</td><td>79+</td><td>-110</td><td class="type-gas">Gas giant</td><td class="subtle">Great Red Spot</td></tr>
+        <tr><td class="planet-name">Saturn</td><td>9.54</td><td>95</td><td>116,460</td><td>83+</td><td>-140</td><td class="type-gas">Gas giant</td><td class="subtle">Prominent rings</td></tr>
+        <tr><td class="planet-name">Uranus</td><td>19.2</td><td>14.5</td><td>50,724</td><td>27</td><td>-195</td><td class="type-ice">Ice giant</td><td class="subtle">Tilted axis</td></tr>
+        <tr><td class="planet-name">Neptune</td><td>30.1</td><td>17.1</td><td>49,244</td><td>14</td><td>-200</td><td class="type-ice">Ice giant</td><td class="subtle">Strong winds</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="astro-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* astronomy.html
+   - Calculates astronomy values and shows planet facts table
+   - Scoped with astro- prefix
+*/
+
+function astroReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#astro-output').value="";
+  card.querySelector('#astro-hint').textContent="";
+  card.querySelector('#astro-table-container').style.display="none";
+}
+
+function astroCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#astro-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#astro-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parseAstro(str){
+  const vals={};
+  str.split(',').forEach(p=>{
+    const [k,v]=p.split('=');
+    if(k&&v)vals[k.trim()]=parseFloat(v);
+  });
+  return vals;
+}
+
+function astroCalculate(btn){
+  const card=btn.closest('.card');
+  const tool=card.querySelector('#astro-tool').value;
+  const vals=parseAstro(card.querySelector('#astro-values').value||"");
+  const showTable=card.querySelector('#astro-show-table').value==="yes";
+  let output="";
+  if(tool==="orbital-period"&&vals.a&&vals.M){
+    const T=Math.sqrt(Math.pow(vals.a,3)/vals.M);
+    output=`Orbital Period ≈ ${T.toFixed(2)} years`;
+  } else if(tool==="escape-velocity"&&vals.M&&vals.R){
+    const G=6.674e-11;
+    const v=Math.sqrt(2*G*vals.M/vals.R);
+    output=`Escape Velocity ≈ ${v.toFixed(2)} m/s`;
+  } else if(tool==="light-years"&&vals.ly){
+    const km=vals.ly*9.461e12
