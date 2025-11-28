@@ -1,0 +1,93 @@
+<h2 id="meetingplanner-title" style="margin-top:0;">Meeting Planner</h2>
+
+<form aria-describedby="meetingplanner-desc">
+  <p id="meetingplanner-desc" class="small">Enter participant availability to find the best meeting time.</p>
+
+  <div class="row">
+    <div class="field">
+      <label for="meetingplanner-name">Participant name</label>
+      <input id="meetingplanner-name" type="text" placeholder="e.g. Alice" />
+    </div>
+    <div class="field">
+      <label for="meetingplanner-start">Available from</label>
+      <input id="meetingplanner-start" type="time" />
+    </div>
+    <div class="field">
+      <label for="meetingplanner-end">Available until</label>
+      <input id="meetingplanner-end" type="time" />
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" onclick="meetingplannerAdd(this)">Add Availability</button>
+    <button type="button" class="secondary" onclick="meetingplannerReset(this)">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite">
+  <h3 class="small">Participants</h3>
+  <ul id="meetingplanner-list" class="small"></ul>
+
+  <h3 class="small">Suggested meeting window</h3>
+  <div class="value" id="meetingplanner-res">–</div>
+</div>
+
+<details class="small" style="margin-top:12px;">
+  <summary>How it works</summary>
+  <p>
+    Finds the overlap between all participants’ availability.  
+    Suggested window = latest start time → earliest end time.  
+    If no overlap, shows “No common time”.
+  </p>
+</details>
+
+<script>
+let meetingData = [];
+
+function meetingplannerAdd(btn) {
+  const card = btn.closest('.card');
+  const name = card.querySelector('#meetingplanner-name').value.trim();
+  const start = card.querySelector('#meetingplanner-start').value;
+  const end = card.querySelector('#meetingplanner-end').value;
+
+  if (!name || !start || !end) return;
+
+  meetingData.push({ name, start, end });
+
+  const list = card.querySelector('#meetingplanner-list');
+  const item = document.createElement('li');
+  item.textContent = name + ": " + start + "–" + end;
+  list.appendChild(item);
+
+  updateMeetingSuggestion(card);
+}
+
+function updateMeetingSuggestion(card) {
+  if (meetingData.length === 0) {
+    card.querySelector('#meetingplanner-res').textContent = "–";
+    return;
+  }
+
+  let latestStart = "00:00";
+  let earliestEnd = "23:59";
+
+  meetingData.forEach(p => {
+    if (p.start > latestStart) latestStart = p.start;
+    if (p.end < earliestEnd) earliestEnd = p.end;
+  });
+
+  if (latestStart < earliestEnd) {
+    card.querySelector('#meetingplanner-res').textContent = latestStart + "–" + earliestEnd;
+  } else {
+    card.querySelector('#meetingplanner-res').textContent = "No common time";
+  }
+}
+
+function meetingplannerReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#meetingplanner-list').innerHTML = "";
+  card.querySelector('#meetingplanner-res').textContent = "–";
+  meetingData = [];
+}
+</script>
