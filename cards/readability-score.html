@@ -1,0 +1,110 @@
+<h2 id="readability-score-title" style="margin-top:0;">Readability Score</h2>
+
+<form aria-describedby="readability-score-desc">
+  <p id="readability-score-desc" class="small">Calculate readability scores for your text. Paste content, run the check, and see Flesch Reading Ease, Flesch‑Kincaid Grade Level, and average sentence length.</p>
+
+  <div class="row">
+    <div class="field" style="flex:1;">
+      <label for="rs-text">Text</label>
+      <textarea id="rs-text" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;" placeholder="Paste text here..."></textarea>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:10px;">
+    <button type="button" onclick="rsCheck(this)">Check Readability</button>
+    <button type="button" class="secondary" onclick="rsReset(this)">Reset</button>
+    <button type="button" onclick="rsCopy(this)">Copy Text</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <div class="small">Word count: <strong id="rs-words">0</strong></div>
+    <div class="small">Sentence count: <strong id="rs-sentences">0</strong></div>
+    <div class="small">Average sentence length: <strong id="rs-avg">–</strong></div>
+  </div>
+
+  <h3 class="small" style="margin-top:12px;">Scores</h3>
+  <ul class="small" style="list-style:none;padding-left:0;">
+    <li>Flesch Reading Ease: <strong id="rs-flesch">–</strong></li>
+    <li>Flesch‑Kincaid Grade Level: <strong id="rs-grade">–</strong></li>
+  </ul>
+
+  <h3 class="small" style="margin-top:12px;">Interpretation</h3>
+  <div id="rs-interpret" class="small" style="opacity:0.9;line-height:1.5;">
+    No check performed yet.
+  </div>
+</div>
+
+<script>
+/* readability-score.html
+   - Calculates Flesch Reading Ease and Flesch-Kincaid Grade Level
+   - Scoped with rs- prefix
+*/
+
+function rsReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('#rs-text').value="";
+  card.querySelector('#rs-words').textContent="0";
+  card.querySelector('#rs-sentences').textContent="0";
+  card.querySelector('#rs-avg').textContent="–";
+  card.querySelector('#rs-flesch').textContent="–";
+  card.querySelector('#rs-grade').textContent="–";
+  card.querySelector('#rs-interpret').textContent="No check performed yet.";
+}
+
+function rsCopy(btn){
+  const card=btn.closest('.card');
+  const text=card.querySelector('#rs-text').value||"";
+  if(!text.trim())return;
+  navigator.clipboard?.writeText(text).then(()=>{
+    const prev=card.querySelector('#rs-interpret').textContent;
+    card.querySelector('#rs-interpret').textContent="Copied.";
+    setTimeout(()=>{card.querySelector('#rs-interpret').textContent=prev;},1200);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function rsCheck(btn){
+  const card=btn.closest('.card');
+  const text=(card.querySelector('#rs-text').value||"").trim();
+  if(!text){card.querySelector('#rs-interpret').textContent="Paste text to check.";return;}
+  const sentences=splitSentences(text);
+  const words=text.split(/\s+/).filter(Boolean);
+  const syllables=words.reduce((sum,w)=>sum+countSyllables(w),0);
+  const wCount=words.length;const sCount=sentences.length;
+  const avgLen=(wCount/Math.max(1,sCount)).toFixed(1);
+  const flesch=Math.round(206.835-1.015*(wCount/Math.max(1,sCount))-84.6*(syllables/Math.max(1,wCount)));
+  const grade=(0.39*(wCount/Math.max(1,sCount))+11.8*(syllables/Math.max(1,wCount))-15.59).toFixed(1);
+  card.querySelector('#rs-words').textContent=wCount;
+  card.querySelector('#rs-sentences').textContent=sCount;
+  card.querySelector('#rs-avg').textContent=avgLen;
+  card.querySelector('#rs-flesch').textContent=flesch;
+  card.querySelector('#rs-grade').textContent=grade;
+  card.querySelector('#rs-interpret').textContent=interpretScores(flesch,grade);
+}
+
+function splitSentences(text){
+  const raw=text.replace(/\r\n/g,' ').replace(/\n+/g,' ');
+  const parts=raw.match(/[^.!?]+[.!?]?/g)||[];
+  return parts.map(p=>p.trim()).filter(Boolean);
+}
+
+function countSyllables(word){
+  if(!word)return 0;
+  word=word.toLowerCase().replace(/[^a-z]/g,'');
+  if(word.length<=3)return 1;
+  word=word.replace(/e$/,'');
+  const matches=word.match(/[aeiouy]{1,2}/g);
+  return matches?matches.length:1;
+}
+
+function interpretScores(flesch,grade){
+  let ease="";
+  if(flesch>=90) ease="Very easy (5th grade).";
+  else if(flesch>=70) ease="Fairly easy (7th grade).";
+  else if(flesch>=50) ease="Fairly difficult (high school).";
+  else if(flesch>=30) ease="Difficult (college).";
+  else ease="Very difficult (postgraduate).";
+  return `Flesch Reading Ease: ${ease} Grade Level ≈ ${grade}.`;
+}
+</script>
