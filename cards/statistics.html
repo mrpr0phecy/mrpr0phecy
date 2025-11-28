@@ -1,0 +1,121 @@
+<h2 id="statistics-title" style="margin-top:0;">Statistics Helper</h2>
+
+<form aria-describedby="statistics-desc">
+  <p id="statistics-desc" class="small">Calculate basic statistics for a dataset. Paste numbers, choose measures, and get results with formulas shown.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr;gap:10px;">
+    <div class="field">
+      <label for="stat-data">Data (comma-separated)</label>
+      <input id="stat-data" type="text" placeholder="e.g. 5,7,9,10,12" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="stat-measures">Measures</label>
+      <select id="stat-measures" multiple style="width:100%;height:120px;">
+        <option value="mean" selected>Mean</option>
+        <option value="median">Median</option>
+        <option value="mode">Mode</option>
+        <option value="range">Range</option>
+        <option value="variance">Variance</option>
+        <option value="stddev">Standard Deviation</option>
+      </select>
+      <div class="small" style="opacity:0.85;margin-top:4px;">Hold Ctrl/Cmd to select multiple</div>
+    </div>
+
+    <div class="field">
+      <label for="stat-show-steps">Show steps</label>
+      <select id="stat-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="statCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="statReset(this)">Reset</button>
+    <button type="button" onclick="statCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Results</h3>
+  <textarea id="stat-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="stat-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* statistics.html
+   - Calculates mean, median, mode, range, variance, std dev
+   - Scoped with stat- prefix
+*/
+
+function statReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#stat-output').value="";
+  card.querySelector('#stat-hint').textContent="";
+}
+
+function statCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#stat-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#stat-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function statCalculate(btn){
+  const card=btn.closest('.card');
+  const data=(card.querySelector('#stat-data').value||"").split(',').map(s=>parseFloat(s.trim())).filter(n=>!isNaN(n));
+  const measures=[...card.querySelector('#stat-measures').selectedOptions].map(o=>o.value);
+  const showSteps=card.querySelector('#stat-show-steps').value==="yes";
+  if(!data.length){card.querySelector('#stat-hint').textContent="Please enter numeric data.";return;}
+  let output="";
+  if(measures.includes("mean")){
+    const mean=data.reduce((a,b)=>a+b,0)/data.length;
+    output+=`Mean = ${mean}\n`;
+    if(showSteps)output+=`Steps: Sum=${data.reduce((a,b)=>a+b,0)}, Count=${data.length}, Mean=Sum/Count\n\n`;
+  }
+  if(measures.includes("median")){
+    const sorted=[...data].sort((a,b)=>a-b);
+    const mid=Math.floor(sorted.length/2);
+    const median=sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
+    output+=`Median = ${median}\n`;
+    if(showSteps)output+=`Steps: Sort data, find middle → ${median}\n\n`;
+  }
+  if(measures.includes("mode")){
+    const freq={};data.forEach(n=>freq[n]=(freq[n]||0)+1);
+    const max=Math.max(...Object.values(freq));
+    const modes=Object.keys(freq).filter(k=>freq[k]===max);
+    output+=`Mode = ${modes.join(', ')}\n`;
+    if(showSteps)output+=`Steps: Count frequencies, highest=${max}\n\n`;
+  }
+  if(measures.includes("range")){
+    const range=Math.max(...data)-Math.min(...data);
+    output+=`Range = ${range}\n`;
+    if(showSteps)output+=`Steps: Max=${Math.max(...data)}, Min=${Math.min(...data)}, Range=Max-Min\n\n`;
+  }
+  if(measures.includes("variance")||measures.includes("stddev")){
+    const mean=data.reduce((a,b)=>a+b,0)/data.length;
+    const variance=data.reduce((sum,n)=>sum+(n-mean)**2,0)/data.length;
+    if(measures.includes("variance")){
+      output+=`Variance = ${variance}\n`;
+      if(showSteps)output+=`Steps: Compute mean, sum squared deviations, divide by count\n\n`;
+    }
+    if(measures.includes("stddev")){
+      const stddev=Math.sqrt(variance);
+      output+=`Standard Deviation = ${stddev}\n`;
+      if(showSteps)output+=`Steps: √Variance = ${stddev}\n\n`;
+    }
+  }
+  card.querySelector('#stat-output').value=output.trim();
+  card.querySelector('#stat-hint').textContent="Results generated.";
+}
+</script>
