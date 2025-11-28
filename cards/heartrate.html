@@ -1,0 +1,99 @@
+<h2 id="heartrate-title" style="margin-top:0;">Heart Rate Calculator</h2>
+
+<form aria-describedby="heartrate-desc">
+  <p id="heartrate-desc" class="small">Estimate your maximum heart rate, training zones, or tap to measure your pulse.</p>
+
+  <div class="field">
+    <label for="heartrate-age">Age</label>
+    <input id="heartrate-age" type="number" min="1" value="30" />
+  </div>
+
+  <div class="actions">
+    <button type="button" onclick="heartrateCalc(this)">Calculate Zones</button>
+    <button type="button" class="secondary" onclick="heartrateReset(this)">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite">
+  <div class="result">
+    <div class="label">Max heart rate</div>
+    <div class="value" id="heartrate-max">–</div>
+  </div>
+  <div class="result">
+    <div class="label">Moderate zone (50–70%)</div>
+    <div class="value" id="heartrate-moderate">–</div>
+  </div>
+  <div class="result">
+    <div class="label">Vigorous zone (70–85%)</div>
+    <div class="value" id="heartrate-vigorous">–</div>
+  </div>
+</div>
+
+<hr style="margin:20px 0;">
+
+<div class="results" aria-live="polite">
+  <div class="result">
+    <div class="label">Tap to measure pulse</div>
+    <button type="button" onclick="pulseTap(this)" id="pulse-btn">Tap</button>
+    <div class="value" id="pulse-res">–</div>
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;">
+  <summary>How it works</summary>
+  <p>
+    Max heart rate ≈ 220 − age. Training zones are percentages of max heart rate.  
+    Tap mode: tap in rhythm with your heartbeat. After a few taps, BPM is calculated from intervals.
+  </p>
+</details>
+
+<script>
+function heartrateCalc(btn) {
+  const card = btn.closest('.card');
+  const age = parseInt(card.querySelector('#heartrate-age').value, 10) || 0;
+
+  const max = 220 - age;
+  const moderateLow = Math.round(max * 0.5);
+  const moderateHigh = Math.round(max * 0.7);
+  const vigorousLow = Math.round(max * 0.7);
+  const vigorousHigh = Math.round(max * 0.85);
+
+  card.querySelector('#heartrate-max').textContent = max + " bpm";
+  card.querySelector('#heartrate-moderate').textContent = `${moderateLow}–${moderateHigh} bpm`;
+  card.querySelector('#heartrate-vigorous').textContent = `${vigorousLow}–${vigorousHigh} bpm`;
+}
+
+function heartrateReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#heartrate-max').textContent = '–';
+  card.querySelector('#heartrate-moderate').textContent = '–';
+  card.querySelector('#heartrate-vigorous').textContent = '–';
+  card.querySelector('#pulse-res').textContent = '–';
+  pulseTimes = [];
+}
+
+// --- Pulse Tap Counter ---
+let pulseTimes = [];
+function pulseTap(btn) {
+  const now = Date.now();
+  pulseTimes.push(now);
+
+  // Only calculate if we have at least 2 taps
+  if (pulseTimes.length >= 2) {
+    const intervals = [];
+    for (let i = 1; i < pulseTimes.length; i++) {
+      intervals.push(pulseTimes[i] - pulseTimes[i-1]);
+    }
+    const avgInterval = intervals.reduce((a,b)=>a+b,0) / intervals.length;
+    const bpm = Math.round(60000 / avgInterval);
+    const card = btn.closest('.card');
+    card.querySelector('#pulse-res').textContent = bpm + " bpm";
+  }
+
+  // Reset if too long between taps (>5s)
+  if (pulseTimes.length > 1 && now - pulseTimes[pulseTimes.length-2] > 5000) {
+    pulseTimes = [now];
+  }
+}
+</script>
