@@ -1,0 +1,201 @@
+<h2 id="summary-generator-title" style="margin-top:0;">Summary Generator</h2>
+
+<form aria-describedby="sg-desc">
+  <p id="sg-desc" class="small">Paste text to create an extractive summary, a short TL;DR, or a bulleted highlights list. Choose length and options, then generate. Explanations show why sentences were chosen.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="sg-text">Text</label>
+      <textarea id="sg-text" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;" placeholder="Paste article, essay, or notes here..."></textarea>
+    </div>
+
+    <div class="field">
+      <label for="sg-mode">Mode</label>
+      <select id="sg-mode" style="width:100%;">
+        <option value="extractive" selected>Extractive (best sentences)</option>
+        <option value="tldr">TL;DR (one-sentence)</option>
+        <option value="bullets">Bulleted highlights</option>
+        <option value="keywords">Keywords only</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="sg-length">Length</label>
+      <select id="sg-length" style="width:100%;">
+        <option value="short">Short</option>
+        <option value="medium" selected>Medium</option>
+        <option value="long">Long</option>
+      </select>
+    </div>
+
+    <div class="field" style="display:flex;align-items:center;gap:8px;">
+      <label style="display:inline-flex;align-items:center;gap:8px;">
+        <input id="sg-explain" type="checkbox" />
+        <span class="small">Explain picks</span>
+      </label>
+    </div>
+
+    <div class="field">
+      <label for="sg-wpm">Reading speed (wpm)</label>
+      <input id="sg-wpm" type="number" min="100" max="1000" step="10" value="200" style="width:100%;" />
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:10px;">
+    <button type="button" onclick="sgGenerate(this)">Generate Summary</button>
+    <button type="button" class="secondary" onclick="sgReset(this)">Reset</button>
+    <button type="button" onclick="sgCopy(this)">Copy Output</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <div class="small">Estimated reading time: <strong id="sg-reading">–</strong></div>
+    <div class="small">Word count: <strong id="sg-words">0</strong></div>
+  </div>
+
+  <h3 class="small" style="margin-top:12px;">Output</h3>
+  <textarea id="sg-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="sg-explain-list" class="small" style="margin-top:10px;display:none;">
+    <h4 class="small">Why these sentences were chosen</h4>
+    <ol id="sg-explain-items" style="padding-left:18px;"></ol>
+  </div>
+</div>
+
+<script>
+/*
+  Summary Generator
+  - Client-side extractive summarizer with TL;DR, bullets, and keyword extraction
+  - All DOM queries scoped via btn.closest('.card') so multiple instances are safe
+  - Lightweight, deterministic heuristics: word frequency, sentence position, and length normalization
+*/
+
+function sgReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('#sg-text').value = "";
+  card.querySelector('#sg-output').value = "";
+  card.querySelector('#sg-reading').textContent = "–";
+  card.querySelector('#sg-words').textContent = "0";
+  card.querySelector('#sg-explain-list').style.display = "none";
+  card.querySelector('#sg-explain-items').innerHTML = "";
+}
+
+function sgCopy(btn) {
+  const card = btn.closest('.card');
+  const out = card.querySelector('#sg-output').value || "";
+  if (!out.trim()) return;
+  navigator.clipboard?.writeText(out).then(() => {
+    const prev = card.querySelector('#sg-reading').textContent;
+    card.querySelector('#sg-reading').textContent = "Copied to clipboard.";
+    setTimeout(() => { card.querySelector('#sg-reading').textContent = prev; }, 1400);
+  }).catch(() => {
+    alert("Copy failed — select the text and copy manually.");
+  });
+}
+
+function sgGenerate(btn) {
+  const card = btn.closest('.card');
+  const text = (card.querySelector('#sg-text').value || "").trim();
+  const mode = card.querySelector('#sg-mode').value;
+  const lengthPref = card.querySelector('#sg-length').value;
+  const explain = card.querySelector('#sg-explain').checked;
+  const wpm = parseInt(card.querySelector('#sg-wpm').value, 10) || 200;
+
+  if (!text) {
+    card.querySelector('#sg-reading').textContent = "Paste text to summarise.";
+    return;
+  }
+
+  const sentences = splitSentences(text);
+  const words = text.split(/\s+/).filter(Boolean);
+  const totalWords = words.length;
+  const readingMinutes = Math.max(1, Math.round(totalWords / wpm));
+  card.querySelector('#sg-reading').textContent = `${readingMinutes} min read (${totalWords} words at ${wpm} wpm)`;
+  card.querySelector('#sg-words').textContent = totalWords;
+
+  // frequency map
+  const freq = buildFrequencyMap(text);
+
+  // score sentences
+  const scored = sentences.map((s, i) => {
+    const tokens = (s.toLowerCase().match(/\b[a-z0-9']+\b/g) || []);
+    let score = 0;
+    tokens.forEach(t => score += freq[t] || 0);
+    // position bonus for lead sentences
+    score *= (1 + (1 - (i / Math.max(1, sentences.length))) * 0.12);
+    // normalize by length
+    score = score / Math.sqrt(Math.max(1, tokens.length));
+    return { index: i, sentence: s.trim(), score, words: tokens.length };
+  });
+
+  // choose number of sentences based on lengthPref and mode
+  let pickCount = 3;
+  if (mode === 'tldr') pickCount = 1;
+  else if (mode === 'keywords') pickCount = 0;
+  else {
+    if (lengthPref === 'short') pickCount = Math.max(1, Math.round(sentences.length * 0.06));
+    if (lengthPref === 'medium') pickCount = Math.max(2, Math.round(sentences.length * 0.14));
+    if (lengthPref === 'long') pickCount = Math.max(4, Math.round(sentences.length * 0.28));
+  }
+
+  // build output per mode
+  let output = "";
+  const explainListEl = card.querySelector('#sg-explain-items');
+  explainListEl.innerHTML = "";
+  if (mode === 'keywords') {
+    const keywords = extractKeywords(freq, 12);
+    output = keywords.join(', ');
+  } else if (mode === 'bullets') {
+    const top = scored.slice().sort((a,b) => b.score - a.score).slice(0, pickCount).sort((a,b) => a.index - b.index);
+    output = top.map(t => `• ${t.sentence}`).join('\n\n');
+    if (explain) {
+      top.forEach(t => {
+        const li = document.createElement('li');
+        li.textContent = `${t.sentence} — score ${t.score.toFixed(2)}; ${t.words} words.`;
+        explainListEl.appendChild(li);
+      });
+    }
+  } else {
+    // extractive or tldr
+    const top = scored.slice().sort((a,b) => b.score - a.score).slice(0, pickCount).sort((a,b) => a.index - b.index);
+    if (mode === 'tldr') {
+      // try to compress the top sentence into one concise line (simple trimming)
+      output = top.length ? compressToOneLine(top[0].sentence) : "";
+      if (explain && top[0]) {
+        const li = document.createElement('li');
+        li.textContent = `${top[0].sentence} — score ${top[0].score.toFixed(2)}; ${top[0].words} words.`;
+        explainListEl.appendChild(li);
+      }
+    } else {
+      output = top.map(t => t.sentence).join(' ');
+      if (explain) {
+        top.forEach(t => {
+          const li = document.createElement('li');
+          li.textContent = `${t.sentence} — score ${t.score.toFixed(2)}; ${t.words} words.`;
+          explainListEl.appendChild(li);
+        });
+      }
+    }
+  }
+
+  card.querySelector('#sg-output').value = output;
+  card.querySelector('#sg-explain-list').style.display = explain && explainListEl.children.length ? "" : "none";
+}
+
+/* Utilities */
+
+function splitSentences(text) {
+  const raw = text.replace(/\r\n/g, '\n').replace(/\n+/g, ' ');
+  const parts = raw.match(/[^.!?]+[.!?]?/g) || [];
+  return parts.map(p => p.trim()).filter(Boolean);
+}
+
+function buildFrequencyMap(text) {
+  const stopwords = new Set([
+    'the','and','is','in','to','of','a','that','it','for','on','with','as','are','was','were','be','by','this','an','or','from','at','which','but','not','have','has','had','they','their','them','its','if','we','you','i','he','she','his','her','will','can'
+  ]);
+  const words = (text.toLowerCase().match(/\b[a-z0-9']+\b/g) || []).filter(w => !stopwords.has(w));
+  const freq = {};
+  words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+  const max = Math.max(1,
