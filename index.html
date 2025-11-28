@@ -32,13 +32,18 @@
       border-radius:12px;padding:24px;backdrop-filter:blur(8px);
       opacity:0;transform:translateY(20px);transition:all 0.6s ease;}
     .card.visible{opacity:1;transform:translateY(0);}
+    .small{font-size:0.9rem;color:rgba(230,250,255,0.9);}
+    .actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;}
+    .actions button{padding:8px 12px;border-radius:8px;border:none;background:rgba(255,255,255,0.06);color:inherit;cursor:pointer;}
+    .actions button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.08);}
+    .tiny{font-size:0.8rem;padding:4px 8px;border-radius:6px;border:none;background:rgba(255,255,255,0.04);color:inherit;cursor:pointer;}
   </style>
 </head>
 <body>
   <header>
     <h1>The Most Useful Site in the World</h1>
     <div class="search-bar">
-      <input id="searchInput" type="text" placeholder="Search calculators..." />
+      <input id="searchInput" type="text" placeholder="Search calculators, tools, or topics..." aria-label="Search tools" />
     </div>
   </header>
 
@@ -80,6 +85,42 @@
 
     const playground = document.getElementById("playground");
 
+    // Helper: create a card wrapper and lazy-load its HTML when visible
+    function createCard(file, index) {
+      const wrapper = document.createElement("article");
+      wrapper.className = "card";
+      wrapper.dataset.name = file.replace(".html", "");
+      wrapper.innerHTML = `<p class="small">Loading ${file.replace(".html","")}...</p>`;
+
+      const io = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            // stagger reveal for nicer animation
+            setTimeout(() => wrapper.classList.add("visible"), index * 60);
+
+            fetch("cards/" + file)
+              .then(res => res.ok ? res.text() : Promise.reject())
+              .then(html => {
+                // insert loaded HTML; keep dataset.name and allow search to match content
+                wrapper.innerHTML = html || `<p class="small">Error loading ${file}</p>`;
+                // after content loads, dispatch a custom event so search can re-evaluate
+                wrapper.dispatchEvent(new CustomEvent('content:loaded', { bubbles: true }));
+              })
+              .catch(() => {
+                wrapper.innerHTML = `<p class="small">Error loading ${file}</p>`;
+                wrapper.dispatchEvent(new CustomEvent('content:loaded', { bubbles: true }));
+              });
+
+            io.unobserve(wrapper);
+          }
+        });
+      }, { threshold: 0.1 });
+
+      io.observe(wrapper);
+      return wrapper;
+    }
+
+    // Build sections and cards
     Object.entries(sections).forEach(([sectionName, files]) => {
       const section = document.createElement("section");
 
@@ -94,44 +135,93 @@
       grid.className = "grid";
 
       files.forEach((file, i) => {
-        const wrapper = document.createElement("article");
-        wrapper.className = "card";
-        wrapper.dataset.name = file.replace(".html", "");
-        wrapper.innerHTML = `<p>Loading ${file.replace(".html","")}...</p>`;
-        grid.appendChild(wrapper);
-
-        const io = new IntersectionObserver(entries => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              setTimeout(() => wrapper.classList.add("visible"), i * 100);
-
-              fetch("cards/" + file)
-                .then(res => res.ok ? res.text() : Promise.reject())
-                .then(html => {
-                  wrapper.innerHTML = html || `<p>Error loading ${file}</p>`;
-                })
-                .catch(() => {
-                  wrapper.innerHTML = `<p>Error loading ${file}</p>`;
-                });
-
-              io.unobserve(wrapper);
-            }
-          });
-        }, { threshold: 0.1 });
-        io.observe(wrapper);
+        const card = createCard(file, i);
+        grid.appendChild(card);
       });
 
       section.appendChild(grid);
       playground.appendChild(section);
     });
 
-    // Search filter
-    document.getElementById("searchInput").addEventListener("input", e => {
-      const term = e.target.value.toLowerCase();
+    // Debounce helper
+    function debounce(fn, wait) {
+      let t = null;
+      return function(...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+      };
+    }
+
+    // Core search logic: matches all words against dataset.name and visible text
+    function evaluateSearch(term) {
+      const raw = (term || "").trim().toLowerCase();
+      const words = raw.length ? raw.split(/\s+/) : [];
+
       document.querySelectorAll("#playground .card").forEach(card => {
-        const name = card.dataset.name.toLowerCase();
-        card.style.display = name.includes(term) ? "" : "none";
+        const name = (card.dataset.name || "").toLowerCase();
+        const text = (card.textContent || "").toLowerCase();
+
+        if (!words.length) {
+          card.style.display = "";
+          return;
+        }
+
+        const matches = words.every(w => name.includes(w) || text.includes(w));
+        card.style.display = matches ? "" : "none";
       });
+    }
+
+    // Debounced search handler for input events
+    const debouncedEvaluate = debounce(e => evaluateSearch(e.target.value), 180);
+
+    const searchInput = document.getElementById("searchInput");
+    searchInput.addEventListener("input", debouncedEvaluate);
+
+    // Re-evaluate search when card content loads (so newly fetched HTML can match)
+    playground.addEventListener('content:loaded', () => {
+      // run immediately, but debounced to avoid thrash if many cards load at once
+      debouncedEvaluate({ target: searchInput });
+    });
+
+    // Also observe DOM changes inside cards (in case cards update dynamically)
+    const cardsObserver = new MutationObserver(debounce(() => {
+      debouncedEvaluate({ target: searchInput });
+    }, 200));
+
+    // Start observing each card container for subtree changes
+    const observeCards = () => {
+      document.querySelectorAll('#playground .card').forEach(card => {
+        cardsObserver.observe(card, { childList: true, subtree: true, characterData: true });
+      });
+    };
+
+    // Observe playground for new cards being added, then attach observers
+    const playgroundObserver = new MutationObserver(debounce(() => {
+      observeCards();
+    }, 200));
+    playgroundObserver.observe(playground, { childList: true, subtree: true });
+
+    // Initial attach (in case some cards are already present)
+    observeCards();
+
+    // Allow pressing Escape to clear search quickly
+    searchInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') {
+        searchInput.value = '';
+        evaluateSearch('');
+      }
+    });
+
+    // Run an initial evaluation (shows all)
+    evaluateSearch('');
+
+    // Accessibility: focus search on load for convenience
+    window.addEventListener('load', () => {
+      searchInput.setAttribute('autocomplete', 'off');
+      // don't force focus if user navigated with keyboard; small delay is fine
+      setTimeout(() => {
+        if (document.activeElement === document.body) searchInput.focus();
+      }, 300);
     });
   </script>
 </body>
