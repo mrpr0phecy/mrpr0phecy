@@ -1,0 +1,150 @@
+<h2 id="exam-title" style="margin-top:0;">Exam Helper</h2>
+
+<form aria-describedby="exam-desc">
+  <p id="exam-desc" class="small">Add exams and track time remaining. The next exam is highlighted.</p>
+
+  <div class="row">
+    <div class="field">
+      <label for="exam-subject">Subject</label>
+      <input id="exam-subject" type="text" placeholder="e.g. Physics" />
+    </div>
+    <div class="field">
+      <label for="exam-date">Date & time</label>
+      <input id="exam-date" type="datetime-local" />
+    </div>
+    <div class="field">
+      <label for="exam-duration">Duration (minutes)</label>
+      <input id="exam-duration" type="number" min="0" step="1" placeholder="e.g. 120" />
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field" style="flex:1;">
+      <label for="exam-notes">Notes</label>
+      <input id="exam-notes" type="text" placeholder="e.g. Bring calculator" />
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" onclick="examAdd(this)">Add Exam</button>
+    <button type="button" class="secondary" onclick="examReset(this)">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite">
+  <h3 class="small">Upcoming exams</h3>
+  <ul id="exam-list" class="small"></ul>
+
+  <div class="result">
+    <div class="label">Next exam</div>
+    <div class="value" id="exam-next">–</div>
+  </div>
+</div>
+
+<script>
+let examItems = [];
+
+function examAdd(btn) {
+  const card = btn.closest('.card');
+  const subject = card.querySelector('#exam-subject').value.trim();
+  const whenStr = card.querySelector('#exam-date').value;
+  const durationMin = parseInt(card.querySelector('#exam-duration').value, 10);
+  const notes = card.querySelector('#exam-notes').value.trim();
+
+  if (!subject || !whenStr) return;
+
+  const when = new Date(whenStr);
+  if (isNaN(when.getTime())) return;
+
+  examItems.push({
+    subject,
+    when: when.toISOString(),
+    durationMin: isNaN(durationMin) ? null : durationMin,
+    notes
+  });
+
+  examItems.sort((a, b) => new Date(a.when) - new Date(b.when));
+  renderExams(card);
+  card.querySelector('form').reset();
+}
+
+function renderExams(card) {
+  const list = card.querySelector('#exam-list');
+  list.innerHTML = "";
+
+  const now = new Date();
+  let nextExamText = "–";
+
+  examItems.forEach((item, idx) => {
+    const li = document.createElement('li');
+    const when = new Date(item.when);
+    const timeInfo = formatRemaining(now, when);
+    const parts = [
+      `<strong>${item.subject}</strong>`,
+      when.toLocaleString(),
+      timeInfo ? `(${timeInfo})` : "(started/finished)"
+    ];
+    if (item.durationMin) parts.push(`${item.durationMin} min`);
+    if (item.notes) parts.push(item.notes);
+
+    li.innerHTML = parts.join(" — ");
+
+    // next exam highlight
+    if (!timeInfo.includes("ago") && nextExamText === "–") {
+      nextExamText = `${item.subject} — ${when.toLocaleString()} — ${timeInfo}`;
+      li.style.background = "var(--card-accent, rgba(255, 215, 0, 0.15))";
+    }
+
+    // remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = "Remove";
+    removeBtn.className = "tiny";
+    removeBtn.style.marginLeft = "8px";
+    removeBtn.onclick = () => {
+      examItems.splice(idx, 1);
+      renderExams(card);
+    };
+
+    li.appendChild(removeBtn);
+    list.appendChild(li);
+  });
+
+  card.querySelector('#exam-next').textContent = nextExamText;
+}
+
+function formatRemaining(now, when) {
+  const diffMs = when - now;
+  const started = diffMs <= 0;
+  const absMs = Math.abs(diffMs);
+  const days = Math.floor(absMs / (24 * 3600 * 1000));
+  const hours = Math.floor((absMs % (24 * 3600 * 1000)) / (3600 * 1000));
+  const minutes = Math.floor((absMs % (3600 * 1000)) / (60 * 1000));
+
+  const core = `${days}d ${hours}h ${minutes}m`;
+  return started ? `${core} ago` : `${core} remaining`;
+}
+
+function examReset(btn) {
+  const card = btn.closest('.card');
+  examItems = [];
+  card.querySelector('form').reset();
+  card.querySelector('#exam-list').innerHTML = "";
+  card.querySelector('#exam-next').textContent = "–";
+}
+
+// live ticker to keep countdown fresh
+(function examTicker() {
+  const tick = () => {
+    // find all cards on page in case of multiple instances
+    document.querySelectorAll('.card').forEach(card => {
+      if (card.querySelector('#exam-list')) renderExams(card);
+    });
+  };
+  setInterval(tick, 60000); // update every minute
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) tick();
+  });
+  // initial render
+  tick();
+})();
+</script>
