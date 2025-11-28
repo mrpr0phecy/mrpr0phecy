@@ -1,0 +1,114 @@
+<h2 id="formula-library-title" style="margin-top:0;">Formula Library</h2>
+
+<form aria-describedby="formula-library-desc">
+  <p id="formula-library-desc" class="small">Browse and calculate with common scientific formulas. Select a formula, enter values, and get results with steps.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="fl-formula">Formula</label>
+      <select id="fl-formula" style="width:100%;">
+        <option value="newton2" selected>Newton’s Second Law (F = m·a)</option>
+        <option value="ohm">Ohm’s Law (V = I·R)</option>
+        <option value="ideal-gas">Ideal Gas Law (PV = nRT)</option>
+        <option value="wave">Wave Speed (v = f·λ)</option>
+        <option value="density">Density (ρ = m/V)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="fl-values">Values</label>
+      <input id="fl-values" type="text" placeholder="e.g. m=10,a=2" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="fl-show-steps">Show steps</label>
+      <select id="fl-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="flCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="flReset(this)">Reset</button>
+    <button type="button" onclick="flCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Result</h3>
+  <textarea id="fl-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="fl-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* formula-library.html
+   - Provides common scientific formulas
+   - Scoped with fl- prefix
+*/
+
+function flReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#fl-output').value="";
+  card.querySelector('#fl-hint').textContent="";
+}
+
+function flCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#fl-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#fl-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parseFL(str){
+  const vals={};
+  str.split(',').forEach(p=>{
+    const [k,v]=p.split('=');
+    if(k&&v)vals[k.trim()]=parseFloat(v);
+  });
+  return vals;
+}
+
+function flCalculate(btn){
+  const card=btn.closest('.card');
+  const formula=card.querySelector('#fl-formula').value;
+  const vals=parseFL(card.querySelector('#fl-values').value||"");
+  const showSteps=card.querySelector('#fl-show-steps').value==="yes";
+  let output="";
+  if(formula==="newton2"&&vals.m&&vals.a){
+    const F=vals.m*vals.a;
+    output=`Force = ${F} N`;
+    if(showSteps)output+=`\nSteps: F = m·a.`;
+  } else if(formula==="ohm"&&vals.I&&vals.R){
+    const V=vals.I*vals.R;
+    output=`Voltage = ${V} V`;
+    if(showSteps)output+=`\nSteps: V = I·R.`;
+  } else if(formula==="ideal-gas"&&vals.P&&vals.V&&vals.n&&vals.R&&vals.T){
+    const lhs=vals.P*vals.V;
+    const rhs=vals.n*vals.R*vals.T;
+    output=`PV = ${lhs}, nRT = ${rhs}`;
+    if(showSteps)output+=`\nSteps: PV = nRT.`;
+  } else if(formula==="wave"&&vals.f&&vals.lambda){
+    const v=vals.f*vals.lambda;
+    output=`Wave speed = ${v} m/s`;
+    if(showSteps)output+=`\nSteps: v = f·λ.`;
+  } else if(formula==="density"&&vals.m&&vals.V){
+    const rho=vals.m/vals.V;
+    output=`Density = ${rho} kg/m³`;
+    if(showSteps)output+=`\nSteps: ρ = m/V.`;
+  } else {
+    output="Please provide correct values.";
+  }
+  card.querySelector('#fl-output').value=output;
+  card.querySelector('#fl-hint').textContent="Result generated.";
+}
+</script>
