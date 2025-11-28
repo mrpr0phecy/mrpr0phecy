@@ -1,0 +1,113 @@
+<h2 id="physics-tools-title" style="margin-top:0;">Physics Tools</h2>
+
+<form aria-describedby="physics-tools-desc">
+  <p id="physics-tools-desc" class="small">Calculate basic physics quantities. Choose a tool, enter values, and get results with formulas.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="phys-tool">Tool</label>
+      <select id="phys-tool" style="width:100%;">
+        <option value="force" selected>Force (F = m·a)</option>
+        <option value="work">Work (W = F·d)</option>
+        <option value="power">Power (P = W/t)</option>
+        <option value="kinetic">Kinetic Energy (KE = ½mv²)</option>
+        <option value="potential">Potential Energy (PE = mgh)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="phys-values">Values</label>
+      <input id="phys-values" type="text" placeholder="e.g. m=10,a=2" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="phys-show-steps">Show steps</label>
+      <select id="phys-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="physCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="physReset(this)">Reset</button>
+    <button type="button" onclick="physCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Results</h3>
+  <textarea id="phys-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="phys-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* physics-tools.html
+   - Calculates basic physics quantities
+   - Scoped with phys- prefix
+*/
+
+function physReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#phys-output').value="";
+  card.querySelector('#phys-hint').textContent="";
+}
+
+function physCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#phys-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#phys-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parsePhys(str){
+  const vals={};
+  str.split(',').forEach(p=>{
+    const [k,v]=p.split('=');
+    if(k&&v)vals[k.trim()]=parseFloat(v);
+  });
+  return vals;
+}
+
+function physCalculate(btn){
+  const card=btn.closest('.card');
+  const tool=card.querySelector('#phys-tool').value;
+  const vals=parsePhys(card.querySelector('#phys-values').value||"");
+  const showSteps=card.querySelector('#phys-show-steps').value==="yes";
+  let output="";
+  if(tool==="force"&&vals.m&&vals.a){
+    const F=vals.m*vals.a;
+    output=`Force = ${F} N`;
+    if(showSteps)output+=`\nSteps: F = m·a.`;
+  } else if(tool==="work"&&vals.F&&vals.d){
+    const W=vals.F*vals.d;
+    output=`Work = ${W} J`;
+    if(showSteps)output+=`\nSteps: W = F·d.`;
+  } else if(tool==="power"&&vals.W&&vals.t){
+    const P=vals.W/vals.t;
+    output=`Power = ${P} W`;
+    if(showSteps)output+=`\nSteps: P = W/t.`;
+  } else if(tool==="kinetic"&&vals.m&&vals.v){
+    const KE=0.5*vals.m*vals.v*vals.v;
+    output=`Kinetic Energy = ${KE} J`;
+    if(showSteps)output+=`\nSteps: KE = ½mv².`;
+  } else if(tool==="potential"&&vals.m&&vals.g&&vals.h){
+    const PE=vals.m*vals.g*vals.h;
+    output=`Potential Energy = ${PE} J`;
+    if(showSteps)output+=`\nSteps: PE = mgh.`;
+  } else {
+    output="Please provide correct values.";
+  }
+  card.querySelector('#phys-output').value=output;
+  card.querySelector('#phys-hint').textContent="Results generated.";
+}
+</script>
