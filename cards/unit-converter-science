@@ -1,0 +1,130 @@
+<h2 id="unit-converter-science-title" style="margin-top:0;">Science Unit Converter</h2>
+
+<form aria-describedby="unit-converter-science-desc">
+  <p id="unit-converter-science-desc" class="small">Convert between scientific units (physics, chemistry, biology) and explore conversion facts.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="ucs-tool">Conversion</label>
+      <select id="ucs-tool" style="width:100%;">
+        <option value="energy" selected>Energy (J ↔ cal)</option>
+        <option value="temperature">Temperature (°C ↔ K)</option>
+        <option value="length">Length (m ↔ nm)</option>
+        <option value="mass">Mass (mol ↔ g)</option>
+        <option value="pressure">Pressure (atm ↔ Pa)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="ucs-values">Values</label>
+      <input id="ucs-values" type="text" placeholder="e.g. J=1000 or mol=2,M=18" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="ucs-show-facts">Show Conversion Facts</label>
+      <select id="ucs-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="ucsConvert(this)">Convert</button>
+    <button type="button" class="secondary" onclick="ucsReset(this)">Reset</button>
+    <button type="button" onclick="ucsCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Conversion Result & Facts</h3>
+  <textarea id="ucs-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="ucs-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>1 calorie = 4.184 joules.</li>
+      <li>Absolute zero is 0 K = −273.15 °C.</li>
+      <li>1 nanometer = 1×10⁻⁹ meters.</li>
+      <li>1 mole of gas at STP occupies 22.4 liters.</li>
+      <li>1 atmosphere = 101,325 pascals.</li>
+      <li>Avogadro’s number: 6.022×10²³ particles per mole.</li>
+      <li>Water’s density ≈ 1 g/cm³, so 1 liter ≈ 1 kg.</li>
+      <li>Boltzmann constant: 1.38×10⁻²³ J/K.</li>
+      <li>Planck’s constant: 6.626×10⁻³⁴ J·s.</li>
+      <li>Speed of light: 299,792,458 m/s.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="ucs-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* unit-converter-science.html
+   - Converts scientific units and shows facts
+   - Scoped with ucs- prefix
+*/
+
+function ucsReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#ucs-output').value="";
+  card.querySelector('#ucs-hint').textContent="";
+  card.querySelector('#ucs-facts-container').style.display="none";
+}
+
+function ucsCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#ucs-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#ucs-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parseUcs(str){
+  const vals={};
+  str.split(',').forEach(p=>{
+    const [k,v]=p.split('=');
+    if(k&&v)vals[k.trim()]=parseFloat(v);
+  });
+  return vals;
+}
+
+function ucsConvert(btn){
+  const card=btn.closest('.card');
+  const tool=card.querySelector('#ucs-tool').value;
+  const vals=parseUcs(card.querySelector('#ucs-values').value||"");
+  const showFacts=card.querySelector('#ucs-show-facts').value==="yes";
+  let output="";
+  if(tool==="energy"&&vals.J){
+    output=`${vals.J} J = ${(vals.J/4.184).toFixed(2)} cal`;
+  } else if(tool==="energy"&&vals.cal){
+    output=`${vals.cal} cal = ${(vals.cal*4.184).toFixed(2)} J`;
+  } else if(tool==="temperature"&&vals.C){
+    output=`${vals.C} °C = ${(vals.C+273.15).toFixed(2)} K`;
+  } else if(tool==="temperature"&&vals.K){
+    output=`${vals.K} K = ${(vals.K-273.15).toFixed(2)} °C`;
+  } else if(tool==="length"&&vals.m){
+    output=`${vals.m} m = ${(vals.m*1e9).toFixed(2)} nm`;
+  } else if(tool==="length"&&vals.nm){
+    output=`${vals.nm} nm = ${(vals.nm*1e-9).toFixed(9)} m`;
+  } else if(tool==="mass"&&vals.mol&&vals.M){
+    output=`${vals.mol} mol × ${vals.M} g/mol = ${(vals.mol*vals.M).toFixed(2)} g`;
+  } else if(tool==="mass"&&vals.g&&vals.M){
+    output=`${vals.g} g ÷ ${vals.M} g/mol = ${(vals.g/vals.M).toFixed(2)} mol`;
+  } else if(tool==="pressure"&&vals.atm){
+    output=`${vals.atm} atm = ${(vals.atm*101325).toFixed(0)} Pa`;
+  } else if(tool==="pressure"&&vals.Pa){
+    output=`${vals.Pa} Pa = ${(vals.Pa/101325).toFixed(3)} atm`;
+  } else {
+    output="Please provide correct values.";
+  }
+  card.querySelector('#ucs-output').value=output;
+  card.querySelector('#ucs-hint').textContent="Conversion done.";
+  card.querySelector('#ucs-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
