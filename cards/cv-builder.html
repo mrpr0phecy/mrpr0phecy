@@ -1,0 +1,341 @@
+<h2 id="cv-builder-title" style="margin-top:0;">CV Builder</h2>
+
+<form aria-describedby="cv-builder-desc">
+  <p id="cv-builder-desc" class="small">Build a clean CV quickly. Add personal details, experience, education, and skills. Generate a formatted CV you can copy into a document or paste into an application.</p>
+
+  <div class="row">
+    <div class="field">
+      <label for="cv-name">Full name</label>
+      <input id="cv-name" type="text" placeholder="e.g. Alex Morgan" />
+    </div>
+    <div class="field">
+      <label for="cv-role">Professional title</label>
+      <input id="cv-role" type="text" placeholder="e.g. Product Designer" />
+    </div>
+    <div class="field">
+      <label for="cv-contact">Contact (email / phone / location)</label>
+      <input id="cv-contact" type="text" placeholder="e.g. alex@example.com · +44 7123 456789 · Luton, UK" />
+    </div>
+  </div>
+
+  <hr style="opacity:0.06;margin:12px 0;"/>
+
+  <h3 class="small" style="margin:8px 0;">Experience</h3>
+  <div id="cv-experience-list" class="small" style="margin-bottom:8px;"></div>
+
+  <div class="row">
+    <div class="field">
+      <label for="cv-exp-role">Role / Job title</label>
+      <input id="cv-exp-role" type="text" placeholder="e.g. Senior Developer" />
+    </div>
+    <div class="field">
+      <label for="cv-exp-company">Company</label>
+      <input id="cv-exp-company" type="text" placeholder="e.g. Acme Ltd" />
+    </div>
+    <div class="field">
+      <label for="cv-exp-dates">Dates</label>
+      <input id="cv-exp-dates" type="text" placeholder="e.g. Jan 2020 – Present" />
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field" style="flex:2;">
+      <label for="cv-exp-desc">Short description / achievements (comma-separated)</label>
+      <input id="cv-exp-desc" type="text" placeholder="e.g. Led redesign; improved retention by 12%" />
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" onclick="cvAddExperience(this)">Add Experience</button>
+    <button type="button" class="secondary" onclick="cvClearExperience(this)">Clear Experience</button>
+  </div>
+
+  <hr style="opacity:0.06;margin:12px 0;"/>
+
+  <h3 class="small" style="margin:8px 0;">Education</h3>
+  <div id="cv-education-list" class="small" style="margin-bottom:8px;"></div>
+
+  <div class="row">
+    <div class="field">
+      <label for="cv-edu-degree">Degree / Qualification</label>
+      <input id="cv-edu-degree" type="text" placeholder="e.g. BSc Computer Science" />
+    </div>
+    <div class="field">
+      <label for="cv-edu-school">Institution</label>
+      <input id="cv-edu-school" type="text" placeholder="e.g. University of Bedfordshire" />
+    </div>
+    <div class="field">
+      <label for="cv-edu-dates">Dates</label>
+      <input id="cv-edu-dates" type="text" placeholder="e.g. 2016 – 2019" />
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" onclick="cvAddEducation(this)">Add Education</button>
+    <button type="button" class="secondary" onclick="cvClearEducation(this)">Clear Education</button>
+  </div>
+
+  <hr style="opacity:0.06;margin:12px 0;"/>
+
+  <div class="row">
+    <div class="field" style="flex:2;">
+      <label for="cv-skills">Skills (comma-separated)</label>
+      <input id="cv-skills" type="text" placeholder="e.g. JavaScript, UX, SQL, Communication" />
+    </div>
+    <div class="field">
+      <label for="cv-languages">Languages (comma-separated)</label>
+      <input id="cv-languages" type="text" placeholder="e.g. English (native), Spanish (conversational)" />
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:8px;">
+    <div class="field" style="flex:1;">
+      <label for="cv-profile">Professional profile (1–2 sentences)</label>
+      <input id="cv-profile" type="text" placeholder="Concise summary of experience and strengths" />
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <label style="display:inline-flex;align-items:center;gap:8px;">
+      <input id="cv-template" type="radio" name="cv-template" value="concise" checked /> <span class="small">Concise</span>
+    </label>
+    <label style="display:inline-flex;align-items:center;gap:8px;margin-left:12px;">
+      <input id="cv-template-2" type="radio" name="cv-template" value="detailed" /> <span class="small">Detailed</span>
+    </label>
+
+    <button type="button" onclick="cvGenerate(this)" style="margin-left:auto;">Generate CV</button>
+    <button type="button" class="secondary" onclick="cvReset(this)">Reset All</button>
+    <button type="button" onclick="cvCopy(this)">Copy CV</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Generated CV</h3>
+  <textarea id="cv-output" rows="14" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Estimated words: <span id="cv-wordcount">0</span></div>
+    <div id="cv-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* CV Builder
+   - Scripts scoped using btn.closest('.card') so multiple instances are safe
+   - Allows adding multiple experience and education entries
+   - Generates a plain-text CV that can be copied into a document
+*/
+
+function cvReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#cv-experience-list').innerHTML = "";
+  card.querySelector('#cv-education-list').innerHTML = "";
+  card.querySelector('#cv-output').value = "";
+  card.querySelector('#cv-wordcount').textContent = "0";
+  card.querySelector('#cv-hint').textContent = "";
+  // clear internal arrays
+  card._cvExperience = [];
+  card._cvEducation = [];
+}
+
+function cvAddExperience(btn) {
+  const card = btn.closest('.card');
+  card._cvExperience = card._cvExperience || [];
+
+  const role = card.querySelector('#cv-exp-role').value.trim();
+  const company = card.querySelector('#cv-exp-company').value.trim();
+  const dates = card.querySelector('#cv-exp-dates').value.trim();
+  const desc = card.querySelector('#cv-exp-desc').value.trim();
+
+  if (!role && !company) return;
+
+  const entry = { role, company, dates, desc };
+  card._cvExperience.push(entry);
+  renderExperienceList(card);
+  card.querySelector('#cv-exp-role').value = "";
+  card.querySelector('#cv-exp-company').value = "";
+  card.querySelector('#cv-exp-dates').value = "";
+  card.querySelector('#cv-exp-desc').value = "";
+}
+
+function renderExperienceList(card) {
+  const list = card.querySelector('#cv-experience-list');
+  list.innerHTML = "";
+  (card._cvExperience || []).forEach((e, idx) => {
+    const div = document.createElement('div');
+    div.style.display = "flex";
+    div.style.justifyContent = "space-between";
+    div.style.alignItems = "center";
+    div.style.padding = "6px 0";
+    div.innerHTML = `<div><strong>${escapeHtml(e.role || "")}</strong> — ${escapeHtml(e.company || "")} <span style="opacity:0.85">(${escapeHtml(e.dates || "")})</span><div style="opacity:0.9">${escapeHtml(e.desc || "")}</div></div>`;
+    const remove = document.createElement('button');
+    remove.className = "tiny";
+    remove.textContent = "Remove";
+    remove.onclick = () => {
+      card._cvExperience.splice(idx, 1);
+      renderExperienceList(card);
+    };
+    div.appendChild(remove);
+    list.appendChild(div);
+  });
+}
+
+function cvClearExperience(btn) {
+  const card = btn.closest('.card');
+  card._cvExperience = [];
+  renderExperienceList(card);
+}
+
+function cvAddEducation(btn) {
+  const card = btn.closest('.card');
+  card._cvEducation = card._cvEducation || [];
+
+  const degree = card.querySelector('#cv-edu-degree').value.trim();
+  const school = card.querySelector('#cv-edu-school').value.trim();
+  const dates = card.querySelector('#cv-edu-dates').value.trim();
+
+  if (!degree && !school) return;
+
+  const entry = { degree, school, dates };
+  card._cvEducation.push(entry);
+  renderEducationList(card);
+  card.querySelector('#cv-edu-degree').value = "";
+  card.querySelector('#cv-edu-school').value = "";
+  card.querySelector('#cv-edu-dates').value = "";
+}
+
+function renderEducationList(card) {
+  const list = card.querySelector('#cv-education-list');
+  list.innerHTML = "";
+  (card._cvEducation || []).forEach((e, idx) => {
+    const div = document.createElement('div');
+    div.style.display = "flex";
+    div.style.justifyContent = "space-between";
+    div.style.alignItems = "center";
+    div.style.padding = "6px 0";
+    div.innerHTML = `<div><strong>${escapeHtml(e.degree || "")}</strong> — ${escapeHtml(e.school || "")} <span style="opacity:0.85">(${escapeHtml(e.dates || "")})</span></div>`;
+    const remove = document.createElement('button');
+    remove.className = "tiny";
+    remove.textContent = "Remove";
+    remove.onclick = () => {
+      card._cvEducation.splice(idx, 1);
+      renderEducationList(card);
+    };
+    div.appendChild(remove);
+    list.appendChild(div);
+  });
+}
+
+function cvClearEducation(btn) {
+  const card = btn.closest('.card');
+  card._cvEducation = [];
+  renderEducationList(card);
+}
+
+function cvGenerate(btn) {
+  const card = btn.closest('.card');
+  const name = card.querySelector('#cv-name').value.trim();
+  const role = card.querySelector('#cv-role').value.trim();
+  const contact = card.querySelector('#cv-contact').value.trim();
+  const profile = card.querySelector('#cv-profile').value.trim();
+  const skillsRaw = card.querySelector('#cv-skills').value.trim();
+  const languagesRaw = card.querySelector('#cv-languages').value.trim();
+  const template = (card.querySelector('input[name="cv-template"]:checked') || {}).value || 'concise';
+
+  const skills = skillsRaw ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const languages = languagesRaw ? languagesRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const exp = card._cvExperience || [];
+  const edu = card._cvEducation || [];
+
+  if (!name) {
+    card.querySelector('#cv-hint').textContent = "Please enter your name.";
+    return;
+  }
+
+  // Build CV text
+  let lines = [];
+  lines.push(name);
+  if (role) lines.push(role);
+  if (contact) lines.push(contact);
+  lines.push(""); // blank line
+
+  if (profile) {
+    lines.push("Profile");
+    lines.push(profile);
+    lines.push("");
+  }
+
+  if (exp.length) {
+    lines.push("Experience");
+    exp.forEach(e => {
+      const header = `${e.role || ""}${e.role && e.company ? " — " : ""}${e.company || ""}${e.dates ? " (" + e.dates + ")" : ""}`;
+      lines.push(header);
+      if (e.desc) {
+        // split comma-separated achievements into bullets
+        const bullets = e.desc.split(',').map(b => b.trim()).filter(Boolean);
+        bullets.forEach(b => lines.push(`- ${b}`));
+      }
+      lines.push("");
+    });
+  }
+
+  if (edu.length) {
+    lines.push("Education");
+    edu.forEach(e => {
+      const header = `${e.degree || ""}${e.degree && e.school ? " — " : ""}${e.school || ""}${e.dates ? " (" + e.dates + ")" : ""}`;
+      lines.push(header);
+      lines.push("");
+    });
+  }
+
+  if (skills.length) {
+    lines.push("Skills");
+    lines.push(skills.join(', '));
+    lines.push("");
+  }
+
+  if (languages.length) {
+    lines.push("Languages");
+    lines.push(languages.join(', '));
+    lines.push("");
+  }
+
+  // Template variations: concise vs detailed
+  let outputText = lines.join("\n");
+  if (template === 'detailed') {
+    // add short tips for each section to help the user expand
+    outputText += "\n\n---\nTips:\n- Profile: Keep it specific and quantify achievements where possible.\n- Experience: Use action verbs and quantify impact (e.g. increased X by Y%).\n- Education: Include relevant modules or honours if recent.\n- Skills: Prioritise skills mentioned in the job description.";
+  }
+
+  card.querySelector('#cv-output').value = outputText;
+  card.querySelector('#cv-wordcount').textContent = estimateWords(outputText);
+  card.querySelector('#cv-hint').textContent = "CV generated. Copy and paste into your preferred editor to format and export.";
+}
+
+function cvCopy(btn) {
+  const card = btn.closest('.card');
+  const out = card.querySelector('#cv-output').value;
+  if (!out.trim()) return;
+  navigator.clipboard?.writeText(out).then(() => {
+    const hint = card.querySelector('#cv-hint');
+    hint.textContent = "Copied to clipboard.";
+    setTimeout(() => { if (hint.textContent === "Copied to clipboard.") hint.textContent = ""; }, 1800);
+  }).catch(() => {
+    alert("Copy failed — select the text and copy manually.");
+  });
+}
+
+/* Utility helpers */
+
+function estimateWords(text) {
+  return (text.trim().split(/\s+/).filter(Boolean).length).toString();
+}
+
+function escapeHtml(s) {
+  if (!s) return "";
+  return s.replace(/[&<>"']/g, function (m) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m];
+  });
+}
+</script>
