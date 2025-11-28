@@ -1,0 +1,147 @@
+<h2 id="email-templates-title" style="margin-top:0;">Email Templates</h2>
+
+<form aria-describedby="email-templates-desc">
+  <p id="email-templates-desc" class="small">Generate professional email drafts quickly. Choose the type, enter recipient and purpose, then get a polished template you can edit and send.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="et-type">Email type</label>
+      <select id="et-type" style="width:100%;">
+        <option value="formal">Formal business</option>
+        <option value="informal">Informal / friendly</option>
+        <option value="thankyou">Thank you</option>
+        <option value="followup">Follow‑up</option>
+        <option value="request">Request / inquiry</option>
+        <option value="apology">Apology</option>
+        <option value="announcement">Announcement</option>
+        <option value="invitation">Invitation</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="et-tone">Tone</label>
+      <select id="et-tone" style="width:100%;">
+        <option>Formal</option>
+        <option>Neutral</option>
+        <option>Friendly</option>
+        <option>Persuasive</option>
+      </select>
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="et-recipient">Recipient</label>
+      <input id="et-recipient" type="text" placeholder="e.g. Hiring Manager, Client, Team" style="width:100%;" />
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="et-purpose">Purpose</label>
+      <input id="et-purpose" type="text" placeholder="e.g. Requesting a meeting, thanking for support" style="width:100%;" />
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="et-details">Key details (optional)</label>
+      <textarea id="et-details" rows="4" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;" placeholder="Add specifics like dates, times, or context..."></textarea>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="etGenerateEmail(this)">Generate Email</button>
+    <button type="button" class="secondary" onclick="etReset(this)">Reset</button>
+    <button type="button" onclick="etCopy(this)">Copy</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Generated email</h3>
+  <textarea id="et-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Estimated words: <span id="et-wordcount">0</span></div>
+    <div id="et-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* email-templates.html
+   - Generates email drafts based on type, tone, recipient, and purpose
+   - Scoped with et- prefix
+*/
+
+function etReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#et-output').value="";
+  card.querySelector('#et-wordcount').textContent="0";
+  card.querySelector('#et-hint').textContent="";
+}
+
+function etCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#et-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#et-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function etGenerateEmail(btn){
+  const card=btn.closest('.card');
+  const type=card.querySelector('#et-type').value;
+  const tone=card.querySelector('#et-tone').value;
+  const recipient=(card.querySelector('#et-recipient').value||"").trim();
+  const purpose=(card.querySelector('#et-purpose').value||"").trim();
+  const details=(card.querySelector('#et-details').value||"").trim();
+
+  if(!recipient||!purpose){
+    card.querySelector('#et-hint').textContent="Please enter recipient and purpose.";
+    return;
+  }
+
+  const draft=buildEmail({type,tone,recipient,purpose,details});
+  card.querySelector('#et-output').value=draft;
+  card.querySelector('#et-wordcount').textContent=estimateWords(draft);
+  card.querySelector('#et-hint').textContent="Email generated. Edit before sending.";
+}
+
+function buildEmail(opts){
+  const {type,tone,recipient,purpose,details}=opts;
+  const greeting=tone==="Friendly"?"Hi":"Dear";
+  const closing=tone==="Friendly"?"Best regards":"Sincerely";
+  let body="";
+
+  switch(type){
+    case "formal":
+      body=`I am writing to ${purpose}. ${details?details:""} I appreciate your attention to this matter.`;
+      break;
+    case "informal":
+      body=`Just wanted to ${purpose}. ${details?details:""} Thanks for your time!`;
+      break;
+    case "thankyou":
+      body=`I want to express my gratitude for ${purpose}. ${details?details:""} Your support means a lot.`;
+      break;
+    case "followup":
+      body=`I am following up regarding ${purpose}. ${details?details:""} Please let me know if there are updates.`;
+      break;
+    case "request":
+      body=`Could you please assist with ${purpose}? ${details?details:""} I would greatly appreciate your help.`;
+      break;
+    case "apology":
+      body=`I would like to apologize for ${purpose}. ${details?details:""} I value our relationship and will ensure this does not happen again.`;
+      break;
+    case "announcement":
+      body=`I am pleased to announce ${purpose}. ${details?details:""} Looking forward to your feedback.`;
+      break;
+    case "invitation":
+      body=`You are warmly invited to ${purpose}. ${details?details:""} I hope you can join us.`;
+      break;
+    default:
+      body=`I am writing regarding ${purpose}. ${details?details:""}`;
+  }
+
+  return `${greeting} ${recipient},\n\n${body}\n\n${closing},\n[Your Name]`;
+}
+
+function estimateWords(text){return(text.trim().split(/\s+/).filter(Boolean).length).toString();}
+</script>
