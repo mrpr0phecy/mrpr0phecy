@@ -1,0 +1,115 @@
+<h2 id="literature-analysis-title" style="margin-top:0;">Literature Analysis</h2>
+
+<form aria-describedby="literature-analysis-desc">
+  <p id="literature-analysis-desc" class="small">Analyze a passage of literature. Paste text, choose focus (theme, character, style, symbolism), and generate structured notes to guide deeper interpretation.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="la-text">Passage</label>
+      <textarea id="la-text" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;" placeholder="Paste a passage from literature..."></textarea>
+    </div>
+
+    <div class="field">
+      <label for="la-focus">Focus</label>
+      <select id="la-focus" style="width:100%;">
+        <option value="theme">Theme</option>
+        <option value="character">Character</option>
+        <option value="style">Style / language</option>
+        <option value="symbolism">Symbolism</option>
+        <option value="tone">Tone / mood</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="la-depth">Depth</label>
+      <select id="la-depth" style="width:100%;">
+        <option value="short">Short notes</option>
+        <option value="medium" selected>Medium analysis</option>
+        <option value="long">Detailed analysis</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="laAnalyze(this)">Analyze</button>
+    <button type="button" class="secondary" onclick="laReset(this)">Reset</button>
+    <button type="button" onclick="laCopy(this)">Copy Notes</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Analysis notes</h3>
+  <textarea id="la-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Estimated words: <span id="la-wordcount">0</span></div>
+    <div id="la-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* literature-analysis.html
+   - Generates structured notes for literary analysis
+   - Scoped with la- prefix
+*/
+
+function laReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#la-output').value="";
+  card.querySelector('#la-wordcount').textContent="0";
+  card.querySelector('#la-hint').textContent="";
+}
+
+function laCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#la-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#la-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function laAnalyze(btn){
+  const card=btn.closest('.card');
+  const text=(card.querySelector('#la-text').value||"").trim();
+  const focus=card.querySelector('#la-focus').value;
+  const depth=card.querySelector('#la-depth').value;
+  if(!text){card.querySelector('#la-hint').textContent="Please paste a passage.";return;}
+  const notes=buildAnalysis({text,focus,depth});
+  card.querySelector('#la-output').value=notes;
+  card.querySelector('#la-wordcount').textContent=estimateWords(notes);
+  card.querySelector('#la-hint').textContent="Analysis generated.";
+}
+
+function buildAnalysis(opts){
+  const {text,focus,depth}=opts;
+  const intro=`Passage excerpt: "${text.slice(0,80)}..."`;
+  let body="";
+  switch(focus){
+    case "theme":
+      body="Theme analysis:\n- Identify central ideas.\n- Explore how the passage reflects broader concerns.\n- Note recurring motifs.";
+      break;
+    case "character":
+      body="Character analysis:\n- Examine traits revealed.\n- Consider motivations and conflicts.\n- Note relationships and development.";
+      break;
+    case "style":
+      body="Style analysis:\n- Look at diction and syntax.\n- Identify figurative language.\n- Comment on rhythm and structure.";
+      break;
+    case "symbolism":
+      body="Symbolism analysis:\n- Identify symbols or imagery.\n- Interpret possible meanings.\n- Connect to themes.";
+      break;
+    case "tone":
+      body="Tone analysis:\n- Describe mood created.\n- Note emotional impact.\n- Consider narrator’s attitude.";
+      break;
+  }
+  const depthNote=depth==="short"?"Keep notes concise.":
+                  depth==="medium"?"Provide balanced detail.":
+                  "Offer extended commentary with examples.";
+  return `${intro}\n\n${body}\n\n${depthNote}`;
+}
+
+function estimateWords(text){return(text.trim().split(/\s+/).filter(Boolean).length).toString();}
+</script>
