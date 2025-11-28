@@ -1,0 +1,380 @@
+<h2 id="grammar-proof-title" style="margin-top:0;">Grammar Proofreader</h2>
+
+<form aria-describedby="grammar-proof-desc">
+  <p id="grammar-proof-desc" class="small">Paste text below to check for common grammar, punctuation, and style issues. Click a suggestion to apply it, or use "Apply All" to accept all non‑controversial fixes. Toggle "Explain fixes" for brief guidance (premium feature placeholder).</p>
+
+  <div class="row">
+    <div class="field" style="flex:1;">
+      <label for="gp-text">Your text</label>
+      <textarea id="gp-text" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" onclick="gpCheck(this)">Check Grammar</button>
+    <button type="button" class="secondary" onclick="gpClear(this)">Clear</button>
+    <button type="button" onclick="gpApplyAll(this)">Apply All</button>
+    <label style="display:inline-flex;align-items:center;gap:8px;margin-left:8px;">
+      <input id="gp-explain" type="checkbox" style="transform:scale(1.05);" />
+      <span class="small">Explain fixes</span>
+    </label>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <div class="result">
+    <div class="label">Summary</div>
+    <div class="value small" id="gp-summary">No check performed yet.</div>
+  </div>
+
+  <h3 class="small" style="margin-top:12px;">Suggestions</h3>
+  <ul id="gp-suggestions" class="small" style="list-style:none;padding-left:0;"></ul>
+
+  <div style="margin-top:12px;">
+    <div class="label small">Word count</div>
+    <div class="value small" id="gp-wordcount">0</div>
+  </div>
+</div>
+
+<script>
+/*
+  Grammar Proofreader
+  - Lightweight, client-side checks for common mistakes:
+    * its / it's
+    * your / you're
+    * their / there / they're
+    * then / than
+    * double spaces
+    * repeated words
+    * missing space after punctuation
+    * capitalization of sentence starts and "I"
+    * common contractions expanded/incorrect
+  - Suggestions are non-destructive until applied.
+  - Scripts scoped using btn.closest('.card') for modularity.
+*/
+
+function gpClear(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('#gp-text').value = "";
+  card.querySelector('#gp-suggestions').innerHTML = "";
+  card.querySelector('#gp-summary').textContent = "Cleared.";
+  card.querySelector('#gp-wordcount').textContent = "0";
+}
+
+function gpCheck(btn) {
+  const card = btn.closest('.card');
+  const textEl = card.querySelector('#gp-text');
+  const text = textEl.value || "";
+  const explain = card.querySelector('#gp-explain').checked;
+
+  const suggestions = analyzeText(text);
+
+  renderSuggestions(card, suggestions, explain);
+  updateSummary(card, text, suggestions);
+}
+
+function gpApplyAll(btn) {
+  const card = btn.closest('.card');
+  const textEl = card.querySelector('#gp-text');
+  let text = textEl.value || "";
+
+  const suggestions = analyzeText(text);
+
+  // Apply suggestions in order from end to start to preserve indices
+  suggestions
+    .slice()
+    .sort((a,b) => b.index - a.index)
+    .forEach(s => {
+      if (s.replacement !== null) {
+        text = text.slice(0, s.index) + s.replacement + text.slice(s.index + s.length);
+      }
+    });
+
+  textEl.value = text;
+  // re-run check to refresh suggestions
+  gpCheck(btn);
+}
+
+/* Analyze text and return array of suggestion objects:
+   { index, length, original, replacement, message, severity }
+*/
+function analyzeText(text) {
+  const suggestions = [];
+  if (!text || !text.trim()) return suggestions;
+
+  // helper to push suggestion if match found
+  function pushSuggestion(index, length, original, replacement, message, severity = "info") {
+    suggestions.push({ index, length, original, replacement, message, severity });
+  }
+
+  // 1) double spaces
+  const doubleSpaceRegex = / {2,}/g;
+  let m;
+  while ((m = doubleSpaceRegex.exec(text)) !== null) {
+    pushSuggestion(m.index, m[0].length, m[0], " ", "Replace multiple spaces with a single space", "minor");
+  }
+
+  // 2) missing space after punctuation (e.g., ".Word" or ",Word")
+  const punctSpaceRegex = /([.,;:!?])([A-Za-z0-9"“”'‘’])/g;
+  while ((m = punctSpaceRegex.exec(text)) !== null) {
+    // avoid flagging abbreviations like "e.g." by requiring previous char not lowercase letter followed by dot and lowercase
+    pushSuggestion(m.index, 2, m[0], m[1] + " " + m[2], "Add a space after punctuation", "minor");
+  }
+
+  // 3) repeated words (e.g., "the the")
+  const repeatedWordRegex = /\b([A-Za-z']+)\s+\1\b/gi;
+  while ((m = repeatedWordRegex.exec(text)) !== null) {
+    pushSuggestion(m.index, m[0].length, m[0], m[1], `Remove repeated word "${m[1]}"`, "minor");
+  }
+
+  // 4) common confusions (its/it's, your/you're, their/there/they're, then/than)
+  const confusionPatterns = [
+    { regex: /\bits\b/gi, check: (ctx, idx) => {
+        // naive: if followed by verb "is" contraction it's often "it's"
+        // We'll look for patterns like "its not" -> "it's not"
+        const after = ctx.slice(idx + 3, idx + 10).toLowerCase();
+        if (/^(not|n't|\s+is|\s+was|\s+has|\s+will|\s+should)/.test(after)) return { replacement: "it's", reason: "Possibly should be \"it's\" (it is / it has)" };
+        return null;
+      }
+    },
+    { regex: /\bit's\b/gi, check: (ctx, idx) => {
+        // if "it's" used before a noun possessive like "it's color" -> likely "its"
+        const after = ctx.slice(idx + 4, idx + 20);
+        if (/^\s+[A-Za-z]+/.test(after) && !/^(is|was|has|will|should|n't)/i.test(after.trim())) return { replacement: "its", reason: "Possibly should be \"its\" (possessive)" };
+        return null;
+      }
+    },
+    { regex: /\byour\b/gi, check: (ctx, idx) => {
+        const after = ctx.slice(idx + 4, idx + 12).toLowerCase();
+        if (/^(welcome|honor|sincerely|truly)/.test(after)) return null;
+        // if followed by verb contraction like "you're" patterns
+        return null;
+      }
+    },
+    { regex: /\byoure\b/gi, check: (ctx, idx) => null }, // misspelling of you're
+    { regex: /\byou're\b/gi, check: (ctx, idx) => null },
+    { regex: /\btheir\b/gi, check: (ctx, idx) => null },
+    { regex: /\bthere\b/gi, check: (ctx, idx) => null },
+    { regex: /\bthey're\b/gi, check: (ctx, idx) => null },
+    { regex: /\bthen\b/gi, check: (ctx, idx) => null },
+    { regex: /\bthan\b/gi, check: (ctx, idx) => null }
+  ];
+
+  // We'll run targeted checks for the most common confusions with simple heuristics
+  // its / it's
+  const itsRegex = /\bits\b/gi;
+  while ((m = itsRegex.exec(text)) !== null) {
+    const ctx = text;
+    const res = (function(){ const after = ctx.slice(m.index + 3, m.index + 12).toLowerCase(); if (/^(not|n't|\s+is|\s+was|\s+has|\s+will|\s+should)/.test(after)) return "it's"; return null; })();
+    if (res) pushSuggestion(m.index, 3, m[0], res, 'Consider using "it\'s" (it is / it has) here', "suggestion");
+  }
+
+  const its2Regex = /\bit's\b/gi;
+  while ((m = its2Regex.exec(text)) !== null) {
+    const ctx = text;
+    const after = ctx.slice(m.index + 4, m.index + 20);
+    if (/^\s+[A-Za-z]+/.test(after) && !/^(is|was|has|will|should|n't)/i.test(after.trim())) {
+      pushSuggestion(m.index, 4, m[0], "its", 'Consider using "its" for possession', "suggestion");
+    }
+  }
+
+  // your / you're common swap
+  const youreRegex = /\byoure\b/gi;
+  while ((m = youreRegex.exec(text)) !== null) {
+    pushSuggestion(m.index, m[0].length, m[0], "you're", 'Did you mean "you\'re" (you are)?', "suggestion");
+  }
+
+  const yourRegex = /\byour\b/gi;
+  while ((m = yourRegex.exec(text)) !== null) {
+    // if followed by verb like "your going" -> "you're going"
+    const after = text.slice(m.index + 4, m.index + 12).toLowerCase();
+    if (/^(going|doing|welcome|reading|writing|thinking|saying|looking|feeling)/.test(after)) {
+      pushSuggestion(m.index, 4, m[0], "you're", 'Possibly "you\'re" (you are) before a verb', "suggestion");
+    }
+  }
+
+  // their / there / they're
+  const theirRegex = /\btheir\b/gi;
+  while ((m = theirRegex.exec(text)) !== null) {
+    // no strong heuristic; still flag for review
+    pushSuggestion(m.index, 5, m[0], null, 'Check "their" vs "there" vs "they\'re"', "note");
+  }
+  const thereRegex = /\bthere\b/gi;
+  while ((m = thereRegex.exec(text)) !== null) {
+    pushSuggestion(m.index, 5, m[0], null, 'Check "there" vs "their" vs "they\'re"', "note");
+  }
+  const theyreRegex = /\bthey're\b/gi;
+  while ((m = theyreRegex.exec(text)) !== null) {
+    pushSuggestion(m.index, 7, m[0], null, 'Check "they\'re" vs "their" vs "there"', "note");
+  }
+
+  // then / than
+  const thenRegex = /\bthen\b/gi;
+  while ((m = thenRegex.exec(text)) !== null) {
+    // if followed by comparative adjective like "better" -> maybe "than"
+    const after = text.slice(m.index + 4, m.index + 12).toLowerCase();
+    if (/^(better|worse|more|less|faster|slower)/.test(after)) {
+      pushSuggestion(m.index, 4, m[0], "than", 'Possibly "than" (comparison) rather than "then"', "suggestion");
+    }
+  }
+
+  // capitalization: sentence starts and " i " -> " I "
+  // Find sentence starts (after .!? or start of text)
+  const sentenceStartRegex = /(^|[\.!\?]\s+)([a-z])/g;
+  while ((m = sentenceStartRegex.exec(text)) !== null) {
+    const idx = m.index + m[1].length;
+    const original = m[2];
+    const replacement = original.toUpperCase();
+    pushSuggestion(idx, 1, original, replacement, "Capitalize sentence start", "minor");
+  }
+
+  // lowercase i as pronoun
+  const iPronounRegex = /(\s|^)(\bi\b)(\s|[.,!?;:])/g;
+  while ((m = iPronounRegex.exec(text)) !== null) {
+    const idx = m.index + m[1].length;
+    pushSuggestion(idx, 1, "i", "I", 'Capitalize the pronoun "I"', "minor");
+  }
+
+  // common contraction misspellings (dont -> don't)
+  const contractionMap = {
+    "\\bdont\\b": "don't",
+    "\\bdoesnt\\b": "doesn't",
+    "\\bdidnt\\b": "didn't",
+    "\\bcant\\b": "can't",
+    "\\bcant\\b": "can't",
+    "\\bwont\\b": "won't",
+    "\\bshouldnt\\b": "shouldn't",
+    "\\bwouldnt\\b": "wouldn't",
+    "\\bcouldnt\\b": "couldn't",
+    "\\bim\\b": "I'm"
+  };
+  for (const pat in contractionMap) {
+    const rx = new RegExp(pat, "gi");
+    while ((m = rx.exec(text)) !== null) {
+      pushSuggestion(m.index, m[0].length, m[0], contractionMap[pat], `Replace with contraction ${contractionMap[pat]}`, "minor");
+    }
+  }
+
+  // punctuation spacing: space before comma/period
+  const spaceBeforePunct = /\s+([,.;:!?])/g;
+  while ((m = spaceBeforePunct.exec(text)) !== null) {
+    pushSuggestion(m.index, m[0].length, m[0], m[1], "Remove space before punctuation", "minor");
+  }
+
+  // final: remove duplicate suggestions at same index for clarity (keep first)
+  const unique = [];
+  const seen = new Set();
+  suggestions.forEach(s => {
+    const key = `${s.index}:${s.length}:${s.original}:${s.replacement}`;
+    if (!seen.has(key)) {
+      unique.push(s);
+      seen.add(key);
+    }
+  });
+
+  return unique;
+}
+
+function renderSuggestions(card, suggestions, explain) {
+  const list = card.querySelector('#gp-suggestions');
+  list.innerHTML = "";
+
+  if (!suggestions.length) {
+    card.querySelector('#gp-summary').textContent = "No issues found by the quick check.";
+    card.querySelector('#gp-wordcount').textContent = (card.querySelector('#gp-text').value || "").trim().split(/\s+/).filter(Boolean).length;
+    return;
+  }
+
+  // sort suggestions by index for display
+  suggestions.sort((a,b) => a.index - b.index);
+
+  suggestions.forEach((s, idx) => {
+    const li = document.createElement('li');
+    li.style.padding = "8px";
+    li.style.borderBottom = "1px solid rgba(255,255,255,0.03)";
+    li.style.display = "flex";
+    li.style.justifyContent = "space-between";
+    li.style.alignItems = "center";
+
+    const left = document.createElement('div');
+    left.style.flex = "1";
+
+    const msg = document.createElement('div');
+    msg.innerHTML = `<strong>${s.message}</strong>`;
+    msg.className = "small";
+    left.appendChild(msg);
+
+    const context = document.createElement('div');
+    context.className = "small";
+    context.style.opacity = "0.9";
+    const preview = s.original.length > 120 ? s.original.slice(0,120) + "…" : s.original;
+    context.textContent = `Context: "${preview}"`;
+    left.appendChild(context);
+
+    if (explain && s.replacement !== null) {
+      const explainDiv = document.createElement('div');
+      explainDiv.className = "small";
+      explainDiv.style.marginTop = "6px";
+      explainDiv.style.opacity = "0.85";
+      explainDiv.textContent = `Suggestion: replace "${s.original}" with "${s.replacement}".`;
+      left.appendChild(explainDiv);
+    }
+
+    const actions = document.createElement('div');
+    actions.style.display = "flex";
+    actions.style.gap = "8px";
+    actions.style.alignItems = "center";
+
+    const applyBtn = document.createElement('button');
+    applyBtn.textContent = "Apply";
+    applyBtn.className = "tiny";
+    applyBtn.onclick = () => {
+      applySuggestion(card, s);
+    };
+
+    const ignoreBtn = document.createElement('button');
+    ignoreBtn.textContent = "Ignore";
+    ignoreBtn.className = "tiny";
+    ignoreBtn.onclick = () => {
+      li.remove();
+      // remove from suggestions list visually; not persisted
+    };
+
+    actions.appendChild(applyBtn);
+    actions.appendChild(ignoreBtn);
+
+    li.appendChild(left);
+    li.appendChild(actions);
+    list.appendChild(li);
+  });
+
+  card.querySelector('#gp-summary').textContent = `${suggestions.length} suggestion(s) found.`;
+  card.querySelector('#gp-wordcount').textContent = (card.querySelector('#gp-text').value || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function applySuggestion(card, s) {
+  const textEl = card.querySelector('#gp-text');
+  let text = textEl.value || "";
+
+  // Safety: verify the substring at index matches original before replacing
+  const current = text.slice(s.index, s.index + s.length);
+  if (current !== s.original) {
+    // attempt to find a nearby match (fallback)
+    const foundAt = text.indexOf(s.original);
+    if (foundAt !== -1) {
+      text = text.slice(0, foundAt) + (s.replacement !== null ? s.replacement : s.original) + text.slice(foundAt + s.length);
+    } else {
+      // can't find exact match; do nothing
+      alert('Could not apply suggestion automatically because the original text changed. Please apply manually.');
+      return;
+    }
+  } else {
+    text = text.slice(0, s.index) + (s.replacement !== null ? s.replacement : s.original) + text.slice(s.index + s.length);
+  }
+
+  textEl.value = text;
+  // re-run check to refresh suggestions
+  gpCheck(card.querySelector('button'));
+}
+
+</script>
