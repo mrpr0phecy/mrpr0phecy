@@ -1,0 +1,115 @@
+<h2 id="algebra-title" style="margin-top:0;">Algebra Solver</h2>
+
+<form aria-describedby="algebra-desc">
+  <p id="algebra-desc" class="small">Solve basic algebraic equations. Enter an equation in one variable (x), choose the type, and generate the solution step‑by‑step.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="alg-equation">Equation</label>
+      <input id="alg-equation" type="text" placeholder="e.g. 2x + 3 = 11" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="alg-type">Equation type</label>
+      <select id="alg-type" style="width:100%;">
+        <option value="linear" selected>Linear (ax + b = c)</option>
+        <option value="quadratic">Quadratic (ax² + bx + c = 0)</option>
+        <option value="polynomial">Polynomial (higher degree)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="alg-show-steps">Show steps</label>
+      <select id="alg-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="algSolve(this)">Solve</button>
+    <button type="button" class="secondary" onclick="algReset(this)">Reset</button>
+    <button type="button" onclick="algCopy(this)">Copy Solution</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Solution</h3>
+  <textarea id="alg-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Steps shown: <span id="alg-steps">–</span></div>
+    <div id="alg-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* algebra.html
+   - Simple algebra solver for linear/quadratic equations
+   - Scoped with alg- prefix
+*/
+
+function algReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#alg-output').value="";
+  card.querySelector('#alg-steps').textContent="–";
+  card.querySelector('#alg-hint').textContent="";
+}
+
+function algCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#alg-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#alg-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function algSolve(btn){
+  const card=btn.closest('.card');
+  const eq=(card.querySelector('#alg-equation').value||"").trim();
+  const type=card.querySelector('#alg-type').value;
+  const showSteps=card.querySelector('#alg-show-steps').value==="yes";
+  if(!eq){card.querySelector('#alg-hint').textContent="Please enter an equation.";return;}
+  let solution="";
+  let steps="";
+  try{
+    if(type==="linear"){
+      // crude parse: ax+b=c
+      const match=eq.match(/([0-9]*)x\s*([+\-]\s*[0-9]+)?\s*=\s*([0-9]+)/);
+      if(match){
+        const a=parseFloat(match[1]||"1");
+        const b=parseFloat(match[2]||"0");
+        const c=parseFloat(match[3]);
+        const x=(c-b)/a;
+        solution=`x = ${x}`;
+        if(showSteps){
+          steps=`Step 1: Equation is ${a}x + ${b} = ${c}\nStep 2: Subtract ${b} from both sides → ${a}x = ${c-b}\nStep 3: Divide both sides by ${a} → x = ${x}`;
+        }
+      } else solution="Unable to parse linear equation.";
+    } else if(type==="quadratic"){
+      // ax^2+bx+c=0
+      const match=eq.match(/([+\-]?\d*)x\^2\s*([+\-]\s*\d*)x\s*([+\-]\s*\d+)?\s*=\s*0/);
+      if(match){
+        const a=parseFloat(match[1]||"1");
+        const b=parseFloat(match[2]||"0");
+        const c=parseFloat(match[3]||"0");
+        const disc=b*b-4*a*c;
+        if(disc<0){solution="No real roots.";}
+        else{
+          const r1=(-b+Math.sqrt(disc))/(2*a);
+          const r2=(-b-Math.sqrt(disc))/(2*a);
+          solution=`x₁ = ${r1}, x₂ = ${r2}`;
+          if(showSteps){
+            steps=`Step 1: Equation is ${a}x² + ${b}x + ${c} = 0\nStep 2: Discriminant Δ = b² - 4ac = ${disc}\nStep 3: Roots = (-b ± √Δ)/(2a)\nStep 4: Solutions: ${solution}`;
+          }
+        }
+      } else solution="Unable to parse quadratic equation.";
+    } else {
+      solution="Polynomial solving not implemented in demo.";
+    }
+  }catch(e){solution
