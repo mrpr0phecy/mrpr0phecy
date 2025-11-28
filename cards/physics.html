@@ -1,0 +1,160 @@
+<h2 id="physics-title" style="margin-top:0;">Physics Helper</h2>
+
+<form aria-describedby="physics-desc">
+  <p id="physics-desc" class="small">Choose a formula, enter values, and compute results.</p>
+
+  <div class="row">
+    <div class="field">
+      <label for="physics-formula">Formula</label>
+      <select id="physics-formula" onchange="physicsUpdateFields(this)">
+        <option value="fma">Force: F = m · a</option>
+        <option value="ke">Kinetic energy: KE = 1/2 · m · v²</option>
+        <option value="p">Momentum: p = m · v</option>
+        <option value="ohm">Ohm’s law: V = I · R</option>
+        <option value="grav">Gravitational potential: U = m · g · h</option>
+        <option value="wave">Wave speed: v = f · λ</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="physics-fields" class="row">
+    <!-- Dynamic inputs render here -->
+  </div>
+
+  <div class="actions">
+    <button type="button" onclick="physicsCompute(this)">Compute</button>
+    <button type="button" class="secondary" onclick="physicsReset(this)">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite">
+  <div class="result">
+    <div class="label">Result</div>
+    <div class="value" id="physics-output">–</div>
+  </div>
+  <div id="physics-hint" class="small"></div>
+</div>
+
+<script>
+const physicsConfigs = {
+  fma: {
+    label: "Force: F = m · a",
+    inputs: [
+      { id: "m", label: "Mass (kg)" },
+      { id: "a", label: "Acceleration (m/s^2)" }
+    ],
+    compute: ({ m, a }) => m * a,
+    unit: "N"
+  },
+  ke: {
+    label: "Kinetic energy: KE = 1/2 · m · v²",
+    inputs: [
+      { id: "m", label: "Mass (kg)" },
+      { id: "v", label: "Velocity (m/s)" }
+    ],
+    compute: ({ m, v }) => 0.5 * m * v * v,
+    unit: "J"
+  },
+  p: {
+    label: "Momentum: p = m · v",
+    inputs: [
+      { id: "m", label: "Mass (kg)" },
+      { id: "v", label: "Velocity (m/s)" }
+    ],
+    compute: ({ m, v }) => m * v,
+    unit: "kg·m/s"
+  },
+  ohm: {
+    label: "Ohm’s law: V = I · R",
+    inputs: [
+      { id: "I", label: "Current (A)" },
+      { id: "R", label: "Resistance (Ω)" }
+    ],
+    compute: ({ I, R }) => I * R,
+    unit: "V"
+  },
+  grav: {
+    label: "Gravitational potential: U = m · g · h",
+    inputs: [
+      { id: "m", label: "Mass (kg)" },
+      { id: "g", label: "Gravity (m/s^2)", placeholder: "9.81", default: 9.81 },
+      { id: "h", label: "Height (m)" }
+    ],
+    compute: ({ m, g, h }) => m * g * h,
+    unit: "J"
+  },
+  wave: {
+    label: "Wave speed: v = f · λ",
+    inputs: [
+      { id: "f", label: "Frequency (Hz)" },
+      { id: "lambda", label: "Wavelength (m)" }
+    ],
+    compute: ({ f, lambda }) => f * lambda,
+    unit: "m/s"
+  }
+};
+
+function physicsUpdateFields(selectEl) {
+  const card = selectEl.closest('.card');
+  const fields = card.querySelector('#physics-fields');
+  const cfg = physicsConfigs[selectEl.value];
+  fields.innerHTML = "";
+
+  cfg.inputs.forEach(input => {
+    const wrap = document.createElement('div');
+    wrap.className = 'field';
+    const label = document.createElement('label');
+    label.setAttribute('for', `physics-${input.id}`);
+    label.textContent = input.label;
+    const inp = document.createElement('input');
+    inp.id = `physics-${input.id}`;
+    inp.type = 'number';
+    inp.step = 'any';
+    if (input.placeholder) inp.placeholder = input.placeholder;
+    if (input.default !== undefined) inp.value = input.default;
+    wrap.appendChild(label);
+    wrap.appendChild(inp);
+    fields.appendChild(wrap);
+  });
+
+  card.querySelector('#physics-hint').textContent = cfg.label;
+  card.querySelector('#physics-output').textContent = "–";
+}
+
+function physicsCompute(btn) {
+  const card = btn.closest('.card');
+  const sel = card.querySelector('#physics-formula').value;
+  const cfg = physicsConfigs[sel];
+  const values = {};
+  let valid = true;
+
+  cfg.inputs.forEach(input => {
+    const el = card.querySelector(`#physics-${input.id}`);
+    const val = parseFloat(el.value);
+    if (isNaN(val)) valid = false;
+    values[input.id] = val;
+  });
+
+  if (!valid) {
+    card.querySelector('#physics-output').textContent = "Please enter valid numbers for all fields.";
+    return;
+  }
+
+  const result = cfg.compute(values);
+  card.querySelector('#physics-output').textContent = `${result} ${cfg.unit}`;
+}
+
+function physicsReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('form').reset();
+  physicsUpdateFields(card.querySelector('#physics-formula'));
+  card.querySelector('#physics-output').textContent = "–";
+  card.querySelector('#physics-hint').textContent = "";
+}
+
+// initialize default fields on load
+document.addEventListener('DOMContentLoaded', () => {
+  const selectEl = document.querySelector('#physics-formula');
+  if (selectEl) physicsUpdateFields(selectEl);
+});
+</script>
