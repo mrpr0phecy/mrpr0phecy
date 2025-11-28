@@ -1,0 +1,105 @@
+<h2 id="trigonometry-title" style="margin-top:0;">Trigonometry Helper</h2>
+
+<form aria-describedby="trigonometry-desc">
+  <p id="trigonometry-desc" class="small">Calculate sine, cosine, tangent, and related values. Enter an angle or triangle dimensions, choose mode (degrees/radians), and get results with formulas.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="tri-angle">Angle</label>
+      <input id="tri-angle" type="number" placeholder="e.g. 45" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="tri-mode">Mode</label>
+      <select id="tri-mode" style="width:100%;">
+        <option value="deg" selected>Degrees</option>
+        <option value="rad">Radians</option>
+      </select>
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="tri-sides">Triangle sides (optional)</label>
+      <input id="tri-sides" type="text" placeholder="e.g. a=3,b=4,c=5" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="tri-show-steps">Show steps</label>
+      <select id="tri-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="triSolve(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="triReset(this)">Reset</button>
+    <button type="button" onclick="triCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Result</h3>
+  <textarea id="tri-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Steps shown: <span id="tri-steps">–</span></div>
+    <div id="tri-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* trigonometry.html
+   - Calculates sine, cosine, tangent for angles
+   - Can also check triangle sides with Pythagoras
+   - Scoped with tri- prefix
+*/
+
+function triReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#tri-output').value="";
+  card.querySelector('#tri-steps').textContent="–";
+  card.querySelector('#tri-hint').textContent="";
+}
+
+function triCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#tri-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#tri-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function triSolve(btn){
+  const card=btn.closest('.card');
+  const angle=parseFloat(card.querySelector('#tri-angle').value);
+  const mode=card.querySelector('#tri-mode').value;
+  const sides=(card.querySelector('#tri-sides').value||"").trim();
+  const showSteps=card.querySelector('#tri-show-steps').value==="yes";
+  if(isNaN(angle)){card.querySelector('#tri-hint').textContent="Please enter an angle.";return;}
+  let rad=mode==="deg"?angle*Math.PI/180:angle;
+  let result=`sin(${angle}${mode}) = ${Math.sin(rad).toFixed(4)}\ncos(${angle}${mode}) = ${Math.cos(rad).toFixed(4)}\ntan(${angle}${mode}) = ${Math.tan(rad).toFixed(4)}`;
+  let steps="";
+  if(showSteps){
+    steps=`Step 1: Convert angle to radians if needed.\nStep 2: Apply definitions: sin=opp/hyp, cos=adj/hyp, tan=opp/adj.\nStep 3: Use Math functions for calculation.`;
+  }
+  if(sides){
+    const parsed={};
+    sides.split(',').forEach(p=>{
+      const [k,v]=p.split('=');
+      if(k&&v)parsed[k.trim()]=parseFloat(v);
+    });
+    if(parsed.a&&parsed.b&&parsed.c){
+      const check=Math.abs(parsed.c-Math.sqrt(parsed.a*parsed.a+parsed.b*parsed.b))<1e-6;
+      result+=`\nTriangle sides check: ${check?"Valid right triangle":"Not a right triangle"}`;
+    }
+  }
+  card.querySelector('#tri-output').value=result+(showSteps&&steps?`\n\n${steps}`:"");
+  card.querySelector('#tri-steps').textContent=showSteps?"Yes":"No";
+  card.querySelector('#tri-hint').textContent="Result generated.";
+}
+</script>
