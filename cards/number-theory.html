@@ -1,29 +1,32 @@
-<h2 id="geometry-title" style="margin-top:0;">Geometry Calculator</h2>
+<h2 id="number-theory-title" style="margin-top:0;">Number Theory Tools</h2>
 
-<form aria-describedby="geometry-desc">
-  <p id="geometry-desc" class="small">Calculate areas, perimeters, and volumes of common shapes. Enter dimensions, choose shape, and get results with formulas.</p>
+<form aria-describedby="number-theory-desc">
+  <p id="number-theory-desc" class="small">Explore properties of integers. Check primality, compute GCD/LCM, and generate factors with step‑by‑step notes.</p>
 
   <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
     <div class="field">
-      <label for="geo-shape">Shape</label>
-      <select id="geo-shape" style="width:100%;">
-        <option value="circle" selected>Circle</option>
-        <option value="rectangle">Rectangle</option>
-        <option value="triangle">Triangle</option>
-        <option value="sphere">Sphere</option>
-        <option value="cube">Cube</option>
-        <option value="cylinder">Cylinder</option>
+      <label for="nt-number">Number</label>
+      <input id="nt-number" type="number" placeholder="e.g. 42" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="nt-second">Second number (optional)</label>
+      <input id="nt-second" type="number" placeholder="e.g. 56" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="nt-operation">Operation</label>
+      <select id="nt-operation" style="width:100%;">
+        <option value="prime" selected>Prime check</option>
+        <option value="factors">Factors</option>
+        <option value="gcd">GCD</option>
+        <option value="lcm">LCM</option>
       </select>
     </div>
 
     <div class="field">
-      <label for="geo-dimensions">Dimensions</label>
-      <input id="geo-dimensions" type="text" placeholder="e.g. radius=5 or length=4,width=6" style="width:100%;" />
-    </div>
-
-    <div class="field">
-      <label for="geo-show-steps">Show steps</label>
-      <select id="geo-show-steps" style="width:100%;">
+      <label for="nt-show-steps">Show steps</label>
+      <select id="nt-show-steps" style="width:100%;">
         <option value="yes" selected>Yes</option>
         <option value="no">No</option>
       </select>
@@ -31,93 +34,82 @@
   </div>
 
   <div class="actions" style="margin-top:12px;">
-    <button type="button" onclick="geoCalculate(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="geoReset(this)">Reset</button>
-    <button type="button" onclick="geoCopy(this)">Copy Result</button>
+    <button type="button" onclick="ntCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="ntReset(this)">Reset</button>
+    <button type="button" onclick="ntCopy(this)">Copy Result</button>
   </div>
 </form>
 
 <div class="results" aria-live="polite" style="margin-top:12px;">
   <h3 class="small">Results</h3>
-  <textarea id="geo-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+  <textarea id="nt-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
 
   <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
-    <div id="geo-hint" class="small" style="opacity:0.9;"></div>
+    <div id="nt-hint" class="small" style="opacity:0.9;"></div>
   </div>
 </div>
 
 <script>
-/* geometry.html
-   - Calculates area, perimeter, volume for shapes
-   - Scoped with geo- prefix
+/* number-theory.html
+   - Provides prime check, factors, GCD, LCM
+   - Scoped with nt- prefix
 */
 
-function geoReset(btn){
+function ntReset(btn){
   const card=btn.closest('.card');
   card.querySelector('form').reset();
-  card.querySelector('#geo-output').value="";
-  card.querySelector('#geo-hint').textContent="";
+  card.querySelector('#nt-output').value="";
+  card.querySelector('#nt-hint').textContent="";
 }
 
-function geoCopy(btn){
+function ntCopy(btn){
   const card=btn.closest('.card');
-  const out=card.querySelector('#geo-output').value;
+  const out=card.querySelector('#nt-output').value;
   if(!out.trim())return;
   navigator.clipboard?.writeText(out).then(()=>{
-    const hint=card.querySelector('#geo-hint');
+    const hint=card.querySelector('#nt-hint');
     hint.textContent="Copied to clipboard.";
     setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
   }).catch(()=>alert("Copy failed."));
 }
 
-function parseDims(str){
-  const dims={};
-  str.split(',').forEach(p=>{
-    const [k,v]=p.split('=');
-    if(k&&v)dims[k.trim()]=parseFloat(v);
-  });
-  return dims;
+function ntCalculate(btn){
+  const card=btn.closest('.card');
+  const n=parseInt(card.querySelector('#nt-number').value);
+  const m=parseInt(card.querySelector('#nt-second').value);
+  const op=card.querySelector('#nt-operation').value;
+  const showSteps=card.querySelector('#nt-show-steps').value==="yes";
+  if(isNaN(n)){card.querySelector('#nt-hint').textContent="Please enter a number.";return;}
+  let output="";
+  if(op==="prime"){
+    const prime=isPrime(n);
+    output=`${n} is ${prime?"prime":"not prime"}.`;
+    if(showSteps)output+=`\nSteps: Test divisibility up to √${n}.`;
+  } else if(op==="factors"){
+    const factors=getFactors(n);
+    output=`Factors of ${n}: ${factors.join(', ')}`;
+    if(showSteps)output+=`\nSteps: Divide ${n} by integers ≤ √${n}.`;
+  } else if(op==="gcd"){
+    if(isNaN(m)){output="Second number required.";}
+    else{
+      const g=gcd(n,m);
+      output=`GCD(${n},${m}) = ${g}`;
+      if(showSteps)output+=`\nSteps: Apply Euclidean algorithm.`;
+    }
+  } else if(op==="lcm"){
+    if(isNaN(m)){output="Second number required.";}
+    else{
+      const l=(n*m)/gcd(n,m);
+      output=`LCM(${n},${m}) = ${l}`;
+      if(showSteps)output+=`\nSteps: LCM = (n×m)/GCD.`;
+    }
+  }
+  card.querySelector('#nt-output').value=output;
+  card.querySelector('#nt-hint').textContent="Results generated.";
 }
 
-function geoCalculate(btn){
-  const card=btn.closest('.card');
-  const shape=card.querySelector('#geo-shape').value;
-  const dims=parseDims(card.querySelector('#geo-dimensions').value||"");
-  const showSteps=card.querySelector('#geo-show-steps').value==="yes";
-  let output="";
-  if(shape==="circle"&&dims.radius){
-    const area=Math.PI*dims.radius*dims.radius;
-    const circ=2*Math.PI*dims.radius;
-    output=`Circle area = ${area}, circumference = ${circ}`;
-    if(showSteps)output+=`\nSteps: Area=πr², Circumference=2πr.`;
-  } else if(shape==="rectangle"&&dims.length&&dims.width){
-    const area=dims.length*dims.width;
-    const peri=2*(dims.length+dims.width);
-    output=`Rectangle area = ${area}, perimeter = ${peri}`;
-    if(showSteps)output+=`\nSteps: Area=l×w, Perimeter=2(l+w).`;
-  } else if(shape==="triangle"&&dims.base&&dims.height){
-    const area=0.5*dims.base*dims.height;
-    output=`Triangle area = ${area}`;
-    if(showSteps)output+=`\nSteps: Area=½·base·height.`;
-  } else if(shape==="sphere"&&dims.radius){
-    const vol=(4/3)*Math.PI*Math.pow(dims.radius,3);
-    const area=4*Math.PI*dims.radius*dims.radius;
-    output=`Sphere volume = ${vol}, surface area = ${area}`;
-    if(showSteps)output+=`\nSteps: V=4/3πr³, A=4πr².`;
-  } else if(shape==="cube"&&dims.side){
-    const vol=Math.pow(dims.side,3);
-    const area=6*Math.pow(dims.side,2);
-    output=`Cube volume = ${vol}, surface area = ${area}`;
-    if(showSteps)output+=`\nSteps: V=s³, A=6s².`;
-  } else if(shape==="cylinder"&&dims.radius&&dims.height){
-    const vol=Math.PI*dims.radius*dims.radius*dims.height;
-    const area=2*Math.PI*dims.radius*(dims.radius+dims.height);
-    output=`Cylinder volume = ${vol}, surface area = ${area}`;
-    if(showSteps)output+=`\nSteps: V=πr²h, A=2πr(r+h).`;
-  } else {
-    output="Please provide correct dimensions.";
-  }
-  card.querySelector('#geo-output').value=output;
-  card.querySelector('#geo-hint').textContent="Results generated.";
-}
-</script>
+function isPrime(num){
+  if(num<=1)return false;
+  if(num<=3)return true;
+  if(num%2===0||num%3===0)return false;
+  for(let
