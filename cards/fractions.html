@@ -1,0 +1,124 @@
+<h2 id="fractions-title" style="margin-top:0;">Fractions Helper</h2>
+
+<form aria-describedby="fractions-desc">
+  <p id="fractions-desc" class="small">Work with fractions: simplify, convert to decimals, or perform operations. Enter values and choose an action.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="frac-a">Fraction A</label>
+      <input id="frac-a" type="text" placeholder="e.g. 3/4" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="frac-b">Fraction B (optional)</label>
+      <input id="frac-b" type="text" placeholder="e.g. 2/5" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="frac-operation">Operation</label>
+      <select id="frac-operation" style="width:100%;">
+        <option value="simplify" selected>Simplify</option>
+        <option value="decimal">Convert to decimal</option>
+        <option value="add">Add (A + B)</option>
+        <option value="subtract">Subtract (A − B)</option>
+        <option value="multiply">Multiply (A × B)</option>
+        <option value="divide">Divide (A ÷ B)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="frac-show-steps">Show steps</label>
+      <select id="frac-show-steps" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="fracCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="fracReset(this)">Reset</button>
+    <button type="button" onclick="fracCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Results</h3>
+  <textarea id="frac-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="frac-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* fractions.html
+   - Simplify, convert, and operate on fractions
+   - Scoped with frac- prefix
+*/
+
+function fracReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#frac-output').value="";
+  card.querySelector('#frac-hint').textContent="";
+}
+
+function fracCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#frac-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#frac-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+function parseFraction(str){
+  const [num,den]=str.split('/').map(s=>parseFloat(s.trim()));
+  return {num,den};
+}
+
+function simplifyFraction(frac){
+  const g=gcd(frac.num,frac.den);
+  return {num:frac.num/g,den:frac.den/g};
+}
+
+function gcd(a,b){return b?gcd(b,a%b):a;}
+
+function fracCalculate(btn){
+  const card=btn.closest('.card');
+  const A=(card.querySelector('#frac-a').value||"").trim();
+  const B=(card.querySelector('#frac-b').value||"").trim();
+  const op=card.querySelector('#frac-operation').value;
+  const showSteps=card.querySelector('#frac-show-steps').value==="yes";
+  if(!A){card.querySelector('#frac-hint').textContent="Please enter Fraction A.";return;}
+  let output="";
+  try{
+    const fracA=parseFraction(A);
+    let fracB=B?parseFraction(B):null;
+    if(op==="simplify"){
+      const simp=simplifyFraction(fracA);
+      output=`Simplified: ${simp.num}/${simp.den}`;
+      if(showSteps)output+=`\nSteps: gcd(${fracA.num},${fracA.den})=${gcd(fracA.num,fracA.den)}. Divide numerator and denominator.`;
+    } else if(op==="decimal"){
+      output=`Decimal: ${(fracA.num/fracA.den).toFixed(4)}`;
+      if(showSteps)output+=`\nSteps: Divide numerator by denominator.`;
+    } else if(fracB){
+      let res;
+      if(op==="add"){res={num:fracA.num*fracB.den+fracB.num*fracA.den,den:fracA.den*fracB.den};}
+      else if(op==="subtract"){res={num:fracA.num*fracB.den-fracB.num*fracA.den,den:fracA.den*fracB.den};}
+      else if(op==="multiply"){res={num:fracA.num*fracB.num,den:fracA.den*fracB.den};}
+      else if(op==="divide"){res={num:fracA.num*fracB.den,den:fracA.den*fracB.num};}
+      const simp=simplifyFraction(res);
+      output=`Result: ${simp.num}/${simp.den}`;
+      if(showSteps)output+=`\nSteps: Apply ${op} rule, then simplify.`;
+    } else {
+      output="Second fraction required for this operation.";
+    }
+  }catch(e){output="Error calculating.";}
+  card.querySelector('#frac-output').value=output;
+  card.querySelector('#frac-hint').textContent="Results generated.";
+}
+</script>
