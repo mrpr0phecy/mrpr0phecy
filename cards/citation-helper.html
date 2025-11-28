@@ -1,0 +1,285 @@
+<h2 id="citation-helper-title" style="margin-top:0;">Citation Helper</h2>
+
+<form aria-describedby="citation-helper-desc">
+  <p id="citation-helper-desc" class="small">Generate formatted citations quickly. Choose a style, enter source details, and get ready-to-copy citations for books, articles, web pages, and more.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="ch-style">Citation style</label>
+      <select id="ch-style" style="width:100%;">
+        <option value="apa">APA 7</option>
+        <option value="mla">MLA 9</option>
+        <option value="chicago">Chicago Author-Date</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="ch-type">Source type</label>
+      <select id="ch-type" style="width:100%;">
+        <option value="book">Book</option>
+        <option value="journal">Journal article</option>
+        <option value="web">Web page</option>
+        <option value="chapter">Book chapter</option>
+        <option value="report">Report</option>
+        <option value="conference">Conference paper</option>
+      </select>
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="ch-authors">Authors (comma-separated, "Last, First")</label>
+      <input id="ch-authors" type="text" placeholder="e.g. Smith, John; Doe, Jane" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="ch-title">Title</label>
+      <input id="ch-title" type="text" placeholder="Article or book title" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="ch-container">Journal / Publisher / Website</label>
+      <input id="ch-container" type="text" placeholder="Journal name, publisher, or website" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="ch-year">Year</label>
+      <input id="ch-year" type="text" placeholder="e.g. 2023" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="ch-volume">Volume / Edition</label>
+      <input id="ch-volume" type="text" placeholder="e.g. 12; 2nd ed." style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="ch-issue-pages">Issue / Pages</label>
+      <input id="ch-issue-pages" type="text" placeholder="e.g. 3(2):45-62 or pp. 12-28" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="ch-url">URL / DOI</label>
+      <input id="ch-url" type="text" placeholder="https://... or 10.xxxx/xxxxx" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="ch-access">Access date (for web)</label>
+      <input id="ch-access" type="date" style="width:100%;" />
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="chGenerate(this)">Generate Citation</button>
+    <button type="button" class="secondary" onclick="chReset(this)">Reset</button>
+    <button type="button" onclick="chCopy(this)">Copy Citation</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Formatted citation</h3>
+  <textarea id="ch-output" rows="4" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div class="small">Style preview:</div>
+    <div class="small" id="ch-preview" style="opacity:0.9;"></div>
+  </div>
+
+  <h4 class="small" style="margin-top:12px;">Examples</h4>
+  <div class="small" style="opacity:0.9;line-height:1.4;">
+    <strong>Book (APA):</strong> Smith, J. (2020). <em>Title of the book</em>. Publisher.<br/>
+    <strong>Journal (MLA):</strong> Smith, John. "Article Title." <em>Journal Name</em>, vol. 12, no. 3, 2020, pp. 45-62.<br/>
+    <strong>Web (Chicago):</strong> Smith, John. 2020. "Page Title." Website Name. Accessed January 1, 2024. https://example.com.
+  </div>
+</div>
+
+<script>
+/* Citation Helper
+   - Generates simple formatted citations for common source types in APA 7, MLA 9, and Chicago Author-Date.
+   - All DOM queries scoped via btn.closest('.card') so multiple instances are safe.
+   - This is a helper for formatting; verify against your institution's style guide for edge cases.
+*/
+
+function chReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#ch-output').value = "";
+  card.querySelector('#ch-preview').textContent = "";
+}
+
+function chCopy(btn) {
+  const card = btn.closest('.card');
+  const out = card.querySelector('#ch-output').value;
+  if (!out.trim()) return;
+  navigator.clipboard?.writeText(out).then(() => {
+    const prev = card.querySelector('#ch-preview').textContent;
+    card.querySelector('#ch-preview').textContent = "Copied to clipboard.";
+    setTimeout(() => { card.querySelector('#ch-preview').textContent = prev; }, 1400);
+  }).catch(() => {
+    alert("Copy failed — select the citation and copy manually.");
+  });
+}
+
+function chGenerate(btn) {
+  const card = btn.closest('.card');
+  const style = card.querySelector('#ch-style').value;
+  const type = card.querySelector('#ch-type').value;
+  const authorsRaw = (card.querySelector('#ch-authors').value || "").trim();
+  const title = (card.querySelector('#ch-title').value || "").trim();
+  const container = (card.querySelector('#ch-container').value || "").trim();
+  const year = (card.querySelector('#ch-year').value || "").trim();
+  const volume = (card.querySelector('#ch-volume').value || "").trim();
+  const issuePages = (card.querySelector('#ch-issue-pages').value || "").trim();
+  const url = (card.querySelector('#ch-url').value || "").trim();
+  const access = (card.querySelector('#ch-access').value || "").trim();
+
+  const authors = parseAuthors(authorsRaw);
+
+  let citation = "";
+
+  if (style === 'apa') {
+    citation = buildAPA({ type, authors, title, container, year, volume, issuePages, url, access });
+  } else if (style === 'mla') {
+    citation = buildMLA({ type, authors, title, container, year, volume, issuePages, url, access });
+  } else {
+    citation = buildChicago({ type, authors, title, container, year, volume, issuePages, url, access });
+  }
+
+  card.querySelector('#ch-output').value = citation;
+  card.querySelector('#ch-preview').textContent = `${style.toUpperCase()} generated`;
+}
+
+/* Parsing helpers */
+
+function parseAuthors(raw) {
+  if (!raw) return [];
+  // authors separated by semicolon or comma+semicolon style; accept "Last, First; Last2, First2" or "Last, First; Last2, First2"
+  const parts = raw.split(';').map(s => s.trim()).filter(Boolean);
+  if (parts.length === 1 && parts[0].includes(',')) {
+    // maybe comma-separated list: "Smith, John, Doe, Jane" -> pair them
+    const tokens = parts[0].split(',').map(t => t.trim()).filter(Boolean);
+    if (tokens.length >= 2 && tokens.length % 2 === 0) {
+      const arr = [];
+      for (let i = 0; i < tokens.length; i += 2) {
+        arr.push({ last: tokens[i], first: tokens[i+1] });
+      }
+      return arr;
+    }
+  }
+  // otherwise parse "Last, First" per part
+  return parts.map(p => {
+    const [last, first] = p.split(',').map(s => s.trim());
+    if (first) return { last, first };
+    // if only one token, try splitting by space
+    const tokens = p.split(' ').filter(Boolean);
+    if (tokens.length === 1) return { last: tokens[0], first: '' };
+    return { last: tokens.pop(), first: tokens.join(' ') };
+  });
+}
+
+/* Formatting functions (simple, covers common cases) */
+
+function joinAuthorsAPA(authors) {
+  if (!authors.length) return '';
+  if (authors.length === 1) return `${authors[0].last}, ${initials(authors[0].first)}`;
+  if (authors.length <= 20) {
+    return authors.map(a => `${a.last}, ${initials(a.first)}`).join(', ').replace(/, ([^,]*)$/, ', & $1');
+  }
+  // more than 20 authors: list first 19, ellipsis, last author
+  const first19 = authors.slice(0,19).map(a => `${a.last}, ${initials(a.first)}`).join(', ');
+  const last = authors[authors.length-1];
+  return `${first19}, ... ${last.last}, ${initials(last.first)}`;
+}
+
+function initials(name) {
+  if (!name) return '';
+  return name.split(/\s+/).map(n => n.charAt(0).toUpperCase() + '.').join(' ');
+}
+
+function buildAPA(opts) {
+  const { type, authors, title, container, year, volume, issuePages, url } = opts;
+  const auth = joinAuthorsAPA(authors);
+  const yearText = year ? ` (${year}).` : ' (n.d.).';
+  if (type === 'book') {
+    const pub = container ? ` ${container}.` : '';
+    return `${auth}${yearText} ${title ? italicize(title) + '.' : ''}${pub}${url ? ' ' + url : ''}`.trim();
+  }
+  if (type === 'journal') {
+    const vol = volume ? ` ${volume}` : '';
+    const pages = issuePages ? `, ${issuePages}` : '';
+    return `${auth}${yearText} ${title ? title + '.' : ''} ${container ? italicize(container) : ''}${vol}${pages}${url ? ' ' + url : ''}`.replace(/\s+/g,' ').trim();
+  }
+  if (type === 'web') {
+    const access = url ? ` ${url}` : '';
+    return `${auth}${yearText} ${title ? title + '.' : ''}${container ? ' ' + container + '.' : ''}${access}`.trim();
+  }
+  // fallback
+  return `${auth}${yearText} ${title ? title + '.' : ''} ${container ? container + '.' : ''} ${url ? url : ''}`.trim();
+}
+
+function buildMLA(opts) {
+  const { type, authors, title, container, year, volume, issuePages, url } = opts;
+  const auth = joinAuthorsMLA(authors);
+  if (type === 'book') {
+    const pub = container ? ` ${container},` : '';
+    return `${auth} ${italicize(title)}${pub} ${year || ''}.`.replace(/\s+/g,' ').trim();
+  }
+  if (type === 'journal') {
+    const volIssue = volume ? `, vol. ${volume}` : '';
+    const pages = issuePages ? `, ${issuePages}` : '';
+    return `${auth} "${title}." ${italicize(container)}${volIssue}${pages} (${year || ''}).`.replace(/\s+/g,' ').trim();
+  }
+  if (type === 'web') {
+    const access = url ? ` ${url}` : '';
+    return `${auth} "${title}." ${container || ''}, ${year || ''}${access}.`.replace(/\s+/g,' ').trim();
+  }
+  return `${auth} ${title}. ${container || ''} ${year || ''} ${url || ''}`.trim();
+}
+
+function joinAuthorsMLA(authors) {
+  if (!authors.length) return '';
+  if (authors.length === 1) return `${authors[0].last}, ${authors[0].first}.`;
+  if (authors.length === 2) return `${authors[0].first} ${authors[0].last} and ${authors[1].first} ${authors[1].last}.`;
+  // three or more: First author et al.
+  return `${authors[0].last}, ${authors[0].first}, et al.`;
+}
+
+function buildChicago(opts) {
+  const { type, authors, title, container, year, volume, issuePages, url, access } = opts;
+  const auth = joinAuthorsChicago(authors);
+  if (type === 'book') {
+    return `${auth} ${year ? `(${year})` : ''} ${italicize(title)}. ${container || ''}`.replace(/\s+/g,' ').trim();
+  }
+  if (type === 'journal') {
+    const vol = volume ? ` ${volume}` : '';
+    const pages = issuePages ? `: ${issuePages}` : '';
+    return `${auth} ${year || ''}. "${title}." ${container || ''}${vol}${pages}. ${url ? url : ''}`.replace(/\s+/g,' ').trim();
+  }
+  if (type === 'web') {
+    const accessText = access ? ` Accessed ${formatDate(access)}.` : '';
+    return `${auth} ${year || ''}. "${title}." ${container || ''}.${accessText} ${url ? ' ' + url : ''}`.replace(/\s+/g,' ').trim();
+  }
+  return `${auth} ${title} ${container || ''} ${year || ''} ${url || ''}`.trim();
+}
+
+function joinAuthorsChicago(authors) {
+  if (!authors.length) return '';
+  if (authors.length === 1) return `${authors[0].first} ${authors[0].last}.`;
+  if (authors.length === 2) return `${authors[0].first} ${authors[0].last} and ${authors[1].first} ${authors[1].last}.`;
+  return `${authors[0].first} ${authors[0].last} et al.`;
+}
+
+/* Small utilities */
+
+function italicize(s) {
+  if (!s) return '';
+  return `<em>${s}</em>`;
+}
+
+function formatDate(iso) {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch {
+    return iso;
+  }
+}
+</script>
