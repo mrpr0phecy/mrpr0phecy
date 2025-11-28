@@ -1,0 +1,352 @@
+<h2 id="punctuation-title" style="margin-top:0;">Punctuation Guide & Fixer</h2>
+
+<form aria-describedby="punctuation-desc">
+  <p id="punctuation-desc" class="small">Check punctuation in your text, get quick explanations, and apply safe fixes. Covers commas, semicolons, colons, apostrophes, quotation marks, dashes, and spacing around punctuation.</p>
+
+  <div class="row">
+    <div class="field" style="flex:1;">
+      <label for="pg-text">Text</label>
+      <textarea id="pg-text" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;" placeholder="Paste text to check punctuation..."></textarea>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:8px;align-items:center;">
+    <div class="field">
+      <label style="display:inline-flex;align-items:center;gap:8px;">
+        <input id="pg-explain" type="checkbox" />
+        <span class="small">Show brief explanations</span>
+      </label>
+    </div>
+
+    <div class="field" style="margin-left:auto;">
+      <label style="display:inline-flex;align-items:center;gap:8px;">
+        <input id="pg-smart" type="checkbox" checked />
+        <span class="small">Smart fixes only (safe)</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:10px;">
+    <button type="button" onclick="pgCheck(this)">Check Punctuation</button>
+    <button type="button" class="secondary" onclick="pgReset(this)">Reset</button>
+    <button type="button" onclick="pgApplyAll(this)">Apply All</button>
+    <button type="button" onclick="pgCopy(this)">Copy Text</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <div class="result">
+    <div class="label">Summary</div>
+    <div class="value small" id="pg-summary">No check performed yet.</div>
+  </div>
+
+  <h3 class="small" style="margin-top:12px;">Suggestions</h3>
+  <ul id="pg-suggestions" class="small" style="list-style:none;padding-left:0;max-height:320px;overflow:auto;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;"></ul>
+
+  <h3 class="small" style="margin-top:12px;">Quick reference</h3>
+  <div class="small" style="opacity:0.9;line-height:1.5;">
+    <strong>Comma</strong>: separate clauses, items in lists, and after introductory phrases.<br/>
+    <strong>Semicolon</strong>: join closely related independent clauses or separate complex list items.<br/>
+    <strong>Colon</strong>: introduce a list, explanation, or quotation after an independent clause.<br/>
+    <strong>Apostrophe</strong>: show possession (John's book) or contractions (don't). Not for plurals.<br/>
+    <strong>Quotation marks</strong>: use double quotes for speech; punctuation placement depends on style (US vs UK).<br/>
+    <strong>Em dash —</strong>: add emphasis or an abrupt break; use spaced or unspaced consistently.<br/>
+    <strong>Spacing</strong>: one space after sentence-ending punctuation; no space before commas/periods.
+  </div>
+</div>
+
+<script>
+/*
+  Punctuation Guide & Fixer
+  - Lightweight client-side heuristics for common punctuation issues
+  - Safe "smart" fixes by default; more cautious suggestions flagged as notes
+  - Scripts scoped via btn.closest('.card') so multiple instances are safe
+*/
+
+function pgReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('#pg-text').value = "";
+  card.querySelector('#pg-suggestions').innerHTML = "";
+  card.querySelector('#pg-summary').textContent = "Cleared.";
+}
+
+function pgCopy(btn) {
+  const card = btn.closest('.card');
+  const text = card.querySelector('#pg-text').value || "";
+  if (!text.trim()) return;
+  navigator.clipboard?.writeText(text).then(() => {
+    const prev = card.querySelector('#pg-summary').textContent;
+    card.querySelector('#pg-summary').textContent = "Text copied to clipboard.";
+    setTimeout(() => { card.querySelector('#pg-summary').textContent = prev; }, 1400);
+  }).catch(() => {
+    alert("Copy failed — select the text and copy manually.");
+  });
+}
+
+function pgCheck(btn) {
+  const card = btn.closest('.card');
+  const text = (card.querySelector('#pg-text').value || "");
+  const explain = card.querySelector('#pg-explain').checked;
+  const smartOnly = card.querySelector('#pg-smart').checked;
+
+  if (!text.trim()) {
+    card.querySelector('#pg-summary').textContent = "Please paste some text to check.";
+    return;
+  }
+
+  const suggestions = analyzePunctuation(text, { smartOnly });
+  renderPgSuggestions(card, suggestions, explain);
+  card.querySelector('#pg-summary').textContent = `${suggestions.length} suggestion(s) found.`;
+}
+
+/* Analyze punctuation and return suggestions:
+   suggestion: { index, length, original, replacement|null, message, severity }
+*/
+function analyzePunctuation(text, opts = {}) {
+  const suggestions = [];
+  const smartOnly = !!opts.smartOnly;
+
+  // helper to push suggestion
+  function push(i, len, orig, repl, msg, severity = 'note') {
+    suggestions.push({ index: i, length: len, original: orig, replacement: repl, message: msg, severity });
+  }
+
+  // 1) multiple spaces after sentence-ending punctuation -> single space
+  const multiSpaceRegex = /([.!?]) {2,}/g;
+  let m;
+  while ((m = multiSpaceRegex.exec(text)) !== null) {
+    push(m.index + 1, m[0].length - 1, m[0].slice(1), ' ', 'Reduce multiple spaces after sentence end to a single space', 'minor');
+  }
+
+  // 2) missing space after comma/semicolon/colon (e.g., "word,word")
+  const missingSpaceAfterPunct = /([,;:])([^\s])/g;
+  while ((m = missingSpaceAfterPunct.exec(text)) !== null) {
+    // avoid false positives inside numbers like "1,000"
+    const before = text[m.index - 1] || '';
+    const after = m[2] || '';
+    if (/\d/.test(before) && /\d/.test(after)) continue;
+    push(m.index, 2, m[0], m[1] + ' ' + m[2], 'Add a space after punctuation', 'minor');
+  }
+
+  // 3) space before comma/period (e.g., "word ,")
+  const spaceBeforePunct = /\s+([,.;:!?])/g;
+  while ((m = spaceBeforePunct.exec(text)) !== null) {
+    push(m.index, m[0].length, m[0], m[1], 'Remove space before punctuation', 'minor');
+  }
+
+  // 4) comma splice detection (simple heuristic: independent clause, comma, independent clause starting with capital)
+  // pattern: lowercase or word, comma, space, capital letter and not a conjunction
+  const commaSpliceRegex = /([a-z0-9][^,]{0,120}),\s+([A-Z][^.!?]{5,120})/g;
+  while ((m = commaSpliceRegex.exec(text)) !== null) {
+    const second = m[2].trim();
+    // avoid false positives when second clause starts with a conjunction like "However" or "But" (these may be fine)
+    if (/^(But|And|Or|So|However|Therefore|Meanwhile|Although)\b/.test(second)) continue;
+    // propose semicolon or period (smart) or suggest review (if smartOnly false)
+    if (!smartOnly) {
+      push(m.index + m[1].length, 1, ',', ';', 'Possible comma splice — consider semicolon or period', 'suggestion');
+    } else {
+      // smart: suggest semicolon (safer)
+      push(m.index + m[1].length, 1, ',', ';', 'Possible comma splice — semicolon is often appropriate', 'suggestion');
+    }
+  }
+
+  // 5) misuse of apostrophes: plural vs possessive (heuristic: words ending with "s" followed by apostrophe patterns)
+  // flag common incorrect plural apostrophe like "apple's" when context suggests plural (simple heuristic: "many apple's")
+  const pluralApostropheRegex = /\b(many|several|few|some|these|those)\s+([A-Za-z]+)'s\b/gi;
+  while ((m = pluralApostropheRegex.exec(text)) !== null) {
+    push(m.index + m[0].indexOf(m[2] + "'s"), (m[2] + "'s").length, m[2] + "'s", m[2] + 's', 'Check apostrophe: plural vs possessive', 'note');
+  }
+
+  // 6) straight quotes vs smart quotes (offer replacement to typographic quotes)
+  const straightDouble = /"([^"]+)"/g;
+  while ((m = straightDouble.exec(text)) !== null) {
+    const orig = m[0];
+    const repl = '“' + m[1] + '”';
+    push(m.index, orig.length, orig, repl, 'Replace straight quotes with typographic quotes', 'minor');
+  }
+  const straightSingle = /'([^']+)'/g;
+  while ((m = straightSingle.exec(text)) !== null) {
+    const orig = m[0];
+    const repl = '‘' + m[1] + '’';
+    push(m.index, orig.length, orig, repl, 'Replace straight single quotes with typographic quotes', 'minor');
+  }
+
+  // 7) em dash spacing inconsistencies: suggest consistent style (either spaced or unspaced)
+  // detect " - " (hyphen used as dash with spaces) and "—" (em dash) mixed usage
+  const hyphenAsDash = /(\s)-(\s)/g;
+  while ((m = hyphenAsDash.exec(text)) !== null) {
+    push(m.index + 1, 1, '-', '—', 'Use an em dash (—) instead of hyphen for breaks', 'note');
+  }
+
+  // 8) Oxford comma suggestions for lists of three or more items (non-destructive note)
+  // simple heuristic: look for "a, b and c" patterns and suggest Oxford comma
+  const oxfordRegex = /\b([A-Za-z0-9'’\s]+),\s+([A-Za-z0-9'’\s]+)\s+and\s+([A-Za-z0-9'’\s]+)\b/g;
+  while ((m = oxfordRegex.exec(text)) !== null) {
+    // avoid matching dates or long phrases; keep suggestion as note
+    push(m.index, m[0].length, m[0], null, 'Consider using an Oxford comma before "and" in lists of three or more items', 'note');
+  }
+
+  // 9) colon usage: if colon used after a non-independent clause, flag as note
+  const colonRegex = /([a-z0-9][^:]{0,60}):\s+[A-Z0-9]/gi;
+  while ((m = colonRegex.exec(text)) !== null) {
+    // if preceding part is short and not an independent clause, suggest review
+    const before = m[1].trim();
+    if (before.split(/\s+/).length < 6 && !/[.!?]$/.test(before)) {
+      push(m.index + before.length, 1, ':', ':', 'Check colon usage — ensure it follows an independent clause', 'note');
+    }
+  }
+
+  // 10) trailing comma in single-item parenthetical or stray commas (heuristic)
+  const strayCommaRegex = /\(\s*([A-Za-z0-9][^,]{0,60}),\s*\)/g;
+  while ((m = strayCommaRegex.exec(text)) !== null) {
+    push(m.index, m[0].length, m[0], '(' + m[1].trim() + ')', 'Remove stray comma inside parentheses', 'minor');
+  }
+
+  // deduplicate by index+original
+  const unique = [];
+  const seen = new Set();
+  suggestions.forEach(s => {
+    const key = `${s.index}:${s.length}:${s.original}:${s.replacement}`;
+    if (!seen.has(key)) {
+      unique.push(s);
+      seen.add(key);
+    }
+  });
+
+  return unique;
+}
+
+function renderPgSuggestions(card, suggestions, explain) {
+  const list = card.querySelector('#pg-suggestions');
+  list.innerHTML = "";
+
+  if (!suggestions.length) {
+    list.innerHTML = `<li class="small" style="padding:8px;">No obvious punctuation issues found by this quick check.</li>`;
+    return;
+  }
+
+  // sort by index
+  suggestions.sort((a,b) => a.index - b.index);
+
+  suggestions.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.style.padding = "10px";
+    li.style.borderBottom = "1px solid rgba(255,255,255,0.03)";
+    li.style.display = "flex";
+    li.style.justifyContent = "space-between";
+    li.style.alignItems = "flex-start";
+
+    const left = document.createElement('div');
+    left.style.flex = "1";
+
+    const title = document.createElement('div');
+    title.innerHTML = `<strong>${escapeHtml(s.message)}</strong>`;
+    title.className = "small";
+    left.appendChild(title);
+
+    const context = document.createElement('div');
+    context.className = "small";
+    context.style.opacity = "0.9";
+    const preview = s.original.length > 120 ? s.original.slice(0,120) + "…" : s.original;
+    context.textContent = `Context: "${preview}"`;
+    left.appendChild(context);
+
+    if (explain) {
+      const explainDiv = document.createElement('div');
+      explainDiv.className = "small";
+      explainDiv.style.marginTop = "6px";
+      explainDiv.style.opacity = "0.85";
+      explainDiv.textContent = s.replacement !== null ? `Suggestion: replace "${s.original}" with "${s.replacement}".` : `Note: ${s.message}.`;
+      left.appendChild(explainDiv);
+    }
+
+    const actions = document.createElement('div');
+    actions.style.display = "flex";
+    actions.style.flexDirection = "column";
+    actions.style.gap = "8px";
+    actions.style.alignItems = "flex-end";
+
+    if (s.replacement !== null) {
+      const applyBtn = document.createElement('button');
+      applyBtn.className = "tiny";
+      applyBtn.textContent = `Apply`;
+      applyBtn.onclick = () => applyPgSuggestion(card, s);
+      actions.appendChild(applyBtn);
+    } else {
+      const ignoreBtn = document.createElement('button');
+      ignoreBtn.className = "tiny";
+      ignoreBtn.textContent = "Ignore";
+      ignoreBtn.onclick = () => li.remove();
+      actions.appendChild(ignoreBtn);
+    }
+
+    li.appendChild(left);
+    li.appendChild(actions);
+    list.appendChild(li);
+  });
+}
+
+function applyPgSuggestion(card, s) {
+  const textEl = card.querySelector('#pg-text');
+  let text = textEl.value || "";
+
+  // verify substring at index matches original; if not, try to find a nearby match
+  const current = text.slice(s.index, s.index + s.length);
+  if (current !== s.original) {
+    const foundAt = text.indexOf(s.original);
+    if (foundAt !== -1) {
+      text = text.slice(0, foundAt) + (s.replacement !== null ? s.replacement : s.original) + text.slice(foundAt + s.length);
+    } else {
+      alert('Could not apply suggestion automatically because the text changed. Please apply manually.');
+      return;
+    }
+  } else {
+    text = text.slice(0, s.index) + (s.replacement !== null ? s.replacement : s.original) + text.slice(s.index + s.length);
+  }
+
+  textEl.value = text;
+  // re-run check to refresh suggestions
+  pgCheck(card.querySelector('button'));
+}
+
+function pgApplyAll(btn) {
+  const card = btn.closest('.card');
+  const listEl = card.querySelector('#pg-suggestions');
+  const textEl = card.querySelector('#pg-text');
+  let text = textEl.value || "";
+
+  // collect suggestions from rendered list and apply left-to-right while updating text
+  const items = [];
+  listEl.querySelectorAll('li').forEach(li => {
+    const msgEl = li.querySelector('div strong');
+    if (!msgEl) return;
+    const note = msgEl.textContent || '';
+    // find apply button and extract replacement from explanation if present
+    const explain = li.querySelector('.small:nth-child(3)');
+    // We cannot reliably extract replacement from DOM; instead, re-run analysis and apply programmatically
+  });
+
+  // safer approach: re-run analysis and apply suggestions sorted by index descending
+  const suggestions = analyzePunctuation(text, { smartOnly: card.querySelector('#pg-smart').checked });
+  suggestions
+    .slice()
+    .sort((a,b) => b.index - a.index)
+    .forEach(s => {
+      if (s.replacement !== null) {
+        text = text.slice(0, s.index) + s.replacement + text.slice(s.index + s.length);
+      }
+    });
+
+  textEl.value = text;
+  // re-run check
+  pgCheck(card.querySelector('button'));
+}
+
+/* small utility */
+function escapeHtml(s) {
+  if (!s) return "";
+  return s.replace(/[&<>"']/g, function (m) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m];
+  });
+}
+</script>
