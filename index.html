@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>The Most Useful Site in the World — Auto Load Cards</title>
+  <title>The Most Useful Site in the World — Auto Load Cards (Alphabetical)</title>
   <style>
     :root{
       --accent:#2dd4ff;
@@ -169,8 +169,9 @@
       <input id="repoUrl" type="text" value="https://github.com/mrpr0phecy/mrpr0phecy" style="min-width:360px" />
       <input id="branch" type="text" value="main" style="width:120px" />
       <input id="token" type="text" placeholder="Optional GitHub token (for higher rate limits)" style="min-width:260px" />
-      <button id="loadBtn">Load all cards (random order)</button>
-      <button id="shuffleBtn" title="Shuffle displayed cards">Shuffle</button>
+      <button id="loadBtn">Load all cards</button>
+      <button id="sortAlphaBtn" title="Sort alphabetically">Sort A→Z</button>
+      <button id="sortRandomBtn" title="Random order">Random</button>
     </div>
 
     <div class="status" id="status">Initializing and auto-loading cards from your repo...</div>
@@ -237,7 +238,7 @@
       return files;
     }
 
-    /* ---------- Render flat randomized grid ---------- */
+    /* ---------- Render flat grid (alphabetical by default) ---------- */
     const grid = qs('#gridContainer');
 
     function clearGrid(){
@@ -343,8 +344,8 @@
     qs('#searchInput').addEventListener('input', debouncedSearch);
     qs('#searchInput').addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ qs('#searchInput').value=''; applySearchFilter(''); } });
 
-    /* ---------- Load & render flow ---------- */
-    async function loadAndRenderAll(repoUrl, branch, token){
+    /* ---------- Load & render flow (alphabetical by default) ---------- */
+    async function loadAndRenderAll(repoUrl, branch, token, sortMode='alpha'){
       const parsed = parseRepo(repoUrl);
       if(!parsed) return setStatus('Invalid repo URL. Use https://github.com/owner/repo or owner/repo');
       currentOwner = parsed.owner; currentRepo = parsed.repo; currentBranch = branch || 'main';
@@ -353,8 +354,14 @@
       try{
         const files = await getCardFilesFromRepo(currentOwner, currentRepo, currentBranch, token);
         if(!files.length) { setStatus('No cards/*.html files found under cards/'); qs('#gridContainer').setAttribute('aria-busy','false'); return; }
-        // shuffle
-        shuffleArray(files);
+
+        // sort according to mode
+        if(sortMode === 'alpha'){
+          files.sort((a,b)=> a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+        } else {
+          shuffleArray(files);
+        }
+
         currentFiles = files.slice();
         clearGrid();
         // create elements and append
@@ -362,7 +369,7 @@
           const cardEl = createCardElement(file, currentOwner, currentRepo, currentBranch);
           grid.appendChild(cardEl);
         });
-        setStatus(`Loaded ${files.length} cards (random order).`);
+        setStatus(`Loaded ${files.length} cards (${sortMode === 'alpha' ? 'alphabetical' : 'random'} order).`);
         applySearchFilter(qs('#searchInput').value);
       }catch(err){
         console.error(err);
@@ -376,15 +383,22 @@
       const repoVal = qs('#repoUrl').value.trim();
       const branch = qs('#branch').value.trim() || 'main';
       const token = qs('#token').value.trim();
-      loadAndRenderAll(repoVal, branch, token);
+      loadAndRenderAll(repoVal, branch, token, 'alpha');
     });
 
-    qs('#shuffleBtn').addEventListener('click', ()=>{
-      // shuffle DOM elements
+    qs('#sortAlphaBtn').addEventListener('click', ()=>{
+      // re-sort existing DOM nodes alphabetically by dataset.name
+      const nodes = Array.from(grid.children);
+      nodes.sort((a,b)=> a.dataset.name.localeCompare(b.dataset.name, undefined, { sensitivity: 'base', numeric: true }));
+      nodes.forEach(n => grid.appendChild(n));
+      setStatus('Sorted alphabetically (A→Z).');
+    });
+
+    qs('#sortRandomBtn').addEventListener('click', ()=>{
       const nodes = Array.from(grid.children);
       shuffleArray(nodes);
       nodes.forEach(n => grid.appendChild(n));
-      setStatus('Shuffled cards.');
+      setStatus('Shuffled cards (random order).');
     });
 
     /* ---------- Toolbox (localStorage simple) ---------- */
@@ -444,13 +458,12 @@
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
     function debounce(fn, wait=160){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 
-    /* ---------- Auto-load on page load ---------- */
+    /* ---------- Auto-load on page load (alphabetical by default) ---------- */
     (function autoLoadDefaultRepo(){
       const defaultRepo = qs('#repoUrl').value.trim();
       const defaultBranch = qs('#branch').value.trim() || 'main';
       const token = qs('#token').value.trim();
-      // Attempt to auto-load immediately; if it fails, the UI still allows manual Load
-      loadAndRenderAll(defaultRepo, defaultBranch, token).catch(err=>{
+      loadAndRenderAll(defaultRepo, defaultBranch, token, 'alpha').catch(err=>{
         console.warn('Auto-load failed:', err);
         setStatus('Auto-load failed. Press Load to try again or add a token for higher rate limits.');
       });
