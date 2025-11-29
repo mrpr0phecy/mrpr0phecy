@@ -1,0 +1,110 @@
+<h2 id="load-calculator-title" style="margin-top:0;">Load Calculator (General Advice)</h2>
+
+<form aria-describedby="load-calculator-desc">
+  <p id="load-calculator-desc" class="small">
+    Estimate total electrical load from appliances. ⚠️ Educational only — always verify with a qualified electrician and local standards.
+  </p>
+
+  <div class="field" style="margin-bottom:12px;">
+    <label for="load-appliances">Appliance List (name:watts, comma separated)</label>
+    <input id="load-appliances" type="text" placeholder="e.g. kettle:2000, fridge:150, lights:300" style="width:100%;" />
+  </div>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="load-diversity">Diversity Factor (%)</label>
+      <input id="load-diversity" type="number" placeholder="e.g. 80" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="load-continuous">Continuous Load?</label>
+      <select id="load-continuous" style="width:100%;">
+        <option value="yes">Yes (apply 125%)</option>
+        <option value="no" selected>No</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="load-show-facts">Show Load Facts</label>
+      <select id="load-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="loadCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="loadReset(this)">Reset</button>
+    <button type="button" onclick="loadCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Load Results & Facts</h3>
+  <textarea id="load-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="load-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>Total load is the sum of appliance power ratings.</li>
+      <li>Diversity factor accounts for not all appliances running simultaneously.</li>
+      <li>Continuous loads are often calculated at 125% of rated current.</li>
+      <li>Load calculations guide circuit sizing but must be checked against local codes.</li>
+      <li>⚠️ Always consult a licensed electrician before installation.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="load-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* load-calculator.html
+   - Educational load calculator
+   - Scoped with load- prefix
+*/
+
+function loadReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#load-output').value="";
+  card.querySelector('#load-hint').textContent="";
+  card.querySelector('#load-facts-container').style.display="none";
+}
+
+function loadCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#load-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#load-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function loadCalculate(btn){
+  const card=btn.closest('.card')||document;
+  const appliancesStr=card.querySelector('#load-appliances').value;
+  const diversity=parseFloat(card.querySelector('#load-diversity').value)||100;
+  const continuous=card.querySelector('#load-continuous').value==="yes";
+  const showFacts=card.querySelector('#load-show-facts').value==="yes";
+  let out="";
+  if(appliancesStr.trim()){
+    let total=0;
+    appliancesStr.split(',').forEach(pair=>{
+      const [name,val]=pair.split(':');
+      if(val) total+=parseFloat(val.trim());
+    });
+    let adjusted=total*(diversity/100);
+    if(continuous) adjusted*=1.25;
+    out=`Total connected load ≈ ${total.toFixed(2)} W\nAdjusted load (with diversity/continuous factors) ≈ ${adjusted.toFixed(2)} W\n⚠️ Verify with electrician & local code.`;
+  } else {
+    out="Please enter appliance list with power ratings.";
+  }
+  card.querySelector('#load-output').value=out;
+  card.querySelector('#load-hint').textContent="Result generated.";
+  card.querySelector('#load-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
