@@ -168,7 +168,6 @@
     <div class="controls">
       <!-- repo is kept only in JS; no visible repo string on the page -->
       <input id="branch" type="text" value="main" style="width:120px" />
-      <input id="token" type="text" placeholder="Optional GitHub token (for higher rate limits)" style="min-width:260px" />
       <button id="loadBtn">Load all cards</button>
       <button id="sortAlphaBtn" title="Sort alphabetically">Sort A→Z</button>
       <button id="sortRandomBtn" title="Random order">Random</button>
@@ -342,13 +341,13 @@
     /* ---------- Load & render flow (alphabetical by default) ----------
        Uses DEFAULT_REPO internally; the repo string is not shown anywhere in the UI.
     */
-    async function loadAndRenderAll(branch, token, sortMode='alpha'){
+    async function loadAndRenderAll(branch, sortMode='alpha'){
       const parsed = parseOwnerRepo(DEFAULT_REPO);
       if(!parsed) return setStatus('Configuration error: source not available.');
       setStatus('Fetching file list...');
       qs('#gridContainer').setAttribute('aria-busy','true');
       try{
-        const files = await getCardFilesFromRepo(parsed.owner, parsed.repo, branch, token);
+        const files = await getCardFilesFromRepo(parsed.owner, parsed.repo, branch);
         if(!files.length) { setStatus('No cards/*.html files found under cards/'); qs('#gridContainer').setAttribute('aria-busy','false'); return; }
 
         // sort according to mode
@@ -369,7 +368,7 @@
         applySearchFilter(qs('#searchInput').value);
       }catch(err){
         console.error(err);
-        setStatus('Error loading cards. Check network or token and try again.');
+        setStatus('Error loading cards. Check network and try again.');
       } finally {
         qs('#gridContainer').setAttribute('aria-busy','false');
       }
@@ -377,8 +376,7 @@
 
     qs('#loadBtn').addEventListener('click', ()=>{
       const branch = qs('#branch').value.trim() || 'main';
-      const token = qs('#token').value.trim();
-      loadAndRenderAll(branch, token, 'alpha');
+      loadAndRenderAll(branch, 'alpha');
     });
 
     qs('#sortAlphaBtn').addEventListener('click', ()=>{
@@ -455,14 +453,13 @@
 
     /* ---------- Auto-load on page load (alphabetical by default) ----------
        This attempts to fetch the cards list automatically using DEFAULT_REPO.
-       If it fails (network, rate limit), the user can press Load manually or provide a token.
+       If it fails (network, rate limit), the user can press Load manually.
     */
     (function autoLoadDefaultRepo(){
       const defaultBranch = qs('#branch').value.trim() || 'main';
-      const token = qs('#token').value.trim();
-      loadAndRenderAll(defaultBranch, token, 'alpha').catch(err=>{
+      loadAndRenderAll(defaultBranch, 'alpha').catch(err=>{
         console.warn('Auto-load failed:', err);
-        setStatus('Auto-load failed. Press Load to try again or add a token for higher rate limits.');
+        setStatus('Auto-load failed. Press Load to try again.');
       });
     })();
 
