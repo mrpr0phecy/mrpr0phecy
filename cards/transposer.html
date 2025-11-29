@@ -1,0 +1,101 @@
+<h2 id="transposer-title" style="margin-top:0;">Transposer (General Advice)</h2>
+
+<form aria-describedby="transposer-desc">
+  <p id="transposer-desc" class="small">
+    Transpose chords or notes into a new key. ⚠️ Educational only — always verify with a teacher or professional resource.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="trans-input">Original Notes/Chords (comma separated)</label>
+      <input id="trans-input" type="text" placeholder="e.g. C,F,G" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="trans-steps">Transpose Steps (semitones)</label>
+      <input id="trans-steps" type="number" placeholder="e.g. 2" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="trans-show-facts">Show Transposer Facts</label>
+      <select id="trans-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="transGenerate(this)">Transpose</button>
+    <button type="button" class="secondary" onclick="transReset(this)">Reset</button>
+    <button type="button" onclick="transCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Transposer Output & Facts</h3>
+  <textarea id="trans-output" rows="6" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="trans-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>Transposition shifts notes or chords up or down by semitones.</li>
+      <li>+2 semitones moves C → D, F → G, G → A.</li>
+      <li>Useful for adapting songs to different vocal ranges or instruments.</li>
+      <li>⚠️ Always confirm transpositions with a teacher or professional resource.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="trans-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* transposer.html
+   - Educational transposer card
+   - Scoped with trans- prefix
+*/
+
+function transReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#trans-output').value="";
+  card.querySelector('#trans-hint').textContent="";
+  card.querySelector('#trans-facts-container').style.display="none";
+}
+
+function transCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#trans-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#trans-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function transGenerate(btn){
+  const card=btn.closest('.card')||document;
+  const input=card.querySelector('#trans-input').value.trim();
+  const steps=parseInt(card.querySelector('#trans-steps').value);
+  const showFacts=card.querySelector('#trans-show-facts').value==="yes";
+  let out="";
+  if(input && !isNaN(steps)){
+    const notes=input.split(',').map(n=>n.trim().toUpperCase());
+    const scale=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+    const transposed=notes.map(n=>{
+      const idx=scale.indexOf(n);
+      if(idx===-1)return n;
+      const newIdx=(idx+steps+12)%12;
+      return scale[newIdx];
+    });
+    out=`Original: ${notes.join(", ")}\nTransposed (+${steps}): ${transposed.join(", ")}\n⚠️ Verify with teacher or resource.`;
+  } else {
+    out="Please enter valid notes/chords and transpose steps.";
+  }
+  card.querySelector('#trans-output').value=out;
+  card.querySelector('#trans-hint').textContent="Transposition complete.";
+  card.querySelector('#trans-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
