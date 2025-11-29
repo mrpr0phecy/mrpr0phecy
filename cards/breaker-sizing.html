@@ -1,0 +1,110 @@
+<h2 id="breaker-sizing-title" style="margin-top:0;">Breaker Sizing Calculator (General Advice)</h2>
+
+<form aria-describedby="breaker-sizing-desc">
+  <p id="breaker-sizing-desc" class="small">
+    Estimate breaker size for a circuit. ⚠️ Educational only — always verify with a qualified electrician and local standards.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="brk-current">Load Current (A)</label>
+      <input id="brk-current" type="number" placeholder="e.g. 20" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="brk-continuous">Continuous Load?</label>
+      <select id="brk-continuous" style="width:100%;">
+        <option value="yes">Yes (apply 125%)</option>
+        <option value="no" selected>No</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="brk-conductor">Conductor Ampacity (A)</label>
+      <input id="brk-conductor" type="number" placeholder="e.g. 25" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="brk-show-facts">Show Breaker Facts</label>
+      <select id="brk-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="brkCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="brkReset(this)">Reset</button>
+    <button type="button" onclick="brkCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Breaker Results & Facts</h3>
+  <textarea id="brk-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="brk-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>Breakers protect conductors from overcurrent.</li>
+      <li>Continuous loads are often calculated at 125% of rated current.</li>
+      <li>Breaker size must never exceed conductor ampacity.</li>
+      <li>Standard breaker ratings are typically 10A, 16A, 20A, 32A, etc.</li>
+      <li>⚠️ Always consult a licensed electrician before installation.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="brk-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* breaker-sizing.html
+   - Educational breaker sizing calculator
+   - Scoped with brk- prefix
+*/
+
+function brkReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#brk-output').value="";
+  card.querySelector('#brk-hint').textContent="";
+  card.querySelector('#brk-facts-container').style.display="none";
+}
+
+function brkCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#brk-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#brk-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function brkCalculate(btn){
+  const card=btn.closest('.card')||document;
+  const I=parseFloat(card.querySelector('#brk-current').value);
+  const continuous=card.querySelector('#brk-continuous').value==="yes";
+  const ampacity=parseFloat(card.querySelector('#brk-conductor').value);
+  const showFacts=card.querySelector('#brk-show-facts').value==="yes";
+  let out="";
+  if(I>0 && ampacity>0){
+    let required=I;
+    if(continuous) required*=1.25;
+    let breaker=Math.ceil(required); // round up to nearest amp
+    if(breaker>ampacity){
+      out=`Estimated breaker ≈ ${breaker} A\n⚠️ Warning: exceeds conductor ampacity (${ampacity} A). Verify with electrician & local code.`;
+    } else {
+      out=`Estimated breaker ≈ ${breaker} A\nConductor ampacity = ${ampacity} A\n⚠️ Verify with electrician & local code.`;
+    }
+  } else {
+    out="Please enter valid load current and conductor ampacity.";
+  }
+  card.querySelector('#brk-output').value=out;
+  card.querySelector('#brk-hint').textContent="Result generated.";
+  card.querySelector('#brk-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
