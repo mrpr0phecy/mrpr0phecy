@@ -1,0 +1,137 @@
+<h2 id="motor-startup-title" style="margin-top:0;">Motor Startup Calculator (General Advice)</h2>
+
+<form aria-describedby="motor-startup-desc">
+  <p id="motor-startup-desc" class="small">
+    Estimate motor running and starting currents. ⚠️ Educational only — always verify with a qualified electrician and local standards.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="motor-power">Motor Power (kW)</label>
+      <input id="motor-power" type="number" placeholder="e.g. 5" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="motor-voltage">Voltage (V)</label>
+      <input id="motor-voltage" type="number" placeholder="e.g. 400" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="motor-phase">Phase</label>
+      <select id="motor-phase" style="width:100%;">
+        <option value="three" selected>Three-phase</option>
+        <option value="single">Single-phase</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="motor-pf">Power Factor (PF)</label>
+      <input id="motor-pf" type="number" step="0.01" placeholder="e.g. 0.85" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="motor-eff">Efficiency (%)</label>
+      <input id="motor-eff" type="number" step="0.1" placeholder="e.g. 90" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="motor-method">Starting Method</label>
+      <select id="motor-method" style="width:100%;">
+        <option value="dol" selected>Direct-on-line (DOL)</option>
+        <option value="star-delta">Star-Delta</option>
+        <option value="soft">Soft Starter</option>
+        <option value="vfd">Variable Frequency Drive (VFD)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="motor-show-facts">Show Motor Facts</label>
+      <select id="motor-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="motorCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="motorReset(this)">Reset</button>
+    <button type="button" onclick="motorCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Motor Results & Facts</h3>
+  <textarea id="motor-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="motor-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>Motors draw high inrush current at startup, often 5–7× running current.</li>
+      <li>Starting method (DOL, star‑delta, soft starter, VFD) affects inrush magnitude.</li>
+      <li>Running current depends on power, voltage, efficiency, and power factor.</li>
+      <li>Excessive voltage dip during startup can damage equipment or trip breakers.</li>
+      <li>⚠️ Always consult a licensed electrician before installation.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="motor-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* motor-startup.html
+   - Educational motor startup calculator
+   - Scoped with motor- prefix
+*/
+
+function motorReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#motor-output').value="";
+  card.querySelector('#motor-hint').textContent="";
+  card.querySelector('#motor-facts-container').style.display="none";
+}
+
+function motorCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#motor-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#motor-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function motorCalculate(btn){
+  const card=btn.closest('.card')||document;
+  const PkW=parseFloat(card.querySelector('#motor-power').value);
+  const V=parseFloat(card.querySelector('#motor-voltage').value);
+  const phase=card.querySelector('#motor-phase').value;
+  const pf=parseFloat(card.querySelector('#motor-pf').value)||0.85;
+  const eff=parseFloat(card.querySelector('#motor-eff').value)||90;
+  const method=card.querySelector('#motor-method').value;
+  const showFacts=card.querySelector('#motor-show-facts').value==="yes";
+  let out="";
+  if(PkW>0 && V>0){
+    const P=PkW*1000;
+    let I=0;
+    if(phase==="single"){
+      I=P/(V*pf*(eff/100));
+    } else {
+      I=P/(Math.sqrt(3)*V*pf*(eff/100));
+    }
+    let inrush=I*6; // default 6× running current
+    if(method==="star-delta") inrush=I*2;
+    else if(method==="soft") inrush=I*1.5;
+    else if(method==="vfd") inrush=I*1.2;
+    out=`Running Current ≈ ${I.toFixed(2)} A\nEstimated Startup Current ≈ ${inrush.toFixed(2)} A (method: ${method})\n⚠️ Verify with electrician & local code.`;
+  } else {
+    out="Please enter valid motor power and voltage.";
+  }
+  card.querySelector('#motor-output').value=out;
+  card.querySelector('#motor-hint').textContent="Result generated.";
+  card.querySelector('#motor-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
