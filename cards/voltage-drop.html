@@ -1,0 +1,120 @@
+<h2 id="voltage-drop-title" style="margin-top:0;">Voltage Drop Calculator (General Advice)</h2>
+
+<form aria-describedby="voltage-drop-desc">
+  <p id="voltage-drop-desc" class="small">
+    Estimate voltage drop across a conductor run. ⚠️ Educational only — always verify with a qualified electrician and local standards.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="vd-current">Current (A)</label>
+      <input id="vd-current" type="number" placeholder="e.g. 20" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="vd-length">Length (m, one-way)</label>
+      <input id="vd-length" type="number" placeholder="e.g. 30" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="vd-size">Conductor Area (mm²)</label>
+      <input id="vd-size" type="number" placeholder="e.g. 2.5" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="vd-voltage">System Voltage (V)</label>
+      <input id="vd-voltage" type="number" placeholder="e.g. 230" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="vd-material">Conductor Material</label>
+      <select id="vd-material" style="width:100%;">
+        <option value="copper" selected>Copper</option>
+        <option value="aluminum">Aluminum</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="vd-show-facts">Show Voltage Drop Facts</label>
+      <select id="vd-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="vdCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="vdReset(this)">Reset</button>
+    <button type="button" onclick="vdCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Voltage Drop Results & Facts</h3>
+  <textarea id="vd-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="vd-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>Voltage drop should be kept under 3% for branch circuits, 5% overall.</li>
+      <li>Longer runs and higher currents increase voltage drop.</li>
+      <li>Copper has lower resistance than aluminum, reducing voltage drop.</li>
+      <li>Excessive voltage drop can cause equipment malfunction or overheating.</li>
+      <li>⚠️ Always consult a licensed electrician before installation.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="vd-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* voltage-drop.html
+   - Educational voltage drop estimator
+   - Scoped with vd- prefix
+*/
+
+function vdReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#vd-output').value="";
+  card.querySelector('#vd-hint').textContent="";
+  card.querySelector('#vd-facts-container').style.display="none";
+}
+
+function vdCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#vd-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#vd-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function vdCalculate(btn){
+  const card=btn.closest('.card')||document;
+  const I=parseFloat(card.querySelector('#vd-current').value);
+  const L=parseFloat(card.querySelector('#vd-length').value);
+  const A=parseFloat(card.querySelector('#vd-size').value);
+  const V=parseFloat(card.querySelector('#vd-voltage').value);
+  const material=card.querySelector('#vd-material').value;
+  const showFacts=card.querySelector('#vd-show-facts').value==="yes";
+  let out="";
+  if(I>0 && L>0 && A>0 && V>0){
+    // Resistivity values (Ω·mm²/m)
+    const resistivity = material==="copper" ? 0.017 : 0.028;
+    // Voltage drop = (2 * L * I * resistivity) / A
+    const drop=(2*L*I*resistivity)/A;
+    const pct=(drop/V*100);
+    out=`Estimated voltage drop ≈ ${drop.toFixed(2)} V\nPercentage ≈ ${pct.toFixed(2)}%\n⚠️ Verify with electrician & local code.`;
+  } else {
+    out="Please enter valid current, length, conductor size, and voltage.";
+  }
+  card.querySelector('#vd-output').value=out;
+  card.querySelector('#vd-hint').textContent="Result generated.";
+  card.querySelector('#vd-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
