@@ -1,0 +1,139 @@
+<h2 id="resistor-color-code-title" style="margin-top:0;">Resistor Color Code (General Advice)</h2>
+
+<form aria-describedby="resistor-color-code-desc">
+  <p id="resistor-color-code-desc" class="small">
+    Decode resistor color bands into resistance values. ⚠️ Educational only — always verify with a qualified technician and standards.
+  </p>
+
+  <!-- Mode selector -->
+  <div class="field" style="margin-bottom:12px;">
+    <label for="rcc-mode">Resistor Type</label>
+    <select id="rcc-mode" onchange="rccUpdateBands()" style="width:100%;">
+      <option value="4" selected>4-band (common)</option>
+      <option value="5">5-band (precision)</option>
+      <option value="6">6-band (with temp coeff)</option>
+    </select>
+  </div>
+
+  <!-- Band selectors container -->
+  <div id="rcc-bands" class="row" style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;">
+    <!-- Band dropdowns will be injected here -->
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="rccCalculate(this)">Decode</button>
+    <button type="button" class="secondary" onclick="rccReset(this)">Reset</button>
+    <button type="button" onclick="rccCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Resistor Value & Facts</h3>
+  <textarea id="rcc-output" rows="6" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="rcc-facts-container" style="margin-top:16px;display:none;">
+    <ul>
+      <li>IEC 60062 defines resistor color codes worldwide.</li>
+      <li>4-band codes are most common; 5-band codes are used for precision resistors.</li>
+      <li>6-band codes add a temperature coefficient band (ppm/°C).</li>
+      <li>Gold and silver bands indicate fractional multipliers or wider tolerances.</li>
+      <li>⚠️ Always verify resistor values with a multimeter before use in critical circuits.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="rcc-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* resistor-color-code.html
+   - Educational resistor decoder with band count selector
+   - Scoped with rcc- prefix
+*/
+
+function rccReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#rcc-output').value="";
+  card.querySelector('#rcc-hint').textContent="";
+  card.querySelector('#rcc-facts-container').style.display="none";
+  rccUpdateBands(); // reset bands UI
+}
+
+function rccCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#rcc-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#rcc-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function rccUpdateBands(){
+  const mode=document.querySelector('#rcc-mode').value;
+  const container=document.querySelector('#rcc-bands');
+  container.innerHTML="";
+  const labels=(mode==="4")?["Band 1","Band 2","Multiplier","Tolerance"]:
+                (mode==="5")?["Band 1","Band 2","Band 3","Multiplier","Tolerance"]:
+                ["Band 1","Band 2","Band 3","Multiplier","Tolerance","Temp Coeff"];
+  labels.forEach((label,i)=>{
+    const div=document.createElement("div");
+    div.className="field";
+    div.innerHTML=`<label>${label}</label><select id="rcc-band${i+1}" style="width:100%;">${rccOptions(label)}</select>`;
+    container.appendChild(div);
+  });
+}
+
+function rccOptions(label){
+  // Simplified: you’d expand with full color sets per band type
+  if(label==="Multiplier"){
+    return `<option value="1">Black ×1</option><option value="10">Brown ×10</option><option value="100">Red ×100</option>
+            <option value="1000">Orange ×1k</option><option value="10000">Yellow ×10k</option><option value="100000">Green ×100k</option>
+            <option value="1000000">Blue ×1M</option><option value="10000000">Violet ×10M</option><option value="0.1">Gold ×0.1</option>
+            <option value="0.01">Silver ×0.01</option>`;
+  } else if(label==="Tolerance"){
+    return `<option value="1">Brown ±1%</option><option value="2">Red ±2%</option><option value="0.5">Green ±0.5%</option>
+            <option value="0.25">Blue ±0.25%</option><option value="0.1">Violet ±0.1%</option><option value="5">Gold ±5%</option>
+            <option value="10">Silver ±10%</option><option value="20">None ±20%</option>`;
+  } else if(label==="Temp Coeff"){
+    return `<option value="100">Brown 100ppm/°C</option><option value="50">Red 50ppm/°C</option><option value="15">Orange 15ppm/°C</option>
+            <option value="25">Yellow 25ppm/°C</option><option value="10">Blue 10ppm/°C</option><option value="5">Violet 5ppm/°C</option>`;
+  } else {
+    return `<option value="0">Black</option><option value="1">Brown</option><option value="2">Red</option>
+            <option value="3">Orange</option><option value="4">Yellow</option><option value="5">Green</option>
+            <option value="6">Blue</option><option value="7">Violet</option><option value="8">Gray</option>
+            <option value="9">White</option>`;
+  }
+}
+
+function rccCalculate(btn){
+  const mode=document.querySelector('#rcc-mode').value;
+  const showFacts=document.querySelector('#rcc-show-facts')?.value==="yes";
+  let out="";
+  // Simplified decode logic: handle 4-band and 5-band nominal values
+  if(mode==="4"||mode==="5"){
+    const b1=parseInt(document.querySelector('#rcc-band1').value);
+    const b2=parseInt(document.querySelector('#rcc-band2').value);
+    const mult=parseFloat(document.querySelector('#rcc-band'+(mode==="4"?3:4)).value);
+    const tol=parseFloat(document.querySelector('#rcc-band'+(mode==="4"?4:5)).value);
+    let base=(mode==="4")?(b1*10+b2)*mult:(b1*100+b2*10+parseInt(document.querySelector('#rcc-band3').value))*mult;
+    const min=(base*(1-(tol/100))).toFixed(2);
+    const max=(base*(1+(tol/100))).toFixed(2);
+    out=`Nominal Resistance ≈ ${base.toFixed(2)} Ω\nTolerance ±${tol}%\nRange ≈ ${min} Ω – ${max} Ω`;
+  } else if(mode==="6"){
+    out="6-band decoding includes temperature coefficient — verify with datasheet.";
+  } else {
+    out="Please select a valid mode.";
+  }
+  out+="\n⚠️ Verify with multimeter & standards.";
+  document.querySelector('#rcc-output').value=out;
+  document.querySelector('#rcc-hint').textContent="Result generated.";
+  document.querySelector('#rcc-facts-container').style.display=showFacts?"block":"none";
+}
+
+// Initialize bands on load
+document.addEventListener("DOMContentLoaded", rccUpdateBands);
+</script>
