@@ -1,0 +1,114 @@
+<h2 id="pcb-trace-width-title" style="margin-top:0;">PCB Trace Width Calculator (General Advice)</h2>
+
+<form aria-describedby="pcb-trace-width-desc">
+  <p id="pcb-trace-width-desc" class="small">
+    Estimate minimum PCB trace width for a given current. ⚠️ Educational only — always verify with IPC standards and a qualified technician.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="pcb-current">Current (A)</label>
+      <input id="pcb-current" type="number" placeholder="e.g. 2" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="pcb-thickness">Copper Thickness (oz)</label>
+      <input id="pcb-thickness" type="number" placeholder="e.g. 1" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="pcb-temp">Allowed Temp Rise (°C)</label>
+      <input id="pcb-temp" type="number" placeholder="e.g. 10" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="pcb-length">Trace Length (mm)</label>
+      <input id="pcb-length" type="number" placeholder="e.g. 50" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="pcb-show-facts">Show PCB Facts</label>
+      <select id="pcb-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="pcbCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="pcbReset(this)">Reset</button>
+    <button type="button" onclick="pcbCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">PCB Trace Results & Facts</h3>
+  <textarea id="pcb-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="pcb-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>PCB trace width depends on current, copper thickness, and allowable temperature rise.</li>
+      <li>IPC‑2221 provides industry guidelines for trace sizing.</li>
+      <li>Thicker copper layers allow narrower traces for the same current.</li>
+      <li>Longer traces increase resistance and voltage drop.</li>
+      <li>⚠️ Always verify PCB designs with IPC standards and manufacturer capabilities.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="pcb-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* pcb-trace-width.html
+   - Educational PCB trace width calculator
+   - Scoped with pcb- prefix
+*/
+
+function pcbReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#pcb-output').value="";
+  card.querySelector('#pcb-hint').textContent="";
+  card.querySelector('#pcb-facts-container').style.display="none";
+}
+
+function pcbCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#pcb-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#pcb-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function pcbCalculate(btn){
+  const card=btn.closest('.card')||document;
+  const I=parseFloat(card.querySelector('#pcb-current').value);
+  const thickness=parseFloat(card.querySelector('#pcb-thickness').value);
+  const tempRise=parseFloat(card.querySelector('#pcb-temp').value);
+  const length=parseFloat(card.querySelector('#pcb-length').value);
+  const showFacts=card.querySelector('#pcb-show-facts').value==="yes";
+  let out="";
+  if(I>0 && thickness>0 && tempRise>0){
+    // Simplified IPC-2221 approximation (not exact)
+    const k=0.024; // empirical constant
+    const A=Math.pow(I/k,0.44)*Math.pow(tempRise,-0.725); // cross-sectional area (mil²)
+    const width=(A/(thickness*1.378)).toFixed(2); // convert to mils width
+    const widthMM=(width*0.0254).toFixed(2); // mils to mm
+    out=`Estimated minimum trace width ≈ ${widthMM} mm\n⚠️ Verify with IPC-2221 and manufacturer specs.`;
+    if(length>0){
+      out+=`\nTrace length entered: ${length} mm (longer traces increase resistance).`;
+    }
+  } else {
+    out="Please enter valid current, copper thickness, and temp rise.";
+  }
+  card.querySelector('#pcb-output').value=out;
+  card.querySelector('#pcb-hint').textContent="Result generated.";
+  card.querySelector('#pcb-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
