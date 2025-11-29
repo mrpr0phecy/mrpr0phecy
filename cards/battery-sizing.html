@@ -1,0 +1,108 @@
+<h2 id="battery-sizing-title" style="margin-top:0;">Battery Sizing Calculator (General Advice)</h2>
+
+<form aria-describedby="battery-sizing-desc">
+  <p id="battery-sizing-desc" class="small">
+    Estimate battery capacity for a given load and runtime. ⚠️ Educational only — always verify with a qualified technician and manufacturer datasheets.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="bat-load">Load Power (W)</label>
+      <input id="bat-load" type="number" placeholder="e.g. 100" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="bat-voltage">System Voltage (V)</label>
+      <input id="bat-voltage" type="number" placeholder="e.g. 12" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="bat-runtime">Desired Runtime (hours)</label>
+      <input id="bat-runtime" type="number" placeholder="e.g. 5" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="bat-eff">System Efficiency (%)</label>
+      <input id="bat-eff" type="number" step="0.1" placeholder="e.g. 85" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="bat-show-facts">Show Battery Facts</label>
+      <select id="bat-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="batCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="batReset(this)">Reset</button>
+    <button type="button" onclick="batCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Battery Results & Facts</h3>
+  <textarea id="bat-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="bat-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>Battery capacity is measured in amp‑hours (Ah).</li>
+      <li>Formula: Ah = (Load W × Runtime h) / (Voltage V × Efficiency).</li>
+      <li>Always add a safety margin (e.g. 20%) for aging and discharge limits.</li>
+      <li>Deep‑cycle batteries are recommended for long runtimes.</li>
+      <li>⚠️ Always verify battery sizing with manufacturer datasheets and local standards.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="bat-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* battery-sizing.html
+   - Educational battery sizing calculator
+   - Scoped with bat- prefix
+*/
+
+function batReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#bat-output').value="";
+  card.querySelector('#bat-hint').textContent="";
+  card.querySelector('#bat-facts-container').style.display="none";
+}
+
+function batCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#bat-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#bat-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function batCalculate(btn){
+  const card=btn.closest('.card')||document;
+  const P=parseFloat(card.querySelector('#bat-load').value);
+  const V=parseFloat(card.querySelector('#bat-voltage').value);
+  const t=parseFloat(card.querySelector('#bat-runtime').value);
+  const eff=parseFloat(card.querySelector('#bat-eff').value)||100;
+  const showFacts=card.querySelector('#bat-show-facts').value==="yes";
+  let out="";
+  if(P>0 && V>0 && t>0){
+    const Ah=(P*t)/(V*(eff/100));
+    const AhSafe=Ah*1.2; // add 20% margin
+    out=`Estimated Battery Capacity ≈ ${Ah.toFixed(2)} Ah\nRecommended with margin ≈ ${AhSafe.toFixed(2)} Ah\n⚠️ Verify with datasheet & standards.`;
+  } else {
+    out="Please enter valid load, voltage, and runtime.";
+  }
+  card.querySelector('#bat-output').value=out;
+  card.querySelector('#bat-hint').textContent="Result generated.";
+  card.querySelector('#bat-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
