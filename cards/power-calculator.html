@@ -1,0 +1,118 @@
+<h2 id="power-calculator-title" style="margin-top:0;">Power Calculator (General Advice)</h2>
+
+<form aria-describedby="power-calculator-desc">
+  <p id="power-calculator-desc" class="small">
+    Estimate electrical power values. ⚠️ Educational only — always verify with a qualified electrician and local standards.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="pc-voltage">Voltage (V)</label>
+      <input id="pc-voltage" type="number" placeholder="e.g. 230" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="pc-current">Current (A)</label>
+      <input id="pc-current" type="number" placeholder="e.g. 10" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="pc-pf">Power Factor (PF)</label>
+      <input id="pc-pf" type="number" step="0.01" placeholder="e.g. 0.95" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="pc-phase">Phase</label>
+      <select id="pc-phase" style="width:100%;">
+        <option value="single" selected>Single-phase</option>
+        <option value="three">Three-phase</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="pc-show-facts">Show Power Facts</label>
+      <select id="pc-show-facts" style="width:100%;">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="pcCalculate(this)">Calculate</button>
+    <button type="button" class="secondary" onclick="pcReset(this)">Reset</button>
+    <button type="button" onclick="pcCopy(this)">Copy Result</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Power Results & Facts</h3>
+  <textarea id="pc-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div id="pc-facts-container" style="margin-top:16px;display:none;">
+    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
+      <li>Real power (W) = Voltage × Current × Power Factor.</li>
+      <li>Apparent power (VA) = Voltage × Current.</li>
+      <li>Three‑phase systems use √3 × V × I × PF for real power.</li>
+      <li>Continuous loads are often calculated at 125% of rated current.</li>
+      <li>⚠️ Always consult a licensed electrician before installation.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:8px;">
+    <div id="pc-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* power-calculator.html
+   - Educational power calculator
+   - Scoped with pc- prefix
+*/
+
+function pcReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#pc-output').value="";
+  card.querySelector('#pc-hint').textContent="";
+  card.querySelector('#pc-facts-container').style.display="none";
+}
+
+function pcCopy(btn){
+  const card=btn.closest('.card')||document;
+  const out=card.querySelector('#pc-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const h=card.querySelector('#pc-hint');
+    h.textContent="Copied.";
+    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+  });
+}
+
+function pcCalculate(btn){
+  const card=btn.closest('.card')||document;
+  const V=parseFloat(card.querySelector('#pc-voltage').value);
+  const I=parseFloat(card.querySelector('#pc-current').value);
+  const pf=parseFloat(card.querySelector('#pc-pf').value)||1;
+  const phase=card.querySelector('#pc-phase').value;
+  const showFacts=card.querySelector('#pc-show-facts').value==="yes";
+  let out="";
+  if(V>0 && I>0){
+    let P=0, S=0;
+    if(phase==="single"){
+      S=V*I;
+      P=V*I*pf;
+    } else {
+      S=Math.sqrt(3)*V*I;
+      P=Math.sqrt(3)*V*I*pf;
+    }
+    const cont=P*1.25; // educational continuous load factor
+    out=`Apparent Power S ≈ ${S.toFixed(2)} VA\nReal Power P ≈ ${P.toFixed(2)} W\nContinuous Load Estimate ≈ ${cont.toFixed(2)} W\n⚠️ Verify with electrician & local code.`;
+  } else {
+    out="Please enter valid voltage and current.";
+  }
+  card.querySelector('#pc-output').value=out;
+  card.querySelector('#pc-hint').textContent="Result generated.";
+  card.querySelector('#pc-facts-container').style.display=showFacts?"block":"none";
+}
+</script>
