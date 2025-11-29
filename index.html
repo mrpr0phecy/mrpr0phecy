@@ -45,10 +45,17 @@
       padding:24px;
       backdrop-filter:blur(8px);
       opacity:0;
-      transform:translateY(20px);
-      transition:all 0.6s ease;
+      transform:translateY(40px) scale(0.95);
+      transition:opacity 0.8s ease, transform 0.8s ease;
     }
-    .card.visible{opacity:1;transform:translateY(0);}
+    .card.visible {
+      opacity:1;
+      transform:translateY(0) scale(1);
+    }
+    .card.hidden {
+      opacity:0;
+      transform:translateY(40px) scale(0.95);
+    }
     @keyframes cardGradientShift {
       0%{background-position:0% 50%;}
       50%{background-position:100% 50%;}
@@ -95,13 +102,14 @@
 
     function createCard(file,index){
       const wrapper=document.createElement("article");
-      wrapper.className="card";
+      wrapper.className="card hidden";
       wrapper.dataset.name=file.replace(".html","");
       wrapper.innerHTML=`<p class="small">Loading ${file.replace(".html","")}...</p>`;
       const io=new IntersectionObserver(entries=>{
         entries.forEach(entry=>{
           if(entry.isIntersecting){
             setTimeout(()=>wrapper.classList.add("visible"),index*60);
+            wrapper.classList.remove("hidden");
             fetch("cards/"+file)
               .then(res=>res.ok?res.text():Promise.reject())
               .then(html=>{
@@ -112,7 +120,9 @@
                 wrapper.innerHTML=`<p class="small">Error loading ${file}</p>`;
                 evaluateSearch(searchInput.value);
               });
-            io.unobserve(wrapper);
+          } else {
+            wrapper.classList.remove("visible");
+            wrapper.classList.add("hidden");
           }
         });
       },{threshold:0.1});
@@ -163,8 +173,12 @@
         });
         const header=section.querySelector(".section-header");
         if(header){
-          if(visibleCount===0){header.classList.add("hidden");}
-          else{header.classList.remove("hidden");}
+          if(!words.length){
+            header.classList.remove("hidden");
+          } else {
+            if(visibleCount===0){header.classList.add("hidden");}
+            else{header.classList.remove("hidden");}
+          }
         }
       });
     }
