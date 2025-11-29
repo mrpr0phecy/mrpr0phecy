@@ -9,11 +9,12 @@
       --accent:#2dd4ff;
       --muted:#e6faff;
       --panel-bg: rgba(255,255,255,0.04);
+      --glass: rgba(255,255,255,0.04);
     }
     html,body{height:100%}
     body{
       margin:0;
-      font-family:Inter,system-ui,sans-serif;
+      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial;
       background:linear-gradient(-45deg,#0b0f1a,#1a1f2b,#2a2f3b,#1a1f2b);
       background-size:400% 400%;
       animation:gradientShift 20s ease infinite;
@@ -92,13 +93,13 @@
     /* Header & search */
     header{ text-align:center; padding:72px 20px 28px; }
     header h1{ margin:0; font-size:1.6rem; letter-spacing:0.2px; }
-    .search-bar{ max-width:820px; margin:18px auto 0; display:flex; background:rgba(255,255,255,0.06); border-radius:12px; padding:12px 16px; border:1px solid rgba(255,255,255,0.08); }
+    .search-bar{ max-width:820px; margin:18px auto 0; display:flex; background:var(--glass); border-radius:12px; padding:12px 16px; border:1px solid rgba(255,255,255,0.08); }
     .search-bar input{ flex:1; border:none; background:transparent; color:var(--muted); font-size:1rem; outline:none; }
 
     main{ max-width:1280px; margin:0 auto; padding:30px; position:relative; z-index:2; }
     .controls{ display:flex; gap:10px; justify-content:center; margin-bottom:12px; flex-wrap:wrap; }
-    .controls input[type="text"]{ padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02); color:var(--muted); }
-    .controls button{ padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:var(--muted); cursor:pointer; }
+    .controls button{ padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:var(--muted); cursor:pointer; transition:transform .12s ease, background .12s ease; }
+    .controls button:hover{ transform:translateY(-2px); background:rgba(255,255,255,0.02); }
 
     /* Grid of cards (flat) */
     .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:22px; align-items:start; }
@@ -135,6 +136,7 @@
     @media (max-width:640px){
       header{ padding-top:56px; }
       .toolbox-panel{ left:12px; right:12px; width:auto; max-width:calc(100% - 24px); }
+      .controls{ gap:8px; }
     }
   </style>
 </head>
@@ -165,9 +167,7 @@
   </header>
 
   <main>
-    <div class="controls">
-      <!-- repo is kept only in JS; no visible repo string on the page -->
-      <input id="branch" type="text" value="main" style="width:120px" />
+    <div class="controls" aria-hidden="false">
       <button id="loadBtn">Load all cards</button>
       <button id="sortAlphaBtn" title="Sort alphabetically">Sort A→Z</button>
       <button id="sortRandomBtn" title="Random order">Random</button>
@@ -184,6 +184,7 @@
        It is not displayed anywhere on the page.
     */
     const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy'; // owner/repo (kept internal)
+    const DEFAULT_BRANCH = 'main'; // internal default branch (not shown)
 
     /* ---------- Utilities ---------- */
     const qs = (s, ctx=document) => ctx.querySelector(s);
@@ -339,9 +340,9 @@
     qs('#searchInput').addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ qs('#searchInput').value=''; applySearchFilter(''); } });
 
     /* ---------- Load & render flow (alphabetical by default) ----------
-       Uses DEFAULT_REPO internally; the repo string is not shown anywhere in the UI.
+       Uses DEFAULT_REPO and DEFAULT_BRANCH internally; the repo/branch strings are not shown anywhere in the UI.
     */
-    async function loadAndRenderAll(branch, sortMode='alpha'){
+    async function loadAndRenderAll(branch = DEFAULT_BRANCH, sortMode='alpha'){
       const parsed = parseOwnerRepo(DEFAULT_REPO);
       if(!parsed) return setStatus('Configuration error: source not available.');
       setStatus('Fetching file list...');
@@ -375,8 +376,7 @@
     }
 
     qs('#loadBtn').addEventListener('click', ()=>{
-      const branch = qs('#branch').value.trim() || 'main';
-      loadAndRenderAll(branch, 'alpha');
+      loadAndRenderAll(DEFAULT_BRANCH, 'alpha');
     });
 
     qs('#sortAlphaBtn').addEventListener('click', ()=>{
@@ -452,12 +452,11 @@
     function debounce(fn, wait=160){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 
     /* ---------- Auto-load on page load (alphabetical by default) ----------
-       This attempts to fetch the cards list automatically using DEFAULT_REPO.
+       This attempts to fetch the cards list automatically using DEFAULT_REPO and DEFAULT_BRANCH.
        If it fails (network, rate limit), the user can press Load manually.
     */
     (function autoLoadDefaultRepo(){
-      const defaultBranch = qs('#branch').value.trim() || 'main';
-      loadAndRenderAll(defaultBranch, 'alpha').catch(err=>{
+      loadAndRenderAll(DEFAULT_BRANCH, 'alpha').catch(err=>{
         console.warn('Auto-load failed:', err);
         setStatus('Auto-load failed. Press Load to try again.');
       });
