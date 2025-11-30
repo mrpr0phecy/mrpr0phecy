@@ -1,0 +1,78 @@
+<h2 id="sprite-cutter-title" style="margin-top:0;">Sprite Sheet Cutter</h2>
+
+<form aria-describedby="sprite-cutter-desc">
+  <p id="sprite-cutter-desc" class="small">Upload a sprite sheet and slice it into frames for animation or modding.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="sprite-file">Sprite Sheet</label>
+      <input id="sprite-file" type="file" accept="image/*" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="sprite-width">Frame Width (px)</label>
+      <input id="sprite-width" type="number" placeholder="e.g. 64" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="sprite-height">Frame Height (px)</label>
+      <input id="sprite-height" type="number" placeholder="e.g. 64" style="width:100%;" />
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="spriteCut(this)">Slice</button>
+    <button type="button" class="secondary" onclick="spriteReset(this)">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Sprite Cutter Results</h3>
+  <div id="sprite-output" style="display:grid;grid-template-columns:repeat(auto-fill,64px);gap:6px;"></div>
+  <div id="sprite-hint" class="small" style="margin-top:8px;opacity:0.9;"></div>
+</div>
+
+<script>
+function spriteReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  card.querySelector('#sprite-output').innerHTML="";
+  card.querySelector('#sprite-hint').textContent="";
+}
+
+function spriteCut(btn){
+  const card=btn.closest('.card')||document;
+  const file=card.querySelector('#sprite-file').files[0];
+  const w=parseInt(card.querySelector('#sprite-width').value);
+  const h=parseInt(card.querySelector('#sprite-height').value);
+  if(!file||!w||!h){
+    card.querySelector('#sprite-hint').textContent="Please provide a file and frame size.";
+    return;
+  }
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      const ctx=canvas.getContext('2d');
+      canvas.width=w; canvas.height=h;
+      const out=card.querySelector('#sprite-output');
+      out.innerHTML="";
+      for(let y=0;y<img.height;y+=h){
+        for(let x=0;x<img.width;x+=w){
+          ctx.clearRect(0,0,w,h);
+          ctx.drawImage(img,x,y,w,h,0,0,w,h);
+          const frame=document.createElement('img');
+          frame.src=canvas.toDataURL();
+          frame.style.width=w+"px";
+          frame.style.height=h+"px";
+          out.appendChild(frame);
+        }
+      }
+      card.querySelector('#sprite-hint').textContent="Frames sliced successfully.";
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+</script>
