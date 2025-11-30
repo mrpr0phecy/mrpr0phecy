@@ -35,7 +35,6 @@
     }
     .card:active { cursor:grabbing; transform:scale(0.97); box-shadow:0 6px 20px rgba(0,0,0,0.4); }
     .card h3 { margin:0 0 10px; color:#2dd4ff; }
-    /* fade-out banner */
     .banner {
       position:fixed; top:0; left:0; right:0;
       background:#2dd4ff; color:#0b0f1a;
@@ -63,17 +62,34 @@
     // fade out banner after 6 seconds
     setTimeout(()=>document.getElementById('banner').classList.add('fade'),6000);
 
-    // Example: createCardElement with lazy loading
-    function createCardElement(name){
+    // Repo config (internal only, not shown)
+    const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
+    const DEFAULT_BRANCH = 'main';
+
+    // GitHub API fetch
+    async function fetchRepoTree(owner, repo, branch){
+      const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+      const r = await fetch(url);
+      if(!r.ok) throw new Error('GitHub API error');
+      return r.json();
+    }
+    async function getCardFiles(owner, repo, branch){
+      const data = await fetchRepoTree(owner, repo, branch);
+      return (data.tree||[])
+        .filter(item=>item.path.startsWith('cards/') && item.path.endsWith('.html'))
+        .map(item=>item.path.replace(/^cards\//,''));
+    }
+
+    // Create card element with lazy preview
+    function createCardElement(file){
       const card=document.createElement('div');
       card.className='card';
-      card.dataset.name=name;
-      card.innerHTML=`<h3>${name}</h3><div class="content">Loading preview…</div>`;
-      // lazy load simulation
+      card.dataset.name=file.replace('.html','');
+      card.innerHTML=`<h3>${file.replace('.html','')}</h3><div class="content">Loading preview…</div>`;
       const io=new IntersectionObserver(entries=>{
         entries.forEach(entry=>{
           if(entry.isIntersecting){
-            card.querySelector('.content').textContent="Widget content for "+name;
+            loadCardContent(card,file);
             io.unobserve(card);
           }
         });
@@ -81,25 +97,44 @@
       io.observe(card);
       return card;
     }
+    async function loadCardContent(card,file){
+      try{
+        const url=`cards/${file}`;
+        const r=await fetch(url);
+        if(!r.ok) return;
+        const html=await r.text();
+        card.querySelector('.content').innerHTML=html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi,'');
+      }catch(e){}
+    }
 
-    // populate dashboard with sample cards
-    const grid=document.getElementById('gridContainer');
-    ["Calculator","Timer","Notes","Weather","Music","Productivity"].forEach(n=>{
-      grid.appendChild(createCardElement(n));
-    });
+    // Populate dashboard
+    async function loadDashboard(){
+      const {owner,repo}=parseOwnerRepo(DEFAULT_REPO);
+      const files=await getCardFiles(owner,repo,DEFAULT_BRANCH);
+      const grid=document.getElementById('gridContainer');
+      grid.innerHTML='';
+      files.sort((a,b)=>a.localeCompare(b));
+      files.forEach(f=>grid.appendChild(createCardElement(f)));
+    }
+    function parseOwnerRepo(str){
+      const parts=str.split('/');
+      return {owner:parts[0],repo:parts[1]};
+    }
 
-    // enable drag-and-drop
-    new Sortable(grid,{animation:150,ghostClass:'dragging'});
-    new Sortable(document.getElementById('toolboxDashboard'),{animation:150,ghostClass:'dragging'});
-
-    // toolbox pinned demo
-    function addToToolbox(name){
-      const card=createCardElement(name);
+    // Toolbox pinned
+    function addToToolbox(file){
+      const card=createCardElement(file);
       document.getElementById('toolboxDashboard').appendChild(card);
     }
-    // demo pinned items
-    addToToolbox("Pinned Calculator");
-    addToToolbox("Pinned Notes");
+
+    // Enable drag-and-drop
+    new Sortable(document.getElementById('gridContainer'),{animation:150,ghostClass:'dragging'});
+    new Sortable(document.getElementById('toolboxDashboard'),{animation:150,ghostClass:'dragging'});
+
+    // Load everything
+    loadDashboard();
+    // Demo pinned items
+    addToToolbox("example.html");
   </script>
 </body>
 </html>
