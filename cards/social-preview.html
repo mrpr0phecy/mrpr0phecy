@@ -1,0 +1,280 @@
+<h2 id="social-preview-title" style="margin-top:0;">Social Preview Image Generator</h2>
+
+<form aria-describedby="social-preview-desc">
+  <p id="social-preview-desc" class="small">
+    Create perfectly sized Open Graph and Twitter preview images with title, subtitle, brand color, and optional logo.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="field">
+      <label for="sp-title">Title</label>
+      <input id="sp-title" type="text" placeholder="Your compelling headline…" style="width:100%;" />
+    </div>
+    <div class="field">
+      <label for="sp-subtitle">Subtitle (optional)</label>
+      <input id="sp-subtitle" type="text" placeholder="Short supporting line" style="width:100%;" />
+    </div>
+
+    <div class="field">
+      <label for="sp-size">Preset size</label>
+      <select id="sp-size" style="width:100%;">
+        <option value="1200x630">Open Graph (1200×630)</option>
+        <option value="1200x675">Twitter/X Large (1200×675)</option>
+        <option value="1024x512">Twitter/X Small (1024×512)</option>
+        <option value="1200x627">LinkedIn (1200×627)</option>
+        <option value="800x418">Facebook Link (800×418)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="sp-theme">Theme</label>
+      <select id="sp-theme" style="width:100%;">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+        <option value="gradient">Gradient</option>
+        <option value="image">Background image</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="sp-brand">Brand color (hex)</label>
+      <input id="sp-brand" type="text" placeholder="#00D1FF" style="width:100%;" />
+    </div>
+    <div class="field">
+      <label for="sp-logo">Logo (optional)</label>
+      <input id="sp-logo" type="file" accept="image/*" style="width:100%;" />
+    </div>
+
+    <div class="field" style="grid-column:1 / -1;">
+      <label for="sp-bg">Background image (optional; used if Theme = image)</label>
+      <input id="sp-bg" type="file" accept="image/*" style="width:100%;" />
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" onclick="spGenerate(this)">Generate</button>
+    <button type="button" onclick="spDownload(this)">Download</button>
+    <button type="button" class="secondary" onclick="spReset(this)">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Preview</h3>
+  <canvas id="sp-canvas" style="max-width:100%;border:1px solid rgba(255,255,255,0.08);border-radius:8px;"></canvas>
+  <div id="sp-hint" class="small" style="margin-top:8px;opacity:0.9;"></div>
+</div>
+
+<script>
+function spReset(btn){
+  const card = btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  const canvas = card.querySelector('#sp-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 800; canvas.height = 418;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  card.querySelector('#sp-hint').textContent = "";
+}
+
+function parseSize(val){
+  const [w,h] = val.split('x').map(n=>parseInt(n,10));
+  return {w, h};
+}
+
+function fitText(ctx, text, maxWidth, baseSize, maxLines){
+  // Auto-fit font size, return lines and applied font size
+  let size = baseSize;
+  ctx.font = `bold ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+  const words = (text||"").trim().split(/\s+/);
+  function measureLines(){
+    const lines=[];
+    let line="";
+    words.forEach(word=>{
+      const test = line ? line + " " + word : word;
+      if(ctx.measureText(test).width <= maxWidth){
+        line = test;
+      } else {
+        if(line) lines.push(line);
+        line = word;
+      }
+    });
+    if(line) lines.push(line);
+    return lines;
+  }
+  let lines = measureLines();
+  while(lines.length > maxLines && size > 18){
+    size -= 2;
+    ctx.font = `bold ${size}px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+    lines = measureLines();
+  }
+  return {lines, size};
+}
+
+function drawGradient(ctx, w, h, brand){
+  const g = ctx.createLinearGradient(0,0,w,h);
+  const c1 = brand || "#6C5CE7";
+  const c2 = shadeColor(brand || "#6C5CE7", -30);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,w,h);
+}
+
+function shadeColor(hex, percent){
+  hex = (hex||"#000000").replace('#','');
+  const r = parseInt(hex.substring(0,2),16);
+  const g = parseInt(hex.substring(2,4),16);
+  const b = parseInt(hex.substring(4,6),16);
+  const adjust = v => Math.max(0, Math.min(255, Math.round(v + 255*percent/100)));
+  const rr = adjust(r).toString(16).padStart(2,'0');
+  const gg = adjust(g).toString(16).padStart(2,'0');
+  const bb = adjust(b).toString(16).padStart(2,'0');
+  return `#${rr}${gg}${bb}`;
+}
+
+function drawSafeGrid(ctx, w, h){
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.lineWidth = 1;
+  const padX = Math.round(w*0.06);
+  const padY = Math.round(h*0.08);
+  ctx.strokeRect(padX, padY, w - padX*2, h - padY*2);
+}
+
+function spGenerate(btn){
+  const card = btn.closest('.card')||document;
+  const title = card.querySelector('#sp-title').value.trim();
+  const subtitle = card.querySelector('#sp-subtitle').value.trim();
+  const size = parseSize(card.querySelector('#sp-size').value);
+  const theme = card.querySelector('#sp-theme').value;
+  const brand = (card.querySelector('#sp-brand').value.trim()||"").replace('#','');
+  const brandHex = brand ? ('#'+brand) : '';
+
+  if(!title){
+    card.querySelector('#sp-hint').textContent = "Please enter a title.";
+    return;
+  }
+
+  const canvas = card.querySelector('#sp-canvas');
+  canvas.width = size.w; canvas.height = size.h;
+  const ctx = canvas.getContext('2d');
+
+  // Background rendering
+  if(theme==="dark"){
+    ctx.fillStyle = "#0D0F14";
+    ctx.fillRect(0,0,size.w,size.h);
+  } else if(theme==="light"){
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0,0,size.w,size.h);
+  } else if(theme==="gradient"){
+    drawGradient(ctx, size.w, size.h, brandHex || "#00D1FF");
+  } else if(theme==="image"){
+    const bgFile = card.querySelector('#sp-bg').files[0];
+    if(bgFile){
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = ()=>{
+          // Cover fit
+          const ratio = Math.max(size.w/img.width, size.h/img.height);
+          const iw = Math.round(img.width * ratio);
+          const ih = Math.round(img.height * ratio);
+          const ox = Math.round((size.w - iw)/2);
+          const oy = Math.round((size.h - ih)/2);
+          ctx.drawImage(img, ox, oy, iw, ih);
+          drawOverlayAndText(ctx, card, size, title, subtitle, brandHex);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(bgFile);
+      return; // defer until bg loads
+    } else {
+      // Fallback gradient if no image provided
+      drawGradient(ctx, size.w, size.h, brandHex || "#00D1FF");
+    }
+  }
+
+  drawOverlayAndText(ctx, card, size, title, subtitle, brandHex);
+}
+
+function drawOverlayAndText(ctx, card, size, title, subtitle, brandHex){
+  const w = size.w, h = size.h;
+
+  // Brand accent bar
+  const accent = brandHex || "#00D1FF";
+  ctx.fillStyle = accent;
+  const barH = Math.round(h * 0.06);
+  ctx.fillRect(0, h - barH, w, barH);
+
+  // Semi-transparent panel for text
+  const panelPad = Math.round(w * 0.06);
+  const panelW = w - panelPad*2;
+  const panelH = Math.round(h * 0.52);
+  const panelY = Math.round(h * 0.18);
+
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(panelPad, panelY, panelW, panelH);
+
+  // Title auto-fit
+  ctx.fillStyle = "#FFFFFF";
+  ctx.textBaseline = "top";
+  let {lines: tLines, size: tSize} = fitText(ctx, title, panelW - 40, Math.round(h*0.10), 3);
+  ctx.font = `bold ${tSize}px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+  let y = panelY + 20;
+  tLines.forEach(line=>{
+    ctx.fillText(line, panelPad + 20, y);
+    y += tSize + 8;
+  });
+
+  // Subtitle
+  if(subtitle){
+    const subSize = Math.max(18, Math.round(tSize*0.55));
+    ctx.font = `600 ${subSize}px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    const {lines: sLines} = fitText(ctx, subtitle, panelW - 40, subSize, 2);
+    sLines.forEach(line=>{
+      ctx.fillText(line, panelPad + 20, y);
+      y += subSize + 6;
+    });
+  }
+
+  // Optional logo (top-left)
+  const logoFile = card.querySelector('#sp-logo').files[0];
+  if(logoFile){
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = ()=>{
+        const lw = Math.round(w * 0.12);
+        const ratio = lw / img.width;
+        const lh = Math.round(img.height * ratio);
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(20,20,lw+20,lh+20);
+        ctx.drawImage(img, 30, 30, lw, lh);
+        finalizePreview(ctx, card, size);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(logoFile);
+  } else {
+    finalizePreview(ctx, card, size);
+  }
+}
+
+function finalizePreview(ctx, card, size){
+  drawSafeGrid(ctx, size.w, size.h);
+  card.querySelector('#sp-hint').textContent =
+    `Generated ${size.w}×${size.h} preview. Use Download to save a ready-to-share image.`;
+}
+
+function spDownload(btn){
+  const card = btn.closest('.card')||document;
+  const canvas = card.querySelector('#sp-canvas');
+  if(!canvas.width || !canvas.height){
+    card.querySelector('#sp-hint').textContent = "Generate an image first.";
+    return;
+  }
+  const sizeLabel = card.querySelector('#sp-size').value;
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = `social-preview-${sizeLabel}.png`;
+  a.click();
+}
+</script>
