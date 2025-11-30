@@ -20,7 +20,7 @@
   body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:url("/logo.png") no-repeat center;background-size:min(50vw,520px);opacity:0.06;filter:blur(0.6px);mix-blend-mode:screen;animation:logoDrift 24s ease-in-out infinite;}
   @keyframes logoDrift{0%{transform:translateY(0)}50%{transform:translateY(-10px)}100%{transform:translateY(0)}}
   header{text-align:center;padding:28px 20px 10px;position:relative;z-index:2}
-  header h1{margin:0;font-size:1.8rem}
+  header h1{margin:0;font-size:1.8rem;color:var(--accent);}
   .banner-text{margin-top:8px;font-size:0.95rem;color:var(--accent);opacity:1;transition:opacity 2s ease}
   .banner-text.fade{opacity:0;pointer-events:none}
 
@@ -54,14 +54,13 @@
   .remove-from-toolbox{color:#ff4d4d;}
   .remove-from-toolbox .minus{width:14px;height:2px;background:#ff4d4d;border-radius:1px}
 
-  /* restore plus icon inside add button */
   .add-to-toolbox .plus{width:14px;height:14px;position:relative;}
   .add-to-toolbox .plus::before,.add-to-toolbox .plus::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--accent);border-radius:2px;}
   .add-to-toolbox .plus::before{width:2px;height:12px;}
   .add-to-toolbox .plus::after{width:12px;height:2px;}
 
   .status{text-align:center;color:rgba(230,250,255,0.7);margin:6px 0 8px;font-size:.95rem}
-  #toolboxList,#toolboxDashboard{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
+  #toolboxList{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
 
   .card input,.card select,.card textarea{max-width:100%;box-sizing:border-box;}
 </style>
@@ -75,7 +74,6 @@
 
   <header>
     <h1>The Most Useful Site in the World</h1>
-    <p id="bannerText" class="banner-text">Drag widgets to arrange them. Use the + to pin tools to your toolbox below.</p>
   </header>
 
   <main role="main">
@@ -87,17 +85,19 @@
     <div class="status" id="status">Loading cards...</div>
 
     <div id="gridContainer" class="dashboard"></div>
-    <h2 style="text-align:center;color:var(--accent);margin-top:12px">Pinned Toolbox Widgets</h2>
-    <div id="toolboxDashboard" class="dashboard"></div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script>
-    setTimeout(()=>document.getElementById('bannerText').classList.add('fade'),6000);
+    setTimeout(()=>document.getElementById('bannerText')?.classList.add('fade'),6000);
 
-    const DEFAULT_REPO='mrpr0phecy/mrpr0phecy';
-    const DEFAULT_BRANCH='main';
-    function parseOwnerRepo(str){const p=str.split('/');return{owner:p[0],repo:p[1]};}
+    const DEFAULT_REPO='mrpr0phecy/mrpr0phecy'; // update to your repo
+    const DEFAULT_BRANCH='main';                // update if branch is "master"
+
+    function parseOwnerRepo(str){
+      const p=str.split('/');
+      return {owner:p[0],repo:p[1]};
+    }
 
     async function fetchRepoTree(owner,repo,branch){
       const url=`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
@@ -105,6 +105,7 @@
       if(!r.ok) throw new Error('GitHub API error: '+r.status);
       return r.json();
     }
+
     async function getCardFiles(owner,repo,branch){
       const data=await fetchRepoTree(owner,repo,branch);
       return (data.tree||[])
@@ -119,7 +120,6 @@
       card.dataset.name=name;
       card.dataset.file=file;
 
-      // header bar with title + buttons
       const header=document.createElement('div');
       header.className='card-header';
 
@@ -190,7 +190,10 @@
       const {owner,repo}=parseOwnerRepo(DEFAULT_REPO);
       try{
         const files=await getCardFiles(owner,repo,DEFAULT_BRANCH);
-        if(!files.length){document.getElementById('status').textContent='No cards found.';return;}
+        if(!files.length){
+          document.getElementById('status').textContent='No cards found.';
+          return;
+        }
         files.sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base',numeric:true}));
         currentFiles=files.slice();
         const grid=document.getElementById('gridContainer');
@@ -202,3 +205,95 @@
         document.getElementById('status').textContent='Error loading cards.';
       }
     }
+    let currentQuery='';
+    function applySearchFilter(q){
+      currentQuery=(q||'').trim().toLowerCase();
+      document.querySelectorAll('.card').forEach(card=>{
+        const name=(card.dataset.name||'').toLowerCase();
+        const text=(card.textContent||'').toLowerCase();
+        const show=!currentQuery||name.includes(currentQuery)||text.includes(currentQuery);
+        card.style.display=show?'':'none';
+      });
+      const visibleCount=[...document.querySelectorAll('#gridContainer .card')]
+        .filter(c=>c.style.display!=='none').length;
+      document.getElementById('status').textContent=
+        `Showing ${visibleCount} of ${currentFiles.length} cards${currentQuery?' (filtered)':''}.`;
+    }
+    document.getElementById('searchInput').addEventListener('input',e=>applySearchFilter(e.target.value));
+
+    document.getElementById('sortAlphaBtn').addEventListener('click',()=>{
+      const grid=document.getElementById('gridContainer');
+      const nodes=[...grid.children];
+      nodes.sort((a,b)=>a.dataset.name.localeCompare(b.dataset.name,undefined,{sensitivity:'base',numeric:true}));
+      nodes.forEach(n=>grid.appendChild(n));
+      document.getElementById('status').textContent='Sorted alphabetically.';
+    });
+    document.getElementById('sortRandomBtn').addEventListener('click',()=>{
+      const grid=document.getElementById('gridContainer');
+      const nodes=[...grid.children];
+      for(let i=nodes.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [nodes[i],nodes[j]]=[nodes[j],nodes[i]];
+      }
+      nodes.forEach(n=>grid.appendChild(n));
+      document.getElementById('status').textContent='Shuffled cards.';
+    });
+
+    const TOOLBOX_KEY='toolbox_items_v1';
+    function loadToolboxStore(){try{return JSON.parse(localStorage.getItem(TOOLBOX_KEY)||'[]');}catch(e){return[];}}
+    function saveToolboxStore(items){localStorage.setItem(TOOLBOX_KEY,JSON.stringify(items));}
+    let toolboxItems=loadToolboxStore();
+
+    function renderToolboxPanel(){
+      const list=document.getElementById('toolboxList');
+      list.innerHTML='';
+      if(!toolboxItems.length){
+        list.innerHTML='<div class="toolbox-empty">No items yet. Add tools by pressing the + on any card.</div>';
+        return;
+      }
+      toolboxItems.forEach(file=>{
+        const card=createCardElement(file,{pinned:true});
+        list.appendChild(card);
+      });
+    }
+
+    function addToToolbox(file){
+      if(toolboxItems.includes(file)){openToolbox();return;}
+      toolboxItems.unshift(file);
+      if(toolboxItems.length>80) toolboxItems.length=80;
+      saveToolboxStore(toolboxItems);
+      renderToolboxPanel();
+      openToolbox();
+    }
+
+    function removeFromToolbox(file){
+      const idx=toolboxItems.indexOf(file);
+      if(idx>=0){
+        toolboxItems.splice(idx,1);
+        saveToolboxStore(toolboxItems);
+        renderToolboxPanel();
+      }
+    }
+
+    function clearToolbox(){
+      if(!confirm('Clear toolbox?')) return;
+      toolboxItems=[];
+      saveToolboxStore(toolboxItems);
+      renderToolboxPanel();
+    }
+
+    function openToolbox(){document.getElementById('toolboxPanel').classList.add('open');}
+    function closeToolbox(){document.getElementById('toolboxPanel').classList.remove('open');}
+    function toggleToolbox(){document.getElementById('toolboxPanel').classList.toggle('open');}
+
+    document.getElementById('toolboxToggle').addEventListener('click',toggleToolbox);
+
+    new Sortable(document.getElementById('gridContainer'),{animation:150});
+    new Sortable(document.getElementById('toolboxList'),{animation:150});
+
+    renderToolboxPanel();
+    loadDashboard();
+  </script>
+</body>
+</html>
+
