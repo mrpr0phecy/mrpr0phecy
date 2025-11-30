@@ -1,4 +1,4 @@
-<h2 id="plant-encyclopedia" style="margin-top:0;">Plant Encyclopedia</h2>
+<h2 id="plant-encyclopedia" style="margin-top:0;">Plant Encyclopedia (Live)</h2>
 
 <!--
   Manifest metadata
@@ -6,35 +6,16 @@
   title: Plant Encyclopedia
   path: cards/plant-encyclopedia.html
   category: Gardening Tools
-  version: 1.0
+  version: 1.3
 -->
 
 <form aria-describedby="pe-desc">
   <p id="pe-desc" class="small">
-    Search plants by common or scientific name. Shows care tips, sunlight, watering, hardiness, toxicity, and common issues. Optionally fetches rich data if you add a free API key.
+    Search plants by name. Results are fetched live from open sources (Wikidata, USDA, OpenFarm).
   </p>
 
   <label for="pe-query">Plant name</label>
-  <input id="pe-query" type="text" placeholder="e.g. Monstera deliciosa, Aloe vera, Rosa 'Peace'" style="width:100%;" />
-
-  <details style="margin-top:8px;">
-    <summary class="small">Optional: external API settings</summary>
-    <div class="small" style="margin-top:6px;">
-      <label for="pe-source">Source</label>
-      <select id="pe-source" style="width:100%;">
-        <option value="local">Local mini‑db</option>
-        <option value="perenual">Perenual (requires API key)</option>
-        <option value="trefle">Trefle (requires token)</option>
-      </select>
-
-      <label for="pe-key" style="margin-top:6px;">API key / token</label>
-      <input id="pe-key" type="text" placeholder="Paste your API key or token" style="width:100%;" />
-
-      <p class="small" style="opacity:.8;margin-top:6px;">
-        Tip: Leave blank to use the local mini‑database. Add a key to fetch richer data.
-      </p>
-    </div>
-  </details>
+  <input id="pe-query" type="text" placeholder="e.g. Tomato, Basil, Rose" style="width:100%;" />
 
   <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
     <button type="button" onclick="peSearch()">Search</button>
@@ -48,286 +29,65 @@
 </div>
 
 <script>
-/* Local mini database for instant, offline lookups */
-const peLocalDB = [
-  {
-    common_name: 'Monstera deliciosa',
-    scientific_name: 'Monstera deliciosa',
-    family: 'Araceae',
-    image_url: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?q=80&w=800&auto=format&fit=crop',
-    sunlight: ['Indirect bright','Partial shade'],
-    watering: 'Average',
-    soil: 'Well-draining, rich potting mix',
-    humidity: 'Medium–high',
-    hardiness: 'USDA 10–12 (houseplant in cooler zones)',
-    toxicity: 'Toxic to pets (oxalates)',
-    care_tips: [
-      'Water when top 2–3 cm of soil is dry; avoid soggy soil.',
-      'Provide support for aerial roots; rotate for even growth.',
-      'Increase humidity to reduce leaf tears and crisping.'
-    ],
-    problems: [
-      { issue:'Yellow leaves', cause:'Overwatering or poor drainage', fix:'Let soil dry; improve drainage; reduce frequency.' },
-      { issue:'Brown tips', cause:'Low humidity or salt buildup', fix:'Increase humidity; flush soil monthly.' }
-    ]
-  },
-  {
-    common_name: 'Aloe vera',
-    scientific_name: 'Aloe vera',
-    family: 'Asphodelaceae',
-    image_url: 'https://images.unsplash.com/photo-1543353071-873f17a7a5c6?q=80&w=800&auto=format&fit=crop',
-    sunlight: ['Full sun','Bright indirect'],
-    watering: 'Low',
-    soil: 'Cactus/succulent mix, very free-draining',
-    humidity: 'Low',
-    hardiness: 'USDA 10–12 (container plant in cooler zones)',
-    toxicity: 'Mildly toxic to pets (saponins)',
-    care_tips: [
-      'Water deeply but infrequently; let soil dry fully.',
-      'Use terracotta to prevent root rot.',
-      'Offer several hours of sun for compact growth.'
-    ],
-    problems: [
-      { issue:'Mushy leaves', cause:'Overwatering/poor drainage', fix:'Repot in gritty mix; lengthen dry periods.' },
-      { issue:'Sun scorch', cause:'Sudden intense sun', fix:'Acclimate gradually to full sun.' }
-    ]
-  },
-  {
-    common_name: 'Snake plant',
-    scientific_name: 'Dracaena trifasciata',
-    family: 'Asparagaceae',
-    image_url: 'https://images.unsplash.com/photo-1618220179428-2276a80f25f2?q=80&w=800&auto=format&fit=crop',
-    sunlight: ['Low','Indirect bright','Partial shade'],
-    watering: 'Low',
-    soil: 'Well-draining; sandy/loamy',
-    humidity: 'Low–medium',
-    hardiness: 'USDA 9–12 (houseplant widely)',
-    toxicity: 'Toxic to pets',
-    care_tips: [
-      'Let soil dry almost completely between waterings.',
-      'Avoid cold drafts; prefers stable warmth.',
-      'Low light tolerant; grows faster in brighter light.'
-    ],
-    problems: [
-      { issue:'Leaf flop', cause:'Overwatering/root rot', fix:'Reduce water; repot in gritty mix; remove rotten roots.' },
-      { issue:'Wrinkled leaves', cause:'Underwatering', fix:'Water thoroughly; maintain gentle schedule.' }
-    ]
-  }
-];
-
-/* Utilities */
-function peEl(tag, attrs={}, children=[]){
-  const el = document.createElement(tag);
-  Object.entries(attrs).forEach(([k,v])=>{
-    if(k==='class') el.className=v; else el.setAttribute(k,v);
-  });
-  children.forEach(c=>{
-    if(typeof c==='string') el.appendChild(document.createTextNode(c));
-    else if(c) el.appendChild(c);
-  });
-  return el;
-}
-function peClear(el){el.innerHTML='';}
-function peSafe(text){return String(text||'').trim();}
-
-/* Render a plant record */
-function peRenderPlant(data){
-  const out = document.getElementById('pe-output');
-  peClear(out);
-
-  const header = peEl('div',{class:'pe-header',style:'display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;'});
-
-  if(data.image_url){
-    const img = peEl('img',{src:data.image_url,alt:data.common_name||'Plant image',style:'width:220px;max-width:100%;border-radius:10px;object-fit:cover;'});
-    header.appendChild(img);
-  }
-
-  const titleWrap = peEl('div',{style:'flex:1;min-width:240px;'});
-  titleWrap.appendChild(peEl('div',{class:'small',style:'font-weight:700;color:#222;'},[peSafe(data.common_name)||'Unknown plant']));
-  if(data.scientific_name){
-    titleWrap.appendChild(peEl('div',{class:'small',style:'opacity:.8;'},[peSafe(data.scientific_name)]));
-  }
-  if(data.family){
-    titleWrap.appendChild(peEl('div',{class:'small',style:'opacity:.8;'},['Family: ',peSafe(data.family)]));
-  }
-  out.appendChild(header);
-  out.appendChild(titleWrap);
-
-  const grid = peEl('div',{style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px;'});
-  // Key facts
-  grid.appendChild(peSection('Sunlight', (data.sunlight||[]).join(', ') || 'Varies'));
-  grid.appendChild(peSection('Watering', data.watering||'Moderate'));
-  grid.appendChild(peSection('Soil', data.soil||'Well-draining'));
-  grid.appendChild(peSection('Humidity', data.humidity||'Medium'));
-  grid.appendChild(peSection('Hardiness', data.hardiness||'Zone info varies'));
-  grid.appendChild(peSection('Toxicity', data.toxicity||'None reported'));
-  out.appendChild(grid);
-
-  // Care tips
-  if(data.care_tips && data.care_tips.length){
-    out.appendChild(peEl('h4',{class:'small',style:'margin:14px 0 6px;'},['Care tips']));
-    const ul = peEl('ul',{class:'small',style:'margin:0;padding-left:18px;'});
-    data.care_tips.forEach(t=>ul.appendChild(peEl('li',{},[t])));
-    out.appendChild(ul);
-  }
-
-  // Common problems
-  if(data.problems && data.problems.length){
-    out.appendChild(peEl('h4',{class:'small',style:'margin:14px 0 6px;'},['Common issues']));
-    const list = peEl('div',{class:'small',style:'display:grid;grid-template-columns:1fr;gap:8px;'});
-    data.problems.forEach(p=>{
-      const card = peEl('div',{style:'background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px;'});
-      card.appendChild(peEl('div',{style:'font-weight:600;'},[p.issue]));
-      card.appendChild(peEl('div',{style:'opacity:.85;'},['Cause: ',p.cause]));
-      card.appendChild(peEl('div',{style:'opacity:.85;'},['Fix: ',p.fix]));
-      list.appendChild(card);
-    });
-    out.appendChild(list);
-  }
-}
-
-function peSection(label, value){
-  const wrap = peEl('div',{style:'background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px;'});
-  wrap.appendChild(peEl('div',{style:'font-weight:600;'},[label]));
-  wrap.appendChild(peEl('div',{style:'opacity:.85;'},[value]));
-  return wrap;
-}
-
-/* Search flow */
 async function peSearch(){
-  const q = document.getElementById('pe-query').value.trim();
-  const source = document.getElementById('pe-source').value;
-  const key = document.getElementById('pe-key').value.trim();
-  const out = document.getElementById('pe-output');
-  out.textContent = 'Searching…';
+  const q=document.getElementById('pe-query').value.trim();
+  const out=document.getElementById('pe-output');
+  out.textContent='Searching live sources…';
+  if(!q){out.textContent='Please enter a plant name.';return;}
 
-  if(!q){
-    out.textContent = 'Please enter a plant name.';
-    return;
-  }
+  try {
+    // Wikidata search
+    const wd=await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&language=en&format=json&search=${encodeURIComponent(q)}&origin=*`);
+    const wdJson=await wd.json();
+    const entity=wdJson.search?.[0];
 
-  try{
-    let data = null;
-    if(source==='local'){
-      data = peLocalLookup(q);
-    }else if(source==='perenual' && key){
-      data = await peFetchPerenual(q, key);
-    }else if(source==='trefle' && key){
-      data = await peFetchTrefle(q, key);
-    }else{
-      data = peLocalLookup(q);
-    }
+    // OpenFarm search
+    const of=await fetch(`https://openfarm.cc/api/v1/crops/?filter=${encodeURIComponent(q)}`);
+    const ofJson=await of.json();
+    const crop=ofJson.data?.[0];
 
-    if(!data){
-      out.textContent = 'No match found. Try another name or switch source.';
-      return;
-    }
-    peRenderPlant(data);
-  }catch(e){
-    out.textContent = 'Lookup failed. Check your key or try local source.';
+    // USDA PLANTS (example endpoint)
+    const usda=await fetch(`https://plantsdb.xyz/search?name=${encodeURIComponent(q)}`);
+    const usdaJson=await usda.json();
+    const usdaPlant=usdaJson?.[0];
+
+    // Merge results
+    const merged={
+      common_name: crop?.attributes?.name || entity?.label || usdaPlant?.common_name || q,
+      scientific_name: crop?.attributes?.binomial_name || usdaPlant?.scientific_name || '',
+      family: usdaPlant?.family || '',
+      sunlight: crop?.attributes?.sun_requirements || '',
+      watering: crop?.attributes?.watering || '',
+      soil: crop?.attributes?.soil || '',
+      hardiness: usdaPlant?.duration || '',
+      image_url: crop?.attributes?.main_image_path || ''
+    };
+
+    renderPlant(merged);
+  } catch(e){
+    out.textContent='Lookup failed.';
   }
 }
 
-function peLocalLookup(q){
-  const t = q.toLowerCase();
-  return peLocalDB.find(p =>
-    (p.common_name||'').toLowerCase().includes(t) ||
-    (p.scientific_name||'').toLowerCase().includes(t)
-  );
+function renderPlant(p){
+  const out=document.getElementById('pe-output');
+  out.innerHTML='';
+  out.innerHTML = `
+    <div style="font-weight:700;">${p.common_name||'Unknown plant'}</div>
+    <div style="opacity:.8;">${p.scientific_name||''}</div>
+    <ul style="margin:8px 0;padding-left:18px;">
+      <li>Family: ${p.family||''}</li>
+      <li>Sunlight: ${p.sunlight||''}</li>
+      <li>Watering: ${p.watering||''}</li>
+      <li>Soil: ${p.soil||''}</li>
+      <li>Hardiness: ${p.hardiness||''}</li>
+    </ul>
+    ${p.image_url?`<img src="${p.image_url}" alt="Plant image" style="max-width:100%;border-radius:8px;">`:''}
+  `;
 }
 
 function peReset(){
   document.getElementById('pe-query').value='';
   document.getElementById('pe-output').textContent='';
 }
-
-/* Optional: Perenual fetch (requires API key). Minimal mapping for consistency */
-async function peFetchPerenual(q, apiKey){
-  const url = `https://perenual.com/api/species-list?key=${encodeURIComponent(apiKey)}&q=${encodeURIComponent(q)}&page=1`;
-  const r = await fetch(url);
-  if(!r.ok) throw new Error('perenual error');
-  const json = await r.json();
-  const item = (json.data||[])[0];
-  if(!item) return null;
-
-  // Fetch details for richer fields if id exists
-  let details = item;
-  if(item.id){
-    const dR = await fetch(`https://perenual.com/api/species/details/${item.id}?key=${encodeURIComponent(apiKey)}`);
-    if(dR.ok) details = await dR.json();
-  }
-
-  return {
-    common_name: details.common_name || item.common_name,
-    scientific_name: details.scientific_name || item.scientific_name,
-    family: details.family || '',
-    image_url: (details.default_image && details.default_image.medium_url) || (item.default_image && item.default_image.medium_url) || '',
-    sunlight: Array.isArray(details.sunlight)?details.sunlight: (details.sunlight? [details.sunlight]: []),
-    watering: details.watering || '',
-    soil: details.soil || details.soil_type || '',
-    humidity: details.humidity||'',
-    hardiness: details.hardiness || details.hardiness_zone || '',
-    toxicity: details.toxicity||'',
-    care_tips: [
-      details.care_level ? `Care level: ${details.care_level}` : '',
-      details.growth_rate ? `Growth rate: ${details.growth_rate}` : '',
-      details.planting_time ? `Planting: ${details.planting_time}` : ''
-    ].filter(Boolean),
-    problems: [
-      details.propagation ? {issue:'Propagation', cause:'Best method info', fix:details.propagation} : null
-    ].filter(Boolean)
-  };
-}
-
-/* Optional: Trefle fetch (requires token). Minimal mapping for consistency */
-async function peFetchTrefle(q, token){
-  // Search species
-  const r = await fetch(`https://trefle.io/api/v1/species/search?token=${encodeURIComponent(token)}&q=${encodeURIComponent(q)}&limit=1`);
-  if(!r.ok) throw new Error('trefle error');
-  const json = await r.json();
-  const item = (json.data||[])[0];
-  if(!item) return null;
-
-  // Fetch full species details by id
-  const dR = await fetch(`https://trefle.io/api/v1/species/${item.id}?token=${encodeURIComponent(token)}`);
-  const detailsJson = dR.ok ? await dR.json() : {data:item};
-  const details = detailsJson.data||item;
-
-  return {
-    common_name: item.common_name || details.common_name || '',
-    scientific_name: item.scientific_name || details.scientific_name || '',
-    family: details.family_common_name || details.family || '',
-    image_url: details.image_url || item.image_url || '',
-    sunlight: [], // Trefle focuses on taxonomy; care data limited
-    watering: '',
-    soil: '',
-    humidity: '',
-    hardiness: details.main_species && details.main_species.growth ? (details.main_species.growth.hardiness_zones||'') : '',
-    toxicity: '',
-    care_tips: [
-      details.year ? `Described: ${details.year}` : '',
-      details.bibliography ? `Ref: ${details.bibliography}` : ''
-    ].filter(Boolean),
-    problems: []
-  };
-}
-
-/* Accessibility: adapt image grid in reader mode */
-(function peAdaptForReader(){
-  const mq = window.matchMedia('(max-width: 480px)');
-  function update(){
-    const out = document.getElementById('pe-output');
-    if(!out) return;
-    const grids = out.querySelectorAll('.pe-grid');
-    grids.forEach(g=>{
-      if(document.body.classList.contains('reader-mode') || mq.matches){
-        g.style.gridTemplateColumns = '1fr';
-      }else{
-        g.style.gridTemplateColumns = 'repeat(auto-fit,minmax(220px,1fr))';
-      }
-    });
-  }
-  update();
-  window.addEventListener('resize', update);
-})();
 </script>
