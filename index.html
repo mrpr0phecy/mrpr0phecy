@@ -89,6 +89,8 @@
   .add-to-toolbox .plus::before,.add-to-toolbox .plus::after{content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--accent)}
   .add-to-toolbox .plus::before{width:2px; height:12px}
   .add-to-toolbox .plus::after{width:12px; height:2px}
+  .remove-from-toolbox{position:absolute; top:10px; left:10px; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--glass-strong); border:1px solid var(--border); cursor:pointer; color:#ff4d4d}
+  .remove-from-toolbox .minus{width:14px; height:2px; background:#ff4d4d; border-radius:1px}
   .status{text-align:center; color:rgba(230,250,255,0.7); margin:6px 0 8px; font-size:.95rem}
 </style>
 </head>
@@ -116,7 +118,7 @@
   <div id="toolboxDashboard" class="dashboard"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-    <script>
+  <script>
     setTimeout(()=>document.getElementById('bannerText').classList.add('fade'),6000);
 
     const DEFAULT_REPO='mrpr0phecy/mrpr0phecy';
@@ -143,21 +145,31 @@
       card.dataset.name=name;
       card.dataset.file=file;
 
+      // plus button (always present)
       const addBtn=document.createElement('div');
       addBtn.className='add-to-toolbox';
       addBtn.innerHTML='<span class="plus"></span>';
       addBtn.addEventListener('click',e=>{
         e.stopPropagation(); addToToolbox(file);
       });
+      card.appendChild(addBtn);
+
+      // minus button (only for pinned/toolbox cards)
+      if(pinned){
+        const removeBtn=document.createElement('div');
+        removeBtn.className='remove-from-toolbox';
+        removeBtn.innerHTML='<div class="minus"></div>';
+        removeBtn.addEventListener('click',e=>{
+          e.stopPropagation(); removeFromToolbox(file);
+        });
+        card.appendChild(removeBtn);
+      }
 
       const title=document.createElement('h3');
       title.textContent=name;
-
       const content=document.createElement('div');
       content.className='content';
       content.textContent='Loading preview…';
-
-      card.appendChild(addBtn);
       card.appendChild(title);
       card.appendChild(content);
 
@@ -278,6 +290,16 @@
       openToolbox();
     }
 
+    function removeFromToolbox(file){
+      const idx=toolboxItems.indexOf(file);
+      if(idx>=0){
+        toolboxItems.splice(idx,1);
+        saveToolboxStore(toolboxItems);
+        renderToolboxPanel();
+        renderPinnedDashboard();
+      }
+    }
+
     function clearToolbox(){
       if(!confirm('Clear toolbox?')) return;
       toolboxItems=[];
@@ -291,8 +313,6 @@
     function toggleToolbox(){document.getElementById('toolboxPanel').classList.toggle('open');}
 
     document.getElementById('toolboxToggle').addEventListener('click',toggleToolbox);
-    document.getElementById('clearToolboxBtn')?.addEventListener('click',clearToolbox);
-    document.getElementById('closeToolboxBtn')?.addEventListener('click',closeToolbox);
 
     new Sortable(document.getElementById('gridContainer'),{animation:150});
     new Sortable(document.getElementById('toolboxDashboard'),{animation:150});
