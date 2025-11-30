@@ -1,0 +1,518 @@
+<h2 id="graphing-calculator" style="margin-top:0;">Graphing Calculator</h2>
+
+<!--
+  Manifest metadata (for generate-cards-json.js)
+  id: graphing-calculator
+  title: Graphing Calculator
+  path: cards/graphing-calculator.html
+  category: Math Tools
+  version: 1.0
+-->
+
+<form aria-describedby="graphing-desc" style="margin-bottom:12px;">
+  <p id="graphing-desc" class="small">
+    Interactive graphing calculator: plot explicit and implicit functions, add parameter sliders, compute derivatives/integrals numerically, find roots, and export the canvas as PNG.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 220px;gap:10px;align-items:end;">
+    <div>
+      <label for="gc-expression">Expression (use x, y, t for parameter)</label>
+      <input id="gc-expression" type="text" placeholder="e.g. sin(x) + 0.5*cos(2*x)" style="width:100%;" />
+      <div class="small" style="margin-top:6px;">For implicit plots use a relation like <code>x^2 + y^2 - 1</code> (plotted where ≈ 0). For parametric use <code>x(t)=..., y(t)=...</code> in the param section.</div>
+    </div>
+
+    <div>
+      <label for="gc-mode">Mode</label>
+      <select id="gc-mode" style="width:100%;">
+        <option value="explicit">Explicit y = f(x)</option>
+        <option value="implicit">Implicit F(x,y) = 0</option>
+        <option value="parametric">Parametric x(t), y(t)</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">
+    <div>
+      <label for="gc-param-x">Parametric x(t) (optional)</label>
+      <input id="gc-param-x" type="text" placeholder="e.g. cos(t)" style="width:100%;" />
+    </div>
+    <div>
+      <label for="gc-param-y">Parametric y(t) (optional)</label>
+      <input id="gc-param-y" type="text" placeholder="e.g. sin(t)" style="width:100%;" />
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">
+    <div>
+      <label for="gc-xmin">X min</label>
+      <input id="gc-xmin" type="number" value="-10" step="any" style="width:100%;" />
+    </div>
+    <div>
+      <label for="gc-xmax">X max</label>
+      <input id="gc-xmax" type="number" value="10" step="any" style="width:100%;" />
+    </div>
+    <div>
+      <label for="gc-steps">Samples</label>
+      <input id="gc-steps" type="number" value="800" min="100" max="5000" style="width:100%;" />
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;align-items:center;">
+    <div>
+      <label for="gc-deriv">Show derivative (numeric)</label>
+      <input id="gc-deriv" type="checkbox" />
+      <label for="gc-integral" style="margin-left:12px;">Show definite integral (area)</label>
+      <input id="gc-integral" type="checkbox" />
+    </div>
+    <div>
+      <label for="gc-integral-range" class="small">Integral range (a,b)</label>
+      <input id="gc-integral-a" type="number" placeholder="a" style="width:48%;display:inline-block;" />
+      <input id="gc-integral-b" type="number" placeholder="b" style="width:48%;display:inline-block;float:right;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+    <button type="button" onclick="gcPlot(this)">Plot</button>
+    <button type="button" onclick="gcClear(this)" class="secondary">Clear</button>
+    <button type="button" onclick="gcExportPNG(this)">Export PNG</button>
+    <button type="button" onclick="gcFindRoot(this)">Find Root (near x)</button>
+    <input id="gc-root-x" type="number" placeholder="initial x" style="width:120px;" />
+  </div>
+</form>
+
+<div style="display:grid;grid-template-columns:1fr 320px;gap:12px;">
+  <div style="border:1px solid rgba(0,0,0,0.06);padding:8px;border-radius:6px;">
+    <canvas id="gc-canvas" style="width:100%;height:640px;background:#fff;display:block;"></canvas>
+  </div>
+
+  <div style="border:1px solid rgba(0,0,0,0.06);padding:8px;border-radius:6px;">
+    <h3 class="small">Output & Tools</h3>
+    <div id="gc-output" class="small" style="white-space:pre-wrap;min-height:220px;padding:6px;background:#fafafa;border-radius:6px;"></div>
+
+    <h3 class="small" style="margin-top:12px;">Sliders (parameters)</h3>
+    <div id="gc-sliders" style="min-height:120px;"></div>
+  </div>
+</div>
+
+<script>
+/* Graphing Calculator Card
+   - Lightweight expression parser (math.js style subset)
+   - Explicit, implicit, and parametric plotting
+   - Numeric derivative and definite integral (Simpson)
+   - Root finding (Newton + fallback bisection)
+   - Export canvas as PNG
+   - No external libraries required
+*/
+
+// ---------- Tiny expression evaluator ----------
+function makeEvaluator(expr, params = ['x','y','t', ...Object.keys(window.gcParams || {})]) {
+  // Build a safe function from expression string.
+  // Allowed Math functions and constants
+  const safeMath = {
+    abs: 'Math.abs', acos: 'Math.acos', asin: 'Math.asin', atan: 'Math.atan',
+    atan2: 'Math.atan2', ceil: 'Math.ceil', cos: 'Math.cos', cosh: 'Math.cosh',
+    exp: 'Math.exp', floor: 'Math.floor', log: 'Math.log', max: 'Math.max',
+    min: 'Math.min', pow: 'Math.pow', random: 'Math.random', round: 'Math.round',
+    sin: 'Math.sin', sinh: 'Math.sinh', sqrt: 'Math.sqrt', tan: 'Math.tan',
+    tanh: 'Math.tanh', PI: 'Math.PI', E: 'Math.E', abs: 'Math.abs'
+  };
+  // replace ^ with **
+  let s = expr.replace(/\\^/g, '**');
+  // replace function names with Math.* where appropriate
+  Object.keys(safeMath).forEach(fn => {
+    const re = new RegExp('\\b' + fn + '\\b', 'g');
+    s = s.replace(re, safeMath[fn]);
+  });
+  // whitelist characters
+  if(/[^0-9a-zA-Z_\\s\\+\\-\\*\\/\\^\\(\\)\\.,\\*\\*\\%\
+
+\[\\]
+
+]/.test(s)) {
+    // allow common operators; reject suspicious characters
+    // but keep it permissive for now; errors will surface at eval time
+  }
+  try {
+    const argList = params.join(',');
+    // eslint-disable-next-line no-new-func
+    const fn = new Function(argList, 'return (' + s + ');');
+    return fn;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ---------- Numeric helpers ----------
+function linspace(a,b,n){
+  const out = [];
+  if(n<=1) return [a];
+  const step = (b-a)/(n-1);
+  for(let i=0;i<n;i++) out.push(a + step*i);
+  return out;
+}
+function numericDerivative(f, x, h=1e-6){
+  return (f(x+h) - f(x-h)) / (2*h);
+}
+function simpsonIntegral(f, a, b, n=200){
+  if(n%2===1) n++;
+  const h = (b-a)/n;
+  let s = f(a) + f(b);
+  for(let i=1;i<n;i++){
+    const x = a + i*h;
+    s += (i%2===0 ? 2 : 4) * f(x);
+  }
+  return s * h / 3;
+}
+function findRootNewton(f, df, x0, maxIter=30, tol=1e-7){
+  let x = x0;
+  for(let i=0;i<maxIter;i++){
+    const y = f(x);
+    const dy = df ? df(x) : numericDerivative(f, x);
+    if(Math.abs(dy) < 1e-12) break;
+    const nx = x - y/dy;
+    if(!isFinite(nx)) break;
+    if(Math.abs(nx - x) < tol) return nx;
+    x = nx;
+  }
+  return null;
+}
+function findRootBisection(f, a, b, maxIter=60, tol=1e-7){
+  let fa = f(a), fb = f(b);
+  if(fa*fb > 0) return null;
+  for(let i=0;i<maxIter;i++){
+    const m = (a+b)/2;
+    const fm = f(m);
+    if(Math.abs(fm) < tol) return m;
+    if(fa*fm < 0){ b = m; fb = fm; } else { a = m; fa = fm; }
+  }
+  return (a+b)/2;
+}
+
+// ---------- Canvas drawing ----------
+const canvas = document.getElementById('gc-canvas');
+const ctx = canvas.getContext('2d');
+function resizeCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  const DPR = window.devicePixelRatio || 1;
+  canvas.width = Math.max(600, Math.floor(rect.width * DPR));
+  canvas.height = Math.max(400, Math.floor(rect.height * DPR));
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// coordinate transforms
+function worldToScreen(x,y, bounds){
+  const [xmin,xmax,ymin,ymax] = bounds;
+  const sx = (x - xmin) / (xmax - xmin) * canvas.width;
+  const sy = canvas.height - (y - ymin) / (ymax - ymin) * canvas.height;
+  return [sx, sy];
+}
+function screenToWorld(sx, sy, bounds){
+  const [xmin,xmax,ymin,ymax] = bounds;
+  const x = xmin + (sx / canvas.width) * (xmax - xmin);
+  const y = ymin + ((canvas.height - sy) / canvas.height) * (ymax - ymin);
+  return [x,y];
+}
+
+// ---------- Plotting core ----------
+function gcPlot(){
+  const expr = document.getElementById('gc-expression').value.trim();
+  const mode = document.getElementById('gc-mode').value;
+  const paramX = document.getElementById('gc-param-x').value.trim();
+  const paramY = document.getElementById('gc-param-y').value.trim();
+  const xmin = parseFloat(document.getElementById('gc-xmin').value);
+  const xmax = parseFloat(document.getElementById('gc-xmax').value);
+  const steps = parseInt(document.getElementById('gc-steps').value, 10);
+  const showDeriv = document.getElementById('gc-deriv').checked;
+  const showIntegral = document.getElementById('gc-integral').checked;
+  const ia = parseFloat(document.getElementById('gc-integral-a').value);
+  const ib = parseFloat(document.getElementById('gc-integral-b').value);
+
+  const output = document.getElementById('gc-output');
+  output.textContent = '';
+
+  if(!expr && mode !== 'parametric'){
+    output.textContent = 'Enter an expression to plot.';
+    return;
+  }
+
+  // determine y bounds adaptively for explicit/parametric; for implicit use symmetric range
+  let ymin = -10, ymax = 10;
+  if(mode === 'explicit' || mode === 'parametric'){
+    // sample to find min/max
+    const xs = linspace(xmin, xmax, Math.min(steps, 800));
+    let ys = [];
+    try {
+      const f = makeEvaluator(expr, ['x']);
+      if(!f) throw new Error('Invalid expression');
+      for(const x of xs){
+        const v = Number(f(x));
+        if(isFinite(v)) ys.push(v);
+      }
+    } catch(e){
+      // fallback: try parametric or show error later
+    }
+    if(ys.length){
+      const miny = Math.min(...ys), maxy = Math.max(...ys);
+      const pad = (maxy - miny) * 0.15 || 1;
+      ymin = miny - pad; ymax = maxy + pad;
+    }
+  } else {
+    // implicit: use symmetric range based on x range
+    const span = Math.abs(xmax - xmin);
+    ymin = -span; ymax = span;
+  }
+
+  const bounds = [xmin, xmax, ymin, ymax];
+
+  // clear canvas
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // background grid
+  drawGrid(bounds);
+
+  if(mode === 'explicit'){
+    const f = makeEvaluator(expr, ['x']);
+    if(!f){ output.textContent = 'Invalid expression.'; return; }
+    const xs = linspace(xmin, xmax, steps);
+    const pts = [];
+    for(const x of xs){
+      let y = NaN;
+      try { y = Number(f(x)); } catch(e){ y = NaN; }
+      if(isFinite(y)) pts.push([x,y]);
+      else pts.push([x, NaN]);
+    }
+    drawPolyline(pts, bounds, '#0077cc', 2);
+    if(showDeriv){
+      const df = x => numericDerivative(x0 => Number(f(x0)), x);
+      const dpts = pts.map(p => [p[0], isFinite(p[1]) ? df(p[0]) : NaN]);
+      drawPolyline(dpts, bounds, '#cc5500', 1.5, [5,5]);
+    }
+    if(showIntegral && isFinite(ia) && isFinite(ib) && ia < ib){
+      const integralVal = simpsonIntegral(x => {
+        try { return Number(f(x)); } catch(e){ return 0; }
+      }, ia, ib, 400);
+      shadeArea(f, ia, ib, bounds, '#0077cc55');
+      output.textContent = `Definite integral ≈ ${integralVal.toFixed(6)}`;
+    }
+  } else if(mode === 'implicit'){
+    // plot contour where |F(x,y)| < eps using marching squares approximation
+    const F = makeEvaluator(expr, ['x','y']);
+    if(!F){ output.textContent = 'Invalid implicit expression.'; return; }
+    drawImplicit(F, bounds, steps);
+  } else if(mode === 'parametric'){
+    // parametric: use paramX and paramY or parse expr as "x(t)=..., y(t)=..."
+    let fx = null, fy = null;
+    if(paramX && paramY){
+      fx = makeEvaluator(paramX, ['t']);
+      fy = makeEvaluator(paramY, ['t']);
+    } else {
+      // try to parse expr for x(t)=...; y(t)=...
+      const parts = expr.split(';').map(s=>s.trim());
+      for(const p of parts){
+        if(p.startsWith('x(') || p.startsWith('x ')) fx = makeEvaluator(p.split('=')[1] || '', ['t']);
+        if(p.startsWith('y(') || p.startsWith('y ')) fy = makeEvaluator(p.split('=')[1] || '', ['t']);
+      }
+    }
+    if(!fx || !fy){ output.textContent = 'Provide both x(t) and y(t) for parametric plots.'; return; }
+    const tmin = xmin, tmax = xmax;
+    const ts = linspace(tmin, tmax, steps);
+    const pts = [];
+    for(const t of ts){
+      try {
+        const x = Number(fx(t)), y = Number(fy(t));
+        if(isFinite(x) && isFinite(y)) pts.push([x,y]);
+      } catch(e){}
+    }
+    drawPolylineWorldCoords(pts, bounds, '#0077cc', 2);
+  }
+
+  // attach interactive sliders for parameters if expression contains letters other than x,y,t
+  renderParameterSliders(expr);
+}
+
+// ---------- Drawing helpers ----------
+function drawGrid(bounds){
+  const [xmin,xmax,ymin,ymax] = bounds;
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = '#eee';
+  ctx.lineWidth = 1;
+  // vertical grid lines
+  const xRange = xmax - xmin;
+  const yRange = ymax - ymin;
+  const xStep = niceStep(xRange / 10);
+  const yStep = niceStep(yRange / 10);
+  ctx.beginPath();
+  for(let x = Math.ceil(xmin/xStep)*xStep; x <= xmax; x += xStep){
+    const [sx,] = worldToScreen(x, ymin, bounds);
+    ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height);
+  }
+  for(let y = Math.ceil(ymin/yStep)*yStep; y <= ymax; y += yStep){
+    const [,sy] = worldToScreen(xmin, y, bounds);
+    ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy);
+  }
+  ctx.stroke();
+  // axes
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 1.5;
+  // x axis
+  if(ymin < 0 && ymax > 0){
+    const [,sy] = worldToScreen(xmin, 0, bounds);
+    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy); ctx.stroke();
+  }
+  // y axis
+  if(xmin < 0 && xmax > 0){
+    const [sx,] = worldToScreen(0, ymin, bounds);
+    ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height); ctx.stroke();
+  }
+  ctx.restore();
+}
+function niceStep(raw){
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / pow;
+  if(norm < 1.5) return 1 * pow;
+  if(norm < 3) return 2 * pow;
+  if(norm < 7) return 5 * pow;
+  return 10 * pow;
+}
+function drawPolyline(pts, bounds, color='#0077cc', width=2, dash=null){
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = width;
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  let started = false;
+  for(const p of pts){
+    const [x,y] = p;
+    if(!isFinite(y)){ started = false; continue; }
+    const [sx,sy] = worldToScreen(x,y,bounds);
+    if(!started){ ctx.moveTo(sx,sy); started = true; } else ctx.lineTo(sx,sy);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+function drawPolylineWorldCoords(pts, bounds, color='#0077cc', width=2){
+  const worldPts = pts.map(p=>[p[0], p[1]]);
+  drawPolyline(worldPts, bounds, color, width);
+}
+function shadeArea(f, a, b, bounds, fillStyle){
+  ctx.save();
+  ctx.fillStyle = fillStyle;
+  const xs = linspace(a,b,200);
+  ctx.beginPath();
+  for(let i=0;i<xs.length;i++){
+    const x = xs[i];
+    let y = 0;
+    try { y = Number(f(x)); } catch(e){ y = NaN; }
+    const [sx,sy] = worldToScreen(x,y,bounds);
+    if(i===0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+  }
+  // close to x-axis
+  const [bx,by] = worldToScreen(b, 0, bounds);
+  const [ax,ay] = worldToScreen(a, 0, bounds);
+  ctx.lineTo(bx, by); ctx.lineTo(ax, ay); ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// Implicit plotting via simple contour sampling (marching squares approximation)
+function drawImplicit(F, bounds, steps){
+  const [xmin,xmax,ymin,ymax] = bounds;
+  const nx = Math.min(200, Math.floor(Math.sqrt(steps)));
+  const ny = nx;
+  const dx = (xmax - xmin)/nx;
+  const dy = (ymax - ymin)/ny;
+  ctx.save();
+  ctx.strokeStyle = '#0077cc';
+  ctx.lineWidth = 1.5;
+  for(let i=0;i<nx;i++){
+    for(let j=0;j<ny;j++){
+      const x0 = xmin + i*dx, y0 = ymin + j*dy;
+      const x1 = x0 + dx, y1 = y0 + dy;
+      const v00 = safeEvalF(F, x0, y0), v10 = safeEvalF(F, x1, y0);
+      const v01 = safeEvalF(F, x0, y1), v11 = safeEvalF(F, x1, y1);
+      const corners = [v00, v10, v11, v01];
+      const signs = corners.map(v => (isFinite(v) && Math.abs(v) < 1e-6) ? 0 : Math.sign(v || 1));
+      // if signs vary, draw a small cross in the cell
+      if(Math.max(...signs) !== Math.min(...signs)){
+        const [sx,sy] = worldToScreen(x0 + dx/2, y0 + dy/2, bounds);
+        ctx.beginPath(); ctx.arc(sx, sy, 1.2, 0, Math.PI*2); ctx.fillStyle = '#0077cc'; ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+}
+function safeEvalF(F, x, y){
+  try { return Number(F(x,y)); } catch(e){ return NaN; }
+}
+
+// ---------- Parameters sliders (detect variables other than x,y,t) ----------
+window.gcParams = {};
+function renderParameterSliders(expr){
+  const out = document.getElementById('gc-sliders');
+  out.innerHTML = '';
+  // find variable names (letters) excluding x,y,t and function names
+  const tokens = (expr || '').match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+  const reserved = new Set(['x','y','t','sin','cos','tan','sqrt','log','pow','abs','PI','E','min','max','atan2','asin','acos','exp','floor','ceil','round']);
+  const vars = uniq(tokens).filter(v => !reserved.has(v));
+  // create sliders for each var
+  vars.forEach(v=>{
+    if(window.gcParams[v] === undefined) window.gcParams[v] = 1;
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex'; wrapper.style.alignItems = 'center'; wrapper.style.gap = '8px'; wrapper.style.marginBottom = '6px';
+    const label = document.createElement('div'); label.textContent = v; label.style.width = '60px';
+    const input = document.createElement('input'); input.type = 'range'; input.min = -10; input.max = 10; input.step = 0.1; input.value = window.gcParams[v]; input.style.flex = '1';
+    const val = document.createElement('div'); val.textContent = window.gcParams[v]; val.style.width = '40px';
+    input.oninput = ()=>{ window.gcParams[v] = Number(input.value); val.textContent = input.value; };
+    wrapper.appendChild(label); wrapper.appendChild(input); wrapper.appendChild(val);
+    out.appendChild(wrapper);
+  });
+}
+
+// ---------- Utilities ----------
+function uniq(arr){ return [...new Set(arr)]; }
+
+// ---------- Export PNG ----------
+function gcExportPNG(){
+  try {
+    const data = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = data;
+    a.download = 'graph.png';
+    a.click();
+  } catch(e){
+    document.getElementById('gc-output').textContent = 'Export failed: ' + e.message;
+  }
+}
+
+// ---------- Find root near initial x ----------
+function gcFindRoot(){
+  const expr = document.getElementById('gc-expression').value.trim();
+  const x0 = parseFloat(document.getElementById('gc-root-x').value);
+  if(isNaN(x0)){ document.getElementById('gc-output').textContent = 'Provide an initial x value.'; return; }
+  const f = makeEvaluator(expr, ['x']);
+  if(!f){ document.getElementById('gc-output').textContent = 'Invalid expression.'; return; }
+  const df = x => numericDerivative(x0 => Number(f(x0)), x);
+  let root = findRootNewton(x => Number(f(x)), df, x0);
+  if(root === null){
+    // try bisection in a window around x0
+    root = findRootBisection(x => Number(f(x)), x0-5, x0+5);
+  }
+  if(root === null) document.getElementById('gc-output').textContent = 'Root not found near initial x.';
+  else document.getElementById('gc-output').textContent = 'Root ≈ ' + root.toFixed(8);
+}
+
+// ---------- Clear ----------
+function gcClear(){ ctx.clearRect(0,0,canvas.width,canvas.height); document.getElementById('gc-output').textContent = ''; document.getElementById('gc-sliders').innerHTML = ''; }
+
+// ---------- Wire buttons to global functions for inline onclick handlers ----------
+window.gcPlot = gcPlot;
+window.gcClear = gcClear;
+window.gcExportPNG = gcExportPNG;
+window.gcFindRoot = gcFindRoot;
+
+// initial sample
+document.getElementById('gc-expression').value = 'sin(x) + 0.5*cos(2*x)';
+gcPlot();
+</script>
