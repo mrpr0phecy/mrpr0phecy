@@ -2,143 +2,36 @@
 
 <form aria-describedby="sl-buildmate-desc">
   <p id="sl-buildmate-desc" class="small">
-    A toolkit for Second Life builders: prim allowance, object sizing, weight estimates, and grid alignment.
+    Toolkit for builders: prim allowance, object sizing, weight, and grid alignment.
   </p>
 
   <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <!-- Parcel prim calculator -->
-    <div class="field">
-      <label for="sl-bm-parcel">Parcel Size (m²)</label>
-      <input id="sl-bm-parcel" type="number" placeholder="e.g. 1024" style="width:100%;" />
-    </div>
-    <div class="field">
-      <label for="sl-bm-landtype">Land Type</label>
-      <select id="sl-bm-landtype" style="width:100%;">
-        <option value="mainland" selected>Mainland</option>
-        <option value="private">Private Estate</option>
-      </select>
-    </div>
-
-    <!-- Object size calculator -->
-    <div class="field">
-      <label for="sl-bm-length">Object Length (m)</label>
-      <input id="sl-bm-length" type="number" placeholder="e.g. 2.0" style="width:100%;" />
-    </div>
-    <div class="field">
-      <label for="sl-bm-width">Object Width (m)</label>
-      <input id="sl-bm-width" type="number" placeholder="e.g. 1.0" style="width:100%;" />
-    </div>
-    <div class="field">
-      <label for="sl-bm-height">Object Height (m)</label>
-      <input id="sl-bm-height" type="number" placeholder="e.g. 0.5" style="width:100%;" />
-    </div>
-
-    <!-- Weight calculator -->
-    <div class="field">
-      <label for="sl-bm-density">Material Density (kg/m³)</label>
-      <input id="sl-bm-density" type="number" placeholder="e.g. 500" style="width:100%;" />
-    </div>
-
-    <!-- Positional calculator -->
-    <div class="field" style="grid-column:1 / -1;">
-      <label for="sl-bm-grid">Grid Step (m)</label>
-      <input id="sl-bm-grid" type="number" placeholder="e.g. 0.25" style="width:100%;" />
-    </div>
-    <div class="field">
-      <label for="sl-bm-x">X Position (m)</label>
-      <input id="sl-bm-x" type="number" placeholder="e.g. 10.3" style="width:100%;" />
-    </div>
-    <div class="field">
-      <label for="sl-bm-y">Y Position (m)</label>
-      <input id="sl-bm-y" type="number" placeholder="e.g. 7.8" style="width:100%;" />
-    </div>
+    <div class="field"><label for="sl-bm-parcel">Parcel Size (m²)</label><input id="sl-bm-parcel" type="number" placeholder="1024" style="width:100%;" /></div>
+    <div class="field"><label for="sl-bm-landtype">Land Type</label><select id="sl-bm-landtype" style="width:100%;"><option value="mainland">Mainland</option><option value="private">Private Estate</option></select></div>
+    <div class="field"><label for="sl-bm-length">Length (m)</label><input id="sl-bm-length" type="number" placeholder="2.0" style="width:100%;" /></div>
+    <div class="field"><label for="sl-bm-width">Width (m)</label><input id="sl-bm-width" type="number" placeholder="1.0" style="width:100%;" /></div>
+    <div class="field"><label for="sl-bm-height">Height (m)</label><input id="sl-bm-height" type="number" placeholder="0.5" style="width:100%;" /></div>
+    <div class="field"><label for="sl-bm-density">Density (kg/m³)</label><input id="sl-bm-density" type="number" placeholder="500" style="width:100%;" /></div>
+    <div class="field" style="grid-column:1/-1;"><label for="sl-bm-grid">Grid Step (m)</label><input id="sl-bm-grid" type="number" placeholder="0.25" style="width:100%;" /></div>
+    <div class="field"><label for="sl-bm-x">X Position (m)</label><input id="sl-bm-x" type="number" placeholder="10.3" style="width:100%;" /></div>
+    <div class="field"><label for="sl-bm-y">Y Position (m)</label><input id="sl-bm-y" type="number" placeholder="7.8" style="width:100%;" /></div>
   </div>
 
   <div class="actions" style="margin-top:12px;">
     <button type="button" onclick="slBMCalc(this)">Calculate</button>
     <button type="button" class="secondary" onclick="slBMReset(this)">Reset</button>
-    <button type="button" onclick="slBMCopy(this)">Copy Result</button>
+    <button type="button" onclick="slBMCopy(this)">Copy</button>
   </div>
 </form>
 
 <div class="results" aria-live="polite" style="margin-top:12px;">
   <h3 class="small">Builder’s Results</h3>
   <textarea id="sl-bm-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
-
-  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
-    <div id="sl-bm-hint" class="small" style="opacity:0.9;"></div>
-  </div>
+  <div id="sl-bm-hint" class="small" style="opacity:0.9;margin-top:8px;"></div>
 </div>
 
 <script>
-/* builders-mate.html
-   - Multi-tool for Second Life builders
-   - Scoped with sl-bm prefix
-*/
-
-// Prim rates
-const SL_BM_PRIM_RATES = {
-  mainland: 0.117, // ~117 prims per 1024 m²
-  private: 0.229   // ~229 prims per 1024 m²
-};
-
-function slBMReset(btn){
-  const card=btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#sl-bm-output').value="";
-  card.querySelector('#sl-bm-hint').textContent="";
-}
-
-function slBMCopy(btn){
-  const card=btn.closest('.card');
-  const out=card.querySelector('#sl-bm-output').value;
-  if(!out.trim())return;
-  navigator.clipboard?.writeText(out).then(()=>{
-    const hint=card.querySelector('#sl-bm-hint');
-    hint.textContent="Copied to clipboard.";
-    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
-  }).catch(()=>alert("Copy failed."));
-}
-
-function slBMCalc(btn){
-  const card=btn.closest('.card');
-  const size=parseFloat(card.querySelector('#sl-bm-parcel').value);
-  const type=card.querySelector('#sl-bm-landtype').value;
-  const length=parseFloat(card.querySelector('#sl-bm-length').value);
-  const width=parseFloat(card.querySelector('#sl-bm-width').value);
-  const height=parseFloat(card.querySelector('#sl-bm-height').value);
-  const density=parseFloat(card.querySelector('#sl-bm-density').value);
-  const grid=parseFloat(card.querySelector('#sl-bm-grid').value);
-  const posX=parseFloat(card.querySelector('#sl-bm-x').value);
-  const posY=parseFloat(card.querySelector('#sl-bm-y').value);
-
-  let results=[];
-
-  // Prim allowance
-  if(!isNaN(size)){
-    const rate=SL_BM_PRIM_RATES[type]||SL_BM_PRIM_RATES.mainland;
-    const prims=Math.floor(size*rate);
-    results.push(`Parcel size: ${size} m² → Max prims ≈ ${prims}`);
-  }
-
-  // Object volume & weight
-  if(!isNaN(length)&&!isNaN(width)&&!isNaN(height)){
-    const volume=length*width*height;
-    results.push(`Object dimensions: ${length}×${width}×${height} m → Volume = ${volume.toFixed(3)} m³`);
-    if(!isNaN(density)){
-      const weight=volume*density;
-      results.push(`Estimated weight ≈ ${weight.toFixed(2)} kg (density ${density} kg/m³)`);
-    }
-  }
-
-  // Positional alignment
-  if(!isNaN(grid)&&!isNaN(posX)&&!isNaN(posY)){
-    const alignedX=(Math.round(posX/grid)*grid).toFixed(3);
-    const alignedY=(Math.round(posY/grid)*grid).toFixed(3);
-    results.push(`Position (${posX}, ${posY}) → Snap to grid (${alignedX}, ${alignedY}) with step ${grid} m`);
-  }
-
-  card.querySelector('#sl-bm-output').value=results.join("\n");
-  card.querySelector('#sl-bm-hint').textContent="Builder’s calculations complete.";
-}
-</script>
+const SL_BM_PRIM_RATES={mainland:0.117,private:0.229};
+function slBMReset(btn){const c=btn.closest('.card');c.querySelector('form').reset();c.querySelector('#sl-bm-output').value="";c.querySelector('#sl-bm-hint').textContent="";}
+function slBMCopy(btn){const c=btn.closest('.card');const out=c.querySelector('#sl-bm-output').value;if(!out.trim())return;navigator.clipboard?.writeText(out).then(()=>{c.querySelector('#sl-bm-hint').textContent="Copied.";setTimeout(()=>c.querySelector('#sl-bm-hint').textContent="",1600);});}
+function slBMCalc(btn){const c=btn.closest('.card');const size=parseFloat(c.querySelector('#sl-bm-parcel').value);const type=c.querySelector('#sl-bm-landtype').value;const l=parseFloat(c.querySelector('#sl-bm-length').value);const w=parseFloat(c.querySelector('#sl-bm-width').value);const h=parseFloat(c.querySelector('#sl-bm-height').value);const d=parseFloat(c.querySelector('#sl-bm-density').value);const g=parseFloat(c.querySelector('#sl-bm-grid').value);const x=parseFloat(c.querySelector('#sl-bm-x').value);const y=parseFloat(c.querySelector('#sl-bm-y').value);let results=[];if(!isNaN(size)){const prims=Math.floor(size*(SL_BM_PRIM_RATES[type]||SL_BM_PRIM_RATES.mainland));results.push(`Parcel ${size}
