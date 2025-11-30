@@ -1,8 +1,17 @@
-<h2 id="sl-region-map-viewer" style="margin-top:0;">SL Region Map Viewer</h2>
+<h2 id="sl-region-map-card" style="margin-top:0;">SL Region Map Viewer</h2>
+
+<!--
+  Manifest metadata
+  id: sl-region-map-card
+  title: SL Region Map Viewer
+  path: cards/sl-region-map-card.html
+  category: Second Life Tools
+  version: 1.1
+-->
 
 <form aria-describedby="sl-region-map-desc">
   <p id="sl-region-map-desc" class="small">
-    Enter a Second Life region name and view its map from slgrid. The tool will try single-image endpoints first, then a tile-based approach. Use a CORS proxy if direct fetches fail.
+    Enter a Second Life region name and view its map from slgrid. This debug card attempts single-image endpoints, falls back to tile probes, and includes a direct URL override and a debug log to diagnose CORS or endpoint issues.
   </p>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -21,6 +30,11 @@
     </div>
 
     <div class="field">
+      <label for="sl-direct-url">Direct map image URL (optional)</label>
+      <input id="sl-direct-url" type="url" placeholder="https://example.com/region.png" style="width:100%;" />
+    </div>
+
+    <div class="field">
       <label for="sl-x">Marker X (0–255)</label>
       <input id="sl-x" type="number" min="0" max="255" placeholder="optional" style="width:100%;" />
     </div>
@@ -32,8 +46,8 @@
   </div>
 
   <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-    <button type="button" onclick="slLoadMap(this)">Load Map</button>
-    <button type="button" class="secondary" onclick="slResetMap(this)">Reset</button>
+    <button type="button" onclick="slLoadMapDebug(this)">Load Map</button>
+    <button type="button" onclick="slResetMap(this)" class="secondary">Reset</button>
   </div>
 </form>
 
@@ -41,33 +55,45 @@
   <div id="sl-map-container" style="position:relative;border:1px solid rgba(0,0,0,0.08);overflow:hidden;">
     <canvas id="sl-map-canvas" style="display:block;width:100%;height:auto;max-height:640px;background:#111;"></canvas>
   </div>
-  <div id="sl-map-hint" class="small" style="margin-top:8px;opacity:0.9;"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+    <div id="sl-map-hint" class="small" style="padding:8px;background:#fafafa;border-radius:6px;min-height:48px;"></div>
+    <div id="sl-debug-log" class="small" style="white-space:pre-wrap;background:#111;color:#fff;padding:8px;border-radius:6px;max-height:160px;overflow:auto;"></div>
+  </div>
 </div>
 
 <script>
-/* SL Region Map Viewer (single-image + tile fallback)
-   - Tries common slgrid single-image endpoints first.
-   - If single-image fetch fails, attempts tile mode using common tile URL patterns.
-   - Supports optional CORS proxy prefix.
-   - Renders to a high-resolution canvas and supports pan/zoom and a region marker (0-255 coords).
+/* SL Region Map Viewer Debug Card
+   - Attempts single-image endpoints first, then tile probes
+   - Direct URL override and detailed debug log for CORS/HTTP diagnostics
+   - Pan/zoom and optional marker at region coords (0-255)
 */
 
 const canvas = document.getElementById('sl-map-canvas');
 const ctx = canvas.getContext('2d');
 let img = null;
 let tileMode = false;
-let tiles = {}; // cache loaded tiles keyed by z/x/y
+let tiles = {};
 let tileSize = 256;
-let baseZoom = 0; // zoom level used for tiles
 let mapWidth = 0, mapHeight = 0;
 let scale = 1, offsetX = 0, offsetY = 0;
 let isPanning = false, panStart = {}, panOrigin = {};
+
+function resizeCanvasToDisplay(){
+  const rect = canvas.getBoundingClientRect();
+  const DPR = window.devicePixelRatio || 1;
+  canvas.width = Math.max(600, Math.floor(rect.width * DPR));
+  canvas.height = Math.max(400, Math.floor(Math.min(640, rect.height) * DPR));
+}
+resizeCanvasToDisplay();
+window.addEventListener('resize', ()=>{ resizeCanvasToDisplay(); if(img && img.complete) redrawCurrent(); });
 
 function slResetMap(btn){
   const card = btn.closest('.card') || document;
   card.querySelector('form').reset();
   ctx.clearRect(0,0,canvas.width,canvas.height);
   document.getElementById('sl-map-hint').textContent = "";
+  document.getElementById('sl-debug-log').textContent = "";
   img = null;
   tileMode = false;
   tiles = {};
@@ -82,63 +108,83 @@ function buildSingleImageCandidates(region){
     `https://slgrid.org/map/${r}.gif`,
     `https://maps.secondlife.com/map/${r}.png`,
     `https://secondlife.com/map/${r}.png`,
-    // older or alternate hosts
     `https://slurl.com/region/${r}/map.png`
   ];
 }
 
 function buildTileUrlCandidates(region, z, x, y){
-  // Try several plausible tile URL patterns used by SL grids (best-effort)
   const r = encodeURIComponent(region.trim());
   return [
     `https://slgrid.org/tiles/${r}/${z}/${x}/${y}.png`,
     `https://slgrid.org/tiles/${z}/${x}/${y}.png?region=${r}`,
-    `https://slgrid.org/map/${r}/${z}/${x}/${y}.png`,
     `https://maps.secondlife.com/tiles/${z}/${x}/${y}.png?region=${r}`,
     `https://secondlife.com/tiles/${z}/${x}/${y}.png?region=${r}`
   ];
 }
 
-async function tryFetchImageAsObjectUrl(url, proxyPrefix){
+async function tryFetchImageAsObjectUrlDebug(url, proxyPrefix){
+  const log = (m)=>{ const el=document.getElementById('sl-debug-log'); el.textContent += m + "\\n"; el.scrollTop = el.scrollHeight; };
   try {
     const fetchUrl = proxyPrefix ? proxyPrefix + encodeURIComponent(url) : url;
+    log(`Attempting: ${fetchUrl}`);
     const res = await fetch(fetchUrl, {mode:'cors'});
+    log(`→ HTTP ${res.status} ${res.statusText}`);
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const blob = await res.blob();
-    if(!blob.type.startsWith('image/')) throw new Error('Not an image');
-    return URL.createObjectURL(blob);
-  } catch (e) {
+    log(`→ Received blob type: ${blob.type}`);
+    if(!blob.type.startsWith('image/')) throw new Error('Response is not an image (type=' + blob.type + ')');
+    const obj = URL.createObjectURL(blob);
+    log('→ Image object URL created');
+    return obj;
+  } catch (err) {
+    log('✖ Error: ' + err.message);
     return null;
   }
 }
 
-async function slLoadMap(btn){
+async function slLoadMapDebug(btn){
   const card = btn.closest('.card') || document;
   const region = card.querySelector('#sl-region-name').value.trim();
   const proxy = card.querySelector('#sl-proxy').value || "";
+  const direct = card.querySelector('#sl-direct-url').value.trim();
   const xVal = card.querySelector('#sl-x').value;
   const yVal = card.querySelector('#sl-y').value;
   const hint = card.querySelector('#sl-map-hint');
+  const logEl = document.getElementById('sl-debug-log');
+  logEl.textContent = ''; // clear previous log
+
+  if(direct){
+    logEl.textContent = 'Using direct URL override.\\n';
+    const obj = await tryFetchImageAsObjectUrlDebug(direct, '');
+    if(obj){
+      hint.textContent = 'Loaded direct image URL.';
+      loadSingleImage(obj, xVal, yVal);
+      return;
+    } else {
+      hint.textContent = 'Direct URL failed; see debug log.';
+      return;
+    }
+  }
 
   if(!region){
-    hint.textContent = "Please enter a region name.";
+    hint.textContent = "Please enter a region name or paste a direct image URL.";
     return;
   }
 
-  hint.textContent = "Attempting to load single-image map from slgrid…";
+  hint.textContent = "Fetching map (debug mode)…";
   const singleCandidates = buildSingleImageCandidates(region);
   let objectUrl = null;
 
-  // Try single-image endpoints
+  // Try single-image endpoints (direct)
   for(const u of singleCandidates){
-    objectUrl = await tryFetchImageAsObjectUrl(u, "");
+    objectUrl = await tryFetchImageAsObjectUrlDebug(u, "");
     if(objectUrl){ hint.textContent = `Loaded map image from ${u}`; break; }
   }
 
   // If direct single-image failed and proxy selected, try via proxy
   if(!objectUrl && proxy){
     for(const u of singleCandidates){
-      objectUrl = await tryFetchImageAsObjectUrl(u, proxy);
+      objectUrl = await tryFetchImageAsObjectUrlDebug(u, proxy);
       if(objectUrl){ hint.textContent = `Loaded map image via proxy from ${u}`; break; }
     }
   }
@@ -149,39 +195,31 @@ async function slLoadMap(btn){
     return;
   }
 
-  // Single-image failed — try tile mode
-  hint.textContent = "Single-image not available; attempting tile-based map (this may take a moment)…";
+  // Single-image failed — try tile mode probes
+  logEl.textContent += '\\nSingle-image attempts failed. Probing tile endpoints...\\n';
   tileMode = true;
   tiles = {};
-  baseZoom = 0; // start with zoom 0 (single tile) and increase if needed
-
-  // We'll attempt a small set of zoom levels to find tiles that exist
-  const tryZooms = [0,1,2,3,4];
   let found = false;
+  const tryZooms = [0,1,2,3];
   for(const z of tryZooms){
-    // try to fetch a single tile at center coordinates (x=0,y=0) using candidate patterns
     const x = 0, y = 0;
     const candidates = buildTileUrlCandidates(region, z, x, y);
     for(const c of candidates){
-      const obj = await tryFetchImageAsObjectUrl(c, "");
+      const obj = await tryFetchImageAsObjectUrlDebug(c, "");
       if(obj){
         found = true;
-        baseZoom = z;
-        hint.textContent = `Tile server responded at zoom ${z} using pattern ${c}`;
-        // release object URL after using as test
+        logEl.textContent += `Tile server responded at zoom ${z} using pattern ${c}\\n`;
         URL.revokeObjectURL(obj);
         break;
       }
     }
     if(found) break;
-    // try via proxy if not found
     if(proxy){
       for(const c of candidates){
-        const obj = await tryFetchImageAsObjectUrl(c, proxy);
+        const obj = await tryFetchImageAsObjectUrlDebug(c, proxy);
         if(obj){
           found = true;
-          baseZoom = z;
-          hint.textContent = `Tile server responded via proxy at zoom ${z} using pattern ${c}`;
+          logEl.textContent += `Tile server responded via proxy at zoom ${z} using pattern ${c}\\n`;
           URL.revokeObjectURL(obj);
           break;
         }
@@ -191,12 +229,11 @@ async function slLoadMap(btn){
   }
 
   if(!found){
-    hint.textContent = "Unable to reach slgrid single-image or tile endpoints. Try a different region name or enable a CORS proxy.";
+    hint.textContent = "Unable to reach slgrid single-image or tile endpoints. Check debug log, try a different region name, or enable a CORS proxy.";
     return;
   }
 
-  // If we found a working zoom, render tiles around a center tile to form a map
-  // We'll render a 4x4 tile grid centered at (0,0) at baseZoom as a reasonable default
+  // Render a small tile grid around center as a fallback preview
   mapWidth = tileSize * 4;
   mapHeight = tileSize * 4;
   canvas.width = mapWidth;
@@ -205,38 +242,37 @@ async function slLoadMap(btn){
   canvas.style.height = Math.round(canvas.width / (mapWidth / mapHeight)) + 'px';
   scale = 1; offsetX = 0; offsetY = 0;
 
-  // load tiles for a small grid centered at tileX=0,tileY=0
+  // load tiles for a 4x4 grid centered at (0,0)
   const centerX = 0, centerY = 0;
-  const radius = 2; // 4x4
+  const radius = 2;
   const loadPromises = [];
   for(let dx = -radius; dx < radius; dx++){
     for(let dy = -radius; dy < radius; dy++){
       const tx = centerX + dx;
       const ty = centerY + dy;
-      loadPromises.push(loadTile(region, baseZoom, tx, ty, proxy));
+      loadPromises.push(loadTile(region, 0, tx, ty, proxy));
     }
   }
   await Promise.all(loadPromises);
   drawTilesAndMarker(xVal, yVal);
+  hint.textContent = "Tile preview rendered. See debug log for attempted URLs.";
 }
 
-// Load a single tile into cache (tries candidate patterns)
 async function loadTile(region, z, x, y, proxy){
   const key = `${z}/${x}/${y}`;
   if(tiles[key]) return tiles[key];
   const candidates = buildTileUrlCandidates(region, z, x, y);
   for(const c of candidates){
-    const obj = await tryFetchImageAsObjectUrl(c, "");
+    const obj = await tryFetchImageAsObjectUrlDebug(c, "");
     if(obj){
       const image = await createImageFromObjectUrl(obj);
       tiles[key] = {image, z, x, y};
       return tiles[key];
     }
   }
-  // try via proxy if provided
   if(proxy){
     for(const c of candidates){
-      const obj = await tryFetchImageAsObjectUrl(c, proxy);
+      const obj = await tryFetchImageAsObjectUrlDebug(c, proxy);
       if(obj){
         const image = await createImageFromObjectUrl(obj);
         tiles[key] = {image, z, x, y};
@@ -244,13 +280,12 @@ async function loadTile(region, z, x, y, proxy){
       }
     }
   }
-  // tile not found — leave empty placeholder
   tiles[key] = null;
   return null;
 }
 
 function createImageFromObjectUrl(objUrl){
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const i = new Image();
     i.crossOrigin = "anonymous";
     i.onload = () => { resolve(i); URL.revokeObjectURL(objUrl); };
@@ -263,9 +298,9 @@ function loadSingleImage(objectUrl, xVal, yVal){
   img = new Image();
   img.crossOrigin = "anonymous";
   img.onload = () => {
-    // set canvas to image natural size for crispness, scale to container width
     mapWidth = img.naturalWidth;
     mapHeight = img.naturalHeight;
+    // set canvas to image natural size for crispness, scale to container width
     canvas.width = mapWidth;
     canvas.height = mapHeight;
     canvas.style.width = Math.min(mapWidth, window.innerWidth - 80) + 'px';
@@ -287,7 +322,7 @@ function drawSingleImageAndMarker(xVal, yVal){
   ctx.setTransform(scale,0,0,scale,offsetX,offsetY);
   ctx.drawImage(img, 0, 0);
 
-  // optional grid overlay
+  // faint grid overlay
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 1/scale;
   const cell = canvas.width / 256;
@@ -314,22 +349,17 @@ function drawSingleImageAndMarker(xVal, yVal){
 }
 
 function drawTilesAndMarker(xVal, yVal){
-  // draw loaded tiles into canvas grid
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.setTransform(scale,0,0,scale,offsetX,offsetY);
 
-  // determine tile grid bounds from loaded tiles keys
   const keys = Object.keys(tiles).filter(k => tiles[k] && tiles[k].image);
   if(keys.length === 0){
-    // nothing loaded
     ctx.fillStyle = "#111";
     ctx.fillRect(0,0,canvas.width,canvas.height);
     return;
   }
 
-  // For simplicity we render tiles relative to a center tile at canvas center
-  // Find min/max x/y among loaded tiles
   let xs = [], ys = [];
   keys.forEach(k => {
     const [z,x,y] = k.split('/').map(Number);
@@ -341,8 +371,6 @@ function drawTilesAndMarker(xVal, yVal){
   const rows = maxY - minY + 1;
   const gridW = cols * tileSize;
   const gridH = rows * tileSize;
-
-  // center grid on canvas
   const startX = Math.round((canvas.width - gridW)/2);
   const startY = Math.round((canvas.height - gridH)/2);
 
@@ -357,7 +385,6 @@ function drawTilesAndMarker(xVal, yVal){
     ctx.drawImage(t.image, dx, dy, tileSize, tileSize);
   }
 
-  // draw faint grid lines
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 1/scale;
   for(let c=0;c<=cols;c++){
@@ -369,11 +396,9 @@ function drawTilesAndMarker(xVal, yVal){
     ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(startX + gridW, y); ctx.stroke();
   }
 
-  // marker: map region coords (0-255) to grid pixel coordinates
   if(xVal !== "" && yVal !== ""){
     const x = clamp(Number(xVal), 0, 255);
     const y = clamp(Number(yVal), 0, 255);
-    // map 0-255 to grid area
     const px = startX + (x/256) * gridW;
     const py = startY + (y/256) * gridH;
     drawMarker(px, py);
@@ -392,7 +417,7 @@ function drawMarker(px, py){
   ctx.restore();
 }
 
-// Canvas interactions: pan & zoom
+// Canvas pan & zoom
 canvas.addEventListener('wheel', e => {
   if((!img || !img.complete) && !tileMode) return;
   e.preventDefault();
@@ -405,8 +430,7 @@ canvas.addEventListener('wheel', e => {
   offsetX = cx - (cx - offsetX) * (newScale / scale);
   offsetY = cy - (cy - offsetY) * (newScale / scale);
   scale = newScale;
-  if(tileMode) drawTilesAndMarker(document.getElementById('sl-x').value, document.getElementById('sl-y').value);
-  else drawSingleImageAndMarker(document.getElementById('sl-x').value, document.getElementById('sl-y').value);
+  redrawCurrent();
 });
 
 canvas.addEventListener('mousedown', e => {
@@ -425,10 +449,13 @@ window.addEventListener('mousemove', e => {
   const dy = e.clientY - panStart.y;
   offsetX = panOrigin.x + dx;
   offsetY = panOrigin.y + dy;
-  if(tileMode) drawTilesAndMarker(document.getElementById('sl-x').value, document.getElementById('sl-y').value);
-  else drawSingleImageAndMarker(document.getElementById('sl-x').value, document.getElementById('sl-y').value);
+  redrawCurrent();
 });
 
-// Utility
+function redrawCurrent(){
+  if(tileMode) drawTilesAndMarker(document.getElementById('sl-x').value, document.getElementById('sl-y').value);
+  else drawSingleImageAndMarker(document.getElementById('sl-x').value, document.getElementById('sl-y').value);
+}
+
 function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 </script>
