@@ -1,0 +1,114 @@
+<h2 id="sl-events-title" style="margin-top:0;">Events Calendar</h2>
+
+<form aria-describedby="sl-events-desc">
+  <p id="sl-events-desc" class="small">
+    Browse Second Life events by category and date.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="sl-events-category">Category</label>
+      <select id="sl-events-category" style="width:100%;">
+        <option value="music" selected>Music</option>
+        <option value="art">Art & Exhibits</option>
+        <option value="classes">Classes & Education</option>
+        <option value="social">Social & Clubs</option>
+        <option value="games">Games & Roleplay</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="sl-events-date">Date</label>
+      <input id="sl-events-date" type="date" style="width:100%;" />
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="slEventsSearch(this)">Show Events</button>
+    <button type="button" class="secondary" onclick="slEventsReset(this)">Reset</button>
+    <button type="button" onclick="slEventsCopy(this)">Copy Events</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">Event Listings</h3>
+  <textarea id="sl-events-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="sl-events-hint" class="small" style="opacity:0.9;"></div>
+  </div>
+</div>
+
+<script>
+/* events-calendar.html
+   - Shows Second Life events by category/date
+   - Scoped with sl-events prefix
+*/
+
+// Demo fallback dataset — replace with live API/proxy later
+const SL_EVENTS_DEMO = {
+  music: [
+    "DJ Night @ Club Neon — 8 PM",
+    "Live Jazz @ Blue Note — 9 PM",
+    "Rock Concert @ Arena — 10 PM"
+  ],
+  art: [
+    "Gallery Opening: Abstract Dreams — 6 PM",
+    "Photography Exhibit @ Pixel Hall — 7 PM"
+  ],
+  classes: [
+    "Building Basics Workshop — 5 PM",
+    "Scripting 101 — 7 PM"
+  ],
+  social: [
+    "Dance Party @ Sky Lounge — 8 PM",
+    "Trivia Night @ Café — 9 PM"
+  ],
+  games: [
+    "Roleplay Session @ Fantasy Realm — 6 PM",
+    "Board Games @ Community Center — 8 PM"
+  ]
+};
+
+function slEventsReset(btn){
+  const card=btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#sl-events-output').value="";
+  card.querySelector('#sl-events-hint').textContent="";
+}
+
+function slEventsCopy(btn){
+  const card=btn.closest('.card');
+  const out=card.querySelector('#sl-events-output').value;
+  if(!out.trim())return;
+  navigator.clipboard?.writeText(out).then(()=>{
+    const hint=card.querySelector('#sl-events-hint');
+    hint.textContent="Copied to clipboard.";
+    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
+  }).catch(()=>alert("Copy failed."));
+}
+
+async function slEventsSearch(btn){
+  const card=btn.closest('.card');
+  const category=card.querySelector('#sl-events-category').value;
+  const date=card.querySelector('#sl-events-date').value || new Date().toISOString().split('T')[0];
+  try {
+    // Replace with your backend proxy endpoint
+    const url=`/api/sl-events?category=${category}&date=${date}`;
+    const r=await fetch(url);
+    if(r.ok){
+      const data=await r.json();
+      const results=data.events.map(ev=>`${ev.name} — ${ev.time} @ ${ev.location}`).join("\n");
+      card.querySelector('#sl-events-output').value=`Events on ${date}:\n${results}`;
+      card.querySelector('#sl-events-hint').textContent="Events loaded.";
+    } else {
+      throw new Error("Network error");
+    }
+  } catch(e){
+    // Fallback to demo data if live fetch fails
+    let results=SL_EVENTS_DEMO[category]||[`No demo events for ${category}.`];
+    card.querySelector('#sl-events-output').value=`Events on ${date}:\n`+results.join("\n");
+    card.querySelector('#sl-events-hint').textContent="Demo events shown.";
+  }
+}
+</script>
