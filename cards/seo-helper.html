@@ -1,0 +1,406 @@
+<h2 id="seo-helper-title" style="margin-top:0;">World‑Beating SEO Helper</h2>
+
+<form aria-describedby="seo-helper-desc">
+  <p id="seo-helper-desc" class="small">
+    Paste page HTML or content, set target keywords, and get an SEO score, fixes, meta tags, titles, and a full report.
+  </p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="seo-content">Page HTML or Text</label>
+      <textarea id="seo-content" rows="8" placeholder="Paste your page HTML or content…" style="width:100%;"></textarea>
+    </div>
+    <div class="field">
+      <label for="seo-keywords">Target Keywords (comma‑separated)</label>
+      <input id="seo-keywords" type="text" placeholder="e.g. sonic speedrun, modding tools" style="width:100%;" />
+      <label for="seo-url" style="margin-top:8px;">Canonical URL (optional)</label>
+      <input id="seo-url" type="url" placeholder="https://example.com/page" style="width:100%;" />
+      <label for="seo-platform" style="margin-top:8px;">Creator Platform (optional)</label>
+      <select id="seo-platform" style="width:100%;">
+        <option value="youtube">YouTube</option>
+        <option value="twitch">Twitch</option>
+        <option value="tiktok">TikTok</option>
+        <option value="none" selected>None</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" onclick="seoAnalyze(this)">Analyze & Score</button>
+    <button type="button" onclick="seoGenerateMeta(this)">Generate Meta & Social Tags</button>
+    <button type="button" onclick="seoCreatorTitles(this)">Creator Titles & Tags</button>
+    <button type="button" onclick="seoExportJSON(this)">Export JSON</button>
+    <button type="button" onclick="seoExportCSV(this)">Export CSV</button>
+    <button type="button" class="secondary" onclick="seoReset(this)">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small">SEO Report</h3>
+  <div id="seo-score-summary" class="small" style="margin-bottom:8px;"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div>
+      <label class="small">Findings & Fixes</label>
+      <textarea id="seo-findings" rows="12" style="width:100%;padding:10px;border-radius:8px;"></textarea>
+    </div>
+    <div>
+      <label class="small">Generated Meta & Social Tags</label>
+      <textarea id="seo-meta" rows="12" style="width:100%;padding:10px;border-radius:8px;"></textarea>
+    </div>
+  </div>
+
+  <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div>
+      <label class="small">Creator Titles & Tags</label>
+      <textarea id="seo-creator" rows="10" style="width:100%;padding:10px;border-radius:8px;"></textarea>
+    </div>
+    <div>
+      <label class="small">Raw Metrics</label>
+      <textarea id="seo-metrics" rows="10" style="width:100%;padding:10px;border-radius:8px;"></textarea>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- Utilities ----------
+const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+const toWords = s => (s || "").toLowerCase().match(/[a-z0-9’']+/gi) || [];
+const uniq = arr => [...new Set(arr)];
+const countMap = words => words.reduce((m,w)=>(m[w]=(m[w]||0)+1,m),{});
+const sentences = s => (s||"").match(/[^.!?]+[.!?]*/g) || [];
+const estSyllables = w => {
+  // Heuristic syllable count for readability
+  const word = (w||"").toLowerCase().replace(/[^a-z]/g,"");
+  if(!word) return 0;
+  const vowels = word.match(/[aeiouy]+/g);
+  let syl = vowels ? vowels.length : 1;
+  if(word.endsWith("e")) syl = Math.max(1, syl-1);
+  return syl;
+};
+const fleschReadingEase = text => {
+  const sents = sentences(text).length || 1;
+  const words = toWords(text);
+  const wcount = words.length || 1;
+  const syllables = words.reduce((sum,w)=>sum+estSyllables(w),0) || 1;
+  const score = 206.835 - 1.015*(wcount/sents) - 84.6*(syllables/wcount);
+  return clamp(Math.round(score), 0, 100);
+};
+const charLen = s => (s||"").length;
+
+// Extract simple HTML signals
+function extractHTMLSignals(input){
+  const hasTags = /<\w+[^>]*>/.test(input||"");
+  let title="", desc="", h1=[], h2=[], h3=[], imgs=[];
+  if(hasTags){
+    const tMatch = input.match(/<title[^>]*>([^<]+)<\/title>/i);
+    title = tMatch ? tMatch[1].trim() : "";
+    const mDesc = input.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["'][^>]*>/i);
+    desc = mDesc ? mDesc[1].trim() : "";
+    h1 = (input.match(/<h1[^>]*>(.*?)<\/h1>/gi) || []).map(x=>x.replace(/<[^>]+>/g,"").trim());
+    h2 = (input.match(/<h2[^>]*>(.*?)<\/h2>/gi) || []).map(x=>x.replace(/<[^>]+>/g,"").trim());
+    h3 = (input.match(/<h3[^>]*>(.*?)<\/h3>/gi) || []).map(x=>x.replace(/<[^>]+>/g,"").trim());
+    imgs = (input.match(/<img[^>]*>/gi) || []).map(tag=>{
+      const altMatch = tag.match(/alt=["']([^"']*)["']/i);
+      const srcMatch = tag.match(/src=["']([^"']*)["']/i);
+      return {alt: altMatch ? altMatch[1] : "", src: srcMatch ? srcMatch[1] : ""};
+    });
+  }
+  return {hasTags,title,desc,h1,h2,h3,imgs};
+}
+
+// ---------- Core Analysis ----------
+function analyzeContent(input, targets){
+  const textOnly = input.replace(/<style[^>]*>[\s\S]*?<\/style>/gi,"")
+                        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi,"")
+                        .replace(/<[^>]+>/g," ")
+                        .replace(/\s+/g," ").trim();
+  const words = toWords(textOnly);
+  const totalWords = words.length;
+  const sents = sentences(textOnly).length;
+  const readingEase = fleschReadingEase(textOnly);
+  const counts = countMap(words);
+  const topTerms = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  // Keyword metrics
+  const targetList = targets.map(k=>k.toLowerCase().trim()).filter(Boolean);
+  const keywordStats = targetList.map(k=>{
+    const c = counts[k] || 0;
+    const density = totalWords ? (c/totalWords)*100 : 0;
+    return {keyword:k, count:c, density:+density.toFixed(2)};
+  });
+
+  // HTML signals
+  const html = extractHTMLSignals(input);
+
+  // Validation
+  const titleLen = charLen(html.title);
+  const descLen = charLen(html.desc);
+  const metaTitleOk = titleLen>=30 && titleLen<=60;
+  const metaDescOk = descLen>=50 && descLen<=160;
+  const h1Count = html.h1.length;
+  const missingAlts = (html.imgs||[]).filter(i=>!i.alt || !i.alt.trim());
+
+  // Scoring (weights sum to 100)
+  const w = {meta:25, headings:15, content:20, keywords:20, accessibility:10, readability:10};
+  let metaScore = 0;
+  metaScore += metaTitleOk ? 15 : Math.max(0, 15 - Math.abs(45 - titleLen));
+  metaScore += metaDescOk ? 10 : Math.max(0, 10 - Math.abs(105 - descLen)/2);
+
+  const headingsScore = clamp((h1Count===1?10:Math.max(0,10-Math.abs(1-h1Count)*5)) + (html.h2.length?5:2),0,15);
+  const contentScore = clamp(totalWords>=300?20:Math.round(totalWords/300*20),0,20);
+
+  const kwCoverage = keywordStats.reduce((sum,k)=>sum+(k.count>0?1:0),0);
+  const kwScore = clamp(Math.round((kwCoverage/Math.max(1,targetList.length))*20),0,20);
+
+  const accessScore = clamp(10 - (missingAlts.length>0 ? Math.min(10, missingAlts.length*2) : 0), 0, 10);
+  const readScore = clamp(readingEase>=50?10:Math.round(readingEase/50*10),0,10);
+
+  const totalScore = clamp(
+    Math.round(
+      (metaScore*(w.meta/25)) +
+      (headingsScore*(w.headings/15)) +
+      (contentScore*(w.content/20)) +
+      (kwScore*(w.keywords/20)) +
+      (accessScore*(w.accessibility/10)) +
+      (readScore*(w.readability/10))
+    ), 0, 100
+  );
+
+  return {
+    textOnly, words, totalWords, sents, readingEase,
+    topTerms, keywordStats, html,
+    validations:{titleLen,descLen,metaTitleOk,metaDescOk,h1Count,missingAlts},
+    scores:{metaScore,headingsScore,contentScore,kwScore,accessScore,readScore,totalScore}
+  };
+}
+
+// ---------- Meta & Social Generation ----------
+function generateMetaPack(title, desc, canonical){
+  const safeTitle = (title||"").trim();
+  const safeDesc  = (desc||"").trim();
+  const can = (canonical||"").trim();
+  const tags = [];
+  if(safeTitle) tags.push(`<title>${escapeHTML(safeTitle)}</title>`);
+  if(safeDesc)  tags.push(`<meta name="description" content="${escapeHTML(safeDesc)}">`);
+  if(can)       tags.push(`<link rel="canonical" href="${escapeAttr(can)}">`);
+  // Robots best‑practice
+  tags.push(`<meta name="robots" content="index, follow">`);
+  // Open Graph
+  if(safeTitle) tags.push(`<meta property="og:title" content="${escapeHTML(safeTitle)}">`);
+  if(safeDesc)  tags.push(`<meta property="og:description" content="${escapeHTML(safeDesc)}">`);
+  if(can)       tags.push(`<meta property="og:url" content="${escapeAttr(can)}">`);
+  tags.push(`<meta property="og:type" content="website">`);
+  // Twitter Cards
+  if(safeTitle) tags.push(`<meta name="twitter:title" content="${escapeHTML(safeTitle)}">`);
+  if(safeDesc)  tags.push(`<meta name="twitter:description" content="${escapeHTML(safeDesc)}">`);
+  tags.push(`<meta name="twitter:card" content="summary_large_image">`);
+  return tags.join("\n");
+}
+const escapeHTML = s => s.replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+const escapeAttr = s => s.replace(/"/g,"&quot;");
+
+// ---------- Creator Titles & Tags ----------
+function creatorPack(idea, platform){
+  const base = (idea||"").trim();
+  if(!base) return {titles:[], tags:[]};
+  let titles=[], tags=[];
+  if(platform==="youtube"){
+    titles=[
+      `Top 10 ${base} Tricks You Need to Know`,
+      `${base} Explained in 5 Minutes`,
+      `Ultimate ${base} Guide (2025 Edition)`
+    ];
+    tags=[base,"gaming","tutorial","guide","2025","viral","shorts","how-to"];
+  } else if(platform==="twitch"){
+    titles=[
+      `Live ${base} Highlights`,
+      `Epic ${base} Moments Caught Live`,
+      `Grinding ${base} with Viewers`
+    ];
+    tags=[base,"twitch","stream","live","clips","gaming","community"];
+  } else if(platform==="tiktok"){
+    titles=[
+      `${base} in 30 Seconds!`,
+      `Quick ${base} Hack You Didn’t Know`,
+      `Insane ${base} Clip 🔥`
+    ];
+    tags=[base,"tiktok","shorts","viral","trend","gaming","fast"];
+  } else {
+    titles=[`Definitive ${base} Guide`,`Everything About ${base}`,`How to Master ${base}`];
+    tags=[base,"guide","tips","best practices"];
+  }
+  // Simple SEO scoring for provided titles
+  const scored = titles.map(t=>{
+    const lenScore = (t.length>=40 && t.length<=70)?30:15;
+    const kwScore = t.toLowerCase().includes(base.toLowerCase())?40:20;
+    const hookScore = /top|ultimate|insane|🔥|guide|hack/i.test(t)?30:15;
+    return {title:t,score:lenScore+kwScore+hookScore};
+  });
+  return {titles: scored, tags};
+}
+
+// ---------- Exports ----------
+function toJSONReport(analysis){
+  const a = analysis;
+  return {
+    summary:{
+      totalScore:a.scores.totalScore,
+      readingEase:a.readingEase,
+      wordCount:a.totalWords,
+      sentenceCount:a.sents,
+      topTerms:a.topTerms
+    },
+    htmlSignals:{
+      title:a.html.title, description:a.html.desc,
+      h1:a.html.h1, h2:a.html.h2, h3:a.html.h3,
+      images:a.html.imgs
+    },
+    validations:a.validations,
+    keywordStats:a.keywordStats,
+    scores:a.scores
+  };
+}
+function toCSV(analysis){
+  const rows = [["Metric","Value"]];
+  rows.push(["Total Score", analysis.scores.totalScore]);
+  rows.push(["Reading Ease", analysis.readingEase]);
+  rows.push(["Word Count", analysis.totalWords]);
+  rows.push(["Sentence Count", analysis.sents]);
+  rows.push(...analysis.keywordStats.map(k=>[`Keyword: ${k.keyword}`, `Count=${k.count} Density=${k.density}%`]));
+  return rows.map(r=>r.map(v=>String(v).replace(/"/g,'""')).map(v=>`"${v}"`).join(",")).join("\n");
+}
+function download(filename,content,mime){
+  const blob = new Blob([content],{type:mime||"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 500);
+}
+
+// ---------- UI handlers ----------
+function seoReset(btn){
+  const card=btn.closest('.card')||document;
+  card.querySelector('form').reset();
+  ["#seo-score-summary","#seo-findings","#seo-meta","#seo-creator","#seo-metrics"].forEach(id=>{
+    const el = card.querySelector(id);
+    if(el.tagName==="TEXTAREA") el.value="";
+    else el.textContent="";
+  });
+}
+
+function seoAnalyze(btn){
+  const card=btn.closest('.card')||document;
+  const input=card.querySelector('#seo-content').value.trim();
+  const targetStr=card.querySelector('#seo-keywords').value.trim();
+  const targets=targetStr.split(",").map(s=>s.trim()).filter(Boolean);
+  if(!input){
+    card.querySelector('#seo-score-summary').textContent="Please paste page HTML or content.";
+    return;
+  }
+  const a = analyzeContent(input, targets);
+
+  // Findings & fixes
+  const fixes = [];
+  // Meta
+  fixes.push(a.validations.metaTitleOk ? "Title length OK (30–60 chars)." : `Fix title length (${a.validations.titleLen}). Aim for 30–60.`);
+  fixes.push(a.validations.metaDescOk ? "Meta description length OK (50–160 chars)." : `Fix meta description length (${a.validations.descLen}). Aim for 50–160.`);
+  // Headings
+  fixes.push(a.validations.h1Count===1 ? "Exactly one H1 present." : `H1 count is ${a.validations.h1Count}. Use exactly one H1.`);
+  fixes.push(a.html.h2.length ? "H2s present for structure." : "Add H2 subheadings for scannability.");
+  // Keywords
+  if(targets.length){
+    a.keywordStats.forEach(k=>{
+      fixes.push(k.count>0 ? `Keyword "${k.keyword}" present (density ${k.density}%).` : `Add keyword "${k.keyword}" in title, H1/H2, and first paragraph.`);
+    });
+  } else {
+    fixes.push("Add target keywords to guide optimization.");
+  }
+  // Content
+  fixes.push(a.totalWords>=800 ? "Strong content depth (800+ words)." : "Increase content depth toward 800+ words.");
+  // Accessibility
+  fixes.push(a.validations.missingAlts.length ? `Add alt text to ${a.validations.missingAlts.length} image(s).` : "All images have alt text.");
+  // Readability
+  fixes.push(a.readingEase>=50 ? "Good readability (Flesch ≥ 50)." : "Simplify sentences and reduce jargon to raise readability.");
+
+  // Score summary
+  card.querySelector('#seo-score-summary').textContent =
+    `Overall SEO Score: ${a.scores.totalScore}/100 · Words: ${a.totalWords} · Sentences: ${a.sents} · Readability: ${a.readingEase}/100`;
+
+  // Findings
+  card.querySelector('#seo-findings').value = fixes.map(f=>`- ${f}`).join("\n");
+
+  // Raw metrics
+  const metrics = [
+    `Title: ${a.html.title || "(none)"}`,
+    `Meta description: ${a.html.desc || "(none)"}`,
+    `Title length: ${a.validations.titleLen} · OK: ${a.validations.metaTitleOk}`,
+    `Description length: ${a.validations.descLen} · OK: ${a.validations.metaDescOk}`,
+    `H1: ${a.html.h1.length ? a.html.h1.join(" | ") : "(none)"}`,
+    `H2 count: ${a.html.h2.length} · H3 count: ${a.html.h3.length}`,
+    `Top terms: ${a.topTerms.map(([w,c])=>`${w}(${c})`).join(", ") || "(none)"}`,
+    ...(targets.length ? a.keywordStats.map(k=>`Keyword "${k.keyword}": count ${k.count}, density ${k.density}%`) : ["No target keywords provided."]),
+    `Missing image alts: ${a.validations.missingAlts.length}`
+  ];
+  card.querySelector('#seo-metrics').value = metrics.join("\n");
+}
+
+function seoGenerateMeta(btn){
+  const card=btn.closest('.card')||document;
+  const input=card.querySelector('#seo-content').value.trim();
+  if(!input){
+    card.querySelector('#seo-meta').value="Paste page HTML or content first.";
+    return;
+  }
+  const url=card.querySelector('#seo-url').value.trim();
+  const signals = extractHTMLSignals(input);
+  // Suggest fallbacks if absent
+  const suggestedTitle = signals.title || "Your Optimized Page Title";
+  const suggestedDesc = signals.desc || "Clear, compelling meta description (50–160 chars) highlighting primary keywords and user value.";
+  const pack = generateMetaPack(suggestedTitle, suggestedDesc, url);
+  card.querySelector('#seo-meta').value = pack;
+}
+
+function seoCreatorTitles(btn){
+  const card=btn.closest('.card')||document;
+  const platform=card.querySelector('#seo-platform').value;
+  // Use either H1/title or keywords input as the idea
+  const content=card.querySelector('#seo-content').value.trim();
+  const signals = extractHTMLSignals(content);
+  const idea = signals.title || signals.h1[0] || (card.querySelector('#seo-keywords').value.split(",")[0] || "").trim();
+  if(!idea){
+    card.querySelector('#seo-creator').value="Provide an idea via Title/H1 or Target Keywords.";
+    return;
+  }
+  const pack = creatorPack(idea, platform);
+  const out = [
+    "Suggested Titles:",
+    ...pack.titles.map(x=>`- ${x.title} (SEO Score: ${x.score}/100)`),
+    "",
+    "Suggested Tags:",
+    pack.tags.join(", ")
+  ].join("\n");
+  card.querySelector('#seo-creator').value = out;
+}
+
+function seoExportJSON(btn){
+  const card=btn.closest('.card')||document;
+  const input=card.querySelector('#seo-content').value.trim();
+  const targets=card.querySelector('#seo-keywords').value.trim().split(",").map(s=>s.trim()).filter(Boolean);
+  if(!input){ alert("Paste content first."); return; }
+  const a = analyzeContent(input, targets);
+  const json = JSON.stringify(toJSONReport(a), null, 2);
+  download("seo-report.json", json, "application/json");
+}
+
+function seoExportCSV(btn){
+  const card=btn.closest('.card')||document;
+  const input=card.querySelector('#seo-content').value.trim();
+  const targets=card.querySelector('#seo-keywords').value.trim().split(",").map(s=>s.trim()).filter(Boolean);
+  if(!input){ alert("Paste content first."); return; }
+  const a = analyzeContent(input, targets);
+  const csv = toCSV(a);
+  download("seo-report.csv", csv, "text/csv");
+}
+</script>
