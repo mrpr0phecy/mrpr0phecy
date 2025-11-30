@@ -1,0 +1,237 @@
+<h2 id="boiling-point-finder" style="margin-top:0;">Boiling Point Finder</h2>
+
+<!--
+  Manifest metadata
+  id: boiling-point-finder
+  title: Boiling Point Finder
+  path: cards/boiling-point-finder.html
+  category: Science Tools
+  version: 2.0
+-->
+
+<form aria-describedby="bpf-desc">
+  <p id="bpf-desc" class="small">
+    Look up boiling points of common substances at 1 atm. Converts between Celsius, Fahrenheit, and Kelvin.
+  </p>
+
+  <label for="bpf-substance">Substance</label>
+  <input id="bpf-substance" type="text" placeholder="e.g. water, ethanol, nitrogen" style="width:100%;" />
+
+  <label for="bpf-unit" style="margin-top:8px;">Unit</label>
+  <select id="bpf-unit" style="width:100%;">
+    <option value="C">°C</option>
+    <option value="F">°F</option>
+    <option value="K">K</option>
+  </select>
+
+  <div style="margin-top:12px;">
+    <button type="button" onclick="findBoilingPoint()">Find</button>
+    <button type="button" onclick="resetBoilingPoint()" class="secondary">Reset</button>
+  </div>
+</form>
+
+<div style="margin-top:12px;">
+  <h3 class="small">Boiling Point</h3>
+  <div id="bpf-output" class="small" style="background:#fafafa;padding:8px;border-radius:6px;min-height:48px;"></div>
+</div>
+
+<script>
+// Extended boiling point database (°C at 1 atm)
+const bpDB = {
+  water: 100,
+  ethanol: 78.37,
+  methanol: 64.7,
+  propanol: 97.2,
+  butanol: 117.7,
+  acetone: 56,
+  acetic_acid: 118,
+  formic_acid: 100.8,
+  glycerol: 290,
+  benzene: 80.1,
+  toluene: 110.6,
+  xylene: 138.5,
+  chloroform: 61.2,
+  ether: 34.6,
+  diethyl_ether: 34.6,
+  dimethylformamide: 153,
+  dimethylsulfoxide: 189,
+
+  // Common gases
+  ammonia: -33.3,
+  nitrogen: -195.8,
+  oxygen: -183,
+  hydrogen: -252.9,
+  helium: -268.9,
+  argon: -185.8,
+  krypton: -153.4,
+  xenon: -108.1,
+  radon: -61.7,
+  carbon_dioxide: -78.5, // sublimation
+  carbon_monoxide: -191.5,
+  methane: -161.5,
+  ethane: -88.6,
+  propane: -42.1,
+  butane: -0.5,
+  pentane: 36.1,
+  hexane: 68.7,
+  octane: 125.6,
+
+  // Halogens
+  fluorine: -188.1,
+  chlorine: -34.0,
+  bromine: 58.8,
+  iodine: 184.3,
+
+  // Noble metals
+  mercury: 356.7,
+  silver: 2162,
+  gold: 2856,
+  copper: 2562,
+  iron: 2862,
+  aluminum: 2470,
+  lead: 1749,
+  zinc: 907,
+  tin: 2602,
+  nickel: 2913,
+  cobalt: 2927,
+
+  // Alkali metals
+  lithium: 1342,
+  sodium: 883,
+  potassium: 759,
+  rubidium: 688,
+  cesium: 671,
+
+  // Other elements
+  sulfur: 444.6,
+  phosphorus: 280,
+  boron: 4000,
+  silicon: 3265,
+  carbon: 4827,
+  titanium: 3287,
+  tungsten: 5555,
+
+  // Organic solvents
+  acetonitrile: 81.6,
+  acetaldehyde: 20.8,
+  acrolein: 52.3,
+  acrylonitrile: 77.2,
+  nitrobenzene: 210.9,
+  aniline: 184.4,
+  phenol: 181.7,
+  styrene: 145.2,
+
+  // Acids & bases
+  nitric_acid: 83,
+  hydrochloric_acid: -85,
+  hydrofluoric_acid: 19.5,
+  sulfuric_acid: 337,
+  phosphoric_acid: 158,
+  hydrogen_peroxide: 150.2,
+
+  // Miscellaneous
+  ammonia_solution: -33,
+  ethanolamine: 170,
+  ethylene_glycol: 197,
+  propylene_glycol: 188,
+  formaldehyde: -19,
+  urea: 133,
+  pyridine: 115.2,
+  quinoline: 237,
+  naphthalene: 218,
+  anthracene: 340
+ // More everyday solvents
+  isopropanol: 82.6,
+  butanone: 79.6,
+  cyclohexane: 80.7,
+  tetrahydrofuran: 66,
+  dimethyl_ether: -24,
+  ethyl_acetate: 77.1,
+  methyl_acetate: 57.1,
+  propylene_oxide: 34,
+  dichloromethane: 39.6,
+  trichloroethylene: 87.2,
+  carbon_tetrachloride: 76.7,
+
+  // More hydrocarbons
+  heptane: 98.4,
+  nonane: 150.8,
+  decane: 174.1,
+  dodecane: 216.3,
+  cyclopentane: 49.3,
+  cycloheptane: 118.4,
+  cyclooctane: 151.4,
+
+  // More inorganic compounds
+  hydrogen_chloride: -85.1,
+  hydrogen_bromide: -66.8,
+  hydrogen_iodide: -35.4,
+  hydrogen_sulfide: -60.3,
+  sulfur_dioxide: -10,
+  sulfur_hexafluoride: -64,
+  phosphine: -87.7,
+  silane: -112,
+  boron_trichloride: 12.6,
+  boron_trifluoride: -100.3,
+
+  // More acids/bases
+  perchloric_acid: 203,
+  hydrobromic_acid: -67,
+  hydroiodic_acid: -35,
+  lactic_acid: 122,
+  citric_acid: 310,
+  tartaric_acid: 170,
+
+  // More organics
+  acetylacetone: 140,
+  butyric_acid: 163.5,
+  caproic_acid: 205,
+  stearic_acid: 383,
+  oleic_acid: 360,
+  linoleic_acid: 230,
+  palmitic_acid: 351,
+  ethylene: -103.7,
+  propylene: -47.6,
+  styrene: 145.2,
+  vinyl_chloride: -13.4,
+
+  // More elements
+  magnesium: 1090,
+  calcium: 1484,
+  strontium: 1382,
+  barium: 1897,
+  zirconium: 4377,
+  molybdenum: 5560,
+  vanadium: 3407,
+  chromium: 2672,
+  manganese: 2061,
+  platinum: 3825,
+  palladium: 2963,
+  rhodium: 3695,
+  iridium: 4130,
+  osmium: 5012,
+  rhenium: 5596
+};
+
+function convertTemp(valueC, unit){
+  if(unit==='C') return valueC.toFixed(2) + ' °C';
+  if(unit==='F') return (valueC*9/5+32).toFixed(2) + ' °F';
+  if(unit==='K') return (valueC+273.15).toFixed(2) + ' K';
+}
+
+function findBoilingPoint(){
+  const sub = document.getElementById('bpf-substance').value.toLowerCase().trim().replace(/\\s+/g,'_');
+  const unit = document.getElementById('bpf-unit').value;
+  const valC = bpDB[sub];
+  if(valC===undefined){
+    document.getElementById('bpf-output').textContent = 'Substance not found in database. Try a common chemical or element.';
+    return;
+  }
+  document.getElementById('bpf-output').textContent = `${sub.replace(/_/g,' ')} boils at ${convertTemp(valC, unit)} (1 atm).`;
+}
+
+function resetBoilingPoint(){
+  document.getElementById('bpf-substance').value = '';
+  document.getElementById('bpf-output').textContent = '';
+}
+</script>
