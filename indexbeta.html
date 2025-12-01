@@ -74,8 +74,21 @@
 
   .status{text-align:center;color:var(--muted);margin:6px 0 8px;font-size:.95rem}
 
+  /* New: tool-window inside toolbox (resizable) */
+  .tool-window{
+    background:linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.06));
+    border-radius:10px;border:1px solid rgba(255,255,255,0.06);
+    padding:10px;margin-bottom:12px;resize:both;overflow:auto;min-width:180px;min-height:100px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.35);
+  }
+  .tool-window .tw-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .tool-window .tw-close{background:transparent;border:0;color:#ff6b6b;cursor:pointer;font-size:16px}
+
+  /* Reader mode improvements */
   body.reader-mode {font-size:1.12rem;line-height:1.6}
   body.reader-mode .card{padding:20px}
+  body.reader-mode .dashboard{grid-template-columns:1fr !important;gap:18px}
+  body.reader-mode .card{background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.04));border-color:rgba(255,255,255,0.06)}
 </style>
 </head>
 <body>
@@ -104,7 +117,7 @@
   <div class="panel toolbox-panel" id="toolboxPanel" aria-hidden="true">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="color:var(--accent);font-weight:600">Toolbox</div>
-      <div style="color:var(--muted);font-size:.9rem">Customize cards</div>
+      <div style="color:var(--muted);font-size:.9rem">Resizable widgets</div>
     </div>
 
     <div class="toolbox-controls">
@@ -113,7 +126,7 @@
       <div id="sizeValue">100%</div>
     </div>
 
-    <div id="toolboxList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+    <div id="toolboxList" style="display:flex;flex-direction:column;gap:12px"></div>
   </div>
 
   <header><h1>The Most Useful Site in the World</h1></header>
@@ -133,7 +146,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-  // Simple, stable loader that worked previously
+  // Keep everything else unchanged except:
+  // 1) Make reader mode actually change layout to single-column and adjust visuals (CSS above)
+  // 2) Make toolbox render full resizable "tool-window" widgets that load pinned card content
+
   const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
   const DEFAULT_BRANCH = 'main';
 
@@ -216,31 +232,64 @@
     }
   }
 
-  // toolbox storage
+  // TOOLBOX: store pinned files and render as resizable tool-windows
   const TOOLBOX_KEY = 'toolbox_items_v1';
   function loadToolboxStore(){ try { return JSON.parse(localStorage.getItem(TOOLBOX_KEY) || '[]'); } catch(e) { return []; } }
   function saveToolboxStore(items){ localStorage.setItem(TOOLBOX_KEY, JSON.stringify(items)); }
   let toolboxItems = loadToolboxStore();
 
-  function renderToolboxPanel(){
+  // Render toolbox as resizable windows that load the card HTML into their body
+  async function renderToolboxPanel(){
     const list = document.getElementById('toolboxList');
     list.innerHTML = '';
     if(!toolboxItems.length){
       list.innerHTML = '<div style="color:var(--muted)">No items in toolbox. Add tools by pressing + on any card.</div>';
       return;
     }
-    toolboxItems.forEach(file => {
-      const el = document.createElement('div');
-      el.className = 'card visible';
-      el.style.padding = '10px';
-      el.style.minWidth = '180px';
-      el.style.display = 'flex';
-      el.style.flexDirection = 'column';
-      el.style.gap = '8px';
-      el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><strong>${file.replace('.html','')}</strong><button class="btn-remove" style="background:transparent;border:0;color:#ff6b6b;cursor:pointer">✕</button></div><div style="color:var(--muted);font-size:.9rem">Pinned tool</div>`;
-      el.querySelector('.btn-remove').addEventListener('click', ()=> removeFromToolbox(file));
-      list.appendChild(el);
-    });
+
+    // For each pinned file create a .tool-window that is resizable and contains the card content
+    for(const file of toolboxItems){
+      const win = document.createElement('div');
+      win.className = 'tool-window';
+      win.dataset.file = file;
+
+      const header = document.createElement('div');
+      header.className = 'tw-header';
+      const title = document.createElement('div');
+      title.textContent = file.replace('.html','');
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'tw-close';
+      closeBtn.title = 'Remove from toolbox';
+      closeBtn.innerHTML = '✕';
+      closeBtn.addEventListener('click', ()=> removeFromToolbox(file));
+      header.appendChild(title);
+      header.appendChild(closeBtn);
+
+      const body = document.createElement('div');
+      body.className = 'tw-body';
+      body.style.minHeight = '80px';
+      body.style.maxHeight = '40vh';
+      body.style.overflow = 'auto';
+      body.textContent = 'Loading…';
+
+      win.appendChild(header);
+      win.appendChild(body);
+      list.appendChild(win);
+
+      // load the card content into the tool window body (same sanitization)
+      (async function loadIntoWindow(f, container){
+        try{
+          const r = await fetch(`cards/${f}`);
+          if(!r.ok){ container.textContent = 'Preview unavailable'; return; }
+          let html = await r.text();
+          html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
+          html = html.replace(/<img\b([^>]*?)>/gi, (m, attrs) => /loading\s*=/.test(attrs) ? `<img${attrs}>` : `<img loading="lazy"${attrs}>`);
+          container.innerHTML = html;
+        }catch(e){
+          container.textContent = 'Failed to load';
+        }
+      })(file, body);
+    }
   }
 
   function addToToolbox(file){
@@ -270,8 +319,6 @@
 
   function applyAccent(hex){
     document.documentElement.style.setProperty('--accent', hex);
-    // derive subtle variations for other parts
-    // simple approach: set glass and card gradients using rgba mixes
     const rgb = hexToRgb(hex);
     if(rgb){
       document.documentElement.style.setProperty('--glass', `rgba(${rgb.r},${rgb.g},${rgb.b},0.06)`);
@@ -311,7 +358,14 @@
   // panel toggles
   document.getElementById('paletteToggle').addEventListener('click', ()=> document.getElementById('palettePanel').classList.toggle('open'));
   document.getElementById('toolboxToggle').addEventListener('click', ()=> document.getElementById('toolboxPanel').classList.toggle('open'));
-  document.getElementById('readerToggle').addEventListener('click', ()=> document.body.classList.toggle('reader-mode'));
+
+  // Reader mode: toggle class and persist
+  const readerToggle = document.getElementById('readerToggle');
+  readerToggle.addEventListener('click', ()=>{
+    document.body.classList.toggle('reader-mode');
+    if(document.body.classList.contains('reader-mode')) localStorage.setItem('readerMode','on'); else localStorage.removeItem('readerMode');
+  });
+  if(localStorage.getItem('readerMode') === 'on') document.body.classList.add('reader-mode');
 
   // search and sort
   document.getElementById('searchInput').addEventListener('input', (e) => {
@@ -370,6 +424,9 @@
       files.forEach(f => grid.appendChild(createCardElement(f)));
       document.getElementById('status').textContent = `${files.length} tools loaded — dealing…`;
       setTimeout(triggerDeal, 200);
+
+      // render toolbox windows for any pinned items
+      renderToolboxPanel();
     }catch(e){
       document.getElementById('status').textContent = 'Check repo name or cards/ folder';
       console.error(e);
