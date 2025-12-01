@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', ()=> {
   const grid = qs('#gridContainer');
   const status = qs('#status');
 
-  /* Palette data and UI */
+  /* Palette UI */
   const SWATCHES = {
     accent: ['#2dd4ff','#00bcd4','#7c4dff','#ff6b6b','#ffb86b','#00d084','#ff3b8a','#ffd54f','#00a3ff','#8e44ad','#1abc9c','#f39c12'],
     background: ['#0f1720','#071226','#08131a','#0b1b2a','#071a1f','#08121a','#0b1220','#102030','#081824','#0a1b2b'],
@@ -182,7 +182,7 @@ document.addEventListener('DOMContentLoaded', ()=> {
   resetTheme.addEventListener('click', ()=> { localStorage.removeItem('site_theme_v2'); location.reload(); });
   (function loadSaved(){ const saved = JSON.parse(localStorage.getItem('site_theme_v2')||'{}'); Object.keys(saved).forEach(r => applyRoleColor(r, saved[r])); renderSwatches(roleSelect.value); const savedRole = Object.keys(saved)[0]; if(savedRole){ roleSelect.value = savedRole; renderSwatches(savedRole); const el = roleSwatches.querySelector(`[data-color="${saved[savedRole]}"]`); if(el) el.classList.add('active'); } })();
 
-  /* ---------- Card loading: local-first, then GitHub fallback ---------- */
+  /* Card loader with local-first manifest and GitHub raw fallback */
   const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
   const DEFAULT_BRANCH = 'main';
 
@@ -191,19 +191,18 @@ document.addEventListener('DOMContentLoaded', ()=> {
   }
 
   async function listLocalCards(){
-    // Try to fetch an index file (cards/index.json) if present to avoid directory listing issues.
     try{
       const r = await fetch('cards/index.json', {cache:'no-store'});
-      if(!r.ok) throw new Error('no local index');
-      const arr = await r.json();
-      if(Array.isArray(arr) && arr.length) return arr.filter(p=>p.endsWith('.html'));
-    }catch(e){
-      // fallback: attempt to fetch a known sample file to detect local folder presence
-      try{
-        const probe = await fetch('cards/sample.html', {method:'HEAD'});
-        if(probe.ok) return ['sample.html'];
-      }catch(_){}
-    }
+      if(r.ok){
+        const arr = await r.json();
+        if(Array.isArray(arr) && arr.length) return arr.filter(p=>p.endsWith('.html'));
+      }
+    }catch(e){ /* ignore */ }
+    // probe for a sample file
+    try{
+      const probe = await fetch('cards/sample.html', {method:'HEAD'});
+      if(probe.ok) return ['sample.html'];
+    }catch(e){ /* ignore */ }
     return null;
   }
 
@@ -253,7 +252,6 @@ document.addEventListener('DOMContentLoaded', ()=> {
   async function loadCardContentInto(wrapper,file){
     if(wrapper.dataset.loaded === 'true') return;
     try{
-      // prefer local path first
       const localUrl = `cards/${file}`;
       const r = await fetch(localUrl);
       if(!r.ok) throw new Error('local fetch failed');
@@ -263,8 +261,8 @@ document.addEventListener('DOMContentLoaded', ()=> {
       const content = wrapper.querySelector('.card-back .content');
       content.innerHTML = html;
       wrapper.dataset.loaded = 'true';
+      return;
     }catch(localErr){
-      // local failed — try GitHub raw URL fallback
       try{
         const raw = `https://raw.githubusercontent.com/${DEFAULT_REPO}/${DEFAULT_BRANCH}/cards/${file}`;
         const r2 = await fetch(raw);
@@ -275,6 +273,7 @@ document.addEventListener('DOMContentLoaded', ()=> {
         const content = wrapper.querySelector('.card-back .content');
         content.innerHTML = html;
         wrapper.dataset.loaded = 'true';
+        return;
       }catch(gErr){
         console.error('Both local and GitHub fetch failed for', file, localErr, gErr);
         wrapper.querySelector('.card-back .content').textContent = 'Failed to load';
@@ -314,8 +313,8 @@ document.addEventListener('DOMContentLoaded', ()=> {
       } else {
         status.textContent = 'No local index; trying GitHub repo…';
         try{
-          const {owner,repo} = parseOwnerRepo(DEFAULT_REPO);
-          const repoFiles = await listRepoCards(owner,repo,DEFAULT_BRANCH);
+          const {owner,repo} = (function(){ const p='${DEFAULT_REPO}'.split('/'); return {owner:p[0],repo:p[1]}; })();
+          const repoFiles = await listRepoCards(owner,repo,'${DEFAULT_BRANCH}');
           if(repoFiles && repoFiles.length){
             files = repoFiles;
             status.textContent = `Loaded ${files.length} cards from GitHub.`;
@@ -332,7 +331,6 @@ document.addEventListener('DOMContentLoaded', ()=> {
         }
       }
 
-      // render
       grid.innerHTML = '';
       files.sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base',numeric:true}));
       files.forEach(f => grid.appendChild(createCardElement(f)));
