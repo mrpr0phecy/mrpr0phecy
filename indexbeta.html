@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>The Most Useful Site in the World</title>
-<meta name="description" content="Toolbox with resizable widgets, sequential card reveal, palette and mini slider." />
 <style>
   :root{
     --accent:#2dd4ff; --muted:#e6faff; --text:#e6faff;
@@ -53,7 +52,7 @@
   }
   .palette-panel.open{display:block;pointer-events:auto}
 
-  /* Detachable toolbox window */
+  /* Detachable toolbox window - now resizable */
   .toolbox {
     position:fixed;
     right:18px;
@@ -67,7 +66,10 @@
     box-shadow:0 18px 48px rgba(0,0,0,0.6);
     display:flex;
     flex-direction:column;
-    overflow:hidden;
+    overflow:auto;
+    resize:both; /* toolbox itself is resizable */
+    min-width:260px;
+    min-height:180px;
   }
   .toolbox.hidden{display:none}
 
@@ -77,7 +79,7 @@
   }
   .toolbox .titlebar:active{cursor:grabbing}
 
-  /* IMPORTANT: toolbox content uses CSS grid so widgets reflow */
+  /* toolbox content uses CSS grid so widgets reflow */
   .toolbox .content{
     display:grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -87,7 +89,7 @@
     overflow:auto;
   }
 
-  /* Widgets inside toolbox: constrained wrappers */
+  /* Widgets inside toolbox: no per-widget resize, have top bar */
   .widget-wrap{
     box-sizing:border-box;
     width:100%;
@@ -97,12 +99,19 @@
     max-height:calc(100vh - 220px);
     background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));
     border-radius:10px;border:1px solid rgba(255,255,255,0.04);
-    padding:8px;resize:both;overflow:auto;
-    box-shadow:0 8px 20px rgba(0,0,0,0.35);
+    padding:0; /* header included */
+    overflow:hidden;
+    /* removed resize:both from widgets */
   }
 
-  .widget-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-  .widget-close{background:transparent;border:0;color:#ff6b6b;cursor:pointer;font-size:16px}
+  /* Widget titlebar to match toolbox chrome */
+  .widget-titlebar{
+    display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.03);
+    background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+    cursor:default;
+  }
+  .widget-titlebar strong{color:var(--accent)}
+  .widget-body{padding:10px;overflow:auto;max-height:40vh}
 
   /* Grid / cards */
   main{position:relative;z-index:2}
@@ -222,7 +231,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-/* Repo and loader */
+/* Repo loader */
 const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
 const DEFAULT_BRANCH = 'main';
 function parseOwnerRepo(str){ const p = str.split('/'); return { owner: p[0], repo: p[1] }; }
@@ -298,7 +307,7 @@ async function loadCardContentInto(card, file){
   }
 }
 
-/* Toolbox (detachable) and widgets */
+/* Toolbox and widgets */
 const toolbox = document.getElementById('toolbox');
 const toolboxToggle = document.getElementById('toolboxToggle');
 const toolboxClose = document.getElementById('toolboxClose');
@@ -309,12 +318,24 @@ const dockBtn = document.getElementById('dockBtn');
 let toolboxDocked = true;
 let toolboxPos = { right: 18, bottom: 18, width: 420, height: 420 };
 
+/* restore saved toolbox size/position */
+(function restoreToolboxState(){
+  try{
+    const s = JSON.parse(localStorage.getItem('toolbox_state_v1') || '{}');
+    if(s.width) toolbox.style.width = s.width + 'px';
+    if(s.height) toolbox.style.height = s.height + 'px';
+    if(s.left) { toolbox.style.left = s.left + 'px'; toolbox.style.right = 'auto'; toolboxDocked = false; }
+    if(s.top) { toolbox.style.top = s.top + 'px'; toolbox.style.bottom = 'auto'; toolboxDocked = false; }
+  }catch(e){}
+})();
+
 toolboxToggle.addEventListener('click', () => {
   toolbox.classList.toggle('hidden');
   toolbox.classList.contains('hidden') ? toolbox.setAttribute('aria-hidden','true') : toolbox.setAttribute('aria-hidden','false');
 });
 toolboxClose.addEventListener('click', ()=> { toolbox.classList.add('hidden'); toolbox.setAttribute('aria-hidden','true'); });
 
+/* Make toolbox draggable when undocked */
 (function makeToolboxDraggable(){
   let dragging = false, startX=0, startY=0, startLeft=0, startTop=0;
   toolboxTitle.addEventListener('pointerdown', (e) => {
@@ -337,54 +358,76 @@ toolboxClose.addEventListener('click', ()=> { toolbox.classList.add('hidden'); t
     if(!dragging) return;
     dragging = false;
     toolbox.style.transition = '';
+    // persist position when undocked
+    persistToolboxState();
   });
 })();
 
+/* Dock / undock */
 dockBtn.addEventListener('click', () => {
   toolboxDocked = !toolboxDocked;
   if(toolboxDocked){
+    // dock to bottom-right and persist size
     toolbox.style.left = 'auto';
     toolbox.style.top = 'auto';
     toolbox.style.right = (toolboxPos.right || 18) + 'px';
     toolbox.style.bottom = (toolboxPos.bottom || 18) + 'px';
-    toolbox.style.width = (toolboxPos.width || 420) + 'px';
-    toolbox.style.height = (toolboxPos.height || 420) + 'px';
+    persistToolboxState();
     dockBtn.textContent = '⇱';
   } else {
+    // undock: keep current position
     const rect = toolbox.getBoundingClientRect();
-    toolbox.style.left = (window.innerWidth - rect.width - 18) + 'px';
-    toolbox.style.top = (window.innerHeight - rect.height - 120) + 'px';
+    toolbox.style.left = rect.left + 'px';
+    toolbox.style.top = rect.top + 'px';
     toolbox.style.right = 'auto';
     toolbox.style.bottom = 'auto';
     dockBtn.textContent = '⇲';
+    persistToolboxState();
   }
 });
 
-/* Widgets */
+/* Persist toolbox size/position */
+function persistToolboxState(){
+  try{
+    const rect = toolbox.getBoundingClientRect();
+    const state = {
+      width: Math.round(rect.width),
+      height: Math.round(rect.height)
+    };
+    if(!toolboxDocked){
+      state.left = Math.round(rect.left);
+      state.top = Math.round(rect.top);
+    }
+    localStorage.setItem('toolbox_state_v1', JSON.stringify(state));
+  }catch(e){}
+}
+
+/* Save size when user resizes toolbox (listen for pointerup on toolbox) */
+toolbox.addEventListener('pointerup', () => persistToolboxState());
+window.addEventListener('resize', () => persistToolboxState());
+
+/* Widgets creation: include a titlebar for each widget */
 function createWidget(file){
   const wrap = document.createElement('div');
   wrap.className = 'widget-wrap';
   wrap.dataset.file = file;
 
-  const header = document.createElement('div');
-  header.className = 'widget-header';
-  const title = document.createElement('div');
+  const titlebar = document.createElement('div');
+  titlebar.className = 'widget-titlebar';
+  const title = document.createElement('strong');
   title.textContent = file.replace('.html','');
   const close = document.createElement('button');
   close.className = 'widget-close';
   close.innerHTML = '✕';
   close.addEventListener('click', ()=> removeFromToolbox(file));
-
-  header.appendChild(title);
-  header.appendChild(close);
-  wrap.appendChild(header);
+  titlebar.appendChild(title);
+  titlebar.appendChild(close);
 
   const body = document.createElement('div');
   body.className = 'widget-body';
-  body.style.minHeight = '80px';
-  body.style.maxHeight = '40vh';
-  body.style.overflow = 'auto';
   body.textContent = 'Loading…';
+
+  wrap.appendChild(titlebar);
   wrap.appendChild(body);
 
   (async function loadIntoWidget(f, container){
@@ -400,10 +443,26 @@ function createWidget(file){
     }
   })(file, body);
 
-  // clamp while resizing using ResizeObserver (observer attached later)
   return wrap;
 }
 
+/* Clamp widget sizes to toolbox interior using ResizeObserver */
+let widgetRO = null;
+function attachWidgetResizeObserver(){
+  if(widgetRO) widgetRO.disconnect();
+  const contentEl = toolboxContent;
+  if(!contentEl) return;
+  widgetRO = new ResizeObserver(entries => {
+    for(const entry of entries){
+      const widget = entry.target;
+      clampWidgetSize(widget);
+    }
+  });
+  contentEl.querySelectorAll('.widget-wrap').forEach(w => {
+    widgetRO.observe(w);
+    clampWidgetSize(w);
+  });
+}
 function clampWidgetSize(widget){
   const contentRect = toolboxContent.getBoundingClientRect();
   const wRect = widget.getBoundingClientRect();
@@ -446,29 +505,10 @@ function renderToolboxPanel(){
     const w = createWidget(file);
     toolboxContent.appendChild(w);
   }
-  // attach ResizeObserver to clamp sizes and prevent overflow/overlap
   attachWidgetResizeObserver();
 }
 
-/* ResizeObserver to clamp widget sizes and keep them inside toolbox grid */
-let widgetRO = null;
-function attachWidgetResizeObserver(){
-  if(widgetRO) widgetRO.disconnect();
-  const contentEl = toolboxContent;
-  if(!contentEl) return;
-  widgetRO = new ResizeObserver(entries => {
-    for(const entry of entries){
-      const widget = entry.target;
-      clampWidgetSize(widget);
-    }
-  });
-  contentEl.querySelectorAll('.widget-wrap').forEach(w => {
-    widgetRO.observe(w);
-    clampWidgetSize(w);
-  });
-}
-
-/* Mini slider popout wiring */
+/* Mini slider wiring */
 const miniSquare = document.getElementById('miniSquare');
 const miniPanel = document.getElementById('miniPanel');
 const miniSlider = document.getElementById('miniCardSlider');
