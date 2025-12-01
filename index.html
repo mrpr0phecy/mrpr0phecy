@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>The Most Useful Site in the World</title>
-<meta name="description" content="Toolbox with resizable container, sequential card reveal, palette." />
 <style>
   :root{
     --accent:#2dd4ff; --muted:#e6faff; --text:#e6faff;
@@ -17,19 +16,17 @@
     --card-min: 260px;
     --card-scale: 1;
     --card-translateY: 18px;
-    --toolbox-width: 420px;
+    --toolbox-width: 520px;
     --toolbox-height: 420px;
   }
 
   html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(135deg,var(--bg-1),var(--bg-2));color:var(--text);-webkit-font-smoothing:antialiased}
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:url('/logo.png') no-repeat center;background-size:min(50vw,520px);opacity:0.06;filter:blur(.6px);mix-blend-mode:screen}
-
   header{padding:20px;text-align:center;z-index:2}
   header h1{margin:0;color:var(--accent);font-size:1.6rem}
 
   /* Controls (icons only) */
   .control-btn{
-    position:fixed;bottom:18px;z-index:13000;width:48px;height:48px;border-radius:10px;
+    position:fixed;bottom:18px;z-index:14000;width:48px;height:48px;border-radius:10px;
     background:var(--glass);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
     cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 8px 30px rgba(0,0,0,0.45);color:var(--accent);
   }
@@ -40,70 +37,69 @@
 
   /* Palette panel */
   .palette-panel{
-    position:fixed;left:78px;bottom:74px;z-index:12800;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;box-shadow:0 12px 36px rgba(0,0,0,0.6);backdrop-filter:blur(8px);
+    position:fixed;left:78px;bottom:74px;z-index:13900;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;box-shadow:0 12px 36px rgba(0,0,0,0.6);backdrop-filter:blur(8px);
     display:none;pointer-events:none;
   }
   .palette-panel.open{display:block;pointer-events:auto}
 
-  /* Detachable toolbox window - resizable container */
+  /* Toolbox container (resizable) */
   .toolbox {
     position:fixed;
     right:18px;
     bottom:18px;
     width:var(--toolbox-width);
     height:var(--toolbox-height);
-    z-index:12700;
+    z-index:13700;
     background:var(--panel);
     border:1px solid var(--border);
     border-radius:12px;
     box-shadow:0 18px 48px rgba(0,0,0,0.6);
     display:flex;
     flex-direction:column;
-    overflow:auto;
-    resize:both; /* toolbox itself is resizable */
-    min-width:260px;
-    min-height:180px;
+    overflow:hidden;
+    resize:both;
+    min-width:300px;
+    min-height:200px;
   }
   .toolbox.hidden{display:none}
 
   .toolbox .titlebar{
-    display:flex;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:grab;
-    background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+    display:flex;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);cursor:grab;z-index:13750;
   }
-  .toolbox .titlebar:active{cursor:grabbing}
 
-  /* toolbox content uses CSS grid so widgets reflow */
+  /* Toolbox content is a positioned canvas for freeform widgets */
   .toolbox .content{
-    display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap:12px;
-    align-content:start;
-    padding:12px;
+    position:relative;
+    flex:1;
+    background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
     overflow:auto;
   }
 
-  /* Widgets inside toolbox: no per-widget resize, have top bar */
+  /* Freeform widget: absolutely positioned inside toolbox content */
   .widget-wrap{
+    position:absolute;
     box-sizing:border-box;
-    width:100%;
-    min-width:160px;
-    max-width:100%;
-    min-height:100px;
-    max-height:calc(100vh - 220px);
     background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));
     border-radius:10px;border:1px solid rgba(255,255,255,0.04);
-    padding:0; /* header included */
+    min-width:160px; min-height:100px;
     overflow:hidden;
+    resize:both;
+    z-index:1;
+    box-shadow:0 8px 20px rgba(0,0,0,0.35);
+    --widget-font-scale: 1;
   }
 
-  /* Widget titlebar to match toolbox chrome */
   .widget-titlebar{
     display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.03);
     background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
-    cursor:default;
+    cursor:move;
+    user-select:none;
   }
   .widget-titlebar strong{color:var(--accent)}
-  .widget-body{padding:10px;overflow:auto;max-height:40vh}
+  .widget-body{padding:10px;overflow:auto;max-height:60vh; font-size: calc(1rem * var(--widget-font-scale)); line-height: calc(1.45 * var(--widget-font-scale));}
+
+  .widget-close, #toolboxClose { z-index: 13800; position: relative; background:transparent;border:0;color:var(--muted);cursor:pointer }
 
   /* Grid / cards */
   main{position:relative;z-index:2}
@@ -128,6 +124,7 @@
     border:1px solid var(--border);
     border-radius:12px;
     padding:16px;
+    min-height:120px; /* prevents collapse during fast scroll */
     backdrop-filter:blur(8px);
     width:100%;
     max-width:100%;
@@ -145,12 +142,6 @@
   body.reader-mode{font-size:1.12rem;line-height:1.6}
   body.reader-mode .dashboard{grid-template-columns:1fr;gap:18px}
   body.reader-mode .card{padding:20px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.04));border-color:rgba(255,255,255,0.06)}
-
-  .muted{color:var(--muted);font-size:.9rem}
-
-  /* Panels only accept pointer events when open */
-  .palette-panel { pointer-events: none; }
-  .palette-panel.open { pointer-events: auto; }
 </style>
 </head>
 <body>
@@ -164,16 +155,11 @@
   <div id="palettePanel" class="palette-panel" aria-hidden="true">
     <div style="color:var(--accent);font-weight:600;margin-bottom:8px">Accent color</div>
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
-      <div class="palette-color active" data-accent="#2dd4ff" style="background:#2dd4ff;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#ff2d55" style="background:#ff2d55;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#00ff99" style="background:#00ff99;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#ffcc00" style="background:#ffcc00;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#9d4edd" style="background:#9d4edd;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#ff006e" style="background:#ff006e;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#00d4ff" style="background:#00d4ff;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#ff9500" style="background:#ff9500;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#32d74b" style="background:#32d74b;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
-      <div class="palette-color" data-accent="#ff5e3a" style="background:#ff5e3a;height:34px;border-radius:8px;cursor:pointer;border:2px solid transparent"></div>
+      <div class="palette-color active" data-accent="#2dd4ff" style="background:#2dd4ff;height:34px;border-radius:8px;cursor:pointer"></div>
+      <div class="palette-color" data-accent="#ff2d55" style="background:#ff2d55;height:34px;border-radius:8px;cursor:pointer"></div>
+      <div class="palette-color" data-accent="#00ff99" style="background:#00ff99;height:34px;border-radius:8px;cursor:pointer"></div>
+      <div class="palette-color" data-accent="#ffcc00" style="background:#ffcc00;height:34px;border-radius:8px;cursor:pointer"></div>
+      <div class="palette-color" data-accent="#9d4edd" style="background:#9d4edd;height:34px;border-radius:8px;cursor:pointer"></div>
     </div>
   </div>
 
@@ -205,7 +191,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-/* Repo loader */
+/* ---------- Repo loader (unchanged) ---------- */
 const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
 const DEFAULT_BRANCH = 'main';
 function parseOwnerRepo(str){ const p = str.split('/'); return { owner: p[0], repo: p[1] }; }
@@ -220,7 +206,12 @@ async function getCardFiles(owner, repo, branch){
   return (data.tree || []).filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html')).map(item => item.path.replace(/^cards\//,''));
 }
 
-/* Cards */
+/* ---------- Card creation (unchanged) ---------- */
+const grid = document.getElementById('gridContainer');
+const cardLoadState = new WeakMap(); // track loaded cards
+let allCardElements = [];            // ordered list of card DOM nodes
+let filesList = [];                  // ordered list of file names
+
 function createCardElement(file){
   const name = file.replace('.html','');
   const card = document.createElement('div');
@@ -253,52 +244,198 @@ function createCardElement(file){
   content.textContent = 'Loading…';
   card.appendChild(content);
 
-  const obs = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if(entry.isIntersecting){
-        loadCardContentInto(card, file);
-        obs.unobserve(card);
-      }
-    });
-  }, { threshold: 0.08, rootMargin: '160px 0px 160px 0px' });
-  obs.observe(card);
-
-  setTimeout(() => card.classList.add('visible'), Math.random() * 220 + 80);
+  cardLoadState.set(card, false);
   return card;
 }
+
 async function loadCardContentInto(card, file){
-  if(card.dataset.loaded) return;
+  if(cardLoadState.get(card)) return;
   try{
     const r = await fetch(`cards/${file}`);
-    if(!r.ok){ card.querySelector('.content').textContent = 'Preview unavailable'; return; }
+    if(!r.ok){ card.querySelector('.content').textContent = 'Preview unavailable'; cardLoadState.set(card,true); return; }
     let html = await r.text();
     html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
     html = html.replace(/<img\b([^>]*?)>/gi, (m, attrs) => /loading\s*=/.test(attrs) ? `<img${attrs}>` : `<img loading="lazy"${attrs}>`);
     card.querySelector('.content').innerHTML = html;
-    card.dataset.loaded = 'true';
+    cardLoadState.set(card,true);
   }catch(e){
     card.querySelector('.content').textContent = 'Failed to load';
+    cardLoadState.set(card,true);
   }
 }
 
-/* Toolbox and widgets */
+/* ===== Efficient, reliable lazy loader =====
+   - Enqueue via IntersectionObserver
+   - Controlled concurrency (maxConcurrent)
+   - Prefetch neighbors (neighborsCount)
+   - Works with search: enqueue matches + neighbors
+*/
+
+const maxConcurrent = 4;        // concurrent fetches
+const neighborsCount = 8;       // how many neighbors above/below to prefetch
+const loadQueue = [];           // FIFO queue of card elements to load
+const queued = new WeakSet();   // mark enqueued cards
+let activeCount = 0;
+
+// helper to enqueue a card element
+function enqueueCard(card){
+  if(!card || queued.has(card) || cardLoadState.get(card)) return;
+  queued.add(card);
+  loadQueue.push(card);
+  processQueue();
+}
+
+// process queue with concurrency limit
+function processQueue(){
+  if(activeCount >= maxConcurrent) return;
+  while(activeCount < maxConcurrent && loadQueue.length){
+    const card = loadQueue.shift();
+    if(!card) continue;
+    if(cardLoadState.get(card)) continue;
+    activeCount++;
+    // loadCardContentInto returns a promise; ensure we handle completion
+    Promise.resolve(loadCardContentInto(card, card.dataset.file))
+      .catch(()=>{})
+      .finally(() => {
+        activeCount--;
+        // small delay to avoid bursts
+        setTimeout(processQueue, 0);
+      });
+  }
+}
+
+// IntersectionObserver to enqueue cards when near viewport
+const observer = new IntersectionObserver((entries) => {
+  const toEnqueue = [];
+  entries.forEach(entry => {
+    if(entry.isIntersecting || entry.intersectionRatio > 0){
+      toEnqueue.push(entry.target);
+      observer.unobserve(entry.target);
+    }
+  });
+  // enqueue visible ones immediately
+  toEnqueue.forEach(c => enqueueCard(c));
+  // also prefetch neighbors around the first visible card
+  if(toEnqueue.length){
+    prefetchNeighborsAround(toEnqueue[0]);
+  }
+}, { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0 });
+
+// initial observation setup for all cards
+function observeAllCards(){
+  allCardElements.forEach(card => {
+    if(!cardLoadState.get(card) && !queued.has(card)){
+      try { observer.observe(card); } catch(_) {}
+    }
+  });
+}
+
+// prefetch neighbors above/below a reference card element
+function prefetchNeighborsAround(refCard){
+  const cards = allCardElements;
+  const idx = cards.indexOf(refCard);
+  if(idx === -1) return;
+  const start = Math.max(0, idx - neighborsCount);
+  const end = Math.min(cards.length - 1, idx + neighborsCount);
+  for(let i = start; i <= end; i++){
+    enqueueCard(cards[i]);
+  }
+}
+
+// manual fallback for very fast scroll or search
+let manualScheduled = false;
+function manualCheck(){
+  manualScheduled = false;
+  // find first visible card
+  const cards = allCardElements;
+  if(!cards.length) return;
+  const viewportTop = 0;
+  const viewportBottom = window.innerHeight;
+  let firstVisible = -1;
+  for(let i=0;i<cards.length;i++){
+    const r = cards[i].getBoundingClientRect();
+    if(r.bottom >= viewportTop && r.top <= viewportBottom){
+      firstVisible = i;
+      break;
+    }
+  }
+  if(firstVisible === -1){
+    // if none visible, pick nearest by center
+    let best = 0, bestDist = Infinity;
+    for(let i=0;i<cards.length;i++){
+      const r = cards[i].getBoundingClientRect();
+      const center = (r.top + r.bottom) / 2;
+      const dist = Math.min(Math.abs(center - viewportTop), Math.abs(center - viewportBottom));
+      if(dist < bestDist){ bestDist = dist; best = i; }
+    }
+    firstVisible = best;
+  }
+  // enqueue neighbors around that index
+  const start = Math.max(0, firstVisible - neighborsCount);
+  const end = Math.min(cards.length - 1, firstVisible + neighborsCount);
+  for(let i = start; i <= end; i++) enqueueCard(cards[i]);
+}
+
+// debounce scroll/resize to manualCheck
+function scheduleManualCheck(){
+  if(manualScheduled) return;
+  manualScheduled = true;
+  requestAnimationFrame(manualCheck);
+}
+window.addEventListener('scroll', scheduleManualCheck, { passive: true });
+window.addEventListener('resize', scheduleManualCheck);
+window.addEventListener('touchend', scheduleManualCheck);
+
+// integrate with search: when searching, show matches and enqueue matches + neighbors
+function applySearchFilterAndLoad(q){
+  const cards = allCardElements;
+  if(!q){
+    cards.forEach(c => c.style.display = '');
+    // re-observe and schedule normal loading
+    observeAllCards();
+    scheduleManualCheck();
+    return;
+  }
+  const matches = [];
+  cards.forEach((c, idx) => {
+    const name = (c.dataset.name || '').toLowerCase();
+    const text = (c.textContent || '').toLowerCase();
+    const match = name.includes(q) || text.includes(q);
+    c.style.display = match ? '' : 'none';
+    if(match) matches.push(idx);
+  });
+  if(!matches.length) return;
+  const minIdx = Math.max(0, Math.min(...matches) - neighborsCount);
+  const maxIdx = Math.min(cards.length - 1, Math.max(...matches) + neighborsCount);
+  for(let i = minIdx; i <= maxIdx; i++) enqueueCard(cards[i]);
+  // scroll first match into view if none visible
+  const firstMatchEl = cards[matches[0]];
+  if(firstMatchEl) firstMatchEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* ---------- Toolbox freeform widgets + fixes (unchanged) ---------- */
 const toolbox = document.getElementById('toolbox');
+const toolboxContent = document.getElementById('toolboxContent');
 const toolboxToggle = document.getElementById('toolboxToggle');
 const toolboxClose = document.getElementById('toolboxClose');
 const toolboxTitle = document.getElementById('toolboxTitle');
-const toolboxContent = document.getElementById('toolboxContent');
 const dockBtn = document.getElementById('dockBtn');
 
 let toolboxDocked = true;
 
-/* restore saved toolbox size/position */
-(function restoreToolboxState(){
+/* restore toolbox state */
+(function restoreToolbox(){
   try{
-    const s = JSON.parse(localStorage.getItem('toolbox_state_v1') || '{}');
+    const s = JSON.parse(localStorage.getItem('toolbox_state_v2') || '{}');
     if(s.width) toolbox.style.width = s.width + 'px';
     if(s.height) toolbox.style.height = s.height + 'px';
-    if(s.left) { toolbox.style.left = s.left + 'px'; toolbox.style.right = 'auto'; toolboxDocked = false; }
-    if(s.top) { toolbox.style.top = s.top + 'px'; toolbox.style.bottom = 'auto'; toolboxDocked = false; }
+    if(s.left !== undefined && s.left !== null){
+      toolbox.style.left = s.left + 'px';
+      toolbox.style.top = s.top + 'px';
+      toolbox.style.right = 'auto';
+      toolbox.style.bottom = 'auto';
+      toolboxDocked = false;
+    }
   }catch(e){}
 })();
 
@@ -306,23 +443,31 @@ toolboxToggle.addEventListener('click', () => {
   toolbox.classList.toggle('hidden');
   toolbox.classList.contains('hidden') ? toolbox.setAttribute('aria-hidden','true') : toolbox.setAttribute('aria-hidden','false');
 });
-toolboxClose.addEventListener('click', ()=> { toolbox.classList.add('hidden'); toolbox.setAttribute('aria-hidden','true'); });
 
-/* Make toolbox draggable when undocked */
-(function makeToolboxDraggable(){
-  let dragging = false, startX=0, startY=0, startLeft=0, startTop=0;
+/* Close always works, even when undocked */
+toolboxClose.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toolbox.classList.add('hidden');
+  toolbox.setAttribute('aria-hidden','true');
+  persistToolboxState();
+});
+
+/* Drag toolbox when undocked (titlebar) */
+(function enableToolboxDrag(){
+  let dragging=false, sx=0, sy=0, startLeft=0, startTop=0;
   toolboxTitle.addEventListener('pointerdown', (e) => {
+    if(e.target.closest('button')) return;
     if(toolboxDocked) return;
     dragging = true;
-    startX = e.clientX; startY = e.clientY;
+    sx = e.clientX; sy = e.clientY;
     const rect = toolbox.getBoundingClientRect();
     startLeft = rect.left; startTop = rect.top;
     toolbox.style.transition = 'none';
-    toolbox.setPointerCapture(e.pointerId);
+    try{ toolbox.setPointerCapture(e.pointerId); }catch(_){}
   });
   window.addEventListener('pointermove', (e) => {
     if(!dragging) return;
-    const dx = e.clientX - startX, dy = e.clientY - startY;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
     toolbox.style.left = Math.max(8, startLeft + dx) + 'px';
     toolbox.style.top = Math.max(8, startTop + dy) + 'px';
     toolbox.style.right = 'auto'; toolbox.style.bottom = 'auto';
@@ -331,21 +476,24 @@ toolboxClose.addEventListener('click', ()=> { toolbox.classList.add('hidden'); t
     if(!dragging) return;
     dragging = false;
     toolbox.style.transition = '';
+    try{ toolbox.releasePointerCapture(e.pointerId); }catch(_){}
     persistToolboxState();
   });
 })();
 
-/* Dock / undock */
-dockBtn.addEventListener('click', () => {
+/* Dock toggle: now reliably toggles back and forth and persists */
+dockBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
   toolboxDocked = !toolboxDocked;
   if(toolboxDocked){
+    // dock to bottom-right
     toolbox.style.left = 'auto';
     toolbox.style.top = 'auto';
     toolbox.style.right = '18px';
     toolbox.style.bottom = '18px';
-    persistToolboxState();
     dockBtn.textContent = '⇱';
   } else {
+    // undock: keep current rect as starting point
     const rect = toolbox.getBoundingClientRect();
     toolbox.style.left = rect.left + 'px';
     toolbox.style.top = rect.top + 'px';
@@ -353,33 +501,43 @@ dockBtn.addEventListener('click', () => {
     toolbox.style.bottom = 'auto';
     dockBtn.textContent = '⇲';
   }
+  persistToolboxState();
 });
 
 /* Persist toolbox size/position */
 function persistToolboxState(){
   try{
-    const rect = toolbox.getBoundingClientRect();
-    const state = {
-      width: Math.round(rect.width),
-      height: Math.round(rect.height)
-    };
-    if(!toolboxDocked){
-      state.left = Math.round(rect.left);
-      state.top = Math.round(rect.top);
-    }
-    localStorage.setItem('toolbox_state_v1', JSON.stringify(state));
+    const r = toolbox.getBoundingClientRect();
+    const state = { width: Math.round(r.width), height: Math.round(r.height) };
+    if(!toolboxDocked){ state.left = Math.round(r.left); state.top = Math.round(r.top); }
+    localStorage.setItem('toolbox_state_v2', JSON.stringify(state));
   }catch(e){}
 }
+toolbox.addEventListener('pointerup', persistToolboxState);
+window.addEventListener('resize', persistToolboxState);
 
-/* Save size when user resizes toolbox */
-toolbox.addEventListener('pointerup', () => persistToolboxState());
-window.addEventListener('resize', () => persistToolboxState());
+/* ---------- Freeform widget creation: absolute position, draggable and resizable ---------- */
+const TOOLBOX_KEY = 'toolbox_items_v2';
+function loadToolboxStore(){ try { return JSON.parse(localStorage.getItem(TOOLBOX_KEY) || '[]'); } catch(e) { return []; } }
+function saveToolboxStore(items){ localStorage.setItem(TOOLBOX_KEY, JSON.stringify(items)); }
+let toolboxItems = loadToolboxStore().map(x => x.file) || []; // if stored as objects, map to file list
 
-/* Widgets creation: include a titlebar for each widget */
-function createWidget(file){
+function createWidget(file, saved){
   const wrap = document.createElement('div');
   wrap.className = 'widget-wrap';
   wrap.dataset.file = file;
+
+  // default size/position
+  const defaultW = 320, defaultH = 200;
+  const left = saved?.left ?? 12 + (Math.random()*40|0);
+  const top = saved?.top ?? 12 + (Math.random()*40|0);
+  const width = saved?.width ?? defaultW;
+  const height = saved?.height ?? defaultH;
+
+  wrap.style.left = left + 'px';
+  wrap.style.top = top + 'px';
+  wrap.style.width = width + 'px';
+  wrap.style.height = height + 'px';
 
   const titlebar = document.createElement('div');
   titlebar.className = 'widget-titlebar';
@@ -388,7 +546,7 @@ function createWidget(file){
   const close = document.createElement('button');
   close.className = 'widget-close';
   close.innerHTML = '✕';
-  close.addEventListener('click', ()=> removeFromToolbox(file));
+  close.addEventListener('click', (e) => { e.stopPropagation(); removeFromToolbox(file); });
   titlebar.appendChild(title);
   titlebar.appendChild(close);
 
@@ -398,7 +556,9 @@ function createWidget(file){
 
   wrap.appendChild(titlebar);
   wrap.appendChild(body);
+  toolboxContent.appendChild(wrap);
 
+  // load content
   (async function loadIntoWidget(f, container){
     try{
       const r = await fetch(`cards/${f}`);
@@ -407,46 +567,126 @@ function createWidget(file){
       html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
       html = html.replace(/<img\b([^>]*?)>/gi, (m, attrs) => /loading\s*=/.test(attrs) ? `<img${attrs}>` : `<img loading="lazy"${attrs}>`);
       container.innerHTML = html;
+      // after content inserted, adjust content scale to match widget size
+      adjustWidgetContentScale(wrap);
     }catch(e){
       container.textContent = 'Failed to load';
     }
   })(file, body);
 
+  // make widget draggable within toolboxContent by titlebar
+  enableWidgetDrag(wrap, titlebar);
+
+  // observe resize to persist and adjust content scale
+  observeWidgetResize(wrap);
+
   return wrap;
 }
 
-/* Clamp widget sizes to toolbox interior using ResizeObserver */
-let widgetRO = null;
-function attachWidgetResizeObserver(){
-  if(widgetRO) widgetRO.disconnect();
-  const contentEl = toolboxContent;
-  if(!contentEl) return;
-  widgetRO = new ResizeObserver(entries => {
-    for(const entry of entries){
-      const widget = entry.target;
-      clampWidgetSize(widget);
-    }
+/* Dragging widgets inside toolboxContent */
+function enableWidgetDrag(widget, handle){
+  let dragging=false, sx=0, sy=0, startLeft=0, startTop=0;
+  handle.addEventListener('pointerdown', (e) => {
+    if(e.target.closest('button')) return;
+    dragging = true;
+    sx = e.clientX; sy = e.clientY;
+    const rect = widget.getBoundingClientRect();
+    const parentRect = toolboxContent.getBoundingClientRect();
+    startLeft = rect.left - parentRect.left;
+    startTop = rect.top - parentRect.top;
+    widget.style.transition = 'none';
+    try{ handle.setPointerCapture(e.pointerId); }catch(_){}
   });
-  contentEl.querySelectorAll('.widget-wrap').forEach(w => {
-    widgetRO.observe(w);
-    clampWidgetSize(w);
+  window.addEventListener('pointermove', (e) => {
+    if(!dragging) return;
+    const parentRect = toolboxContent.getBoundingClientRect();
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    let nx = Math.max(-2000, startLeft + dx); // allow moving beyond visible area if desired
+    let ny = Math.max(-2000, startTop + dy);
+    // do not forcibly clamp; allow free placement inside canvas (canvas will scroll)
+    widget.style.left = nx + 'px';
+    widget.style.top = ny + 'px';
+  });
+  window.addEventListener('pointerup', (e) => {
+    if(!dragging) return;
+    dragging = false;
+    widget.style.transition = '';
+    try{ handle.releasePointerCapture(e.pointerId); }catch(_){}
+    persistWidgetsState();
   });
 }
-function clampWidgetSize(widget){
-  const contentRect = toolboxContent.getBoundingClientRect();
-  const wRect = widget.getBoundingClientRect();
-  const maxW = Math.max(120, contentRect.right - wRect.left - 12);
-  const maxH = Math.max(80, contentRect.bottom - wRect.top - 12);
-  if(wRect.width > maxW) widget.style.width = Math.max(120, maxW) + 'px';
-  if(wRect.height > maxH) widget.style.height = Math.max(80, maxH) + 'px';
+
+/* ResizeObserver to persist widget sizes and adjust content scale */
+let widgetResizeObserver = null;
+function observeWidgetResize(widget){
+  if(!widgetResizeObserver){
+    widgetResizeObserver = new ResizeObserver(entries => {
+      for(const entry of entries){
+        adjustWidgetContentScale(entry.target);
+        persistWidgetsState();
+      }
+    });
+  }
+  widgetResizeObserver.observe(widget);
+  clampWidget(widget);
 }
 
-/* Toolbox storage */
-const TOOLBOX_KEY = 'toolbox_items_v1';
-function loadToolboxStore(){ try { return JSON.parse(localStorage.getItem(TOOLBOX_KEY) || '[]'); } catch(e) { return []; } }
-function saveToolboxStore(items){ localStorage.setItem(TOOLBOX_KEY, JSON.stringify(items)); }
-let toolboxItems = loadToolboxStore();
+/* Adjust content font scale inside widget based on widget width/height */
+function adjustWidgetContentScale(widget){
+  try{
+    const body = widget.querySelector('.widget-body');
+    if(!body) return;
+    // base width for normal scale
+    const base = 320;
+    const w = widget.offsetWidth || parseFloat(widget.style.width) || base;
+    const h = widget.offsetHeight || parseFloat(widget.style.height) || 200;
+    // compute scale primarily from width, but also factor height
+    let scale = (w / base);
+    // gentle smoothing and clamp
+    scale = Math.max(0.6, Math.min(1.8, scale));
+    // if height is very small, reduce scale
+    const heightFactor = Math.max(0.7, Math.min(1.4, h / 180));
+    scale = scale * (0.85 + 0.15 * heightFactor);
+    widget.style.setProperty('--widget-font-scale', scale.toFixed(3));
+  }catch(e){}
+}
 
+/* Persist widget positions/sizes */
+function persistWidgetsState(){
+  try{
+    const items = [];
+    toolboxContent.querySelectorAll('.widget-wrap').forEach(w => {
+      items.push({
+        file: w.dataset.file,
+        left: Math.round(parseFloat(w.style.left || 0)),
+        top: Math.round(parseFloat(w.style.top || 0)),
+        width: Math.round(w.offsetWidth),
+        height: Math.round(w.offsetHeight)
+      });
+    });
+    saveToolboxStore(items);
+  }catch(e){}
+}
+
+/* Render toolbox from store */
+function renderToolboxPanel(){
+  toolboxContent.innerHTML = '';
+  const saved = loadToolboxStore();
+  if(!toolboxItems || !toolboxItems.length){
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.style.padding = '12px';
+    empty.textContent = 'No widgets pinned. Click + on a card to pin it here.';
+    toolboxContent.appendChild(empty);
+    return;
+  }
+  for(const file of toolboxItems){
+    const s = (saved || []).find(x => x.file === file);
+    createWidget(file, s);
+  }
+}
+
+/* Add / remove widgets */
 function addToToolbox(file){
   if(toolboxItems.includes(file)){ openToolbox(); return; }
   toolboxItems.unshift(file);
@@ -457,27 +697,11 @@ function addToToolbox(file){
 }
 function removeFromToolbox(file){
   const idx = toolboxItems.indexOf(file);
-  if(idx >= 0){ toolboxItems.splice(idx,1); saveToolboxStore(toolboxItems); renderToolboxPanel(); }
+  if(idx >= 0){ toolboxItems.splice(idx,1); saveToolboxStore(toolboxItems); renderToolboxPanel(); persistWidgetsState(); }
 }
 function openToolbox(){ toolbox.classList.remove('hidden'); toolbox.setAttribute('aria-hidden','false'); }
 
-function renderToolboxPanel(){
-  toolboxContent.innerHTML = '';
-  if(!toolboxItems.length){
-    const empty = document.createElement('div');
-    empty.className = 'muted';
-    empty.textContent = 'No widgets pinned. Click + on a card to pin it here.';
-    toolboxContent.appendChild(empty);
-    return;
-  }
-  for(const file of toolboxItems){
-    const w = createWidget(file);
-    toolboxContent.appendChild(w);
-  }
-  attachWidgetResizeObserver();
-}
-
-/* Palette */
+/* ---------- Palette handling ---------- */
 document.getElementById('paletteToggle').addEventListener('click', () => {
   const p = document.getElementById('palettePanel');
   p.classList.toggle('open');
@@ -511,7 +735,7 @@ if(localStorage.getItem('accent')){
   applyAccent(saved);
 }
 
-/* Reader mode */
+/* ---------- Reader mode ---------- */
 const readerToggle = document.getElementById('readerToggle');
 readerToggle.addEventListener('click', ()=>{
   document.body.classList.toggle('reader-mode');
@@ -519,32 +743,34 @@ readerToggle.addEventListener('click', ()=>{
 });
 if(localStorage.getItem('readerMode') === 'on') document.body.classList.add('reader-mode');
 
-/* Search / sort / reveal (cards reveal is aesthetic only) */
-document.getElementById('searchInput').addEventListener('input', (e) => {
+/* ---------- Search / sort / reveal ---------- */
+const searchInput = document.getElementById('searchInput');
+let searchDebounceTimer = null;
+searchInput.addEventListener('input', (e) => {
   const q = (e.target.value || '').trim().toLowerCase();
-  document.querySelectorAll('#gridContainer .card').forEach(card => {
-    const name = (card.dataset.name || '').toLowerCase();
-    const text = (card.textContent || '').toLowerCase();
-    const show = !q || name.includes(q) || text.includes(q);
-    card.style.display = show ? '' : 'none';
-  });
+  if(searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => applySearchFilterAndLoad(q), 160);
 });
+
 document.getElementById('sortAlphaBtn').addEventListener('click', () => {
-  const grid = document.getElementById('gridContainer');
   const nodes = Array.from(grid.children);
   nodes.sort((a,b) => a.dataset.name.localeCompare(b.dataset.name, undefined, {sensitivity:'base', numeric:true}));
   nodes.forEach(n => grid.appendChild(n));
-  revealCards();
+  allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
+  // re-observe and schedule load
+  observeAllCards();
+  scheduleManualCheck();
 });
 document.getElementById('sortRandomBtn').addEventListener('click', () => {
-  const grid = document.getElementById('gridContainer');
   const nodes = Array.from(grid.children);
   for(let i = nodes.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
     [nodes[i], nodes[j]] = [nodes[j], nodes[i]];
   }
   nodes.forEach(n => grid.appendChild(n));
-  revealCards();
+  allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
+  observeAllCards();
+  scheduleManualCheck();
 });
 function revealCards(){
   const cards = Array.from(document.querySelectorAll('#gridContainer .card'));
@@ -554,22 +780,34 @@ function revealCards(){
   });
 }
 
-/* Sortable */
+/* ---------- Sortable ---------- */
 new Sortable(document.getElementById('gridContainer'), { animation: 150 });
-new Sortable(document.getElementById('toolboxContent'), { animation: 150 });
 
-/* Load dashboard */
+/* ---------- Load dashboard and initialize loader ---------- */
 async function loadDashboard(){
   const { owner, repo } = parseOwnerRepo(DEFAULT_REPO);
   try{
-    const files = await getCardFiles(owner, repo, DEFAULT_BRANCH);
-    if(!files.length){ document.getElementById('status').textContent = 'No cards folder found'; return; }
-    files.sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base', numeric:true}));
-    const grid = document.getElementById('gridContainer');
+    filesList = await getCardFiles(owner, repo, DEFAULT_BRANCH);
+    if(!filesList.length){ document.getElementById('status').textContent = 'No cards folder found'; return; }
+    filesList.sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base', numeric:true}));
     grid.innerHTML = '';
-    files.forEach(f => grid.appendChild(createCardElement(f)));
-    document.getElementById('status').textContent = `${files.length} tools loaded`;
+    filesList.forEach(f => grid.appendChild(createCardElement(f)));
+    allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
+    document.getElementById('status').textContent = `${filesList.length} tools loaded`;
+    // initial observation and batch
+    observeAllCards();
+    scheduleManualCheck();
     setTimeout(revealCards, 200);
+
+    // restore toolbox pinned items
+    const saved = loadToolboxStore();
+    if(Array.isArray(saved) && saved.length && saved[0].file){
+      toolboxItems = saved.map(x => x.file);
+    } else if(Array.isArray(saved) && typeof saved[0] === 'string'){
+      toolboxItems = saved;
+    } else {
+      toolboxItems = toolboxItems || [];
+    }
     renderToolboxPanel();
   }catch(e){
     document.getElementById('status').textContent = 'Check repo name or cards/ folder';
@@ -578,7 +816,6 @@ async function loadDashboard(){
 }
 
 /* Init */
-renderToolboxPanel();
 loadDashboard();
 </script>
 </body>
