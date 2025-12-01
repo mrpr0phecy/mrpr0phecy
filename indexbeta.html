@@ -79,8 +79,6 @@
     background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));
     border-radius:10px;border:1px solid rgba(255,255,255,0.04);
     min-width:160px; min-height:100px;
-    max-width:calc(100% - 12px);
-    max-height:calc(100% - 12px);
     overflow:hidden;
     resize:both;
     z-index:1;
@@ -243,7 +241,6 @@ function createCardElement(file){
   // observe with a generous rootMargin so fast scroll still triggers
   lazyObserver.observe(card);
 
-  // fallback: if user scrolls fast, check visibility manually
   return card;
 }
 
@@ -272,7 +269,7 @@ const lazyObserver = new IntersectionObserver((entries) => {
       loadCardContentInto(el, el.dataset.file);
     }
   });
-}, { root: null, rootMargin: '600px 0px 600px 0px', threshold: 0 });
+}, { root: null, rootMargin: '1200px 0px 1200px 0px', threshold: 0 });
 
 /* Fallback manual check for very fast scrolls */
 let manualCheckScheduled = false;
@@ -281,12 +278,26 @@ function manualVisibilityCheck(){
   document.querySelectorAll('#gridContainer .card').forEach(card => {
     if(cardLoadState.get(card)) return;
     const r = card.getBoundingClientRect();
-    const buffer = 600;
+    const buffer = 1200;
     if(r.bottom >= -buffer && r.top <= (window.innerHeight + buffer)){
       lazyObserver.unobserve(card);
       loadCardContentInto(card, card.dataset.file);
     }
   });
+  // also use idle time to prefetch a few more cards
+  if('requestIdleCallback' in window){
+    requestIdleCallback(() => {
+      document.querySelectorAll('#gridContainer .card').forEach(card => {
+        if(cardLoadState.get(card)) return;
+        const r = card.getBoundingClientRect();
+        const buffer = 2400;
+        if(r.bottom >= -buffer && r.top <= (window.innerHeight + buffer)){
+          lazyObserver.unobserve(card);
+          loadCardContentInto(card, card.dataset.file);
+        }
+      });
+    }, {timeout:1000});
+  }
 }
 window.addEventListener('scroll', () => {
   if(!manualCheckScheduled){
@@ -295,7 +306,6 @@ window.addEventListener('scroll', () => {
   }
 }, { passive: true });
 
-/* Also check on resize and touchend */
 window.addEventListener('resize', manualVisibilityCheck);
 window.addEventListener('touchend', manualVisibilityCheck);
 
@@ -308,7 +318,6 @@ const toolboxTitle = document.getElementById('toolboxTitle');
 const dockBtn = document.getElementById('dockBtn');
 
 let toolboxDocked = true;
-let toolboxState = { width: 520, height: 420, left: null, top: null };
 
 /* restore toolbox state */
 (function restoreToolbox(){
@@ -399,11 +408,11 @@ function persistToolboxState(){
 toolbox.addEventListener('pointerup', persistToolboxState);
 window.addEventListener('resize', persistToolboxState);
 
-/* Freeform widget creation: absolute position, draggable and resizable */
+/* ---------- Freeform widget creation: absolute position, draggable and resizable ---------- */
 const TOOLBOX_KEY = 'toolbox_items_v2';
 function loadToolboxStore(){ try { return JSON.parse(localStorage.getItem(TOOLBOX_KEY) || '[]'); } catch(e) { return []; } }
 function saveToolboxStore(items){ localStorage.setItem(TOOLBOX_KEY, JSON.stringify(items)); }
-let toolboxItems = loadToolboxStore();
+let toolboxItems = loadToolboxStore().map(x => x.file) || []; // if stored as objects, map to file list
 
 function createWidget(file, saved){
   const wrap = document.createElement('div');
@@ -411,7 +420,7 @@ function createWidget(file, saved){
   wrap.dataset.file = file;
 
   // default size/position
-  const defaultW = 300, defaultH = 180;
+  const defaultW = 320, defaultH = 200;
   const left = saved?.left ?? 12 + (Math.random()*40|0);
   const top = saved?.top ?? 12 + (Math.random()*40|0);
   const width = saved?.width ?? defaultW;
@@ -458,7 +467,7 @@ function createWidget(file, saved){
   // make widget draggable within toolboxContent by titlebar
   enableWidgetDrag(wrap, titlebar);
 
-  // observe resize to clamp and persist
+  // observe resize to persist (no hard clamp)
   observeWidgetResize(wrap);
 
   return wrap;
@@ -482,11 +491,9 @@ function enableWidgetDrag(widget, handle){
     if(!dragging) return;
     const parentRect = toolboxContent.getBoundingClientRect();
     const dx = e.clientX - sx, dy = e.clientY - sy;
-    let nx = Math.max(6, startLeft + dx);
-    let ny = Math.max(6, startTop + dy);
-    // clamp so widget stays inside content
-    nx = Math.min(nx, parentRect.width - widget.offsetWidth - 6);
-    ny = Math.min(ny, parentRect.height - widget.offsetHeight - 6);
+    let nx = Math.max(-2000, startLeft + dx); // allow moving beyond visible area if desired
+    let ny = Math.max(-2000, startTop + dy);
+    // do not forcibly clamp; allow free placement inside canvas (canvas will scroll)
     widget.style.left = nx + 'px';
     widget.style.top = ny + 'px';
   });
@@ -499,32 +506,17 @@ function enableWidgetDrag(widget, handle){
   });
 }
 
-/* ResizeObserver to clamp widget sizes and persist */
+/* ResizeObserver to persist widget sizes (no clamping) */
 let widgetResizeObserver = null;
 function observeWidgetResize(widget){
   if(!widgetResizeObserver){
     widgetResizeObserver = new ResizeObserver(entries => {
       for(const entry of entries){
-        clampWidget(entry.target);
+        persistWidgetsState();
       }
     });
   }
   widgetResizeObserver.observe(widget);
-  clampWidget(widget);
-}
-function clampWidget(widget){
-  const parentRect = toolboxContent.getBoundingClientRect();
-  const wRect = widget.getBoundingClientRect();
-  // compute relative left/top
-  const left = parseFloat(widget.style.left || 0);
-  const top = parseFloat(widget.style.top || 0);
-  // clamp width/height so widget stays inside
-  const maxW = Math.max(120, parentRect.width - left - 6);
-  const maxH = Math.max(80, parentRect.height - top - 6);
-  if(widget.offsetWidth > maxW) widget.style.width = maxW + 'px';
-  if(widget.offsetHeight > maxH) widget.style.height = maxH + 'px';
-  // persist after clamp
-  persistWidgetsState();
 }
 
 /* Persist widget positions/sizes */
@@ -547,7 +539,8 @@ function persistWidgetsState(){
 /* Render toolbox from store */
 function renderToolboxPanel(){
   toolboxContent.innerHTML = '';
-  if(!toolboxItems.length){
+  const saved = loadToolboxStore();
+  if(!toolboxItems || !toolboxItems.length){
     const empty = document.createElement('div');
     empty.className = 'muted';
     empty.style.padding = '12px';
@@ -555,10 +548,8 @@ function renderToolboxPanel(){
     toolboxContent.appendChild(empty);
     return;
   }
-  // create widgets using saved positions if present
-  const saved = loadToolboxStore();
   for(const file of toolboxItems){
-    const s = saved.find(x => x.file === file);
+    const s = (saved || []).find(x => x.file === file);
     createWidget(file, s);
   }
 }
@@ -653,9 +644,8 @@ function revealCards(){
   });
 }
 
-/* ---------- Sortable (keeps toolbox widget order for keyboard/aria) ---------- */
+/* ---------- Sortable ---------- */
 new Sortable(document.getElementById('gridContainer'), { animation: 150 });
-new Sortable(document.getElementById('toolboxContent'), { animation: 150 });
 
 /* ---------- Load dashboard and toolbox ---------- */
 async function loadDashboard(){
@@ -667,13 +657,16 @@ async function loadDashboard(){
     grid.innerHTML = '';
     files.forEach(f => grid.appendChild(createCardElement(f)));
     document.getElementById('status').textContent = `${files.length} tools loaded`;
-    // reveal animation after initial render
     setTimeout(revealCards, 200);
-    // restore toolbox pinned items
-    toolboxItems = loadToolboxStore().map(x => x.file) || [];
-    // if older format (array of strings) handle gracefully
-    if(!Array.isArray(toolboxItems) && Array.isArray(loadToolboxStore())){
-      toolboxItems = loadToolboxStore();
+
+    // restore toolbox pinned items (stored as objects or array)
+    const saved = loadToolboxStore();
+    if(Array.isArray(saved) && saved.length && saved[0].file){
+      toolboxItems = saved.map(x => x.file);
+    } else if(Array.isArray(saved) && typeof saved[0] === 'string'){
+      toolboxItems = saved;
+    } else {
+      toolboxItems = toolboxItems || [];
     }
     renderToolboxPanel();
   }catch(e){
