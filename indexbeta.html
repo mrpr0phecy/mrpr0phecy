@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>The Most Useful Site in the World</title>
-<meta name="description" content="Toolbox with resizable container, sequential card reveal, palette." />
 <style>
   :root{
     --accent:#2dd4ff; --muted:#e6faff; --text:#e6faff;
@@ -69,6 +68,7 @@
   .toolbox .titlebar{
     display:flex;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:grab;
     background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+    z-index:12750;
   }
   .toolbox .titlebar:active{cursor:grabbing}
 
@@ -80,9 +80,10 @@
     align-content:start;
     padding:12px;
     overflow:auto;
+    position:relative;
   }
 
-  /* Widgets inside toolbox: no per-widget resize, have top bar */
+  /* Widgets inside toolbox: resizable again, but constrained */
   .widget-wrap{
     box-sizing:border-box;
     width:100%;
@@ -93,7 +94,8 @@
     background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));
     border-radius:10px;border:1px solid rgba(255,255,255,0.04);
     padding:0; /* header included */
-    overflow:hidden;
+    overflow:auto;
+    resize:both; /* allow user to resize widget inside toolbox */
   }
 
   /* Widget titlebar to match toolbox chrome */
@@ -104,6 +106,9 @@
   }
   .widget-titlebar strong{color:var(--accent)}
   .widget-body{padding:10px;overflow:auto;max-height:40vh}
+
+  /* make close buttons clearly clickable above other elements */
+  .widget-close, #toolboxClose { z-index: 13050; position: relative; }
 
   /* Grid / cards */
   main{position:relative;z-index:2}
@@ -147,10 +152,6 @@
   body.reader-mode .card{padding:20px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.04));border-color:rgba(255,255,255,0.06)}
 
   .muted{color:var(--muted);font-size:.9rem}
-
-  /* Panels only accept pointer events when open */
-  .palette-panel { pointer-events: none; }
-  .palette-panel.open { pointer-events: auto; }
 </style>
 </head>
 <body>
@@ -205,7 +206,14 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-/* Repo loader */
+/* -------------------------
+   Behavior fixes:
+   - toolbox close works when undocked (no pointer-capture blocking)
+   - widgets inside toolbox are resizable again (resize:both) but clamped to toolbox interior
+   - titlebar drag ignores clicks on buttons so close works reliably
+   ------------------------- */
+
+/* Repo loader (unchanged) */
 const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
 const DEFAULT_BRANCH = 'main';
 function parseOwnerRepo(str){ const p = str.split('/'); return { owner: p[0], repo: p[1] }; }
@@ -220,7 +228,7 @@ async function getCardFiles(owner, repo, branch){
   return (data.tree || []).filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html')).map(item => item.path.replace(/^cards\//,''));
 }
 
-/* Cards */
+/* Card creation and lazy loading (unchanged) */
 function createCardElement(file){
   const name = file.replace('.html','');
   const card = document.createElement('div');
@@ -266,6 +274,7 @@ function createCardElement(file){
   setTimeout(() => card.classList.add('visible'), Math.random() * 220 + 80);
   return card;
 }
+
 async function loadCardContentInto(card, file){
   if(card.dataset.loaded) return;
   try{
@@ -281,7 +290,7 @@ async function loadCardContentInto(card, file){
   }
 }
 
-/* Toolbox and widgets */
+/* ---------- Toolbox (detachable) ---------- */
 const toolbox = document.getElementById('toolbox');
 const toolboxToggle = document.getElementById('toolboxToggle');
 const toolboxClose = document.getElementById('toolboxClose');
@@ -290,6 +299,7 @@ const toolboxContent = document.getElementById('toolboxContent');
 const dockBtn = document.getElementById('dockBtn');
 
 let toolboxDocked = true;
+let toolboxPos = { right: 18, bottom: 18, width: 420, height: 420 };
 
 /* restore saved toolbox size/position */
 (function restoreToolboxState(){
@@ -302,23 +312,34 @@ let toolboxDocked = true;
   }catch(e){}
 })();
 
+/* Toggle toolbox visibility */
 toolboxToggle.addEventListener('click', () => {
   toolbox.classList.toggle('hidden');
   toolbox.classList.contains('hidden') ? toolbox.setAttribute('aria-hidden','true') : toolbox.setAttribute('aria-hidden','false');
 });
-toolboxClose.addEventListener('click', ()=> { toolbox.classList.add('hidden'); toolbox.setAttribute('aria-hidden','true'); });
 
-/* Make toolbox draggable when undocked */
+/* Close button: always hide toolbox and persist state.
+   Stop propagation and prevent any drag handlers from interfering. */
+toolboxClose.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toolbox.classList.add('hidden');
+  toolbox.setAttribute('aria-hidden','true');
+  persistToolboxState();
+});
+
+/* Titlebar drag: ignore clicks on buttons so close/dock work reliably */
 (function makeToolboxDraggable(){
   let dragging = false, startX=0, startY=0, startLeft=0, startTop=0;
   toolboxTitle.addEventListener('pointerdown', (e) => {
+    // if user clicked a button inside the titlebar, don't start drag
+    if(e.target.closest('button')) return;
     if(toolboxDocked) return;
     dragging = true;
     startX = e.clientX; startY = e.clientY;
     const rect = toolbox.getBoundingClientRect();
     startLeft = rect.left; startTop = rect.top;
     toolbox.style.transition = 'none';
-    toolbox.setPointerCapture(e.pointerId);
+    try { toolbox.setPointerCapture(e.pointerId); } catch(_) {}
   });
   window.addEventListener('pointermove', (e) => {
     if(!dragging) return;
@@ -332,18 +353,19 @@ toolboxClose.addEventListener('click', ()=> { toolbox.classList.add('hidden'); t
     dragging = false;
     toolbox.style.transition = '';
     persistToolboxState();
+    try { toolbox.releasePointerCapture(e.pointerId); } catch(_) {}
   });
 })();
 
-/* Dock / undock */
-dockBtn.addEventListener('click', () => {
+/* Dock / undock toggle */
+dockBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
   toolboxDocked = !toolboxDocked;
   if(toolboxDocked){
     toolbox.style.left = 'auto';
     toolbox.style.top = 'auto';
-    toolbox.style.right = '18px';
-    toolbox.style.bottom = '18px';
-    persistToolboxState();
+    toolbox.style.right = (toolboxPos.right || 18) + 'px';
+    toolbox.style.bottom = (toolboxPos.bottom || 18) + 'px';
     dockBtn.textContent = '⇱';
   } else {
     const rect = toolbox.getBoundingClientRect();
@@ -353,6 +375,7 @@ dockBtn.addEventListener('click', () => {
     toolbox.style.bottom = 'auto';
     dockBtn.textContent = '⇲';
   }
+  persistToolboxState();
 });
 
 /* Persist toolbox size/position */
@@ -375,7 +398,7 @@ function persistToolboxState(){
 toolbox.addEventListener('pointerup', () => persistToolboxState());
 window.addEventListener('resize', () => persistToolboxState());
 
-/* Widgets creation: include a titlebar for each widget */
+/* ---------- Widgets inside toolbox (resizable, clamped) ---------- */
 function createWidget(file){
   const wrap = document.createElement('div');
   wrap.className = 'widget-wrap';
@@ -388,7 +411,7 @@ function createWidget(file){
   const close = document.createElement('button');
   close.className = 'widget-close';
   close.innerHTML = '✕';
-  close.addEventListener('click', ()=> removeFromToolbox(file));
+  close.addEventListener('click', (e) => { e.stopPropagation(); removeFromToolbox(file); });
   titlebar.appendChild(title);
   titlebar.appendChild(close);
 
@@ -415,7 +438,7 @@ function createWidget(file){
   return wrap;
 }
 
-/* Clamp widget sizes to toolbox interior using ResizeObserver */
+/* Clamp widget sizes so they never overflow toolbox content */
 let widgetRO = null;
 function attachWidgetResizeObserver(){
   if(widgetRO) widgetRO.disconnect();
@@ -423,8 +446,7 @@ function attachWidgetResizeObserver(){
   if(!contentEl) return;
   widgetRO = new ResizeObserver(entries => {
     for(const entry of entries){
-      const widget = entry.target;
-      clampWidgetSize(widget);
+      clampWidgetSize(entry.target);
     }
   });
   contentEl.querySelectorAll('.widget-wrap').forEach(w => {
@@ -435,13 +457,21 @@ function attachWidgetResizeObserver(){
 function clampWidgetSize(widget){
   const contentRect = toolboxContent.getBoundingClientRect();
   const wRect = widget.getBoundingClientRect();
+
+  // compute available width/height inside toolbox content area
   const maxW = Math.max(120, contentRect.right - wRect.left - 12);
   const maxH = Math.max(80, contentRect.bottom - wRect.top - 12);
-  if(wRect.width > maxW) widget.style.width = Math.max(120, maxW) + 'px';
-  if(wRect.height > maxH) widget.style.height = Math.max(80, maxH) + 'px';
+
+  // apply via style if widget exceeds
+  if(wRect.width > maxW){
+    widget.style.width = Math.max(120, maxW) + 'px';
+  }
+  if(wRect.height > maxH){
+    widget.style.height = Math.max(80, maxH) + 'px';
+  }
 }
 
-/* Toolbox storage */
+/* ---------- Toolbox storage and rendering ---------- */
 const TOOLBOX_KEY = 'toolbox_items_v1';
 function loadToolboxStore(){ try { return JSON.parse(localStorage.getItem(TOOLBOX_KEY) || '[]'); } catch(e) { return []; } }
 function saveToolboxStore(items){ localStorage.setItem(TOOLBOX_KEY, JSON.stringify(items)); }
@@ -455,10 +485,12 @@ function addToToolbox(file){
   renderToolboxPanel();
   openToolbox();
 }
+
 function removeFromToolbox(file){
   const idx = toolboxItems.indexOf(file);
   if(idx >= 0){ toolboxItems.splice(idx,1); saveToolboxStore(toolboxItems); renderToolboxPanel(); }
 }
+
 function openToolbox(){ toolbox.classList.remove('hidden'); toolbox.setAttribute('aria-hidden','false'); }
 
 function renderToolboxPanel(){
@@ -474,10 +506,11 @@ function renderToolboxPanel(){
     const w = createWidget(file);
     toolboxContent.appendChild(w);
   }
+  // ensure ResizeObserver attaches to newly added widgets
   attachWidgetResizeObserver();
 }
 
-/* Palette */
+/* ---------- Palette handling ---------- */
 document.getElementById('paletteToggle').addEventListener('click', () => {
   const p = document.getElementById('palettePanel');
   p.classList.toggle('open');
@@ -511,7 +544,7 @@ if(localStorage.getItem('accent')){
   applyAccent(saved);
 }
 
-/* Reader mode */
+/* ---------- Reader mode ---------- */
 const readerToggle = document.getElementById('readerToggle');
 readerToggle.addEventListener('click', ()=>{
   document.body.classList.toggle('reader-mode');
@@ -519,7 +552,7 @@ readerToggle.addEventListener('click', ()=>{
 });
 if(localStorage.getItem('readerMode') === 'on') document.body.classList.add('reader-mode');
 
-/* Search / sort / reveal (cards reveal is aesthetic only) */
+/* ---------- Search / sort / reveal (aesthetic only) ---------- */
 document.getElementById('searchInput').addEventListener('input', (e) => {
   const q = (e.target.value || '').trim().toLowerCase();
   document.querySelectorAll('#gridContainer .card').forEach(card => {
