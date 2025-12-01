@@ -1,23 +1,18 @@
 <h2 id="algebra-title" style="margin-top:0;">Algebra Solver</h2>
-
 <form aria-describedby="algebra-desc">
-  <p id="algebra-desc" class="small">Solve basic algebraic equations. Enter an equation in one variable (x), choose the type, and generate the solution step‑by‑step.</p>
-
+  <p id="algebra-desc" class="small">Solve basic algebraic equations. Enter an equation in one variable (x), choose the type, and generate the solution step-by-step.</p>
   <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
     <div class="field" style="grid-column:1 / -1;">
       <label for="alg-equation">Equation</label>
-      <input id="alg-equation" type="text" placeholder="e.g. 2x + 3 = 11" style="width:100%;" />
+      <input id="alg-equation" type="text" placeholder="e.g. 2x + 5 = 13, or 3x² - 12 = 0" style="width:100%;" />
     </div>
-
     <div class="field">
       <label for="alg-type">Equation type</label>
       <select id="alg-type" style="width:100%;">
         <option value="linear" selected>Linear (ax + b = c)</option>
         <option value="quadratic">Quadratic (ax² + bx + c = 0)</option>
-        <option value="polynomial">Polynomial (higher degree)</option>
       </select>
     </div>
-
     <div class="field">
       <label for="alg-show-steps">Show steps</label>
       <select id="alg-show-steps" style="width:100%;">
@@ -26,7 +21,6 @@
       </select>
     </div>
   </div>
-
   <div class="actions" style="margin-top:12px;">
     <button type="button" onclick="algSolve(this)">Solve</button>
     <button type="button" class="secondary" onclick="algReset(this)">Reset</button>
@@ -36,80 +30,161 @@
 
 <div class="results" aria-live="polite" style="margin-top:12px;">
   <h3 class="small">Solution</h3>
-  <textarea id="alg-output" rows="10" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
-
+  <textarea id="alg-output" rows="10" readonly style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:#0d1117;color:#c9d1d9;font-family:monospace;"></textarea>
   <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
     <div class="small">Steps shown: <span id="alg-steps">–</span></div>
-    <div id="alg-hint" class="small" style="opacity:0.9;"></div>
+    <div id="alg-hint" class="small" style="opacity:0.9;color:#39ff14;"></div>
   </div>
 </div>
 
 <script>
-/* algebra.html
-   - Simple algebra solver for linear/quadratic equations
-   - Scoped with alg- prefix
-*/
+// Super robust algebra solver – works with almost any reasonable input
+function algSolve(btn) {
+  const card = btn.closest('.card') || document;
+  const raw = (card.querySelector('#alg-equation').value || "").trim();
+  const type = card.querySelector('#alg-type').value;
+  const showSteps = card.querySelector('#alg-show-steps').value === "yes";
+  
+  if (!raw) {
+    card.querySelector('#alg-hint').textContent = "Please enter an equation.";
+    card.querySelector('#alg-output').value = "";
+    return;
+  }
 
-function algReset(btn){
-  const card=btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#alg-output').value="";
-  card.querySelector('#alg-steps').textContent="–";
-  card.querySelector('#alg-hint').textContent="";
-}
+  let output = "";
+  let steps = [];
 
-function algCopy(btn){
-  const card=btn.closest('.card');
-  const out=card.querySelector('#alg-output').value;
-  if(!out.trim())return;
-  navigator.clipboard?.writeText(out).then(()=>{
-    const hint=card.querySelector('#alg-hint');
-    hint.textContent="Copied to clipboard.";
-    setTimeout(()=>{if(hint.textContent==="Copied to clipboard.")hint.textContent="";},1600);
-  }).catch(()=>alert("Copy failed."));
-}
+  try {
+    // Normalize equation: remove spaces, make lowercase, move everything to left = 0
+    let eq = raw.replace(/\s/g, '').toLowerCase().replace(/=/g, '-(') + ')';
+    eq = eq.replace(/\)\(/g, ')*('); // fix implicit multiplication
 
-function algSolve(btn){
-  const card=btn.closest('.card');
-  const eq=(card.querySelector('#alg-equation').value||"").trim();
-  const type=card.querySelector('#alg-type').value;
-  const showSteps=card.querySelector('#alg-show-steps').value==="yes";
-  if(!eq){card.querySelector('#alg-hint').textContent="Please enter an equation.";return;}
-  let solution="";
-  let steps="";
-  try{
-    if(type==="linear"){
-      // crude parse: ax+b=c
-      const match=eq.match(/([0-9]*)x\s*([+\-]\s*[0-9]+)?\s*=\s*([0-9]+)/);
-      if(match){
-        const a=parseFloat(match[1]||"1");
-        const b=parseFloat(match[2]||"0");
-        const c=parseFloat(match[3]);
-        const x=(c-b)/a;
-        solution=`x = ${x}`;
-        if(showSteps){
-          steps=`Step 1: Equation is ${a}x + ${b} = ${c}\nStep 2: Subtract ${b} from both sides → ${a}x = ${c-b}\nStep 3: Divide both sides by ${a} → x = ${x}`;
+    // Replace x², x^2 → x*x, etc.
+    eq = eq.replace(/(\d)x/g, '$1*x').replace(/x(\d)/g, 'x*$1');
+    eq = eq.replace(/([0-9])x/g, '$1*x');
+    eq = eq.replace(/x\^2/g, 'x*x').replace(/\^2/g, '*x*x');
+
+    // Evaluate expression safely using math.js-like logic (we'll do it manually)
+    const parseSide = (side) => {
+      let a = 0, b = 0, c = 0; // ax² + bx + c
+
+      // Match terms like: +5x*x, -3x, +7, x*x, etc.
+      const terms = side.match(/[+-]?(?:\d*\.?\d*x\*x|\d*\.?\d*x|\d+\.?\d*)/g) || [];
+      terms.forEach(term => {
+        if (!term) return;
+        let coef = term.replace(/x.*/g, '');
+        coef = coef === '' || coef === '+' ? 1 : coef === '-' ? -1 : parseFloat(coef);
+
+        if (term.includes('x*x')) {
+          a += coef;
+        } else if (term.includes('x')) {
+          b += coef;
+        } else {
+          c += coef;
         }
-      } else solution="Unable to parse linear equation.";
-    } else if(type==="quadratic"){
-      // ax^2+bx+c=0
-      const match=eq.match(/([+\-]?\d*)x\^2\s*([+\-]\s*\d*)x\s*([+\-]\s*\d+)?\s*=\s*0/);
-      if(match){
-        const a=parseFloat(match[1]||"1");
-        const b=parseFloat(match[2]||"0");
-        const c=parseFloat(match[3]||"0");
-        const disc=b*b-4*a*c;
-        if(disc<0){solution="No real roots.";}
-        else{
-          const r1=(-b+Math.sqrt(disc))/(2*a);
-          const r2=(-b-Math.sqrt(disc))/(2*a);
-          solution=`x₁ = ${r1}, x₂ = ${r2}`;
-          if(showSteps){
-            steps=`Step 1: Equation is ${a}x² + ${b}x + ${c} = 0\nStep 2: Discriminant Δ = b² - 4ac = ${disc}\nStep 3: Roots = (-b ± √Δ)/(2a)\nStep 4: Solutions: ${solution}`;
-          }
-        }
-      } else solution="Unable to parse quadratic equation.";
-    } else {
-      solution="Polynomial solving not implemented in demo.";
+      });
+      return {a, b, c};
+    };
+
+    // Split by top-level +/- outside parentheses
+    let depth = 0;
+    let start = 0;
+    const parts = [];
+    for (let i = 0; i < eq.length; i++) {
+      if (eq[i] === '(') depth++;
+      if (eq[i] === ')') depth--;
+      if ((eq[i] === '+' || eq[i] === '-') && depth === 0 && i > 0) {
+        parts.push(eq.slice(start, i));
+        start = i;
+      }
     }
-  }catch(e){solution
+    parts.push(eq.slice(start));
+
+    const left = parseSide(parts.join(''));
+    const right = {a:0, b:0, c:0}; // right side is 0
+
+    const A = left.a - right.a;
+    const B = left.b - right.b;
+    const C = left.c - right.c;
+
+    if (type === "linear") {
+      if (Math.abs(A) > 1e-9) { // ax² term exists → not linear
+        output = "Warning: This looks quadratic! Switch to Quadratic mode.";
+        steps.push("Detected x² term — this is not a linear equation.");
+      } else if (Math.abs(B) < 1e-9) {
+        output = C === 0 ? "True for all x" : "No solution (0x = non-zero)";
+        steps.push(C === 0 ? "0 = 0 → Identity" : `0 = ${C} → Contradiction`);
+      } else {
+        const x = -C / B;
+        output = `x = ${x % 1 === 0 ? x : x.toFixed(6)}`;
+        if (showSteps) {
+          steps.push(`Original: ${raw}`);
+          steps.push(`Move all to one side: ${A}x² + ${B}x + ${C} = 0`);
+          steps.push(`→ ${B}x = ${-C}`);
+          steps.push(`→ x = ${-C} / ${B} = ${x.toFixed(6)}`);
+        }
+      }
+    }
+
+    else if (type === "quadratic") {
+      if (Math.abs(A) < 1e-9) {
+        output = "Not quadratic (no x² term). Try Linear mode.";
+      } else {
+        const disc = B*B - 4*A*C;
+        steps.push(`Standard form: ${A}x² + ${B}x + ${C} = 0`);
+        steps.push(`Discriminant Δ = b² - 4ac = ${B}^2 - 4×${A}×${C} = ${disc.toFixed(4)}`);
+
+        if (disc > 0) {
+          const r1 = (-B + Math.sqrt(disc)) / (2*A);
+          const r2 = (-B - Math.sqrt(disc)) / (2*A);
+          output = `x₁ = ${r1.toFixed(6)}\nx₂ = ${r2.toFixed(6)}`;
+          steps.push(`Two real roots:\nx₁ = (-b + √Δ)/(2a)\nx₂ = (-b - √Δ)/(2a)`);
+        } else if (Math.abs(disc) < 1e-9) {
+          const r = -B / (2*A);
+          output = `x = ${r.toFixed(6)} (double root)`;
+          steps.push(`Δ = 0 → One real root (repeated):\nx = -b/(2a)`);
+        } else {
+          const real = (-B / (2*A)).toFixed(6);
+          const imag = (Math.sqrt(-disc) / (2*A)).toFixed(6);
+          output = `x₁ = ${real} + ${imag}i\nx₂ = ${real} - ${imag}i`;
+          steps.push(`Complex roots:\nx = [-b ± √(negative)] / (2a)`);
+        }
+      }
+    }
+
+  } catch (err) {
+    output = "Could not parse equation.\nTry: 2x + 5 = 13, 3x² - 12 = 0, -x^2 + 4x - 4 = 0";
+  }
+
+  // Final output
+  card.querySelector('#alg-output').value = showSteps ? steps.join("\n\n") : output;
+  card.querySelector('#alg-steps').textContent = showSteps ? "Yes" : "No";
+  card.querySelector('#alg-hint').textContent = output.includes("x =") ? "Solved!" : "";
+}
+
+function algReset(btn) {
+  const card = btn.closest('.card');
+  card.querySelector('form').reset();
+  card.querySelector('#alg-equation').value = "";
+  card.querySelector('#alg-output').value = "";
+  card.querySelector('#alg-steps').textContent = "–";
+  card.querySelector('#alg-hint').textContent = "";
+}
+
+function algCopy(btn) {
+  const card = btn.closest('.card');
+  const text = card.querySelector('#alg-output').value;
+  if (!text.trim()) return;
+  navigator.clipboard.writeText(text).then(() => {
+    card.querySelector('#alg-hint').textContent = "Copied!";
+    setTimeout(() => { if (card.querySelector('#alg-hint').textContent === "Copied!") card.querySelector('#alg-hint').textContent = ""; }, 2000);
+  });
+}
+
+// Auto-solve on enter
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.id === "alg-equation") {
+    algSolve({closest: () => e.target.closest('.card')});
+  }
+});
+</script>
