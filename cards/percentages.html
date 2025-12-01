@@ -1,15 +1,13 @@
 <h2 id="percentage-title" style="margin-top:0;">Percentage Calculator</h2>
-
 <form aria-describedby="percentage-desc">
   <p id="percentage-desc" class="small">Calculate percentages, increases/decreases, or percentage change.</p>
-
   <div class="row">
     <div class="field">
-      <label for="percentage-value">Value</label>
+      <label for="percentage-value">Value / Base</label>
       <input id="percentage-value" type="number" step="any" value="100" />
     </div>
     <div class="field">
-      <label for="percentage-rate">Percentage (%)</label>
+      <label for="percentage-rate">Percentage (%) or Second Value</label>
       <input id="percentage-rate" type="number" step="any" value="20" />
     </div>
   </div>
@@ -17,16 +15,37 @@
   <div class="field">
     <label for="percentage-mode">Mode</label>
     <select id="percentage-mode">
-      <option value="of" selected>% of value</option>
-      <option value="increase">Increase by %</option>
-      <option value="decrease">Decrease by %</option>
-      <option value="change">Percentage change (vs. new value)</option>
+      <optgroup label="Basic">
+        <option value="of" selected>% of value</option>
+        <option value="increase">Increase by %</option>
+        <option value="decrease">Decrease by %</option>
+        <option value="change">Percentage change (old → new)</option>
+      </optgroup>
+      <optgroup label="Reverse Calculations">
+        <option value="is-what">X is what % of Y?</option>
+        <option value="original-inc">Original before increase</option>
+        <option value="original-dec">Original before decrease</option>
+      </optgroup>
+      <optgroup label="Business & Finance">
+        <option value="discount">Final price after % discount</option>
+        <option value="tax">Price including % tax/VAT</option>
+        <option value="tip">Add % tip</option>
+        <option value="margin">Profit margin %</option>
+        <option value="markup">Markup % from cost</option>
+        <option value="cagr">CAGR over periods</option>
+        <option value="compound">Compound growth</option>
+      </optgroup>
     </select>
   </div>
 
   <div class="field" id="percentage-newvalue-field" style="display:none;">
-    <label for="percentage-newvalue">New value (for % change)</label>
+    <label for="percentage-newvalue">New / Final Value</label>
     <input id="percentage-newvalue" type="number" step="any" value="120" />
+  </div>
+
+  <div class="field" id="percentage-periods-field" style="display:none;">
+    <label for="percentage-periods">Number of Periods/Years</label>
+    <input id="percentage-periods" type="number" step="1" min="1" value="5" />
   </div>
 
   <div class="actions">
@@ -40,46 +59,138 @@
     <div class="label">Result</div>
     <div class="value" id="percentage-res">–</div>
   </div>
+  <div style="margin-top:12px; font-size:0.95em; color:#444; line-height:1.5;" id="percentage-explain"></div>
 </div>
 
 <script>
 function percentageCalc(btn) {
-  const card = btn.closest('.card');
-  const value = parseFloat(card.querySelector('#percentage-value').value) || 0;
-  const rate = parseFloat(card.querySelector('#percentage-rate').value) / 100 || 0;
+  const card = btn.closest('.card') || document;
+  const base = parseFloat(card.querySelector('#percentage-value').value) || 0;
+  const rate = parseFloat(card.querySelector('#percentage-rate').value) || 0;
   const mode = card.querySelector('#percentage-mode').value;
-  const newValue = parseFloat(card.querySelector('#percentage-newvalue').value) || 0;
+  const newVal = parseFloat(card.querySelector('#percentage-newvalue')?.value) || null;
+  const periods = parseFloat(card.querySelector('#percentage-periods')?.value) || 1;
 
   let result = "–";
+  let explain = "";
 
-  if (mode === "of") {
-    result = (value * rate).toFixed(2);
-  } else if (mode === "increase") {
-    result = (value * (1 + rate)).toFixed(2);
-  } else if (mode === "decrease") {
-    result = (value * (1 - rate)).toFixed(2);
-  } else if (mode === "change") {
-    if (value !== 0) {
-      result = (((newValue - value) / value) * 100).toFixed(2) + "%";
-    } else {
-      result = "Invalid base value";
-    }
+  // Show/hide fields
+  const newField = card.querySelector('#percentage-newvalue-field');
+  const periodsField = card.querySelector('#percentage-periods-field');
+  newField.style.display = ['change','cagr','compound'].includes(mode) ? "block" : "none";
+  periodsField.style.display = ['cagr','compound'].includes(mode) ? "block" : "none";
+
+  const fmt = (n, isPercent = false) => {
+    if (n === 0) return "0";
+    if (Math.abs(n) >= 1e12 || (Math.abs(n) < 1e-6 && n !== 0)) return n.toExponential(4);
+    return Number(n.toFixed(8)).toLocaleString() + (isPercent ? "%" : "");
+  };
+
+  switch (mode) {
+    case "of":
+      result = base * (rate / 100);
+      explain = `${rate}% of ${fmt(base)} = ${fmt(result)}`;
+      break;
+
+    case "increase":
+      result = base * (1 + rate/100);
+      explain = `${fmt(base)} + ${rate}% = ${fmt(result)}`;
+      break;
+
+    case "decrease":
+    case "discount":
+      result = base * (1 - rate/100);
+      explain = `${fmt(base)} – ${rate}% = ${fmt(result)} ${mode === "discount" ? `(saved ${fmt(base * rate/100)})` : ""}`;
+      break;
+
+    case "change":
+      if (base === 0) { result = "Invalid"; explain = "Original value cannot be zero"; break; }
+      result = ((newVal - base) / base) * 100;
+      explain = `Change: ${fmt(base)} → ${fmt(newVal)} = ${fmt(result, true)}`;
+      break;
+
+    case "is-what":
+      if (base === 0 && rate === 0) { result = "Invalid"; break; }
+      result = rate === 0 ? 0 : (base / rate) * 100;
+      explain = `${fmt(base)} is ${fmt(result, true)} of ${fmt(rate)}`;
+      break;
+
+    case "original-inc":
+      if ((1 + rate/100) === 0) { result = "Invalid"; break; }
+      result = base / (1 + rate/100);
+      explain = `Before +${rate}% → ${fmt(base)}, original was ${fmt(result)}`;
+      break;
+
+    case "original-dec":
+      if ((1 - rate/100) === 0) { result = "Invalid"; break; }
+      result = base / (1 - rate/100);
+      explain = `Before –${rate}% → ${fmt(base)}, original was ${fmt(result)}`;
+      break;
+
+    case "tax":
+    case "tip":
+      result = base * (1 + rate/100);
+      explain = `${fmt(base)} + ${rate}% ${mode === "tax" ? "tax" : "tip"} = ${fmt(result)}`;
+      break;
+
+    case "margin":
+      if (rate === 0) { result = "Invalid"; break; }
+      result = (base / rate) * 100;
+      explain = `Profit ${fmt(base)} on revenue ${fmt(rate)} → ${fmt(result, true)} margin`;
+      break;
+
+    case "markup":
+      if (base === 0) { result = "Invalid"; break; }
+      result = (rate / base) * 100;
+      explain = `Selling ${fmt(rate)} (cost ${fmt(base)}) → ${fmt(result, true)} markup`;
+      break;
+
+    case "compound":
+      result = base * Math.pow(1 + rate/100, periods);
+      explain = `${fmt(base)} at ${rate}%/period × ${periods} periods → ${fmt(result)}`;
+      break;
+
+    case "cagr":
+      if (base <= 0 || newVal <= 0 || periods <= 0) { result = "Invalid"; explain = "Values must be positive"; break; }
+      result = (Math.pow(newVal / base, 1/periods) - 1) * 100;
+      explain = `CAGR from ${fmt(base)} to ${fmt(newVal)} over ${periods} years = ${fmt(result, true)}`;
+      break;
   }
 
-  card.querySelector('#percentage-res').textContent = result;
+  // Output
+  card.querySelector('#percentage-res').textContent = 
+    typeof result === "number" ? fmt(result, mode.includes("change") || ["is-what","margin","markup","cagr"].includes(mode)) : result;
+
+  card.querySelector('#percentage-explain').textContent = explain;
 }
 
 function percentageReset(btn) {
-  const card = btn.closest('.card');
+  const card = btn.closest('.card') || document;
   card.querySelector('form').reset();
-  card.querySelector('#percentage-res').textContent = '–';
+  card.querySelector('#percentage-value').value = "100";
+  card.querySelector('#percentage-rate').value = "20";
+  card.querySelector('#percentage-newvalue').value = "120";
+  card.querySelector('#percentage-periods').value = "5";
+  card.querySelector('#percentage-res').textContent = "–";
+  card.querySelector('#percentage-explain').textContent = "";
+  percentageCalc(btn);
 }
 
-// Show/hide new value field depending on mode
+// Auto show/hide fields on mode change
 document.addEventListener("change", function(e) {
   if (e.target.id === "percentage-mode") {
-    const field = document.querySelector('#percentage-newvalue-field');
-    field.style.display = (e.target.value === "change") ? "block" : "none";
+    const card = e.target.closest('.card') || document;
+    const mode = e.target.value;
+    card.querySelector('#percentage-newvalue-field').style.display = 
+      ['change','cagr','compound'].includes(mode) ? "block" : "none";
+    card.querySelector('#percentage-periods-field').style.display = 
+      ['cagr','compound'].includes(mode) ? "block" : "none";
+    percentageCalc({closest: () => card}); // recalculate
   }
+});
+
+// Run on load
+document.addEventListener("DOMContentLoaded", () => {
+  percentageCalc({closest: () => document});
 });
 </script>
