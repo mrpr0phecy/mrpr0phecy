@@ -7,9 +7,7 @@
 <style>
   :root{
     --accent:#2dd4ff;
-    --bg-gradient: linear-gradient(180deg,
-      #e63946, #f1a208, #f6e05e, #38a169, #3182ce, #5a189a, #9d4edd,
-      #9d4edd, #5a189a, #3182ce, #38a169, #f6e05e, #f1a208, #e63946);
+    --bg-gradient: linear-gradient(135deg,#0f1720,#1b2630);
     --card-gradient: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.07));
     --muted:#e6faff; --text:#e6faff;
     --border: rgba(255,255,255,0.10);
@@ -20,13 +18,7 @@
     --toolbox-height: 420px;
   }
 
-  html,body{
-    height:100%;margin:0;
-    font-family:Inter,system-ui,Segoe UI,Roboto,Arial;
-    background:var(--bg-gradient);
-    color:var(--text);
-    -webkit-font-smoothing:antialiased;
-  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg-gradient);color:var(--text);-webkit-font-smoothing:antialiased}
   header{padding:20px;text-align:center;z-index:2}
   header h1{margin:0;color:var(--accent);font-size:1.6rem}
 
@@ -84,4 +76,206 @@
   <div class="palette-row" data-target="card"></div>
 </div>
 
-<div id
+<header><h1>The Most Useful Site in the World</h1></header>
+<main>
+  <div class="search-bar"><input id="searchInput" placeholder="Search cards..." /></div>
+  <div class="controls">
+    <button id="sortAlphaBtn">Sort A→Z</button>
+    <button id="sortRandomBtn">Random</button>
+  </div>
+  <div id="status" class="muted" style="text-align:center;margin-bottom:6px">Loading cards...</div>
+  <div id="gridContainer" class="dashboard" aria-live="polite"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+/* ---------- Repo loader ---------- */
+const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
+const DEFAULT_BRANCH = 'main';
+function parseOwnerRepo(str){ const p = str.split('/'); return { owner: p[0], repo: p[1] }; }
+async function fetchRepoTree(owner, repo, branch){
+  const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('GitHub API error: ' + r.status);
+  return r.json();
+}
+async function getCardFiles(owner, repo, branch){
+  const data = await fetchRepoTree(owner, repo, branch);
+  return (data.tree || []).filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html')).map(item => item.path.replace(/^cards\//,''));
+}
+
+/* ---------- Card creation ---------- */
+const grid = document.getElementById('gridContainer');
+const cardLoadState = new WeakMap();
+let allCardElements = [];
+
+function createCardElement(file){
+  const name = file.replace('.html','');
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.file = file;
+  card.dataset.name = name;
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  const title = document.createElement('h3');
+  title.textContent = name;
+  const btnWrap = document.createElement('div');
+  btnWrap.style.display = 'flex';
+  btnWrap.style.gap = '8px';
+
+  const addBtn = document.createElement('div');
+  addBtn.className = 'add-to-toolbox';
+  addBtn.title = 'Add to toolbox';
+  addBtn.textContent = '+';
+  addBtn.style.cursor = 'pointer';
+  addBtn.addEventListener('click', (e) => { e.stopPropagation(); addToToolbox(file); });
+
+  btnWrap.appendChild(addBtn);
+  header.appendChild(title);
+  header.appendChild(btnWrap);
+  card.appendChild(header);
+
+  const content = document.createElement('div');
+  content.className = 'content';
+  content.textContent = 'Loading…';
+  card.appendChild(content);
+
+  cardLoadState.set(card, false);
+  return card;
+}
+
+async function loadCardContentInto(card, file){
+  if(cardLoadState.get(card)) return;
+  try{
+    const r = await fetch(`cards/${file}`);
+    if(!r.ok){ card.querySelector('.content').textContent = 'Preview unavailable'; cardLoadState.set(card,true); return; }
+    let html = await r.text();
+    html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
+    html = html.replace(/<img\b([^>]*?)>/gi, (m, attrs) => /loading\s*=/.test(attrs) ? `<img${attrs}>` : `<img loading="lazy"${attrs}>`);
+    card.querySelector('.content').innerHTML = html;
+    cardLoadState.set(card,true);
+  }catch(e){
+    card.querySelector('.content').textContent = 'Failed to load';
+    cardLoadState.set(card,true);
+  }
+}
+
+/* ---------- Lazy loader ---------- */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      const card = entry.target;
+      observer.unobserve(card);
+      loadCardContentInto(card, card.dataset.file);
+    }
+  });
+},{root:null,rootMargin:'800px 0px 800px 0px',threshold:0});
+
+function observeAllCards(){
+  allCardElements.forEach(card=>{
+    if(!cardLoadState.get(card)) observer.observe(card);
+  });
+}
+
+function manualCheck(){
+  allCardElements.forEach(card=>{
+    if(cardLoadState.get(card)) return;
+    const r = card.getBoundingClientRect();
+    if(r.bottom>=0 && r.top<=window.innerHeight){
+      observer.unobserve(card);
+      loadCardContentInto(card, card.dataset.file);
+    }
+  });
+}
+window.addEventListener('scroll',()=>requestAnimationFrame(manualCheck),{passive:true});
+window.addEventListener('resize',()=>requestAnimationFrame(manualCheck));
+
+/* ---------- Palette handling ---------- */
+const colors = [
+  "#e63946","#f1a208","#f6e05e","#38a169",
+  "#3182ce","#5a189a","#9d4edd","#ffffff","#000000"
+];
+function buildPalette(){
+  document.querySelectorAll('.palette-row').forEach(row=>{
+    row.innerHTML='';
+    colors.forEach(col=>{
+      const sw=document.createElement('div');
+      sw.className='palette-color';
+      sw.style.background=col;
+      sw.dataset.color=col;
+      sw.addEventListener('click',()=>applyColor(row.dataset.target,col));
+      row.appendChild(sw);
+    });
+  });
+}
+buildPalette();
+
+function applyColor(target,col){
+  switch(target){
+    case 'accent':
+      document.documentElement.style.setProperty('--accent',col);
+      break;
+    case 'background':
+      document.documentElement.style.setProperty('--bg-gradient',`linear-gradient(135deg,${col},${col})`);
+      break;
+    case 'card':
+      document.documentElement.style.setProperty('--card-gradient',`linear-gradient(135deg,${col},${col})`);
+      break;
+  }
+}
+document.getElementById('paletteToggle').addEventListener('click',()=>{
+  const p=document.getElementById('palettePanel');
+  p.classList.toggle('open');
+});
+
+/* ---------- Toolbox unlimited ---------- */
+const TOOLBOX_KEY='toolbox_items_v2';
+function loadToolboxStore(){try{return JSON.parse(localStorage.getItem(TOOLBOX_KEY)||'[]');}catch(e){return[];}}
+function saveToolboxStore(items){localStorage.setItem(TOOLBOX_KEY,JSON.stringify(items));}
+let toolboxItems=loadToolboxStore();
+
+function addToToolbox(file){
+  if(toolboxItems.includes(file)){openToolbox();return;}
+  toolboxItems.unshift(file);
+  saveToolboxStore(toolboxItems);
+  renderToolboxPanel();
+  openToolbox();
+}
+function renderToolboxPanel(){
+  const toolboxContent=document.getElementById('toolboxContent');
+  toolboxContent.innerHTML='';
+  if(!toolboxItems.length){
+    toolboxContent.textContent='No widgets pinned.';
+    return;
+  }
+  toolboxItems.forEach(file=>{
+    const wrap=document.createElement('div');
+    wrap.className='widget-wrap';
+    wrap.textContent=file;
+    toolboxContent.appendChild(wrap);
+  });
+}
+function openToolbox(){document.getElementById('toolbox').classList.remove('hidden');}
+
+/* ---------- Load dashboard ---------- */
+async function loadDashboard(){
+  const {owner,repo}=parseOwnerRepo(DEFAULT_REPO);
+  try{
+    const files=await getCardFiles(owner,repo,DEFAULT_BRANCH);
+    files.sort((a,b)=>a.localeCompare(b));
+    grid.innerHTML='';
+    files.forEach(f=>grid.appendChild(createCardElement(f)));
+    allCardElements=Array.from(document.querySelectorAll('#gridContainer .card'));
+    document.getElementById('status').textContent=`${files.length} tools loaded`;
+    observeAllCards();
+    setTimeout(()=>allCardElements.forEach((c,i)=>setTimeout(()=>c.classList.add('visible'),i*60)),200);
+    renderToolboxPanel();
+  }catch(e){
+    document.getElementById('status').textContent='Error loading cards';
+  }
+}
+loadDashboard();
+</script>
+</body>
+</html>
