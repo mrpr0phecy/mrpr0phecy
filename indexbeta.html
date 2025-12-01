@@ -27,19 +27,13 @@
 
   .palette-panel{position:fixed;left:78px;bottom:74px;z-index:13900;background:rgba(20,20,20,0.92);border:1px solid var(--border);border-radius:10px;padding:12px;box-shadow:0 12px 36px rgba(0,0,0,0.6);backdrop-filter:blur(8px);display:none;pointer-events:none}
   .palette-panel.open{display:block;pointer-events:auto}
-  .palette-row{display:grid;grid-template-columns:repeat(9,1fr);gap:8px;margin-bottom:8px}
+  .palette-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(60px,1fr));gap:8px;margin-bottom:8px}
   .palette-color{height:34px;border-radius:8px;cursor:pointer}
 
   .toolbox{position:fixed;right:18px;bottom:18px;width:var(--toolbox-width);height:var(--toolbox-height);z-index:13700;background:rgba(20,20,20,0.92);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 48px rgba(0,0,0,0.6);display:flex;flex-direction:column;overflow:hidden;resize:both;min-width:300px;min-height:200px}
   .toolbox.hidden{display:none}
-  .toolbox .titlebar{display:flex;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);cursor:grab;z-index:13750;}
-  .toolbox .content{position:relative;flex:1;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);overflow:auto}
-
-  .widget-wrap{position:absolute;box-sizing:border-box;background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));border-radius:10px;border:1px solid rgba(255,255,255,0.04);min-width:160px;min-height:100px;overflow:hidden;resize:both;z-index:1;box-shadow:0 8px 20px rgba(0,0,0,0.35);--widget-font-scale:1}
-  .widget-titlebar{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.03);background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);cursor:move;user-select:none}
-  .widget-titlebar strong{color:var(--accent)}
-  .widget-body{padding:10px;overflow:auto;max-height:60vh;font-size:calc(1rem * var(--widget-font-scale));line-height:calc(1.45 * var(--widget-font-scale))}
-  .widget-close, #toolboxClose {background:transparent;border:0;color:var(--muted);cursor:pointer}
+  .toolbox .titlebar{display:flex;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent)}
+  .toolbox .content{flex:1;overflow:auto;padding:10px}
 
   main{position:relative;z-index:2}
   .search-bar{max-width:1100px;margin:14px auto 16px;display:flex;background:linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02));border-radius:12px;padding:12px 16px;border:1px solid rgba(255,255,255,0.04)}
@@ -76,6 +70,14 @@
   <div class="palette-row" data-target="card"></div>
 </div>
 
+<div id="toolbox" class="toolbox hidden">
+  <div class="titlebar">
+    <div style="font-weight:600;color:var(--accent)">Toolbox</div>
+    <button id="toolboxClose">✕</button>
+  </div>
+  <div id="toolboxContent" class="content"></div>
+</div>
+
 <header><h1>The Most Useful Site in the World</h1></header>
 <main>
   <div class="search-bar"><input id="searchInput" placeholder="Search cards..." /></div>
@@ -89,147 +91,56 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-/* ---------- Repo loader ---------- */
-const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
-const DEFAULT_BRANCH = 'main';
-function parseOwnerRepo(str){ const p = str.split('/'); return { owner: p[0], repo: p[1] }; }
-async function fetchRepoTree(owner, repo, branch){
-  const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-  const r = await fetch(url);
-  if(!r.ok) throw new Error('GitHub API error: ' + r.status);
-  return r.json();
-}
-async function getCardFiles(owner, repo, branch){
-  const data = await fetchRepoTree(owner, repo, branch);
-  return (data.tree || []).filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html')).map(item => item.path.replace(/^cards\//,''));
-}
+/* ---------- Palette gradients ---------- */
+const palettes = {
+  accent: [
+    "linear-gradient(135deg,#06beb6,#48b1bf)",
+    "linear-gradient(135deg,#ff6a00,#ee0979)",
+    "linear-gradient(135deg,#f7971e,#ffd200)",
+    "linear-gradient(135deg,#8e2de2,#4a00e0)"
+  ],
+  background: [
+    "linear-gradient(135deg,#0f2027,#203a43,#2c5364)",
+    "linear-gradient(135deg,#232526,#414345)",
+    "linear-gradient(135deg,#134e5e,#71b280)"
+  ],
+  card: [
+    "linear-gradient(135deg,#ece9e6,#ffffff)",   // light grey → white
+    "linear-gradient(135deg,#ffecd2,#fcb69f)",   // cream → peach
+    "linear-gradient(135deg,#cfd9df,#e2ebf0)"    // pale blue → lavender
+  ]
+};
 
-/* ---------- Card creation ---------- */
-const grid = document.getElementById('gridContainer');
-const cardLoadState = new WeakMap();
-let allCardElements = [];
-
-function createCardElement(file){
-  const name = file.replace('.html','');
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.dataset.file = file;
-  card.dataset.name = name;
-
-  const header = document.createElement('div');
-  header.className = 'card-header';
-  const title = document.createElement('h3');
-  title.textContent = name;
-  const btnWrap = document.createElement('div');
-  btnWrap.style.display = 'flex';
-  btnWrap.style.gap = '8px';
-
-  const addBtn = document.createElement('div');
-  addBtn.className = 'add-to-toolbox';
-  addBtn.title = 'Add to toolbox';
-  addBtn.textContent = '+';
-  addBtn.style.cursor = 'pointer';
-  addBtn.addEventListener('click', (e) => { e.stopPropagation(); addToToolbox(file); });
-
-  btnWrap.appendChild(addBtn);
-  header.appendChild(title);
-  header.appendChild(btnWrap);
-  card.appendChild(header);
-
-  const content = document.createElement('div');
-  content.className = 'content';
-  content.textContent = 'Loading…';
-  card.appendChild(content);
-
-  cardLoadState.set(card, false);
-  return card;
-}
-
-async function loadCardContentInto(card, file){
-  if(cardLoadState.get(card)) return;
-  try{
-    const r = await fetch(`cards/${file}`);
-    if(!r.ok){ card.querySelector('.content').textContent = 'Preview unavailable'; cardLoadState.set(card,true); return; }
-    let html = await r.text();
-    html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
-    html = html.replace(/<img\b([^>]*?)>/gi, (m, attrs) => /loading\s*=/.test(attrs) ? `<img${attrs}>` : `<img loading="lazy"${attrs}>`);
-    card.querySelector('.content').innerHTML = html;
-    cardLoadState.set(card,true);
-  }catch(e){
-    card.querySelector('.content').textContent = 'Failed to load';
-    cardLoadState.set(card,true);
-  }
-}
-
-/* ---------- Lazy loader ---------- */
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if(entry.isIntersecting){
-      const card = entry.target;
-      observer.unobserve(card);
-      loadCardContentInto(card, card.dataset.file);
-    }
-  });
-},{root:null,rootMargin:'800px 0px 800px 0px',threshold:0});
-
-function observeAllCards(){
-  allCardElements.forEach(card=>{
-    if(!cardLoadState.get(card)) observer.observe(card);
-  });
-}
-
-function manualCheck(){
-  allCardElements.forEach(card=>{
-    if(cardLoadState.get(card)) return;
-    const r = card.getBoundingClientRect();
-    if(r.bottom>=0 && r.top<=window.innerHeight){
-      observer.unobserve(card);
-      loadCardContentInto(card, card.dataset.file);
-    }
-  });
-}
-window.addEventListener('scroll',()=>requestAnimationFrame(manualCheck),{passive:true});
-window.addEventListener('resize',()=>requestAnimationFrame(manualCheck));
-
-/* ---------- Palette handling ---------- */
-const colors = [
-  "#e63946","#f1a208","#f6e05e","#38a169",
-  "#3182ce","#5a189a","#9d4edd","#ffffff","#000000"
-];
 function buildPalette(){
   document.querySelectorAll('.palette-row').forEach(row=>{
+    const target=row.dataset.target;
     row.innerHTML='';
-    colors.forEach(col=>{
+    palettes[target].forEach(grad=>{
       const sw=document.createElement('div');
       sw.className='palette-color';
-      sw.style.background=col;
-      sw.dataset.color=col;
-      sw.addEventListener('click',()=>applyColor(row.dataset.target,col));
+      sw.style.background=grad;
+      sw.addEventListener('click',()=>applyColor(target,grad));
       row.appendChild(sw);
     });
   });
 }
 buildPalette();
 
-function applyColor(target,col){
+function applyColor(target,grad){
   switch(target){
     case 'accent':
-      document.documentElement.style.setProperty('--accent',col);
+      document.documentElement.style.setProperty('--accent',grad);
       break;
     case 'background':
-      document.documentElement.style.setProperty('--bg-gradient',`linear-gradient(135deg,${col},${col})`);
+      document.documentElement.style.setProperty('--bg-gradient',grad);
       break;
     case 'card':
-      document.documentElement.style.setProperty('--card-gradient',`linear-gradient(135deg,${col},${col})`);
+      document.documentElement.style.setProperty('--card-gradient',grad);
       break;
   }
 }
-document.getElementById('paletteToggle').addEventListener('click',()=>{
-  const p=document.getElementById('palettePanel');
-  p.classList.toggle('open');
-});
 
-/* ---------- Toolbox unlimited ---------- */
+/* ---------- Toolbox ---------- */
 const TOOLBOX_KEY='toolbox_items_v2';
 function loadToolboxStore(){try{return JSON.parse(localStorage.getItem(TOOLBOX_KEY)||'[]');}catch(e){return[];}}
 function saveToolboxStore(items){localStorage.setItem(TOOLBOX_KEY,JSON.stringify(items));}
@@ -257,8 +168,48 @@ function renderToolboxPanel(){
   });
 }
 function openToolbox(){document.getElementById('toolbox').classList.remove('hidden');}
+document.getElementById('toolboxToggle').addEventListener('click',()=>{
+  document.getElementById('toolbox').classList.toggle('hidden');
+});
+document.getElementById('toolboxClose').addEventListener('click',()=>{
+  document.getElementById('toolbox').classList.add('hidden');
+});
 
-/* ---------- Load dashboard ---------- */
+/* ---------- Reader mode ---------- */
+const readerToggle=document.getElementById('readerToggle');
+readerToggle.addEventListener('click',()=>{
+  document.body.classList.toggle('reader-mode');
+  localStorage.setItem('readerMode',document.body.classList.contains('reader-mode')?'on':'off');
+});
+if(localStorage.getItem('readerMode')==='on') document.body.classList.add('reader-mode');
+
+/* ---------- Search / sort ---------- */
+const searchInput=document.getElementById('searchInput');
+searchInput.addEventListener('input',(e)=>{
+  const q=(e.target.value||'').trim().toLowerCase();
+  allCardElements.forEach(card=>{
+    const name=(card.dataset.name||'').toLowerCase();
+    const text=(card.textContent||'').toLowerCase();
+    const show=!q||name.includes(q)||text.includes(q);
+    card.style.display=show?'':'none';
+  });
+  manualCheck();
+});
+document.getElementById('sortAlphaBtn').addEventListener('click',()=>{
+  const nodes=Array.from(grid.children);
+  nodes.sort((a,b)=>a.dataset.name.localeCompare(b.dataset.name));
+  nodes.forEach(n=>grid.appendChild(n));
+});
+document.getElementById('sortRandomBtn').addEventListener('click',()=>{
+  const nodes=Array.from(grid.children);
+  for(let i=nodes.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [nodes[i],nodes[j]]=[nodes[j],nodes[i]];
+  }
+  nodes.forEach(n=>grid.appendChild(n));
+});
+
+/* ---------- Dashboard loader ---------- */
 async function loadDashboard(){
   const {owner,repo}=parseOwnerRepo(DEFAULT_REPO);
   try{
