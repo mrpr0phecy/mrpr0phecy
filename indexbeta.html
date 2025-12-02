@@ -81,6 +81,7 @@
     flex:1;
     background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
     overflow:auto;
+    min-height:100px;
   }
 
   .widget-wrap{
@@ -89,6 +90,8 @@
     background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));
     border-radius:10px;border:1px solid rgba(255,255,255,0.04);
     min-width:160px; min-height:100px;
+    max-width:calc(100% - 20px);
+    max-height:calc(100% - 20px);
     overflow:hidden;
     resize:both;
     z-index:1;
@@ -228,6 +231,296 @@ function applyTheme(themeName) {
   console.log("Theme saved to localStorage:", themeName);
 }
 
+// ===== TOOLBOX WIDGET MANAGEMENT =====
+let widgets = [];
+let toolboxDocked = false;
+
+// Make toolbox draggable and resizable
+function initToolbox() {
+  const toolbox = document.getElementById('toolbox');
+  const toolboxTitle = document.getElementById('toolboxTitle');
+  
+  // Make toolbox draggable
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  
+  toolboxTitle.addEventListener('mousedown', startDrag);
+  
+  function startDrag(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    
+    isDragging = true;
+    const rect = toolbox.getBoundingClientRect();
+    dragOffset.x = e.clientX - rect.left;
+    dragOffset.y = e.clientY - rect.top;
+    
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+    toolboxTitle.style.cursor = 'grabbing';
+  }
+  
+  function onDrag(e) {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    toolbox.style.left = 'auto';
+    toolbox.style.right = 'auto';
+    toolbox.style.top = e.clientY - dragOffset.y + 'px';
+    toolbox.style.left = e.clientX - dragOffset.x + 'px';
+  }
+  
+  function stopDrag() {
+    isDragging = false;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+    toolboxTitle.style.cursor = '';
+  }
+  
+  // Dock/undock button
+  document.getElementById('dockBtn').addEventListener('click', function() {
+    toolboxDocked = !toolboxDocked;
+    
+    if (toolboxDocked) {
+      // Dock to right
+      toolbox.style.left = 'auto';
+      toolbox.style.right = '18px';
+      toolbox.style.top = 'auto';
+      toolbox.style.bottom = '18px';
+      this.textContent = '⇲';
+    } else {
+      // Undock
+      this.textContent = '⇱';
+    }
+  });
+  
+  // Load saved widgets
+  loadSavedWidgets();
+}
+
+// Create a widget in toolbox
+function createWidget(name, contentHTML) {
+  const widgetId = 'widget-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+  const widget = document.createElement('div');
+  widget.className = 'widget-wrap';
+  widget.id = widgetId;
+  widget.dataset.name = name;
+  
+  // Random position within toolbox
+  const toolboxContent = document.getElementById('toolboxContent');
+  const tRect = toolboxContent.getBoundingClientRect();
+  
+  widget.style.left = Math.random() * (tRect.width - 200) + 'px';
+  widget.style.top = Math.random() * (tRect.height - 150) + 'px';
+  widget.style.width = '200px';
+  widget.style.height = '150px';
+  
+  widget.innerHTML = `
+    <div class="widget-titlebar">
+      <strong>${name}</strong>
+      <button class="widget-close" title="Close widget">✕</button>
+    </div>
+    <div class="widget-body">${contentHTML}</div>
+  `;
+  
+  toolboxContent.appendChild(widget);
+  
+  // Make widget draggable
+  makeWidgetDraggable(widget);
+  
+  // Make widget resizable
+  makeWidgetResizable(widget);
+  
+  // Close button
+  widget.querySelector('.widget-close').addEventListener('click', function() {
+    removeWidget(widgetId);
+  });
+  
+  // Save widget
+  widgets.push({
+    id: widgetId,
+    name: name,
+    content: contentHTML,
+    x: widget.style.left,
+    y: widget.style.top,
+    width: widget.style.width,
+    height: widget.style.height
+  });
+  
+  saveWidgets();
+  
+  return widgetId;
+}
+
+// Make widget draggable
+function makeWidgetDraggable(widget) {
+  const titlebar = widget.querySelector('.widget-titlebar');
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  
+  titlebar.addEventListener('mousedown', startDrag);
+  
+  function startDrag(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    
+    isDragging = true;
+    const rect = widget.getBoundingClientRect();
+    dragOffset.x = e.clientX - rect.left;
+    dragOffset.y = e.clientY - rect.top;
+    
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+    widget.style.zIndex = '1000';
+  }
+  
+  function onDrag(e) {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    const parentRect = widget.parentElement.getBoundingClientRect();
+    const x = e.clientX - parentRect.left - dragOffset.x;
+    const y = e.clientY - parentRect.top - dragOffset.y;
+    
+    // Keep within bounds
+    const maxX = parentRect.width - widget.offsetWidth;
+    const maxY = parentRect.height - widget.offsetHeight;
+    
+    widget.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+    widget.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+  }
+  
+  function stopDrag() {
+    isDragging = false;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+    widget.style.zIndex = '1';
+    
+    // Update saved position
+    const widgetObj = widgets.find(w => w.id === widget.id);
+    if (widgetObj) {
+      widgetObj.x = widget.style.left;
+      widgetObj.y = widget.style.top;
+      saveWidgets();
+    }
+  }
+}
+
+// Make widget resizable
+function makeWidgetResizable(widget) {
+  const resizeHandle = document.createElement('div');
+  resizeHandle.style.position = 'absolute';
+  resizeHandle.style.right = '0';
+  resizeHandle.style.bottom = '0';
+  resizeHandle.style.width = '16px';
+  resizeHandle.style.height = '16px';
+  resizeHandle.style.cursor = 'se-resize';
+  resizeHandle.style.background = 'transparent';
+  resizeHandle.style.zIndex = '10';
+  
+  widget.appendChild(resizeHandle);
+  
+  let isResizing = false;
+  let startWidth, startHeight, startX, startY;
+  
+  resizeHandle.addEventListener('mousedown', startResize);
+  
+  function startResize(e) {
+    e.stopPropagation();
+    isResizing = true;
+    startWidth = parseInt(getComputedStyle(widget).width);
+    startHeight = parseInt(getComputedStyle(widget).height);
+    startX = e.clientX;
+    startY = e.clientY;
+    
+    document.addEventListener('mousemove', onResize);
+    document.addEventListener('mouseup', stopResize);
+  }
+  
+  function onResize(e) {
+    if (!isResizing) return;
+    
+    e.preventDefault();
+    
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    
+    const newWidth = Math.max(160, startWidth + dx);
+    const newHeight = Math.max(100, startHeight + dy);
+    
+    widget.style.width = newWidth + 'px';
+    widget.style.height = newHeight + 'px';
+  }
+  
+  function stopResize() {
+    isResizing = false;
+    document.removeEventListener('mousemove', onResize);
+    document.removeEventListener('mouseup', stopResize);
+    
+    // Update saved size
+    const widgetObj = widgets.find(w => w.id === widget.id);
+    if (widgetObj) {
+      widgetObj.width = widget.style.width;
+      widgetObj.height = widget.style.height;
+      saveWidgets();
+    }
+  }
+}
+
+// Remove widget
+function removeWidget(widgetId) {
+  const widget = document.getElementById(widgetId);
+  if (widget) {
+    widget.remove();
+  }
+  
+  widgets = widgets.filter(w => w.id !== widgetId);
+  saveWidgets();
+}
+
+// Save widgets to localStorage
+function saveWidgets() {
+  localStorage.setItem('toolboxWidgets', JSON.stringify(widgets));
+}
+
+// Load saved widgets
+function loadSavedWidgets() {
+  const saved = localStorage.getItem('toolboxWidgets');
+  if (saved) {
+    try {
+      widgets = JSON.parse(saved) || [];
+      widgets.forEach(widgetData => {
+        const widget = document.createElement('div');
+        widget.className = 'widget-wrap';
+        widget.id = widgetData.id;
+        widget.dataset.name = widgetData.name;
+        widget.style.left = widgetData.x;
+        widget.style.top = widgetData.y;
+        widget.style.width = widgetData.width;
+        widget.style.height = widgetData.height;
+        
+        widget.innerHTML = `
+          <div class="widget-titlebar">
+            <strong>${widgetData.name}</strong>
+            <button class="widget-close" title="Close widget">✕</button>
+          </div>
+          <div class="widget-body">${widgetData.content}</div>
+        `;
+        
+        document.getElementById('toolboxContent').appendChild(widget);
+        
+        makeWidgetDraggable(widget);
+        makeWidgetResizable(widget);
+        
+        widget.querySelector('.widget-close').addEventListener('click', function() {
+          removeWidget(widgetData.id);
+        });
+      });
+    } catch (e) {
+      console.error('Failed to load widgets:', e);
+      widgets = [];
+    }
+  }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
   console.log("DOM ready");
@@ -258,6 +551,9 @@ document.addEventListener('DOMContentLoaded', function() {
   if(localStorage.getItem('readerMode') === 'on') {
     document.body.classList.add('reader-mode');
   }
+  
+  // Initialize toolbox
+  initToolbox();
   
   // Load dashboard
   loadDashboard();
@@ -379,7 +675,7 @@ async function loadDashboard() {
       
       const header = document.createElement('div');
       header.className = 'card-header';
-      header.innerHTML = `<h3>${name}</h3><div style="display:flex;gap:8px"><div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer">+</div></div>`;
+      header.innerHTML = `<h3>${name}</h3><div style="display:flex;gap:8px"><div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent)">+</div></div>`;
       
       const content = document.createElement('div');
       content.className = 'content';
@@ -414,6 +710,36 @@ async function loadDashboard() {
     document.getElementById('status').textContent = 'Error loading cards';
   }
 }
+
+// Add event listener for adding cards to toolbox
+document.addEventListener('click', function(e) {
+  // Check if click is on "Add to toolbox" button
+  if (e.target.classList.contains('add-to-toolbox') || 
+      e.target.closest('.add-to-toolbox')) {
+    
+    const card = e.target.closest('.card');
+    if (!card) return;
+    
+    const cardName = card.dataset.name;
+    const contentElement = card.querySelector('.content');
+    const contentHTML = contentElement.innerHTML;
+    
+    // Create widget in toolbox
+    createWidget(cardName, contentHTML);
+    
+    // Show toolbox if hidden
+    toolbox.classList.remove('hidden');
+    
+    // Visual feedback
+    const addBtn = e.target.closest('.add-to-toolbox');
+    addBtn.textContent = '✓';
+    addBtn.style.color = 'var(--accent)';
+    setTimeout(() => {
+      addBtn.textContent = '+';
+      addBtn.style.color = '';
+    }, 1000);
+  }
+});
 
 // Make Sortable
 new Sortable(document.getElementById('gridContainer'), { animation: 150 });
