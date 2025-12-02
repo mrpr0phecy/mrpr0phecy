@@ -13,6 +13,9 @@
     background:linear-gradient(135deg, #0a0f14, #141e28); /* DARK DEFAULT */
     color:#e6faff;
     -webkit-font-smoothing:antialiased;
+    /* FIX 1: Ensure background covers entire page */
+    background-attachment: fixed;
+    background-size: cover;
   }
   
   /* CSS VARIABLES ONLY FOR THINGS THAT CHANGE */
@@ -96,6 +99,7 @@
     resize:both;
     z-index:1;
     box-shadow:0 8px 20px rgba(0,0,0,0.35);
+    /* FIX 2: Add font scaling based on widget size */
     --widget-font-scale: 1;
   }
 
@@ -106,7 +110,14 @@
     user-select:none;
   }
   .widget-titlebar strong{color:var(--accent)}
-  .widget-body{padding:10px;overflow:auto;max-height:60vh; font-size: calc(1rem * var(--widget-font-scale)); line-height: calc(1.45 * var(--widget-font-scale));}
+  /* FIX 2: Responsive text based on widget size */
+  .widget-body{
+    padding:10px;
+    overflow:auto;
+    max-height:60vh;
+    font-size: calc(0.9rem * var(--widget-font-scale));
+    line-height: calc(1.4 * var(--widget-font-scale));
+  }
 
   .widget-close, #toolboxClose { z-index: 13800; position: relative; background:transparent;border:0;color:var(--muted);cursor:pointer }
 
@@ -223,12 +234,50 @@ function applyTheme(themeName) {
   const theme = themes[themeName];
   if (!theme) return;
   
-  // Apply directly to body
-  document.body.style.background = `linear-gradient(135deg, ${theme.bg1}, ${theme.bg2})`;
+  // FIX 1: Apply to html AND body for full coverage
+  const gradient = `linear-gradient(135deg, ${theme.bg1}, ${theme.bg2})`;
+  document.documentElement.style.background = gradient;
+  document.body.style.background = gradient;
+  
+  // Also update theme buttons for consistency
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    if (btn.dataset.color === themeName) {
+      btn.style.background = gradient;
+    }
+  });
   
   // Save to localStorage
   localStorage.setItem('theme', themeName);
   console.log("Theme saved to localStorage:", themeName);
+}
+
+// FIX 2: Calculate font scale based on widget size
+function updateWidgetFontScale(widget) {
+  const width = parseInt(widget.style.width) || widget.offsetWidth;
+  const height = parseInt(widget.style.height) || widget.offsetHeight;
+  
+  // Base size for reference (200px wide = scale 1)
+  const baseWidth = 200;
+  const baseHeight = 150;
+  
+  // Calculate scale based on both width and height, but prioritize width
+  const widthScale = width / baseWidth;
+  const heightScale = height / baseHeight;
+  
+  // Use the smaller scale to ensure text fits both dimensions
+  const scale = Math.min(widthScale, heightScale);
+  
+  // Clamp scale between 0.5 and 2.0 for readability
+  const clampedScale = Math.max(0.5, Math.min(2.0, scale));
+  
+  // Apply scale to CSS custom property
+  widget.style.setProperty('--widget-font-scale', clampedScale);
+  
+  // Also adjust title font size
+  const title = widget.querySelector('.widget-titlebar strong');
+  if (title) {
+    title.style.fontSize = `${Math.max(0.8, Math.min(1.2, clampedScale))}rem`;
+  }
 }
 
 // ===== TOOLBOX WIDGET MANAGEMENT =====
@@ -323,6 +372,9 @@ function createWidget(name, contentHTML) {
   `;
   
   toolboxContent.appendChild(widget);
+  
+  // Initialize font scale
+  updateWidgetFontScale(widget);
   
   // Make widget draggable
   makeWidgetDraggable(widget);
@@ -448,6 +500,9 @@ function makeWidgetResizable(widget) {
     
     widget.style.width = newWidth + 'px';
     widget.style.height = newHeight + 'px';
+    
+    // FIX 2: Update font scale when resizing
+    updateWidgetFontScale(widget);
   }
   
   function stopResize() {
@@ -506,6 +561,9 @@ function loadSavedWidgets() {
         `;
         
         document.getElementById('toolboxContent').appendChild(widget);
+        
+        // Initialize font scale for loaded widget
+        updateWidgetFontScale(widget);
         
         makeWidgetDraggable(widget);
         makeWidgetResizable(widget);
