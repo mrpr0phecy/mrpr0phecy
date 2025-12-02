@@ -234,7 +234,11 @@ document.addEventListener('DOMContentLoaded', function() {
   if(localStorage.getItem('accent')){
     const saved = localStorage.getItem('accent');
     document.documentElement.style.setProperty('--accent', saved);
-    document.querySelector(`.palette-color[data-accent="${saved}"]`)?.classList.add('active');
+    const matchingAccent = document.querySelector(`.palette-color[data-accent="${saved}"]`);
+    if(matchingAccent) {
+      document.querySelectorAll('.palette-color').forEach(x => x.classList.remove('active'));
+      matchingAccent.classList.add('active');
+    }
   }
   
   if(localStorage.getItem('readerMode') === 'on') document.body.classList.add('reader-mode');
@@ -723,9 +727,9 @@ document.querySelectorAll('.palette-color').forEach(c => {
   });
 });
 
-/* Theme background handling - COMPLETE FIX */
+/* Theme background handling - COMPLETE */
 document.querySelectorAll('.theme-bg').forEach(t => {
-  t.addEventListener('click', (e) => {
+  t.addEventListener('click', () => {
     console.log('Background theme clicked:', t.dataset.bg1, t.dataset.bg2);
     
     document.querySelectorAll('.theme-bg').forEach(x => x.classList.remove('active'));
@@ -736,4 +740,102 @@ document.querySelectorAll('.theme-bg').forEach(t => {
     const cardGrad2 = t.dataset.cardGrad2;
     
     // Set the CSS variables
-    document.documentElement.style.setProperty('--bg-1', bg1
+    document.documentElement.style.setProperty('--bg-1', bg1);
+    document.documentElement.style.setProperty('--bg-2', bg2);
+    document.documentElement.style.setProperty('--card-grad-1', cardGrad1);
+    document.documentElement.style.setProperty('--card-grad-2', cardGrad2);
+    
+    // Save to localStorage
+    localStorage.setItem('bg1', bg1);
+    localStorage.setItem('bg2', bg2);
+    localStorage.setItem('cardGrad1', cardGrad1);
+    localStorage.setItem('cardGrad2', cardGrad2);
+  });
+});
+
+/* ---------- Reader mode ---------- */
+const readerToggle = document.getElementById('readerToggle');
+readerToggle.addEventListener('click', ()=>{
+  document.body.classList.toggle('reader-mode');
+  if(document.body.classList.contains('reader-mode')) localStorage.setItem('readerMode','on'); else localStorage.removeItem('readerMode');
+});
+
+/* ---------- Search / sort / reveal ---------- */
+const searchInput = document.getElementById('searchInput');
+let searchDebounceTimer = null;
+searchInput.addEventListener('input', (e) => {
+  const q = (e.target.value || '').trim().toLowerCase();
+  if(searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => applySearchFilterAndLoad(q), 160);
+});
+
+document.getElementById('sortAlphaBtn').addEventListener('click', () => {
+  const nodes = Array.from(grid.children);
+  nodes.sort((a,b) => a.dataset.name.localeCompare(b.dataset.name, undefined, {sensitivity:'base', numeric:true}));
+  nodes.forEach(n => grid.appendChild(n));
+  allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
+  observeAllCards();
+  scheduleManualCheck();
+});
+document.getElementById('sortRandomBtn').addEventListener('click', () => {
+  const nodes = Array.from(grid.children);
+  for(let i = nodes.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [nodes[i], nodes[j]] = [nodes[j], nodes[i]];
+  }
+  nodes.forEach(n => grid.appendChild(n));
+  allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
+  observeAllCards();
+  scheduleManualCheck();
+});
+function revealCards(){
+  const cards = Array.from(document.querySelectorAll('#gridContainer .card'));
+  cards.forEach((c, i) => {
+    c.classList.remove('visible');
+    setTimeout(() => c.classList.add('visible'), i * 60);
+  });
+}
+
+/* ---------- Sortable ---------- */
+new Sortable(document.getElementById('gridContainer'), { animation: 150 });
+
+/* ---------- Load dashboard with better error handling ---------- */
+async function loadDashboard(){
+  const { owner, repo } = parseOwnerRepo(DEFAULT_REPO);
+  try{
+    console.log('Loading dashboard...');
+    filesList = await getCardFiles(owner, repo, DEFAULT_BRANCH);
+    console.log('Found files:', filesList.length);
+    if(!filesList.length){ 
+      document.getElementById('status').textContent = 'No cards folder found'; 
+      return; 
+    }
+    filesList.sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base', numeric:true}));
+    grid.innerHTML = '';
+    filesList.forEach(f => grid.appendChild(createCardElement(f)));
+    allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
+    document.getElementById('status').textContent = `${filesList.length} tools loaded`;
+    // initial observation and batch
+    observeAllCards();
+    scheduleManualCheck();
+    setTimeout(revealCards, 200);
+
+    // restore toolbox pinned items
+    const saved = loadToolboxStore();
+    if(Array.isArray(saved) && saved.length && saved[0].file){
+      toolboxItems = saved.map(x => x.file);
+    } else if(Array.isArray(saved) && typeof saved[0] === 'string'){
+      toolboxItems = saved;
+    } else {
+      toolboxItems = toolboxItems || [];
+    }
+    renderToolboxPanel();
+    console.log('Dashboard loaded successfully');
+  }catch(e){
+    console.error('Dashboard load error:', e);
+    document.getElementById('status').textContent = 'Error loading cards. Check console or try again.';
+  }
+}
+</script>
+</body>
+</html>
