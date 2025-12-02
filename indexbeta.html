@@ -99,8 +99,9 @@
     resize:both;
     z-index:1;
     box-shadow:0 8px 20px rgba(0,0,0,0.35);
-    /* FIX 2: Add font scaling based on widget size */
+    /* FIX 3: Better font scaling for toolbox widgets */
     --widget-font-scale: 1;
+    --widget-font-base: 0.9rem;
   }
 
   .widget-titlebar{
@@ -109,20 +110,49 @@
     cursor:move;
     user-select:none;
   }
-  .widget-titlebar strong{color:var(--accent)}
-  /* FIX 2: Responsive text based on widget size */
+  .widget-titlebar strong{
+    color:var(--accent);
+    /* FIX 3: Title also scales */
+    font-size: calc(1rem * var(--widget-font-scale));
+  }
+  /* FIX 3: Improved responsive text for toolbox widgets */
   .widget-body{
     padding:10px;
     overflow:auto;
     max-height:60vh;
-    font-size: calc(0.9rem * var(--widget-font-scale));
+    font-size: calc(var(--widget-font-base) * var(--widget-font-scale));
     line-height: calc(1.4 * var(--widget-font-scale));
   }
 
-  .widget-close, #toolboxClose { z-index: 13800; position: relative; background:transparent;border:0;color:var(--muted);cursor:pointer }
+  .widget-close, #toolboxClose { 
+    z-index: 13800; 
+    position: relative; 
+    background:transparent;
+    border:0;
+    color:var(--muted);
+    cursor:pointer;
+    font-size: calc(1rem * var(--widget-font-scale));
+  }
 
-  main{position:relative;z-index:2}
-  .search-bar{max-width:1100px;margin:14px auto 16px;display:flex;background:linear-gradient(180deg,var(--glass),rgba(255,255,255,0.02));border-radius:12px;padding:12px 16px;border:1px solid rgba(255,255,255,0.04)}
+  main{
+    position:relative;
+    z-index:2;
+    /* FIX 1: Auto-scroll to top when loading */
+    scroll-margin-top: 0;
+  }
+  
+  .search-bar{
+    max-width:1100px;
+    margin:14px auto 16px;
+    display:flex;
+    background:linear-gradient(180deg,var(--glass),rgba(255,255,255,0.02));
+    border-radius:12px;
+    padding:12px 16px;
+    border:1px solid rgba(255,255,255,0.04);
+    /* FIX 1: Anchor point for scrolling */
+    scroll-margin-top: 20px;
+  }
+  
   .search-bar input{flex:1;border:none;background:transparent;color:var(--text);font-size:1rem;outline:none}
 
   .controls{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
@@ -202,7 +232,7 @@
   <header><h1>The Most Useful Site in the World</h1></header>
 
   <main>
-    <div class="search-bar"><input id="searchInput" placeholder="Search cards..." /></div>
+    <div class="search-bar"><input id="searchInput" placeholder="Search cards..." autofocus /></div>
 
     <div class="controls">
       <button id="sortAlphaBtn">Sort A→Z</button>
@@ -234,7 +264,7 @@ function applyTheme(themeName) {
   const theme = themes[themeName];
   if (!theme) return;
   
-  // FIX 1: Apply to html AND body for full coverage
+  // Apply to html AND body for full coverage
   const gradient = `linear-gradient(135deg, ${theme.bg1}, ${theme.bg2})`;
   document.documentElement.style.background = gradient;
   document.body.style.background = gradient;
@@ -251,33 +281,41 @@ function applyTheme(themeName) {
   console.log("Theme saved to localStorage:", themeName);
 }
 
-// FIX 2: Calculate font scale based on widget size
+// FIX 3: Improved font scaling for toolbox widgets
 function updateWidgetFontScale(widget) {
   const width = parseInt(widget.style.width) || widget.offsetWidth;
   const height = parseInt(widget.style.height) || widget.offsetHeight;
   
-  // Base size for reference (200px wide = scale 1)
-  const baseWidth = 200;
-  const baseHeight = 150;
+  // Calculate diagonal size for more accurate scaling
+  const diagonal = Math.sqrt(width * width + height * height);
   
-  // Calculate scale based on both width and height, but prioritize width
-  const widthScale = width / baseWidth;
-  const heightScale = height / baseHeight;
+  // Base diagonal for reference (approximately 250px for 200x150 widget)
+  const baseDiagonal = Math.sqrt(200 * 200 + 150 * 150);
   
-  // Use the smaller scale to ensure text fits both dimensions
-  const scale = Math.min(widthScale, heightScale);
+  // Calculate scale based on diagonal
+  let scale = diagonal / baseDiagonal;
   
-  // Clamp scale between 0.5 and 2.0 for readability
-  const clampedScale = Math.max(0.5, Math.min(2.0, scale));
+  // More aggressive scaling: 0.3x to 2.5x
+  scale = Math.max(0.3, Math.min(2.5, scale));
   
   // Apply scale to CSS custom property
-  widget.style.setProperty('--widget-font-scale', clampedScale);
+  widget.style.setProperty('--widget-font-scale', scale);
   
-  // Also adjust title font size
-  const title = widget.querySelector('.widget-titlebar strong');
-  if (title) {
-    title.style.fontSize = `${Math.max(0.8, Math.min(1.2, clampedScale))}rem`;
-  }
+  // Update all text elements inside widget to use the scale
+  const textElements = widget.querySelectorAll('.widget-body *');
+  textElements.forEach(el => {
+    if (!el.style.fontSize) {
+      // Store original font size if not already stored
+      const computedSize = getComputedStyle(el).fontSize;
+      el.dataset.originalFontSize = computedSize;
+    }
+    
+    // Apply scaled font size
+    if (el.dataset.originalFontSize) {
+      const originalSize = parseFloat(el.dataset.originalFontSize);
+      el.style.fontSize = `${originalSize * scale}px`;
+    }
+  });
 }
 
 // ===== TOOLBOX WIDGET MANAGEMENT =====
@@ -495,13 +533,13 @@ function makeWidgetResizable(widget) {
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
     
-    const newWidth = Math.max(160, startWidth + dx);
-    const newHeight = Math.max(100, startHeight + dy);
+    const newWidth = Math.max(120, startWidth + dx); // Smaller minimum
+    const newHeight = Math.max(80, startHeight + dy); // Smaller minimum
     
     widget.style.width = newWidth + 'px';
     widget.style.height = newHeight + 'px';
     
-    // FIX 2: Update font scale when resizing
+    // Update font scale when resizing
     updateWidgetFontScale(widget);
   }
   
@@ -583,6 +621,9 @@ function loadSavedWidgets() {
 document.addEventListener('DOMContentLoaded', function() {
   console.log("DOM ready");
   
+  // FIX 1: Scroll to top immediately
+  window.scrollTo(0, 0);
+  
   // Apply saved theme or default
   const savedTheme = localStorage.getItem('theme') || 'default';
   applyTheme(savedTheme);
@@ -613,8 +654,29 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize toolbox
   initToolbox();
   
-  // Load dashboard
+  // Load dashboard with improved loading
   loadDashboard();
+});
+
+// FIX 1: Scroll to search bar when page loads or refreshes
+window.addEventListener('load', function() {
+  // Small delay to ensure everything is rendered
+  setTimeout(() => {
+    const searchBar = document.querySelector('.search-bar');
+    if (searchBar) {
+      searchBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // Also focus the search input
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+      searchInput.focus();
+    }
+  }, 100);
+});
+
+// FIX 1: Also scroll to top when clicking home/reloading
+window.addEventListener('beforeunload', function() {
+  window.scrollTo(0, 0);
 });
 
 // ===== PALETTE HANDLING =====
@@ -694,7 +756,64 @@ document.getElementById('sortRandomBtn').addEventListener('click', function() {
   cards.forEach(card => grid.appendChild(card));
 });
 
-// ===== LOAD CARDS =====
+// FIX 2: Improved card loading - loads in batches
+let cardQueue = [];
+let isCardLoading = false;
+const BATCH_SIZE = 5;
+const BATCH_DELAY = 50;
+
+// Load cards in batches
+function loadCardBatch() {
+  if (isCardLoading || cardQueue.length === 0) return;
+  
+  isCardLoading = true;
+  const batch = cardQueue.splice(0, BATCH_SIZE);
+  
+  let loadedCount = 0;
+  
+  batch.forEach((cardData, index) => {
+    setTimeout(() => {
+      const { card, file, name } = cardData;
+      const content = card.querySelector('.content');
+      
+      fetch(`cards/${file}`)
+        .then(r => r.ok ? r.text() : Promise.reject())
+        .then(html => {
+          content.innerHTML = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
+        })
+        .catch(() => {
+          content.textContent = 'Preview unavailable';
+        })
+        .finally(() => {
+          loadedCount++;
+          
+          // Show card with animation
+          setTimeout(() => {
+            card.classList.add('visible');
+          }, index * 30);
+          
+          // Update status
+          const totalCards = document.querySelectorAll('.card').length;
+          const loadedCards = document.querySelectorAll('.card.visible').length;
+          document.getElementById('status').textContent = 
+            `Loaded ${loadedCards} of ${totalCards} tools`;
+          
+          // Load next batch when this one is done
+          if (loadedCount === batch.length) {
+            isCardLoading = false;
+            if (cardQueue.length > 0) {
+              setTimeout(loadCardBatch, BATCH_DELAY);
+            } else {
+              document.getElementById('status').textContent = 
+                `${totalCards} tools loaded`;
+            }
+          }
+        });
+    }, index * 20); // Stagger requests
+  });
+}
+
+// ===== LOAD CARDS WITH IMPROVED PERFORMANCE =====
 async function loadDashboard() {
   try {
     const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
@@ -702,6 +821,8 @@ async function loadDashboard() {
     
     // Parse repo
     const [owner, repo] = DEFAULT_REPO.split('/');
+    
+    document.getElementById('status').textContent = 'Fetching card list...';
     
     // Fetch card files
     const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
@@ -724,6 +845,9 @@ async function loadDashboard() {
     }
     
     grid.innerHTML = '';
+    cardQueue = [];
+    
+    // Create all card containers first (fast)
     cardFiles.sort().forEach(file => {
       const name = file.replace('.html', '');
       const card = document.createElement('div');
@@ -743,25 +867,14 @@ async function loadDashboard() {
       card.appendChild(content);
       grid.appendChild(card);
       
-      // Load content
-      fetch(`cards/${file}`)
-        .then(r => r.ok ? r.text() : Promise.reject())
-        .then(html => {
-          content.innerHTML = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
-        })
-        .catch(() => {
-          content.textContent = 'Preview unavailable';
-        });
+      // Add to queue for batch loading
+      cardQueue.push({ card, file, name });
     });
     
-    status.textContent = `${cardFiles.length} tools loaded`;
+    status.textContent = `Loading 0 of ${cardFiles.length} tools...`;
     
-    // Reveal animation
-    setTimeout(() => {
-      document.querySelectorAll('.card').forEach((card, i) => {
-        setTimeout(() => card.classList.add('visible'), i * 60);
-      });
-    }, 200);
+    // Start batch loading
+    setTimeout(loadCardBatch, 300);
     
   } catch (error) {
     console.error("Error loading dashboard:", error);
