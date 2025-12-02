@@ -92,16 +92,19 @@
     box-sizing:border-box;
     background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));
     border-radius:10px;border:1px solid rgba(255,255,255,0.04);
-    min-width:160px; min-height:100px;
+    min-width:120px; min-height:80px;
     max-width:calc(100% - 20px);
     max-height:calc(100% - 20px);
     overflow:hidden;
     resize:both;
     z-index:1;
     box-shadow:0 8px 20px rgba(0,0,0,0.35);
-    /* FIX 3: Better font scaling for toolbox widgets */
+    /* NEW: Advanced font scaling with min/max sizes */
+    --widget-font-size: 14px;
     --widget-font-scale: 1;
-    --widget-font-base: 0.9rem;
+    --widget-min-font: 8px;
+    --widget-max-font: 32px;
+    --widget-ideal-area: 30000; /* 200x150 = 30000px² */
   }
 
   .widget-titlebar{
@@ -112,16 +115,15 @@
   }
   .widget-titlebar strong{
     color:var(--accent);
-    /* FIX 3: Title also scales */
-    font-size: calc(1rem * var(--widget-font-scale));
+    font-size: calc(var(--widget-font-size) * 1.1);
   }
-  /* FIX 3: Improved responsive text for toolbox widgets */
+  
   .widget-body{
     padding:10px;
     overflow:auto;
     max-height:60vh;
-    font-size: calc(var(--widget-font-base) * var(--widget-font-scale));
-    line-height: calc(1.4 * var(--widget-font-scale));
+    font-size: var(--widget-font-size);
+    line-height: calc(var(--widget-font-size) * 1.4);
   }
 
   .widget-close, #toolboxClose { 
@@ -131,7 +133,7 @@
     border:0;
     color:var(--muted);
     cursor:pointer;
-    font-size: calc(1rem * var(--widget-font-scale));
+    font-size: var(--widget-font-size);
   }
 
   main{
@@ -281,41 +283,151 @@ function applyTheme(themeName) {
   console.log("Theme saved to localStorage:", themeName);
 }
 
-// FIX 3: Improved font scaling for toolbox widgets
-function updateWidgetFontScale(widget) {
+// NEW: Advanced font scaling based on widget size and user preference
+function updateWidgetFontScale(widget, userScale = null) {
   const width = parseInt(widget.style.width) || widget.offsetWidth;
   const height = parseInt(widget.style.height) || widget.offsetHeight;
   
-  // Calculate diagonal size for more accurate scaling
-  const diagonal = Math.sqrt(width * width + height * height);
+  // Calculate widget area
+  const area = width * height;
   
-  // Base diagonal for reference (approximately 250px for 200x150 widget)
-  const baseDiagonal = Math.sqrt(200 * 200 + 150 * 150);
+  // Base font size calculation based on area
+  // Formula: font size = base * (area / ideal)^0.25 (square root of square root)
+  const areaRatio = area / 30000; // 30000 = 200x150 (ideal size)
+  const areaScale = Math.pow(areaRatio, 0.25); // Gentle scaling curve
   
-  // Calculate scale based on diagonal
-  let scale = diagonal / baseDiagonal;
+  // Apply user scaling if provided
+  const userScaleFactor = userScale !== null ? userScale : (widget.dataset.userScale || 1);
+  widget.dataset.userScale = userScaleFactor;
   
-  // More aggressive scaling: 0.3x to 2.5x
-  scale = Math.max(0.3, Math.min(2.5, scale));
+  // Combined scale
+  const combinedScale = areaScale * userScaleFactor;
   
-  // Apply scale to CSS custom property
-  widget.style.setProperty('--widget-font-scale', scale);
+  // Calculate final font size (clamped between min and max)
+  const baseSize = 14; // Base font size at ideal area (200x150)
+  let fontSize = baseSize * combinedScale;
   
-  // Update all text elements inside widget to use the scale
-  const textElements = widget.querySelectorAll('.widget-body *');
-  textElements.forEach(el => {
-    if (!el.style.fontSize) {
-      // Store original font size if not already stored
-      const computedSize = getComputedStyle(el).fontSize;
-      el.dataset.originalFontSize = computedSize;
+  // Clamp between min and max
+  const minFont = parseInt(widget.style.getPropertyValue('--widget-min-font')) || 8;
+  const maxFont = parseInt(widget.style.getPropertyValue('--widget-max-font')) || 32;
+  fontSize = Math.max(minFont, Math.min(maxFont, fontSize));
+  
+  // Apply the font size
+  widget.style.setProperty('--widget-font-size', `${fontSize}px`);
+  
+  // Update line height proportionally
+  const lineHeight = fontSize * 1.4;
+  widget.querySelector('.widget-body').style.lineHeight = `${lineHeight}px`;
+  
+  // Save user scale preference to widget data
+  if (userScale !== null) {
+    const widgetObj = widgets.find(w => w.id === widget.id);
+    if (widgetObj) {
+      widgetObj.userScale = userScaleFactor;
+      saveWidgets();
     }
-    
-    // Apply scaled font size
-    if (el.dataset.originalFontSize) {
-      const originalSize = parseFloat(el.dataset.originalFontSize);
-      el.style.fontSize = `${originalSize * scale}px`;
-    }
+  }
+}
+
+// NEW: Widget scaling controls (add to each widget)
+function addWidgetScalingControls(widget) {
+  const titlebar = widget.querySelector('.widget-titlebar');
+  const titleText = titlebar.querySelector('strong');
+  
+  // Create scaling controls container
+  const scaleControls = document.createElement('div');
+  scaleControls.className = 'widget-scale-controls';
+  scaleControls.style.display = 'flex';
+  scaleControls.style.gap = '4px';
+  scaleControls.style.alignItems = 'center';
+  scaleControls.style.marginLeft = '8px';
+  
+  // Smaller text button
+  const smallerBtn = document.createElement('button');
+  smallerBtn.innerHTML = 'A⁻';
+  smallerBtn.title = 'Make text smaller (fit more tools)';
+  smallerBtn.style.background = 'transparent';
+  smallerBtn.style.border = 'none';
+  smallerBtn.style.color = 'var(--muted)';
+  smallerBtn.style.cursor = 'pointer';
+  smallerBtn.style.fontSize = '12px';
+  smallerBtn.style.padding = '2px 4px';
+  smallerBtn.style.borderRadius = '4px';
+  smallerBtn.style.border = '1px solid var(--border)';
+  
+  // Text size display
+  const sizeDisplay = document.createElement('span');
+  sizeDisplay.className = 'widget-size-display';
+  sizeDisplay.textContent = '100%';
+  sizeDisplay.style.fontSize = '11px';
+  sizeDisplay.style.color = 'var(--muted)';
+  sizeDisplay.style.minWidth = '36px';
+  sizeDisplay.style.textAlign = 'center';
+  
+  // Larger text button
+  const largerBtn = document.createElement('button');
+  largerBtn.innerHTML = 'A⁺';
+  largerBtn.title = 'Make text larger (better readability)';
+  largerBtn.style.background = 'transparent';
+  largerBtn.style.border = 'none';
+  largerBtn.style.color = 'var(--muted)';
+  largerBtn.style.cursor = 'pointer';
+  largerBtn.style.fontSize = '14px';
+  largerBtn.style.padding = '2px 4px';
+  largerBtn.style.borderRadius = '4px';
+  largerBtn.style.border = '1px solid var(--border)';
+  
+  // Reset button
+  const resetBtn = document.createElement('button');
+  resetBtn.innerHTML = '⟲';
+  resetBtn.title = 'Reset to auto size';
+  resetBtn.style.background = 'transparent';
+  resetBtn.style.border = 'none';
+  resetBtn.style.color = 'var(--muted)';
+  resetBtn.style.cursor = 'pointer';
+  resetBtn.style.fontSize = '11px';
+  resetBtn.style.padding = '2px 4px';
+  resetBtn.style.borderRadius = '4px';
+  resetBtn.style.border = '1px solid var(--border)';
+  resetBtn.style.marginLeft = '4px';
+  
+  // Add controls to container
+  scaleControls.appendChild(smallerBtn);
+  scaleControls.appendChild(sizeDisplay);
+  scaleControls.appendChild(largerBtn);
+  scaleControls.appendChild(resetBtn);
+  
+  // Insert after title text
+  titleText.parentNode.insertBefore(scaleControls, titleText.nextSibling);
+  
+  // Event handlers
+  smallerBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const currentScale = parseFloat(widget.dataset.userScale || 1);
+    const newScale = Math.max(0.5, currentScale * 0.8); // Reduce by 20%
+    updateWidgetFontScale(widget, newScale);
+    sizeDisplay.textContent = `${Math.round(newScale * 100)}%`;
   });
+  
+  largerBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const currentScale = parseFloat(widget.dataset.userScale || 1);
+    const newScale = Math.min(2.0, currentScale * 1.2); // Increase by 20%
+    updateWidgetFontScale(widget, newScale);
+    sizeDisplay.textContent = `${Math.round(newScale * 100)}%`;
+  });
+  
+  resetBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    updateWidgetFontScale(widget, 1); // Reset to auto
+    sizeDisplay.textContent = '100%';
+  });
+  
+  // Initialize display
+  const currentScale = parseFloat(widget.dataset.userScale || 1);
+  sizeDisplay.textContent = `${Math.round(currentScale * 100)}%`;
+  
+  return scaleControls;
 }
 
 // ===== TOOLBOX WIDGET MANAGEMENT =====
@@ -411,8 +523,13 @@ function createWidget(name, contentHTML) {
   
   toolboxContent.appendChild(widget);
   
-  // Initialize font scale
-  updateWidgetFontScale(widget);
+  // Initialize font scale (load saved user scale if exists)
+  const savedWidget = widgets.find(w => w.id === widgetId) || {};
+  const savedScale = savedWidget.userScale || 1;
+  updateWidgetFontScale(widget, savedScale);
+  
+  // Add scaling controls
+  addWidgetScalingControls(widget);
   
   // Make widget draggable
   makeWidgetDraggable(widget);
@@ -433,7 +550,8 @@ function createWidget(name, contentHTML) {
     x: widget.style.left,
     y: widget.style.top,
     width: widget.style.width,
-    height: widget.style.height
+    height: widget.style.height,
+    userScale: savedScale
   });
   
   saveWidgets();
@@ -450,7 +568,7 @@ function makeWidgetDraggable(widget) {
   titlebar.addEventListener('mousedown', startDrag);
   
   function startDrag(e) {
-    if (e.target.tagName === 'BUTTON') return;
+    if (e.target.tagName === 'BUTTON' && !e.target.closest('.widget-scale-controls')) return;
     
     isDragging = true;
     const rect = widget.getBoundingClientRect();
@@ -533,13 +651,13 @@ function makeWidgetResizable(widget) {
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
     
-    const newWidth = Math.max(120, startWidth + dx); // Smaller minimum
-    const newHeight = Math.max(80, startHeight + dy); // Smaller minimum
+    const newWidth = Math.max(120, startWidth + dx);
+    const newHeight = Math.max(80, startHeight + dy);
     
     widget.style.width = newWidth + 'px';
     widget.style.height = newHeight + 'px';
     
-    // Update font scale when resizing
+    // Update font scale when resizing (auto-scale based on new size)
     updateWidgetFontScale(widget);
   }
   
@@ -600,8 +718,12 @@ function loadSavedWidgets() {
         
         document.getElementById('toolboxContent').appendChild(widget);
         
-        // Initialize font scale for loaded widget
-        updateWidgetFontScale(widget);
+        // Initialize font scale with saved user scale
+        const savedScale = widgetData.userScale || 1;
+        updateWidgetFontScale(widget, savedScale);
+        
+        // Add scaling controls
+        addWidgetScalingControls(widget);
         
         makeWidgetDraggable(widget);
         makeWidgetResizable(widget);
