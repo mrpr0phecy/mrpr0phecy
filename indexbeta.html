@@ -208,12 +208,49 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
+// ===== FIX: Initialize on DOM ready =====
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM ready, initializing...');
+  
+  // Immediately restore saved theme to prevent white flash
+  if(localStorage.getItem('bg1') && localStorage.getItem('bg2')) {
+    const savedBg1 = localStorage.getItem('bg1');
+    const savedBg2 = localStorage.getItem('bg2');
+    const savedCardGrad1 = localStorage.getItem('cardGrad1');
+    const savedCardGrad2 = localStorage.getItem('cardGrad2');
+    
+    console.log('Restoring saved theme:', savedBg1, savedBg2);
+    document.documentElement.style.setProperty('--bg-1', savedBg1);
+    document.documentElement.style.setProperty('--bg-2', savedBg2);
+    if(savedCardGrad1) document.documentElement.style.setProperty('--card-grad-1', savedCardGrad1);
+    if(savedCardGrad2) document.documentElement.style.setProperty('--card-grad-2', savedCardGrad2);
+    
+    const matchingTheme = document.querySelector(`.theme-bg[data-bg-1="${savedBg1}"][data-bg-2="${savedBg2}"]`);
+    if(matchingTheme) {
+      document.querySelectorAll('.theme-bg').forEach(x => x.classList.remove('active'));
+      matchingTheme.classList.add('active');
+    }
+  }
+  
+  if(localStorage.getItem('accent')){
+    const saved = localStorage.getItem('accent');
+    document.documentElement.style.setProperty('--accent', saved);
+    document.querySelector(`.palette-color[data-accent="${saved}"]`)?.classList.add('active');
+  }
+  
+  if(localStorage.getItem('readerMode') === 'on') document.body.classList.add('reader-mode');
+  
+  // Now load the dashboard
+  loadDashboard();
+});
+
 /* ---------- Repo loader ---------- */
 const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
 const DEFAULT_BRANCH = 'main';
 function parseOwnerRepo(str){ const p = str.split('/'); return { owner: p[0], repo: p[1] }; }
 async function fetchRepoTree(owner, repo, branch){
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+  console.log('Fetching repo tree:', url);
   const r = await fetch(url);
   if(!r.ok) throw new Error('GitHub API error: ' + r.status);
   return r.json();
@@ -276,6 +313,7 @@ async function loadCardContentInto(card, file){
     card.querySelector('.content').innerHTML = html;
     cardLoadState.set(card,true);
   }catch(e){
+    console.error('Error loading card:', file, e);
     card.querySelector('.content').textContent = 'Failed to load';
     cardLoadState.set(card,true);
   }
@@ -669,7 +707,7 @@ function removeFromToolbox(file){
 }
 function openToolbox(){ toolbox.classList.remove('hidden'); toolbox.setAttribute('aria-hidden','false'); }
 
-/* ---------- SIMPLIFIED Palette handling ---------- */
+/* ---------- Palette handling ---------- */
 document.getElementById('paletteToggle').addEventListener('click', () => {
   const p = document.getElementById('palettePanel');
   p.classList.toggle('open');
@@ -686,7 +724,7 @@ document.querySelectorAll('.palette-color').forEach(c => {
   });
 });
 
-/* SIMPLIFIED Theme background handling - This should work */
+/* Theme background handling */
 document.querySelectorAll('.theme-bg').forEach(t => {
   t.addEventListener('click', () => {
     document.querySelectorAll('.theme-bg').forEach(x => x.classList.remove('active'));
@@ -710,39 +748,12 @@ document.querySelectorAll('.theme-bg').forEach(t => {
   });
 });
 
-/* Restore saved colors */
-if(localStorage.getItem('accent')){
-  const saved = localStorage.getItem('accent');
-  document.documentElement.style.setProperty('--accent', saved);
-  document.querySelector(`.palette-color[data-accent="${saved}"]`)?.classList.add('active');
-}
-
-// Restore saved background theme
-if(localStorage.getItem('bg1') && localStorage.getItem('bg2')) {
-  const savedBg1 = localStorage.getItem('bg1');
-  const savedBg2 = localStorage.getItem('bg2');
-  const savedCardGrad1 = localStorage.getItem('cardGrad1');
-  const savedCardGrad2 = localStorage.getItem('cardGrad2');
-  
-  document.documentElement.style.setProperty('--bg-1', savedBg1);
-  document.documentElement.style.setProperty('--bg-2', savedBg2);
-  document.documentElement.style.setProperty('--card-grad-1', savedCardGrad1);
-  document.documentElement.style.setProperty('--card-grad-2', savedCardGrad2);
-  
-  const matchingTheme = document.querySelector(`.theme-bg[data-bg-1="${savedBg1}"][data-bg-2="${savedBg2}"]`);
-  if(matchingTheme) {
-    document.querySelectorAll('.theme-bg').forEach(x => x.classList.remove('active'));
-    matchingTheme.classList.add('active');
-  }
-}
-
 /* ---------- Reader mode ---------- */
 const readerToggle = document.getElementById('readerToggle');
 readerToggle.addEventListener('click', ()=>{
   document.body.classList.toggle('reader-mode');
   if(document.body.classList.contains('reader-mode')) localStorage.setItem('readerMode','on'); else localStorage.removeItem('readerMode');
 });
-if(localStorage.getItem('readerMode') === 'on') document.body.classList.add('reader-mode');
 
 /* ---------- Search / sort / reveal ---------- */
 const searchInput = document.getElementById('searchInput');
@@ -783,21 +794,28 @@ function revealCards(){
 /* ---------- Sortable ---------- */
 new Sortable(document.getElementById('gridContainer'), { animation: 150 });
 
-/* ---------- Load dashboard ---------- */
+/* ---------- Load dashboard with better error handling ---------- */
 async function loadDashboard(){
   const { owner, repo } = parseOwnerRepo(DEFAULT_REPO);
   try{
+    console.log('Loading dashboard...');
     filesList = await getCardFiles(owner, repo, DEFAULT_BRANCH);
-    if(!filesList.length){ document.getElementById('status').textContent = 'No cards folder found'; return; }
+    console.log('Found files:', filesList.length);
+    if(!filesList.length){ 
+      document.getElementById('status').textContent = 'No cards folder found'; 
+      return; 
+    }
     filesList.sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base', numeric:true}));
     grid.innerHTML = '';
     filesList.forEach(f => grid.appendChild(createCardElement(f)));
     allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
     document.getElementById('status').textContent = `${filesList.length} tools loaded`;
+    // initial observation and batch
     observeAllCards();
     scheduleManualCheck();
     setTimeout(revealCards, 200);
 
+    // restore toolbox pinned items
     const saved = loadToolboxStore();
     if(Array.isArray(saved) && saved.length && saved[0].file){
       toolboxItems = saved.map(x => x.file);
@@ -807,14 +825,12 @@ async function loadDashboard(){
       toolboxItems = toolboxItems || [];
     }
     renderToolboxPanel();
+    console.log('Dashboard loaded successfully');
   }catch(e){
-    document.getElementById('status').textContent = 'Check repo name or cards/ folder';
-    console.error(e);
+    console.error('Dashboard load error:', e);
+    document.getElementById('status').textContent = 'Error loading cards. Check console or try again.';
   }
 }
-
-/* Init */
-loadDashboard();
 </script>
 </body>
 </html>
