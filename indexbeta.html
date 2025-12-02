@@ -208,7 +208,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-/* ---------- Repo loader (unchanged) ---------- */
+/* ---------- Repo loader ---------- */
 const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
 const DEFAULT_BRANCH = 'main';
 function parseOwnerRepo(str){ const p = str.split('/'); return { owner: p[0], repo: p[1] }; }
@@ -223,11 +223,11 @@ async function getCardFiles(owner, repo, branch){
   return (data.tree || []).filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html')).map(item => item.path.replace(/^cards\//,''));
 }
 
-/* ---------- Card creation (unchanged) ---------- */
+/* ---------- Card creation ---------- */
 const grid = document.getElementById('gridContainer');
-const cardLoadState = new WeakMap(); // track loaded cards
-let allCardElements = [];            // ordered list of card DOM nodes
-let filesList = [];                  // ordered list of file names
+const cardLoadState = new WeakMap();
+let allCardElements = [];
+let filesList = [];
 
 function createCardElement(file){
   const name = file.replace('.html','');
@@ -281,20 +281,13 @@ async function loadCardContentInto(card, file){
   }
 }
 
-/* ===== Efficient, reliable lazy loader =====
-   - Enqueue via IntersectionObserver
-   - Controlled concurrency (maxConcurrent)
-   - Prefetch neighbors (neighborsCount)
-   - Works with search: enqueue matches + neighbors
-*/
-
-const maxConcurrent = 4;        // concurrent fetches
-const neighborsCount = 8;       // how many neighbors above/below to prefetch
-const loadQueue = [];           // FIFO queue of card elements to load
-const queued = new WeakSet();   // mark enqueued cards
+/* ===== Lazy loader ===== */
+const maxConcurrent = 4;
+const neighborsCount = 8;
+const loadQueue = [];
+const queued = new WeakSet();
 let activeCount = 0;
 
-// helper to enqueue a card element
 function enqueueCard(card){
   if(!card || queued.has(card) || cardLoadState.get(card)) return;
   queued.add(card);
@@ -302,7 +295,6 @@ function enqueueCard(card){
   processQueue();
 }
 
-// process queue with concurrency limit
 function processQueue(){
   if(activeCount >= maxConcurrent) return;
   while(activeCount < maxConcurrent && loadQueue.length){
@@ -310,18 +302,15 @@ function processQueue(){
     if(!card) continue;
     if(cardLoadState.get(card)) continue;
     activeCount++;
-    // loadCardContentInto returns a promise; ensure we handle completion
     Promise.resolve(loadCardContentInto(card, card.dataset.file))
       .catch(()=>{})
       .finally(() => {
         activeCount--;
-        // small delay to avoid bursts
         setTimeout(processQueue, 0);
       });
   }
 }
 
-// IntersectionObserver to enqueue cards when near viewport
 const observer = new IntersectionObserver((entries) => {
   const toEnqueue = [];
   entries.forEach(entry => {
@@ -330,15 +319,12 @@ const observer = new IntersectionObserver((entries) => {
       observer.unobserve(entry.target);
     }
   });
-  // enqueue visible ones immediately
   toEnqueue.forEach(c => enqueueCard(c));
-  // also prefetch neighbors around the first visible card
   if(toEnqueue.length){
     prefetchNeighborsAround(toEnqueue[0]);
   }
 }, { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0 });
 
-// initial observation setup for all cards
 function observeAllCards(){
   allCardElements.forEach(card => {
     if(!cardLoadState.get(card) && !queued.has(card)){
@@ -347,7 +333,6 @@ function observeAllCards(){
   });
 }
 
-// prefetch neighbors above/below a reference card element
 function prefetchNeighborsAround(refCard){
   const cards = allCardElements;
   const idx = cards.indexOf(refCard);
@@ -359,11 +344,9 @@ function prefetchNeighborsAround(refCard){
   }
 }
 
-// manual fallback for very fast scroll or search
 let manualScheduled = false;
 function manualCheck(){
   manualScheduled = false;
-  // find first visible card
   const cards = allCardElements;
   if(!cards.length) return;
   const viewportTop = 0;
@@ -377,7 +360,6 @@ function manualCheck(){
     }
   }
   if(firstVisible === -1){
-    // if none visible, pick nearest by center
     let best = 0, bestDist = Infinity;
     for(let i=0;i<cards.length;i++){
       const r = cards[i].getBoundingClientRect();
@@ -387,13 +369,11 @@ function manualCheck(){
     }
     firstVisible = best;
   }
-  // enqueue neighbors around that index
   const start = Math.max(0, firstVisible - neighborsCount);
   const end = Math.min(cards.length - 1, firstVisible + neighborsCount);
   for(let i = start; i <= end; i++) enqueueCard(cards[i]);
 }
 
-// debounce scroll/resize to manualCheck
 function scheduleManualCheck(){
   if(manualScheduled) return;
   manualScheduled = true;
@@ -403,12 +383,10 @@ window.addEventListener('scroll', scheduleManualCheck, { passive: true });
 window.addEventListener('resize', scheduleManualCheck);
 window.addEventListener('touchend', scheduleManualCheck);
 
-// integrate with search: when searching, show matches and enqueue matches + neighbors
 function applySearchFilterAndLoad(q){
   const cards = allCardElements;
   if(!q){
     cards.forEach(c => c.style.display = '');
-    // re-observe and schedule normal loading
     observeAllCards();
     scheduleManualCheck();
     return;
@@ -425,12 +403,11 @@ function applySearchFilterAndLoad(q){
   const minIdx = Math.max(0, Math.min(...matches) - neighborsCount);
   const maxIdx = Math.min(cards.length - 1, Math.max(...matches) + neighborsCount);
   for(let i = minIdx; i <= maxIdx; i++) enqueueCard(cards[i]);
-  // scroll first match into view if none visible
   const firstMatchEl = cards[matches[0]];
   if(firstMatchEl) firstMatchEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-/* ---------- Toolbox freeform widgets + fixes (unchanged) ---------- */
+/* ---------- Toolbox ---------- */
 const toolbox = document.getElementById('toolbox');
 const toolboxContent = document.getElementById('toolboxContent');
 const toolboxToggle = document.getElementById('toolboxToggle');
@@ -440,7 +417,6 @@ const dockBtn = document.getElementById('dockBtn');
 
 let toolboxDocked = true;
 
-/* restore toolbox state */
 (function restoreToolbox(){
   try{
     const s = JSON.parse(localStorage.getItem('toolbox_state_v2') || '{}');
@@ -461,7 +437,6 @@ toolboxToggle.addEventListener('click', () => {
   toolbox.classList.contains('hidden') ? toolbox.setAttribute('aria-hidden','true') : toolbox.setAttribute('aria-hidden','false');
 });
 
-/* Close always works, even when undocked */
 toolboxClose.addEventListener('click', (e) => {
   e.stopPropagation();
   toolbox.classList.add('hidden');
@@ -469,7 +444,6 @@ toolboxClose.addEventListener('click', (e) => {
   persistToolboxState();
 });
 
-/* Drag toolbox when undocked (titlebar) */
 (function enableToolboxDrag(){
   let dragging=false, sx=0, sy=0, startLeft=0, startTop=0;
   toolboxTitle.addEventListener('pointerdown', (e) => {
@@ -498,19 +472,16 @@ toolboxClose.addEventListener('click', (e) => {
   });
 })();
 
-/* Dock toggle: now reliably toggles back and forth and persists */
 dockBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   toolboxDocked = !toolboxDocked;
   if(toolboxDocked){
-    // dock to bottom-right
     toolbox.style.left = 'auto';
     toolbox.style.top = 'auto';
     toolbox.style.right = '18px';
     toolbox.style.bottom = '18px';
     dockBtn.textContent = '⇱';
   } else {
-    // undock: keep current rect as starting point
     const rect = toolbox.getBoundingClientRect();
     toolbox.style.left = rect.left + 'px';
     toolbox.style.top = rect.top + 'px';
@@ -521,7 +492,6 @@ dockBtn.addEventListener('click', (e) => {
   persistToolboxState();
 });
 
-/* Persist toolbox size/position */
 function persistToolboxState(){
   try{
     const r = toolbox.getBoundingClientRect();
@@ -533,18 +503,17 @@ function persistToolboxState(){
 toolbox.addEventListener('pointerup', persistToolboxState);
 window.addEventListener('resize', persistToolboxState);
 
-/* ---------- Freeform widget creation: absolute position, draggable and resizable ---------- */
+/* ---------- Freeform widgets ---------- */
 const TOOLBOX_KEY = 'toolbox_items_v2';
 function loadToolboxStore(){ try { return JSON.parse(localStorage.getItem(TOOLBOX_KEY) || '[]'); } catch(e) { return []; } }
 function saveToolboxStore(items){ localStorage.setItem(TOOLBOX_KEY, JSON.stringify(items)); }
-let toolboxItems = loadToolboxStore().map(x => x.file) || []; // if stored as objects, map to file list
+let toolboxItems = loadToolboxStore().map(x => x.file) || [];
 
 function createWidget(file, saved){
   const wrap = document.createElement('div');
   wrap.className = 'widget-wrap';
   wrap.dataset.file = file;
 
-  // default size/position
   const defaultW = 320, defaultH = 200;
   const left = saved?.left ?? 12 + (Math.random()*40|0);
   const top = saved?.top ?? 12 + (Math.random()*40|0);
@@ -575,7 +544,6 @@ function createWidget(file, saved){
   wrap.appendChild(body);
   toolboxContent.appendChild(wrap);
 
-  // load content
   (async function loadIntoWidget(f, container){
     try{
       const r = await fetch(`cards/${f}`);
@@ -584,23 +552,17 @@ function createWidget(file, saved){
       html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
       html = html.replace(/<img\b([^>]*?)>/gi, (m, attrs) => /loading\s*=/.test(attrs) ? `<img${attrs}>` : `<img loading="lazy"${attrs}>`);
       container.innerHTML = html;
-      // after content inserted, adjust content scale to match widget size
       adjustWidgetContentScale(wrap);
     }catch(e){
       container.textContent = 'Failed to load';
     }
   })(file, body);
 
-  // make widget draggable within toolboxContent by titlebar
   enableWidgetDrag(wrap, titlebar);
-
-  // observe resize to persist and adjust content scale
   observeWidgetResize(wrap);
-
   return wrap;
 }
 
-/* Dragging widgets inside toolboxContent */
 function enableWidgetDrag(widget, handle){
   let dragging=false, sx=0, sy=0, startLeft=0, startTop=0;
   handle.addEventListener('pointerdown', (e) => {
@@ -618,9 +580,8 @@ function enableWidgetDrag(widget, handle){
     if(!dragging) return;
     const parentRect = toolboxContent.getBoundingClientRect();
     const dx = e.clientX - sx, dy = e.clientY - sy;
-    let nx = Math.max(-2000, startLeft + dx); // allow moving beyond visible area if desired
+    let nx = Math.max(-2000, startLeft + dx);
     let ny = Math.max(-2000, startTop + dy);
-    // do not forcibly clamp; allow free placement inside canvas (canvas will scroll)
     widget.style.left = nx + 'px';
     widget.style.top = ny + 'px';
   });
@@ -633,7 +594,6 @@ function enableWidgetDrag(widget, handle){
   });
 }
 
-/* ResizeObserver to persist widget sizes and adjust content scale */
 let widgetResizeObserver = null;
 function observeWidgetResize(widget){
   if(!widgetResizeObserver){
@@ -645,30 +605,23 @@ function observeWidgetResize(widget){
     });
   }
   widgetResizeObserver.observe(widget);
-  clampWidget(widget);
 }
 
-/* Adjust content font scale inside widget based on widget width/height */
 function adjustWidgetContentScale(widget){
   try{
     const body = widget.querySelector('.widget-body');
     if(!body) return;
-    // base width for normal scale
     const base = 320;
     const w = widget.offsetWidth || parseFloat(widget.style.width) || base;
     const h = widget.offsetHeight || parseFloat(widget.style.height) || 200;
-    // compute scale primarily from width, but also factor height
     let scale = (w / base);
-    // gentle smoothing and clamp
     scale = Math.max(0.6, Math.min(1.8, scale));
-    // if height is very small, reduce scale
     const heightFactor = Math.max(0.7, Math.min(1.4, h / 180));
     scale = scale * (0.85 + 0.15 * heightFactor);
     widget.style.setProperty('--widget-font-scale', scale.toFixed(3));
   }catch(e){}
 }
 
-/* Persist widget positions/sizes */
 function persistWidgetsState(){
   try{
     const items = [];
@@ -685,7 +638,6 @@ function persistWidgetsState(){
   }catch(e){}
 }
 
-/* Render toolbox from store */
 function renderToolboxPanel(){
   toolboxContent.innerHTML = '';
   const saved = loadToolboxStore();
@@ -703,7 +655,6 @@ function renderToolboxPanel(){
   }
 }
 
-/* Add / remove widgets */
 function addToToolbox(file){
   if(toolboxItems.includes(file)){ openToolbox(); return; }
   toolboxItems.unshift(file);
@@ -718,34 +669,40 @@ function removeFromToolbox(file){
 }
 function openToolbox(){ toolbox.classList.remove('hidden'); toolbox.setAttribute('aria-hidden','false'); }
 
-/* ---------- Palette handling ---------- */
+/* ---------- SIMPLIFIED Palette handling ---------- */
 document.getElementById('paletteToggle').addEventListener('click', () => {
   const p = document.getElementById('palettePanel');
   p.classList.toggle('open');
   p.classList.contains('open') ? p.setAttribute('aria-hidden','false') : p.setAttribute('aria-hidden','true');
 });
+
 document.querySelectorAll('.palette-color').forEach(c => {
   c.addEventListener('click', () => {
     document.querySelectorAll('.palette-color').forEach(x => x.classList.remove('active'));
     c.classList.add('active');
     const col = c.dataset.accent;
-    applyAccent(col);
+    document.documentElement.style.setProperty('--accent', col);
     localStorage.setItem('accent', col);
   });
 });
 
-/* Theme background handling - FIXED VERSION */
+/* SIMPLIFIED Theme background handling - This should work */
 document.querySelectorAll('.theme-bg').forEach(t => {
   t.addEventListener('click', () => {
-    console.log('Theme button clicked');
     document.querySelectorAll('.theme-bg').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     const bg1 = t.dataset.bg1;
     const bg2 = t.dataset.bg2;
     const cardGrad1 = t.dataset.cardGrad1;
     const cardGrad2 = t.dataset.cardGrad2;
-    console.log('Setting background:', bg1, bg2);
-    applyBackground(bg1, bg2, cardGrad1, cardGrad2);
+    
+    // Set the CSS variables
+    document.documentElement.style.setProperty('--bg-1', bg1);
+    document.documentElement.style.setProperty('--bg-2', bg2);
+    document.documentElement.style.setProperty('--card-grad-1', cardGrad1);
+    document.documentElement.style.setProperty('--card-grad-2', cardGrad2);
+    
+    // Save to localStorage
     localStorage.setItem('bg1', bg1);
     localStorage.setItem('bg2', bg2);
     localStorage.setItem('cardGrad1', cardGrad1);
@@ -753,45 +710,11 @@ document.querySelectorAll('.theme-bg').forEach(t => {
   });
 });
 
-function applyAccent(hex){
-  document.documentElement.style.setProperty('--accent', hex);
-  const rgb = hexToRgb(hex);
-  if(rgb){
-    document.documentElement.style.setProperty('--glass', `rgba(${rgb.r},${rgb.g},${rgb.b},0.06)`);
-    // Only update card gradients if they haven't been set by a background theme
-    const savedCardGrad1 = localStorage.getItem('cardGrad1');
-    const savedCardGrad2 = localStorage.getItem('cardGrad2');
-    if(!savedCardGrad1 && !savedCardGrad2) {
-      document.documentElement.style.setProperty('--card-grad-1', `rgba(${Math.min(255,rgb.r+18)},${Math.min(255,rgb.g+18)},${Math.min(255,rgb.b+18)},0.02)`);
-      document.documentElement.style.setProperty('--card-grad-2', `rgba(${Math.min(255,rgb.r+36)},${Math.min(255,rgb.g+36)},${Math.min(255,rgb.b+36)},0.04)`);
-    }
-  }
-}
-
-function applyBackground(bg1, bg2, cardGrad1, cardGrad2) {
-  console.log('Applying background colors:', bg1, bg2);
-  // Set CSS variables
-  document.documentElement.style.setProperty('--bg-1', bg1);
-  document.documentElement.style.setProperty('--bg-2', bg2);
-  
-  // Also directly set the background on body and html elements
-  document.body.style.background = `linear-gradient(135deg, ${bg1}, ${bg2})`;
-  document.documentElement.style.background = `linear-gradient(135deg, ${bg1}, ${bg2})`;
-  
-  if(cardGrad1) document.documentElement.style.setProperty('--card-grad-1', cardGrad1);
-  if(cardGrad2) document.documentElement.style.setProperty('--card-grad-2', cardGrad2);
-}
-
-function hexToRgb(hex){
-  try{ hex = hex.replace('#',''); if(hex.length===3) hex = hex.split('').map(c=>c+c).join(''); const n = parseInt(hex,16); return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 }; }catch(e){ return null; }
-}
-
 /* Restore saved colors */
 if(localStorage.getItem('accent')){
   const saved = localStorage.getItem('accent');
   document.documentElement.style.setProperty('--accent', saved);
   document.querySelector(`.palette-color[data-accent="${saved}"]`)?.classList.add('active');
-  applyAccent(saved);
 }
 
 // Restore saved background theme
@@ -800,9 +723,12 @@ if(localStorage.getItem('bg1') && localStorage.getItem('bg2')) {
   const savedBg2 = localStorage.getItem('bg2');
   const savedCardGrad1 = localStorage.getItem('cardGrad1');
   const savedCardGrad2 = localStorage.getItem('cardGrad2');
-  console.log('Restoring saved background:', savedBg1, savedBg2);
-  applyBackground(savedBg1, savedBg2, savedCardGrad1, savedCardGrad2);
-  // Activate the matching theme button if it exists
+  
+  document.documentElement.style.setProperty('--bg-1', savedBg1);
+  document.documentElement.style.setProperty('--bg-2', savedBg2);
+  document.documentElement.style.setProperty('--card-grad-1', savedCardGrad1);
+  document.documentElement.style.setProperty('--card-grad-2', savedCardGrad2);
+  
   const matchingTheme = document.querySelector(`.theme-bg[data-bg-1="${savedBg1}"][data-bg-2="${savedBg2}"]`);
   if(matchingTheme) {
     document.querySelectorAll('.theme-bg').forEach(x => x.classList.remove('active'));
@@ -832,7 +758,6 @@ document.getElementById('sortAlphaBtn').addEventListener('click', () => {
   nodes.sort((a,b) => a.dataset.name.localeCompare(b.dataset.name, undefined, {sensitivity:'base', numeric:true}));
   nodes.forEach(n => grid.appendChild(n));
   allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
-  // re-observe and schedule load
   observeAllCards();
   scheduleManualCheck();
 });
@@ -858,7 +783,7 @@ function revealCards(){
 /* ---------- Sortable ---------- */
 new Sortable(document.getElementById('gridContainer'), { animation: 150 });
 
-/* ---------- Load dashboard and initialize loader ---------- */
+/* ---------- Load dashboard ---------- */
 async function loadDashboard(){
   const { owner, repo } = parseOwnerRepo(DEFAULT_REPO);
   try{
@@ -869,12 +794,10 @@ async function loadDashboard(){
     filesList.forEach(f => grid.appendChild(createCardElement(f)));
     allCardElements = Array.from(document.querySelectorAll('#gridContainer .card'));
     document.getElementById('status').textContent = `${filesList.length} tools loaded`;
-    // initial observation and batch
     observeAllCards();
     scheduleManualCheck();
     setTimeout(revealCards, 200);
 
-    // restore toolbox pinned items
     const saved = loadToolboxStore();
     if(Array.isArray(saved) && saved.length && saved[0].file){
       toolboxItems = saved.map(x => x.file);
