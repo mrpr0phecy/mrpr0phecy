@@ -1,59 +1,577 @@
-<h2 id="birthday-title" style="margin-top:0;">Birthday Reminder</h2>
+<h2 id="birthday-title" style="margin-top:0; color: #e91e63; border-bottom: 2px solid #ff80ab; padding-bottom: 8px;">
+  <i class="fas fa-birthday-cake"></i> Birthday Reminder
+</h2>
 
-<form aria-describedby="birthday-desc">
-  <p id="birthday-desc" class="small">Keep track of birthdays so you never forget.</p>
+<form aria-describedby="birthday-desc" style="background: #fff5f7; padding: 20px; border-radius: 8px; border: 1px solid #ffc1cc;">
+  <p id="birthday-desc" class="small" style="margin-bottom: 15px; color: #880e4f;">
+    <i class="fas fa-bell"></i> Never miss a birthday! Add reminders and get notified of upcoming birthdays.
+    <span id="upcoming-count" style="display: none; margin-left: 10px; background: #f8bbd9; padding: 2px 8px; border-radius: 10px; font-size: 0.85em;"></span>
+  </p>
 
-  <div class="row">
+  <div class="row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
     <div class="field">
-      <label for="birthday-name">Name</label>
-      <input id="birthday-name" type="text" placeholder="e.g. Sarah" />
+      <label for="birthday-name" style="display: block; margin-bottom: 5px; font-weight: 600; color: #880e4f;">
+        <i class="fas fa-user"></i> Name *
+      </label>
+      <input id="birthday-name" type="text" placeholder="e.g. Sarah Johnson" 
+             style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #f48fb1;" />
     </div>
+    
     <div class="field">
-      <label for="birthday-date">Date</label>
-      <input id="birthday-date" type="date" />
+      <label for="birthday-date" style="display: block; margin-bottom: 5px; font-weight: 600; color: #880e4f;">
+        <i class="fas fa-calendar-alt"></i> Date *
+      </label>
+      <input id="birthday-date" type="date" 
+             style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #f48fb1;" 
+             min="1900-01-01" max="2100-12-31" />
+      <small style="color: #ad1457; display: block; margin-top: 4px;">
+        Next birthday: <span id="next-birthday-display">--</span>
+      </small>
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="birthdayAdd(this)">Add Birthday</button>
-    <button type="button" class="secondary" onclick="birthdayReset(this)">Reset</button>
+  <div class="row" style="margin-bottom: 15px;">
+    <div class="field">
+      <label for="birthday-notes" style="display: block; margin-bottom: 5px; font-weight: 600; color: #880e4f;">
+        <i class="fas fa-sticky-note"></i> Notes (Optional)
+      </label>
+      <input id="birthday-notes" type="text" placeholder="e.g. Loves chocolate cake, gift ideas, etc." 
+             style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #f48fb1;" />
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top: 20px; display: flex; gap: 10px;">
+    <button type="button" onclick="birthdayAdd(this)" 
+            style="flex: 1; padding: 12px; background: linear-gradient(135deg, #e91e63, #f06292); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; transition: transform 0.2s;">
+      <i class="fas fa-plus-circle"></i> Add Birthday
+    </button>
+    <button type="button" class="secondary" onclick="birthdayReset(this)" 
+            style="flex: 1; padding: 12px; background: #fce4ec; color: #880e4f; border: 1px solid #f48fb1; border-radius: 4px; cursor: pointer; font-weight: 600;">
+      <i class="fas fa-redo"></i> Reset All
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <h3 class="small">Upcoming Birthdays</h3>
-  <ul id="birthday-list" class="small"></ul>
+<div class="results" aria-live="polite" style="margin-top: 25px; background: #fff; border-radius: 8px; padding: 20px; border: 1px solid #ffc1cc;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+    <h3 class="small" style="margin: 0; color: #880e4f; font-size: 1.1em;">
+      <i class="fas fa-birthday-cake"></i> Upcoming Birthdays
+      <span id="upcoming-birthdays-count" style="background: #f8bbd9; padding: 2px 8px; border-radius: 10px; font-size: 0.9em; margin-left: 8px;">0</span>
+    </h3>
+    
+    <div style="display: flex; gap: 8px;">
+      <button type="button" onclick="sortBirthdays('date')" 
+              style="padding: 6px 12px; background: #fce4ec; color: #880e4f; border: 1px solid #f48fb1; border-radius: 4px; cursor: pointer; font-size: 0.9em;">
+        <i class="fas fa-sort-amount-down"></i> Sort
+      </button>
+      <button type="button" onclick="copyBirthdayList()" 
+              style="padding: 6px 12px; background: linear-gradient(135deg, #e91e63, #f06292); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em;">
+        <i class="far fa-copy"></i> Copy List
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter and search -->
+  <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+    <input type="text" id="birthday-search" placeholder="Search names..." 
+           style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #f48fb1;" 
+           onkeyup="filterBirthdays()" />
+    <select id="birthday-filter" onchange="filterBirthdays()" 
+            style="padding: 8px; border-radius: 4px; border: 1px solid #f48fb1; background: white;">
+      <option value="all">All Birthdays</option>
+      <option value="upcoming">Upcoming (Next 30 days)</option>
+      <option value="past">Past Birthdays</option>
+      <option value="this-month">This Month</option>
+      <option value="next-month">Next Month</option>
+    </select>
+  </div>
+
+  <!-- Empty state -->
+  <div id="birthday-empty" style="text-align: center; padding: 30px; color: #ad1457;">
+    <i class="fas fa-birthday-cake" style="font-size: 2em; margin-bottom: 10px; opacity: 0.5;"></i>
+    <p>No birthdays added yet. Add your first birthday above!</p>
+  </div>
+
+  <!-- Birthday list -->
+  <ul id="birthday-list" class="small" style="list-style: none; padding: 0; margin: 0; display: none;"></ul>
+  
+  <!-- Stats -->
+  <div id="birthday-stats" style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #f48fb1; color: #ad1457; font-size: 0.9em; display: none;">
+    <div style="display: flex; justify-content: space-between;">
+      <span><i class="fas fa-users"></i> Total: <span id="total-count">0</span></span>
+      <span><i class="fas fa-calendar-check"></i> Upcoming: <span id="upcoming-count-display">0</span></span>
+      <span><i class="fas fa-birthday-cake"></i> This month: <span id="month-count">0</span></span>
+    </div>
+  </div>
 </div>
 
 <script>
-let birthdayReminders = [];
+// Birthday data with enhanced properties
+let birthdayReminders = JSON.parse(localStorage.getItem('birthdayReminders')) || [];
 
-function birthdayAdd(btn) {
-  const card = btn.closest('.card');
-  const name = card.querySelector('#birthday-name').value.trim();
-  const date = card.querySelector('#birthday-date').value;
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Load saved birthdays
+  renderBirthdays();
+  
+  // Set date input to today for convenience
+  document.getElementById('birthday-date').valueAsDate = new Date();
+  
+  // Update next birthday display
+  updateNextBirthdayDisplay();
+  
+  // Add event listener for date change
+  document.getElementById('birthday-date').addEventListener('change', updateNextBirthdayDisplay);
+});
 
-  if (!name || !date) return;
-
-  birthdayReminders.push({ name, date });
-  renderBirthdays(card);
-  card.querySelector('form').reset();
+// Calculate next birthday from selected date
+function updateNextBirthdayDisplay() {
+  const dateInput = document.getElementById('birthday-date');
+  const displaySpan = document.getElementById('next-birthday-display');
+  
+  if (!dateInput.value) {
+    displaySpan.textContent = '--';
+    return;
+  }
+  
+  const selectedDate = new Date(dateInput.value);
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  
+  // Set birthday to current year
+  let nextBirthday = new Date(selectedDate);
+  nextBirthday.setFullYear(currentYear);
+  
+  // If birthday has already passed this year, set to next year
+  if (nextBirthday < today) {
+    nextBirthday.setFullYear(currentYear + 1);
+  }
+  
+  // Format date
+  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  displaySpan.textContent = nextBirthday.toLocaleDateString('en-US', options);
 }
 
-function renderBirthdays(card) {
-  const list = card.querySelector('#birthday-list');
-  list.innerHTML = "";
-  birthdayReminders.forEach(b => {
+// Add new birthday
+function birthdayAdd(btn) {
+  const card = btn.closest('.card');
+  const name = document.getElementById('birthday-name').value.trim();
+  const date = document.getElementById('birthday-date').value;
+  const notes = document.getElementById('birthday-notes').value.trim();
+
+  if (!name || !date) {
+    showNotification('Please fill in name and date', 'error');
+    return;
+  }
+
+  // Create unique ID for each birthday
+  const id = Date.now().toString();
+  
+  // Add to array
+  birthdayReminders.push({ 
+    id, 
+    name, 
+    date, 
+    notes,
+    added: new Date().toISOString().split('T')[0]
+  });
+  
+  // Save to localStorage
+  saveBirthdays();
+  
+  // Show success notification
+  showNotification(`Added birthday for ${name}`, 'success');
+  
+  // Render updated list
+  renderBirthdays();
+  
+  // Reset form
+  document.getElementById('birthday-name').value = '';
+  document.getElementById('birthday-date').valueAsDate = new Date();
+  document.getElementById('birthday-notes').value = '';
+  
+  // Focus back on name field
+  document.getElementById('birthday-name').focus();
+}
+
+// Save birthdays to localStorage
+function saveBirthdays() {
+  localStorage.setItem('birthdayReminders', JSON.stringify(birthdayReminders));
+}
+
+// Render birthday list with enhanced display
+function renderBirthdays() {
+  const list = document.getElementById('birthday-list');
+  const emptyState = document.getElementById('birthday-empty');
+  const stats = document.getElementById('birthday-stats');
+  
+  if (birthdayReminders.length === 0) {
+    list.style.display = 'none';
+    emptyState.style.display = 'block';
+    stats.style.display = 'none';
+    document.getElementById('upcoming-birthdays-count').textContent = '0';
+    return;
+  }
+  
+  // Clear list
+  list.innerHTML = '';
+  
+  // Sort by next upcoming birthday
+  const sortedBirthdays = sortBirthdaysByUpcoming([...birthdayReminders]);
+  
+  // Count stats
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  const upcomingCount = sortedBirthdays.filter(b => {
+    const nextBday = getNextBirthday(new Date(b.date));
+    const diffDays = Math.ceil((nextBday - today) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 30;
+  }).length;
+  
+  const monthCount = sortedBirthdays.filter(b => {
+    const bdayDate = new Date(b.date);
+    return bdayDate.getMonth() === currentMonth;
+  }).length;
+  
+  // Update stats
+  document.getElementById('total-count').textContent = birthdayReminders.length;
+  document.getElementById('upcoming-count-display').textContent = upcomingCount;
+  document.getElementById('month-count').textContent = monthCount;
+  document.getElementById('upcoming-birthdays-count').textContent = upcomingCount;
+  
+  // Render each birthday
+  sortedBirthdays.forEach(birthday => {
     const li = document.createElement('li');
-    li.textContent = b.date + " — " + b.name;
+    li.dataset.id = birthday.id;
+    
+    // Calculate days until next birthday
+    const today = new Date();
+    const nextBirthday = getNextBirthday(new Date(birthday.date));
+    const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+    
+    // Determine styling based on how soon the birthday is
+    let badgeClass = 'days-away';
+    let badgeText = `${daysUntil} days`;
+    
+    if (daysUntil < 0) {
+      badgeClass = 'past';
+      badgeText = 'Past';
+    } else if (daysUntil === 0) {
+      badgeClass = 'today';
+      badgeText = 'Today!';
+    } else if (daysUntil === 1) {
+      badgeClass = 'tomorrow';
+      badgeText = 'Tomorrow';
+    } else if (daysUntil <= 7) {
+      badgeClass = 'this-week';
+      badgeText = `${daysUntil} days`;
+    } else if (daysUntil <= 30) {
+      badgeClass = 'this-month';
+      badgeText = `${daysUntil} days`;
+    }
+    
+    // Format date nicely
+    const dateObj = new Date(birthday.date);
+    const formattedDate = dateObj.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+    
+    // Calculate age for next birthday
+    const birthDate = new Date(birthday.date);
+    const age = nextBirthday.getFullYear() - birthDate.getFullYear();
+    
+    li.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: ${daysUntil === 0 ? '#fff3e0' : '#fce4ec'}; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid ${daysUntil === 0 ? '#ff9800' : '#e91e63'};">
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #880e4f; margin-bottom: 4px;">
+            ${birthday.name} 
+            ${daysUntil === 0 ? '<i class="fas fa-gift" style="margin-left: 5px; color: #ff9800;"></i>' : ''}
+          </div>
+          <div style="color: #ad1457; font-size: 0.9em; margin-bottom: 4px;">
+            <i class="far fa-calendar"></i> ${formattedDate}
+            ${birthday.notes ? `<span style="margin-left: 10px;"><i class="fas fa-sticky-note"></i> ${birthday.notes}</span>` : ''}
+          </div>
+          <div style="color: #888; font-size: 0.85em;">
+            <i class="fas fa-birthday-cake"></i> Turns ${age} in ${nextBirthday.getFullYear()} • Added: ${new Date(birthday.added).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </div>
+        </div>
+        <div style="margin-left: 15px; text-align: center;">
+          <div class="badge ${badgeClass}" style="background: ${getBadgeColor(badgeClass)}; color: white; padding: 6px 10px; border-radius: 20px; font-weight: 600; font-size: 0.85em; min-width: 80px;">
+            ${badgeText}
+          </div>
+          <button onclick="deleteBirthday('${birthday.id}')" style="margin-top: 5px; padding: 4px 8px; background: transparent; color: #f48fb1; border: 1px solid #f48fb1; border-radius: 4px; cursor: pointer; font-size: 0.8em; width: 100%;">
+            <i class="fas fa-trash"></i> Remove
+          </button>
+        </div>
+      </div>
+    `;
+    
     list.appendChild(li);
+  });
+  
+  // Show list and stats, hide empty state
+  list.style.display = 'block';
+  emptyState.style.display = 'none';
+  stats.style.display = 'flex';
+  
+  // Apply current filter
+  filterBirthdays();
+}
+
+// Helper function to get badge color
+function getBadgeColor(badgeClass) {
+  const colors = {
+    'today': '#ff9800',
+    'tomorrow': '#9c27b0',
+    'this-week': '#e91e63',
+    'this-month': '#f06292',
+    'days-away': '#ad1457',
+    'past': '#bdbdbd'
+  };
+  return colors[badgeClass] || '#ad1457';
+}
+
+// Calculate next birthday from a date
+function getNextBirthday(birthDate) {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  
+  // Set birthday to current year
+  let nextBirthday = new Date(birthDate);
+  nextBirthday.setFullYear(currentYear);
+  
+  // If birthday has already passed this year, set to next year
+  if (nextBirthday < today) {
+    nextBirthday.setFullYear(currentYear + 1);
+  }
+  
+  return nextBirthday;
+}
+
+// Sort birthdays by upcoming date
+function sortBirthdaysByUpcoming(birthdays) {
+  return birthdays.sort((a, b) => {
+    const nextA = getNextBirthday(new Date(a.date));
+    const nextB = getNextBirthday(new Date(b.date));
+    return nextA - nextB;
   });
 }
 
+// Sort birthdays by different criteria
+function sortBirthdays(criteria) {
+  if (criteria === 'date') {
+    // Toggle between ascending and descending
+    const currentSort = document.getElementById('birthday-list').dataset.sort || 'asc';
+    const newSort = currentSort === 'asc' ? 'desc' : 'asc';
+    
+    birthdayReminders.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      
+      // Compare months and days (ignore year)
+      const monthDayA = (dateA.getMonth() * 100) + dateA.getDate();
+      const monthDayB = (dateB.getMonth() * 100) + dateB.getDate();
+      
+      return newSort === 'asc' ? monthDayA - monthDayB : monthDayB - monthDayA;
+    });
+    
+    document.getElementById('birthday-list').dataset.sort = newSort;
+    renderBirthdays();
+    
+    showNotification(`Sorted by date (${newSort === 'asc' ? 'soonest first' : 'latest first'})`, 'info');
+  }
+}
+
+// Filter birthdays based on search and filter criteria
+function filterBirthdays() {
+  const searchTerm = document.getElementById('birthday-search').value.toLowerCase();
+  const filterValue = document.getElementById('birthday-filter').value;
+  const today = new Date();
+  
+  const listItems = document.querySelectorAll('#birthday-list li');
+  let visibleCount = 0;
+  
+  listItems.forEach(item => {
+    const name = item.querySelector('div > div:first-child').textContent.toLowerCase();
+    const daysBadge = item.querySelector('.badge').textContent.toLowerCase();
+    const id = item.dataset.id;
+    const birthday = birthdayReminders.find(b => b.id === id);
+    
+    let shouldShow = true;
+    
+    // Apply search filter
+    if (searchTerm && !name.includes(searchTerm)) {
+      shouldShow = false;
+    }
+    
+    // Apply category filter
+    if (shouldShow && filterValue !== 'all') {
+      const nextBirthday = getNextBirthday(new Date(birthday.date));
+      const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+      const birthMonth = new Date(birthday.date).getMonth();
+      const currentMonth = today.getMonth();
+      
+      switch(filterValue) {
+        case 'upcoming':
+          shouldShow = daysUntil >= 0 && daysUntil <= 30;
+          break;
+        case 'past':
+          shouldShow = daysUntil < 0;
+          break;
+        case 'this-month':
+          shouldShow = birthMonth === currentMonth;
+          break;
+        case 'next-month':
+          const nextMonth = (currentMonth + 1) % 12;
+          shouldShow = birthMonth === nextMonth;
+          break;
+      }
+    }
+    
+    item.style.display = shouldShow ? 'block' : 'none';
+    if (shouldShow) visibleCount++;
+  });
+  
+  // Update count display
+  document.getElementById('upcoming-birthdays-count').textContent = visibleCount;
+}
+
+// Delete a birthday
+function deleteBirthday(id) {
+  if (confirm('Are you sure you want to remove this birthday?')) {
+    birthdayReminders = birthdayReminders.filter(b => b.id !== id);
+    saveBirthdays();
+    renderBirthdays();
+    showNotification('Birthday removed', 'info');
+  }
+}
+
+// Copy birthday list to clipboard
+function copyBirthdayList() {
+  if (birthdayReminders.length === 0) {
+    showNotification('No birthdays to copy', 'error');
+    return;
+  }
+  
+  let textToCopy = '🎂 BIRTHDAY LIST 🎂\n\n';
+  const today = new Date();
+  
+  // Sort by upcoming
+  const sorted = sortBirthdaysByUpcoming([...birthdayReminders]);
+  
+  sorted.forEach((b, index) => {
+    const nextBirthday = getNextBirthday(new Date(b.date));
+    const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+    const formattedDate = new Date(b.date).toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric'
+    });
+    
+    const age = nextBirthday.getFullYear() - new Date(b.date).getFullYear();
+    
+    let status = '';
+    if (daysUntil === 0) status = '🎁 TODAY!';
+    else if (daysUntil === 1) status = '📅 Tomorrow';
+    else if (daysUntil <= 7) status = `📅 In ${daysUntil} days`;
+    else if (daysUntil <= 30) status = `📅 In ${daysUntil} days`;
+    else if (daysUntil > 30) status = `📅 In ${daysUntil} days`;
+    else status = '🗓️ Past';
+    
+    textToCopy += `${index + 1}. ${b.name}\n`;
+    textToCopy += `   Date: ${formattedDate}\n`;
+    textToCopy += `   Next: ${nextBirthday.getFullYear()} (turns ${age})\n`;
+    textToCopy += `   Status: ${status}\n`;
+    if (b.notes) textToCopy += `   Notes: ${b.notes}\n`;
+    textToCopy += '\n';
+  });
+  
+  textToCopy += `\nTotal: ${birthdayReminders.length} birthdays`;
+  
+  // Use Clipboard API
+  navigator.clipboard.writeText(textToCopy).then(() => {
+    showNotification('Birthday list copied to clipboard!', 'success');
+  }).catch(err => {
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = textToCopy;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    showNotification('Birthday list copied to clipboard!', 'success');
+  });
+}
+
+// Reset all birthdays
 function birthdayReset(btn) {
-  const card = btn.closest('.card');
-  birthdayReminders = [];
-  card.querySelector('form').reset();
-  card.querySelector('#birthday-list').innerHTML = "";
+  if (birthdayReminders.length === 0) {
+    showNotification('No birthdays to reset', 'info');
+    return;
+  }
+  
+  if (confirm('Are you sure you want to clear ALL birthdays? This cannot be undone.')) {
+    birthdayReminders = [];
+    localStorage.removeItem('birthdayReminders');
+    renderBirthdays();
+    showNotification('All birthdays cleared', 'info');
+  }
+}
+
+// Show notification
+function showNotification(message, type) {
+  // Remove existing notification
+  const existingNotification = document.querySelector('.birthday-notification');
+  if (existingNotification) {
+    existingNotification.remove();
+  }
+  
+  // Create new notification
+  const notification = document.createElement('div');
+  notification.className = `birthday-notification ${type}`;
+  notification.innerHTML = `
+    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+    ${message}
+  `;
+  
+  // Style the notification
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: ${type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : '#2196f3'};
+    color: white;
+    padding: 12px 20px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 350px;
+  `;
+  
+  // Add CSS for animation
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  document.body.appendChild(notification);
+  
+  // Auto-remove after 3 seconds
+  setTimeout(() => {
+    notification.style.animation = 'slideIn 0.3s ease reverse';
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
 }
 </script>
+
+<!-- Add Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
