@@ -1,12 +1,12 @@
 <h2 id="calorie-title" style="margin-top:0;">Calorie Calculator</h2>
 
 <form aria-describedby="calorie-desc">
-  <p id="calorie-desc" class="small">Estimate daily calorie needs based on age, gender, height, weight, and activity level.</p>
+  <p id="calorie-desc" class="small">Estimate daily calorie needs based on age, gender, height, weight, and activity level. Set weight goals for detailed analysis.</p>
 
   <div class="row">
     <div class="field">
       <label for="calorie-age">Age</label>
-      <input id="calorie-age" type="number" min="1" value="30" />
+      <input id="calorie-age" type="number" min="1" max="120" value="30" />
     </div>
     <div class="field">
       <label for="calorie-gender">Gender</label>
@@ -20,46 +20,162 @@
   <div class="row">
     <div class="field">
       <label for="calorie-height">Height (cm)</label>
-      <input id="calorie-height" type="number" value="175" />
+      <input id="calorie-height" type="number" min="50" max="250" value="175" />
+      <div class="small" style="margin-top:2px;">
+        <span id="calorie-height-ft">(5'9")</span>
+      </div>
     </div>
     <div class="field">
       <label for="calorie-weight">Weight (kg)</label>
-      <input id="calorie-weight" type="number" value="70" />
+      <input id="calorie-weight" type="number" min="20" max="300" value="70" />
+      <div class="small" style="margin-top:2px;">
+        <span id="calorie-weight-lbs">(154.3 lbs)</span>
+      </div>
     </div>
   </div>
 
   <div class="field">
     <label for="calorie-activity">Activity level</label>
     <select id="calorie-activity">
-      <option value="1.2">Sedentary</option>
-      <option value="1.375">Lightly active</option>
-      <option value="1.55" selected>Moderately active</option>
-      <option value="1.725">Very active</option>
-      <option value="1.9">Extra active</option>
+      <option value="1.2">Sedentary (little or no exercise)</option>
+      <option value="1.375">Lightly active (light exercise 1-3 days/week)</option>
+      <option value="1.55" selected>Moderately active (moderate exercise 3-5 days/week)</option>
+      <option value="1.725">Very active (hard exercise 6-7 days/week)</option>
+      <option value="1.9">Extra active (very hard exercise & physical job)</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="calorie-goal">Weight goal</label>
+    <select id="calorie-goal">
+      <option value="0">Maintain weight</option>
+      <option value="-500">Lose weight (0.5 kg/week)</option>
+      <option value="-1000">Lose weight (1 kg/week)</option>
+      <option value="250">Gain weight (0.25 kg/week)</option>
+      <option value="500">Gain weight (0.5 kg/week)</option>
     </select>
   </div>
 
   <div class="actions">
     <button type="button" onclick="calorieCalc(this)">Calculate</button>
     <button type="button" class="secondary" onclick="calorieReset(this)">Reset</button>
+    <button type="button" onclick="calorieSaveProfile(this)" style="background:#6f42c1;">Save Profile</button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
+<div class="results" aria-live="polite" style="margin-top:20px;">
   <div class="result">
-    <div class="label">Daily calories</div>
-    <div class="value" id="calorie-res">–</div>
+    <div class="label">Basal Metabolic Rate (BMR)</div>
+    <div class="value" id="calorie-bmr">–</div>
+  </div>
+  <div class="result">
+    <div class="label">Daily Maintenance Calories</div>
+    <div class="value" id="calorie-maintenance">–</div>
+  </div>
+  <div class="result">
+    <div class="label">Daily Target Calories</div>
+    <div class="value" id="calorie-target">–</div>
+  </div>
+  <div class="result">
+    <div class="label">Weekly Goal</div>
+    <div class="value" id="calorie-weekly-goal">–</div>
   </div>
 </div>
 
+<div id="calorie-macros" style="margin-top:20px; display:none;">
+  <h4 class="small">Recommended Macronutrients</h4>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:10px;">
+    <div style="background:#e3f2fd; padding:10px; border-radius:6px; border-left:4px solid #2196f3;">
+      <div class="small"><strong>Protein</strong></div>
+      <div style="font-size:1.2em; font-weight:bold;" id="calorie-protein">– g</div>
+      <div class="small" style="opacity:0.7;" id="calorie-protein-kcal">– kcal</div>
+    </div>
+    <div style="background:#f3e5f5; padding:10px; border-radius:6px; border-left:4px solid #9c27b0;">
+      <div class="small"><strong>Carbs</strong></div>
+      <div style="font-size:1.2em; font-weight:bold;" id="calorie-carbs">– g</div>
+      <div class="small" style="opacity:0.7;" id="calorie-carbs-kcal">– kcal</div>
+    </div>
+    <div style="background:#e8f5e9; padding:10px; border-radius:6px; border-left:4px solid #4caf50;">
+      <div class="label"><strong>Fat</strong></div>
+      <div style="font-size:1.2em; font-weight:bold;" id="calorie-fat">– g</div>
+      <div class="small" style="opacity:0.7;" id="calorie-fat-kcal">– kcal</div>
+    </div>
+  </div>
+</div>
+
+<div id="calorie-profiles" style="margin-top:20px; display:none;">
+  <h4 class="small">Saved Profiles</h4>
+  <div id="calorie-profiles-list" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+</div>
+
 <details class="small" style="margin-top:12px;">
-  <summary>How it works</summary>
-  <p>
-    Uses the Mifflin‑St Jeor equation to estimate Basal Metabolic Rate (BMR), then multiplies by activity factor.
-  </p>
+  <summary>How it works & Nutrition Tips</summary>
+  <div style="padding:8px 0;">
+    <p><strong>Formula:</strong> Uses Mifflin-St Jeor equation for BMR:<br>
+    Men: BMR = 10 × weight(kg) + 6.25 × height(cm) - 5 × age(y) + 5<br>
+    Women: BMR = 10 × weight(kg) + 6.25 × height(cm) - 5 × age(y) - 161</p>
+    
+    <p><strong>Nutrition Tips:</strong></p>
+    <ul style="margin:8px 0 8px 16px;">
+      <li>Protein: 1.6-2.2 g/kg for muscle maintenance/growth</li>
+      <li>Carbs: 3-5 g/kg for active individuals</li>
+      <li>Fat: 0.8-1 g/kg for hormone function</li>
+      <li>Stay hydrated: 35 ml/kg body weight daily</li>
+      <li>Include fiber: 25-30g daily for digestive health</li>
+    </ul>
+    
+    <p><strong>Note:</strong> Consult healthcare professional for personalized advice.</p>
+  </div>
 </details>
 
 <script>
+/* Enhanced Calorie Calculator
+   - More accurate calculations
+   - Weight goal planning
+   - Macronutrient breakdown
+   - Profile saving
+   - Unit conversions
+*/
+
+let calorieProfiles = JSON.parse(localStorage.getItem('calorieProfiles') || '[]');
+
+// Initialize unit converters
+document.addEventListener('DOMContentLoaded', function() {
+  // Height converter
+  const heightInput = document.getElementById('calorie-height');
+  const heightDisplay = document.getElementById('calorie-height-ft');
+  
+  if(heightInput && heightDisplay) {
+    heightInput.addEventListener('input', function() {
+      const cm = parseFloat(this.value) || 0;
+      if(cm > 0) {
+        const totalInches = cm / 2.54;
+        const feet = Math.floor(totalInches / 12);
+        const inches = Math.round(totalInches % 12);
+        heightDisplay.textContent = `(${feet}'${inches}")`;
+      }
+    });
+    // Trigger initial conversion
+    heightInput.dispatchEvent(new Event('input'));
+  }
+  
+  // Weight converter
+  const weightInput = document.getElementById('calorie-weight');
+  const weightDisplay = document.getElementById('calorie-weight-lbs');
+  
+  if(weightInput && weightDisplay) {
+    weightInput.addEventListener('input', function() {
+      const kg = parseFloat(this.value) || 0;
+      if(kg > 0) {
+        const lbs = (kg * 2.20462).toFixed(1);
+        weightDisplay.textContent = `(${lbs} lbs)`;
+      }
+    });
+    // Trigger initial conversion
+    weightInput.dispatchEvent(new Event('input'));
+  }
+});
+
 function calorieCalc(btn) {
   const card = btn.closest('.card');
   const age = parseInt(card.querySelector('#calorie-age').value) || 0;
@@ -67,18 +183,315 @@ function calorieCalc(btn) {
   const height = parseFloat(card.querySelector('#calorie-height').value) || 0;
   const weight = parseFloat(card.querySelector('#calorie-weight').value) || 0;
   const activity = parseFloat(card.querySelector('#calorie-activity').value) || 1.2;
+  const goal = parseInt(card.querySelector('#calorie-goal').value) || 0;
 
-  // Mifflin-St Jeor BMR
+  // Validate inputs
+  if(age < 1 || age > 120) {
+    showCalorieError(card, "Age must be between 1 and 120");
+    return;
+  }
+  if(height < 50 || height > 250) {
+    showCalorieError(card, "Height must be between 50 and 250 cm");
+    return;
+  }
+  if(weight < 20 || weight > 300) {
+    showCalorieError(card, "Weight must be between 20 and 300 kg");
+    return;
+  }
+
+  // Calculate BMR using Mifflin-St Jeor equation
   let bmr = 10 * weight + 6.25 * height - 5 * age;
   bmr += (gender === 'male') ? 5 : -161;
+  
+  // Calculate TDEE (Total Daily Energy Expenditure)
+  const maintenance = bmr * activity;
+  
+  // Calculate target calories based on goal
+  const target = maintenance + goal;
+  
+  // Calculate weekly weight change
+  const weeklyChangeKgs = (goal * 7) / 7700; // 7700 kcal ≈ 1 kg of fat
+  const weeklyChangeLbs = (weeklyChangeKgs * 2.20462).toFixed(2);
+  
+  // Update results
+  card.querySelector('#calorie-bmr').textContent = Math.round(bmr) + " kcal/day";
+  card.querySelector('#calorie-maintenance').textContent = Math.round(maintenance) + " kcal/day";
+  card.querySelector('#calorie-target').textContent = Math.round(target) + " kcal/day";
+  
+  // Update weekly goal display
+  const weeklyGoal = card.querySelector('#calorie-weekly-goal');
+  if(goal === 0) {
+    weeklyGoal.textContent = "Maintain weight";
+    weeklyGoal.style.color = "";
+  } else if(goal < 0) {
+    weeklyGoal.textContent = `Lose ${Math.abs(weeklyChangeKgs).toFixed(2)} kg (${Math.abs(weeklyChangeLbs)} lbs) per week`;
+    weeklyGoal.style.color = "#2196f3";
+  } else {
+    weeklyGoal.textContent = `Gain ${weeklyChangeKgs.toFixed(2)} kg (${weeklyChangeLbs} lbs) per week`;
+    weeklyGoal.style.color = "#ff9800";
+  }
+  
+  // Calculate and display macronutrients
+  calculateMacronutrients(card, target, weight, goal);
+  
+  // Show macros section
+  card.querySelector('#calorie-macros').style.display = 'block';
+  
+  // Show success message
+  const hint = card.querySelector('#calorie-desc');
+  const originalText = hint.textContent;
+  hint.textContent = "✓ Calculations complete";
+  hint.style.color = "#28a745";
+  setTimeout(() => {
+    hint.textContent = originalText;
+    hint.style.color = "";
+  }, 2000);
+}
 
-  const calories = bmr * activity;
-  card.querySelector('#calorie-res').textContent = Math.round(calories) + " kcal/day";
+function calculateMacronutrients(card, targetCalories, weight, goal) {
+  // Calculate protein based on goal
+  let proteinPerKg;
+  if(goal < 0) {
+    proteinPerKg = 2.2; // Higher protein for weight loss to preserve muscle
+  } else if(goal > 0) {
+    proteinPerKg = 1.8; // Moderate protein for weight gain
+  } else {
+    proteinPerKg = 1.6; // Maintenance protein
+  }
+  
+  const proteinGrams = Math.round(proteinPerKg * weight);
+  const proteinCalories = proteinGrams * 4;
+  
+  // Calculate fat (30% of calories)
+  const fatCalories = targetCalories * 0.3;
+  const fatGrams = Math.round(fatCalories / 9);
+  
+  // Remaining calories for carbs
+  const carbCalories = targetCalories - proteinCalories - fatCalories;
+  const carbGrams = Math.round(carbCalories / 4);
+  
+  // Update macro displays
+  card.querySelector('#calorie-protein').textContent = proteinGrams + " g";
+  card.querySelector('#calorie-protein-kcal').textContent = Math.round(proteinCalories) + " kcal";
+  
+  card.querySelector('#calorie-carbs').textContent = carbGrams + " g";
+  card.querySelector('#calorie-carbs-kcal').textContent = Math.round(carbCalories) + " kcal";
+  
+  card.querySelector('#calorie-fat').textContent = fatGrams + " g";
+  card.querySelector('#calorie-fat-kcal').textContent = Math.round(fatCalories) + " kcal";
+  
+  // Add percentage breakdown
+  const proteinPct = Math.round((proteinCalories / targetCalories) * 100);
+  const carbPct = Math.round((carbCalories / targetCalories) * 100);
+  const fatPct = Math.round((fatCalories / targetCalories) * 100);
+  
+  // Update labels with percentages
+  const proteinLabel = card.querySelector('#calorie-protein').parentElement.querySelector('.small strong');
+  const carbsLabel = card.querySelector('#calorie-carbs').parentElement.querySelector('.small strong');
+  const fatLabel = card.querySelector('#calorie-fat').parentElement.querySelector('.label strong');
+  
+  if(proteinLabel) proteinLabel.textContent = `Protein (${proteinPct}%)`;
+  if(carbsLabel) carbsLabel.textContent = `Carbs (${carbPct}%)`;
+  if(fatLabel) fatLabel.textContent = `Fat (${fatPct}%)`;
 }
 
 function calorieReset(btn) {
   const card = btn.closest('.card');
   card.querySelector('form').reset();
-  card.querySelector('#calorie-res').textContent = '–';
+  
+  // Reset all displays
+  card.querySelector('#calorie-bmr').textContent = '–';
+  card.querySelector('#calorie-maintenance').textContent = '–';
+  card.querySelector('#calorie-target').textContent = '–';
+  card.querySelector('#calorie-weekly-goal').textContent = '–';
+  card.querySelector('#calorie-weekly-goal').style.color = '';
+  
+  // Reset macros
+  card.querySelector('#calorie-protein').textContent = '– g';
+  card.querySelector('#calorie-protein-kcal').textContent = '– kcal';
+  card.querySelector('#calorie-carbs').textContent = '– g';
+  card.querySelector('#calorie-carbs-kcal').textContent = '– kcal';
+  card.querySelector('#calorie-fat').textContent = '– g';
+  card.querySelector('#calorie-fat-kcal').textContent = '– kcal';
+  
+  // Reset labels
+  const proteinLabel = card.querySelector('#calorie-protein').parentElement.querySelector('.small strong');
+  const carbsLabel = card.querySelector('#calorie-carbs').parentElement.querySelector('.small strong');
+  const fatLabel = card.querySelector('#calorie-fat').parentElement.querySelector('.label strong');
+  
+  if(proteinLabel) proteinLabel.textContent = 'Protein';
+  if(carbsLabel) carbsLabel.textContent = 'Carbs';
+  if(fatLabel) fatLabel.textContent = 'Fat';
+  
+  // Hide macros section
+  card.querySelector('#calorie-macros').style.display = 'none';
 }
+
+function calorieSaveProfile(btn) {
+  const card = btn.closest('.card');
+  const name = prompt("Enter a name for this profile (e.g., 'Current Plan', 'Cutting Phase'):");
+  
+  if(!name) return;
+  
+  const profile = {
+    id: Date.now(),
+    name: name,
+    age: card.querySelector('#calorie-age').value,
+    gender: card.querySelector('#calorie-gender').value,
+    height: card.querySelector('#calorie-height').value,
+    weight: card.querySelector('#calorie-weight').value,
+    activity: card.querySelector('#calorie-activity').value,
+    goal: card.querySelector('#calorie-goal').value,
+    timestamp: new Date().toLocaleString()
+  };
+  
+  calorieProfiles.push(profile);
+  localStorage.setItem('calorieProfiles', JSON.stringify(calorieProfiles));
+  
+  // Show profiles section
+  showCalorieProfiles(card);
+  
+  // Show success message
+  const hint = card.querySelector('#calorie-desc');
+  const originalText = hint.textContent;
+  hint.textContent = `✓ Profile "${name}" saved`;
+  hint.style.color = "#28a745";
+  setTimeout(() => {
+    hint.textContent = originalText;
+    hint.style.color = "";
+  }, 2000);
+}
+
+function showCalorieProfiles(card) {
+  const profilesDiv = card.querySelector('#calorie-profiles');
+  const profilesList = card.querySelector('#calorie-profiles-list');
+  
+  if(calorieProfiles.length === 0) {
+    profilesDiv.style.display = 'none';
+    return;
+  }
+  
+  // Clear and rebuild list
+  profilesList.innerHTML = '';
+  
+  // Show last 5 profiles
+  const recentProfiles = calorieProfiles.slice(-5).reverse();
+  
+  recentProfiles.forEach(profile => {
+    const profileDiv = document.createElement('div');
+    profileDiv.style.cssText = 'background:white; padding:8px 12px; border-radius:6px; border:1px solid #dee2e6; cursor:pointer; min-width:120px;';
+    profileDiv.innerHTML = `
+      <div style="font-weight:500;">${profile.name}</div>
+      <div class="small" style="opacity:0.7; margin-top:2px;">${profile.age}y, ${profile.weight}kg</div>
+      <div class="small" style="opacity:0.7;">${profile.timestamp}</div>
+    `;
+    
+    profileDiv.onclick = () => loadCalorieProfile(card, profile);
+    profilesList.appendChild(profileDiv);
+  });
+  
+  profilesDiv.style.display = 'block';
+}
+
+function loadCalorieProfile(card, profile) {
+  card.querySelector('#calorie-age').value = profile.age;
+  card.querySelector('#calorie-gender').value = profile.gender;
+  card.querySelector('#calorie-height').value = profile.height;
+  card.querySelector('#calorie-weight').value = profile.weight;
+  card.querySelector('#calorie-activity').value = profile.activity;
+  card.querySelector('#calorie-goal').value = profile.goal;
+  
+  // Trigger unit conversions
+  card.querySelector('#calorie-height').dispatchEvent(new Event('input'));
+  card.querySelector('#calorie-weight').dispatchEvent(new Event('input'));
+  
+  // Calculate with loaded profile
+  calorieCalc(card.querySelector('[onclick="calorieCalc(this)"]'));
+  
+  // Show success message
+  const hint = card.querySelector('#calorie-desc');
+  const originalText = hint.textContent;
+  hint.textContent = `✓ Profile "${profile.name}" loaded`;
+  hint.style.color = "#28a745";
+  setTimeout(() => {
+    hint.textContent = originalText;
+    hint.style.color = "";
+  }, 1500);
+}
+
+function showCalorieError(card, message) {
+  const hint = card.querySelector('#calorie-desc');
+  const originalText = hint.textContent;
+  hint.textContent = `⚠️ ${message}`;
+  hint.style.color = "#dc3545";
+  setTimeout(() => {
+    hint.textContent = originalText;
+    hint.style.color = "";
+  }, 3000);
+}
+
+// Load saved profiles on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // This would initialize profiles for each card instance
+});
 </script>
+
+<style>
+/* Additional styling for calorie calculator */
+.results .result {
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #4caf50;
+}
+
+.results .result .label {
+  font-weight: 500;
+  color: #495057;
+}
+
+.results .result .value {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #212529;
+  margin-top: 4px;
+}
+
+#calorie-macros div[style*="background:"] {
+  transition: transform 0.2s;
+}
+
+#calorie-macros div[style*="background:"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.actions button {
+  transition: all 0.2s;
+}
+
+.actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#calorie-profiles-list div {
+  transition: all 0.2s;
+}
+
+#calorie-profiles-list div:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  border-color: #4caf50 !important;
+}
+
+select, input {
+  transition: border-color 0.2s;
+}
+
+select:focus, input:focus {
+  border-color: #4caf50 !important;
+  outline: none;
+}
+</style>
