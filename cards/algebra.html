@@ -1,190 +1,383 @@
-<h2 id="algebra-title" style="margin-top:0;">Algebra Solver</h2>
-<form aria-describedby="algebra-desc">
-  <p id="algebra-desc" class="small">Solve basic algebraic equations. Enter an equation in one variable (x), choose the type, and generate the solution step-by-step.</p>
-  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div class="field" style="grid-column:1 / -1;">
-      <label for="alg-equation">Equation</label>
-      <input id="alg-equation" type="text" placeholder="e.g. 2x + 5 = 13, or 3x² - 12 = 0" style="width:100%;" />
+<h2 id="algebra-title">Algebra Solver</h2>
+
+<form id="alg-form" onsubmit="event.preventDefault(); algSolve();">
+  <p class="card-description">Solve algebraic equations instantly. Supports linear, quadratic, and various formats.</p>
+  
+  <div class="input-section">
+    <label for="alg-equation">Equation (use 'x' as variable)</label>
+    <input type="text" id="alg-equation" 
+           placeholder="e.g., 2x + 5 = 13, x² - 4 = 0, 3(x-2) = 2x+1"
+           autocomplete="off"
+           style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#e6faff;font-size:16px;margin:8px 0;">
+    
+    <div class="equation-examples" style="margin:8px 0 16px;color:rgba(230,250,255,0.7);font-size:14px;">
+      Examples: <code>2x + 5 = 13</code> • <code>x^2 - 9 = 0</code> • <code>3x - 7 = 2</code> • <code>2(x+1) = 3x-4</code>
     </div>
-    <div class="field">
-      <label for="alg-type">Equation type</label>
-      <select id="alg-type" style="width:100%;">
-        <option value="linear" selected>Linear (ax + b = c)</option>
+  </div>
+  
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0;">
+    <div>
+      <label for="alg-type" style="display:block;margin-bottom:6px;">Equation Type</label>
+      <select id="alg-type" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#e6faff;">
+        <option value="auto" selected>Auto-detect</option>
+        <option value="linear">Linear (ax + b = c)</option>
         <option value="quadratic">Quadratic (ax² + bx + c = 0)</option>
       </select>
     </div>
-    <div class="field">
-      <label for="alg-show-steps">Show steps</label>
-      <select id="alg-show-steps" style="width:100%;">
-        <option value="yes" selected>Yes</option>
-        <option value="no">No</option>
+    
+    <div>
+      <label for="alg-show-steps" style="display:block;margin-bottom:6px;">Show Steps</label>
+      <select id="alg-show-steps" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#e6faff;">
+        <option value="yes" selected>Yes - Show detailed steps</option>
+        <option value="no">No - Show answer only</option>
       </select>
     </div>
   </div>
-  <div class="actions" style="margin-top:12px;">
-    <button type="button" onclick="algSolve(this)">Solve</button>
-    <button type="button" class="secondary" onclick="algReset(this)">Reset</button>
-    <button type="button" onclick="algCopy(this)">Copy Solution</button>
+  
+  <div class="actions" style="display:flex;gap:12px;margin:20px 0;">
+    <button type="submit" 
+            style="flex:1;background:#2dd4ff;color:#000;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-size:16px;">
+      <span style="display:inline-flex;align-items:center;gap:6px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        Solve Equation
+      </span>
+    </button>
+    
+    <button type="button" onclick="algReset()"
+            style="background:rgba(255,255,255,0.08);color:#e6faff;border:1px solid rgba(255,255,255,0.15);padding:12px 20px;border-radius:8px;cursor:pointer;">
+      Clear
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite" style="margin-top:12px;">
-  <h3 class="small">Solution</h3>
-  <textarea id="alg-output" rows="10" readonly style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:#0d1117;color:#c9d1d9;font-family:monospace;"></textarea>
-  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
-    <div class="small">Steps shown: <span id="alg-steps">–</span></div>
-    <div id="alg-hint" class="small" style="opacity:0.9;color:#39ff14;"></div>
+<div class="results-section" style="margin-top:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h3 style="color:#2dd4ff;margin:0;">Solution</h3>
+    <div id="alg-status" style="font-size:14px;color:rgba(230,250,255,0.7);">
+      <span id="alg-steps-indicator">–</span>
+      <button onclick="algCopySolution()" 
+              style="margin-left:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:13px;">
+        📋 Copy
+      </button>
+    </div>
+  </div>
+  
+  <div id="alg-output" 
+       style="min-height:180px;max-height:400px;overflow-y:auto;padding:16px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(13,17,23,0.7);color:#c9d1d9;font-family:monospace;white-space:pre-wrap;line-height:1.5;">
+    <div style="color:rgba(230,250,255,0.6);text-align:center;padding:40px 0;">
+      Enter an equation above to see the solution...
+    </div>
+  </div>
+  
+  <div id="alg-hint" style="margin-top:12px;padding:10px;border-radius:6px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.2);color:#2dd4ff;font-size:14px;display:none;">
+    <span id="hint-text"></span>
   </div>
 </div>
 
 <script>
-// Super robust algebra solver – works with almost any reasonable input
-function algSolve(btn) {
-  const card = btn.closest('.card') || document;
-  const raw = (card.querySelector('#alg-equation').value || "").trim();
-  const type = card.querySelector('#alg-type').value;
-  const showSteps = card.querySelector('#alg-show-steps').value === "yes";
+// Robust Algebra Solver with enhanced parsing
+function algParseEquation(equation) {
+  // Normalize equation
+  let eq = equation.trim()
+    .replace(/\s+/g, '')
+    .toLowerCase()
+    .replace(/x\^2/g, 'x²')
+    .replace(/\*\*/g, '^')
+    .replace(/(\d)\(/g, '$1*(')
+    .replace(/\)(\d)/g, ')*$1')
+    .replace(/\)x/g, ')*x')
+    .replace(/x\(/g, 'x*(');
   
-  if (!raw) {
-    card.querySelector('#alg-hint').textContent = "Please enter an equation.";
-    card.querySelector('#alg-output').value = "";
+  // Handle implicit multiplication
+  eq = eq.replace(/(\d)x/g, '$1*x').replace(/x(\d)/g, 'x*$1');
+  
+  // Split by equals sign
+  const sides = eq.split('=');
+  if (sides.length !== 2) {
+    throw new Error('Equation must contain exactly one equals sign (=)');
+  }
+  
+  // Function to evaluate a side
+  const evaluateSide = (side) => {
+    // Handle subtraction by adding + signs
+    side = side.replace(/([+-])/g, ',$1');
+    const terms = side.split(',').filter(t => t);
+    
+    let a = 0, b = 0, c = 0; // ax² + bx + c
+    
+    for (let term of terms) {
+      if (!term) continue;
+      
+      let sign = 1;
+      if (term[0] === '+') {
+        term = term.substring(1);
+      } else if (term[0] === '-') {
+        sign = -1;
+        term = term.substring(1);
+      }
+      
+      // Check what type of term
+      if (term.includes('x²')) {
+        const coeff = term.replace('x²', '') || '1';
+        a += sign * parseFloat(coeff);
+      } else if (term.includes('x*x')) {
+        const coeff = term.replace('x*x', '') || '1';
+        a += sign * parseFloat(coeff);
+      } else if (term.includes('x')) {
+        const coeff = term.replace('x', '') || '1';
+        b += sign * parseFloat(coeff);
+      } else {
+        c += sign * parseFloat(term);
+      }
+    }
+    
+    return { a, b, c };
+  };
+  
+  const left = evaluateSide(sides[0]);
+  const right = evaluateSide(sides[1]);
+  
+  // Move everything to left side: left - right = 0
+  return {
+    a: left.a - right.a,
+    b: left.b - right.b,
+    c: left.c - right.c,
+    original: equation
+  };
+}
+
+function algFormatNumber(num) {
+  if (Math.abs(num) < 1e-10) return '0';
+  if (Math.abs(num - Math.round(num)) < 1e-9) {
+    return Math.round(num).toString();
+  }
+  // Show up to 8 decimal places if needed
+  const str = num.toFixed(8).replace(/\.?0+$/, '');
+  return str.length > 12 ? num.toExponential(4) : str;
+}
+
+function algFormatTerm(coeff, variable) {
+  if (Math.abs(coeff) < 1e-10) return '';
+  const sign = coeff >= 0 ? '+' : '-';
+  const absVal = Math.abs(coeff);
+  const num = algFormatNumber(absVal);
+  
+  if (variable === '') {
+    return `${sign} ${num}`;
+  }
+  return `${sign} ${num === '1' ? '' : num}${variable}`;
+}
+
+function algSolve() {
+  const equationInput = document.getElementById('alg-equation').value.trim();
+  const typeSelect = document.getElementById('alg-type').value;
+  const showSteps = document.getElementById('alg-show-steps').value === 'yes';
+  const outputDiv = document.getElementById('alg-output');
+  const hintDiv = document.getElementById('alg-hint');
+  const hintText = document.getElementById('hint-text');
+  
+  // Clear previous state
+  hintDiv.style.display = 'none';
+  outputDiv.style.color = '#c9d1d9';
+  
+  if (!equationInput) {
+    outputDiv.innerHTML = '<div style="color:rgba(255,77,77,0.8);text-align:center;padding:20px;">Please enter an equation to solve</div>';
     return;
   }
-
-  let output = "";
-  let steps = [];
-
+  
   try {
-    // Normalize equation: remove spaces, make lowercase, move everything to left = 0
-    let eq = raw.replace(/\s/g, '').toLowerCase().replace(/=/g, '-(') + ')';
-    eq = eq.replace(/\)\(/g, ')*('); // fix implicit multiplication
-
-    // Replace x², x^2 → x*x, etc.
-    eq = eq.replace(/(\d)x/g, '$1*x').replace(/x(\d)/g, 'x*$1');
-    eq = eq.replace(/([0-9])x/g, '$1*x');
-    eq = eq.replace(/x\^2/g, 'x*x').replace(/\^2/g, '*x*x');
-
-    // Evaluate expression safely using math.js-like logic (we'll do it manually)
-    const parseSide = (side) => {
-      let a = 0, b = 0, c = 0; // ax² + bx + c
-
-      // Match terms like: +5x*x, -3x, +7, x*x, etc.
-      const terms = side.match(/[+-]?(?:\d*\.?\d*x\*x|\d*\.?\d*x|\d+\.?\d*)/g) || [];
-      terms.forEach(term => {
-        if (!term) return;
-        let coef = term.replace(/x.*/g, '');
-        coef = coef === '' || coef === '+' ? 1 : coef === '-' ? -1 : parseFloat(coef);
-
-        if (term.includes('x*x')) {
-          a += coef;
-        } else if (term.includes('x')) {
-          b += coef;
-        } else {
-          c += coef;
-        }
-      });
-      return {a, b, c};
-    };
-
-    // Split by top-level +/- outside parentheses
-    let depth = 0;
-    let start = 0;
-    const parts = [];
-    for (let i = 0; i < eq.length; i++) {
-      if (eq[i] === '(') depth++;
-      if (eq[i] === ')') depth--;
-      if ((eq[i] === '+' || eq[i] === '-') && depth === 0 && i > 0) {
-        parts.push(eq.slice(start, i));
-        start = i;
-      }
+    // Parse the equation
+    const { a, b, c, original } = algParseEquation(equationInput);
+    
+    // Determine equation type if auto
+    let equationType = typeSelect;
+    if (typeSelect === 'auto') {
+      equationType = Math.abs(a) > 1e-10 ? 'quadratic' : 'linear';
     }
-    parts.push(eq.slice(start));
-
-    const left = parseSide(parts.join(''));
-    const right = {a:0, b:0, c:0}; // right side is 0
-
-    const A = left.a - right.a;
-    const B = left.b - right.b;
-    const C = left.c - right.c;
-
-    if (type === "linear") {
-      if (Math.abs(A) > 1e-9) { // ax² term exists → not linear
-        output = "Warning: This looks quadratic! Switch to Quadratic mode.";
-        steps.push("Detected x² term — this is not a linear equation.");
-      } else if (Math.abs(B) < 1e-9) {
-        output = C === 0 ? "True for all x" : "No solution (0x = non-zero)";
-        steps.push(C === 0 ? "0 = 0 → Identity" : `0 = ${C} → Contradiction`);
+    
+    const steps = [];
+    const results = [];
+    
+    // Add initial step
+    steps.push(`📝 Original equation: ${original}`);
+    steps.push(`🔍 Simplified form: ${algFormatTerm(a, 'x²').replace('+ ', '')}${algFormatTerm(b, 'x')}${algFormatTerm(c, '')} = 0`);
+    
+    if (equationType === 'linear') {
+      if (Math.abs(a) > 1e-10) {
+        results.push('⚠️ This appears to be a quadratic equation (contains x²).');
+        results.push('Switch to Quadratic mode or use Auto-detect for accurate solution.');
+        equationType = 'quadratic'; // Switch for calculation
       } else {
-        const x = -C / B;
-        output = `x = ${x % 1 === 0 ? x : x.toFixed(6)}`;
-        if (showSteps) {
-          steps.push(`Original: ${raw}`);
-          steps.push(`Move all to one side: ${A}x² + ${B}x + ${C} = 0`);
-          steps.push(`→ ${B}x = ${-C}`);
-          steps.push(`→ x = ${-C} / ${B} = ${x.toFixed(6)}`);
-        }
-      }
-    }
-
-    else if (type === "quadratic") {
-      if (Math.abs(A) < 1e-9) {
-        output = "Not quadratic (no x² term). Try Linear mode.";
-      } else {
-        const disc = B*B - 4*A*C;
-        steps.push(`Standard form: ${A}x² + ${B}x + ${C} = 0`);
-        steps.push(`Discriminant Δ = b² - 4ac = ${B}^2 - 4×${A}×${C} = ${disc.toFixed(4)}`);
-
-        if (disc > 0) {
-          const r1 = (-B + Math.sqrt(disc)) / (2*A);
-          const r2 = (-B - Math.sqrt(disc)) / (2*A);
-          output = `x₁ = ${r1.toFixed(6)}\nx₂ = ${r2.toFixed(6)}`;
-          steps.push(`Two real roots:\nx₁ = (-b + √Δ)/(2a)\nx₂ = (-b - √Δ)/(2a)`);
-        } else if (Math.abs(disc) < 1e-9) {
-          const r = -B / (2*A);
-          output = `x = ${r.toFixed(6)} (double root)`;
-          steps.push(`Δ = 0 → One real root (repeated):\nx = -b/(2a)`);
+        steps.push(`📐 Equation type: Linear (degree 1)`);
+        
+        if (Math.abs(b) < 1e-10) {
+          if (Math.abs(c) < 1e-10) {
+            results.push('✅ Identity: True for all real numbers x');
+            steps.push('0 = 0 → The equation is always true');
+          } else {
+            results.push('❌ Contradiction: No solution');
+            steps.push(`${algFormatNumber(c)} = 0 → Impossible, no solution`);
+          }
         } else {
-          const real = (-B / (2*A)).toFixed(6);
-          const imag = (Math.sqrt(-disc) / (2*A)).toFixed(6);
-          output = `x₁ = ${real} + ${imag}i\nx₂ = ${real} - ${imag}i`;
-          steps.push(`Complex roots:\nx = [-b ± √(negative)] / (2a)`);
+          const solution = -c / b;
+          results.push(`✅ Solution: x = ${algFormatNumber(solution)}`);
+          
+          steps.push(`➡️ Move constant to right: ${algFormatNumber(b)}x = ${algFormatNumber(-c)}`);
+          steps.push(`➡️ Divide by ${algFormatNumber(b)}: x = ${algFormatNumber(-c)} ÷ ${algFormatNumber(b)}`);
+          steps.push(`✅ Result: x = ${algFormatNumber(solution)}`);
+          
+          // Verification
+          steps.push(`🔍 Verification: ${algFormatNumber(b)} × ${algFormatNumber(solution)} + ${algFormatNumber(c)} = ${algFormatNumber(b * solution + c)}`);
         }
       }
     }
-
-  } catch (err) {
-    output = "Could not parse equation.\nTry: 2x + 5 = 13, 3x² - 12 = 0, -x^2 + 4x - 4 = 0";
+    
+    if (equationType === 'quadratic') {
+      steps.push(`📐 Equation type: Quadratic (degree 2)`);
+      
+      if (Math.abs(a) < 1e-10) {
+        results.push('⚠️ This is actually a linear equation (no x² term).');
+        results.push('Using linear solution method...');
+        equationType = 'linear';
+      } else {
+        const discriminant = b * b - 4 * a * c;
+        steps.push(`📊 Discriminant (Δ) = b² - 4ac = ${algFormatNumber(b)}² - 4×${algFormatNumber(a)}×${algFormatNumber(c)}`);
+        steps.push(`📊 Δ = ${algFormatNumber(discriminant)}`);
+        
+        if (discriminant > 0) {
+          const sqrtD = Math.sqrt(discriminant);
+          const x1 = (-b + sqrtD) / (2 * a);
+          const x2 = (-b - sqrtD) / (2 * a);
+          
+          results.push(`✅ Two distinct real solutions:`);
+          results.push(`x₁ = ${algFormatNumber(x1)}`);
+          results.push(`x₂ = ${algFormatNumber(x2)}`);
+          
+          steps.push(`➡️ Δ > 0 → Two real roots`);
+          steps.push(`➡️ x₁ = (-b + √Δ)/(2a) = (${algFormatNumber(-b)} + ${algFormatNumber(sqrtD)})/(2×${algFormatNumber(a)})`);
+          steps.push(`➡️ x₂ = (-b - √Δ)/(2a) = (${algFormatNumber(-b)} - ${algFormatNumber(sqrtD)})/(2×${algFormatNumber(a)})`);
+        } else if (Math.abs(discriminant) < 1e-10) {
+          const x = -b / (2 * a);
+          results.push(`✅ One real solution (double root):`);
+          results.push(`x = ${algFormatNumber(x)}`);
+          
+          steps.push(`➡️ Δ = 0 → One repeated root`);
+          steps.push(`➡️ x = -b/(2a) = ${algFormatNumber(-b)}/(2×${algFormatNumber(a)})`);
+        } else {
+          const real = -b / (2 * a);
+          const imag = Math.sqrt(-discriminant) / (2 * a);
+          
+          results.push(`✅ Two complex solutions:`);
+          results.push(`x₁ = ${algFormatNumber(real)} + ${algFormatNumber(imag)}i`);
+          results.push(`x₂ = ${algFormatNumber(real)} - ${algFormatNumber(imag)}i`);
+          
+          steps.push(`➡️ Δ < 0 → Two complex conjugate roots`);
+          steps.push(`➡️ Real part = -b/(2a) = ${algFormatNumber(real)}`);
+          steps.push(`➡️ Imaginary part = √(-Δ)/(2a) = ${algFormatNumber(imag)}`);
+        }
+      }
+    }
+    
+    // Display results
+    const stepsHTML = steps.map(step => 
+      `<div style="margin-bottom:8px;padding-left:12px;border-left:2px solid rgba(45,212,255,0.5);">${step}</div>`
+    ).join('');
+    
+    const resultsHTML = results.map(result => 
+      `<div style="margin:6px 0;${result.includes('✅') ? 'color:#39ff14;' : result.includes('⚠️') ? 'color:#ffa500;' : 'color:#ff4d4d;'}">${result}</div>`
+    ).join('');
+    
+    outputDiv.innerHTML = showSteps ? 
+      `${stepsHTML}<div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1);"><strong>Final Answer:</strong>${resultsHTML}</div>` :
+      `<div style="font-size:16px;line-height:1.6;">${resultsHTML}</div>`;
+    
+    // Show hint
+    if (results.some(r => r.includes('✅'))) {
+      hintText.textContent = '✓ Equation solved successfully!';
+      hintDiv.style.background = 'rgba(57,255,20,0.1)';
+      hintDiv.style.borderColor = 'rgba(57,255,20,0.3)';
+      hintDiv.style.color = '#39ff14';
+      hintDiv.style.display = 'block';
+    } else if (results.some(r => r.includes('⚠️'))) {
+      hintText.textContent = 'Note: Check equation type or formatting';
+      hintDiv.style.background = 'rgba(255,165,0,0.1)';
+      hintDiv.style.borderColor = 'rgba(255,165,0,0.3)';
+      hintDiv.style.color = '#ffa500';
+      hintDiv.style.display = 'block';
+    }
+    
+    document.getElementById('alg-steps-indicator').textContent = showSteps ? 'Detailed steps shown' : 'Answer only';
+    
+  } catch (error) {
+    outputDiv.innerHTML = `
+      <div style="color:#ff4d4d;margin-bottom:12px;">❌ Error: ${error.message}</div>
+      <div style="background:rgba(255,77,77,0.1);padding:12px;border-radius:6px;border-left:3px solid #ff4d4d;">
+        <strong>Tips for entering equations:</strong>
+        <ul style="margin:8px 0 0 20px;">
+          <li>Use 'x' as the variable (e.g., 2x + 3 = 7)</li>
+          <li>For powers, use 'x²' or 'x^2' (e.g., x² - 9 = 0)</li>
+          <li>Include the equals sign (=)</li>
+          <li>Use parentheses for grouping: 2(x+1) = 3x</li>
+          <li>Examples: 
+            <code style="margin-left:8px;">3x - 5 = 10</code>
+            <code style="margin-left:8px;">x^2 + 2x + 1 = 0</code>
+            <code style="margin-left:8px;">2(x-3) = x+4</code>
+          </li>
+        </ul>
+      </div>
+    `;
+    
+    hintText.textContent = 'Unable to parse equation. Check format above.';
+    hintDiv.style.background = 'rgba(255,77,77,0.1)';
+    hintDiv.style.borderColor = 'rgba(255,77,77,0.3)';
+    hintDiv.style.color = '#ff4d4d';
+    hintDiv.style.display = 'block';
   }
-
-  // Final output
-  card.querySelector('#alg-output').value = showSteps ? steps.join("\n\n") : output;
-  card.querySelector('#alg-steps').textContent = showSteps ? "Yes" : "No";
-  card.querySelector('#alg-hint').textContent = output.includes("x =") ? "Solved!" : "";
 }
 
-function algReset(btn) {
-  const card = btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#alg-equation').value = "";
-  card.querySelector('#alg-output').value = "";
-  card.querySelector('#alg-steps').textContent = "–";
-  card.querySelector('#alg-hint').textContent = "";
+function algReset() {
+  document.getElementById('alg-equation').value = '';
+  document.getElementById('alg-type').value = 'auto';
+  document.getElementById('alg-show-steps').value = 'yes';
+  document.getElementById('alg-output').innerHTML = '<div style="color:rgba(230,250,255,0.6);text-align:center;padding:40px 0;">Enter an equation above to see the solution...</div>';
+  document.getElementById('alg-hint').style.display = 'none';
+  document.getElementById('alg-steps-indicator').textContent = '–';
+  document.getElementById('alg-equation').focus();
 }
 
-function algCopy(btn) {
-  const card = btn.closest('.card');
-  const text = card.querySelector('#alg-output').value;
-  if (!text.trim()) return;
+function algCopySolution() {
+  const output = document.getElementById('alg-output');
+  const text = output.innerText || output.textContent;
+  
+  if (!text || text.includes('Enter an equation')) return;
+  
   navigator.clipboard.writeText(text).then(() => {
-    card.querySelector('#alg-hint').textContent = "Copied!";
-    setTimeout(() => { if (card.querySelector('#alg-hint').textContent === "Copied!") card.querySelector('#alg-hint').textContent = ""; }, 2000);
+    const hintDiv = document.getElementById('alg-hint');
+    hintDiv.style.display = 'block';
+    hintDiv.style.background = 'rgba(45,212,255,0.1)';
+    hintDiv.style.borderColor = 'rgba(45,212,255,0.3)';
+    hintDiv.style.color = '#2dd4ff';
+    document.getElementById('hint-text').textContent = '✓ Solution copied to clipboard!';
+    
+    setTimeout(() => {
+      if (hintDiv.style.display === 'block') {
+        hintDiv.style.display = 'none';
+      }
+    }, 2000);
   });
 }
 
-// Auto-solve on enter
-document.addEventListener("keydown", e => {
-  if (e.key === "Enter" && e.target.id === "alg-equation") {
-    algSolve({closest: () => e.target.closest('.card')});
+// Enter key support
+document.getElementById('alg-equation').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    algSolve();
   }
 });
-</script>
+
+// Auto-focus on card load
+setTimeout(() => {
+  document.getElementById('alg-equation')?.focus();
+}, 100);
+</script></script>
