@@ -1,59 +1,624 @@
-<h2 id="collaboration-title" style="margin-top:0;">Collaboration Tool</h2>
+<h2 id="collaboration-title" style="margin-top:0;color:var(--accent);">👥 Team Collaboration Tracker</h2>
 
-<form aria-describedby="collaboration-desc">
-  <p id="collaboration-desc" class="small">Track team members and shared tasks.</p>
+<form aria-describedby="collaboration-desc" style="margin-bottom:20px;">
+  <p id="collaboration-desc" class="small" style="color:rgba(230,250,255,0.8);margin-bottom:16px;">
+    Track team members, tasks, and progress. Assign priorities and deadlines.
+    <span style="color:var(--accent);display:block;margin-top:4px;">
+      ✅ Uses localStorage to save your team's data
+    </span>
+  </p>
 
-  <div class="row">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
     <div class="field">
-      <label for="collaboration-member">Team member</label>
-      <input id="collaboration-member" type="text" placeholder="e.g. Alice" />
+      <label for="collaboration-member" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        👤 Team Member
+      </label>
+      <input id="collaboration-member" type="text" placeholder="e.g. Alice Chen" 
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;" />
     </div>
     <div class="field">
-      <label for="collaboration-task">Task</label>
-      <input id="collaboration-task" type="text" placeholder="e.g. Draft proposal" />
+      <label for="collaboration-task" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        📋 Task Description
+      </label>
+      <input id="collaboration-task" type="text" placeholder="e.g. Draft Q4 proposal" 
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;" />
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="collaborationAdd(this)">Add Task</button>
-    <button type="button" class="secondary" onclick="collaborationReset(this)">Reset</button>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div class="field">
+      <label for="collaboration-priority" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        🎯 Priority
+      </label>
+      <select id="collaboration-priority" 
+              style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+        <option value="urgent">Urgent</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="collaboration-deadline" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        📅 Deadline
+      </label>
+      <input id="collaboration-deadline" type="date" 
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;" />
+    </div>
+    <div class="field">
+      <label for="collaboration-status" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        📊 Status
+      </label>
+      <select id="collaboration-status" 
+              style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;">
+        <option value="todo">To Do</option>
+        <option value="inprogress" selected>In Progress</option>
+        <option value="review">Review</option>
+        <option value="done">Done</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="display:flex;gap:10px;margin-top:20px;">
+    <button type="button" onclick="ctAddTask(this)" 
+            style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+      ➕ Add Task
+    </button>
+    <button type="button" onclick="ctResetTasks(this)"
+            style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+      🔄 Reset All
+    </button>
+    <button type="button" onclick="ctExportData(this)"
+            style="padding:12px 16px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;">
+      📤 Export
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <h3 class="small">Team Tasks</h3>
-  <ul id="collaboration-list" class="small"></ul>
+<div class="results" aria-live="polite" style="margin-top:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h3 class="small" style="color:var(--accent);margin:0;">📋 Team Task Board</h3>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span id="collaboration-count" style="font-size:12px;color:rgba(230,250,255,0.7);">0 tasks</span>
+      <button onclick="ctClearCompleted()" style="font-size:11px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;cursor:pointer;">
+        Clear Completed
+      </button>
+    </div>
+  </div>
+  
+  <!-- Filter Tabs -->
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+    <button onclick="ctFilterTasks('all')" id="filter-all" style="padding:6px 12px;background:var(--accent);color:#000;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">
+      All
+    </button>
+    <button onclick="ctFilterTasks('todo')" id="filter-todo" style="padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:12px;">
+      To Do
+    </button>
+    <button onclick="ctFilterTasks('inprogress')" id="filter-inprogress" style="padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:12px;">
+      In Progress
+    </button>
+    <button onclick="ctFilterTasks('done')" id="filter-done" style="padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:12px;">
+      Done
+    </button>
+  </div>
+  
+  <!-- Task List -->
+  <div id="collaboration-list" style="background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(255,255,255,0.1);padding:12px;min-height:60px;max-height:300px;overflow-y:auto;">
+    <div style="text-align:center;padding:20px;color:rgba(230,250,255,0.5);">
+      No tasks yet. Add your first task above!
+    </div>
+  </div>
+  
+  <!-- Statistics -->
+  <div style="margin-top:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+    <div style="background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.2);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:var(--accent);" id="stat-total">0</div>
+      <div style="font-size:11px;color:rgba(230,250,255,0.7);">Total</div>
+    </div>
+    <div style="background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.2);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:#ff4d4d;" id="stat-todo">0</div>
+      <div style="font-size:11px;color:rgba(230,250,255,0.7);">To Do</div>
+    </div>
+    <div style="background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.2);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:#ffa500;" id="stat-inprogress">0</div>
+      <div style="font-size:11px;color:rgba(230,250,255,0.7);">In Progress</div>
+    </div>
+    <div style="background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.2);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:#39ff14;" id="stat-done">0</div>
+      <div style="font-size:11px;color:rgba(230,250,255,0.7);">Done</div>
+    </div>
+  </div>
 </div>
 
 <script>
-let collabTasks = [];
+/* collaboration-tool.html
+   - Enhanced team collaboration tracker with priority, deadlines, and filtering
+   - Scoped with "ct" prefix (collaboration tool)
+   - Uses localStorage for persistence
+*/
 
-function collaborationAdd(btn) {
-  const card = btn.closest('.card');
-  const member = card.querySelector('#collaboration-member').value.trim();
-  const task = card.querySelector('#collaboration-task').value.trim();
+let ctTasks = [];
+let ctCurrentFilter = 'all';
 
-  if (!member || !task) return;
-
-  collabTasks.push({ member, task });
-  renderCollabTasks(card);
-  card.querySelector('form').reset();
+// Initialize on load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', ctInitialize);
+} else {
+  ctInitialize();
 }
 
-function renderCollabTasks(card) {
-  const list = card.querySelector('#collaboration-list');
-  list.innerHTML = "";
-  collabTasks.forEach(t => {
-    const li = document.createElement('li');
-    li.textContent = t.member + " — " + t.task;
-    list.appendChild(li);
+function ctInitialize() {
+  console.log('Collaboration Tool: Initializing...');
+  const card = document.currentScript?.closest('.card') || document;
+  
+  // Load saved tasks
+  const saved = localStorage.getItem('ct-tasks');
+  if (saved) {
+    try {
+      ctTasks = JSON.parse(saved);
+      console.log('Loaded', ctTasks.length, 'tasks from localStorage');
+    } catch (e) {
+      console.error('Failed to load tasks:', e);
+      ctTasks = [];
+    }
+  }
+  
+  // Set default deadline to tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const deadlineInput = card.querySelector('#collaboration-deadline');
+  if (deadlineInput) {
+    deadlineInput.valueAsDate = tomorrow;
+  }
+  
+  // Initial render
+  ctRenderTasks(card);
+  ctUpdateStats(card);
+  
+  // Set up filter button states
+  ctUpdateFilterButtons(card);
+  
+  // Add keyboard shortcut: Enter to add task
+  const memberInput = card.querySelector('#collaboration-member');
+  const taskInput = card.querySelector('#collaboration-task');
+  
+  if (memberInput && taskInput) {
+    const addOnEnter = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        ctAddTask(e.target);
+      }
+    };
+    
+    memberInput.addEventListener('keypress', addOnEnter);
+    taskInput.addEventListener('keypress', addOnEnter);
+  }
+  
+  console.log('Collaboration Tool: Ready');
+}
+
+function ctAddTask(btn) {
+  const card = btn.closest('.card') || document;
+  const member = card.querySelector('#collaboration-member').value.trim();
+  const task = card.querySelector('#collaboration-task').value.trim();
+  const priority = card.querySelector('#collaboration-priority').value;
+  const deadline = card.querySelector('#collaboration-deadline').value;
+  const status = card.querySelector('#collaboration-status').value;
+  
+  if (!member || !task) {
+    // Visual feedback for empty fields
+    if (!member) {
+      const memberInput = card.querySelector('#collaboration-member');
+      memberInput.style.borderColor = '#ff2d55';
+      setTimeout(() => memberInput.style.borderColor = '', 1000);
+    }
+    if (!task) {
+      const taskInput = card.querySelector('#collaboration-task');
+      taskInput.style.borderColor = '#ff2d55';
+      setTimeout(() => taskInput.style.borderColor = '', 1000);
+    }
+    return;
+  }
+  
+  const newTask = {
+    id: Date.now() + Math.random().toString(36).substr(2, 9),
+    member,
+    task,
+    priority,
+    deadline,
+    status,
+    createdAt: new Date().toISOString(),
+    completedAt: status === 'done' ? new Date().toISOString() : null
+  };
+  
+  ctTasks.unshift(newTask); // Add to beginning
+  ctSaveTasks();
+  ctRenderTasks(card);
+  ctUpdateStats(card);
+  
+  // Reset form (but keep priority/status selections)
+  card.querySelector('#collaboration-member').value = '';
+  card.querySelector('#collaboration-task').value = '';
+  card.querySelector('#collaboration-member').focus();
+  
+  // Visual feedback
+  btn.textContent = '✅ Added!';
+  setTimeout(() => {
+    btn.textContent = '➕ Add Task';
+  }, 1000);
+}
+
+function ctRenderTasks(card) {
+  const listContainer = card.querySelector('#collaboration-list');
+  if (!listContainer) return;
+  
+  // Filter tasks
+  let filteredTasks = ctTasks;
+  if (ctCurrentFilter !== 'all') {
+    filteredTasks = ctTasks.filter(t => t.status === ctCurrentFilter);
+  }
+  
+  if (filteredTasks.length === 0) {
+    listContainer.innerHTML = `
+      <div style="text-align:center;padding:20px;color:rgba(230,250,255,0.5);">
+        ${ctCurrentFilter === 'all' ? 'No tasks yet. Add your first task above!' : 'No tasks in this category.'}
+      </div>
+    `;
+    return;
+  }
+  
+  let html = '';
+  filteredTasks.forEach(task => {
+    const priorityColors = {
+      low: 'rgba(45,212,255,0.2)',
+      medium: 'rgba(255,165,0,0.2)',
+      high: 'rgba(255,77,77,0.2)',
+      urgent: 'rgba(255,0,85,0.3)'
+    };
+    
+    const priorityLabels = {
+      low: '🔵 Low',
+      medium: '🟡 Medium',
+      high: '🔴 High',
+      urgent: '💥 Urgent'
+    };
+    
+    const statusColors = {
+      todo: 'rgba(255,77,77,0.2)',
+      inprogress: 'rgba(255,165,0,0.2)',
+      review: 'rgba(45,212,255,0.2)',
+      done: 'rgba(57,255,20,0.2)'
+    };
+    
+    const statusIcons = {
+      todo: '⏳',
+      inprogress: '🚧',
+      review: '👀',
+      done: '✅'
+    };
+    
+    const deadlineDate = task.deadline ? new Date(task.deadline) : null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let deadlineClass = '';
+    let deadlineText = task.deadline ? new Date(task.deadline).toLocaleDateString() : 'No deadline';
+    
+    if (deadlineDate && task.status !== 'done') {
+      deadlineDate.setHours(0, 0, 0, 0);
+      const diffDays = Math.floor((deadlineDate - today) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 0) {
+        deadlineClass = 'deadline-overdue';
+        deadlineText = `⚠️ Overdue: ${deadlineText}`;
+      } else if (diffDays === 0) {
+        deadlineClass = 'deadline-today';
+        deadlineText = `⚠️ Today: ${deadlineText}`;
+      } else if (diffDays <= 2) {
+        deadlineClass = 'deadline-soon';
+        deadlineText = `⚠️ ${diffDays}d: ${deadlineText}`;
+      }
+    }
+    
+    html += `
+      <div class="task-item" data-id="${task.id}" style="
+        background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        transition: all 0.2s;
+      ">
+        <div style="flex-shrink:0;margin-top:2px;">
+          <button onclick="ctToggleStatus('${task.id}')" style="
+            background: ${statusColors[task.status] || 'rgba(255,255,255,0.1)'};
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: inherit;
+          ">
+            ${statusIcons[task.status] || '📝'}
+          </button>
+        </div>
+        
+        <div style="flex:1;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+            <div>
+              <strong style="color:var(--accent);">${task.member}</strong>
+              <span style="margin:0 8px;color:rgba(230,250,255,0.5);">•</span>
+              <span style="
+                background: ${priorityColors[task.priority] || 'rgba(255,255,255,0.1)'};
+                border-radius: 4px;
+                padding: 2px 6px;
+                font-size: 11px;
+                color: rgba(230,250,255,0.9);
+              ">
+                ${priorityLabels[task.priority] || task.priority}
+              </span>
+            </div>
+            <button onclick="ctDeleteTask('${task.id}')" style="
+              background: transparent;
+              border: none;
+              color: rgba(255,77,77,0.7);
+              cursor: pointer;
+              font-size: 14px;
+              padding: 2px 6px;
+              border-radius: 4px;
+            " title="Delete task">
+              🗑️
+            </button>
+          </div>
+          
+          <div style="margin-bottom:8px;color:rgba(230,250,255,0.9);">
+            ${task.task}
+          </div>
+          
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+            <div>
+              <span style="
+                background: ${statusColors[task.status] || 'rgba(255,255,255,0.1)'};
+                border-radius: 4px;
+                padding: 2px 6px;
+                color: rgba(230,250,255,0.9);
+              ">
+                ${statusIcons[task.status] || ''} ${task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+              </span>
+              <span style="margin-left:8px;color:rgba(230,250,255,0.6);${deadlineClass === 'deadline-overdue' ? 'color:#ff2d55;font-weight:600;' : ''}${deadlineClass === 'deadline-today' ? 'color:#ffcc00;font-weight:600;' : ''}${deadlineClass === 'deadline-soon' ? 'color:#ffa500;' : ''}">
+                📅 ${deadlineText}
+              </span>
+            </div>
+            <div style="color:rgba(230,250,255,0.5);">
+              ${new Date(task.createdAt).toLocaleDateString()}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  listContainer.innerHTML = html;
+  
+  // Update task count
+  const countElement = card.querySelector('#collaboration-count');
+  if (countElement) {
+    countElement.textContent = `${filteredTasks.length} task${filteredTasks.length !== 1 ? 's' : ''}${ctCurrentFilter !== 'all' ? ' (' + ctCurrentFilter + ')' : ''}`;
+  }
+}
+
+function ctToggleStatus(taskId) {
+  const task = ctTasks.find(t => t.id === taskId);
+  if (!task) return;
+  
+  const statusOrder = ['todo', 'inprogress', 'review', 'done'];
+  const currentIndex = statusOrder.indexOf(task.status);
+  const nextIndex = (currentIndex + 1) % statusOrder.length;
+  
+  task.status = statusOrder[nextIndex];
+  if (task.status === 'done' && !task.completedAt) {
+    task.completedAt = new Date().toISOString();
+  } else if (task.status !== 'done') {
+    task.completedAt = null;
+  }
+  
+  ctSaveTasks();
+  ctRenderTasks(document.currentScript?.closest('.card') || document);
+  ctUpdateStats(document.currentScript?.closest('.card') || document);
+}
+
+function ctDeleteTask(taskId) {
+  if (confirm('Delete this task?')) {
+    ctTasks = ctTasks.filter(t => t.id !== taskId);
+    ctSaveTasks();
+    ctRenderTasks(document.currentScript?.closest('.card') || document);
+    ctUpdateStats(document.currentScript?.closest('.card') || document);
+  }
+}
+
+function ctClearCompleted() {
+  if (confirm('Clear all completed tasks?')) {
+    ctTasks = ctTasks.filter(t => t.status !== 'done');
+    ctSaveTasks();
+    ctRenderTasks(document.currentScript?.closest('.card') || document);
+    ctUpdateStats(document.currentScript?.closest('.card') || document);
+  }
+}
+
+function ctFilterTasks(filter) {
+  ctCurrentFilter = filter;
+  const card = document.currentScript?.closest('.card') || document;
+  ctRenderTasks(card);
+  ctUpdateFilterButtons(card);
+}
+
+function ctUpdateFilterButtons(card) {
+  const buttons = {
+    'all': card.querySelector('#filter-all'),
+    'todo': card.querySelector('#filter-todo'),
+    'inprogress': card.querySelector('#filter-inprogress'),
+    'done': card.querySelector('#filter-done')
+  };
+  
+  Object.entries(buttons).forEach(([key, btn]) => {
+    if (btn) {
+      if (key === ctCurrentFilter) {
+        btn.style.background = 'var(--accent)';
+        btn.style.color = '#000';
+        btn.style.fontWeight = '600';
+      } else {
+        btn.style.background = 'rgba(255,255,255,0.05)';
+        btn.style.color = 'inherit';
+        btn.style.fontWeight = 'normal';
+      }
+    }
   });
 }
 
-function collaborationReset(btn) {
-  const card = btn.closest('.card');
-  collabTasks = [];
-  card.querySelector('form').reset();
-  card.querySelector('#collaboration-list').innerHTML = "";
+function ctUpdateStats(card) {
+  const total = ctTasks.length;
+  const todo = ctTasks.filter(t => t.status === 'todo').length;
+  const inprogress = ctTasks.filter(t => t.status === 'inprogress').length;
+  const review = ctTasks.filter(t => t.status === 'review').length;
+  const done = ctTasks.filter(t => t.status === 'done').length;
+  
+  card.querySelector('#stat-total').textContent = total;
+  card.querySelector('#stat-todo').textContent = todo;
+  card.querySelector('#stat-inprogress').textContent = inprogress + review;
+  card.querySelector('#stat-done').textContent = done;
+}
+
+function ctResetTasks(btn) {
+  if (confirm('Reset all tasks? This cannot be undone.')) {
+    ctTasks = [];
+    ctSaveTasks();
+    const card = btn.closest('.card') || document;
+    card.querySelector('form').reset();
+    
+    // Reset deadline to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const deadlineInput = card.querySelector('#collaboration-deadline');
+    if (deadlineInput) {
+      deadlineInput.valueAsDate = tomorrow;
+    }
+    
+    ctRenderTasks(card);
+    ctUpdateStats(card);
+    ctCurrentFilter = 'all';
+    ctUpdateFilterButtons(card);
+    
+    btn.textContent = '✅ Reset!';
+    setTimeout(() => {
+      btn.textContent = '🔄 Reset All';
+    }, 1000);
+  }
+}
+
+function ctExportData(btn) {
+  if (ctTasks.length === 0) {
+    alert('No tasks to export.');
+    return;
+  }
+  
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    totalTasks: ctTasks.length,
+    tasks: ctTasks
+  };
+  
+  const dataStr = JSON.stringify(exportData, null, 2);
+  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+  
+  const exportFileDefaultName = `team-tasks-${new Date().toISOString().split('T')[0]}.json`;
+  
+  const linkElement = document.createElement('a');
+  linkElement.setAttribute('href', dataUri);
+  linkElement.setAttribute('download', exportFileDefaultName);
+  linkElement.click();
+  
+  // Visual feedback
+  btn.textContent = '✅ Exported!';
+  setTimeout(() => {
+    btn.textContent = '📤 Export';
+  }, 1000);
+}
+
+function ctSaveTasks() {
+  localStorage.setItem('ct-tasks', JSON.stringify(ctTasks));
 }
 </script>
+
+<style>
+/* Card-specific styles */
+#collaboration-title {
+  color: var(--accent);
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+.task-item:hover {
+  border-color: rgba(45,212,255,0.3) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.deadline-overdue {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  #collaboration-title {
+    font-size: 1.2rem;
+  }
+  
+  .row {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .actions {
+    flex-direction: column;
+  }
+  
+  .actions button {
+    width: 100%;
+    margin: 4px 0 !important;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Scrollbar styling */
+#collaboration-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+#collaboration-list::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+}
+
+#collaboration-list::-webkit-scrollbar-thumb {
+  background: rgba(45,212,255,0.3);
+  border-radius: 4px;
+}
+
+#collaboration-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(45,212,255,0.5);
+}
+</style>
