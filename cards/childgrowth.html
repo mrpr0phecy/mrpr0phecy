@@ -1,71 +1,916 @@
 <h2 id="childgrowth-title" style="margin-top:0;">Child Growth Tracker</h2>
 
 <form aria-describedby="childgrowth-desc">
-  <p id="childgrowth-desc" class="small">Log your child’s growth milestones.</p>
+  <p id="childgrowth-desc" class="small">Track your child's growth, compare with WHO percentiles, and monitor development milestones.</p>
 
-  <div class="row">
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
     <div class="field">
-      <label for="childgrowth-name">Child’s name</label>
+      <label for="childgrowth-name">Child's Name</label>
       <input id="childgrowth-name" type="text" placeholder="e.g. Sam" />
     </div>
     <div class="field">
-      <label for="childgrowth-age">Age (years)</label>
-      <input id="childgrowth-age" type="number" min="0" step="0.1" />
+      <label for="childgrowth-gender">Gender</label>
+      <select id="childgrowth-gender" style="width:100%;">
+        <option value="male">Male</option>
+        <option value="female" selected>Female</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="childgrowth-dob">Date of Birth</label>
+      <input id="childgrowth-dob" type="date" />
     </div>
     <div class="field">
-      <label for="childgrowth-height">Height (cm)</label>
-      <input id="childgrowth-height" type="number" min="0" />
+      <label for="childgrowth-date">Measurement Date</label>
+      <input id="childgrowth-date" type="date" value="" />
+    </div>
+  </div>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="childgrowth-height">Height/Length (cm)</label>
+      <input id="childgrowth-height" type="number" min="0" max="200" step="0.1" placeholder="e.g. 85.5" />
+      <div class="small" style="margin-top:2px;">
+        <span id="childgrowth-height-in">(– inches)</span>
+      </div>
     </div>
     <div class="field">
       <label for="childgrowth-weight">Weight (kg)</label>
-      <input id="childgrowth-weight" type="number" min="0" step="0.1" />
+      <input id="childgrowth-weight" type="number" min="0" max="100" step="0.1" placeholder="e.g. 12.3" />
+      <div class="small" style="margin-top:2px;">
+        <span id="childgrowth-weight-lbs">(– lbs)</span>
+      </div>
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="childgrowthAdd(this)">Log Entry</button>
-    <button type="button" class="secondary" onclick="childgrowthReset(this)">Reset</button>
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="childgrowth-head">Head Circumference (cm)</label>
+      <input id="childgrowth-head" type="number" min="0" max="60" step="0.1" placeholder="Optional" />
+    </div>
+    <div class="field">
+      <label for="childgrowth-bmi">BMI (auto-calculated)</label>
+      <input id="childgrowth-bmi" type="number" readonly style="background:#f8f9fa;" />
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="childgrowth-milestones">Developmental Milestones</label>
+    <select id="childgrowth-milestones" multiple style="width:100%; height:80px;">
+      <option value="sitting">Sitting without support</option>
+      <option value="crawling">Crawling</option>
+      <option value="walking">Walking independently</option>
+      <option value="talking">First words</option>
+      <option value="phrases">Two-word phrases</option>
+      <option value="running">Running steadily</option>
+      <option value="jumping">Jumping with both feet</option>
+      <option value="potty">Potty trained</option>
+      <option value="colors">Recognizes colors</option>
+      <option value="counting">Counts to 10</option>
+      <option value="alphabet">Knows alphabet</option>
+      <option value="reading">Beginning to read</option>
+    </select>
+    <div class="small" style="margin-top:2px; opacity:0.7;">
+      Hold Ctrl/Cmd to select multiple
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="childgrowth-notes">Notes</label>
+    <textarea id="childgrowth-notes" rows="2" placeholder="Any observations, concerns, or notes..."></textarea>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="childgrowthAdd(this)" style="background:#28a745;">Log Entry</button>
+    <button type="button" onclick="childgrowthUpdate(this)" style="background:#fd7e14;">Update Entry</button>
+    <button type="button" class="secondary" onclick="childgrowthReset(this)">Reset Form</button>
+    <button type="button" onclick="childgrowthExport(this)" style="background:#6f42c1;">Export Data</button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <h3 class="small">Growth Log</h3>
-  <ul id="childgrowth-list" class="small"></ul>
+<div id="childgrowth-status" style="margin-top:12px; padding:8px 12px; border-radius:6px; background:#f8f9fa; display:none;">
+  <div class="small" id="childgrowth-status-text"></div>
+</div>
+
+<div class="results" aria-live="polite" style="margin-top:20px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <h3 class="small" style="margin:0;">Growth History</h3>
+    <div class="small" style="opacity:0.7;">
+      <span id="childgrowth-count">0</span> entries | 
+      <span id="childgrowth-age-display">–</span> old
+    </div>
+  </div>
+  
+  <div id="childgrowth-charts" style="margin-bottom:20px; display:none;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div style="background:white; padding:12px; border-radius:8px; border:1px solid #dee2e6;">
+        <div class="small"><strong>Height Progress</strong></div>
+        <div id="height-chart" style="height:100px; margin-top:8px; position:relative;">
+          <div style="position:absolute; top:0; left:0; right:0; bottom:0; background:linear-gradient(to top, #e9ecef 0%, transparent 100%);"></div>
+          <!-- Chart bars will be generated by JavaScript -->
+        </div>
+      </div>
+      <div style="background:white; padding:12px; border-radius:8px; border:1px solid #dee2e6;">
+        <div class="small"><strong>Weight Progress</strong></div>
+        <div id="weight-chart" style="height:100px; margin-top:8px; position:relative;">
+          <div style="position:absolute; top:0; left:0; right:0; bottom:0; background:linear-gradient(to top, #e9ecef 0%, transparent 100%);"></div>
+          <!-- Chart bars will be generated by JavaScript -->
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="childgrowth-summary" style="background:#f8f9fa; padding:12px; border-radius:8px; margin-bottom:12px; display:none;">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px;">
+      <div>
+        <div class="small"><strong>Current Percentiles</strong></div>
+        <div style="font-size:1.2em; font-weight:bold;" id="percentile-height">–</div>
+        <div class="small" style="opacity:0.7;">Height</div>
+      </div>
+      <div>
+        <div class="small"><strong>Current Percentiles</strong></div>
+        <div style="font-size:1.2em; font-weight:bold;" id="percentile-weight">–</div>
+        <div class="small" style="opacity:0.7;">Weight</div>
+      </div>
+      <div>
+        <div class="small"><strong>BMI</strong></div>
+        <div style="font-size:1.2em; font-weight:bold;" id="current-bmi">–</div>
+        <div class="small" style="opacity:0.7;" id="bmi-category">–</div>
+      </div>
+      <div>
+        <div class="small"><strong>Growth Rate</strong></div>
+        <div style="font-size:1.2em; font-weight:bold;" id="growth-rate">–</div>
+        <div class="small" style="opacity:0.7;">cm/month</div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="childgrowth-list" style="display:grid; gap:8px;"></div>
+  
+  <div id="childgrowth-empty" style="text-align:center; padding:40px 20px; background:#f8f9fa; border-radius:8px; display:block;">
+    <div style="font-size:1.2em; color:#6c757d; margin-bottom:8px;">No growth entries yet</div>
+    <div class="small" style="opacity:0.7;">Add your first growth measurement using the form above</div>
+  </div>
+</div>
+
+<div id="childgrowth-reference" style="margin-top:20px; padding:15px; background:#e7f5ff; border-radius:8px; display:none;">
+  <h4 class="small">Growth Reference (WHO Standards)</h4>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:10px; margin-top:10px;">
+    <div style="background:white; padding:10px; border-radius:6px;">
+      <strong>Average Milestones</strong>
+      <div style="font-size:0.9em; margin-top:4px;">• 6 months: Sits without support</div>
+      <div style="font-size:0.9em;">• 9 months: Crawls</div>
+      <div style="font-size:0.9em;">• 12 months: First steps</div>
+      <div style="font-size:0.9em;">• 18 months: Walks well</div>
+    </div>
+    <div style="background:white; padding:10px; border-radius:6px;">
+      <strong>Percentile Guide</strong>
+      <div style="font-size:0.9em; margin-top:4px;">• 3rd-97th: Normal range</div>
+      <div style="font-size:0.9em;">• Below 3rd: May need evaluation</div>
+      <div style="font-size:0.9em;">• Above 97th: May need evaluation</div>
+      <div style="font-size:0.9em;">• Track pattern over time</div>
+    </div>
+    <div style="background:white; padding:10px; border-radius:6px;">
+      <strong>BMI Categories (2-20 yrs)</strong>
+      <div style="font-size:0.9em; margin-top:4px;">• Underweight: < 5th %ile</div>
+      <div style="font-size:0.9em;">• Healthy: 5th - 85th %ile</div>
+      <div style="font-size:0.9em;">• Overweight: 85th - 95th %ile</div>
+      <div style="font-size:0.9em;">• Obese: ≥ 95th %ile</div>
+    </div>
+    <div style="background:white; padding:10px; border-radius:6px;">
+      <strong>Medical Disclaimer</strong>
+      <div style="font-size:0.9em; margin-top:4px;">⚠️ This tracker is for informational purposes only. Always consult with a pediatrician for medical advice about your child's growth and development.</div>
+    </div>
+  </div>
 </div>
 
 <script>
-let childgrowthLog = [];
+/* Enhanced Child Growth Tracker
+   - WHO percentile calculations
+   - Growth charts and visualization
+   - Milestone tracking
+   - BMI calculations
+   - Data export
+*/
 
-function childgrowthAdd(btn) {
-  const card = btn.closest('.card');
-  const name = card.querySelector('#childgrowth-name').value.trim();
-  const age = card.querySelector('#childgrowth-age').value;
-  const height = card.querySelector('#childgrowth-height').value;
-  const weight = card.querySelector('#childgrowth-weight').value;
+let childGrowthLog = JSON.parse(localStorage.getItem('childGrowthLog') || '[]');
+let editingId = null;
 
-  if (!name || !age || !height || !weight) return;
+// WHO Growth Standards (simplified for demonstration)
+const whoStandards = {
+  // Height/Length for age (cm) - Boys 0-2 years (3rd, 50th, 97th percentiles)
+  male: {
+    0: [45.6, 49.9, 54.2],
+    0.5: [60.6, 65.1, 69.6],
+    1: [71.0, 76.1, 81.2],
+    1.5: [78.9, 84.5, 90.1],
+    2: [82.3, 88.1, 93.9]
+  },
+  female: {
+    0: [45.1, 49.1, 53.1],
+    0.5: [59.1, 63.7, 68.3],
+    1: [69.2, 74.3, 79.4],
+    1.5: [77.0, 82.5, 88.0],
+    2: [80.7, 86.4, 92.1]
+  }
+};
 
-  childgrowthLog.push({ name, age, height, weight });
-  renderChildgrowth(card);
-  card.querySelector('form').reset();
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+  // Set measurement date to today
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('childgrowth-date').value = today;
+  
+  // Set up real-time calculations
+  setupRealTimeCalculators();
+  
+  // Load existing data
+  renderGrowthLog();
+  updateSummary();
+  
+  // Show reference info
+  document.getElementById('childgrowth-reference').style.display = 'block';
+});
+
+function setupRealTimeCalculators() {
+  // Height conversion
+  const heightInput = document.getElementById('childgrowth-height');
+  const heightDisplay = document.getElementById('childgrowth-height-in');
+  
+  if (heightInput && heightDisplay) {
+    heightInput.addEventListener('input', function() {
+      const cm = parseFloat(this.value) || 0;
+      if (cm > 0) {
+        const inches = (cm / 2.54).toFixed(1);
+        heightDisplay.textContent = `(${inches} inches)`;
+      } else {
+        heightDisplay.textContent = "(– inches)";
+      }
+      calculateBMI();
+    });
+  }
+  
+  // Weight conversion
+  const weightInput = document.getElementById('childgrowth-weight');
+  const weightDisplay = document.getElementById('childgrowth-weight-lbs');
+  
+  if (weightInput && weightDisplay) {
+    weightInput.addEventListener('input', function() {
+      const kg = parseFloat(this.value) || 0;
+      if (kg > 0) {
+        const lbs = (kg * 2.20462).toFixed(1);
+        weightDisplay.textContent = `(${lbs} lbs)`;
+      } else {
+        weightDisplay.textContent = "(– lbs)";
+      }
+      calculateBMI();
+    });
+  }
+  
+  // BMI calculation on height/weight change
+  function calculateBMI() {
+    const height = parseFloat(heightInput.value) || 0;
+    const weight = parseFloat(weightInput.value) || 0;
+    const bmiInput = document.getElementById('childgrowth-bmi');
+    
+    if (height > 0 && weight > 0) {
+      const heightM = height / 100; // Convert cm to meters
+      const bmi = weight / (heightM * heightM);
+      bmiInput.value = bmi.toFixed(1);
+    } else {
+      bmiInput.value = '';
+    }
+  }
 }
 
-function renderChildgrowth(card) {
-  const list = card.querySelector('#childgrowth-list');
-  list.innerHTML = "";
-  childgrowthLog.forEach(entry => {
-    const li = document.createElement('li');
-    li.textContent = entry.name + " — Age: " + entry.age + " yrs, " +
-                     "Height: " + entry.height + " cm, " +
-                     "Weight: " + entry.weight + " kg";
-    list.appendChild(li);
+function childgrowthAdd(btn) {
+  const card = btn.closest('.card') || document;
+  const entry = getFormData(card);
+  
+  if (!validateEntry(entry)) {
+    return;
+  }
+  
+  entry.id = Date.now();
+  entry.created = new Date().toISOString();
+  entry.bmi = calculateEntryBMI(entry);
+  
+  // Calculate percentiles
+  entry.percentiles = calculatePercentiles(entry);
+  
+  childGrowthLog.push(entry);
+  saveToStorage();
+  renderGrowthLog();
+  updateSummary();
+  showGrowthStatus("Growth entry added successfully!", "success");
+  resetForm(card);
+}
+
+function childgrowthUpdate(btn) {
+  const card = btn.closest('.card') || document;
+  
+  if (!editingId) {
+    showGrowthStatus("Select an entry to edit first", "error");
+    return;
+  }
+  
+  const updatedEntry = getFormData(card);
+  const index = childGrowthLog.findIndex(entry => entry.id === editingId);
+  
+  if (index === -1) {
+    showGrowthStatus("Entry not found", "error");
+    return;
+  }
+  
+  if (!validateEntry(updatedEntry)) {
+    return;
+  }
+  
+  // Preserve original creation date and ID
+  updatedEntry.id = editingId;
+  updatedEntry.created = childGrowthLog[index].created;
+  updatedEntry.updated = new Date().toISOString();
+  updatedEntry.bmi = calculateEntryBMI(updatedEntry);
+  updatedEntry.percentiles = calculatePercentiles(updatedEntry);
+  
+  childGrowthLog[index] = updatedEntry;
+  saveToStorage();
+  renderGrowthLog();
+  updateSummary();
+  showGrowthStatus("Growth entry updated!", "success");
+  resetForm(card);
+  editingId = null;
+}
+
+function getFormData(card) {
+  const name = card.querySelector('#childgrowth-name').value.trim();
+  const gender = card.querySelector('#childgrowth-gender').value;
+  const dob = card.querySelector('#childgrowth-dob').value;
+  const date = card.querySelector('#childgrowth-date').value;
+  const height = parseFloat(card.querySelector('#childgrowth-height').value) || 0;
+  const weight = parseFloat(card.querySelector('#childgrowth-weight').value) || 0;
+  const head = parseFloat(card.querySelector('#childgrowth-head').value) || null;
+  const notes = card.querySelector('#childgrowth-notes').value.trim();
+  
+  // Get selected milestones
+  const milestoneSelect = card.querySelector('#childgrowth-milestones');
+  const milestones = Array.from(milestoneSelect.selectedOptions).map(opt => opt.value);
+  
+  // Calculate age in months
+  let ageMonths = 0;
+  if (dob && date) {
+    const dobDate = new Date(dob);
+    const measureDate = new Date(date);
+    const diffMonths = (measureDate.getFullYear() - dobDate.getFullYear()) * 12 + 
+                       (measureDate.getMonth() - dobDate.getMonth());
+    ageMonths = Math.max(0, diffMonths);
+  }
+  
+  return {
+    name,
+    gender,
+    dob,
+    date,
+    height,
+    weight,
+    head,
+    milestones,
+    notes,
+    ageMonths,
+    ageYears: (ageMonths / 12).toFixed(1)
+  };
+}
+
+function validateEntry(entry) {
+  if (!entry.name) {
+    showGrowthStatus("Please enter child's name", "error");
+    return false;
+  }
+  
+  if (!entry.dob) {
+    showGrowthStatus("Please enter date of birth", "error");
+    return false;
+  }
+  
+  if (!entry.date) {
+    showGrowthStatus("Please enter measurement date", "error");
+    return false;
+  }
+  
+  if (entry.height <= 0) {
+    showGrowthStatus("Please enter a valid height", "error");
+    return false;
+  }
+  
+  if (entry.weight <= 0) {
+    showGrowthStatus("Please enter a valid weight", "error");
+    return false;
+  }
+  
+  if (entry.ageMonths > 240) { // 20 years
+    showGrowthStatus("Age must be 20 years or less", "error");
+    return false;
+  }
+  
+  return true;
+}
+
+function calculateEntryBMI(entry) {
+  if (entry.height > 0 && entry.weight > 0) {
+    const heightM = entry.height / 100;
+    return entry.weight / (heightM * heightM);
+  }
+  return null;
+}
+
+function calculatePercentiles(entry) {
+  const gender = entry.gender;
+  const ageYears = parseFloat(entry.ageYears);
+  
+  // Simplified percentile calculation based on WHO standards
+  if (!whoStandards[gender] || ageYears > 2) {
+    // For ages > 2, use simplified estimation
+    return {
+      height: 'Estimation only',
+      weight: 'Estimation only'
+    };
+  }
+  
+  const standards = whoStandards[gender];
+  const ageKey = Object.keys(standards).reduce((prev, curr) => {
+    return Math.abs(curr - ageYears) < Math.abs(prev - ageYears) ? curr : prev;
+  });
+  
+  const [p3, p50, p97] = standards[ageKey];
+  const height = entry.height;
+  
+  let heightPercentile = '50th';
+  if (height < p3) heightPercentile = '< 3rd';
+  else if (height < p50) heightPercentile = '3rd-50th';
+  else if (height <= p97) heightPercentile = '50th-97th';
+  else heightPercentile = '> 97th';
+  
+  return {
+    height: heightPercentile,
+    weight: 'Use growth chart'
+  };
+}
+
+function renderGrowthLog() {
+  const list = document.getElementById('childgrowth-list');
+  const emptyState = document.getElementById('childgrowth-empty');
+  const countDisplay = document.getElementById('childgrowth-count');
+  
+  if (childGrowthLog.length === 0) {
+    list.innerHTML = '';
+    emptyState.style.display = 'block';
+    countDisplay.textContent = '0';
+    document.getElementById('childgrowth-charts').style.display = 'none';
+    document.getElementById('childgrowth-summary').style.display = 'none';
+    return;
+  }
+  
+  emptyState.style.display = 'none';
+  countDisplay.textContent = childGrowthLog.length;
+  
+  // Sort by date (newest first)
+  const sortedLog = [...childGrowthLog].sort((a, b) => new Date(b.date) - new Date(a.date));
+  
+  // Render list
+  list.innerHTML = '';
+  sortedLog.forEach((entry, index) => {
+    const entryElement = createEntryElement(entry, index);
+    list.appendChild(entryElement);
+  });
+  
+  // Update charts and summary
+  updateCharts();
+  document.getElementById('childgrowth-charts').style.display = 'block';
+  document.getElementById('childgrowth-summary').style.display = 'block';
+}
+
+function createEntryElement(entry, index) {
+  const div = document.createElement('div');
+  div.className = 'growth-entry';
+  div.style.cssText = `
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid #dee2e6;
+    border-left: 4px solid ${getGenderColor(entry.gender)};
+    transition: all 0.2s ease;
+  `;
+  
+  const dateObj = new Date(entry.date);
+  const formattedDate = dateObj.toLocaleDateString();
+  const ageDisplay = entry.ageMonths < 12 ? 
+    `${entry.ageMonths} months` : 
+    `${entry.ageYears} years`;
+  
+  // Format milestones
+  const milestoneNames = {
+    'sitting': 'Sitting',
+    'crawling': 'Crawling',
+    'walking': 'Walking',
+    'talking': 'First words',
+    'phrases': 'Two-word phrases',
+    'running': 'Running',
+    'jumping': 'Jumping',
+    'potty': 'Potty trained',
+    'colors': 'Knows colors',
+    'counting': 'Counts to 10',
+    'alphabet': 'Knows alphabet',
+    'reading': 'Beginning to read'
+  };
+  
+  const milestonesText = entry.milestones && entry.milestones.length > 0
+    ? entry.milestones.map(m => milestoneNames[m] || m).join(', ')
+    : 'No milestones logged';
+  
+  div.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div style="flex:1;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+          <h4 style="margin:0; font-size:1.1em;">${entry.name}</h4>
+          <span style="background:${getGenderColor(entry.gender)}; color:white; padding:2px 8px; border-radius:12px; font-size:0.8em;">
+            ${entry.gender === 'male' ? 'Boy' : entry.gender === 'female' ? 'Girl' : 'Other'}
+          </span>
+        </div>
+        <div style="font-size:0.9em; color:#6c757d; margin-bottom:8px;">
+          ${formattedDate} • ${ageDisplay} old
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:8px; margin-bottom:8px;">
+          <div>
+            <div style="font-weight:500; font-size:0.9em;">Height</div>
+            <div>${entry.height.toFixed(1)} cm (${(entry.height / 2.54).toFixed(1)} in)</div>
+          </div>
+          <div>
+            <div style="font-weight:500; font-size:0.9em;">Weight</div>
+            <div>${entry.weight.toFixed(1)} kg (${(entry.weight * 2.20462).toFixed(1)} lbs)</div>
+          </div>
+          ${entry.head ? `
+          <div>
+            <div style="font-weight:500; font-size:0.9em;">Head Circ.</div>
+            <div>${entry.head.toFixed(1)} cm</div>
+          </div>
+          ` : ''}
+          <div>
+            <div style="font-weight:500; font-size:0.9em;">BMI</div>
+            <div>${entry.bmi ? entry.bmi.toFixed(1) : 'N/A'}</div>
+          </div>
+        </div>
+        ${entry.milestones.length > 0 ? `
+        <div style="margin-bottom:8px;">
+          <div style="font-weight:500; font-size:0.9em;">Milestones</div>
+          <div style="font-size:0.9em; color:#495057;">${milestonesText}</div>
+        </div>
+        ` : ''}
+        ${entry.notes ? `
+        <div>
+          <div style="font-weight:500; font-size:0.9em;">Notes</div>
+          <div style="font-size:0.9em; color:#495057;">${entry.notes}</div>
+        </div>
+        ` : ''}
+      </div>
+      <div style="margin-left:12px; min-width:80px; text-align:right;">
+        <div style="display:flex; gap:4px; justify-content:flex-end;">
+          <button onclick="editGrowthEntry(${entry.id})" style="padding:4px 8px; background:#6c757d; color:white; border:none; border-radius:4px; font-size:0.85em; cursor:pointer;">Edit</button>
+          <button onclick="deleteGrowthEntry(${entry.id})" style="padding:4px 8px; background:#dc3545; color:white; border:none; border-radius:4px; font-size:0.85em; cursor:pointer;">Delete</button>
+        </div>
+        ${entry.percentiles && entry.percentiles.height ? `
+        <div style="margin-top:8px; font-size:0.8em; color:#6c757d;">
+          Percentile: ${entry.percentiles.height}
+        </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+  
+  // Hover effect
+  div.onmouseenter = function() {
+    this.style.transform = 'translateY(-2px)';
+    this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+  };
+  
+  div.onmouseleave = function() {
+    this.style.transform = 'translateY(0)';
+    this.style.boxShadow = 'none';
+  };
+  
+  return div;
+}
+
+function getGenderColor(gender) {
+  const colors = {
+    'male': '#4dabf7',
+    'female': '#f783ac',
+    'other': '#51cf66'
+  };
+  return colors[gender] || '#6c757d';
+}
+
+function updateCharts() {
+  if (childGrowthLog.length === 0) return;
+  
+  // Sort by date (oldest first for charts)
+  const sortedByDate = [...childGrowthLog].sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  // Height chart
+  const heightChart = document.getElementById('height-chart');
+  heightChart.innerHTML = '';
+  
+  // Find min and max height for scaling
+  const heights = sortedByDate.map(e => e.height);
+  const minHeight = Math.min(...heights);
+  const maxHeight = Math.max(...heights);
+  const heightRange = maxHeight - minHeight || 1;
+  
+  sortedByDate.forEach((entry, index) => {
+    const bar = document.createElement('div');
+    const heightPercent = ((entry.height - minHeight) / heightRange * 100);
+    
+    bar.style.cssText = `
+      position: absolute;
+      bottom: 0;
+      left: ${(index / (sortedByDate.length - 1 || 1)) * 100}%;
+      width: ${80 / sortedByDate.length}%;
+      height: ${heightPercent}%;
+      background: #4dabf7;
+      border-radius: 2px 2px 0 0;
+      transform: translateX(-50%);
+    `;
+    
+    // Tooltip
+    bar.title = `${entry.date}: ${entry.height} cm`;
+    heightChart.appendChild(bar);
+  });
+  
+  // Weight chart
+  const weightChart = document.getElementById('weight-chart');
+  weightChart.innerHTML = '';
+  
+  const weights = sortedByDate.map(e => e.weight);
+  const minWeight = Math.min(...weights);
+  const maxWeight = Math.max(...weights);
+  const weightRange = maxWeight - minWeight || 1;
+  
+  sortedByDate.forEach((entry, index) => {
+    const bar = document.createElement('div');
+    const weightPercent = ((entry.weight - minWeight) / weightRange * 100);
+    
+    bar.style.cssText = `
+      position: absolute;
+      bottom: 0;
+      left: ${(index / (sortedByDate.length - 1 || 1)) * 100}%;
+      width: ${80 / sortedByDate.length}%;
+      height: ${weightPercent}%;
+      background: #51cf66;
+      border-radius: 2px 2px 0 0;
+      transform: translateX(-50%);
+    `;
+    
+    bar.title = `${entry.date}: ${entry.weight} kg`;
+    weightChart.appendChild(bar);
   });
 }
 
+function updateSummary() {
+  if (childGrowthLog.length === 0) return;
+  
+  // Latest entry
+  const latest = childGrowthLog.reduce((latest, current) => 
+    new Date(current.date) > new Date(latest.date) ? current : latest
+  );
+  
+  // Calculate growth rate (if we have at least 2 entries)
+  let growthRate = 'N/A';
+  if (childGrowthLog.length >= 2) {
+    const sortedByDate = [...childGrowthLog].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const first = sortedByDate[0];
+    const last = sortedByDate[sortedByDate.length - 1];
+    
+    const timeDiffMonths = (new Date(last.date) - new Date(first.date)) / (1000 * 60 * 60 * 24 * 30.44);
+    if (timeDiffMonths > 0) {
+      const heightDiff = last.height - first.height;
+      growthRate = (heightDiff / timeDiffMonths).toFixed(2);
+    }
+  }
+  
+  // Update display
+  document.getElementById('percentile-height').textContent = 
+    latest.percentiles ? latest.percentiles.height : 'N/A';
+  document.getElementById('percentile-weight').textContent = 
+    latest.percentiles ? latest.percentiles.weight : 'N/A';
+  document.getElementById('current-bmi').textContent = 
+    latest.bmi ? latest.bmi.toFixed(1) : 'N/A';
+  document.getElementById('growth-rate').textContent = growthRate;
+  
+  // BMI category
+  const bmiCategory = document.getElementById('bmi-category');
+  if (latest.bmi) {
+    let category = '';
+    if (latest.bmi < 18.5) category = 'Underweight';
+    else if (latest.bmi < 25) category = 'Healthy';
+    else if (latest.bmi < 30) category = 'Overweight';
+    else category = 'Obese';
+    bmiCategory.textContent = category;
+  } else {
+    bmiCategory.textContent = 'N/A';
+  }
+  
+  // Age display
+  const ageDisplay = document.getElementById('childgrowth-age-display');
+  if (latest.dob) {
+    const dob = new Date(latest.dob);
+    const today = new Date();
+    const ageMonths = (today.getFullYear() - dob.getFullYear()) * 12 + 
+                      (today.getMonth() - dob.getMonth());
+    if (ageMonths < 12) {
+      ageDisplay.textContent = `${ageMonths} months`;
+    } else {
+      ageDisplay.textContent = `${(ageMonths / 12).toFixed(1)} years`;
+    }
+  } else {
+    ageDisplay.textContent = '–';
+  }
+}
+
+function editGrowthEntry(id) {
+  const entry = childGrowthLog.find(e => e.id === id);
+  if (!entry) return;
+  
+  const card = document.querySelector('.card') || document;
+  
+  card.querySelector('#childgrowth-name').value = entry.name;
+  card.querySelector('#childgrowth-gender').value = entry.gender;
+  card.querySelector('#childgrowth-dob').value = entry.dob;
+  card.querySelector('#childgrowth-date').value = entry.date;
+  card.querySelector('#childgrowth-height').value = entry.height;
+  card.querySelector('#childgrowth-weight').value = entry.weight;
+  if (entry.head) card.querySelector('#childgrowth-head').value = entry.head;
+  card.querySelector('#childgrowth-notes').value = entry.notes || '';
+  
+  // Select milestones
+  const milestoneSelect = card.querySelector('#childgrowth-milestones');
+  Array.from(milestoneSelect.options).forEach(option => {
+    option.selected = entry.milestones.includes(option.value);
+  });
+  
+  // Trigger calculations
+  card.querySelector('#childgrowth-height').dispatchEvent(new Event('input'));
+  card.querySelector('#childgrowth-weight').dispatchEvent(new Event('input'));
+  
+  editingId = id;
+  
+  // Scroll to form
+  card.querySelector('form').scrollIntoView({ behavior: 'smooth' });
+  
+  showGrowthStatus(`Editing entry from ${new Date(entry.date).toLocaleDateString()}`, "info");
+}
+
+function deleteGrowthEntry(id) {
+  if (!confirm("Are you sure you want to delete this growth entry?")) return;
+  
+  childGrowthLog = childGrowthLog.filter(entry => entry.id !== id);
+  saveToStorage();
+  renderGrowthLog();
+  updateSummary();
+  
+  if (editingId === id) {
+    editingId = null;
+    resetForm();
+  }
+  
+  showGrowthStatus("Growth entry deleted", "info");
+}
+
 function childgrowthReset(btn) {
-  const card = btn.closest('.card');
-  childgrowthLog = [];
-  card.querySelector('form').reset();
-  card.querySelector('#childgrowth-list').innerHTML = "";
+  const card = btn.closest('.card') || document;
+  resetForm(card);
+  editingId = null;
+  showGrowthStatus("Form reset", "info");
+}
+
+function childgrowthExport(btn) {
+  if (childGrowthLog.length === 0) {
+    showGrowthStatus("No data to export", "error");
+    return;
+  }
+  
+  const exportData = {
+    exported: new Date().toISOString(),
+    totalEntries: childGrowthLog.length,
+    entries: childGrowthLog
+  };
+  
+  const dataStr = JSON.stringify(exportData, null, 2);
+  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(dataBlob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `child-growth-data-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  showGrowthStatus("Growth data exported successfully!", "success");
+}
+
+function resetForm(card) {
+  if (!card) card = document.querySelector('.card') || document;
+  
+  card.querySelector('#childgrowth-name').value = '';
+  card.querySelector('#childgrowth-gender').value = 'female';
+  card.querySelector('#childgrowth-dob').value = '';
+  card.querySelector('#childgrowth-date').value = new Date().toISOString().split('T')[0];
+  card.querySelector('#childgrowth-height').value = '';
+  card.querySelector('#childgrowth-weight').value = '';
+  card.querySelector('#childgrowth-head').value = '';
+  card.querySelector('#childgrowth-bmi').value = '';
+  card.querySelector('#childgrowth-notes').value = '';
+  
+  // Clear milestone selection
+  const milestoneSelect = card.querySelector('#childgrowth-milestones');
+  Array.from(milestoneSelect.options).forEach(option => {
+    option.selected = false;
+  });
+  
+  // Reset displays
+  document.getElementById('childgrowth-height-in').textContent = '(– inches)';
+  document.getElementById('childgrowth-weight-lbs').textContent = '(– lbs)';
+}
+
+function showGrowthStatus(message, type) {
+  const status = document.getElementById('childgrowth-status');
+  const text = document.getElementById('childgrowth-status-text');
+  
+  if (!status || !text) return;
+  
+  status.style.display = 'block';
+  status.style.background = type === 'error' ? '#f8d7da' : 
+                           type === 'success' ? '#d4edda' : '#f8f9fa';
+  status.style.borderLeft = `4px solid ${type === 'error' ? '#dc3545' : 
+                                               type === 'success' ? '#28a745' : 
+                                               '#17a2b8'}`;
+  text.textContent = message;
+  
+  setTimeout(() => {
+    status.style.display = 'none';
+  }, 3000);
+}
+
+function saveToStorage() {
+  localStorage.setItem('childGrowthLog', JSON.stringify(childGrowthLog));
 }
 </script>
+
+<style>
+.growth-entry:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.actions button {
+  transition: all 0.2s ease;
+}
+
+.actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#childgrowth-charts div[style*="background:white"] {
+  transition: all 0.2s ease;
+}
+
+#childgrowth-charts div[style*="background:white"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+#childgrowth-summary div {
+  text-align: center;
+}
+
+input, select, textarea {
+  transition: border-color 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #4dabf7 !important;
+  outline: none;
+}
+
+#height-chart div, #weight-chart div {
+  transition: height 0.3s ease;
+}
+
+#height-chart div:hover, #weight-chart div:hover {
+  opacity: 0.8;
+}
+</style>
