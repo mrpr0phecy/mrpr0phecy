@@ -1,69 +1,284 @@
 <h2>Budget Planner</h2>
 
 <form>
-  <div class="field">
-    <label for="budget-income">Monthly Income</label>
-    <input id="budget-income" type="number" value="3000" />
+  <div class="row">
+    <div class="field">
+      <label for="budget-income">Monthly Income</label>
+      <input id="budget-income" type="number" min="0" value="3000" />
+    </div>
+    <div class="field">
+      <label for="budget-savings">Savings Goal (%)</label>
+      <input id="budget-savings" type="number" min="0" max="100" value="20" />
+    </div>
   </div>
 
-  <div class="field">
-    <label for="budget-rent">Rent / Mortgage</label>
-    <input id="budget-rent" type="number" value="1000" />
+  <h4 style="margin: 20px 0 10px 0;">Monthly Expenses</h4>
+  
+  <div class="row">
+    <div class="field">
+      <label for="budget-rent">Rent / Mortgage</label>
+      <input id="budget-rent" type="number" min="0" value="1000" />
+    </div>
+    <div class="field">
+      <label for="budget-bills">Bills & Utilities</label>
+      <input id="budget-bills" type="number" min="0" value="300" />
+    </div>
   </div>
 
-  <div class="field">
-    <label for="budget-bills">Bills & Utilities</label>
-    <input id="budget-bills" type="number" value="300" />
+  <div class="row">
+    <div class="field">
+      <label for="budget-food">Food & Groceries</label>
+      <input id="budget-food" type="number" min="0" value="400" />
+    </div>
+    <div class="field">
+      <label for="budget-transport">Transport</label>
+      <input id="budget-transport" type="number" min="0" value="200" />
+    </div>
   </div>
 
-  <div class="field">
-    <label for="budget-food">Food & Groceries</label>
-    <input id="budget-food" type="number" value="400" />
-  </div>
-
-  <div class="field">
-    <label for="budget-transport">Transport</label>
-    <input id="budget-transport" type="number" value="200" />
-  </div>
-
-  <div class="field">
-    <label for="budget-other">Other Expenses</label>
-    <input id="budget-other" type="number" value="300" />
+  <div class="row">
+    <div class="field">
+      <label for="budget-entertainment">Entertainment</label>
+      <input id="budget-entertainment" type="number" min="0" value="150" />
+    </div>
+    <div class="field">
+      <label for="budget-other">Other Expenses</label>
+      <input id="budget-other" type="number" min="0" value="300" />
+    </div>
   </div>
 
   <div class="actions">
     <button type="button" onclick="budgetCalc(this)">Calculate</button>
-    <button type="button" onclick="budgetReset(this)">Reset</button>
+    <button type="button" class="secondary" onclick="budgetReset(this)">Reset</button>
+    <button type="button" onclick="budgetSave(this)">Save Budget</button>
   </div>
 </form>
 
 <div class="results">
-  <p><strong>Total Expenses:</strong> <span id="budget-total">–</span></p>
-  <p><strong>Remaining Balance:</strong> <span id="budget-balance">–</span></p>
+  <div class="result">
+    <div class="label">Total Expenses</div>
+    <div class="value" id="budget-total">–</div>
+  </div>
+  <div class="result">
+    <div class="label">Recommended Savings</div>
+    <div class="value" id="budget-savings-amount">–</div>
+  </div>
+  <div class="result">
+    <div class="label">Remaining Balance</div>
+    <div class="value" id="budget-balance">–</div>
+  </div>
+  <div class="result">
+    <div class="label">Savings Goal Status</div>
+    <div class="value" id="budget-savings-status">–</div>
+  </div>
+</div>
+
+<div class="chart-container" style="margin-top: 20px; display: none;" id="budget-chart">
+  <canvas id="budget-pie-chart" width="400" height="200"></canvas>
 </div>
 
 <script>
-function budgetCalc(btn){
+// Format currency
+const fmt = n => new Intl.NumberFormat(undefined, {style: 'currency', currency: 'GBP'}).format(n);
+
+// Save budgets to localStorage
+let savedBudgets = JSON.parse(localStorage.getItem('budgetPlannerBudgets') || '[]');
+
+function budgetCalc(btn) {
   const card = btn.closest('.card');
-  const income = parseFloat(card.querySelector('#budget-income').value)||0;
-  const rent = parseFloat(card.querySelector('#budget-rent').value)||0;
-  const bills = parseFloat(card.querySelector('#budget-bills').value)||0;
-  const food = parseFloat(card.querySelector('#budget-food').value)||0;
-  const transport = parseFloat(card.querySelector('#budget-transport').value)||0;
-  const other = parseFloat(card.querySelector('#budget-other').value)||0;
+  const income = parseFloat(card.querySelector('#budget-income').value) || 0;
+  const savingsGoal = parseFloat(card.querySelector('#budget-savings').value) || 0;
+  const rent = parseFloat(card.querySelector('#budget-rent').value) || 0;
+  const bills = parseFloat(card.querySelector('#budget-bills').value) || 0;
+  const food = parseFloat(card.querySelector('#budget-food').value) || 0;
+  const transport = parseFloat(card.querySelector('#budget-transport').value) || 0;
+  const entertainment = parseFloat(card.querySelector('#budget-entertainment').value) || 0;
+  const other = parseFloat(card.querySelector('#budget-other').value) || 0;
 
-  const total = rent + bills + food + transport + other;
-  const balance = income - total;
+  const totalExpenses = rent + bills + food + transport + entertainment + other;
+  const savingsAmount = income * (savingsGoal / 100);
+  const balance = income - totalExpenses - savingsAmount;
+  const actualSavingsPercentage = (savingsAmount / income) * 100;
 
-  const fmt = n=>new Intl.NumberFormat(undefined,{style:'currency',currency:'GBP'}).format(n);
-  card.querySelector('#budget-total').textContent = fmt(total);
+  // Update results
+  card.querySelector('#budget-total').textContent = fmt(totalExpenses);
+  card.querySelector('#budget-savings-amount').textContent = fmt(savingsAmount);
   card.querySelector('#budget-balance').textContent = fmt(balance);
+  
+  // Savings status with color coding
+  const savingsStatus = card.querySelector('#budget-savings-status');
+  if (balance >= 0) {
+    savingsStatus.textContent = "✅ On Track";
+    savingsStatus.style.color = "#28a745";
+  } else {
+    savingsStatus.textContent = "⚠️ Over Budget";
+    savingsStatus.style.color = "#dc3545";
+  }
+
+  // Show chart
+  updateBudgetChart(card, {
+    income, rent, bills, food, transport, entertainment, other,
+    savings: savingsAmount, balance
+  });
 }
 
-function budgetReset(btn){
+function updateBudgetChart(card, data) {
+  const chartContainer = card.querySelector('#budget-chart');
+  const canvas = card.querySelector('#budget-pie-chart');
+  const ctx = canvas.getContext('2d');
+  
+  // Destroy existing chart if it exists
+  if (canvas.chart) {
+    canvas.chart.destroy();
+  }
+  
+  // Prepare data for chart
+  const expensesData = {
+    labels: ['Rent', 'Bills', 'Food', 'Transport', 'Entertainment', 'Other', 'Savings'],
+    datasets: [{
+      data: [
+        data.rent,
+        data.bills,
+        data.food,
+        data.transport,
+        data.entertainment,
+        data.other,
+        data.savings
+      ],
+      backgroundColor: [
+        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+        '#9966FF', '#FF9F40', '#28a745'
+      ]
+    }]
+  };
+  
+  // Create chart
+  canvas.chart = new Chart(ctx, {
+    type: 'pie',
+    data: expensesData,
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'right',
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              let label = context.label || '';
+              if (label) {
+                label += ': ';
+              }
+              label += fmt(context.raw);
+              return label;
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  chartContainer.style.display = 'block';
+}
+
+function budgetReset(btn) {
   const card = btn.closest('.card');
   card.querySelector('form').reset();
-  card.querySelector('#budget-total').textContent='–';
-  card.querySelector('#budget-balance').textContent='–';
+  
+  // Reset results
+  card.querySelector('#budget-total').textContent = '–';
+  card.querySelector('#budget-savings-amount').textContent = '–';
+  card.querySelector('#budget-balance').textContent = '–';
+  card.querySelector('#budget-savings-status').textContent = '–';
+  card.querySelector('#budget-savings-status').style.color = '';
+  
+  // Hide chart
+  const chartContainer = card.querySelector('#budget-chart');
+  chartContainer.style.display = 'none';
 }
+
+function budgetSave(btn) {
+  const card = btn.closest('.card');
+  const formData = {
+    id: Date.now(),
+    date: new Date().toLocaleDateString(),
+    income: card.querySelector('#budget-income').value,
+    savingsGoal: card.querySelector('#budget-savings').value,
+    rent: card.querySelector('#budget-rent').value,
+    bills: card.querySelector('#budget-bills').value,
+    food: card.querySelector('#budget-food').value,
+    transport: card.querySelector('#budget-transport').value,
+    entertainment: card.querySelector('#budget-entertainment').value,
+    other: card.querySelector('#budget-other').value
+  };
+  
+  // Save to localStorage
+  savedBudgets.push(formData);
+  localStorage.setItem('budgetPlannerBudgets', JSON.stringify(savedBudgets));
+  
+  // Show confirmation
+  const originalText = btn.textContent;
+  btn.textContent = '✓ Saved!';
+  btn.style.backgroundColor = '#28a745';
+  
+  setTimeout(() => {
+    btn.textContent = originalText;
+    btn.style.backgroundColor = '';
+  }, 2000);
+}
+
+// Load Chart.js if not already loaded
+if (typeof Chart === 'undefined') {
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
+  document.head.appendChild(script);
+}
+
+// Auto-calculate on input change
+document.addEventListener('DOMContentLoaded', function() {
+  // This would be attached to each input if the card was in its own scope
+});
 </script>
+
+<style>
+/* Additional styling for the budget planner */
+.results {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.result {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.result:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.result .label {
+  font-weight: 500;
+}
+
+.result .value {
+  font-weight: 600;
+}
+
+h4 {
+  color: #495057;
+  font-size: 1rem;
+}
+
+.chart-container {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
