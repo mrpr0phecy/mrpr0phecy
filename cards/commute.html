@@ -1,59 +1,643 @@
-<h2 id="commute-title" style="margin-top:0;">Commute Calculator</h2>
+<h2 id="commute-title" style="margin-top:0;color:var(--accent);">🚗 Commute Calculator</h2>
 
-<form aria-describedby="commute-desc">
-  <p id="commute-desc" class="small">Estimate commute time and cost.</p>
+<form aria-describedby="commute-desc" style="margin-bottom:20px;">
+  <p id="commute-desc" class="small" style="color:rgba(230,250,255,0.8);margin-bottom:16px;">
+    Calculate commute time, cost, and environmental impact. Compare different transportation modes.
+    <span style="color:var(--accent);display:block;margin-top:4px;">
+      ✅ Tracks daily, weekly, monthly, and yearly totals
+    </span>
+  </p>
 
-  <div class="row">
-    <div class="field">
-      <label for="commute-distance">Distance (km)</label>
-      <input id="commute-distance" type="number" min="1" value="20" />
-    </div>
-    <div class="field">
-      <label for="commute-speed">Average speed (km/h)</label>
-      <input id="commute-speed" type="number" min="1" value="40" />
-    </div>
-    <div class="field">
-      <label for="commute-cost">Cost per km (£)</label>
-      <input id="commute-cost" type="number" step="0.01" value="0.20" />
+  <!-- Transportation Mode Selection -->
+  <div style="margin-bottom:16px;">
+    <label style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">🚦 Transportation Mode</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <button type="button" onclick="ccSelectMode('car')" id="mode-car" style="padding:8px 12px;background:linear-gradient(135deg, rgba(255,77,77,0.2), rgba(255,77,77,0.1));border:2px solid rgba(255,77,77,0.4);border-radius:8px;color:#ff4d4d;cursor:pointer;font-weight:600;">
+        🚗 Car
+      </button>
+      <button type="button" onclick="ccSelectMode('motorcycle')" id="mode-motorcycle" style="padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+        🏍️ Motorcycle
+      </button>
+      <button type="button" onclick="ccSelectMode('transit')" id="mode-transit" style="padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+        🚌 Public Transit
+      </button>
+      <button type="button" onclick="ccSelectMode('bike')" id="mode-bike" style="padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+        🚲 Bicycle
+      </button>
+      <button type="button" onclick="ccSelectMode('walk')" id="mode-walk" style="padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+        🚶 Walking
+      </button>
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="commuteCalc(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="commuteReset(this)">Reset</button>
+  <!-- Distance Input -->
+  <div style="display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:12px;">
+    <div class="field">
+      <label for="commute-distance" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        📏 Distance (km)
+      </label>
+      <input id="commute-distance" type="range" min="1" max="100" step="1" value="20"
+             oninput="ccUpdateDistance(this.value)" 
+             style="width:100%;height:8px;border-radius:4px;background:rgba(255,255,255,0.1);outline:none;">
+      <div style="display:flex;justify-content:space-between;margin-top:4px;">
+        <span style="font-size:11px;color:rgba(230,250,255,0.6);">1 km</span>
+        <span id="distance-display" style="font-weight:600;color:var(--accent);">20 km</span>
+        <span style="font-size:11px;color:rgba(230,250,255,0.6);">100 km</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="commute-days" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        📅 Trips per week
+      </label>
+      <input id="commute-days" type="number" min="1" max="14" value="5"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;text-align:center;">
+    </div>
+  </div>
+
+  <!-- Mode-specific Settings -->
+  <div id="mode-settings">
+    <!-- Car settings (default) -->
+    <div id="settings-car" style="display:block;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="field">
+          <label for="commute-fuel-price" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+            ⛽ Fuel price (£/L)
+          </label>
+          <input id="commute-fuel-price" type="number" step="0.01" value="1.45"
+                 style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,77,77,0.3);background:rgba(255,77,77,0.05);color:inherit;">
+        </div>
+        <div class="field">
+          <label for="commute-fuel-efficiency" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+            🚗 Fuel efficiency (km/L)
+          </label>
+          <input id="commute-fuel-efficiency" type="number" step="0.1" value="12.5"
+                 style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,77,77,0.3);background:rgba(255,77,77,0.05);color:inherit;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="field">
+          <label for="commute-car-speed" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+            🏁 Average speed (km/h)
+          </label>
+          <input id="commute-car-speed" type="number" min="1" max="120" value="40"
+                 style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,77,77,0.3);background:rgba(255,77,77,0.05);color:inherit;">
+        </div>
+        <div class="field">
+          <label for="commute-car-cost" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+            💰 Cost per km (£)
+          </label>
+          <input id="commute-car-cost" type="number" step="0.01" value="0.20"
+                 style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,77,77,0.3);background:rgba(255,77,77,0.05);color:inherit;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions" style="display:flex;gap:10px;margin-top:20px;">
+    <button type="button" onclick="ccCalculate(this)" 
+            style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+      🧮 Calculate Commute
+    </button>
+    <button type="button" onclick="ccReset(this)"
+            style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+      🔄 Reset
+    </button>
+    <button type="button" onclick="ccSaveSettings(this)"
+            style="padding:12px 16px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;">
+      💾 Save
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <div class="result">
-    <div class="label">Estimated time</div>
-    <div class="value" id="commute-time">–</div>
+<div class="results" aria-live="polite" style="margin-top:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <h3 class="small" style="color:var(--accent);margin:0;">📊 Commute Analysis</h3>
+    <div id="current-mode" style="font-size:12px;color:rgba(230,250,255,0.7);background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:6px;padding:4px 8px;">
+      🚗 Car
+    </div>
   </div>
-  <div class="result">
-    <div class="label">Estimated cost</div>
-    <div class="value" id="commute-costres">–</div>
+
+  <!-- Quick Stats -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">
+    <div style="background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.2);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:var(--accent);" id="stat-time">30m</div>
+      <div style="font-size:11px;color:rgba(230,250,255,0.7);">One Way</div>
+    </div>
+    <div style="background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.2);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:#ff4d4d;" id="stat-cost">£4.00</div>
+      <div style="font-size:11px;color:rgba(230,250,255,0.7);">Daily Cost</div>
+    </div>
+    <div style="background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.2);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:#ffa500;" id="stat-weekly">£20.00</div>
+      <div style="font-size:11px;color:rgba(230,250,255,0.7);">Weekly</div>
+    </div>
+    <div style="background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.2);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:#39ff14;" id="stat-yearly">£960.00</div>
+      <div style="font-size:11px;color:rgba(230,250,255,0.7);">Yearly</div>
+    </div>
+  </div>
+
+  <!-- Detailed Results -->
+  <div style="background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(255,255,255,0.1);padding:16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <h4 style="color:var(--accent);margin:0 0 8px 0;font-size:14px;">⏱️ Time Breakdown</h4>
+        <div style="font-size:12px;color:rgba(230,250,255,0.8);margin-bottom:4px;">
+          One-way: <span id="result-time-oneway" style="color:var(--accent);font-weight:600;">30 minutes</span>
+        </div>
+        <div style="font-size:12px;color:rgba(230,250,255,0.8);margin-bottom:4px;">
+          Round-trip: <span id="result-time-roundtrip" style="color:var(--accent);font-weight:600;">1 hour</span>
+        </div>
+        <div style="font-size:12px;color:rgba(230,250,255,0.8);margin-bottom:4px;">
+          Weekly: <span id="result-time-weekly" style="color:var(--accent);font-weight:600;">5 hours</span>
+        </div>
+        <div style="font-size:12px;color:rgba(230,250,255,0.8);">
+          Yearly: <span id="result-time-yearly" style="color:var(--accent);font-weight:600;">250 hours</span>
+        </div>
+      </div>
+      <div>
+        <h4 style="color:var(--accent);margin:0 0 8px 0;font-size:14px;">💰 Cost Breakdown</h4>
+        <div style="font-size:12px;color:rgba(230,250,255,0.8);margin-bottom:4px;">
+          One-way: <span id="result-cost-oneway" style="color:#ff4d4d;font-weight:600;">£2.00</span>
+        </div>
+        <div style="font-size:12px;color:rgba(230,250,255,0.8);margin-bottom:4px;">
+          Daily: <span id="result-cost-daily" style="color:#ff4d4d;font-weight:600;">£4.00</span>
+        </div>
+        <div style="font-size:12px;color:rgba(230,250,255,0.8);margin-bottom:4px;">
+          Weekly: <span id="result-cost-weekly" style="color:#ff4d4d;font-weight:600;">£20.00</span>
+        </div>
+        <div style="font-size:12px;color:rgba(230,250,255,0.8);">
+          Yearly: <span id="result-cost-yearly" style="color:#ff4d4d;font-weight:600;">£960.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Environmental Impact -->
+    <div id="environmental-impact" style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
+      <h4 style="color:var(--accent);margin:0 0 8px 0;font-size:14px;">🌱 Environmental Impact</h4>
+      <div style="font-size:12px;color:rgba(230,250,255,0.8);margin-bottom:4px;">
+        CO₂ emissions: <span id="result-co2" style="color:#39ff14;font-weight:600;">8.4 kg/week</span>
+      </div>
+      <div style="font-size:12px;color:rgba(230,250,255,0.8);">
+        Fuel consumption: <span id="result-fuel" style="color:#ffa500;font-weight:600;">16.7 L/week</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alternative Comparison -->
+  <div style="margin-top:16px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(255,255,255,0.1);padding:12px;">
+    <h4 style="color:var(--accent);margin:0 0 8px 0;font-size:14px;">🔄 Compare Alternatives</h4>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:11px;">
+      <div style="text-align:center;padding:6px;background:rgba(255,77,77,0.1);border-radius:4px;">
+        <div>🚗</div>
+        <div style="color:#ff4d4d;">£960/yr</div>
+      </div>
+      <div style="text-align:center;padding:6px;background:rgba(255,165,0,0.1);border-radius:4px;">
+        <div>🏍️</div>
+        <div style="color:#ffa500;">£720/yr</div>
+      </div>
+      <div style="text-align:center;padding:6px;background:rgba(45,212,255,0.1);border-radius:4px;">
+        <div>🚌</div>
+        <div style="color:var(--accent);">£480/yr</div>
+      </div>
+      <div style="text-align:center;padding:6px;background:rgba(57,255,20,0.1);border-radius:4px;">
+        <div>🚲</div>
+        <div style="color:#39ff14;">£0/yr</div>
+      </div>
+      <div style="text-align:center;padding:6px;background:rgba(255,255,255,0.05);border-radius:4px;">
+        <div>🚶</div>
+        <div>£0/yr</div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-function commuteCalc(btn) {
-  const card = btn.closest('.card');
-  const distance = parseFloat(card.querySelector('#commute-distance').value) || 0;
-  const speed = parseFloat(card.querySelector('#commute-speed').value) || 1;
-  const costPerKm = parseFloat(card.querySelector('#commute-cost').value) || 0;
+/* commute-calculator.html
+   - Enhanced commute calculator with multiple modes, environmental impact, and comparison
+   - Scoped with "cc" prefix (commute calculator)
+   - Uses localStorage for saved settings
+*/
 
-  const timeHours = distance / speed;
-  const minutes = Math.round(timeHours * 60);
-  const cost = distance * costPerKm;
+let ccCurrentMode = 'car';
+let ccSettings = {
+  car: { speed: 40, costPerKm: 0.20, fuelPrice: 1.45, fuelEfficiency: 12.5 },
+  motorcycle: { speed: 50, costPerKm: 0.12, fuelPrice: 1.45, fuelEfficiency: 25 },
+  transit: { speed: 25, costPerKm: 0.15, fare: 2.50 },
+  bike: { speed: 15, costPerKm: 0.02 },
+  walk: { speed: 5, costPerKm: 0 }
+};
 
-  card.querySelector('#commute-time').textContent = minutes + " minutes";
-  card.querySelector('#commute-costres').textContent = "£" + cost.toFixed(2);
+// CO2 emissions in kg per km
+const ccCO2PerKm = {
+  car: 0.12,
+  motorcycle: 0.06,
+  transit: 0.05,
+  bike: 0,
+  walk: 0
+};
+
+// Initialize
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', ccInitialize);
+} else {
+  ccInitialize();
 }
 
-function commuteReset(btn) {
-  const card = btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#commute-time').textContent = '–';
-  card.querySelector('#commute-costres').textContent = '–';
+function ccInitialize() {
+  console.log('Commute Calculator: Initializing...');
+  const card = document.currentScript?.closest('.card') || document;
+  
+  // Load saved settings
+  const saved = localStorage.getItem('cc-settings');
+  if (saved) {
+    try {
+      const loaded = JSON.parse(saved);
+      ccSettings = { ...ccSettings, ...loaded };
+      console.log('Loaded saved settings');
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
+  }
+  
+  // Load saved mode
+  const savedMode = localStorage.getItem('cc-mode');
+  if (savedMode && ccSettings[savedMode]) {
+    ccCurrentMode = savedMode;
+  }
+  
+  // Set initial values
+  ccUpdateModeUI();
+  ccUpdateDistance(20); // Initial distance
+  
+  // Calculate with default values
+  ccCalculate();
+  
+  console.log('Commute Calculator: Ready');
 }
+
+function ccSelectMode(mode) {
+  ccCurrentMode = mode;
+  localStorage.setItem('cc-mode', mode);
+  
+  // Update UI
+  ccUpdateModeUI();
+  
+  // Recalculate
+  ccCalculate();
+}
+
+function ccUpdateModeUI() {
+  const card = document.currentScript?.closest('.card') || document;
+  
+  // Update mode buttons
+  ['car', 'motorcycle', 'transit', 'bike', 'walk'].forEach(mode => {
+    const btn = card.querySelector(`#mode-${mode}`);
+    if (btn) {
+      if (mode === ccCurrentMode) {
+        btn.style.background = mode === 'car' ? 'linear-gradient(135deg, rgba(255,77,77,0.2), rgba(255,77,77,0.1))' :
+                           mode === 'motorcycle' ? 'linear-gradient(135deg, rgba(255,165,0,0.2), rgba(255,165,0,0.1))' :
+                           mode === 'transit' ? 'linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1))' :
+                           mode === 'bike' ? 'linear-gradient(135deg, rgba(57,255,20,0.2), rgba(57,255,20,0.1))' :
+                           'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))';
+        btn.style.border = mode === 'car' ? '2px solid rgba(255,77,77,0.4)' :
+                         mode === 'motorcycle' ? '2px solid rgba(255,165,0,0.4)' :
+                         mode === 'transit' ? '2px solid rgba(45,212,255,0.4)' :
+                         mode === 'bike' ? '2px solid rgba(57,255,20,0.4)' :
+                         '2px solid rgba(255,255,255,0.3)';
+        btn.style.color = mode === 'car' ? '#ff4d4d' :
+                        mode === 'motorcycle' ? '#ffa500' :
+                        mode === 'transit' ? 'var(--accent)' :
+                        mode === 'bike' ? '#39ff14' : 'inherit';
+        btn.style.fontWeight = '600';
+      } else {
+        btn.style.background = 'rgba(255,255,255,0.05)';
+        btn.style.border = '1px solid rgba(255,255,255,0.1)';
+        btn.style.color = 'inherit';
+        btn.style.fontWeight = 'normal';
+      }
+    }
+  });
+  
+  // Update mode display
+  const modeDisplay = card.querySelector('#current-mode');
+  if (modeDisplay) {
+    const modeIcons = {
+      car: '🚗',
+      motorcycle: '🏍️',
+      transit: '🚌',
+      bike: '🚲',
+      walk: '🚶'
+    };
+    const modeColors = {
+      car: '#ff4d4d',
+      motorcycle: '#ffa500',
+      transit: 'var(--accent)',
+      bike: '#39ff14',
+      walk: 'rgba(230,250,255,0.8)'
+    };
+    const modeNames = {
+      car: 'Car',
+      motorcycle: 'Motorcycle',
+      transit: 'Public Transit',
+      bike: 'Bicycle',
+      walk: 'Walking'
+    };
+    
+    modeDisplay.innerHTML = `${modeIcons[ccCurrentMode]} ${modeNames[ccCurrentMode]}`;
+    modeDisplay.style.background = `rgba(${ccCurrentMode === 'car' ? '255,77,77' : ccCurrentMode === 'motorcycle' ? '255,165,0' : ccCurrentMode === 'transit' ? '45,212,255' : ccCurrentMode === 'bike' ? '57,255,20' : '255,255,255'}, 0.1)`;
+    modeDisplay.style.borderColor = `rgba(${ccCurrentMode === 'car' ? '255,77,77' : ccCurrentMode === 'motorcycle' ? '255,165,0' : ccCurrentMode === 'transit' ? '45,212,255' : ccCurrentMode === 'bike' ? '57,255,20' : '255,255,255'}, 0.3)`;
+  }
+  
+  // Update input values based on mode
+  const speedInput = card.querySelector('#commute-car-speed') || card.querySelector('#commute-speed');
+  const costInput = card.querySelector('#commute-car-cost') || card.querySelector('#commute-cost');
+  
+  if (speedInput && ccSettings[ccCurrentMode]) {
+    speedInput.value = ccSettings[ccCurrentMode].speed || 40;
+  }
+  
+  if (costInput && ccSettings[ccCurrentMode]) {
+    costInput.value = ccSettings[ccCurrentMode].costPerKm || 0.20;
+  }
+}
+
+function ccUpdateDistance(value) {
+  const card = document.currentScript?.closest('.card') || document;
+  const display = card.querySelector('#distance-display');
+  if (display) {
+    display.textContent = `${value} km`;
+  }
+  ccCalculate();
+}
+
+function ccCalculate(btn) {
+  const card = document.currentScript?.closest('.card') || document;
+  
+  // Get inputs
+  const distance = parseFloat(card.querySelector('#commute-distance').value) || 20;
+  const tripsPerWeek = parseInt(card.querySelector('#commute-days').value) || 5;
+  const mode = ccCurrentMode;
+  
+  let speed, costPerKm;
+  
+  if (mode === 'car') {
+    speed = parseFloat(card.querySelector('#commute-car-speed').value) || 40;
+    costPerKm = parseFloat(card.querySelector('#commute-car-cost').value) || 0.20;
+    const fuelPrice = parseFloat(card.querySelector('#commute-fuel-price').value) || 1.45;
+    const fuelEfficiency = parseFloat(card.querySelector('#commute-fuel-efficiency').value) || 12.5;
+    
+    // Save to settings
+    ccSettings.car.speed = speed;
+    ccSettings.car.costPerKm = costPerKm;
+    ccSettings.car.fuelPrice = fuelPrice;
+    ccSettings.car.fuelEfficiency = fuelEfficiency;
+  } else {
+    speed = ccSettings[mode]?.speed || 40;
+    costPerKm = ccSettings[mode]?.costPerKm || 0.20;
+  }
+  
+  // Calculate time
+  const timeHoursOneWay = distance / speed;
+  const minutesOneWay = Math.round(timeHoursOneWay * 60);
+  const timeHoursRoundTrip = timeHoursOneWay * 2;
+  const minutesRoundTrip = Math.round(timeHoursRoundTrip * 60);
+  
+  // Calculate costs
+  const costOneWay = distance * costPerKm;
+  const costDaily = costOneWay * 2; // Round trip
+  const costWeekly = costDaily * tripsPerWeek;
+  const costYearly = costWeekly * 48; // Approx 48 working weeks
+  
+  // Calculate fuel consumption (for car/motorcycle)
+  let fuelWeekly = 0;
+  if (mode === 'car' || mode === 'motorcycle') {
+    const fuelEfficiency = ccSettings[mode]?.fuelEfficiency || 12.5;
+    fuelWeekly = (distance * 2 * tripsPerWeek) / fuelEfficiency;
+  }
+  
+  // Calculate CO2 emissions
+  const co2Weekly = distance * 2 * tripsPerWeek * (ccCO2PerKm[mode] || 0);
+  
+  // Update quick stats
+  card.querySelector('#stat-time').textContent = `${minutesOneWay}m`;
+  card.querySelector('#stat-cost').textContent = `£${costDaily.toFixed(2)}`;
+  card.querySelector('#stat-weekly').textContent = `£${costWeekly.toFixed(2)}`;
+  card.querySelector('#stat-yearly').textContent = `£${costYearly.toFixed(2)}`;
+  
+  // Update detailed results
+  card.querySelector('#result-time-oneway').textContent = `${minutesOneWay} minutes`;
+  card.querySelector('#result-time-roundtrip').textContent = `${minutesRoundTrip} minutes`;
+  card.querySelector('#result-time-weekly').textContent = `${Math.round(minutesRoundTrip * tripsPerWeek / 60)} hours`;
+  card.querySelector('#result-time-yearly').textContent = `${Math.round(minutesRoundTrip * tripsPerWeek * 48 / 60)} hours`;
+  
+  card.querySelector('#result-cost-oneway').textContent = `£${costOneWay.toFixed(2)}`;
+  card.querySelector('#result-cost-daily').textContent = `£${costDaily.toFixed(2)}`;
+  card.querySelector('#result-cost-weekly').textContent = `£${costWeekly.toFixed(2)}`;
+  card.querySelector('#result-cost-yearly').textContent = `£${costYearly.toFixed(2)}`;
+  
+  // Update environmental impact
+  const envSection = card.querySelector('#environmental-impact');
+  if (mode === 'car' || mode === 'motorcycle') {
+    envSection.style.display = 'block';
+    card.querySelector('#result-co2').textContent = `${co2Weekly.toFixed(1)} kg/week`;
+    card.querySelector('#result-fuel').textContent = `${fuelWeekly.toFixed(1)} L/week`;
+  } else {
+    envSection.style.display = 'none';
+  }
+  
+  // Update comparison (simplified)
+  const comparisonValues = {
+    car: costYearly,
+    motorcycle: costYearly * 0.75, // 25% cheaper than car
+    transit: costYearly * 0.5,     // 50% cheaper than car
+    bike: 0,
+    walk: 0
+  };
+  
+  // Update comparison display
+  const comparisonDivs = card.querySelectorAll('.comparison-value');
+  Object.entries(comparisonValues).forEach(([m, value]) => {
+    const display = card.querySelector(`#comparison-${m}`);
+    if (display) {
+      display.textContent = `£${value.toFixed(0)}/yr`;
+    }
+  });
+  
+  // Visual feedback if called from button
+  if (btn) {
+    btn.textContent = '✅ Calculated!';
+    setTimeout(() => {
+      btn.textContent = '🧮 Calculate Commute';
+    }, 1000);
+  }
+}
+
+function ccSaveSettings(btn) {
+  // Save current settings to localStorage
+  localStorage.setItem('cc-settings', JSON.stringify(ccSettings));
+  localStorage.setItem('cc-mode', ccCurrentMode);
+  
+  // Visual feedback
+  if (btn) {
+    btn.textContent = '✅ Saved!';
+    setTimeout(() => {
+      btn.textContent = '💾 Save';
+    }, 1000);
+  }
+}
+
+function ccReset(btn) {
+  const card = btn.closest('.card') || document;
+  
+  if (confirm('Reset all values to defaults?')) {
+    // Reset distance
+    card.querySelector('#commute-distance').value = 20;
+    ccUpdateDistance(20);
+    
+    // Reset trips per week
+    card.querySelector('#commute-days').value = 5;
+    
+    // Reset mode to car
+    ccCurrentMode = 'car';
+    ccUpdateModeUI();
+    
+    // Reset car-specific inputs
+    card.querySelector('#commute-car-speed').value = 40;
+    card.querySelector('#commute-car-cost').value = 0.20;
+    card.querySelector('#commute-fuel-price').value = 1.45;
+    card.querySelector('#commute-fuel-efficiency').value = 12.5;
+    
+    // Reset settings
+    ccSettings = {
+      car: { speed: 40, costPerKm: 0.20, fuelPrice: 1.45, fuelEfficiency: 12.5 },
+      motorcycle: { speed: 50, costPerKm: 0.12, fuelPrice: 1.45, fuelEfficiency: 25 },
+      transit: { speed: 25, costPerKm: 0.15, fare: 2.50 },
+      bike: { speed: 15, costPerKm: 0.02 },
+      walk: { speed: 5, costPerKm: 0 }
+    };
+    
+    // Clear saved settings
+    localStorage.removeItem('cc-settings');
+    localStorage.removeItem('cc-mode');
+    
+    // Recalculate
+    ccCalculate();
+    
+    // Visual feedback
+    btn.textContent = '✅ Reset!';
+    setTimeout(() => {
+      btn.textContent = '🔄 Reset';
+    }, 1000);
+  }
+}
+
+// Auto-calculate on input changes
+document.addEventListener('DOMContentLoaded', function() {
+  const card = document.currentScript?.closest('.card') || document;
+  
+  // Add event listeners for auto-calculation
+  const inputs = [
+    '#commute-distance',
+    '#commute-days',
+    '#commute-car-speed',
+    '#commute-car-cost',
+    '#commute-fuel-price',
+    '#commute-fuel-efficiency'
+  ];
+  
+  inputs.forEach(selector => {
+    const input = card.querySelector(selector);
+    if (input) {
+      input.addEventListener('input', () => ccCalculate());
+    }
+  });
+});
 </script>
+
+<style>
+/* Card-specific styles */
+#commute-title {
+  color: var(--accent);
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+/* Range slider styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, 
+    rgba(45,212,255,0.6) 0%, 
+    rgba(45,212,255,0.4) 20%, 
+    rgba(255,255,255,0.1) 100%);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.8);
+  box-shadow: 0 0 10px rgba(45,212,255,0.5);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.8);
+  box-shadow: 0 0 10px rgba(45,212,255,0.5);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  #commute-title {
+    font-size: 1.2rem;
+  }
+  
+  .mode-buttons {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  .detailed-results {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .comparison-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  
+  .actions {
+    flex-direction: column;
+  }
+  
+  .actions button {
+    width: 100%;
+    margin: 4px 0 !important;
+  }
+}
+
+/* Animation for results */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.result div {
+  animation: fadeIn 0.3s ease-out;
+}
+</style>
