@@ -901,7 +901,26 @@ function loadCardBatch() {
       fetch(`cards/${file}`)
         .then(r => r.ok ? r.text() : Promise.reject())
         .then(html => {
-          content.innerHTML = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
+          // ✅ FIXED: DO NOT STRIP SCRIPT TAGS
+          content.innerHTML = html;
+          
+          // Execute any scripts in the loaded content
+          const scripts = content.querySelectorAll('script');
+          scripts.forEach(script => {
+            const newScript = document.createElement('script');
+            if (script.src) {
+              newScript.src = script.src;
+            } else {
+              newScript.textContent = script.textContent;
+            }
+            // Copy attributes
+            [...script.attributes].forEach(attr => {
+              newScript.setAttribute(attr.name, attr.value);
+            });
+            
+            // Replace old script with new one (which will execute)
+            script.parentNode.replaceChild(newScript, script);
+          });
         })
         .catch(() => {
           content.textContent = 'Preview unavailable';
