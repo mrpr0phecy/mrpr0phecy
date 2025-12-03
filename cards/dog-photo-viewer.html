@@ -1,50 +1,998 @@
-<h2 id="dog-photo-viewer" style="margin-top:0;">Dog Photo Viewer</h2>
-
-<!--
-  Manifest metadata
-  id: dog-photo-viewer
-  title: Dog Photo Viewer
-  path: cards/dog-photo-viewer.html
-  category: Fun
-  version: 1.0
--->
+<!-- cards/dog-photo-viewer.html -->
+<h2 id="dog-photo-viewer-title" style="margin-top:0;color:#ff9966 !important;">🐕 Dog Photo Viewer</h2>
 
 <form aria-describedby="dpv-desc">
-  <p id="dpv-desc" class="small">
-    Enjoy random dog photos fetched from Dog CEO’s Dog API.
-  </p>
-
-  <div style="margin-top:12px;">
-    <button type="button" onclick="loadDog()">Refresh Dogs</button>
-  </div>
+    <p id="dpv-desc" class="small">
+        <span style="color:#ff9966;font-weight:600">COMPLETE DOG VIEWER</span> - Browse thousands of dog photos with breed information, favorites, and infinite scrolling. Multiple API sources for maximum reliability.
+    </p>
+    
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:20px;">
+        <div>
+            <label for="dpv-breed" style="display:block;margin-bottom:6px;color:#ff9966;font-weight:500;">
+                🐶 Breed
+            </label>
+            <select id="dpv-breed" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,153,102,0.3);background:rgba(255,153,102,0.05);color:inherit;">
+                <option value="all" selected>All Breeds</option>
+                <option value="african">African</option>
+                <option value="akita">Akita</option>
+                <option value="beagle">Beagle</option>
+                <option value="boxer">Boxer</option>
+                <option value="bulldog">Bulldog</option>
+                <option value="chihuahua">Chihuahua</option>
+                <option value="collie">Collie</option>
+                <option value="corgi">Corgi</option>
+                <option value="dachshund">Dachshund</option>
+                <option value="dalmatian">Dalmatian</option>
+                <option value="germanshepherd">German Shepherd</option>
+                <option value="goldenretriever">Golden Retriever</option>
+                <option value="husky">Husky</option>
+                <option value="labrador">Labrador</option>
+                <option value="poodle">Poodle</option>
+                <option value="pug">Pug</option>
+                <option value="rottweiler">Rottweiler</option>
+                <option value="samoyed">Samoyed</option>
+                <option value="shiba">Shiba Inu</option>
+                <option value="terrier">Terrier</option>
+            </select>
+        </div>
+        
+        <div>
+            <label for="dpv-order" style="display:block;margin-bottom:6px;color:#ff9966;font-weight:500;">
+                📊 Order
+            </label>
+            <select id="dpv-order" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,153,102,0.3);background:rgba(255,153,102,0.05);color:inherit;">
+                <option value="random" selected>Random</option>
+                <option value="latest">Latest</option>
+                <option value="popular">Most Popular</option>
+            </select>
+        </div>
+        
+        <div>
+            <label for="dpv-image-count" style="display:block;margin-bottom:6px;color:#ff9966;font-weight:500;">
+                🖼️ Images Per Load
+            </label>
+            <select id="dpv-image-count" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,153,102,0.3);background:rgba(255,153,102,0.05);color:inherit;">
+                <option value="6">6 Images</option>
+                <option value="12" selected>12 Images</option>
+                <option value="20">20 Images</option>
+                <option value="30">30 Images</option>
+            </select>
+        </div>
+    </div>
+    
+    <!-- ACTION BUTTONS -->
+    <div class="actions" style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button type="button" onclick="dpvLoadMoreDogs()" 
+                style="flex:1;padding:14px;background:linear-gradient(135deg, #ff9966, #ff7744);border:none;border-radius:8px;color:#fff;cursor:pointer;font-weight:600;font-size:16px;">
+            🐾 Load More Dogs
+        </button>
+        <button type="button" onclick="dpvToggleFavoritesView()" id="dpv-fav-toggle"
+                style="padding:14px 20px;background:rgba(255,153,102,0.1);border:1px solid rgba(255,153,102,0.3);border-radius:8px;color:#ff9966;cursor:pointer;">
+            ❤️ Favorites (<span id="dpv-fav-count">0</span>)
+        </button>
+        <button type="button" onclick="dpvRefreshDogs()"
+                style="padding:14px 20px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:inherit;cursor:pointer;">
+            🔄 Refresh
+        </button>
+    </div>
 </form>
 
-<div style="margin-top:12px;">
-  <h3 class="small">Dogs</h3>
-  <div id="dpv-output" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;"></div>
+<!-- STATUS MESSAGE -->
+<div id="dpv-status" style="margin-top:20px;padding:12px;border-radius:8px;display:none;">
+    <div id="dpv-status-text" style="font-size:14px;display:flex;align-items:center;gap:8px;"></div>
+</div>
+
+<!-- DOG GALLERY -->
+<div style="margin-top:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid rgba(255,153,102,0.3);">
+        <h3 style="color:#ff9966;margin:0;font-size:18px;">📸 Dog Gallery</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:14px;color:rgba(255,255,255,0.7);">
+                <span id="dpv-count-display">0</span> dogs loaded
+            </span>
+            <button type="button" onclick="dpvShuffleGallery()" 
+                    style="padding:4px 12px;background:rgba(255,153,102,0.1);border:1px solid rgba(255,153,102,0.3);border-radius:6px;color:#ff9966;cursor:pointer;font-size:12px;">
+                🔀 Shuffle
+            </button>
+        </div>
+    </div>
+    
+    <!-- GALLERY GRID -->
+    <div id="dpv-output" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));gap:16px;"></div>
+    
+    <!-- EMPTY STATE -->
+    <div id="dpv-empty" style="text-align:center;padding:60px 20px;background:rgba(255,153,102,0.05);border-radius:12px;border:2px dashed rgba(255,153,102,0.3);margin-top:20px;">
+        <div style="font-size:48px;margin-bottom:16px;">🐕‍🦺</div>
+        <div style="font-size:18px;color:#ff9966;font-weight:600;margin-bottom:8px;">No dogs to display</div>
+        <div style="color:rgba(255,255,255,0.7);font-size:14px;">Click "Load More Dogs" to fetch some furry friends!</div>
+    </div>
+    
+    <!-- LOAD MORE BUTTON -->
+    <div style="text-align:center;margin-top:24px;">
+        <button onclick="dpvLoadMoreDogs()" 
+                style="padding:12px 32px;background:linear-gradient(135deg, rgba(255,153,102,0.2), rgba(255,153,102,0.1));border:2px solid rgba(255,153,102,0.4);border-radius:8px;color:#ff9966;cursor:pointer;font-weight:600;font-size:16px;transition:all 0.3s;">
+            🐕 Load More Dogs
+        </button>
+    </div>
+</div>
+
+<!-- FAVORITES VIEW -->
+<div id="dpv-favorites-view" style="margin-top:24px;display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid rgba(255,153,102,0.3);">
+        <h3 style="color:#ff9966;margin:0;font-size:18px;">❤️ Your Favorite Dogs</h3>
+        <button type="button" onclick="dpvClearFavorites()" 
+                style="padding:6px 12px;background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:6px;color:#ff6b6b;cursor:pointer;font-size:13px;">
+            Clear All
+        </button>
+    </div>
+    
+    <!-- FAVORITES GRID -->
+    <div id="dpv-favorites" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));gap:12px;"></div>
+    
+    <!-- NO FAVORITES STATE -->
+    <div id="dpv-no-favs" style="text-align:center;padding:40px 20px;background:rgba(255,153,102,0.05);border-radius:12px;border:1px dashed rgba(255,153,102,0.3);">
+        <div style="font-size:36px;margin-bottom:12px;">🐶</div>
+        <div style="color:#ff9966;font-weight:600;margin-bottom:8px;">No favorite dogs yet</div>
+        <div style="color:rgba(255,255,255,0.7);font-size:13px;">Click the ❤️ on any dog photo to add it to your favorites!</div>
+    </div>
+</div>
+
+<!-- DOG BREED INFO -->
+<div style="margin-top:24px;padding:16px;background:rgba(255,153,102,0.05);border-radius:8px;border:1px solid rgba(255,153,102,0.1);">
+    <div style="color:#ff9966;font-weight:600;margin-bottom:8px;font-size:14px;">📖 Dog Breed Information</div>
+    <div id="dpv-breed-info" style="font-size:13px;color:rgba(255,255,255,0.9);line-height:1.5;">
+        <!-- Breed info will be dynamically inserted -->
+    </div>
+</div>
+
+<!-- FUN DOG FACTS -->
+<div style="margin-top:16px;padding:12px;background:rgba(255,153,102,0.1);border-radius:8px;border:1px solid rgba(255,153,102,0.3);">
+    <div style="color:#ff9966;font-weight:600;margin-bottom:6px;font-size:14px;">🐕 Fun Dog Facts</div>
+    <div id="dpv-fun-fact" style="font-size:13px;color:rgba(255,255,255,0.9);">
+        <span id="dpv-fact-text">Dogs have been domesticated for over 15,000 years.</span>
+        <button onclick="dpvNewFact()" style="margin-left:8px;padding:2px 8px;background:transparent;border:1px solid rgba(255,153,102,0.4);border-radius:4px;color:#ff9966;cursor:pointer;font-size:11px;">New Fact</button>
+    </div>
 </div>
 
 <script>
-async function loadDog(){
-  const out=document.getElementById('dpv-output');
-  out.textContent='Loading dogs...';
-  try{
-    const r=await fetch('https://dog.ceo/api/breeds/image/random/6');
-    const data=await r.json();
-    out.innerHTML='';
-    data.message.forEach(url=>{
-      const img=document.createElement('img');
-      img.src=url;
-      img.alt='Dog photo';
-      img.style.width='100%';
-      img.style.borderRadius='8px';
-      img.style.objectFit='cover';
-      out.appendChild(img);
+/* dog-photo-viewer.html
+   - COMPLETE Dog Photo Viewer
+   - Multiple API sources with fallbacks
+   - Breed information and favorites
+   - Infinite scrolling with responsive gallery
+*/
+
+let dpvAllDogs = [];
+let dpvFavorites = JSON.parse(localStorage.getItem('dogFavorites') || '[]');
+let dpvCurrentPage = 0;
+let dpvIsLoading = false;
+let dpvIsFavoritesView = false;
+let dpvCurrentBreed = 'all';
+
+// Dog breed information
+const dpvBreedInfo = {
+    african: { name: 'African', desc: 'Ancient breed known for loyalty and protective nature' },
+    akita: { name: 'Akita', desc: 'Large, powerful breed from Japan, known for dignity and courage' },
+    beagle: { name: 'Beagle', desc: 'Friendly, curious, and merry hound, great with families' },
+    boxer: { name: 'Boxer', desc: 'Playful, energetic, and loyal breed, excellent with children' },
+    bulldog: { name: 'Bulldog', desc: 'Gentle, affectionate, and courageous despite intimidating appearance' },
+    chihuahua: { name: 'Chihuahua', desc: 'Tiny but confident breed with terrier-like qualities' },
+    collie: { name: 'Collie', desc: 'Graceful, intelligent herding dog, famously loyal and gentle' },
+    corgi: { name: 'Corgi', desc: 'Small herding breed with big personality and intelligence' },
+    dachshund: { name: 'Dachshund', desc: 'Clever, lively breed with courage out of proportion to size' },
+    dalmatian: { name: 'Dalmatian', desc: 'Energetic, intelligent breed known for distinctive spots' },
+    germanshepherd: { name: 'German Shepherd', desc: 'Highly intelligent and versatile working dog' },
+    goldenretriever: { name: 'Golden Retriever', desc: 'Friendly, intelligent, and devoted family companion' },
+    husky: { name: 'Husky', desc: 'Friendly, gentle, and outgoing sled dog from Siberia' },
+    labrador: { name: 'Labrador', desc: 'America\'s most popular breed, friendly and outgoing' },
+    poodle: { name: 'Poodle', desc: 'Highly intelligent, active, and elegant breed' },
+    pug: { name: 'Pug', desc: 'Charming, mischievous, and loving companion breed' },
+    rottweiler: { name: 'Rottweiler', desc: 'Confident, courageous, and calm guardian breed' },
+    samoyed: { name: 'Samoyed', desc: 'Gentle, adaptable, and friendly "smiling" breed' },
+    shiba: { name: 'Shiba Inu', desc: 'Alert, active, and attentive small Japanese breed' },
+    terrier: { name: 'Terrier', desc: 'Various breeds known for energy, intelligence, and spirit' }
+};
+
+// Fun dog facts database
+const dpvDogFacts = [
+    "A dog's nose print is unique, much like a human's fingerprint.",
+    "Dogs can smell 10,000 to 100,000 times better than humans.",
+    "The Basenji is the only breed of dog that cannot bark.",
+    "Dogs have three eyelids: an upper lid, a lower lid, and a third lid.",
+    "The oldest dog on record lived to be 29 years and 5 months old.",
+    "Dogs dream just like humans - you can see them twitching in their sleep.",
+    "A dog's sense of hearing is about four times more sensitive than a human's.",
+    "Dogs can understand up to 250 words and gestures.",
+    "The Saluki is the oldest known dog breed, dating back to 329 BC.",
+    "Dogs have wet noses to help absorb scent chemicals.",
+    "Puppies are born blind, deaf, and toothless.",
+    "Dogs have about 1,700 taste buds (humans have about 9,000).",
+    "The Beatles song 'A Day in the Life' has a frequency only dogs can hear.",
+    "Dogs' shoulder blades are unattached to the rest of the skeleton for greater flexibility.",
+    "Three dogs survived the Titanic sinking."
+];
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    dpvUpdateFavoriteCount();
+    dpvUpdateBreedInfo();
+    dpvLoadMoreDogs();
+    dpvNewFact();
+    
+    // Setup breed selector change
+    document.getElementById('dpv-breed').addEventListener('change', function() {
+        dpvCurrentBreed = this.value;
+        dpvUpdateBreedInfo();
+        dpvRefreshDogs();
     });
-  }catch(err){
-    out.textContent='Failed to load dogs.';
-  }
+    
+    // Setup infinite scroll
+    window.addEventListener('scroll', function() {
+        if (dpvIsFavoritesView || dpvIsLoading) return;
+        
+        const scrollPosition = window.innerHeight + window.scrollY;
+        const pageHeight = document.documentElement.offsetHeight;
+        
+        if (scrollPosition >= pageHeight - 800) {
+            dpvLoadMoreDogs();
+        }
+    });
+});
+
+function dpvShowStatus(message, type = 'info') {
+    const status = document.getElementById('dpv-status');
+    const text = document.getElementById('dpv-status-text');
+    
+    if (!status || !text) return;
+    
+    status.style.display = 'block';
+    status.style.background = type === 'error' ? 'rgba(255,107,107,0.1)' : 
+                               type === 'success' ? 'rgba(46,204,113,0.1)' : 
+                               'rgba(255,153,102,0.1)';
+    status.style.borderLeft = `4px solid ${type === 'error' ? '#ff6b6b' : 
+                                               type === 'success' ? '#2ecc71' : 
+                                               '#ff9966'}`;
+    
+    const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : '⏳';
+    text.innerHTML = `${icon} ${message}`;
 }
-// Load dogs on startup
-loadDog();
+
+function dpvHideStatus() {
+    const status = document.getElementById('dpv-status');
+    if (status) {
+        status.style.display = 'none';
+    }
+}
+
+async function dpvLoadMoreDogs() {
+    if (dpvIsLoading) return;
+    
+    dpvIsLoading = true;
+    dpvCurrentPage++;
+    
+    const breed = dpvCurrentBreed;
+    const count = document.getElementById('dpv-image-count').value || '12';
+    
+    dpvShowStatus(`Loading more dogs... (Page ${dpvCurrentPage})`, 'info');
+    
+    try {
+        const newDogs = await dpvFetchDogsFromAPI(breed, dpvCurrentPage, count);
+        
+        if (newDogs.length === 0) {
+            dpvShowStatus('No more dogs available for this breed', 'info');
+            dpvIsLoading = false;
+            return;
+        }
+        
+        // Filter out duplicates
+        const existingUrls = dpvAllDogs.map(dog => dog.url);
+        const uniqueNewDogs = newDogs.filter(dog => !existingUrls.includes(dog.url));
+        
+        if (uniqueNewDogs.length === 0) {
+            // All dogs were duplicates, try next page
+            dpvCurrentPage++;
+            const moreDogs = await dpvFetchDogsFromAPI(breed, dpvCurrentPage, count);
+            dpvAllDogs.push(...moreDogs);
+        } else {
+            dpvAllDogs.push(...uniqueNewDogs);
+        }
+        
+        dpvRenderDogs();
+        document.getElementById('dpv-count-display').textContent = dpvAllDogs.length;
+        
+        // Hide empty state
+        document.getElementById('dpv-empty').style.display = 'none';
+        
+        dpvShowStatus(`Loaded ${uniqueNewDogs.length} new dogs! Total: ${dpvAllDogs.length}`, 'success');
+        setTimeout(dpvHideStatus, 2000);
+        
+    } catch (error) {
+        console.error('Error loading dogs:', error);
+        dpvShowStatus('Failed to load dogs. Trying alternative source...', 'error');
+        
+        // Try fallback
+        try {
+            const fallbackDogs = await dpvFetchFallbackDogs();
+            dpvAllDogs.push(...fallbackDogs);
+            dpvRenderDogs();
+            dpvShowStatus(`Loaded ${fallbackDogs.length} dogs from fallback source`, 'success');
+            setTimeout(dpvHideStatus, 2000);
+        } catch (fallbackError) {
+            dpvShowStatus('All sources failed. Please try again later.', 'error');
+            setTimeout(dpvHideStatus, 3000);
+        }
+    }
+    
+    dpvIsLoading = false;
+}
+
+async function dpvFetchDogsFromAPI(breed, page, count) {
+    // Use multiple API endpoints for better reliability
+    const endpoints = [
+        // Primary: Dog CEO API (The Dog API)
+        breed === 'all' 
+            ? `https://dog.ceo/api/breeds/image/random/${count}`
+            : `https://dog.ceo/api/breed/${breed}/images/random/${count}`,
+        
+        // Secondary: RandomDog API
+        `https://random.dog/woof.json?count=${count}`,
+        
+        // Tertiary: Dog API (dog.ceo alternative)
+        `https://api.thedogapi.com/v1/images/search?limit=${count}&page=${page}`
+    ];
+    
+    try {
+        // Try first endpoint
+        const response = await fetch(endpoints[0]);
+        
+        if (response.ok) {
+            const data = await response.json();
+            
+            if (data.message && Array.isArray(data.message)) {
+                return data.message.map((url, index) => ({
+                    id: `dog-${Date.now()}-${page}-${index}`,
+                    url: url,
+                    breed: breed === 'all' ? dpvExtractBreedFromURL(url) : breed
+                }));
+            } else if (data.message && typeof data.message === 'string') {
+                return [{
+                    id: `dog-${Date.now()}`,
+                    url: data.message,
+                    breed: breed === 'all' ? 'unknown' : breed
+                }];
+            }
+        }
+    } catch (e) {
+        console.log('Primary API failed, trying secondary...');
+    }
+    
+    // Try secondary endpoint
+    try {
+        const response = await fetch(endpoints[1]);
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+            return data.map((dog, index) => ({
+                id: `randomdog-${Date.now()}-${index}`,
+                url: dog.url.startsWith('http') ? dog.url : `https://random.dog/${dog.url}`,
+                breed: 'unknown'
+            }));
+        } else if (data.url) {
+            return [{
+                id: `randomdog-${Date.now()}`,
+                url: data.url.startsWith('http') ? data.url : `https://random.dog/${data.url}`,
+                breed: 'unknown'
+            }];
+        }
+    } catch (e) {
+        console.log('Secondary API failed');
+    }
+    
+    // Try tertiary endpoint
+    try {
+        const response = await fetch(endpoints[2]);
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+            return data.map((dog, index) => ({
+                id: dog.id || `thedogapi-${Date.now()}-${index}`,
+                url: dog.url,
+                breed: dog.breeds && dog.breeds[0] ? dog.breeds[0].name.toLowerCase() : 'unknown'
+            }));
+        }
+    } catch (e) {
+        throw new Error('All APIs failed');
+    }
+}
+
+function dpvExtractBreedFromURL(url) {
+    // Extract breed from Dog CEO API URL
+    const match = url.match(/breeds\/([^\/]+)\//);
+    if (match && match[1]) {
+        return match[1];
+    }
+    return 'unknown';
+}
+
+async function dpvFetchFallbackDogs() {
+    // Static fallback dog images from reliable sources
+    const fallbackUrls = [
+        'https://images.dog.ceo/breeds/affenpinscher/n02110627_10047.jpg',
+        'https://images.dog.ceo/breeds/african/n02116738_1105.jpg',
+        'https://images.dog.ceo/breeds/akita/Akita_Inu_dog.jpg',
+        'https://images.dog.ceo/breeds/beagle/n02088364_11136.jpg',
+        'https://images.dog.ceo/breeds/boxer/n02108089_10412.jpg',
+        'https://images.dog.ceo/breeds/bulldog-french/n02108915_4474.jpg',
+        'https://images.dog.ceo/breeds/chihuahua/n02085620_10074.jpg',
+        'https://images.dog.ceo/breeds/collie-border/n02106166_3550.jpg',
+        'https://images.dog.ceo/breeds/corgi-cardigan/n02113186_1030.jpg',
+        'https://images.dog.ceo/breeds/dachshund/dachshund-2.jpg',
+        'https://images.dog.ceo/breeds/dalmatian/cooper1.jpg',
+        'https://images.dog.ceo/breeds/germanshepherd/n02106662_23845.jpg',
+        'https://images.dog.ceo/breeds/golden-retriever/IMG_20160826_145825.jpg',
+        'https://images.dog.ceo/breeds/husky/n02110185_10047.jpg',
+        'https://images.dog.ceo/breeds/labrador/n02099712_6901.jpg',
+        'https://images.dog.ceo/breeds/poodle-standard/n02113799_4500.jpg',
+        'https://images.dog.ceo/breeds/pug/n02110958_14596.jpg',
+        'https://images.dog.ceo/breeds/rottweiler/n02106550_10423.jpg',
+        'https://images.dog.ceo/breeds/samoyed/n02111889_4470.jpg',
+        'https://images.dog.ceo/breeds/shiba/shiba-16.jpg'
+    ];
+    
+    return fallbackUrls.map((url, index) => ({
+        id: `fallback-${index}-${Date.now()}`,
+        url: url,
+        breed: dpvExtractBreedFromURL(url)
+    }));
+}
+
+function dpvRenderDogs() {
+    const output = document.getElementById('dpv-output');
+    if (!output) return;
+    
+    // Clear and render all dogs
+    output.innerHTML = '';
+    
+    dpvAllDogs.forEach(dog => {
+        const dogCard = dpvCreateDogCard(dog);
+        output.appendChild(dogCard);
+    });
+}
+
+function dpvCreateDogCard(dog) {
+    const card = document.createElement('div');
+    card.className = 'dog-card';
+    card.style.cssText = `
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        transition: all 0.3s ease;
+        cursor: pointer;
+    `;
+    
+    const isFavorite = dpvFavorites.some(fav => fav.id === dog.id);
+    
+    // Image container
+    const imgContainer = document.createElement('div');
+    imgContainer.style.cssText = `
+        position: relative;
+        width: 100%;
+        height: 180px;
+        overflow: hidden;
+    `;
+    
+    // Image
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.src = dog.url;
+    img.alt = dog.breed !== 'unknown' ? `${dog.breed} dog` : 'Dog photo';
+    img.style.cssText = `
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform 0.5s ease;
+    `;
+    
+    // Placeholder while loading
+    img.style.background = 'linear-gradient(135deg, rgba(255,153,102,0.1), rgba(255,153,102,0.05))';
+    img.onload = function() {
+        this.style.background = 'none';
+    };
+    
+    img.onerror = function() {
+        // Use fallback image if this one fails
+        this.src = 'https://images.dog.ceo/breeds/mixed/n02110958_10047.jpg';
+    };
+    
+    // Favorite button
+    const favButton = document.createElement('button');
+    favButton.innerHTML = isFavorite ? '❤️' : '🤍';
+    favButton.title = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+    favButton.style.cssText = `
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(4px);
+        border: none;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        z-index: 10;
+    `;
+    
+    favButton.onclick = function(e) {
+        e.stopPropagation();
+        dpvToggleFavorite(dog);
+        this.innerHTML = dpvFavorites.some(fav => fav.id === dog.id) ? '❤️' : '🤍';
+        this.title = dpvFavorites.some(fav => fav.id === dog.id) ? 'Remove from favorites' : 'Add to favorites';
+        dpvUpdateFavoriteCount();
+    };
+    
+    // Info overlay (appears on hover)
+    const infoOverlay = document.createElement('div');
+    infoOverlay.style.cssText = `
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(transparent, rgba(0,0,0,0.8));
+        color: white;
+        padding: 12px;
+        transform: translateY(100%);
+        transition: transform 0.3s ease;
+        font-size: 12px;
+    `;
+    
+    const breedName = dog.breed !== 'unknown' ? dog.breed.charAt(0).toUpperCase() + dog.breed.slice(1) : 'Mixed Breed';
+    infoOverlay.innerHTML = `
+        <div style="font-weight:600; margin-bottom:4px;">${breedName}</div>
+        <div>Click to view larger</div>
+    `;
+    
+    // Hover effects
+    card.onmouseenter = function() {
+        this.style.transform = 'translateY(-6px)';
+        this.style.boxShadow = '0 12px 24px rgba(255,153,102,0.15)';
+        img.style.transform = 'scale(1.1)';
+        infoOverlay.style.transform = 'translateY(0)';
+    };
+    
+    card.onmouseleave = function() {
+        this.style.transform = 'translateY(0)';
+        this.style.boxShadow = 'none';
+        img.style.transform = 'scale(1)';
+        infoOverlay.style.transform = 'translateY(100%)';
+    };
+    
+    // Click to view larger
+    card.onclick = function() {
+        dpvOpenDogModal(dog);
+    };
+    
+    // Assemble card
+    imgContainer.appendChild(img);
+    imgContainer.appendChild(favButton);
+    card.appendChild(imgContainer);
+    card.appendChild(infoOverlay);
+    
+    return card;
+}
+
+function dpvOpenDogModal(dog) {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        cursor: pointer;
+        padding: 20px;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        max-width: 90%;
+        max-height: 90%;
+        cursor: default;
+        position: relative;
+    `;
+    
+    const modalImg = document.createElement('img');
+    modalImg.src = dog.url;
+    modalImg.style.cssText = `
+        max-width: 100%;
+        max-height: 80vh;
+        object-fit: contain;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    `;
+    
+    const modalInfo = document.createElement('div');
+    modalInfo.style.cssText = `
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 16px;
+        color: white;
+        font-size: 14px;
+    `;
+    
+    const breedName = dog.breed !== 'unknown' ? dog.breed.charAt(0).toUpperCase() + dog.breed.slice(1) : 'Mixed Breed';
+    const isFavorite = dpvFavorites.some(fav => fav.id === dog.id);
+    
+    modalInfo.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-size:18px;font-weight:600;">${breedName}</div>
+            <button id="dpv-modal-fav-btn" style="background:none;border:none;color:${isFavorite ? '#ff6b6b' : '#fff'};font-size:24px;cursor:pointer;">
+                ${isFavorite ? '❤️' : '🤍'}
+            </button>
+        </div>
+        <div style="opacity:0.8;">ID: ${dog.id.substring(0, 12)}...</div>
+    `;
+    
+    modalContent.appendChild(modalImg);
+    modalContent.appendChild(modalInfo);
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // Favorite button in modal
+    const modalFavBtn = document.getElementById('dpv-modal-fav-btn');
+    modalFavBtn.onclick = function(e) {
+        e.stopPropagation();
+        dpvToggleFavorite(dog);
+        this.innerHTML = dpvFavorites.some(fav => fav.id === dog.id) ? '❤️' : '🤍';
+        this.style.color = dpvFavorites.some(fav => fav.id === dog.id) ? '#ff6b6b' : '#fff';
+        dpvUpdateFavoriteCount();
+        
+        // Update card in gallery
+        const cardFavBtn = document.querySelector(`[data-dog-id="${dog.id}"]`);
+        if (cardFavBtn) {
+            cardFavBtn.innerHTML = dpvFavorites.some(fav => fav.id === dog.id) ? '❤️' : '🤍';
+        }
+    };
+    
+    // Add dog ID to modal favorite button for reference
+    modalFavBtn.setAttribute('data-dog-id', dog.id);
+    
+    // Close modal on click
+    modal.onclick = function() {
+        document.body.removeChild(modal);
+    };
+    
+    // Close on Escape key
+    document.addEventListener('keydown', function closeModal(e) {
+        if (e.key === 'Escape') {
+            document.body.removeChild(modal);
+            document.removeEventListener('keydown', closeModal);
+        }
+    });
+}
+
+function dpvToggleFavorite(dog) {
+    const existingIndex = dpvFavorites.findIndex(fav => fav.id === dog.id);
+    
+    if (existingIndex !== -1) {
+        dpvFavorites.splice(existingIndex, 1);
+        dpvShowStatus('Removed from favorites', 'info');
+    } else {
+        dpvFavorites.push({
+            id: dog.id,
+            url: dog.url,
+            breed: dog.breed,
+            added: new Date().toISOString()
+        });
+        dpvShowStatus('Added to favorites! ❤️', 'success');
+    }
+    
+    localStorage.setItem('dogFavorites', JSON.stringify(dpvFavorites));
+    
+    if (dpvIsFavoritesView) {
+        dpvShowFavoritesView();
+    }
+    
+    setTimeout(dpvHideStatus, 2000);
+}
+
+function dpvUpdateFavoriteCount() {
+    const favCount = document.getElementById('dpv-fav-count');
+    if (favCount) {
+        favCount.textContent = dpvFavorites.length;
+    }
+}
+
+function dpvToggleFavoritesView() {
+    dpvIsFavoritesView = !dpvIsFavoritesView;
+    const favView = document.getElementById('dpv-favorites-view');
+    const gallery = document.getElementById('dpv-output').parentElement;
+    const favToggle = document.getElementById('dpv-fav-toggle');
+    
+    if (dpvIsFavoritesView) {
+        favView.style.display = 'block';
+        gallery.style.display = 'none';
+        favToggle.innerHTML = `📸 Show Gallery (<span id="dpv-fav-count">${dpvFavorites.length}</span>)`;
+        favToggle.style.background = 'rgba(255,107,107,0.1)';
+        favToggle.style.borderColor = 'rgba(255,107,107,0.3)';
+        favToggle.style.color = '#ff6b6b';
+        dpvShowFavoritesView();
+    } else {
+        favView.style.display = 'none';
+        gallery.style.display = 'block';
+        favToggle.innerHTML = `❤️ Favorites (<span id="dpv-fav-count">${dpvFavorites.length}</span>)`;
+        favToggle.style.background = 'rgba(255,153,102,0.1)';
+        favToggle.style.borderColor = 'rgba(255,153,102,0.3)';
+        favToggle.style.color = '#ff9966';
+    }
+}
+
+function dpvShowFavoritesView() {
+    const favoritesContainer = document.getElementById('dpv-favorites');
+    const noFavs = document.getElementById('dpv-no-favs');
+    
+    if (!favoritesContainer) return;
+    
+    if (dpvFavorites.length === 0) {
+        favoritesContainer.innerHTML = '';
+        noFavs.style.display = 'block';
+        return;
+    }
+    
+    noFavs.style.display = 'none';
+    favoritesContainer.innerHTML = '';
+    
+    // Show favorites in chronological order (newest first)
+    const sortedFavorites = [...dpvFavorites].sort((a, b) => 
+        new Date(b.added) - new Date(a.added)
+    );
+    
+    sortedFavorites.forEach(fav => {
+        const favCard = document.createElement('div');
+        favCard.style.cssText = `
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+        `;
+        
+        const img = document.createElement('img');
+        img.src = fav.url;
+        img.alt = 'Favorite dog';
+        img.style.cssText = `
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            display: block;
+        `;
+        
+        // Remove button
+        const removeBtn = document.createElement('button');
+        removeBtn.innerHTML = '❌';
+        removeBtn.title = 'Remove from favorites';
+        removeBtn.style.cssText = `
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        `;
+        
+        removeBtn.onclick = function(e) {
+            e.stopPropagation();
+            dpvToggleFavorite(fav);
+            dpvShowFavoritesView();
+        };
+        
+        // Breed label
+        if (fav.breed && fav.breed !== 'unknown') {
+            const breedLabel = document.createElement('div');
+            breedLabel.textContent = fav.breed.charAt(0).toUpperCase() + fav.breed.slice(1);
+            breedLabel.style.cssText = `
+                position: absolute;
+                bottom: 6px;
+                left: 6px;
+                background: rgba(0,0,0,0.6);
+                backdrop-filter: blur(4px);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: 500;
+            `;
+            favCard.appendChild(breedLabel);
+        }
+        
+        favCard.appendChild(img);
+        favCard.appendChild(removeBtn);
+        favCard.onclick = function() {
+            dpvOpenDogModal(fav);
+        };
+        favoritesContainer.appendChild(favCard);
+    });
+}
+
+function dpvClearFavorites() {
+    if (dpvFavorites.length === 0) return;
+    
+    if (confirm(`Are you sure you want to remove all ${dpvFavorites.length} favorites?`)) {
+        dpvFavorites = [];
+        localStorage.setItem('dogFavorites', JSON.stringify(dpvFavorites));
+        dpvUpdateFavoriteCount();
+        dpvShowFavoritesView();
+        dpvShowStatus('All favorites cleared', 'info');
+        setTimeout(dpvHideStatus, 2000);
+    }
+}
+
+function dpvRefreshDogs() {
+    dpvAllDogs = [];
+    dpvCurrentPage = 0;
+    document.getElementById('dpv-output').innerHTML = '';
+    document.getElementById('dpv-empty').style.display = 'block';
+    document.getElementById('dpv-count-display').textContent = '0';
+    
+    if (dpvIsFavoritesView) {
+        dpvToggleFavoritesView();
+    }
+    
+    dpvLoadMoreDogs();
+}
+
+function dpvShuffleGallery() {
+    // Shuffle the array
+    for (let i = dpvAllDogs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [dpvAllDogs[i], dpvAllDogs[j]] = [dpvAllDogs[j], dpvAllDogs[i]];
+    }
+    
+    dpvRenderDogs();
+    dpvShowStatus('Gallery shuffled!', 'success');
+    setTimeout(dpvHideStatus, 1500);
+}
+
+function dpvUpdateBreedInfo() {
+    const breedInfoDiv = document.getElementById('dpv-breed-info');
+    if (!breedInfoDiv) return;
+    
+    if (dpvCurrentBreed === 'all') {
+        breedInfoDiv.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="color:#ff9966;">🐕</span>
+                <span style="font-weight:500;">All Dog Breeds</span>
+            </div>
+            <div>Showing a random mix of dog breeds from around the world. Each breed has unique characteristics and personalities.</div>
+        `;
+    } else if (dpvBreedInfo[dpvCurrentBreed]) {
+        const info = dpvBreedInfo[dpvCurrentBreed];
+        breedInfoDiv.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="color:#ff9966;">🐶</span>
+                <span style="font-weight:500;">${info.name} Dog</span>
+            </div>
+            <div>${info.desc}</div>
+        `;
+    } else {
+        breedInfoDiv.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="color:#ff9966;">🐕</span>
+                <span style="font-weight:500;">${dpvCurrentBreed.charAt(0).toUpperCase() + dpvCurrentBreed.slice(1)}</span>
+            </div>
+            <div>Loading breed information...</div>
+        `;
+    }
+}
+
+function dpvNewFact() {
+    const randomIndex = Math.floor(Math.random() * dpvDogFacts.length);
+    document.getElementById('dpv-fact-text').textContent = dpvDogFacts[randomIndex];
+}
 </script>
+
+<style>
+.dog-card {
+    cursor: pointer;
+    position: relative;
+}
+
+.dog-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 24px rgba(255,153,102,0.15);
+}
+
+.dog-card img {
+    transition: transform 0.5s ease;
+}
+
+.dog-card:hover img {
+    transform: scale(1.1);
+}
+
+.actions button {
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.actions button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+}
+
+.actions button:active {
+    transform: translateY(0);
+}
+
+#dpv-favorites-view {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+.loading {
+    animation: pulse 1.5s infinite;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    #dpv-output {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
+    }
+    
+    .actions {
+        flex-direction: column;
+    }
+    
+    .actions button {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    #dpv-output {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 8px;
+    }
+    
+    .dog-card {
+        height: 160px;
+    }
+}
+</style>
