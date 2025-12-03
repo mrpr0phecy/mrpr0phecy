@@ -13,6 +13,10 @@
         <option value="meeting-notes">Meeting notes</option>
         <option value="status-update">Status update</option>
         <option value="briefing">Briefing note</option>
+        <option value="email">Business Email</option>
+        <option value="report">Project Report</option>
+        <option value="presentation">Presentation Outline</option>
+        <option value="press-release">Press Release</option>
       </select>
     </div>
 
@@ -23,6 +27,9 @@
         <option>Neutral</option>
         <option>Concise</option>
         <option>Persuasive</option>
+        <option>Urgent</option>
+        <option>Collaborative</option>
+        <option>Diplomatic</option>
       </select>
     </div>
 
@@ -38,25 +45,39 @@
 
     <div class="field" style="grid-column:1 / -1;">
       <label for="bw-keypoints">Key points (comma-separated)</label>
-      <input id="bw-keypoints" type="text" placeholder="e.g. objective, cost, timeline, risks, next steps" style="width:100%;" />
+      <textarea id="bw-keypoints" rows="3" placeholder="e.g. objective, cost, timeline, risks, next steps" style="width:100%;resize:vertical;"></textarea>
     </div>
 
-    <div class="field">
-      <label for="bw-length">Approx length</label>
-      <select id="bw-length" style="width:100%;">
-        <option value="120">Short (≈120 words)</option>
-        <option value="300" selected>Standard (≈300 words)</option>
-        <option value="600">Detailed (≈600 words)</option>
-      </select>
-    </div>
+    <div class="row" style="grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+      <div class="field">
+        <label for="bw-length">Approx length</label>
+        <select id="bw-length" style="width:100%;">
+          <option value="120">Short (≈120 words)</option>
+          <option value="300" selected>Standard (≈300 words)</option>
+          <option value="600">Detailed (≈600 words)</option>
+          <option value="1000">Comprehensive (≈1000 words)</option>
+        </select>
+      </div>
 
-    <div class="field">
-      <label for="bw-format">Include sections</label>
-      <select id="bw-format" style="width:100%;">
-        <option value="auto">Auto (recommended)</option>
-        <option value="bulleted">Bulleted highlights</option>
-        <option value="narrative">Narrative paragraphs</option>
-      </select>
+      <div class="field">
+        <label for="bw-format">Include sections</label>
+        <select id="bw-format" style="width:100%;">
+          <option value="auto">Auto (recommended)</option>
+          <option value="bulleted">Bulleted highlights</option>
+          <option value="narrative">Narrative paragraphs</option>
+          <option value="structured">Structured sections</option>
+          <option value="hybrid">Bulleted + Narrative</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="bw-lang">Language</label>
+        <select id="bw-lang" style="width:100%;">
+          <option value="en">English</option>
+          <option value="en-formal">English (Formal)</option>
+          <option value="en-simple">English (Simple)</option>
+        </select>
+      </div>
     </div>
   </div>
 
@@ -64,41 +85,74 @@
     <button type="button" onclick="bwGenerate(this)">Generate Draft</button>
     <button type="button" class="secondary" onclick="bwReset(this)">Reset</button>
     <button type="button" onclick="bwCopy(this)">Copy</button>
+    <button type="button" onclick="bwImprove(this)" style="background:#28a745;">Improve Text</button>
+    <button type="button" onclick="bwSaveTemplate(this)" style="background:#6f42c1;">Save Template</button>
   </div>
 </form>
 
 <div class="results" aria-live="polite" style="margin-top:12px;">
-  <h3 class="small">Generated draft</h3>
-  <textarea id="bw-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <h3 class="small" style="margin:0;">Generated draft</h3>
+    <div style="display:flex; gap:8px;">
+      <button type="button" onclick="bwFormatText(this, 'title-case')" class="small" style="padding:4px 8px; font-size:0.8em;">Title Case</button>
+      <button type="button" onclick="bwFormatText(this, 'sentence-case')" class="small" style="padding:4px 8px; font-size:0.8em;">Sentence Case</button>
+      <button type="button" onclick="bwFormatText(this, 'bullet-points')" class="small" style="padding:4px 8px; font-size:0.8em;">Bullet Points</button>
+    </div>
+  </div>
+  
+  <textarea id="bw-output" rows="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;font-family:monospace;"></textarea>
 
-  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
-    <div class="small">Estimated words: <span id="bw-wordcount">0</span></div>
-    <div id="bw-hint" class="small" style="opacity:0.9;"></div>
+  <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+    <div class="small" style="display:flex; gap:16px;">
+      <div>Estimated words: <span id="bw-wordcount">0</span></div>
+      <div>Readability score: <span id="bw-readability">–</span></div>
+      <div>Reading time: <span id="bw-readingtime">–</span></div>
+    </div>
+    <div id="bw-hint" class="small" style="opacity:0.9; text-align:right;"></div>
   </div>
 </div>
 
+<div id="bw-templates" style="margin-top:20px; display:none;">
+  <h4 class="small">Saved Templates</h4>
+  <div id="bw-templates-list" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+</div>
+
 <script>
-/* Business Writing Assistant
+/* Business Writing Assistant - Enhanced Version
    - Scoped via btn.closest('.card') so multiple instances are safe
    - Generates structured business drafts from purpose and key points
+   - Added template saving, text improvement, and formatting tools
 */
+
+// Initialize templates from localStorage
+let bwTemplates = JSON.parse(localStorage.getItem('bwTemplates') || '[]');
 
 function bwReset(btn) {
   const card = btn.closest('.card');
   card.querySelector('form').reset();
   card.querySelector('#bw-output').value = "";
   card.querySelector('#bw-wordcount').textContent = "0";
+  card.querySelector('#bw-readability').textContent = "–";
+  card.querySelector('#bw-readingtime').textContent = "–";
   card.querySelector('#bw-hint').textContent = "";
 }
 
 function bwCopy(btn) {
   const card = btn.closest('.card');
   const out = card.querySelector('#bw-output').value;
-  if (!out.trim()) return;
+  if (!out.trim()) {
+    card.querySelector('#bw-hint').textContent = "No text to copy.";
+    return;
+  }
+  
   navigator.clipboard?.writeText(out).then(() => {
     const hint = card.querySelector('#bw-hint');
-    hint.textContent = "Copied to clipboard.";
-    setTimeout(() => { if (hint.textContent === "Copied to clipboard.") hint.textContent = ""; }, 1600);
+    hint.textContent = "✓ Copied to clipboard";
+    hint.style.color = "#28a745";
+    setTimeout(() => { 
+      hint.textContent = ""; 
+      hint.style.color = "";
+    }, 2000);
   }).catch(() => {
     alert("Copy failed — select the text and copy manually.");
   });
@@ -113,25 +167,132 @@ function bwGenerate(btn) {
   const keypointsRaw = (card.querySelector('#bw-keypoints').value || "").trim();
   const length = parseInt(card.querySelector('#bw-length').value, 10) || 300;
   const format = card.querySelector('#bw-format').value;
+  const lang = card.querySelector('#bw-lang').value;
 
   if (!purpose) {
     card.querySelector('#bw-hint').textContent = "Please enter the purpose of the document.";
+    card.querySelector('#bw-hint').style.color = "#dc3545";
     return;
   }
 
-  const keypoints = keypointsRaw ? keypointsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const keypoints = keypointsRaw ? keypointsRaw.split(/[,\n]/).map(s => s.trim()).filter(Boolean) : [];
 
-  const draft = buildBusinessDraft({ type, tone, purpose, audience, keypoints, length, format });
+  const draft = buildBusinessDraft({ type, tone, purpose, audience, keypoints, length, format, lang });
   card.querySelector('#bw-output').value = draft;
-  card.querySelector('#bw-wordcount').textContent = estimateWords(draft);
+  
+  // Update metrics
+  updateTextMetrics(card, draft);
+  
   card.querySelector('#bw-hint').textContent = "Draft generated. Edit to add figures, names, and specific data.";
+  card.querySelector('#bw-hint').style.color = "";
 }
 
-/* Builder */
+function bwImprove(btn) {
+  const card = btn.closest('.card');
+  const text = card.querySelector('#bw-output').value;
+  const tone = card.querySelector('#bw-tone').value;
+  
+  if (!text.trim()) {
+    card.querySelector('#bw-hint').textContent = "Generate a draft first or enter text to improve.";
+    return;
+  }
+  
+  const improved = improveText(text, tone);
+  card.querySelector('#bw-output').value = improved;
+  updateTextMetrics(card, improved);
+  card.querySelector('#bw-hint').textContent = "Text improved for better clarity and impact.";
+}
+
+function bwSaveTemplate(btn) {
+  const card = btn.closest('.card');
+  const name = prompt("Enter a name for this template:");
+  if (!name) return;
+  
+  const template = {
+    id: Date.now(),
+    name: name,
+    type: card.querySelector('#bw-type').value,
+    tone: card.querySelector('#bw-tone').value,
+    purpose: card.querySelector('#bw-purpose').value,
+    audience: card.querySelector('#bw-audience').value,
+    keypoints: card.querySelector('#bw-keypoints').value,
+    length: card.querySelector('#bw-length').value,
+    format: card.querySelector('#bw-format').value,
+    lang: card.querySelector('#bw-lang').value
+  };
+  
+  bwTemplates.push(template);
+  localStorage.setItem('bwTemplates', JSON.stringify(bwTemplates));
+  showTemplates(card);
+  
+  card.querySelector('#bw-hint').textContent = `Template "${name}" saved.`;
+  card.querySelector('#bw-hint').style.color = "#28a745";
+  setTimeout(() => { card.querySelector('#bw-hint').textContent = ""; }, 2000);
+}
+
+function bwFormatText(btn, formatType) {
+  const card = btn.closest('.card');
+  const text = card.querySelector('#bw-output').value;
+  if (!text.trim()) return;
+  
+  let formatted = text;
+  switch(formatType) {
+    case 'title-case':
+      formatted = toTitleCase(text);
+      break;
+    case 'sentence-case':
+      formatted = toSentenceCase(text);
+      break;
+    case 'bullet-points':
+      formatted = toBulletPoints(text);
+      break;
+  }
+  
+  card.querySelector('#bw-output').value = formatted;
+  updateTextMetrics(card, formatted);
+}
+
+function showTemplates(card) {
+  const templatesDiv = card.querySelector('#bw-templates');
+  const templatesList = card.querySelector('#bw-templates-list');
+  
+  if (bwTemplates.length === 0) {
+    templatesDiv.style.display = 'none';
+    return;
+  }
+  
+  templatesList.innerHTML = '';
+  bwTemplates.forEach(template => {
+    const btn = document.createElement('button');
+    btn.className = 'small';
+    btn.textContent = template.name;
+    btn.style.cssText = 'padding:4px 8px; background:#6c757d; border:none; border-radius:4px; cursor:pointer;';
+    btn.onclick = () => loadTemplate(card, template);
+    templatesList.appendChild(btn);
+  });
+  
+  templatesDiv.style.display = 'block';
+}
+
+function loadTemplate(card, template) {
+  card.querySelector('#bw-type').value = template.type;
+  card.querySelector('#bw-tone').value = template.tone;
+  card.querySelector('#bw-purpose').value = template.purpose;
+  card.querySelector('#bw-audience').value = template.audience;
+  card.querySelector('#bw-keypoints').value = template.keypoints;
+  card.querySelector('#bw-length').value = template.length;
+  card.querySelector('#bw-format').value = template.format;
+  card.querySelector('#bw-lang').value = template.lang;
+  
+  card.querySelector('#bw-hint').textContent = `Template "${template.name}" loaded.`;
+  setTimeout(() => { card.querySelector('#bw-hint').textContent = ""; }, 1500);
+}
+
+/* Builder Functions */
 
 function buildBusinessDraft(opts) {
-  const { type, tone, purpose, audience, keypoints, length, format } = opts;
-  const header = buildHeader(type, audience);
+  const { type, tone, purpose, audience, keypoints, length, format, lang } = opts;
+  const header = buildHeader(type, audience, tone);
   let body = "";
 
   switch (type) {
@@ -153,77 +314,72 @@ function buildBusinessDraft(opts) {
     case 'briefing':
       body = buildBriefing({ purpose, keypoints, tone, length });
       break;
+    case 'email':
+      body = buildEmail({ purpose, keypoints, tone, length });
+      break;
+    case 'report':
+      body = buildReport({ purpose, keypoints, tone, length });
+      break;
+    case 'presentation':
+      body = buildPresentation({ purpose, keypoints, tone, length });
+      break;
+    case 'press-release':
+      body = buildPressRelease({ purpose, keypoints, tone, length });
+      break;
     default:
       body = buildMemo({ purpose, keypoints, tone, format, length });
   }
 
-  return `${header}\n\n${body}\n\nNotes: Replace placeholders with specific data, dates, and names.`;
+  // Apply language style
+  body = applyLanguageStyle(body, lang);
+  
+  return `${header}\n\n${body}\n\n---\nNotes: Replace placeholders with specific data, dates, and names.`;
 }
 
-function buildHeader(type, audience) {
+function buildHeader(type, audience, tone) {
   const titleMap = {
     memo: 'Memo',
     'exec-summary': 'Executive Summary',
     proposal: 'Proposal',
     'meeting-notes': 'Meeting Notes',
     'status-update': 'Status Update',
-    briefing: 'Briefing Note'
+    briefing: 'Briefing Note',
+    email: 'Email',
+    report: 'Project Report',
+    presentation: 'Presentation Outline',
+    'press-release': 'Press Release'
   };
   const title = titleMap[type] || 'Document';
-  return `${title}${audience ? ' — ' + audience : ''}`;
+  const today = new Date().toLocaleDateString();
+  return `${title}${audience ? ' — ' + audience : ''}\nDate: ${today}`;
 }
 
-function buildMemo({ purpose, keypoints, tone, format, length }) {
-  const intro = `Purpose: ${purpose}\n`;
-  const body = format === 'bulleted' ? buildBulletedPoints(keypoints) : buildParagraphPoints(keypoints, tone);
-  const action = `Action required: ${determineAction(keypoints)}`;
-  return `${intro}\n${body}\n\n${action}`;
+function buildEmail({ purpose, keypoints, tone, length }) {
+  const salutation = determineSalutation(tone);
+  const closing = determineClosing(tone);
+  const subject = `Subject: ${purpose}`;
+  const body = `Dear [Recipient Name],\n\n${purpose}.\n\n${buildBulletedPoints(keypoints)}\n\n${closing}\n\n[Your Name]\n[Your Position]`;
+  return `${subject}\n\n${body}`;
 }
 
-function buildExecSummary({ purpose, keypoints, tone, length }) {
-  const lead = `This executive summary outlines: ${purpose}.`;
-  const highlights = buildBulletedPoints(keypoints.slice(0,5));
-  const recommendation = `Recommendation: ${determineRecommendation(keypoints)}.`;
-  return `${lead}\n\nKey points:\n${highlights}\n\n${recommendation}`;
+function buildReport({ purpose, keypoints, tone, length }) {
+  return `Project Report: ${purpose}\n\nExecutive Summary:\n${buildBulletedPoints(keypoints.slice(0,3))}\n\nBackground:\n[Provide context and background information]\n\nFindings:\n${buildBulletedPoints(keypoints)}\n\nRecommendations:\n${determineRecommendation(keypoints)}\n\nNext Steps:\n- [Action item 1]\n- [Action item 2]\n- [Action item 3]`;
 }
 
-function buildProposal({ purpose, keypoints, tone, length }) {
-  const overview = `Overview: ${purpose}.`;
-  const scope = `Scope: ${keypoints[0] || 'Define scope here.'}`;
-  const timeline = `Timeline: ${keypoints[1] || 'Provide timeline or milestones.'}`;
-  const budget = `Budget: ${keypoints[2] || 'Estimate costs here.'}`;
-  const benefits = `Benefits: ${keypoints.slice(3).join('; ') || 'List expected benefits.'}`;
-  return `${overview}\n\n${scope}\n${timeline}\n${budget}\n\n${benefits}\n\nNext steps: Provide approval and allocate resources.`;
+function buildPresentation({ purpose, keypoints, tone, length }) {
+  return `Presentation Outline: ${purpose}\n\nSlide 1: Title Slide\n- Title: ${purpose}\n- Presenter: [Your Name]\n- Date: [Date]\n\nSlide 2: Agenda\n${buildBulletedPoints(['Introduction', 'Key Points', 'Analysis', 'Recommendations', 'Q&A'])}\n\nSlide 3: Introduction\n- ${purpose}\n\nSlide 4: Key Points\n${buildBulletedPoints(keypoints)}\n\nSlide 5: Recommendations\n${determineRecommendation(keypoints)}\n\nSlide 6: Q&A\n- Questions & Discussion`;
 }
 
-function buildMeetingNotes({ purpose, keypoints, tone, length }) {
-  const header = `Meeting purpose: ${purpose}\nDate: [insert date]\nAttendees: [list attendees]\n`;
-  const notes = keypoints.length ? keypoints.map((k,i) => `${i+1}. ${k}`).join('\n') : 'Notes: [capture discussion points here]';
-  const actions = `Action items:\n- [Owner] — [Action] — [Due date]`;
-  return `${header}\nDiscussion:\n${notes}\n\n${actions}`;
+function buildPressRelease({ purpose, keypoints, tone, length }) {
+  const today = new Date().toLocaleDateString();
+  return `FOR IMMEDIATE RELEASE\n\n[City, Date] – ${purpose}\n\n${buildParagraphPoints(keypoints)}\n\n"${determineQuote(keypoints)}"\n\nAbout [Company/Organization]:\n[Add company/organization background here]\n\nContact:\n[Name]\n[Title]\n[Email]\n[Phone]\n\n###`;
 }
 
-function buildStatusUpdate({ purpose, keypoints, tone, length }) {
-  const summary = `Status: ${purpose}\n`;
-  const progress = keypoints.length ? keypoints.map(k => `• ${k}`).join('\n') : '• No updates provided.';
-  const risks = `Risks/Issues: [list any blockers]`;
-  const next = `Next steps: [short list of next actions]`;
-  return `${summary}\nProgress:\n${progress}\n\n${risks}\n\n${next}`;
-}
-
-function buildBriefing({ purpose, keypoints, tone, length }) {
-  const context = `Context: ${purpose}.`;
-  const analysis = keypoints.length ? keypoints.map((k,i) => `${i+1}. ${k}`).join('\n') : 'Analysis: [add key findings]';
-  const implications = `Implications: [summarise impact]`;
-  const recommendation = `Recommendation: ${determineRecommendation(keypoints)}`;
-  return `${context}\n\n${analysis}\n\n${implications}\n\n${recommendation}`;
-}
-
-/* Small helpers */
+/* Helper Functions */
 
 function buildBulletedPoints(points) {
-  if (!points || !points.length) return '- [Add key point 1]\n- [Add key point 2]';
-  return points.map(p => `- ${p}`).join('\n');
+  if (!points || !points.length) return '- [Add key point 1]\n- [Add key point 2]\n- [Add key point 3]';
+  return points.map(p => `• ${p.charAt(0).toUpperCase() + p.slice(1)}`).join('\n');
 }
 
 function buildParagraphPoints(points, tone) {
@@ -231,20 +387,164 @@ function buildParagraphPoints(points, tone) {
   return points.map((p, i) => `${i+1}. ${p}`).join(' ');
 }
 
-function determineAction(points) {
-  if (!points || !points.length) return '[Specify required action and owner]';
-  // simple heuristic: if any point contains "approve" or "approval"
-  const joined = points.join(' ').toLowerCase();
-  if (joined.includes('approve') || joined.includes('approval')) return 'Request approval from leadership.';
-  return 'Review and confirm next steps.';
+function determineSalutation(tone) {
+  const salutations = {
+    'Formal': 'Dear Sir/Madam,',
+    'Neutral': 'Dear [Name],',
+    'Concise': 'Hello,',
+    'Persuasive': 'Dear [Name],',
+    'Urgent': 'Attention:',
+    'Collaborative': 'Hi Team,',
+    'Diplomatic': 'Dear Colleagues,'
+  };
+  return salutations[tone] || 'Dear [Name],';
 }
 
-function determineRecommendation(points) {
-  if (!points || !points.length) return 'Proceed with the proposed plan subject to final review.';
-  return `Proceed with ${points[0] || 'the proposed item'} and monitor outcomes.`;
+function determineClosing(tone) {
+  const closings = {
+    'Formal': 'Yours faithfully,',
+    'Neutral': 'Best regards,',
+    'Concise': 'Regards,',
+    'Persuasive': 'Sincerely,',
+    'Urgent': 'Thank you for your immediate attention.',
+    'Collaborative': 'Looking forward to collaborating,',
+    'Diplomatic': 'With appreciation,'
+  };
+  return closings[tone] || 'Best regards,';
+}
+
+function determineQuote(points) {
+  if (!points || !points.length) return "This represents a significant step forward in our commitment to excellence.";
+  const quote = points[0].charAt(0).toUpperCase() + points[0].slice(1);
+  return quote.length > 120 ? quote.substring(0, 120) + "..." : quote;
+}
+
+function applyLanguageStyle(text, lang) {
+  switch(lang) {
+    case 'en-formal':
+      return text.replace(/\b(can't|don't|won't|it's|we're|they're)\b/gi, (match) => {
+        const formalMap = {
+          "can't": "cannot",
+          "don't": "do not",
+          "won't": "will not",
+          "it's": "it is",
+          "we're": "we are",
+          "they're": "they are"
+        };
+        return formalMap[match.toLowerCase()] || match;
+      });
+    case 'en-simple':
+      return text.replace(/\b(utilize|facilitate|implement|optimize)\b/gi, (match) => {
+        const simpleMap = {
+          "utilize": "use",
+          "facilitate": "help",
+          "implement": "carry out",
+          "optimize": "improve"
+        };
+        return simpleMap[match.toLowerCase()] || match;
+      });
+    default:
+      return text;
+  }
+}
+
+function improveText(text, tone) {
+  // Simple text improvement rules
+  let improved = text;
+  
+  // Remove redundant phrases
+  const redundancies = [
+    ['in order to', 'to'],
+    ['due to the fact that', 'because'],
+    ['at this point in time', 'now'],
+    ['in the event that', 'if'],
+    ['with regard to', 'about']
+  ];
+  
+  redundancies.forEach(([bad, good]) => {
+    improved = improved.replace(new RegExp(bad, 'gi'), good);
+  });
+  
+  // Make sentences more active
+  improved = improved.replace(/\b(There is|There are|It is)\b/gi, (match) => {
+    return match.toLowerCase();
+  });
+  
+  // Apply tone-specific improvements
+  if (tone === 'Concise') {
+    improved = improved.replace(/\s+/g, ' ');
+    improved = improved.replace(/\.\s+/g, '.\n');
+  }
+  
+  return improved;
+}
+
+function toTitleCase(text) {
+  return text.split('\n').map(line => {
+    return line.replace(/\w\S*/g, (word) => {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    });
+  }).join('\n');
+}
+
+function toSentenceCase(text) {
+  return text.split('\n').map(line => {
+    return line.charAt(0).toUpperCase() + line.slice(1).toLowerCase();
+  }).join('\n');
+}
+
+function toBulletPoints(text) {
+  return text.split(/[.!?]+/).filter(s => s.trim().length > 10).map(s => `• ${s.trim()}`).join('\n');
+}
+
+function updateTextMetrics(card, text) {
+  const words = estimateWords(text);
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim()).length;
+  const readability = sentences > 0 ? Math.round((words / sentences) * 10) / 10 : 0;
+  const readingTime = Math.ceil(words / 200);
+  
+  card.querySelector('#bw-wordcount').textContent = words;
+  card.querySelector('#bw-readability').textContent = readability > 0 ? `${readability} words/sentence` : "–";
+  card.querySelector('#bw-readingtime').textContent = readingTime > 0 ? `${readingTime} min` : "–";
 }
 
 function estimateWords(text) {
   return (text.trim().split(/\s+/).filter(Boolean).length).toString();
 }
+
+// Initialize templates display on load
+document.addEventListener('DOMContentLoaded', function() {
+  // This would initialize templates for each card instance
+});
 </script>
+
+<style>
+/* Additional styling */
+.results textarea {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  transition: border-color 0.3s;
+}
+
+.results textarea:focus {
+  outline: none;
+  border-color: #4dabf7 !important;
+}
+
+.actions button {
+  transition: all 0.2s;
+}
+
+.actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#bw-templates-list button {
+  transition: background-color 0.2s;
+}
+
+#bw-templates-list button:hover {
+  background-color: #5a6268 !important;
+}
+</style>
