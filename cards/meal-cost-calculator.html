@@ -1,45 +1,879 @@
-<h2 id="meal-cost-calculator" style="margin-top:0;">Meal Cost Calculator</h2>
+<h2 id="meal-cost-calculator-title">Meal Cost Calculator</h2>
 
-<!--
-  Manifest metadata
-  id: meal-cost-calculator
-  title: Meal Cost Calculator
-  path: cards/meal-cost-calculator.html
-  category: Food Tools
-  version: 1.0
--->
-
-<form aria-describedby="mcc-desc">
-  <p id="mcc-desc" class="small">
-    Calculate total and per‑serving meal cost.
+<form aria-describedby="meal-cost-calculator-desc">
+  <p id="meal-cost-calculator-desc" class="small">
+    Calculate total and per‑serving meal costs, split bills, and track ingredients. 
+    <span style="color:var(--accent)">Perfect for meal planning, budgeting, and sharing costs with friends!</span>
   </p>
 
-  <label for="mcc-servings">Number of Servings</label>
-  <input id="mcc-servings" type="number" value="4" style="width:100%;" />
+  <!-- SERVINGS AND CURRENCY -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div class="field">
+      <label for="mcc-servings" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        Number of Servings
+      </label>
+      <input id="mcc-servings" type="number" min="1" max="100" value="4" step="1"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;" />
+    </div>
+    
+    <div class="field">
+      <label for="mcc-currency" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+        Currency
+      </label>
+      <select id="mcc-currency" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;">
+        <option value="£" selected>£ British Pound</option>
+        <option value="$">$ US Dollar</option>
+        <option value="€">€ Euro</option>
+        <option value="¥">¥ Japanese Yen</option>
+        <option value="₹">₹ Indian Rupee</option>
+        <option value="A$">A$ Australian Dollar</option>
+        <option value="C$">C$ Canadian Dollar</option>
+        <option value="CHF">CHF Swiss Franc</option>
+      </select>
+    </div>
+  </div>
 
-  <label for="mcc-ingredients" style="margin-top:8px;">Ingredients with cost (one per line, e.g. "Chicken £5.00")</label>
-  <textarea id="mcc-ingredients" rows="8" style="width:100%;"></textarea>
+  <!-- INGREDIENTS INPUT -->
+  <div style="margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <label for="mcc-ingredients" style="color:var(--accent);font-weight:500;">
+        Ingredients with Costs
+      </label>
+      <button type="button" onclick="mccAddIngredient()" style="background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px;">
+        + Add Row
+      </button>
+    </div>
+    
+    <div id="mcc-ingredients-container" style="background:rgba(0,0,0,0.15);border-radius:8px;border:1px solid rgba(255,255,255,0.05);padding:8px;max-height:300px;overflow-y:auto;">
+      <div style="display:grid;grid-template-columns:3fr 1fr 1fr auto;gap:8px;margin-bottom:8px;padding:0 8px;">
+        <div style="color:rgba(230,250,255,0.8);font-size:13px;font-weight:500;">Ingredient</div>
+        <div style="color:rgba(230,250,255,0.8);font-size:13px;font-weight:500;">Quantity</div>
+        <div style="color:rgba(230,250,255,0.8);font-size:13px;font-weight:500;">Cost</div>
+        <div style="width:24px;"></div>
+      </div>
+      
+      <!-- Ingredient rows will be added here -->
+      <div class="mcc-ingredient-row">
+        <input type="text" placeholder="e.g., Chicken breast" class="mcc-ingredient-name" 
+               style="grid-column:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+        <input type="text" placeholder="e.g., 500g" class="mcc-ingredient-qty" 
+               style="grid-column:2;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+        <input type="number" step="0.01" min="0" placeholder="5.00" class="mcc-ingredient-cost" 
+               style="grid-column:3;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+        <button type="button" onclick="mccRemoveIngredient(this)" class="mcc-remove-btn"
+                style="grid-column:4;background:transparent;border:none;color:#ff4d4d;cursor:pointer;padding:8px;font-size:18px;line-height:1;">×</button>
+      </div>
+    </div>
+    
+    <div style="font-size:13px;color:rgba(230,250,255,0.6);margin-top:6px;">
+      Add ingredients one per row. Example: "Chicken breast, 500g, 5.00"
+    </div>
+  </div>
 
-  <div style="margin-top:12px;">
-    <button type="button" onclick="calcMealCost()">Calculate</button>
+  <!-- ADDITIONAL COSTS -->
+  <div style="margin-bottom:20px;">
+    <div style="color:rgba(230,250,255,0.8);margin-bottom:8px;font-size:14px;">Additional Costs:</div>
+    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;">
+      <div>
+        <label style="display:block;margin-bottom:4px;font-size:13px;color:rgba(230,250,255,0.8);">Energy Cost</label>
+        <input id="mcc-energy" type="number" step="0.01" min="0" placeholder="0.00" 
+               style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:4px;font-size:13px;color:rgba(230,250,255,0.8);">Tax/VAT (%)</label>
+        <input id="mcc-tax" type="number" step="0.1" min="0" max="100" value="0" 
+               style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+      </div>
+      <div>
+        <label style="display:block;margin-bottom:4px;font-size:13px;color:rgba(230,250,255,0.8);">Tip (%)</label>
+        <input id="mcc-tip" type="number" step="0.1" min="0" max="100" value="0" 
+               style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+      </div>
+    </div>
+  </div>
+
+  <!-- QUICK PRESETS -->
+  <div style="margin-bottom:20px;">
+    <div style="color:rgba(230,250,255,0.8);margin-bottom:8px;font-size:14px;">Quick Presets:</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" onclick="mccPreset('pasta')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">🍝 Pasta Dinner</button>
+      <button type="button" onclick="mccPreset('salad')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">🥗 Healthy Salad</button>
+      <button type="button" onclick="mccPreset('breakfast')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">🥞 Full Breakfast</button>
+      <button type="button" onclick="mccPreset('pizza')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">🍕 Homemade Pizza</button>
+      <button type="button" onclick="mccPreset('clear')" style="padding:6px 10px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);color:#ff4d4d;cursor:pointer;font-size:12px;">Clear All</button>
+    </div>
+  </div>
+
+  <!-- ACTIONS - USING THEME COLORS -->
+  <div class="actions" style="margin-top:20px;display:flex;gap:10px;">
+    <button type="button" onclick="mccCalculate()" 
+            style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+      🧮 Calculate Total
+    </button>
+    <button type="button" onclick="mccSplitBill()"
+            style="padding:12px 16px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.3);border-radius:8px;color:#ffa500;cursor:pointer;">
+      👥 Split Bill
+    </button>
+    <button type="button" onclick="mccReset()"
+            style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+      Reset
+    </button>
+    <button type="button" onclick="mccCopy()"
+            style="padding:12px 16px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;">
+      Copy
+    </button>
+  </div>
+
+  <!-- BILL SPLITTING OPTIONS -->
+  <div id="mcc-split-container" style="display:none;margin-top:12px;padding:12px;background:rgba(0,0,0,0.15);border-radius:8px;border:1px solid rgba(255,165,0,0.2);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="color:#ffa500;font-weight:500;font-size:14px;">Bill Splitting Options:</div>
+      <button type="button" onclick="mccHideSplit()" style="background:transparent;border:none;color:rgba(255,165,0,0.7);cursor:pointer;font-size:20px;">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div>
+        <label for="mcc-split-people" style="display:block;margin-bottom:4px;font-size:13px;color:rgba(230,250,255,0.8);">People</label>
+        <input id="mcc-split-people" type="number" min="1" max="20" value="4" 
+               style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,165,0,0.3);background:rgba(255,165,0,0.05);color:inherit;" />
+      </div>
+      <div>
+        <label for="mcc-split-type" style="display:block;margin-bottom:4px;font-size:13px;color:rgba(230,250,255,0.8);">Split Type</label>
+        <select id="mcc-split-type" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,165,0,0.3);background:rgba(255,165,0,0.05);color:inherit;">
+          <option value="equal">Equal Split</option>
+          <option value="unequal">With Different Portions</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" onclick="mccCalculateSplit()" 
+            style="margin-top:8px;width:100%;padding:8px;background:rgba(255,165,0,0.2);border:1px solid rgba(255,165,0,0.4);border-radius:6px;color:#ffa500;cursor:pointer;">
+      Calculate Split
+    </button>
   </div>
 </form>
 
-<div style="margin-top:12px;">
-  <h3 class="small">Meal Cost</h3>
-  <pre id="mcc-output" style="background:#fafafa;padding:8px;border-radius:6px;min-height:80px;"></pre>
+<!-- RESULTS AREA -->
+<div class="results" aria-live="polite" style="margin-top:16px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h3 class="small" style="color:var(--accent);margin:0;">💰 Meal Cost Breakdown</h3>
+    <div id="mcc-status" style="color:rgba(230,250,255,0.7);font-size:13px;"></div>
+  </div>
+
+  <!-- COST SUMMARY -->
+  <div style="background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(45,212,255,0.2);padding:16px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:4px;">Ingredients Total</div>
+        <div id="mcc-ingredients-total" style="font-size:20px;font-weight:600;color:var(--accent);">–</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:4px;">Per Serving</div>
+        <div id="mcc-per-serving" style="font-size:20px;font-weight:600;color:#39ff14;">–</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:4px;">Final Total</div>
+        <div id="mcc-final-total" style="font-size:20px;font-weight:600;color:#ffa500;">–</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAILED BREAKDOWN -->
+  <div style="margin-bottom:12px;">
+    <div style="color:rgba(230,250,255,0.8);margin-bottom:8px;font-size:14px;">Detailed Breakdown:</div>
+    <div id="mcc-breakdown" style="background:rgba(0,0,0,0.15);border-radius:8px;border:1px solid rgba(255,255,255,0.05);padding:12px;max-height:200px;overflow-y:auto;">
+      <div style="color:rgba(230,250,255,0.6);font-size:13px;text-align:center;padding:20px;">
+        Click "Calculate Total" to see the breakdown
+      </div>
+    </div>
+  </div>
+
+  <!-- SAVINGS COMPARISON -->
+  <div id="mcc-savings-container" style="display:none;margin-top:12px;padding:12px;background:rgba(0,0,0,0.15);border-radius:8px;border:1px solid rgba(45,212,255,0.1);">
+    <div style="color:rgba(230,250,255,0.8);margin-bottom:8px;font-size:14px;">💰 Savings Comparison:</div>
+    <div id="mcc-savings-content" style="font-size:13px;color:rgba(230,250,255,0.9);line-height:1.5;"></div>
+  </div>
+
+  <!-- BILL SPLITTING RESULTS -->
+  <div id="mcc-split-results" style="display:none;margin-top:12px;padding:12px;background:rgba(0,0,0,0.15);border-radius:8px;border:1px solid rgba(255,165,0,0.2);">
+    <div style="color:#ffa500;font-weight:500;margin-bottom:8px;font-size:14px;">👥 Bill Splitting Results:</div>
+    <div id="mcc-split-content" style="font-family:monospace;font-size:13px;color:rgba(230,250,255,0.9);line-height:1.5;"></div>
+  </div>
+
+  <!-- HINT AND STATUS -->
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+    <div id="mcc-hint" class="small" style="color:#39ff14;font-size:13px;flex:1;"></div>
+    <div id="mcc-summary" style="color:rgba(230,250,255,0.7);font-size:13px;"></div>
+  </div>
 </div>
 
 <script>
-function calcMealCost(){
-  const servings = parseFloat(document.getElementById('mcc-servings').value);
-  const lines = document.getElementById('mcc-ingredients').value.split('\\n');
-  let total = 0;
-  lines.forEach(line=>{
-    const m = line.match(/([0-9]+(?:\\.[0-9]+)?)/);
-    if(m) total += parseFloat(m[1]);
+/* meal-cost-calculator.html
+   - Calculates meal costs with detailed breakdown
+   - Scoped with mcc- prefix (meal cost calculator)
+   - Includes bill splitting and savings comparison
+*/
+
+// Initialize ingredient rows
+function mccInitializeIngredients() {
+  const container = document.getElementById('mcc-ingredients-container');
+  const rows = container.querySelectorAll('.mcc-ingredient-row');
+  
+  // Add event listeners to all existing rows
+  rows.forEach(row => {
+    const costInput = row.querySelector('.mcc-ingredient-cost');
+    const nameInput = row.querySelector('.mcc-ingredient-name');
+    
+    costInput.addEventListener('input', mccUpdateCalculations);
+    nameInput.addEventListener('input', mccUpdateCalculations);
   });
-  const perServing = total/servings;
-  document.getElementById('mcc-output').textContent = `Total cost: £${total.toFixed(2)}\nPer serving: £${perServing.toFixed(2)}`;
+  
+  // Load example data on first run
+  if (!localStorage.getItem('mcc-initialized')) {
+    setTimeout(mccPreset, 500, 'pasta');
+    localStorage.setItem('mcc-initialized', 'true');
+  }
+}
+
+// Add new ingredient row
+function mccAddIngredient() {
+  const container = document.getElementById('mcc-ingredients-container');
+  const row = document.createElement('div');
+  row.className = 'mcc-ingredient-row';
+  row.style.cssText = `
+    display: grid;
+    grid-template-columns: 3fr 1fr 1fr auto;
+    gap: 8px;
+    margin-bottom: 8px;
+  `;
+  
+  row.innerHTML = `
+    <input type="text" placeholder="e.g., Chicken breast" class="mcc-ingredient-name" 
+           style="grid-column:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+    <input type="text" placeholder="e.g., 500g" class="mcc-ingredient-qty" 
+           style="grid-column:2;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+    <input type="number" step="0.01" min="0" placeholder="5.00" class="mcc-ingredient-cost" 
+           style="grid-column:3;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:inherit;" />
+    <button type="button" onclick="mccRemoveIngredient(this)" class="mcc-remove-btn"
+            style="grid-column:4;background:transparent;border:none;color:#ff4d4d;cursor:pointer;padding:8px;font-size:18px;line-height:1;">×</button>
+  `;
+  
+  container.appendChild(row);
+  
+  // Add event listeners to new row
+  const costInput = row.querySelector('.mcc-ingredient-cost');
+  const nameInput = row.querySelector('.mcc-ingredient-name');
+  
+  costInput.addEventListener('input', mccUpdateCalculations);
+  nameInput.addEventListener('input', mccUpdateCalculations);
+  
+  // Update hint
+  document.getElementById('mcc-hint').textContent = 'Ingredient added. Enter cost to update calculations.';
+  document.getElementById('mcc-hint').style.color = 'var(--accent)';
+}
+
+// Remove ingredient row
+function mccRemoveIngredient(btn) {
+  const row = btn.closest('.mcc-ingredient-row');
+  if (row) {
+    row.remove();
+    mccUpdateCalculations();
+    document.getElementById('mcc-hint').textContent = 'Ingredient removed.';
+    document.getElementById('mcc-hint').style.color = '#ff4d4d';
+    setTimeout(() => {
+      if (document.getElementById('mcc-hint').textContent === 'Ingredient removed.') {
+        document.getElementById('mcc-hint').textContent = '';
+      }
+    }, 2000);
+  }
+}
+
+// Get all ingredients data
+function mccGetIngredients() {
+  const rows = document.querySelectorAll('.mcc-ingredient-row');
+  const ingredients = [];
+  
+  rows.forEach(row => {
+    const name = row.querySelector('.mcc-ingredient-name').value.trim();
+    const qty = row.querySelector('.mcc-ingredient-qty').value.trim();
+    const cost = parseFloat(row.querySelector('.mcc-ingredient-cost').value) || 0;
+    
+    if (name || cost > 0) {
+      ingredients.push({
+        name: name || 'Unnamed ingredient',
+        quantity: qty || '',
+        cost: cost
+      });
+    }
+  });
+  
+  return ingredients;
+}
+
+// Calculate total costs
+function mccCalculate() {
+  const servings = parseInt(document.getElementById('mcc-servings').value) || 1;
+  const currency = document.getElementById('mcc-currency').value;
+  const taxRate = parseFloat(document.getElementById('mcc-tax').value) || 0;
+  const tipRate = parseFloat(document.getElementById('mcc-tip').value) || 0;
+  const energyCost = parseFloat(document.getElementById('mcc-energy').value) || 0;
+  
+  const ingredients = mccGetIngredients();
+  
+  if (ingredients.length === 0) {
+    mccShowError('Please add at least one ingredient with cost');
+    return;
+  }
+  
+  // Calculate ingredient costs
+  const ingredientsTotal = ingredients.reduce((sum, item) => sum + item.cost, 0);
+  const subtotal = ingredientsTotal + energyCost;
+  const taxAmount = subtotal * (taxRate / 100);
+  const tipAmount = subtotal * (tipRate / 100);
+  const finalTotal = subtotal + taxAmount + tipAmount;
+  const perServing = finalTotal / servings;
+  
+  // Update summary display
+  document.getElementById('mcc-ingredients-total').textContent = 
+    `${currency}${ingredientsTotal.toFixed(2)}`;
+  document.getElementById('mcc-per-serving').textContent = 
+    `${currency}${perServing.toFixed(2)}`;
+  document.getElementById('mcc-final-total').textContent = 
+    `${currency}${finalTotal.toFixed(2)}`;
+  
+  // Update detailed breakdown
+  const breakdown = document.getElementById('mcc-breakdown');
+  let html = `
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <div style="color:rgba(230,250,255,0.8);font-weight:500;">Item</div>
+      <div style="color:rgba(230,250,255,0.8);font-weight:500;text-align:right;">Cost</div>
+      <div style="color:rgba(230,250,255,0.8);font-weight:500;text-align:right;">Per Serving</div>
+    </div>
+  `;
+  
+  // Add ingredients
+  ingredients.forEach(item => {
+    const itemPerServing = item.cost / servings;
+    html += `
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:4px;">
+        <div style="color:rgba(230,250,255,0.9);">${item.name} ${item.quantity ? `(${item.quantity})` : ''}</div>
+        <div style="color:var(--accent);text-align:right;">${currency}${item.cost.toFixed(2)}</div>
+        <div style="color:rgba(230,250,255,0.7);text-align:right;">${currency}${itemPerServing.toFixed(2)}</div>
+      </div>
+    `;
+  });
+  
+  // Add additional costs
+  if (energyCost > 0) {
+    html += `
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:4px;">
+        <div style="color:rgba(230,250,255,0.9);">Energy Cost</div>
+        <div style="color:var(--accent);text-align:right;">${currency}${energyCost.toFixed(2)}</div>
+        <div style="color:rgba(230,250,255,0.7);text-align:right;">${currency}${(energyCost/servings).toFixed(2)}</div>
+      </div>
+    `;
+  }
+  
+  // Add tax and tip
+  html += `
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05);">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:4px;">
+        <div style="color:rgba(230,250,255,0.9);">Subtotal</div>
+        <div style="color:var(--accent);text-align:right;">${currency}${subtotal.toFixed(2)}</div>
+      </div>
+  `;
+  
+  if (taxRate > 0) {
+    html += `
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:4px;">
+        <div style="color:rgba(230,250,255,0.9);">Tax (${taxRate}%)</div>
+        <div style="color:#ffa500;text-align:right;">${currency}${taxAmount.toFixed(2)}</div>
+      </div>
+    `;
+  }
+  
+  if (tipRate > 0) {
+    html += `
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:4px;">
+        <div style="color:rgba(230,250,255,0.9);">Tip (${tipRate}%)</div>
+        <div style="color:#ffa500;text-align:right;">${currency}${tipAmount.toFixed(2)}</div>
+      </div>
+    `;
+  }
+  
+  html += `
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.05);">
+        <div style="color:rgba(230,250,255,0.9);font-weight:600;">Total</div>
+        <div style="color:#39ff14;font-weight:600;text-align:right;">${currency}${finalTotal.toFixed(2)}</div>
+      </div>
+    </div>
+  `;
+  
+  breakdown.innerHTML = html;
+  
+  // Update status and hint
+  document.getElementById('mcc-status').textContent = '✓ Calculated';
+  document.getElementById('mcc-status').style.color = '#39ff14';
+  document.getElementById('mcc-hint').textContent = `Cost calculated for ${servings} serving${servings !== 1 ? 's' : ''}`;
+  document.getElementById('mcc-hint').style.color = '#39ff14';
+  document.getElementById('mcc-summary').textContent = `${ingredients.length} items, ${currency}${finalTotal.toFixed(2)} total`;
+  
+  // Show savings comparison
+  mccShowSavingsComparison(finalTotal, perServing, currency);
+  
+  // Hide split results if showing
+  document.getElementById('mcc-split-results').style.display = 'none';
+}
+
+// Update calculations in real-time
+function mccUpdateCalculations() {
+  const ingredients = mccGetIngredients();
+  const ingredientsTotal = ingredients.reduce((sum, item) => sum + item.cost, 0);
+  const currency = document.getElementById('mcc-currency').value;
+  
+  if (ingredientsTotal > 0) {
+    document.getElementById('mcc-ingredients-total').textContent = 
+      `${currency}${ingredientsTotal.toFixed(2)}`;
+    document.getElementById('mcc-status').textContent = 'Ready';
+    document.getElementById('mcc-status').style.color = 'var(--accent)';
+  }
+}
+
+// Show savings comparison
+function mccShowSavingsComparison(total, perServing, currency) {
+  const container = document.getElementById('mcc-savings-container');
+  const content = document.getElementById('mcc-savings-content');
+  
+  // Compare with average restaurant prices
+  const restaurantMultiplier = 3; // Restaurant meals typically cost 3x homemade
+  const restaurantCost = perServing * restaurantMultiplier;
+  const savingsPerMeal = restaurantCost - perServing;
+  const monthlySavings = savingsPerMeal * 30; // Assuming one meal per day
+  
+  content.innerHTML = `
+    <div style="margin-bottom:6px;">
+      <strong>vs. Restaurant:</strong> This meal costs <span style="color:#39ff14;">${currency}${perServing.toFixed(2)}</span> per serving.
+      A similar restaurant meal might cost <span style="color:#ffa500;">${currency}${restaurantCost.toFixed(2)}</span>.
+    </div>
+    <div style="margin-bottom:6px;">
+      <strong>Savings:</strong> You save <span style="color:#39ff14;">${currency}${savingsPerMeal.toFixed(2)}</span> per serving compared to eating out.
+    </div>
+    <div>
+      <strong>Monthly impact:</strong> If you cook this instead of eating out once per day, 
+      you could save <span style="color:#39ff14;font-weight:600;">${currency}${monthlySavings.toFixed(2)}</span> per month!
+    </div>
+  `;
+  
+  container.style.display = 'block';
+}
+
+// Bill splitting functions
+function mccSplitBill() {
+  const container = document.getElementById('mcc-split-container');
+  container.style.display = container.style.display === 'none' ? 'block' : 'block';
+}
+
+function mccHideSplit() {
+  document.getElementById('mcc-split-container').style.display = 'none';
+}
+
+function mccCalculateSplit() {
+  const people = parseInt(document.getElementById('mcc-split-people').value) || 1;
+  const splitType = document.getElementById('mcc-split-type').value;
+  const currency = document.getElementById('mcc-currency').value;
+  
+  // Get current total
+  const totalElement = document.getElementById('mcc-final-total');
+  let total = 0;
+  if (totalElement.textContent !== '–') {
+    const totalText = totalElement.textContent.replace(currency, '');
+    total = parseFloat(totalText) || 0;
+  }
+  
+  if (total === 0) {
+    mccShowError('Please calculate total cost first');
+    return;
+  }
+  
+  const container = document.getElementById('mcc-split-results');
+  const content = document.getElementById('mcc-split-content');
+  
+  let html = '';
+  
+  if (splitType === 'equal') {
+    const perPerson = total / people;
+    html = `
+      <div style="margin-bottom:8px;">
+        Total bill: <span style="color:#ffa500;font-weight:600;">${currency}${total.toFixed(2)}</span>
+      </div>
+      <div style="margin-bottom:8px;">
+        Split equally among <span style="color:var(--accent);">${people}</span> people
+      </div>
+      <div style="margin-bottom:8px;padding:8px;background:rgba(255,165,0,0.1);border-radius:6px;">
+        Each person pays: <span style="color:#39ff14;font-weight:600;font-size:16px;">${currency}${perPerson.toFixed(2)}</span>
+      </div>
+      <div style="font-size:12px;color:rgba(230,250,255,0.6);">
+        Tip: Use a payment app like Venmo, PayPal, or Splitwise to collect payments easily.
+      </div>
+    `;
+  } else {
+    // Unequal split (simplified version)
+    html = `
+      <div style="margin-bottom:8px;">
+        Total bill: <span style="color:#ffa500;font-weight:600;">${currency}${total.toFixed(2)}</span>
+      </div>
+      <div style="margin-bottom:8px;">
+        For unequal splits, divide based on:
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+        <div style="padding:6px;background:rgba(255,255,255,0.05);border-radius:4px;">
+          <strong>By items eaten:</strong> Calculate who ate what
+        </div>
+        <div style="padding:6px;background:rgba(255,255,255,0.05);border-radius:4px;">
+          <strong>By percentage:</strong> Agree on shares (e.g., 60%/40%)
+        </div>
+        <div style="padding:6px;background:rgba(255,255,255,0.05);border-radius:4px;">
+          <strong>By income:</strong> Higher earners pay more
+        </div>
+        <div style="padding:6px;background:rgba(255,255,255,0.05);border-radius:4px;">
+          <strong>By rounds:</strong: Take turns paying
+        </div>
+      </div>
+    `;
+  }
+  
+  content.innerHTML = html;
+  container.style.display = 'block';
+  
+  // Update hint
+  document.getElementById('mcc-hint').textContent = `Bill split calculated for ${people} people`;
+  document.getElementById('mcc-hint').style.color = '#ffa500';
+}
+
+// Quick presets
+function mccPreset(preset) {
+  if (preset === 'clear') {
+    mccReset();
+    return;
+  }
+  
+  // Clear existing ingredients
+  const container = document.getElementById('mcc-ingredients-container');
+  const rows = container.querySelectorAll('.mcc-ingredient-row');
+  rows.forEach(row => row.remove());
+  
+  const presets = {
+    'pasta': [
+      { name: 'Pasta', qty: '500g', cost: 1.50 },
+      { name: 'Tomato sauce', qty: '1 jar', cost: 2.50 },
+      { name: 'Ground beef', qty: '500g', cost: 5.00 },
+      { name: 'Onion', qty: '1 large', cost: 0.50 },
+      { name: 'Garlic', qty: '3 cloves', cost: 0.30 },
+      { name: 'Parmesan cheese', qty: '100g', cost: 2.00 }
+    ],
+    'salad': [
+      { name: 'Mixed greens', qty: '200g', cost: 3.00 },
+      { name: 'Cherry tomatoes', qty: '250g', cost: 2.00 },
+      { name: 'Cucumber', qty: '1 medium', cost: 0.80 },
+      { name: 'Feta cheese', qty: '150g', cost: 3.50 },
+      { name: 'Olive oil', qty: '50ml', cost: 1.00 },
+      { name: 'Balsamic vinegar', qty: '30ml', cost: 0.70 }
+    ],
+    'breakfast': [
+      { name: 'Eggs', qty: '6 large', cost: 2.00 },
+      { name: 'Bacon', qty: '200g', cost: 3.50 },
+      { name: 'Bread', qty: '8 slices', cost: 1.20 },
+      { name: 'Butter', qty: '50g', cost: 0.60 },
+      { name: 'Orange juice', qty: '1L', cost: 2.50 },
+      { name: 'Coffee', qty: '100g', cost: 4.00 }
+    ],
+    'pizza': [
+      { name: 'Pizza dough', qty: '500g', cost: 1.50 },
+      { name: 'Tomato puree', qty: '200g', cost: 1.00 },
+      { name: 'Mozzarella', qty: '250g', cost: 3.00 },
+      { name: 'Pepperoni', qty: '150g', cost: 4.00 },
+      { name: 'Mushrooms', qty: '200g', cost: 1.50 },
+      { name: 'Bell peppers', qty: '2 medium', cost: 1.20 }
+    ]
+  };
+  
+  const selectedPreset = presets[preset] || presets.pasta;
+  
+  // Add preset ingredients
+  selectedPreset.forEach(item => {
+    mccAddIngredient();
+    const rows = container.querySelectorAll('.mcc-ingredient-row');
+    const lastRow = rows[rows.length - 1];
+    
+    lastRow.querySelector('.mcc-ingredient-name').value = item.name;
+    lastRow.querySelector('.mcc-ingredient-qty').value = item.qty;
+    lastRow.querySelector('.mcc-ingredient-cost').value = item.cost;
+  });
+  
+  // Set appropriate servings
+  const servingsMap = {
+    'pasta': 4,
+    'salad': 2,
+    'breakfast': 4,
+    'pizza': 4
+  };
+  document.getElementById('mcc-servings').value = servingsMap[preset] || 4;
+  
+  // Update hint
+  document.getElementById('mcc-hint').textContent = `Loaded ${preset} preset`;
+  document.getElementById('mcc-hint').style.color = 'var(--accent)';
+  
+  // Auto-calculate
+  setTimeout(mccCalculate, 300);
+}
+
+function mccShowError(message) {
+  document.getElementById('mcc-status').textContent = '✗ Error';
+  document.getElementById('mcc-status').style.color = '#ff4d4d';
+  document.getElementById('mcc-hint').textContent = message;
+  document.getElementById('mcc-hint').style.color = '#ff4d4d';
+}
+
+function mccReset() {
+  // Clear ingredients
+  const container = document.getElementById('mcc-ingredients-container');
+  const rows = container.querySelectorAll('.mcc-ingredient-row');
+  rows.forEach(row => row.remove());
+  
+  // Add one empty row
+  mccAddIngredient();
+  
+  // Reset other inputs
+  document.getElementById('mcc-servings').value = 4;
+  document.getElementById('mcc-energy').value = '';
+  document.getElementById('mcc-tax').value = 0;
+  document.getElementById('mcc-tip').value = 0;
+  
+  // Reset displays
+  document.getElementById('mcc-ingredients-total').textContent = '–';
+  document.getElementById('mcc-per-serving').textContent = '–';
+  document.getElementById('mcc-final-total').textContent = '–';
+  document.getElementById('mcc-breakdown').innerHTML = `
+    <div style="color:rgba(230,250,255,0.6);font-size:13px;text-align:center;padding:20px;">
+      Click "Calculate Total" to see the breakdown
+    </div>
+  `;
+  document.getElementById('mcc-savings-container').style.display = 'none';
+  document.getElementById('mcc-split-results').style.display = 'none';
+  document.getElementById('mcc-split-container').style.display = 'none';
+  document.getElementById('mcc-status').textContent = '';
+  document.getElementById('mcc-hint').textContent = '';
+  document.getElementById('mcc-summary').textContent = '';
+}
+
+function mccCopy() {
+  const ingredients = mccGetIngredients();
+  const servings = document.getElementById('mcc-servings').value;
+  const currency = document.getElementById('mcc-currency').value;
+  
+  if (ingredients.length === 0) {
+    mccShowError('Nothing to copy');
+    return;
+  }
+  
+  let text = `Meal Cost Summary\n\n`;
+  text += `Servings: ${servings}\n`;
+  text += `Currency: ${currency}\n\n`;
+  text += `Ingredients:\n`;
+  
+  ingredients.forEach(item => {
+    text += `- ${item.name}`;
+    if (item.quantity) text += ` (${item.quantity})`;
+    text += `: ${currency}${item.cost.toFixed(2)}\n`;
+  });
+  
+  // Add totals if calculated
+  const totalElement = document.getElementById('mcc-final-total');
+  if (totalElement.textContent !== '–') {
+    text += `\nTotal: ${totalElement.textContent}\n`;
+    text += `Per serving: ${document.getElementById('mcc-per-serving').textContent}`;
+  }
+  
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('mcc-hint').textContent = '✅ Summary copied to clipboard!';
+    document.getElementById('mcc-hint').style.color = '#39ff14';
+    setTimeout(() => {
+      if (document.getElementById('mcc-hint').textContent === '✅ Summary copied to clipboard!') {
+        document.getElementById('mcc-hint').textContent = '';
+      }
+    }, 2000);
+  }).catch(() => {
+    // Fallback
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      document.getElementById('mcc-hint').textContent = '✅ Copied!';
+      setTimeout(() => { document.getElementById('mcc-hint').textContent = ''; }, 2000);
+    } catch (err) {
+      alert('Copy failed. Please select and copy manually.');
+    }
+    document.body.removeChild(textArea);
+  });
+}
+
+// Initialize
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    mccInitializeIngredients();
+    console.log('Meal Cost Calculator initialized');
+  });
 }
 </script>
+
+<!-- CARD-SPECIFIC STYLES -->
+<style>
+#meal-cost-calculator-title {
+  color: var(--accent);
+  margin-top: 0;
+}
+
+/* Ingredient rows styling */
+.mcc-ingredient-row {
+  transition: all 0.2s ease;
+}
+
+.mcc-ingredient-row:hover {
+  background: rgba(255,255,255,0.02);
+  border-radius: 4px;
+}
+
+.mcc-ingredient-name:focus,
+.mcc-ingredient-qty:focus,
+.mcc-ingredient-cost:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(45,212,255,0.2);
+}
+
+/* Scrollbar styling */
+#mcc-ingredients-container::-webkit-scrollbar,
+#mcc-breakdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+#mcc-ingredients-container::-webkit-scrollbar-track,
+#mcc-breakdown::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+}
+
+#mcc-ingredients-container::-webkit-scrollbar-thumb,
+#mcc-breakdown::-webkit-scrollbar-thumb {
+  background: rgba(45,212,255,0.3);
+  border-radius: 3px;
+}
+
+#mcc-ingredients-container::-webkit-scrollbar-thumb:hover,
+#mcc-breakdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(45,212,255,0.5);
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .row {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .mcc-ingredient-row {
+    grid-template-columns: 2fr 1fr auto !important;
+  }
+  
+  .mcc-ingredient-row > *:nth-child(2) {
+    display: none; /* Hide quantity on mobile */
+  }
+  
+  .mcc-ingredient-row > *:nth-child(3) {
+    grid-column: 2 !important;
+  }
+  
+  .mcc-ingredient-row > *:nth-child(4) {
+    grid-column: 3 !important;
+  }
+  
+  .actions {
+    flex-direction: column !important;
+  }
+  
+  .actions button {
+    width: 100% !important;
+    margin: 4px 0 !important;
+  }
+  
+  #mcc-breakdown > div:first-child {
+    grid-template-columns: 2fr 1fr !important;
+  }
+  
+  #mcc-breakdown > div:first-child > div:last-child {
+    display: none; /* Hide per serving column on mobile */
+  }
+  
+  #mcc-breakdown .mcc-ingredient-row {
+    grid-template-columns: 2fr 1fr !important;
+  }
+  
+  #mcc-breakdown .mcc-ingredient-row > div:last-child {
+    display: none;
+  }
+}
+
+/* Dark mode enhancements */
+@media (prefers-color-scheme: dark) {
+  #mcc-breakdown,
+  #mcc-ingredients-container {
+    background: rgba(0, 0, 0, 0.25) !important;
+  }
+  
+  .mcc-ingredient-name,
+  .mcc-ingredient-qty,
+  .mcc-ingredient-cost {
+    background: rgba(255, 255, 255, 0.05) !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  #mcc-split-container,
+  #mcc-savings-container,
+  #mcc-split-results,
+  .actions,
+  #mcc-hint,
+  #mcc-status,
+  #mcc-summary {
+    display: none !important;
+  }
+  
+  #mcc-ingredients-container {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  
+  .mcc-ingredient-row {
+    break-inside: avoid;
+  }
+}
+
+/* Cost highlighting animation */
+@keyframes costHighlight {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+#mcc-ingredients-total,
+#mcc-per-serving,
+#mcc-final-total {
+  transition: all 0.3s ease;
+}
+
+#mcc-ingredients-total.updated,
+#mcc-per-serving.updated,
+#mcc-final-total.updated {
+  animation: costHighlight 0.5s ease;
+}
+</style>
