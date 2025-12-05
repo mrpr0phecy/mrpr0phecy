@@ -1,380 +1,670 @@
-<h2 id="grammar-proof-title" style="margin-top:0;">Grammar Proofreader</h2>
+<!-- cards/grammar-proofreader.html -->
 
-<form aria-describedby="grammar-proof-desc">
-  <p id="grammar-proof-desc" class="small">Paste text below to check for common grammar, punctuation, and style issues. Click a suggestion to apply it, or use "Apply All" to accept all non‑controversial fixes. Toggle "Explain fixes" for brief guidance (premium feature placeholder).</p>
+<h2 id="grammar-proofreader-title">Grammar Proofreader ✍️</h2>
 
-  <div class="row">
-    <div class="field" style="flex:1;">
-      <label for="gp-text">Your text</label>
-      <textarea id="gp-text" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
+<form aria-describedby="grammar-proofreader-desc">
+  <p id="grammar-proofreader-desc" class="small">Check text for grammar, spelling, punctuation, and style issues. Get suggestions and explanations to improve your writing.</p>
+
+  <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <label for="gp-text" style="color:var(--accent);font-weight:500;">Enter Text to Check</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button type="button" onclick="gpPasteExample(this)" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:4px;color:var(--accent);cursor:pointer;font-size:11px;">Example Text</button>
+          <button type="button" onclick="gpClearText(this)" style="padding:4px 8px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:4px;color:#ff4d4d;cursor:pointer;font-size:11px;">Clear</button>
+        </div>
+      </div>
+      <textarea id="gp-text" rows="8" placeholder="Paste or type your text here..."
+                style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;font-family:inherit;resize:vertical;"></textarea>
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="gpCheck(this)">Check Grammar</button>
-    <button type="button" class="secondary" onclick="gpClear(this)">Clear</button>
-    <button type="button" onclick="gpApplyAll(this)">Apply All</button>
-    <label style="display:inline-flex;align-items:center;gap:8px;margin-left:8px;">
-      <input id="gp-explain" type="checkbox" style="transform:scale(1.05);" />
-      <span class="small">Explain fixes</span>
+  <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+    <button type="button" onclick="gpCheckGrammar(this)" 
+            style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+      🔍 Check Grammar
+    </button>
+    <button type="button" onclick="gpApplyAll(this)"
+            style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(57,255,20,0.2), rgba(57,255,20,0.1));border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">
+      ✅ Apply All Fixes
+    </button>
+    <button type="button" onclick="gpResetForm(this)"
+            style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+      Reset All
+    </button>
+  </div>
+
+  <div style="margin-top:16px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+      <input id="gp-show-explanations" type="checkbox" checked 
+             style="transform:scale(1.1);accent-color:var(--accent);" />
+      <span style="color:rgba(230,250,255,0.9);font-size:13px;">Show explanations</span>
     </label>
+    
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+      <input id="gp-auto-check" type="checkbox"
+             style="transform:scale(1.1);accent-color:var(--accent);" />
+      <span style="color:rgba(230,250,255,0.9);font-size:13px;">Auto-check on paste</span>
+    </label>
+    
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+      <span style="color:rgba(230,250,255,0.7);font-size:12px;">Check level:</span>
+      <select id="gp-check-level" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;font-size:12px;">
+        <option value="basic">Basic</option>
+        <option value="standard" selected>Standard</option>
+        <option value="strict">Strict</option>
+      </select>
+    </div>
   </div>
 </form>
 
-<div class="results" aria-live="polite" style="margin-top:12px;">
-  <div class="result">
-    <div class="label">Summary</div>
-    <div class="value small" id="gp-summary">No check performed yet.</div>
+<div aria-live="polite" style="margin-top:20px;">
+  <h3 class="small" style="color:var(--accent);margin-bottom:8px;">📊 Analysis Results</h3>
+  
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:16px;">
+    <div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;text-align:center;">
+      <div style="color:var(--accent);font-size:24px;font-weight:600;" id="gp-total-issues">0</div>
+      <div style="color:rgba(230,250,255,0.7);font-size:12px;">Total Issues</div>
+    </div>
+    <div style="padding:12px;background:rgba(255,204,0,0.05);border-radius:8px;text-align:center;">
+      <div style="color:#ffcc00;font-size:24px;font-weight:600;" id="gp-grammar-issues">0</div>
+      <div style="color:rgba(230,250,255,0.7);font-size:12px;">Grammar</div>
+    </div>
+    <div style="padding:12px;background:rgba(255,107,157,0.05);border-radius:8px;text-align:center;">
+      <div style="color:#ff6b9d;font-size:24px;font-weight:600;" id="gp-spelling-issues">0</div>
+      <div style="color:rgba(230,250,255,0.7);font-size:12px;">Spelling</div>
+    </div>
+    <div style="padding:12px;background:rgba(157,78,221,0.05);border-radius:8px;text-align:center;">
+      <div style="color:#9d4edd;font-size:24px;font-weight:600;" id="gp-style-issues">0</div>
+      <div style="color:rgba(230,250,255,0.7);font-size:12px;">Style</div>
+    </div>
   </div>
+</div>
 
-  <h3 class="small" style="margin-top:12px;">Suggestions</h3>
-  <ul id="gp-suggestions" class="small" style="list-style:none;padding-left:0;"></ul>
+<div aria-live="polite" style="margin-top:20px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <h3 class="small" style="color:var(--accent);margin-bottom:0;">🔧 Suggestions & Fixes</h3>
+    <div style="display:flex;gap:8px;">
+      <button onclick="gpSortBy('severity')" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:11px;">Sort by Severity</button>
+      <button onclick="gpSortBy('type')" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:11px;">Sort by Type</button>
+    </div>
+  </div>
+  
+  <div id="gp-suggestions-list" style="max-height:400px;overflow-y:auto;padding-right:8px;">
+    <!-- Suggestions will appear here -->
+    <div style="padding:30px;text-align:center;color:rgba(230,250,255,0.5);font-style:italic;">
+      No text checked yet. Paste or type text above and click "Check Grammar".
+    </div>
+  </div>
+</div>
 
-  <div style="margin-top:12px;">
-    <div class="label small">Word count</div>
-    <div class="value small" id="gp-wordcount">0</div>
+<div style="margin-top:20px;padding:16px;background:rgba(45,212,255,0.05);border-radius:8px;border:1px solid rgba(45,212,255,0.2);">
+  <h4 style="color:var(--accent);margin-top:0;margin-bottom:12px;">📖 Common Grammar Rules</h4>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));gap:12px;font-size:13px;">
+    <div>
+      <div style="color:#ff6b9d;font-weight:600;margin-bottom:4px;">its vs. it's</div>
+      <div style="color:rgba(230,250,255,0.8);">"its" = possessive (the dog chased its tail). "it's" = contraction for "it is" or "it has".</div>
+    </div>
+    <div>
+      <div style="color:#ffcc00;font-weight:600;margin-bottom:4px;">your vs. you're</div>
+      <div style="color:rgba(230,250,255,0.8);">"your" = possessive (your book). "you're" = contraction for "you are".</div>
+    </div>
+    <div>
+      <div style="color:#39ff14;font-weight:600;margin-bottom:4px;">their/there/they're</div>
+      <div style="color:rgba(230,250,255,0.8);">"their" = possessive. "there" = location. "they're" = contraction for "they are".</div>
+    </div>
+    <div>
+      <div style="color:#9d4edd;font-weight:600;margin-bottom:4px;">then vs. than</div>
+      <div style="color:rgba(230,250,255,0.8);">"then" = time sequence. "than" = comparison (better than, more than).</div>
+    </div>
+  </div>
+</div>
+
+<div id="gp-toast" style="position:fixed;top:20px;right:20px;padding:12px 16px;background:rgba(20,20,20,0.95);border-radius:8px;border:1px solid var(--accent);z-index:10000;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="color:var(--accent);font-size:18px;">✅</div>
+    <div>
+      <div style="color:var(--accent);font-weight:600;font-size:14px;" id="gp-toast-title">Success</div>
+      <div id="gp-toast-message" style="color:rgba(230,250,255,0.9);font-size:13px;"></div>
+    </div>
+    <button onclick="document.getElementById('gp-toast').style.display='none'" 
+            style="margin-left:12px;background:transparent;border:none;color:rgba(230,250,255,0.7);cursor:pointer;">✕</button>
   </div>
 </div>
 
 <script>
-/*
-  Grammar Proofreader
-  - Lightweight, client-side checks for common mistakes:
-    * its / it's
-    * your / you're
-    * their / there / they're
-    * then / than
-    * double spaces
-    * repeated words
-    * missing space after punctuation
-    * capitalization of sentence starts and "I"
-    * common contractions expanded/incorrect
-  - Suggestions are non-destructive until applied.
-  - Scripts scoped using btn.closest('.card') for modularity.
+/* grammar-proofreader.html
+   - Grammar checking and proofreading tool
+   - Scoped with gp- prefix
 */
 
-function gpClear(btn) {
-  const card = btn.closest('.card');
-  card.querySelector('#gp-text').value = "";
-  card.querySelector('#gp-suggestions').innerHTML = "";
-  card.querySelector('#gp-summary').textContent = "Cleared.";
-  card.querySelector('#gp-wordcount').textContent = "0";
+// Issue type definitions
+const issueTypes = {
+  'grammar': { emoji: '🔧', color: '#ffcc00', label: 'Grammar' },
+  'spelling': { emoji: '🔠', color: '#ff6b9d', label: 'Spelling' },
+  'punctuation': { emoji: '⏸️', color: '#39ff14', label: 'Punctuation' },
+  'style': { emoji: '🎨', color: '#9d4edd', label: 'Style' },
+  'clarity': { emoji: '✨', color: '#2dd4ff', label: 'Clarity' }
+};
+
+// Severity levels
+const severityLevels = {
+  'critical': { emoji: '🔴', color: '#ff4d4d', label: 'Critical' },
+  'major': { emoji: '🟠', color: '#ff9500', label: 'Major' },
+  'minor': { emoji: '🟡', color: '#ffcc00', label: 'Minor' },
+  'suggestion': { emoji: '🔵', color: '#2dd4ff', label: 'Suggestion' }
+};
+
+// Common grammar rules and patterns
+const grammarPatterns = [
+  {
+    pattern: /\bits\b(?=\s+(?:is|was|has|will|should|not|n't))/gi,
+    replacement: "it's",
+    type: 'grammar',
+    severity: 'major',
+    message: "Use \"it's\" (contraction of 'it is' or 'it has') here",
+    explanation: "\"it's\" is a contraction meaning \"it is\" or \"it has\". Use \"its\" for possession."
+  },
+  {
+    pattern: /\bit's\b(?=\s+(?:[a-z]+)(?:\s+[a-z]+)*(?:\s+(?:of|for|to))?)/gi,
+    test: (match, context) => {
+      // Check if "it's" is being used as possessive incorrectly
+      const after = context.slice(context.indexOf(match) + match.length, context.indexOf(match) + match.length + 20);
+      const nextWords = after.trim().split(/\s+/)[0];
+      // If followed by a noun, might be possessive
+      return /^(book|car|house|color|size|name|type|kind|version)/i.test(nextWords);
+    },
+    replacement: "its",
+    type: 'grammar',
+    severity: 'major',
+    message: "Use \"its\" (possessive) instead of \"it's\" here",
+    explanation: "\"its\" shows possession. \"it's\" is only for \"it is\" or \"it has\"."
+  },
+  {
+    pattern: /\byour\b(?=\s+(?:going|doing|thinking|feeling|looking|saying|reading|writing))/gi,
+    replacement: "you're",
+    type: 'grammar',
+    severity: 'major',
+    message: "Use \"you're\" (contraction of 'you are') before a verb",
+    explanation: "\"you're\" means \"you are\". Use \"your\" for possession."
+  },
+  {
+    pattern: /\byoure\b/gi,
+    replacement: "you're",
+    type: 'spelling',
+    severity: 'minor',
+    message: "Correct spelling: \"you're\" (you are)",
+    explanation: "\"you're\" is the contraction of \"you are\". \"youre\" is incorrect."
+  },
+  {
+    pattern: /\btheir\b(?=\s+(?:are|were|have|had))/gi,
+    replacement: "they're",
+    type: 'grammar',
+    severity: 'major',
+    message: "Use \"they're\" (they are) instead of \"their\" here",
+    explanation: "\"they're\" = they are. \"their\" = possessive. \"there\" = location."
+  },
+  {
+    pattern: /\bthen\b(?=\s+(?:more|less|better|worse|rather|other))/gi,
+    replacement: "than",
+    type: 'grammar',
+    severity: 'major',
+    message: "Use \"than\" for comparisons",
+    explanation: "\"than\" is used for comparisons. \"then\" refers to time sequence."
+  },
+  {
+    pattern: / {2,}/g,
+    replacement: " ",
+    type: 'punctuation',
+    severity: 'minor',
+    message: "Replace multiple spaces with a single space",
+    explanation: "Use only one space between words and after punctuation."
+  },
+  {
+    pattern: /([.!?])([A-Za-z])/g,
+    replacement: "$1 $2",
+    type: 'punctuation',
+    severity: 'minor',
+    message: "Add space after punctuation",
+    explanation: "Always put a space after periods, question marks, and exclamation marks."
+  },
+  {
+    pattern: /\s+([,.;:])/g,
+    replacement: "$1",
+    type: 'punctuation',
+    severity: 'minor',
+    message: "Remove space before punctuation",
+    explanation: "Don't put spaces before commas, periods, semicolons, or colons."
+  },
+  {
+    pattern: /\b([a-z]+) \1\b/gi,
+    replacement: "$1",
+    type: 'grammar',
+    severity: 'minor',
+    message: "Remove repeated word",
+    explanation: "The same word appears twice consecutively."
+  },
+  {
+    pattern: /(\s|^)i(\s|[.,!?;:])/g,
+    replacement: "$1I$2",
+    type: 'grammar',
+    severity: 'minor',
+    message: "Capitalize the pronoun \"I\"",
+    explanation: "Always capitalize the pronoun \"I\" when referring to yourself."
+  },
+  // Common misspellings
+  {
+    pattern: /\bseperate\b/gi,
+    replacement: "separate",
+    type: 'spelling',
+    severity: 'minor',
+    message: "Correct spelling: \"separate\"",
+    explanation: "\"Separate\" is often misspelled as \"seperate\"."
+  },
+  {
+    pattern: /\bdefinately\b/gi,
+    replacement: "definitely",
+    type: 'spelling',
+    severity: 'minor',
+    message: "Correct spelling: \"definitely\"",
+    explanation: "\"Definitely\" is often misspelled as \"definately\"."
+  },
+  {
+    pattern: /\brecieve\b/gi,
+    replacement: "receive",
+    type: 'spelling',
+    severity: 'minor',
+    message: "Correct spelling: \"receive\" (i before e except after c)",
+    explanation: "Remember: i before e except after c."
+  },
+  // Contractions
+  {
+    pattern: /\bdont\b/gi,
+    replacement: "don't",
+    type: 'spelling',
+    severity: 'minor',
+    message: "Use contraction: \"don't\"",
+    explanation: "\"don't\" is the contraction of \"do not\"."
+  },
+  {
+    pattern: /\bdoesnt\b/gi,
+    replacement: "doesn't",
+    type: 'spelling',
+    severity: 'minor',
+    message: "Use contraction: \"doesn't\"",
+    explanation: "\"doesn't\" is the contraction of \"does not\"."
+  },
+  {
+    pattern: /\bwont\b/gi,
+    replacement: "won't",
+    type: 'spelling',
+    severity: 'minor',
+    message: "Use contraction: \"won't\"",
+    explanation: "\"won't\" is the contraction of \"will not\"."
+  }
+];
+
+// Example texts
+const exampleTexts = [
+  "Their going to the park later, but your not comming with us. Its fine though, your probably busy then we are. I think your friend should come to.",
+  "The dog chased it's tail around in circles. Its funny to watch, but sometimes it gets dizzy. Your right, its probably not good for the dog.",
+  "I went too the store yesterday and bought some apples. There more expensive then I expected, but their still tasty. Your going too love them!",
+  "Weather your a student or a profesional writer, good grammar is important. Its not just about following rules, its about communicating clearly."
+];
+
+let currentIssues = [];
+let currentSort = 'severity';
+
+// Clear text
+function gpClearText(btn) {
+  const card = btn.closest('.card') || document;
+  card.querySelector('#gp-text').value = '';
+  gpResetResults();
+  gpShowToast('Text cleared', 'success');
 }
 
-function gpCheck(btn) {
-  const card = btn.closest('.card');
-  const textEl = card.querySelector('#gp-text');
-  const text = textEl.value || "";
-  const explain = card.querySelector('#gp-explain').checked;
-
-  const suggestions = analyzeText(text);
-
-  renderSuggestions(card, suggestions, explain);
-  updateSummary(card, text, suggestions);
+// Paste example
+function gpPasteExample(btn) {
+  const card = btn.closest('.card') || document;
+  const textArea = card.querySelector('#gp-text');
+  const randomExample = exampleTexts[Math.floor(Math.random() * exampleTexts.length)];
+  textArea.value = randomExample;
+  
+  if (card.querySelector('#gp-auto-check').checked) {
+    setTimeout(() => gpCheckGrammar(btn), 100);
+  }
+  
+  gpShowToast('Example text loaded', 'info');
 }
 
-function gpApplyAll(btn) {
-  const card = btn.closest('.card');
-  const textEl = card.querySelector('#gp-text');
-  let text = textEl.value || "";
-
-  const suggestions = analyzeText(text);
-
-  // Apply suggestions in order from end to start to preserve indices
-  suggestions
-    .slice()
-    .sort((a,b) => b.index - a.index)
-    .forEach(s => {
-      if (s.replacement !== null) {
-        text = text.slice(0, s.index) + s.replacement + text.slice(s.index + s.length);
-      }
-    });
-
-  textEl.value = text;
-  // re-run check to refresh suggestions
-  gpCheck(btn);
+// Reset form
+function gpResetForm(btn) {
+  const card = btn.closest('.card') || document;
+  card.querySelector('#gp-text').value = '';
+  gpResetResults();
+  gpShowToast('All settings reset', 'info');
 }
 
-/* Analyze text and return array of suggestion objects:
-   { index, length, original, replacement, message, severity }
-*/
-function analyzeText(text) {
-  const suggestions = [];
-  if (!text || !text.trim()) return suggestions;
+// Reset results
+function gpResetResults() {
+  document.getElementById('gp-total-issues').textContent = '0';
+  document.getElementById('gp-grammar-issues').textContent = '0';
+  document.getElementById('gp-spelling-issues').textContent = '0';
+  document.getElementById('gp-style-issues').textContent = '0';
+  
+  const list = document.getElementById('gp-suggestions-list');
+  list.innerHTML = `
+    <div style="padding:30px;text-align:center;color:rgba(230,250,255,0.5);font-style:italic;">
+      No text checked yet. Paste or type text above and click "Check Grammar".
+    </div>
+  `;
+}
 
-  // helper to push suggestion if match found
-  function pushSuggestion(index, length, original, replacement, message, severity = "info") {
-    suggestions.push({ index, length, original, replacement, message, severity });
+// Check grammar
+function gpCheckGrammar(btn) {
+  const card = btn.closest('.card') || document;
+  const text = card.querySelector('#gp-text').value.trim();
+  const showExplanations = card.querySelector('#gp-show-explanations').checked;
+  const checkLevel = card.querySelector('#gp-check-level').value;
+  
+  if (!text) {
+    gpShowToast('Please enter some text to check', 'error');
+    return;
   }
+  
+  currentIssues = analyzeText(text, checkLevel);
+  
+  // Update statistics
+  const grammarCount = currentIssues.filter(i => i.type === 'grammar').length;
+  const spellingCount = currentIssues.filter(i => i.type === 'spelling').length;
+  const styleCount = currentIssues.filter(i => i.type === 'style' || i.type === 'clarity').length;
+  
+  document.getElementById('gp-total-issues').textContent = currentIssues.length;
+  document.getElementById('gp-grammar-issues').textContent = grammarCount;
+  document.getElementById('gp-spelling-issues').textContent = spellingCount;
+  document.getElementById('gp-style-issues').textContent = styleCount;
+  
+  // Render suggestions
+  gpRenderSuggestions(currentIssues, showExplanations);
+  
+  gpShowToast(`Found ${currentIssues.length} issues`, 'success');
+}
 
-  // 1) double spaces
-  const doubleSpaceRegex = / {2,}/g;
-  let m;
-  while ((m = doubleSpaceRegex.exec(text)) !== null) {
-    pushSuggestion(m.index, m[0].length, m[0], " ", "Replace multiple spaces with a single space", "minor");
-  }
-
-  // 2) missing space after punctuation (e.g., ".Word" or ",Word")
-  const punctSpaceRegex = /([.,;:!?])([A-Za-z0-9"“”'‘’])/g;
-  while ((m = punctSpaceRegex.exec(text)) !== null) {
-    // avoid flagging abbreviations like "e.g." by requiring previous char not lowercase letter followed by dot and lowercase
-    pushSuggestion(m.index, 2, m[0], m[1] + " " + m[2], "Add a space after punctuation", "minor");
-  }
-
-  // 3) repeated words (e.g., "the the")
-  const repeatedWordRegex = /\b([A-Za-z']+)\s+\1\b/gi;
-  while ((m = repeatedWordRegex.exec(text)) !== null) {
-    pushSuggestion(m.index, m[0].length, m[0], m[1], `Remove repeated word "${m[1]}"`, "minor");
-  }
-
-  // 4) common confusions (its/it's, your/you're, their/there/they're, then/than)
-  const confusionPatterns = [
-    { regex: /\bits\b/gi, check: (ctx, idx) => {
-        // naive: if followed by verb "is" contraction it's often "it's"
-        // We'll look for patterns like "its not" -> "it's not"
-        const after = ctx.slice(idx + 3, idx + 10).toLowerCase();
-        if (/^(not|n't|\s+is|\s+was|\s+has|\s+will|\s+should)/.test(after)) return { replacement: "it's", reason: "Possibly should be \"it's\" (it is / it has)" };
-        return null;
-      }
-    },
-    { regex: /\bit's\b/gi, check: (ctx, idx) => {
-        // if "it's" used before a noun possessive like "it's color" -> likely "its"
-        const after = ctx.slice(idx + 4, idx + 20);
-        if (/^\s+[A-Za-z]+/.test(after) && !/^(is|was|has|will|should|n't)/i.test(after.trim())) return { replacement: "its", reason: "Possibly should be \"its\" (possessive)" };
-        return null;
-      }
-    },
-    { regex: /\byour\b/gi, check: (ctx, idx) => {
-        const after = ctx.slice(idx + 4, idx + 12).toLowerCase();
-        if (/^(welcome|honor|sincerely|truly)/.test(after)) return null;
-        // if followed by verb contraction like "you're" patterns
-        return null;
-      }
-    },
-    { regex: /\byoure\b/gi, check: (ctx, idx) => null }, // misspelling of you're
-    { regex: /\byou're\b/gi, check: (ctx, idx) => null },
-    { regex: /\btheir\b/gi, check: (ctx, idx) => null },
-    { regex: /\bthere\b/gi, check: (ctx, idx) => null },
-    { regex: /\bthey're\b/gi, check: (ctx, idx) => null },
-    { regex: /\bthen\b/gi, check: (ctx, idx) => null },
-    { regex: /\bthan\b/gi, check: (ctx, idx) => null }
-  ];
-
-  // We'll run targeted checks for the most common confusions with simple heuristics
-  // its / it's
-  const itsRegex = /\bits\b/gi;
-  while ((m = itsRegex.exec(text)) !== null) {
-    const ctx = text;
-    const res = (function(){ const after = ctx.slice(m.index + 3, m.index + 12).toLowerCase(); if (/^(not|n't|\s+is|\s+was|\s+has|\s+will|\s+should)/.test(after)) return "it's"; return null; })();
-    if (res) pushSuggestion(m.index, 3, m[0], res, 'Consider using "it\'s" (it is / it has) here', "suggestion");
-  }
-
-  const its2Regex = /\bit's\b/gi;
-  while ((m = its2Regex.exec(text)) !== null) {
-    const ctx = text;
-    const after = ctx.slice(m.index + 4, m.index + 20);
-    if (/^\s+[A-Za-z]+/.test(after) && !/^(is|was|has|will|should|n't)/i.test(after.trim())) {
-      pushSuggestion(m.index, 4, m[0], "its", 'Consider using "its" for possession', "suggestion");
+// Analyze text
+function analyzeText(text, level) {
+  const issues = [];
+  
+  grammarPatterns.forEach(pattern => {
+    const regex = new RegExp(pattern.pattern.source, 'g' + (pattern.pattern.flags || ''));
+    let match;
+    
+    while ((match = regex.exec(text)) !== null) {
+      // Apply severity filter based on check level
+      if (level === 'basic' && pattern.severity !== 'critical') continue;
+      if (level === 'standard' && pattern.severity === 'suggestion') continue;
+      
+      // Run test function if provided
+      if (pattern.test && !pattern.test(match[0], text)) continue;
+      
+      const startIndex = match.index;
+      const originalText = match[0];
+      const replacement = typeof pattern.replacement === 'function' 
+        ? pattern.replacement(match, text) 
+        : match[0].replace(pattern.pattern, pattern.replacement);
+      
+      issues.push({
+        id: Date.now() + Math.random(),
+        startIndex,
+        length: originalText.length,
+        original: originalText,
+        replacement,
+        type: pattern.type,
+        severity: pattern.severity,
+        message: pattern.message,
+        explanation: pattern.explanation,
+        context: getContext(text, startIndex, originalText.length)
+      });
     }
-  }
-
-  // your / you're common swap
-  const youreRegex = /\byoure\b/gi;
-  while ((m = youreRegex.exec(text)) !== null) {
-    pushSuggestion(m.index, m[0].length, m[0], "you're", 'Did you mean "you\'re" (you are)?', "suggestion");
-  }
-
-  const yourRegex = /\byour\b/gi;
-  while ((m = yourRegex.exec(text)) !== null) {
-    // if followed by verb like "your going" -> "you're going"
-    const after = text.slice(m.index + 4, m.index + 12).toLowerCase();
-    if (/^(going|doing|welcome|reading|writing|thinking|saying|looking|feeling)/.test(after)) {
-      pushSuggestion(m.index, 4, m[0], "you're", 'Possibly "you\'re" (you are) before a verb', "suggestion");
-    }
-  }
-
-  // their / there / they're
-  const theirRegex = /\btheir\b/gi;
-  while ((m = theirRegex.exec(text)) !== null) {
-    // no strong heuristic; still flag for review
-    pushSuggestion(m.index, 5, m[0], null, 'Check "their" vs "there" vs "they\'re"', "note");
-  }
-  const thereRegex = /\bthere\b/gi;
-  while ((m = thereRegex.exec(text)) !== null) {
-    pushSuggestion(m.index, 5, m[0], null, 'Check "there" vs "their" vs "they\'re"', "note");
-  }
-  const theyreRegex = /\bthey're\b/gi;
-  while ((m = theyreRegex.exec(text)) !== null) {
-    pushSuggestion(m.index, 7, m[0], null, 'Check "they\'re" vs "their" vs "there"', "note");
-  }
-
-  // then / than
-  const thenRegex = /\bthen\b/gi;
-  while ((m = thenRegex.exec(text)) !== null) {
-    // if followed by comparative adjective like "better" -> maybe "than"
-    const after = text.slice(m.index + 4, m.index + 12).toLowerCase();
-    if (/^(better|worse|more|less|faster|slower)/.test(after)) {
-      pushSuggestion(m.index, 4, m[0], "than", 'Possibly "than" (comparison) rather than "then"', "suggestion");
-    }
-  }
-
-  // capitalization: sentence starts and " i " -> " I "
-  // Find sentence starts (after .!? or start of text)
-  const sentenceStartRegex = /(^|[\.!\?]\s+)([a-z])/g;
-  while ((m = sentenceStartRegex.exec(text)) !== null) {
-    const idx = m.index + m[1].length;
-    const original = m[2];
-    const replacement = original.toUpperCase();
-    pushSuggestion(idx, 1, original, replacement, "Capitalize sentence start", "minor");
-  }
-
-  // lowercase i as pronoun
-  const iPronounRegex = /(\s|^)(\bi\b)(\s|[.,!?;:])/g;
-  while ((m = iPronounRegex.exec(text)) !== null) {
-    const idx = m.index + m[1].length;
-    pushSuggestion(idx, 1, "i", "I", 'Capitalize the pronoun "I"', "minor");
-  }
-
-  // common contraction misspellings (dont -> don't)
-  const contractionMap = {
-    "\\bdont\\b": "don't",
-    "\\bdoesnt\\b": "doesn't",
-    "\\bdidnt\\b": "didn't",
-    "\\bcant\\b": "can't",
-    "\\bcant\\b": "can't",
-    "\\bwont\\b": "won't",
-    "\\bshouldnt\\b": "shouldn't",
-    "\\bwouldnt\\b": "wouldn't",
-    "\\bcouldnt\\b": "couldn't",
-    "\\bim\\b": "I'm"
-  };
-  for (const pat in contractionMap) {
-    const rx = new RegExp(pat, "gi");
-    while ((m = rx.exec(text)) !== null) {
-      pushSuggestion(m.index, m[0].length, m[0], contractionMap[pat], `Replace with contraction ${contractionMap[pat]}`, "minor");
-    }
-  }
-
-  // punctuation spacing: space before comma/period
-  const spaceBeforePunct = /\s+([,.;:!?])/g;
-  while ((m = spaceBeforePunct.exec(text)) !== null) {
-    pushSuggestion(m.index, m[0].length, m[0], m[1], "Remove space before punctuation", "minor");
-  }
-
-  // final: remove duplicate suggestions at same index for clarity (keep first)
-  const unique = [];
+  });
+  
+  // Additional checks
+  checkSentenceCapitalization(text, issues, level);
+  checkPunctuation(text, issues, level);
+  checkWordiness(text, issues, level);
+  
+  // Remove duplicates (same position and type)
+  const uniqueIssues = [];
   const seen = new Set();
-  suggestions.forEach(s => {
-    const key = `${s.index}:${s.length}:${s.original}:${s.replacement}`;
+  
+  issues.forEach(issue => {
+    const key = `${issue.startIndex}:${issue.type}:${issue.original}`;
     if (!seen.has(key)) {
-      unique.push(s);
+      uniqueIssues.push(issue);
       seen.add(key);
     }
   });
-
-  return unique;
+  
+  return uniqueIssues.sort((a, b) => a.startIndex - b.startIndex);
 }
 
-function renderSuggestions(card, suggestions, explain) {
-  const list = card.querySelector('#gp-suggestions');
-  list.innerHTML = "";
+// Helper functions
+function getContext(text, start, length) {
+  const contextStart = Math.max(0, start - 20);
+  const contextEnd = Math.min(text.length, start + length + 20);
+  return text.substring(contextStart, contextEnd);
+}
 
-  if (!suggestions.length) {
-    card.querySelector('#gp-summary').textContent = "No issues found by the quick check.";
-    card.querySelector('#gp-wordcount').textContent = (card.querySelector('#gp-text').value || "").trim().split(/\s+/).filter(Boolean).length;
+function checkSentenceCapitalization(text, issues, level) {
+  if (level === 'basic') return;
+  
+  const sentenceRegex = /(^|[.!?]\s+)([a-z])/g;
+  let match;
+  
+  while ((match = sentenceRegex.exec(text)) !== null) {
+    const startIndex = match.index + match[1].length;
+    issues.push({
+      id: Date.now() + Math.random(),
+      startIndex,
+      length: 1,
+      original: match[2],
+      replacement: match[2].toUpperCase(),
+      type: 'grammar',
+      severity: 'minor',
+      message: "Capitalize first letter of sentence",
+      explanation: "The first word of a sentence should start with a capital letter.",
+      context: getContext(text, startIndex, 1)
+    });
+  }
+}
+
+function checkPunctuation(text, issues, level) {
+  if (level === 'basic') return;
+  
+  // Check for missing punctuation at sentence ends
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  let currentPos = 0;
+  
+  sentences.forEach(sentence => {
+    if (sentence.trim() && !/[.!?]$/.test(sentence)) {
+      const lastWord = sentence.split(/\s+/).pop();
+      const pos = currentPos + sentence.length - lastWord.length;
+      
+      issues.push({
+        id: Date.now() + Math.random(),
+        startIndex: pos,
+        length: lastWord.length,
+        original: lastWord,
+        replacement: lastWord + '.',
+        type: 'punctuation',
+        severity: 'suggestion',
+        message: "Consider adding punctuation at sentence end",
+        explanation: "Sentences should end with a period, question mark, or exclamation point.",
+        context: getContext(text, pos, lastWord.length)
+      });
+    }
+    currentPos += sentence.length + 1;
+  });
+}
+
+function checkWordiness(text, issues, level) {
+  if (level !== 'strict') return;
+  
+  const wordyPhrases = [
+    { phrase: 'due to the fact that', suggestion: 'because', type: 'style' },
+    { phrase: 'in order to', suggestion: 'to', type: 'style' },
+    { phrase: 'at this point in time', suggestion: 'now', type: 'style' },
+    { phrase: 'in the event that', suggestion: 'if', type: 'style' },
+    { phrase: 'very unique', suggestion: 'unique', type: 'clarity' }
+  ];
+  
+  wordyPhrases.forEach(({ phrase, suggestion, type }) => {
+    const regex = new RegExp(`\\b${phrase}\\b`, 'gi');
+    let match;
+    
+    while ((match = regex.exec(text)) !== null) {
+      issues.push({
+        id: Date.now() + Math.random(),
+        startIndex: match.index,
+        length: match[0].length,
+        original: match[0],
+        replacement: suggestion,
+        type,
+        severity: 'suggestion',
+        message: `Consider using "${suggestion}" instead of "${phrase}"`,
+        explanation: `"${suggestion}" is more concise than "${phrase}".`,
+        context: getContext(text, match.index, match[0].length)
+      });
+    }
+  });
+}
+
+// Render suggestions
+function gpRenderSuggestions(issues, showExplanations) {
+  const list = document.getElementById('gp-suggestions-list');
+  
+  if (issues.length === 0) {
+    list.innerHTML = `
+      <div style="padding:30px;text-align:center;color:rgba(230,250,255,0.5);font-style:italic;">
+        ✅ No issues found! Your text looks good.
+      </div>
+    `;
     return;
   }
-
-  // sort suggestions by index for display
-  suggestions.sort((a,b) => a.index - b.index);
-
-  suggestions.forEach((s, idx) => {
-    const li = document.createElement('li');
-    li.style.padding = "8px";
-    li.style.borderBottom = "1px solid rgba(255,255,255,0.03)";
-    li.style.display = "flex";
-    li.style.justifyContent = "space-between";
-    li.style.alignItems = "center";
-
-    const left = document.createElement('div');
-    left.style.flex = "1";
-
-    const msg = document.createElement('div');
-    msg.innerHTML = `<strong>${s.message}</strong>`;
-    msg.className = "small";
-    left.appendChild(msg);
-
-    const context = document.createElement('div');
-    context.className = "small";
-    context.style.opacity = "0.9";
-    const preview = s.original.length > 120 ? s.original.slice(0,120) + "…" : s.original;
-    context.textContent = `Context: "${preview}"`;
-    left.appendChild(context);
-
-    if (explain && s.replacement !== null) {
-      const explainDiv = document.createElement('div');
-      explainDiv.className = "small";
-      explainDiv.style.marginTop = "6px";
-      explainDiv.style.opacity = "0.85";
-      explainDiv.textContent = `Suggestion: replace "${s.original}" with "${s.replacement}".`;
-      left.appendChild(explainDiv);
-    }
-
-    const actions = document.createElement('div');
-    actions.style.display = "flex";
-    actions.style.gap = "8px";
-    actions.style.alignItems = "center";
-
-    const applyBtn = document.createElement('button');
-    applyBtn.textContent = "Apply";
-    applyBtn.className = "tiny";
-    applyBtn.onclick = () => {
-      applySuggestion(card, s);
-    };
-
-    const ignoreBtn = document.createElement('button');
-    ignoreBtn.textContent = "Ignore";
-    ignoreBtn.className = "tiny";
-    ignoreBtn.onclick = () => {
-      li.remove();
-      // remove from suggestions list visually; not persisted
-    };
-
-    actions.appendChild(applyBtn);
-    actions.appendChild(ignoreBtn);
-
-    li.appendChild(left);
-    li.appendChild(actions);
-    list.appendChild(li);
-  });
-
-  card.querySelector('#gp-summary').textContent = `${suggestions.length} suggestion(s) found.`;
-  card.querySelector('#gp-wordcount').textContent = (card.querySelector('#gp-text').value || "").trim().split(/\s+/).filter(Boolean).length;
-}
-
-function applySuggestion(card, s) {
-  const textEl = card.querySelector('#gp-text');
-  let text = textEl.value || "";
-
-  // Safety: verify the substring at index matches original before replacing
-  const current = text.slice(s.index, s.index + s.length);
-  if (current !== s.original) {
-    // attempt to find a nearby match (fallback)
-    const foundAt = text.indexOf(s.original);
-    if (foundAt !== -1) {
-      text = text.slice(0, foundAt) + (s.replacement !== null ? s.replacement : s.original) + text.slice(foundAt + s.length);
-    } else {
-      // can't find exact match; do nothing
-      alert('Could not apply suggestion automatically because the original text changed. Please apply manually.');
-      return;
-    }
-  } else {
-    text = text.slice(0, s.index) + (s.replacement !== null ? s.replacement : s.original) + text.slice(s.index + s.length);
+  
+  // Sort issues
+  let sortedIssues = [...issues];
+  if (currentSort === 'severity') {
+    const severityOrder = { 'critical': 0, 'major': 1, 'minor': 2, 'suggestion': 3 };
+    sortedIssues.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  } else if (currentSort === 'type') {
+    sortedIssues.sort((a, b) => a.type.localeCompare(b.type));
   }
-
-  textEl.value = text;
-  // re-run check to refresh suggestions
-  gpCheck(card.querySelector('button'));
+  
+  let html = '';
+  sortedIssues.forEach(issue => {
+    const type = issueTypes[issue.type] || issueTypes.grammar;
+    const severity = severityLevels[issue.severity] || severityLevels.minor;
+    const contextText = issue.context.length > 60 
+      ? '...' + issue.context.substring(0, 60) + '...' 
+      : issue.context;
+    
+    html += `
+      <div class="suggestion-item" data-id="${issue.id}" 
+           style="background:rgba(255,255,255,0.03);border-left:3px solid ${type.color};margin-bottom:12px;padding:12px;border-radius:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <span style="font-size:16px;">${type.emoji}</span>
+              <div style="font-weight:600;color:var(--accent);font-size:14px;">${issue.message}</div>
+              <span style="color:${severity.color};background:${severity.color}20;padding:2px 8px;border-radius:12px;font-size:11px;">
+                ${severity.emoji} ${severity.label}
+              </span>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:4px;font-size:13px;">
+              <span style="color:rgba(230,250,255,0.8);">
+                "${issue.original}" → "${issue.replacement}"
+              </span>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <button onclick="gpApplySuggestion('${issue.id}')" style="background:transparent;border:none;color:#39ff14;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:12px;">Apply</button>
+            <button onclick="gpIgnoreSuggestion('${issue.id}')" style="background:transparent;border:none;color:#ff4d4d;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:12px;">Ignore</button>
+          </div>
+        </div>
+        
+        <div style="margin-top:8px;padding:8px 12px;background:rgba(255,255,255,0.05);border-radius:6px;">
+          <div style="color:rgba(230,250,255,0.7);font-size:12px;margin-bottom:4px;">Context:</div>
+          <div style="color:rgba(230,250,255,0.9);font-size:12px;font-family:monospace;">${contextText}</div>
+        </div>
+        
+        ${showExplanations ? `
+          <div style="margin-top:8px;padding:8px 12px;background:rgba(45,212,255,0.1);border-radius:6px;">
+            <div style="color:var(--accent);font-weight:600;font-size:12px;margin-bottom:2px;">Explanation:</div>
+            <div style="color:rgba(230,250,255,0.8);font-size:12px;">${issue.explanation}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+  
+  list.innerHTML = html;
 }
 
-</script>
+// Sort suggestions
+function gpSortBy(sortType) {
+  currentSort = sortType;
+  const showExplanations = document.querySelector('#gp-show-explanations').checked;
+  gpRenderSuggestions(currentIssues, showExplanations);
+}
+
+// Apply a single suggestion
+function gpApplySuggestion(issueId) {
+  const card = document.currentScript?.closest('.card') || document;
+  const textArea = card.querySelector('#gp-text');
+  const issue = currentIssues.find(i => i.id == issueId);
+  
+  if (!issue) return;
+  
+  let text = textArea.value;
+  const before = text.substring(0, issue.startIndex);
+  const after = text.substring(issue.startIndex + issue.length);
+  text = before + issue.replacement + after;
+  
+  textArea.value = text;
+  
+  // Remove the applied issue
+  currentIssues = currentIssues.filter(i => i.id != issueId);
+  
+  // Update display
+  const showExplanations = card.querySelector('#gp-show-explanations').checked;
+  gpRenderSuggestions(currentIssues, showExplanations);
+  
+  // Update stats
+  const grammarCount = currentIssues.filter(i => i.type === 'grammar').length;
+  const spellingCount = currentIssues.filter(i => i.type === 'spelling').length;
+  const styleCount = currentIssues.filter(i => i.type === 'style' || i.type === 'clarity').length;
+  
+  document.getElementById('gp-total-issues').textContent = currentIssues.length;
+  document.getElementById('gp-grammar-issues').textContent = grammarCount;
+  document.getElementById('gp-spelling-issues').textContent = spellingCount;
+  document.getElementById('gp-style-issues').textContent = styleCount;
+  
+  gpShowToast('Suggestion applied', 'success');
+}
+
+// Ignore a suggestion
+function gpIgnoreSuggestion(issueId) {
+  const card = document.currentScript?.closest('.card') || document;
+  currentIssues = currentIssues.filter(i => i.id != issueId);
+  
+  const showExplanations = card.querySelector('#gp-show-explanations').checked;
+  gpRenderSuggestions(currentIssues, showExplanations);
+  
+  // Update stats
+  const grammarCount = currentIssues.filter(i => i.type === 'grammar').length;
+  const spellingCount = currentIssues.filter(i => i.type === 'spelling').length;
+  const styleCount = currentIssues.filter(i => i.type === 'style' || i.type === 'clarity').length;
+  
+  document.getElementById('gp-total-issues').textContent = currentIssues.length;
+  document.getElementById('gp-grammar-issues').textContent = grammarCount;
+  document.getElementById('gp-spelling-issues').textContent =
