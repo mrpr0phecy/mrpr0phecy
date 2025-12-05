@@ -1,67 +1,564 @@
 <h2 id="lbm-title" style="margin-top:0;">Lean Body Mass Calculator</h2>
 
 <form aria-describedby="lbm-desc">
-  <p id="lbm-desc" class="small">Estimate your lean body mass (LBM) using weight, height, gender, and body fat.</p>
+  <p id="lbm-desc" class="small">Estimate your lean body mass using multiple formulas and get detailed body composition analysis.</p>
 
-  <div class="row">
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
     <div class="field">
-      <label for="lbm-weight">Weight (kg)</label>
-      <input id="lbm-weight" type="number" min="0" value="70" />
+      <label for="lbm-weight">Weight <span style="color:#f48fb1;">(kg)</span></label>
+      <input id="lbm-weight" type="number" min="30" max="300" step="0.1" value="70" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;" />
+      <div class="hint" style="font-size:12px;color:#f48fb1;margin-top:4px;">30-300 kg</div>
     </div>
+    
     <div class="field">
-      <label for="lbm-height">Height (cm)</label>
-      <input id="lbm-height" type="number" min="0" value="175" />
+      <label for="lbm-height">Height <span style="color:#f48fb1;">(cm)</span></label>
+      <input id="lbm-height" type="number" min="100" max="250" step="0.1" value="175" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;" />
+      <div class="hint" style="font-size:12px;color:#f48fb1;margin-top:4px;">100-250 cm</div>
     </div>
   </div>
 
-  <div class="row">
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
     <div class="field">
       <label for="lbm-gender">Gender</label>
-      <select id="lbm-gender">
-        <option value="male" selected>Male</option>
-        <option value="female">Female</option>
+      <select id="lbm-gender" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+        <option value="male" selected>👨 Male</option>
+        <option value="female">👩 Female</option>
       </select>
+      <div class="hint" style="font-size:12px;color:#f48fb1;margin-top:4px;">Affects formula constants</div>
     </div>
+    
     <div class="field">
-      <label for="lbm-bodyfat">Body fat (%)</label>
-      <input id="lbm-bodyfat" type="number" min="0" max="100" value="20" />
+      <label for="lbm-bodyfat">Body Fat Percentage</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input id="lbm-bodyfat" type="range" min="3" max="60" value="20" step="0.5" style="flex:1;" oninput="lbmUpdateSlider(this)" />
+        <input id="lbm-bodyfat-value" type="number" min="3" max="60" step="0.1" value="20" style="width:80px;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;" />
+        <span style="color:#f48fb1;">%</span>
+      </div>
+      <div class="hint" style="font-size:12px;color:#f48fb1;margin-top:4px;">
+        <span id="lbm-fat-category">Average (20%)</span>
+      </div>
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="lbmCalc(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="lbmReset(this)">Reset</button>
+  <div class="field" style="margin-top:15px;">
+    <label for="lbm-formula">Calculation Formula</label>
+    <select id="lbm-formula" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+      <option value="bodyfat" selected>Body Fat Percentage (Most Accurate)</option>
+      <option value="boer">Boer Formula (BMI-based)</option>
+      <option value="james">James Formula (Simple)</option>
+      <option value="hume">Hume Formula (Age-adjusted)</option>
+    </select>
+    <div class="hint" style="font-size:12px;color:#f48fb1;margin-top:4px;">Different formulas for different accuracy levels</div>
+  </div>
+
+  <div class="actions" style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
+    <button type="button" onclick="lbmCalc(this)" style="flex:1;padding:12px 20px;background:linear-gradient(135deg, #ec407a, #ad1457);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-calculator" style="margin-right:8px;"></i>Calculate LBM
+    </button>
+    <button type="button" class="secondary" onclick="lbmReset(this)" style="flex:1;padding:12px 20px;background:rgba(255,255,255,0.08);color:#e0f2fe;border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-redo" style="margin-right:8px;"></i>Reset
+    </button>
+    <button type="button" onclick="lbmSave(this)" style="flex:1;padding:12px 20px;background:rgba(255,255,255,0.08);color:#e0f2fe;border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-save" style="margin-right:8px;"></i>Save Result
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <div class="result">
-    <div class="label">Lean Body Mass</div>
-    <div class="value" id="lbm-res">–</div>
+<div class="results" aria-live="polite" style="margin-top:25px;padding:20px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h3 class="small" style="margin:0;font-size:16px;font-weight:600;color:#f48fb1;">
+      <i class="fas fa-chart-line" style="margin-right:8px;"></i>Body Composition Analysis
+    </h3>
+    <div id="lbm-status" style="font-size:12px;padding:4px 10px;border-radius:12px;background:rgba(236, 64, 122, 0.2);color:#f48fb1;"></div>
+  </div>
+  
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:15px;margin-bottom:20px;">
+    <div class="metric-card" style="grid-column:span 2;padding:15px;border-radius:8px;background:linear-gradient(135deg, rgba(236, 64, 122, 0.1), rgba(173, 20, 87, 0.1));border:1px solid rgba(236, 64, 122, 0.3);text-align:center;">
+      <div style="font-size:12px;color:#f48fb1;text-transform:uppercase;letter-spacing:0.5px;">Lean Body Mass</div>
+      <div style="font-size:32px;font-weight:700;color:#f48fb1;margin:5px 0;"><span id="lbm-res">–</span> kg</div>
+      <div style="font-size:12px;color:#f48fb1;opacity:0.8;" id="lbm-formula-used">Using Body Fat Percentage method</div>
+    </div>
+    
+    <div class="metric-card" style="padding:12px;border-radius:8px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);text-align:center;">
+      <div style="font-size:11px;color:#ce93d8;text-transform:uppercase;letter-spacing:0.5px;">Body Fat Mass</div>
+      <div style="font-size:20px;font-weight:600;color:#ce93d8;margin:5px 0;"><span id="lbm-fat-mass">–</span> kg</div>
+      <div style="font-size:11px;color:#ce93d8;opacity:0.8;"><span id="lbm-fat-percent">–</span> of weight</div>
+    </div>
+    
+    <div class="metric-card" style="padding:12px;border-radius:8px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);text-align:center;">
+      <div style="font-size:11px;color="#64b5f6";text-transform:uppercase;letter-spacing:0.5px;">LBM Percentage</div>
+      <div style="font-size:20px;font-weight:600;color="#64b5f6";margin:5px 0;"><span id="lbm-percent">–</span>%</div>
+      <div style="font-size:11px;color="#64b5f6";opacity:0.8;">Lean mass ratio</div>
+    </div>
+  </div>
+  
+  <div id="lbm-composition-visual" style="margin:20px 0;padding:15px;border-radius:8px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);display:none;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+      <div style="font-size:13px;color:#f48fb1;font-weight:600;">Body Composition</div>
+      <div style="font-size:12px;color:#f48fb1;">100% = <span id="lbm-total-weight">70</span> kg</div>
+    </div>
+    <div style="display:flex;height:24px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,0.05);">
+      <div id="lbm-lean-bar" style="background:linear-gradient(90deg, #ec407a, #f48fb1);transition:width 0.5s;"></div>
+      <div id="lbm-fat-bar" style="background:linear-gradient(90deg, #ce93d8, #ba68c8);transition:width 0.5s;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:8px;">
+      <div style="font-size:11px;color:#f48fb1;">
+        <span style="display:inline-block;width:10px;height:10px;background:#ec407a;border-radius:2px;margin-right:4px;"></span>
+        Lean Mass: <span id="lbm-lean-value">–</span> kg
+      </div>
+      <div style="font-size:11px;color:#ce93d8;">
+        <span style="display:inline-block;width:10px;height:10px;background:#ce93d8;border-radius:2px;margin-right:4px;"></span>
+        Fat Mass: <span id="lbm-fat-value">–</span> kg
+      </div>
+    </div>
+  </div>
+  
+  <div id="lbm-formulas-compare" style="display:none;margin-top:20px;padding:15px;border-radius:8px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);">
+    <div style="font-size:13px;color:#f48fb1;font-weight:600;margin-bottom:10px;">Formula Comparison</div>
+    <div style="font-size:12px;color:#bbdefb;line-height:1.6;">
+      Different formulas may yield slightly different results. Choose based on your available data and accuracy needs.
+    </div>
+  </div>
+  
+  <div id="lbm-history" style="display:none;margin-top:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:13px;color:#f48fb1;font-weight:600;">Previous Calculations</div>
+      <button onclick="lbmClearHistory()" style="background:none;border:none;color:#f48fb1;cursor:pointer;font-size:11px;">
+        <i class="fas fa-trash" style="margin-right:4px;"></i>Clear
+      </button>
+    </div>
+    <div id="lbm-history-list" style="max-height:150px;overflow-y:auto;font-size:12px;">
+      <!-- History items will be added here -->
+    </div>
+  </div>
+
+  <div style="margin-top:15px;display:flex;justify-content:space-between;align-items:center;">
+    <div id="lbm-hint" class="small" style="opacity:0.9;font-size:13px;color:#f48fb1;"></div>
+    <div id="lbm-timestamp" style="font-size:11px;color:#f48fb1;opacity:0.7;"></div>
   </div>
 </div>
 
-<details class="small" style="margin-top:12px;">
-  <summary>How it works</summary>
-  <p>
-    LBM ≈ Weight × (1 − Body Fat%).  
-    Example: 70kg at 20% body fat → 56kg lean mass.
-  </p>
+<details class="small" style="margin-top:12px;padding:15px;border-radius:8px;background:rgba(236, 64, 122, 0.05);border:1px solid rgba(236, 64, 122, 0.2);">
+  <summary style="color:#f48fb1;font-weight:600;cursor:pointer;">
+    <i class="fas fa-info-circle" style="margin-right:8px;"></i>How Lean Body Mass Works
+  </summary>
+  <div style="margin-top:10px;font-size:13px;color:#e1bee7;line-height:1.6;">
+    <p><strong>Lean Body Mass (LBM)</strong> is everything in your body except fat: muscles, bones, organs, skin, and water.</p>
+    
+    <div style="margin:10px 0;padding:10px;background:rgba(0,0,0,0.1);border-radius:6px;">
+      <div style="color:#f48fb1;font-weight:600;margin-bottom:5px;">Quick Formulas:</div>
+      <div style="font-family:'Courier New',monospace;font-size:12px;">
+        <div>1. Body Fat Method: <span style="color:#ce93d8;">LBM = Weight × (1 - BodyFat%)</span></div>
+        <div>2. Boer Formula (Men): <span style="color:#ce93d8;">0.407×Weight + 0.267×Height - 19.2</span></div>
+        <div>3. Boer Formula (Women): <span style="color:#ce93d8;">0.252×Weight + 0.473×Height - 48.3</span></div>
+      </div>
+    </div>
+    
+    <p><strong>Body Fat Categories:</strong></p>
+    <ul style="margin:5px 0;padding-left:20px;">
+      <li><span style="color:#81c784;">Essential fat:</span> Men 2-5%, Women 10-13%</li>
+      <li><span style="color:#4caf50;">Athletes:</span> Men 6-13%, Women 14-20%</li>
+      <li><span style="color:#ffb74d;">Average:</span> Men 14-24%, Women 21-31%</li>
+      <li><span style="color:#ef5350;">Above average:</span> Men 25%+, Women 32%+</li>
+    </ul>
+    
+    <p style="margin-top:10px;font-size:12px;opacity:0.8;">
+      <i class="fas fa-lightbulb" style="margin-right:4px;"></i>
+      Note: These are estimates. For medical purposes, consult a healthcare professional.
+    </p>
+  </div>
 </details>
 
 <script>
+/* lean-body-mass-calculator.html
+   - Enhanced LBM calculator with multiple formulas
+   - Scoped with lbm- prefix
+*/
+
+// Body fat categories
+const lbmFatCategories = {
+  'male': [
+    { min: 3, max: 5, name: 'Essential Fat', color: '#81c784' },
+    { min: 6, max: 13, name: 'Athlete', color: '#4caf50' },
+    { min: 14, max: 17, name: 'Fitness', color: '#8bc34a' },
+    { min: 18, max: 24, name: 'Average', color: '#ffb74d' },
+    { min: 25, max: 29, name: 'Above Average', color: '#ff9800' },
+    { min: 30, max: 60, name: 'High', color: '#ef5350' }
+  ],
+  'female': [
+    { min: 10, max: 13, name: 'Essential Fat', color: '#81c784' },
+    { min: 14, max: 20, name: 'Athlete', color: '#4caf50' },
+    { min: 21, max: 24, name: 'Fitness', color: '#8bc34a' },
+    { min: 25, max: 31, name: 'Average', color: '#ffb74d' },
+    { min: 32, max: 38, name: 'Above Average', color: '#ff9800' },
+    { min: 39, max: 60, name: 'High', color: '#ef5350' }
+  ]
+};
+
+// Save history to localStorage
+let lbmHistory = JSON.parse(localStorage.getItem('lbmHistory')) || [];
+
 function lbmCalc(btn) {
   const card = btn.closest('.card');
-  const weight = parseFloat(card.querySelector('#lbm-weight').value) || 0;
-  const bodyfat = parseFloat(card.querySelector('#lbm-bodyfat').value) / 100 || 0;
+  if (!card) return;
+  
+  // Get inputs
+  const weight = parseFloat(card.querySelector('#lbm-weight').value);
+  const height = parseFloat(card.querySelector('#lbm-height').value);
+  const gender = card.querySelector('#lbm-gender').value;
+  const bodyfat = parseFloat(card.querySelector('#lbm-bodyfat-value').value);
+  const formula = card.querySelector('#lbm-formula').value;
+  
+  // Validate inputs
+  if (!weight || weight < 30 || weight > 300) {
+    lbmShowHint(card, "Please enter weight between 30-300 kg", "error");
+    return;
+  }
+  
+  if (!height || height < 100 || height > 250) {
+    lbmShowHint(card, "Please enter height between 100-250 cm", "error");
+    return;
+  }
+  
+  if (!bodyfat || bodyfat < 3 || bodyfat > 60) {
+    lbmShowHint(card, "Please enter body fat between 3-60%", "error");
+    return;
+  }
+  
+  // Calculate using selected formula
+  let lbm, formulaName, formulaDesc;
+  
+  switch(formula) {
+    case 'bodyfat':
+      // Body fat percentage method (most accurate if body fat is known)
+      lbm = weight * (1 - (bodyfat / 100));
+      formulaName = "Body Fat Percentage Method";
+      formulaDesc = "Most accurate when body fat percentage is known";
+      break;
+      
+    case 'boer':
+      // Boer formula (2016) - uses weight and height
+      if (gender === 'male') {
+        lbm = (0.407 * weight) + (0.267 * height) - 19.2;
+      } else {
+        lbm = (0.252 * weight) + (0.473 * height) - 48.3;
+      }
+      formulaName = "Boer Formula";
+      formulaDesc = "Based on weight and height (no body fat needed)";
+      break;
+      
+    case 'james':
+      // James formula (simplified)
+      if (gender === 'male') {
+        lbm = (1.10 * weight) - 128 * (weight * weight / (height * height));
+      } else {
+        lbm = (1.07 * weight) - 148 * (weight * weight / (height * height));
+      }
+      formulaName = "James Formula";
+      formulaDesc = "Simplified calculation for quick estimates";
+      break;
+      
+    case 'hume':
+      // Hume formula (age-adjusted)
+      if (gender === 'male') {
+        lbm = (0.32810 * weight) + (0.33929 * height) - 29.5336;
+      } else {
+        lbm = (0.29569 * weight) + (0.41813 * height) - 43.2933;
+      }
+      formulaName = "Hume Formula";
+      formulaDesc = "Age-adjusted estimation";
+      break;
+      
+    default:
+      lbm = weight * (1 - (bodyfat / 100));
+      formulaName = "Body Fat Percentage Method";
+      formulaDesc = "Default calculation";
+  }
+  
+  // Ensure LBM is reasonable
+  if (lbm < 0) lbm = 0;
+  if (lbm > weight) lbm = weight * 0.95;
+  
+  // Calculate fat mass and percentages
+  const fatMass = weight - lbm;
+  const lbmPercent = (lbm / weight) * 100;
+  const fatPercent = (fatMass / weight) * 100;
+  
+  // Update main result
+  card.querySelector('#lbm-res').textContent = lbm.toFixed(1);
+  card.querySelector('#lbm-formula-used').textContent = `Using ${formulaName}`;
+  
+  // Update fat mass
+  card.querySelector('#lbm-fat-mass').textContent = fatMass.toFixed(1);
+  card.querySelector('#lbm-fat-percent').textContent = fatPercent.toFixed(1) + '%';
+  
+  // Update LBM percentage
+  card.querySelector('#lbm-percent').textContent = lbmPercent.toFixed(1);
+  
+  // Update visualization
+  const leanBar = card.querySelector('#lbm-lean-bar');
+  const fatBar = card.querySelector('#lbm-fat-bar');
+  leanBar.style.width = `${lbmPercent}%`;
+  fatBar.style.width = `${fatPercent}%`;
+  card.querySelector('#lbm-lean-value').textContent = lbm.toFixed(1);
+  card.querySelector('#lbm-fat-value').textContent = fatMass.toFixed(1);
+  card.querySelector('#lbm-total-weight').textContent = weight;
+  
+  // Show visualization
+  card.querySelector('#lbm-composition-visual').style.display = 'block';
+  card.querySelector('#lbm-formulas-compare').style.display = 'block';
+  
+  // Update status
+  card.querySelector('#lbm-status').textContent = "Calculated";
+  card.querySelector('#lbm-status').style.background = "rgba(76, 175, 80, 0.2)";
+  card.querySelector('#lbm-status').style.color = "#81c784";
+  
+  // Update timestamp
+  const now = new Date();
+  card.querySelector('#lbm-timestamp').textContent = 
+    `Calculated: ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+  
+  // Save to history
+  const historyItem = {
+    id: Date.now(),
+    weight: weight,
+    height: height,
+    gender: gender,
+    bodyfat: bodyfat,
+    lbm: lbm,
+    fatMass: fatMass,
+    formula: formulaName,
+    timestamp: now.toISOString()
+  };
+  
+  lbmHistory.unshift(historyItem);
+  if (lbmHistory.length > 10) {
+    lbmHistory = lbmHistory.slice(0, 10);
+  }
+  
+  localStorage.setItem('lbmHistory', JSON.stringify(lbmHistory));
+  lbmRenderHistory();
+  
+  // Show success message
+  lbmShowHint(card, `✓ LBM calculated: ${lbm.toFixed(1)} kg using ${formulaName}`, "success");
+}
 
-  const lbm = weight * (1 - bodyfat);
-  card.querySelector('#lbm-res').textContent = lbm.toFixed(2) + " kg";
+function lbmUpdateSlider(slider) {
+  const card = slider.closest('.card');
+  const valueInput = card.querySelector('#lbm-bodyfat-value');
+  const value = parseFloat(slider.value);
+  
+  valueInput.value = value.toFixed(1);
+  
+  // Update category display
+  const gender = card.querySelector('#lbm-gender').value;
+  const category = lbmGetFatCategory(gender, value);
+  const categoryEl = card.querySelector('#lbm-fat-category');
+  
+  categoryEl.textContent = `${category.name} (${value.toFixed(1)}%)`;
+  categoryEl.style.color = category.color;
+}
+
+function lbmGetFatCategory(gender, bodyfat) {
+  const categories = lbmFatCategories[gender] || lbmFatCategories.male;
+  
+  for (const category of categories) {
+    if (bodyfat >= category.min && bodyfat <= category.max) {
+      return category;
+    }
+  }
+  
+  return { name: 'Out of range', color: '#9e9e9e' };
 }
 
 function lbmReset(btn) {
   const card = btn.closest('.card');
-  card.querySelector('form').reset();
+  if (!card) return;
+  
+  card.querySelector('#lbm-weight').value = 70;
+  card.querySelector('#lbm-height').value = 175;
+  card.querySelector('#lbm-gender').value = 'male';
+  card.querySelector('#lbm-bodyfat').value = 20;
+  card.querySelector('#lbm-bodyfat-value').value = 20;
+  card.querySelector('#lbm-formula').value = 'bodyfat';
+  
+  // Reset results
   card.querySelector('#lbm-res').textContent = '–';
+  card.querySelector('#lbm-fat-mass').textContent = '–';
+  card.querySelector('#lbm-fat-percent').textContent = '–';
+  card.querySelector('#lbm-percent').textContent = '–';
+  card.querySelector('#lbm-status').textContent = '';
+  card.querySelector('#lbm-timestamp').textContent = '';
+  card.querySelector('#lbm-hint').textContent = '';
+  card.querySelector('#lbm-composition-visual').style.display = 'none';
+  card.querySelector('#lbm-formulas-compare').style.display = 'none';
+  
+  // Update fat category
+  lbmUpdateSlider(card.querySelector('#lbm-bodyfat'));
+  
+  lbmShowHint(card, "✓ Calculator reset to defaults", "success");
 }
+
+function lbmSave(btn) {
+  const card = btn.closest('.card');
+  if (!card) return;
+  
+  const result = card.querySelector('#lbm-res').textContent;
+  if (result === '–') {
+    lbmShowHint(card, "No result to save", "warning");
+    return;
+  }
+  
+  // In a real app, this would save to server or generate a report
+  const weight = card.querySelector('#lbm-weight').value;
+  const height = card.querySelector('#lbm-height').value;
+  const bodyfat = card.querySelector('#lbm-bodyfat-value').value;
+  const gender = card.querySelector('#lbm-gender').value;
+  
+  const report = `=== LEAN BODY MASS REPORT ===
+Date: ${new Date().toLocaleDateString()}
+Weight: ${weight} kg
+Height: ${height} cm
+Gender: ${gender}
+Body Fat: ${bodyfat}%
+Lean Body Mass: ${result} kg
+Formula: ${card.querySelector('#lbm-formula-used').textContent}
+
+=== BODY COMPOSITION ===
+Fat Mass: ${card.querySelector('#lbm-fat-mass').textContent} kg
+LBM Percentage: ${card.querySelector('#lbm-percent').textContent}%
+Fat Percentage: ${card.querySelector('#lbm-fat-percent').textContent}
+
+Keep track of your progress!`;
+  
+  // Copy to clipboard
+  navigator.clipboard?.writeText(report).then(() => {
+    lbmShowHint(card, "✓ Report copied to clipboard", "success");
+  }).catch(() => {
+    // Fallback
+    const textarea = document.createElement('textarea');
+    textarea.value = report;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    lbmShowHint(card, "✓ Report copied to clipboard", "success");
+  });
+}
+
+function lbmRenderHistory() {
+  const card = document.querySelector('#lbm-title')?.closest('.card');
+  if (!card) return;
+  
+  const historyList = card.querySelector('#lbm-history-list');
+  const historyContainer = card.querySelector('#lbm-history');
+  
+  if (lbmHistory.length === 0) {
+    historyContainer.style.display = 'none';
+    return;
+  }
+  
+  historyContainer.style.display = 'block';
+  historyList.innerHTML = '';
+  
+  lbmHistory.forEach(item => {
+    const div = document.createElement('div');
+    div.style.padding = '8px';
+    div.style.marginBottom = '5px';
+    div.style.background = 'rgba(255,255,255,0.03)';
+    div.style.borderRadius = '4px';
+    div.style.fontSize = '11px';
+    div.style.color = '#e1bee7';
+    
+    const date = new Date(item.timestamp);
+    const timeStr = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;">
+        <div>
+          <strong style="color:#f48fb1;">${item.lbm.toFixed(1)} kg</strong> LBM
+        </div>
+        <div style="color:#ce93d8;">${timeStr}</div>
+      </div>
+      <div style="font-size:10px;opacity:0.7;margin-top:2px;">
+        ${item.weight}kg • ${item.bodyfat}% BF • ${item.formula}
+      </div>
+    `;
+    
+    div.onclick = () => {
+      card.querySelector('#lbm-weight').value = item.weight;
+      card.querySelector('#lbm-height').value = item.height;
+      card.querySelector('#lbm-gender').value = item.gender;
+      card.querySelector('#lbm-bodyfat').value = item.bodyfat;
+      card.querySelector('#lbm-bodyfat-value').value = item.bodyfat;
+      card.querySelector('#lbm-formula').value = 'bodyfat';
+      
+      lbmUpdateSlider(card.querySelector('#lbm-bodyfat'));
+      lbmCalc(card.querySelector('button[onclick*="lbmCalc"]'));
+    };
+    
+    historyList.appendChild(div);
+  });
+}
+
+function lbmClearHistory() {
+  if (!confirm('Clear all calculation history?')) return;
+  
+  lbmHistory = [];
+  localStorage.removeItem('lbmHistory');
+  lbmRenderHistory();
+  
+  const card = document.querySelector('#lbm-title')?.closest('.card');
+  lbmShowHint(card, "✓ History cleared", "success");
+}
+
+function lbmShowHint(card, message, type) {
+  if (!card) return;
+  
+  const hint = card.querySelector('#lbm-hint');
+  hint.textContent = message;
+  
+  if (type === "success") {
+    hint.style.color = "#a5d6a7";
+  } else if (type === "error") {
+    hint.style.color = "#ef9a9a";
+  } else if (type === "warning") {
+    hint.style.color = "#ffcc80";
+  }
+  
+  // Clear hint after 3 seconds
+  setTimeout(() => {
+    if (hint.textContent === message) hint.textContent = "";
+  }, 3000);
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+  // Sync slider and number input
+  const card = document.querySelector('#lbm-title')?.closest('.card');
+  if (card) {
+    const slider = card.querySelector('#lbm-bodyfat');
+    const number = card.querySelector('#lbm-bodyfat-value');
+    
+    slider.addEventListener('input', () => {
+      number.value = slider.value;
+      lbmUpdateSlider(slider);
+    });
+    
+    number.addEventListener('input', () => {
+      let value = parseFloat(number.value);
+      if (value < 3) value = 3;
+      if (value > 60) value = 60;
+      number.value = value;
+      slider.value = value;
+      lbmUpdateSlider(slider);
+    });
+    
+    // Initialize fat category
+    lbmUpdateSlider(slider);
+    
+    // Load and render history
+    lbmRenderHistory();
+  }
+});
 </script>
