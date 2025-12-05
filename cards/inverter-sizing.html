@@ -1,110 +1,644 @@
-<h2 id="inverter-sizing-title" style="margin-top:0;">Inverter Sizing Calculator (General Advice)</h2>
+<h2 id="inverter-sizing-title" style="margin-top:0;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:8px;">
+  ⚡ Inverter Sizing Calculator
+  <span style="font-size:14px;color:var(--muted);display:block;margin-top:4px;">
+    Perfectly size your solar inverter for any application!
+  </span>
+</h2>
 
 <form aria-describedby="inverter-sizing-desc">
-  <p id="inverter-sizing-desc" class="small">
-    Estimate inverter size for a given load. ⚠️ Educational only — always verify with a qualified installer and local standards.
+  <p id="inverter-sizing-desc" class="small" style="color:var(--muted);margin-bottom:20px;">
+    <strong style="color:var(--accent)">Essential for solar/off-grid setups:</strong> Calculate the right inverter size for your needs. 
+    <span style="color:#ffa500;">Always consult a professional before installation!</span>
   </p>
 
-  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div class="field">
-      <label for="inv-load">Total Load (W)</label>
-      <input id="inv-load" type="number" placeholder="e.g. 1500" style="width:100%;" />
+  <!-- LOAD CALCULATOR SECTION -->
+  <div style="margin-bottom:24px;background:rgba(20,20,20,0.6);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.1);">
+    <div style="color:var(--accent);font-weight:500;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+      🔌 Add Your Appliances
     </div>
-
-    <div class="field">
-      <label for="inv-surge">Surge Factor (×)</label>
-      <input id="inv-surge" type="number" step="0.1" placeholder="e.g. 2" style="width:100%;" />
+    
+    <div id="appliance-list">
+      <!-- Appliance rows will be added here -->
+      <div class="appliance-row" style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:8px;">
+        <select class="appliance-select" onchange="updateAppliancePreset(this)">
+          <option value="">Select Appliance...</option>
+          <option value="fridge">Refrigerator</option>
+          <option value="tv">LED TV (55")</option>
+          <option value="laptop">Laptop</option>
+          <option value="lights">LED Lights (10x)</option>
+          <option value="ac">Air Conditioner (1.5T)</option>
+          <option value="microwave">Microwave</option>
+          <option value="washer">Washing Machine</option>
+          <option value="custom">Custom...</option>
+        </select>
+        <input type="number" class="appliance-watts" placeholder="Watts" value="0" min="0" oninput="calculateTotalLoad()">
+        <input type="number" class="appliance-quantity" placeholder="Qty" value="1" min="1" oninput="calculateTotalLoad()">
+        <button type="button" onclick="removeAppliance(this)" style="background:rgba(255,45,85,0.2);color:#ff2d55;border:none;border-radius:6px;cursor:pointer;padding:6px 10px;">×</button>
+      </div>
     </div>
-
-    <div class="field">
-      <label for="inv-voltage">System Voltage (V)</label>
-      <input id="inv-voltage" type="number" placeholder="e.g. 12" style="width:100%;" />
-    </div>
-
-    <div class="field">
-      <label for="inv-eff">Inverter Efficiency (%)</label>
-      <input id="inv-eff" type="number" step="0.1" placeholder="e.g. 90" style="width:100%;" />
-    </div>
-
-    <div class="field">
-      <label for="inv-show-facts">Show Inverter Facts</label>
-      <select id="inv-show-facts" style="width:100%;">
-        <option value="yes" selected>Yes</option>
-        <option value="no">No</option>
-      </select>
+    
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button type="button" onclick="addAppliance()" 
+              style="flex:1;padding:10px;background:rgba(57,255,20,0.2);border:1px solid rgba(57,255,20,0.4);color:#39ff14;border-radius:8px;cursor:pointer;font-weight:500;">
+        + Add Appliance
+      </button>
+      <button type="button" onclick="loadPreset('home')" 
+              style="padding:10px;background:rgba(45,212,255,0.2);border:1px solid rgba(45,212,255,0.4);color:var(--accent);border-radius:8px;cursor:pointer;">
+        🏠 Home Setup
+      </button>
+      <button type="button" onclick="loadPreset('rv')" 
+              style="padding:10px;background:rgba(255,165,0,0.2);border:1px solid rgba(255,165,0,0.4);color:#ffa500;border-radius:8px;cursor:pointer;">
+        🚐 RV Setup
+      </button>
     </div>
   </div>
 
-  <div class="actions" style="margin-top:12px;">
-    <button type="button" onclick="invCalculate(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="invReset(this)">Reset</button>
-    <button type="button" onclick="invCopy(this)">Copy Result</button>
+  <!-- LOAD SUMMARY -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+    <div style="background:linear-gradient(135deg, rgba(45,212,255,0.1), rgba(45,212,255,0.05));border-radius:10px;padding:16px;text-align:center;">
+      <div style="color:var(--muted);font-size:12px;margin-bottom:4px;">Total Continuous Load</div>
+      <div id="total-watts" style="color:var(--accent);font-size:28px;font-weight:700;">0 W</div>
+    </div>
+    
+    <div style="background:linear-gradient(135deg, rgba(255,45,85,0.1), rgba(255,45,85,0.05));border-radius:10px;padding:16px;text-align:center;">
+      <div style="color:var(--muted);font-size:12px;margin-bottom:4px;">With Surge Factor</div>
+      <div id="surge-watts" style="color:#ff2d55;font-size:28px;font-weight:700;">0 W</div>
+    </div>
+  </div>
+
+  <!-- INVERTER SETTINGS -->
+  <div style="margin-bottom:24px;">
+    <div style="color:var(--accent);font-weight:500;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+      ⚙️ System Settings
+    </div>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <label style="color:var(--muted);font-size:14px;">Surge Factor (×)</label>
+          <span id="surge-value" style="color:var(--accent);font-weight:600;">2.0</span>
+        </div>
+        <input type="range" id="inv-surge" min="1" max="5" step="0.1" value="2" 
+               style="width:100%;height:6px;background:linear-gradient(90deg, rgba(45,212,255,0.3), rgba(45,212,255,0.8));border-radius:3px;"
+               oninput="updateSurgeValue(this)">
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--muted);">
+          <span>1×</span>
+          <span>3×</span>
+          <span>5×</span>
+        </div>
+      </div>
+      
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <label style="color:var(--muted);font-size:14px;">Inverter Efficiency</label>
+          <span id="efficiency-value" style="color:#39ff14;font-weight:600;">90%</span>
+        </div>
+        <input type="range" id="inv-eff" min="70" max="98" step="1" value="90" 
+               style="width:100%;height:6px;background:linear-gradient(90deg, rgba(57,255,20,0.3), rgba(57,255,20,0.8));border-radius:3px;"
+               oninput="updateEfficiencyValue(this)">
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--muted);">
+          <span>70%</span>
+          <span>85%</span>
+          <span>98%</span>
+        </div>
+      </div>
+    </div>
+    
+    <div style="margin-top:16px;">
+      <div style="color:var(--muted);margin-bottom:6px;font-size:14px;">🔋 System Voltage</div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" onclick="setVoltage(12)" class="voltage-btn active">12V</button>
+        <button type="button" onclick="setVoltage(24)" class="voltage-btn">24V</button>
+        <button type="button" onclick="setVoltage(48)" class="voltage-btn">48V</button>
+        <input type="number" id="inv-voltage" value="12" min="12" max="240" step="12" 
+               style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;"
+               oninput="updateVoltageDisplay()">
+      </div>
+    </div>
+  </div>
+
+  <!-- INVERTER RESULTS -->
+  <div class="results" aria-live="polite" style="background:linear-gradient(135deg, rgba(45,212,255,0.05), rgba(57,255,20,0.05));border-radius:12px;padding:20px;border:1px solid rgba(45,212,255,0.2);margin-bottom:20px;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="color:var(--muted);font-size:14px;">Recommended Inverter Size</div>
+      <div id="inv-kva" style="font-size:48px;font-weight:700;color:#39ff14;margin:8px 0;">0 kVA</div>
+      <div style="color:var(--muted);font-size:14px;">
+        ≈ <span id="inv-watts" style="color:var(--accent);font-weight:600;">0 W</span> continuous
+      </div>
+    </div>
+    
+    <!-- VISUAL INVERTER SIZING BAR -->
+    <div style="margin:16px 0;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;color:var(--muted);">
+        <span>Small (0.5kVA)</span>
+        <span>Medium (3kVA)</span>
+        <span>Large (10kVA)</span>
+      </div>
+      <div style="height:12px;background:rgba(255,255,255,0.1);border-radius:6px;overflow:hidden;position:relative;">
+        <div id="inverter-size-bar" style="height:100%;background:linear-gradient(90deg, var(--accent), #39ff14);width:10%;transition:width 0.5s;"></div>
+        <div id="inverter-marker" style="position:absolute;top:-4px;width:4px;height:20px;background:white;border-radius:2px;transform:translateX(-50%);"></div>
+      </div>
+    </div>
+    
+    <!-- DETAILED RESULTS -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+      <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;">
+        <div style="color:var(--muted);font-size:12px;">DC Current Draw</div>
+        <div id="dc-current" style="color:var(--accent);font-size:20px;font-weight:600;">0 A</div>
+      </div>
+      
+      <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;">
+        <div style="color:var(--muted);font-size:12px;">Battery Runtime*</div>
+        <div id="runtime" style="color:#39ff14;font-size:20px;font-weight:600;">0 hours</div>
+      </div>
+    </div>
+    
+    <div style="margin-top:12px;padding:10px;background:rgba(255,165,0,0.1);border-left:3px solid #ffa500;border-radius:6px;">
+      <div style="color:#ffa500;font-size:12px;">
+        ⚠️ <strong>Professional Consultation Required</strong><br>
+        *Runtime based on 100Ah battery. Actual results vary based on battery type, temperature, and discharge rate.
+      </div>
+    </div>
+  </div>
+
+  <!-- INVERTER RECOMMENDATIONS -->
+  <details style="margin-bottom:16px;">
+    <summary style="color:var(--accent);font-weight:500;cursor:pointer;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;display:flex;align-items:center;gap:8px;">
+      💡 Inverter Recommendations & Tips
+    </summary>
+    <div id="inv-facts-container" style="margin-top:12px;padding:16px;background:rgba(20,20,20,0.6);border-radius:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <h4 style="color:var(--accent);margin-top:0;margin-bottom:8px;">🔧 Inverter Types</h4>
+          <ul style="list-style:none;padding:0;margin:0;">
+            <li style="margin-bottom:6px;padding-left:12px;">
+              <span style="color:#39ff14;font-weight:600;">Modified Sine Wave:</span>
+              <div style="color:var(--muted);font-size:13px;">Budget option, not for sensitive electronics</div>
+            </li>
+            <li style="margin-bottom:6px;padding-left:12px;">
+              <span style="color:#39ff14;font-weight:600;">Pure Sine Wave:</span>
+              <div style="color:var(--muted);font-size:13px;">Recommended for all electronics</div>
+            </li>
+            <li style="margin-bottom:6px;padding-left:12px;">
+              <span style="color:#39ff14;font-weight:600;">Hybrid Inverter:</span>
+              <div style="color:var(--muted);font-size:13px;">Grid-tie + battery backup</div>
+            </li>
+          </ul>
+        </div>
+        
+        <div>
+          <h4 style="color:var(--accent);margin-top:0;margin-bottom:8px;">⚡ Common Sizes</h4>
+          <ul style="list-style:none;padding:0;margin:0;">
+            <li style="margin-bottom:6px;padding-left:12px;">
+              <span style="color:#ffa500;font-weight:600;">0.5-1 kVA:</span>
+              <div style="color:var(--muted);font-size:13px;">Small RV, emergency backup</div>
+            </li>
+            <li style="margin-bottom:6px;padding-left:12px;">
+              <span style="color:#ffa500;font-weight:600;">2-3 kVA:</span>
+              <div style="color:var(--muted);font-size:13px;">Average home, office</div>
+            </li>
+            <li style="margin-bottom:6px;padding-left:12px;">
+              <span style="color:#ffa500;font-weight:600;">5-10 kVA:</span>
+              <div style="color:var(--muted);font-size:13px;">Large home, small business</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
+        <h4 style="color:var(--accent);margin-top:0;margin-bottom:8px;">📊 Critical Factors</h4>
+        <ul style="list-style:disc;padding-left:20px;font-size:0.9rem;line-height:1.5;color:var(--muted);">
+          <li><strong>Surge capacity:</strong> Motors need 3-5× running wattage</li>
+          <li><strong>Efficiency:</strong> High-quality inverters are 90-95% efficient</li>
+          <li><strong>Voltage drop:</strong> Higher voltage (48V) reduces cable size/cost</li>
+          <li><strong>Temperature:</strong> Derate by 10-20% in hot environments</li>
+        </ul>
+      </div>
+    </div>
+  </details>
+
+  <!-- ACTION BUTTONS -->
+  <div style="display:flex;gap:10px;margin-top:20px;">
+    <button type="button" onclick="calculateInverter()" 
+            style="flex:1;padding:14px;background:linear-gradient(135deg, var(--accent), rgba(57,255,20,0.8));border:none;border-radius:10px;color:white;cursor:pointer;font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px;">
+      ⚡ Calculate Inverter
+    </button>
+    <button type="button" onclick="exportSpecs()" 
+            style="padding:14px 20px;background:linear-gradient(135deg, #9d4edd, rgba(255,45,85,0.8));border:none;border-radius:10px;color:white;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:6px;">
+      📋 Export Specs
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite" style="margin-top:12px;">
-  <h3 class="small">Inverter Results & Facts</h3>
-  <textarea id="inv-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
-
-  <div id="inv-facts-container" style="margin-top:16px;display:none;">
-    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
-      <li>Inverter size is usually expressed in VA or kVA.</li>
-      <li>Formula: Inverter VA = Load W ÷ Efficiency.</li>
-      <li>Always account for surge loads (motors, compressors, pumps).</li>
-      <li>System voltage determines DC current drawn from batteries.</li>
-      <li>⚠️ Always consult a licensed installer before installation.</li>
-    </ul>
+<!-- BATTERY CALCULATOR -->
+<div style="margin-top:24px;background:rgba(20,20,20,0.6);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.1);">
+  <h3 style="color:var(--accent);margin-top:0;margin-bottom:12px;font-size:16px;display:flex;align-items:center;gap:8px;">
+    🔋 Battery Sizing Calculator
+  </h3>
+  
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div>
+      <label style="color:var(--muted);font-size:14px;display:block;margin-bottom:6px;">Required Runtime (hours)</label>
+      <input type="number" id="runtime-hours" value="4" min="0.5" max="48" step="0.5" 
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;"
+             oninput="calculateBattery()">
+    </div>
+    
+    <div>
+      <label style="color:var(--muted);font-size:14px;display:block;margin-bottom:6px;">Battery Type</label>
+      <select id="battery-type" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;"
+              onchange="calculateBattery()">
+        <option value="leadacid">Lead Acid (50% DoD)</option>
+        <option value="agm">AGM (70% DoD)</option>
+        <option value="lifepo4" selected>LiFePO4 (80% DoD)</option>
+        <option value="lithium">Lithium-ion (90% DoD)</option>
+      </select>
+    </div>
   </div>
-
-  <div style="margin-top:8px;">
-    <div id="inv-hint" class="small" style="opacity:0.9;"></div>
+  
+  <div style="text-align:center;padding:16px;background:linear-gradient(135deg, rgba(57,255,20,0.1), rgba(57,255,20,0.05));border-radius:10px;">
+    <div style="color:var(--muted);font-size:12px;margin-bottom:4px;">Required Battery Bank</div>
+    <div id="battery-size" style="color:#39ff14;font-size:32px;font-weight:700;">0 Ah</div>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px;">
+      ≈ <span id="battery-config" style="color:var(--accent);">0 batteries</span> in parallel
+    </div>
   </div>
 </div>
 
 <script>
-/* inverter-sizing.html
-   - Educational inverter sizing calculator
-   - Scoped with inv- prefix
-*/
+// Scoped functions with 'is' prefix (Inverter Sizing)
+let isCurrentVoltage = 12;
+let isSurgeFactor = 2.0;
+let isEfficiency = 90;
+let isTotalLoad = 0;
 
-function invReset(btn){
-  const card=btn.closest('.card')||document;
-  card.querySelector('form').reset();
-  card.querySelector('#inv-output').value="";
-  card.querySelector('#inv-hint').textContent="";
-  card.querySelector('#inv-facts-container').style.display="none";
+// Appliance presets (watts)
+const appliancePresets = {
+  fridge: { watts: 150, name: "Refrigerator" },
+  tv: { watts: 120, name: "LED TV" },
+  laptop: { watts: 60, name: "Laptop" },
+  lights: { watts: 100, name: "LED Lights" },
+  ac: { watts: 1500, name: "Air Conditioner" },
+  microwave: { watts: 1000, name: "Microwave" },
+  washer: { watts: 500, name: "Washing Machine" }
+};
+
+// Setup presets
+const setupPresets = {
+  home: [
+    { preset: 'fridge', watts: 150, qty: 1 },
+    { preset: 'tv', watts: 120, qty: 1 },
+    { preset: 'lights', watts: 100, qty: 1 },
+    { preset: 'laptop', watts: 60, qty: 2 }
+  ],
+  rv: [
+    { preset: 'fridge', watts: 150, qty: 1 },
+    { preset: 'lights', watts: 50, qty: 1 },
+    { preset: 'tv', watts: 120, qty: 1 }
+  ],
+  workshop: [
+    { preset: 'lights', watts: 200, qty: 1 },
+    { custom: true, name: "Drill", watts: 600, qty: 1 },
+    { custom: true, name: "Saw", watts: 1200, qty: 1 }
+  ]
+};
+
+// Initialize
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', isInitialize);
+} else {
+  isInitialize();
 }
 
-function invCopy(btn){
-  const card=btn.closest('.card')||document;
-  const out=card.querySelector('#inv-output').value;
-  if(!out.trim())return;
-  navigator.clipboard?.writeText(out).then(()=>{
-    const h=card.querySelector('#inv-hint');
-    h.textContent="Copied.";
-    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
-  });
+function isInitialize() {
+  console.log('Inverter Sizing Calculator loaded');
+  
+  // Add initial appliance row
+  addAppliance();
+  
+  // Set up event listeners
+  updateSurgeValue(document.querySelector('#inv-surge'));
+  updateEfficiencyValue(document.querySelector('#inv-eff'));
+  updateVoltageDisplay();
+  
+  // Calculate initial values
+  calculateTotalLoad();
+  calculateInverter();
+  calculateBattery();
 }
 
-function invCalculate(btn){
-  const card=btn.closest('.card')||document;
-  const load=parseFloat(card.querySelector('#inv-load').value);
-  const surge=parseFloat(card.querySelector('#inv-surge').value)||1;
-  const V=parseFloat(card.querySelector('#inv-voltage').value);
-  const eff=parseFloat(card.querySelector('#inv-eff').value)||100;
-  const showFacts=card.querySelector('#inv-show-facts').value==="yes";
-  let out="";
-  if(load>0 && V>0){
-    const VA=(load/ (eff/100));
-    const VAwithSurge=VA*surge;
-    const kVA=(VAwithSurge/1000).toFixed(2);
-    const Idc=(VAwithSurge/V).toFixed(2);
-    out=`Estimated inverter size ≈ ${kVA} kVA\nDC current draw ≈ ${Idc} A\n⚠️ Verify with installer & local code.`;
-  } else {
-    out="Please enter valid load and system voltage.";
+function addAppliance() {
+  const list = document.querySelector('#appliance-list');
+  const row = document.createElement('div');
+  row.className = 'appliance-row';
+  row.innerHTML = `
+    <select class="appliance-select" onchange="updateAppliancePreset(this)">
+      <option value="">Select Appliance...</option>
+      <option value="fridge">Refrigerator</option>
+      <option value="tv">LED TV (55")</option>
+      <option value="laptop">Laptop</option>
+      <option value="lights">LED Lights (10x)</option>
+      <option value="ac">Air Conditioner (1.5T)</option>
+      <option value="microwave">Microwave</option>
+      <option value="washer">Washing Machine</option>
+      <option value="custom">Custom...</option>
+    </select>
+    <input type="number" class="appliance-watts" placeholder="Watts" value="0" min="0" oninput="calculateTotalLoad()">
+    <input type="number" class="appliance-quantity" placeholder="Qty" value="1" min="1" oninput="calculateTotalLoad()">
+    <button type="button" onclick="removeAppliance(this)" style="background:rgba(255,45,85,0.2);color:#ff2d55;border:none;border-radius:6px;cursor:pointer;padding:6px 10px;">×</button>
+  `;
+  list.appendChild(row);
+}
+
+function removeAppliance(button) {
+  const row = button.closest('.appliance-row');
+  if (row && document.querySelectorAll('.appliance-row').length > 1) {
+    row.remove();
+    calculateTotalLoad();
   }
-  card.querySelector('#inv-output').value=out;
-  card.querySelector('#inv-hint').textContent="Result generated.";
-  card.querySelector('#inv-facts-container').style.display=showFacts?"block":"none";
+}
+
+function updateAppliancePreset(select) {
+  const row = select.closest('.appliance-row');
+  const wattsInput = row.querySelector('.appliance-watts');
+  const preset = select.value;
+  
+  if (preset && preset !== 'custom' && appliancePresets[preset]) {
+    wattsInput.value = appliancePresets[preset].watts;
+    calculateTotalLoad();
+  }
+}
+
+function loadPreset(type) {
+  const list = document.querySelector('#appliance-list');
+  list.innerHTML = '';
+  
+  if (setupPresets[type]) {
+    setupPresets[type].forEach(item => {
+      addAppliance();
+      const rows = document.querySelectorAll('.appliance-row');
+      const lastRow = rows[rows.length - 1];
+      
+      if (item.preset) {
+        const select = lastRow.querySelector('.appliance-select');
+        select.value = item.preset;
+        updateAppliancePreset(select);
+      }
+      
+      const qtyInput = lastRow.querySelector('.appliance-quantity');
+      qtyInput.value = item.qty;
+    });
+  }
+  
+  calculateTotalLoad();
+  calculateInverter();
+}
+
+function calculateTotalLoad() {
+  const rows = document.querySelectorAll('.appliance-row');
+  let total = 0;
+  
+  rows.forEach(row => {
+    const watts = parseFloat(row.querySelector('.appliance-watts').value) || 0;
+    const qty = parseFloat(row.querySelector('.appliance-quantity').value) || 1;
+    total += watts * qty;
+  });
+  
+  isTotalLoad = total;
+  
+  document.querySelector('#total-watts').textContent = formatNumber(total) + ' W';
+  document.querySelector('#surge-watts').textContent = formatNumber(total * isSurgeFactor) + ' W';
+}
+
+function updateSurgeValue(slider) {
+  isSurgeFactor = parseFloat(slider.value);
+  document.querySelector('#surge-value').textContent = isSurgeFactor.toFixed(1) + '×';
+  calculateTotalLoad();
+  calculateInverter();
+}
+
+function updateEfficiencyValue(slider) {
+  isEfficiency = parseInt(slider.value);
+  document.querySelector('#efficiency-value').textContent = isEfficiency + '%';
+  calculateInverter();
+}
+
+function setVoltage(voltage) {
+  isCurrentVoltage = voltage;
+  document.querySelector('#inv-voltage').value = voltage;
+  
+  // Update button states
+  document.querySelectorAll('.voltage-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  event.target.classList.add('active');
+  
+  updateVoltageDisplay();
+  calculateInverter();
+  calculateBattery();
+}
+
+function updateVoltageDisplay() {
+  const input = document.querySelector('#inv-voltage');
+  isCurrentVoltage = parseInt(input.value) || 12;
+  calculateInverter();
+  calculateBattery();
+}
+
+function calculateInverter() {
+  if (isTotalLoad <= 0) return;
+  
+  const surgeLoad = isTotalLoad * isSurgeFactor;
+  const inverterVA = surgeLoad / (isEfficiency / 100);
+  const inverterKVA = inverterVA / 1000;
+  const dcCurrent = inverterVA / isCurrentVoltage;
+  
+  // Update display
+  document.querySelector('#inv-kva').textContent = inverterKVA.toFixed(2) + ' kVA';
+  document.querySelector('#inv-watts').textContent = formatNumber(Math.round(surgeLoad)) + ' W';
+  document.querySelector('#dc-current').textContent = Math.round(dcCurrent) + ' A';
+  
+  // Update visual bar
+  const barWidth = Math.min(100, (inverterKVA / 10) * 100);
+  document.querySelector('#inverter-size-bar').style.width = barWidth + '%';
+  document.querySelector('#inverter-marker').style.left = barWidth + '%';
+  
+  // Calculate runtime with 100Ah battery
+  calculateRuntime();
+  
+  // Generate detailed output
+  generateOutput(inverterKVA, dcCurrent);
+}
+
+function calculateRuntime() {
+  const runtimeHours = parseFloat(document.querySelector('#runtime-hours').value) || 4;
+  const surgeLoad = isTotalLoad * isSurgeFactor;
+  const dcCurrent = surgeLoad / isCurrentVoltage / (isEfficiency / 100);
+  const batteryAh = dcCurrent * runtimeHours;
+  
+  // Display estimated runtime with 100Ah battery
+  const runtime100Ah = 100 / dcCurrent;
+  document.querySelector('#runtime').textContent = runtime100Ah.toFixed(1) + ' hours';
+}
+
+function calculateBattery() {
+  const runtimeHours = parseFloat(document.querySelector('#runtime-hours').value) || 4;
+  const batteryType = document.querySelector('#battery-type').value;
+  
+  // Depth of Discharge based on battery type
+  const dodFactors = {
+    leadacid: 0.5,
+    agm: 0.7,
+    lifepo4: 0.8,
+    lithium: 0.9
+  };
+  
+  const dod = dodFactors[batteryType] || 0.8;
+  const surgeLoad = isTotalLoad * isSurgeFactor;
+  const dcCurrent = surgeLoad / isCurrentVoltage / (isEfficiency / 100);
+  const requiredAh = (dcCurrent * runtimeHours) / dod;
+  
+  // Standard battery sizes
+  const standardSizes = [50, 100, 150, 200];
+  let recommendedSize = 100; // Default
+  
+  for (const size of standardSizes.sort((a, b) => a - b)) {
+    if (size >= requiredAh) {
+      recommendedSize = size;
+      break;
+    }
+  }
+  
+  const batteriesNeeded = Math.ceil(requiredAh / recommendedSize);
+  
+  document.querySelector('#battery-size').textContent = Math.ceil(requiredAh) + ' Ah';
+  document.querySelector('#battery-config').textContent = 
+    `${batteriesNeeded} × ${recommendedSize}Ah batteries`;
+}
+
+function generateOutput(kva, dcCurrent) {
+  const output = `⚡ INVERTER SPECIFICATION REPORT
+=======================
+Continuous Load: ${formatNumber(isTotalLoad)} W
+Surge Load (${isSurgeFactor}×): ${formatNumber(isTotalLoad * isSurgeFactor)} W
+System Voltage: ${isCurrentVoltage} V
+Inverter Efficiency: ${isEfficiency}%
+
+📊 RECOMMENDATIONS:
+• Inverter Size: ${kva.toFixed(2)} kVA (${Math.round(kva * 1000)} VA)
+• Type: Pure Sine Wave recommended
+• DC Current: ${Math.round(dcCurrent)} A
+• Cable Size: ${calculateCableSize(dcCurrent)} AWG
+
+🔋 BATTERY REQUIREMENTS:
+• For 4h runtime: ${Math.ceil(dcCurrent * 4 / 0.8)} Ah LiFePO4
+• For 8h runtime: ${Math.ceil(dcCurrent * 8 / 0.8)} Ah LiFePO4
+
+⚠️ SAFETY NOTES:
+1. Always use correctly rated circuit breakers
+2. Follow local electrical codes
+3. Consult licensed electrician for installation
+4. Consider 20% headroom for future expansion`;
+
+  document.querySelector('#inv-output').value = output;
+}
+
+function calculateCableSize(current) {
+  if (current <= 20) return '12';
+  if (current <= 35) return '10';
+  if (current <= 50) return '8';
+  if (current <= 65) return '6';
+  if (current <= 85) return '4';
+  if (current <= 115) return '2';
+  if (current <= 130) return '1';
+  return '1/0';
+}
+
+function exportSpecs() {
+  const output = document.querySelector('#inv-output').value;
+  
+  if (navigator.share) {
+    navigator.share({
+      title: 'Inverter Specification Report',
+      text: output,
+      url: window.location.href
+    });
+  } else {
+    navigator.clipboard.writeText(output).then(() => {
+      alert('📋 Specification report copied to clipboard!\nShare it with your installer.');
+    });
+  }
+}
+
+// Helper function
+function formatNumber(num) {
+  return num.toLocaleString('en-US');
 }
 </script>
+
+<style>
+/* Card-specific styles */
+.appliance-row {
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.appliance-select, .appliance-watts, .appliance-quantity {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: inherit;
+}
+
+.voltage-btn {
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.voltage-btn.active {
+  background: rgba(45,212,255,0.2);
+  color: var(--accent);
+  border-color: rgba(45,212,255,0.4);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+#inverter-marker {
+  box-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+
+@media (max-width: 768px) {
+  .appliance-row {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+  
+  #inv-kva {
+    font-size: 36px !important;
+  }
+}
+</style>
