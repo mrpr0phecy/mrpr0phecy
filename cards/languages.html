@@ -1,66 +1,532 @@
 <h2 id="languages-title" style="margin-top:0;">Languages Tool</h2>
 
 <form aria-describedby="languages-desc">
-  <p id="languages-desc" class="small">Translate words, check meanings, and practice languages.</p>
+  <p id="languages-desc" class="small">Translate words, check meanings, and practice languages. Uses open-source translation services.</p>
 
-  <div class="row">
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
     <div class="field">
       <label for="languages-input">Word or Phrase</label>
-      <input id="languages-input" type="text" placeholder="e.g. Hello" />
+      <input id="languages-input" type="text" placeholder="e.g. Hello, how are you?" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;" />
+      <div class="hint" style="font-size:12px;color:#90caf9;margin-top:4px;">Enter text to translate (max 500 characters)</div>
     </div>
+    
     <div class="field">
-      <label for="languages-lang">Target Language</label>
-      <select id="languages-lang">
-        <option value="Spanish">Spanish</option>
-        <option value="French">French</option>
-        <option value="German">German</option>
-        <option value="Italian">Italian</option>
-        <option value="Japanese">Japanese</option>
-      </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label for="languages-source">From Language</label>
+          <select id="languages-source" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+            <option value="auto">Auto Detect</option>
+            <option value="en" selected>English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="ja">Japanese</option>
+            <option value="zh">Chinese</option>
+            <option value="ru">Russian</option>
+            <option value="ar">Arabic</option>
+            <option value="pt">Portuguese</option>
+            <option value="ko">Korean</option>
+          </select>
+        </div>
+        
+        <div>
+          <label for="languages-target">To Language</label>
+          <select id="languages-target" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+            <option value="es">Spanish</option>
+            <option value="en" selected>English</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="ja">Japanese</option>
+            <option value="zh">Chinese</option>
+            <option value="ru">Russian</option>
+            <option value="ar">Arabic</option>
+            <option value="pt">Portuguese</option>
+            <option value="ko">Korean</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint" style="font-size:12px;color:#90caf9;margin-top:4px;">Select source and target languages</div>
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="languagesTranslate(this)">Translate</button>
-    <button type="button" class="secondary" onclick="languagesReset(this)">Reset</button>
+  <div class="actions" style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
+    <button type="button" onclick="languagesTranslate(this)" style="flex:1;padding:12px 20px;background:linear-gradient(135deg, #2196f3, #0d47a1);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-language" style="margin-right:8px;"></i>Translate
+    </button>
+    <button type="button" class="secondary" onclick="languagesReset(this)" style="flex:1;padding:12px 20px;background:rgba(255,255,255,0.08);color:#e0f2fe;border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-redo" style="margin-right:8px;"></i>Reset
+    </button>
+    <button type="button" onclick="languagesSpeech(this)" style="flex:1;padding:12px 20px;background:rgba(255,255,255,0.08);color:#e0f2fe;border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-volume-up" style="margin-right:8px;"></i>Listen
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <div class="result">
-    <div class="label">Translation</div>
-    <div class="value" id="languages-output">–</div>
+<div class="results" aria-live="polite" style="margin-top:25px;padding:20px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+    <h3 class="small" style="margin:0;font-size:16px;font-weight:600;color:#bbdefb;">
+      <i class="fas fa-exchange-alt" style="margin-right:8px;"></i>Translation Result
+    </h3>
+    <div id="languages-status" style="font-size:12px;padding:4px 10px;border-radius:12px;background:rgba(33, 150, 243, 0.2);color:#64b5f6;"></div>
+  </div>
+  
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <div class="result-card" style="padding:15px;border-radius:8px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);">
+      <div class="label" style="font-size:12px;color:#90caf9;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
+        <span id="source-lang-label">English</span> <i class="fas fa-arrow-right" style="margin:0 5px;"></i> Original
+      </div>
+      <div class="value" id="languages-original" style="font-size:16px;line-height:1.5;min-height:60px;padding:10px;background:rgba(255,255,255,0.03);border-radius:4px;">–</div>
+    </div>
+    
+    <div class="result-card" style="padding:15px;border-radius:8px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);">
+      <div class="label" style="font-size:12px;color:#90caf9;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">
+        <span id="target-lang-label">Spanish</span> <i class="fas fa-arrow-right" style="margin:0 5px;"></i> Translation
+      </div>
+      <div class="value" id="languages-output" style="font-size:16px;line-height:1.5;min-height:60px;padding:10px;background:rgba(255,255,255,0.03);border-radius:4px;">–</div>
+    </div>
+  </div>
+
+  <div id="languages-details" style="margin-top:20px;padding:15px;border-radius:8px;background:rgba(33, 150, 243, 0.05);border:1px solid rgba(33, 150, 243, 0.2);display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h4 style="margin:0;font-size:14px;color:#64b5f6;">
+        <i class="fas fa-info-circle" style="margin-right:8px;"></i>Translation Details
+      </h4>
+      <button onclick="languagesCopyDetails(this)" style="background:none;border:none;color:#64b5f6;cursor:pointer;font-size:12px;">
+        <i class="far fa-copy" style="margin-right:4px;"></i>Copy Details
+      </button>
+    </div>
+    <div style="font-size:13px;line-height:1.5;color:#bbdefb;">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;">
+        <div style="color:#90caf9;">Detected Language:</div>
+        <div id="languages-detected">–</div>
+        <div style="color:#90caf9;">Confidence:</div>
+        <div id="languages-confidence">–</div>
+        <div style="color:#90caf9;">Service Used:</div>
+        <div id="languages-service">–</div>
+        <div style="color:#90caf9;">Characters:</div>
+        <div id="languages-chars">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:15px;display:flex;justify-content:space-between;align-items:center;">
+    <div id="languages-hint" class="small" style="opacity:0.9;font-size:13px;color:#90caf9;"></div>
+    <div id="languages-time" style="font-size:12px;color:#64b5f6;display:none;">
+      Translated in <span id="languages-duration">0</span>ms
+    </div>
   </div>
 </div>
 
 <script>
-function languagesTranslate(btn) {
-  const card = btn.closest('.card');
-  const text = card.querySelector('#languages-input').value.trim();
-  const lang = card.querySelector('#languages-lang').value;
+/* languages-tool.html
+   - Language translation tool using open-source services
+   - Scoped with languages- prefix
+*/
 
+// Language code to name mapping
+const languagesMap = {
+  'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German', 
+  'it': 'Italian', 'ja': 'Japanese', 'zh': 'Chinese', 'ru': 'Russian',
+  'ar': 'Arabic', 'pt': 'Portuguese', 'ko': 'Korean'
+};
+
+// Extended demo translations for fallback
+const languagesDemoTranslations = {
+  'en': {
+    'es': {
+      'Hello': 'Hola',
+      'Goodbye': 'Adiós',
+      'Thank you': 'Gracias',
+      'Please': 'Por favor',
+      'Yes': 'Sí',
+      'No': 'No',
+      'How are you?': '¿Cómo estás?',
+      'My name is': 'Me llamo',
+      'I love you': 'Te quiero',
+      'Where is the bathroom?': '¿Dónde está el baño?'
+    },
+    'fr': {
+      'Hello': 'Bonjour',
+      'Goodbye': 'Au revoir',
+      'Thank you': 'Merci',
+      'Please': 'S\'il vous plaît',
+      'Yes': 'Oui',
+      'No': 'Non',
+      'How are you?': 'Comment allez-vous?',
+      'My name is': 'Je m\'appelle',
+      'I love you': 'Je t\'aime',
+      'Where is the bathroom?': 'Où sont les toilettes?'
+    },
+    'de': {
+      'Hello': 'Hallo',
+      'Goodbye': 'Auf Wiedersehen',
+      'Thank you': 'Danke',
+      'Please': 'Bitte',
+      'Yes': 'Ja',
+      'No': 'Nein',
+      'How are you?': 'Wie geht es dir?',
+      'My name is': 'Ich heiße',
+      'I love you': 'Ich liebe dich',
+      'Where is the bathroom?': 'Wo ist die Toilette?'
+    },
+    'it': {
+      'Hello': 'Ciao',
+      'Goodbye': 'Arrivederci',
+      'Thank you': 'Grazie',
+      'Please': 'Per favore',
+      'Yes': 'Sì',
+      'No': 'No',
+      'How are you?': 'Come stai?',
+      'My name is': 'Mi chiamo',
+      'I love you': 'Ti amo',
+      'Where is the bathroom?': 'Dov\'è il bagno?'
+    },
+    'ja': {
+      'Hello': 'こんにちは',
+      'Goodbye': 'さようなら',
+      'Thank you': 'ありがとう',
+      'Please': 'お願いします',
+      'Yes': 'はい',
+      'No': 'いいえ',
+      'How are you?': 'お元気ですか？',
+      'My name is': '私の名前は',
+      'I love you': '愛しています',
+      'Where is the bathroom?': 'トイレはどこですか？'
+    }
+  }
+};
+
+// Open-source translation service URLs
+const languagesServices = [
+  {
+    name: 'LibreTranslate',
+    url: 'https://libretranslate.com/translate',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    getBody: (text, source, target) => ({
+      q: text,
+      source: source === 'auto' ? 'en' : source,
+      target: target,
+      format: 'text',
+      api_key: '' // Empty for public instance
+    })
+  }
+  // Note: Additional services can be added here
+  // Some public instances may require rotation if rate-limited
+];
+
+async function languagesTranslate(btn) {
+  const card = btn.closest('.card');
+  if (!card) return;
+  
+  const text = card.querySelector('#languages-input').value.trim();
+  const source = card.querySelector('#languages-source').value;
+  const target = card.querySelector('#languages-target').value;
+  
   if (!text) {
-    card.querySelector('#languages-output').textContent = "Please enter a word or phrase.";
+    languagesShowHint(card, "Please enter text to translate", "error");
     return;
   }
+  
+  if (text.length > 500) {
+    languagesShowHint(card, "Text too long (max 500 characters)", "error");
+    return;
+  }
+  
+  if (source === target && source !== 'auto') {
+    languagesShowHint(card, "Source and target languages are the same", "warning");
+    return;
+  }
+  
+  // Update UI
+  card.querySelector('#languages-original').textContent = text;
+  card.querySelector('#languages-output').textContent = "Translating...";
+  card.querySelector('#languages-status').textContent = "Processing";
+  card.querySelector('#languages-status').style.background = "rgba(255, 193, 7, 0.2)";
+  card.querySelector('#languages-status').style.color = "#ffcc80";
+  
+  // Update language labels
+  const sourceLabel = source === 'auto' ? 'Auto' : languagesMap[source] || source;
+  const targetLabel = languagesMap[target] || target;
+  card.querySelector('#source-lang-label').textContent = sourceLabel;
+  card.querySelector('#target-lang-label').textContent = targetLabel;
+  
+  const startTime = performance.now();
+  
+  try {
+    // Try open-source translation service first
+    const translation = await languagesTryServices(text, source, target);
+    
+    // Calculate time
+    const endTime = performance.now();
+    const duration = Math.round(endTime - startTime);
+    
+    // Update output
+    card.querySelector('#languages-output').textContent = translation.text;
+    card.querySelector('#languages-status').textContent = "Translated";
+    card.querySelector('#languages-status').style.background = "rgba(76, 175, 80, 0.2)";
+    card.querySelector('#languages-status').style.color = "#81c784";
+    
+    // Update details
+    const details = card.querySelector('#languages-details');
+    details.style.display = 'block';
+    card.querySelector('#languages-detected').textContent = languagesMap[translation.detectedLanguage] || translation.detectedLanguage || sourceLabel;
+    card.querySelector('#languages-confidence').textContent = translation.confidence ? `${Math.round(translation.confidence * 100)}%` : '–';
+    card.querySelector('#languages-service').textContent = translation.service;
+    card.querySelector('#languages-chars').textContent = text.length;
+    
+    // Show stats
+    card.querySelector('#languages-time').style.display = 'flex';
+    card.querySelector('#languages-duration').textContent = duration;
+    
+    languagesShowHint(card, `✓ Translation complete using ${translation.service}`, "success");
+    
+  } catch (error) {
+    console.error('Translation error:', error);
+    
+    // Fallback to demo translations
+    const fallbackResult = languagesFallbackTranslation(text, source, target);
+    
+    if (fallbackResult) {
+      card.querySelector('#languages-output').textContent = fallbackResult;
+      card.querySelector('#languages-status').textContent = "Demo Translation";
+      card.querySelector('#languages-status').style.background = "rgba(255, 152, 0, 0.2)";
+      card.querySelector('#languages-status').style.color = "#ffb74d";
+      
+      // Update details for demo
+      const details = card.querySelector('#languages-details');
+      details.style.display = 'block';
+      card.querySelector('#languages-detected').textContent = languagesMap[source] || source;
+      card.querySelector('#languages-confidence').textContent = 'N/A (Demo)';
+      card.querySelector('#languages-service').textContent = 'Demo Data';
+      card.querySelector('#languages-chars').textContent = text.length;
+      
+      languagesShowHint(card, "⚠ Using demo data - some phrases may not translate", "warning");
+    } else {
+      card.querySelector('#languages-output').textContent = "Translation failed. Please try again.";
+      languagesShowHint(card, "✗ Translation service unavailable", "error");
+    }
+  }
+}
 
-  // Simple demo translations (static examples)
-  const demoTranslations = {
-    "Hello": { Spanish: "Hola", French: "Bonjour", German: "Hallo", Italian: "Ciao", Japanese: "こんにちは" },
-    "Goodbye": { Spanish: "Adiós", French: "Au revoir", German: "Tschüss", Italian: "Arrivederci", Japanese: "さようなら" },
-    "Thank you": { Spanish: "Gracias", French: "Merci", German: "Danke", Italian: "Grazie", Japanese: "ありがとう" }
-  };
+async function languagesTryServices(text, source, target) {
+  // Try each service in order
+  for (const service of languagesServices) {
+    try {
+      const response = await fetch(service.url, {
+        method: service.method,
+        headers: service.headers,
+        body: JSON.stringify(service.getBody(text, source, target))
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      return {
+        text: data.translatedText || "No translation returned",
+        detectedLanguage: data.detectedLanguage?.language || source,
+        confidence: data.detectedLanguage?.confidence,
+        service: service.name
+      };
+      
+    } catch (error) {
+      console.log(`${service.name} failed:`, error);
+      // Try next service
+    }
+  }
+  
+  throw new Error('All services failed');
+}
 
-  let translation = demoTranslations[text] && demoTranslations[text][lang]
-    ? demoTranslations[text][lang]
-    : `(Demo) No translation stored for "${text}" in ${lang}`;
-
-  card.querySelector('#languages-output').textContent = translation;
+function languagesFallbackTranslation(text, source, target) {
+  // Simple fallback to demo translations
+  if (source === 'en' || source === 'auto') {
+    const targetTranslations = languagesDemoTranslations['en'][target];
+    if (targetTranslations) {
+      const exactMatch = targetTranslations[text];
+      if (exactMatch) return exactMatch;
+      
+      // Try case-insensitive match
+      const lowerText = text.toLowerCase();
+      for (const [key, value] of Object.entries(targetTranslations)) {
+        if (key.toLowerCase() === lowerText) {
+          return value;
+        }
+      }
+    }
+  }
+  
+  // For very short text, provide a basic demo
+  if (text.length < 20) {
+    return `[Demo: "${text}" in ${languagesMap[target] || target}]`;
+  }
+  
+  return null;
 }
 
 function languagesReset(btn) {
   const card = btn.closest('.card');
+  if (!card) return;
+  
   card.querySelector('form').reset();
+  card.querySelector('#languages-original').textContent = "–";
   card.querySelector('#languages-output').textContent = "–";
+  card.querySelector('#languages-hint').textContent = "";
+  card.querySelector('#languages-status').textContent = "";
+  card.querySelector('#languages-details').style.display = "none";
+  card.querySelector('#languages-time').style.display = "none";
 }
+
+function languagesSpeech(btn) {
+  const card = btn.closest('.card');
+  if (!card) return;
+  
+  const text = card.querySelector('#languages-output').textContent;
+  const target = card.querySelector('#languages-target').value;
+  
+  if (!text || text === "–" || text.includes("Translating") || text.includes("failed")) {
+    languagesShowHint(card, "No translation to speak", "warning");
+    return;
+  }
+  
+  if ('speechSynthesis' in window) {
+    // Cancel any ongoing speech
+    speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Try to set language
+    try {
+      utterance.lang = target;
+    } catch (e) {
+      // Language code might not be supported
+    }
+    
+    utterance.rate = 0.8;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    
+    utterance.onstart = () => {
+      languagesShowHint(card, "Speaking...", "info");
+    };
+    
+    utterance.onend = () => {
+      setTimeout(() => {
+        const hint = card.querySelector('#languages-hint');
+        if (hint.textContent === "Speaking...") hint.textContent = "";
+      }, 1000);
+    };
+    
+    utterance.onerror = () => {
+      languagesShowHint(card, "Speech synthesis failed", "error");
+    };
+    
+    speechSynthesis.speak(utterance);
+  } else {
+    languagesShowHint(card, "Speech synthesis not supported", "error");
+  }
+}
+
+function languagesCopyDetails(btn) {
+  const card = btn.closest('.card');
+  if (!card) return;
+  
+  const original = card.querySelector('#languages-original').textContent;
+  const translation = card.querySelector('#languages-output').textContent;
+  const source = card.querySelector('#source-lang-label').textContent;
+  const target = card.querySelector('#target-lang-label').textContent;
+  const detected = card.querySelector('#languages-detected').textContent;
+  
+  if (!original || original === "–") {
+    languagesShowHint(card, "Nothing to copy", "warning");
+    return;
+  }
+  
+  const details = `Translation Details:
+Original (${source}): ${original}
+Translation (${target}): ${translation}
+Detected Language: ${detected}
+Generated: ${new Date().toLocaleString()}`;
+  
+  navigator.clipboard?.writeText(details).then(() => {
+    languagesShowHint(card, "✓ Details copied to clipboard", "success");
+  }).catch(() => {
+    languagesShowHint(card, "Copy failed", "error");
+  });
+}
+
+function languagesShowHint(card, message, type) {
+  const hint = card.querySelector('#languages-hint');
+  const status = card.querySelector('#languages-status');
+  
+  hint.textContent = message;
+  
+  if (type === "success") {
+    hint.style.color = "#a5d6a7";
+  } else if (type === "error") {
+    hint.style.color = "#ef9a9a";
+    status.style.background = "rgba(244, 67, 54, 0.2)";
+    status.style.color = "#ef9a9a";
+    status.textContent = "Error";
+  } else if (type === "warning") {
+    hint.style.color = "#ffcc80";
+    status.style.background = "rgba(255, 152, 0, 0.2)";
+    status.style.color = "#ffcc80";
+    status.textContent = "Warning";
+  } else if (type === "info") {
+    hint.style.color = "#90caf9";
+  }
+  
+  // Clear hint after 3 seconds
+  setTimeout(() => {
+    if (hint.textContent === message) hint.textContent = "";
+  }, 3000);
+}
+
+// Add input validation and character counting
+document.addEventListener('DOMContentLoaded', function() {
+  const card = document.querySelector('.card');
+  if (card) {
+    const input = card.querySelector('#languages-input');
+    const charCount = document.createElement('div');
+    charCount.style.fontSize = '11px';
+    charCount.style.color = '#64b5f6';
+    charCount.style.textAlign = 'right';
+    charCount.style.marginTop = '2px';
+    input.parentNode.appendChild(charCount);
+    
+    input.addEventListener('input', function() {
+      const length = this.value.length;
+      charCount.textContent = `${length}/500 characters`;
+      charCount.style.color = length > 500 ? '#ef9a9a' : '#64b5f6';
+      
+      if (length > 0 && length <= 500) {
+        this.style.borderColor = 'rgba(33, 150, 243, 0.5)';
+      } else if (length > 500) {
+        this.style.borderColor = '#f44336';
+      } else {
+        this.style.borderColor = 'rgba(255,255,255,0.15)';
+      }
+    });
+    
+    // Update language labels when selection changes
+    const sourceSelect = card.querySelector('#languages-source');
+    const targetSelect = card.querySelector('#languages-target');
+    
+    [sourceSelect, targetSelect].forEach(select => {
+      select.addEventListener('change', function() {
+        const langCode = this.value;
+        const langName = languagesMap[langCode] || langCode;
+        card.querySelector('#languages-status').textContent = "Language Selected";
+        card.querySelector('#languages-status').style.background = "rgba(33, 150, 243, 0.2)";
+        card.querySelector('#languages-status').style.color = "#64b5f6";
+      });
+    });
+  }
+});
 </script>
