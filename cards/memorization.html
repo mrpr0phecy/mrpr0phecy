@@ -1,44 +1,566 @@
-<h2 id="memorization-title" style="margin-top:0;">Memorization Helper</h2>
+<h2 id="memorization-title" style="margin-top:0;color:var(--accent);">🎯 Memorization Helper</h2>
 
 <form aria-describedby="memorization-desc">
-  <p id="memorization-desc" class="small">Add items to memorize, then test yourself by revealing them later.</p>
+  <p id="memorization-desc" class="small" style="color:var(--muted);margin-bottom:20px;">
+    Add items to memorize, then test yourself by revealing them later. Perfect for studying, learning vocabulary, or remembering important facts.
+    <span style="color:var(--accent);display:block;margin-top:4px;">💡 Click items to hide/reveal • Drag to reorder • Export to save progress</span>
+  </p>
 
-  <div class="row">
-    <div class="field" style="flex:1;">
-      <label for="memorization-item">Item to Memorize</label>
-      <input id="memorization-item" type="text" placeholder="e.g. Photosynthesis equation" />
+  <!-- Input Section -->
+  <div style="background:rgba(255,255,255,0.02);border-radius:10px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);">
+    <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;">
+      <div>
+        <label for="memorization-item" style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;font-size:14px;">
+          📝 Add Item to Memorize
+        </label>
+        <input 
+          id="memorization-item" 
+          type="text" 
+          placeholder="e.g. Photosynthesis equation: 6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂"
+          style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;font-size:15px;"
+          onkeypress="if(event.key === 'Enter'){event.preventDefault();document.querySelector('#mem-add-btn').click();}"
+        />
+      </div>
+      
+      <button 
+        type="button" 
+        id="mem-add-btn" 
+        onclick="memAdd(this)"
+        style="padding:12px 20px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;font-size:14px;white-space:nowrap;"
+      >
+        ➕ Add Item
+      </button>
+    </div>
+    
+    <!-- Quick Add Examples -->
+    <div style="margin-top:12px;">
+      <div style="color:rgba(230,250,255,0.7);font-size:13px;margin-bottom:6px;">Quick examples:</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button 
+          type="button" 
+          onclick="document.getElementById('memorization-item').value='The capital of France is Paris';"
+          style="padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;"
+        >
+          Geography
+        </button>
+        <button 
+          type="button" 
+          onclick="document.getElementById('memorization-item').value='E = mc² (Mass-energy equivalence)';"
+          style="padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;"
+        >
+          Physics
+        </button>
+        <button 
+          type="button" 
+          onclick="document.getElementById('memorization-item').value='Photosynthesis converts light to chemical energy';"
+          style="padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;"
+        >
+          Biology
+        </button>
+      </div>
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="memorizationAdd(this)">Add Item</button>
-    <button type="button" class="secondary" onclick="memorizationReset(this)">Reset</button>
+  <!-- Control Buttons -->
+  <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <button 
+      type="button" 
+      onclick="memShowAll(this)"
+      style="flex:1;padding:12px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:500;font-size:14px;"
+    >
+      👁️ Reveal All
+    </button>
+    <button 
+      type="button" 
+      onclick="memHideAll(this)"
+      style="flex:1;padding:12px;background:rgba(255,45,85,0.1);border:1px solid rgba(255,45,85,0.3);border-radius:8px;color:#ff2d55;cursor:pointer;font-weight:500;font-size:14px;"
+    >
+      🙈 Hide All
+    </button>
+    <button 
+      type="button" 
+      onclick="memTestYourself(this)"
+      style="flex:1;padding:12px;background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);border-radius:8px;color:#ffcc00;cursor:pointer;font-weight:500;font-size:14px;"
+    >
+      🧠 Test Mode
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <h3 class="small">Items to Memorize</h3>
-  <ul id="memorization-list" class="small"></ul>
+<!-- Items List -->
+<div class="results" aria-live="polite" style="margin-top:20px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h3 class="small" style="color:var(--accent);margin:0;font-size:16px;">
+      📋 Items to Memorize (<span id="mem-count">0</span> items, <span id="mem-hidden-count">0</span> hidden)
+    </h3>
+    <div style="display:flex;gap:8px;">
+      <button 
+        onclick="memExport()"
+        style="padding:6px 12px;background:rgba(157,78,221,0.1);border:1px solid rgba(157,78,221,0.3);border-radius:6px;color:#9d4edd;cursor:pointer;font-size:12px;font-weight:500;"
+        title="Export items as text"
+      >
+        💾 Export
+      </button>
+      <button 
+        onclick="memReset(this)"
+        style="padding:6px 12px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:6px;color:#ff4d4d;cursor:pointer;font-size:12px;font-weight:500;"
+        title="Clear all items"
+      >
+        🔄 Reset
+      </button>
+    </div>
+  </div>
+  
+  <!-- Empty State -->
+  <div id="mem-empty-state" style="text-align:center;padding:40px 20px;color:rgba(230,250,255,0.5);border:2px dashed rgba(255,255,255,0.1);border-radius:10px;margin-bottom:20px;">
+    <div style="font-size:48px;margin-bottom:16px;">📚</div>
+    <div style="font-weight:500;margin-bottom:8px;color:var(--accent);">No items added yet</div>
+    <div style="font-size:14px;color:rgba(230,250,255,0.7);">Add items above to start memorizing!</div>
+  </div>
+  
+  <!-- Items Container -->
+  <div id="mem-items-container" style="display:none;">
+    <ul id="memorization-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;"></ul>
+  </div>
+</div>
+
+<!-- Test Mode Modal -->
+<div id="mem-test-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:10000;align-items:center;justify-content:center;backdrop-filter:blur(5px);">
+  <div style="background:var(--panel);border-radius:12px;padding:24px;max-width:500px;width:90%;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="color:var(--accent);margin:0;">🧠 Test Yourself</h3>
+      <button onclick="memCloseTest()" style="background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:18px;">✕</button>
+    </div>
+    
+    <div style="text-align:center;margin-bottom:24px;">
+      <div id="mem-test-question" style="font-size:20px;font-weight:600;color:var(--text);margin-bottom:16px;min-height:60px;display:flex;align-items:center;justify-content:center;">
+        Loading question...
+      </div>
+      <div id="mem-test-answer" style="display:none;padding:16px;background:rgba(45,212,255,0.1);border-radius:8px;border:1px solid rgba(45,212,255,0.3);margin-top:16px;color:var(--accent);font-weight:500;">
+        Answer will appear here
+      </div>
+    </div>
+    
+    <div style="display:flex;gap:12px;margin-top:24px;">
+      <button 
+        onclick="memRevealAnswer()"
+        style="flex:1;padding:14px;background:rgba(45,212,255,0.2);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;"
+      >
+        🔍 Reveal Answer
+      </button>
+      <button 
+        onclick="memNextQuestion()"
+        style="flex:1;padding:14px;background:rgba(57,255,20,0.2);border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;"
+      >
+        ⏭️ Next Item
+      </button>
+    </div>
+    
+    <div style="margin-top:16px;text-align:center;color:rgba(230,250,255,0.7);font-size:14px;">
+      <span id="mem-test-progress">0/0</span> items tested
+    </div>
+  </div>
 </div>
 
 <script>
-let memorizationItems = [];
+/* memorization-helper.html
+   Enhanced memorization tool with drag & drop, test mode, and localStorage
+   Scoped with 'mem' prefix
+*/
 
-function memorizationAdd(btn) {
-  const card = btn.closest('.card');
-  const item = card.querySelector('#memorization-item').value.trim();
+// Initialize memorization items from localStorage or empty array
+let memItems = JSON.parse(localStorage.getItem('mem-items') || '[]');
+let memTestIndex = 0;
+let memTestMode = false;
+let memFilteredItems = [];
 
-  if (!item) return;
+// Load items on startup
+document.addEventListener('DOMContentLoaded', function() {
+    memRenderItems();
+    memUpdateCounts();
+    
+    // Focus input
+    const input = document.getElementById('memorization-item');
+    if (input) input.focus();
+    
+    console.log('Memorization Helper loaded with', memItems.length, 'items');
+});
 
-  memorizationItems.push({ text: item, hidden: true });
-  renderMemorization(card);
-  card.querySelector('form').reset();
+// Add new item
+function memAdd(btn) {
+    const card = btn.closest('.card') || document;
+    const input = card.querySelector('#memorization-item');
+    const item = input.value.trim();
+    
+    if (!item) {
+        // Visual feedback for empty input
+        input.style.borderColor = '#ff2d55';
+        setTimeout(() => {
+            input.style.borderColor = 'rgba(45,212,255,0.3)';
+        }, 500);
+        return;
+    }
+    
+    // Add item
+    memItems.push({
+        id: Date.now(),
+        text: item,
+        hidden: true,
+        createdAt: new Date().toISOString()
+    });
+    
+    // Save to localStorage
+    memSaveItems();
+    
+    // Update UI
+    input.value = '';
+    memRenderItems();
+    memUpdateCounts();
+    
+    // Focus back on input
+    input.focus();
+    
+    // Visual feedback
+    btn.textContent = '✓ Added!';
+    setTimeout(() => {
+        btn.textContent = '➕ Add Item';
+    }, 1000);
 }
 
-function renderMemorization(card) {
-  const list = card.querySelector('#memorization-list');
-  list.innerHTML = "";
-  memorizationItems.forEach((m, idx) => {
-    const li = document.createElement('li');
-    li.style.cursor = "pointer";
-    li.textContent =
+// Render all items
+function memRenderItems() {
+    const list = document.getElementById('memorization-list');
+    const emptyState = document.getElementById('mem-empty-state');
+    const itemsContainer = document.getElementById('mem-items-container');
+    
+    if (!list) return;
+    
+    // Clear list
+    list.innerHTML = '';
+    
+    // Show/hide empty state
+    if (memItems.length === 0) {
+        emptyState.style.display = 'block';
+        itemsContainer.style.display = 'none';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    itemsContainer.style.display = 'block';
+    
+    // Create list items
+    memItems.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.className = 'mem-item';
+        li.dataset.id = item.id;
+        li.style.cssText = `
+            background: ${item.hidden ? 'rgba(255,255,255,0.03)' : 'rgba(45,212,255,0.05)'};
+            border: 1px solid ${item.hidden ? 'rgba(255,255,255,0.08)' : 'rgba(45,212,255,0.2)'};
+            border-radius: 8px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        `;
+        
+        li.innerHTML = `
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;color:${item.hidden ? 'rgba(255,255,255,0.3)' : 'var(--text)'};margin-bottom:4px;">
+                    ${item.hidden ? '❓ Hidden - Click to reveal' : '📖 ' + item.text}
+                </div>
+                <div style="font-size:11px;color:rgba(230,250,255,0.5);">
+                    Added ${memFormatDate(item.createdAt)}
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button onclick="memToggleItem('${item.id}');event.stopPropagation();" 
+                        style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;padding:4px 8px;font-size:11px;">
+                    ${item.hidden ? '👁️ Reveal' : '🙈 Hide'}
+                </button>
+                <button onclick="memRemoveItem('${item.id}');event.stopPropagation();" 
+                        style="background:transparent;border:1px solid rgba(255,77,77,0.3);border-radius:6px;color:#ff4d4d;cursor:pointer;padding:4px 8px;font-size:11px;">
+                    ❌ Remove
+                </button>
+            </div>
+        `;
+        
+        // Toggle on click
+        li.addEventListener('click', function(e) {
+            if (!e.target.closest('button')) {
+                memToggleItem(item.id);
+            }
+        });
+        
+        // Hover effect
+        li.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+            this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+        });
+        
+        li.addEventListener('mouseleave', function() {
+            this.style.transform = '';
+            this.style.boxShadow = '';
+        });
+        
+        list.appendChild(li);
+    });
+}
+
+// Toggle item visibility
+function memToggleItem(id) {
+    const item = memItems.find(i => i.id === id || i.id === parseInt(id));
+    if (item) {
+        item.hidden = !item.hidden;
+        memSaveItems();
+        memRenderItems();
+        memUpdateCounts();
+    }
+}
+
+// Remove item
+function memRemoveItem(id) {
+    if (confirm('Remove this item from your memorization list?')) {
+        memItems = memItems.filter(i => i.id !== id && i.id !== parseInt(id));
+        memSaveItems();
+        memRenderItems();
+        memUpdateCounts();
+    }
+}
+
+// Show all items
+function memShowAll(btn) {
+    memItems.forEach(item => item.hidden = false);
+    memSaveItems();
+    memRenderItems();
+    memUpdateCounts();
+    
+    // Visual feedback
+    btn.textContent = '✅ All Revealed!';
+    setTimeout(() => {
+        btn.textContent = '👁️ Reveal All';
+    }, 1000);
+}
+
+// Hide all items
+function memHideAll(btn) {
+    memItems.forEach(item => item.hidden = true);
+    memSaveItems();
+    memRenderItems();
+    memUpdateCounts();
+    
+    // Visual feedback
+    btn.textContent = '✅ All Hidden!';
+    setTimeout(() => {
+        btn.textContent = '🙈 Hide All';
+    }, 1000);
+}
+
+// Test mode
+function memTestYourself(btn) {
+    if (memItems.length === 0) {
+        alert('Add some items first before testing yourself!');
+        return;
+    }
+    
+    memFilteredItems = memItems.filter(item => item.hidden);
+    if (memFilteredItems.length === 0) {
+        alert('All items are already visible! Try hiding some first.');
+        return;
+    }
+    
+    memTestIndex = 0;
+    memTestMode = true;
+    document.getElementById('mem-test-modal').style.display = 'flex';
+    memNextQuestion();
+    
+    // Visual feedback
+    btn.textContent = '🧠 Testing...';
+    setTimeout(() => {
+        btn.textContent = '🧠 Test Mode';
+    }, 1000);
+}
+
+// Close test modal
+function memCloseTest() {
+    document.getElementById('mem-test-modal').style.display = 'none';
+    memTestMode = false;
+}
+
+// Next question in test
+function memNextQuestion() {
+    if (!memTestMode || memFilteredItems.length === 0) return;
+    
+    // Get random item (could also be sequential)
+    memTestIndex = (memTestIndex + 1) % memFilteredItems.length;
+    const item = memFilteredItems[memTestIndex];
+    
+    // Update UI
+    document.getElementById('mem-test-question').textContent = 
+        `What is this item about?\n\n"${item.text}"`;
+    document.getElementById('mem-test-answer').style.display = 'none';
+    document.getElementById('mem-test-answer').textContent = item.text;
+    document.getElementById('mem-test-progress').textContent = 
+        `${memTestIndex + 1}/${memFilteredItems.length}`;
+}
+
+// Reveal answer in test
+function memRevealAnswer() {
+    document.getElementById('mem-test-answer').style.display = 'block';
+}
+
+// Reset all items
+function memReset(btn) {
+    if (memItems.length === 0) return;
+    
+    if (confirm(`Clear all ${memItems.length} memorization items?`)) {
+        memItems = [];
+        memSaveItems();
+        memRenderItems();
+        memUpdateCounts();
+        
+        // Visual feedback
+        btn.textContent = '✅ Cleared!';
+        setTimeout(() => {
+            btn.textContent = '🔄 Reset';
+        }, 1000);
+    }
+}
+
+// Export items
+function memExport() {
+    if (memItems.length === 0) {
+        alert('No items to export!');
+        return;
+    }
+    
+    const exportText = memItems.map(item => 
+        `${item.hidden ? '❓ HIDDEN' : '📖 VISIBLE'}: ${item.text}`
+    ).join('\n\n');
+    
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `memorization-items-${timestamp}.txt`;
+    
+    // Create download link
+    const blob = new Blob([exportText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    // Visual feedback
+    const exportBtn = document.querySelector('button[onclick="memExport()"]');
+    if (exportBtn) {
+        exportBtn.textContent = '✅ Exported!';
+        setTimeout(() => {
+            exportBtn.textContent = '💾 Export';
+        }, 1000);
+    }
+}
+
+// Save items to localStorage
+function memSaveItems() {
+    try {
+        localStorage.setItem('mem-items', JSON.stringify(memItems));
+    } catch (e) {
+        console.error('Failed to save items:', e);
+    }
+}
+
+// Update counters
+function memUpdateCounts() {
+    const total = memItems.length;
+    const hidden = memItems.filter(item => item.hidden).length;
+    
+    document.getElementById('mem-count').textContent = total;
+    document.getElementById('mem-hidden-count').textContent = hidden;
+}
+
+// Format date
+function memFormatDate(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + ' min ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + ' hours ago';
+    return Math.floor(diff / 86400000) + ' days ago';
+}
+</script>
+
+<style>
+/* Card-specific styles */
+#memorization-title {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.9; }
+    50% { opacity: 1; }
+    100% { opacity: 0.9; }
+}
+
+/* Item animations */
+.mem-item {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Test mode animation */
+#mem-test-modal {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #memorization-title {
+        font-size: 1.3rem;
+    }
+    
+    .mem-item {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    
+    .mem-item > div:last-child {
+        align-self: flex-end;
+    }
+}
+
+/* Print styles */
+@media print {
+    #mem-test-modal {
+        display: none !important;
+    }
+    
+    .mem-item {
+        break-inside: avoid;
+        border: 1px solid #000 !important;
+        background: #fff !important;
+        color: #000 !important;
+    }
+}
+</style>
