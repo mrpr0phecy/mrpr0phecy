@@ -1,67 +1,493 @@
 <h2 id="laundry-title" style="margin-top:0;">Laundry Tracker</h2>
 
 <form aria-describedby="laundry-desc">
-  <p id="laundry-desc" class="small">Log laundry loads and track completion.</p>
+  <p id="laundry-desc" class="small">Log laundry loads, track completion, and monitor laundry habits with statistics.</p>
 
-  <div class="row">
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
     <div class="field">
-      <label for="laundry-type">Load type</label>
-      <input id="laundry-type" type="text" placeholder="e.g. Whites" />
+      <label for="laundry-type">Load Type</label>
+      <select id="laundry-type" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+        <option value="" disabled selected>Select load type</option>
+        <option value="whites">👕 Whites (Light Colors)</option>
+        <option value="darks">⚫ Darks (Blacks/Dark Colors)</option>
+        <option value="colors">🌈 Colors (Bright Colors)</option>
+        <option value="delicates">👚 Delicates (Gentle Cycle)</option>
+        <option value="towels">🛁 Towels & Bedding</option>
+        <option value="workout">🏋️ Workout Clothes</option>
+        <option value="other">📦 Other/Mixed</option>
+      </select>
+      <div class="hint" style="font-size:12px;color:#90caf9;margin-top:4px;">Select or enter custom type</div>
     </div>
+    
     <div class="field">
       <label for="laundry-date">Date</label>
-      <input id="laundry-date" type="date" />
+      <input id="laundry-date" type="date" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;" value="" />
+      <div class="hint" style="font-size:12px;color:#90caf9;margin-top:4px;">Select laundry date</div>
+    </div>
+  </div>
+  
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
+    <div class="field">
+      <label for="laundry-cycle">Wash Cycle</label>
+      <select id="laundry-cycle" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+        <option value="normal" selected>Normal Wash</option>
+        <option value="quick">Quick Wash</option>
+        <option value="heavy">Heavy Duty</option>
+        <option value="delicate">Delicate Cycle</option>
+        <option value="cold">Cold Wash Only</option>
+        <option value="sanitize">Sanitize Cycle</option>
+      </select>
+    </div>
+    
+    <div class="field">
+      <label for="laundry-status">Status</label>
+      <select id="laundry-status" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+        <option value="pending" selected>⏳ Pending</option>
+        <option value="washing">🧼 Washing</option>
+        <option value="drying">🌬️ Drying</option>
+        <option value="folded">👔 Folded</option>
+        <option value="complete">✅ Complete</option>
+      </select>
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="laundryAdd(this)">Add Load</button>
-    <button type="button" class="secondary" onclick="laundryReset(this)">Reset</button>
+  <div class="actions" style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
+    <button type="button" onclick="laundryAdd(this)" style="flex:1;padding:12px 20px;background:linear-gradient(135deg, #26a69a, #00796b);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-plus-circle" style="margin-right:8px;"></i>Add Load
+    </button>
+    <button type="button" class="secondary" onclick="laundryReset(this)" style="flex:1;padding:12px 20px;background:rgba(255,255,255,0.08);color:#e0f2fe;border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-redo" style="margin-right:8px;"></i>Reset All
+    </button>
+    <button type="button" onclick="laundryExport(this)" style="flex:1;padding:12px 20px;background:rgba(255,255,255,0.08);color:#e0f2fe;border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:120px;">
+      <i class="fas fa-file-export" style="margin-right:8px;"></i>Export
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <h3 class="small">Laundry Log</h3>
-  <ul id="laundry-list" class="small"></ul>
+<div class="results" aria-live="polite" style="margin-top:25px;padding:20px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h3 class="small" style="margin:0;font-size:16px;font-weight:600;color:#80cbc4;">
+      <i class="fas fa-list-check" style="margin-right:8px;"></i>Laundry Log
+    </h3>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <div id="laundry-stats" style="font-size:12px;color:#80cbc4;padding:4px 10px;border-radius:12px;background:rgba(38, 166, 154, 0.2);">
+        <span id="laundry-count">0</span> loads
+      </div>
+      <select id="laundry-filter" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;" onchange="laundryRender()">
+        <option value="all">All Loads</option>
+        <option value="pending">⏳ Pending</option>
+        <option value="complete">✅ Complete</option>
+        <option value="today">📅 Today</option>
+        <option value="week">📅 This Week</option>
+      </select>
+    </div>
+  </div>
+  
+  <div id="laundry-list-container" style="min-height:200px;max-height:400px;overflow-y:auto;padding-right:5px;">
+    <div id="laundry-empty" style="text-align:center;padding:40px 20px;color:#80cbc4;opacity:0.7;">
+      <i class="fas fa-basket-laundry" style="font-size:48px;margin-bottom:15px;opacity:0.5;"></i>
+      <p>No laundry loads yet. Add your first load!</p>
+    </div>
+    <ul id="laundry-list" style="list-style:none;padding:0;margin:0;display:none;"></ul>
+  </div>
+
+  <div id="laundry-summary" style="margin-top:20px;padding:15px;border-radius:8px;background:rgba(38, 166, 154, 0.05);border:1px solid rgba(38, 166, 154, 0.2);display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h4 style="margin:0;font-size:14px;color:#80cbc4;">
+        <i class="fas fa-chart-bar" style="margin-right:8px;"></i>Laundry Statistics
+      </h4>
+      <div style="font-size:12px;color:#80cbc4;">
+        <i class="fas fa-calendar" style="margin-right:4px;"></i>
+        <span id="laundry-period">All Time</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:15px;">
+      <div style="text-align:center;padding:10px;background:rgba(0,0,0,0.1);border-radius:6px;">
+        <div style="font-size:11px;color:#80cbc4;text-transform:uppercase;letter-spacing:0.5px;">Completed</div>
+        <div style="font-size:24px;font-weight:600;color:#26a69a;"><span id="laundry-completed">0</span></div>
+        <div style="font-size:11px;color:#80cbc4;">loads</div>
+      </div>
+      <div style="text-align:center;padding:10px;background:rgba(0,0,0,0.1);border-radius:6px;">
+        <div style="font-size:11px;color:#80cbc4;text-transform:uppercase;letter-spacing:0.5px;">Pending</div>
+        <div style="font-size:24px;font-weight:600;color:#ff9800;"><span id="laundry-pending">0</span></div>
+        <div style="font-size:11px;color:#80cbc4;">loads</div>
+      </div>
+      <div style="text-align:center;padding:10px;background:rgba(0,0,0,0.1);border-radius:6px;">
+        <div style="font-size:11px;color:#80cbc4;text-transform:uppercase;letter-spacing:0.5px;">Most Common</div>
+        <div style="font-size:16px;font-weight:600;color:#26a69a;"><span id="laundry-common">-</span></div>
+        <div style="font-size:11px;color:#80cbc4;">type</div>
+      </div>
+      <div style="text-align:center;padding:10px;background:rgba(0,0,0,0.1);border-radius:6px;">
+        <div style="font-size:11px;color:#80cbc4;text-transform:uppercase;letter-spacing:0.5px;">Last Load</div>
+        <div style="font-size:16px;font-weight:600;color:#26a69a;"><span id="laundry-last">-</span></div>
+        <div style="font-size:11px;color:#80cbc4;">date</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:15px;display:flex;justify-content:space-between;align-items:center;">
+    <div id="laundry-hint" class="small" style="opacity:0.9;font-size:13px;color:#80cbc4;"></div>
+    <button type="button" onclick="laundryClearComplete()" style="background:none;border:none;color:#ff9800;cursor:pointer;font-size:12px;display:none;" id="laundry-clear-btn">
+      <i class="fas fa-trash" style="margin-right:4px;"></i>Clear Completed
+    </button>
+  </div>
 </div>
 
 <script>
-let laundryLog = [];
+/* laundry-tracker.html
+   - Enhanced laundry tracking with statistics
+   - Scoped with laundry- prefix
+*/
+
+let laundryLog = JSON.parse(localStorage.getItem('laundryLog')) || [];
+
+// Type configuration with colors and icons
+const laundryTypes = {
+  'whites': { name: 'Whites', icon: '👕', color: '#f5f5f5' },
+  'darks': { name: 'Darks', icon: '⚫', color: '#212121' },
+  'colors': { name: 'Colors', icon: '🌈', color: '#e91e63' },
+  'delicates': { name: 'Delicates', icon: '👚', color: '#f48fb1' },
+  'towels': { name: 'Towels & Bedding', icon: '🛁', color: '#4fc3f7' },
+  'workout': { name: 'Workout Clothes', icon: '🏋️', color: '#ff9800' },
+  'other': { name: 'Other', icon: '📦', color: '#9e9e9e' }
+};
+
+// Status configuration
+const laundryStatuses = {
+  'pending': { name: 'Pending', icon: '⏳', color: '#ff9800' },
+  'washing': { name: 'Washing', icon: '🧼', color: '#2196f3' },
+  'drying': { name: 'Drying', icon: '🌬️', color: '#4fc3f7' },
+  'folded': { name: 'Folded', icon: '👔', color: '#26a69a' },
+  'complete': { name: 'Complete', icon: '✅', color: '#4caf50' }
+};
 
 function laundryAdd(btn) {
   const card = btn.closest('.card');
-  const type = card.querySelector('#laundry-type').value.trim();
+  if (!card) return;
+  
+  const typeSelect = card.querySelector('#laundry-type');
+  const typeValue = typeSelect.value;
   const date = card.querySelector('#laundry-date').value;
-
-  if (!type || !date) return;
-
-  laundryLog.push({ type, date, done: false });
-  renderLaundry(card);
-  card.querySelector('form').reset();
+  const cycle = card.querySelector('#laundry-cycle').value;
+  const status = card.querySelector('#laundry-status').value;
+  
+  if (!typeValue || !date) {
+    laundryShowHint(card, "Please select load type and date", "error");
+    return;
+  }
+  
+  const typeName = laundryTypes[typeValue]?.name || typeValue;
+  
+  // Create load object
+  const load = {
+    id: Date.now(),
+    type: typeValue,
+    typeName: typeName,
+    date: date,
+    cycle: cycle,
+    status: status,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  
+  // Add to log
+  laundryLog.unshift(load); // Add to beginning for chronological order
+  
+  // Save to localStorage
+  localStorage.setItem('laundryLog', JSON.stringify(laundryLog));
+  
+  // Reset form (but keep date for convenience)
+  card.querySelector('#laundry-type').value = "";
+  card.querySelector('#laundry-status').value = "pending";
+  
+  // Render and show success
+  laundryRender();
+  laundryShowHint(card, `✓ Added ${typeName} load for ${date}`, "success");
+  
+  // Auto-scroll to log
+  const listContainer = card.querySelector('#laundry-list-container');
+  listContainer.scrollTop = 0;
 }
 
-function renderLaundry(card) {
+function laundryRender() {
+  const card = document.querySelector('#laundry-title')?.closest('.card');
+  if (!card) return;
+  
+  const filter = card.querySelector('#laundry-filter').value;
   const list = card.querySelector('#laundry-list');
-  list.innerHTML = "";
-  laundryLog.forEach((l, idx) => {
+  const empty = card.querySelector('#laundry-empty');
+  const summary = card.querySelector('#laundry-summary');
+  const clearBtn = card.querySelector('#laundry-clear-btn');
+  
+  // Filter logs
+  let filteredLogs = [...laundryLog];
+  const today = new Date().toISOString().split('T')[0];
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  
+  if (filter === 'pending') {
+    filteredLogs = laundryLog.filter(l => l.status !== 'complete');
+  } else if (filter === 'complete') {
+    filteredLogs = laundryLog.filter(l => l.status === 'complete');
+  } else if (filter === 'today') {
+    filteredLogs = laundryLog.filter(l => l.date === today);
+  } else if (filter === 'week') {
+    filteredLogs = laundryLog.filter(l => l.date >= weekAgo);
+  }
+  
+  // Update count
+  card.querySelector('#laundry-count').textContent = filteredLogs.length;
+  
+  if (filteredLogs.length === 0) {
+    list.style.display = 'none';
+    empty.style.display = 'block';
+    summary.style.display = 'none';
+    clearBtn.style.display = 'none';
+    return;
+  }
+  
+  // Show list and hide empty state
+  list.style.display = 'block';
+  empty.style.display = 'none';
+  summary.style.display = 'block';
+  clearBtn.style.display = 'block';
+  
+  // Clear and rebuild list
+  list.innerHTML = '';
+  
+  filteredLogs.forEach((load, idx) => {
     const li = document.createElement('li');
-    li.innerHTML = (l.done ? "<s>" + l.type + "</s>" : l.type) +
-      " (" + l.date + ")" +
-      " <button type='button' onclick='laundryToggle(" + idx + ")'>✓</button>";
+    li.style.marginBottom = '10px';
+    li.style.padding = '12px';
+    li.style.borderRadius = '8px';
+    li.style.background = 'rgba(255,255,255,0.03)';
+    li.style.border = '1px solid rgba(255,255,255,0.08)';
+    li.style.display = 'flex';
+    li.style.justifyContent = 'space-between';
+    li.style.alignItems = 'center';
+    li.style.transition = 'all 0.2s';
+    
+    const typeInfo = laundryTypes[load.type] || { icon: '📦', color: '#9e9e9e', name: load.type };
+    const statusInfo = laundryStatuses[load.status] || { icon: '⏳', color: '#ff9800', name: 'Pending' };
+    
+    li.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:20px;">${typeInfo.icon}</div>
+        <div>
+          <div style="font-weight:600;color:#e0f2fe;">${typeInfo.name}</div>
+          <div style="font-size:12px;color:#90caf9;display:flex;gap:10px;margin-top:2px;">
+            <span><i class="fas fa-calendar" style="margin-right:2px;"></i> ${load.date}</span>
+            <span><i class="fas fa-sync" style="margin-right:2px;"></i> ${load.cycle}</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;padding:4px 8px;border-radius:12px;background:${statusInfo.color}20;color:${statusInfo.color};">
+          ${statusInfo.icon} ${statusInfo.name}
+        </span>
+        <div style="display:flex;gap:4px;">
+          <button onclick="laundryUpdateStatus(${load.id}, 'complete')" style="background:none;border:none;color:#4caf50;cursor:pointer;padding:4px;border-radius:4px;" title="Mark Complete">
+            <i class="fas fa-check"></i>
+          </button>
+          <button onclick="laundryDelete(${load.id})" style="background:none;border:none;color:#f44336;cursor:pointer;padding:4px;border-radius:4px;" title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    `;
+    
     list.appendChild(li);
   });
+  
+  // Update statistics
+  laundryUpdateStats(filter);
 }
 
-function laundryToggle(idx) {
-  laundryLog[idx].done = !laundryLog[idx].done;
-  const card = document.querySelector('#laundry-title').closest('.card');
-  renderLaundry(card);
+function laundryUpdateStats(filter) {
+  const card = document.querySelector('#laundry-title')?.closest('.card');
+  if (!card) return;
+  
+  // Calculate statistics
+  const completed = laundryLog.filter(l => l.status === 'complete').length;
+  const pending = laundryLog.length - completed;
+  
+  // Find most common type
+  const typeCounts = {};
+  laundryLog.forEach(l => {
+    typeCounts[l.typeName] = (typeCounts[l.typeName] || 0) + 1;
+  });
+  const mostCommon = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
+  
+  // Find last load date
+  const lastLoad = laundryLog.length > 0 ? laundryLog[0].date : '-';
+  
+  // Update UI
+  card.querySelector('#laundry-completed').textContent = completed;
+  card.querySelector('#laundry-pending').textContent = pending;
+  card.querySelector('#laundry-common').textContent = mostCommon ? mostCommon[0] : '-';
+  card.querySelector('#laundry-last').textContent = lastLoad;
+  
+  // Update period label
+  const periodLabels = {
+    'all': 'All Time',
+    'pending': 'Pending Only',
+    'complete': 'Completed Only',
+    'today': 'Today',
+    'week': 'This Week'
+  };
+  card.querySelector('#laundry-period').textContent = periodLabels[filter] || 'All Time';
+}
+
+function laundryUpdateStatus(id, status) {
+  const loadIndex = laundryLog.findIndex(l => l.id === id);
+  if (loadIndex === -1) return;
+  
+  laundryLog[loadIndex].status = status;
+  laundryLog[loadIndex].updatedAt = new Date().toISOString();
+  
+  localStorage.setItem('laundryLog', JSON.stringify(laundryLog));
+  laundryRender();
+  
+  const card = document.querySelector('#laundry-title')?.closest('.card');
+  const loadName = laundryLog[loadIndex].typeName;
+  laundryShowHint(card, `✓ Updated ${loadName} to ${laundryStatuses[status]?.name || status}`, "success");
+}
+
+function laundryDelete(id) {
+  if (!confirm('Delete this laundry load?')) return;
+  
+  const loadIndex = laundryLog.findIndex(l => l.id === id);
+  if (loadIndex === -1) return;
+  
+  const loadName = laundryLog[loadIndex].typeName;
+  laundryLog.splice(loadIndex, 1);
+  
+  localStorage.setItem('laundryLog', JSON.stringify(laundryLog));
+  laundryRender();
+  
+  const card = document.querySelector('#laundry-title')?.closest('.card');
+  laundryShowHint(card, `✓ Deleted ${loadName} load`, "success");
+}
+
+function laundryClearComplete() {
+  if (!confirm('Clear all completed laundry loads?')) return;
+  
+  const completedCount = laundryLog.filter(l => l.status === 'complete').length;
+  laundryLog = laundryLog.filter(l => l.status !== 'complete');
+  
+  localStorage.setItem('laundryLog', JSON.stringify(laundryLog));
+  laundryRender();
+  
+  const card = document.querySelector('#laundry-title')?.closest('.card');
+  laundryShowHint(card, `✓ Cleared ${completedCount} completed loads`, "success");
 }
 
 function laundryReset(btn) {
   const card = btn.closest('.card');
+  if (!card) return;
+  
+  if (!confirm('Reset all laundry data? This cannot be undone.')) return;
+  
   laundryLog = [];
+  localStorage.removeItem('laundryLog');
+  
   card.querySelector('form').reset();
-  card.querySelector('#laundry-list').innerHTML = "";
+  card.querySelector('#laundry-date').value = new Date().toISOString().split('T')[0];
+  laundryRender();
+  
+  laundryShowHint(card, "✓ All laundry data reset", "success");
 }
+
+function laundryExport(btn) {
+  if (laundryLog.length === 0) {
+    laundryShowHint(document.querySelector('#laundry-title')?.closest('.card'), "No data to export", "warning");
+    return;
+  }
+  
+  // Format data for CSV
+  const headers = ['Date', 'Type', 'Cycle', 'Status', 'Created', 'Updated'];
+  const csvData = [
+    headers.join(','),
+    ...laundryLog.map(load => [
+      load.date,
+      `"${load.typeName}"`,
+      load.cycle,
+      load.status,
+      load.createdAt,
+      load.updatedAt
+    ].join(','))
+  ].join('\n');
+  
+  // Create download link
+  const blob = new Blob([csvData], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `laundry-log-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  laundryShowHint(document.querySelector('#laundry-title')?.closest('.card'), "✓ Laundry log exported as CSV", "success");
+}
+
+function laundryShowHint(card, message, type) {
+  if (!card) return;
+  
+  const hint = card.querySelector('#laundry-hint');
+  hint.textContent = message;
+  
+  if (type === "success") {
+    hint.style.color = "#a5d6a7";
+  } else if (type === "error") {
+    hint.style.color = "#ef9a9a";
+  } else if (type === "warning") {
+    hint.style.color = "#ffcc80";
+  }
+  
+  // Clear hint after 3 seconds
+  setTimeout(() => {
+    if (hint.textContent === message) hint.textContent = "";
+  }, 3000);
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+  // Set today's date as default
+  const today = new Date().toISOString().split('T')[0];
+  const dateInput = document.querySelector('#laundry-date');
+  if (dateInput) {
+    dateInput.value = today;
+    dateInput.max = today; // Can't select future dates
+  }
+  
+  // Render existing logs
+  laundryRender();
+  
+  // Add custom type input option
+  const typeSelect = document.querySelector('#laundry-type');
+  if (typeSelect) {
+    // Add custom option at the end
+    const customOption = document.createElement('option');
+    customOption.value = 'custom';
+    customOption.textContent = '✏️ Custom Type...';
+    typeSelect.appendChild(customOption);
+    
+    typeSelect.addEventListener('change', function() {
+      if (this.value === 'custom') {
+        const customType = prompt('Enter custom laundry type:');
+        if (customType && customType.trim()) {
+          // Add custom type to options temporarily
+          const newOption = document.createElement('option');
+          newOption.value = customType.toLowerCase().replace(/\s+/g, '-');
+          newOption.textContent = `✏️ ${customType}`;
+          newOption.selected = true;
+          typeSelect.insertBefore(newOption, customOption);
+        } else {
+          this.value = '';
+        }
+      }
+    });
+  }
+});
 </script>
