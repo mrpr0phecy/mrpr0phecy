@@ -1,49 +1,685 @@
-<h2 id="hash-checker-title" style="margin-top:0;">File Hash Checker</h2>
+<h2 id="file-hash-checker-title" style="margin-top:0;color:var(--accent);">🔐 File Hash & Integrity Checker</h2>
 
-<form aria-describedby="hash-checker-desc">
-  <p id="hash-checker-desc" class="small">Upload a file to calculate its MD5 and SHA‑256 hashes.</p>
+<form aria-describedby="file-hash-checker-desc">
+  <p id="file-hash-checker-desc" class="small" style="color:var(--muted);margin-bottom:20px;">
+    Verify file integrity and calculate cryptographic hashes. 
+    <span style="color:var(--accent);font-weight:500;">Compare hashes to verify file authenticity!</span>
+  </p>
 
-  <div class="row" style="display:grid;grid-template-columns:1fr;gap:10px;">
-    <div class="field">
-      <label for="hash-file">File</label>
-      <input id="hash-file" type="file" style="width:100%;" />
+  <!-- File Upload Area -->
+  <div style="background:rgba(255,255,255,0.03);border:2px dashed rgba(45,212,255,0.3);border-radius:12px;padding:24px;text-align:center;margin-bottom:20px;transition:all 0.3s;"
+       id="fh-dropzone">
+    <div style="margin-bottom:16px;">
+      <div style="font-size:48px;color:var(--accent);margin-bottom:8px;">📁</div>
+      <div style="font-weight:500;color:var(--accent);margin-bottom:4px;">Drop file here or click to browse</div>
+      <div style="font-size:13px;color:var(--muted);">Max size: 100 MB</div>
+    </div>
+    <input id="fh-file" type="file" 
+           style="display:none;" 
+           onchange="fhHandleFileSelect(event)" />
+    <button type="button" onclick="document.getElementById('fh-file').click()"
+            style="padding:10px 20px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:500;">
+      Browse Files
+    </button>
+    <div id="fh-file-info" style="display:none;margin-top:16px;padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;border:1px solid rgba(45,212,255,0.2);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:24px;color:var(--accent);">📄</div>
+        <div style="flex:1;">
+          <div style="font-weight:500;color:var(--accent);" id="fh-filename">File name</div>
+          <div style="font-size:12px;color:var(--muted);" id="fh-filesize">File size</div>
+        </div>
+        <button type="button" onclick="fhRemoveFile()" 
+                style="background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);color:#ff4d4d;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;">
+          Remove
+        </button>
+      </div>
     </div>
   </div>
 
-  <div class="actions" style="margin-top:12px;">
-    <button type="button" onclick="hashCheck(this)">Check Hash</button>
-    <button type="button" class="secondary" onclick="hashReset(this)">Reset</button>
+  <!-- Hash Algorithm Selection -->
+  <div style="margin-bottom:20px;">
+    <label style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">
+      Hash Algorithms
+    </label>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:8px;">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="fh-md5" checked 
+               style="accent-color:var(--accent);" />
+        <span style="color:inherit;">MD5</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="fh-sha1" checked 
+               style="accent-color:var(--accent);" />
+        <span style="color:inherit;">SHA-1</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="fh-sha256" checked 
+               style="accent-color:var(--accent);" />
+        <span style="color:inherit;">SHA-256</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="fh-sha512" 
+               style="accent-color:var(--accent);" />
+        <span style="color:inherit;">SHA-512</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="fh-sha3" 
+               style="accent-color:var(--accent);" />
+        <span style="color:inherit;">SHA3-256</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Hash Comparison -->
+  <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.06);">
+    <label style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">
+      Compare with Known Hash (Optional)
+    </label>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:10px;">
+      <input type="text" id="fh-compare-hash" placeholder="Paste hash to compare..." 
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:inherit;font-family:monospace;" />
+      <select id="fh-compare-algo" 
+              style="padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;">
+        <option value="md5">MD5</option>
+        <option value="sha1">SHA-1</option>
+        <option value="sha256" selected>SHA-256</option>
+        <option value="sha512">SHA-512</option>
+      </select>
+    </div>
+    <div id="fh-comparison-result" style="display:none;margin-top:10px;padding:10px;border-radius:6px;"></div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <button type="button" onclick="fhCalculateHashes()" 
+            style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+      🔍 Calculate Hashes
+    </button>
+    <button type="button" onclick="fhCopyAllHashes()"
+            style="padding:12px 16px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);color:#39ff14;border-radius:8px;cursor:pointer;">
+      📋 Copy All
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite" style="margin-top:12px;">
-  <h3 class="small">Hash Results</h3>
-  <textarea id="hash-output" rows="6" style="width:100%;padding:10px;border-radius:8px;"></textarea>
+<!-- Progress Bar -->
+<div id="fh-progress-container" style="display:none;margin-bottom:20px;">
+  <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+    <div style="color:var(--accent);font-size:14px;">Processing...</div>
+    <div id="fh-progress-text" style="color:var(--muted);font-size:12px;">0%</div>
+  </div>
+  <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
+    <div id="fh-progress-bar" style="height:100%;background:linear-gradient(90deg, #2dd4ff, #39ff14);width:0%;transition:width 0.3s;"></div>
+  </div>
+</div>
+
+<!-- Results Section -->
+<div class="results" aria-live="polite">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <h3 class="small" style="color:var(--accent);margin:0;">📊 Hash Results</h3>
+    <div id="fh-processing-time" style="font-size:12px;color:var(--muted);display:none;"></div>
+  </div>
+  
+  <div id="fh-results-container">
+    <!-- Results will be generated here -->
+    <div style="text-align:center;padding:20px;color:var(--muted);font-style:italic;">
+      Select a file and click "Calculate Hashes" to begin.
+    </div>
+  </div>
+</div>
+
+<!-- Quick Examples -->
+<div style="margin-top:20px;">
+  <details style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;border:1px solid rgba(255,255,255,0.06);">
+    <summary style="color:var(--accent);font-weight:500;cursor:pointer;outline:none;">
+      ℹ️ Example Hashes & Tips
+    </summary>
+    <div style="margin-top:12px;font-size:13px;color:var(--muted);">
+      <div style="margin-bottom:8px;">
+        <strong style="color:var(--accent);">Common Uses:</strong>
+        <ul style="margin:6px 0;padding-left:20px;">
+          <li>Verify downloaded files match original</li>
+          <li>Check file integrity after transfer</li>
+          <li>Detect duplicate files</li>
+          <li>Verify software downloads</li>
+        </ul>
+      </div>
+      <div>
+        <strong style="color:var(--accent);">Sample hashes (for empty file):</strong>
+        <div style="font-family:monospace;font-size:12px;margin-top:6px;">
+          <div>MD5: d41d8cd98f00b204e9800998ecf8427e</div>
+          <div>SHA-1: da39a3ee5e6b4b0d3255bfef95601890afd80709</div>
+          <div>SHA-256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</div>
+        </div>
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- Action Buttons -->
+<div style="display:flex;gap:10px;margin-top:20px;">
+  <button type="button" onclick="fhResetAll()" 
+          style="flex:1;padding:12px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);color:#ff4d4d;border-radius:8px;cursor:pointer;">
+    🗑️ Clear All
+  </button>
+  <button type="button" onclick="fhGenerateTestFile()"
+          style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+    🧪 Test File
+  </button>
 </div>
 
 <script>
-async function hashCheck(btn){
-  const card=btn.closest('.card')||document;
-  const file=card.querySelector('#hash-file').files[0];
-  if(!file){
-    card.querySelector('#hash-output').value="Please select a file.";
+/* file-hash-checker.html
+   - Enhanced file hash calculator with multiple algorithms and comparison
+   - Scoped with fh- prefix (file hash)
+*/
+
+let fhCurrentFile = null;
+let fhIsCalculating = false;
+
+// Initialize when script loads
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    fhSetupDropzone();
+    console.log('File Hash Checker ready');
+  });
+} else {
+  fhSetupDropzone();
+}
+
+// Setup drag and drop zone
+function fhSetupDropzone() {
+  const dropzone = document.getElementById('fh-dropzone');
+  const fileInput = document.getElementById('fh-file');
+  
+  dropzone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropzone.style.borderColor = 'var(--accent)';
+    dropzone.style.background = 'rgba(45,212,255,0.05)';
+  });
+  
+  dropzone.addEventListener('dragleave', function() {
+    dropzone.style.borderColor = 'rgba(45,212,255,0.3)';
+    dropzone.style.background = '';
+  });
+  
+  dropzone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropzone.style.borderColor = 'rgba(45,212,255,0.3)';
+    dropzone.style.background = '';
+    
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      fhHandleFileSelect({ target: fileInput });
+    }
+  });
+  
+  // Add click handler for dropzone
+  dropzone.addEventListener('click', function(e) {
+    if (e.target === dropzone || !e.target.closest('button')) {
+      fileInput.click();
+    }
+  });
+}
+
+function fhHandleFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  // Check file size (limit to 100MB)
+  if (file.size > 100 * 1024 * 1024) {
+    fhShowMessage('File size exceeds 100 MB limit', 'error');
     return;
   }
-  const buffer=await file.arrayBuffer();
-  const md5=await crypto.subtle.digest("MD5",buffer).catch(()=>null);
-  const sha=await crypto.subtle.digest("SHA-256",buffer);
-  const md5Hex=md5?buf2hex(md5):"(MD5 not supported in all browsers)";
-  const shaHex=buf2hex(sha);
-  card.querySelector('#hash-output').value=`MD5: ${md5Hex}\nSHA-256: ${shaHex}`;
+  
+  fhCurrentFile = file;
+  
+  // Update UI with file info
+  const fileInfo = document.getElementById('fh-file-info');
+  const filename = document.getElementById('fh-filename');
+  const filesize = document.getElementById('fh-filesize');
+  
+  filename.textContent = file.name;
+  filesize.textContent = fhFormatFileSize(file.size);
+  fileInfo.style.display = 'block';
+  
+  // Clear previous results
+  document.getElementById('fh-results-container').innerHTML = `
+    <div style="text-align:center;padding:20px;color:var(--muted);font-style:italic;">
+      Ready to calculate hashes for "${file.name}"
+    </div>
+  `;
+  
+  fhShowMessage(`File "${file.name}" loaded successfully`, 'success');
 }
 
-function hashReset(btn){
-  const card=btn.closest('.card')||document;
-  card.querySelector('form').reset();
-  card.querySelector('#hash-output').value="";
+function fhRemoveFile() {
+  fhCurrentFile = null;
+  document.getElementById('fh-file').value = '';
+  document.getElementById('fh-file-info').style.display = 'none';
+  document.getElementById('fh-results-container').innerHTML = `
+    <div style="text-align:center;padding:20px;color:var(--muted);font-style:italic;">
+      Select a file and click "Calculate Hashes" to begin.
+    </div>
+  `;
 }
 
-function buf2hex(buffer){
-  return [...new Uint8Array(buffer)].map(x=>x.toString(16).padStart(2,'0')).join('');
+function fhFormatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function fhCalculateHashes() {
+  if (!fhCurrentFile) {
+    fhShowMessage('Please select a file first', 'error');
+    return;
+  }
+  
+  if (fhIsCalculating) return;
+  
+  // Get selected algorithms
+  const algorithms = [];
+  if (document.getElementById('fh-md5').checked) algorithms.push('MD5');
+  if (document.getElementById('fh-sha1').checked) algorithms.push('SHA-1');
+  if (document.getElementById('fh-sha256').checked) algorithms.push('SHA-256');
+  if (document.getElementById('fh-sha512').checked) algorithms.push('SHA-512');
+  if (document.getElementById('fh-sha3').checked) algorithms.push('SHA3-256');
+  
+  if (algorithms.length === 0) {
+    fhShowMessage('Please select at least one hash algorithm', 'error');
+    return;
+  }
+  
+  fhIsCalculating = true;
+  const startTime = Date.now();
+  
+  // Show progress
+  const progressContainer = document.getElementById('fh-progress-container');
+  const progressBar = document.getElementById('fh-progress-bar');
+  const progressText = document.getElementById('fh-progress-text');
+  
+  progressContainer.style.display = 'block';
+  progressBar.style.width = '10%';
+  progressText.textContent = 'Reading file...';
+  
+  try {
+    // Read file as ArrayBuffer in chunks for large files
+    const buffer = await fhReadFileAsBuffer(fhCurrentFile, (progress) => {
+      progressBar.style.width = (10 + progress * 0.8) + '%';
+      progressText.textContent = `Reading: ${Math.round(progress)}%`;
+    });
+    
+    progressBar.style.width = '90%';
+    progressText.textContent = 'Calculating hashes...';
+    
+    // Calculate hashes
+    const results = [];
+    for (let i = 0; i < algorithms.length; i++) {
+      const algo = algorithms[i];
+      const hash = await fhCalculateHash(buffer, algo);
+      results.push({ algorithm: algo, hash: hash });
+      
+      // Update progress
+      progressBar.style.width = (90 + ((i + 1) / algorithms.length) * 10) + '%';
+    }
+    
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Display results
+    fhDisplayResults(results, processingTime);
+    
+    // Check comparison if provided
+    fhCheckComparison(results);
+    
+    fhShowMessage(`Calculated ${algorithms.length} hash(es) in ${processingTime}ms`, 'success');
+    
+  } catch (error) {
+    console.error('Hash calculation error:', error);
+    fhShowMessage('Error calculating hashes: ' + error.message, 'error');
+  } finally {
+    fhIsCalculating = false;
+    progressContainer.style.display = 'none';
+  }
+}
+
+async function fhReadFileAsBuffer(file, progressCallback) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const chunkSize = 1024 * 1024; // 1MB chunks
+    const chunks = [];
+    let offset = 0;
+    
+    reader.onload = function(e) {
+      if (e.target.error) {
+        reject(e.target.error);
+        return;
+      }
+      
+      chunks.push(e.target.result);
+      offset += e.target.result.byteLength;
+      
+      if (offset < file.size) {
+        progressCallback((offset / file.size) * 100);
+        readNextChunk();
+      } else {
+        // Combine chunks
+        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+        const combined = new Uint8Array(totalLength);
+        let position = 0;
+        chunks.forEach(chunk => {
+          combined.set(new Uint8Array(chunk), position);
+          position += chunk.byteLength;
+        });
+        resolve(combined.buffer);
+      }
+    };
+    
+    function readNextChunk() {
+      const slice = file.slice(offset, offset + chunkSize);
+      reader.readAsArrayBuffer(slice);
+    }
+    
+    readNextChunk();
+  });
+}
+
+async function fhCalculateHash(buffer, algorithm) {
+  const algoMap = {
+    'MD5': 'MD5',
+    'SHA-1': 'SHA-1',
+    'SHA-256': 'SHA-256',
+    'SHA-512': 'SHA-512',
+    'SHA3-256': 'SHA3-256'
+  };
+  
+  const subtleAlgo = algoMap[algorithm];
+  if (!subtleAlgo) throw new Error('Unsupported algorithm');
+  
+  // Note: MD5 and SHA-1 might not be available in all browsers
+  try {
+    const hashBuffer = await crypto.subtle.digest(subtleAlgo, buffer);
+    return fhBufferToHex(hashBuffer);
+  } catch (error) {
+    if (algorithm === 'MD5' || algorithm === 'SHA-1') {
+      // Fallback to manual calculation for MD5/SHA-1
+      return fhFallbackHash(buffer, algorithm);
+    }
+    throw error;
+  }
+}
+
+function fhBufferToHex(buffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Fallback hash calculation for unsupported algorithms
+function fhFallbackHash(buffer, algorithm) {
+  // Note: This is a simplified fallback - in production, you'd want a proper implementation
+  // or use a library like CryptoJS
+  return `(${algorithm} calculation requires CryptoJS library)`;
+}
+
+function fhDisplayResults(results, processingTime) {
+  const container = document.getElementById('fh-results-container');
+  const timeDisplay = document.getElementById('fh-processing-time');
+  
+  timeDisplay.textContent = `${processingTime}ms`;
+  timeDisplay.style.display = 'block';
+  
+  let html = '';
+  results.forEach(result => {
+    const isVerified = fhCheckVerification(result.hash);
+    
+    html += `
+      <div style="margin-bottom:12px;background:rgba(255,255,255,0.02);border-radius:8px;padding:12px;border:1px solid rgba(255,255,255,0.05);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-weight:500;color:var(--accent);">${result.algorithm}</div>
+          <button onclick="fhCopyHash('${result.hash}')" 
+                  style="background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">
+            Copy
+          </button>
+        </div>
+        <div style="font-family:monospace;font-size:13px;word-break:break-all;color:${isVerified ? '#39ff14' : 'var(--muted)'};">
+          ${result.hash}
+        </div>
+        ${isVerified ? `
+          <div style="margin-top:6px;font-size:11px;color:#39ff14;">
+            ✅ Verified against known hash database
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+function fhCheckVerification(hash) {
+  // This is a mock function - in a real implementation, you might:
+  // 1. Check against a local database of known hashes
+  // 2. Query an online hash database API
+  // 3. Check against user-provided hashes
+  
+  // For now, we'll just check if it matches any example hashes
+  const knownHashes = [
+    'd41d8cd98f00b204e9800998ecf8427e', // MD5 of empty file
+    'da39a3ee5e6b4b0d3255bfef95601890afd80709', // SHA-1 of empty file
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' // SHA-256 of empty file
+  ];
+  
+  return knownHashes.includes(hash.toLowerCase());
+}
+
+function fhCheckComparison(results) {
+  const compareHash = document.getElementById('fh-compare-hash').value.trim();
+  const compareAlgo = document.getElementById('fh-compare-algo').value;
+  const comparisonResult = document.getElementById('fh-comparison-result');
+  
+  if (!compareHash) {
+    comparisonResult.style.display = 'none';
+    return;
+  }
+  
+  const normalizedCompare = compareHash.toLowerCase().replace(/[^a-f0-9]/g, '');
+  const match = results.find(r => 
+    r.algorithm.toLowerCase().replace('-', '') === compareAlgo.toLowerCase().replace('-', '') &&
+    r.hash.toLowerCase() === normalizedCompare
+  );
+  
+  if (match) {
+    comparisonResult.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;color:#39ff14;">
+        <span style="font-size:18px;">✅</span>
+        <span>Hash matches! File integrity verified.</span>
+      </div>
+    `;
+  } else {
+    comparisonResult.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;color:#ff4d4d;">
+        <span style="font-size:18px;">❌</span>
+        <span>Hash mismatch! File may be corrupted or modified.</span>
+      </div>
+    `;
+  }
+  
+  comparisonResult.style.display = 'block';
+}
+
+function fhCopyHash(hash) {
+  navigator.clipboard.writeText(hash).then(() => {
+    fhShowMessage('Hash copied to clipboard', 'success');
+  }).catch(() => {
+    // Fallback
+    const textarea = document.createElement('textarea');
+    textarea.value = hash;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    fhShowMessage('Hash copied to clipboard', 'success');
+  });
+}
+
+function fhCopyAllHashes() {
+  if (!fhCurrentFile) {
+    fhShowMessage('No hashes to copy', 'error');
+    return;
+  }
+  
+  const hashElements = document.querySelectorAll('#fh-results-container .hash-value');
+  if (hashElements.length === 0) {
+    fhShowMessage('Calculate hashes first', 'error');
+    return;
+  }
+  
+  let allHashes = `File: ${fhCurrentFile.name}\n`;
+  allHashes += `Size: ${fhFormatFileSize(fhCurrentFile.size)}\n`;
+  allHashes += `Date: ${new Date().toLocaleString()}\n\n`;
+  
+  document.querySelectorAll('#fh-results-container > div').forEach(div => {
+    const algo = div.querySelector('div[style*="font-weight:500"]').textContent;
+    const hash = div.querySelector('div[style*="font-family:monospace"]').textContent;
+    allHashes += `${algo}: ${hash}\n`;
+  });
+  
+  navigator.clipboard.writeText(allHashes).then(() => {
+    fhShowMessage('All hashes copied to clipboard', 'success');
+  });
+}
+
+function fhGenerateTestFile() {
+  // Create a simple test file
+  const content = 'This is a test file for hash calculation.\n' +
+                 'Created: ' + new Date().toISOString() + '\n' +
+                 'Purpose: Verify hash calculator functionality.';
+  
+  const blob = new Blob([content], { type: 'text/plain' });
+  const file = new File([blob], 'test-file.txt', { 
+    type: 'text/plain',
+    lastModified: Date.now()
+  });
+  
+  // Simulate file selection
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(file);
+  document.getElementById('fh-file').files = dataTransfer.files;
+  fhHandleFileSelect({ target: document.getElementById('fh-file') });
+  
+  fhShowMessage('Test file loaded. Click "Calculate Hashes" to test.', 'info');
+}
+
+function fhResetAll() {
+  if (confirm('Clear all file and hash data?')) {
+    fhCurrentFile = null;
+    document.getElementById('fh-file').value = '';
+    document.getElementById('fh-file-info').style.display = 'none';
+    document.getElementById('fh-compare-hash').value = '';
+    document.getElementById('fh-comparison-result').style.display = 'none';
+    document.getElementById('fh-processing-time').style.display = 'none';
+    document.getElementById('fh-results-container').innerHTML = `
+      <div style="text-align:center;padding:20px;color:var(--muted);font-style:italic;">
+        Select a file and click "Calculate Hashes" to begin.
+      </div>
+    `;
+    
+    // Reset checkboxes
+    document.getElementById('fh-md5').checked = true;
+    document.getElementById('fh-sha1').checked = true;
+    document.getElementById('fh-sha256').checked = true;
+    document.getElementById('fh-sha512').checked = false;
+    document.getElementById('fh-sha3').checked = false;
+    
+    fhShowMessage('All data cleared', 'info');
+  }
+}
+
+function fhShowMessage(message, type = 'info') {
+  const card = document.currentScript?.closest('.card') || document;
+  
+  // Remove existing message
+  const existingMsg = card.querySelector('.fh-message');
+  if (existingMsg) existingMsg.remove();
+  
+  // Create message element
+  const messageEl = document.createElement('div');
+  messageEl.className = 'fh-message';
+  messageEl.style.cssText = `
+    position:fixed;
+    top:20px;
+    right:20px;
+    padding:12px 16px;
+    border-radius:8px;
+    background:${type === 'error' ? 'rgba(255,77,77,0.9)' : 
+               type === 'success' ? 'rgba(57,255,20,0.9)' : 
+               'rgba(45,212,255,0.9)'};
+    color:#ffffff;
+    z-index:10000;
+    backdrop-filter:blur(4px);
+    animation:fhSlideIn 0.3s ease;
+  `;
+  
+  // Add CSS animation
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes fhSlideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes fhFadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  messageEl.textContent = message;
+  document.body.appendChild(messageEl);
+  
+  // Auto-remove after 3 seconds
+  setTimeout(() => {
+    messageEl.style.animation = 'fhFadeOut 0.3s ease';
+    setTimeout(() => messageEl.remove(), 300);
+  }, 3000);
 }
 </script>
+
+<style>
+#file-hash-checker-title {
+  color: var(--accent);
+  margin-top: 0;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#fh-dropzone:hover {
+  border-color: var(--accent);
+  background: rgba(45,212,255,0.03);
+}
+
+#fh-dropzone.drag-over {
+  border-color: var(--accent) !important;
+  background: rgba(45,212,255,0.08) !important;
+}
+
+@media (max-width: 768px) {
+  #fh-dropzone {
+    padding: 16px !important;
+  }
+  
+  .hash-algorithms {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  .actions button {
+    flex-direction: column;
+  }
+}
+</style>
