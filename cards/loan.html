@@ -1,67 +1,889 @@
-<h2 id="loan-title">Loan Calculator</h2>
+<!-- cards/loan-calculator.html -->
+<h2 id="loan-calculator-title" style="margin-top:0;color:var(--accent);font-size:1.4rem;margin-bottom:8px;">💰 Smart Loan Calculator</h2>
 
-<form>
-  <div class="field">
-    <label for="loan-amount">Loan amount</label>
-    <div class="input"><input id="loan-amount" type="number" value="10000" /></div>
-  </div>
-
-  <div class="row">
-    <div class="field">
-      <label for="loan-rate">Interest rate (%)</label>
-      <div class="input"><input id="loan-rate" type="number" value="5" /></div>
+<form aria-describedby="loan-calculator-desc" style="margin-bottom:20px;">
+    <p id="loan-calculator-desc" class="small" style="color:rgba(230,250,255,0.9);margin-bottom:20px;line-height:1.5;">
+        <span style="color:var(--accent);font-weight:500;">💸 Plan your finances:</span> Calculate mortgage, car loan, personal loan payments with amortization schedule. Compare scenarios and save thousands!
+    </p>
+    
+    <!-- LOAN TYPE SELECTOR -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+        <button type="button" onclick="lcSetLoanType('mortgage')" class="loan-type-btn active" 
+                style="padding:10px;border-radius:8px;background:rgba(45,212,255,0.2);border:2px solid var(--accent);color:var(--accent);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:all 0.2s ease;">
+            <span style="font-size:20px;">🏠</span>
+            <span style="font-size:11px;">Mortgage</span>
+        </button>
+        <button type="button" onclick="lcSetLoanType('car')" class="loan-type-btn"
+                style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:all 0.2s ease;">
+            <span style="font-size:20px;">🚗</span>
+            <span style="font-size:11px;">Auto Loan</span>
+        </button>
+        <button type="button" onclick="lcSetLoanType('personal')" class="loan-type-btn"
+                style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:all 0.2s ease;">
+            <span style="font-size:20px;">💳</span>
+            <span style="font-size:11px;">Personal</span>
+        </button>
     </div>
-    <div class="field">
-      <label for="loan-years">Term (years)</label>
-      <div class="input"><input id="loan-years" type="number" value="5" /></div>
+    
+    <!-- MAIN LOAN INPUTS -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+        <div>
+            <label for="lc-amount" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">
+                <span style="font-size:16px;">💰</span> Loan Amount
+            </label>
+            <div style="position:relative;">
+                <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:rgba(230,250,255,0.7);">$</span>
+                <input id="lc-amount" type="number" min="100" step="100" value="250000"
+                       style="width:100%;padding:10px 10px 10px 28px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;font-size:15px;"
+                       oninput="lcUpdateSlider('amount', this.value)">
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                <span style="font-size:11px;color:rgba(230,250,255,0.5);">Min: $1,000</span>
+                <span style="font-size:11px;color:rgba(230,250,255,0.5);">Max: $5,000,000</span>
+            </div>
+        </div>
+        
+        <div>
+            <label for="lc-interest" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">
+                <span style="font-size:16px;">📈</span> Interest Rate (%)
+            </label>
+            <div style="position:relative;">
+                <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:rgba(230,250,255,0.7);">%</span>
+                <input id="lc-interest" type="number" min="0.1" max="30" step="0.1" value="4.5"
+                       style="width:100%;padding:10px 10px 10px 28px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;font-size:15px;"
+                       oninput="lcUpdateSlider('interest', this.value)">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+                <input id="lc-interest-slider" type="range" min="0.1" max="15" step="0.1" value="4.5"
+                       style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.1);outline:none;"
+                       oninput="document.getElementById('lc-interest').value = this.value; lcCalculate()">
+                <span style="font-size:11px;color:rgba(230,250,255,0.5);">0.1% - 15%</span>
+            </div>
+        </div>
     </div>
-  </div>
-
-  <div class="actions">
-    <button type="button" onclick="loanCalc(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="loanReset(this)">Reset</button>
-  </div>
+    
+    <!-- LOAN TERM -->
+    <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <label style="display:block;color:var(--accent);font-weight:500;font-size:14px;">
+                <span style="font-size:16px;">⏱️</span> Loan Term
+            </label>
+            <span id="lc-term-display" style="font-size:13px;color:var(--accent);font-weight:500;">30 years</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <input id="lc-term-slider" type="range" min="1" max="30" value="30" step="1"
+                   style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.1);outline:none;"
+                   oninput="lcUpdateTermDisplay(this.value)">
+            <div style="display:flex;gap:4px;">
+                <button type="button" onclick="lcSetTerm(15)" style="padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;cursor:pointer;font-size:11px;">15 yr</button>
+                <button type="button" onclick="lcSetTerm(20)" style="padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;cursor:pointer;font-size:11px;">20 yr</button>
+                <button type="button" onclick="lcSetTerm(30)" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:4px;cursor:pointer;font-size:11px;">30 yr</button>
+            </div>
+        </div>
+        <input id="lc-term" type="hidden" value="30">
+    </div>
+    
+    <!-- DOWN PAYMENT (Visible for mortgage/car loans) -->
+    <div id="lc-downpayment-section" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+        <div>
+            <label for="lc-downpayment" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">
+                <span style="font-size:16px;">🏦</span> Down Payment
+            </label>
+            <div style="position:relative;">
+                <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:rgba(230,250,255,0.7);">$</span>
+                <input id="lc-downpayment" type="number" min="0" step="1000" value="50000"
+                       style="width:100%;padding:10px 10px 10px 28px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;font-size:15px;">
+            </div>
+        </div>
+        
+        <div>
+            <label for="lc-downpayment-percent" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">
+                <span style="font-size:16px;">📊</span> Down Payment %
+            </label>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <input id="lc-downpayment-percent" type="range" min="0" max="50" value="20" step="1"
+                       style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.1);outline:none;"
+                       oninput="lcUpdateDownPaymentPercent(this.value)">
+                <span id="lc-downpayment-percent-display" style="min-width:40px;text-align:center;color:var(--accent);font-weight:500;">20%</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- EXTRA PAYMENTS (Optional) -->
+    <div style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <label style="display:block;color:var(--accent);font-weight:500;font-size:14px;">
+                <span style="font-size:16px;">⚡</span> Extra Monthly Payment
+            </label>
+            <button type="button" onclick="lcToggleExtraPayment()" id="lc-extra-toggle" 
+                    style="padding:4px 8px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);color:#39ff14;border-radius:4px;cursor:pointer;font-size:11px;">
+                Add Extra
+            </button>
+        </div>
+        <div id="lc-extra-payment-section" style="display:none;">
+            <div style="position:relative;">
+                <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:rgba(230,250,255,0.7);">$</span>
+                <input id="lc-extra-payment" type="number" min="0" step="50" value="100"
+                       style="width:100%;padding:10px 10px 10px 28px;border-radius:8px;border:1px solid rgba(57,255,20,0.3);background:rgba(57,255,20,0.05);color:inherit;font-size:15px;">
+            </div>
+            <div style="font-size:11px;color:rgba(230,250,255,0.5);margin-top:4px;">
+                Paying extra can save thousands in interest and shorten your loan term!
+            </div>
+        </div>
+    </div>
+    
+    <!-- ACTION BUTTONS -->
+    <div class="actions" style="display:flex;gap:12px;margin-top:20px;">
+        <button type="button" onclick="lcCalculate()" id="lc-calculate-btn"
+                style="flex:2;padding:14px 20px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.5);border-radius:10px;color:var(--accent);cursor:pointer;font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform 0.2s ease;">
+            <span style="font-size:18px;">💰</span> Calculate Loan
+        </button>
+        
+        <button type="button" onclick="lcCompareScenario()" id="lc-compare-btn"
+                style="padding:14px 16px;background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);color:#ffcc00;border-radius:10px;cursor:pointer;font-weight:500;display:flex;align-items:center;gap:6px;">
+            <span style="font-size:16px;">🔍</span> Compare
+        </button>
+        
+        <button type="button" onclick="lcResetAll()"
+                style="padding:14px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:inherit;cursor:pointer;display:flex;align-items:center;gap:6px;">
+            <span style="font-size:16px;">🔄</span> Reset
+        </button>
+    </div>
 </form>
 
-<div class="results">
-  <div class="result">
-    <div class="label">Monthly payment</div>
-    <div class="value" id="loan-monthly">–</div>
-  </div>
-  <div class="result">
-    <div class="label">Total interest</div>
-    <div class="value" id="loan-interest">–</div>
-  </div>
+<!-- QUICK RESULTS -->
+<div class="results" aria-live="polite" style="margin-top:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 class="small" style="color:var(--accent);font-size:16px;margin:0;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">📊</span> Loan Summary
+        </h3>
+        <div id="lc-stats" style="display:flex;gap:12px;font-size:12px;color:rgba(230,250,255,0.7);">
+            <span>Term: <span id="lc-term-years">30</span> years</span>
+            <span>Rate: <span id="lc-rate-display">4.5</span>%</span>
+        </div>
+    </div>
+    
+    <!-- KEY METRICS -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+        <div style="text-align:center;padding:12px;background:rgba(45,212,255,0.1);border-radius:8px;border:1px solid rgba(45,212,255,0.3);">
+            <div style="font-size:11px;color:rgba(230,250,255,0.7);margin-bottom:4px;">Monthly Payment</div>
+            <div id="lc-monthly-payment" style="font-size:18px;font-weight:600;color:var(--accent);">–</div>
+        </div>
+        
+        <div style="text-align:center;padding:12px;background:rgba(255,45,85,0.1);border-radius:8px;border:1px solid rgba(255,45,85,0.3);">
+            <div style="font-size:11px;color:rgba(230,250,255,0.7);margin-bottom:4px;">Total Interest</div>
+            <div id="lc-total-interest" style="font-size:18px;font-weight:600;color:#ff2d55;">–</div>
+        </div>
+        
+        <div style="text-align:center;padding:12px;background:rgba(57,255,20,0.1);border-radius:8px;border:1px solid rgba(57,255,20,0.3);">
+            <div style="font-size:11px;color:rgba(230,250,255,0.7);margin-bottom:4px;">Total Cost</div>
+            <div id="lc-total-cost" style="font-size:18px;font-weight:600;color:#39ff14;">–</div>
+        </div>
+    </div>
+    
+    <!-- AMORTIZATION VISUALIZATION -->
+    <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-size:13px;color:var(--accent);font-weight:500;">
+                <span style="font-size:16px;">📈</span> Payment Breakdown
+            </div>
+            <button type="button" onclick="lcToggleChart()" style="padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:inherit;border-radius:4px;cursor:pointer;font-size:11px;">Show Chart</button>
+        </div>
+        
+        <div id="lc-chart-container" style="display:none;height:120px;margin-bottom:12px;position:relative;">
+            <div style="display:flex;height:100%;gap:2px;align-items:flex-end;">
+                <!-- Chart bars will be generated here -->
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:rgba(230,250,255,0.5);">
+                <span>Principal</span>
+                <span>Interest</span>
+            </div>
+        </div>
+        
+        <div style="background:rgba(255,255,255,0.03);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span style="color:rgba(230,250,255,0.8);">Principal Paid</span>
+                <span id="lc-principal-paid" style="color:var(--accent);font-weight:500;">–</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span style="color:rgba(230,250,255,0.8);">Interest Paid</span>
+                <span id="lc-interest-paid" style="color:#ff2d55;font-weight:500;">–</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+                <span style="color:rgba(230,250,255,0.8);">Remaining Balance</span>
+                <span id="lc-remaining-balance" style="color:#39ff14;font-weight:500;">–</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- SAVINGS TIPS -->
+    <div id="lc-savings-tips" style="display:none;margin-top:12px;padding:12px;background:rgba(57,255,20,0.05);border-radius:8px;border-left:3px solid #39ff14;">
+        <div style="font-weight:600;color:#39ff14;margin-bottom:4px;">💡 Savings Tips</div>
+        <div id="lc-tips-content" style="font-size:12px;color:rgba(230,250,255,0.9);">
+            <!-- Tips will be generated here -->
+        </div>
+    </div>
+</div>
+
+<!-- COMPARISON MODAL (Hidden by default) -->
+<div id="lc-comparison-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:10000;padding:20px;overflow-y:auto;">
+    <div style="max-width:600px;margin:40px auto;background:var(--panel);border-radius:12px;border:1px solid var(--border);padding:24px;position:relative;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="color:var(--accent);margin:0;font-size:1.2rem;">🔍 Loan Comparison</h3>
+            <button onclick="lcCloseComparison()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:20px;">×</button>
+        </div>
+        
+        <div id="lc-comparison-content">
+            <!-- Comparison content will be generated here -->
+        </div>
+    </div>
 </div>
 
 <script>
-function loanCalc(btn){
-  const card = btn.closest('.card');
-  const amount = parseFloat(card.querySelector('#loan-amount').value) || 0;
-  const rate = (parseFloat(card.querySelector('#loan-rate').value) || 0) / 100 / 12;
-  const years = parseInt(card.querySelector('#loan-years').value) || 0;
-  const n = years * 12;
+/* loan-calculator.html
+   - Advanced loan calculator with amortization and comparison
+   - Scoped with lc- prefix
+*/
 
-  let monthly = 0;
-  if(rate === 0){
-    monthly = amount / n;
-  } else {
-    const pow = Math.pow(1 + rate, n);
-    monthly = amount * rate * pow / (pow - 1);
-  }
+let currentLoanType = 'mortgage';
+let comparisonScenarios = [];
 
-  const total = monthly * n;
-  const interest = total - amount;
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Smart Loan Calculator ready! 💰');
+    
+    // Set up event listeners for auto-calculation
+    document.getElementById('lc-amount').addEventListener('input', () => lcCalculate());
+    document.getElementById('lc-interest').addEventListener('input', () => lcCalculate());
+    document.getElementById('lc-term').addEventListener('input', () => lcCalculate());
+    document.getElementById('lc-downpayment').addEventListener('input', () => lcCalculate());
+    document.getElementById('lc-extra-payment').addEventListener('input', () => lcCalculate());
+    
+    // Initial calculation
+    lcCalculate();
+});
 
-  const fmt = n => new Intl.NumberFormat(undefined,{style:'currency',currency:'GBP'}).format(n);
-  card.querySelector('#loan-monthly').textContent = fmt(monthly);
-  card.querySelector('#loan-interest').textContent = fmt(interest);
+// Set loan type
+function lcSetLoanType(type) {
+    currentLoanType = type;
+    
+    // Update button states
+    document.querySelectorAll('.loan-type-btn').forEach(btn => {
+        btn.style.background = 'rgba(255,255,255,0.05)';
+        btn.style.border = '1px solid rgba(255,255,255,0.1)';
+        btn.style.color = 'inherit';
+    });
+    
+    const activeBtn = document.querySelector(`[onclick="lcSetLoanType('${type}')"]`);
+    if (activeBtn) {
+        activeBtn.style.background = 'rgba(45,212,255,0.2)';
+        activeBtn.style.border = '2px solid var(--accent)';
+        activeBtn.style.color = 'var(--accent)';
+    }
+    
+    // Show/hide down payment section
+    const downPaymentSection = document.getElementById('lc-downpayment-section');
+    if (type === 'personal') {
+        downPaymentSection.style.display = 'none';
+    } else {
+        downPaymentSection.style.display = 'grid';
+    }
+    
+    // Set default values based on loan type
+    switch(type) {
+        case 'mortgage':
+            document.getElementById('lc-amount').value = '250000';
+            document.getElementById('lc-interest').value = '4.5';
+            document.getElementById('lc-interest-slider').value = '4.5';
+            document.getElementById('lc-term-slider').value = '30';
+            document.getElementById('lc-term').value = '30';
+            document.getElementById('lc-downpayment').value = '50000';
+            document.getElementById('lc-downpayment-percent').value = '20';
+            break;
+            
+        case 'car':
+            document.getElementById('lc-amount').value = '30000';
+            document.getElementById('lc-interest').value = '5.5';
+            document.getElementById('lc-interest-slider').value = '5.5';
+            document.getElementById('lc-term-slider').value = '5';
+            document.getElementById('lc-term').value = '5';
+            document.getElementById('lc-downpayment').value = '6000';
+            document.getElementById('lc-downpayment-percent').value = '20';
+            break;
+            
+        case 'personal':
+            document.getElementById('lc-amount').value = '10000';
+            document.getElementById('lc-interest').value = '8.5';
+            document.getElementById('lc-interest-slider').value = '8.5';
+            document.getElementById('lc-term-slider').value = '3';
+            document.getElementById('lc-term').value = '3';
+            break;
+    }
+    
+    lcUpdateTermDisplay(document.getElementById('lc-term').value);
+    lcUpdateDownPaymentPercent(document.getElementById('lc-downpayment-percent').value);
+    lcCalculate();
+    lcShowNotification(`Switched to ${type} loan`, 'info');
 }
 
-function loanReset(btn){
-  const card = btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#loan-monthly').textContent = '–';
-  card.querySelector('#loan-interest').textContent = '–';
+// Update term display
+function lcUpdateTermDisplay(years) {
+    document.getElementById('lc-term').value = years;
+    document.getElementById('lc-term-slider').value = years;
+    document.getElementById('lc-term-display').textContent = `${years} year${years > 1 ? 's' : ''}`;
+    document.getElementById('lc-term-years').textContent = years;
+    lcCalculate();
+}
+
+// Set specific term
+function lcSetTerm(years) {
+    lcUpdateTermDisplay(years);
+}
+
+// Update down payment percentage
+function lcUpdateDownPaymentPercent(percent) {
+    document.getElementById('lc-downpayment-percent').value = percent;
+    document.getElementById('lc-downpayment-percent-display').textContent = `${percent}%`;
+    
+    // Update dollar amount
+    const loanAmount = parseFloat(document.getElementById('lc-amount').value) || 0;
+    const downPayment = Math.round(loanAmount * (percent / 100));
+    document.getElementById('lc-downpayment').value = downPayment;
+    
+    lcCalculate();
+}
+
+// Update sliders when inputs change
+function lcUpdateSlider(type, value) {
+    if (type === 'amount') {
+        const slider = document.getElementById('lc-interest-slider');
+        // No slider for amount, just update down payment percentage
+        const percent = document.getElementById('lc-downpayment-percent').value;
+        const downPayment = Math.round(value * (percent / 100));
+        document.getElementById('lc-downpayment').value = downPayment;
+    } else if (type === 'interest') {
+        const slider = document.getElementById('lc-interest-slider');
+        slider.value = value;
+    }
+}
+
+// Toggle extra payment section
+function lcToggleExtraPayment() {
+    const section = document.getElementById('lc-extra-payment-section');
+    const toggleBtn = document.getElementById('lc-extra-toggle');
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggleBtn.innerHTML = 'Remove Extra';
+        toggleBtn.style.background = 'rgba(255,45,85,0.1)';
+        toggleBtn.style.borderColor = 'rgba(255,45,85,0.3)';
+        toggleBtn.style.color = '#ff2d55';
+    } else {
+        section.style.display = 'none';
+        toggleBtn.innerHTML = 'Add Extra';
+        toggleBtn.style.background = 'rgba(57,255,20,0.1)';
+        toggleBtn.style.borderColor = 'rgba(57,255,20,0.3)';
+        toggleBtn.style.color = '#39ff14';
+    }
+    
+    lcCalculate();
+}
+
+// Main calculation function
+function lcCalculate() {
+    // Get values
+    const amount = parseFloat(document.getElementById('lc-amount').value) || 0;
+    const interestRate = (parseFloat(document.getElementById('lc-interest').value) || 0) / 100 / 12;
+    const years = parseInt(document.getElementById('lc-term').value) || 1;
+    const months = years * 12;
+    const downPayment = parseFloat(document.getElementById('lc-downpayment').value) || 0;
+    const extraPayment = document.getElementById('lc-extra-payment-section').style.display === 'block' 
+        ? (parseFloat(document.getElementById('lc-extra-payment').value) || 0)
+        : 0;
+    
+    // Calculate loan principal (amount minus down payment)
+    const principal = Math.max(0, amount - downPayment);
+    
+    if (principal <= 0) {
+        lcShowNotification('Loan amount must be greater than down payment', 'warning');
+        return;
+    }
+    
+    // Calculate monthly payment
+    let monthlyPayment = 0;
+    if (interestRate === 0) {
+        monthlyPayment = principal / months;
+    } else {
+        const pow = Math.pow(1 + interestRate, months);
+        monthlyPayment = principal * interestRate * pow / (pow - 1);
+    }
+    
+    // Calculate total payment with extra payments
+    const totalMonthlyPayment = monthlyPayment + extraPayment;
+    let remainingBalance = principal;
+    let totalInterest = 0;
+    let totalPaid = 0;
+    let amortizationSchedule = [];
+    
+    // Generate amortization schedule
+    for (let i = 1; i <= months && remainingBalance > 0; i++) {
+        const interestPayment = remainingBalance * interestRate;
+        let principalPayment = monthlyPayment - interestPayment;
+        
+        // Add extra payment to principal
+        principalPayment += extraPayment;
+        
+        // Don't overpay
+        if (principalPayment > remainingBalance) {
+            principalPayment = remainingBalance;
+        }
+        
+        remainingBalance -= principalPayment;
+        totalInterest += interestPayment;
+        totalPaid += principalPayment + interestPayment;
+        
+        amortizationSchedule.push({
+            month: i,
+            interest: interestPayment,
+            principal: principalPayment,
+            balance: remainingBalance
+        });
+    }
+    
+    // Calculate totals
+    const totalCost = principal + totalInterest + downPayment;
+    const actualMonths = amortizationSchedule.length;
+    const actualYears = actualMonths / 12;
+    
+    // Update display
+    lcUpdateDisplay({
+        monthlyPayment: totalMonthlyPayment,
+        principal: principal,
+        totalInterest: totalInterest,
+        totalCost: totalCost,
+        totalPaid: totalPaid,
+        remainingBalance: remainingBalance,
+        actualMonths: actualMonths,
+        actualYears: actualYears,
+        amortizationSchedule: amortizationSchedule
+    });
+}
+
+// Update display with results
+function lcUpdateDisplay(results) {
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    };
+    
+    // Update key metrics
+    document.getElementById('lc-monthly-payment').textContent = formatCurrency(results.monthlyPayment);
+    document.getElementById('lc-total-interest').textContent = formatCurrency(results.totalInterest);
+    document.getElementById('lc-total-cost').textContent = formatCurrency(results.totalCost);
+    
+    // Update detailed breakdown
+    document.getElementById('lc-principal-paid').textContent = formatCurrency(results.principal);
+    document.getElementById('lc-interest-paid').textContent = formatCurrency(results.totalInterest);
+    document.getElementById('lc-remaining-balance').textContent = formatCurrency(results.remainingBalance);
+    
+    // Update rate display
+    document.getElementById('lc-rate-display').textContent = 
+        parseFloat(document.getElementById('lc-interest').value).toFixed(2);
+    
+    // Show savings tips if applicable
+    lcGenerateSavingsTips(results);
+    
+    // Update chart
+    lcUpdateChart(results.amortizationSchedule);
+}
+
+// Update amortization chart
+function lcUpdateChart(schedule) {
+    const chartContainer = document.getElementById('lc-chart-container');
+    if (!chartContainer) return;
+    
+    // Take sample points for chart (first 5 years or 60 months)
+    const samplePoints = schedule.slice(0, Math.min(60, schedule.length));
+    const maxPayment = Math.max(...samplePoints.map(p => p.principal + p.interest));
+    
+    let chartHTML = '';
+    samplePoints.forEach((payment, index) => {
+        if (index % 3 === 0) { // Show every 3rd month to avoid overcrowding
+            const totalHeight = ((payment.principal + payment.interest) / maxPayment) * 100;
+            const principalHeight = (payment.principal / (payment.principal + payment.interest)) * totalHeight;
+            const interestHeight = totalHeight - principalHeight;
+            
+            chartHTML += `
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+                    <div style="width:6px;height:${totalHeight}px;display:flex;flex-direction:column;">
+                        <div style="height:${principalHeight}px;background:var(--accent);"></div>
+                        <div style="height:${interestHeight}px;background:#ff2d55;"></div>
+                    </div>
+                    <div style="font-size:9px;color:rgba(230,250,255,0.5);margin-top:4px;">M${index + 1}</div>
+                </div>
+            `;
+        }
+    });
+    
+    chartContainer.querySelector('div').innerHTML = chartHTML;
+}
+
+// Toggle chart visibility
+function lcToggleChart() {
+    const chartContainer = document.getElementById('lc-chart-container');
+    const toggleBtn = document.querySelector('[onclick="lcToggleChart()"]');
+    
+    if (chartContainer.style.display === 'none') {
+        chartContainer.style.display = 'block';
+        toggleBtn.textContent = 'Hide Chart';
+    } else {
+        chartContainer.style.display = 'none';
+        toggleBtn.textContent = 'Show Chart';
+    }
+}
+
+// Generate savings tips
+function lcGenerateSavingsTips(results) {
+    const tipsContainer = document.getElementById('lc-savings-tips');
+    const tipsContent = document.getElementById('lc-tips-content');
+    
+    if (results.totalInterest === 0) {
+        tipsContainer.style.display = 'none';
+        return;
+    }
+    
+    let tips = [];
+    
+    // Tip 1: Extra payments
+    const extraPayment = parseFloat(document.getElementById('lc-extra-payment').value) || 0;
+    if (extraPayment === 0) {
+        const extraTip = `Paying an extra $50/month could save $${Math.round(results.totalInterest * 0.15).toLocaleString()} in interest!`;
+        tips.push(extraTip);
+    }
+    
+    // Tip 2: Shorter term
+    const currentYears = parseInt(document.getElementById('lc-term').value);
+    if (currentYears > 15) {
+        const shorterTermTip = `A 15-year term could save $${Math.round(results.totalInterest * 0.4).toLocaleString()} vs ${currentYears} years.`;
+        tips.push(shorterTermTip);
+    }
+    
+    // Tip 3: Down payment
+    const downPaymentPercent = parseFloat(document.getElementById('lc-downpayment-percent').value) || 0;
+    if (downPaymentPercent < 20) {
+        const downPaymentTip = `20% down payment avoids PMI insurance and saves money long-term.`;
+        tips.push(downPaymentTip);
+    }
+    
+    // Tip 4: Refinancing
+    const interestRate = parseFloat(document.getElementById('lc-interest').value);
+    if (interestRate > 5) {
+        const refinanceTip = `Refinancing at 1% lower rate could save $${Math.round(results.totalInterest * 0.2).toLocaleString()}.`;
+        tips.push(refinanceTip);
+    }
+    
+    if (tips.length > 0) {
+        tipsContent.innerHTML = tips.map(tip => `<div style="margin-bottom:4px;">• ${tip}</div>`).join('');
+        tipsContainer.style.display = 'block';
+    } else {
+        tipsContainer.style.display = 'none';
+    }
+}
+
+// Compare scenarios
+function lcCompareScenario() {
+    // Get current scenario
+    const currentScenario = {
+        name: 'Current',
+        amount: parseFloat(document.getElementById('lc-amount').value) || 0,
+        interest: parseFloat(document.getElementById('lc-interest').value) || 0,
+        years: parseInt(document.getElementById('lc-term').value) || 1,
+        downPayment: parseFloat(document.getElementById('lc-downpayment').value) || 0,
+        extraPayment: document.getElementById('lc-extra-payment-section').style.display === 'block' 
+            ? (parseFloat(document.getElementById('lc-extra-payment').value) || 0)
+            : 0
+    };
+    
+    // Calculate current scenario
+    const currentResults = lcCalculateScenario(currentScenario);
+    
+    // Create comparison scenarios
+    const scenarios = [
+        currentScenario,
+        {
+            name: 'Lower Rate (-1%)',
+            amount: currentScenario.amount,
+            interest: Math.max(0.1, currentScenario.interest - 1),
+            years: currentScenario.years,
+            downPayment: currentScenario.downPayment,
+            extraPayment: 0
+        },
+        {
+            name: 'Shorter Term (15 yr)',
+            amount: currentScenario.amount,
+            interest: currentScenario.interest,
+            years: Math.min(15, currentScenario.years),
+            downPayment: currentScenario.downPayment,
+            extraPayment: 0
+        },
+        {
+            name: 'Extra $100/mo',
+            amount: currentScenario.amount,
+            interest: currentScenario.interest,
+            years: currentScenario.years,
+            downPayment: currentScenario.downPayment,
+            extraPayment: 100
+        }
+    ];
+    
+    // Calculate all scenarios
+    const scenarioResults = scenarios.map(scenario => ({
+        ...scenario,
+        ...lcCalculateScenario(scenario)
+    }));
+    
+    // Show comparison modal
+    lcShowComparisonModal(scenarioResults);
+}
+
+// Calculate a single scenario
+function lcCalculateScenario(scenario) {
+    const principal = Math.max(0, scenario.amount - scenario.downPayment);
+    const interestRate = scenario.interest / 100 / 12;
+    const months = scenario.years * 12;
+    
+    // Calculate monthly payment
+    let monthlyPayment = 0;
+    if (interestRate === 0) {
+        monthlyPayment = principal / months;
+    } else {
+        const pow = Math.pow(1 + interestRate, months);
+        monthlyPayment = principal * interestRate * pow / (pow - 1);
+    }
+    
+    // Calculate with extra payments
+    const totalMonthlyPayment = monthlyPayment + scenario.extraPayment;
+    let remainingBalance = principal;
+    let totalInterest = 0;
+    
+    for (let i = 1; i <= months && remainingBalance > 0; i++) {
+        const interestPayment = remainingBalance * interestRate;
+        let principalPayment = monthlyPayment - interestPayment + scenario.extraPayment;
+        
+        if (principalPayment > remainingBalance) {
+            principalPayment = remainingBalance;
+        }
+        
+        remainingBalance -= principalPayment;
+        totalInterest += interestPayment;
+    }
+    
+    return {
+        monthlyPayment: totalMonthlyPayment,
+        totalInterest: totalInterest,
+        totalCost: principal + totalInterest + scenario.downPayment
+    };
+}
+
+// Show comparison modal
+function lcShowComparisonModal(scenarios) {
+    const modal = document.getElementById('lc-comparison-modal');
+    const content = document.getElementById('lc-comparison-content');
+    
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    };
+    
+    let html = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;font-size:12px;color:rgba(230,250,255,0.7);">
+            <div>Scenario</div>
+            <div>Monthly Payment</div>
+            <div>Total Interest</div>
+            <div>Total Cost</div>
+        </div>
+    `;
+    
+    scenarios.forEach((scenario, index) => {
+        const isCurrent = scenario.name === 'Current';
+        html += `
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:12px;background:${isCurrent ? 'rgba(45,212,255,0.1)' : 'rgba(255,255,255,0.03)'};border-radius:8px;border:1px solid ${isCurrent ? 'rgba(45,212,255,0.3)' : 'rgba(255,255,255,0.1)'};margin-bottom:8px;align-items:center;">
+                <div style="font-weight:${isCurrent ? '600' : '500'};color:${isCurrent ? 'var(--accent)' : 'inherit'};">${scenario.name}</div>
+                <div style="color:var(--accent);font-weight:500;">${formatCurrency(scenario.monthlyPayment)}</div>
+                <div style="color:#ff2d55;font-weight:500;">${formatCurrency(scenario.totalInterest)}</div>
+                <div style="color:#39ff14;font-weight:500;">${formatCurrency(scenario.totalCost)}</div>
+            </div>
+        `;
+    });
+    
+    // Add savings analysis
+    const current = scenarios[0];
+    const bestSavings = scenarios.slice(1).reduce((best, scenario) => {
+        const savings = current.totalInterest - scenario.totalInterest;
+        return savings > best.savings ? { scenario, savings } : best;
+    }, { scenario: null, savings: 0 });
+    
+    if (bestSavings.savings > 0) {
+        html += `
+            <div style="margin-top:20px;padding:12px;background:rgba(57,255,20,0.1);border-radius:8px;border-left:3px solid #39ff14;">
+                <div style="font-weight:600;color:#39ff14;margin-bottom:4px;">💰 Potential Savings</div>
+                <div style="font-size:13px;color:rgba(230,250,255,0.9);">
+                    "${bestSavings.scenario.name}" could save you <strong style="color:#39ff14;">${formatCurrency(bestSavings.savings)}</strong> in interest!
+                </div>
+            </div>
+        `;
+    }
+    
+    content.innerHTML = html;
+    modal.style.display = 'block';
+}
+
+// Close comparison modal
+function lcCloseComparison() {
+    document.getElementById('lc-comparison-modal').style.display = 'none';
+}
+
+// Reset everything
+function lcResetAll() {
+    if (confirm('Reset all loan calculations?')) {
+        lcSetLoanType('mortgage');
+        document.getElementById('lc-extra-payment-section').style.display = 'none';
+        document.getElementById('lc-extra-toggle').innerHTML = 'Add Extra';
+        document.getElementById('lc-extra-toggle').style.background = 'rgba(57,255,20,0.1)';
+        document.getElementById('lc-extra-toggle').style.borderColor = 'rgba(57,255,20,0.3)';
+        document.getElementById('lc-extra-toggle').style.color = '#39ff14';
+        
+        lcCalculate();
+        lcShowNotification('Loan calculator reset', 'info');
+    }
+}
+
+// Notification system
+function lcShowNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 16px;
+        background: ${type === 'success' ? 'rgba(57,255,20,0.15)' : 
+                     type === 'error' ? 'rgba(255,45,85,0.15)' : 
+                     type === 'warning' ? 'rgba(255,204,0,0.15)' : 
+                     'rgba(45,212,255,0.15)'};
+        border: 1px solid ${type === 'success' ? 'rgba(57,255,20,0.3)' : 
+                           type === 'error' ? 'rgba(255,45,85,0.3)' : 
+                           type === 'warning' ? 'rgba(255,204,0,0.3)' : 
+                           'rgba(45,212,255,0.3)'};
+        color: ${type === 'success' ? '#39ff14' : 
+                type === 'error' ? '#ff2d55' : 
+                type === 'warning' ? '#ffcc00' : 
+                'var(--accent)'};
+        border-radius: 8px;
+        z-index: 10000;
+        backdrop-filter: blur(10px);
+        font-weight: 500;
+        animation: lcSlideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'lcSlideOut 0.3s ease';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Add CSS animations
+if (!document.querySelector('#lc-styles')) {
+    const style = document.createElement('style');
+    style.id = 'lc-styles';
+    style.textContent = `
+        @keyframes lcSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes lcSlideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        input:focus, select:focus {
+            border-color: var(--accent) !important;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(45,212,255,0.1);
+        }
+        .loan-type-btn:hover {
+            transform: scale(1.05);
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+        #lc-comparison-modal {
+            backdrop-filter: blur(4px);
+        }
+    `;
+    document.head.appendChild(style);
 }
 </script>
+
+<style>
+/* Card-specific responsive styles */
+#loan-calculator-title {
+    animation: lcFadeIn 0.5s ease;
+}
+
+@media (max-width: 768px) {
+    .actions {
+        flex-direction: column;
+    }
+    
+    .actions button {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .loan-type-btn {
+        padding: 8px !important;
+    }
+    
+    #lc-downpayment-section {
+        grid-template-columns: 1fr !important;
+    }
+    
+    #lc-chart-container {
+        height: 100px !important;
+    }
+}
+
+@keyframes lcFadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
