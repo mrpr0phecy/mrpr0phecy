@@ -1,10 +1,9 @@
-<!-- cards/fuel-cost-calculator.html -->
-<h2 id="fuel-cost-title" style="margin-top:0;color:var(--accent);">⛽ Fuel Cost Calculator</h2>
+<h2 id="fuel-cost-title" style="margin-top:0;color:var(--accent);">⛽ Fuel Cost Calculator Pro</h2>
 
 <form aria-describedby="fuel-cost-desc">
   <p id="fuel-cost-desc" class="small" style="margin-bottom:20px;color:rgba(230,250,255,0.8);">
-    Calculate trip fuel costs, compare vehicles, and explore savings strategies.
-    <span style="color:var(--accent);font-weight:500;">Plan your journey efficiently!</span>
+    Calculate trip fuel costs, compare vehicles, track carbon footprint, and find optimal routes.
+    <span style="color:var(--accent);font-weight:500;">Real-time calculations with environmental impact!</span>
   </p>
 
   <!-- Trip Information -->
@@ -212,7 +211,7 @@
   <div class="actions" style="display:flex;gap:10px;">
     <button type="button" onclick="fuelCalculate(this)" 
             style="flex:1;padding:14px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(57,255,20,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);font-weight:600;cursor:pointer;font-size:16px;">
-      ⛽ Calculate Fuel Cost
+      ⛽ Calculate All Costs
     </button>
     <button type="button" onclick="fuelReset(this)"
             style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
@@ -227,7 +226,7 @@
 
 <div id="fuel-results" aria-live="polite" style="margin-top:20px;display:none;">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <h3 class="small" style="color:var(--accent);margin:0;">📊 Fuel Cost Analysis</h3>
+    <h3 class="small" style="color:var(--accent);margin:0;">📊 Comprehensive Cost Analysis</h3>
     <div style="display:flex;gap:8px;align-items:center;">
       <div id="fuel-calculation-time" class="small" style="color:rgba(230,250,255,0.6);"></div>
     </div>
@@ -286,27 +285,74 @@
 
 <script>
 /* fuel-cost-calculator.html
-   - Comprehensive fuel cost calculator with advanced features
+   - Enhanced Fuel Cost Calculator with Carbon Footprint, Maintenance, and Route Optimization
    - Scoped with fuel- prefix
 */
 
-// Vehicle database with average efficiency
+// Vehicle database with average efficiency and maintenance rates
 const fuelVehicles = {
-  'sedan': { efficiency: 15, unit: 'kmpl', tank: 55 },
-  'suv': { efficiency: 12, unit: 'kmpl', tank: 70 },
-  'truck': { efficiency: 8, unit: 'kmpl', tank: 120 },
-  'hybrid': { efficiency: 22, unit: 'kmpl', tank: 45 },
-  'electric': { efficiency: 6, unit: 'kmpl', tank: 0 }, // km per kWh
-  'motorcycle': { efficiency: 30, unit: 'kmpl', tank: 15 }
+  'sedan': { 
+    efficiency: 15, 
+    unit: 'kmpl', 
+    tank: 55,
+    maintenance: 0.10, // $ per km
+    color: '#2dd4ff'
+  },
+  'suv': { 
+    efficiency: 12, 
+    unit: 'kmpl', 
+    tank: 70,
+    maintenance: 0.12,
+    color: '#39ff14'
+  },
+  'truck': { 
+    efficiency: 8, 
+    unit: 'kmpl', 
+    tank: 120,
+    maintenance: 0.15,
+    color: '#ffa500'
+  },
+  'hybrid': { 
+    efficiency: 22, 
+    unit: 'kmpl', 
+    tank: 45,
+    maintenance: 0.08,
+    color: '#9d4edd'
+  },
+  'electric': { 
+    efficiency: 6, 
+    unit: 'kmpl', 
+    tank: 0,
+    maintenance: 0.06,
+    color: '#ff2d55'
+  },
+  'motorcycle': { 
+    efficiency: 30, 
+    unit: 'kmpl', 
+    tank: 15,
+    maintenance: 0.05,
+    color: '#ffcc00'
+  }
 };
 
-// Fuel price averages (simulated - would be from API in real implementation)
+// Carbon footprint data (kg CO2 per unit)
+const carbonIntensity = {
+  'petrol': 2.31,    // kg CO2 per liter
+  'diesel': 2.68,    // kg CO2 per liter
+  'electric': 0.12,  // kg CO2 per kWh (grid average)
+  'cng': 1.87,       // kg CO2 per kg
+  'lpg': 1.50,       // kg CO2 per liter
+  'hybrid': 1.80     // kg CO2 per liter (average)
+};
+
+// Simulated fuel prices with trends
 const fuelPrices = {
-  'petrol': { price: 3.50, trend: 'stable', lastUpdate: '2024-12-01' },
-  'diesel': { price: 3.80, trend: 'rising', lastUpdate: '2024-12-01' },
-  'electric': { price: 0.15, trend: 'stable', lastUpdate: '2024-12-01' },
-  'cng': { price: 2.50, trend: 'falling', lastUpdate: '2024-12-01' },
-  'lpg': { price: 2.20, trend: 'stable', lastUpdate: '2024-12-01' }
+  'petrol': { price: 3.50, trend: 'stable' },
+  'diesel': { price: 3.80, trend: 'rising' },
+  'electric': { price: 0.15, trend: 'stable' },
+  'cng': { price: 2.50, trend: 'falling' },
+  'lpg': { price: 2.20, trend: 'stable' },
+  'hybrid': { price: 3.50, trend: 'stable' }
 };
 
 // Initialize the tool
@@ -324,14 +370,27 @@ function fuelInit() {
     fuelTypeSelect.addEventListener('change', fuelUpdateFuelType);
   }
   
+  // Set up real-time calculation
+  const inputs = card.querySelectorAll('#fuel-trip-distance, #fuel-efficiency, #fuel-price');
+  inputs.forEach(input => {
+    input.addEventListener('input', () => {
+      if (card.querySelector('#fuel-results').style.display === 'block') {
+        setTimeout(() => fuelCalculate(document.querySelector('.actions button')), 500);
+      }
+    });
+  });
+  
   // Initialize vehicle and fuel type
   fuelUpdateVehicle();
   fuelUpdateFuelType();
   
-  console.log('Fuel Cost Calculator initialized');
+  // Load any saved history
+  fuelLoadHistory();
+  
+  console.log('Fuel Cost Calculator Pro initialized');
 }
 
-// Update vehicle efficiency based on selection
+// Update vehicle settings based on selection
 function fuelUpdateVehicle() {
   const card = document.currentScript?.closest('.card') || document;
   const vehicleType = card.querySelector('#fuel-vehicle-type').value;
@@ -343,12 +402,7 @@ function fuelUpdateVehicle() {
     card.querySelector('#fuel-tank-capacity').value = vehicle.tank;
     
     // Update hint
-    const hint = card.querySelector('#fuel-hint');
-    hint.textContent = `Loaded ${vehicleType} vehicle settings`;
-    hint.style.color = '#39ff14';
-    setTimeout(() => {
-      if (hint.textContent.includes('Loaded')) hint.textContent = '';
-    }, 2000);
+    fuelShowMessage(`Loaded ${vehicleType} vehicle settings`, '#39ff14', 2000);
   }
 }
 
@@ -359,14 +413,14 @@ function fuelUpdateFuelType() {
   
   if (fuelPrices[fuelType]) {
     const priceInfo = fuelPrices[fuelType];
-    card.querySelector('#fuel-price').value = priceInfo.price;
+    card.querySelector('#fuel-price').value = priceInfo.price.toFixed(2);
     
     // Update price trend display
     const trendContainer = card.querySelector('#fuel-price-trend');
     const trendText = card.querySelector('#fuel-trend-text');
     
     trendContainer.style.display = 'block';
-    trendText.textContent = `${priceInfo.trend} (Updated: ${priceInfo.lastUpdate})`;
+    trendText.textContent = `${priceInfo.trend} (simulated data)`;
     
     // Color code trend
     if (priceInfo.trend === 'rising') {
@@ -383,45 +437,73 @@ function fuelUpdateFuelType() {
 function fuelLoadVehicleExample() {
   const card = document.currentScript?.closest('.card') || document;
   
-  // Set example values
-  card.querySelector('#fuel-trip-distance').value = 150;
+  // Set example values for a typical commute
+  card.querySelector('#fuel-trip-distance').value = 25;
   card.querySelector('#fuel-distance-unit').value = 'km';
-  card.querySelector('#fuel-efficiency').value = 18;
+  card.querySelector('#fuel-vehicle-type').value = 'sedan';
+  card.querySelector('#fuel-efficiency').value = 14;
   card.querySelector('#fuel-efficiency-unit').value = 'kmpl';
   card.querySelector('#fuel-price').value = 3.75;
   card.querySelector('#fuel-currency').value = '$';
+  card.querySelector('#fuel-type').value = 'petrol';
+  card.querySelector('#fuel-passengers').value = 1;
+  card.querySelector('#fuel-trip-frequency').value = 'daily';
   
-  const hint = card.querySelector('#fuel-hint');
-  hint.textContent = 'Example vehicle loaded - adjust as needed';
-  hint.style.color = '#ffa500';
-  setTimeout(() => {
-    if (hint.textContent.includes('Example')) hint.textContent = '';
-  }, 2000);
+  fuelUpdateVehicle();
+  fuelUpdateFuelType();
+  
+  fuelShowMessage('Example daily commute loaded', '#ffa500', 2000);
 }
 
-// Fetch live prices (simulated)
-function fuelFetchLivePrices() {
+// Enhanced live price fetching with realistic simulation
+async function fuelFetchLivePrices() {
   const card = document.currentScript?.closest('.card') || document;
   const fuelType = card.querySelector('#fuel-type').value;
   
-  // Simulate API call
   const hint = card.querySelector('#fuel-hint');
-  hint.textContent = 'Fetching live prices...';
-  hint.style.color = '#2dd4ff';
+  fuelShowMessage('Fetching live prices...', '#2dd4ff', 1000);
   
+  // Simulate API call with realistic daily patterns
   setTimeout(() => {
-    // Simulate price update
+    const currentHour = new Date().getHours();
+    let priceAdjustment = 0;
+    
+    // Simulate daily price fluctuations (realistic patterns)
+    if (currentHour >= 7 && currentHour <= 9) priceAdjustment = 0.12;  // Morning rush hour premium
+    if (currentHour >= 16 && currentHour <= 18) priceAdjustment = 0.15; // Evening rush hour premium
+    if (currentHour >= 22 || currentHour <= 5) priceAdjustment = -0.10; // Late night discount
+    
+    // Weekend effect
+    const day = new Date().getDay();
+    if (day === 0 || day === 6) priceAdjustment += 0.08; // Weekend premium
+    
+    // Random market fluctuation
+    const marketFluctuation = (Math.random() * 0.3 - 0.15); // -15% to +15%
+    priceAdjustment += marketFluctuation;
+    
     const currentPrice = parseFloat(card.querySelector('#fuel-price').value);
-    const newPrice = currentPrice + (Math.random() * 0.5 - 0.25); // +/- $0.25
-    card.querySelector('#fuel-price').value = newPrice.toFixed(2);
+    const newPrice = currentPrice + priceAdjustment;
     
-    hint.textContent = `Live price updated: $${newPrice.toFixed(2)}`;
-    hint.style.color = '#39ff14';
+    // Keep within realistic bounds
+    const boundedPrice = Math.max(2.50, Math.min(6.00, newPrice)).toFixed(2);
     
-    setTimeout(() => {
-      if (hint.textContent.includes('Live price')) hint.textContent = '';
-    }, 3000);
-  }, 1000);
+    card.querySelector('#fuel-price').value = boundedPrice;
+    
+    // Determine trend
+    const trend = priceAdjustment > 0.1 ? 'rising' : 
+                  priceAdjustment < -0.1 ? 'falling' : 'stable';
+    
+    // Update trend display
+    const trendContainer = card.querySelector('#fuel-price-trend');
+    const trendText = card.querySelector('#fuel-trend-text');
+    trendContainer.style.display = 'block';
+    trendText.textContent = `${trend} (simulated: ${priceAdjustment > 0 ? '+' : ''}${priceAdjustment.toFixed(2)})`;
+    trendText.style.color = trend === 'rising' ? '#ff2d55' : trend === 'falling' ? '#39ff14' : '#ffa500';
+    
+    fuelShowMessage(`Price updated: $${boundedPrice} (${trend})`, 
+                   trend === 'rising' ? '#ff2d55' : '#39ff14', 3000);
+    
+  }, 800);
 }
 
 // Convert efficiency to common unit (L/100km)
@@ -446,10 +528,63 @@ function fuelConvertToKm(distance, unit) {
   return distance;
 }
 
-// Calculate fuel consumption
+// Calculate fuel consumption with proper unit handling
 function fuelCalculateConsumption(distanceKm, efficiency, unit) {
   const l100km = fuelConvertToL100km(efficiency, unit);
   return (distanceKm * l100km) / 100;
+}
+
+// Calculate maintenance cost
+function calculateMaintenanceCost(distanceKm, vehicleType) {
+  const vehicle = fuelVehicles[vehicleType];
+  if (!vehicle || !vehicle.maintenance) return 0;
+  
+  return distanceKm * vehicle.maintenance;
+}
+
+// Calculate carbon emissions
+function calculateCarbonEmissions(consumption, fuelType) {
+  const intensity = carbonIntensity[fuelType];
+  if (!intensity) return 0;
+  
+  return consumption * intensity;
+}
+
+// Track fuel consumption history
+function trackFuelHistory(data) {
+  try {
+    const history = JSON.parse(localStorage.getItem('fuel_history') || '[]');
+    
+    const entry = {
+      date: new Date().toISOString(),
+      distance: data.distance,
+      consumption: data.consumption,
+      cost: data.cost,
+      efficiency: data.efficiency,
+      vehicleType: document.querySelector('#fuel-vehicle-type').value,
+      fuelType: data.fuelType,
+      emissions: data.emissions
+    };
+    
+    history.unshift(entry); // Add to beginning
+    if (history.length > 100) history.pop(); // Keep only last 100 entries
+    
+    localStorage.setItem('fuel_history', JSON.stringify(history));
+  } catch (e) {
+    console.log('Could not save history:', e);
+  }
+}
+
+// Load and display history
+function fuelLoadHistory() {
+  try {
+    const history = JSON.parse(localStorage.getItem('fuel_history') || '[]');
+    if (history.length > 0) {
+      console.log(`Loaded ${history.length} historical fuel calculations`);
+    }
+  } catch (e) {
+    console.log('Could not load history');
+  }
 }
 
 // Main calculation function
@@ -457,7 +592,7 @@ function fuelCalculate(btn) {
   const startTime = performance.now();
   const card = btn.closest('.card') || document;
   
-  // Get inputs
+  // Get all inputs
   const distance = parseFloat(card.querySelector('#fuel-trip-distance').value);
   const distanceUnit = card.querySelector('#fuel-distance-unit').value;
   const efficiency = parseFloat(card.querySelector('#fuel-efficiency').value);
@@ -468,6 +603,7 @@ function fuelCalculate(btn) {
   const returnTrip = card.querySelector('#fuel-return-trip').checked;
   const passengers = parseInt(card.querySelector('#fuel-passengers').value) || 1;
   const frequency = card.querySelector('#fuel-trip-frequency').value;
+  const vehicleType = card.querySelector('#fuel-vehicle-type').value;
   
   // Get advanced factors
   const trafficFactor = parseFloat(card.querySelector('#fuel-traffic-factor').value);
@@ -477,9 +613,7 @@ function fuelCalculate(btn) {
   
   // Validate inputs
   if (!distance || distance <= 0 || !efficiency || efficiency <= 0 || !price || price <= 0) {
-    const hint = card.querySelector('#fuel-hint');
-    hint.textContent = 'Please enter valid distance, efficiency, and price values';
-    hint.style.color = '#ff2d55';
+    fuelShowMessage('Please enter valid distance, efficiency, and price values', '#ff2d55', 3000);
     return;
   }
   
@@ -493,9 +627,19 @@ function fuelCalculate(btn) {
   const adjustmentFactor = trafficFactor * drivingFactor * weatherFactor * roadFactor;
   const adjustedConsumption = baseConsumption * adjustmentFactor;
   
-  // Calculate costs
-  const cost = adjustedConsumption * price;
-  const costPerPassenger = cost / passengers;
+  // Calculate fuel cost
+  const fuelCost = adjustedConsumption * price;
+  
+  // Calculate maintenance cost
+  const maintenanceCost = calculateMaintenanceCost(totalDistanceKm, vehicleType);
+  
+  // Calculate carbon emissions
+  const emissions = calculateCarbonEmissions(adjustedConsumption, fuelType);
+  const treesNeeded = emissions / 21; // One tree absorbs ~21kg CO2 per year
+  
+  // Calculate total cost (fuel + maintenance)
+  const totalCost = fuelCost + maintenanceCost;
+  const costPerPassenger = totalCost / passengers;
   
   // Calculate frequency costs
   const frequencyMultipliers = {
@@ -506,43 +650,52 @@ function fuelCalculate(btn) {
     'yearly': 1
   };
   
-  const yearlyCost = cost * (frequencyMultipliers[frequency] || 1);
+  const yearlyCost = totalCost * (frequencyMultipliers[frequency] || 1);
   
-  // Calculate additional metrics
+  // Calculate trip feasibility
   const tankCapacity = parseFloat(card.querySelector('#fuel-tank-capacity').value) || 60;
   const currentFuel = parseFloat(card.querySelector('#fuel-current-fuel').value) || 100;
   const currentFuelLitres = (currentFuel / 100) * tankCapacity;
-  
-  // Can we make the trip without refueling?
   const canMakeTrip = currentFuelLitres >= adjustedConsumption;
   const fuelNeeded = Math.max(0, adjustedConsumption - currentFuelLitres);
   const refuelCost = fuelNeeded * price;
   
-  // Display results
-  fuelDisplayResults(card, {
+  // Prepare data object
+  const data = {
     distance: totalDistanceKm,
     distanceUnit: 'km',
     consumption: adjustedConsumption,
     baseConsumption: baseConsumption,
-    cost: cost,
+    fuelCost: fuelCost,
+    maintenanceCost: maintenanceCost,
+    totalCost: totalCost,
     yearlyCost: yearlyCost,
     costPerPassenger: costPerPassenger,
     currency: currency,
     fuelType: fuelType,
     passengers: passengers,
     frequency: frequency,
+    vehicleType: vehicleType,
     canMakeTrip: canMakeTrip,
     fuelNeeded: fuelNeeded,
     refuelCost: refuelCost,
     adjustmentFactor: adjustmentFactor,
     efficiency: efficiency,
-    efficiencyUnit: efficiencyUnit
-  });
+    efficiencyUnit: efficiencyUnit,
+    emissions: emissions,
+    treesNeeded: treesNeeded
+  };
+  
+  // Display results
+  fuelDisplayResults(card, data);
   
   // Show additional sections
   fuelShowBreakdown(card, {
     baseConsumption: baseConsumption,
     adjustedConsumption: adjustedConsumption,
+    fuelCost: fuelCost,
+    maintenanceCost: maintenanceCost,
+    totalCost: totalCost,
     factors: {
       traffic: trafficFactor,
       driving: drivingFactor,
@@ -551,12 +704,10 @@ function fuelCalculate(btn) {
     }
   });
   
-  fuelShowSavingsTips(card, {
-    cost: cost,
-    consumption: adjustedConsumption,
-    efficiency: efficiency,
-    efficiencyUnit: efficiencyUnit
-  });
+  fuelShowSavingsTips(card, data);
+  
+  // Track history
+  trackFuelHistory(data);
   
   // Calculate and show execution time
   const endTime = performance.now();
@@ -568,13 +719,10 @@ function fuelCalculate(btn) {
   resultsDiv.style.display = 'block';
   resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
   
-  // Update hint
-  const hint = card.querySelector('#fuel-hint');
-  hint.textContent = 'Fuel cost calculated successfully!';
-  hint.style.color = '#39ff14';
+  fuelShowMessage('Fuel cost calculated successfully!', '#39ff14', 2000);
 }
 
-// Display main results
+// Display main results with all enhancements
 function fuelDisplayResults(card, data) {
   const container = card.querySelector('#fuel-output-container');
   
@@ -582,32 +730,43 @@ function fuelDisplayResults(card, data) {
   
   // Main cost display
   html += `<div style="text-align:center;margin-bottom:24px;">`;
-  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);">${data.currency}${data.cost.toFixed(2)}</div>`;
-  html += `<div class="small" style="color:rgba(230,250,255,0.7);">Total ${data.frequency} fuel cost</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);">${data.currency}${data.totalCost.toFixed(2)}</div>`;
+  html += `<div class="small" style="color:rgba(230,250,255,0.7);">Total ${data.frequency} cost (fuel + maintenance)</div>`;
   html += `</div>`;
   
-  // Key metrics grid
+  // Key metrics grid - 2x3 layout
   html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">`;
   
   html += `<div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;">`;
-  html += `<div class="small" style="color:var(--accent);">Fuel Consumption</div>`;
-  html += `<div style="font-size:18px;font-weight:600;">${data.consumption.toFixed(2)} L</div>`;
-  html += `</div>`;
-  
-  html += `<div style="padding:12px;background:rgba(57,255,20,0.05);border-radius:8px;">`;
-  html += `<div class="small" style="color:#39ff14;">Cost per Passenger</div>`;
-  html += `<div style="font-size:18px;font-weight:600;">${data.currency}${data.costPerPassenger.toFixed(2)}</div>`;
+  html += `<div class="small" style="color:var(--accent);">🚗 Fuel Cost</div>`;
+  html += `<div style="font-size:18px;font-weight:600;">${data.currency}${data.fuelCost.toFixed(2)}</div>`;
   html += `</div>`;
   
   html += `<div style="padding:12px;background:rgba(255,165,0,0.05);border-radius:8px;">`;
-  html += `<div class="small" style="color:#ffa500;">Yearly Cost</div>`;
-  html += `<div style="font-size:18px;font-weight:600;">${data.currency}${data.yearlyCost.toFixed(2)}</div>`;
+  html += `<div class="small" style="color:#ffa500;">🔧 Maintenance</div>`;
+  html += `<div style="font-size:18px;font-weight:600;">${data.currency}${data.maintenanceCost.toFixed(2)}</div>`;
+  html += `</div>`;
+  
+  html += `<div style="padding:12px;background:rgba(57,255,20,0.05);border-radius:8px;">`;
+  html += `<div class="small" style="color:#39ff14;">👥 Per Passenger</div>`;
+  html += `<div style="font-size:18px;font-weight:600;">${data.currency}${data.costPerPassenger.toFixed(2)}</div>`;
   html += `</div>`;
   
   html += `<div style="padding:12px;background:rgba(255,77,77,0.05);border-radius:8px;">`;
-  html += `<div class="small" style="color:#ff4d4d;">Trip Distance</div>`;
-  html += `<div style="font-size:18px;font-weight:600;">${data.distance.toFixed(1)} ${data.distanceUnit}</div>`;
+  html += `<div class="small" style="color:#ff4d4d;">📏 Distance</div>`;
+  html += `<div style="font-size:18px;font-weight:600;">${data.distance.toFixed(1)} km</div>`;
   html += `</div>`;
+  
+  html += `<div style="padding:12px;background:rgba(157,78,221,0.05);border-radius:8px;">`;
+  html += `<div class="small" style="color:#9d4edd;">🌍 CO₂ Emissions</div>`;
+  html += `<div style="font-size:18px;font-weight:600;">${data.emissions.toFixed(1)} kg</div>`;
+  html += `</div>`;
+  
+  html += `<div style="padding:12px;background:rgba(255,204,0,0.05);border-radius:8px;">`;
+  html += `<div class="small" style="color:#ffcc00;">📅 Yearly Cost</div>`;
+  html += `<div style="font-size:18px;font-weight:600;">${data.currency}${data.yearlyCost.toFixed(2)}</div>`;
+  html += `</div>`;
+  
   html += `</div>`;
   
   // Trip feasibility
@@ -623,23 +782,29 @@ function fuelDisplayResults(card, data) {
     html += `</div>`;
   }
   
+  // Environmental impact
+  html += `<div style="margin-top:16px;padding:12px;background:rgba(157,78,221,0.1);border-radius:8px;border:1px solid rgba(157,78,221,0.3);">`;
+  html += `<div style="color:#9d4edd;font-weight:600;">🌍 Environmental Impact</div>`;
+  html += `<div class="small" style="color:rgba(230,250,255,0.8);">`;
+  html += `Carbon footprint: <strong>${data.emissions.toFixed(1)} kg CO₂</strong><br>`;
+  html += `Equivalent to <strong>${data.treesNeeded.toFixed(1)} trees</strong> absorbing for a year<br>`;
+  html += `<small style="color:rgba(230,250,255,0.6);">Based on average carbon intensity for ${data.fuelType}</small>`;
+  html += `</div>`;
+  html += `</div>`;
+  
   html += `</div>`;
   
   container.innerHTML = html;
   
   // Show breakdown container
-  const breakdownContainer = card.querySelector('#fuel-breakdown-container');
-  breakdownContainer.style.display = 'block';
-  
-  // Show savings container
-  const savingsContainer = card.querySelector('#fuel-savings-container');
-  savingsContainer.style.display = 'block';
+  card.querySelector('#fuel-breakdown-container').style.display = 'block';
+  card.querySelector('#fuel-savings-container').style.display = 'block';
   
   // Store data for copying
   container.dataset.fuelData = JSON.stringify(data);
 }
 
-// Show cost breakdown
+// Enhanced cost breakdown
 function fuelShowBreakdown(card, data) {
   const container = card.querySelector('#fuel-breakdown-content');
   
@@ -656,19 +821,29 @@ function fuelShowBreakdown(card, data) {
   html += `</div>`;
   
   html += `<div>`;
-  html += `<div class="small" style="color:var(--accent);margin-bottom:4px;">Adjustment Factor</div>`;
-  html += `<div style="font-weight:600;">${data.adjustmentFactor.toFixed(2)}x</div>`;
+  html += `<div class="small" style="color:var(--accent);margin-bottom:4px;">Fuel Cost</div>`;
+  html += `<div style="font-weight:600;">$${data.fuelCost.toFixed(2)}</div>`;
   html += `</div>`;
   
   html += `<div>`;
-  html += `<div class="small" style="color:var(--accent);margin-bottom:4px;">Efficiency Impact</div>`;
-  html += `<div style="font-weight:600;">${((data.adjustmentFactor - 1) * 100).toFixed(1)}%</div>`;
+  html += `<div class="small" style="color:var(--accent);margin-bottom:4px;">Maintenance</div>`;
+  html += `<div style="font-weight:600;">$${data.maintenanceCost.toFixed(2)}</div>`;
+  html += `</div>`;
+  
+  html += `<div>`;
+  html += `<div class="small" style="color:var(--accent);margin-bottom:4px;">Total Cost</div>`;
+  html += `<div style="font-weight:600;color:#39ff14;">$${data.totalCost.toFixed(2)}</div>`;
+  html += `</div>`;
+  
+  html += `<div>`;
+  html += `<div class="small" style="color:var(--accent);margin-bottom:4px;">Adjustment Factor</div>`;
+  html += `<div style="font-weight:600;">${data.adjustmentFactor.toFixed(2)}x</div>`;
   html += `</div>`;
   html += `</div>`;
   
   // Factor breakdown
   html += `<div style="margin-top:16px;">`;
-  html += `<div class="small" style="color:var(--accent);margin-bottom:8px;">Factor Details:</div>`;
+  html += `<div class="small" style="color:var(--accent);margin-bottom:8px;">Impact Factors:</div>`;
   html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">`;
   
   const factors = [
@@ -694,26 +869,33 @@ function fuelShowBreakdown(card, data) {
   container.innerHTML = html;
 }
 
-// Show savings tips
+// Enhanced savings tips with personalized suggestions
 function fuelShowSavingsTips(card, data) {
   const container = card.querySelector('#fuel-savings-content');
   
   const tips = [];
   
-  // Generate tips based on data
-  if (data.consumption > 20) {
-    tips.push(`🔄 Improve driving habits to reduce consumption by up to 20%`);
+  // Generate personalized tips based on data
+  if (data.adjustmentFactor > 1.1) {
+    tips.push(`🔄 Improve driving habits - current factors increase cost by ${((data.adjustmentFactor-1)*100).toFixed(0)}%`);
   }
   
   if (data.efficiency < 15 && data.efficiencyUnit === 'kmpl') {
     tips.push(`🚗 Consider a more fuel-efficient vehicle (aim for 15+ km/L)`);
   }
   
+  if (data.passengers === 1) {
+    tips.push(`👥 Carpooling could save ~${(data.totalCost * 0.5).toFixed(2)} per trip`);
+  }
+  
+  if (data.fuelCost > 50) {
+    tips.push(`⛽ Fuel-efficient routes could save 10-25% on long trips`);
+  }
+  
   tips.push(`🚦 Avoid rush hour traffic to save ~10% on fuel`);
   tips.push(`⚡ Maintain proper tire pressure for 3% better efficiency`);
-  tips.push(`🔄 Regular vehicle maintenance can improve efficiency by 4-10%`);
-  tips.push(`📱 Use fuel price apps to find cheaper stations`);
-  tips.push(`🚗 Carpooling can cut your fuel costs by 50-75%`);
+  tips.push(`🔧 Regular maintenance improves efficiency by 4-10%`);
+  tips.push(`📱 Use apps to find cheaper fuel stations`);
   
   let html = `<div style="display:grid;gap:8px;">`;
   
@@ -724,21 +906,25 @@ function fuelShowSavingsTips(card, data) {
     html += `</div>`;
   });
   
-  // Potential savings calculation
-  const potentialSavings = data.cost * 0.15; // Assume 15% savings possible
+  // Calculate potential savings
+  const potentialSavings = data.totalCost * 0.15; // Assume 15% savings possible
+  const yearlySavings = data.yearlyCost * 0.15;
+  
   html += `<div style="margin-top:12px;padding:10px;background:rgba(57,255,20,0.1);border-radius:6px;">`;
-  html += `<div style="color:#39ff14;font-weight:600;">Potential Savings: ${data.currency}${potentialSavings.toFixed(2)} per trip</div>`;
-  html += `<div class="small" style="color:rgba(230,250,255,0.8);">By implementing these tips</div>`;
+  html += `<div style="color:#39ff14;font-weight:600;">💰 Potential Savings</div>`;
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">`;
+  html += `<div><small>Per trip:</small><br><strong>${data.currency}${potentialSavings.toFixed(2)}</strong></div>`;
+  html += `<div><small>Yearly:</small><br><strong>${data.currency}${yearlySavings.toFixed(2)}</strong></div>`;
+  html += `</div>`;
   html += `</div>`;
   
   html += `</div>`;
   container.innerHTML = html;
 }
 
-// Compare vehicles
+// Compare different vehicle types
 function fuelCompareVehicles() {
   const card = document.currentScript?.closest('.card') || document;
-  const hint = card.querySelector('#fuel-hint');
   
   // Get current trip data
   const distance = parseFloat(card.querySelector('#fuel-trip-distance').value);
@@ -749,23 +935,34 @@ function fuelCompareVehicles() {
   
   const totalDistanceKm = fuelConvertToKm(distance, distanceUnit) * (returnTrip ? 2 : 1);
   
-  // Compare different vehicle types
   let comparison = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
   comparison += `<h4 class="small" style="color:var(--accent);margin-bottom:16px;">🚗 Vehicle Comparison</h4>`;
   comparison += `<div style="display:grid;gap:8px;">`;
   
   Object.entries(fuelVehicles).forEach(([type, vehicle]) => {
-    if (type === 'electric') return; // Skip electric for now
+    if (type === 'electric') return; // Skip electric for now (different units)
     
     const consumption = fuelCalculateConsumption(totalDistanceKm, vehicle.efficiency, vehicle.unit);
-    const cost = consumption * price;
+    const fuelCost = consumption * price;
+    const maintenanceCost = calculateMaintenanceCost(totalDistanceKm, type);
+    const totalCost = fuelCost + maintenanceCost;
+    const emissions = calculateCarbonEmissions(consumption, 'petrol');
     
-    comparison += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;">`;
-    comparison += `<span style="color:var(--accent);text-transform:capitalize;">${type}</span>`;
-    comparison += `<span>${currency}${cost.toFixed(2)}</span>`;
+    comparison += `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:rgba(255,255,255,0.03);border-radius:6px;border-left:4px solid ${vehicle.color};">`;
+    comparison += `<div>`;
+    comparison += `<div style="font-weight:600;color:#fff;text-transform:capitalize;">${type}</div>`;
+    comparison += `<div style="font-size:11px;color:rgba(230,250,255,0.6);">${vehicle.efficiency} ${vehicle.unit} • ${emissions.toFixed(1)}kg CO₂</div>`;
+    comparison += `</div>`;
+    comparison += `<div style="text-align:right;">`;
+    comparison += `<div style="color:${vehicle.color};font-weight:600;">${currency}${totalCost.toFixed(2)}</div>`;
+    comparison += `<div style="font-size:11px;color:rgba(230,250,255,0.6);">Fuel: ${currency}${fuelCost.toFixed(2)}</div>`;
+    comparison += `</div>`;
     comparison += `</div>`;
   });
   
+  comparison += `</div>`;
+  comparison += `<div style="margin-top:12px;font-size:12px;color:rgba(230,250,255,0.6);">`;
+  comparison += `💡 Tip: Switching to a more efficient vehicle can save 20-50% on fuel costs`;
   comparison += `</div>`;
   comparison += `</div>`;
   
@@ -774,15 +971,98 @@ function fuelCompareVehicles() {
   const chartsContent = card.querySelector('#fuel-charts-content');
   chartsContent.innerHTML = comparison;
   chartsContainer.style.display = 'block';
+  chartsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
   
-  hint.textContent = 'Vehicle comparison generated';
-  hint.style.color = '#ffa500';
-  setTimeout(() => {
-    if (hint.textContent.includes('comparison')) hint.textContent = '';
-  }, 3000);
+  fuelShowMessage('Vehicle comparison generated', '#ffa500', 3000);
 }
 
-// Reset form
+// Show alternative routes with realistic simulation
+function fuelShowAlternativeRoutes() {
+  const card = document.currentScript?.closest('.card') || document;
+  const distance = parseFloat(card.querySelector('#fuel-trip-distance').value);
+  const unit = card.querySelector('#fuel-distance-unit').value;
+  
+  const baseDistanceKm = unit === 'miles' ? distance * 1.60934 : distance;
+  
+  // Simulate 3 route alternatives with realistic parameters
+  const routes = [
+    { 
+      name: '🚗 Fastest Route', 
+      distance: baseDistanceKm, 
+      traffic: 'heavy', 
+      time: `${Math.round(baseDistanceKm/40*60)} min`, 
+      savings: 0,
+      description: 'Direct but congested'
+    },
+    { 
+      name: '🔄 Eco Route', 
+      distance: baseDistanceKm * 1.15, 
+      traffic: 'light', 
+      time: `${Math.round(baseDistanceKm*1.15/50*60)} min`, 
+      savings: 18,
+      description: 'Slightly longer, much smoother'
+    },
+    { 
+      name: '🚲 Scenic Route', 
+      distance: baseDistanceKm * 1.35, 
+      traffic: 'none', 
+      time: `${Math.round(baseDistanceKm*1.35/60*60)} min`, 
+      savings: 28,
+      description: 'Long but efficient and pleasant'
+    }
+  ];
+  
+  // Create route comparison UI
+  let routesHtml = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+  routesHtml += `<h4 class="small" style="color:var(--accent);margin-bottom:16px;">🗺️ Route Alternatives Analysis</h4>`;
+  routesHtml += `<div style="display:grid;gap:12px;">`;
+  
+  routes.forEach(route => {
+    const efficiency = parseFloat(card.querySelector('#fuel-efficiency').value);
+    const unit = card.querySelector('#fuel-efficiency-unit').value;
+    const price = parseFloat(card.querySelector('#fuel-price').value);
+    const currency = card.querySelector('#fuel-currency').value;
+    
+    const consumption = fuelCalculateConsumption(route.distance, efficiency, unit);
+    const cost = consumption * price;
+    const savingsAmount = (cost * route.savings) / 100;
+    const emissions = calculateCarbonEmissions(consumption, card.querySelector('#fuel-type').value);
+    
+    routesHtml += `<div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;border-left:4px solid ${route.savings > 20 ? '#39ff14' : route.savings > 10 ? '#ffa500' : '#2dd4ff'};">`;
+    routesHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">`;
+    routesHtml += `<span style="font-weight:600;color:#fff;">${route.name}</span>`;
+    routesHtml += `<span style="color:var(--accent);font-weight:600;">${currency}${cost.toFixed(2)}</span>`;
+    routesHtml += `</div>`;
+    routesHtml += `<div style="font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:6px;">${route.description}</div>`;
+    routesHtml += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px;color:rgba(230,250,255,0.7);">`;
+    routesHtml += `<div>📏 ${route.distance.toFixed(1)} km</div>`;
+    routesHtml += `<div>⏱️ ${route.time}</div>`;
+    routesHtml += `<div style="color:#39ff14;">💵 Save ${route.savings}%</div>`;
+    routesHtml += `</div>`;
+    routesHtml += `<div style="font-size:11px;color:rgba(230,250,255,0.6);margin-top:4px;">`;
+    routesHtml += `🌍 ${emissions.toFixed(1)}kg CO₂ • Traffic: ${route.traffic}`;
+    routesHtml += `</div>`;
+    routesHtml += `</div>`;
+  });
+  
+  routesHtml += `</div>`;
+  routesHtml += `<div style="margin-top:12px;padding:10px;background:rgba(57,255,20,0.1);border-radius:6px;">`;
+  routesHtml += `<div style="color:#39ff14;font-size:12px;">💡 Best choice: Eco Route saves ~18% with only 15% extra distance</div>`;
+  routesHtml += `</div>`;
+  routesHtml += `</div>`;
+  
+  const chartsContent = card.querySelector('#fuel-charts-content');
+  chartsContent.innerHTML = routesHtml;
+  
+  // Show the container
+  const chartsContainer = card.querySelector('#fuel-charts-container');
+  chartsContainer.style.display = 'block';
+  chartsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  
+  fuelShowMessage('Route alternatives calculated!', '#39ff14', 3000);
+}
+
+// Enhanced reset function
 function fuelReset(btn) {
   const card = btn.closest('.card') || document;
   
@@ -818,75 +1098,89 @@ function fuelReset(btn) {
   // Clear hint
   const hint = card.querySelector('#fuel-hint');
   hint.textContent = '';
+  
+  fuelShowMessage('Calculator reset to defaults', '#ffa500', 2000);
 }
 
-// Copy results
+// Copy results to clipboard
 function fuelCopyResults() {
   const card = document.currentScript?.closest('.card') || document;
   const data = card.querySelector('#fuel-output-container').dataset.fuelData;
   
   if (!data) {
-    fuelShowMessage('No results available to copy', '#ff2d55');
+    fuelShowMessage('No results available to copy', '#ff2d55', 3000);
     return;
   }
   
   const fuelData = JSON.parse(data);
-  const text = `Fuel Cost Calculation\n` +
-               `Total Cost: ${fuelData.currency}${fuelData.cost.toFixed(2)}\n` +
-               `Distance: ${fuelData.distance.toFixed(1)} ${fuelData.distanceUnit}\n` +
+  const text = `Fuel Cost Calculation Report\n` +
+               `=============================\n` +
+               `Total Cost: ${fuelData.currency}${fuelData.totalCost.toFixed(2)}\n` +
+               `- Fuel: ${fuelData.currency}${fuelData.fuelCost.toFixed(2)}\n` +
+               `- Maintenance: ${fuelData.currency}${fuelData.maintenanceCost.toFixed(2)}\n` +
+               `Distance: ${fuelData.distance.toFixed(1)} km\n` +
                `Consumption: ${fuelData.consumption.toFixed(2)} L\n` +
                `Cost per Passenger: ${fuelData.currency}${fuelData.costPerPassenger.toFixed(2)}\n` +
-               `Yearly Cost: ${fuelData.currency}${fuelData.yearlyCost.toFixed(2)}`;
+               `Yearly Cost: ${fuelData.currency}${fuelData.yearlyCost.toFixed(2)}\n` +
+               `Carbon Footprint: ${fuelData.emissions.toFixed(1)} kg CO₂\n` +
+               `Generated: ${new Date().toLocaleString()}`;
   
   navigator.clipboard.writeText(text).then(() => {
-    fuelShowMessage('✅ Results copied to clipboard!', '#39ff14');
+    fuelShowMessage('✅ Results copied to clipboard!', '#39ff14', 3000);
   }).catch(err => {
     console.error('Copy failed:', err);
-    fuelShowMessage('❌ Copy failed', '#ff2d55');
+    fuelShowMessage('❌ Copy failed - try selecting text manually', '#ff2d55', 3000);
   });
 }
 
-// Download report
+// Download report as text file
 function fuelDownloadReport() {
   const card = document.currentScript?.closest('.card') || document;
   const data = card.querySelector('#fuel-output-container').dataset.fuelData;
   
   if (!data) {
-    fuelShowMessage('No results available to download', '#ff2d55');
+    fuelShowMessage('No results available to download', '#ff2d55', 3000);
     return;
   }
   
   const fuelData = JSON.parse(data);
   let text = `FUEL COST CALCULATION REPORT\n`;
-  text += `Generated: ${new Date().toLocaleString()}\n\n`;
+  text += `=============================\n\n`;
+  text += `GENERATED: ${new Date().toLocaleString()}\n\n`;
   text += `TRIP INFORMATION:\n`;
-  text += `Distance: ${fuelData.distance.toFixed(1)} ${fuelData.distanceUnit}\n`;
+  text += `Distance: ${fuelData.distance.toFixed(1)} km\n`;
   text += `Passengers: ${fuelData.passengers}\n`;
-  text += `Frequency: ${fuelData.frequency}\n\n`;
-  text += `FUEL INFORMATION:\n`;
-  text += `Fuel Type: ${fuelData.fuelType}\n`;
-  text += `Efficiency: ${fuelData.efficiency} ${fuelData.efficiencyUnit}\n\n`;
+  text += `Frequency: ${fuelData.frequency}\n`;
+  text += `Vehicle: ${fuelData.vehicleType}\n`;
+  text += `Fuel Type: ${fuelData.fuelType}\n\n`;
   text += `COST BREAKDOWN:\n`;
-  text += `Total Cost: ${fuelData.currency}${fuelData.cost.toFixed(2)}\n`;
+  text += `Total Cost: ${fuelData.currency}${fuelData.totalCost.toFixed(2)}\n`;
+  text += `- Fuel Cost: ${fuelData.currency}${fuelData.fuelCost.toFixed(2)}\n`;
+  text += `- Maintenance: ${fuelData.currency}${fuelData.maintenanceCost.toFixed(2)}\n`;
   text += `Cost per Passenger: ${fuelData.currency}${fuelData.costPerPassenger.toFixed(2)}\n`;
-  text += `Yearly Cost: ${fuelData.currency}${fuelData.yearlyCost.toFixed(2)}\n`;
-  text += `Fuel Consumption: ${fuelData.consumption.toFixed(2)} L\n\n`;
+  text += `Yearly Cost: ${fuelData.currency}${fuelData.yearlyCost.toFixed(2)}\n\n`;
+  text += `ENVIRONMENTAL IMPACT:\n`;
+  text += `Carbon Emissions: ${fuelData.emissions.toFixed(1)} kg CO₂\n`;
+  text += `Equivalent to ${fuelData.treesNeeded.toFixed(1)} trees absorbing for a year\n\n`;
+  text += `ADDITIONAL INFO:\n`;
+  text += `Fuel Consumption: ${fuelData.consumption.toFixed(2)} L\n`;
+  text += `Efficiency: ${fuelData.efficiency} ${fuelData.efficiencyUnit}\n`;
   
   if (!fuelData.canMakeTrip) {
-    text += `NOTICE: Need to refuel ${fuelData.fuelNeeded.toFixed(2)}L more\n`;
+    text += `\nNOTICE: Need to refuel ${fuelData.fuelNeeded.toFixed(2)}L more\n`;
   }
   
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'fuel-cost-report.txt';
+  a.download = `fuel-cost-report-${new Date().toISOString().slice(0,10)}.txt`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   
-  fuelShowMessage('✅ Report downloaded!', '#39ff14');
+  fuelShowMessage('✅ Report downloaded!', '#39ff14', 3000);
 }
 
 // Share results
@@ -895,47 +1189,35 @@ function fuelShareResults() {
   const data = card.querySelector('#fuel-output-container').dataset.fuelData;
   
   if (!data) {
-    fuelShowMessage('No results to share', '#ff2d55');
+    fuelShowMessage('No results to share', '#ff2d55', 3000);
     return;
   }
   
   const fuelData = JSON.parse(data);
-  const shareText = `My trip fuel cost: ${fuelData.currency}${fuelData.cost.toFixed(2)} for ${fuelData.distance.toFixed(1)}km. Calculated with The Most Useful Site!`;
+  const shareText = `My trip analysis: ${fuelData.currency}${fuelData.totalCost.toFixed(2)} total cost for ${fuelData.distance.toFixed(1)}km. ${fuelData.emissions.toFixed(1)}kg CO₂ emitted. Calculated with The Most Useful Site!`;
   
   if (navigator.share) {
     navigator.share({
-      title: 'Fuel Cost Calculation',
+      title: 'Fuel Cost Analysis',
       text: shareText,
       url: window.location.href
     }).catch(console.error);
   } else {
     navigator.clipboard.writeText(shareText).then(() => {
-      fuelShowMessage('✅ Results copied to share!', '#39ff14');
+      fuelShowMessage('✅ Results copied to share!', '#39ff14', 3000);
     });
   }
 }
 
-// Show alternative routes
-function fuelShowAlternativeRoutes() {
-  const card = document.currentScript?.closest('.card') || document;
-  const hint = card.querySelector('#fuel-hint');
-  
-  hint.textContent = 'Alternative routes could save 10-25% on fuel. Consider using navigation apps.';
-  hint.style.color = '#2dd4ff';
-  setTimeout(() => {
-    if (hint.textContent.includes('Alternative routes')) hint.textContent = '';
-  }, 4000);
-}
-
 // Helper function to show messages
-function fuelShowMessage(message, color) {
+function fuelShowMessage(message, color, duration = 3000) {
   const card = document.currentScript?.closest('.card') || document;
   const hint = card.querySelector('#fuel-hint');
   hint.textContent = message;
   hint.style.color = color;
   setTimeout(() => {
     if (hint.textContent === message) hint.textContent = '';
-  }, 3000);
+  }, duration);
 }
 
 // Initialize on load
@@ -944,6 +1226,18 @@ if (document.readyState === 'loading') {
 } else {
   fuelInit();
 }
+
+// Add keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    const calculateBtn = document.querySelector('.actions button');
+    if (calculateBtn) calculateBtn.click();
+  }
+  if (e.key === 'Escape') {
+    const resetBtn = document.querySelector('.actions button:nth-child(2)');
+    if (resetBtn) resetBtn.click();
+  }
+});
 </script>
 
 <style>
@@ -951,6 +1245,7 @@ if (document.readyState === 'loading') {
   color: var(--accent);
   margin-top: 0;
   font-size: 1.3rem;
+  margin-bottom: 4px;
 }
 
 .small-btn {
@@ -967,10 +1262,13 @@ if (document.readyState === 'loading') {
 .small-btn:hover {
   background: rgba(45,212,255,0.1);
   border-color: rgba(45,212,255,0.3);
+  transform: translateY(-1px);
 }
 
 details summary {
   list-style: none;
+  cursor: pointer;
+  user-select: none;
 }
 
 details summary::-webkit-details-marker {
@@ -981,12 +1279,14 @@ details summary::after {
   content: '▶';
   float: right;
   transition: transform 0.2s;
+  color: var(--accent);
 }
 
 details[open] summary::after {
   transform: rotate(90deg);
 }
 
+/* Mobile responsiveness */
 @media (max-width: 768px) {
   .field {
     grid-column: 1 / -1 !important;
@@ -994,11 +1294,51 @@ details[open] summary::after {
   
   .actions {
     flex-direction: column;
+    gap: 8px !important;
   }
   
   .actions button {
     width: 100%;
-    margin: 4px 0 !important;
+    margin: 0 !important;
+  }
+  
+  #fuel-charts-container,
+  #fuel-breakdown-container,
+  #fuel-savings-container {
+    padding: 12px !important;
+  }
+  
+  input, select {
+    font-size: 16px !important; /* Prevents iOS zoom */
+  }
+  
+  button {
+    min-height: 44px !important; /* Touch-friendly */
+  }
+}
+
+@media (max-width: 480px) {
+  .fuel-section > div {
+    grid-template-columns: 1fr !important;
+  }
+  
+  #fuel-output-container > div {
+    padding: 16px !important;
+  }
+  
+  #fuel-trend-text {
+    font-size: 11px !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  #fuel-results {
+    display: block !important;
+  }
+  
+  button, .actions, .small-btn {
+    display: none !important;
   }
 }
 </style>
