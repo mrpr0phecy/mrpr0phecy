@@ -1,114 +1,947 @@
-<h2 id="pcb-trace-width-title" style="margin-top:0;">PCB Trace Width Calculator (General Advice)</h2>
-
-<form aria-describedby="pcb-trace-width-desc">
-  <p id="pcb-trace-width-desc" class="small">
-    Estimate minimum PCB trace width for a given current. ⚠️ Educational only — always verify with IPC standards and a qualified technician.
-  </p>
-
-  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div class="field">
-      <label for="pcb-current">Current (A)</label>
-      <input id="pcb-current" type="number" placeholder="e.g. 2" style="width:100%;" />
+<div class="card">
+  <h2 class="card-title">
+    <span class="card-icon">⚡</span>
+    PCB Trace Width Calculator
+    <span class="card-subtitle">(General Advice)</span>
+  </h2>
+  
+  <div class="card-content">
+    <div class="card-warning">
+      <span class="warning-icon">⚠️</span>
+      <p>Educational only — always verify with IPC standards and a qualified technician.</p>
     </div>
-
-    <div class="field">
-      <label for="pcb-thickness">Copper Thickness (oz)</label>
-      <input id="pcb-thickness" type="number" placeholder="e.g. 1" style="width:100%;" />
+    
+    <p class="card-description">
+      Estimate minimum PCB trace width for a given current, copper thickness, and temperature rise.
+    </p>
+    
+    <form class="card-form">
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="pcb-current" class="field-label">
+            <span class="field-icon">🔋</span>
+            Current (A)
+          </label>
+          <div class="input-group">
+            <input type="number" id="pcb-current" step="0.1" min="0.1" max="100" placeholder="e.g. 2">
+            <span class="input-unit">A</span>
+          </div>
+        </div>
+        
+        <div class="form-field">
+          <label for="pcb-thickness" class="field-label">
+            <span class="field-icon">📏</span>
+            Copper Thickness
+          </label>
+          <div class="input-group">
+            <input type="number" id="pcb-thickness" step="0.5" min="0.5" max="4" value="1" placeholder="e.g. 1">
+            <span class="input-unit">oz/ft²</span>
+          </div>
+        </div>
+        
+        <div class="form-field">
+          <label for="pcb-temp" class="field-label">
+            <span class="field-icon">🌡️</span>
+            Max Temperature Rise
+          </label>
+          <div class="input-group">
+            <input type="number" id="pcb-temp" step="1" min="5" max="100" value="10" placeholder="e.g. 10">
+            <span class="input-unit">°C</span>
+          </div>
+        </div>
+        
+        <div class="form-field">
+          <label for="pcb-length" class="field-label">
+            <span class="field-icon">📐</span>
+            Trace Length
+          </label>
+          <div class="input-group">
+            <input type="number" id="pcb-length" step="1" min="1" max="1000" placeholder="e.g. 50">
+            <span class="input-unit">mm</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-options">
+        <label class="option-toggle">
+          <input type="checkbox" id="pcb-show-facts" checked>
+          <span class="toggle-slider"></span>
+          <span class="option-label">
+            <span class="option-icon">ℹ️</span>
+            Show PCB Facts & Guidelines
+          </span>
+        </label>
+      </div>
+      
+      <div class="card-actions">
+        <button type="button" class="card-btn primary" onclick="pcbCalculate()">
+          <span class="btn-icon">🧮</span>
+          Calculate Trace Width
+        </button>
+        <button type="button" class="card-btn secondary" onclick="pcbReset()">
+          <span class="btn-icon">🔄</span>
+          Reset
+        </button>
+        <button type="button" class="card-btn" onclick="pcbCopy()">
+          <span class="btn-icon">📋</span>
+          Copy Result
+        </button>
+      </div>
+    </form>
+    
+    <div class="results-section">
+      <div class="section-header">
+        <h3 class="section-title">
+          <span class="section-icon">📊</span>
+          Trace Width Results
+        </h3>
+        <div class="result-quality" id="result-quality">
+          <!-- Filled by JavaScript -->
+        </div>
+      </div>
+      
+      <div class="result-display">
+        <div class="result-metric">
+          <span class="metric-label">Minimum Trace Width</span>
+          <div class="metric-value" id="trace-width-value">–</div>
+          <div class="metric-units">
+            <span class="unit active" data-unit="mm">mm</span>
+            <span class="unit" data-unit="mils">mils</span>
+            <span class="unit" data-unit="inches">inches</span>
+          </div>
+        </div>
+        
+        <div class="result-details">
+          <textarea id="pcb-output" readonly placeholder="Results and calculations will appear here..."></textarea>
+          <div id="pcb-hint" class="result-hint"></div>
+        </div>
+      </div>
+      
+      <div class="trace-visualization">
+        <div class="visualization-label">Trace Visualization</div>
+        <div class="trace-container">
+          <div class="trace-background"></div>
+          <div class="trace-line" id="trace-line"></div>
+          <div class="trace-dimensions">
+            <span class="trace-width-label" id="trace-width-label">– mm</span>
+          </div>
+        </div>
+        <div class="trace-legend">
+          <div class="legend-item">
+            <span class="legend-color" style="background: #3b82f6;"></span>
+            <span>Copper Trace</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-color" style="background: #1e293b;"></span>
+            <span>PCB Substrate</span>
+          </div>
+        </div>
+      </div>
     </div>
-
-    <div class="field">
-      <label for="pcb-temp">Allowed Temp Rise (°C)</label>
-      <input id="pcb-temp" type="number" placeholder="e.g. 10" style="width:100%;" />
+    
+    <div id="pcb-facts-container" class="facts-container">
+      <h4 class="facts-title">
+        <span class="facts-icon">📚</span>
+        PCB Design Guidelines & Facts
+      </h4>
+      <div class="facts-grid">
+        <div class="fact-card">
+          <div class="fact-icon">⚡</div>
+          <h5>Current Capacity</h5>
+          <p>Higher current requires wider traces to prevent overheating and voltage drop.</p>
+        </div>
+        <div class="fact-card">
+          <div class="fact-icon">📏</div>
+          <h5>Copper Thickness</h5>
+          <p>Standard PCB copper weights: 0.5 oz, 1 oz, 2 oz. Thicker copper carries more current.</p>
+        </div>
+        <div class="fact-card">
+          <div class="fact-icon">🌡️</div>
+          <h5>Temperature Rise</h5>
+          <p>Typical allowable temperature rise: 10-20°C for general purpose, 5°C for sensitive circuits.</p>
+        </div>
+        <div class="fact-card">
+          <div class="fact-icon">📐</div>
+          <h5>Trace Length</h5>
+          <p>Longer traces increase resistance and voltage drop. Consider increasing width for long traces.</p>
+        </div>
+        <div class="fact-card">
+          <div class="fact-icon">🏭</div>
+          <h5>IPC Standards</h5>
+          <p>IPC-2221 provides guidelines for trace sizing based on current, temperature, and copper weight.</p>
+        </div>
+        <div class="fact-card">
+          <div class="fact-icon">⚠️</div>
+          <h5>Important Note</h5>
+          <p>This calculator provides estimates only. Always verify with official standards and manufacturer specs.</p>
+        </div>
+      </div>
     </div>
-
-    <div class="field">
-      <label for="pcb-length">Trace Length (mm)</label>
-      <input id="pcb-length" type="number" placeholder="e.g. 50" style="width:100%;" />
-    </div>
-
-    <div class="field">
-      <label for="pcb-show-facts">Show PCB Facts</label>
-      <select id="pcb-show-facts" style="width:100%;">
-        <option value="yes" selected>Yes</option>
-        <option value="no">No</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="actions" style="margin-top:12px;">
-    <button type="button" onclick="pcbCalculate(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="pcbReset(this)">Reset</button>
-    <button type="button" onclick="pcbCopy(this)">Copy Result</button>
-  </div>
-</form>
-
-<div class="results" aria-live="polite" style="margin-top:12px;">
-  <h3 class="small">PCB Trace Results & Facts</h3>
-  <textarea id="pcb-output" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;"></textarea>
-
-  <div id="pcb-facts-container" style="margin-top:16px;display:none;">
-    <ul style="list-style:disc;padding-left:20px;font-size:0.95rem;line-height:1.5;">
-      <li>PCB trace width depends on current, copper thickness, and allowable temperature rise.</li>
-      <li>IPC‑2221 provides industry guidelines for trace sizing.</li>
-      <li>Thicker copper layers allow narrower traces for the same current.</li>
-      <li>Longer traces increase resistance and voltage drop.</li>
-      <li>⚠️ Always verify PCB designs with IPC standards and manufacturer capabilities.</li>
-    </ul>
-  </div>
-
-  <div style="margin-top:8px;">
-    <div id="pcb-hint" class="small" style="opacity:0.9;"></div>
   </div>
 </div>
 
-<script>
-/* pcb-trace-width.html
-   - Educational PCB trace width calculator
-   - Scoped with pcb- prefix
-*/
-
-function pcbReset(btn){
-  const card=btn.closest('.card')||document;
-  card.querySelector('form').reset();
-  card.querySelector('#pcb-output').value="";
-  card.querySelector('#pcb-hint').textContent="";
-  card.querySelector('#pcb-facts-container').style.display="none";
+<style>
+.card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-function pcbCopy(btn){
-  const card=btn.closest('.card')||document;
-  const out=card.querySelector('#pcb-output').value;
-  if(!out.trim())return;
-  navigator.clipboard?.writeText(out).then(()=>{
-    const h=card.querySelector('#pcb-hint');
-    h.textContent="Copied.";
-    setTimeout(()=>{if(h.textContent==="Copied.")h.textContent="";},1600);
+.card-title {
+  margin: 0 0 16px 0;
+  color: #2d3748;
+  font-size: 24px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-icon {
+  font-size: 28px;
+}
+
+.card-subtitle {
+  font-size: 16px;
+  font-weight: 400;
+  color: #718096;
+  margin-left: auto;
+}
+
+.card-warning {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.warning-icon {
+  font-size: 20px;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.card-warning p {
+  margin: 0;
+  font-size: 14px;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.card-description {
+  color: #718096;
+  font-size: 14px;
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a5568;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-icon {
+  font-size: 16px;
+  opacity: 0.8;
+}
+
+.input-group {
+  position: relative;
+  display: flex;
+}
+
+.input-group input {
+  flex: 1;
+  padding: 12px 44px 12px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 16px;
+  color: #2d3748;
+  background: #f8fafc;
+  transition: all 0.2s;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  background: white;
+}
+
+.input-group input::placeholder {
+  color: #a0aec0;
+}
+
+.input-unit {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: #718096;
+  font-weight: 500;
+}
+
+.form-options {
+  margin-bottom: 24px;
+}
+
+.option-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.option-toggle:hover {
+  background: #edf2f7;
+  border-color: #e2e8f0;
+}
+
+.option-toggle input[type="checkbox"] {
+  display: none;
+}
+
+.toggle-slider {
+  width: 44px;
+  height: 24px;
+  background: #cbd5e0;
+  border-radius: 12px;
+  position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-slider:after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  top: 2px;
+  left: 2px;
+  transition: all 0.2s;
+}
+
+.option-toggle input:checked + .toggle-slider {
+  background: #10b981;
+}
+
+.option-toggle input:checked + .toggle-slider:after {
+  left: 22px;
+}
+
+.option-label {
+  font-size: 14px;
+  color: #4a5568;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-icon {
+  font-size: 16px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.card-btn {
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.card-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-btn:active {
+  transform: translateY(0);
+}
+
+.card-btn.primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.card-btn.primary:hover {
+  background: #2563eb;
+}
+
+.card-btn.secondary {
+  background: #edf2f7;
+  color: #4a5568;
+}
+
+.card-btn.secondary:hover {
+  background: #e2e8f0;
+}
+
+.btn-icon {
+  font-size: 16px;
+}
+
+.results-section {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  margin: 0;
+  color: #2d3748;
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-icon {
+  font-size: 20px;
+}
+
+.result-quality {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: #e2e8f0;
+  color: #4a5568;
+}
+
+.result-display {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 640px) {
+  .result-display {
+    grid-template-columns: 1fr;
+  }
+}
+
+.result-metric {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.metric-label {
+  display: block;
+  font-size: 14px;
+  color: #718096;
+  margin-bottom: 12px;
+}
+
+.metric-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: #3b82f6;
+  margin-bottom: 16px;
+  font-family: 'Courier New', monospace;
+}
+
+.metric-units {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.unit {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #718096;
+  background: #f1f5f9;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unit:hover {
+  background: #e2e8f0;
+}
+
+.unit.active {
+  background: #3b82f6;
+  color: white;
+}
+
+.result-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-details textarea {
+  flex: 1;
+  padding: 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'Courier New', monospace;
+  color: #2d3748;
+  background: white;
+  resize: none;
+  line-height: 1.6;
+  min-height: 120px;
+}
+
+.result-details textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.result-hint {
+  font-size: 12px;
+  color: #10b981;
+  text-align: center;
+  min-height: 18px;
+}
+
+.trace-visualization {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.visualization-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a5568;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.trace-container {
+  position: relative;
+  height: 100px;
+  background: #1e293b;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.trace-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.05) 10px,
+    transparent 10px,
+    transparent 20px
+  );
+}
+
+.trace-line {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 10px;
+  background: linear-gradient(90deg, #60a5fa, #3b82f6);
+  border-radius: 5px;
+  transition: all 0.5s ease;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.trace-dimensions {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2d3748;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.trace-legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  font-size: 12px;
+  color: #718096;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.facts-container {
+  display: none;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 24px;
+}
+
+.facts-title {
+  margin: 0 0 20px 0;
+  color: #2d3748;
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.facts-icon {
+  font-size: 20px;
+}
+
+.facts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .facts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .facts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fact-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.2s;
+}
+
+.fact-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-color: #cbd5e0;
+}
+
+.fact-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+  color: #3b82f6;
+}
+
+.fact-card h5 {
+  margin: 0 0 8px 0;
+  color: #2d3748;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fact-card p {
+  margin: 0;
+  font-size: 13px;
+  color: #718096;
+  line-height: 1.5;
+}
+</style>
+
+<script>
+let currentUnit = 'mm';
+let traceWidthMM = 0;
+
+function pcbCalculate() {
+  const I = parseFloat(document.getElementById('pcb-current').value);
+  const thickness = parseFloat(document.getElementById('pcb-thickness').value);
+  const tempRise = parseFloat(document.getElementById('pcb-temp').value);
+  const length = parseFloat(document.getElementById('pcb-length').value);
+  const showFacts = document.getElementById('pcb-show-facts').checked;
+  
+  // Clear previous results
+  document.getElementById('pcb-output').value = '';
+  document.getElementById('pcb-hint').textContent = '';
+  
+  // Validation
+  if (!I || I <= 0) {
+    showError('Please enter a valid current (A)');
+    return;
+  }
+  
+  if (!thickness || thickness <= 0) {
+    showError('Please enter a valid copper thickness (oz/ft²)');
+    return;
+  }
+  
+  if (!tempRise || tempRise <= 0) {
+    showError('Please enter a valid temperature rise (°C)');
+    return;
+  }
+  
+  // Simplified IPC-2221 approximation
+  const k = 0.024; // empirical constant
+  const A = Math.pow(I / k, 0.44) * Math.pow(tempRise, -0.725); // cross-sectional area (mil²)
+  const widthMils = (A / (thickness * 1.378)).toFixed(2);
+  traceWidthMM = (widthMils * 0.0254).toFixed(2);
+  
+  // Update display
+  updateTraceWidthDisplay();
+  updateTraceVisualization();
+  
+  // Generate detailed output
+  let output = '';
+  output += '=== PCB TRACE WIDTH CALCULATION ===\n\n';
+  output += `Input Parameters:\n`;
+  output += `• Current: ${I} A\n`;
+  output += `• Copper Thickness: ${thickness} oz/ft²\n`;
+  output += `• Max Temperature Rise: ${tempRise} °C\n`;
+  if (length && length > 0) {
+    output += `• Trace Length: ${length} mm\n`;
+  }
+  output += `\nResults:\n`;
+  output += `• Minimum Trace Width: ${traceWidthMM} mm\n`;
+  output += `                    : ${widthMils} mils\n`;
+  output += `                    : ${(widthMils / 1000).toFixed(4)} inches\n`;
+  output += `\nNotes:\n`;
+  output += `1. Calculation based on IPC-2221 approximation\n`;
+  output += `2. For traces longer than 50mm, consider increasing width by 10-20%\n`;
+  output += `3. Always verify with manufacturer specifications\n`;
+  output += `4. Consider additional factors: ambient temperature, airflow, board layers\n`;
+  
+  if (length && length > 0) {
+    const resistance = (0.017 * length / (traceWidthMM * 0.035 * thickness)).toFixed(3);
+    const voltageDrop = (I * resistance).toFixed(3);
+    output += `\nFor ${length}mm trace:\n`;
+    output += `• Estimated Resistance: ${resistance} Ω\n`;
+    output += `• Voltage Drop @${I}A: ${voltageDrop} V\n`;
+  }
+  
+  document.getElementById('pcb-output').value = output;
+  document.getElementById('pcb-hint').textContent = '✓ Calculation complete';
+  document.getElementById('pcb-hint').style.color = '#10b981';
+  
+  // Update quality indicator
+  updateQualityIndicator(I, traceWidthMM);
+  
+  // Show/hide facts
+  document.getElementById('pcb-facts-container').style.display = showFacts ? 'grid' : 'none';
+}
+
+function pcbReset() {
+  if (confirm('Reset all inputs and results?')) {
+    document.getElementById('pcb-current').value = '';
+    document.getElementById('pcb-thickness').value = '1';
+    document.getElementById('pcb-temp').value = '10';
+    document.getElementById('pcb-length').value = '';
+    document.getElementById('pcb-show-facts').checked = true;
+    document.getElementById('pcb-output').value = '';
+    document.getElementById('pcb-hint').textContent = '';
+    document.getElementById('trace-width-value').textContent = '–';
+    document.getElementById('result-quality').textContent = '';
+    document.getElementById('result-quality').style.background = '#e2e8f0';
+    document.getElementById('pcb-facts-container').style.display = 'grid';
+    traceWidthMM = 0;
+    updateTraceVisualization();
+  }
+}
+
+function pcbCopy() {
+  const output = document.getElementById('pcb-output').value;
+  if (!output.trim()) {
+    showError('No results to copy');
+    return;
+  }
+  
+  navigator.clipboard.writeText(output).then(() => {
+    document.getElementById('pcb-hint').textContent = '✓ Results copied to clipboard';
+    document.getElementById('pcb-hint').style.color = '#10b981';
+    
+    setTimeout(() => {
+      if (document.getElementById('pcb-hint').textContent.includes('copied')) {
+        document.getElementById('pcb-hint').textContent = '';
+      }
+    }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy: ', err);
+    showError('Failed to copy to clipboard');
   });
 }
 
-function pcbCalculate(btn){
-  const card=btn.closest('.card')||document;
-  const I=parseFloat(card.querySelector('#pcb-current').value);
-  const thickness=parseFloat(card.querySelector('#pcb-thickness').value);
-  const tempRise=parseFloat(card.querySelector('#pcb-temp').value);
-  const length=parseFloat(card.querySelector('#pcb-length').value);
-  const showFacts=card.querySelector('#pcb-show-facts').value==="yes";
-  let out="";
-  if(I>0 && thickness>0 && tempRise>0){
-    // Simplified IPC-2221 approximation (not exact)
-    const k=0.024; // empirical constant
-    const A=Math.pow(I/k,0.44)*Math.pow(tempRise,-0.725); // cross-sectional area (mil²)
-    const width=(A/(thickness*1.378)).toFixed(2); // convert to mils width
-    const widthMM=(width*0.0254).toFixed(2); // mils to mm
-    out=`Estimated minimum trace width ≈ ${widthMM} mm\n⚠️ Verify with IPC-2221 and manufacturer specs.`;
-    if(length>0){
-      out+=`\nTrace length entered: ${length} mm (longer traces increase resistance).`;
-    }
-  } else {
-    out="Please enter valid current, copper thickness, and temp rise.";
-  }
-  card.querySelector('#pcb-output').value=out;
-  card.querySelector('#pcb-hint').textContent="Result generated.";
-  card.querySelector('#pcb-facts-container').style.display=showFacts?"block":"none";
+function showError(message) {
+  document.getElementById('pcb-hint').textContent = `⚠️ ${message}`;
+  document.getElementById('pcb-hint').style.color = '#ef4444';
 }
+
+function updateTraceWidthDisplay() {
+  const valueElement = document.getElementById('trace-width-value');
+  const labelElement = document.getElementById('trace-width-label');
+  
+  let displayValue;
+  switch (currentUnit) {
+    case 'mm':
+      displayValue = traceWidthMM;
+      labelElement.textContent = `${traceWidthMM} mm`;
+      break;
+    case 'mils':
+      displayValue = (traceWidthMM / 0.0254).toFixed(2);
+      labelElement.textContent = `${displayValue} mils`;
+      break;
+    case 'inches':
+      displayValue = (traceWidthMM / 25.4).toFixed(4);
+      labelElement.textContent = `${displayValue} inches`;
+      break;
+  }
+  
+  valueElement.textContent = displayValue || '–';
+}
+
+function updateTraceVisualization() {
+  const traceLine = document.getElementById('trace-line');
+  const containerWidth = 400; // Approximate container width in pixels
+  
+  if (traceWidthMM > 0) {
+    // Scale trace width for visualization (1mm = 8px)
+    const visualWidth = Math.max(10, Math.min(200, traceWidthMM * 8));
+    traceLine.style.width = `${visualWidth}px`;
+    traceLine.style.height = `${Math.max(8, Math.min(20, traceWidthMM * 4))}px`;
+  } else {
+    traceLine.style.width = '0px';
+  }
+}
+
+function updateQualityIndicator(current, widthMM) {
+  const qualityElement = document.getElementById('result-quality');
+  
+  // Simple quality assessment
+  const currentDensity = current / widthMM; // A/mm
+  
+  if (currentDensity < 0.5) {
+    qualityElement.textContent = 'Conservative';
+    qualityElement.style.background = '#10b981';
+    qualityElement.style.color = 'white';
+  } else if (currentDensity < 1) {
+    qualityElement.textContent = 'Good';
+    qualityElement.style.background = '#3b82f6';
+    qualityElement.style.color = 'white';
+  } else if (currentDensity < 2) {
+    qualityElement.textContent = 'Adequate';
+    qualityElement.style.background = '#f59e0b';
+    qualityElement.style.color = 'white';
+  } else {
+    qualityElement.textContent = 'Risky';
+    qualityElement.style.background = '#ef4444';
+    qualityElement.style.color = 'white';
+  }
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
+  // Unit switcher
+  document.querySelectorAll('.unit').forEach(unit => {
+    unit.addEventListener('click', function() {
+      document.querySelectorAll('.unit').forEach(u => u.classList.remove('active'));
+      this.classList.add('active');
+      currentUnit = this.getAttribute('data-unit');
+      if (traceWidthMM > 0) {
+        updateTraceWidthDisplay();
+      }
+    });
+  });
+  
+  // Auto-calculate on input change
+  const inputs = document.querySelectorAll('.input-group input');
+  inputs.forEach(input => {
+    input.addEventListener('change', () => {
+      const hasValues = Array.from(inputs).every(i => !i.value || parseFloat(i.value) > 0);
+      if (hasValues && document.getElementById('pcb-current').value) {
+        pcbCalculate();
+      }
+    });
+  });
+  
+  // Toggle facts
+  document.getElementById('pcb-show-facts').addEventListener('change', function() {
+    const container = document.getElementById('pcb-facts-container');
+    container.style.display = this.checked ? 'grid' : 'none';
+  });
+  
+  // Initialize visualization
+  updateTraceVisualization();
+});
 </script>
