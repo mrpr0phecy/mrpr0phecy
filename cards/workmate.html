@@ -1,0 +1,998 @@
+<h2 id="workmate-title" style="margin-top:0;">🔨 Virtual Builder's Workmate</h2>
+
+<form aria-describedby="workmate-desc">
+  <p id="workmate-desc" class="small">Virtual measurement and leveling tools using device sensors. Requires camera and motion sensor permissions.</p>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="field">
+      <label for="workmate-tool">Tool</label>
+      <select id="workmate-tool" style="width:100%;">
+        <option value="level" selected>📏 Bubble Level</option>
+        <option value="ruler">📐 Virtual Ruler</option>
+        <option value="protractor">📐 Angle Finder</option>
+        <option value="plumb">⬇️ Plumb Bob</option>
+        <option value="laser">🔦 Laser Pointer</option>
+        <option value="measure">📏 Distance Measure</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="workmate-unit">Units</label>
+      <select id="workmate-unit" style="width:100%;">
+        <option value="metric" selected>Metric (cm/mm)</option>
+        <option value="imperial">Imperial (inches)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:12px;">
+    <button type="button" onclick="startWorkmate()">▶️ Start Tools</button>
+    <button type="button" class="secondary" onclick="stopWorkmate()">⏹️ Stop</button>
+    <button type="button" onclick="calibrateWorkmate()">🎯 Calibrate</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="margin-top:12px;">
+  <h3 class="small" id="workmate-results-title">Tool Output</h3>
+  
+  <div id="workmate-permissions" style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:12px;margin-bottom:12px;text-align:center;display:none;">
+    <div style="font-size:14px;margin-bottom:8px;">⚠️ Permissions Required</div>
+    <div style="font-size:11px;margin-bottom:8px;">This tool needs access to device motion sensors</div>
+    <button onclick="requestPermissions()" style="padding:6px 12px;background:#4299e1;color:white;border:none;border-radius:4px;cursor:pointer;">
+      Grant Permissions
+    </button>
+  </div>
+
+  <div id="workmate-output" style="min-height:300px;padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;position:relative;overflow:hidden;">
+    <div style="text-align:center;padding:60px 20px;color:rgba(230,250,255,0.5);">
+      <div style="font-size:48px;margin-bottom:16px;">🔨</div>
+      <div>Click "Start Tools" to begin</div>
+      <div style="font-size:11px;margin-top:8px;">Uses device gyroscope and camera</div>
+    </div>
+  </div>
+
+  <div id="workmate-readings" style="margin-top:12px;display:none;">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+      <div style="padding:8px;background:rgba(66,153,225,0.1);border-radius:6px;">
+        <div style="font-size:11px;color:rgba(230,250,255,0.7);">X Angle</div>
+        <div id="x-angle" style="font-size:20px;font-weight:700;color:#4299e1;">0.0°</div>
+      </div>
+      <div style="padding:8px;background:rgba(78,205,196,0.1);border-radius:6px;">
+        <div style="font-size:11px;color:rgba(230,250,255,0.7);">Y Angle</div>
+        <div id="y-angle" style="font-size:20px;font-weight:700;color:#4ecdc4;">0.0°</div>
+      </div>
+      <div style="padding:8px;background:rgba(255,209,102,0.1);border-radius:6px;">
+        <div style="font-size:11px;color:rgba(230,250,255,0.7);">Z Angle</div>
+        <div id="z-angle" style="font-size:20px;font-weight:700;color:#ffd166;">0.0°</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="workmate-hint" class="small" style="opacity:0.9;color:#4ecdc4;margin-top:8px;text-align:center;"></div>
+</div>
+
+<style>
+/* Virtual Builder's Workmate Styles */
+.workmate-canvas {
+  width: 100%;
+  height: 300px;
+  background: #1a1a2e;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.bubble-level {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  background: rgba(255,255,255,0.1);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.bubble {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background: radial-gradient(circle, #ff6b6b, #ff4757);
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.1s ease;
+  box-shadow: 0 0 20px rgba(255,107,107,0.5);
+}
+
+.level-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.virtual-ruler {
+  position: absolute;
+  top: 50%;
+  left: 20px;
+  right: 20px;
+  height: 40px;
+  background: linear-gradient(90deg, 
+    rgba(255,255,255,0.1) 0%, 
+    rgba(255,255,255,0.2) 50%, 
+    rgba(255,255,255,0.1) 100%);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 4px;
+}
+
+.ruler-mark {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 20px;
+  background: rgba(255,255,255,0.5);
+}
+
+.ruler-number {
+  position: absolute;
+  top: -25px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.7);
+  transform: translateX(-50%);
+}
+
+.angle-display {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0,0,0,0.7);
+  padding: 10px;
+  border-radius: 6px;
+  font-family: monospace;
+  color: white;
+  font-size: 14px;
+}
+
+.calibration-dot {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #4ecdc4;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 10px rgba(78,205,196,0.5);
+}
+
+.laser-beam {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ff6b6b, transparent);
+  box-shadow: 0 0 10px rgba(255,107,107,0.7);
+  transform-origin: left center;
+}
+
+.tool-indicator {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.7);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: white;
+}
+
+.accuracy-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.accuracy-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff6b6b, #ffd166, #4ecdc4);
+  width: 75%;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+.measuring {
+  animation: pulse 1s infinite;
+}
+
+.workmate-alert {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255,107,107,0.9);
+  color: white;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  z-index: 100;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .bubble-level {
+    width: 150px;
+    height: 150px;
+  }
+  
+  .bubble {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .workmate-canvas {
+    height: 200px;
+  }
+}
+</style>
+
+<script>
+/* Virtual Builder's Workmate - Uses Device Sensors */
+
+let workmateActive = false;
+let currentTool = 'level';
+let sensorData = {
+  alpha: 0, // Z-axis rotation
+  beta: 0,  // X-axis rotation (front-back tilt)
+  gamma: 0, // Y-axis rotation (left-right tilt)
+  accuracy: 0,
+  timestamp: 0
+};
+
+let deviceOrientationHandler = null;
+let animationFrame = null;
+let canvasContext = null;
+let cameraStream = null;
+
+// Initialize
+function initWorkmate() {
+  console.log("Builder's Workmate initializing...");
+  
+  // Check for device orientation support
+  if (!window.DeviceOrientationEvent) {
+    showWorkmateHint('⚠️ Device orientation not supported', 'warning');
+    document.getElementById('workmate-permissions').style.display = 'block';
+  }
+  
+  // Set up event listeners
+  document.getElementById('workmate-tool').addEventListener('change', handleToolChange);
+  document.getElementById('workmate-unit').addEventListener('change', handleUnitChange);
+  
+  // Create canvas for visualization
+  createVisualizationCanvas();
+}
+
+// Create visualization canvas
+function createVisualizationCanvas() {
+  const output = document.getElementById('workmate-output');
+  output.innerHTML = '';
+  
+  const canvas = document.createElement('canvas');
+  canvas.className = 'workmate-canvas';
+  canvas.width = output.offsetWidth;
+  canvas.height = 300;
+  canvas.style.width = '100%';
+  canvas.style.height = '300px';
+  
+  output.appendChild(canvas);
+  canvasContext = canvas.getContext('2d');
+}
+
+// Start workmate tools
+async function startWorkmate() {
+  if (workmateActive) return;
+  
+  showWorkmateHint('Starting tools...', 'info');
+  
+  try {
+    // Request device orientation permission
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const permission = await DeviceOrientationEvent.requestPermission();
+      if (permission !== 'granted') {
+        throw new Error('Device orientation permission denied');
+      }
+    }
+    
+    // Start device orientation listening
+    startDeviceOrientation();
+    
+    // Try to access camera for some tools
+    if (currentTool === 'ruler' || currentTool === 'measure') {
+      await startCamera();
+    }
+    
+    workmateActive = true;
+    updateVisualization();
+    document.getElementById('workmate-readings').style.display = 'grid';
+    showWorkmateHint('✅ Tools active - Move your device', 'success');
+    
+  } catch (error) {
+    console.error('Failed to start:', error);
+    showWorkmateHint('⚠️ Could not start sensors - Using simulation', 'warning');
+    startSimulation();
+  }
+}
+
+// Start device orientation listening
+function startDeviceOrientation() {
+  if (deviceOrientationHandler) {
+    window.removeEventListener('deviceorientation', deviceOrientationHandler);
+  }
+  
+  deviceOrientationHandler = (event) => {
+    sensorData.alpha = event.alpha || 0;   // Z-axis: 0-360
+    sensorData.beta = event.beta || 0;     // X-axis: -180 to 180
+    sensorData.gamma = event.gamma || 0;   // Y-axis: -90 to 90
+    sensorData.accuracy = event.webkitCompassAccuracy || 0;
+    sensorData.timestamp = Date.now();
+    
+    // Update display
+    updateSensorReadings();
+  };
+  
+  window.addEventListener('deviceorientation', deviceOrientationHandler);
+}
+
+// Start camera for visual tools
+async function startCamera() {
+  try {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment', // Use back camera
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+    
+    // Create video element if it doesn't exist
+    let video = document.querySelector('#workmate-output video');
+    if (!video) {
+      video = document.createElement('video');
+      video.autoplay = true;
+      video.playsInline = true;
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'cover';
+      video.style.position = 'absolute';
+      video.style.top = '0';
+      video.style.left = '0';
+      document.getElementById('workmate-output').appendChild(video);
+    }
+    
+    video.srcObject = cameraStream;
+    
+  } catch (error) {
+    console.warn('Camera access failed:', error);
+    showWorkmateHint('⚠️ Camera not available - Using gyroscope only', 'warning');
+  }
+}
+
+// Start simulation mode (for devices without sensors)
+function startSimulation() {
+  workmateActive = true;
+  
+  // Simulate sensor data
+  let simulatedBeta = 0;
+  let simulatedGamma = 0;
+  
+  const simulate = () => {
+    if (!workmateActive) return;
+    
+    // Gentle sine wave simulation
+    simulatedBeta = Math.sin(Date.now() / 1000) * 10;
+    simulatedGamma = Math.cos(Date.now() / 1000) * 15;
+    
+    sensorData.beta = simulatedBeta;
+    sensorData.gamma = simulatedGamma;
+    sensorData.alpha = (sensorData.alpha + 0.5) % 360;
+    sensorData.accuracy = 1;
+    sensorData.timestamp = Date.now();
+    
+    updateSensorReadings();
+    updateVisualization();
+    
+    requestAnimationFrame(simulate);
+  };
+  
+  simulate();
+  
+  document.getElementById('workmate-readings').style.display = 'grid';
+  showWorkmateHint('🔧 Simulation mode active - Device sensors unavailable', 'info');
+}
+
+// Update sensor readings display
+function updateSensorReadings() {
+  document.getElementById('x-angle').textContent = sensorData.beta.toFixed(1) + '°';
+  document.getElementById('y-angle').textContent = sensorData.gamma.toFixed(1) + '°';
+  document.getElementById('z-angle').textContent = sensorData.alpha.toFixed(1) + '°';
+}
+
+// Update visualization based on current tool
+function updateVisualization() {
+  if (!workmateActive || !canvasContext) return;
+  
+  const canvas = canvasContext.canvas;
+  const width = canvas.width;
+  const height = canvas.height;
+  
+  // Clear canvas
+  canvasContext.clearRect(0, 0, width, height);
+  
+  // Draw based on current tool
+  switch (currentTool) {
+    case 'level':
+      drawBubbleLevel();
+      break;
+    case 'ruler':
+      drawVirtualRuler();
+      break;
+    case 'protractor':
+      drawProtractor();
+      break;
+    case 'plumb':
+      drawPlumbBob();
+      break;
+    case 'laser':
+      drawLaserPointer();
+      break;
+    case 'measure':
+      drawDistanceMeasure();
+      break;
+  }
+  
+  // Draw tool indicator
+  drawToolIndicator();
+  
+  // Continue animation
+  animationFrame = requestAnimationFrame(updateVisualization);
+}
+
+// Draw bubble level visualization
+function drawBubbleLevel() {
+  const ctx = canvasContext;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  
+  // Draw level circle
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.min(width, height) * 0.4;
+  
+  // Draw outer circle
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  // Draw center lines
+  ctx.beginPath();
+  ctx.moveTo(centerX - radius, centerY);
+  ctx.lineTo(centerX + radius, centerY);
+  ctx.moveTo(centerX, centerY - radius);
+  ctx.lineTo(centerX, centerY + radius);
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.stroke();
+  
+  // Calculate bubble position based on device tilt
+  // Convert sensor angles to pixel offsets
+  const maxOffset = radius * 0.7;
+  const bubbleX = centerX + (sensorData.gamma / 90) * maxOffset;
+  const bubbleY = centerY + (sensorData.beta / 90) * maxOffset;
+  
+  // Draw bubble
+  const bubbleRadius = radius * 0.15;
+  const gradient = ctx.createRadialGradient(
+    bubbleX, bubbleY, 0,
+    bubbleX, bubbleY, bubbleRadius
+  );
+  gradient.addColorStop(0, '#ff6b6b');
+  gradient.addColorStop(1, '#ff4757');
+  
+  ctx.beginPath();
+  ctx.arc(bubbleX, bubbleY, bubbleRadius, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  
+  // Draw level text
+  const levelX = Math.abs(sensorData.gamma).toFixed(1);
+  const levelY = Math.abs(sensorData.beta).toFixed(1);
+  
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.font = 'bold 16px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`X: ${levelX}° | Y: ${levelY}°`, centerX, height - 20);
+  
+  // Draw level indicator
+  const isLevel = Math.abs(sensorData.gamma) < 1 && Math.abs(sensorData.beta) < 1;
+  ctx.fillStyle = isLevel ? '#4ecdc4' : 'rgba(255,255,255,0.5)';
+  ctx.fillText(isLevel ? 'LEVEL' : 'NOT LEVEL', centerX, 30);
+}
+
+// Draw virtual ruler
+function drawVirtualRuler() {
+  const ctx = canvasContext;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  
+  // Draw ruler background
+  const rulerHeight = 60;
+  const rulerY = height / 2 - rulerHeight / 2;
+  
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, rulerY, width, rulerHeight);
+  
+  // Draw ruler edges
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, rulerY, width, rulerHeight);
+  
+  // Draw ruler marks (every 10% of width)
+  const units = document.getElementById('workmate-unit').value;
+  const maxUnits = units === 'metric' ? 100 : 39.37; // cm vs inches
+  
+  for (let i = 0; i <= 10; i++) {
+    const x = (width / 10) * i;
+    const markHeight = i % 5 === 0 ? 40 : 20;
+    
+    // Draw mark line
+    ctx.beginPath();
+    ctx.moveTo(x, rulerY);
+    ctx.lineTo(x, rulerY + markHeight);
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = i % 5 === 0 ? 2 : 1;
+    ctx.stroke();
+    
+    // Draw numbers for major marks
+    if (i % 5 === 0) {
+      const value = ((i / 10) * maxUnits).toFixed(1);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(value, x, rulerY + 55);
+    }
+  }
+  
+  // Draw current measurement based on tilt
+  const tiltMeasurement = Math.abs(sensorData.gamma) * 0.1; // Simulated measurement
+  const measurementText = units === 'metric' 
+    ? `${tiltMeasurement.toFixed(1)} cm` 
+    : `${(tiltMeasurement / 2.54).toFixed(2)} in`;
+  
+  ctx.fillStyle = '#4ecdc4';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(measurementText, width / 2, rulerY - 20);
+}
+
+// Draw protractor/angle finder
+function drawProtractor() {
+  const ctx = canvasContext;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.min(width, height) * 0.4;
+  
+  // Draw protractor semicircle
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, Math.PI, 0, false);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  // Draw angle lines
+  for (let angle = 0; angle <= 180; angle += 15) {
+    const rad = (angle * Math.PI) / 180;
+    const x1 = centerX + Math.cos(rad) * radius;
+    const y1 = centerY + Math.sin(rad) * radius;
+    const lineLength = angle % 45 === 0 ? 20 : 10;
+    const x2 = centerX + Math.cos(rad) * (radius - lineLength);
+    const y2 = centerY + Math.sin(rad) * (radius - lineLength);
+    
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = angle % 45 === 0 ? 2 : 1;
+    ctx.stroke();
+    
+    // Draw angle numbers
+    if (angle % 45 === 0 && angle > 0 && angle < 180) {
+      const labelX = centerX + Math.cos(rad) * (radius - 35);
+      const labelY = centerY + Math.sin(rad) * (radius - 35);
+      
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${angle}°`, labelX, labelY);
+    }
+  }
+  
+  // Draw current angle indicator
+  const currentAngle = (sensorData.alpha % 360);
+  const indicatorRad = (currentAngle * Math.PI) / 180;
+  const indicatorLength = radius * 0.8;
+  
+  ctx.beginPath();
+  ctx.moveTo(centerX, centerY);
+  ctx.lineTo(
+    centerX + Math.cos(indicatorRad) * indicatorLength,
+    centerY + Math.sin(indicatorRad) * indicatorLength
+  );
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  
+  // Draw angle text
+  ctx.fillStyle = '#ff6b6b';
+  ctx.font = 'bold 20px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${currentAngle.toFixed(1)}°`, centerX, centerY + radius + 30);
+}
+
+// Draw plumb bob
+function drawPlumbBob() {
+  const ctx = canvasContext;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  const centerX = width / 2;
+  
+  // Draw plumb line
+  const lineLength = height * 0.7;
+  const bobSize = 30;
+  
+  // Calculate plumb position based on device tilt
+  const tiltOffset = (sensorData.gamma / 90) * (width / 3);
+  const bobX = centerX + tiltOffset;
+  const bobY = height * 0.3 + lineLength;
+  
+  // Draw string
+  ctx.beginPath();
+  ctx.moveTo(centerX, height * 0.3);
+  ctx.lineTo(bobX, bobY - bobSize);
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  // Draw bob
+  const bobGradient = ctx.createRadialGradient(
+    bobX, bobY, 0,
+    bobX, bobY, bobSize
+  );
+  bobGradient.addColorStop(0, '#4ecdc4');
+  bobGradient.addColorStop(1, '#38b2ac');
+  
+  ctx.beginPath();
+  ctx.arc(bobX, bobY, bobSize, 0, Math.PI * 2);
+  ctx.fillStyle = bobGradient;
+  ctx.fill();
+  
+  // Draw center line
+  ctx.beginPath();
+  ctx.moveTo(centerX, height * 0.3);
+  ctx.lineTo(centerX, height * 0.9);
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.setLineDash([5, 5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Draw tilt indicator
+  const tiltDegrees = (tiltOffset / (width / 3)) * 90;
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.font = 'bold 18px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Tilt: ${Math.abs(tiltDegrees).toFixed(1)}°`, centerX, 40);
+  
+  if (Math.abs(tiltDegrees) < 0.5) {
+    ctx.fillStyle = '#4ecdc4';
+    ctx.fillText('VERTICAL', centerX, 70);
+  }
+}
+
+// Draw laser pointer
+function drawLaserPointer() {
+  const ctx = canvasContext;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  
+  // Clear with dark background
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw grid
+  ctx.strokeStyle = 'rgba(0, 100, 255, 0.1)';
+  ctx.lineWidth = 1;
+  
+  const gridSize = 50;
+  for (let x = 0; x < width; x += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
+  for (let y = 0; y < height; y += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  
+  // Draw laser beam from center
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const beamLength = Math.max(width, height);
+  
+  // Calculate beam angle based on device orientation
+  const beamAngle = (sensorData.alpha * Math.PI) / 180;
+  const endX = centerX + Math.cos(beamAngle) * beamLength;
+  const endY = centerY + Math.sin(beamAngle) * beamLength;
+  
+  // Draw laser beam
+  const gradient = ctx.createLinearGradient(centerX, centerY, endX, endY);
+  gradient.addColorStop(0, 'rgba(255, 0, 0, 0)');
+  gradient.addColorStop(0.1, '#ff0000');
+  gradient.addColorStop(0.9, '#ff0000');
+  gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+  
+  ctx.beginPath();
+  ctx.moveTo(centerX, centerY);
+  ctx.lineTo(endX, endY);
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  
+  // Add glow effect
+  ctx.beginPath();
+  ctx.moveTo(centerX, centerY);
+  ctx.lineTo(endX, endY);
+  ctx.strokeStyle = 'rgba(255, 0, 0, 0.2)';
+  ctx.lineWidth = 10;
+  ctx.stroke();
+  
+  // Draw laser dot at end
+  ctx.beginPath();
+  ctx.arc(endX, endY, 8, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff0000';
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.arc(endX, endY, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  
+  // Draw angle display
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.font = 'bold 16px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Angle: ${sensorData.alpha.toFixed(1)}°`, centerX, 30);
+}
+
+// Draw distance measure (simulated)
+function drawDistanceMeasure() {
+  const ctx = canvasContext;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  
+  // Draw camera view simulation
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw crosshair
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const crosshairSize = 30;
+  
+  ctx.strokeStyle = '#4ecdc4';
+  ctx.lineWidth = 2;
+  
+  ctx.beginPath();
+  ctx.moveTo(centerX - crosshairSize, centerY);
+  ctx.lineTo(centerX + crosshairSize, centerY);
+  ctx.moveTo(centerX, centerY - crosshairSize);
+  ctx.lineTo(centerX, centerY + crosshairSize);
+  ctx.stroke();
+  
+  // Draw circle around crosshair
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, crosshairSize * 1.5, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(78, 205, 196, 0.5)';
+  ctx.stroke();
+  
+  // Draw measurement points (simulated)
+  const pointDistance = 100 + Math.sin(Date.now() / 1000) * 20;
+  const units = document.getElementById('workmate-unit').value;
+  const displayDistance = units === 'metric' 
+    ? `${pointDistance.toFixed(0)} cm` 
+    : `${(pointDistance / 2.54).toFixed(1)} in`;
+  
+  // Draw measurement line
+  const lineLength = pointDistance / 500 * width;
+  ctx.beginPath();
+  ctx.moveTo(centerX - lineLength / 2, centerY + 50);
+  ctx.lineTo(centerX + lineLength / 2, centerY + 50);
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  
+  // Draw end points
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.arc(centerX - lineLength / 2, centerY + 50, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(centerX + lineLength / 2, centerY + 50, 5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw distance text
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(displayDistance, centerX, centerY - 50);
+  
+  ctx.font = '14px Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fillText('Aim crosshair at target points', centerX, height - 30);
+}
+
+// Draw tool indicator
+function drawToolIndicator() {
+  const ctx = canvasContext;
+  const width = ctx.canvas.width;
+  
+  const toolNames = {
+    level: 'Bubble Level',
+    ruler: 'Virtual Ruler',
+    protractor: 'Angle Finder',
+    plumb: 'Plumb Bob',
+    laser: 'Laser Pointer',
+    measure: 'Distance Measure'
+  };
+  
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(10, 10, 150, 30);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.strokeRect(10, 10, 150, 30);
+  
+  ctx.fillStyle = '#4ecdc4';
+  ctx.font = '12px Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(toolNames[currentTool], 20, 30);
+}
+
+// Handle tool change
+function handleToolChange() {
+  currentTool = this.value;
+  showWorkmateHint(`Tool changed to: ${this.options[this.selectedIndex].text}`, 'info');
+  
+  if (workmateActive) {
+    // Restart camera if needed
+    if (currentTool === 'ruler' || currentTool === 'measure') {
+      startCamera();
+    } else if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+  }
+}
+
+// Handle unit change
+function handleUnitChange() {
+  const units = this.value === 'metric' ? 'Metric (cm/mm)' : 'Imperial (inches)';
+  showWorkmateHint(`Units changed to: ${units}`, 'info');
+}
+
+// Request permissions
+function requestPermissions() {
+  showWorkmateHint('Requesting permissions...', 'info');
+  startWorkmate();
+}
+
+// Calibrate sensors
+function calibrateWorkmate() {
+  showWorkmateHint('Calibrating... Hold device flat and still', 'info');
+  
+  // Reset calibration (in real implementation, this would average readings)
+  setTimeout(() => {
+    showWorkmateHint('✅ Calibration complete', 'success');
+  }, 2000);
+}
+
+// Stop all tools
+function stopWorkmate() {
+  workmateActive = false;
+  
+  // Stop sensors
+  if (deviceOrientationHandler) {
+    window.removeEventListener('deviceorientation', deviceOrientationHandler);
+    deviceOrientationHandler = null;
+  }
+  
+  // Stop camera
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  
+  // Stop animation
+  if (animationFrame) {
+    cancelAnimationFrame(animationFrame);
+    animationFrame = null;
+  }
+  
+  // Clear canvas
+  if (canvasContext) {
+    canvasContext.clearRect(0, 0, canvasContext.canvas.width, canvasContext.canvas.height);
+  }
+  
+  document.getElementById('workmate-readings').style.display = 'none';
+  showWorkmateHint('⏹️ Tools stopped', 'info');
+}
+
+// Show hint message
+function showWorkmateHint(message, type = 'info') {
+  const hint = document.getElementById('workmate-hint');
+  hint.textContent = message;
+  hint.style.color = type === 'error' ? '#ff6b6b' : 
+                     type === 'warning' ? '#ffd166' : 
+                     type === 'success' ? '#4ecdc4' : 
+                     '#4ecdc4';
+  
+  setTimeout(() => {
+    if (hint.textContent === message) {
+      hint.textContent = '';
+    }
+  }, 3000);
+}
+
+// Reset data
+function resetPLData() {
+  if (workmateActive) {
+    stopWorkmate();
+  }
+  
+  document.getElementById('workmate-output').innerHTML = `
+    <div style="text-align:center;padding:60px 20px;color:rgba(230,250,255,0.5);">
+      <div style="font-size:48px;margin-bottom:16px;">🔨</div>
+      <div>Click "Start Tools" to begin</div>
+      <div style="font-size:11px;margin-top:8px;">Uses device gyroscope and camera</div>
+    </div>
+  `;
+  
+  createVisualizationCanvas();
+  showWorkmateHint('Ready to start', 'info');
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', initWorkmate);
+</script>
