@@ -1,63 +1,415 @@
-<h2 id="plagiarism-title" style="margin-top:0;">Plagiarism Checker</h2>
+<h2 id="plagiarism-checker-title">🔍 Plagiarism Checker</h2>
 
-<form aria-describedby="plagiarism-desc">
-  <p id="plagiarism-desc" class="small">Paste text to check for similarity and originality.</p>
-
-  <div class="row">
-    <div class="field" style="flex:1;">
-      <label for="plagiarism-input">Text</label>
-      <textarea id="plagiarism-input" rows="6" placeholder="Paste your essay or paragraph here..."></textarea>
+<form aria-describedby="plagiarism-checker-desc">
+    <p id="plagiarism-checker-desc" class="small">
+        Check text for originality and similarity with common phrases.
+        <span style="color:var(--accent)">Local processing only — no data sent online.</span>
+    </p>
+    
+    <!-- TEXT INPUT -->
+    <div class="field" style="margin-bottom:16px;">
+        <label for="pc-input" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+            Text to Check
+        </label>
+        <textarea id="pc-input" rows="6" placeholder="Paste your essay, article, or paragraph here..."
+                  style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;font-family:inherit;resize:vertical;min-height:120px;"></textarea>
     </div>
-  </div>
-
-  <div class="actions">
-    <button type="button" onclick="plagiarismCheck(this)">Check</button>
-    <button type="button" class="secondary" onclick="plagiarismReset(this)">Reset</button>
-  </div>
+    
+    <!-- QUICK ANALYSIS OPTIONS -->
+    <div style="margin-bottom:20px;">
+        <div style="color:rgba(230,250,255,0.8);margin-bottom:8px;font-size:14px;">Analysis Options:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">
+                <input type="checkbox" id="pc-check-common" checked style="accent-color:var(--accent);"> Common Phrases
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">
+                <input type="checkbox" id="pc-check-academic" checked style="accent-color:var(--accent);"> Academic Terms
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">
+                <input type="checkbox" id="pc-check-quotes" style="accent-color:var(--accent);"> Check Quotes
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">
+                <input type="checkbox" id="pc-show-matches" checked style="accent-color:var(--accent);"> Show Matches
+            </label>
+        </div>
+    </div>
+    
+    <!-- ACTIONS -->
+    <div class="actions" style="margin-top:20px;display:flex;gap:10px;">
+        <button type="button" onclick="plCheck(this)" 
+                style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+            🔍 Check for Plagiarism
+        </button>
+        <button type="button" onclick="plReset(this)"
+                style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+            Reset
+        </button>
+    </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <div class="result">
-    <div class="label">Similarity Score</div>
-    <div class="value" id="plagiarism-score">–</div>
-  </div>
-  <div id="plagiarism-feedback" class="small"></div>
+<!-- RESULTS -->
+<div class="results" aria-live="polite" style="margin-top:16px;">
+    <h3 class="small" style="color:var(--accent);margin-bottom:8px;">📊 Analysis Results</h3>
+    
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px;margin-bottom:16px;">
+        <div style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(45,212,255,0.2);text-align:center;">
+            <div style="color:rgba(230,250,255,0.8);font-size:13px;">Similarity Score</div>
+            <div id="pl-score" style="font-size:32px;font-weight:700;color:var(--accent);">–</div>
+        </div>
+        
+        <div style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(45,212,255,0.2);text-align:center;">
+            <div style="color:rgba(230,250,255,0.8);font-size:13px;">Word Count</div>
+            <div id="pl-word-count" style="font-size:32px;font-weight:700;color:#39ff14;">–</div>
+        </div>
+        
+        <div style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(45,212,255,0.2);text-align:center;">
+            <div style="color:rgba(230,250,255,0.8);font-size:13px;">Unique Words</div>
+            <div id="pl-unique-words" style="font-size:32px;font-weight:700;color:#9d4edd;">–</div>
+        </div>
+    </div>
+    
+    <!-- FEEDBACK -->
+    <div id="pl-feedback" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(45,212,255,0.2);margin-top:16px;">
+        <div style="color:rgba(230,250,255,0.8);font-size:14px;">Paste text to begin analysis.</div>
+    </div>
+    
+    <!-- MATCHED PHRASES (Hidden by default) -->
+    <div id="pl-matches-container" style="display:none;margin-top:16px;">
+        <div style="color:var(--accent);font-weight:500;margin-bottom:8px;">📝 Matched Phrases:</div>
+        <div id="pl-matches" style="padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;font-family:monospace;font-size:13px;max-height:200px;overflow-y:auto;"></div>
+    </div>
+</div>
+
+<!-- SUGGESTIONS FOR IMPROVEMENT -->
+<div style="margin-top:20px;padding:16px;background:linear-gradient(135deg, rgba(45,212,255,0.05), rgba(157,78,221,0.05));border-radius:8px;border:1px solid rgba(45,212,255,0.2);">
+    <h3 class="small" style="color:var(--accent);margin-bottom:8px;">💡 Tips for Original Writing</h3>
+    <ul style="margin:0;padding-left:20px;color:rgba(230,250,255,0.9);font-size:14px;line-height:1.5;">
+        <li>Paraphrase instead of copying verbatim</li>
+        <li>Use multiple sources for research</li>
+        <li>Add your own analysis and insights</li>
+        <li>Always cite your sources properly</li>
+        <li>Use quotation marks for direct quotes</li>
+    </ul>
 </div>
 
 <script>
-function plagiarismCheck(btn) {
-  const card = btn.closest('.card');
-  const text = card.querySelector('#plagiarism-input').value.trim();
+/* plagiarism-checker.html
+   - Plagiarism detection tool
+   - Scoped with pl- prefix
+*/
 
-  if (!text) {
-    card.querySelector('#plagiarism-score').textContent = "–";
-    card.querySelector('#plagiarism-feedback').textContent = "Please paste some text.";
-    return;
-  }
+// Common phrases database (local only - no external calls)
+const plCommonPhrases = [
+    // Academic phrases
+    "in conclusion", "according to", "based on", "it is clear that", 
+    "research shows", "studies have shown", "the results indicate",
+    "as a result", "for example", "in other words", "on the other hand",
+    "in addition", "furthermore", "moreover", "however", "therefore",
+    "nevertheless", "consequently", "as mentioned above",
+    
+    // Common clichés
+    "at the end of the day", "think outside the box", "going forward",
+    "bite the bullet", "beat around the bush", "hit the nail on the head",
+    "piece of cake", "when push comes to shove", "the ball is in your court",
+    "best thing since sliced bread", "don't judge a book by its cover",
+    
+    // Essay starters
+    "this essay will discuss", "the purpose of this paper",
+    "in today's society", "throughout history", "it is widely believed",
+    
+    // Business phrases
+    "synergy", "leverage", "core competency", "think outside the box",
+    "value-added", "best practice", "low-hanging fruit", "touch base",
+    "win-win", "circle back", "move the needle", "bandwidth"
+];
 
-  // Simple keyword overlap simulation
-  const words = text.toLowerCase().split(/\W+/).filter(w => w.length > 3);
-  const uniqueWords = new Set(words);
-  const commonAcademicWords = ["research","study","analysis","method","result","conclusion","data","system","process","effect"];
-  let overlap = 0;
+// Academic terms database
+const plAcademicTerms = [
+    "methodology", "hypothesis", "quantitative", "qualitative",
+    "literature review", "peer-reviewed", "empirical", "theoretical",
+    "paradigm", "epistemology", "ontology", "methodological",
+    "analysis", "synthesis", "evaluation", "critique", "review",
+    "assessment", "examination", "investigation", "research",
+    "study", "experiment", "survey", "interview", "observation",
+    "data collection", "sampling", "statistics", "correlation",
+    "causation", "variable", "control group", "experimental group"
+];
 
-  words.forEach(w => {
-    if (commonAcademicWords.includes(w)) overlap++;
-  });
+// Famous quotes (for quote detection)
+const plFamousQuotes = [
+    "to be or not to be", "all that glitters is not gold",
+    "the only thing we have to fear is fear itself",
+    "ask not what your country can do for you",
+    "i have a dream", "four score and seven years ago",
+    "the medium is the message", "cogito ergo sum",
+    "e=mc²", "survival of the fittest", "knowledge is power"
+];
 
-  const score = Math.min(100, Math.round((overlap / words.length) * 100));
-
-  card.querySelector('#plagiarism-score').textContent = score + "%";
-  card.querySelector('#plagiarism-feedback').textContent =
-    score > 30
-      ? "⚠️ High similarity detected — consider revising for originality."
-      : "✅ Low similarity — text appears original.";
+// Main checking function
+function plCheck(btn) {
+    const card = btn.closest('.card') || document;
+    const text = card.querySelector('#pc-input').value.trim();
+    
+    if (!text) {
+        card.querySelector('#pl-feedback').innerHTML = 
+            '<div style="color:#ff2d55;">⚠️ Please paste some text to analyze.</div>';
+        card.querySelector('#pl-score').textContent = '–';
+        card.querySelector('#pl-word-count').textContent = '–';
+        card.querySelector('#pl-unique-words').textContent = '–';
+        return;
+    }
+    
+    // Get analysis options
+    const checkCommon = card.querySelector('#pc-check-common').checked;
+    const checkAcademic = card.querySelector('#pc-check-academic').checked;
+    const checkQuotes = card.querySelector('#pc-check-quotes').checked;
+    const showMatches = card.querySelector('#pc-show-matches').checked;
+    
+    // Basic text analysis
+    const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+    const wordCount = words.length;
+    const uniqueWords = new Set(words).size;
+    const uniquenessRatio = uniqueWords / wordCount;
+    
+    // Calculate similarity score
+    let similarityScore = 0;
+    let matchedPhrases = [];
+    
+    // Check against common phrases
+    if (checkCommon) {
+        plCommonPhrases.forEach(phrase => {
+            if (text.toLowerCase().includes(phrase)) {
+                similarityScore += 2; // More weight for common phrases
+                matchedPhrases.push(`"${phrase}" (common phrase)`);
+            }
+        });
+    }
+    
+    // Check against academic terms
+    if (checkAcademic) {
+        plAcademicTerms.forEach(term => {
+            const regex = new RegExp(`\\b${term}\\b`, 'gi');
+            if (regex.test(text)) {
+                similarityScore += 1; // Less weight for academic terms
+                matchedPhrases.push(`"${term}" (academic term)`);
+            }
+        });
+    }
+    
+    // Check for famous quotes
+    if (checkQuotes) {
+        plFamousQuotes.forEach(quote => {
+            if (text.toLowerCase().includes(quote)) {
+                similarityScore += 3; // Higher weight for direct quotes
+                matchedPhrases.push(`"${quote}" (potential quote)`);
+            }
+        });
+    }
+    
+    // Check for sentence structure patterns
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+    if (sentences.length > 0) {
+        // Check for repeated sentence starters
+        const starters = sentences.map(s => s.trim().split(' ')[0].toLowerCase());
+        const repeatedStarters = starters.filter((word, index) => starters.indexOf(word) !== index);
+        if (repeatedStarters.length > 0) {
+            similarityScore += repeatedStarters.length * 0.5;
+            matchedPhrases.push(`Repeated sentence starters: ${[...new Set(repeatedStarters)].join(', ')}`);
+        }
+    }
+    
+    // Normalize score (0-100 scale)
+    let normalizedScore = Math.min(100, Math.round(
+        (similarityScore / Math.max(1, wordCount / 10)) * 100
+    ));
+    
+    // Adjust score based on uniqueness
+    normalizedScore = Math.round(normalizedScore * (1 - uniquenessRatio * 0.3));
+    
+    // Update display
+    card.querySelector('#pl-score').textContent = `${normalizedScore}%`;
+    card.querySelector('#pl-word-count').textContent = wordCount;
+    card.querySelector('#pl-unique-words').textContent = uniqueWords;
+    
+    // Calculate uniqueness percentage
+    const uniquenessPercent = Math.round((uniqueWords / wordCount) * 100);
+    
+    // Generate feedback
+    let feedback = '';
+    let scoreColor = '#39ff14'; // Green by default
+    
+    if (normalizedScore < 10) {
+        feedback = `✅ <strong>Excellent originality</strong> (${normalizedScore}% similarity)<br>`;
+        feedback += `Your text shows high originality with ${uniquenessPercent}% unique words.`;
+        scoreColor = '#39ff14'; // Green
+    } else if (normalizedScore < 25) {
+        feedback = `👍 <strong>Good originality</strong> (${normalizedScore}% similarity)<br>`;
+        feedback += `Your text has reasonable originality with ${uniquenessPercent}% unique words.`;
+        scoreColor = '#2dd4ff'; // Blue
+    } else if (normalizedScore < 40) {
+        feedback = `⚠️ <strong>Moderate similarity</strong> (${normalizedScore}% similarity)<br>`;
+        feedback += `Consider paraphrasing some phrases. ${uniquenessPercent}% unique words.`;
+        scoreColor = '#ffcc00'; // Yellow
+    } else {
+        feedback = `🔴 <strong>High similarity detected</strong> (${normalizedScore}% similarity)<br>`;
+        feedback += `Significant overlap with common phrases. Only ${uniquenessPercent}% unique words.`;
+        scoreColor = '#ff2d55'; // Red
+    }
+    
+    // Add match count info
+    if (matchedPhrases.length > 0) {
+        feedback += `<br><br>Found ${matchedPhrases.length} potential match${matchedPhrases.length === 1 ? '' : 'es'}.`;
+    }
+    
+    // Update feedback display
+    card.querySelector('#pl-feedback').innerHTML = feedback;
+    
+    // Update score color
+    card.querySelector('#pl-score').style.color = scoreColor;
+    
+    // Show/hide matches
+    const matchesContainer = card.querySelector('#pl-matches-container');
+    const matchesDisplay = card.querySelector('#pl-matches');
+    
+    if (showMatches && matchedPhrases.length > 0) {
+        matchesDisplay.innerHTML = matchedPhrases.map(match => 
+            `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);">• ${match}</div>`
+        ).join('');
+        matchesContainer.style.display = 'block';
+    } else {
+        matchesContainer.style.display = 'none';
+    }
+    
+    // Add analysis summary
+    feedback += `<div style="margin-top:12px;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:13px;">
+        <strong>Analysis Summary:</strong><br>
+        • Words: ${wordCount}<br>
+        • Unique: ${uniqueWords} (${uniquenessPercent}%)<br>
+        • Sentences: ${sentences.length}<br>
+        • Avg. sentence length: ${sentences.length > 0 ? Math.round(wordCount / sentences.length) : 0} words
+    </div>`;
+    
+    card.querySelector('#pl-feedback').innerHTML = feedback;
 }
 
-function plagiarismReset(btn) {
-  const card = btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#plagiarism-score').textContent = "–";
-  card.querySelector('#plagiarism-feedback').textContent = "";
+// Reset function
+function plReset(btn) {
+    const card = btn.closest('.card') || document;
+    
+    // Clear textarea
+    card.querySelector('#pc-input').value = '';
+    
+    // Reset checkboxes to defaults
+    card.querySelector('#pc-check-common').checked = true;
+    card.querySelector('#pc-check-academic').checked = true;
+    card.querySelector('#pc-check-quotes').checked = false;
+    card.querySelector('#pc-show-matches').checked = true;
+    
+    // Reset results
+    card.querySelector('#pl-score').textContent = '–';
+    card.querySelector('#pl-word-count').textContent = '–';
+    card.querySelector('#pl-unique-words').textContent = '–';
+    card.querySelector('#pl-score').style.color = 'var(--accent)';
+    
+    // Reset feedback
+    card.querySelector('#pl-feedback').innerHTML = 
+        '<div style="color:rgba(230,250,255,0.8);font-size:14px;">Paste text to begin analysis.</div>';
+    
+    // Hide matches
+    card.querySelector('#pl-matches-container').style.display = 'none';
+    card.querySelector('#pl-matches').innerHTML = '';
+}
+
+// Initialize on load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        const card = document.currentScript?.closest('.card') || document;
+        
+        // Add auto-check on input (with debounce)
+        let debounceTimer;
+        const textarea = card.querySelector('#pc-input');
+        
+        if (textarea) {
+            textarea.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    if (this.value.trim().length > 50) {
+                        const checkBtn = card.querySelector('button[onclick="plCheck(this)"]');
+                        if (checkBtn) {
+                            plCheck(checkBtn);
+                        }
+                    }
+                }, 1000);
+            });
+        }
+        
+        // Add character count
+        textarea.addEventListener('input', function() {
+            const charCount = this.value.length;
+            if (charCount > 5000) {
+                this.style.borderColor = '#ff2d55';
+            } else if (charCount > 1000) {
+                this.style.borderColor = '#ffcc00';
+            } else {
+                this.style.borderColor = 'rgba(45,212,255,0.3)';
+            }
+        });
+        
+        console.log('Plagiarism Checker ready');
+    });
 }
 </script>
+
+<style>
+#plagiarism-checker-title {
+    color: var(--accent);
+    margin-top: 0;
+}
+
+/* Highlight for matched text */
+#pl-feedback strong {
+    color: var(--accent);
+}
+
+/* Scrollbar styling for matches */
+#pl-matches::-webkit-scrollbar {
+    width: 6px;
+}
+
+#pl-matches::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.1);
+    border-radius: 3px;
+}
+
+#pl-matches::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 3px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .actions {
+        flex-direction: column;
+    }
+    
+    .actions button {
+        width: 100% !important;
+        margin: 4px 0 !important;
+    }
+    
+    #pl-matches {
+        max-height: 150px;
+    }
+}
+
+/* Animation for score updates */
+@keyframes plPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+#pl-score {
+    animation: plPulse 0.3s ease-out;
+}
+</style>
