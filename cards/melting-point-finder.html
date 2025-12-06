@@ -1,87 +1,790 @@
-<h2 id="melting-point-finder" style="margin-top:0;">Melting Point Finder</h2>
+<h2 id="melting-point-title" style="margin-top:0;color:var(--accent);">🔥 Melting Point Explorer</h2>
 
-<!--
-  Manifest metadata
-  id: melting-point-finder
-  title: Melting Point Finder
-  path: cards/melting-point-finder.html
-  category: Science Tools
-  version: 1.0
--->
-
-<form aria-describedby="mpf-desc">
-  <p id="mpf-desc" class="small">
-    Look up melting points of common substances at 1 atm. Converts between Celsius, Fahrenheit, and Kelvin.
+<form aria-describedby="mpf-desc" style="margin-bottom:20px;">
+  <p id="mpf-desc" class="small" style="color:rgba(230,250,255,0.8);margin-bottom:16px;">
+    Explore melting points of hundreds of substances. Compare materials, convert units, and learn about phase changes.
   </p>
 
-  <label for="mpf-substance">Substance</label>
-  <input id="mpf-substance" type="text" placeholder="e.g. ice, iron, sulfur" style="width:100%;" />
+  <!-- SEARCH & FILTER SECTION -->
+  <div style="background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.15);border-radius:10px;padding:16px;margin-bottom:20px;">
+    <h3 style="color:var(--accent);font-size:14px;margin:0 0 12px 0;">🔍 Search & Filter</h3>
+    
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="mpf-search" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+          Search Substance
+        </label>
+        <div style="position:relative;">
+          <input id="mpf-search" type="text" placeholder="Type element, compound, or material..." 
+                 style="width:100%;padding:10px 40px 10px 12px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;" />
+          <div style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:rgba(230,250,255,0.5);">🔍</div>
+        </div>
+      </div>
+      
+      <div>
+        <label for="mpf-category" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+          Category
+        </label>
+        <select id="mpf-category" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;">
+          <option value="all">All Substances</option>
+          <option value="metals">Metals & Alloys</option>
+          <option value="nonmetals">Non-Metals</option>
+          <option value="organic">Organic Compounds</option>
+          <option value="minerals">Minerals & Ceramics</option>
+          <option value="common">Common Materials</option>
+        </select>
+      </div>
+    </div>
 
-  <label for="mpf-unit" style="margin-top:8px;">Unit</label>
-  <select id="mpf-unit" style="width:100%;">
-    <option value="C">°C</option>
-    <option value="F">°F</option>
-    <option value="K">K</option>
-  </select>
+    <!-- TEMPERATURE RANGE FILTER -->
+    <div style="margin-bottom:16px;">
+      <div style="color:var(--accent);font-weight:500;margin-bottom:8px;">🌡️ Temperature Range (°C)</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <input type="range" id="mpf-temp-min" min="-273" max="4000" value="-273" step="10" 
+               style="flex:1;height:6px;border-radius:3px;" />
+        <div id="mpf-range-display" style="color:rgba(230,250,255,0.8);font-size:13px;min-width:120px;text-align:center;">
+          -273°C to 4000°C
+        </div>
+        <input type="range" id="mpf-temp-max" min="-273" max="4000" value="4000" step="10" 
+               style="flex:1;height:6px;border-radius:3px;" />
+      </div>
+    </div>
 
-  <div style="margin-top:12px;">
-    <button type="button" onclick="findMeltingPoint()">Find</button>
-    <button type="button" onclick="resetMeltingPoint()" class="secondary">Reset</button>
+    <!-- QUICK CATEGORY BUTTONS -->
+    <div style="margin-bottom:16px;">
+      <div style="color:rgba(230,250,255,0.8);margin-bottom:6px;font-size:13px;">⚡ Quick Categories:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button type="button" onclick="mpfSetCategory('common')" class="category-btn">🏠 Everyday Items</button>
+        <button type="button" onclick="mpfSetCategory('metals')" class="category-btn">⚙️ Metals</button>
+        <button type="button" onclick="mpfSetCategory('organic')" class="category-btn">🧪 Organic</button>
+        <button type="button" onclick="mpfSetCategory('low_temp')" class="category-btn">❄️ Low Temperature</button>
+        <button type="button" onclick="mpfSetCategory('high_temp')" class="category-btn">🔥 High Temperature</button>
+      </div>
+    </div>
+
+    <!-- UNIT SELECTION -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+      <div>
+        <label style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">Display Unit</label>
+        <div style="display:flex;gap:6px;">
+          <button type="button" onclick="mpfSetUnit('C')" class="unit-btn active">°C</button>
+          <button type="button" onclick="mpfSetUnit('F')" class="unit-btn">°F</button>
+          <button type="button" onclick="mpfSetUnit('K')" class="unit-btn">K</button>
+        </div>
+      </div>
+      
+      <div>
+        <label style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">Sort By</label>
+        <select id="mpf-sort" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;">
+          <option value="name">Name (A-Z)</option>
+          <option value="temp_low">Temperature (Low → High)</option>
+          <option value="temp_high">Temperature (High → Low)</option>
+          <option value="category">Category</option>
+        </select>
+      </div>
+      
+      <div>
+        <label style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">Pressure</label>
+        <select id="mpf-pressure" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;">
+          <option value="1atm">1 atm (Standard)</option>
+          <option value="vacuum">Vacuum</option>
+          <option value="high_pressure">High Pressure</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="actions" style="display:flex;gap:10px;margin-top:16px;">
+      <button type="button" onclick="mpfSearch()" 
+              style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+        🔥 Find Melting Points
+      </button>
+      <button type="button" onclick="mpfCompareRandom()"
+              style="padding:12px 16px;background:rgba(157,78,221,0.1);border:1px solid rgba(157,78,221,0.3);border-radius:8px;color:#9d4edd;cursor:pointer;">
+        🎲 Compare Random
+      </button>
+      <button type="button" onclick="mpfReset()"
+              style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+        🔄 Reset
+      </button>
+    </div>
   </div>
 </form>
 
-<div style="margin-top:12px;">
-  <h3 class="small">Melting Point</h3>
-  <div id="mpf-output" class="small" style="background:#fafafa;padding:8px;border-radius:6px;min-height:48px;"></div>
+<!-- RESULTS SECTION -->
+<div class="results" aria-live="polite" style="margin-top:20px;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+    <!-- SEARCH RESULTS -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="color:var(--accent);font-size:14px;margin:0;">📋 Search Results</h3>
+        <div id="mpf-result-count" style="color:rgba(230,250,255,0.7);font-size:12px;">0 substances</div>
+      </div>
+      <div id="mpf-output" style="background:rgba(20,20,20,0.5);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;max-height:300px;overflow-y:auto;">
+        <div style="color:rgba(230,250,255,0.7);text-align:center;padding:40px 20px;">
+          <div style="font-size:32px;margin-bottom:8px;">🔍</div>
+          <div>Search for substances to see their melting points</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- COMPARISON CHART -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="color:var(--accent);font-size:14px;margin:0;">📊 Comparison Chart</h3>
+        <button onclick="mpfClearComparison()" style="padding:6px 10px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:6px;color:#ff4d4d;cursor:pointer;font-size:12px;">Clear All</button>
+      </div>
+      <div id="mpf-comparison" style="background:rgba(20,20,20,0.5);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;max-height:300px;overflow-y:auto;">
+        <div style="color:rgba(230,250,255,0.7);text-align:center;padding:40px 20px;">
+          <div style="font-size:32px;margin-bottom:8px;">⚖️</div>
+          <div>Add substances to compare their melting points</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- TEMPERATURE SCALE VISUALIZATION -->
+  <div style="background:linear-gradient(90deg, rgba(45,212,255,0.1), rgba(255,45,85,0.1));border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:16px;margin-top:20px;">
+    <h3 style="color:var(--accent);font-size:14px;margin:0 0 12px 0;">🌡️ Temperature Scale Reference</h3>
+    <div style="display:flex;height:40px;background:linear-gradient(90deg, #0a0f14 0%, #2dd4ff 20%, #39ff14 40%, #ffcc00 60%, #ff2d55 80%, #9d4edd 100%);border-radius:6px;position:relative;margin-bottom:8px;">
+      <div style="position:absolute;left:0;top:-20px;color:rgba(230,250,255,0.7);font-size:11px;">-273°C (Absolute Zero)</div>
+      <div style="position:absolute;left:20%;top:-20px;color:rgba(230,250,255,0.7);font-size:11px;">0°C (Water Freezes)</div>
+      <div style="position:absolute;left:40%;top:-20px;color:rgba(230,250,255,0.7);font-size:11px;">100°C (Water Boils)</div>
+      <div style="position:absolute;left:60%;top:-20px;color:rgba(230,250,255,0.7);font-size:11px;">~1500°C (Iron Melts)</div>
+      <div style="position:absolute;left:80%;top:-20px;color:rgba(230,250,255,0.7);font-size:11px;">~3500°C (Tungsten)</div>
+      <div style="position:absolute;right:0;top:-20px;color:rgba(230,250,255,0.7);font-size:11px;">~5500°C (Sun Surface)</div>
+    </div>
+    <div style="color:rgba(230,250,255,0.7);font-size:12px;text-align:center;">
+      Drag substances from results to compare on this scale
+    </div>
+  </div>
+</div>
+
+<!-- SUBSTANCE INFORMATION -->
+<div style="margin-top:20px;background:rgba(20,20,20,0.5);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:16px;">
+  <h3 style="color:var(--accent);font-size:14px;margin:0 0 12px 0;">📚 Substance Details</h3>
+  <div id="mpf-details" style="display:none;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
+    <!-- Details will be populated here -->
+  </div>
+  <div id="mpf-no-details" style="color:rgba(230,250,255,0.7);text-align:center;padding:20px;">
+    Select a substance to see detailed information
+  </div>
 </div>
 
 <script>
-// Melting point database (°C at 1 atm)
-const mpDB = {
-  ice: 0,
-  ethanol: -114,
-  methanol: -97.6,
-  acetone: -95,
-  benzene: 5.5,
-  toluene: -95,
-  sulfur: 115.2,
-  phosphorus: 44.1,
-  sodium: 97.8,
-  potassium: 63.5,
-  lithium: 180.5,
-  iron: 1538,
-  copper: 1085,
-  aluminum: 660.3,
-  silver: 961.8,
-  gold: 1064,
-  lead: 327.5,
-  zinc: 419.5,
-  tin: 231.9,
-  mercury: -38.8,
-  silicon: 1414,
-  carbon: 3550,
-  tungsten: 3422
-};
+/* melting-point-finder.html
+   - Enhanced melting point database with search, filter, and comparison
+   - Scoped with mpf- prefix
+*/
 
-function convertTemp(valueC, unit){
-  if(unit==='C') return valueC.toFixed(2) + ' °C';
-  if(unit==='F') return (valueC*9/5+32).toFixed(2) + ' °F';
-  if(unit==='K') return (valueC+273.15).toFixed(2) + ' K';
+// Comprehensive melting point database (°C at 1 atm)
+const mpfDatabase = [
+  // Common Materials
+  {name: "Ice (Water)", symbol: "H₂O", mp: 0, category: "common", description: "Pure water at standard pressure", emoji: "❄️"},
+  {name: "Table Salt", symbol: "NaCl", mp: 801, category: "common", description: "Sodium chloride", emoji: "🧂"},
+  {name: "Sugar", symbol: "C₁₂H₂₂O₁₁", mp: 186, category: "common", description: "Sucrose", emoji: "🍬"},
+  {name: "Butter", symbol: "", mp: 32, category: "common", description: "Dairy butter", emoji: "🧈"},
+  {name: "Chocolate", symbol: "", mp: 34, category: "common", description: "Dark chocolate", emoji: "🍫"},
+  {name: "Candle Wax", symbol: "", mp: 62, category: "common", description: "Paraffin wax", emoji: "🕯️"},
+  
+  // Metals & Alloys
+  {name: "Mercury", symbol: "Hg", mp: -38.8, category: "metals", description: "Liquid at room temperature", emoji: "💧"},
+  {name: "Gallium", symbol: "Ga", mp: 29.8, category: "metals", description: "Melts in your hand", emoji: "🫳"},
+  {name: "Tin", symbol: "Sn", mp: 231.9, category: "metals", description: "Used in soldering", emoji: "🔌"},
+  {name: "Lead", symbol: "Pb", mp: 327.5, category: "metals", description: "Heavy metal", emoji: "⚖️"},
+  {name: "Zinc", symbol: "Zn", mp: 419.5, category: "metals", description: "Galvanization metal", emoji: "🛡️"},
+  {name: "Aluminum", symbol: "Al", mp: 660.3, category: "metals", description: "Lightweight metal", emoji: "✈️"},
+  {name: "Silver", symbol: "Ag", mp: 961.8, category: "metals", description: "Precious metal", emoji: "💎"},
+  {name: "Copper", symbol: "Cu", mp: 1085, category: "metals", description: "Excellent conductor", emoji: "🔌"},
+  {name: "Gold", symbol: "Au", mp: 1064, category: "metals", description: "Most malleable metal", emoji: "🥇"},
+  {name: "Iron", symbol: "Fe", mp: 1538, category: "metals", description: "Most common industrial metal", emoji: "⚙️"},
+  {name: "Tungsten", symbol: "W", mp: 3422, category: "metals", description: "Highest melting metal", emoji: "🔥"},
+  {name: "Steel (Carbon)", symbol: "Fe-C", mp: 1371, category: "metals", description: "Carbon steel", emoji: "🏗️"},
+  {name: "Brass", symbol: "Cu-Zn", mp: 900, category: "metals", description: "Copper-zinc alloy", emoji: "🎺"},
+  {name: "Bronze", symbol: "Cu-Sn", mp: 950, category: "metals", description: "Copper-tin alloy", emoji: "🏺"},
+  
+  // Non-Metals
+  {name: "Helium", symbol: "He", mp: -272.2, category: "nonmetals", description: "Lowest melting element", emoji: "🎈"},
+  {name: "Oxygen", symbol: "O₂", mp: -218.8, category: "nonmetals", description: "Breathing gas", emoji: "💨"},
+  {name: "Nitrogen", symbol: "N₂", mp: -210, category: "nonmetals", description: "78% of atmosphere", emoji: "🌫️"},
+  {name: "Sulfur", symbol: "S", mp: 115.2, category: "nonmetals", description: "Yellow element", emoji: "🟡"},
+  {name: "Phosphorus", symbol: "P", mp: 44.1, category: "nonmetals", description: "White phosphorus", emoji: "✨"},
+  {name: "Carbon", symbol: "C", mp: 3550, category: "nonmetals", description: "Diamond/graphite", emoji: "💎"},
+  {name: "Silicon", symbol: "Si", mp: 1414, category: "nonmetals", description: "Semiconductor", emoji: "💻"},
+  
+  // Organic Compounds
+  {name: "Ethanol", symbol: "C₂H₅OH", mp: -114, category: "organic", description: "Drinking alcohol", emoji: "🍷"},
+  {name: "Methanol", symbol: "CH₃OH", mp: -97.6, category: "organic", description: "Wood alcohol", emoji: "🌲"},
+  {name: "Acetone", symbol: "C₃H₆O", mp: -95, category: "organic", description: "Common solvent", emoji: "🧪"},
+  {name: "Benzene", symbol: "C₆H₆", mp: 5.5, category: "organic", description: "Aromatic hydrocarbon", emoji: "⚗️"},
+  {name: "Toluene", symbol: "C₇H₈", mp: -95, category: "organic", description: "Industrial solvent", emoji: "🏭"},
+  {name: "Naphthalene", symbol: "C₁₀H₈", mp: 80.3, category: "organic", description: "Mothballs", emoji: "👔"},
+  {name: "Paraffin", symbol: "C₂₅H₅₂", mp: 47, category: "organic", description: "Alkane wax", emoji: "🕯️"},
+  
+  // Minerals & Ceramics
+  {name: "Quartz", symbol: "SiO₂", mp: 1670, category: "minerals", description: "Common mineral", emoji: "💎"},
+  {name: "Glass", symbol: "", mp: 600, category: "minerals", description: "Soda-lime glass", emoji: "🥂"},
+  {name: "Alumina", symbol: "Al₂O₃", mp: 2072, category: "minerals", description: "Aluminum oxide", emoji: "🔴"},
+  {name: "Magnesia", symbol: "MgO", mp: 2852, category: "minerals", description: "Magnesium oxide", emoji: "⚪"},
+  {name: "Titanium Dioxide", symbol: "TiO₂", mp: 1843, category: "minerals", description: "White pigment", emoji: "🎨"}
+];
+
+// Comparison array
+let mpfComparison = [];
+let currentUnit = 'C';
+
+// Temperature conversion functions
+function mpfConvertTemp(valueC, unit) {
+  if (unit === 'C') return {value: valueC.toFixed(1), unit: '°C'};
+  if (unit === 'F') return {value: (valueC * 9/5 + 32).toFixed(1), unit: '°F'};
+  if (unit === 'K') return {value: (valueC + 273.15).toFixed(2), unit: 'K'};
+  return {value: valueC.toFixed(1), unit: '°C'};
 }
 
-function findMeltingPoint(){
-  const sub = document.getElementById('mpf-substance').value.toLowerCase().trim().replace(/\\s+/g,'_');
-  const unit = document.getElementById('mpf-unit').value;
-  const valC = mpDB[sub];
-  if(valC===undefined){
-    document.getElementById('mpf-output').textContent = 'Substance not found in database.';
+// Get color based on temperature
+function mpfGetTempColor(tempC) {
+  if (tempC < -100) return '#2dd4ff';
+  if (tempC < 0) return '#39ff14';
+  if (tempC < 100) return '#ffcc00';
+  if (tempC < 1000) return '#ff2d55';
+  return '#9d4edd';
+}
+
+// Initialize
+function mpfInitialize() {
+  const card = document.currentScript?.closest('.card') || document;
+  
+  // Set up event listeners
+  const searchInput = card.querySelector('#mpf-search');
+  const minSlider = card.querySelector('#mpf-temp-min');
+  const maxSlider = card.querySelector('#mpf-temp-max');
+  const sortSelect = card.querySelector('#mpf-sort');
+  
+  // Real-time search
+  searchInput.addEventListener('input', mpfSearch);
+  
+  // Update range display
+  function updateRangeDisplay() {
+    const min = parseInt(minSlider.value);
+    const max = parseInt(maxSlider.value);
+    card.querySelector('#mpf-range-display').textContent = `${min}°C to ${max}°C`;
+  }
+  
+  minSlider.addEventListener('input', function() {
+    if (parseInt(this.value) > parseInt(maxSlider.value)) {
+      maxSlider.value = this.value;
+    }
+    updateRangeDisplay();
+    mpfSearch();
+  });
+  
+  maxSlider.addEventListener('input', function() {
+    if (parseInt(this.value) < parseInt(minSlider.value)) {
+      minSlider.value = this.value;
+    }
+    updateRangeDisplay();
+    mpfSearch();
+  });
+  
+  sortSelect.addEventListener('change', mpfSearch);
+  card.querySelector('#mpf-category').addEventListener('change', mpfSearch);
+  card.querySelector('#mpf-pressure').addEventListener('change', mpfSearch);
+  
+  // Initial search
+  mpfSearch();
+}
+
+// Set category filter
+function mpfSetCategory(category) {
+  const card = document.currentScript?.closest('.card') || document;
+  const categorySelect = card.querySelector('#mpf-category');
+  const minSlider = card.querySelector('#mpf-temp-min');
+  const maxSlider = card.querySelector('#mpf-temp-max');
+  
+  categorySelect.value = category;
+  
+  // Set temperature ranges for special categories
+  if (category === 'low_temp') {
+    minSlider.value = -273;
+    maxSlider.value = 0;
+  } else if (category === 'high_temp') {
+    minSlider.value = 1000;
+    maxSlider.value = 4000;
+  }
+  
+  mpfSearch();
+}
+
+// Set display unit
+function mpfSetUnit(unit) {
+  const card = document.currentScript?.closest('.card') || document;
+  const unitButtons = card.querySelectorAll('.unit-btn');
+  
+  unitButtons.forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.textContent.includes(unit)) {
+      btn.classList.add('active');
+    }
+  });
+  
+  currentUnit = unit;
+  mpfUpdateDisplay();
+}
+
+// Main search function
+function mpfSearch() {
+  const card = document.currentScript?.closest('.card') || document;
+  const searchTerm = card.querySelector('#mpf-search').value.toLowerCase();
+  const category = card.querySelector('#mpf-category').value;
+  const minTemp = parseInt(card.querySelector('#mpf-temp-min').value);
+  const maxTemp = parseInt(card.querySelector('#mpf-temp-max').value);
+  const sortBy = card.querySelector('#mpf-sort').value;
+  
+  // Filter database
+  let results = mpfDatabase.filter(item => {
+    // Search term filter
+    const matchesSearch = !searchTerm || 
+      item.name.toLowerCase().includes(searchTerm) ||
+      item.symbol.toLowerCase().includes(searchTerm) ||
+      item.description.toLowerCase().includes(searchTerm);
+    
+    // Category filter
+    const matchesCategory = category === 'all' || item.category === category;
+    
+    // Temperature filter
+    const matchesTemp = item.mp >= minTemp && item.mp <= maxTemp;
+    
+    return matchesSearch && matchesCategory && matchesTemp;
+  });
+  
+  // Sort results
+  results.sort((a, b) => {
+    switch(sortBy) {
+      case 'name':
+        return a.name.localeCompare(b.name);
+      case 'temp_low':
+        return a.mp - b.mp;
+      case 'temp_high':
+        return b.mp - a.mp;
+      case 'category':
+        return a.category.localeCompare(b.category) || a.name.localeCompare(b.name);
+      default:
+        return a.name.localeCompare(b.name);
+    }
+  });
+  
+  // Display results
+  mpfDisplayResults(results);
+}
+
+// Display search results
+function mpfDisplayResults(results) {
+  const card = document.currentScript?.closest('.card') || document;
+  const outputDiv = card.querySelector('#mpf-output');
+  const countDiv = card.querySelector('#mpf-result-count');
+  
+  if (results.length === 0) {
+    outputDiv.innerHTML = `
+      <div style="color:rgba(230,250,255,0.7);text-align:center;padding:40px 20px;">
+        <div style="font-size:32px;margin-bottom:8px;">🔍</div>
+        <div>No substances found matching your criteria</div>
+      </div>
+    `;
+    countDiv.textContent = '0 substances';
     return;
   }
-  document.getElementById('mpf-output').textContent = `${sub.replace(/_/g,' ')} melts at ${convertTemp(valC, unit)} (1 atm).`;
+  
+  let html = '';
+  results.forEach(item => {
+    const temp = mpfConvertTemp(item.mp, currentUnit);
+    const color = mpfGetTempColor(item.mp);
+    
+    html += `
+      <div class="substance-item" data-name="${item.name}" 
+           style="margin-bottom:10px;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;cursor:pointer;border:1px solid ${color}20;"
+           onclick="mpfShowDetails('${item.name}')"
+           draggable="true" ondragstart="mpfDragStart(event, '${item.name}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:20px;margin-bottom:2px;">${item.emoji}</div>
+            <div style="font-weight:500;color:#fff;font-size:14px;">${item.name}</div>
+            <div style="color:rgba(230,250,255,0.7);font-size:12px;">${item.symbol || ''}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:${color};font-weight:600;font-size:16px;">${temp.value} ${temp.unit}</div>
+            <button onclick="event.stopPropagation();mpfAddToComparison('${item.name}')" 
+                    style="margin-top:6px;padding:4px 8px;background:${color}15;border:1px solid ${color}30;border-radius:4px;color:${color};cursor:pointer;font-size:11px;">
+              + Compare
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  outputDiv.innerHTML = html;
+  countDiv.textContent = `${results.length} substances`;
 }
 
-function resetMeltingPoint(){
-  document.getElementById('mpf-substance').value = '';
-  document.getElementById('mpf-output').textContent = '';
+// Show substance details
+function mpfShowDetails(substanceName) {
+  const card = document.currentScript?.closest('.card') || document;
+  const item = mpfDatabase.find(s => s.name === substanceName);
+  
+  if (!item) return;
+  
+  const tempC = mpfConvertTemp(item.mp, 'C');
+  const tempF = mpfConvertTemp(item.mp, 'F');
+  const tempK = mpfConvertTemp(item.mp, 'K');
+  
+  const detailsDiv = card.querySelector('#mpf-details');
+  const noDetailsDiv = card.querySelector('#mpf-no-details');
+  
+  detailsDiv.innerHTML = `
+    <div>
+      <div style="font-size:48px;text-align:center;margin-bottom:12px;">${item.emoji}</div>
+      <div style="color:#fff;font-weight:600;font-size:18px;text-align:center;">${item.name}</div>
+      ${item.symbol ? `<div style="color:var(--accent);text-align:center;font-size:14px;margin-top:4px;">${item.symbol}</div>` : ''}
+    </div>
+    
+    <div style="background:rgba(45,212,255,0.05);border-radius:8px;padding:12px;">
+      <div style="color:var(--accent);font-weight:500;margin-bottom:6px;">🌡️ Melting Point</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div style="text-align:center;">
+          <div style="color:#fff;font-weight:600;font-size:16px;">${tempC.value}</div>
+          <div style="color:rgba(230,250,255,0.7);font-size:12px;">°C</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="color:#fff;font-weight:600;font-size:16px;">${tempF.value}</div>
+          <div style="color:rgba(230,250,255,0.7);font-size:12px;">°F</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="color:#fff;font-weight:600;font-size:16px;">${tempK.value}</div>
+          <div style="color:rgba(230,250,255,0.7);font-size:12px;">K</div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="background:rgba(57,255,20,0.05);border-radius:8px;padding:12px;">
+      <div style="color:#39ff14;font-weight:500;margin-bottom:6px;">📝 Description</div>
+      <div style="color:rgba(230,250,255,0.9);font-size:13px;line-height:1.4;">${item.description}</div>
+    </div>
+    
+    <div style="background:rgba(255,204,0,0.05);border-radius:8px;padding:12px;">
+      <div style="color:#ffcc00;font-weight:500;margin-bottom:6px;">🏷️ Category</div>
+      <div style="color:#fff;font-weight:600;font-size:14px;">${item.category.charAt(0).toUpperCase() + item.category.slice(1)}</div>
+      <div style="color:rgba(230,250,255,0.7);font-size:12px;margin-top:2px;">At 1 atm pressure</div>
+    </div>
+  `;
+  
+  detailsDiv.style.display = 'grid';
+  noDetailsDiv.style.display = 'none';
 }
+
+// Add substance to comparison
+function mpfAddToComparison(substanceName) {
+  const item = mpfDatabase.find(s => s.name === substanceName);
+  if (!item || mpfComparison.some(s => s.name === substanceName)) return;
+  
+  mpfComparison.push(item);
+  mpfUpdateComparison();
+}
+
+// Update comparison display
+function mpfUpdateComparison() {
+  const card = document.currentScript?.closest('.card') || document;
+  const comparisonDiv = card.querySelector('#mpf-comparison');
+  
+  if (mpfComparison.length === 0) {
+    comparisonDiv.innerHTML = `
+      <div style="color:rgba(230,250,255,0.7);text-align:center;padding:40px 20px;">
+        <div style="font-size:32px;margin-bottom:8px;">⚖️</div>
+        <div>Add substances to compare their melting points</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Sort by temperature
+  const sorted = [...mpfComparison].sort((a, b) => a.mp - b.mp);
+  
+  let html = '';
+  sorted.forEach((item, index) => {
+    const temp = mpfConvertTemp(item.mp, currentUnit);
+    const color = mpfGetTempColor(item.mp);
+    
+    // Calculate relative position (0 to 100%)
+    const minTemp = Math.min(...sorted.map(s => s.mp));
+    const maxTemp = Math.max(...sorted.map(s => s.mp));
+    const range = maxTemp - minTemp;
+    const position = range === 0 ? 50 : ((item.mp - minTemp) / range) * 100;
+    
+    html += `
+      <div style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.03);border-radius:6px;border-left:3px solid ${color};">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div style="font-size:18px;">${item.emoji}</div>
+              <div style="font-weight:500;color:#fff;font-size:13px;">${item.name}</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:${color};font-weight:600;font-size:14px;">${temp.value} ${temp.unit}</div>
+            <button onclick="mpfRemoveFromComparison('${item.name}')" 
+                    style="margin-top:4px;padding:2px 6px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:4px;color:#ff4d4d;cursor:pointer;font-size:10px;">
+              Remove
+            </button>
+          </div>
+        </div>
+        ${sorted.length > 1 ? `
+        <div style="margin-top:8px;">
+          <div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;position:relative;">
+            <div style="position:absolute;left:${position}%;top:-2px;width:12px;height:12px;background:${color};border-radius:50%;transform:translateX(-50%);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(230,250,255,0.5);margin-top:4px;">
+            <span>${mpfConvertTemp(minTemp, currentUnit).value} ${currentUnit === 'C' ? '°C' : currentUnit === 'F' ? '°F' : 'K'}</span>
+            <span>Relative position</span>
+            <span>${mpfConvertTemp(maxTemp, currentUnit).value} ${currentUnit === 'C' ? '°C' : currentUnit === 'F' ? '°F' : 'K'}</span>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+    `;
+  });
+  
+  comparisonDiv.innerHTML = html;
+}
+
+// Remove from comparison
+function mpfRemoveFromComparison(substanceName) {
+  mpfComparison = mpfComparison.filter(s => s.name !== substanceName);
+  mpfUpdateComparison();
+}
+
+// Clear all comparisons
+function mpfClearComparison() {
+  mpfComparison = [];
+  mpfUpdateComparison();
+}
+
+// Compare random substances
+function mpfCompareRandom() {
+  const randomCount = 3;
+  const shuffled = [...mpfDatabase].sort(() => 0.5 - Math.random());
+  mpfComparison = shuffled.slice(0, randomCount);
+  mpfUpdateComparison();
+}
+
+// Update all displays with current unit
+function mpfUpdateDisplay() {
+  mpfSearch();
+  mpfUpdateComparison();
+  
+  // Update details if showing
+  const card = document.currentScript?.closest('.card') || document;
+  const detailsDiv = card.querySelector('#mpf-details');
+  if (detailsDiv.style.display === 'grid') {
+    const substanceName = detailsDiv.querySelector('.substance-item')?.dataset.name;
+    if (substanceName) {
+      mpfShowDetails(substanceName);
+    }
+  }
+}
+
+// Drag and drop for comparison
+function mpfDragStart(event, substanceName) {
+  event.dataTransfer.setData('text/plain', substanceName);
+  event.dataTransfer.effectAllowed = 'copy';
+}
+
+function mpfDropOnComparison(event) {
+  event.preventDefault();
+  const substanceName = event.dataTransfer.getData('text/plain');
+  mpfAddToComparison(substanceName);
+}
+
+// Reset everything
+function mpfReset() {
+  const card = document.currentScript?.closest('.card') || document;
+  
+  card.querySelector('#mpf-search').value = '';
+  card.querySelector('#mpf-category').value = 'all';
+  card.querySelector('#mpf-temp-min').value = -273;
+  card.querySelector('#mpf-temp-max').value = 4000;
+  card.querySelector('#mpf-sort').value = 'name';
+  card.querySelector('#mpf-pressure').value = '1atm';
+  
+  mpfComparison = [];
+  mpfSetUnit('C');
+  
+  const detailsDiv = card.querySelector('#mpf-details');
+  const noDetailsDiv = card.querySelector('#mpf-no-details');
+  detailsDiv.style.display = 'none';
+  noDetailsDiv.style.display = 'block';
+  
+  mpfSearch();
+  mpfUpdateComparison();
+}
+
+// Initialize on load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mpfInitialize);
+} else {
+  mpfInitialize();
+}
+
+// Allow drop on comparison area
+document.addEventListener('DOMContentLoaded', function() {
+  const card = document.currentScript?.closest('.card') || document;
+  const comparisonDiv = card.querySelector('#mpf-comparison');
+  
+  comparisonDiv.addEventListener('dragover', function(event) {
+    event.preventDefault();
+    this.style.backgroundColor = 'rgba(45,212,255,0.05)';
+  });
+  
+  comparisonDiv.addEventListener('dragleave', function(event) {
+    this.style.backgroundColor = '';
+  });
+  
+  comparisonDiv.addEventListener('drop', function(event) {
+    event.preventDefault();
+    this.style.backgroundColor = '';
+    const substanceName = event.dataTransfer.getData('text/plain');
+    mpfAddToComparison(substanceName);
+  });
+});
 </script>
+
+<style>
+/* Melting Point Finder specific styles */
+#melting-point-title {
+  color: var(--accent);
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.category-btn {
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #e6faff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.category-btn:hover {
+  background: rgba(45,212,255,0.1);
+  border-color: rgba(45,212,255,0.3);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.unit-btn {
+  flex: 1;
+  padding: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(230,250,255,0.7);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.unit-btn.active {
+  background: rgba(45,212,255,0.2);
+  border-color: rgba(45,212,255,0.4);
+  color: var(--accent);
+}
+
+.unit-btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.unit-btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.substance-item {
+  transition: all 0.2s;
+}
+
+.substance-item:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.06) !important;
+}
+
+/* Range slider styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.1);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+/* Scrollbar styling */
+#mpf-output, #mpf-comparison {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) rgba(255,255,255,0.05);
+}
+
+#mpf-output::-webkit-scrollbar,
+#mpf-comparison::-webkit-scrollbar {
+  width: 6px;
+}
+
+#mpf-output::-webkit-scrollbar-track,
+#mpf-comparison::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+}
+
+#mpf-output::-webkit-scrollbar-thumb,
+#mpf-comparison::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .results > div {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  
+  .category-btn {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+  
+  .search-section > div {
+    grid-template-columns: 1fr !important;
+  }
+  
+  #mpf-details {
+    grid-template-columns: 1fr !important;
+  }
+}
+</style>
