@@ -1,45 +1,621 @@
-<h2 id="rent-title" style="margin-top:0;">Rent Calculator</h2>
+<h2 id="rent-calculator-title">🏠 Rent Calculator</h2>
 
-<form aria-describedby="rent-desc">
-  <p id="rent-desc" class="small">Split rent among roommates or calculate monthly cost per person.</p>
-
-  <div class="row">
-    <div class="field">
-      <label for="rent-total">Total monthly rent (£)</label>
-      <input id="rent-total" type="number" min="0" value="1200" />
+<form aria-describedby="rent-calculator-desc">
+    <p id="rent-calculator-desc" class="small" style="margin-bottom:20px;color:var(--muted)">
+        Split rent among roommates, calculate per-person costs, and account for room size differences.
+        <span style="color:var(--accent)">Supports multiple currencies and custom splits.</span>
+    </p>
+    
+    <!-- BASIC INPUTS -->
+    <div style="margin-bottom:20px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:12px;">
+            <div>
+                <label for="rc-total" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
+                    Total Monthly Rent
+                </label>
+                <div style="display:flex;gap:8px;">
+                    <select id="rc-currency" style="width:80px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;">
+                        <option value="£">£ GBP</option>
+                        <option value="$">$ USD</option>
+                        <option value="€">€ EUR</option>
+                        <option value="¥">¥ JPY</option>
+                        <option value="₹">₹ INR</option>
+                    </select>
+                    <input id="rc-total" type="number" min="0" step="0.01" placeholder="e.g., 1200" value="1200" 
+                           style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;" />
+                </div>
+            </div>
+            
+            <div>
+                <label for="rc-roommates" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
+                    Number of People
+                </label>
+                <input id="rc-roommates" type="number" min="1" max="20" value="3" 
+                       style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;" />
+            </div>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
+            <div>
+                <label for="rc-utilities" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
+                    Monthly Utilities (£)
+                </label>
+                <input id="rc-utilities" type="number" min="0" step="0.01" placeholder="e.g., 200" value="0" 
+                       style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;" />
+            </div>
+            
+            <div>
+                <label for="rc-security" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
+                    Security Deposit (£)
+                </label>
+                <input id="rc-security" type="number" min="0" step="0.01" placeholder="e.g., 1500" value="0" 
+                       style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;" />
+            </div>
+        </div>
     </div>
-    <div class="field">
-      <label for="rent-roommates">Number of roommates</label>
-      <input id="rent-roommates" type="number" min="1" value="3" />
+    
+    <!-- ADVANCED SPLITTING -->
+    <div style="margin-bottom:20px;">
+        <details>
+            <summary style="color:var(--accent);cursor:pointer;font-weight:500;padding:10px;background:rgba(45,212,255,0.05);border-radius:8px;border:1px solid rgba(45,212,255,0.1);">
+                ⚙️ Advanced Split Options
+            </summary>
+            <div style="margin-top:12px;padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                <div style="color:var(--accent);font-weight:500;margin-bottom:12px;">Custom Split Ratios</div>
+                
+                <div id="rc-ratios-container" style="display:flex;flex-direction:column;gap:12px;">
+                    <!-- Ratios will be generated here -->
+                </div>
+                
+                <div style="margin-top:12px;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" id="rc-auto-ratios" checked style="accent-color:var(--accent);">
+                        <span style="color:var(--accent);font-size:14px;">Auto-generate ratios based on inputs</span>
+                    </label>
+                </div>
+            </div>
+        </details>
     </div>
-  </div>
-
-  <div class="actions">
-    <button type="button" onclick="rentCalc(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="rentReset(this)">Reset</button>
-  </div>
+    
+    <!-- ACTION BUTTONS -->
+    <div style="display:flex;gap:10px;">
+        <button type="button" onclick="rcCalculate()" 
+                style="flex:1;padding:14px;background:linear-gradient(135deg, rgba(45,212,255,0.3), rgba(45,212,255,0.2));border:1px solid rgba(45,212,255,0.6);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+            🧮 Calculate Split
+        </button>
+        <button type="button" onclick="rcReset()"
+                style="padding:14px 20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+            🔄 Reset
+        </button>
+    </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <div class="result">
-    <div class="label">Rent per person</div>
-    <div class="value" id="rent-res">–</div>
-  </div>
+<!-- RESULTS -->
+<div id="rc-results" style="margin-top:24px;display:none;">
+    <h3 style="color:var(--accent);margin-bottom:16px;font-size:16px;">📊 Rent Split Results</h3>
+    
+    <!-- QUICK STATS -->
+    <div style="margin-bottom:20px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:16px;">
+            <div style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">
+                <div style="font-size:20px;font-weight:bold;color:#39ff14;" id="rc-per-person">£0.00</div>
+                <div style="font-size:11px;color:var(--muted);">Per Person/Month</div>
+            </div>
+            
+            <div style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">
+                <div style="font-size:20px;font-weight:bold;color:var(--accent);" id="rc-total-with-utils">£0.00</div>
+                <div style="font-size:11px;color:var(--muted);">Rent + Utilities</div>
+            </div>
+            
+            <div style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">
+                <div style="font-size:20px;font-weight:bold;color:#ffcc00;" id="rc-security-share">£0.00</div>
+                <div style="font-size:11px;color:var(--muted);">Security Share</div>
+            </div>
+            
+            <div style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">
+                <div style="font-size:20px;font-weight:bold;color:#9d4edd;" id="rc-yearly-cost">£0.00</div>
+                <div style="font-size:11px;color:var(--muted);">Yearly Per Person</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- DETAILED BREAKDOWN -->
+    <div style="margin-bottom:20px;">
+        <div style="color:var(--accent);font-weight:500;margin-bottom:12px;">📝 Detailed Breakdown</div>
+        <div id="rc-breakdown" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;font-family:monospace;white-space:pre-line;max-height:300px;overflow-y:auto;">
+            <!-- Detailed results will appear here -->
+        </div>
+    </div>
+    
+    <!-- PAYMENT SCHEDULE -->
+    <div style="margin-bottom:20px;">
+        <div style="color:var(--accent);font-weight:500;margin-bottom:12px;">📅 6-Month Payment Preview</div>
+        <div id="rc-schedule" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:8px;">
+            <!-- Payment schedule will appear here -->
+        </div>
+    </div>
+    
+    <!-- EXPORT OPTIONS -->
+    <div style="display:flex;gap:8px;">
+        <button type="button" onclick="rcCopyResults()" 
+                style="flex:1;padding:10px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:6px;color:#39ff14;cursor:pointer;font-size:13px;">
+            📋 Copy Breakdown
+        </button>
+        <button type="button" onclick="rcExportPDF()"
+                style="padding:10px 14px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:6px;color:#ff4d4d;cursor:pointer;font-size:13px;">
+            📄 Save as PDF
+        </button>
+        <button type="button" onclick="rcShare()"
+                style="padding:10px 14px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:13px;">
+            🔗 Share
+        </button>
+    </div>
 </div>
 
 <script>
-function rentCalc(btn) {
-  const card = btn.closest('.card');
-  const total = parseFloat(card.querySelector('#rent-total').value) || 0;
-  const roommates = parseInt(card.querySelector('#rent-roommates').value) || 1;
+/* rent-calculator.html
+   - Advanced rent splitting calculator
+   - Scoped with rc- prefix (Rent Calculator)
+*/
 
-  const perPerson = total / roommates;
-  card.querySelector('#rent-res').textContent = "£" + perPerson.toFixed(2);
+let rcSplitRatios = [];
+
+// Initialize
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', rcInit);
+} else {
+    rcInit();
 }
 
-function rentReset(btn) {
-  const card = btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#rent-res').textContent = '–';
+function rcInit() {
+    console.log('Rent Calculator initialized');
+    
+    // Load saved data
+    const saved = localStorage.getItem('rc-settings');
+    if (saved) {
+        try {
+            const settings = JSON.parse(saved);
+            document.getElementById('rc-total').value = settings.total || 1200;
+            document.getElementById('rc-roommates').value = settings.roommates || 3;
+            document.getElementById('rc-utilities').value = settings.utilities || 0;
+            document.getElementById('rc-security').value = settings.security || 0;
+            document.getElementById('rc-currency').value = settings.currency || '£';
+        } catch (e) {
+            console.error('Failed to load settings:', e);
+        }
+    }
+    
+    // Generate ratio inputs
+    rcGenerateRatioInputs();
+    
+    // Update ratios when roommate count changes
+    document.getElementById('rc-roommates').addEventListener('input', rcGenerateRatioInputs);
+}
+
+// Generate ratio inputs based on roommate count
+function rcGenerateRatioInputs() {
+    const roommateCount = parseInt(document.getElementById('rc-roommates').value) || 1;
+    const container = document.getElementById('rc-ratios-container');
+    
+    let html = '';
+    
+    for (let i = 1; i <= roommateCount; i++) {
+        html += `
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;">
+                <div style="color:var(--accent);font-size:14px;">Person ${i}:</div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="number" id="rc-ratio-${i}" min="1" max="10" value="1" 
+                           style="width:80px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--glass);color:inherit;text-align:center;" />
+                    <div style="color:var(--muted);font-size:13px;">share(s)</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+    
+    // Add explanation
+    container.innerHTML += `
+        <div style="margin-top:8px;padding:8px;background:rgba(0,0,0,0.1);border-radius:6px;">
+            <div style="color:#ffcc00;font-size:12px;font-weight:500;">ℹ️ Ratio Example:</div>
+            <div style="color:var(--muted);font-size:11px;line-height:1.4;">
+                Person with larger room = 1.5 shares<br>
+                Person with smaller room = 1 share<br>
+                Couple sharing room = 2 shares
+            </div>
+        </div>
+    `;
+}
+
+// Save settings
+function rcSaveSettings() {
+    const settings = {
+        total: document.getElementById('rc-total').value,
+        roommates: document.getElementById('rc-roommates').value,
+        utilities: document.getElementById('rc-utilities').value,
+        security: document.getElementById('rc-security').value,
+        currency: document.getElementById('rc-currency').value
+    };
+    localStorage.setItem('rc-settings', JSON.stringify(settings));
+}
+
+// Main calculation function
+function rcCalculate() {
+    const totalRent = parseFloat(document.getElementById('rc-total').value) || 0;
+    const roommateCount = parseInt(document.getElementById('rc-roommates').value) || 1;
+    const utilities = parseFloat(document.getElementById('rc-utilities').value) || 0;
+    const security = parseFloat(document.getElementById('rc-security').value) || 0;
+    const currency = document.getElementById('rc-currency').value;
+    const autoRatios = document.getElementById('rc-auto-ratios').checked;
+    
+    if (totalRent <= 0) {
+        rcShowMessage('Enter a valid rent amount', 'warning');
+        return;
+    }
+    
+    if (roommateCount <= 0) {
+        rcShowMessage('Enter valid number of roommates', 'warning');
+        return;
+    }
+    
+    // Collect custom ratios if enabled
+    let ratios = [];
+    let totalShares = 0;
+    
+    if (!autoRatios) {
+        for (let i = 1; i <= roommateCount; i++) {
+            const ratio = parseFloat(document.getElementById(`rc-ratio-${i}`).value) || 1;
+            ratios.push({ person: i, ratio: ratio });
+            totalShares += ratio;
+        }
+    } else {
+        // Equal split
+        for (let i = 1; i <= roommateCount; i++) {
+            ratios.push({ person: i, ratio: 1 });
+        }
+        totalShares = roommateCount;
+    }
+    
+    // Calculate total with utilities
+    const totalWithUtilities = totalRent + utilities;
+    
+    // Calculate per-share value
+    const valuePerShare = totalWithUtilities / totalShares;
+    
+    // Calculate security per person (equal split)
+    const securityPerPerson = security / roommateCount;
+    
+    // Calculate results
+    const results = ratios.map(r => {
+        const rentShare = valuePerShare * r.ratio;
+        const totalCost = rentShare + (utilities / roommateCount); // Split utilities equally
+        
+        return {
+            person: r.person,
+            ratio: r.ratio,
+            rentShare: rentShare,
+            utilitiesShare: utilities / roommateCount,
+            securityShare: securityPerPerson,
+            totalMonthly: totalCost,
+            totalYearly: totalCost * 12
+        };
+    });
+    
+    // Display results
+    rcDisplayResults(results, currency);
+    
+    // Show results section
+    document.getElementById('rc-results').style.display = 'block';
+    
+    // Save settings
+    rcSaveSettings();
+    
+    rcShowMessage('Rent calculated!', 'success');
+}
+
+// Display results
+function rcDisplayResults(results, currency) {
+    // Update quick stats
+    const equalSplit = results.reduce((sum, r) => sum + r.totalMonthly, 0) / results.length;
+    const totalWithUtils = results.reduce((sum, r) => sum + r.totalMonthly, 0);
+    const securityShare = results[0]?.securityShare || 0;
+    const yearlyPerPerson = equalSplit * 12;
+    
+    document.getElementById('rc-per-person').textContent = 
+        `${currency}${equalSplit.toFixed(2)}`;
+    document.getElementById('rc-total-with-utils').textContent = 
+        `${currency}${totalWithUtils.toFixed(2)}`;
+    document.getElementById('rc-security-share').textContent = 
+        `${currency}${securityShare.toFixed(2)}`;
+    document.getElementById('rc-yearly-cost').textContent = 
+        `${currency}${yearlyPerPerson.toFixed(2)}`;
+    
+    // Detailed breakdown
+    let breakdown = 'PERSON    SHARE   RENT        UTILITIES   TOTAL/MONTH\n';
+    breakdown += '='.repeat(55) + '\n\n';
+    
+    results.forEach(r => {
+        breakdown += `Person ${r.person}   ${r.ratio.toFixed(1)}     ${currency}${r.rentShare.toFixed(2)}`;
+        breakdown += `     ${currency}${r.utilitiesShare.toFixed(2)}`;
+        breakdown += `       ${currency}${r.totalMonthly.toFixed(2)}\n`;
+    });
+    
+    breakdown += '\n' + '='.repeat(55) + '\n';
+    breakdown += `Security Deposit: ${currency}${securityShare.toFixed(2)} per person\n`;
+    breakdown += `Yearly Total: ${currency}${yearlyPerPerson.toFixed(2)} per person`;
+    
+    document.getElementById('rc-breakdown').textContent = breakdown;
+    
+    // Generate payment schedule
+    rcGenerateSchedule(results, currency);
+}
+
+// Generate payment schedule
+function rcGenerateSchedule(results, currency) {
+    const scheduleContainer = document.getElementById('rc-schedule');
+    const today = new Date();
+    let html = '';
+    
+    for (let month = 0; month < 6; month++) {
+        const monthDate = new Date(today);
+        monthDate.setMonth(today.getMonth() + month);
+        
+        const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
+        const year = monthDate.getFullYear().toString().slice(2);
+        
+        html += `
+            <div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:6px;text-align:center;">
+                <div style="color:var(--accent);font-size:12px;font-weight:500;margin-bottom:4px;">
+                    ${monthName} '${year}
+                </div>
+                <div style="color:#39ff14;font-size:14px;font-weight:600;">
+                    ${currency}${results[0]?.totalMonthly.toFixed(2) || '0.00'}
+                </div>
+                <div style="color:var(--muted);font-size:10px;">
+                    per person
+                </div>
+            </div>
+        `;
+    }
+    
+    scheduleContainer.innerHTML = html;
+}
+
+// Copy results to clipboard
+function rcCopyResults() {
+    const breakdown = document.getElementById('rc-breakdown').textContent;
+    if (!breakdown || breakdown.includes('Detailed results')) {
+        rcShowMessage('No results to copy', 'warning');
+        return;
+    }
+    
+    const currency = document.getElementById('rc-currency').value;
+    const total = document.getElementById('rc-total').value;
+    const roommates = document.getElementById('rc-roommates').value;
+    
+    let text = `RENT CALCULATION\n`;
+    text += `Total Rent: ${currency}${total}\n`;
+    text += `Roommates: ${roommates}\n`;
+    text += `Generated: ${new Date().toLocaleDateString()}\n`;
+    text += '='.repeat(40) + '\n\n';
+    text += breakdown;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        rcShowMessage('Results copied!', 'success');
+    }).catch(err => {
+        console.error('Copy failed:', err);
+        // Fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        rcShowMessage('Copied!', 'success');
+    });
+}
+
+// Export as PDF (simulated - creates downloadable text file)
+function rcExportPDF() {
+    const breakdown = document.getElementById('rc-breakdown').textContent;
+    if (!breakdown || breakdown.includes('Detailed results')) {
+        rcShowMessage('No results to export', 'warning');
+        return;
+    }
+    
+    const currency = document.getElementById('rc-currency').value;
+    const total = document.getElementById('rc-total').value;
+    const roommates = document.getElementById('rc-roommates').value;
+    const utilities = document.getElementById('rc-utilities').value;
+    
+    let text = `RENT CALCULATION REPORT\n`;
+    text += `Date: ${new Date().toLocaleDateString()}\n`;
+    text += '='.repeat(50) + '\n\n';
+    text += `Total Monthly Rent: ${currency}${total}\n`;
+    text += `Utilities: ${currency}${utilities}\n`;
+    text += `Number of Roommates: ${roommates}\n`;
+    text += '='.repeat(50) + '\n\n';
+    text += breakdown;
+    text += '\n\n' + '='.repeat(50) + '\n';
+    text += 'Generated by Rent Calculator';
+    
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rent-calculation-${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    rcShowMessage('Report exported!', 'success');
+}
+
+// Share results
+function rcShare() {
+    const perPerson = document.getElementById('rc-per-person').textContent;
+    const roommates = document.getElementById('rc-roommates').value;
+    
+    const text = `🏠 Rent Split: ${perPerson} per person (${roommates} people)`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Rent Calculation',
+            text: text,
+            url: window.location.href
+        }).catch(err => {
+            console.log('Share cancelled:', err);
+            // Fallback to clipboard
+            navigator.clipboard.writeText(text).then(() => {
+                rcShowMessage('Copied to clipboard!', 'success');
+            });
+        });
+    } else {
+        navigator.clipboard.writeText(text).then(() => {
+            rcShowMessage('Copied to clipboard!', 'success');
+        });
+    }
+}
+
+// Reset calculator
+function rcReset() {
+    if (confirm('Reset all inputs?')) {
+        document.getElementById('rc-total').value = 1200;
+        document.getElementById('rc-roommates').value = 3;
+        document.getElementById('rc-utilities').value = 0;
+        document.getElementById('rc-security').value = 0;
+        document.getElementById('rc-currency').value = '£';
+        document.getElementById('rc-auto-ratios').checked = true;
+        
+        document.getElementById('rc-results').style.display = 'none';
+        
+        rcGenerateRatioInputs();
+        localStorage.removeItem('rc-settings');
+        
+        rcShowMessage('Calculator reset', 'info');
+    }
+}
+
+// Show message
+function rcShowMessage(msg, type) {
+    const colors = { success: '#39ff14', warning: '#ffcc00', error: '#ff2d55', info: '#2dd4ff' };
+    
+    // Remove existing
+    const existing = document.querySelector('.rc-msg');
+    if (existing) existing.remove();
+    
+    // Create new
+    const div = document.createElement('div');
+    div.className = 'rc-msg';
+    div.textContent = msg;
+    div.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        background: rgba(0,0,0,0.9);
+        border: 1px solid ${colors[type]};
+        border-radius: 8px;
+        color: ${colors[type]};
+        z-index: 10000;
+        font-weight: 500;
+        animation: rcSlideIn 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(div);
+    
+    setTimeout(() => {
+        div.style.animation = 'rcSlideOut 0.3s ease-out';
+        setTimeout(() => div.remove(), 300);
+    }, 3000);
+}
+
+// Add keyboard shortcut (Enter on total field)
+document.addEventListener('DOMContentLoaded', function() {
+    const totalInput = document.getElementById('rc-total');
+    if (totalInput) {
+        totalInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                rcCalculate();
+            }
+        });
+    }
+});
+
+// Add animation styles
+if (!document.querySelector('#rc-styles')) {
+    const style = document.createElement('style');
+    style.id = 'rc-styles';
+    style.textContent = `
+        @keyframes rcSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes rcSlideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        #rc-breakdown::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #rc-breakdown::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+        
+        #rc-breakdown::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+        
+        details[open] summary {
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        
+        details[open] summary ~ div {
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+            border: 1px solid rgba(45,212,255,0.1);
+            border-top: none;
+        }
+    `;
+    document.head.appendChild(style);
 }
 </script>
+
+<style>
+#rent-calculator-title {
+    color: var(--accent);
+    margin-top: 0;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    #rc-breakdown {
+        font-size: 12px !important;
+        max-height: 250px !important;
+    }
+    
+    #rc-schedule {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    input, button, select {
+        font-size: 16px !important; /* Prevents iOS zoom */
+        min-height: 44px; /* Better touch target */
+    }
+    
+    button {
+        padding: 12px !important;
+    }
+    
+    .grid-stats {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+</style>
