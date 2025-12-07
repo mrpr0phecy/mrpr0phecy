@@ -1,67 +1,513 @@
-<h2 id="reminder-title" style="margin-top:0;">Reminder Tool</h2>
+<h2 id="reminder-tool-title">⏰ Reminder Tool</h2>
 
-<form aria-describedby="reminder-desc">
-  <p id="reminder-desc" class="small">Create simple reminders that stay saved in your browser.</p>
-
-  <div class="row">
-    <div class="field">
-      <label for="reminder-text">Reminder text</label>
-      <input id="reminder-text" type="text" placeholder="e.g. Call Alex at 3pm" />
+<form aria-describedby="reminder-tool-desc">
+    <p id="reminder-tool-desc" class="small" style="margin-bottom:20px;color:var(--muted)">
+        Create reminders that stay saved in your browser.
+        <span style="color:var(--accent)">Works offline — data saved locally.</span>
+    </p>
+    
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:16px;">
+        <div>
+            <label for="rt-text" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
+                Reminder Text
+            </label>
+            <input id="rt-text" type="text" placeholder="e.g., Call Alex, Pay bill, Buy milk" 
+                   style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;" />
+        </div>
+        
+        <div>
+            <label for="rt-time" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
+                Time (Optional)
+            </label>
+            <input id="rt-time" type="time" 
+                   style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;" />
+        </div>
     </div>
-    <div class="field">
-      <label for="reminder-time">Time</label>
-      <input id="reminder-time" type="time" />
+    
+    <div style="margin-bottom:16px;">
+        <label for="rt-priority" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
+            Priority
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="rt-priority" value="low" checked style="accent-color:#39ff14;">
+                <span style="color:#39ff14;font-size:13px;">Low</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="rt-priority" value="medium" style="accent-color:#ffcc00;">
+                <span style="color:#ffcc00;font-size:13px;">Medium</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="rt-priority" value="high" style="accent-color:#ff2d55;">
+                <span style="color:#ff2d55;font-size:13px;">High</span>
+            </label>
+        </div>
     </div>
-  </div>
-
-  <div class="actions">
-    <button type="button" onclick="reminderAdd(this)">Add Reminder</button>
-    <button type="button" class="secondary" onclick="reminderReset(this)">Clear All</button>
-  </div>
+    
+    <div style="display:flex;gap:10px;">
+        <button type="button" onclick="rtAdd()" 
+                style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+            ➕ Add Reminder
+        </button>
+        <button type="button" onclick="rtResetAll()"
+                style="padding:12px 16px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:8px;color:#ff4d4d;cursor:pointer;">
+            🔄 Clear All
+        </button>
+    </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <h3 class="small">Your reminders</h3>
-  <ul id="reminder-list" class="small"></ul>
+<!-- REMINDERS LIST -->
+<div style="margin-top:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="color:var(--accent);margin:0;font-size:16px;">📋 Your Reminders</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:13px;color:var(--muted);" id="rt-count">0 reminders</span>
+            <button type="button" onclick="rtClearCompleted()" 
+                    style="padding:6px 12px;background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);border-radius:6px;color:#ffcc00;cursor:pointer;font-size:12px;">
+                Clear Done
+            </button>
+        </div>
+    </div>
+    
+    <div id="rt-list" style="max-height:400px;overflow-y:auto;padding-right:8px;">
+        <div style="text-align:center;padding:20px;color:rgba(230,250,255,0.5);">
+            No reminders yet. Add your first one above!
+        </div>
+    </div>
+    
+    <div style="margin-top:16px;display:flex;gap:8px;">
+        <button type="button" onclick="rtExport()" 
+                style="flex:1;padding:10px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:6px;color:#39ff14;cursor:pointer;font-size:13px;">
+            📥 Export List
+        </button>
+        <button type="button" onclick="rtImport()"
+                style="padding:10px 14px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:13px;">
+            📤 Import
+        </button>
+    </div>
 </div>
 
 <script>
-function reminderAdd(btn) {
-  const card = btn.closest('.card');
-  const text = card.querySelector('#reminder-text').value.trim();
-  const time = card.querySelector('#reminder-time').value;
+/* reminder-tool.html
+   - Browser-based reminder tool
+   - Scoped with rt- prefix (Reminder Tool)
+*/
 
-  if (!text) return;
+let rtReminders = [];
 
-  const reminder = { text, time };
-  let reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
-  reminders.push(reminder);
-  localStorage.setItem("reminders", JSON.stringify(reminders));
+// Priority colors
+const rtPriorityColors = {
+    low: '#39ff14',
+    medium: '#ffcc00',
+    high: '#ff2d55'
+};
 
-  renderReminders(card);
-  card.querySelector('form').reset();
+// Priority icons
+const rtPriorityIcons = {
+    low: '🔵',
+    medium: '🟡',
+    high: '🔴'
+};
+
+// Initialize
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', rtInit);
+} else {
+    rtInit();
 }
 
-function renderReminders(card) {
-  const list = card.querySelector('#reminder-list');
-  list.innerHTML = "";
-  const reminders = JSON.parse(localStorage.getItem("reminders") || "[]");
-  reminders.forEach(r => {
-    const li = document.createElement('li');
-    li.textContent = r.text + (r.time ? " at " + r.time : "");
-    list.appendChild(li);
-  });
+function rtInit() {
+    console.log('Reminder Tool initialized');
+    
+    // Load reminders from localStorage
+    const saved = localStorage.getItem('rt-reminders');
+    if (saved) {
+        try {
+            rtReminders = JSON.parse(saved);
+            rtRenderList();
+        } catch (e) {
+            console.error('Failed to load reminders:', e);
+            rtReminders = [];
+        }
+    }
+    
+    // Set default time to next hour
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    const nextHour = now.getHours().toString().padStart(2, '0') + ':00';
+    document.getElementById('rt-time').value = nextHour;
+    
+    // Focus text input
+    document.getElementById('rt-text').focus();
 }
 
-function reminderReset(btn) {
-  const card = btn.closest('.card');
-  localStorage.removeItem("reminders");
-  card.querySelector('#reminder-list').innerHTML = "";
+// Save reminders
+function rtSaveReminders() {
+    localStorage.setItem('rt-reminders', JSON.stringify(rtReminders));
+    rtUpdateCount();
 }
 
-// Render reminders on load
-document.addEventListener("DOMContentLoaded", () => {
-  const card = document.querySelector('#reminder-title').closest('.card');
-  if (card) renderReminders(card);
+// Update count display
+function rtUpdateCount() {
+    const total = rtReminders.length;
+    const completed = rtReminders.filter(r => r.completed).length;
+    
+    let text = `${total} reminder${total !== 1 ? 's' : ''}`;
+    if (completed > 0) {
+        text += ` (${completed} completed)`;
+    }
+    
+    document.getElementById('rt-count').textContent = text;
+}
+
+// Add reminder
+function rtAdd() {
+    const text = document.getElementById('rt-text').value.trim();
+    const time = document.getElementById('rt-time').value;
+    const priority = document.querySelector('input[name="rt-priority"]:checked').value;
+    
+    if (!text) {
+        rtShowMessage('Enter reminder text', 'warning');
+        document.getElementById('rt-text').focus();
+        return;
+    }
+    
+    const reminder = {
+        id: Date.now(),
+        text: text,
+        time: time || '',
+        priority: priority,
+        completed: false,
+        createdAt: new Date().toISOString()
+    };
+    
+    rtReminders.push(reminder);
+    rtSaveReminders();
+    rtRenderList();
+    
+    // Clear form and focus
+    document.getElementById('rt-text').value = '';
+    document.getElementById('rt-text').focus();
+    
+    rtShowMessage('Reminder added!', 'success');
+}
+
+// Toggle completion
+function rtToggleComplete(id) {
+    const reminder = rtReminders.find(r => r.id === id);
+    if (reminder) {
+        reminder.completed = !reminder.completed;
+        rtSaveReminders();
+        rtRenderList();
+        
+        const action = reminder.completed ? 'completed' : 'uncompleted';
+        rtShowMessage(`Reminder ${action}`, 'info');
+    }
+}
+
+// Delete reminder
+function rtDeleteReminder(id) {
+    if (confirm('Delete this reminder?')) {
+        rtReminders = rtReminders.filter(r => r.id !== id);
+        rtSaveReminders();
+        rtRenderList();
+        rtShowMessage('Reminder deleted', 'info');
+    }
+}
+
+// Clear completed reminders
+function rtClearCompleted() {
+    const completedCount = rtReminders.filter(r => r.completed).length;
+    if (completedCount === 0) {
+        rtShowMessage('No completed reminders', 'info');
+        return;
+    }
+    
+    if (confirm(`Clear ${completedCount} completed reminder${completedCount !== 1 ? 's' : ''}?`)) {
+        rtReminders = rtReminders.filter(r => !r.completed);
+        rtSaveReminders();
+        rtRenderList();
+        rtShowMessage('Cleared completed reminders', 'success');
+    }
+}
+
+// Reset all reminders
+function rtResetAll() {
+    if (rtReminders.length === 0) {
+        rtShowMessage('No reminders to clear', 'info');
+        return;
+    }
+    
+    if (confirm(`Clear all ${rtReminders.length} reminders?`)) {
+        rtReminders = [];
+        localStorage.removeItem('rt-reminders');
+        rtRenderList();
+        rtShowMessage('All reminders cleared', 'success');
+    }
+}
+
+// Render reminders list
+function rtRenderList() {
+    const container = document.getElementById('rt-list');
+    
+    if (rtReminders.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:20px;color:rgba(230,250,255,0.5);">
+                No reminders yet. Add your first one above!
+            </div>
+        `;
+        rtUpdateCount();
+        return;
+    }
+    
+    // Sort: uncompleted first, then by priority (high to low), then by time
+    const sorted = [...rtReminders].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        
+        const priorityOrder = { high: 3, medium: 2, low: 1 };
+        if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+            return priorityOrder[b.priority] - priorityOrder[a.priority];
+        }
+        
+        if (a.time && b.time) return a.time.localeCompare(b.time);
+        if (a.time) return -1;
+        if (b.time) return 1;
+        
+        return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+    
+    let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+    
+    sorted.forEach(reminder => {
+        const priorityColor = rtPriorityColors[reminder.priority];
+        const priorityIcon = rtPriorityIcons[reminder.priority];
+        
+        html += `
+            <div class="rt-reminder" style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;border-left:3px solid ${priorityColor};${reminder.completed ? 'opacity:0.6;' : ''}">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <button type="button" onclick="rtToggleComplete(${reminder.id})" 
+                                style="width:20px;height:20px;border-radius:4px;border:2px solid ${priorityColor};background:${reminder.completed ? priorityColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;color:#000;font-size:12px;">
+                            ${reminder.completed ? '✓' : ''}
+                        </button>
+                        <div style="color:${reminder.completed ? 'var(--muted)' : 'inherit'};font-weight:${reminder.completed ? '400' : '500'};">
+                            ${reminder.text}
+                        </div>
+                    </div>
+                    
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        ${reminder.time ? `<span style="font-size:12px;color:var(--accent);">⏰ ${reminder.time}</span>` : ''}
+                        <button type="button" onclick="rtDeleteReminder(${reminder.id})" 
+                                style="background:transparent;border:none;color:#ff4d4d;cursor:pointer;font-size:16px;padding:4px;">×</button>
+                    </div>
+                </div>
+                
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span style="font-size:12px;color:${priorityColor};">${priorityIcon} ${reminder.priority}</span>
+                        <span style="font-size:11px;color:rgba(230,250,255,0.5);">
+                            Added: ${new Date(reminder.createdAt).toLocaleDateString()}
+                        </span>
+                    </div>
+                    
+                    ${reminder.completed ? `
+                        <span style="font-size:11px;color:#39ff14;">✓ Completed</span>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    rtUpdateCount();
+}
+
+// Export reminders
+function rtExport() {
+    if (rtReminders.length === 0) {
+        rtShowMessage('No reminders to export', 'warning');
+        return;
+    }
+    
+    const data = {
+        exported: new Date().toISOString(),
+        count: rtReminders.length,
+        reminders: rtReminders
+    };
+    
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reminders-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    rtShowMessage('Reminders exported!', 'success');
+}
+
+// Import reminders
+function rtImport() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                
+                if (!data.reminders || !Array.isArray(data.reminders)) {
+                    throw new Error('Invalid file format');
+                }
+                
+                // Merge with existing reminders
+                data.reminders.forEach(reminder => {
+                    // Generate new ID to avoid conflicts
+                    reminder.id = Date.now() + Math.random();
+                    rtReminders.push(reminder);
+                });
+                
+                rtSaveReminders();
+                rtRenderList();
+                rtShowMessage(`Imported ${data.reminders.length} reminders`, 'success');
+            } catch (err) {
+                console.error('Import failed:', err);
+                rtShowMessage('Failed to import file', 'error');
+            }
+        };
+        reader.readAsText(file);
+    };
+    
+    input.click();
+}
+
+// Show message
+function rtShowMessage(msg, type) {
+    const colors = { success: '#39ff14', warning: '#ffcc00', error: '#ff2d55', info: '#2dd4ff' };
+    
+    // Remove existing
+    const existing = document.querySelector('.rt-msg');
+    if (existing) existing.remove();
+    
+    // Create new
+    const div = document.createElement('div');
+    div.className = 'rt-msg';
+    div.textContent = msg;
+    div.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        background: rgba(0,0,0,0.9);
+        border: 1px solid ${colors[type]};
+        border-radius: 8px;
+        color: ${colors[type]};
+        z-index: 10000;
+        font-weight: 500;
+        animation: rtSlideIn 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(div);
+    
+    setTimeout(() => {
+        div.style.animation = 'rtSlideOut 0.3s ease-out';
+        setTimeout(() => div.remove(), 300);
+    }, 3000);
+}
+
+// Add keyboard shortcut (Enter to add reminder)
+document.addEventListener('DOMContentLoaded', function() {
+    const textInput = document.getElementById('rt-text');
+    if (textInput) {
+        textInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                rtAdd();
+            }
+        });
+    }
 });
+
+// Add animation styles
+if (!document.querySelector('#rt-styles')) {
+    const style = document.createElement('style');
+    style.id = 'rt-styles';
+    style.textContent = `
+        @keyframes rtSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes rtSlideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        .rt-reminder {
+            transition: all 0.2s ease;
+        }
+        
+        .rt-reminder:hover {
+            background: rgba(0,0,0,0.3) !important;
+            transform: translateY(-1px);
+        }
+        
+        #rt-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #rt-list::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 3px;
+        }
+        
+        #rt-list::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 3px;
+        }
+    `;
+    document.head.appendChild(style);
+}
 </script>
+
+<style>
+#reminder-tool-title {
+    color: var(--accent);
+    margin-top: 0;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    #rt-list {
+        max-height: 300px !important;
+    }
+    
+    .rt-reminder > div:first-child {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 8px !important;
+    }
+    
+    .rt-reminder > div:first-child > div:last-child {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    input, button, select {
+        font-size: 16px !important; /* Prevents iOS zoom */
+        min-height: 44px; /* Better touch target */
+    }
+    
+    button {
+        padding: 12px !important;
+    }
+}
+</style>
