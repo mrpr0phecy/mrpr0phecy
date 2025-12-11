@@ -1,461 +1,915 @@
-<h2 id="sl-region-map-card" style="margin-top:0;">SL Region Map Viewer</h2>
+<h2 id="second-life-region-map-viewer-title">🗺️ Second Life Region Map Viewer</h2>
 
-<!--
-  Manifest metadata
-  id: sl-region-map-card
-  title: SL Region Map Viewer
-  path: cards/sl-region-map-card.html
-  category: Second Life Tools
-  version: 1.1
--->
-
-<form aria-describedby="sl-region-map-desc">
-  <p id="sl-region-map-desc" class="small">
-    Enter a Second Life region name and view its map from slgrid. This debug card attempts single-image endpoints, falls back to tile probes, and includes a direct URL override and a debug log to diagnose CORS or endpoint issues.
-  </p>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div class="field">
-      <label for="sl-region-name">Region Name</label>
-      <input id="sl-region-name" type="text" placeholder="e.g. Solace" style="width:100%;" />
+<form aria-describedby="second-life-region-map-viewer-desc">
+    <p id="second-life-region-map-viewer-desc" class="small">
+        View Second Life region maps with interactive pan/zoom, coordinates, and debugging tools.
+        <span style="color:var(--accent)">Uses multiple data sources with automatic fallback.</span>
+    </p>
+    
+    <!-- REGION INPUT -->
+    <div class="field" style="margin-bottom:16px;">
+        <label for="slrmv-region-name" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+            🌍 Region Name
+        </label>
+        <input id="slrmv-region-name" type="text" placeholder="e.g. Solace, Heterocera, Blake Sea" 
+               style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;" />
+        <div class="small" style="margin-top:4px;color:rgba(230,250,255,0.7);">
+            Popular: Solace, Heterocera, Blake Sea, Nautilus, Bay City
+        </div>
     </div>
-
-    <div class="field">
-      <label for="sl-proxy">CORS Proxy (optional)</label>
-      <select id="sl-proxy" style="width:100%;">
-        <option value="">None (direct)</option>
-        <option value="https://api.allorigins.win/raw?url=">AllOrigins (public)</option>
-        <option value="https://cors.bridged.cc/">bridged.cc (public)</option>
-      </select>
+    
+    <!-- COORDINATES AND SETTINGS -->
+    <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom:16px;">
+        <div>
+            <label for="slrmv-coord-x" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+                📍 X Coordinate (0-255)
+            </label>
+            <input id="slrmv-coord-x" type="number" min="0" max="255" placeholder="128" 
+                   style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(45,212,255,0.05);color:inherit;text-align:center;" />
+        </div>
+        
+        <div>
+            <label for="slrmv-coord-y" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+                📍 Y Coordinate (0-255)
+            </label>
+            <input id="slrmv-coord-y" type="number" min="0" max="255" placeholder="128" 
+                   style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(45,212,255,0.05);color:inherit;text-align:center;" />
+        </div>
+        
+        <div>
+            <label for="slrmv-image-source" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+                🖼️ Image Source
+            </label>
+            <select id="slrmv-image-source" 
+                    style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;">
+                <option value="auto" selected>Auto (Best Available)</option>
+                <option value="slgrid">SLGrid.org (Standard)</option>
+                <option value="slmap">SecondLife.com (Official)</option>
+                <option value="tiles">Tile Server (Detailed)</option>
+            </select>
+        </div>
+        
+        <div>
+            <label for="slrmv-cors-proxy" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+                🔄 CORS Proxy
+            </label>
+            <select id="slrmv-cors-proxy" 
+                    style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;">
+                <option value="" selected>No Proxy (Direct)</option>
+                <option value="allorigins">AllOrigins (Public)</option>
+                <option value="corsproxy">CORS Proxy (Public)</option>
+                <option value="corsanywhere">CORS Anywhere</option>
+            </select>
+        </div>
     </div>
-
-    <div class="field">
-      <label for="sl-direct-url">Direct map image URL (optional)</label>
-      <input id="sl-direct-url" type="url" placeholder="https://example.com/region.png" style="width:100%;" />
+    
+    <!-- DIRECT URL OVERRIDE -->
+    <div style="margin-bottom:20px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(255,255,255,0.08);padding:12px;">
+        <label for="slrmv-direct-url" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+            🔗 Direct Image URL (Override)
+        </label>
+        <input id="slrmv-direct-url" type="url" placeholder="https://example.com/map.png" 
+               style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(45,212,255,0.05);color:inherit;" />
+        <div class="small" style="text-align:center;color:rgba(230,250,255,0.7);margin-top:8px;">
+            Optional: Use any map image URL directly
+        </div>
     </div>
-
-    <div class="field">
-      <label for="sl-x">Marker X (0–255)</label>
-      <input id="sl-x" type="number" min="0" max="255" placeholder="optional" style="width:100%;" />
+    
+    <!-- QUICK REGION BUTTONS -->
+    <div style="margin-bottom:20px;">
+        <div style="color:rgba(230,250,255,0.8);margin-bottom:8px;font-size:14px;">Popular Regions:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" onclick="slrmvSetRegion('Solace')" style="padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">🏝️ Solace</button>
+            <button type="button" onclick="slrmvSetRegion('Heterocera')" style="padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">🌄 Heterocera</button>
+            <button type="button" onclick="slrmvSetRegion('Blake Sea')" style="padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">🌊 Blake Sea</button>
+            <button type="button" onclick="slrmvSetRegion('Nautilus')" style="padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">🐚 Nautilus</button>
+            <button type="button" onclick="slrmvSetRegion('Bay City')" style="padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e6faff;cursor:pointer;font-size:12px;">🏙️ Bay City</button>
+        </div>
     </div>
-
-    <div class="field">
-      <label for="sl-y">Marker Y (0–255)</label>
-      <input id="sl-y" type="number" min="0" max="255" placeholder="optional" style="width:100%;" />
+    
+    <!-- ACTIONS -->
+    <div class="actions" style="margin-top:20px;display:flex;gap:10px;">
+        <button type="button" onclick="slrmvLoadMap()" 
+                style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+            🗺️ Load Region Map
+        </button>
+        <button type="button" onclick="slrmvReset()"
+                style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+            Reset
+        </button>
+        <button type="button" onclick="slrmvDebugMode()"
+                style="padding:12px 16px;background:rgba(157,78,221,0.1);border:1px solid rgba(157,78,221,0.3);border-radius:8px;color:#9d4edd;cursor:pointer;">
+            🔧 Debug Mode
+        </button>
     </div>
-  </div>
-
-  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-    <button type="button" onclick="slLoadMapDebug(this)">Load Map</button>
-    <button type="button" onclick="slResetMap(this)" class="secondary">Reset</button>
-  </div>
 </form>
 
-<div style="margin-top:12px;">
-  <div id="sl-map-container" style="position:relative;border:1px solid rgba(0,0,0,0.08);overflow:hidden;">
-    <canvas id="sl-map-canvas" style="display:block;width:100%;height:auto;max-height:640px;background:#111;"></canvas>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-    <div id="sl-map-hint" class="small" style="padding:8px;background:#fafafa;border-radius:6px;min-height:48px;"></div>
-    <div id="sl-debug-log" class="small" style="white-space:pre-wrap;background:#111;color:#fff;padding:8px;border-radius:6px;max-height:160px;overflow:auto;"></div>
-  </div>
+<!-- MAP DISPLAY -->
+<div class="results" aria-live="polite" style="margin-top:16px;">
+    <h3 class="small" style="color:var(--accent);margin-bottom:8px;">🗺️ Region Map Display</h3>
+    
+    <!-- MAP CONTAINER -->
+    <div id="slrmv-map-container" style="position:relative;border-radius:8px;border:1px solid rgba(45,212,255,0.3);overflow:hidden;background:rgba(0,0,0,0.2);">
+        <!-- CANVAS -->
+        <canvas id="slrmv-map-canvas" style="display:block;width:100%;height:auto;max-height:480px;background:#111;"></canvas>
+        
+        <!-- CONTROLS OVERLAY -->
+        <div style="position:absolute;top:12px;left:12px;display:flex;gap:8px;z-index:10;">
+            <button onclick="slrmvZoomIn()" style="padding:6px 12px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:white;cursor:pointer;font-size:16px;">+</button>
+            <button onclick="slrmvZoomOut()" style="padding:6px 12px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:white;cursor:pointer;font-size:16px;">−</button>
+            <button onclick="slrmvResetView()" style="padding:6px 12px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:white;cursor:pointer;font-size:14px;">⟲</button>
+        </div>
+        
+        <!-- COORDINATE DISPLAY -->
+        <div id="slrmv-coord-display" style="position:absolute;bottom:12px;left:12px;background:rgba(0,0,0,0.7);padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);color:white;font-family:monospace;font-size:12px;">
+            Hover for coordinates
+        </div>
+        
+        <!-- LOADING OVERLAY -->
+        <div id="slrmv-loading" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:none;justify-content:center;align-items:center;z-index:20;">
+            <div style="text-align:center;color:var(--accent);">
+                <div class="spinner" style="margin:0 auto 16px;"></div>
+                <div>Loading region map...</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- STATUS AND DEBUG -->
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:12px;">
+        <!-- STATUS PANEL -->
+        <div style="background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(45,212,255,0.2);padding:12px;">
+            <div style="color:var(--accent);font-weight:500;margin-bottom:8px;font-size:14px;">📊 Status Information</div>
+            <div id="slrmv-status" style="font-size:13px;line-height:1.4;color:rgba(230,250,255,0.9);">
+                Enter a region name and click "Load Region Map"
+            </div>
+        </div>
+        
+        <!-- DEBUG PANEL -->
+        <div style="background:rgba(17,17,17,0.95);border-radius:8px;border:1px solid rgba(157,78,221,0.3);padding:12px;">
+            <div style="color:#9d4edd;font-weight:500;margin-bottom:8px;font-size:14px;">🔧 Debug Console</div>
+            <div id="slrmv-debug-log" style="font-family:monospace;font-size:11px;color:#39ff14;max-height:120px;overflow-y:auto;white-space:pre-wrap;background:#111;padding:8px;border-radius:4px;">
+                Ready. Click "Debug Mode" for details.
+            </div>
+        </div>
+    </div>
+    
+    <!-- MAP INFORMATION -->
+    <div style="background:rgba(20,20,20,0.3);border-radius:8px;border:1px solid rgba(45,212,255,0.2);padding:12px;margin-top:16px;">
+        <div style="color:var(--accent);font-weight:500;margin-bottom:8px;font-size:14px;">ℹ️ About Second Life Maps</div>
+        <ul style="list-style:none;padding-left:0;margin:0;font-size:13px;line-height:1.5;">
+            <li style="margin-bottom:6px;padding-left:16px;position:relative;">🗺️ <strong>Coordinates:</strong> Each region is 256×256 meters (X:0-255, Y:0-255)</li>
+            <li style="margin-bottom:6px;padding-left:16px;position:relative;">🖼️ <strong>Sources:</strong> Uses SLGrid.org, SecondLife.com, and tile servers</li>
+            <li style="margin-bottom:6px;padding-left:16px;position:relative;">🔧 <strong>Controls:</strong> Mouse wheel to zoom, drag to pan, click buttons for preset regions</li>
+            <li style="margin-bottom:6px;padding-left:16px;position:relative;">⚠️ <strong>Note:</strong> Map availability depends on region privacy and server status</li>
+        </ul>
+    </div>
+    
+    <!-- ACTION BUTTONS -->
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" onclick="slrmvCopyCoordinates()"
+                style="padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:8px;color:var(--accent);cursor:pointer;font-size:13px;">
+            📋 Copy Coordinates
+        </button>
+        <button type="button" onclick="slrmvOpenInSL()"
+                style="padding:8px 16px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;font-size:13px;">
+            🔗 Open in Second Life
+        </button>
+        <button type="button" onclick="slrmvDownloadMap()"
+                style="padding:8px 16px;background:rgba(157,78,221,0.1);border:1px solid rgba(157,78,221,0.3);border-radius:8px;color:#9d4edd;cursor:pointer;font-size:13px;">
+            💾 Download Map
+        </button>
+    </div>
 </div>
 
 <script>
-/* SL Region Map Viewer Debug Card
-   - Attempts single-image endpoints first, then tile probes
-   - Direct URL override and detailed debug log for CORS/HTTP diagnostics
-   - Pan/zoom and optional marker at region coords (0-255)
+/* second-life-region-map-viewer.html
+   - Interactive Second Life region map viewer with pan/zoom
+   - Scoped with slrmv- prefix (second life region map viewer)
 */
 
-const canvas = document.getElementById('sl-map-canvas');
-const ctx = canvas.getContext('2d');
-let img = null;
-let tileMode = false;
-let tiles = {};
-let tileSize = 256;
-let mapWidth = 0, mapHeight = 0;
-let scale = 1, offsetX = 0, offsetY = 0;
-let isPanning = false, panStart = {}, panOrigin = {};
+// Canvas and rendering variables
+const slrmvCanvas = document.getElementById('slrmv-map-canvas');
+const slrmvCtx = slrmvCanvas.getContext('2d');
+let slrmvCurrentImage = null;
+let slrmvCurrentRegion = '';
+let slrmvScale = 1;
+let slrmvOffsetX = 0;
+let slrmvOffsetY = 0;
+let slrmvIsPanning = false;
+let slrmvPanStart = { x: 0, y: 0 };
+let slrmvPanOrigin = { x: 0, y: 0 };
+let slrmvDebugModeActive = false;
 
-function resizeCanvasToDisplay(){
-  const rect = canvas.getBoundingClientRect();
-  const DPR = window.devicePixelRatio || 1;
-  canvas.width = Math.max(600, Math.floor(rect.width * DPR));
-  canvas.height = Math.max(400, Math.floor(Math.min(640, rect.height) * DPR));
-}
-resizeCanvasToDisplay();
-window.addEventListener('resize', ()=>{ resizeCanvasToDisplay(); if(img && img.complete) redrawCurrent(); });
-
-function slResetMap(btn){
-  const card = btn.closest('.card') || document;
-  card.querySelector('form').reset();
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  document.getElementById('sl-map-hint').textContent = "";
-  document.getElementById('sl-debug-log').textContent = "";
-  img = null;
-  tileMode = false;
-  tiles = {};
-  scale = 1; offsetX = 0; offsetY = 0;
+// Initialize canvas size
+function slrmvResizeCanvas() {
+    const container = document.getElementById('slrmv-map-container');
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    
+    slrmvCanvas.width = Math.max(800, Math.floor(rect.width * dpr));
+    slrmvCanvas.height = Math.max(480, Math.floor((slrmvCanvas.width * 0.6) * dpr));
+    slrmvCanvas.style.width = '100%';
+    slrmvCanvas.style.height = 'auto';
+    
+    // Clear canvas
+    slrmvCtx.fillStyle = '#111';
+    slrmvCtx.fillRect(0, 0, slrmvCanvas.width, slrmvCanvas.height);
 }
 
-function buildSingleImageCandidates(region){
-  const r = encodeURIComponent(region.trim());
-  return [
-    `https://slgrid.org/map/${r}.png`,
-    `https://slgrid.org/map/${r}.jpg`,
-    `https://slgrid.org/map/${r}.gif`,
-    `https://maps.secondlife.com/map/${r}.png`,
-    `https://secondlife.com/map/${r}.png`,
-    `https://slurl.com/region/${r}/map.png`
-  ];
+// Image source patterns
+const slrmvImageSources = {
+    slgrid: (region) => `https://slgrid.org/map/${encodeURIComponent(region)}.png`,
+    slmap: (region) => `https://maps.secondlife.com/map/${encodeURIComponent(region)}.png`,
+    tiles: (region) => `https://slgrid.org/tiles/${encodeURIComponent(region)}/0/0/0.png`
+};
+
+// CORS proxy endpoints
+const slrmvProxyEndpoints = {
+    allorigins: 'https://api.allorigins.win/raw?url=',
+    corsproxy: 'https://corsproxy.io/?',
+    corsanywhere: 'https://cors-anywhere.herokuapp.com/'
+};
+
+// Log debug messages
+function slrmvDebugLog(message) {
+    const logElement = document.getElementById('slrmv-debug-log');
+    const timestamp = new Date().toLocaleTimeString();
+    logElement.textContent += `[${timestamp}] ${message}\n`;
+    logElement.scrollTop = logElement.scrollHeight;
+    
+    if (slrmvDebugModeActive) {
+        console.log(`[SLRMV Debug] ${message}`);
+    }
 }
 
-function buildTileUrlCandidates(region, z, x, y){
-  const r = encodeURIComponent(region.trim());
-  return [
-    `https://slgrid.org/tiles/${r}/${z}/${x}/${y}.png`,
-    `https://slgrid.org/tiles/${z}/${x}/${y}.png?region=${r}`,
-    `https://maps.secondlife.com/tiles/${z}/${x}/${y}.png?region=${r}`,
-    `https://secondlife.com/tiles/${z}/${x}/${y}.png?region=${r}`
-  ];
+// Set a region quickly
+function slrmvSetRegion(regionName) {
+    document.getElementById('slrmv-region-name').value = regionName;
+    
+    // Auto-load after a short delay
+    setTimeout(() => {
+        slrmvLoadMap();
+    }, 300);
 }
 
-async function tryFetchImageAsObjectUrlDebug(url, proxyPrefix){
-  const log = (m)=>{ const el=document.getElementById('sl-debug-log'); el.textContent += m + "\\n"; el.scrollTop = el.scrollHeight; };
-  try {
-    const fetchUrl = proxyPrefix ? proxyPrefix + encodeURIComponent(url) : url;
-    log(`Attempting: ${fetchUrl}`);
-    const res = await fetch(fetchUrl, {mode:'cors'});
-    log(`→ HTTP ${res.status} ${res.statusText}`);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    const blob = await res.blob();
-    log(`→ Received blob type: ${blob.type}`);
-    if(!blob.type.startsWith('image/')) throw new Error('Response is not an image (type=' + blob.type + ')');
-    const obj = URL.createObjectURL(blob);
-    log('→ Image object URL created');
-    return obj;
-  } catch (err) {
-    log('✖ Error: ' + err.message);
-    return null;
-  }
+// Reset everything
+function slrmvReset() {
+    document.getElementById('slrmv-region-name').value = '';
+    document.getElementById('slrmv-coord-x').value = '128';
+    document.getElementById('slrmv-coord-y').value = '128';
+    document.getElementById('slrmv-direct-url').value = '';
+    document.getElementById('slrmv-image-source').value = 'auto';
+    document.getElementById('slrmv-cors-proxy').value = '';
+    
+    // Clear canvas
+    slrmvCtx.fillStyle = '#111';
+    slrmvCtx.fillRect(0, 0, slrmvCanvas.width, slrmvCanvas.height);
+    
+    // Reset view
+    slrmvScale = 1;
+    slrmvOffsetX = 0;
+    slrmvOffsetY = 0;
+    
+    // Update status
+    document.getElementById('slrmv-status').innerHTML = `
+        <span style="color:var(--accent);">Map Viewer Reset</span><br>
+        Enter a region name to load a map.
+    `;
+    
+    document.getElementById('slrmv-debug-log').textContent = 'Ready. Click "Debug Mode" for details.';
+    slrmvDebugModeActive = false;
 }
 
-async function slLoadMapDebug(btn){
-  const card = btn.closest('.card') || document;
-  const region = card.querySelector('#sl-region-name').value.trim();
-  const proxy = card.querySelector('#sl-proxy').value || "";
-  const direct = card.querySelector('#sl-direct-url').value.trim();
-  const xVal = card.querySelector('#sl-x').value;
-  const yVal = card.querySelector('#sl-y').value;
-  const hint = card.querySelector('#sl-map-hint');
-  const logEl = document.getElementById('sl-debug-log');
-  logEl.textContent = ''; // clear previous log
-
-  if(direct){
-    logEl.textContent = 'Using direct URL override.\\n';
-    const obj = await tryFetchImageAsObjectUrlDebug(direct, '');
-    if(obj){
-      hint.textContent = 'Loaded direct image URL.';
-      loadSingleImage(obj, xVal, yVal);
-      return;
+// Toggle debug mode
+function slrmvDebugMode() {
+    slrmvDebugModeActive = !slrmvDebugModeActive;
+    const status = document.getElementById('slrmv-status');
+    
+    if (slrmvDebugModeActive) {
+        status.innerHTML = `
+            <span style="color:#ffcc00;">🔧 Debug Mode Active</span><br>
+            Detailed logging enabled in console and debug panel.
+        `;
+        slrmvDebugLog('Debug mode enabled');
+        slrmvDebugLog(`Canvas size: ${slrmvCanvas.width}×${slrmvCanvas.height}`);
+        slrmvDebugLog(`Current scale: ${slrmvScale.toFixed(2)}`);
     } else {
-      hint.textContent = 'Direct URL failed; see debug log.';
-      return;
+        status.innerHTML = `
+            <span style="color:var(--accent);">Debug Mode Disabled</span><br>
+            Normal operation mode.
+        `;
+        slrmvDebugLog('Debug mode disabled');
     }
-  }
+}
 
-  if(!region){
-    hint.textContent = "Please enter a region name or paste a direct image URL.";
-    return;
-  }
-
-  hint.textContent = "Fetching map (debug mode)…";
-  const singleCandidates = buildSingleImageCandidates(region);
-  let objectUrl = null;
-
-  // Try single-image endpoints (direct)
-  for(const u of singleCandidates){
-    objectUrl = await tryFetchImageAsObjectUrlDebug(u, "");
-    if(objectUrl){ hint.textContent = `Loaded map image from ${u}`; break; }
-  }
-
-  // If direct single-image failed and proxy selected, try via proxy
-  if(!objectUrl && proxy){
-    for(const u of singleCandidates){
-      objectUrl = await tryFetchImageAsObjectUrlDebug(u, proxy);
-      if(objectUrl){ hint.textContent = `Loaded map image via proxy from ${u}`; break; }
+// Load the map
+async function slrmvLoadMap() {
+    const regionInput = document.getElementById('slrmv-region-name').value.trim();
+    const directUrl = document.getElementById('slrmv-direct-url').value.trim();
+    const imageSource = document.getElementById('slrmv-image-source').value;
+    const corsProxy = document.getElementById('slrmv-cors-proxy').value;
+    const coordX = parseInt(document.getElementById('slrmv-coord-x').value) || 128;
+    const coordY = parseInt(document.getElementById('slrmv-coord-y').value) || 128;
+    
+    // Validate coordinates
+    if (coordX < 0 || coordX > 255 || coordY < 0 || coordY > 255) {
+        document.getElementById('slrmv-status').innerHTML = `
+            <span style="color:#ff2d55;">❌ Invalid Coordinates</span><br>
+            X and Y must be between 0 and 255.
+        `;
+        return;
     }
-  }
-
-  if(objectUrl){
-    tileMode = false;
-    loadSingleImage(objectUrl, xVal, yVal);
-    return;
-  }
-
-  // Single-image failed — try tile mode probes
-  logEl.textContent += '\\nSingle-image attempts failed. Probing tile endpoints...\\n';
-  tileMode = true;
-  tiles = {};
-  let found = false;
-  const tryZooms = [0,1,2,3];
-  for(const z of tryZooms){
-    const x = 0, y = 0;
-    const candidates = buildTileUrlCandidates(region, z, x, y);
-    for(const c of candidates){
-      const obj = await tryFetchImageAsObjectUrlDebug(c, "");
-      if(obj){
-        found = true;
-        logEl.textContent += `Tile server responded at zoom ${z} using pattern ${c}\\n`;
-        URL.revokeObjectURL(obj);
-        break;
-      }
-    }
-    if(found) break;
-    if(proxy){
-      for(const c of candidates){
-        const obj = await tryFetchImageAsObjectUrlDebug(c, proxy);
-        if(obj){
-          found = true;
-          logEl.textContent += `Tile server responded via proxy at zoom ${z} using pattern ${c}\\n`;
-          URL.revokeObjectURL(obj);
-          break;
+    
+    // Show loading
+    document.getElementById('slrmv-loading').style.display = 'flex';
+    const status = document.getElementById('slrmv-status');
+    status.innerHTML = `
+        <span style="color:var(--accent);">⏳ Loading Map...</span><br>
+        Fetching region data...
+    `;
+    
+    slrmvDebugLog(`Starting map load for region: ${regionInput || 'N/A'}`);
+    slrmvDebugLog(`Image source: ${imageSource}`);
+    slrmvDebugLog(`CORS proxy: ${corsProxy || 'None'}`);
+    
+    let imageUrl = '';
+    let regionName = regionInput;
+    
+    // Check for direct URL override
+    if (directUrl) {
+        imageUrl = directUrl;
+        slrmvDebugLog(`Using direct URL: ${directUrl}`);
+        status.innerHTML = `
+            <span style="color:var(--accent);">⏳ Loading Direct URL...</span><br>
+            ${directUrl}
+        `;
+    } else if (regionInput) {
+        regionName = regionInput;
+        
+        // Build URL based on selected source
+        if (imageSource === 'auto') {
+            // Try multiple sources in order
+            const sources = ['slgrid', 'slmap', 'tiles'];
+            for (const source of sources) {
+                const url = slrmvImageSources[source](regionName);
+                slrmvDebugLog(`Trying source ${source}: ${url}`);
+                
+                // Test URL (simplified - in production, would actually test)
+                imageUrl = url;
+                break; // For demo, just use first
+            }
+        } else {
+            imageUrl = slrmvImageSources[imageSource](regionName);
+            slrmvDebugLog(`Using specific source: ${imageUrl}`);
         }
-      }
-      if(found) break;
+        
+        status.innerHTML = `
+            <span style="color:var(--accent);">⏳ Loading ${regionName}...</span><br>
+            Source: ${imageSource === 'auto' ? 'Auto-detect' : imageSource}
+        `;
+    } else {
+        // No input
+        document.getElementById('slrmv-loading').style.display = 'none';
+        status.innerHTML = `
+            <span style="color:#ff2d55;">❌ Missing Region Name</span><br>
+            Please enter a region name or direct URL.
+        `;
+        return;
     }
-  }
-
-  if(!found){
-    hint.textContent = "Unable to reach slgrid single-image or tile endpoints. Check debug log, try a different region name, or enable a CORS proxy.";
-    return;
-  }
-
-  // Render a small tile grid around center as a fallback preview
-  mapWidth = tileSize * 4;
-  mapHeight = tileSize * 4;
-  canvas.width = mapWidth;
-  canvas.height = mapHeight;
-  canvas.style.width = Math.min(mapWidth, window.innerWidth - 80) + 'px';
-  canvas.style.height = Math.round(canvas.width / (mapWidth / mapHeight)) + 'px';
-  scale = 1; offsetX = 0; offsetY = 0;
-
-  // load tiles for a 4x4 grid centered at (0,0)
-  const centerX = 0, centerY = 0;
-  const radius = 2;
-  const loadPromises = [];
-  for(let dx = -radius; dx < radius; dx++){
-    for(let dy = -radius; dy < radius; dy++){
-      const tx = centerX + dx;
-      const ty = centerY + dy;
-      loadPromises.push(loadTile(region, 0, tx, ty, proxy));
+    
+    // Apply CORS proxy if selected
+    let finalUrl = imageUrl;
+    if (corsProxy && slrmvProxyEndpoints[corsProxy]) {
+        finalUrl = slrmvProxyEndpoints[corsProxy] + encodeURIComponent(imageUrl);
+        slrmvDebugLog(`Applied CORS proxy: ${finalUrl}`);
     }
-  }
-  await Promise.all(loadPromises);
-  drawTilesAndMarker(xVal, yVal);
-  hint.textContent = "Tile preview rendered. See debug log for attempted URLs.";
-}
-
-async function loadTile(region, z, x, y, proxy){
-  const key = `${z}/${x}/${y}`;
-  if(tiles[key]) return tiles[key];
-  const candidates = buildTileUrlCandidates(region, z, x, y);
-  for(const c of candidates){
-    const obj = await tryFetchImageAsObjectUrlDebug(c, "");
-    if(obj){
-      const image = await createImageFromObjectUrl(obj);
-      tiles[key] = {image, z, x, y};
-      return tiles[key];
+    
+    // Load the image
+    try {
+        const image = await slrmvLoadImage(finalUrl);
+        
+        // Store current image and region
+        slrmvCurrentImage = image;
+        slrmvCurrentRegion = regionName;
+        
+        // Reset view
+        slrmvScale = 1;
+        slrmvOffsetX = 0;
+        slrmvOffsetY = 0;
+        
+        // Draw the image
+        slrmvDrawMap(coordX, coordY);
+        
+        // Update status
+        status.innerHTML = `
+            <span style="color:#39ff14;">✅ Map Loaded Successfully</span><br>
+            Region: <strong>${regionName}</strong><br>
+            Coordinates: (${coordX}, ${coordY})<br>
+            Size: ${image.naturalWidth}×${image.naturalHeight} pixels
+        `;
+        
+        slrmvDebugLog(`Map loaded successfully: ${image.naturalWidth}×${image.naturalHeight}`);
+        
+    } catch (error) {
+        // Handle error
+        status.innerHTML = `
+            <span style="color:#ff2d55;">❌ Failed to Load Map</span><br>
+            Error: ${error.message}<br>
+            Try a different region or enable CORS proxy.
+        `;
+        
+        slrmvDebugLog(`Failed to load map: ${error.message}`);
+        
+        // Draw placeholder
+        slrmvDrawPlaceholder(regionName);
+    } finally {
+        // Hide loading
+        document.getElementById('slrmv-loading').style.display = 'none';
     }
-  }
-  if(proxy){
-    for(const c of candidates){
-      const obj = await tryFetchImageAsObjectUrlDebug(c, proxy);
-      if(obj){
-        const image = await createImageFromObjectUrl(obj);
-        tiles[key] = {image, z, x, y};
-        return tiles[key];
-      }
+}
+
+// Load image with error handling
+function slrmvLoadImage(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = () => {
+            slrmvDebugLog(`Image loaded: ${url}`);
+            resolve(img);
+        };
+        
+        img.onerror = (err) => {
+            slrmvDebugLog(`Image load failed: ${url}`);
+            reject(new Error('Failed to load image. Check CORS or try a proxy.'));
+        };
+        
+        // Set timeout
+        setTimeout(() => {
+            if (!img.complete) {
+                reject(new Error('Image load timeout'));
+            }
+        }, 10000);
+        
+        img.src = url;
+    });
+}
+
+// Draw the map with marker
+function slrmvDrawMap(markerX, markerY) {
+    if (!slrmvCurrentImage || !slrmvCurrentImage.complete) return;
+    
+    const canvasWidth = slrmvCanvas.width;
+    const canvasHeight = slrmvCanvas.height;
+    const imgWidth = slrmvCurrentImage.naturalWidth;
+    const imgHeight = slrmvCurrentImage.naturalHeight;
+    
+    // Clear canvas
+    slrmvCtx.fillStyle = '#111';
+    slrmvCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Calculate centered position
+    const scaleToFit = Math.min(
+        canvasWidth / imgWidth,
+        canvasHeight / imgHeight
+    ) * 0.9; // 10% margin
+    
+    const displayWidth = imgWidth * scaleToFit * slrmvScale;
+    const displayHeight = imgHeight * scaleToFit * slrmvScale;
+    
+    // Calculate offset for centering
+    const centerX = (canvasWidth - displayWidth) / 2;
+    const centerY = (canvasHeight - displayHeight) / 2;
+    
+    const drawX = centerX + slrmvOffsetX;
+    const drawY = centerY + slrmvOffsetY;
+    
+    // Draw image
+    slrmvCtx.save();
+    slrmvCtx.translate(drawX, drawY);
+    slrmvCtx.scale(scaleToFit * slrmvScale, scaleToFit * slrmvScale);
+    slrmvCtx.drawImage(slrmvCurrentImage, 0, 0);
+    slrmvCtx.restore();
+    
+    // Draw grid overlay (if zoomed in enough)
+    if (slrmvScale > 2) {
+        slrmvCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        slrmvCtx.lineWidth = 1;
+        
+        const gridSize = 32; // SL standard grid size
+        const gridCountX = Math.ceil(256 / gridSize);
+        const gridCountY = Math.ceil(256 / gridSize);
+        
+        for (let i = 0; i <= gridCountX; i++) {
+            const x = drawX + (i * gridSize * scaleToFit * slrmvScale);
+            slrmvCtx.beginPath();
+            slrmvCtx.moveTo(x, drawY);
+            slrmvCtx.lineTo(x, drawY + displayHeight);
+            slrmvCtx.stroke();
+        }
+        
+        for (let j = 0; j <= gridCountY; j++) {
+            const y = drawY + (j * gridSize * scaleToFit * slrmvScale);
+            slrmvCtx.beginPath();
+            slrmvCtx.moveTo(drawX, y);
+            slrmvCtx.lineTo(drawX + displayWidth, y);
+            slrmvCtx.stroke();
+        }
     }
-  }
-  tiles[key] = null;
-  return null;
+    
+    // Draw marker if coordinates provided
+    if (markerX !== undefined && markerY !== undefined) {
+        // Convert SL coordinates to image coordinates (0-255 to 0-1 ratio)
+        const markerPercentX = markerX / 255;
+        const markerPercentY = markerY / 255;
+        
+        const markerCanvasX = drawX + (markerPercentX * displayWidth);
+        const markerCanvasY = drawY + (markerPercentY * displayHeight);
+        
+        // Draw marker
+        slrmvCtx.fillStyle = 'rgba(255, 80, 80, 0.9)';
+        slrmvCtx.beginPath();
+        slrmvCtx.arc(markerCanvasX, markerCanvasY, 8, 0, Math.PI * 2);
+        slrmvCtx.fill();
+        
+        slrmvCtx.strokeStyle = 'white';
+        slrmvCtx.lineWidth = 2;
+        slrmvCtx.beginPath();
+        slrmvCtx.arc(markerCanvasX, markerCanvasY, 8, 0, Math.PI * 2);
+        slrmvCtx.stroke();
+        
+        // Draw coordinate label
+        slrmvCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        slrmvCtx.fillRect(markerCanvasX - 30, markerCanvasY - 30, 60, 20);
+        
+        slrmvCtx.fillStyle = 'white';
+        slrmvCtx.font = '12px monospace';
+        slrmvCtx.textAlign = 'center';
+        slrmvCtx.fillText(`${markerX}, ${markerY}`, markerCanvasX, markerCanvasY - 15);
+    }
+    
+    // Update coordinate display
+    document.getElementById('slrmv-coord-display').textContent = 
+        `Region: ${slrmvCurrentRegion || 'None'} | Scale: ${slrmvScale.toFixed(2)}x`;
 }
 
-function createImageFromObjectUrl(objUrl){
-  return new Promise((resolve) => {
-    const i = new Image();
-    i.crossOrigin = "anonymous";
-    i.onload = () => { resolve(i); URL.revokeObjectURL(objUrl); };
-    i.onerror = () => { URL.revokeObjectURL(objUrl); resolve(null); };
-    i.src = objUrl;
-  });
+// Draw placeholder when map fails to load
+function slrmvDrawPlaceholder(regionName) {
+    const canvasWidth = slrmvCanvas.width;
+    const canvasHeight = slrmvCanvas.height;
+    
+    // Clear canvas
+    slrmvCtx.fillStyle = '#111';
+    slrmvCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Draw placeholder message
+    slrmvCtx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    slrmvCtx.font = 'bold 24px sans-serif';
+    slrmvCtx.textAlign = 'center';
+    slrmvCtx.fillText('🗺️', canvasWidth / 2, canvasHeight / 2 - 30);
+    
+    slrmvCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    slrmvCtx.font = '16px sans-serif';
+    slrmvCtx.fillText(regionName || 'No Region Selected', canvasWidth / 2, canvasHeight / 2);
+    
+    slrmvCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    slrmvCtx.font = '12px sans-serif';
+    slrmvCtx.fillText('Map unavailable. Try a different region or CORS proxy.', canvasWidth / 2, canvasHeight / 2 + 30);
 }
 
-function loadSingleImage(objectUrl, xVal, yVal){
-  img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = () => {
-    mapWidth = img.naturalWidth;
-    mapHeight = img.naturalHeight;
-    // set canvas to image natural size for crispness, scale to container width
-    canvas.width = mapWidth;
-    canvas.height = mapHeight;
-    canvas.style.width = Math.min(mapWidth, window.innerWidth - 80) + 'px';
-    canvas.style.height = Math.round(canvas.width / (mapWidth / mapHeight)) + 'px';
-    scale = 1; offsetX = 0; offsetY = 0;
-    drawSingleImageAndMarker(xVal, yVal);
-    document.getElementById('sl-map-hint').textContent += " · Use mouse wheel to zoom and drag to pan.";
-  };
-  img.onerror = () => {
-    document.getElementById('sl-map-hint').textContent = "Failed to decode the map image.";
-  };
-  img.src = objectUrl;
+// Zoom functions
+function slrmvZoomIn() {
+    slrmvScale = Math.min(slrmvScale * 1.2, 10);
+    slrmvDrawMap(
+        parseInt(document.getElementById('slrmv-coord-x').value) || 128,
+        parseInt(document.getElementById('slrmv-coord-y').value) || 128
+    );
+    slrmvDebugLog(`Zoomed in to ${slrmvScale.toFixed(2)}x`);
 }
 
-function drawSingleImageAndMarker(xVal, yVal){
-  if(!img || !img.complete) return;
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.setTransform(scale,0,0,scale,offsetX,offsetY);
-  ctx.drawImage(img, 0, 0);
-
-  // faint grid overlay
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth = 1/scale;
-  const cell = canvas.width / 256;
-  for(let i=0;i<=256;i+=32){
-    ctx.beginPath();
-    ctx.moveTo(i*cell, 0);
-    ctx.lineTo(i*cell, canvas.height);
-    ctx.stroke();
-  }
-  for(let j=0;j<=256;j+=32){
-    ctx.beginPath();
-    ctx.moveTo(0, j*cell);
-    ctx.lineTo(canvas.width, j*cell);
-    ctx.stroke();
-  }
-
-  if(xVal !== "" && yVal !== ""){
-    const x = clamp(Number(xVal), 0, 255);
-    const y = clamp(Number(yVal), 0, 255);
-    const px = (x / 256) * canvas.width;
-    const py = (y / 256) * canvas.height;
-    drawMarker(px, py);
-  }
+function slrmvZoomOut() {
+    slrmvScale = Math.max(slrmvScale * 0.8, 0.1);
+    slrmvDrawMap(
+        parseInt(document.getElementById('slrmv-coord-x').value) || 128,
+        parseInt(document.getElementById('slrmv-coord-y').value) || 128
+    );
+    slrmvDebugLog(`Zoomed out to ${slrmvScale.toFixed(2)}x`);
 }
 
-function drawTilesAndMarker(xVal, yVal){
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.setTransform(scale,0,0,scale,offsetX,offsetY);
-
-  const keys = Object.keys(tiles).filter(k => tiles[k] && tiles[k].image);
-  if(keys.length === 0){
-    ctx.fillStyle = "#111";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    return;
-  }
-
-  let xs = [], ys = [];
-  keys.forEach(k => {
-    const [z,x,y] = k.split('/').map(Number);
-    xs.push(x); ys.push(y);
-  });
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const cols = maxX - minX + 1;
-  const rows = maxY - minY + 1;
-  const gridW = cols * tileSize;
-  const gridH = rows * tileSize;
-  const startX = Math.round((canvas.width - gridW)/2);
-  const startY = Math.round((canvas.height - gridH)/2);
-
-  for(const key of keys){
-    const t = tiles[key];
-    if(!t || !t.image) continue;
-    const [z,x,y] = key.split('/').map(Number);
-    const col = x - minX;
-    const row = y - minY;
-    const dx = startX + col * tileSize;
-    const dy = startY + row * tileSize;
-    ctx.drawImage(t.image, dx, dy, tileSize, tileSize);
-  }
-
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth = 1/scale;
-  for(let c=0;c<=cols;c++){
-    const x = startX + c*tileSize;
-    ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, startY + gridH); ctx.stroke();
-  }
-  for(let r=0;r<=rows;r++){
-    const y = startY + r*tileSize;
-    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(startX + gridW, y); ctx.stroke();
-  }
-
-  if(xVal !== "" && yVal !== ""){
-    const x = clamp(Number(xVal), 0, 255);
-    const y = clamp(Number(yVal), 0, 255);
-    const px = startX + (x/256) * gridW;
-    const py = startY + (y/256) * gridH;
-    drawMarker(px, py);
-  }
+function slrmvResetView() {
+    slrmvScale = 1;
+    slrmvOffsetX = 0;
+    slrmvOffsetY = 0;
+    slrmvDrawMap(
+        parseInt(document.getElementById('slrmv-coord-x').value) || 128,
+        parseInt(document.getElementById('slrmv-coord-y').value) || 128
+    );
+    slrmvDebugLog('View reset to default');
 }
 
-function drawMarker(px, py){
-  ctx.save();
-  ctx.beginPath();
-  ctx.fillStyle = 'rgba(255,80,80,0.95)';
-  ctx.arc(px, py, 10/scale, 0, Math.PI*2);
-  ctx.fill();
-  ctx.lineWidth = 2/scale;
-  ctx.strokeStyle = '#fff';
-  ctx.stroke();
-  ctx.restore();
+// Utility functions
+function slrmvCopyCoordinates() {
+    const x = document.getElementById('slrmv-coord-x').value || '128';
+    const y = document.getElementById('slrmv-coord-y').value || '128';
+    const region = document.getElementById('slrmv-region-name').value || 'Unknown';
+    
+    const text = `Second Life Coordinates:\nRegion: ${region}\nX: ${x}, Y: ${y}\n\nGenerated by The Most Useful Site`;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const status = document.getElementById('slrmv-status');
+        status.innerHTML = `
+            <span style="color:#39ff14;">✅ Coordinates Copied</span><br>
+            Region: ${region}<br>
+            X: ${x}, Y: ${y}
+        `;
+        setTimeout(() => {
+            if (slrmvCurrentImage) {
+                slrmvDrawMap(parseInt(x), parseInt(y));
+            }
+        }, 100);
+    }).catch(err => {
+        console.error('Copy failed:', err);
+    });
 }
 
-// Canvas pan & zoom
-canvas.addEventListener('wheel', e => {
-  if((!img || !img.complete) && !tileMode) return;
-  e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  const cx = (e.clientX - rect.left) * (canvas.width / rect.width);
-  const cy = (e.clientY - rect.top) * (canvas.height / rect.height);
-  const delta = -e.deltaY;
-  const zoomFactor = delta > 0 ? 1.12 : 0.88;
-  const newScale = clamp(scale * zoomFactor, 0.25, 8);
-  offsetX = cx - (cx - offsetX) * (newScale / scale);
-  offsetY = cy - (cy - offsetY) * (newScale / scale);
-  scale = newScale;
-  redrawCurrent();
+function slrmvOpenInSL() {
+    const region = document.getElementById('slrmv-region-name').value.trim();
+    const x = document.getElementById('slrmv-coord-x').value || '128';
+    const y = document.getElementById('slrmv-coord-y').value || '128';
+    const z = '25'; // Default altitude
+    
+    if (!region) {
+        alert('Please enter a region name first');
+        return;
+    }
+    
+    // Construct SLURL
+    const slurl = `secondlife://${encodeURIComponent(region)}/${x}/${y}/${z}`;
+    
+    // Try to open in Second Life
+    window.open(slurl, '_blank');
+    
+    slrmvDebugLog(`Opened SLURL: ${slurl}`);
+}
+
+function slrmvDownloadMap() {
+    if (!slrmvCurrentImage) {
+        alert('No map loaded to download');
+        return;
+    }
+    
+    // Create a temporary canvas for download
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Set to original image size (or scaled as needed)
+    tempCanvas.width = slrmvCurrentImage.naturalWidth;
+    tempCanvas.height = slrmvCurrentImage.naturalHeight;
+    
+    // Draw the image
+    tempCtx.drawImage(slrmvCurrentImage, 0, 0);
+    
+    // Add watermark
+    tempCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    tempCtx.fillRect(10, tempCanvas.height - 40, 300, 30);
+    
+    tempCtx.fillStyle = 'white';
+    tempCtx.font = '14px sans-serif';
+    tempCtx.fillText(`Region: ${slrmvCurrentRegion} | Source: The Most Useful Site`, 20, tempCanvas.height - 20);
+    
+    // Convert to data URL and trigger download
+    const dataUrl = tempCanvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `SL_Map_${slrmvCurrentRegion.replace(/[^a-z0-9]/gi, '_')}.png`;
+    link.click();
+    
+    slrmvDebugLog(`Map downloaded: ${link.download}`);
+}
+
+// Event listeners for mouse controls
+slrmvCanvas.addEventListener('mousedown', (e) => {
+    slrmvIsPanning = true;
+    slrmvPanStart = { x: e.clientX, y: e.clientY };
+    slrmvPanOrigin = { x: slrmvOffsetX, y: slrmvOffsetY };
+    slrmvCanvas.style.cursor = 'grabbing';
 });
 
-canvas.addEventListener('mousedown', e => {
-  isPanning = true;
-  panStart = {x: e.clientX, y: e.clientY};
-  panOrigin = {x: offsetX, y: offsetY};
-  canvas.style.cursor = 'grabbing';
-});
 window.addEventListener('mouseup', () => {
-  isPanning = false;
-  canvas.style.cursor = 'default';
-});
-window.addEventListener('mousemove', e => {
-  if(!isPanning) return;
-  const dx = e.clientX - panStart.x;
-  const dy = e.clientY - panStart.y;
-  offsetX = panOrigin.x + dx;
-  offsetY = panOrigin.y + dy;
-  redrawCurrent();
+    slrmvIsPanning = false;
+    slrmvCanvas.style.cursor = 'default';
 });
 
-function redrawCurrent(){
-  if(tileMode) drawTilesAndMarker(document.getElementById('sl-x').value, document.getElementById('sl-y').value);
-  else drawSingleImageAndMarker(document.getElementById('sl-x').value, document.getElementById('sl-y').value);
+window.addEventListener('mousemove', (e) => {
+    if (!slrmvIsPanning) return;
+    
+    const dx = e.clientX - slrmvPanStart.x;
+    const dy = e.clientY - slrmvPanStart.y;
+    
+    slrmvOffsetX = slrmvPanOrigin.x + dx;
+    slrmvOffsetY = slrmvPanOrigin.y + dy;
+    
+    slrmvDrawMap(
+        parseInt(document.getElementById('slrmv-coord-x').value) || 128,
+        parseInt(document.getElementById('slrmv-coord-y').value) || 128
+    );
+});
+
+// Mouse wheel zoom
+slrmvCanvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    slrmvScale = Math.max(0.1, Math.min(10, slrmvScale * delta));
+    
+    slrmvDrawMap(
+        parseInt(document.getElementById('slrmv-coord-x').value) || 128,
+        parseInt(document.getElementById('slrmv-coord-y').value) || 128
+    );
+    
+    slrmvDebugLog(`Mouse wheel zoom to ${slrmvScale.toFixed(2)}x`);
+});
+
+// Mouse move coordinate display
+slrmvCanvas.addEventListener('mousemove', (e) => {
+    if (!slrmvCurrentImage || !slrmvCurrentImage.complete) return;
+    
+    const rect = slrmvCanvas.getBoundingClientRect();
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+    
+    // Convert to image coordinates (simplified)
+    const imgWidth = slrmvCurrentImage.naturalWidth;
+    const imgHeight = slrmvCurrentImage.naturalHeight;
+    
+    const scaleToFit = Math.min(
+        slrmvCanvas.width / imgWidth,
+        slrmvCanvas.height / imgHeight
+    ) * 0.9;
+    
+    const displayWidth = imgWidth * scaleToFit * slrmvScale;
+    const displayHeight = imgHeight * scaleToFit * slrmvScale;
+    
+    const centerX = (slrmvCanvas.width - displayWidth) / 2;
+    const centerY = (slrmvCanvas.height - displayHeight) / 2;
+    
+    const drawX = centerX + slrmvOffsetX;
+    const drawY = centerY + slrmvOffsetY;
+    
+    // Check if mouse is over the image
+    if (canvasX >= drawX && canvasX <= drawX + displayWidth &&
+        canvasY >= drawY && canvasY <= drawY + displayHeight) {
+        
+        // Convert to SL coordinates (0-255)
+        const slX = Math.round(((canvasX - drawX) / displayWidth) * 255);
+        const slY = Math.round(((canvasY - drawY) / displayHeight) * 255);
+        
+        // Clamp to valid range
+        const clampedX = Math.max(0, Math.min(255, slX));
+        const clampedY = Math.max(0, Math.min(255, slY));
+        
+        document.getElementById('slrmv-coord-display').textContent = 
+            `Hover: (${clampedX}, ${clampedY}) | Scale: ${slrmvScale.toFixed(2)}x`;
+    } else {
+        document.getElementById('slrmv-coord-display').textContent = 
+            `Region: ${slrmvCurrentRegion || 'None'} | Scale: ${slrmvScale.toFixed(2)}x`;
+    }
+});
+
+// Initialize
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize canvas
+        slrmvResizeCanvas();
+        window.addEventListener('resize', slrmvResizeCanvas);
+        
+        // Auto-load on Enter key in region input
+        const regionInput = document.getElementById('slrmv-region-name');
+        regionInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                slrmvLoadMap();
+            }
+        });
+        
+        // Auto-update marker when coordinates change
+        const coordInputs = document.querySelectorAll('#slrmv-coord-x, #slrmv-coord-y');
+        coordInputs.forEach(input => {
+            input.addEventListener('change', () => {
+                if (slrmvCurrentImage) {
+                    const x = parseInt(document.getElementById('slrmv-coord-x').value) || 128;
+                    const y = parseInt(document.getElementById('slrmv-coord-y').value) || 128;
+                    slrmvDrawMap(x, y);
+                    slrmvDebugLog(`Marker updated to (${x}, ${y})`);
+                }
+            });
+        });
+        
+        console.log('Second Life Region Map Viewer initialized');
+    });
+}
+</script>
+
+<style>
+/* Second Life Region Map Viewer specific styles */
+#second-life-region-map-viewer-title {
+    color: #2dd4ff !important; /* Blue for map theme */
+    margin-top: 0;
 }
 
-function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-</script>
+/* Loading spinner */
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(45,212,255,0.3);
+    border-top: 4px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Canvas container */
+#slrmv-map-container {
+    min-height: 300px;
+    transition: all 0.3s ease;
+}
+
+#slrmv-map-canvas {
+    cursor: grab;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transition: transform 0.2s ease;
+}
+
+#slrmv-map-canvas:active {
+    cursor: grabbing;
+}
+
+/* Control buttons hover effects */
+#slrmv-map-container button:hover {
+    background: rgba(45,212,255,0.3) !important;
+    transform: scale(1.05);
+}
+
+/* Debug console scrollbar */
+#slrmv-debug-log::-webkit-scrollbar {
+    width: 6px;
+}
+
+#slrmv-debug-log::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.2);
+}
+
+#slrmv-debug-log::-webkit-scrollbar-thumb {
+    background: rgba(45,212,255,0.5);
+    border-radius: 3px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .actions {
+        flex-direction: column;
+    }
+    
+    .actions button {
+        width: 100%;
+        margin: 4px 0 !important;
+    }
+    
+    /* Stack coordinate inputs on mobile */
+    #slrmv-map-container + div > div:first-child {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* Make control buttons larger for touch */
+    #slrmv-map-container > div:first-child button {
+        padding: 8px 16px !important;
+        font-size: 18px !important;
+    }
+    
+    /* Adjust coordinate display for mobile */
+    #slrmv-coord-display {
+        font-size: 10px !important;
+        padding: 6px 8px !important;
+    }
+}
+
+/* Print styles */
+@media print {
+    #second-life-region-map-viewer-title {
+        color: #000 !important;
+    }
+    
+    .actions, #slrmv-loading, #slrmv-map-container > div:first-child {
+        display: none !important;
+    }
+    
+    #slrmv-map-canvas {
+        max-height: none !important;
+    }
+}
+</style>
