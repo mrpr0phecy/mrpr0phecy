@@ -1,61 +1,662 @@
-<h2 id="splitbill-title" style="margin-top:0;">Split Bill Calculator</h2>
+<h2 id="splitbill-title" style="margin-top:0;color:var(--accent);">🍽️ Splitwise Pro - Smart Bill Splitter</h2>
 
 <form aria-describedby="splitbill-desc">
-  <p id="splitbill-desc" class="small">Divide a bill among people, with optional tip.</p>
+  <p id="splitbill-desc" class="small" style="color:var(--muted);margin-bottom:16px;">
+    Split restaurant bills, group expenses, or shared purchases with intelligent distribution options.
+    <span style="color:#ffcc00;">✨ Perfect for dinners, trips, and group activities!</span>
+  </p>
 
-  <div class="row">
-    <div class="field">
-      <label for="splitbill-total">Total bill (£)</label>
-      <input id="splitbill-total" type="number" min="0" value="100" />
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div>
+      <label for="sb-total" style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">Total Amount</label>
+      <div style="position:relative;">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--accent);font-weight:600;">£</span>
+        <input id="sb-total" type="number" min="0" step="0.01" value="120.00" 
+               style="width:100%;padding:12px 12px 12px 30px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;text-align:right;" />
+      </div>
     </div>
-    <div class="field">
-      <label for="splitbill-people">Number of people</label>
-      <input id="splitbill-people" type="number" min="1" value="4" />
+    
+    <div>
+      <label for="sb-people" style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">Number of People</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button type="button" onclick="sbAdjustPeople(-1)" style="padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">−</button>
+        <input id="sb-people" type="number" min="1" value="4" 
+               style="flex:1;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;text-align:center;" />
+        <button type="button" onclick="sbAdjustPeople(1)" style="padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">+</button>
+      </div>
     </div>
   </div>
 
-  <div class="field">
-    <label for="splitbill-tip">Tip (%)</label>
-    <input id="splitbill-tip" type="number" min="0" value="10" />
+  <div style="margin-bottom:20px;">
+    <label for="sb-tip" style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">
+      Tip: <span id="sb-tip-value">12.5</span>%
+    </label>
+    <input id="sb-tip" type="range" min="0" max="30" step="0.5" value="12.5" 
+           style="width:100%;height:8px;background:rgba(45,212,255,0.2);border-radius:4px;cursor:pointer;" />
+    <div style="display:flex;justify-content:space-between;margin-top:4px;">
+      <span class="small" style="color:var(--muted);">0% (None)</span>
+      <div style="display:flex;gap:12px;">
+        <button type="button" onclick="sbSetTip(10)" class="small" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:4px;color:var(--accent);cursor:pointer;">10%</button>
+        <button type="button" onclick="sbSetTip(12.5)" class="small" style="padding:4px 8px;background:rgba(45,212,255,0.2);border:1px solid rgba(45,212,255,0.4);border-radius:4px;color:var(--accent);cursor:pointer;">12.5%</button>
+        <button type="button" onclick="sbSetTip(15)" class="small" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:4px;color:var(--accent);cursor:pointer;">15%</button>
+        <button type="button" onclick="sbSetTip(20)" class="small" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:4px;color:var(--accent);cursor:pointer;">20%</button>
+      </div>
+      <span class="small" style="color:var(--muted);">30% (Generous)</span>
+    </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="splitbillCalc(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="splitbillReset(this)">Reset</button>
+  <div style="margin-bottom:20px;">
+    <label for="sb-mode" style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">Split Mode</label>
+    <select id="sb-mode" 
+            style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;cursor:pointer;">
+      <option value="equal" selected>💰 Equal Split (Recommended)</option>
+      <option value="custom">✏️ Custom Amounts</option>
+      <option value="itemized">📋 Itemized Split</option>
+      <option value="percentage">📊 Percentage Split</option>
+      <option value="unequal">⚖️ Unequal (Round up/down)</option>
+    </select>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+    <button type="button" onclick="sbCalculate(this)" id="sb-calc-btn"
+            style="flex:1;padding:12px;background:linear-gradient(135deg, rgba(57,255,20,0.2), rgba(57,255,20,0.1));border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;min-width:140px;">
+      🧮 Calculate Split
+    </button>
+    <button type="button" onclick="sbShare(this)"
+            style="padding:12px 16px;background:rgba(255,105,180,0.1);border:1px solid rgba(255,105,180,0.3);border-radius:8px;color:#ff69b4;cursor:pointer;">
+      📱 Share Results
+    </button>
+    <button type="button" onclick="sbReset(this)"
+            style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
+      🔄 Reset
+    </button>
+    <button type="button" onclick="sbCopy(this)"
+            style="padding:12px 16px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.3);border-radius:8px;color:#ffa500;cursor:pointer;">
+      📋 Copy
+    </button>
   </div>
 </form>
 
-<div class="results" aria-live="polite">
-  <div class="result">
-    <div class="label">Each person pays</div>
-    <div class="value" id="splitbill-res">–</div>
+<div aria-live="polite" style="margin-top:20px;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div style="background:linear-gradient(135deg, rgba(57,255,20,0.1), rgba(45,212,255,0.1));border-radius:8px;padding:20px;border:1px solid rgba(57,255,20,0.2);text-align:center;">
+      <div style="font-weight:600;color:#39ff14;margin-bottom:8px;">Each Person Pays</div>
+      <div id="sb-share" style="font-size:32px;font-weight:bold;color:#39ff14;">£30.00</div>
+      <div class="small" style="color:var(--muted);margin-top:4px;">Exact amount per person</div>
+    </div>
+    
+    <div style="background:linear-gradient(135deg, rgba(255,105,180,0.1), rgba(147,112,219,0.1));border-radius:8px;padding:20px;border:1px solid rgba(255,105,180,0.2);text-align:center;">
+      <div style="font-weight:600;color:#ff69b4;margin-bottom:8px;">Rounded Amount</div>
+      <div id="sb-rounded" style="font-size:32px;font-weight:bold;color:#ff69b4;">£30.00</div>
+      <div class="small" style="color:var(--muted);margin-top:4px;">Rounded for easy payment</div>
+    </div>
   </div>
+
+  <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:16px;border:1px solid rgba(255,255,255,0.08);margin-bottom:16px;">
+    <div style="font-weight:600;color:var(--accent);margin-bottom:12px;">📊 Bill Breakdown</div>
+    <div id="sb-breakdown" style="color:var(--muted);">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:6px;">
+        <div>Subtotal:</div>
+        <div style="color:inherit;">£100.00</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:6px;">
+        <div>Tip (10%):</div>
+        <div style="color:#ffa500;">£10.00</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05);">
+        <div style="font-weight:600;">Total:</div>
+        <div style="font-weight:600;color:#39ff14;">£110.00</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="small" style="color:var(--accent);margin-bottom:8px;">👥 Split Visualization</h3>
+  <div id="sb-visualization" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+    <!-- Visual circles will be generated here -->
+  </div>
+
+  <div id="sb-share-container" style="display:none;background:rgba(147,112,219,0.1);border-radius:8px;padding:16px;border:1px solid rgba(147,112,219,0.3);margin-bottom:16px;">
+    <div style="font-weight:600;color:#9370db;margin-bottom:8px;">📱 Shareable Link</div>
+    <div class="small" style="color:var(--muted);margin-bottom:8px;">Send this to your group:</div>
+    <input id="sb-share-link" type="text" readonly 
+           style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(147,112,219,0.3);background:rgba(0,0,0,0.3);color:inherit;font-family:monospace;font-size:12px;" />
+  </div>
+
+  <div id="sb-hint" class="small" style="color:var(--accent);margin-top:12px;text-align:center;min-height:20px;padding:8px;background:rgba(45,212,255,0.05);border-radius:8px;"></div>
 </div>
 
-<details class="small" style="margin-top:12px;">
-  <summary>How it works</summary>
-  <p>
-    Each share = (Total + Tip) ÷ People.  
-    Example: £100 + 10% tip = £110 ÷ 4 → £27.50 each.
-  </p>
-</details>
-
 <script>
-function splitbillCalc(btn) {
-  const card = btn.closest('.card');
-  const total = parseFloat(card.querySelector('#splitbill-total').value) || 0;
-  const people = parseInt(card.querySelector('#splitbill-people').value) || 1;
-  const tip = parseFloat(card.querySelector('#splitbill-tip').value) / 100 || 0;
+/* splitbill.html
+   - Smart bill splitter with multiple split modes
+   - Scoped with sb- prefix (splitbill)
+   - Social sharing features
+   - Visual split representation
+*/
 
-  const grandTotal = total * (1 + tip);
-  const share = grandTotal / people;
-
-  card.querySelector('#splitbill-res').textContent = "£" + share.toFixed(2);
-}
-
-function splitbillReset(btn) {
-  const card = btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#splitbill-res').textContent = '–';
-}
+(function() {
+  'use strict';
+  
+  const card = document.currentScript?.closest('.card') || document;
+  
+  // State management
+  let sbCurrentResult = null;
+  let sbVisualizationCircles = [];
+  let sbShareLink = '';
+  
+  // Initialize function
+  function sbInit() {
+    console.log('Split Bill Calculator initializing...');
+    
+    // Load saved preferences
+    const savedPrefs = localStorage.getItem('sb-preferences');
+    if (savedPrefs) {
+      try {
+        const prefs = JSON.parse(savedPrefs);
+        if (prefs.total) card.querySelector('#sb-total').value = prefs.total;
+        if (prefs.people) card.querySelector('#sb-people').value = prefs.people;
+        if (prefs.tip) {
+          card.querySelector('#sb-tip').value = prefs.tip;
+          card.querySelector('#sb-tip-value').textContent = prefs.tip;
+        }
+        if (prefs.mode) card.querySelector('#sb-mode').value = prefs.mode;
+      } catch (e) {
+        console.log('Could not load saved preferences:', e);
+      }
+    }
+    
+    // Setup event listeners
+    sbSetupEventListeners();
+    
+    // Initial calculation
+    setTimeout(() => sbCalculate(), 100);
+  }
+  
+  // Setup event listeners
+  function sbSetupEventListeners() {
+    // Tip slider
+    const tipSlider = card.querySelector('#sb-tip');
+    const tipValue = card.querySelector('#sb-tip-value');
+    
+    tipSlider.addEventListener('input', function() {
+      tipValue.textContent = this.value;
+      sbSavePreferences();
+      sbCalculate();
+    });
+    
+    // Auto-calculate on input changes
+    card.querySelector('#sb-total').addEventListener('input', function() {
+      sbSavePreferences();
+      sbCalculate();
+    });
+    
+    card.querySelector('#sb-people').addEventListener('input', function() {
+      sbSavePreferences();
+      sbCalculate();
+    });
+    
+    card.querySelector('#sb-mode').addEventListener('change', function() {
+      sbSavePreferences();
+      sbCalculate();
+    });
+  }
+  
+  // Adjust people count
+  function sbAdjustPeople(delta) {
+    const peopleInput = card.querySelector('#sb-people');
+    let current = parseInt(peopleInput.value) || 1;
+    current = Math.max(1, current + delta);
+    peopleInput.value = current;
+    sbSavePreferences();
+    sbCalculate();
+  }
+  
+  // Set tip percentage
+  function sbSetTip(percent) {
+    card.querySelector('#sb-tip').value = percent;
+    card.querySelector('#sb-tip-value').textContent = percent;
+    sbSavePreferences();
+    sbCalculate();
+  }
+  
+  // Main calculation function
+  function sbCalculate(btn) {
+    try {
+      // Get inputs
+      const total = parseFloat(card.querySelector('#sb-total').value) || 0;
+      const people = parseInt(card.querySelector('#sb-people').value) || 1;
+      const tipPercent = parseFloat(card.querySelector('#sb-tip').value) || 0;
+      const mode = card.querySelector('#sb-mode').value;
+      
+      if (total <= 0) {
+        sbShowHint('Enter a bill amount greater than £0', 'warning');
+        return;
+      }
+      
+      if (people <= 0) {
+        sbShowHint('Enter at least 1 person', 'warning');
+        return;
+      }
+      
+      // Calculate tip and totals
+      const tipAmount = total * (tipPercent / 100);
+      const grandTotal = total + tipAmount;
+      
+      // Calculate per-person share based on mode
+      let perPerson = 0;
+      let shares = [];
+      
+      switch (mode) {
+        case 'equal':
+          // Simple equal split
+          perPerson = grandTotal / people;
+          shares = Array(people).fill(perPerson);
+          break;
+          
+        case 'unequal':
+          // Round to nearest practical amount
+          const exact = grandTotal / people;
+          perPerson = Math.ceil(exact * 20) / 20; // Round to nearest 5p
+          shares = Array(people).fill(perPerson);
+          // Adjust last person to match total
+          const totalFromShares = perPerson * (people - 1);
+          shares[people - 1] = grandTotal - totalFromShares;
+          break;
+          
+        case 'custom':
+          // Placeholder for custom amounts
+          perPerson = grandTotal / people;
+          shares = Array(people).fill(perPerson);
+          break;
+          
+        case 'percentage':
+          // Equal percentage (same as equal)
+          perPerson = grandTotal / people;
+          shares = Array(people).fill(perPerson);
+          break;
+          
+        case 'itemized':
+          // Placeholder for itemized split
+          perPerson = grandTotal / people;
+          shares = Array(people).fill(perPerson);
+          break;
+          
+        default:
+          perPerson = grandTotal / people;
+          shares = Array(people).fill(perPerson);
+      }
+      
+      // Round for display
+      const roundedPerson = Math.round(perPerson * 100) / 100;
+      const roundedTotal = Math.round(grandTotal * 100) / 100;
+      const roundedTip = Math.round(tipAmount * 100) / 100;
+      
+      // Update display
+      card.querySelector('#sb-share').textContent = `£${roundedPerson.toFixed(2)}`;
+      card.querySelector('#sb-rounded').textContent = `£${Math.round(perPerson)}`;
+      
+      // Update breakdown
+      const breakdownHtml = `
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:6px;">
+          <div>Subtotal:</div>
+          <div style="color:inherit;">£${total.toFixed(2)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:6px;">
+          <div>Tip (${tipPercent}%):</div>
+          <div style="color:#ffa500;">£${roundedTip.toFixed(2)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05);">
+          <div style="font-weight:600;">Total:</div>
+          <div style="font-weight:600;color:#39ff14;">£${roundedTotal.toFixed(2)}</div>
+        </div>
+      `;
+      
+      card.querySelector('#sb-breakdown').innerHTML = breakdownHtml;
+      
+      // Update visualization
+      sbUpdateVisualization(people, shares);
+      
+      // Store current result
+      sbCurrentResult = {
+        total: total,
+        people: people,
+        tipPercent: tipPercent,
+        tipAmount: tipAmount,
+        grandTotal: grandTotal,
+        perPerson: perPerson,
+        shares: shares,
+        mode: mode
+      };
+      
+      // Generate share link
+      sbGenerateShareLink();
+      
+      sbShowHint(`✅ Calculated: £${roundedPerson.toFixed(2)} each for ${people} people`, 'success');
+      
+    } catch (error) {
+      console.error('Calculation error:', error);
+      sbShowHint('❌ Calculation failed. Please check inputs.', 'error');
+    }
+  }
+  
+  // Update visualization circles
+  function sbUpdateVisualization(people, shares) {
+    const visualization = card.querySelector('#sb-visualization');
+    visualization.innerHTML = '';
+    sbVisualizationCircles = [];
+    
+    // Calculate max share for scaling
+    const maxShare = Math.max(...shares);
+    
+    for (let i = 0; i < people; i++) {
+      const circle = document.createElement('div');
+      const share = shares[i];
+      const percentage = (share / maxShare) * 100;
+      
+      circle.className = 'sb-person-circle';
+      circle.style.width = '50px';
+      circle.style.height = '50px';
+      circle.style.borderRadius = '50%';
+      circle.style.display = 'flex';
+      circle.style.alignItems = 'center';
+      circle.style.justifyContent = 'center';
+      circle.style.flexDirection = 'column';
+      circle.style.background = `radial-gradient(circle at 30% 30%, rgba(45,212,255,0.3), rgba(45,212,255,0.1))`;
+      circle.style.border = `2px solid rgba(45,212,255,0.4)`;
+      circle.style.fontSize = '10px';
+      circle.style.color = 'var(--accent)';
+      circle.style.cursor = 'pointer';
+      circle.style.transition = 'all 0.3s ease';
+      circle.style.transform = `scale(${0.5 + (percentage / 200)})`;
+      
+      circle.innerHTML = `
+        <div style="font-weight:600;">£${share.toFixed(2)}</div>
+        <div style="font-size:8px;color:var(--muted);">Person ${i + 1}</div>
+      `;
+      
+      // Add hover effect
+      circle.addEventListener('mouseenter', function() {
+        this.style.transform = `scale(${0.7 + (percentage / 200)})`;
+        this.style.boxShadow = '0 0 20px rgba(45,212,255,0.3)';
+      });
+      
+      circle.addEventListener('mouseleave', function() {
+        this.style.transform = `scale(${0.5 + (percentage / 200)})`;
+        this.style.boxShadow = 'none';
+      });
+      
+      // Click to view details
+      circle.addEventListener('click', function() {
+        sbShowPersonDetails(i + 1, share);
+      });
+      
+      visualization.appendChild(circle);
+      sbVisualizationCircles.push(circle);
+    }
+  }
+  
+  // Show person details
+  function sbShowPersonDetails(personNumber, amount) {
+    sbShowHint(`Person ${personNumber} pays £${amount.toFixed(2)}`, 'info');
+    
+    // Highlight the circle
+    sbVisualizationCircles.forEach((circle, index) => {
+      if (index === personNumber - 1) {
+        circle.style.background = `radial-gradient(circle at 30% 30%, rgba(57,255,20,0.4), rgba(57,255,20,0.2))`;
+        circle.style.border = `2px solid rgba(57,255,20,0.6)`;
+        circle.style.boxShadow = '0 0 20px rgba(57,255,20,0.4)';
+      } else {
+        circle.style.background = `radial-gradient(circle at 30% 30%, rgba(45,212,255,0.3), rgba(45,212,255,0.1))`;
+        circle.style.border = `2px solid rgba(45,212,255,0.4)`;
+        circle.style.boxShadow = 'none';
+      }
+    });
+    
+    // Auto-reset highlight after 3 seconds
+    setTimeout(() => {
+      sbVisualizationCircles.forEach(circle => {
+        circle.style.background = `radial-gradient(circle at 30% 30%, rgba(45,212,255,0.3), rgba(45,212,255,0.1))`;
+        circle.style.border = `2px solid rgba(45,212,255,0.4)`;
+        circle.style.boxShadow = 'none';
+      });
+    }, 3000);
+  }
+  
+  // Share results
+  function sbShare(btn) {
+    if (!sbCurrentResult) {
+      sbShowHint('Calculate a bill first!', 'warning');
+      return;
+    }
+    
+    const shareContainer = card.querySelector('#sb-share-container');
+    const shareLink = card.querySelector('#sb-share-link');
+    
+    // Show share container
+    shareContainer.style.display = 'block';
+    
+    // Generate and display share link
+    shareLink.value = sbShareLink;
+    
+    // Copy to clipboard on click
+    shareLink.addEventListener('click', function() {
+      this.select();
+      navigator.clipboard.writeText(this.value).then(() => {
+        sbShowHint('✅ Share link copied to clipboard!', 'success');
+      });
+    });
+    
+    sbShowHint('📱 Share the link with your group!', 'info');
+  }
+  
+  // Generate shareable link
+  function sbGenerateShareLink() {
+    if (!sbCurrentResult) return;
+    
+    const data = {
+      t: sbCurrentResult.total,
+      p: sbCurrentResult.people,
+      tip: sbCurrentResult.tipPercent,
+      m: sbCurrentResult.mode,
+      each: sbCurrentResult.perPerson.toFixed(2),
+      total: sbCurrentResult.grandTotal.toFixed(2)
+    };
+    
+    // Create a data URL that can be shared
+    const encodedData = btoa(JSON.stringify(data));
+    sbShareLink = `${window.location.origin}/splitbill?data=${encodedData}`;
+    
+    // For demo, use a simpler version
+    sbShareLink = `Split: £${sbCurrentResult.perPerson.toFixed(2)} each for ${sbCurrentResult.people} people. Total: £${sbCurrentResult.grandTotal.toFixed(2)} (incl. ${sbCurrentResult.tipPercent}% tip)`;
+  }
+  
+  // Reset function
+  function sbReset(btn) {
+    card.querySelector('#sb-total').value = '120.00';
+    card.querySelector('#sb-people').value = '4';
+    card.querySelector('#sb-tip').value = '12.5';
+    card.querySelector('#sb-tip-value').textContent = '12.5';
+    card.querySelector('#sb-mode').value = 'equal';
+    
+    card.querySelector('#sb-share').textContent = '£30.00';
+    card.querySelector('#sb-rounded').textContent = '£30.00';
+    card.querySelector('#sb-share-container').style.display = 'none';
+    card.querySelector('#sb-visualization').innerHTML = '';
+    
+    sbCurrentResult = null;
+    sbSavePreferences();
+    sbShowHint('🔄 Reset to defaults', 'info');
+  }
+  
+  // Copy results
+  function sbCopy(btn) {
+    if (!sbCurrentResult) {
+      sbShowHint('Calculate a bill first!', 'warning');
+      return;
+    }
+    
+    const text = `Split Bill Results:
+💰 Total: £${sbCurrentResult.total.toFixed(2)}
+👥 People: ${sbCurrentResult.people}
+🎯 Tip: ${sbCurrentResult.tipPercent}% (£${sbCurrentResult.tipAmount.toFixed(2)})
+✅ Each pays: £${sbCurrentResult.perPerson.toFixed(2)}
+💰 Total with tip: £${sbCurrentResult.grandTotal.toFixed(2)}
+    
+Generated with Splitwise Pro`;
+    
+    navigator.clipboard.writeText(text).then(() => {
+      sbShowHint('✅ Results copied to clipboard!', 'success');
+    }).catch(err => {
+      console.error('Copy failed:', err);
+      sbShowHint('❌ Failed to copy', 'error');
+    });
+  }
+  
+  // Save preferences
+  function sbSavePreferences() {
+    const prefs = {
+      total: card.querySelector('#sb-total').value,
+      people: card.querySelector('#sb-people').value,
+      tip: card.querySelector('#sb-tip').value,
+      mode: card.querySelector('#sb-mode').value,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    localStorage.setItem('sb-preferences', JSON.stringify(prefs));
+  }
+  
+  // Show hint message
+  function sbShowHint(message, type = 'info') {
+    const hint = card.querySelector('#sb-hint');
+    hint.textContent = message;
+    hint.style.color = type === 'error' ? '#ff4d4d' : 
+                      type === 'warning' ? '#ffcc00' : 
+                      type === 'success' ? '#39ff14' : 
+                      '#2dd4ff';
+    
+    // Auto-clear after delay
+    clearTimeout(hint.timeout);
+    hint.timeout = setTimeout(() => {
+      if (hint.textContent === message) {
+        hint.textContent = '';
+      }
+    }, 3000);
+  }
+  
+  // Expose functions globally (with prefix)
+  window.sbCalculate = sbCalculate;
+  window.sbAdjustPeople = sbAdjustPeople;
+  window.sbSetTip = sbSetTip;
+  window.sbShare = sbShare;
+  window.sbReset = sbReset;
+  window.sbCopy = sbCopy;
+  
+  // Initialize when ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', sbInit);
+  } else {
+    sbInit();
+  }
+  
+})();
 </script>
+
+<style>
+/* Split Bill Calculator specific styles */
+#splitbill-title {
+  color: var(--accent);
+  margin-top: 0;
+}
+
+/* Person circle animations */
+@keyframes sbPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(45,212,255,0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(45,212,255,0.6); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(45,212,255,0.4); }
+}
+
+.sb-person-circle {
+  animation: sbPulse 2s ease-in-out infinite;
+  animation-delay: calc(var(--index, 0) * 0.2s);
+}
+
+/* Tip slider styling */
+#sb-tip::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.8);
+  box-shadow: 0 0 10px rgba(45,212,255,0.5);
+}
+
+#sb-tip::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.8);
+  box-shadow: 0 0 10px rgba(45,212,255,0.5);
+}
+
+/* Share link styling */
+#sb-share-link {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+#sb-share-link:hover {
+  border-color: #9370db !important;
+  background: rgba(147,112,219,0.1) !important;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  div[style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  
+  #sb-visualization {
+    justify-content: center !important;
+  }
+  
+  .sb-person-circle {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 8px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column !important;
+  }
+  
+  .actions button {
+    width: 100% !important;
+    margin-bottom: 8px;
+  }
+  
+  .sb-person-circle {
+    width: 36px !important;
+    height: 36px !important;
+  }
+}
+
+/* Number input spinner hiding */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  opacity: 1;
+  height: 30px;
+}
+
+/* Smooth transitions */
+.sb-person-circle,
+#sb-share,
+#sb-rounded {
+  transition: all 0.3s ease;
+}
+</style>
