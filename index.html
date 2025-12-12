@@ -16,6 +16,8 @@
     /* FIX 1: Ensure background covers entire page */
     background-attachment: fixed;
     background-size: cover;
+    /* NEW: Prevent card content from overflowing */
+    overflow-x: hidden;
   }
   
   /* CSS VARIABLES ONLY FOR THINGS THAT CHANGE */
@@ -167,6 +169,9 @@
     padding:20px;
     align-items:start;
     box-sizing:border-box;
+    /* NEW: Prevent grid from being too wide */
+    max-width:100%;
+    overflow:hidden;
   }
 
   .card{
@@ -183,10 +188,67 @@
     transition:opacity .36s ease, transform .36s ease;
     box-shadow:0 8px 24px rgba(0,0,0,0.35);
     overflow:hidden;
+    /* NEW: Critical fix - isolate card content */
+    position:relative;
+    contain: content;
+    /* NEW: Prevent card from breaking layout */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    /* NEW: Disable dragging on main page */
+    cursor: default;
   }
   .card.visible{opacity:1; transform: translateY(0) scale(var(--card-scale));}
-  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-  .card-header h3{margin:0;color:var(--accent);font-size:1.05rem}
+  
+  .card-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+    /* NEW: Make header non-draggable */
+    cursor: default;
+    user-select: none;
+  }
+  .card-header h3{
+    margin:0;
+    color:var(--accent);
+    font-size:1.05rem;
+    /* NEW: Prevent text overflow */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width:80%;
+  }
+  
+  /* NEW: Card content container with scroll isolation */
+  .card-content {
+    position: relative;
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    /* NEW: Isolate scrolling from parent */
+    isolation: isolate;
+  }
+  
+  /* NEW: Custom scrollbar for card content */
+  .card-content::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .card-content::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.03);
+    border-radius: 3px;
+  }
+  
+  .card-content::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 3px;
+    opacity: 0.5;
+  }
+  
+  .card-content::-webkit-scrollbar-thumb:hover {
+    opacity: 0.8;
+  }
 
   /* ===== SIMPLE EMBED SECTION ===== */
   .embed-section {
@@ -235,25 +297,86 @@
   body.reader-mode .dashboard{grid-template-columns:1fr;gap:18px}
   body.reader-mode .card{padding:20px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.04));border-color:rgba(255,255,255,0.06)}
 
+  /* ===== CRITICAL FIXES ===== */
+  
+  /* NEW: Isolate card content to prevent layout breaking */
+  .card iframe,
+  .card canvas,
+  .card video,
+  .card img,
+  .card table {
+    max-width: 100%;
+    display: block;
+  }
+  
+  /* NEW: Fix for any card that might have overflowing content */
+  .card * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* NEW: Prevent textareas and inputs from breaking layout */
+  .card textarea,
+  .card input,
+  .card select {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* NEW: Fix for pre/code blocks */
+  .card pre,
+  .card code {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  
+  /* NEW: Disable Sortable cursor on main page */
+  .dashboard .sortable-chosen {
+    cursor: default !important;
+  }
+  
+  /* NEW: Only enable dragging in toolbox */
+  .toolbox .sortable-chosen {
+    cursor: move !important;
+  }
+
   /* ===== MOBILE-FRIENDLY SCROLLING FIX ===== */
   @media (max-width: 768px) {
     .card {
-      touch-action: pan-y; /* Allows vertical scrolling while preventing other gestures */
-      -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
     }
     
     .dashboard {
-      gap: 16px; /* Slightly reduce gap on mobile */
+      gap: 16px;
+      padding: 16px;
     }
     
-    /* Make cards a bit easier to tap */
     .card-header h3 {
-      padding: 4px 0; /* Add padding to make title easier to tap */
+      padding: 4px 0;
+      font-size: 1rem;
     }
     
-    /* Ensure search bar is easier to use on mobile */
     .search-bar input {
-      font-size: 16px; /* Prevent zoom on iOS */
+      font-size: 16px;
+    }
+    
+    .card-content {
+      max-height: 300px;
+    }
+  }
+  
+  /* NEW: Fix for very small screens */
+  @media (max-width: 480px) {
+    .dashboard {
+      grid-template-columns: 1fr;
+      padding: 12px;
+    }
+    
+    .card {
+      padding: 12px;
     }
   }
 </style>
@@ -416,6 +539,60 @@ function copyEmbedCode(cardName, fileName, displayName) {
     }
     document.body.removeChild(textArea);
   });
+}
+
+// ===== CARD SANITIZATION =====
+// NEW: Function to sanitize card content and prevent layout breaking
+function sanitizeCardContent(cardElement) {
+  const content = cardElement.querySelector('.content');
+  if (!content) return;
+  
+  // Apply containment to prevent layout thrashing
+  cardElement.style.contain = 'content';
+  
+  // Make sure all images/videos/iframes don't overflow
+  const mediaElements = content.querySelectorAll('img, video, iframe, canvas');
+  mediaElements.forEach(el => {
+    el.style.maxWidth = '100%';
+    el.style.height = 'auto';
+    el.style.display = 'block';
+  });
+  
+  // Fix textareas and inputs
+  const formElements = content.querySelectorAll('textarea, input, select');
+  formElements.forEach(el => {
+    el.style.maxWidth = '100%';
+    el.style.boxSizing = 'border-box';
+  });
+  
+  // Fix tables
+  const tables = content.querySelectorAll('table');
+  tables.forEach(table => {
+    table.style.maxWidth = '100%';
+    table.style.overflowX = 'auto';
+    table.style.display = 'block';
+  });
+  
+  // Fix code blocks
+  const codeBlocks = content.querySelectorAll('pre, code');
+  codeBlocks.forEach(el => {
+    el.style.whiteSpace = 'pre-wrap';
+    el.style.wordBreak = 'break-word';
+    el.style.maxWidth = '100%';
+    el.style.overflowX = 'auto';
+  });
+  
+  // Wrap content in scrollable container
+  const originalHTML = content.innerHTML;
+  content.innerHTML = '';
+  
+  const scrollContainer = document.createElement('div');
+  scrollContainer.className = 'card-content';
+  scrollContainer.innerHTML = originalHTML;
+  
+  content.appendChild(scrollContainer);
+  
+  console.log('Card content sanitized and wrapped');
 }
 
 // NEW: Advanced font scaling based on widget size and user preference
@@ -1039,6 +1216,9 @@ function loadCardBatch() {
           // ✅ Load HTML with scripts intact
           content.innerHTML = html;
           
+          // ✅ NEW: Sanitize card content to prevent layout breaking
+          sanitizeCardContent(card);
+          
           // ✅ Add simple embed section to every card
           addEmbedSectionToCard(card, file);
           
@@ -1154,6 +1334,16 @@ async function loadDashboard() {
     
     status.textContent = `Loading 0 of ${cardFiles.length} tools...`;
     
+    // NEW: Initialize Sortable but disable dragging on main page
+    new Sortable(grid, {
+      animation: 150,
+      // Disable dragging on main page
+      disabled: true,
+      // Only enable when explicitly needed (for toolbox)
+      filter: '.ignore-elements',
+      preventOnFilter: false
+    });
+    
     // Start batch loading
     setTimeout(loadCardBatch, 300);
     
@@ -1193,8 +1383,24 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// Make Sortable
-new Sortable(document.getElementById('gridContainer'), { animation: 150 });
+// NEW: Enable dragging only in toolbox
+function enableToolboxDragging() {
+  const toolboxContent = document.getElementById('toolboxContent');
+  if (toolboxContent) {
+    new Sortable(toolboxContent, {
+      animation: 150,
+      handle: '.widget-titlebar',
+      filter: '.widget-close, .widget-scale-controls *',
+      preventOnFilter: false,
+      onStart: function() {
+        console.log('Toolbox dragging enabled');
+      }
+    });
+  }
+}
+
+// Initialize toolbox dragging
+document.addEventListener('DOMContentLoaded', enableToolboxDragging);
 
 // ===== MOBILE-FRIENDLY SCROLLING FIX =====
 // This prevents card content from interfering with page scrolling
@@ -1207,14 +1413,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }, { passive: true });
   
-  // For cards with interactive content, add a scroll indicator
-  document.querySelectorAll('.card .content').forEach(content => {
-    // If content has its own scrollbar, make it more mobile-friendly
-    if (content.scrollHeight > content.clientHeight) {
-      content.style.maxHeight = '40vh';
-      content.style.overflowY = 'auto';
-      content.style.webkitOverflowScrolling = 'touch';
-    }
+  // Prevent drag-scroll on card content scrollbars
+  document.querySelectorAll('.card-content').forEach(content => {
+    content.addEventListener('wheel', function(e) {
+      // If we're at the top and scrolling up, or at the bottom and scrolling down,
+      // prevent the event from bubbling to the page
+      const atTop = this.scrollTop === 0;
+      const atBottom = this.scrollTop + this.clientHeight >= this.scrollHeight - 1;
+      
+      if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) {
+        e.stopPropagation();
+      }
+    });
   });
 });
 
