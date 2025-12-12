@@ -1,52 +1,479 @@
-<h2 id="steps-title" style="margin-top:0;">Steps to Calories Converter</h2>
+<div class="card" id="steps-card">
+  <h2 id="steps-title" style="margin-top:0;">Steps to Calories Converter</h2>
 
-<form aria-describedby="steps-desc">
-  <p id="steps-desc" class="small">Estimate calories burned based on steps walked and body weight.</p>
+  <form aria-describedby="steps-desc">
+    <p id="steps-desc" class="small">Estimate calories burned based on steps walked and body weight.</p>
 
-  <div class="field">
-    <label for="steps-count">Steps walked</label>
-    <input id="steps-count" type="number" min="0" step="100" value="5000" />
+    <div class="row" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
+      <div class="field">
+        <label for="steps-count">Steps walked</label>
+        <input id="steps-count" type="number" min="0" step="100" value="5000" style="width:100%;" />
+        <div class="small" style="margin-top:4px;color:#aaa;">
+          ≈ <span id="steps-distance">3.78</span> km / <span id="steps-miles">2.35</span> miles
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="steps-weight">Weight</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input id="steps-weight" type="number" min="1" step="0.1" value="70" style="width:100%;" />
+          <select id="steps-weight-unit" style="flex-shrink:0;width:80px;">
+            <option value="kg" selected>kg</option>
+            <option value="lbs">lbs</option>
+          </select>
+        </div>
+        <div class="small" style="margin-top:4px;color:#aaa;">
+          Equivalent: <span id="weight-conversion">154.32 lbs</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:12px;">
+      <label for="steps-pace">Walking Pace</label>
+      <select id="steps-pace" style="width:100%;">
+        <option value="0.04" selected>Normal (3-5 km/h)</option>
+        <option value="0.045">Brisk (5-6 km/h)</option>
+        <option value="0.05">Power Walking (6-7 km/h)</option>
+        <option value="0.035">Leisurely (2-3 km/h)</option>
+      </select>
+      <div class="small" style="margin-top:4px;color:#aaa;">
+        Calorie multiplier: <span id="pace-multiplier">0.04 kcal/step/kg</span>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:12px;display:flex;gap:8px;">
+      <button type="button" onclick="stepsCalc(this)" class="primary">Calculate</button>
+      <button type="button" class="secondary" onclick="stepsReset(this)">Reset</button>
+      <button type="button" onclick="stepsSetGoal(this)" class="secondary">Set Daily Goal</button>
+    </div>
+  </form>
+
+  <div class="results" aria-live="polite" style="margin-top:12px;">
+    <h3 class="small">Calorie Burn Results</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:12px;">
+      <div class="result-box" style="background:rgba(123, 183, 255, 0.1);border-radius:8px;padding:12px;text-align:center;">
+        <div class="small" style="margin-bottom:4px;color:#7bb7ff;">Total Calories</div>
+        <div class="value" style="font-size:1.5rem;font-weight:600;" id="steps-res">–</div>
+      </div>
+      <div class="result-box" style="background:rgba(139, 195, 74, 0.1);border-radius:8px;padding:12px;text-align:center;">
+        <div class="small" style="margin-bottom:4px;color:#8bc34a;">Calories/Hour</div>
+        <div class="value" style="font-size:1.5rem;font-weight:600;" id="steps-hour">–</div>
+      </div>
+    </div>
+    
+    <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;">
+      <div class="small" style="margin-bottom:8px;color:#aaa;">Activity Breakdown</div>
+      <div class="progress-container" style="margin-bottom:4px;">
+        <div class="progress-label" style="display:flex;justify-content:space-between;font-size:0.85rem;">
+          <span>Calories burned</span>
+          <span id="calories-progress-text">0% of daily goal</span>
+        </div>
+        <div class="progress-bar" style="height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
+          <div id="calories-progress" style="height:100%;background:linear-gradient(90deg, #7bb7ff, #4a86e8);width:0%;transition:width 0.5s ease;"></div>
+        </div>
+      </div>
+      <div class="small" style="margin-top:8px;display:flex;justify-content:space-between;color:#aaa;">
+        <span id="steps-equivalent">≈ 0 minutes of running</span>
+        <span id="steps-time">≈ 0 hours</span>
+      </div>
+    </div>
+    
+    <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+      <div id="steps-hint" class="small" style="opacity:0.9;"></div>
+    </div>
   </div>
 
-  <div class="field">
-    <label for="steps-weight">Weight (kg)</label>
-    <input id="steps-weight" type="number" min="1" step="0.1" value="70" />
-  </div>
+  <details class="small" style="margin-top:12px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px;">
+    <summary style="cursor:pointer;font-weight:500;padding:4px;">How it works & Formulas</summary>
+    <div style="margin-top:8px;padding:4px;border-top:1px solid rgba(255,255,255,0.08);">
+      <p style="margin:8px 0;"><strong>Basic Formula:</strong> Calories = Steps × Weight (kg) × Multiplier</p>
+      <ul style="margin:8px 0;padding-left:20px;">
+        <li><strong>Normal pace:</strong> 0.04 kcal per step per kg</li>
+        <li><strong>Brisk walking:</strong> 0.045 kcal per step per kg</li>
+        <li><strong>Power walking:</strong> 0.05 kcal per step per kg</li>
+        <li><strong>Leisurely:</strong> 0.035 kcal per step per kg</li>
+      </ul>
+      <p style="margin:8px 0;"><strong>Assumptions:</strong></p>
+      <ul style="margin:8px 0;padding-left:20px;">
+        <li>Average step length: 0.76 meters (2.5 feet)</li>
+        <li>1000 steps ≈ 0.76 km (0.47 miles)</li>
+        <li>Average walking speed: 5 km/h (3.1 mph)</li>
+        <li>Weight conversion: 1 kg = 2.20462 lbs</li>
+      </ul>
+      <p style="margin:8px 0;color:#ff9800;">Note: This is an estimate. Actual calories burned vary based on fitness level, terrain, and individual metabolism.</p>
+    </div>
+  </details>
 
-  <div class="actions">
-    <button type="button" onclick="stepsCalc(this)">Calculate</button>
-    <button type="button" class="secondary" onclick="stepsReset(this)">Reset</button>
-  </div>
-</form>
-
-<div class="results" aria-live="polite">
-  <div class="result">
-    <div class="label">Calories burned</div>
-    <div class="value" id="steps-res">–</div>
-  </div>
+  <style>
+    .card {
+      background: #1a1a1a;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #333;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      margin-bottom: 20px;
+    }
+    
+    .card h2 {
+      color: #7bb7ff;
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+    }
+    
+    .card .small {
+      font-size: 0.875rem;
+      color: #aaa;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    
+    .field {
+      margin-bottom: 16px;
+    }
+    
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      color: #ddd;
+      font-weight: 500;
+    }
+    
+    .field input,
+    .field select {
+      padding: 10px 12px;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #252525;
+      color: #fff;
+      font-size: 0.95rem;
+    }
+    
+    .field input:focus,
+    .field select:focus {
+      outline: none;
+      border-color: #7bb7ff;
+      box-shadow: 0 0 0 2px rgba(123, 183, 255, 0.2);
+    }
+    
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      opacity: 1;
+      height: 24px;
+      cursor: pointer;
+    }
+    
+    .actions button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+    }
+    
+    .actions button.primary {
+      background: #4a86e8;
+      color: white;
+    }
+    
+    .actions button.primary:hover {
+      background: #3a76d8;
+    }
+    
+    .actions button.secondary {
+      background: #555;
+      color: white;
+    }
+    
+    .actions button.secondary:hover {
+      background: #666;
+    }
+    
+    .actions button:last-of-type {
+      background: #2d5a27;
+      color: white;
+    }
+    
+    .actions button:last-of-type:hover {
+      background: #3d6a37;
+    }
+    
+    .results h3 {
+      color: #7bb7ff;
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+    
+    .result-box {
+      transition: transform 0.2s ease;
+    }
+    
+    .result-box:hover {
+      transform: translateY(-2px);
+    }
+    
+    details summary::-webkit-details-marker {
+      display: none;
+    }
+    
+    details summary:after {
+      content: '▼';
+      float: right;
+      font-size: 0.75em;
+      transition: transform 0.2s ease;
+    }
+    
+    details[open] summary:after {
+      transform: rotate(180deg);
+    }
+    
+    .progress-bar {
+      position: relative;
+    }
+    
+    .progress-bar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(255,255,255,0.1) 50%, 
+        transparent 100%);
+      background-size: 200% 100%;
+      animation: shimmer 2s infinite linear;
+    }
+    
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+  </style>
 </div>
 
-<details class="small" style="margin-top:12px;">
-  <summary>How it works</summary>
-  <p>
-    A rough estimate: ~0.04 kcal per step per kg of body weight.  
-    Calories = Steps × Weight × 0.04.
-  </p>
-</details>
-
 <script>
+// Constants and configuration
+const STEPS_CONFIG = {
+  stepLength: 0.76, // meters per step
+  caloriesPerStepPerKg: 0.04,
+  dailyGoal: 2000, // Default daily calories goal
+  walkingSpeed: 5, // km/h
+  runningSpeed: 8, // km/h
+  bikingSpeed: 16, // km/h
+  swimmingSpeed: 2 // km/h
+};
+
+// Initialize
+let dailyCalorieGoal = localStorage.getItem('stepsDailyGoal') || STEPS_CONFIG.dailyGoal;
+
 function stepsCalc(btn) {
   const card = btn.closest('.card');
   const steps = parseInt(card.querySelector('#steps-count').value, 10) || 0;
-  const weight = parseFloat(card.querySelector('#steps-weight').value) || 0;
+  let weight = parseFloat(card.querySelector('#steps-weight').value) || 0;
+  const weightUnit = card.querySelector('#steps-weight-unit').value;
+  const paceMultiplier = parseFloat(card.querySelector('#steps-pace').value) || 0.04;
 
-  const calories = steps * weight * 0.04;
-  card.querySelector('#steps-res').textContent = Math.round(calories) + " kcal";
+  // Validate inputs
+  if (steps < 0 || weight <= 0) {
+    card.querySelector('#steps-res').textContent = "Invalid input";
+    card.querySelector('#steps-hour').textContent = "–";
+    card.querySelector('#steps-hint').textContent = "Please enter valid values";
+    return;
+  }
+
+  // Convert weight to kg if in lbs
+  if (weightUnit === 'lbs') {
+    weight = weight / 2.20462;
+    card.querySelector('#weight-conversion').textContent = `${weight.toFixed(1)} kg`;
+  } else {
+    card.querySelector('#weight-conversion').textContent = `${(weight * 2.20462).toFixed(1)} lbs`;
+  }
+
+  // Calculate calories
+  const calories = steps * weight * paceMultiplier;
+  const caloriesPerHour = (calories / (steps / 1000 / STEPS_CONFIG.walkingSpeed * 60)) || 0;
+  
+  // Calculate distance
+  const distanceKm = (steps * STEPS_CONFIG.stepLength / 1000).toFixed(2);
+  const distanceMiles = (distanceKm * 0.621371).toFixed(2);
+  
+  // Calculate time
+  const timeHours = distanceKm / STEPS_CONFIG.walkingSpeed;
+  const timeMinutes = timeHours * 60;
+  
+  // Update distance display
+  card.querySelector('#steps-distance').textContent = distanceKm;
+  card.querySelector('#steps-miles').textContent = distanceMiles;
+  
+  // Update pace multiplier display
+  card.querySelector('#pace-multiplier').textContent = `${paceMultiplier} kcal/step/kg`;
+
+  // Display results
+  card.querySelector('#steps-res').textContent = `${Math.round(calories)} kcal`;
+  card.querySelector('#steps-hour').textContent = `${Math.round(caloriesPerHour)} kcal/h`;
+  
+  // Calculate and display progress
+  const progressPercent = Math.min((calories / dailyCalorieGoal) * 100, 100);
+  card.querySelector('#calories-progress').style.width = `${progressPercent}%`;
+  card.querySelector('#calories-progress-text').textContent = 
+    `${Math.round(progressPercent)}% of daily goal (${dailyCalorieGoal} kcal)`;
+  
+  // Calculate equivalent activities
+  const runningMinutes = (calories / 10).toFixed(0); // Rough estimate: 10 kcal/min running
+  const bikingMinutes = (calories / 8).toFixed(0); // Rough estimate: 8 kcal/min biking
+  const swimmingMinutes = (calories / 12).toFixed(0); // Rough estimate: 12 kcal/min swimming
+  
+  // Update equivalent activities
+  const activities = [
+    `${runningMinutes} min running`,
+    `${bikingMinutes} min cycling`,
+    `${swimmingMinutes} min swimming`
+  ];
+  
+  card.querySelector('#steps-equivalent').textContent = 
+    `≈ ${activities[Math.floor(Math.random() * activities.length)]}`;
+  card.querySelector('#steps-time').textContent = 
+    `≈ ${timeHours.toFixed(1)} hours walking`;
+  
+  // Update hint with detailed information
+  const hint = card.querySelector('#steps-hint');
+  hint.innerHTML = `
+    <span style="color:#8bc34a;">✓</span> 
+    ${steps.toLocaleString()} steps ≈ ${distanceKm} km · 
+    ${Math.round(timeMinutes)} minutes
+  `;
 }
 
 function stepsReset(btn) {
   const card = btn.closest('.card');
-  card.querySelector('form').reset();
-  card.querySelector('#steps-res').textContent = '–';
+  card.querySelector('#steps-count').value = "5000";
+  card.querySelector('#steps-weight').value = "70";
+  card.querySelector('#steps-weight-unit').value = "kg";
+  card.querySelector('#steps-pace').value = "0.04";
+  card.querySelector('#steps-res').textContent = "–";
+  card.querySelector('#steps-hour').textContent = "–";
+  card.querySelector('#calories-progress').style.width = "0%";
+  card.querySelector('#calories-progress-text').textContent = "0% of daily goal";
+  card.querySelector('#steps-equivalent').textContent = "≈ 0 minutes of running";
+  card.querySelector('#steps-time').textContent = "≈ 0 hours";
+  card.querySelector('#steps-hint').textContent = "";
+  
+  // Trigger calculation
+  setTimeout(() => stepsCalc(card.querySelector('button.primary')), 100);
 }
+
+function stepsSetGoal(btn) {
+  const card = btn.closest('.card');
+  const currentGoal = dailyCalorieGoal;
+  const newGoal = prompt(`Set daily calorie goal (current: ${currentGoal} kcal):`, currentGoal);
+  
+  if (newGoal !== null && !isNaN(newGoal) && newGoal > 0) {
+    dailyCalorieGoal = parseInt(newGoal);
+    localStorage.setItem('stepsDailyGoal', dailyCalorieGoal);
+    
+    const hint = card.querySelector('#steps-hint');
+    hint.innerHTML = `<span style="color:#ffb74d;">✓</span> Daily goal set to ${dailyCalorieGoal} kcal`;
+    hint.style.color = "#ffb74d";
+    
+    // Recalculate to update progress
+    setTimeout(() => stepsCalc(card.querySelector('button.primary')), 100);
+    
+    // Reset hint color after 3 seconds
+    setTimeout(() => {
+      if (hint.innerHTML.includes("Daily goal set")) {
+        hint.style.color = "";
+      }
+    }, 3000);
+  }
+}
+
+// Auto-calculate on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const card = document.getElementById('steps-card');
+  if (card) {
+    // Set initial distance display
+    const initialSteps = parseInt(card.querySelector('#steps-count').value, 10) || 5000;
+    const initialDistanceKm = (initialSteps * STEPS_CONFIG.stepLength / 1000).toFixed(2);
+    const initialDistanceMiles = (initialDistanceKm * 0.621371).toFixed(2);
+    card.querySelector('#steps-distance').textContent = initialDistanceKm;
+    card.querySelector('#steps-miles').textContent = initialDistanceMiles;
+    
+    // Set initial weight conversion
+    const initialWeight = parseFloat(card.querySelector('#steps-weight').value) || 70;
+    card.querySelector('#weight-conversion').textContent = `${(initialWeight * 2.20462).toFixed(1)} lbs`;
+    
+    // Auto-calculate
+    setTimeout(() => {
+      const calculateBtn = card.querySelector('button.primary');
+      if (calculateBtn) {
+        stepsCalc(calculateBtn);
+      }
+    }, 100);
+  }
+});
+
+// Auto-calculate on input changes
+document.addEventListener('input', function(e) {
+  const card = e.target.closest('.card');
+  if (card && card.id === 'steps-card') {
+    // Debounce calculation to avoid too many calculations
+    clearTimeout(window.stepsCalcTimeout);
+    window.stepsCalcTimeout = setTimeout(() => {
+      const calculateBtn = card.querySelector('button.primary');
+      if (calculateBtn) {
+        stepsCalc(calculateBtn);
+      }
+    }, 300);
+    
+    // Update distance in real-time for steps input
+    if (e.target.id === 'steps-count') {
+      const steps = parseInt(e.target.value, 10) || 0;
+      const distanceKm = (steps * STEPS_CONFIG.stepLength / 1000).toFixed(2);
+      const distanceMiles = (distanceKm * 0.621371).toFixed(2);
+      card.querySelector('#steps-distance').textContent = distanceKm;
+      card.querySelector('#steps-miles').textContent = distanceMiles;
+    }
+    
+    // Update weight conversion in real-time
+    if (e.target.id === 'steps-weight') {
+      const weight = parseFloat(e.target.value) || 0;
+      const unit = card.querySelector('#steps-weight-unit').value;
+      if (unit === 'kg') {
+        card.querySelector('#weight-conversion').textContent = `${(weight * 2.20462).toFixed(1)} lbs`;
+      } else {
+        card.querySelector('#weight-conversion').textContent = `${(weight / 2.20462).toFixed(1)} kg`;
+      }
+    }
+  }
+});
+
+// Update weight conversion when unit changes
+document.addEventListener('change', function(e) {
+  if (e.target.id === 'steps-weight-unit') {
+    const card = e.target.closest('.card');
+    const weightInput = card.querySelector('#steps-weight');
+    const weight = parseFloat(weightInput.value) || 0;
+    
+    if (e.target.value === 'kg') {
+      // Convert lbs to kg
+      weightInput.value = (weight / 2.20462).toFixed(1);
+      card.querySelector('#weight-conversion').textContent = `${(weight).toFixed(1)} lbs`;
+    } else {
+      // Convert kg to lbs
+      weightInput.value = (weight * 2.20462).toFixed(1);
+      card.querySelector('#weight-conversion').textContent = `${(weight).toFixed(1)} kg`;
+    }
+    
+    // Recalculate
+    setTimeout(() => {
+      const calculateBtn = card.querySelector('button.primary');
+      if (calculateBtn) {
+        stepsCalc(calculateBtn);
+      }
+    }, 100);
+  }
+});
 </script>
