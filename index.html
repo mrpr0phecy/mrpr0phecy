@@ -172,6 +172,9 @@
     /* NEW: Prevent grid from being too wide */
     max-width:100%;
     overflow:hidden;
+    /* NEW: For lazy loading placeholder calculation */
+    min-height: 800px;
+    position: relative;
   }
 
   .card{
@@ -198,6 +201,16 @@
     cursor: default;
   }
   .card.visible{opacity:1; transform: translateY(0) scale(var(--card-scale));}
+  
+  /* NEW: Card skeleton for lazy loading */
+  .card-skeleton {
+    background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));
+    border:1px solid rgba(255,255,255,0.04);
+    border-radius:12px;
+    padding:16px;
+    min-height:120px;
+    animation: pulse 1.5s infinite;
+  }
   
   .card-header{
     display:flex;
@@ -297,6 +310,26 @@
   body.reader-mode .dashboard{grid-template-columns:1fr;gap:18px}
   body.reader-mode .card{padding:20px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.04));border-color:rgba(255,255,255,0.06)}
 
+  /* ===== LAZY LOADING ANIMATIONS ===== */
+  @keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 0.8; }
+    100% { opacity: 0.6; }
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .card-loading {
+    animation: pulse 1.5s infinite;
+  }
+  
+  .card-loaded {
+    animation: fadeIn 0.3s ease-out;
+  }
+
   /* ===== CRITICAL FIXES ===== */
   
   /* NEW: Isolate card content to prevent layout breaking */
@@ -342,6 +375,37 @@
     cursor: move !important;
   }
 
+  /* NEW: Loading indicator */
+  .loading-indicator {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--accent);
+    z-index: 13000;
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .loading-indicator .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(45,212,255,0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   /* ===== MOBILE-FRIENDLY SCROLLING FIX ===== */
   @media (max-width: 768px) {
     .card {
@@ -352,6 +416,7 @@
     .dashboard {
       gap: 16px;
       padding: 16px;
+      min-height: 600px;
     }
     
     .card-header h3 {
@@ -366,6 +431,14 @@
     .card-content {
       max-height: 300px;
     }
+    
+    .loading-indicator {
+      bottom: 60px;
+      right: 10px;
+      left: 10px;
+      text-align: center;
+      justify-content: center;
+    }
   }
   
   /* NEW: Fix for very small screens */
@@ -373,6 +446,7 @@
     .dashboard {
       grid-template-columns: 1fr;
       padding: 12px;
+      min-height: 500px;
     }
     
     .card {
@@ -386,6 +460,12 @@
   <button id="toolboxToggle" class="control-btn" title="Open toolbox">🧰</button>
   <button id="paletteToggle" class="control-btn" title="Theme">🎨</button>
   <button id="readerToggle" class="control-btn" title="Reader mode">👓</button>
+
+  <!-- NEW: Loading indicator -->
+  <div id="loadingIndicator" class="loading-indicator">
+    <div class="spinner"></div>
+    <span id="loadingText">Loading cards...</span>
+  </div>
 
   <div id="palettePanel" class="palette-panel" aria-hidden="true">
     <div style="color:var(--accent);font-weight:600;margin-bottom:8px">Accent color</div>
@@ -427,17 +507,54 @@
     <div class="controls">
       <button id="sortAlphaBtn">Sort A→Z</button>
       <button id="sortRandomBtn">Random</button>
+      <button id="loadMoreBtn" style="display:none">Load More Cards</button>
     </div>
 
-    <div id="status" class="muted" style="text-align:center;margin-bottom:6px">Loading cards...</div>
+    <div id="status" class="muted" style="text-align:center;margin-bottom:6px">Loading card list...</div>
     <div id="gridContainer" class="dashboard" aria-live="polite"></div>
+    
+    <!-- NEW: Infinite scroll sentinel -->
+    <div id="scrollSentinel" style="height:1px;margin-top:20px;"></div>
   </main>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-// MINIMAL, WORKING CODE - NO COMPLEXITY
+// ===== CLEVER LAZY LOADING SYSTEM =====
+// Loads only cards in visible area + buffer (max ~40 cards)
+// Unloads cards that are far away to save memory
+// Smart loading based on scroll position and viewport
 
-console.log("=== STARTING APP ===");
+console.log("=== STARTING APP WITH LAZY LOADING ===");
+
+// Configuration
+const LAZY_LOAD_CONFIG = {
+  // How many cards to load around visible area
+  VISIBLE_BUFFER: 12, // Cards to load around current viewport
+  MAX_LOADED_CARDS: 40, // Maximum cards loaded at once
+  BATCH_SIZE: 6, // Cards to load per batch
+  BATCH_DELAY: 100, // Delay between batches (ms)
+  UNLOAD_DISTANCE: 5, // Cards away from viewport to unload
+  SEARCH_LOAD_ALL: true, // Load all cards when searching
+  
+  // Performance settings
+  DEBOUNCE_SCROLL: 100, // Scroll event debounce (ms)
+  THROTTLE_OBSERVER: 50, // Intersection observer throttle (ms)
+  CACHE_SIZE: 20, // Number of cards to keep cached
+};
+
+// Global state for lazy loading
+const lazyState = {
+  allCardFiles: [], // All available card files
+  loadedCards: new Set(), // Set of currently loaded card names
+  cardCache: new Map(), // Cache of loaded card HTML content
+  cardPositions: new Map(), // Map of card positions in grid
+  isLoading: false,
+  isSearching: false,
+  currentViewportRange: { start: 0, end: 0 },
+  scrollObserver: null,
+  visibleCards: new Set(),
+  placeholderCount: 0
+};
 
 // Background themes - SIMPLE OBJECT MAPPING
 const themes = {
@@ -471,10 +588,301 @@ function applyTheme(themeName) {
   console.log("Theme saved to localStorage:", themeName);
 }
 
+// ===== LAZY LOADING CORE FUNCTIONS =====
+
+// Calculate which cards should be visible based on scroll position
+function calculateVisibleRange() {
+  const grid = document.getElementById('gridContainer');
+  if (!grid || !grid.children.length) return { start: 0, end: 0 };
+  
+  const cards = Array.from(grid.children);
+  const gridRect = grid.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  
+  // Find first visible card
+  let firstVisible = 0;
+  let lastVisible = cards.length - 1;
+  
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    const rect = card.getBoundingClientRect();
+    
+    // Card is in viewport
+    if (rect.bottom > 0 && rect.top < viewportHeight) {
+      firstVisible = i;
+      break;
+    }
+  }
+  
+  // Find last visible card
+  for (let i = cards.length - 1; i >= 0; i--) {
+    const card = cards[i];
+    const rect = card.getBoundingClientRect();
+    
+    // Card is in viewport
+    if (rect.bottom > 0 && rect.top < viewportHeight) {
+      lastVisible = i;
+      break;
+    }
+  }
+  
+  // Add buffer around visible area
+  const buffer = LAZY_LOAD_CONFIG.VISIBLE_BUFFER;
+  const start = Math.max(0, firstVisible - buffer);
+  const end = Math.min(cards.length - 1, lastVisible + buffer);
+  
+  return { start, end };
+}
+
+// Update which cards are currently visible
+function updateVisibleCards() {
+  const range = calculateVisibleRange();
+  lazyState.currentViewportRange = range;
+  
+  // Track visible cards
+  const grid = document.getElementById('gridContainer');
+  const cards = Array.from(grid.children);
+  
+  lazyState.visibleCards.clear();
+  for (let i = range.start; i <= range.end && i < cards.length; i++) {
+    const card = cards[i];
+    if (card.dataset.name) {
+      lazyState.visibleCards.add(card.dataset.name);
+    }
+  }
+  
+  console.log(`Visible cards: ${range.start}-${range.end} (${lazyState.visibleCards.size} cards)`);
+  
+  // Trigger lazy loading for cards in range
+  scheduleLazyLoad(range);
+}
+
+// Schedule cards to be loaded based on visibility
+function scheduleLazyLoad(range) {
+  if (lazyState.isLoading || lazyState.isSearching) return;
+  
+  const cardsToLoad = [];
+  const cardsToUnload = [];
+  
+  // Determine which cards need loading
+  const grid = document.getElementById('gridContainer');
+  const cards = Array.from(grid.children);
+  
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    const cardName = card.dataset.name;
+    
+    if (!cardName) continue;
+    
+    const isInRange = i >= range.start && i <= range.end;
+    const isLoaded = lazyState.loadedCards.has(cardName);
+    const isLoading = card.classList.contains('loading');
+    
+    // Card needs loading if in range and not loaded/loading
+    if (isInRange && !isLoaded && !isLoading) {
+      cardsToLoad.push({ index: i, name: cardName, element: card });
+    }
+    
+    // Card can be unloaded if far away and loaded
+    const isFarAway = i < range.start - LAZY_LOAD_CONFIG.UNLOAD_DISTANCE || 
+                     i > range.end + LAZY_LOAD_CONFIG.UNLOAD_DISTANCE;
+    if (isFarAway && isLoaded) {
+      cardsToUnload.push({ index: i, name: cardName, element: card });
+    }
+  }
+  
+  // Limit loading to batch size
+  const loadingBatch = cardsToLoad.slice(0, LAZY_LOAD_CONFIG.BATCH_SIZE);
+  
+  // Unload distant cards first (to free up memory)
+  unloadCards(cardsToUnload);
+  
+  // Then load visible cards
+  if (loadingBatch.length > 0) {
+    lazyState.isLoading = true;
+    showLoadingIndicator(`Loading ${loadingBatch.length} cards...`);
+    
+    // Load in sequence with delay
+    loadingBatch.forEach((card, idx) => {
+      setTimeout(() => {
+        loadCardContent(card.name, card.element, idx === loadingBatch.length - 1);
+      }, idx * LAZY_LOAD_CONFIG.BATCH_DELAY);
+    });
+  } else {
+    hideLoadingIndicator();
+  }
+}
+
+// Load a single card's content
+function loadCardContent(cardName, cardElement, isLastInBatch = false) {
+  if (!cardElement) return;
+  
+  const contentDiv = cardElement.querySelector('.content');
+  if (!contentDiv) return;
+  
+  // Mark as loading
+  cardElement.classList.add('loading');
+  contentDiv.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(230,250,255,0.6)">Loading...</div>';
+  
+  // Check cache first
+  if (lazyState.cardCache.has(cardName)) {
+    const cachedHTML = lazyState.cardCache.get(cardName);
+    processLoadedCard(cardName, cardElement, cachedHTML, isLastInBatch, true);
+    return;
+  }
+  
+  // Fetch from server
+  fetch(`cards/${cardName}.html`)
+    .then(r => r.ok ? r.text() : Promise.reject())
+    .then(html => {
+      // Cache the HTML
+      lazyState.cardCache.set(cardName, html);
+      
+      // Process the loaded card
+      processLoadedCard(cardName, cardElement, html, isLastInBatch, false);
+    })
+    .catch(() => {
+      contentDiv.textContent = 'Preview unavailable';
+      cardElement.classList.remove('loading');
+      lazyState.loadedCards.add(cardName);
+      
+      if (isLastInBatch) {
+        lazyState.isLoading = false;
+        hideLoadingIndicator();
+      }
+    });
+}
+
+// Process loaded card content
+function processLoadedCard(cardName, cardElement, html, isLastInBatch, fromCache) {
+  const contentDiv = cardElement.querySelector('.content');
+  
+  // Load HTML
+  contentDiv.innerHTML = html;
+  
+  // Sanitize card content
+  sanitizeCardContent(cardElement);
+  
+  // Add embed section
+  addEmbedSectionToCard(cardElement, `${cardName}.html`);
+  
+  // Execute any scripts
+  const scripts = contentDiv.querySelectorAll('script');
+  scripts.forEach(script => {
+    const newScript = document.createElement('script');
+    if (script.src) {
+      newScript.src = script.src;
+    } else {
+      newScript.textContent = script.textContent;
+    }
+    [...script.attributes].forEach(attr => {
+      newScript.setAttribute(attr.name, attr.value);
+    });
+    script.parentNode.replaceChild(newScript, script);
+  });
+  
+  // Mark as loaded
+  lazyState.loadedCards.add(cardName);
+  cardElement.classList.remove('loading');
+  cardElement.classList.add('loaded');
+  cardElement.classList.add('visible');
+  
+  // Update status
+  updateStatusText();
+  
+  // If this was the last in batch, update loading state
+  if (isLastInBatch) {
+    lazyState.isLoading = false;
+    hideLoadingIndicator();
+    
+    // Clean up cache if too large
+    cleanupCardCache();
+  }
+  
+  console.log(`Loaded card: ${cardName} ${fromCache ? '(from cache)' : ''}`);
+}
+
+// Unload cards that are far from viewport
+function unloadCards(cardsToUnload) {
+  // Only unload if we have too many loaded cards
+  if (lazyState.loadedCards.size <= LAZY_LOAD_CONFIG.MAX_LOADED_CARDS) {
+    return;
+  }
+  
+  cardsToUnload.forEach(({ name, element }) => {
+    if (lazyState.loadedCards.has(name) && !lazyState.visibleCards.has(name)) {
+      // Create placeholder
+      const contentDiv = element.querySelector('.content');
+      if (contentDiv) {
+        contentDiv.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(230,250,255,0.4)">Card unloaded (scroll to load)</div>';
+      }
+      
+      // Remove from loaded set (but keep in cache)
+      lazyState.loadedCards.delete(name);
+      element.classList.remove('loaded');
+      element.classList.remove('visible');
+      
+      console.log(`Unloaded card: ${name}`);
+    }
+  });
+}
+
+// Clean up card cache when it gets too large
+function cleanupCardCache() {
+  if (lazyState.cardCache.size <= LAZY_LOAD_CONFIG.CACHE_SIZE) return;
+  
+  // Remove oldest cached items
+  const cacheEntries = Array.from(lazyState.cardCache.entries());
+  const toRemove = cacheEntries
+    .filter(([name]) => !lazyState.loadedCards.has(name) && !lazyState.visibleCards.has(name))
+    .slice(0, lazyState.cardCache.size - LAZY_LOAD_CONFIG.CACHE_SIZE);
+  
+  toRemove.forEach(([name]) => {
+    lazyState.cardCache.delete(name);
+  });
+  
+  if (toRemove.length > 0) {
+    console.log(`Cleaned ${toRemove.length} items from cache`);
+  }
+}
+
+// Show loading indicator
+function showLoadingIndicator(text = 'Loading...') {
+  const indicator = document.getElementById('loadingIndicator');
+  const textElement = document.getElementById('loadingText');
+  
+  if (indicator && textElement) {
+    textElement.textContent = text;
+    indicator.style.display = 'flex';
+  }
+}
+
+// Hide loading indicator
+function hideLoadingIndicator() {
+  const indicator = document.getElementById('loadingIndicator');
+  if (indicator) {
+    indicator.style.display = 'none';
+  }
+}
+
+// Update status text with loaded counts
+function updateStatusText() {
+  const status = document.getElementById('status');
+  if (!status) return;
+  
+  const total = lazyState.allCardFiles.length;
+  const loaded = lazyState.loadedCards.size;
+  const visible = lazyState.visibleCards.size;
+  
+  if (lazyState.isSearching) {
+    status.textContent = `Search results: ${visible} cards`;
+  } else {
+    status.textContent = `${loaded} of ${total} cards loaded (${visible} visible)`;
+  }
+}
+
 // ===== SIMPLE EMBED SYSTEM =====
 function addEmbedSectionToCard(card, fileName) {
-  console.log(`Adding simple embed section to card: ${fileName}`);
-  
   const cardName = fileName.replace('.html', '');
   const displayName = cardName.replace(/-/g, ' ');
   
@@ -522,7 +930,6 @@ function copyEmbedCode(cardName, fileName, displayName) {
       }, 2000);
     }
     
-    // Optional: Show a small notification
     console.log(`Embed code for ${displayName} copied to clipboard!`);
   }).catch(err => {
     console.error('Failed to copy: ', err);
@@ -542,7 +949,6 @@ function copyEmbedCode(cardName, fileName, displayName) {
 }
 
 // ===== CARD SANITIZATION =====
-// NEW: Function to sanitize card content and prevent layout breaking
 function sanitizeCardContent(cardElement) {
   const content = cardElement.querySelector('.content');
   if (!content) return;
@@ -591,155 +997,6 @@ function sanitizeCardContent(cardElement) {
   scrollContainer.innerHTML = originalHTML;
   
   content.appendChild(scrollContainer);
-  
-  console.log('Card content sanitized and wrapped');
-}
-
-// NEW: Advanced font scaling based on widget size and user preference
-function updateWidgetFontScale(widget, userScale = null) {
-  const width = parseInt(widget.style.width) || widget.offsetWidth;
-  const height = parseInt(widget.style.height) || widget.offsetHeight;
-  
-  // Calculate widget area
-  const area = width * height;
-  
-  // Base font size calculation based on area
-  // Formula: font size = base * (area / ideal)^0.25 (square root of square root)
-  const areaRatio = area / 30000; // 30000 = 200x150 (ideal size)
-  const areaScale = Math.pow(areaRatio, 0.25); // Gentle scaling curve
-  
-  // Apply user scaling if provided
-  const userScaleFactor = userScale !== null ? userScale : (widget.dataset.userScale || 1);
-  widget.dataset.userScale = userScaleFactor;
-  
-  // Combined scale
-  const combinedScale = areaScale * userScaleFactor;
-  
-  // Calculate final font size (clamped between min and max)
-  const baseSize = 14; // Base font size at ideal area (200x150)
-  let fontSize = baseSize * combinedScale;
-  
-  // Clamp between min and max
-  const minFont = parseInt(widget.style.getPropertyValue('--widget-min-font')) || 8;
-  const maxFont = parseInt(widget.style.getPropertyValue('--widget-max-font')) || 32;
-  fontSize = Math.max(minFont, Math.min(maxFont, fontSize));
-  
-  // Apply the font size
-  widget.style.setProperty('--widget-font-size', `${fontSize}px`);
-  
-  // Update line height proportionally
-  const lineHeight = fontSize * 1.4;
-  widget.querySelector('.widget-body').style.lineHeight = `${lineHeight}px`;
-  
-  // Save user scale preference to widget data
-  if (userScale !== null) {
-    const widgetObj = widgets.find(w => w.id === widget.id);
-    if (widgetObj) {
-      widgetObj.userScale = userScaleFactor;
-      saveWidgets();
-    }
-  }
-}
-
-// NEW: Widget scaling controls (add to each widget)
-function addWidgetScalingControls(widget) {
-  const titlebar = widget.querySelector('.widget-titlebar');
-  const titleText = titlebar.querySelector('strong');
-  
-  // Create scaling controls container
-  const scaleControls = document.createElement('div');
-  scaleControls.className = 'widget-scale-controls';
-  scaleControls.style.display = 'flex';
-  scaleControls.style.gap = '4px';
-  scaleControls.style.alignItems = 'center';
-  scaleControls.style.marginLeft = '8px';
-  
-  // Smaller text button
-  const smallerBtn = document.createElement('button');
-  smallerBtn.innerHTML = 'A⁻';
-  smallerBtn.title = 'Make text smaller (fit more tools)';
-  smallerBtn.style.background = 'transparent';
-  smallerBtn.style.border = 'none';
-  smallerBtn.style.color = 'var(--muted)';
-  smallerBtn.style.cursor = 'pointer';
-  smallerBtn.style.fontSize = '12px';
-  smallerBtn.style.padding = '2px 4px';
-  smallerBtn.style.borderRadius = '4px';
-  smallerBtn.style.border = '1px solid var(--border)';
-  
-  // Text size display
-  const sizeDisplay = document.createElement('span');
-  sizeDisplay.className = 'widget-size-display';
-  sizeDisplay.textContent = '100%';
-  sizeDisplay.style.fontSize = '11px';
-  sizeDisplay.style.color = 'var(--muted)';
-  sizeDisplay.style.minWidth = '36px';
-  sizeDisplay.style.textAlign = 'center';
-  
-  // Larger text button
-  const largerBtn = document.createElement('button');
-  largerBtn.innerHTML = 'A⁺';
-  largerBtn.title = 'Make text larger (better readability)';
-  largerBtn.style.background = 'transparent';
-  largerBtn.style.border = 'none';
-  largerBtn.style.color = 'var(--muted)';
-  largerBtn.style.cursor = 'pointer';
-  largerBtn.style.fontSize = '14px';
-  largerBtn.style.padding = '2px 4px';
-  largerBtn.style.borderRadius = '4px';
-  largerBtn.style.border = '1px solid var(--border)';
-  
-  // Reset button
-  const resetBtn = document.createElement('button');
-  resetBtn.innerHTML = '⟲';
-  resetBtn.title = 'Reset to auto size';
-  resetBtn.style.background = 'transparent';
-  resetBtn.style.border = 'none';
-  resetBtn.style.color = 'var(--muted)';
-  resetBtn.style.cursor = 'pointer';
-  resetBtn.style.fontSize = '11px';
-  resetBtn.style.padding = '2px 4px';
-  resetBtn.style.borderRadius = '4px';
-  resetBtn.style.border = '1px solid var(--border)';
-  resetBtn.style.marginLeft = '4px';
-  
-  // Add controls to container
-  scaleControls.appendChild(smallerBtn);
-  scaleControls.appendChild(sizeDisplay);
-  scaleControls.appendChild(largerBtn);
-  scaleControls.appendChild(resetBtn);
-  
-  // Insert after title text
-  titleText.parentNode.insertBefore(scaleControls, titleText.nextSibling);
-  
-  // Event handlers
-  smallerBtn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    const currentScale = parseFloat(widget.dataset.userScale || 1);
-    const newScale = Math.max(0.5, currentScale * 0.8); // Reduce by 20%
-    updateWidgetFontScale(widget, newScale);
-    sizeDisplay.textContent = `${Math.round(newScale * 100)}%`;
-  });
-  
-  largerBtn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    const currentScale = parseFloat(widget.dataset.userScale || 1);
-    const newScale = Math.min(2.0, currentScale * 1.2); // Increase by 20%
-    updateWidgetFontScale(widget, newScale);
-    sizeDisplay.textContent = `${Math.round(newScale * 100)}%`;
-  });
-  
-  resetBtn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    updateWidgetFontScale(widget, 1); // Reset to auto
-    sizeDisplay.textContent = '100%';
-  });
-  
-  // Initialize display
-  const currentScale = parseFloat(widget.dataset.userScale || 1);
-  sizeDisplay.textContent = `${Math.round(currentScale * 100)}%`;
-  
-  return scaleControls;
 }
 
 // ===== TOOLBOX WIDGET MANAGEMENT =====
@@ -835,25 +1092,6 @@ function createWidget(name, contentHTML) {
   
   toolboxContent.appendChild(widget);
   
-  // Initialize font scale (load saved user scale if exists)
-  const savedWidget = widgets.find(w => w.id === widgetId) || {};
-  const savedScale = savedWidget.userScale || 1;
-  updateWidgetFontScale(widget, savedScale);
-  
-  // Add scaling controls
-  addWidgetScalingControls(widget);
-  
-  // Make widget draggable
-  makeWidgetDraggable(widget);
-  
-  // Make widget resizable
-  makeWidgetResizable(widget);
-  
-  // Close button
-  widget.querySelector('.widget-close').addEventListener('click', function() {
-    removeWidget(widgetId);
-  });
-  
   // Save widget
   widgets.push({
     id: widgetId,
@@ -862,141 +1100,12 @@ function createWidget(name, contentHTML) {
     x: widget.style.left,
     y: widget.style.top,
     width: widget.style.width,
-    height: widget.style.height,
-    userScale: savedScale
+    height: widget.style.height
   });
   
   saveWidgets();
   
   return widgetId;
-}
-
-// Make widget draggable
-function makeWidgetDraggable(widget) {
-  const titlebar = widget.querySelector('.widget-titlebar');
-  let isDragging = false;
-  let dragOffset = { x: 0, y: 0 };
-  
-  titlebar.addEventListener('mousedown', startDrag);
-  
-  function startDrag(e) {
-    if (e.target.tagName === 'BUTTON' && !e.target.closest('.widget-scale-controls')) return;
-    
-    isDragging = true;
-    const rect = widget.getBoundingClientRect();
-    dragOffset.x = e.clientX - rect.left;
-    dragOffset.y = e.clientY - rect.top;
-    
-    document.addEventListener('mousemove', onDrag);
-    document.addEventListener('mouseup', stopDrag);
-    widget.style.zIndex = '1000';
-  }
-  
-  function onDrag(e) {
-    if (!isDragging) return;
-    
-    e.preventDefault();
-    const parentRect = widget.parentElement.getBoundingClientRect();
-    const x = e.clientX - parentRect.left - dragOffset.x;
-    const y = e.clientY - parentRect.top - dragOffset.y;
-    
-    // Keep within bounds
-    const maxX = parentRect.width - widget.offsetWidth;
-    const maxY = parentRect.height - widget.offsetHeight;
-    
-    widget.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
-    widget.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
-  }
-  
-  function stopDrag() {
-    isDragging = false;
-    document.removeEventListener('mousemove', onDrag);
-    document.removeEventListener('mouseup', stopDrag);
-    widget.style.zIndex = '1';
-    
-    // Update saved position
-    const widgetObj = widgets.find(w => w.id === widget.id);
-    if (widgetObj) {
-      widgetObj.x = widget.style.left;
-      widgetObj.y = widget.style.top;
-      saveWidgets();
-    }
-  }
-}
-
-// Make widget resizable
-function makeWidgetResizable(widget) {
-  const resizeHandle = document.createElement('div');
-  resizeHandle.style.position = 'absolute';
-  resizeHandle.style.right = '0';
-  resizeHandle.style.bottom = '0';
-  resizeHandle.style.width = '16px';
-  resizeHandle.style.height = '16px';
-  resizeHandle.style.cursor = 'se-resize';
-  resizeHandle.style.background = 'transparent';
-  resizeHandle.style.zIndex = '10';
-  
-  widget.appendChild(resizeHandle);
-  
-  let isResizing = false;
-  let startWidth, startHeight, startX, startY;
-  
-  resizeHandle.addEventListener('mousedown', startResize);
-  
-  function startResize(e) {
-    e.stopPropagation();
-    isResizing = true;
-    startWidth = parseInt(getComputedStyle(widget).width);
-    startHeight = parseInt(getComputedStyle(widget).height);
-    startX = e.clientX;
-    startY = e.clientY;
-    
-    document.addEventListener('mousemove', onResize);
-    document.addEventListener('mouseup', stopResize);
-  }
-  
-  function onResize(e) {
-    if (!isResizing) return;
-    
-    e.preventDefault();
-    
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    
-    const newWidth = Math.max(120, startWidth + dx);
-    const newHeight = Math.max(80, startHeight + dy);
-    
-    widget.style.width = newWidth + 'px';
-    widget.style.height = newHeight + 'px';
-    
-    // Update font scale when resizing (auto-scale based on new size)
-    updateWidgetFontScale(widget);
-  }
-  
-  function stopResize() {
-    isResizing = false;
-    document.removeEventListener('mousemove', onResize);
-    document.removeEventListener('mouseup', stopResize);
-    
-    // Update saved size
-    const widgetObj = widgets.find(w => w.id === widget.id);
-    if (widgetObj) {
-      widgetObj.width = widget.style.width;
-      widgetObj.height = widget.style.height;
-      saveWidgets();
-    }
-  }
-}
-
-// Remove widget
-function removeWidget(widgetId) {
-  const widget = document.getElementById(widgetId);
-  if (widget) {
-    widget.remove();
-  }
-  
-  widgets = widgets.filter(w => w.id !== widgetId);
-  saveWidgets();
 }
 
 // Save widgets to localStorage
@@ -1010,40 +1119,6 @@ function loadSavedWidgets() {
   if (saved) {
     try {
       widgets = JSON.parse(saved) || [];
-      widgets.forEach(widgetData => {
-        const widget = document.createElement('div');
-        widget.className = 'widget-wrap';
-        widget.id = widgetData.id;
-        widget.dataset.name = widgetData.name;
-        widget.style.left = widgetData.x;
-        widget.style.top = widgetData.y;
-        widget.style.width = widgetData.width;
-        widget.style.height = widgetData.height;
-        
-        widget.innerHTML = `
-          <div class="widget-titlebar">
-            <strong>${widgetData.name}</strong>
-            <button class="widget-close" title="Close widget">✕</button>
-          </div>
-          <div class="widget-body">${widgetData.content}</div>
-        `;
-        
-        document.getElementById('toolboxContent').appendChild(widget);
-        
-        // Initialize font scale with saved user scale
-        const savedScale = widgetData.userScale || 1;
-        updateWidgetFontScale(widget, savedScale);
-        
-        // Add scaling controls
-        addWidgetScalingControls(widget);
-        
-        makeWidgetDraggable(widget);
-        makeWidgetResizable(widget);
-        
-        widget.querySelector('.widget-close').addEventListener('click', function() {
-          removeWidget(widgetData.id);
-        });
-      });
     } catch (e) {
       console.error('Failed to load widgets:', e);
       widgets = [];
@@ -1088,7 +1163,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize toolbox
   initToolbox();
   
-  // Load dashboard with improved loading
+  // Load dashboard with lazy loading
   loadDashboard();
 });
 
@@ -1163,118 +1238,101 @@ document.getElementById('readerToggle').addEventListener('click', function() {
 
 // ===== SEARCH =====
 const searchInput = document.getElementById('searchInput');
+let searchTimeout = null;
+
 searchInput.addEventListener('input', function(e) {
-  const q = e.target.value.toLowerCase();
-  document.querySelectorAll('.card').forEach(card => {
+  const q = e.target.value.toLowerCase().trim();
+  
+  // Clear previous timeout
+  if (searchTimeout) clearTimeout(searchTimeout);
+  
+  // Debounce search
+  searchTimeout = setTimeout(() => {
+    lazyState.isSearching = q.length > 0;
+    
+    if (lazyState.isSearching) {
+      // When searching, load all matching cards
+      performSearch(q);
+    } else {
+      // When not searching, revert to lazy loading
+      document.querySelectorAll('.card').forEach(card => {
+        card.style.display = '';
+      });
+      updateVisibleCards();
+    }
+  }, 300);
+});
+
+// Perform search and load matching cards
+function performSearch(query) {
+  const grid = document.getElementById('gridContainer');
+  const cards = Array.from(grid.children);
+  
+  let visibleCount = 0;
+  
+  cards.forEach(card => {
     const name = card.dataset.name.toLowerCase();
     const text = card.textContent.toLowerCase();
-    card.style.display = name.includes(q) || text.includes(q) ? '' : 'none';
+    const matches = name.includes(query) || text.includes(query);
+    
+    card.style.display = matches ? '' : 'none';
+    
+    if (matches) {
+      visibleCount++;
+      
+      // If searching, load the card immediately
+      if (!lazyState.loadedCards.has(card.dataset.name)) {
+        loadCardContent(card.dataset.name, card, false);
+      }
+    }
   });
-});
+  
+  updateStatusText();
+  console.log(`Search found ${visibleCount} cards for: "${query}"`);
+}
 
 // ===== SORT BUTTONS =====
 document.getElementById('sortAlphaBtn').addEventListener('click', function() {
   const grid = document.getElementById('gridContainer');
   const cards = Array.from(grid.children);
+  
   cards.sort((a,b) => a.dataset.name.localeCompare(b.dataset.name));
   cards.forEach(card => grid.appendChild(card));
+  
+  // Update positions and reload visible area
+  updateCardPositions();
+  updateVisibleCards();
 });
 
 document.getElementById('sortRandomBtn').addEventListener('click', function() {
   const grid = document.getElementById('gridContainer');
   const cards = Array.from(grid.children);
+  
   for (let i = cards.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [cards[i], cards[j]] = [cards[j], cards[i]];
   }
   cards.forEach(card => grid.appendChild(card));
+  
+  // Update positions and reload visible area
+  updateCardPositions();
+  updateVisibleCards();
 });
 
-// FIX 2: Improved card loading - loads in batches
-let cardQueue = [];
-let isCardLoading = false;
-const BATCH_SIZE = 5;
-const BATCH_DELAY = 50;
-
-// Load cards in batches
-function loadCardBatch() {
-  if (isCardLoading || cardQueue.length === 0) return;
+// Update card positions map
+function updateCardPositions() {
+  const grid = document.getElementById('gridContainer');
+  const cards = Array.from(grid.children);
   
-  isCardLoading = true;
-  const batch = cardQueue.splice(0, BATCH_SIZE);
-  
-  let loadedCount = 0;
-  
-  batch.forEach((cardData, index) => {
-    setTimeout(() => {
-      const { card, file, name } = cardData;
-      const content = card.querySelector('.content');
-      
-      fetch(`cards/${file}`)
-        .then(r => r.ok ? r.text() : Promise.reject())
-        .then(html => {
-          // ✅ Load HTML with scripts intact
-          content.innerHTML = html;
-          
-          // ✅ NEW: Sanitize card content to prevent layout breaking
-          sanitizeCardContent(card);
-          
-          // ✅ Add simple embed section to every card
-          addEmbedSectionToCard(card, file);
-          
-          // Execute any scripts in the loaded content
-          const scripts = content.querySelectorAll('script');
-          scripts.forEach(script => {
-            const newScript = document.createElement('script');
-            if (script.src) {
-              newScript.src = script.src;
-            } else {
-              newScript.textContent = script.textContent;
-            }
-            // Copy attributes
-            [...script.attributes].forEach(attr => {
-              newScript.setAttribute(attr.name, attr.value);
-            });
-            
-            // Replace old script with new one (which will execute)
-            script.parentNode.replaceChild(newScript, script);
-          });
-        })
-        .catch(() => {
-          content.textContent = 'Preview unavailable';
-          // Still add embed section even if card failed to load
-          addEmbedSectionToCard(card, file);
-        })
-        .finally(() => {
-          loadedCount++;
-          
-          // Show card with animation
-          setTimeout(() => {
-            card.classList.add('visible');
-          }, index * 30);
-          
-          // Update status
-          const totalCards = document.querySelectorAll('.card').length;
-          const loadedCards = document.querySelectorAll('.card.visible').length;
-          document.getElementById('status').textContent = 
-            `Loaded ${loadedCards} of ${totalCards} tools`;
-          
-          // Load next batch when this one is done
-          if (loadedCount === batch.length) {
-            isCardLoading = false;
-            if (cardQueue.length > 0) {
-              setTimeout(loadCardBatch, BATCH_DELAY);
-            } else {
-              document.getElementById('status').textContent = 
-                `${totalCards} tools loaded`;
-            }
-          }
-        });
-    }, index * 20); // Stagger requests
+  lazyState.cardPositions.clear();
+  cards.forEach((card, index) => {
+    if (card.dataset.name) {
+      lazyState.cardPositions.set(card.dataset.name, index);
+    }
   });
 }
 
-// ===== LOAD CARDS WITH IMPROVED PERFORMANCE =====
+// ===== LAZY LOAD DASHBOARD =====
 async function loadDashboard() {
   try {
     const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
@@ -1284,73 +1342,97 @@ async function loadDashboard() {
     const [owner, repo] = DEFAULT_REPO.split('/');
     
     document.getElementById('status').textContent = 'Fetching card list...';
+    showLoadingIndicator('Loading card list...');
     
     // Fetch card files
     const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
     const response = await fetch(url);
     const data = await response.json();
     
-    const cardFiles = (data.tree || [])
+    lazyState.allCardFiles = (data.tree || [])
       .filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html'))
-      .map(item => item.path.replace(/^cards\//, ''));
+      .map(item => item.path.replace(/^cards\//, '').replace('.html', ''))
+      .sort();
     
-    console.log("Found", cardFiles.length, "cards");
+    console.log(`Found ${lazyState.allCardFiles.length} cards`);
     
-    // Display cards
+    // Display card placeholders
     const grid = document.getElementById('gridContainer');
-    const status = document.getElementById('status');
-    
-    if (!cardFiles.length) {
-      status.textContent = 'No cards found';
-      return;
-    }
-    
     grid.innerHTML = '';
-    cardQueue = [];
     
-    // Create all card containers first (fast)
-    cardFiles.sort().forEach(file => {
-      const name = file.replace('.html', '');
+    lazyState.allCardFiles.forEach((cardName, index) => {
       const card = document.createElement('div');
       card.className = 'card';
-      card.dataset.file = file;
-      card.dataset.name = name;
+      card.dataset.name = cardName;
+      card.dataset.index = index;
       
       const header = document.createElement('div');
       header.className = 'card-header';
-      header.innerHTML = `<h3>${name}</h3><div style="display:flex;gap:8px"><div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent)">+</div></div>`;
+      header.innerHTML = `<h3>${cardName.replace(/-/g, ' ')}</h3><div style="display:flex;gap:8px"><div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent)">+</div></div>`;
       
       const content = document.createElement('div');
       content.className = 'content';
-      content.textContent = 'Loading…';
+      content.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(230,250,255,0.4)">Click or scroll to load card...</div>';
       
       card.appendChild(header);
       card.appendChild(content);
       grid.appendChild(card);
       
-      // Add to queue for batch loading
-      cardQueue.push({ card, file, name });
+      // Store position
+      lazyState.cardPositions.set(cardName, index);
     });
     
-    status.textContent = `Loading 0 of ${cardFiles.length} tools...`;
+    // Update status
+    updateStatusText();
+    hideLoadingIndicator();
     
-    // NEW: Initialize Sortable but disable dragging on main page
-    new Sortable(grid, {
-      animation: 150,
-      // Disable dragging on main page
-      disabled: true,
-      // Only enable when explicitly needed (for toolbox)
-      filter: '.ignore-elements',
-      preventOnFilter: false
-    });
+    // Initialize scroll observer
+    initScrollObserver();
     
-    // Start batch loading
-    setTimeout(loadCardBatch, 300);
+    // Load initial visible cards
+    setTimeout(() => {
+      updateVisibleCards();
+    }, 100);
     
   } catch (error) {
     console.error("Error loading dashboard:", error);
     document.getElementById('status').textContent = 'Error loading cards';
+    hideLoadingIndicator();
   }
+}
+
+// Initialize scroll observer for lazy loading
+function initScrollObserver() {
+  // Use scroll event with debouncing for compatibility
+  let scrollTimeout = null;
+  
+  window.addEventListener('scroll', () => {
+    if (scrollTimeout) clearTimeout(scrollTimeout);
+    
+    scrollTimeout = setTimeout(() => {
+      if (!lazyState.isSearching) {
+        updateVisibleCards();
+      }
+    }, LAZY_LOAD_CONFIG.DEBOUNCE_SCROLL);
+  }, { passive: true });
+  
+  // Also listen for resize
+  window.addEventListener('resize', () => {
+    if (!lazyState.isSearching) {
+      updateVisibleCards();
+    }
+  }, { passive: true });
+  
+  // Click to load cards that aren't loaded yet
+  document.addEventListener('click', function(e) {
+    const card = e.target.closest('.card');
+    if (card && !card.classList.contains('loaded')) {
+      const cardName = card.dataset.name;
+      if (cardName && !lazyState.loadedCards.has(cardName)) {
+        loadCardContent(cardName, card, true);
+      }
+    }
+  });
 }
 
 // Add event listener for adding cards to toolbox
@@ -1365,6 +1447,12 @@ document.addEventListener('click', function(e) {
     const cardName = card.dataset.name;
     const contentElement = card.querySelector('.content');
     const contentHTML = contentElement.innerHTML;
+    
+    // Make sure card is loaded first
+    if (!lazyState.loadedCards.has(cardName)) {
+      alert('Please wait for the card to load before adding to toolbox');
+      return;
+    }
     
     // Create widget in toolbox
     createWidget(cardName, contentHTML);
@@ -1383,27 +1471,13 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// NEW: Enable dragging only in toolbox
-function enableToolboxDragging() {
-  const toolboxContent = document.getElementById('toolboxContent');
-  if (toolboxContent) {
-    new Sortable(toolboxContent, {
-      animation: 150,
-      handle: '.widget-titlebar',
-      filter: '.widget-close, .widget-scale-controls *',
-      preventOnFilter: false,
-      onStart: function() {
-        console.log('Toolbox dragging enabled');
-      }
-    });
-  }
-}
-
-// Initialize toolbox dragging
-document.addEventListener('DOMContentLoaded', enableToolboxDragging);
+// Make Sortable (disabled on main page)
+new Sortable(document.getElementById('gridContainer'), {
+  animation: 150,
+  disabled: true
+});
 
 // ===== MOBILE-FRIENDLY SCROLLING FIX =====
-// This prevents card content from interfering with page scrolling
 document.addEventListener('DOMContentLoaded', function() {
   // Add passive event listeners for better scrolling performance
   document.addEventListener('touchmove', function(e) {
@@ -1412,20 +1486,6 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
   }, { passive: true });
-  
-  // Prevent drag-scroll on card content scrollbars
-  document.querySelectorAll('.card-content').forEach(content => {
-    content.addEventListener('wheel', function(e) {
-      // If we're at the top and scrolling up, or at the bottom and scrolling down,
-      // prevent the event from bubbling to the page
-      const atTop = this.scrollTop === 0;
-      const atBottom = this.scrollTop + this.clientHeight >= this.scrollHeight - 1;
-      
-      if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) {
-        e.stopPropagation();
-      }
-    });
-  });
 });
 
 // Helper function to detect touch devices
@@ -1446,7 +1506,7 @@ if (isTouchDevice()) {
   }
 }
 
-console.log("=== APP INITIALIZED ===");
+console.log("=== APP WITH LAZY LOADING INITIALIZED ===");
 </script>
 </body>
 </html>
