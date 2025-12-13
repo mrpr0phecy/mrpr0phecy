@@ -614,6 +614,7 @@
       <button id="autoSizeAllBtn" title="Set all cards to auto-height">Auto Height</button>
       <button id="resetCardSizesBtn" title="Reset all card sizes">Reset Sizes</button>
       <button id="reloadCardsBtn" title="Reload card list">Reload Cards</button>
+      <button id="loadAllBtn" title="Load all cards at once">Load All Cards</button>
     </div>
 
     <div id="status" class="muted" style="text-align:center;margin-bottom:6px">Loading card list...</div>
@@ -625,25 +626,25 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-// ===== SIMPLE, WORKING LAZY LOADING SYSTEM =====
-// This version uses a simpler, more reliable approach
+// ===== FIXED LAZY LOADING WITH INTERSECTION OBSERVER =====
 
-console.log("=== STARTING SIMPLE LAZY LOADING SYSTEM ===");
+console.log("=== STARTING FIXED LAZY LOADING SYSTEM ===");
 
 // Configuration
 const CONFIG = {
-  LOAD_BATCH_SIZE: 6,
-  LOAD_DELAY: 100,
-  VISIBLE_BUFFER: 300, // pixels
-  DEBOUNCE_SCROLL: 100
+  LOAD_BATCH_SIZE: 8,
+  LOAD_DELAY: 50,
+  INITIAL_LOAD: 12,
+  MAX_CONCURRENT_LOADS: 4
 };
 
 // Global state
 let allCards = [];
 let loadedCards = new Set();
-let isLoading = false;
+let loadingCards = new Set();
 let cardCache = new Map();
 let observer = null;
+let isSearching = false;
 
 // Background themes
 const themes = {
@@ -755,7 +756,7 @@ function handleCardResizeEnd() {
   document.body.style.userSelect = '';
 }
 
-// ===== SIMPLE CARD LOADING =====
+// ===== CARD CONTENT SETUP =====
 function setupCardContent(card) {
   const contentDiv = card.querySelector('.content');
   if (!contentDiv) return;
@@ -894,74 +895,45 @@ function copyEmbedCode(cardName, fileName, displayName) {
   });
 }
 
-// ===== SIMPLE LAZY LOADING =====
-function checkVisibleCards() {
-  if (isLoading) return;
-  
-  const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
-  if (cards.length === 0) return;
-  
-  const viewportHeight = window.innerHeight;
-  const scrollY = window.scrollY;
-  
-  // Find cards that are visible or near visible
-  const cardsToLoad = [];
-  
-  cards.forEach(card => {
-    const rect = card.getBoundingClientRect();
-    const cardTop = rect.top + scrollY;
-    const cardBottom = rect.bottom + scrollY;
-    
-    // Check if card is in or near viewport
-    const isVisible = (
-      cardBottom > scrollY - CONFIG.VISIBLE_BUFFER &&
-      cardTop < scrollY + viewportHeight + CONFIG.VISIBLE_BUFFER
-    );
-    
-    if (isVisible) {
-      const cardName = card.dataset.name;
-      if (cardName && !loadedCards.has(cardName)) {
-        cardsToLoad.push({ card, cardName });
-      }
-    }
-  });
-  
-  if (cardsToLoad.length > 0) {
-    loadCardsBatch(cardsToLoad.slice(0, CONFIG.LOAD_BATCH_SIZE));
+// ===== FIXED LAZY LOADING WITH INTERSECTION OBSERVER =====
+function initIntersectionObserver() {
+  if (observer) {
+    observer.disconnect();
   }
-}
-
-function loadCardsBatch(cardsToLoad) {
-  if (isLoading || cardsToLoad.length === 0) return;
   
-  isLoading = true;
-  showLoadingIndicator(`Loading ${cardsToLoad.length} cards...`);
-  
-  let loadedCount = 0;
-  
-  cardsToLoad.forEach(({ card, cardName }, index) => {
-    setTimeout(() => {
-      loadSingleCard(card, cardName, () => {
-        loadedCount++;
-        if (loadedCount === cardsToLoad.length) {
-          isLoading = false;
-          hideLoadingIndicator();
-          updateStatusText();
+  observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const card = entry.target;
+        const cardName = card.dataset.name;
+        
+        if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+          loadCard(card, cardName);
         }
-      });
-    }, index * CONFIG.LOAD_DELAY);
+      }
+    });
+  }, {
+    root: null,
+    rootMargin: '500px', // Load cards 500px before they enter viewport
+    threshold: 0.01
   });
+  
+  // Observe all unloaded cards
+  document.querySelectorAll('.card:not(.loaded):not(.loading)').forEach(card => {
+    observer.observe(card);
+  });
+  
+  console.log(`Observing ${document.querySelectorAll('.card:not(.loaded):not(.loading)').length} cards`);
 }
 
-function loadSingleCard(card, cardName, onComplete) {
-  if (!card || loadedCards.has(cardName)) {
-    onComplete();
-    return;
-  }
+function loadCard(card, cardName) {
+  if (loadingCards.has(cardName) || loadedCards.has(cardName)) return;
+  
+  loadingCards.add(cardName);
   
   const contentBody = card.querySelector('.card-body');
   if (!contentBody) {
-    onComplete();
+    loadingCards.delete(cardName);
     return;
   }
   
@@ -969,32 +941,37 @@ function loadSingleCard(card, cardName, onComplete) {
   card.classList.add('loading');
   contentBody.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(230,250,255,0.6)">Loading...</div>';
   
-  // Check cache
+  // Check cache first
   if (cardCache.has(cardName)) {
-    const cachedHTML = cardCache.get(cardName);
-    processLoadedCard(card, cardName, cachedHTML, true);
-    onComplete();
+    setTimeout(() => {
+      const cachedHTML = cardCache.get(cardName);
+      processLoadedCard(card, cardName, cachedHTML, true);
+      loadingCards.delete(cardName);
+    }, 100);
     return;
   }
   
   // Fetch from server
   fetch(`cards/${cardName}.html`)
     .then(r => {
-      if (!r.ok) throw new Error('Failed to load');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.text();
     })
     .then(html => {
       // Cache the HTML
       cardCache.set(cardName, html);
       processLoadedCard(card, cardName, html, false);
-      onComplete();
+      loadingCards.delete(cardName);
     })
     .catch(error => {
       console.error(`Failed to load card ${cardName}:`, error);
-      contentBody.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,77,77,0.6)">Failed to load card</div>';
+      contentBody.innerHTML = `<div style="padding:20px;text-align:center;color:rgba(255,77,77,0.6)">
+        Failed to load card: ${error.message}
+      </div>`;
       card.classList.remove('loading');
       loadedCards.add(cardName);
-      onComplete();
+      loadingCards.delete(cardName);
+      updateStatusText();
     });
 }
 
@@ -1030,6 +1007,13 @@ function processLoadedCard(card, cardName, html, fromCache) {
   // Setup card content for resizing
   setupCardContent(card);
   
+  // Stop observing this card
+  if (observer) {
+    observer.unobserve(card);
+  }
+  
+  updateStatusText();
+  
   console.log(`Loaded card: ${cardName} ${fromCache ? '(from cache)' : ''}`);
 }
 
@@ -1040,7 +1024,12 @@ function updateStatusText() {
   const total = allCards.length;
   const loaded = loadedCards.size;
   
-  status.textContent = `${loaded} of ${total} cards loaded`;
+  if (isSearching) {
+    const visibleCards = document.querySelectorAll('.card[style=""]').length;
+    status.textContent = `Search results: ${visibleCards} cards`;
+  } else {
+    status.textContent = `${loaded} of ${total} cards loaded`;
+  }
 }
 
 function showLoadingIndicator(text = 'Loading...') {
@@ -1084,7 +1073,7 @@ function createCardPlaceholders(cardNames) {
       <div class="card-content-wrapper">
         <div class="card-body">
           <div style="padding:20px;text-align:center;color:rgba(230,250,255,0.4)">
-            Click or scroll to load card...
+            Scroll to load card...
           </div>
         </div>
       </div>
@@ -1098,11 +1087,53 @@ function createCardPlaceholders(cardNames) {
   updateStatusText();
 }
 
+// ===== LOAD ALL CARDS FUNCTION =====
+async function loadAllCards() {
+  showLoadingIndicator('Loading all cards...');
+  
+  const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
+  const total = cards.length;
+  let loaded = 0;
+  
+  // Load in batches to avoid overwhelming the browser
+  const batchSize = CONFIG.MAX_CONCURRENT_LOADS;
+  
+  for (let i = 0; i < cards.length; i += batchSize) {
+    const batch = Array.from(cards).slice(i, i + batchSize);
+    
+    // Load batch concurrently
+    await Promise.all(batch.map((card, index) => {
+      return new Promise(resolve => {
+        setTimeout(() => {
+          const cardName = card.dataset.name;
+          if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+            loadCard(card, cardName);
+          }
+          loaded++;
+          updateStatusText();
+          resolve();
+        }, index * 100);
+      });
+    }));
+    
+    // Small delay between batches
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  
+  hideLoadingIndicator();
+}
+
 // ===== LOAD CARD LIST =====
 async function loadCardList() {
   try {
     document.getElementById('status').textContent = 'Fetching card list...';
     showLoadingIndicator('Loading card list...');
+    
+    // Clear previous state
+    allCards = [];
+    loadedCards.clear();
+    loadingCards.clear();
+    cardCache.clear();
     
     // Try multiple approaches to get card list
     let cardFiles = [];
@@ -1126,43 +1157,24 @@ async function loadCardList() {
         console.log(`Found ${cardFiles.length} cards via GitHub API`);
       }
     } catch (githubError) {
-      console.log('GitHub API failed, trying alternative approach:', githubError);
+      console.log('GitHub API failed:', githubError);
     }
     
-    // Approach 2: If GitHub API fails, use a static list or manual input
+    // Approach 2: If GitHub API fails, use a static list
     if (cardFiles.length === 0) {
-      // Try to get from a local list or use fallback
-      try {
-        // Try to fetch a card index file if it exists
-        const response = await fetch('cards/card-index.json');
-        if (response.ok) {
-          const data = await response.json();
-          cardFiles = data.cards || [];
-          console.log(`Found ${cardFiles.length} cards via card-index.json`);
-        }
-      } catch (indexError) {
-        console.log('Card index not found, using manual list');
-        
-        // Manual fallback - you can add your card names here
-        cardFiles = [
-          'battery-sizing',
-          'cable-calculator', 
-          'chord-finder',
-          'circuit-calculator',
-          'evolution-walker',
-          'tip-calculator',
-          'unit-converter',
-          'countdown-timer'
-        ];
-        
-        console.log(`Using manual list with ${cardFiles.length} cards`);
-      }
-    }
-    
-    // Approach 3: If still no cards, try to discover them
-    if (cardFiles.length === 0) {
-      console.log('Attempting to discover cards...');
-      // This would require server-side support or a different approach
+      // Manual fallback - you can add your card names here
+      cardFiles = [
+        'battery-sizing',
+        'cable-calculator', 
+        'chord-finder',
+        'circuit-calculator',
+        'evolution-walker',
+        'tip-calculator',
+        'unit-converter',
+        'countdown-timer'
+      ];
+      
+      console.log(`Using manual list with ${cardFiles.length} cards`);
     }
     
     allCards = cardFiles;
@@ -1175,14 +1187,11 @@ async function loadCardList() {
     createCardPlaceholders(allCards);
     hideLoadingIndicator();
     
-    // Initialize lazy loading
-    initLazyLoading();
+    // Initialize Intersection Observer
+    initIntersectionObserver();
     
-    // Load initial visible cards
-    setTimeout(() => {
-      checkVisibleCards();
-      loadInitialCards();
-    }, 300);
+    // Load initial batch of cards
+    loadInitialCards();
     
   } catch (error) {
     console.error("Error loading card list:", error);
@@ -1208,49 +1217,20 @@ async function loadCardList() {
 }
 
 function loadInitialCards() {
-  // Load first few cards immediately
+  // Load first batch of cards immediately
   const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
-  const initialCount = Math.min(4, cards.length);
+  const initialCount = Math.min(CONFIG.INITIAL_LOAD, cards.length);
   
   for (let i = 0; i < initialCount; i++) {
     const card = cards[i];
     const cardName = card.dataset.name;
     
-    if (cardName && !loadedCards.has(cardName)) {
-      loadSingleCard(card, cardName, () => {
-        updateStatusText();
-      });
+    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+      setTimeout(() => {
+        loadCard(card, cardName);
+      }, i * 100);
     }
   }
-}
-
-function initLazyLoading() {
-  // Set up scroll listener
-  let scrollTimeout;
-  window.addEventListener('scroll', () => {
-    if (scrollTimeout) clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(() => {
-      checkVisibleCards();
-    }, CONFIG.DEBOUNCE_SCROLL);
-  }, { passive: true });
-  
-  // Also check on resize
-  window.addEventListener('resize', () => {
-    checkVisibleCards();
-  }, { passive: true });
-  
-  // Click to load
-  document.addEventListener('click', function(e) {
-    const card = e.target.closest('.card');
-    if (card && !card.classList.contains('loaded') && !card.classList.contains('loading')) {
-      const cardName = card.dataset.name;
-      if (cardName && !loadedCards.has(cardName)) {
-        loadSingleCard(card, cardName, () => {
-          updateStatusText();
-        });
-      }
-    }
-  });
 }
 
 // ===== INITIALIZATION =====
@@ -1353,6 +1333,7 @@ searchInput.addEventListener('input', function(e) {
   if (searchTimeout) clearTimeout(searchTimeout);
   
   searchTimeout = setTimeout(() => {
+    isSearching = q.length > 0;
     const cards = document.querySelectorAll('.card');
     
     cards.forEach(card => {
@@ -1365,23 +1346,30 @@ searchInput.addEventListener('input', function(e) {
       // If card is visible but not loaded, load it
       if (matches && !card.classList.contains('loaded') && !card.classList.contains('loading')) {
         const cardName = card.dataset.name;
-        if (cardName && !loadedCards.has(cardName)) {
-          loadSingleCard(card, cardName, () => {
-            updateStatusText();
-          });
+        if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+          loadCard(card, cardName);
         }
       }
     });
     
-    // Update status for search
-    const visibleCount = document.querySelectorAll('.card[style=""]').length;
-    const status = document.getElementById('status');
-    if (q.length > 0) {
-      status.textContent = `Search results: ${visibleCount} cards`;
-    } else {
-      updateStatusText();
+    // Reinitialize observer for visible cards
+    if (observer) {
+      observer.disconnect();
+      document.querySelectorAll('.card[style=""]:not(.loaded):not(.loading)').forEach(card => {
+        observer.observe(card);
+      });
     }
+    
+    updateStatusText();
   }, 300);
+});
+
+// Clear search when clicking elsewhere
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.search-bar') && searchInput.value) {
+    searchInput.value = '';
+    searchInput.dispatchEvent(new Event('input'));
+  }
 });
 
 // ===== SORT BUTTONS =====
@@ -1392,8 +1380,16 @@ document.getElementById('sortAlphaBtn').addEventListener('click', function() {
   cards.sort((a,b) => a.dataset.name.localeCompare(b.dataset.name));
   cards.forEach(card => grid.appendChild(card));
   
-  // Re-check visible cards after sorting
-  setTimeout(checkVisibleCards, 100);
+  // Reinitialize observer after sorting
+  setTimeout(() => {
+    if (observer) {
+      observer.disconnect();
+      document.querySelectorAll('.card:not(.loaded):not(.loading)').forEach(card => {
+        observer.observe(card);
+      });
+    }
+    checkVisibleCards();
+  }, 100);
 });
 
 document.getElementById('sortRandomBtn').addEventListener('click', function() {
@@ -1406,8 +1402,16 @@ document.getElementById('sortRandomBtn').addEventListener('click', function() {
   }
   cards.forEach(card => grid.appendChild(card));
   
-  // Re-check visible cards after sorting
-  setTimeout(checkVisibleCards, 100);
+  // Reinitialize observer after sorting
+  setTimeout(() => {
+    if (observer) {
+      observer.disconnect();
+      document.querySelectorAll('.card:not(.loaded):not(.loading)').forEach(card => {
+        observer.observe(card);
+      });
+    }
+    checkVisibleCards();
+  }, 100);
 });
 
 // ===== CARD SIZE CONTROLS =====
@@ -1443,8 +1447,49 @@ document.getElementById('reloadCardsBtn').addEventListener('click', function() {
   // Clear cache and reload
   cardCache.clear();
   loadedCards.clear();
+  loadingCards.clear();
   loadCardList();
 });
+
+// Load all cards button
+document.getElementById('loadAllBtn').addEventListener('click', function() {
+  loadAllCards();
+});
+
+// Function to check visible cards (as backup)
+function checkVisibleCards() {
+  const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
+  const viewportHeight = window.innerHeight;
+  const scrollY = window.scrollY;
+  
+  cards.forEach(card => {
+    const rect = card.getBoundingClientRect();
+    const cardTop = rect.top + scrollY;
+    const cardBottom = rect.bottom + scrollY;
+    
+    // Check if card is in viewport
+    const isVisible = (
+      cardBottom > scrollY - 500 &&
+      cardTop < scrollY + viewportHeight + 500
+    );
+    
+    if (isVisible) {
+      const cardName = card.dataset.name;
+      if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+        loadCard(card, cardName);
+      }
+    }
+  });
+}
+
+// Backup scroll listener in case Intersection Observer fails
+let scrollCheckTimeout;
+window.addEventListener('scroll', () => {
+  if (scrollCheckTimeout) clearTimeout(scrollCheckTimeout);
+  scrollCheckTimeout = setTimeout(() => {
+    checkVisibleCards();
+  }, 200);
+}, { passive: true });
 
 // ===== ADD TO TOOLBOX =====
 document.addEventListener('click', function(e) {
@@ -1480,7 +1525,7 @@ new Sortable(document.getElementById('gridContainer'), {
   disabled: true
 });
 
-console.log("=== SIMPLE LAZY LOADING SYSTEM INITIALIZED ===");
+console.log("=== FIXED LAZY LOADING SYSTEM INITIALIZED ===");
 </script>
 </body>
 </html>
