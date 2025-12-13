@@ -259,7 +259,7 @@
     position: relative;
   }
 
-  /* ===== ENHANCED CARD STYLES ===== */
+  /* ===== FIXED CARD STYLES - NO CONTENT CUTOFF ===== */
   .card{
     box-sizing:border-box;
     background:linear-gradient(135deg,var(--card-grad-1),var(--card-grad-2));
@@ -271,16 +271,18 @@
     max-width:100%;
     opacity:0;
     transform: translateY(var(--card-translateY)) scale(var(--card-scale));
-    transition: opacity .36s ease, transform .36s ease, height .3s ease;
+    transition: opacity .36s ease, transform .36s ease;
     box-shadow:0 8px 24px rgba(0,0,0,0.35);
-    overflow: hidden;
+    overflow: visible; /* CHANGED FROM hidden to visible */
     height: auto; /* AUTO HEIGHT BY DEFAULT */
-    resize: vertical;
     position: relative;
-    contain: content;
+    contain: layout style;
     word-wrap: break-word;
     overflow-wrap: break-word;
     cursor: default;
+    /* NEW: Card will expand to fit content */
+    display: flex;
+    flex-direction: column;
   }
   
   .card.visible{
@@ -288,39 +290,13 @@
     transform: translateY(0) scale(var(--card-scale));
   }
   
-  /* Card resize handle */
-  .card::after {
-    content: '↕';
-    position: absolute;
-    bottom: 8px;
-    right: 10px;
-    font-size: 14px;
-    color: rgba(255,255,255,0.4);
-    cursor: ns-resize;
-    opacity: 0;
-    transition: opacity 0.2s;
-    pointer-events: none;
-    z-index: 10;
-    background: rgba(0,0,0,0.3);
-    border-radius: 4px;
-    padding: 2px 4px;
-  }
-  
-  .card:hover::after {
-    opacity: 0.7;
-  }
-  
-  .card.card-resizing::after {
-    opacity: 1;
-  }
-  
-  /* Card content wrapper */
+  /* Card content wrapper - FIXED: Full height content */
   .card-content-wrapper {
     position: relative;
     width: 100%;
-    max-height: 600px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    flex: 1; /* Take up all available space */
+    min-height: 100px;
+    overflow: visible; /* CHANGED FROM auto to visible */
   }
   
   /* Card body - where the actual content goes */
@@ -330,6 +306,9 @@
     box-sizing: border-box;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    /* NEW: Allow content to determine height */
+    overflow: visible;
+    min-height: 100px;
   }
   
   /* Ensure all card content fits properly */
@@ -367,6 +346,11 @@
     box-sizing: border-box;
   }
   
+  /* Fix for iframes to show all content */
+  .card-body iframe {
+    min-height: 300px; /* Minimum height for iframes */
+  }
+  
   .card-header{
     display:flex;
     justify-content:space-between;
@@ -374,6 +358,7 @@
     margin-bottom:12px;
     cursor: default;
     user-select: none;
+    flex-shrink: 0; /* Don't shrink header */
   }
   
   .card-header h3{
@@ -386,23 +371,23 @@
     max-width:70%;
   }
   
-  /* Custom scrollbar for card content */
-  .card-content-wrapper::-webkit-scrollbar {
+  /* Custom scrollbar for toolbox */
+  .toolbox .content::-webkit-scrollbar {
     width: 6px;
   }
   
-  .card-content-wrapper::-webkit-scrollbar-track {
+  .toolbox .content::-webkit-scrollbar-track {
     background: rgba(255,255,255,0.03);
     border-radius: 3px;
   }
   
-  .card-content-wrapper::-webkit-scrollbar-thumb {
+  .toolbox .content::-webkit-scrollbar-thumb {
     background: var(--accent);
     border-radius: 3px;
     opacity: 0.5;
   }
   
-  .card-content-wrapper::-webkit-scrollbar-thumb:hover {
+  .toolbox .content::-webkit-scrollbar-thumb:hover {
     opacity: 0.8;
   }
 
@@ -449,6 +434,7 @@
     border-color: rgba(57,255,20,0.3);
   }
 
+  /* ===== READER MODE FIXES ===== */
   body.reader-mode{
     font-size:1.12rem;
     line-height:1.6
@@ -462,7 +448,17 @@
   body.reader-mode .card{
     padding:20px;
     background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.04));
-    border-color:rgba(255,255,255,0.06)
+    border-color:rgba(255,255,255,0.06);
+    /* Ensure reader mode cards also show all content */
+    overflow: visible;
+  }
+  
+  body.reader-mode .card-content-wrapper {
+    overflow: visible;
+  }
+  
+  body.reader-mode .card-body {
+    overflow: visible;
   }
 
   /* ===== LOADING ANIMATIONS ===== */
@@ -521,11 +517,6 @@
     .card {
       touch-action: pan-y;
       -webkit-overflow-scrolling: touch;
-      resize: none;
-    }
-    
-    .card::after {
-      display: none;
     }
     
     .dashboard {
@@ -558,6 +549,13 @@
       left: 10px;
       text-align: center;
       justify-content: center;
+    }
+    
+    .toolbox {
+      width: calc(100% - 36px);
+      height: 300px;
+      right: 18px;
+      left: 18px;
     }
   }
   
@@ -650,9 +648,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-// ===== FIXED AUTO-LOADING WITH PROPER CARD SIZING =====
+// ===== FIXED TOOLBOX AND CARD CONTENT SYSTEM =====
 
-console.log("=== STARTING FIXED AUTO-LOADING SYSTEM ===");
+console.log("=== STARTING FIXED SYSTEM ===");
 
 // Configuration
 const CONFIG = {
@@ -660,7 +658,7 @@ const CONFIG = {
   LOAD_DELAY: 50,
   INITIAL_LOAD: 16,
   MAX_CONCURRENT_LOADS: 6,
-  OBSERVER_ROOT_MARGIN: '800px' // Load cards 800px before viewport
+  OBSERVER_ROOT_MARGIN: '800px'
 };
 
 // Global state
@@ -684,16 +682,6 @@ const themes = {
 let widgets = [];
 let toolboxDocked = false;
 
-// Card resize state
-const cardResizeState = {
-  isResizing: false,
-  currentCard: null,
-  startHeight: 0,
-  startY: 0,
-  minHeight: 120,
-  maxHeight: 1200
-};
-
 // ===== THEME SYSTEM =====
 function applyTheme(themeName) {
   const theme = themes[themeName];
@@ -712,7 +700,7 @@ function applyTheme(themeName) {
   localStorage.setItem('theme', themeName);
 }
 
-// ===== TOOLBOX SYSTEM =====
+// ===== TOOLBOX SYSTEM - FIXED =====
 function initToolbox() {
   const toolbox = document.getElementById('toolbox');
   const toolboxTitle = document.getElementById('toolboxTitle');
@@ -739,10 +727,10 @@ function initToolbox() {
     if (!isDragging) return;
     
     e.preventDefault();
-    toolbox.style.left = 'auto';
+    toolbox.style.left = (e.clientX - dragOffset.x) + 'px';
     toolbox.style.right = 'auto';
     toolbox.style.top = (e.clientY - dragOffset.y) + 'px';
-    toolbox.style.left = (e.clientX - dragOffset.x) + 'px';
+    toolbox.style.bottom = 'auto';
   }
   
   function stopDrag() {
@@ -753,7 +741,8 @@ function initToolbox() {
   }
   
   // Dock/undock button
-  document.getElementById('dockBtn').addEventListener('click', function() {
+  document.getElementById('dockBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
     toolboxDocked = !toolboxDocked;
     
     if (toolboxDocked) {
@@ -763,6 +752,10 @@ function initToolbox() {
       toolbox.style.bottom = '18px';
       this.textContent = '⇲';
     } else {
+      toolbox.style.left = 'auto';
+      toolbox.style.right = 'auto';
+      toolbox.style.top = '100px';
+      toolbox.style.left = '100px';
       this.textContent = '⇱';
     }
   });
@@ -780,10 +773,9 @@ function createWidget(name, contentHTML) {
   
   // Random position within toolbox
   const toolboxContent = document.getElementById('toolboxContent');
-  const tRect = toolboxContent.getBoundingClientRect();
   
-  widget.style.left = Math.random() * (tRect.width - 200) + 'px';
-  widget.style.top = Math.random() * (tRect.height - 150) + 'px';
+  widget.style.left = Math.random() * 200 + 'px';
+  widget.style.top = Math.random() * 150 + 'px';
   widget.style.width = '200px';
   widget.style.height = '150px';
   
@@ -817,7 +809,8 @@ function createWidget(name, contentHTML) {
   makeWidgetResizable(widget);
   
   // Close button
-  widget.querySelector('.widget-close').addEventListener('click', function() {
+  widget.querySelector('.widget-close').addEventListener('click', function(e) {
+    e.stopPropagation();
     widget.remove();
     widgets = widgets.filter(w => w.id !== widgetId);
     saveWidgets();
@@ -839,8 +832,8 @@ function makeWidgetDraggable(widget) {
     isDragging = true;
     const rect = widget.getBoundingClientRect();
     const parentRect = widget.parentElement.getBoundingClientRect();
-    dragOffset.x = e.clientX - rect.left + parentRect.left;
-    dragOffset.y = e.clientY - rect.top + parentRect.top;
+    dragOffset.x = e.clientX - rect.left;
+    dragOffset.y = e.clientY - rect.top;
     
     document.addEventListener('mousemove', onDrag);
     document.addEventListener('mouseup', stopDrag);
@@ -971,7 +964,8 @@ function loadSavedWidgets() {
         makeWidgetDraggable(widget);
         makeWidgetResizable(widget);
         
-        widget.querySelector('.widget-close').addEventListener('click', function() {
+        widget.querySelector('.widget-close').addEventListener('click', function(e) {
+          e.stopPropagation();
           widget.remove();
           widgets = widgets.filter(w => w.id !== widgetData.id);
           saveWidgets();
@@ -981,115 +975,6 @@ function loadSavedWidgets() {
       console.error('Failed to load widgets:', e);
       widgets = [];
     }
-  }
-}
-
-// ===== CARD RESIZE SYSTEM =====
-function initCardResizeSystem() {
-  // Mouse events for desktop
-  document.addEventListener('mousedown', handleCardResizeStart);
-  document.addEventListener('mousemove', handleCardResizeMove);
-  document.addEventListener('mouseup', handleCardResizeEnd);
-  
-  // Touch events for mobile
-  document.addEventListener('touchstart', handleCardResizeStartTouch, { passive: true });
-  document.addEventListener('touchmove', handleCardResizeMoveTouch, { passive: false });
-  document.addEventListener('touchend', handleCardResizeEnd);
-}
-
-function handleCardResizeStart(e) {
-  const card = e.target.closest('.card');
-  if (!card) return;
-  
-  const rect = card.getBoundingClientRect();
-  const isNearBottom = e.clientY > rect.bottom - 20 && e.clientY < rect.bottom;
-  const isNearRight = e.clientX > rect.right - 20 && e.clientX < rect.right;
-  
-  if ((isNearBottom || isNearRight) && !card.classList.contains('card-auto-size')) {
-    e.preventDefault();
-    cardResizeState.isResizing = true;
-    cardResizeState.currentCard = card;
-    cardResizeState.startHeight = card.offsetHeight;
-    cardResizeState.startY = e.clientY;
-    
-    card.classList.add('card-resizing');
-    document.body.style.cursor = isNearBottom && isNearRight ? 'se-resize' : 'ns-resize';
-    document.body.style.userSelect = 'none';
-  }
-}
-
-function handleCardResizeMove(e) {
-  if (!cardResizeState.isResizing || !cardResizeState.currentCard) return;
-  
-  e.preventDefault();
-  
-  const deltaY = e.clientY - cardResizeState.startY;
-  let newHeight = cardResizeState.startHeight + deltaY;
-  
-  newHeight = Math.max(cardResizeState.minHeight, Math.min(cardResizeState.maxHeight, newHeight));
-  
-  const card = cardResizeState.currentCard;
-  card.style.height = newHeight + 'px';
-}
-
-function handleCardResizeEnd() {
-  if (!cardResizeState.isResizing || !cardResizeState.currentCard) return;
-  
-  const card = cardResizeState.currentCard;
-  const height = card.offsetHeight;
-  
-  card.dataset.savedHeight = height;
-  localStorage.setItem(`card-height-${card.dataset.name}`, height);
-  
-  card.classList.remove('card-resizing');
-  cardResizeState.isResizing = false;
-  cardResizeState.currentCard = null;
-  
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-}
-
-// ===== CARD CONTENT SETUP =====
-function setupCardContent(card) {
-  const contentDiv = card.querySelector('.content');
-  if (!contentDiv) return;
-  
-  // Check if already enhanced
-  if (contentDiv.querySelector('.card-content-wrapper')) return;
-  
-  const originalHTML = contentDiv.innerHTML;
-  
-  // Create enhanced structure
-  contentDiv.innerHTML = `
-    <div class="card-content-wrapper">
-      <div class="card-body">
-        ${originalHTML}
-      </div>
-    </div>
-  `;
-  
-  // Add double-click for auto-size toggle
-  card.addEventListener('dblclick', function(e) {
-    if (e.target.closest('button, input, textarea, select, a, .embed-btn')) return;
-    toggleCardAutoSize(card);
-  });
-}
-
-function toggleCardAutoSize(card) {
-  card.classList.toggle('card-auto-size');
-  
-  if (card.classList.contains('card-auto-size')) {
-    card.style.height = 'auto';
-    card.style.resize = 'none';
-    localStorage.setItem(`card-auto-${card.dataset.name}`, 'true');
-  } else {
-    card.style.resize = 'vertical';
-    const savedHeight = localStorage.getItem(`card-height-${card.dataset.name}`);
-    if (savedHeight) {
-      card.style.height = savedHeight + 'px';
-      card.dataset.savedHeight = savedHeight;
-    }
-    localStorage.removeItem(`card-auto-${card.dataset.name}`);
   }
 }
 
@@ -1148,7 +1033,7 @@ function copyEmbedCode(cardName, fileName, displayName) {
   });
 }
 
-// ===== FIXED AUTO-LOADING SYSTEM =====
+// ===== FIXED CARD LOADING SYSTEM =====
 function initIntersectionObserver() {
   if (observer) {
     observer.disconnect();
@@ -1253,22 +1138,33 @@ function processLoadedCard(card, cardName, html, fromCache) {
     script.parentNode.replaceChild(newScript, script);
   });
   
-  // Mark as loaded
-  loadedCards.add(cardName);
-  card.classList.remove('loading');
-  card.classList.add('loaded', 'visible');
-  
-  // Setup card content for resizing
-  setupCardContent(card);
-  
-  // Stop observing this card
-  if (observer) {
-    observer.unobserve(card);
-  }
-  
-  updateStatusText();
-  
-  console.log(`Loaded card: ${cardName} ${fromCache ? '(from cache)' : ''}`);
+  // FIX: Ensure all content is visible
+  setTimeout(() => {
+    // Remove any max-height constraints that might hide content
+    contentBody.style.maxHeight = 'none';
+    contentBody.style.overflow = 'visible';
+    
+    // Also ensure wrapper allows full content
+    const wrapper = card.querySelector('.card-content-wrapper');
+    if (wrapper) {
+      wrapper.style.maxHeight = 'none';
+      wrapper.style.overflow = 'visible';
+    }
+    
+    // Mark as loaded
+    loadedCards.add(cardName);
+    card.classList.remove('loading');
+    card.classList.add('loaded', 'visible');
+    
+    // Stop observing this card
+    if (observer) {
+      observer.unobserve(card);
+    }
+    
+    updateStatusText();
+    
+    console.log(`Loaded card: ${cardName} ${fromCache ? '(from cache)' : ''}`);
+  }, 100);
 }
 
 function updateStatusText() {
@@ -1318,7 +1214,7 @@ function createCardPlaceholders(cardNames) {
     header.className = 'card-header';
     header.innerHTML = `<h3>${cardName.replace(/-/g, ' ')}</h3>
       <div style="display:flex;gap:8px">
-        <div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent);font-size:18px;line-height:1">+</div>
+        <div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent);font-size:18px;line-height:1;user-select:none">+</div>
       </div>`;
     
     const content = document.createElement('div');
@@ -1513,7 +1409,6 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Initialize systems
   initToolbox();
-  initCardResizeSystem();
   
   // Load cards IMMEDIATELY
   loadCardList();
@@ -1549,14 +1444,18 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
   });
 });
 
-// Toolbox controls
+// Toolbox controls - FIXED EVENT HANDLERS
 const toolbox = document.getElementById('toolbox');
-document.getElementById('toolboxToggle').addEventListener('click', function() {
+document.getElementById('toolboxToggle').addEventListener('click', function(e) {
+  e.stopPropagation();
   toolbox.classList.toggle('hidden');
+  console.log('Toolbox toggled, hidden:', toolbox.classList.contains('hidden'));
 });
+
 document.getElementById('toolboxClose').addEventListener('click', function(e) {
   e.stopPropagation();
   toolbox.classList.add('hidden');
+  console.log('Toolbox closed');
 });
 
 // Reader mode
@@ -1659,12 +1558,15 @@ document.getElementById('loadAllBtn').addEventListener('click', function() {
   loadAllCards();
 });
 
-// ===== ADD TO TOOLBOX =====
+// ===== ADD TO TOOLBOX - FIXED =====
 document.addEventListener('click', function(e) {
-  if (e.target.classList.contains('add-to-toolbox') || 
-      e.target.closest('.add-to-toolbox')) {
+  // Check if click is on add-to-toolbox button
+  const addBtn = e.target.closest('.add-to-toolbox');
+  if (addBtn) {
+    e.preventDefault();
+    e.stopPropagation();
     
-    const card = e.target.closest('.card');
+    const card = addBtn.closest('.card');
     if (!card) return;
     
     const cardName = card.dataset.name;
@@ -1675,21 +1577,32 @@ document.addEventListener('click', function(e) {
     }
     
     const contentBody = card.querySelector('.card-body');
-    const contentHTML = contentBody.innerHTML;
+    if (!contentBody) return;
+    
+    // Clone the content but remove the embed section
+    const contentClone = contentBody.cloneNode(true);
+    const embedSection = contentClone.querySelector('.embed-section');
+    if (embedSection) {
+      embedSection.remove();
+    }
     
     // Create widget in toolbox
-    createWidget(cardName, contentHTML);
+    createWidget(cardName.replace(/-/g, ' '), contentClone.innerHTML);
     
     // Show toolbox if hidden
-    toolbox.classList.remove('hidden');
+    if (toolbox.classList.contains('hidden')) {
+      toolbox.classList.remove('hidden');
+    }
     
-    const addBtn = e.target.closest('.add-to-toolbox');
+    // Visual feedback
     addBtn.textContent = '✓';
     addBtn.style.color = 'var(--accent)';
     setTimeout(() => {
       addBtn.textContent = '+';
       addBtn.style.color = '';
     }, 1000);
+    
+    console.log(`Added "${cardName}" to toolbox`);
   }
 });
 
@@ -1730,7 +1643,7 @@ window.addEventListener('scroll', () => {
   }, 200);
 }, { passive: true });
 
-console.log("=== FIXED AUTO-LOADING SYSTEM INITIALIZED ===");
+console.log("=== FIXED SYSTEM INITIALIZED ===");
 </script>
 </body>
 </html>
