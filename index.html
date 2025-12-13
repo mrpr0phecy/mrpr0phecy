@@ -142,8 +142,8 @@
     background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));
     border-radius:10px;
     border:1px solid rgba(255,255,255,0.04);
-    min-width:120px;
-    min-height:80px;
+    min-width:160px;
+    min-height:120px;
     max-width:calc(100% - 20px);
     max-height:calc(100% - 20px);
     overflow:hidden;
@@ -161,18 +161,23 @@
     background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
     cursor:move;
     user-select:none;
+    font-size:12px;
   }
   
   .widget-titlebar strong{
     color:var(--accent);
-    font-size:14px;
+    font-size:12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width:120px;
   }
   
   .widget-body{
     padding:10px;
     overflow:auto;
-    max-height:60vh;
-    font-size:14px;
+    height:calc(100% - 40px);
+    font-size:12px;
     line-height:1.4;
   }
 
@@ -183,7 +188,12 @@
     border:0;
     color:var(--muted);
     cursor:pointer;
-    font-size:14px;
+    font-size:12px;
+    width:20px;
+    height:20px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
   }
 
   main{
@@ -228,6 +238,7 @@
     color:var(--muted);
     cursor:pointer;
     transition: all 0.2s;
+    font-size:14px;
   }
   
   .controls button:hover{
@@ -263,8 +274,7 @@
     transition: opacity .36s ease, transform .36s ease, height .3s ease;
     box-shadow:0 8px 24px rgba(0,0,0,0.35);
     overflow: hidden;
-    height: auto;
-    max-height: 80vh;
+    height: auto; /* AUTO HEIGHT BY DEFAULT */
     resize: vertical;
     position: relative;
     contain: content;
@@ -304,41 +314,57 @@
     opacity: 1;
   }
   
-  .card.card-auto-size::after {
-    display: none;
-  }
-  
   /* Card content wrapper */
   .card-content-wrapper {
     position: relative;
     width: 100%;
-    height: 100%;
-    overflow: auto;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
   
   /* Card body - where the actual content goes */
   .card-body {
     width: 100%;
-    overflow: auto;
-    max-height: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  /* Ensure all card content fits properly */
+  .card-body * {
+    max-width: 100%;
     box-sizing: border-box;
   }
   
-  /* Card size indicators */
-  .card-size-indicator {
-    position: absolute;
-    top: 8px;
-    right: 40px;
-    font-size: 10px;
-    color: rgba(255,255,255,0.4);
-    background: rgba(0,0,0,0.3);
-    padding: 2px 6px;
-    border-radius: 10px;
-    display: none;
+  .card-body img,
+  .card-body video,
+  .card-body iframe,
+  .card-body canvas {
+    max-width: 100%;
+    height: auto;
+    display: block;
   }
   
-  .card-resizing .card-size-indicator {
+  .card-body table {
+    max-width: 100%;
+    overflow-x: auto;
     display: block;
+  }
+  
+  .card-body pre,
+  .card-body code {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  
+  .card-body textarea,
+  .card-body input,
+  .card-body select {
+    max-width: 100%;
+    box-sizing: border-box;
   }
   
   .card-header{
@@ -611,8 +637,6 @@
     <div class="controls">
       <button id="sortAlphaBtn">Sort A→Z</button>
       <button id="sortRandomBtn">Random</button>
-      <button id="autoSizeAllBtn" title="Set all cards to auto-height">Auto Height</button>
-      <button id="resetCardSizesBtn" title="Reset all card sizes">Reset Sizes</button>
       <button id="reloadCardsBtn" title="Reload card list">Reload Cards</button>
       <button id="loadAllBtn" title="Load all cards at once">Load All Cards</button>
     </div>
@@ -626,16 +650,17 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-// ===== FIXED LAZY LOADING WITH INTERSECTION OBSERVER =====
+// ===== FIXED AUTO-LOADING WITH PROPER CARD SIZING =====
 
-console.log("=== STARTING FIXED LAZY LOADING SYSTEM ===");
+console.log("=== STARTING FIXED AUTO-LOADING SYSTEM ===");
 
 // Configuration
 const CONFIG = {
   LOAD_BATCH_SIZE: 8,
   LOAD_DELAY: 50,
-  INITIAL_LOAD: 12,
-  MAX_CONCURRENT_LOADS: 4
+  INITIAL_LOAD: 16,
+  MAX_CONCURRENT_LOADS: 6,
+  OBSERVER_ROOT_MARGIN: '800px' // Load cards 800px before viewport
 };
 
 // Global state
@@ -654,6 +679,10 @@ const themes = {
   'deep-teal': { bg1: '#061616', bg2: '#0f2525' },
   'deep-red': { bg1: '#160606', bg2: '#251010' }
 };
+
+// Toolbox widgets
+let widgets = [];
+let toolboxDocked = false;
 
 // Card resize state
 const cardResizeState = {
@@ -683,6 +712,278 @@ function applyTheme(themeName) {
   localStorage.setItem('theme', themeName);
 }
 
+// ===== TOOLBOX SYSTEM =====
+function initToolbox() {
+  const toolbox = document.getElementById('toolbox');
+  const toolboxTitle = document.getElementById('toolboxTitle');
+  
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  
+  toolboxTitle.addEventListener('mousedown', startDrag);
+  
+  function startDrag(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    
+    isDragging = true;
+    const rect = toolbox.getBoundingClientRect();
+    dragOffset.x = e.clientX - rect.left;
+    dragOffset.y = e.clientY - rect.top;
+    
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+    toolboxTitle.style.cursor = 'grabbing';
+  }
+  
+  function onDrag(e) {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    toolbox.style.left = 'auto';
+    toolbox.style.right = 'auto';
+    toolbox.style.top = (e.clientY - dragOffset.y) + 'px';
+    toolbox.style.left = (e.clientX - dragOffset.x) + 'px';
+  }
+  
+  function stopDrag() {
+    isDragging = false;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+    toolboxTitle.style.cursor = '';
+  }
+  
+  // Dock/undock button
+  document.getElementById('dockBtn').addEventListener('click', function() {
+    toolboxDocked = !toolboxDocked;
+    
+    if (toolboxDocked) {
+      toolbox.style.left = 'auto';
+      toolbox.style.right = '18px';
+      toolbox.style.top = 'auto';
+      toolbox.style.bottom = '18px';
+      this.textContent = '⇲';
+    } else {
+      this.textContent = '⇱';
+    }
+  });
+  
+  // Load saved widgets
+  loadSavedWidgets();
+}
+
+function createWidget(name, contentHTML) {
+  const widgetId = 'widget-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+  const widget = document.createElement('div');
+  widget.className = 'widget-wrap';
+  widget.id = widgetId;
+  widget.dataset.name = name;
+  
+  // Random position within toolbox
+  const toolboxContent = document.getElementById('toolboxContent');
+  const tRect = toolboxContent.getBoundingClientRect();
+  
+  widget.style.left = Math.random() * (tRect.width - 200) + 'px';
+  widget.style.top = Math.random() * (tRect.height - 150) + 'px';
+  widget.style.width = '200px';
+  widget.style.height = '150px';
+  
+  widget.innerHTML = `
+    <div class="widget-titlebar">
+      <strong>${name}</strong>
+      <button class="widget-close" title="Close widget">✕</button>
+    </div>
+    <div class="widget-body">${contentHTML}</div>
+  `;
+  
+  toolboxContent.appendChild(widget);
+  
+  // Save widget
+  widgets.push({
+    id: widgetId,
+    name: name,
+    content: contentHTML,
+    x: widget.style.left,
+    y: widget.style.top,
+    width: widget.style.width,
+    height: widget.style.height
+  });
+  
+  saveWidgets();
+  
+  // Make widget draggable
+  makeWidgetDraggable(widget);
+  
+  // Make widget resizable
+  makeWidgetResizable(widget);
+  
+  // Close button
+  widget.querySelector('.widget-close').addEventListener('click', function() {
+    widget.remove();
+    widgets = widgets.filter(w => w.id !== widgetId);
+    saveWidgets();
+  });
+  
+  return widgetId;
+}
+
+function makeWidgetDraggable(widget) {
+  const titlebar = widget.querySelector('.widget-titlebar');
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  
+  titlebar.addEventListener('mousedown', startDrag);
+  
+  function startDrag(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    
+    isDragging = true;
+    const rect = widget.getBoundingClientRect();
+    const parentRect = widget.parentElement.getBoundingClientRect();
+    dragOffset.x = e.clientX - rect.left + parentRect.left;
+    dragOffset.y = e.clientY - rect.top + parentRect.top;
+    
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+    widget.style.zIndex = '1000';
+  }
+  
+  function onDrag(e) {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    const parentRect = widget.parentElement.getBoundingClientRect();
+    const x = e.clientX - parentRect.left - dragOffset.x;
+    const y = e.clientY - parentRect.top - dragOffset.y;
+    
+    // Keep within bounds
+    const maxX = parentRect.width - widget.offsetWidth;
+    const maxY = parentRect.height - widget.offsetHeight;
+    
+    widget.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+    widget.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+  }
+  
+  function stopDrag() {
+    isDragging = false;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+    widget.style.zIndex = '1';
+    
+    // Update saved position
+    const widgetObj = widgets.find(w => w.id === widget.id);
+    if (widgetObj) {
+      widgetObj.x = widget.style.left;
+      widgetObj.y = widget.style.top;
+      saveWidgets();
+    }
+  }
+}
+
+function makeWidgetResizable(widget) {
+  const resizeHandle = document.createElement('div');
+  resizeHandle.style.position = 'absolute';
+  resizeHandle.style.right = '0';
+  resizeHandle.style.bottom = '0';
+  resizeHandle.style.width = '16px';
+  resizeHandle.style.height = '16px';
+  resizeHandle.style.cursor = 'se-resize';
+  resizeHandle.style.background = 'transparent';
+  resizeHandle.style.zIndex = '10';
+  
+  widget.appendChild(resizeHandle);
+  
+  let isResizing = false;
+  let startWidth, startHeight, startX, startY;
+  
+  resizeHandle.addEventListener('mousedown', startResize);
+  
+  function startResize(e) {
+    e.stopPropagation();
+    isResizing = true;
+    startWidth = parseInt(getComputedStyle(widget).width);
+    startHeight = parseInt(getComputedStyle(widget).height);
+    startX = e.clientX;
+    startY = e.clientY;
+    
+    document.addEventListener('mousemove', onResize);
+    document.addEventListener('mouseup', stopResize);
+  }
+  
+  function onResize(e) {
+    if (!isResizing) return;
+    
+    e.preventDefault();
+    
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    
+    const newWidth = Math.max(160, startWidth + dx);
+    const newHeight = Math.max(120, startHeight + dy);
+    
+    widget.style.width = newWidth + 'px';
+    widget.style.height = newHeight + 'px';
+  }
+  
+  function stopResize() {
+    isResizing = false;
+    document.removeEventListener('mousemove', onResize);
+    document.removeEventListener('mouseup', stopResize);
+    
+    // Update saved size
+    const widgetObj = widgets.find(w => w.id === widget.id);
+    if (widgetObj) {
+      widgetObj.width = widget.style.width;
+      widgetObj.height = widget.style.height;
+      saveWidgets();
+    }
+  }
+}
+
+function saveWidgets() {
+  localStorage.setItem('toolboxWidgets', JSON.stringify(widgets));
+}
+
+function loadSavedWidgets() {
+  const saved = localStorage.getItem('toolboxWidgets');
+  if (saved) {
+    try {
+      widgets = JSON.parse(saved) || [];
+      widgets.forEach(widgetData => {
+        const widget = document.createElement('div');
+        widget.className = 'widget-wrap';
+        widget.id = widgetData.id;
+        widget.dataset.name = widgetData.name;
+        widget.style.left = widgetData.x;
+        widget.style.top = widgetData.y;
+        widget.style.width = widgetData.width;
+        widget.style.height = widgetData.height;
+        
+        widget.innerHTML = `
+          <div class="widget-titlebar">
+            <strong>${widgetData.name}</strong>
+            <button class="widget-close" title="Close widget">✕</button>
+          </div>
+          <div class="widget-body">${widgetData.content}</div>
+        `;
+        
+        document.getElementById('toolboxContent').appendChild(widget);
+        
+        makeWidgetDraggable(widget);
+        makeWidgetResizable(widget);
+        
+        widget.querySelector('.widget-close').addEventListener('click', function() {
+          widget.remove();
+          widgets = widgets.filter(w => w.id !== widgetData.id);
+          saveWidgets();
+        });
+      });
+    } catch (e) {
+      console.error('Failed to load widgets:', e);
+      widgets = [];
+    }
+  }
+}
+
 // ===== CARD RESIZE SYSTEM =====
 function initCardResizeSystem() {
   // Mouse events for desktop
@@ -698,12 +999,13 @@ function initCardResizeSystem() {
 
 function handleCardResizeStart(e) {
   const card = e.target.closest('.card');
-  if (!card || card.classList.contains('card-auto-size')) return;
+  if (!card) return;
   
   const rect = card.getBoundingClientRect();
   const isNearBottom = e.clientY > rect.bottom - 20 && e.clientY < rect.bottom;
+  const isNearRight = e.clientX > rect.right - 20 && e.clientX < rect.right;
   
-  if (isNearBottom) {
+  if ((isNearBottom || isNearRight) && !card.classList.contains('card-auto-size')) {
     e.preventDefault();
     cardResizeState.isResizing = true;
     cardResizeState.currentCard = card;
@@ -711,7 +1013,7 @@ function handleCardResizeStart(e) {
     cardResizeState.startY = e.clientY;
     
     card.classList.add('card-resizing');
-    document.body.style.cursor = 'ns-resize';
+    document.body.style.cursor = isNearBottom && isNearRight ? 'se-resize' : 'ns-resize';
     document.body.style.userSelect = 'none';
   }
 }
@@ -728,15 +1030,6 @@ function handleCardResizeMove(e) {
   
   const card = cardResizeState.currentCard;
   card.style.height = newHeight + 'px';
-  
-  // Update wrapper height
-  const wrapper = card.querySelector('.card-content-wrapper');
-  if (wrapper) {
-    const cardStyle = window.getComputedStyle(card);
-    const paddingTop = parseInt(cardStyle.paddingTop) || 0;
-    const paddingBottom = parseInt(cardStyle.paddingBottom) || 0;
-    wrapper.style.height = (newHeight - paddingTop - paddingBottom) + 'px';
-  }
 }
 
 function handleCardResizeEnd() {
@@ -775,12 +1068,9 @@ function setupCardContent(card) {
     </div>
   `;
   
-  // Load saved state
-  loadCardSavedState(card);
-  
   // Add double-click for auto-size toggle
   card.addEventListener('dblclick', function(e) {
-    if (e.target.closest('button, input, textarea, select, a')) return;
+    if (e.target.closest('button, input, textarea, select, a, .embed-btn')) return;
     toggleCardAutoSize(card);
   });
 }
@@ -790,53 +1080,16 @@ function toggleCardAutoSize(card) {
   
   if (card.classList.contains('card-auto-size')) {
     card.style.height = 'auto';
+    card.style.resize = 'none';
     localStorage.setItem(`card-auto-${card.dataset.name}`, 'true');
-    
-    // Reset wrapper height
-    const wrapper = card.querySelector('.card-content-wrapper');
-    if (wrapper) wrapper.style.height = 'auto';
   } else {
+    card.style.resize = 'vertical';
     const savedHeight = localStorage.getItem(`card-height-${card.dataset.name}`);
     if (savedHeight) {
       card.style.height = savedHeight + 'px';
       card.dataset.savedHeight = savedHeight;
-      
-      // Set wrapper height
-      const wrapper = card.querySelector('.card-content-wrapper');
-      if (wrapper) {
-        const cardStyle = window.getComputedStyle(card);
-        const paddingTop = parseInt(cardStyle.paddingTop) || 0;
-        const paddingBottom = parseInt(cardStyle.paddingBottom) || 0;
-        wrapper.style.height = (parseInt(savedHeight) - paddingTop - paddingBottom) + 'px';
-      }
     }
     localStorage.removeItem(`card-auto-${card.dataset.name}`);
-  }
-}
-
-function loadCardSavedState(card) {
-  const cardName = card.dataset.name;
-  if (!cardName) return;
-  
-  const autoSize = localStorage.getItem(`card-auto-${cardName}`);
-  if (autoSize === 'true') {
-    card.classList.add('card-auto-size');
-    card.style.height = 'auto';
-  } else {
-    const savedHeight = localStorage.getItem(`card-height-${cardName}`);
-    if (savedHeight) {
-      card.style.height = savedHeight + 'px';
-      card.dataset.savedHeight = savedHeight;
-      
-      // Set wrapper height
-      const wrapper = card.querySelector('.card-content-wrapper');
-      if (wrapper) {
-        const cardStyle = window.getComputedStyle(card);
-        const paddingTop = parseInt(cardStyle.paddingTop) || 0;
-        const paddingBottom = parseInt(cardStyle.paddingBottom) || 0;
-        wrapper.style.height = (parseInt(savedHeight) - paddingTop - paddingBottom) + 'px';
-      }
-    }
   }
 }
 
@@ -895,7 +1148,7 @@ function copyEmbedCode(cardName, fileName, displayName) {
   });
 }
 
-// ===== FIXED LAZY LOADING WITH INTERSECTION OBSERVER =====
+// ===== FIXED AUTO-LOADING SYSTEM =====
 function initIntersectionObserver() {
   if (observer) {
     observer.disconnect();
@@ -914,16 +1167,17 @@ function initIntersectionObserver() {
     });
   }, {
     root: null,
-    rootMargin: '500px', // Load cards 500px before they enter viewport
+    rootMargin: CONFIG.OBSERVER_ROOT_MARGIN,
     threshold: 0.01
   });
   
   // Observe all unloaded cards
-  document.querySelectorAll('.card:not(.loaded):not(.loading)').forEach(card => {
+  const unloadedCards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
+  unloadedCards.forEach(card => {
     observer.observe(card);
   });
   
-  console.log(`Observing ${document.querySelectorAll('.card:not(.loaded):not(.loading)').length} cards`);
+  console.log(`Observing ${unloadedCards.length} cards with ${CONFIG.OBSERVER_ROOT_MARGIN} root margin`);
 }
 
 function loadCard(card, cardName) {
@@ -947,7 +1201,7 @@ function loadCard(card, cardName) {
       const cachedHTML = cardCache.get(cardName);
       processLoadedCard(card, cardName, cachedHTML, true);
       loadingCards.delete(cardName);
-    }, 100);
+    }, 50);
     return;
   }
   
@@ -966,7 +1220,7 @@ function loadCard(card, cardName) {
     .catch(error => {
       console.error(`Failed to load card ${cardName}:`, error);
       contentBody.innerHTML = `<div style="padding:20px;text-align:center;color:rgba(255,77,77,0.6)">
-        Failed to load card: ${error.message}
+        Failed to load card
       </div>`;
       card.classList.remove('loading');
       loadedCards.add(cardName);
@@ -1073,7 +1327,7 @@ function createCardPlaceholders(cardNames) {
       <div class="card-content-wrapper">
         <div class="card-body">
           <div style="padding:20px;text-align:center;color:rgba(230,250,255,0.4)">
-            Scroll to load card...
+            Loading...
           </div>
         </div>
       </div>
@@ -1093,15 +1347,14 @@ async function loadAllCards() {
   
   const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
   const total = cards.length;
-  let loaded = 0;
   
-  // Load in batches to avoid overwhelming the browser
+  // Load in batches
   const batchSize = CONFIG.MAX_CONCURRENT_LOADS;
   
   for (let i = 0; i < cards.length; i += batchSize) {
     const batch = Array.from(cards).slice(i, i + batchSize);
     
-    // Load batch concurrently
+    // Load batch with delay
     await Promise.all(batch.map((card, index) => {
       return new Promise(resolve => {
         setTimeout(() => {
@@ -1109,8 +1362,6 @@ async function loadAllCards() {
           if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
             loadCard(card, cardName);
           }
-          loaded++;
-          updateStatusText();
           resolve();
         }, index * 100);
       });
@@ -1135,10 +1386,9 @@ async function loadCardList() {
     loadingCards.clear();
     cardCache.clear();
     
-    // Try multiple approaches to get card list
+    // Try GitHub API
     let cardFiles = [];
     
-    // Approach 1: Try GitHub API
     try {
       const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
       const DEFAULT_BRANCH = 'main';
@@ -1158,11 +1408,7 @@ async function loadCardList() {
       }
     } catch (githubError) {
       console.log('GitHub API failed:', githubError);
-    }
-    
-    // Approach 2: If GitHub API fails, use a static list
-    if (cardFiles.length === 0) {
-      // Manual fallback - you can add your card names here
+      // Fallback to known cards
       cardFiles = [
         'battery-sizing',
         'cable-calculator', 
@@ -1173,8 +1419,6 @@ async function loadCardList() {
         'unit-converter',
         'countdown-timer'
       ];
-      
-      console.log(`Using manual list with ${cardFiles.length} cards`);
     }
     
     allCards = cardFiles;
@@ -1187,10 +1431,10 @@ async function loadCardList() {
     createCardPlaceholders(allCards);
     hideLoadingIndicator();
     
-    // Initialize Intersection Observer
+    // Initialize Intersection Observer IMMEDIATELY
     initIntersectionObserver();
     
-    // Load initial batch of cards
+    // Load initial batch of cards IMMEDIATELY
     loadInitialCards();
     
   } catch (error) {
@@ -1198,7 +1442,6 @@ async function loadCardList() {
     document.getElementById('status').textContent = 'Error loading cards. Click "Reload Cards" to try again.';
     hideLoadingIndicator();
     
-    // Show error in dashboard
     const grid = document.getElementById('gridContainer');
     grid.innerHTML = `
       <div style="grid-column:1/-1;text-align:center;padding:40px;">
@@ -1221,6 +1464,8 @@ function loadInitialCards() {
   const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
   const initialCount = Math.min(CONFIG.INITIAL_LOAD, cards.length);
   
+  console.log(`Loading ${initialCount} initial cards`);
+  
   for (let i = 0; i < initialCount; i++) {
     const card = cards[i];
     const cardName = card.dataset.name;
@@ -1235,7 +1480,7 @@ function loadInitialCards() {
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', function() {
-  console.log("DOM ready");
+  console.log("DOM ready - Starting auto-load...");
   
   // Scroll to top
   window.scrollTo(0, 0);
@@ -1267,24 +1512,11 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Initialize systems
+  initToolbox();
   initCardResizeSystem();
   
-  // Load cards
+  // Load cards IMMEDIATELY
   loadCardList();
-});
-
-// Scroll to search bar on load
-window.addEventListener('load', function() {
-  setTimeout(() => {
-    const searchBar = document.querySelector('.search-bar');
-    if (searchBar) {
-      searchBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-      searchInput.focus();
-    }
-  }, 100);
 });
 
 // ===== UI CONTROLS =====
@@ -1315,6 +1547,16 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
     const themeName = this.dataset.color;
     applyTheme(themeName);
   });
+});
+
+// Toolbox controls
+const toolbox = document.getElementById('toolbox');
+document.getElementById('toolboxToggle').addEventListener('click', function() {
+  toolbox.classList.toggle('hidden');
+});
+document.getElementById('toolboxClose').addEventListener('click', function(e) {
+  e.stopPropagation();
+  toolbox.classList.add('hidden');
 });
 
 // Reader mode
@@ -1364,14 +1606,6 @@ searchInput.addEventListener('input', function(e) {
   }, 300);
 });
 
-// Clear search when clicking elsewhere
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.search-bar') && searchInput.value) {
-    searchInput.value = '';
-    searchInput.dispatchEvent(new Event('input'));
-  }
-});
-
 // ===== SORT BUTTONS =====
 document.getElementById('sortAlphaBtn').addEventListener('click', function() {
   const grid = document.getElementById('gridContainer');
@@ -1388,7 +1622,6 @@ document.getElementById('sortAlphaBtn').addEventListener('click', function() {
         observer.observe(card);
       });
     }
-    checkVisibleCards();
   }, 100);
 });
 
@@ -1410,39 +1643,10 @@ document.getElementById('sortRandomBtn').addEventListener('click', function() {
         observer.observe(card);
       });
     }
-    checkVisibleCards();
   }, 100);
 });
 
-// ===== CARD SIZE CONTROLS =====
-document.getElementById('autoSizeAllBtn').addEventListener('click', function() {
-  document.querySelectorAll('.card').forEach(card => {
-    card.classList.add('card-auto-size');
-    card.style.height = 'auto';
-    localStorage.setItem(`card-auto-${card.dataset.name}`, 'true');
-    
-    // Reset wrapper height
-    const wrapper = card.querySelector('.card-content-wrapper');
-    if (wrapper) wrapper.style.height = 'auto';
-  });
-});
-
-document.getElementById('resetCardSizesBtn').addEventListener('click', function() {
-  document.querySelectorAll('.card').forEach(card => {
-    card.classList.remove('card-auto-size');
-    card.style.height = '';
-    card.dataset.savedHeight = '';
-    
-    localStorage.removeItem(`card-auto-${card.dataset.name}`);
-    localStorage.removeItem(`card-height-${card.dataset.name}`);
-    
-    // Reset wrapper height
-    const wrapper = card.querySelector('.card-content-wrapper');
-    if (wrapper) wrapper.style.height = 'auto';
-  });
-});
-
-// Reload cards button
+// ===== CARD CONTROLS =====
 document.getElementById('reloadCardsBtn').addEventListener('click', function() {
   // Clear cache and reload
   cardCache.clear();
@@ -1451,45 +1655,9 @@ document.getElementById('reloadCardsBtn').addEventListener('click', function() {
   loadCardList();
 });
 
-// Load all cards button
 document.getElementById('loadAllBtn').addEventListener('click', function() {
   loadAllCards();
 });
-
-// Function to check visible cards (as backup)
-function checkVisibleCards() {
-  const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
-  const viewportHeight = window.innerHeight;
-  const scrollY = window.scrollY;
-  
-  cards.forEach(card => {
-    const rect = card.getBoundingClientRect();
-    const cardTop = rect.top + scrollY;
-    const cardBottom = rect.bottom + scrollY;
-    
-    // Check if card is in viewport
-    const isVisible = (
-      cardBottom > scrollY - 500 &&
-      cardTop < scrollY + viewportHeight + 500
-    );
-    
-    if (isVisible) {
-      const cardName = card.dataset.name;
-      if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-        loadCard(card, cardName);
-      }
-    }
-  });
-}
-
-// Backup scroll listener in case Intersection Observer fails
-let scrollCheckTimeout;
-window.addEventListener('scroll', () => {
-  if (scrollCheckTimeout) clearTimeout(scrollCheckTimeout);
-  scrollCheckTimeout = setTimeout(() => {
-    checkVisibleCards();
-  }, 200);
-}, { passive: true });
 
 // ===== ADD TO TOOLBOX =====
 document.addEventListener('click', function(e) {
@@ -1506,8 +1674,14 @@ document.addEventListener('click', function(e) {
       return;
     }
     
-    // Simple toolbox addition
-    alert(`Added "${cardName.replace(/-/g, ' ')}" to toolbox!`);
+    const contentBody = card.querySelector('.card-body');
+    const contentHTML = contentBody.innerHTML;
+    
+    // Create widget in toolbox
+    createWidget(cardName, contentHTML);
+    
+    // Show toolbox if hidden
+    toolbox.classList.remove('hidden');
     
     const addBtn = e.target.closest('.add-to-toolbox');
     addBtn.textContent = '✓';
@@ -1525,7 +1699,38 @@ new Sortable(document.getElementById('gridContainer'), {
   disabled: true
 });
 
-console.log("=== FIXED LAZY LOADING SYSTEM INITIALIZED ===");
+// Backup scroll listener
+let scrollCheckTimeout;
+window.addEventListener('scroll', () => {
+  if (scrollCheckTimeout) clearTimeout(scrollCheckTimeout);
+  scrollCheckTimeout = setTimeout(() => {
+    // Force check for visible cards
+    const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
+    const viewportHeight = window.innerHeight;
+    const scrollY = window.scrollY;
+    
+    cards.forEach(card => {
+      const rect = card.getBoundingClientRect();
+      const cardTop = rect.top + scrollY;
+      const cardBottom = rect.bottom + scrollY;
+      
+      // Check if card is in viewport
+      const isVisible = (
+        cardBottom > scrollY - 1000 &&
+        cardTop < scrollY + viewportHeight + 1000
+      );
+      
+      if (isVisible) {
+        const cardName = card.dataset.name;
+        if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+          loadCard(card, cardName);
+        }
+      }
+    });
+  }, 200);
+}, { passive: true });
+
+console.log("=== FIXED AUTO-LOADING SYSTEM INITIALIZED ===");
 </script>
 </body>
 </html>
