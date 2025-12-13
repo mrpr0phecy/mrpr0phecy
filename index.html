@@ -262,7 +262,7 @@
     transform: translateY(var(--card-translateY)) scale(var(--card-scale));
     transition: opacity .36s ease, transform .36s ease, height .3s ease;
     box-shadow:0 8px 24px rgba(0,0,0,0.35);
-    overflow: hidden; /* Changed from visible to hidden */
+    overflow: hidden;
     height: auto;
     max-height: 80vh;
     resize: vertical;
@@ -308,20 +308,12 @@
     display: none;
   }
   
-  /* Card content wrapper - FIXED: Now properly contains content */
+  /* Card content wrapper */
   .card-content-wrapper {
     position: relative;
     width: 100%;
     height: 100%;
-    overflow: auto; /* Changed from hidden to auto */
-  }
-  
-  /* Card inner content */
-  .card-inner {
-    width: 100%;
-    height: auto;
-    min-height: 100%;
-    box-sizing: border-box;
+    overflow: auto;
   }
   
   /* Card body - where the actual content goes */
@@ -330,36 +322,6 @@
     overflow: auto;
     max-height: 100%;
     box-sizing: border-box;
-  }
-  
-  /* Expand/collapse button */
-  .card-expand-btn {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    background: rgba(45,212,255,0.2);
-    border: 1px solid rgba(45,212,255,0.4);
-    color: var(--accent);
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 11px;
-    cursor: pointer;
-    z-index: 10;
-    opacity: 0.7;
-    transition: opacity 0.2s, background 0.2s;
-  }
-  
-  .card-expand-btn:hover {
-    opacity: 1;
-    background: rgba(45,212,255,0.3);
-  }
-  
-  /* Auto-sizing for card content */
-  .card-auto-size {
-    height: auto !important;
-    min-height: 120px;
-    max-height: none;
-    resize: none;
   }
   
   /* Card size indicators */
@@ -651,6 +613,7 @@
       <button id="sortRandomBtn">Random</button>
       <button id="autoSizeAllBtn" title="Set all cards to auto-height">Auto Height</button>
       <button id="resetCardSizesBtn" title="Reset all card sizes">Reset Sizes</button>
+      <button id="reloadCardsBtn" title="Reload card list">Reload Cards</button>
     </div>
 
     <div id="status" class="muted" style="text-align:center;margin-bottom:6px">Loading card list...</div>
@@ -662,35 +625,33 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-// ===== FIXED LAZY LOADING SYSTEM =====
-// This version properly detects visible cards and loads them as you scroll
+// ===== SIMPLE, WORKING LAZY LOADING SYSTEM =====
+// This version uses a simpler, more reliable approach
 
-console.log("=== STARTING FIXED LAZY LOADING SYSTEM ===");
+console.log("=== STARTING SIMPLE LAZY LOADING SYSTEM ===");
 
-// Configuration - tuned for better performance
-const LAZY_LOAD_CONFIG = {
-  VISIBLE_BUFFER: 3, // Reduced for faster loading
-  MAX_LOADED_CARDS: 50,
-  BATCH_SIZE: 3,
-  BATCH_DELAY: 50,
-  UNLOAD_DISTANCE: 6,
-  SEARCH_LOAD_ALL: true,
-  DEBOUNCE_SCROLL: 50,
-  THROTTLE_OBSERVER: 50,
-  CACHE_SIZE: 30,
-  LOAD_IMMEDIATE: 8, // Number of cards to load immediately
+// Configuration
+const CONFIG = {
+  LOAD_BATCH_SIZE: 6,
+  LOAD_DELAY: 100,
+  VISIBLE_BUFFER: 300, // pixels
+  DEBOUNCE_SCROLL: 100
 };
 
 // Global state
-const lazyState = {
-  allCardFiles: [],
-  loadedCards: new Set(),
-  cardCache: new Map(),
-  isLoading: false,
-  isSearching: false,
-  visibleCards: new Set(),
-  observer: null,
-  lastScrollY: 0
+let allCards = [];
+let loadedCards = new Set();
+let isLoading = false;
+let cardCache = new Map();
+let observer = null;
+
+// Background themes
+const themes = {
+  'default': { bg1: '#0a0f14', bg2: '#141e28' },
+  'deep-blue': { bg1: '#05080c', bg2: '#0f151f' },
+  'deep-purple': { bg1: '#12081a', bg2: '#1f1229' },
+  'deep-teal': { bg1: '#061616', bg2: '#0f2525' },
+  'deep-red': { bg1: '#160606', bg2: '#251010' }
 };
 
 // Card resize state
@@ -703,18 +664,8 @@ const cardResizeState = {
   maxHeight: 1200
 };
 
-// Background themes
-const themes = {
-  'default': { bg1: '#0a0f14', bg2: '#141e28' },
-  'deep-blue': { bg1: '#05080c', bg2: '#0f151f' },
-  'deep-purple': { bg1: '#12081a', bg2: '#1f1229' },
-  'deep-teal': { bg1: '#061616', bg2: '#0f2525' },
-  'deep-red': { bg1: '#160606', bg2: '#251010' }
-};
-
 // ===== THEME SYSTEM =====
 function applyTheme(themeName) {
-  console.log("Applying theme:", themeName);
   const theme = themes[themeName];
   if (!theme) return;
   
@@ -731,10 +682,8 @@ function applyTheme(themeName) {
   localStorage.setItem('theme', themeName);
 }
 
-// ===== FIXED CARD RESIZE SYSTEM =====
+// ===== CARD RESIZE SYSTEM =====
 function initCardResizeSystem() {
-  console.log("Initializing card resize system...");
-  
   // Mouse events for desktop
   document.addEventListener('mousedown', handleCardResizeStart);
   document.addEventListener('mousemove', handleCardResizeMove);
@@ -766,27 +715,6 @@ function handleCardResizeStart(e) {
   }
 }
 
-function handleCardResizeStartTouch(e) {
-  if (e.touches.length !== 1) return;
-  
-  const touch = e.touches[0];
-  const card = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.card');
-  if (!card || card.classList.contains('card-auto-size')) return;
-  
-  const rect = card.getBoundingClientRect();
-  const isNearBottom = touch.clientY > rect.bottom - 30 && touch.clientY < rect.bottom;
-  
-  if (isNearBottom) {
-    cardResizeState.isResizing = true;
-    cardResizeState.currentCard = card;
-    cardResizeState.startHeight = card.offsetHeight;
-    cardResizeState.startY = touch.clientY;
-    
-    card.classList.add('card-resizing');
-    document.body.style.userSelect = 'none';
-  }
-}
-
 function handleCardResizeMove(e) {
   if (!cardResizeState.isResizing || !cardResizeState.currentCard) return;
   
@@ -797,36 +725,13 @@ function handleCardResizeMove(e) {
   
   newHeight = Math.max(cardResizeState.minHeight, Math.min(cardResizeState.maxHeight, newHeight));
   
-  cardResizeState.currentCard.style.height = newHeight + 'px';
-  
-  // IMPORTANT: Update the content wrapper height when card is resized
-  const wrapper = cardResizeState.currentCard.querySelector('.card-content-wrapper');
-  if (wrapper) {
-    // Set wrapper height to fill the card (minus padding)
-    const cardStyle = window.getComputedStyle(cardResizeState.currentCard);
-    const paddingTop = parseInt(cardStyle.paddingTop) || 0;
-    const paddingBottom = parseInt(cardStyle.paddingBottom) || 0;
-    wrapper.style.height = (newHeight - paddingTop - paddingBottom) + 'px';
-  }
-}
-
-function handleCardResizeMoveTouch(e) {
-  if (!cardResizeState.isResizing || !cardResizeState.currentCard || e.touches.length !== 1) return;
-  
-  e.preventDefault();
-  
-  const touch = e.touches[0];
-  const deltaY = touch.clientY - cardResizeState.startY;
-  let newHeight = cardResizeState.startHeight + deltaY;
-  
-  newHeight = Math.max(cardResizeState.minHeight, Math.min(cardResizeState.maxHeight, newHeight));
-  
-  cardResizeState.currentCard.style.height = newHeight + 'px';
+  const card = cardResizeState.currentCard;
+  card.style.height = newHeight + 'px';
   
   // Update wrapper height
-  const wrapper = cardResizeState.currentCard.querySelector('.card-content-wrapper');
+  const wrapper = card.querySelector('.card-content-wrapper');
   if (wrapper) {
-    const cardStyle = window.getComputedStyle(cardResizeState.currentCard);
+    const cardStyle = window.getComputedStyle(card);
     const paddingTop = parseInt(cardStyle.paddingTop) || 0;
     const paddingBottom = parseInt(cardStyle.paddingBottom) || 0;
     wrapper.style.height = (newHeight - paddingTop - paddingBottom) + 'px';
@@ -850,7 +755,7 @@ function handleCardResizeEnd() {
   document.body.style.userSelect = '';
 }
 
-// ===== FIXED CARD SETUP =====
+// ===== SIMPLE CARD LOADING =====
 function setupCardContent(card) {
   const contentDiv = card.querySelector('.content');
   if (!contentDiv) return;
@@ -989,46 +894,86 @@ function copyEmbedCode(cardName, fileName, displayName) {
   });
 }
 
-// ===== FIXED LAZY LOADING FUNCTIONS =====
+// ===== SIMPLE LAZY LOADING =====
 function checkVisibleCards() {
-  const cards = document.querySelectorAll('.card:not(.loaded)');
+  if (isLoading) return;
+  
+  const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
+  if (cards.length === 0) return;
+  
   const viewportHeight = window.innerHeight;
+  const scrollY = window.scrollY;
+  
+  // Find cards that are visible or near visible
+  const cardsToLoad = [];
   
   cards.forEach(card => {
     const rect = card.getBoundingClientRect();
+    const cardTop = rect.top + scrollY;
+    const cardBottom = rect.bottom + scrollY;
     
     // Check if card is in or near viewport
     const isVisible = (
-      rect.top < viewportHeight + 300 && // 300px buffer below viewport
-      rect.bottom > -300 // 300px buffer above viewport
+      cardBottom > scrollY - CONFIG.VISIBLE_BUFFER &&
+      cardTop < scrollY + viewportHeight + CONFIG.VISIBLE_BUFFER
     );
     
-    if (isVisible && !card.classList.contains('loading')) {
+    if (isVisible) {
       const cardName = card.dataset.name;
-      if (cardName && !lazyState.loadedCards.has(cardName)) {
-        lazyState.visibleCards.add(cardName);
-        loadCardContent(cardName, card);
+      if (cardName && !loadedCards.has(cardName)) {
+        cardsToLoad.push({ card, cardName });
       }
     }
   });
   
-  updateStatusText();
+  if (cardsToLoad.length > 0) {
+    loadCardsBatch(cardsToLoad.slice(0, CONFIG.LOAD_BATCH_SIZE));
+  }
 }
 
-function loadCardContent(cardName, cardElement) {
-  if (!cardElement || lazyState.loadedCards.has(cardName)) return;
+function loadCardsBatch(cardsToLoad) {
+  if (isLoading || cardsToLoad.length === 0) return;
   
-  const contentDiv = cardElement.querySelector('.content');
-  if (!contentDiv) return;
+  isLoading = true;
+  showLoadingIndicator(`Loading ${cardsToLoad.length} cards...`);
+  
+  let loadedCount = 0;
+  
+  cardsToLoad.forEach(({ card, cardName }, index) => {
+    setTimeout(() => {
+      loadSingleCard(card, cardName, () => {
+        loadedCount++;
+        if (loadedCount === cardsToLoad.length) {
+          isLoading = false;
+          hideLoadingIndicator();
+          updateStatusText();
+        }
+      });
+    }, index * CONFIG.LOAD_DELAY);
+  });
+}
+
+function loadSingleCard(card, cardName, onComplete) {
+  if (!card || loadedCards.has(cardName)) {
+    onComplete();
+    return;
+  }
+  
+  const contentBody = card.querySelector('.card-body');
+  if (!contentBody) {
+    onComplete();
+    return;
+  }
   
   // Mark as loading
-  cardElement.classList.add('loading');
-  cardElement.querySelector('.content .card-body').innerHTML = '<div style="padding:20px;text-align:center;color:rgba(230,250,255,0.6)">Loading...</div>';
+  card.classList.add('loading');
+  contentBody.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(230,250,255,0.6)">Loading...</div>';
   
-  // Check cache first
-  if (lazyState.cardCache.has(cardName)) {
-    const cachedHTML = lazyState.cardCache.get(cardName);
-    processLoadedCard(cardName, cardElement, cachedHTML, true);
+  // Check cache
+  if (cardCache.has(cardName)) {
+    const cachedHTML = cardCache.get(cardName);
+    processLoadedCard(card, cardName, cachedHTML, true);
+    onComplete();
     return;
   }
   
@@ -1040,25 +985,27 @@ function loadCardContent(cardName, cardElement) {
     })
     .then(html => {
       // Cache the HTML
-      lazyState.cardCache.set(cardName, html);
-      processLoadedCard(cardName, cardElement, html, false);
+      cardCache.set(cardName, html);
+      processLoadedCard(card, cardName, html, false);
+      onComplete();
     })
-    .catch(() => {
-      cardElement.querySelector('.content .card-body').textContent = 'Preview unavailable';
-      cardElement.classList.remove('loading');
-      lazyState.loadedCards.add(cardName);
-      updateStatusText();
+    .catch(error => {
+      console.error(`Failed to load card ${cardName}:`, error);
+      contentBody.innerHTML = '<div style="padding:20px;text-align:center;color:rgba(255,77,77,0.6)">Failed to load card</div>';
+      card.classList.remove('loading');
+      loadedCards.add(cardName);
+      onComplete();
     });
 }
 
-function processLoadedCard(cardName, cardElement, html, fromCache) {
-  const contentBody = cardElement.querySelector('.card-body');
+function processLoadedCard(card, cardName, html, fromCache) {
+  const contentBody = card.querySelector('.card-body');
   
   // Load HTML
   contentBody.innerHTML = html;
   
   // Add embed section
-  addEmbedSectionToCard(cardElement, `${cardName}.html`);
+  addEmbedSectionToCard(card, `${cardName}.html`);
   
   // Execute scripts
   const scripts = contentBody.querySelectorAll('script');
@@ -1076,14 +1023,12 @@ function processLoadedCard(cardName, cardElement, html, fromCache) {
   });
   
   // Mark as loaded
-  lazyState.loadedCards.add(cardName);
-  cardElement.classList.remove('loading');
-  cardElement.classList.add('loaded', 'visible');
+  loadedCards.add(cardName);
+  card.classList.remove('loading');
+  card.classList.add('loaded', 'visible');
   
   // Setup card content for resizing
-  setupCardContent(cardElement);
-  
-  updateStatusText();
+  setupCardContent(card);
   
   console.log(`Loaded card: ${cardName} ${fromCache ? '(from cache)' : ''}`);
 }
@@ -1092,15 +1037,10 @@ function updateStatusText() {
   const status = document.getElementById('status');
   if (!status) return;
   
-  const total = lazyState.allCardFiles.length;
-  const loaded = lazyState.loadedCards.size;
+  const total = allCards.length;
+  const loaded = loadedCards.size;
   
-  if (lazyState.isSearching) {
-    const visibleCards = document.querySelectorAll('.card[style=""]').length;
-    status.textContent = `Search results: ${visibleCards} cards`;
-  } else {
-    status.textContent = `${loaded} of ${total} cards loaded`;
-  }
+  status.textContent = `${loaded} of ${total} cards loaded`;
 }
 
 function showLoadingIndicator(text = 'Loading...') {
@@ -1120,64 +1060,197 @@ function hideLoadingIndicator() {
   }
 }
 
-// ===== FIXED TOOLBOX SYSTEM =====
-let widgets = [];
-let toolboxDocked = false;
-
-function initToolbox() {
-  const toolbox = document.getElementById('toolbox');
-  const toolboxTitle = document.getElementById('toolboxTitle');
+// ===== CARD MANAGEMENT =====
+function createCardPlaceholders(cardNames) {
+  const grid = document.getElementById('gridContainer');
+  grid.innerHTML = '';
   
-  let isDragging = false;
-  let dragOffset = { x: 0, y: 0 };
-  
-  toolboxTitle.addEventListener('mousedown', startDrag);
-  
-  function startDrag(e) {
-    if (e.target.tagName === 'BUTTON') return;
+  cardNames.forEach((cardName, index) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.name = cardName;
+    card.dataset.index = index;
     
-    isDragging = true;
-    const rect = toolbox.getBoundingClientRect();
-    dragOffset.x = e.clientX - rect.left;
-    dragOffset.y = e.clientY - rect.top;
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    header.innerHTML = `<h3>${cardName.replace(/-/g, ' ')}</h3>
+      <div style="display:flex;gap:8px">
+        <div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent);font-size:18px;line-height:1">+</div>
+      </div>`;
     
-    document.addEventListener('mousemove', onDrag);
-    document.addEventListener('mouseup', stopDrag);
-    toolboxTitle.style.cursor = 'grabbing';
-  }
-  
-  function onDrag(e) {
-    if (!isDragging) return;
+    const content = document.createElement('div');
+    content.className = 'content';
+    content.innerHTML = `
+      <div class="card-content-wrapper">
+        <div class="card-body">
+          <div style="padding:20px;text-align:center;color:rgba(230,250,255,0.4)">
+            Click or scroll to load card...
+          </div>
+        </div>
+      </div>
+    `;
     
-    e.preventDefault();
-    toolbox.style.left = 'auto';
-    toolbox.style.right = 'auto';
-    toolbox.style.top = e.clientY - dragOffset.y + 'px';
-    toolbox.style.left = e.clientX - dragOffset.x + 'px';
-  }
-  
-  function stopDrag() {
-    isDragging = false;
-    document.removeEventListener('mousemove', onDrag);
-    document.removeEventListener('mouseup', stopDrag);
-    toolboxTitle.style.cursor = '';
-  }
-  
-  document.getElementById('dockBtn').addEventListener('click', function() {
-    toolboxDocked = !toolboxDocked;
-    
-    if (toolboxDocked) {
-      toolbox.style.left = 'auto';
-      toolbox.style.right = '18px';
-      toolbox.style.top = 'auto';
-      toolbox.style.bottom = '18px';
-      this.textContent = '⇲';
-    } else {
-      this.textContent = '⇱';
-    }
+    card.appendChild(header);
+    card.appendChild(content);
+    grid.appendChild(card);
   });
   
-  loadSavedWidgets();
+  updateStatusText();
+}
+
+// ===== LOAD CARD LIST =====
+async function loadCardList() {
+  try {
+    document.getElementById('status').textContent = 'Fetching card list...';
+    showLoadingIndicator('Loading card list...');
+    
+    // Try multiple approaches to get card list
+    let cardFiles = [];
+    
+    // Approach 1: Try GitHub API
+    try {
+      const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
+      const DEFAULT_BRANCH = 'main';
+      const [owner, repo] = DEFAULT_REPO.split('/');
+      
+      const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const data = await response.json();
+        cardFiles = (data.tree || [])
+          .filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html'))
+          .map(item => item.path.replace(/^cards\//, '').replace('.html', ''))
+          .sort();
+          
+        console.log(`Found ${cardFiles.length} cards via GitHub API`);
+      }
+    } catch (githubError) {
+      console.log('GitHub API failed, trying alternative approach:', githubError);
+    }
+    
+    // Approach 2: If GitHub API fails, use a static list or manual input
+    if (cardFiles.length === 0) {
+      // Try to get from a local list or use fallback
+      try {
+        // Try to fetch a card index file if it exists
+        const response = await fetch('cards/card-index.json');
+        if (response.ok) {
+          const data = await response.json();
+          cardFiles = data.cards || [];
+          console.log(`Found ${cardFiles.length} cards via card-index.json`);
+        }
+      } catch (indexError) {
+        console.log('Card index not found, using manual list');
+        
+        // Manual fallback - you can add your card names here
+        cardFiles = [
+          'battery-sizing',
+          'cable-calculator', 
+          'chord-finder',
+          'circuit-calculator',
+          'evolution-walker',
+          'tip-calculator',
+          'unit-converter',
+          'countdown-timer'
+        ];
+        
+        console.log(`Using manual list with ${cardFiles.length} cards`);
+      }
+    }
+    
+    // Approach 3: If still no cards, try to discover them
+    if (cardFiles.length === 0) {
+      console.log('Attempting to discover cards...');
+      // This would require server-side support or a different approach
+    }
+    
+    allCards = cardFiles;
+    
+    if (allCards.length === 0) {
+      throw new Error('No cards found');
+    }
+    
+    // Create card placeholders
+    createCardPlaceholders(allCards);
+    hideLoadingIndicator();
+    
+    // Initialize lazy loading
+    initLazyLoading();
+    
+    // Load initial visible cards
+    setTimeout(() => {
+      checkVisibleCards();
+      loadInitialCards();
+    }, 300);
+    
+  } catch (error) {
+    console.error("Error loading card list:", error);
+    document.getElementById('status').textContent = 'Error loading cards. Click "Reload Cards" to try again.';
+    hideLoadingIndicator();
+    
+    // Show error in dashboard
+    const grid = document.getElementById('gridContainer');
+    grid.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:40px;">
+        <div style="color:var(--accent);font-size:1.2rem;margin-bottom:16px;">
+          Failed to load cards
+        </div>
+        <div style="color:rgba(230,250,255,0.7);margin-bottom:24px;">
+          Error: ${error.message || 'Unknown error'}
+        </div>
+        <button onclick="loadCardList()" style="padding:12px 24px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;">
+          Retry Loading Cards
+        </button>
+      </div>
+    `;
+  }
+}
+
+function loadInitialCards() {
+  // Load first few cards immediately
+  const cards = document.querySelectorAll('.card:not(.loaded):not(.loading)');
+  const initialCount = Math.min(4, cards.length);
+  
+  for (let i = 0; i < initialCount; i++) {
+    const card = cards[i];
+    const cardName = card.dataset.name;
+    
+    if (cardName && !loadedCards.has(cardName)) {
+      loadSingleCard(card, cardName, () => {
+        updateStatusText();
+      });
+    }
+  }
+}
+
+function initLazyLoading() {
+  // Set up scroll listener
+  let scrollTimeout;
+  window.addEventListener('scroll', () => {
+    if (scrollTimeout) clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      checkVisibleCards();
+    }, CONFIG.DEBOUNCE_SCROLL);
+  }, { passive: true });
+  
+  // Also check on resize
+  window.addEventListener('resize', () => {
+    checkVisibleCards();
+  }, { passive: true });
+  
+  // Click to load
+  document.addEventListener('click', function(e) {
+    const card = e.target.closest('.card');
+    if (card && !card.classList.contains('loaded') && !card.classList.contains('loading')) {
+      const cardName = card.dataset.name;
+      if (cardName && !loadedCards.has(cardName)) {
+        loadSingleCard(card, cardName, () => {
+          updateStatusText();
+        });
+      }
+    }
+  });
 }
 
 // ===== INITIALIZATION =====
@@ -1214,11 +1287,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Initialize systems
-  initToolbox();
   initCardResizeSystem();
   
-  // Load dashboard
-  loadDashboard();
+  // Load cards
+  loadCardList();
 });
 
 // Scroll to search bar on load
@@ -1265,15 +1337,7 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
   });
 });
 
-const toolbox = document.getElementById('toolbox');
-document.getElementById('toolboxToggle').addEventListener('click', function() {
-  toolbox.classList.toggle('hidden');
-});
-document.getElementById('toolboxClose').addEventListener('click', function(e) {
-  e.stopPropagation();
-  toolbox.classList.add('hidden');
-});
-
+// Reader mode
 document.getElementById('readerToggle').addEventListener('click', function() {
   document.body.classList.toggle('reader-mode');
   localStorage.setItem('readerMode', document.body.classList.contains('reader-mode') ? 'on' : 'off');
@@ -1289,42 +1353,36 @@ searchInput.addEventListener('input', function(e) {
   if (searchTimeout) clearTimeout(searchTimeout);
   
   searchTimeout = setTimeout(() => {
-    lazyState.isSearching = q.length > 0;
+    const cards = document.querySelectorAll('.card');
     
-    if (lazyState.isSearching) {
-      performSearch(q);
+    cards.forEach(card => {
+      const name = card.dataset.name.toLowerCase();
+      const text = card.textContent.toLowerCase();
+      const matches = name.includes(q) || text.includes(q);
+      
+      card.style.display = matches ? '' : 'none';
+      
+      // If card is visible but not loaded, load it
+      if (matches && !card.classList.contains('loaded') && !card.classList.contains('loading')) {
+        const cardName = card.dataset.name;
+        if (cardName && !loadedCards.has(cardName)) {
+          loadSingleCard(card, cardName, () => {
+            updateStatusText();
+          });
+        }
+      }
+    });
+    
+    // Update status for search
+    const visibleCount = document.querySelectorAll('.card[style=""]').length;
+    const status = document.getElementById('status');
+    if (q.length > 0) {
+      status.textContent = `Search results: ${visibleCount} cards`;
     } else {
-      document.querySelectorAll('.card').forEach(card => {
-        card.style.display = '';
-      });
-      // Trigger check for visible cards after search
-      setTimeout(checkVisibleCards, 100);
+      updateStatusText();
     }
   }, 300);
 });
-
-function performSearch(query) {
-  const cards = document.querySelectorAll('.card');
-  let visibleCount = 0;
-  
-  cards.forEach(card => {
-    const name = card.dataset.name.toLowerCase();
-    const text = card.textContent.toLowerCase();
-    const matches = name.includes(query) || text.includes(query);
-    
-    card.style.display = matches ? '' : 'none';
-    
-    if (matches) {
-      visibleCount++;
-      
-      if (!card.classList.contains('loaded')) {
-        loadCardContent(card.dataset.name, card);
-      }
-    }
-  });
-  
-  updateStatusText();
-}
 
 // ===== SORT BUTTONS =====
 document.getElementById('sortAlphaBtn').addEventListener('click', function() {
@@ -1380,141 +1438,13 @@ document.getElementById('resetCardSizesBtn').addEventListener('click', function(
   });
 });
 
-// ===== FIXED LOAD DASHBOARD =====
-async function loadDashboard() {
-  try {
-    const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
-    const DEFAULT_BRANCH = 'main';
-    
-    const [owner, repo] = DEFAULT_REPO.split('/');
-    
-    document.getElementById('status').textContent = 'Fetching card list...';
-    showLoadingIndicator('Loading card list...');
-    
-    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    lazyState.allCardFiles = (data.tree || [])
-      .filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html'))
-      .map(item => item.path.replace(/^cards\//, '').replace('.html', ''))
-      .sort();
-    
-    console.log(`Found ${lazyState.allCardFiles.length} cards`);
-    
-    const grid = document.getElementById('gridContainer');
-    grid.innerHTML = '';
-    
-    lazyState.allCardFiles.forEach((cardName, index) => {
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.dataset.name = cardName;
-      card.dataset.index = index;
-      
-      const header = document.createElement('div');
-      header.className = 'card-header';
-      header.innerHTML = `<h3>${cardName.replace(/-/g, ' ')}</h3>
-        <div style="display:flex;gap:8px">
-          <div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent);font-size:18px;line-height:1">+</div>
-        </div>`;
-      
-      const content = document.createElement('div');
-      content.className = 'content';
-      content.innerHTML = `
-        <div class="card-content-wrapper">
-          <div class="card-body">
-            <div style="padding:20px;text-align:center;color:rgba(230,250,255,0.4)">
-              Click or scroll to load card...
-            </div>
-          </div>
-        </div>
-      `;
-      
-      card.appendChild(header);
-      card.appendChild(content);
-      grid.appendChild(card);
-    });
-    
-    updateStatusText();
-    hideLoadingIndicator();
-    
-    // Initialize Intersection Observer for lazy loading
-    initIntersectionObserver();
-    
-    // Load initial batch of cards immediately
-    loadInitialCards();
-    
-  } catch (error) {
-    console.error("Error loading dashboard:", error);
-    document.getElementById('status').textContent = 'Error loading cards';
-    hideLoadingIndicator();
-  }
-}
-
-function initIntersectionObserver() {
-  // Use Intersection Observer for better performance
-  if ('IntersectionObserver' in window) {
-    lazyState.observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const card = entry.target;
-          const cardName = card.dataset.name;
-          
-          if (cardName && !lazyState.loadedCards.has(cardName) && !card.classList.contains('loading')) {
-            lazyState.visibleCards.add(cardName);
-            loadCardContent(cardName, card);
-          }
-          
-          // Unobserve once loaded
-          lazyState.observer.unobserve(card);
-        }
-      });
-    }, {
-      root: null,
-      rootMargin: '300px 0px', // Load cards 300px before they enter viewport
-      threshold: 0.1
-    });
-    
-    // Observe all cards
-    document.querySelectorAll('.card:not(.loaded)').forEach(card => {
-      lazyState.observer.observe(card);
-    });
-  } else {
-    // Fallback to scroll event for older browsers
-    console.log("IntersectionObserver not supported, using scroll event");
-    let scrollTimeout;
-    window.addEventListener('scroll', () => {
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        checkVisibleCards();
-      }, LAZY_LOAD_CONFIG.DEBOUNCE_SCROLL);
-    });
-    
-    // Also check on resize
-    window.addEventListener('resize', () => {
-      checkVisibleCards();
-    });
-  }
-}
-
-function loadInitialCards() {
-  // Load first batch of cards immediately
-  const cards = document.querySelectorAll('.card:not(.loaded)');
-  const cardsToLoad = Math.min(LAZY_LOAD_CONFIG.LOAD_IMMEDIATE, cards.length);
-  
-  for (let i = 0; i < cardsToLoad; i++) {
-    const card = cards[i];
-    const cardName = card.dataset.name;
-    
-    if (cardName && !lazyState.loadedCards.has(cardName)) {
-      lazyState.visibleCards.add(cardName);
-      loadCardContent(cardName, card);
-    }
-  }
-  
-  // Also check visible cards after a short delay
-  setTimeout(checkVisibleCards, 500);
-}
+// Reload cards button
+document.getElementById('reloadCardsBtn').addEventListener('click', function() {
+  // Clear cache and reload
+  cardCache.clear();
+  loadedCards.clear();
+  loadCardList();
+});
 
 // ===== ADD TO TOOLBOX =====
 document.addEventListener('click', function(e) {
@@ -1531,8 +1461,8 @@ document.addEventListener('click', function(e) {
       return;
     }
     
-    // Simple toolbox addition (full implementation would need more code)
-    alert(`Added "${cardName}" to toolbox!`);
+    // Simple toolbox addition
+    alert(`Added "${cardName.replace(/-/g, ' ')}" to toolbox!`);
     
     const addBtn = e.target.closest('.add-to-toolbox');
     addBtn.textContent = '✓';
@@ -1550,7 +1480,7 @@ new Sortable(document.getElementById('gridContainer'), {
   disabled: true
 });
 
-console.log("=== FIXED LAZY LOADING SYSTEM INITIALIZED ===");
+console.log("=== SIMPLE LAZY LOADING SYSTEM INITIALIZED ===");
 </script>
 </body>
 </html>
