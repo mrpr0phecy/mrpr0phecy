@@ -1,1093 +1,742 @@
-<h2 id="evolution-walker-title">🏃 Evolution AI Walker</h2>
+<h2>Evolution AI Walker</h2>
+<p class="description">Watch AI creatures evolve to walk better over time! Creatures improve through natural selection.</p>
 
-<form aria-describedby="evolution-walker-desc">
-  <p id="evolution-walker-desc" class="small">
-    Watch AI creatures evolve to walk better over time! They improve the longer you stay on the site.
-    <span id="evo-permanent-bonus" style="color:#39ff14;font-weight:600;display:none;">(+<span id="evo-bonus-value">0</span>% permanent bonus!)</span>
-  </p>
-
-  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
-    <div class="field">
-      <label for="evo-population" style="display:block;margin-bottom:6px;color:#2dd4ff;font-weight:500;">
-        👥 Population Size
-      </label>
-      <select id="evo-population" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;">
-        <option value="8">8 Creatures (Fast)</option>
-        <option value="12" selected>12 Creatures (Balanced)</option>
-        <option value="16">16 Creatures (Detailed)</option>
-        <option value="20">20 Creatures (Advanced)</option>
-      </select>
+<form class="tool-form">
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <div class="row">
+      <div class="field">
+        <label for="evo-population">Population Size</label>
+        <select id="evo-population" class="input">
+          <option value="8">8 Creatures (Fast)</option>
+          <option value="12" selected>12 Creatures (Balanced)</option>
+          <option value="16">16 Creatures (Detailed)</option>
+          <option value="20">20 Creatures (Advanced)</option>
+        </select>
+      </div>
+      
+      <div class="field">
+        <label for="evo-terrain">Terrain Type</label>
+        <select id="evo-terrain" class="input">
+          <option value="flat" selected>Flat Ground</option>
+          <option value="hills">Gentle Hills</option>
+          <option value="mountains">Steep Mountains</option>
+          <option value="obstacles">With Obstacles</option>
+        </select>
+      </div>
     </div>
-    
+
     <div class="field">
-      <label for="evo-terrain" style="display:block;margin-bottom:6px;color:#2dd4ff;font-weight:500;">
-        🗺️ Terrain Type
-      </label>
-      <select id="evo-terrain" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;">
-        <option value="flat" selected>Flat Ground</option>
-        <option value="hills">Gentle Hills</option>
-        <option value="mountains">Steep Mountains</option>
-        <option value="obstacles">With Obstacles</option>
-      </select>
+      <label for="evo-mutation-slider">Mutation Rate</label>
+      <div class="slider-group">
+        <input type="range" id="evo-mutation-slider" min="1" max="30" value="15" class="slider" />
+        <div class="slider-info">
+          <span id="evo-mutation-value">15%</span>
+          <span class="helper">Higher = more diversity</span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="field" style="margin-top:10px;">
-    <label for="evo-mutation" style="display:block;margin-bottom:6px;color:#2dd4ff;font-weight:500;">
-      🧬 Mutation Rate
-    </label>
-    <div style="display:flex;align-items:center;gap:10px;">
-      <input type="range" id="evo-mutation-slider" min="1" max="30" value="15" step="1"
-             style="flex:1;height:8px;border-radius:4px;background:linear-gradient(to right, #ff4d4d, #ffa500, #39ff14);outline:none;cursor:pointer;">
-      <input type="number" id="evo-mutation" value="15" min="1" max="30" step="1"
-             style="width:70px;padding:10px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:#e6faff;text-align:center;">
-      <div style="color:#2dd4ff;white-space:nowrap;">%</div>
-    </div>
-    <div style="font-size:12px;color:rgba(230,250,255,0.6);margin-top:4px;">
-      Higher = more diversity, Lower = more stability
-    </div>
-  </div>
-
-  <div class="actions" style="margin-top:20px;display:flex;gap:10px;">
-    <button type="button" onclick="evoStartEvolution()" id="evo-start-btn"
-            style="flex:1;padding:12px;background:linear-gradient(135deg, #39ff14, #2dd4ff);color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:600;transition:all 0.3s;">
-      🚀 Start Evolution
-    </button>
-    <button type="button" onclick="evoPauseEvolution()" id="evo-pause-btn" disabled
-            style="padding:12px 16px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.3);color:#ffa500;border-radius:8px;cursor:pointer;transition:all 0.3s;">
-      ⏸️ Pause
-    </button>
-    <button type="button" onclick="evoResetEvolution()"
-            style="padding:12px 16px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);color:#ff4d4d;border-radius:8px;cursor:pointer;transition:all 0.3s;">
-      🔄 Reset
-    </button>
+  <div class="actions">
+    <button type="button" class="start-btn" onclick="startEvolution()">Start Evolution</button>
+    <button type="button" class="pause-btn" onclick="pauseEvolution()" disabled>Pause</button>
+    <button type="button" class="reset-btn" onclick="resetEvolution()">Reset</button>
   </div>
 </form>
 
-<!-- 3D Canvas Container -->
-<div style="margin-top:16px;position:relative;background:#000;border-radius:8px;overflow:hidden;border:1px solid rgba(45,212,255,0.2);min-height:300px;">
-  <div id="evo-canvas-container" style="width:100%;height:300px;position:relative;display:flex;align-items:center;justify-content:center;">
-    <!-- Loading/Initial State -->
-    <div id="evo-loading-state" style="text-align:center;color:#fff;z-index:10;">
-      <div style="font-size:48px;margin-bottom:15px;">🧬</div>
-      <h3 style="color:#2dd4ff;margin-bottom:10px;">Evolution AI Walker</h3>
-      <p style="color:#aaa;margin-bottom:20px;">Click "Start Evolution" to begin!</p>
-      <div style="color:#666;font-size:12px;">Loading 3D engine...</div>
+<!-- Simulation Container -->
+<div class="simulation-container">
+  <div id="evo-canvas-container">
+    <!-- Loading State -->
+    <div class="loading-state" id="evo-loading-state">
+      <div class="loading-icon">🧬</div>
+      <h3>Evolution AI Walker</h3>
+      <p>Click "Start Evolution" to begin!</p>
+      <div class="loading-progress">
+        <div class="progress-bar" id="evo-progress-bar"></div>
+      </div>
     </div>
     
     <!-- Canvas will be inserted here -->
   </div>
   
   <!-- Overlay Stats -->
-  <div id="evo-overlay-stats" style="position:absolute;top:10px;left:10px;color:#fff;background:rgba(0,0,0,0.7);padding:8px 12px;border-radius:6px;font-size:12px;display:none;backdrop-filter:blur(10px);z-index:5;">
-    <div style="display:grid;grid-template-columns:auto auto;gap:8px 16px;">
-      <div>🎯 Best:</div><div id="evo-overlay-best" style="color:#39ff14;">0 m</div>
-      <div>📊 Average:</div><div id="evo-overlay-avg">0 m</div>
-      <div>🧬 Generation:</div><div id="evo-overlay-gen" style="color:#2dd4ff;">1</div>
-      <div>👥 Alive:</div><div id="evo-overlay-alive">0</div>
+  <div class="stats-overlay" id="evo-overlay-stats">
+    <div class="stats-grid">
+      <div class="stat-item">
+        <span class="stat-label">Best:</span>
+        <span class="stat-value" id="evo-overlay-best">0 m</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Average:</span>
+        <span class="stat-value" id="evo-overlay-avg">0 m</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Generation:</span>
+        <span class="stat-value" id="evo-overlay-gen">1</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Alive:</span>
+        <span class="stat-value" id="evo-overlay-alive">0</span>
+      </div>
     </div>
   </div>
   
-  <!-- Performance Indicators -->
-  <div id="evo-performance-indicators" style="position:absolute;bottom:10px;right:10px;color:#fff;font-size:11px;display:none;z-index:5;">
-    <div style="background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:4px;margin-top:4px;">
-      <span style="color:#39ff14;">⬤</span> <span id="evo-fps-counter">0</span> FPS
-    </div>
+  <!-- Performance Indicator -->
+  <div class="performance-indicator" id="evo-performance-indicator">
+    <span class="fps-label">FPS:</span>
+    <span class="fps-value" id="evo-fps-counter">0</span>
   </div>
 </div>
 
 <!-- Results & Stats -->
-<div class="results" aria-live="polite" style="margin-top:16px;">
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
-    <div style="background:rgba(45,212,255,0.1);padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);text-align:center;">
-      <div style="color:#2dd4ff;font-size:12px;">🏆 Best Distance</div>
-      <div style="font-size:20px;font-weight:600;color:#39ff14;" id="evo-best-distance">0 m</div>
-      <div style="font-size:11px;color:#90caf9;margin-top:4px;" id="evo-best-time">Time: 0s</div>
+<div class="results">
+  <!-- Key Metrics -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-icon">🏆</div>
+      <div class="metric-content">
+        <div class="metric-label">Best Distance</div>
+        <div class="metric-value" id="evo-best-distance">0 m</div>
+        <div class="metric-sub" id="evo-best-time">Time: 0s</div>
+      </div>
     </div>
-    <div style="background:rgba(57,255,20,0.1);padding:12px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);text-align:center;">
-      <div style="color:#39ff14;font-size:12px;">🧬 Generation</div>
-      <div style="font-size:20px;font-weight:600;color:#2dd4ff;" id="evo-generation">1</div>
-      <div style="font-size:11px;color:#90caf9;margin-top:4px;" id="evo-mutations">Mutations: 0</div>
+    
+    <div class="metric-card">
+      <div class="metric-icon">🧬</div>
+      <div class="metric-content">
+        <div class="metric-label">Generation</div>
+        <div class="metric-value" id="evo-generation">1</div>
+        <div class="metric-sub" id="evo-mutations">Mutations: 0</div>
+      </div>
     </div>
-    <div style="background:rgba(157,78,221,0.1);padding:12px;border-radius:8px;border:1px solid rgba(157,78,221,0.2);text-align:center;">
-      <div style="color:#9d4edd;font-size:12px;">👥 Population</div>
-      <div style="font-size:20px;font-weight:600;color:#e6faff;" id="evo-population-count">0</div>
-      <div style="font-size:11px;color:#90caf9;margin-top:4px;" id="evo-alive-count">Alive: 0</div>
+    
+    <div class="metric-card">
+      <div class="metric-icon">👥</div>
+      <div class="metric-content">
+        <div class="metric-label">Population</div>
+        <div class="metric-value" id="evo-population-count">0</div>
+        <div class="metric-sub" id="evo-alive-count">Alive: 0</div>
+      </div>
     </div>
-    <div style="background:rgba(255,165,0,0.1);padding:12px;border-radius:8px;border:1px solid rgba(255,165,0,0.2);text-align:center;">
-      <div style="color:#ffa500;font-size:12px;">⏱️ Time</div>
-      <div style="font-size:20px;font-weight:600;color:#e6faff;" id="evo-time">0s</div>
-      <div style="font-size:11px;color:#90caf9;margin-top:4px;" id="evo-bonus-display">Bonus: 0%</div>
+    
+    <div class="metric-card">
+      <div class="metric-icon">⏱️</div>
+      <div class="metric-content">
+        <div class="metric-label">Time</div>
+        <div class="metric-value" id="evo-time">0s</div>
+        <div class="metric-sub" id="evo-bonus-display">Bonus: 0%</div>
+      </div>
     </div>
   </div>
 
-  <!-- Performance Graph -->
-  <div style="margin-top:16px;background:rgba(0,0,0,0.3);border-radius:8px;padding:12px;border:1px solid rgba(255,255,255,0.1);">
-    <div style="color:#2dd4ff;font-weight:600;margin-bottom:8px;font-size:14px;display:flex;justify-content:space-between;align-items:center;">
-      <span>📈 Performance Evolution</span>
-      <span id="evo-chart-scale" style="font-size:11px;color:#90caf9;">Scale: Auto</span>
+  <!-- Performance Chart -->
+  <div class="chart-section">
+    <div class="section-header">
+      <h3 class="section-title">Performance Evolution</h3>
+      <span class="chart-scale" id="evo-chart-scale">Max: 0m</span>
     </div>
-    <canvas id="evo-performance-chart" style="width:100%;height:100px;background:transparent;display:block;"></canvas>
+    <canvas id="evo-performance-chart"></canvas>
   </div>
 
   <!-- Leaderboard -->
-  <div id="evo-leaderboard" style="display:none;margin-top:16px;">
-    <div style="color:#2dd4ff;font-weight:600;margin-bottom:8px;font-size:14px;">🏆 Current Leaders</div>
-    <div id="evo-leaderboard-list" style="font-size:12px;color:rgba(230,250,255,0.8);background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;">
-      <!-- Leaderboard entries will appear here -->
+  <div class="leaderboard-section" id="evo-leaderboard">
+    <h3 class="section-title">Current Leaders</h3>
+    <div class="leaderboard-list" id="evo-leaderboard-list">
+      <!-- Will be populated by JavaScript -->
     </div>
   </div>
-  
-  <!-- Evolution Controls -->
-  <div style="display:flex;gap:10px;margin-top:16px;">
-    <button onclick="evoSpeedUp()" id="evo-speed-up" style="flex:1;padding:10px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);color:#39ff14;border-radius:8px;cursor:pointer;font-size:12px;">
-      ⚡ Speed Up (1x)
+
+  <!-- Advanced Controls -->
+  <div class="advanced-controls">
+    <button class="control-btn" onclick="speedUp()" id="evo-speed-up">
+      <span class="control-icon">⚡</span>
+      <span class="control-text">Speed (1x)</span>
     </button>
-    <button onclick="evoToggleAutoBreed()" id="evo-auto-breed" style="flex:1;padding:10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:#2dd4ff;border-radius:8px;cursor:pointer;font-size:12px;">
-      🔄 Auto-Breed: ON
+    
+    <button class="control-btn" onclick="toggleAutoBreed()" id="evo-auto-breed">
+      <span class="control-icon">🔄</span>
+      <span class="control-text">Auto-Breed: ON</span>
     </button>
-    <button onclick="evoSaveEvolution()" id="evo-save-btn" style="flex:1;padding:10px;background:rgba(155,89,182,0.1);border:1px solid rgba(155,89,182,0.3);color:#9b59b6;border-radius:8px;cursor:pointer;font-size:12px;">
-      💾 Save State
+    
+    <button class="control-btn" onclick="saveEvolution()" id="evo-save-btn">
+      <span class="control-icon">💾</span>
+      <span class="control-text">Save State</span>
     </button>
   </div>
 </div>
 
-<script>
-/* evolution-walker.html
-   - AI Evolution Walker with permanent improvement
-   - Enhanced and guaranteed to work
-*/
+<!-- Information Panel -->
+<details class="info-panel">
+  <summary>How Evolution Works</summary>
+  <div class="info-content">
+    <div class="info-grid">
+      <div class="info-card">
+        <h4>Natural Selection</h4>
+        <p>Creatures with better walking ability survive and reproduce.</p>
+      </div>
+      
+      <div class="info-card">
+        <h4>Neural Networks</h4>
+        <p>Each creature has a brain that controls its movements.</p>
+      </div>
+      
+      <div class="info-card">
+        <h4>Genetic Mutation</h4>
+        <p>Random mutations introduce new traits and behaviors.</p>
+      </div>
+      
+      <div class="info-card">
+        <h4>Crossover</h4>
+        <p>Successful traits are combined in offspring.</p>
+      </div>
+    </div>
+    
+    <div class="info-tips">
+      <h4>Tips for Better Evolution</h4>
+      <ul>
+        <li>Higher mutation rates increase diversity</li>
+        <li>More creatures = faster evolution</li>
+        <li>Challenging terrain drives adaptation</li>
+        <li>Let it run longer for better results</li>
+      </ul>
+    </div>
+  </div>
+</details>
 
-// Global Evo state
-let evo = {
-    // State management
-    scene: null,
-    camera: null,
-    renderer: null,
-    creatures: [],
-    isRunning: false,
-    isInitialized: false,
-    startTime: 0,
-    generation: 1,
-    mutations: 0,
-    lastFrameTime: 0,
-    fps: 0,
-    frameCount: 0,
-    lastFpsUpdate: 0,
+<script>
+/* Evolution AI Walker - Enhanced Version */
+class EvolutionWalker {
+  constructor() {
+    // Core Three.js objects
+    this.scene = null;
+    this.camera = null;
+    this.renderer = null;
+    
+    // Game state
+    this.creatures = [];
+    this.isRunning = false;
+    this.isInitialized = false;
+    this.generation = 1;
+    this.mutations = 0;
+    this.startTime = 0;
     
     // Performance tracking
-    bestFitnessHistory: [],
-    averageFitnessHistory: [],
-    lastStatsUpdate: 0,
+    this.fps = 0;
+    this.frameCount = 0;
+    this.lastFpsUpdate = 0;
+    this.lastFrameTime = 0;
+    
+    // Statistics
+    this.bestFitnessHistory = [];
+    this.averageFitnessHistory = [];
+    this.allTimeBest = 0;
+    this.permanentBonus = 0;
+    this.totalTimeSpent = 0;
     
     // Configuration
-    config: {
-        POPULATION_SIZE: 12,
-        MUTATION_RATE: 0.15,
-        ELIMINATION_DISTANCE: 150,
-        BREEDING_RATE: 0.03,
-        SPEED_MULTIPLIER: 1.0,
-        AUTO_BREED: true,
-        TERRAIN_TYPE: 'flat'
-    },
+    this.config = {
+      POPULATION_SIZE: 12,
+      MUTATION_RATE: 0.15,
+      SPEED_MULTIPLIER: 1.0,
+      AUTO_BREED: true,
+      TERRAIN_TYPE: 'flat'
+    };
     
     // Three.js objects
-    ground: null,
-    obstacles: [],
-    directionalLight: null,
-    ambientLight: null,
+    this.ground = null;
+    this.obstacles = [];
+    this.lights = [];
     
-    // Permanent bonuses
-    permanentBonus: 0,
-    totalTimeSpent: 0,
-    allTimeBest: 0,
-    savedState: null
-};
-
-// ========== INITIALIZATION FUNCTIONS ==========
-
-// Load permanent improvements
-function evoLoadPermanentBonus() {
+    // Bind methods
+    this.start = this.start.bind(this);
+    this.pause = this.pause.bind(this);
+    this.reset = this.reset.bind(this);
+    this.animate = this.animate.bind(this);
+  }
+  
+  // Initialize the simulation
+  async initialize() {
     try {
-        const saved = localStorage.getItem('evoPermanentBonus');
-        if (saved) {
-            const data = JSON.parse(saved);
-            evo.permanentBonus = Math.min(data.bonus || 0, 100);
-            evo.totalTimeSpent = data.totalTime || 0;
-            evo.allTimeBest = data.allTimeBest || 0;
-            
-            if (evo.permanentBonus > 0) {
-                document.getElementById('evo-permanent-bonus').style.display = 'inline';
-                document.getElementById('evo-bonus-value').textContent = evo.permanentBonus;
-            }
-        }
-    } catch (e) {
-        console.warn('Could not load permanent bonus:', e);
-    }
-}
-
-// Save permanent improvements
-function evoSavePermanentBonus() {
-    try {
-        const data = {
-            bonus: evo.permanentBonus,
-            totalTime: evo.totalTimeSpent,
-            allTimeBest: evo.allTimeBest,
-            lastUpdated: Date.now()
-        };
-        localStorage.setItem('evoPermanentBonus', JSON.stringify(data));
-    } catch (e) {
-        console.warn('Could not save permanent bonus:', e);
-    }
-}
-
-// Update permanent bonus based on time spent
-function evoUpdatePermanentBonus(dt) {
-    evo.totalTimeSpent += dt;
-    
-    // Gain 1% bonus every 2 minutes of total site usage
-    const minutes = evo.totalTimeSpent / 60;
-    const newBonus = Math.min(100, Math.floor(minutes / 2));
-    
-    if (newBonus > evo.permanentBonus) {
-        evo.permanentBonus = newBonus;
-        document.getElementById('evo-permanent-bonus').style.display = 'inline';
-        document.getElementById('evo-bonus-value').textContent = evo.permanentBonus;
-        document.getElementById('evo-bonus-display').textContent = `Bonus: ${evo.permanentBonus}%`;
-        evoSavePermanentBonus();
-        
-        // Visual feedback
-        const bonusElement = document.getElementById('evo-permanent-bonus');
-        bonusElement.style.animation = 'none';
-        setTimeout(() => {
-            bonusElement.style.animation = 'pulse 0.5s ease-in-out';
-        }, 10);
-    }
-}
-
-// Initialize the 3D environment
-async function evoInit() {
-    try {
-        // Show loading state
-        const loadingElement = document.getElementById('evo-loading-state');
-        loadingElement.innerHTML = `
-            <div style="font-size:48px;margin-bottom:15px;">🧬</div>
-            <h3 style="color:#2dd4ff;margin-bottom:10px;">Initializing Evolution Engine</h3>
-            <p style="color:#aaa;margin-bottom:20px;">Loading 3D components...</p>
-            <div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
-                <div id="evo-progress-bar" style="height:100%;background:#2dd4ff;width:0%;transition:width 0.3s;"></div>
-            </div>
-        `;
-        
-        // Load permanent bonuses
-        evoLoadPermanentBonus();
-        
-        // Check for Three.js availability
-        if (typeof THREE === 'undefined') {
-            await evoLoadThreeJS();
-        }
-        
-        // Initialize scene
-        evo.scene = new THREE.Scene();
-        evo.scene.fog = new THREE.Fog(0x000000, 50, 300);
-        
-        // Initialize camera
-        evo.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-        evo.camera.position.set(0, 25, 40);
-        
-        // Initialize renderer
-        const container = document.getElementById('evo-canvas-container');
-        evo.renderer = new THREE.WebGLRenderer({ 
-            antialias: true,
-            alpha: true,
-            powerPreference: "high-performance"
-        });
-        
-        evo.renderer.setSize(container.clientWidth, container.clientHeight);
-        evo.renderer.setClearColor(0x000000, 0);
-        evo.renderer.shadowMap.enabled = true;
-        evo.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        evo.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        
-        // Remove loading text and add canvas
-        container.innerHTML = '';
-        container.appendChild(evo.renderer.domElement);
-        
-        // Update progress
-        document.getElementById('evo-progress-bar').style.width = '30%';
-        
-        // Add lighting
-        evo.ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-        evo.scene.add(evo.ambientLight);
-        
-        evo.directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        evo.directionalLight.position.set(30, 50, 30);
-        evo.directionalLight.castShadow = true;
-        evo.directionalLight.shadow.camera.far = 200;
-        evo.directionalLight.shadow.mapSize.width = 1024;
-        evo.directionalLight.shadow.mapSize.height = 1024;
-        evo.scene.add(evo.directionalLight);
-        
-        // Add ground
-        evoCreateTerrain();
-        
-        // Update progress
-        document.getElementById('evo-progress-bar').style.width = '60%';
-        
-        // Create initial population
-        evoCreatePopulation();
-        
-        // Initialize performance chart
-        evoInitPerformanceChart();
-        
-        // Update progress
-        document.getElementById('evo-progress-bar').style.width = '90%';
-        
-        // Start animation loop
-        evoAnimate();
-        
-        // Update stats
-        evoUpdateStats();
-        
-        // Mark as initialized
-        evo.isInitialized = true;
-        
-        // Finalize loading
-        setTimeout(() => {
-            loadingElement.style.display = 'none';
-            document.getElementById('evo-progress-bar').style.width = '100%';
-        }, 500);
-        
-        console.log('Evolution Walker initialized successfully');
-        return true;
-        
+      // Show loading state
+      this.showLoading(true);
+      
+      // Load Three.js if not available
+      if (typeof THREE === 'undefined') {
+        await this.loadThreeJS();
+      }
+      
+      // Create scene
+      this.scene = new THREE.Scene();
+      this.scene.fog = new THREE.Fog(0x0b0f1a, 50, 300);
+      
+      // Setup camera
+      this.setupCamera();
+      
+      // Setup renderer
+      this.setupRenderer();
+      
+      // Setup lighting
+      this.setupLighting();
+      
+      // Create terrain
+      this.createTerrain();
+      
+      // Create initial population
+      this.createPopulation();
+      
+      // Setup event listeners
+      this.setupEventListeners();
+      
+      // Load saved data
+      this.loadSavedData();
+      
+      // Mark as initialized
+      this.isInitialized = true;
+      
+      // Hide loading state
+      this.showLoading(false);
+      
+      // Start animation loop
+      this.animate();
+      
+      console.log('Evolution Walker initialized successfully');
+      return true;
+      
     } catch (error) {
-        console.error('Failed to initialize evolution:', error);
-        document.getElementById('evo-canvas-container').innerHTML = `
-            <div style="color:#fff;padding:40px 20px;text-align:center;background:rgba(255,77,77,0.1);border-radius:8px;">
-                <div style="font-size:48px;margin-bottom:20px;">❌</div>
-                <h3 style="color:#ff4d4d;margin-bottom:10px;">3D Initialization Failed</h3>
-                <p style="color:#aaa;margin-bottom:20px;">Please check your browser compatibility</p>
-                <button onclick="location.reload()" style="padding:10px 20px;background:#2dd4ff;color:#000;border:none;border-radius:6px;cursor:pointer;">
-                    Try Again
-                </button>
-            </div>
-        `;
-        return false;
+      console.error('Initialization failed:', error);
+      this.showError('Failed to initialize 3D engine');
+      return false;
     }
-}
-
-// Load Three.js dynamically
-function evoLoadThreeJS() {
-    return new Promise((resolve, reject) => {
-        if (typeof THREE !== 'undefined') {
-            resolve();
-            return;
-        }
-        
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-        script.onload = () => {
-            console.log('Three.js loaded successfully');
-            resolve();
-        };
-        script.onerror = () => {
-            console.error('Failed to load Three.js');
-            reject(new Error('Three.js loading failed'));
-        };
-        document.head.appendChild(script);
+  }
+  
+  setupCamera() {
+    const container = document.getElementById('evo-canvas-container');
+    const aspect = container.clientWidth / container.clientHeight;
+    
+    this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+    this.camera.position.set(0, 25, 40);
+    this.camera.lookAt(0, 0, 0);
+  }
+  
+  setupRenderer() {
+    const container = document.getElementById('evo-canvas-container');
+    
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance"
     });
-}
-
-// Create terrain based on selection
-function evoCreateTerrain() {
-    // Remove old ground if exists
-    if (evo.ground) {
-        evo.scene.remove(evo.ground);
+    
+    this.renderer.setSize(container.clientWidth, container.clientHeight);
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    
+    // Add canvas to container
+    container.appendChild(this.renderer.domElement);
+  }
+  
+  setupLighting() {
+    // Ambient light
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    this.scene.add(ambientLight);
+    this.lights.push(ambientLight);
+    
+    // Directional light (sun)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(30, 50, 30);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.camera.far = 200;
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
+    this.scene.add(directionalLight);
+    this.lights.push(directionalLight);
+    
+    // Accent light
+    const accentLight = new THREE.PointLight(0x2dd4ff, 0.3, 100);
+    accentLight.position.set(0, 20, 0);
+    this.scene.add(accentLight);
+    this.lights.push(accentLight);
+  }
+  
+  createTerrain() {
+    // Remove old terrain
+    if (this.ground) {
+      this.scene.remove(this.ground);
     }
+    this.obstacles.forEach(obstacle => this.scene.remove(obstacle));
+    this.obstacles = [];
     
-    // Remove old obstacles
-    evo.obstacles.forEach(obstacle => evo.scene.remove(obstacle));
-    evo.obstacles = [];
+    const terrainType = this.config.TERRAIN_TYPE;
     
-    const terrainType = document.getElementById('evo-terrain').value;
+    // Create ground geometry
+    const groundGeometry = new THREE.PlaneGeometry(1000, 200, 50, 20);
     
-    // Create ground
-    const groundGeometry = new THREE.PlaneGeometry(1000, 200);
-    let groundMaterial;
+    // Modify geometry based on terrain type
+    const vertices = groundGeometry.attributes.position.array;
     
-    switch(terrainType) {
+    for (let i = 0; i < vertices.length; i += 3) {
+      const x = vertices[i];
+      const z = vertices[i + 2];
+      
+      switch(terrainType) {
         case 'hills':
-            groundMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x3a7d3a,
-                emissive: 0x1a4d1a,
-                emissiveIntensity: 0.1
-            });
-            // Create hills by modifying vertices
-            const vertices = groundGeometry.attributes.position.array;
-            for (let i = 0; i < vertices.length; i += 3) {
-                const x = vertices[i];
-                const z = vertices[i + 2];
-                vertices[i + 1] = Math.sin(x * 0.02) * Math.cos(z * 0.02) * 5;
-            }
-            groundGeometry.attributes.position.needsUpdate = true;
-            groundGeometry.computeVertexNormals();
-            break;
-            
+          vertices[i + 1] = Math.sin(x * 0.02) * Math.cos(z * 0.02) * 5;
+          break;
         case 'mountains':
-            groundMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x5a5a5a,
-                emissive: 0x2a2a2a,
-                emissiveIntensity: 0.1
-            });
-            // Create mountains
-            const mVertices = groundGeometry.attributes.position.array;
-            for (let i = 0; i < mVertices.length; i += 3) {
-                const x = mVertices[i];
-                const z = mVertices[i + 2];
-                mVertices[i + 1] = Math.sin(x * 0.01) * Math.cos(z * 0.01) * 10 + 
-                                  Math.sin(x * 0.05) * 2;
-            }
-            groundGeometry.attributes.position.needsUpdate = true;
-            groundGeometry.computeVertexNormals();
-            break;
-            
+          vertices[i + 1] = Math.sin(x * 0.01) * Math.cos(z * 0.01) * 10;
+          vertices[i + 1] += Math.sin(x * 0.05) * 2;
+          break;
         case 'obstacles':
-            groundMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x2a5c2a,
-                emissive: 0x0a2a0a,
-                emissiveIntensity: 0.1
-            });
-            // Add obstacles
-            for (let i = 0; i < 20; i++) {
-                const obstacleGeometry = new THREE.BoxGeometry(3, Math.random() * 5 + 1, 3);
-                const obstacleMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
-                const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
-                
-                obstacle.position.x = Math.random() * 200 - 100;
-                obstacle.position.z = Math.random() * 100 - 50;
-                obstacle.position.y = obstacleGeometry.parameters.height / 2;
-                obstacle.castShadow = true;
-                obstacle.receiveShadow = true;
-                
-                evo.scene.add(obstacle);
-                evo.obstacles.push(obstacle);
-            }
-            break;
-            
+          vertices[i + 1] = 0;
+          // Add obstacles later
+          break;
         default: // flat
-            groundMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x2a5c2a,
-                emissive: 0x0a2a0a,
-                emissiveIntensity: 0.1
-            });
+          vertices[i + 1] = 0;
+      }
     }
     
-    evo.ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    evo.ground.rotation.x = -Math.PI / 2;
-    evo.ground.receiveShadow = true;
-    evo.scene.add(evo.ground);
-}
-
-// ========== CREATURE CLASSES ==========
-
-// Enhanced Neural Network
-class evoBrain {
-    constructor() {
-        // Create a neural network with input, hidden, and output layers
-        this.inputSize = 8;
-        this.hiddenSize = 6 + Math.floor(evo.permanentBonus / 20); // Bigger brain with bonus
-        this.outputSize = 4;
-        
-        // Initialize weights with bonus influence
-        const bonusFactor = 1 + (evo.permanentBonus * 0.01);
-        this.weightsInputHidden = this.randomWeights(this.inputSize, this.hiddenSize, bonusFactor);
-        this.weightsHiddenOutput = this.randomWeights(this.hiddenSize, this.outputSize, bonusFactor);
-    }
-
-    randomWeights(rows, cols, scale = 1.0) {
-        const weights = new Array(rows);
-        for (let i = 0; i < rows; i++) {
-            weights[i] = new Array(cols);
-            for (let j = 0; j < cols; j++) {
-                weights[i][j] = (Math.random() - 0.5) * 2 * scale;
-            }
-        }
-        return weights;
-    }
-
-    think(inputs) {
-        // Ensure correct input size
-        const paddedInputs = [...inputs];
-        while (paddedInputs.length < this.inputSize) paddedInputs.push(0);
-        paddedInputs.length = this.inputSize;
-        
-        // Forward propagation through hidden layer
-        const hidden = new Array(this.hiddenSize).fill(0);
-        for (let j = 0; j < this.hiddenSize; j++) {
-            for (let i = 0; i < this.inputSize; i++) {
-                hidden[j] += paddedInputs[i] * this.weightsInputHidden[i][j];
-            }
-            hidden[j] = Math.tanh(hidden[j]); // Activation function
-        }
-        
-        // Forward propagation through output layer
-        const outputs = new Array(this.outputSize).fill(0);
-        for (let k = 0; k < this.outputSize; k++) {
-            for (let j = 0; j < this.hiddenSize; j++) {
-                outputs[k] += hidden[j] * this.weightsHiddenOutput[j][k];
-            }
-            outputs[k] = Math.tanh(outputs[k]);
-        }
-        
-        return outputs;
-    }
-
-    mutate() {
-        const mutationRate = evo.config.MUTATION_RATE;
-        
-        // Mutate input-hidden weights
-        for (let i = 0; i < this.inputSize; i++) {
-            for (let j = 0; j < this.hiddenSize; j++) {
-                if (Math.random() < mutationRate) {
-                    this.weightsInputHidden[i][j] += (Math.random() - 0.5) * 0.5;
-                    this.weightsInputHidden[i][j] = Math.max(-3, Math.min(3, this.weightsInputHidden[i][j]));
-                }
-            }
-        }
-        
-        // Mutate hidden-output weights
-        for (let j = 0; j < this.hiddenSize; j++) {
-            for (let k = 0; k < this.outputSize; k++) {
-                if (Math.random() < mutationRate) {
-                    this.weightsHiddenOutput[j][k] += (Math.random() - 0.5) * 0.5;
-                    this.weightsHiddenOutput[j][k] = Math.max(-3, Math.min(3, this.weightsHiddenOutput[j][k]));
-                }
-            }
-        }
-    }
-
-    crossover(other) {
-        const child = new evoBrain();
-        
-        // Crossover input-hidden weights
-        for (let i = 0; i < this.inputSize; i++) {
-            for (let j = 0; j < this.hiddenSize; j++) {
-                child.weightsInputHidden[i][j] = Math.random() < 0.5 ? 
-                    this.weightsInputHidden[i][j] : 
-                    other.weightsInputHidden[i][j];
-            }
-        }
-        
-        // Crossover hidden-output weights
-        for (let j = 0; j < this.hiddenSize; j++) {
-            for (let k = 0; k < this.outputSize; k++) {
-                child.weightsHiddenOutput[j][k] = Math.random() < 0.5 ? 
-                    this.weightsHiddenOutput[j][k] : 
-                    other.weightsHiddenOutput[j][k];
-            }
-        }
-        
-        return child;
-    }
-}
-
-// Enhanced Creature Class
-class evoCreature {
-    constructor(x = 0, z = 0, parent1 = null, parent2 = null) {
-        // Genetics with bonus influence
-        const bonusMultiplier = 1 + (evo.permanentBonus * 0.02);
-        
-        if (parent1 && parent2) {
-            // Inherit traits from parents
-            this.bodySize = ((parent1.bodySize + parent2.bodySize) / 2) * bonusMultiplier;
-            this.legLength = ((parent1.legLength + parent2.legLength) / 2) * bonusMultiplier;
-            this.numLegs = Math.random() < 0.5 ? parent1.numLegs : parent2.numLegs;
-            this.hasArms = Math.random() < 0.5 ? parent1.hasArms : parent2.hasArms;
-            this.armLength = this.hasArms ? ((parent1.armLength + parent2.armLength) / 2) * bonusMultiplier : 0;
-        } else {
-            // Random initial traits
-            this.bodySize = (0.8 + Math.random() * 0.4) * bonusMultiplier;
-            this.legLength = (1.2 + Math.random() * 0.6) * bonusMultiplier;
-            this.numLegs = Math.random() < (0.7 + evo.permanentBonus * 0.005) ? 2 : 4;
-            this.hasArms = Math.random() < (0.5 + evo.permanentBonus * 0.005);
-            this.armLength = this.hasArms ? (0.8 + Math.random() * 0.4) * bonusMultiplier : 0;
-        }
-        
-        // Clamp values
-        this.bodySize = Math.max(0.5, Math.min(2.0, this.bodySize));
-        this.legLength = Math.max(0.8, Math.min(3.0, this.legLength));
-        this.numLegs = Math.max(2, Math.min(6, this.numLegs));
-        
-        // Color based on performance potential
-        const hue = 0.6 + Math.random() * 0.2; // Blue-green range
-        this.color = new THREE.Color().setHSL(hue, 0.8, 0.5);
-        
-        // Physics
-        this.position = new THREE.Vector3(x, this.legLength + 1, z);
-        this.velocity = new THREE.Vector3(0, 0, 0);
-        this.rotation = 0;
-        this.walkCycle = Math.random() * Math.PI * 2;
-        this.grounded = false;
-        
-        // Brain
-        if (parent1 && parent2) {
-            this.brain = parent1.brain.crossover(parent2.brain);
-            this.brain.mutate();
-        } else {
-            this.brain = new evoBrain();
-        }
-        
-        // Stats
-        this.fitness = 0;
-        this.distance = 0;
-        this.alive = true;
-        this.age = 0;
-        this.energy = 100;
-        this.id = Date.now() + Math.random();
-        
-        // Create 3D model
-        this.createModel();
-    }
-
-    createModel() {
-        try {
-            this.group = new THREE.Group();
-            
-            // Body
-            const bodyGeo = new THREE.BoxGeometry(this.bodySize, this.bodySize * 1.2, this.bodySize * 0.8);
-            const bodyMat = new THREE.MeshLambertMaterial({ 
-                color: this.color.getHex(),
-                emissive: this.color.clone().multiplyScalar(0.3).getHex(),
-                emissiveIntensity: 0.2
-            });
-            this.bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-            this.bodyMesh.position.y = this.bodySize * 0.6;
-            this.bodyMesh.castShadow = true;
-            this.group.add(this.bodyMesh);
-            
-            // Head
-            const headGeo = new THREE.SphereGeometry(this.bodySize * 0.35, 8, 8);
-            const headMat = new THREE.MeshLambertMaterial({ 
-                color: this.color.clone().multiplyScalar(1.2).getHex() 
-            });
-            this.headMesh = new THREE.Mesh(headGeo, headMat);
-            this.headMesh.position.y = this.bodySize * 1.3;
-            this.headMesh.castShadow = true;
-            this.group.add(this.headMesh);
-            
-            // Legs
-            this.legMeshes = [];
-            const legGeo = new THREE.CylinderGeometry(0.08, 0.08, this.legLength, 6);
-            const legMat = new THREE.MeshLambertMaterial({ 
-                color: this.color.clone().multiplyScalar(0.8).getHex() 
-            });
-            
-            for (let i = 0; i < this.numLegs; i++) {
-                const legMesh = new THREE.Mesh(legGeo, legMat);
-                const angle = (i / this.numLegs) * Math.PI * 2;
-                legMesh.position.x = Math.sin(angle) * this.bodySize * 0.4;
-                legMesh.position.z = Math.cos(angle) * this.bodySize * 0.4;
-                legMesh.position.y = -this.legLength * 0.5;
-                legMesh.castShadow = true;
-                this.group.add(legMesh);
-                this.legMeshes.push({
-                    mesh: legMesh,
-                    baseAngle: angle,
-                    phase: (i / this.numLegs) * Math.PI * 2
-                });
-            }
-            
-            // Arms
-            this.armMeshes = [];
-            if (this.hasArms) {
-                const armGeo = new THREE.CylinderGeometry(0.06, 0.06, this.armLength, 6);
-                const armMat = new THREE.MeshLambertMaterial({ 
-                    color: this.color.clone().multiplyScalar(0.9).getHex() 
-                });
-                
-                for (let i = 0; i < 2; i++) {
-                    const armMesh = new THREE.Mesh(armGeo, armMat);
-                    armMesh.position.x = (i === 0 ? -1 : 1) * this.bodySize * 0.6;
-                    armMesh.position.y = this.bodySize * 0.7;
-                    armMesh.position.z = 0;
-                    armMesh.castShadow = true;
-                    this.group.add(armMesh);
-                    this.armMeshes.push({
-                        mesh: armMesh,
-                        side: i === 0 ? -1 : 1,
-                        phase: i * Math.PI
-                    });
-                }
-            }
-            
-            evo.scene.add(this.group);
-        } catch (error) {
-            console.error('Error creating creature model:', error);
-            this.alive = false;
-        }
-    }
-
-    update(dt) {
-        if (!this.alive || !this.group) return;
-        
-        try {
-            this.age += dt;
-            this.energy -= dt * 0.1;
-            
-            // Die if out of energy
-            if (this.energy <= 0) {
-                this.die();
-                return;
-            }
-            
-            // Enhanced inputs for neural network
-            const inputs = [
-                this.velocity.x * 0.1,
-                this.velocity.z * 0.1,
-                Math.sin(this.rotation),
-                Math.cos(this.rotation),
-                Math.sin(this.walkCycle),
-                this.grounded ? 1 : -1,
-                this.position.y * 0.1,
-                this.age * 0.01
-            ];
-            
-            // Get brain outputs
-            const outputs = this.brain.think(inputs);
-            
-            // Interpret outputs (with bonus multiplier)
-            const bonusMultiplier = 1 + (evo.permanentBonus * 0.01);
-            const forwardForce = outputs[0] * 4 * bonusMultiplier;
-            const turnForce = outputs[1] * 0.5;
-            const jumpForce = outputs[2] * 5;
-            const balance = outputs[3];
-            
-            // Update walk cycle
-            this.walkCycle += dt * (3 + forwardForce * 0.5);
-            
-            // Apply movement
-            const forward = new THREE.Vector3(Math.sin(this.rotation), 0, Math.cos(this.rotation));
-            this.velocity.add(forward.multiplyScalar(forwardForce * dt));
-            this.rotation += turnForce * dt;
-            
-            // Jump if grounded and brain wants to
-            if (this.grounded && jumpForce > 0.5) {
-                this.velocity.y += jumpForce;
-                this.grounded = false;
-                this.energy -= 5;
-            }
-            
-            // Apply gravity
-            this.velocity.y -= 9.8 * dt;
-            
-            // Apply balance (prevent falling over)
-            const balanceTorque = balance * 0.1;
-            this.velocity.x += balanceTorque * Math.cos(this.rotation);
-            this.velocity.z -= balanceTorque * Math.sin(this.rotation);
-            
-            // Apply air resistance
-            this.velocity.multiplyScalar(0.98);
-            
-            // Update position
-            this.position.add(this.velocity.clone().multiplyScalar(dt * evo.config.SPEED_MULTIPLIER));
-            
-            // Ground collision
-            let groundHeight = 0;
-            if (this.position.y <= groundHeight) {
-                this.position.y = groundHeight;
-                this.velocity.y = 0;
-                this.grounded = true;
-            }
-            
-            // Update 3D model
-            this.group.position.copy(this.position);
-            this.group.rotation.y = this.rotation;
-            
-            // Animate legs
-            this.legMeshes.forEach(leg => {
-                const phase = this.walkCycle + leg.phase;
-                leg.mesh.rotation.x = Math.sin(phase) * 0.8;
-                leg.mesh.position.y = -this.legLength * 0.5 + Math.abs(Math.sin(phase)) * 0.2;
-            });
-            
-            // Animate arms
-            this.armMeshes.forEach(arm => {
-                const phase = this.walkCycle * 0.7 + arm.phase;
-                arm.mesh.rotation.x = Math.sin(phase) * 0.6;
-            });
-            
-            // Update fitness
-            this.distance = this.position.x;
-            if (this.distance > this.fitness) {
-                this.fitness = this.distance;
-            }
-            
-            // Die if fallen off or too old
-            if (this.position.y < -50 || this.age > 300) {
-                this.die();
-            }
-            
-        } catch (error) {
-            console.error('Error updating creature:', error);
-            this.die();
-        }
-    }
-
-    die() {
-        this.alive = false;
-        if (this.group && evo.scene) {
-            evo.scene.remove(this.group);
-        }
-    }
-}
-
-// ========== EVOLUTION FUNCTIONS ==========
-
-// Create initial population
-function evoCreatePopulation() {
-    try {
-        evo.creatures = [];
-        const populationSize = parseInt(document.getElementById('evo-population').value) || evo.config.POPULATION_SIZE;
-        
-        for (let i = 0; i < populationSize; i++) {
-            const z = (i - populationSize/2) * 3;
-            evo.creatures.push(new evoCreature(0, z));
-        }
-    } catch (error) {
-        console.error('Error creating population:', error);
-    }
-}
-
-// Update evolution logic
-function evoUpdateEvolution(dt) {
-    if (!evo.isRunning) return;
+    groundGeometry.attributes.position.needsUpdate = true;
+    groundGeometry.computeVertexNormals();
     
-    try {
-        // Filter alive creatures
-        const aliveCreatures = evo.creatures.filter(c => c.alive);
+    // Create ground material
+    const groundMaterial = new THREE.MeshLambertMaterial({
+      color: terrainType === 'mountains' ? 0x5a5a5a : 0x2a5c2a,
+      emissive: terrainType === 'mountains' ? 0x2a2a2a : 0x0a2a0a,
+      emissiveIntensity: 0.1
+    });
+    
+    // Create ground mesh
+    this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    this.ground.rotation.x = -Math.PI / 2;
+    this.ground.receiveShadow = true;
+    this.scene.add(this.ground);
+    
+    // Add obstacles if selected
+    if (terrainType === 'obstacles') {
+      for (let i = 0; i < 15; i++) {
+        const height = Math.random() * 4 + 1;
+        const geometry = new THREE.CylinderGeometry(1, 1, height, 8);
+        const material = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+        const obstacle = new THREE.Mesh(geometry, material);
         
-        // Update permanent bonus
-        evoUpdatePermanentBonus(dt);
+        obstacle.position.x = Math.random() * 200 - 100;
+        obstacle.position.z = Math.random() * 100 - 50;
+        obstacle.position.y = height / 2;
+        obstacle.castShadow = true;
+        obstacle.receiveShadow = true;
         
-        // Auto-breeding if enabled
-        if (aliveCreatures.length >= 2 && evo.config.AUTO_BREED && Math.random() < evo.config.BREEDING_RATE) {
-            // Select top performers
-            const sorted = [...aliveCreatures].sort((a, b) => b.fitness - a.fitness);
-            const parents = sorted.slice(0, Math.min(3, sorted.length));
-            
-            if (parents.length >= 2) {
-                const parent1 = parents[0];
-                const parent2 = parents[Math.floor(Math.random() * (parents.length - 1)) + 1];
-                
-                // Create child
-                const childX = (parent1.position.x + parent2.position.x) / 2;
-                const childZ = (parent1.position.z + parent2.position.z) / 2 + (Math.random() - 0.5) * 5;
-                
-                const child = new evoCreature(childX, childZ, parent1, parent2);
-                
-                // Add child to population
-                evo.creatures.push(child);
-                evo.mutations++;
-                evo.generation++;
-                
-                // Remove weakest if population too large
-                const maxPopulation = parseInt(document.getElementById('evo-population').value) * 1.5;
-                if (evo.creatures.length > maxPopulation) {
-                    const sortedAll = [...evo.creatures].sort((a, b) => a.fitness - b.fitness);
-                    const weakest = sortedAll[0];
-                    weakest.die();
-                    evo.creatures = evo.creatures.filter(c => c !== weakest);
-                }
-            }
-        }
-        
-        // Update all-time best
-        const currentBest = Math.max(...evo.creatures.map(c => c.fitness || 0));
-        if (currentBest > evo.allTimeBest) {
-            evo.allTimeBest = currentBest;
-            evoSavePermanentBonus();
-        }
-        
-    } catch (error) {
-        console.error('Evolution update error:', error);
+        this.scene.add(obstacle);
+        this.obstacles.push(obstacle);
+      }
     }
-}
-
-// ========== UI FUNCTIONS ==========
-
-// Start evolution
-function evoStartEvolution() {
-    if (!evo.isInitialized) {
-        evoInit();
-        return;
+  }
+  
+  createPopulation() {
+    // Clear existing creatures
+    this.creatures.forEach(creature => creature.dispose());
+    this.creatures = [];
+    
+    // Create new creatures
+    for (let i = 0; i < this.config.POPULATION_SIZE; i++) {
+      const z = (i - this.config.POPULATION_SIZE / 2) * 3;
+      const creature = new Creature(0, z);
+      this.creatures.push(creature);
+      this.scene.add(creature.group);
+    }
+  }
+  
+  start() {
+    if (!this.isInitialized) {
+      this.initialize();
+      return;
     }
     
-    evo.isRunning = true;
-    evo.startTime = Date.now();
+    this.isRunning = true;
+    this.startTime = Date.now();
     
+    // Update UI
     document.getElementById('evo-start-btn').disabled = true;
     document.getElementById('evo-pause-btn').disabled = false;
-    document.getElementById('evo-start-btn').innerHTML = '⚡ Evolving...';
-    document.getElementById('evo-start-btn').style.background = 'linear-gradient(135deg, #2dd4ff, #0077b5)';
+    document.querySelector('.stats-overlay').style.display = 'block';
+    document.querySelector('.performance-indicator').style.display = 'block';
     
-    // Show overlay stats
-    document.getElementById('evo-overlay-stats').style.display = 'block';
-    document.getElementById('evo-performance-indicators').style.display = 'block';
-}
-
-// Pause evolution
-function evoPauseEvolution() {
-    evo.isRunning = false;
+    // Update button text
+    const startBtn = document.querySelector('.start-btn');
+    startBtn.innerHTML = 'Evolving...';
+    startBtn.classList.add('active');
+  }
+  
+  pause() {
+    this.isRunning = false;
     
+    // Update UI
     document.getElementById('evo-start-btn').disabled = false;
     document.getElementById('evo-pause-btn').disabled = true;
-    document.getElementById('evo-start-btn').innerHTML = '▶️ Resume';
-    document.getElementById('evo-start-btn').style.background = 'linear-gradient(135deg, #39ff14, #2dd4ff)';
-}
-
-// Reset evolution
-function evoResetEvolution() {
-    if (confirm('Reset evolution? This will clear all current creatures.')) {
-        evoPauseEvolution();
-        
-        // Clear all creatures
-        evo.creatures.forEach(c => c.die());
-        evo.creatures = [];
-        
-        // Reset stats
-        evo.generation = 1;
-        evo.mutations = 0;
-        evo.startTime = Date.now();
-        evo.bestFitnessHistory = [];
-        evo.averageFitnessHistory = [];
-        
-        // Create new population
-        evoCreatePopulation();
-        
-        // Reset terrain
-        evoCreateTerrain();
-        
-        // Reset camera
-        if (evo.camera) {
-            evo.camera.position.set(0, 25, 40);
-            evo.camera.lookAt(0, 0, 0);
-        }
-        
-        // Update UI
-        evoUpdateStats();
-        evoUpdatePerformanceChart();
-        
-        // Hide overlay
-        document.getElementById('evo-overlay-stats').style.display = 'none';
-        document.getElementById('evo-leaderboard').style.display = 'none';
-    }
-}
-
-// Update UI stats
-function evoUpdateStats() {
-    if (!evo.isInitialized) return;
     
-    try {
-        const now = Date.now();
-        const elapsed = evo.isRunning ? (now - evo.startTime) / 1000 : 0;
-        
-        // Get alive creatures
-        const aliveCreatures = evo.creatures.filter(c => c.alive);
-        const aliveCount = aliveCreatures.length;
-        
-        // Calculate stats
-        let bestDistance = 0;
-        let avgDistance = 0;
-        let totalDistance = 0;
-        
-        if (aliveCount > 0) {
-            aliveCreatures.forEach(c => {
-                const dist = c.distance || 0;
-                totalDistance += dist;
-                if (dist > bestDistance) bestDistance = dist;
-            });
-            avgDistance = totalDistance / aliveCount;
-            
-            // Update history
-            evo.bestFitnessHistory.push(bestDistance);
-            evo.averageFitnessHistory.push(avgDistance);
-            
-            // Keep history manageable
-            if (evo.bestFitnessHistory.length > 100) {
-                evo.bestFitnessHistory.shift();
-                evo.averageFitnessHistory.shift();
-            }
-        }
-        
-        // Update main stats
-        document.getElementById('evo-time').textContent = Math.floor(elapsed) + 's';
-        document.getElementById('evo-best-time').textContent = `Time: ${Math.floor(elapsed)}s`;
-        document.getElementById('evo-population-count').textContent = evo.creatures.length;
-        document.getElementById('evo-alive-count').textContent = `Alive: ${aliveCount}`;
-        document.getElementById('evo-generation').textContent = evo.generation;
-        document.getElementById('evo-mutations').textContent = `Mutations: ${evo.mutations}`;
-        document.getElementById('evo-best-distance').textContent = Math.floor(bestDistance) + ' m';
-        document.getElementById('evo-bonus-display').textContent = `Bonus: ${evo.permanentBonus}%`;
-        
-        // Update overlay stats
-        document.getElementById('evo-overlay-best').textContent = Math.floor(bestDistance) + ' m';
-        document.getElementById('evo-overlay-avg').textContent = Math.floor(avgDistance) + ' m';
-        document.getElementById('evo-overlay-gen').textContent = evo.generation;
-        document.getElementById('evo-overlay-alive').textContent = aliveCount;
-        
-        // Update leaderboard
-        if (aliveCount >= 2) {
-            document.getElementById('evo-leaderboard').style.display = 'block';
-            const leaderboard = aliveCreatures
-                .sort((a, b) => b.fitness - a.fitness)
-                .slice(0, 5)
-                .map((c, i) => ({
-                    rank: i + 1,
-                    distance: Math.floor(c.distance),
-                    legs: c.numLegs,
-                    hasArms: c.hasArms,
-                    age: Math.floor(c.age)
-                }));
-            
-            const leaderboardHTML = leaderboard.map(c => `
-                <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1);align-items:center;">
-                    <div style="color:#${c.rank === 1 ? 'ffcc00' : '2dd4ff'};">${c.rank}.</div>
-                    <div>${c.distance}m</div>
-                    <div>${c.legs} legs</div>
-                    <div>${c.hasArms ? '🦾' : ''} Age: ${c.age}s</div>
-                </div>
-            `).join('');
-            
-            document.getElementById('evo-leaderboard-list').innerHTML = leaderboardHTML;
-        }
-        
-        // Update chart every 2 seconds
-        if (now - evo.lastStatsUpdate > 2000) {
-            evoUpdatePerformanceChart();
-            evo.lastStatsUpdate = now;
-        }
-        
-    } catch (error) {
-        console.error('Stats update error:', error);
+    const startBtn = document.querySelector('.start-btn');
+    startBtn.innerHTML = 'Resume Evolution';
+    startBtn.classList.remove('active');
+  }
+  
+  reset() {
+    if (confirm('Reset evolution? This will clear all current creatures.')) {
+      this.pause();
+      
+      // Reset state
+      this.generation = 1;
+      this.mutations = 0;
+      this.bestFitnessHistory = [];
+      this.averageFitnessHistory = [];
+      
+      // Clear creatures
+      this.creatures.forEach(creature => creature.dispose());
+      this.creatures = [];
+      
+      // Create new population
+      this.createPopulation();
+      
+      // Reset camera
+      this.camera.position.set(0, 25, 40);
+      this.camera.lookAt(0, 0, 0);
+      
+      // Update UI
+      this.updateUI();
+      this.updateChart();
+      
+      // Hide overlay
+      document.querySelector('.stats-overlay').style.display = 'none';
+      document.querySelector('.leaderboard-section').style.display = 'none';
     }
-}
-
-// ========== PERFORMANCE CHART ==========
-
-// Initialize performance chart
-function evoInitPerformanceChart() {
-    const canvas = document.getElementById('evo-performance-chart');
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
-}
-
-// Update performance chart
-function evoUpdatePerformanceChart() {
+  }
+  
+  animate() {
+    requestAnimationFrame(this.animate);
+    
+    // Calculate delta time
+    const now = performance.now() / 1000;
+    const dt = this.lastFrameTime ? Math.min(now - this.lastFrameTime, 0.1) : 0.016;
+    this.lastFrameTime = now;
+    
+    // Update FPS
+    this.updateFPS(now, dt);
+    
+    if (this.isRunning) {
+      // Update creatures
+      this.creatures.forEach(creature => {
+        if (creature.alive) {
+          creature.update(dt * this.config.SPEED_MULTIPLIER);
+        }
+      });
+      
+      // Update evolution
+      this.updateEvolution(dt);
+      
+      // Update camera
+      this.updateCamera();
+      
+      // Update UI periodically
+      if (this.frameCount % 30 === 0) {
+        this.updateUI();
+      }
+    }
+    
+    // Render scene
+    if (this.renderer && this.scene && this.camera) {
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+  
+  updateFPS(now, dt) {
+    this.frameCount++;
+    
+    if (now - this.lastFpsUpdate >= 1) {
+      this.fps = Math.round(this.frameCount / (now - this.lastFpsUpdate));
+      this.frameCount = 0;
+      this.lastFpsUpdate = now;
+      
+      const fpsElement = document.getElementById('evo-fps-counter');
+      if (fpsElement) {
+        fpsElement.textContent = this.fps;
+        
+        // Color code based on FPS
+        if (this.fps < 30) {
+          fpsElement.style.color = '#ff4444';
+        } else if (this.fps < 50) {
+          fpsElement.style.color = '#ffa500';
+        } else {
+          fpsElement.style.color = '#39ff14';
+        }
+      }
+    }
+  }
+  
+  updateEvolution(dt) {
+    // Filter alive creatures
+    const aliveCreatures = this.creatures.filter(c => c.alive);
+    
+    // Update permanent bonus
+    this.totalTimeSpent += dt;
+    this.updatePermanentBonus();
+    
+    // Auto-breed if enabled
+    if (aliveCreatures.length >= 2 && this.config.AUTO_BREED && Math.random() < 0.03) {
+      this.breedCreatures(aliveCreatures);
+    }
+    
+    // Update all-time best
+    const currentBest = Math.max(...this.creatures.map(c => c.fitness || 0));
+    if (currentBest > this.allTimeBest) {
+      this.allTimeBest = currentBest;
+      this.saveData();
+    }
+  }
+  
+  breedCreatures(aliveCreatures) {
+    // Select top performers
+    const sorted = [...aliveCreatures].sort((a, b) => b.fitness - a.fitness);
+    const parents = sorted.slice(0, Math.min(3, sorted.length));
+    
+    if (parents.length >= 2) {
+      const parent1 = parents[0];
+      const parent2 = parents[Math.floor(Math.random() * (parents.length - 1)) + 1];
+      
+      // Create child position
+      const childX = (parent1.position.x + parent2.position.x) / 2;
+      const childZ = (parent1.position.z + parent2.position.z) / 2 + (Math.random() - 0.5) * 5;
+      
+      // Create child creature
+      const child = new Creature(childX, childZ, parent1, parent2);
+      
+      // Add to scene and population
+      this.scene.add(child.group);
+      this.creatures.push(child);
+      
+      // Update stats
+      this.mutations++;
+      this.generation++;
+      
+      // Limit population size
+      const maxPopulation = this.config.POPULATION_SIZE * 1.5;
+      if (this.creatures.length > maxPopulation) {
+        const sortedAll = [...this.creatures].sort((a, b) => a.fitness - b.fitness);
+        const weakest = sortedAll[0];
+        weakest.dispose();
+        this.creatures = this.creatures.filter(c => c !== weakest);
+      }
+    }
+  }
+  
+  updateCamera() {
+    const aliveCreatures = this.creatures.filter(c => c.alive);
+    if (aliveCreatures.length === 0) return;
+    
+    // Find leader
+    const leader = aliveCreatures.reduce((best, c) => 
+      c.distance > best.distance ? c : best, aliveCreatures[0]
+    );
+    
+    // Smooth camera follow
+    const targetX = leader.position.x + 20;
+    const targetY = Math.max(15, 20 + leader.position.y * 0.2);
+    const targetZ = 40;
+    
+    this.camera.position.x += (targetX - this.camera.position.x) * 0.05;
+    this.camera.position.y += (targetY - this.camera.position.y) * 0.05;
+    this.camera.position.z = targetZ;
+    
+    this.camera.lookAt(leader.position.x, leader.position.y + 5, leader.position.z);
+  }
+  
+  updateUI() {
+    const aliveCreatures = this.creatures.filter(c => c.alive);
+    const aliveCount = aliveCreatures.length;
+    
+    // Calculate distances
+    let bestDistance = 0;
+    let totalDistance = 0;
+    
+    aliveCreatures.forEach(creature => {
+      const distance = creature.distance || 0;
+      totalDistance += distance;
+      if (distance > bestDistance) bestDistance = distance;
+    });
+    
+    const avgDistance = aliveCount > 0 ? totalDistance / aliveCount : 0;
+    
+    // Update history
+    this.bestFitnessHistory.push(bestDistance);
+    this.averageFitnessHistory.push(avgDistance);
+    
+    // Keep history manageable
+    if (this.bestFitnessHistory.length > 100) {
+      this.bestFitnessHistory.shift();
+      this.averageFitnessHistory.shift();
+    }
+    
+    // Update elapsed time
+    const elapsed = this.isRunning ? (Date.now() - this.startTime) / 1000 : 0;
+    
+    // Update DOM elements
+    this.updateElement('evo-time', Math.floor(elapsed) + 's');
+    this.updateElement('evo-best-time', `Time: ${Math.floor(elapsed)}s`);
+    this.updateElement('evo-population-count', this.creatures.length);
+    this.updateElement('evo-alive-count', `Alive: ${aliveCount}`);
+    this.updateElement('evo-generation', this.generation);
+    this.updateElement('evo-mutations', `Mutations: ${this.mutations}`);
+    this.updateElement('evo-best-distance', Math.floor(bestDistance) + ' m');
+    this.updateElement('evo-bonus-display', `Bonus: ${this.permanentBonus}%`);
+    
+    // Update overlay
+    this.updateElement('evo-overlay-best', Math.floor(bestDistance) + ' m');
+    this.updateElement('evo-overlay-avg', Math.floor(avgDistance) + ' m');
+    this.updateElement('evo-overlay-gen', this.generation);
+    this.updateElement('evo-overlay-alive', aliveCount);
+    
+    // Update leaderboard
+    if (aliveCount >= 2) {
+      this.updateLeaderboard(aliveCreatures);
+      document.querySelector('.leaderboard-section').style.display = 'block';
+    }
+    
+    // Update chart every 2 seconds
+    if (Date.now() - (this.lastChartUpdate || 0) > 2000) {
+      this.updateChart();
+      this.lastChartUpdate = Date.now();
+    }
+  }
+  
+  updateElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  }
+  
+  updateLeaderboard(creatures) {
+    const sorted = [...creatures].sort((a, b) => b.fitness - a.fitness).slice(0, 5);
+    const leaderboardHTML = sorted.map((creature, index) => `
+      <div class="leaderboard-item ${index === 0 ? 'leader' : ''}">
+        <span class="leaderboard-rank">${index + 1}</span>
+        <span class="leaderboard-distance">${Math.floor(creature.distance)}m</span>
+        <span class="leaderboard-legs">${creature.numLegs} legs</span>
+        <span class="leaderboard-age">${Math.floor(creature.age)}s</span>
+      </div>
+    `).join('');
+    
+    document.getElementById('evo-leaderboard-list').innerHTML = leaderboardHTML;
+  }
+  
+  updateChart() {
     const canvas = document.getElementById('evo-performance-chart');
     const ctx = canvas.getContext('2d');
     
-    if (!ctx || evo.bestFitnessHistory.length < 2) return;
+    if (!ctx || this.bestFitnessHistory.length < 2) return;
+    
+    // Set canvas size
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
     
     const width = canvas.width;
     const height = canvas.height;
@@ -1096,348 +745,989 @@ function evoUpdatePerformanceChart() {
     ctx.clearRect(0, 0, width, height);
     
     // Find data ranges
-    const allData = [...evo.bestFitnessHistory, ...evo.averageFitnessHistory];
+    const allData = [...this.bestFitnessHistory, ...this.averageFitnessHistory];
     const maxValue = Math.max(...allData) || 1;
-    const minValue = Math.min(...allData);
-    const range = maxValue - minValue || 1;
     
     // Update scale indicator
-    document.getElementById('evo-chart-scale').textContent = `Max: ${Math.floor(maxValue)}m`;
+    this.updateElement('evo-chart-scale', `Max: ${Math.floor(maxValue)}m`);
     
     // Draw grid
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.1)';
     ctx.lineWidth = 1;
     
     // Vertical grid
     for (let i = 0; i <= 10; i++) {
-        const x = (i / 10) * width;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-    }
-    
-    // Horizontal grid
-    for (let i = 0; i <= 5; i++) {
-        const y = (i / 5) * height;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
+      const x = (i / 10) * width;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
     }
     
     // Draw best fitness line
-    ctx.beginPath();
-    ctx.strokeStyle = '#39ff14';
-    ctx.lineWidth = 2;
-    
-    evo.bestFitnessHistory.forEach((value, index) => {
-        const x = (index / (evo.bestFitnessHistory.length - 1)) * width;
-        const y = height - ((value - minValue) / range) * height * 0.9;
+    if (this.bestFitnessHistory.length >= 2) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#39ff14';
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      
+      this.bestFitnessHistory.forEach((value, index) => {
+        const x = (index / (this.bestFitnessHistory.length - 1)) * width;
+        const y = height - (value / maxValue) * height * 0.8;
         
         if (index === 0) {
-            ctx.moveTo(x, y);
+          ctx.moveTo(x, y);
         } else {
-            ctx.lineTo(x, y);
+          ctx.lineTo(x, y);
         }
-    });
-    ctx.stroke();
+      });
+      ctx.stroke();
+    }
     
     // Draw average fitness line
-    if (evo.averageFitnessHistory.length >= 2) {
-        ctx.beginPath();
-        ctx.strokeStyle = '#2dd4ff';
-        ctx.lineWidth = 1.5;
+    if (this.averageFitnessHistory.length >= 2) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#2dd4ff';
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      
+      this.averageFitnessHistory.forEach((value, index) => {
+        const x = (index / (this.averageFitnessHistory.length - 1)) * width;
+        const y = height - (value / maxValue) * height * 0.8;
         
-        evo.averageFitnessHistory.forEach((value, index) => {
-            const x = (index / (evo.averageFitnessHistory.length - 1)) * width;
-            const y = height - ((value - minValue) / range) * height * 0.9;
-            
-            if (index === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-        });
-        ctx.stroke();
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      ctx.stroke();
     }
+  }
+  
+  updatePermanentBonus() {
+    // Gain 1% bonus every 2 minutes of total usage
+    const minutes = this.totalTimeSpent / 60;
+    const newBonus = Math.min(100, Math.floor(minutes / 2));
     
-    // Draw legend
-    ctx.fillStyle = '#39ff14';
-    ctx.fillText('Best', 10, 15);
-    ctx.fillStyle = '#2dd4ff';
-    ctx.fillText('Average', 10, 30);
-}
-
-// ========== ANIMATION LOOP ==========
-
-// Main animation loop
-function evoAnimate() {
-    requestAnimationFrame(evoAnimate);
-    
+    if (newBonus > this.permanentBonus) {
+      this.permanentBonus = newBonus;
+      this.updateElement('evo-bonus-display', `Bonus: ${this.permanentBonus}%`);
+      this.saveData();
+      
+      // Visual feedback
+      const bonusElement = document.querySelector('.bonus-indicator');
+      if (bonusElement) {
+        bonusElement.style.animation = 'pulse 0.5s ease-in-out';
+        setTimeout(() => bonusElement.style.animation = '', 500);
+      }
+    }
+  }
+  
+  loadSavedData() {
     try {
-        // Calculate delta time
-        const now = performance.now() / 1000;
-        const dt = evo.lastFrameTime ? Math.min((now - evo.lastFrameTime), 0.1) : 0.016;
-        evo.lastFrameTime = now;
+      const saved = localStorage.getItem('evolutionWalkerData');
+      if (saved) {
+        const data = JSON.parse(saved);
+        this.permanentBonus = Math.min(data.bonus || 0, 100);
+        this.totalTimeSpent = data.totalTime || 0;
+        this.allTimeBest = data.allTimeBest || 0;
         
-        // Update FPS counter
-        evo.frameCount++;
-        if (now - evo.lastFpsUpdate >= 1) {
-            evo.fps = Math.round(evo.frameCount / (now - evo.lastFpsUpdate));
-            evo.frameCount = 0;
-            evo.lastFpsUpdate = now;
-            
-            if (document.getElementById('evo-fps-counter')) {
-                document.getElementById('evo-fps-counter').textContent = evo.fps;
-            }
+        if (this.permanentBonus > 0) {
+          this.updateElement('evo-bonus-display', `Bonus: ${this.permanentBonus}%`);
         }
-        
-        // Update creatures
-        if (evo.isRunning) {
-            evo.creatures.forEach(c => c.update(dt * evo.config.SPEED_MULTIPLIER));
-            evoUpdateEvolution(dt);
-            evoUpdateCamera();
-        }
-        
-        // Render scene
-        if (evo.renderer && evo.scene && evo.camera) {
-            evo.renderer.render(evo.scene, evo.camera);
-        }
-        
-        // Update stats every 60 frames
-        if (evo.frameCount % 60 === 0) {
-            evoUpdateStats();
-        }
-        
-    } catch (error) {
-        console.error('Animation loop error:', error);
+      }
+    } catch (e) {
+      console.warn('Could not load saved data:', e);
     }
-}
-
-// Update camera to follow leader
-function evoUpdateCamera() {
-    if (!evo.camera || !evo.isRunning) return;
-    
+  }
+  
+  saveData() {
     try {
-        const aliveCreatures = evo.creatures.filter(c => c.alive);
-        if (aliveCreatures.length === 0) return;
-        
-        // Find leader
-        const leader = aliveCreatures.reduce((best, c) => c.distance > best.distance ? c : best);
-        
-        // Smooth camera follow
-        const targetX = leader.position.x + 20;
-        const targetY = Math.max(15, 20 + leader.position.y * 0.2);
-        const targetZ = 40;
-        
-        evo.camera.position.x += (targetX - evo.camera.position.x) * 0.05;
-        evo.camera.position.y += (targetY - evo.camera.position.y) * 0.05;
-        evo.camera.position.z = targetZ;
-        
-        evo.camera.lookAt(leader.position.x, leader.position.y + 5, leader.position.z);
-        
-    } catch (error) {
-        console.error('Camera update error:', error);
+      const data = {
+        bonus: this.permanentBonus,
+        totalTime: this.totalTimeSpent,
+        allTimeBest: this.allTimeBest,
+        lastUpdated: Date.now()
+      };
+      localStorage.setItem('evolutionWalkerData', JSON.stringify(data));
+    } catch (e) {
+      console.warn('Could not save data:', e);
     }
-}
-
-// ========== ADDITIONAL CONTROLS ==========
-
-// Speed control
-function evoSpeedUp() {
-    const speeds = [1.0, 2.0, 3.0, 5.0];
-    const currentIndex = speeds.indexOf(evo.config.SPEED_MULTIPLIER);
-    const nextIndex = (currentIndex + 1) % speeds.length;
-    
-    evo.config.SPEED_MULTIPLIER = speeds[nextIndex];
-    document.getElementById('evo-speed-up').innerHTML = `⚡ Speed Up (${evo.config.SPEED_MULTIPLIER}x)`;
-}
-
-// Toggle auto-breed
-function evoToggleAutoBreed() {
-    evo.config.AUTO_BREED = !evo.config.AUTO_BREED;
-    document.getElementById('evo-auto-breed').innerHTML = 
-        `🔄 Auto-Breed: ${evo.config.AUTO_BREED ? 'ON' : 'OFF'}`;
-}
-
-// Save evolution state
-function evoSaveEvolution() {
-    try {
-        evo.savedState = {
-            creatures: evo.creatures.filter(c => c.alive).map(c => ({
-                fitness: c.fitness,
-                distance: c.distance,
-                generation: evo.generation
-            })),
-            generation: evo.generation,
-            mutations: evo.mutations,
-            bestDistance: Math.max(...evo.creatures.map(c => c.fitness || 0))
-        };
-        
-        localStorage.setItem('evoSavedState', JSON.stringify(evo.savedState));
-        
-        // Visual feedback
-        const saveBtn = document.getElementById('evo-save-btn');
-        const originalText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '✅ Saved!';
-        saveBtn.style.background = 'rgba(57,255,20,0.2)';
-        
-        setTimeout(() => {
-            saveBtn.innerHTML = originalText;
-            saveBtn.style.background = 'rgba(155,89,182,0.1)';
-        }, 1000);
-        
-    } catch (error) {
-        console.error('Save error:', error);
+  }
+  
+  showLoading(show) {
+    const loadingState = document.getElementById('evo-loading-state');
+    if (loadingState) {
+      loadingState.style.display = show ? 'flex' : 'none';
     }
-}
-
-// ========== EVENT LISTENERS ==========
-
-// Handle window resize
-function evoHandleResize() {
-    if (evo.renderer && evo.camera) {
-        const container = document.getElementById('evo-canvas-container');
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        
-        evo.camera.aspect = width / height;
-        evo.camera.updateProjectionMatrix();
-        evo.renderer.setSize(width, height);
-        
-        // Update chart
-        evoInitPerformanceChart();
-        evoUpdatePerformanceChart();
+    
+    if (show) {
+      // Simulate progress
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        const progressBar = document.getElementById('evo-progress-bar');
+        if (progressBar) {
+          progressBar.style.width = progress + '%';
+        }
+        if (progress >= 100) clearInterval(interval);
+      }, 200);
     }
-}
-
-// Sync mutation slider and input
-function evoSyncMutationControls() {
-    const slider = document.getElementById('evo-mutation-slider');
-    const input = document.getElementById('evo-mutation');
+  }
+  
+  showError(message) {
+    const container = document.getElementById('evo-canvas-container');
+    container.innerHTML = `
+      <div class="error-state">
+        <div class="error-icon">❌</div>
+        <h3>Initialization Error</h3>
+        <p>${message}</p>
+        <button onclick="location.reload()" class="retry-btn">Try Again</button>
+      </div>
+    `;
+  }
+  
+  setupEventListeners() {
+    // Window resize
+    window.addEventListener('resize', () => this.handleResize());
     
-    if (!slider || !input) return;
-    
-    slider.addEventListener('input', () => {
-        input.value = slider.value;
-        evo.config.MUTATION_RATE = slider.value / 100;
+    // Population change
+    document.getElementById('evo-population').addEventListener('change', (e) => {
+      this.config.POPULATION_SIZE = parseInt(e.target.value);
     });
     
-    input.addEventListener('input', () => {
-        let value = parseInt(input.value) || 15;
-        value = Math.min(30, Math.max(1, value));
-        input.value = value;
-        slider.value = value;
-        evo.config.MUTATION_RATE = value / 100;
+    // Terrain change
+    document.getElementById('evo-terrain').addEventListener('change', (e) => {
+      this.config.TERRAIN_TYPE = e.target.value;
+      this.createTerrain();
     });
+    
+    // Mutation slider
+    const mutationSlider = document.getElementById('evo-mutation-slider');
+    const mutationValue = document.getElementById('evo-mutation-value');
+    
+    mutationSlider.addEventListener('input', (e) => {
+      const value = e.target.value;
+      mutationValue.textContent = value + '%';
+      this.config.MUTATION_RATE = value / 100;
+    });
+  }
+  
+  handleResize() {
+    if (this.renderer && this.camera) {
+      const container = document.getElementById('evo-canvas-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      
+      this.camera.aspect = width / height;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(width, height);
+      
+      // Update chart
+      this.updateChart();
+    }
+  }
+  
+  async loadThreeJS() {
+    return new Promise((resolve, reject) => {
+      if (typeof THREE !== 'undefined') {
+        resolve();
+        return;
+      }
+      
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
 }
+
+// Creature Class
+class Creature {
+  constructor(x = 0, z = 0, parent1 = null, parent2 = null) {
+    // Genetics
+    if (parent1 && parent2) {
+      // Inherit traits from parents
+      this.bodySize = (parent1.bodySize + parent2.bodySize) / 2;
+      this.legLength = (parent1.legLength + parent2.legLength) / 2;
+      this.numLegs = Math.random() < 0.5 ? parent1.numLegs : parent2.numLegs;
+      this.hasArms = Math.random() < 0.5 ? parent1.hasArms : parent2.hasArms;
+    } else {
+      // Random initial traits
+      this.bodySize = 0.8 + Math.random() * 0.4;
+      this.legLength = 1.2 + Math.random() * 0.6;
+      this.numLegs = Math.random() < 0.7 ? 2 : 4;
+      this.hasArms = Math.random() < 0.5;
+    }
+    
+    // Color
+    const hue = 0.6 + Math.random() * 0.2;
+    this.color = new THREE.Color().setHSL(hue, 0.8, 0.5);
+    
+    // Physics
+    this.position = new THREE.Vector3(x, this.legLength + 1, z);
+    this.velocity = new THREE.Vector3();
+    this.rotation = 0;
+    this.walkCycle = Math.random() * Math.PI * 2;
+    this.grounded = false;
+    
+    // Stats
+    this.fitness = 0;
+    this.distance = 0;
+    this.alive = true;
+    this.age = 0;
+    this.energy = 100;
+    
+    // Create 3D model
+    this.createModel();
+  }
+  
+  createModel() {
+    this.group = new THREE.Group();
+    this.group.position.copy(this.position);
+    
+    // Body
+    const bodyGeometry = new THREE.BoxGeometry(this.bodySize, this.bodySize * 1.2, this.bodySize * 0.8);
+    const bodyMaterial = new THREE.MeshLambertMaterial({
+      color: this.color.getHex(),
+      emissive: this.color.clone().multiplyScalar(0.3).getHex(),
+      emissiveIntensity: 0.2
+    });
+    
+    this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    this.body.position.y = this.bodySize * 0.6;
+    this.body.castShadow = true;
+    this.group.add(this.body);
+    
+    // Head
+    const headGeometry = new THREE.SphereGeometry(this.bodySize * 0.35, 8, 8);
+    const headMaterial = new THREE.MeshLambertMaterial({
+      color: this.color.clone().multiplyScalar(1.2).getHex()
+    });
+    
+    this.head = new THREE.Mesh(headGeometry, headMaterial);
+    this.head.position.y = this.bodySize * 1.3;
+    this.head.castShadow = true;
+    this.group.add(this.head);
+    
+    // Legs
+    this.legs = [];
+    const legGeometry = new THREE.CylinderGeometry(0.08, 0.08, this.legLength, 6);
+    const legMaterial = new THREE.MeshLambertMaterial({
+      color: this.color.clone().multiplyScalar(0.8).getHex()
+    });
+    
+    for (let i = 0; i < this.numLegs; i++) {
+      const angle = (i / this.numLegs) * Math.PI * 2;
+      const leg = new THREE.Mesh(legGeometry, legMaterial);
+      
+      leg.position.x = Math.sin(angle) * this.bodySize * 0.4;
+      leg.position.z = Math.cos(angle) * this.bodySize * 0.4;
+      leg.position.y = -this.legLength * 0.5;
+      leg.castShadow = true;
+      
+      this.group.add(leg);
+      this.legs.push({
+        mesh: leg,
+        baseAngle: angle,
+        phase: (i / this.numLegs) * Math.PI * 2
+      });
+    }
+  }
+  
+  update(dt) {
+    if (!this.alive) return;
+    
+    this.age += dt;
+    this.energy -= dt * 0.1;
+    
+    // Simple AI: walk forward with some randomness
+    this.walkCycle += dt * 5;
+    
+    // Move forward
+    const forwardForce = Math.sin(this.walkCycle) * 4;
+    const turnForce = (Math.random() - 0.5) * 0.5;
+    
+    this.velocity.x += Math.sin(this.rotation) * forwardForce * dt;
+    this.velocity.z += Math.cos(this.rotation) * forwardForce * dt;
+    this.rotation += turnForce * dt;
+    
+    // Apply gravity
+    this.velocity.y -= 9.8 * dt;
+    
+    // Apply damping
+    this.velocity.multiplyScalar(0.95);
+    
+    // Update position
+    this.position.add(this.velocity.clone().multiplyScalar(dt));
+    
+    // Ground collision
+    if (this.position.y <= 0) {
+      this.position.y = 0;
+      this.velocity.y = 0;
+      this.grounded = true;
+    } else {
+      this.grounded = false;
+    }
+    
+    // Update group position
+    this.group.position.copy(this.position);
+    this.group.rotation.y = this.rotation;
+    
+    // Animate legs
+    this.legs.forEach(leg => {
+      const phase = this.walkCycle + leg.phase;
+      leg.mesh.rotation.x = Math.sin(phase) * 0.8;
+      leg.mesh.position.y = -this.legLength * 0.5 + Math.abs(Math.sin(phase)) * 0.2;
+    });
+    
+    // Update distance
+    this.distance = this.position.x;
+    if (this.distance > this.fitness) {
+      this.fitness = this.distance;
+    }
+    
+    // Die if fallen off or out of energy
+    if (this.position.y < -50 || this.energy <= 0) {
+      this.die();
+    }
+  }
+  
+  die() {
+    this.alive = false;
+  }
+  
+  dispose() {
+    if (this.group && this.group.parent) {
+      this.group.parent.remove(this.group);
+    }
+  }
+}
+
+// Global instance
+let evolutionWalker = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Sync mutation controls
-    evoSyncMutationControls();
-    
-    // Add event listeners
-    window.addEventListener('resize', evoHandleResize);
-    
-    // Initialize Three.js when user interacts
-    document.getElementById('evo-start-btn').addEventListener('click', function() {
-        if (!evo.isInitialized) {
-            evoInit();
-        }
-    });
-    
-    // Update population when changed
-    document.getElementById('evo-population').addEventListener('change', function() {
-        evo.config.POPULATION_SIZE = parseInt(this.value);
-    });
-    
-    // Update terrain when changed
-    document.getElementById('evo-terrain').addEventListener('change', function() {
-        if (evo.isInitialized) {
-            evoCreateTerrain();
-        }
-    });
-    
-    console.log('Evolution AI Walker initialized and ready!');
+  evolutionWalker = new EvolutionWalker();
+  
+  // Setup mutation slider
+  const mutationSlider = document.getElementById('evo-mutation-slider');
+  const mutationValue = document.getElementById('evo-mutation-value');
+  
+  mutationSlider.addEventListener('input', function() {
+    mutationValue.textContent = this.value + '%';
+  });
 });
 
+// Global functions for button clicks
+function startEvolution() {
+  if (evolutionWalker) {
+    evolutionWalker.start();
+  }
+}
+
+function pauseEvolution() {
+  if (evolutionWalker) {
+    evolutionWalker.pause();
+  }
+}
+
+function resetEvolution() {
+  if (evolutionWalker) {
+    evolutionWalker.reset();
+  }
+}
+
+function speedUp() {
+  if (evolutionWalker) {
+    const speeds = [1.0, 2.0, 3.0, 5.0];
+    const currentIndex = speeds.indexOf(evolutionWalker.config.SPEED_MULTIPLIER);
+    const nextIndex = (currentIndex + 1) % speeds.length;
+    
+    evolutionWalker.config.SPEED_MULTIPLIER = speeds[nextIndex];
+    document.getElementById('evo-speed-up').querySelector('.control-text').textContent = 
+      `Speed (${evolutionWalker.config.SPEED_MULTIPLIER}x)`;
+  }
+}
+
+function toggleAutoBreed() {
+  if (evolutionWalker) {
+    evolutionWalker.config.AUTO_BREED = !evolutionWalker.config.AUTO_BREED;
+    const text = evolutionWalker.config.AUTO_BREED ? 'ON' : 'OFF';
+    document.getElementById('evo-auto-breed').querySelector('.control-text').textContent = 
+      `Auto-Breed: ${text}`;
+  }
+}
+
+function saveEvolution() {
+  if (evolutionWalker) {
+    evolutionWalker.saveData();
+    
+    // Visual feedback
+    const saveBtn = document.getElementById('evo-save-btn');
+    saveBtn.classList.add('success');
+    setTimeout(() => saveBtn.classList.remove('success'), 1000);
+  }
+}
 </script>
 
 <style>
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+/* Evolution Walker Specific Styles */
+.control-panel {
+  background: rgba(45, 212, 255, 0.05);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(45, 212, 255, 0.1);
+  margin-bottom: 20px;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+.slider-group {
+  margin-top: 8px;
+}
+
+.slider-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 0.9em;
+  color: #9ccbe0;
+}
+
+#evo-mutation-value {
+  color: #39ff14;
+  font-weight: 600;
+}
+
+/* Simulation Container */
+.simulation-container {
+  position: relative;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(45, 212, 255, 0.2);
+  min-height: 300px;
+  margin-bottom: 20px;
+}
+
+#evo-canvas-container {
+  width: 100%;
+  height: 300px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #evo-canvas-container canvas {
-    display: block;
-    border-radius: 4px;
-    animation: fadeIn 0.5s ease-out;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
 }
 
-#evo-permanent-bonus {
-    animation: pulse 2s infinite;
+/* Loading State */
+.loading-state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 15, 26, 0.9);
+  backdrop-filter: blur(10px);
+  z-index: 10;
 }
 
-/* Responsive adjustments */
+.loading-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.loading-state h3 {
+  color: #2dd4ff;
+  margin-bottom: 8px;
+  font-size: 1.2em;
+}
+
+.loading-state p {
+  color: #9ccbe0;
+  margin-bottom: 20px;
+}
+
+.loading-progress {
+  width: 200px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #2dd4ff, #39ff14);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Stats Overlay */
+.stats-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(45, 212, 255, 0.2);
+  display: none;
+  z-index: 5;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 8px 16px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85em;
+}
+
+.stat-label {
+  color: #9ccbe0;
+  white-space: nowrap;
+}
+
+.stat-value {
+  color: #e6faff;
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.stat-value:first-of-type {
+  color: #39ff14;
+}
+
+/* Performance Indicator */
+.performance-indicator {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(45, 212, 255, 0.2);
+  display: none;
+  z-index: 5;
+  font-size: 0.85em;
+}
+
+.fps-label {
+  color: #9ccbe0;
+  margin-right: 6px;
+}
+
+.fps-value {
+  color: #39ff14;
+  font-weight: 600;
+}
+
+/* Metrics Grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(45, 212, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+  border-color: rgba(45, 212, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.metric-icon {
+  font-size: 2em;
+}
+
+.metric-content {
+  flex: 1;
+}
+
+.metric-label {
+  font-size: 0.9em;
+  color: #9ccbe0;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-size: 1.8em;
+  font-weight: 700;
+  color: #2dd4ff;
+  margin: 4px 0;
+}
+
+.metric-card:nth-child(1) .metric-value {
+  color: #39ff14;
+}
+
+.metric-card:nth-child(2) .metric-value {
+  color: #2dd4ff;
+}
+
+.metric-card:nth-child(3) .metric-value {
+  color: #9d4edd;
+}
+
+.metric-card:nth-child(4) .metric-value {
+  color: #ffa500;
+}
+
+.metric-sub {
+  font-size: 0.85em;
+  color: #9ccbe0;
+}
+
+/* Chart Section */
+.chart-section {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 24px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.chart-scale {
+  font-size: 0.85em;
+  color: #9ccbe0;
+}
+
+#evo-performance-chart {
+  width: 100%;
+  height: 120px;
+  background: transparent;
+  display: block;
+}
+
+/* Leaderboard */
+.leaderboard-section {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 24px;
+  display: none;
+}
+
+.leaderboard-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.leaderboard-item {
+  display: grid;
+  grid-template-columns: 30px 1fr 1fr 1fr;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  align-items: center;
+  font-size: 0.9em;
+}
+
+.leaderboard-item.leader {
+  background: rgba(57, 255, 20, 0.1);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 0 -12px;
+}
+
+.leaderboard-rank {
+  color: #2dd4ff;
+  font-weight: 600;
+  text-align: center;
+}
+
+.leaderboard-item.leader .leaderboard-rank {
+  color: #ffcc00;
+}
+
+.leaderboard-distance {
+  color: #e6faff;
+  font-weight: 600;
+}
+
+.leaderboard-legs {
+  color: #9ccbe0;
+}
+
+.leaderboard-age {
+  color: #9ccbe0;
+  text-align: right;
+}
+
+/* Advanced Controls */
+.advanced-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.control-btn {
+  background: rgba(45, 212, 255, 0.1);
+  border: 1px solid rgba(45, 212, 255, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  color: #e6faff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.control-btn:hover {
+  background: rgba(45, 212, 255, 0.2);
+  border-color: rgba(45, 212, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.control-btn.success {
+  background: rgba(57, 255, 20, 0.2);
+  border-color: rgba(57, 255, 20, 0.4);
+}
+
+.control-icon {
+  font-size: 1.2em;
+}
+
+.control-text {
+  font-weight: 500;
+}
+
+/* Info Panel */
+.info-panel {
+  margin-top: 24px;
+  border: 1px solid rgba(45, 212, 255, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.info-panel summary {
+  padding: 16px;
+  background: rgba(45, 212, 255, 0.05);
+  cursor: pointer;
+  font-weight: 500;
+  color: #2dd4ff;
+  list-style: none;
+  position: relative;
+}
+
+.info-panel summary::after {
+  content: '▼';
+  position: absolute;
+  right: 16px;
+  transition: transform 0.3s;
+  font-size: 0.8em;
+}
+
+.info-panel[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.info-content {
+  padding: 20px;
+  background: rgba(45, 212, 255, 0.02);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.info-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(45, 212, 255, 0.1);
+}
+
+.info-card h4 {
+  color: #2dd4ff;
+  margin-bottom: 8px;
+  font-size: 1.1em;
+}
+
+.info-card p {
+  color: #9ccbe0;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.info-tips {
+  background: rgba(45, 212, 255, 0.05);
+  border-radius: 8px;
+  padding: 20px;
+  border-left: 4px solid #2dd4ff;
+}
+
+.info-tips h4 {
+  color: #2dd4ff;
+  margin-bottom: 12px;
+  font-size: 1.1em;
+}
+
+.info-tips ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #9ccbe0;
+}
+
+.info-tips li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* Buttons */
+.start-btn {
+  background: linear-gradient(135deg, #39ff14, #2dd4ff) !important;
+  color: #000 !important;
+  font-weight: 600 !important;
+}
+
+.start-btn.active {
+  background: linear-gradient(135deg, #2dd4ff, #0077b5) !important;
+}
+
+.pause-btn {
+  background: rgba(255, 165, 0, 0.1) !important;
+  border-color: rgba(255, 165, 0, 0.3) !important;
+  color: #ffa500 !important;
+}
+
+.reset-btn {
+  background: rgba(255, 77, 77, 0.1) !important;
+  border-color: rgba(255, 77, 77, 0.3) !important;
+  color: #ff4d4d !important;
+}
+
+/* Error State */
+.error-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #fff;
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #ff4d4d;
+}
+
+.error-state h3 {
+  color: #ff4d4d;
+  margin-bottom: 12px;
+}
+
+.error-state p {
+  color: #9ccbe0;
+  margin-bottom: 24px;
+}
+
+.retry-btn {
+  padding: 10px 24px;
+  background: #2dd4ff;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.retry-btn:hover {
+  background: #39ff14;
+  transform: translateY(-2px);
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-    #evo-canvas-container {
-        height: 250px !important;
-    }
-    
-    .results > div {
-        grid-template-columns: repeat(2, 1fr) !important;
-    }
-    
-    .actions {
-        flex-wrap: wrap;
-    }
-    
-    .actions button {
-        flex: 1 0 calc(50% - 5px);
-        margin-bottom: 5px;
-    }
+  .simulation-container {
+    min-height: 250px;
+  }
+  
+  #evo-canvas-container {
+    height: 250px;
+  }
+  
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .advanced-controls {
+    grid-template-columns: 1fr;
+  }
+  
+  .leaderboard-item {
+    grid-template-columns: 30px 1fr 1fr;
+  }
+  
+  .leaderboard-age {
+    display: none;
+  }
 }
 
-/* Button hover effects */
-button:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-}
-
-button:active {
-    transform: translateY(0);
-}
-
-/* Scrollbar styling */
-#evo-leaderboard-list {
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-#evo-leaderboard-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-#evo-leaderboard-list::-webkit-scrollbar-track {
-    background: rgba(255,255,255,0.05);
-    border-radius: 3px;
-}
-
-#evo-leaderboard-list::-webkit-scrollbar-thumb {
-    background: rgba(45,212,255,0.3);
-    border-radius: 3px;
-}
-
-#evo-leaderboard-list::-webkit-scrollbar-thumb:hover {
-    background: rgba(45,212,255,0.5);
+@media (max-width: 480px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
