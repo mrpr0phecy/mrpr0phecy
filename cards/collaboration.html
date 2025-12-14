@@ -1,512 +1,212 @@
-<script>
-// Add these functions to the existing script section
+<!-- cards/team-productivity-hub.html -->
+<div class="card-content">
+<h2 id="productivity-title" style="margin-top:0;color:var(--accent);position:relative;">
+  🤖 AI Team Productivity Hub
+  <span style="position:absolute;right:0;top:0;font-size:0.7rem;color:rgba(45,212,255,0.7);font-weight:normal;">
+    Collaboration & AI
+  </span>
+</h2>
 
-// 1. Burndown Chart Implementation
-function tpRenderBurndownChart() {
-    const canvas = document.getElementById('burndown-chart');
-    if (!canvas || typeof Chart === 'undefined') {
-        // Load Chart.js if needed
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
-        script.onload = tpRenderBurndownChart;
-        document.head.appendChild(script);
-        return;
-    }
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Calculate sprint data (last 14 days)
-    const sprintDays = 14;
-    const labels = [];
-    const ideal = [];
-    const actual = [];
-    
-    const today = new Date();
-    let totalTasks = tpTasks.filter(t => 
-        t.createdAt && 
-        new Date(t.createdAt) >= new Date(today.getTime() - (sprintDays * 86400000))
-    ).length;
-    
-    for (let i = sprintDays; i >= 0; i--) {
-        const date = new Date(today.getTime() - (i * 86400000));
-        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-        
-        // Ideal burndown (linear)
-        ideal.push(totalTasks * (1 - (i / sprintDays)));
-        
-        // Actual burndown (tasks completed by this day)
-        const completedByDate = tpTasks.filter(t => 
-            t.status === 'done' && 
-            t.completedAt && 
-            new Date(t.completedAt) <= date
-        ).length;
-        actual.push(completedByDate);
-    }
-    
-    // Destroy existing chart if it exists
-    if (window.tpBurndownChart) {
-        window.tpBurndownChart.destroy();
-    }
-    
-    window.tpBurndownChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Ideal',
-                    data: ideal,
-                    borderColor: '#39ff14',
-                    backgroundColor: 'rgba(57, 255, 20, 0.1)',
-                    borderDash: [5, 5],
-                    fill: false,
-                    tension: 0
-                },
-                {
-                    label: 'Actual',
-                    data: actual,
-                    borderColor: '#2dd4ff',
-                    backgroundColor: 'rgba(45, 212, 255, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        color: 'rgba(230,250,255,0.8)'
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        color: 'rgba(255,255,255,0.05)'
-                    },
-                    ticks: {
-                        color: 'rgba(230,250,255,0.7)'
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(255,255,255,0.05)'
-                    },
-                    ticks: {
-                        color: 'rgba(230,250,255,0.7)'
-                    }
-                }
-            }
-        }
-    });
-}
+<form aria-describedby="productivity-desc" style="margin-bottom:20px;">
+  <p id="productivity-desc" class="small" style="color:rgba(230,250,255,0.8);margin-bottom:16px;">
+    AI-powered team management with workload balancing, predictive analytics, and automated optimization.
+    <span style="color:var(--accent);display:block;margin-top:4px;">
+      ⚡ Smart suggestions • 🎯 Predictive deadlines • 📊 Real-time analytics
+    </span>
+  </p>
 
-// 2. Advanced Task Editing
-function tpEditTask(taskId) {
-    const task = tpTasks.find(t => t.id === taskId);
-    if (!task) return;
-    
-    // Populate form with task data
-    document.getElementById('team-member').value = task.member;
-    document.getElementById('task-description').value = task.task;
-    document.getElementById('task-priority').value = task.priority;
-    tpUpdatePriorityDisplay(task.priority);
-    document.getElementById('task-deadline').value = task.deadline;
-    document.getElementById('task-status').value = task.status;
-    document.getElementById('task-progress').value = task.progress;
-    tpUpdateProgressDisplay(task.progress);
-    document.getElementById('task-complexity').value = task.complexity;
-    
-    // Clear and repopulate tags
-    const tagsContainer = document.getElementById('selected-tags');
-    tagsContainer.innerHTML = '';
-    (task.tags || []).forEach(tag => tpAddTag(tag));
-    
-    // Update suggestion
-    tpUpdateDeadlineSuggestion();
-    
-    // Remove task from list (will be re-added when saved)
-    tpTasks = tpTasks.filter(t => t.id !== taskId);
-    tpSaveData();
-    
-    // Scroll to form and focus
-    document.querySelector('form').scrollIntoView({ behavior: 'smooth' });
-    document.getElementById('task-description').focus();
-    
-    // Update button text
-    const addButton = document.querySelector('button[onclick="tpAddTask()"]');
-    const originalText = addButton.textContent;
-    addButton.textContent = '💾 Update Task';
-    addButton.onclick = function() {
-        tpAddTask();
-        addButton.textContent = originalText;
-        addButton.onclick = tpAddTask;
-    };
-}
-
-// 3. Task Dependencies
-function tpAddTaskDependency(taskId, dependsOnId) {
-    const task = tpTasks.find(t => t.id === taskId);
-    if (task) {
-        if (!task.dependencies) task.dependencies = [];
-        if (!task.dependencies.includes(dependsOnId)) {
-            task.dependencies.push(dependsOnId);
-            tpSaveData();
-            tpRenderKanban();
-        }
-    }
-}
-
-// 4. Time Tracking
-function tpStartTimer(taskId) {
-    const task = tpTasks.find(t => t.id === taskId);
-    if (task) {
-        if (!task.timeSpent) task.timeSpent = 0;
-        task.timerStart = new Date().toISOString();
-        task.status = 'inprogress';
-        task.startedAt = task.startedAt || new Date().toISOString();
-        tpSaveData();
-        tpRenderKanban();
-        
-        // Update task element to show timer
-        const taskElement = document.querySelector(`[data-id="${taskId}"]`);
-        if (taskElement) {
-            const timerDiv = document.createElement('div');
-            timerDiv.id = `timer-${taskId}`;
-            timerDiv.style.cssText = 'font-size:0.7rem;color:#ffcc00;margin-top:4px;';
-            timerDiv.textContent = '⏱️ 00:00:00';
-            taskElement.appendChild(timerDiv);
-            
-            // Update timer every second
-            task.timerInterval = setInterval(() => {
-                if (task.timerStart) {
-                    const elapsed = Math.floor((new Date() - new Date(task.timerStart)) / 1000);
-                    const hours = Math.floor(elapsed / 3600).toString().padStart(2, '0');
-                    const minutes = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
-                    const seconds = (elapsed % 60).toString().padStart(2, '0');
-                    timerDiv.textContent = `⏱️ ${hours}:${minutes}:${seconds}`;
-                }
-            }, 1000);
-        }
-    }
-}
-
-function tpStopTimer(taskId) {
-    const task = tpTasks.find(t => t.id === taskId);
-    if (task && task.timerStart) {
-        const elapsed = Math.floor((new Date() - new Date(task.timerStart)) / 1000);
-        task.timeSpent = (task.timeSpent || 0) + elapsed;
-        task.timerStart = null;
-        
-        if (task.timerInterval) {
-            clearInterval(task.timerInterval);
-            task.timerInterval = null;
-        }
-        
-        tpSaveData();
-        tpRenderKanban();
-    }
-}
-
-// 5. Task Comments/Discussion
-function tpAddComment(taskId, comment) {
-    const task = tpTasks.find(t => t.id === taskId);
-    if (task) {
-        if (!task.comments) task.comments = [];
-        task.comments.push({
-            id: Date.now(),
-            text: comment,
-            author: 'You',
-            timestamp: new Date().toISOString()
-        });
-        tpSaveData();
-    }
-}
-
-// 6. Import/Export Enhancements
-function tpImportTasks() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    
-    input.onchange = function(e) {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        
-        reader.onload = function(event) {
-            try {
-                const importedData = JSON.parse(event.target.result);
-                if (Array.isArray(importedData.tasks)) {
-                    tpTasks.push(...importedData.tasks);
-                    tpSaveData();
-                    tpRenderKanban();
-                    tpUpdateAnalytics();
-                    tpRenderPerformanceTable();
-                    alert(`Successfully imported ${importedData.tasks.length} tasks!`);
-                } else {
-                    alert('Invalid file format. Please import a valid JSON file.');
-                }
-            } catch (error) {
-                alert('Error importing file: ' + error.message);
-            }
-        };
-        
-        reader.readAsText(file);
-    };
-    
-    input.click();
-}
-
-// 7. Advanced Filtering
-function tpAdvancedFilter() {
-    const filterModal = document.createElement('div');
-    filterModal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.8);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-    `;
-    
-    filterModal.innerHTML = `
-        <div style="
-            background: #1a1f2b;
-            border-radius: 12px;
-            padding: 24px;
-            width: 90%;
-            max-width: 500px;
-            border: 1px solid rgba(45,212,255,0.3);
-            max-height: 80vh;
-            overflow-y: auto;
-        ">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                <h3 style="color:var(--accent);margin:0;">🔍 Advanced Filters</h3>
-                <button onclick="this.closest('div').remove()" style="
-                    background:none;
-                    border:none;
-                    color:rgba(255,255,255,0.7);
-                    font-size:20px;
-                    cursor:pointer;
-                ">×</button>
-            </div>
-            
-            <div style="margin-bottom:16px;">
-                <label style="display:block;color:var(--accent);margin-bottom:8px;font-weight:500;">Priority Range</label>
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <input type="range" id="filter-min-priority" min="1" max="10" value="1" 
-                           style="flex:1;height:6px;border-radius:3px;background:rgba(45,212,255,0.1);">
-                    <span id="min-priority-display" style="color:#2dd4ff;">1</span>
-                    <span style="color:rgba(230,250,255,0.5);">to</span>
-                    <input type="range" id="filter-max-priority" min="1" max="10" value="10" 
-                           style="flex:1;height:6px;border-radius:3px;background:rgba(45,212,255,0.1);">
-                    <span id="max-priority-display" style="color:#ff2d55;">10</span>
-                </div>
-            </div>
-            
-            <div style="margin-bottom:16px;">
-                <label style="display:block;color:var(--accent);margin-bottom:8px;font-weight:500;">Complexity</label>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                        <input type="checkbox" class="complexity-filter" value="quick">
-                        <span style="color:rgba(230,250,255,0.9);">Quick</span>
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                        <input type="checkbox" class="complexity-filter" value="simple" checked>
-                        <span style="color:rgba(230,250,255,0.9);">Simple</span>
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                        <input type="checkbox" class="complexity-filter" value="moderate" checked>
-                        <span style="color:rgba(230,250,255,0.9);">Moderate</span>
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                        <input type="checkbox" class="complexity-filter" value="complex">
-                        <span style="color:rgba(230,250,255,0.9);">Complex</span>
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                        <input type="checkbox" class="complexity-filter" value="major">
-                        <span style="color:rgba(230,250,255,0.9);">Major</span>
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                        <input type="checkbox" class="complexity-filter" value="epic">
-                        <span style="color:rgba(230,250,255,0.9);">Epic</span>
-                    </label>
-                </div>
-            </div>
-            
-            <div style="margin-bottom:16px;">
-                <label style="display:block;color:var(--accent);margin-bottom:8px;font-weight:500;">Team Members</label>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                    ${tpTeamMembers.map(member => `
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                            <input type="checkbox" class="member-filter" value="${member.name}" checked>
-                            <span style="color:rgba(230,250,255,0.9);">${member.name}</span>
-                        </label>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <div style="margin-bottom:16px;">
-                <label style="display:block;color:var(--accent);margin-bottom:8px;font-weight:500;">Due Date</label>
-                <select id="due-date-filter" style="
-                    width:100%;
-                    padding:10px;
-                    border-radius:8px;
-                    border:1px solid rgba(45,212,255,0.3);
-                    background:rgba(45,212,255,0.05);
-                    color:inherit;
-                ">
-                    <option value="all">All dates</option>
-                    <option value="today">Due today</option>
-                    <option value="week">Due this week</option>
-                    <option value="overdue">Overdue</option>
-                    <option value="future">Future dates</option>
-                </select>
-            </div>
-            
-            <div style="display:flex;gap:12px;margin-top:24px;">
-                <button onclick="tpApplyAdvancedFilters(this.closest('div'))" style="
-                    flex:1;
-                    padding:12px;
-                    background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));
-                    border:1px solid rgba(45,212,255,0.4);
-                    border-radius:8px;
-                    color:var(--accent);
-                    cursor:pointer;
-                    font-weight:600;
-                ">
-                    Apply Filters
-                </button>
-                <button onclick="tpClearFilters(this.closest('div'))" style="
-                    padding:12px 20px;
-                    background:rgba(255,255,255,0.05);
-                    border:1px solid rgba(255,255,255,0.1);
-                    border-radius:8px;
-                    color:inherit;
-                    cursor:pointer;
-                ">
-                    Clear All
-                </button>
-            </div>
+  <!-- Smart Task Input -->
+  <div style="background:linear-gradient(135deg, rgba(45,212,255,0.05), rgba(45,212,255,0.02));border-radius:12px;padding:20px;border:1px solid rgba(45,212,255,0.1);margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div class="field">
+        <label for="team-member" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+          👤 Team Member
+        </label>
+        <div style="position:relative;">
+          <input id="team-member" type="text" placeholder="Start typing name..." 
+                 style="width:100%;padding:10px 10px 10px 36px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;"
+                 oninput="tpSuggestMembers()" />
+          <span style="position:absolute;left:10px;top:10px;">🔍</span>
+          <div id="member-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:rgba(0,0,0,0.9);border:1px solid rgba(45,212,255,0.3);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;margin-top:2px;"></div>
         </div>
-    `;
-    
-    document.body.appendChild(filterModal);
-    
-    // Add event listeners for priority sliders
-    document.getElementById('filter-min-priority').addEventListener('input', function() {
-        document.getElementById('min-priority-display').textContent = this.value;
-    });
-    
-    document.getElementById('filter-max-priority').addEventListener('input', function() {
-        document.getElementById('max-priority-display').textContent = this.value;
-    });
-}
+      </div>
+      <div class="field">
+        <label for="task-description" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+          📋 Task Description
+        </label>
+        <input id="task-description" type="text" placeholder="What needs to be done?" 
+               style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;" />
+      </div>
+    </div>
 
-function tpApplyAdvancedFilters(modal) {
-    const minPriority = parseInt(document.getElementById('filter-min-priority').value);
-    const maxPriority = parseInt(document.getElementById('filter-max-priority').value);
-    const selectedComplexities = Array.from(document.querySelectorAll('.complexity-filter:checked'))
-        .map(cb => cb.value);
-    const selectedMembers = Array.from(document.querySelectorAll('.member-filter:checked'))
-        .map(cb => cb.value);
-    const dueDateFilter = document.getElementById('due-date-filter').value;
-    
-    // Store filters in global state
-    tpAdvancedFilters = {
-        minPriority,
-        maxPriority,
-        complexities: selectedComplexities,
-        members: selectedMembers,
-        dueDate: dueDateFilter
-    };
-    
-    // Apply filters
-    tpRenderKanban();
-    modal.closest('div').remove();
-}
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div class="field">
+        <label for="task-priority" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+          🎯 Priority Score
+        </label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="range" id="task-priority" min="1" max="10" value="5" 
+                 style="flex:1;height:8px;border-radius:4px;background:rgba(45,212,255,0.1);outline:none;"
+                 oninput="tpUpdatePriorityDisplay(this.value)">
+          <span id="priority-display" style="min-width:60px;text-align:center;padding:4px 8px;border-radius:6px;background:rgba(255,165,0,0.2);color:#ffa500;font-size:12px;font-weight:600;">
+            Medium (5)
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:0.75rem;color:rgba(230,250,255,0.7);">
+          <span>Low</span>
+          <span>Critical</span>
+        </div>
+      </div>
+      
+      <div class="field">
+        <label for="task-deadline" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+          📅 Deadline
+        </label>
+        <input id="task-deadline" type="date" 
+               style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(255,255,255,0.05);color:inherit;" />
+      </div>
+      
+      <div class="field">
+        <label for="task-status" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
+          📊 Status
+        </label>
+        <select id="task-status" 
+                style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;">
+          <option value="backlog">📥 Backlog</option>
+          <option value="todo" selected>⏳ To Do</option>
+          <option value="inprogress">🚧 In Progress</option>
+          <option value="review">👀 Review</option>
+          <option value="done">✅ Done</option>
+        </select>
+      </div>
+    </div>
+  </div>
 
-function tpClearFilters(modal) {
-    tpAdvancedFilters = null;
-    tpRenderKanban();
-    modal.closest('div').remove();
-}
+  <!-- Action Buttons -->
+  <div class="actions" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;">
+    <button type="button" onclick="tpAddTask()" 
+            style="padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
+      ➕ Add Task
+    </button>
+    <button type="button" onclick="tpGenerateReport()"
+            style="padding:12px;background:rgba(255,204,0,0.1);border:1px solid rgba(255,204,0,0.3);color:#ffcc00;border-radius:8px;cursor:pointer;">
+      📊 Analytics
+    </button>
+    <button type="button" onclick="tpResetBoard()"
+            style="padding:12px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);color:#ff4d4d;border-radius:8px;cursor:pointer;">
+      🔄 Reset
+    </button>
+  </div>
+</form>
 
-// 8. Keyboard Shortcuts
-document.addEventListener('keydown', function(e) {
-    // Don't trigger if typing in inputs
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+<!-- Results Section -->
+<div class="results" aria-live="polite" style="margin-top:20px;">
+  <!-- Team Analytics -->
+  <div id="analytics-section" style="display:none;background:linear-gradient(135deg, rgba(45,212,255,0.05), rgba(45,212,255,0.02));border-radius:8px;padding:24px;border:1px solid rgba(45,212,255,0.1);margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="color:var(--accent);margin:0;font-size:1.1rem;">📊 Team Performance Analytics</h3>
+    </div>
     
-    switch(e.key) {
-        case 'n':
-        case 'N':
-            if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-                document.getElementById('team-member').focus();
-            }
-            break;
-        case 'a':
-        case 'A':
-            if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-                tpAddTask();
-            }
-            break;
-        case 'f':
-        case 'F':
-            if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-                tpAdvancedFilter();
-            }
-            break;
-        case 'r':
-        case 'R':
-            if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-                tpGenerateReport();
-            }
-            break;
-        case 'Escape':
-            const modal = document.querySelector('div[style*="position: fixed"]');
-            if (modal) modal.remove();
-            break;
-    }
-});
+    <!-- Key Metrics -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;margin-bottom:24px;">
+      <div style="text-align:center;padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;">
+        <div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-bottom:8px;">Total Tasks</div>
+        <div id="metric-total" style="font-size:1.8rem;font-weight:700;color:#39ff14;">0</div>
+        <div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-top:4px;">All tasks</div>
+      </div>
+      
+      <div style="text-align:center;padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;">
+        <div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-bottom:8px;">In Progress</div>
+        <div id="metric-inprogress" style="font-size:1.8rem;font-weight:700;color:#2dd4ff;">0</div>
+        <div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-top:4px;">Active tasks</div>
+      </div>
+      
+      <div style="text-align:center;padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;">
+        <div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-bottom:8px;">Completed</div>
+        <div id="metric-done" style="font-size:1.8rem;font-weight:700;color:#ffcc00;">0</div>
+        <div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-top:4px;">Done tasks</div>
+      </div>
+      
+      <div style="text-align:center;padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;">
+        <div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-bottom:8px;">Team Members</div>
+        <div id="metric-members" style="font-size:1.8rem;font-weight:700;color:#9d4edd;">0</div>
+        <div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-top:4px;">Active team</div>
+      </div>
+    </div>
+  </div>
 
-// 9. Enhanced Initialize Function
-// Replace the existing tpInitialize function with this enhanced version
-function tpInitializeEnhanced() {
-    console.log('Team Productivity Hub: Initializing...');
+  <!-- Task List -->
+  <div style="background:rgba(0,0,0,0.1);border-radius:8px;padding:24px;border:1px solid rgba(255,255,255,0.05);margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="color:var(--accent);margin:0;font-size:1.1rem;">📋 Task Board</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="task-count" style="font-size:12px;color:rgba(230,250,255,0.7);">0 tasks</span>
+        <div style="display:flex;gap:6px;">
+          <button onclick="tpFilterTasks('all')" id="filter-all" style="padding:6px 12px;background:var(--accent);color:#000;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">
+            All
+          </button>
+          <button onclick="tpFilterTasks('active')" id="filter-active" style="padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:11px;">
+            Active
+          </button>
+          <button onclick="tpFilterTasks('done')" id="filter-done" style="padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:11px;">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Task List Container -->
+    <div id="task-list-container" style="min-height:100px;">
+      <!-- Tasks will appear here -->
+    </div>
+  </div>
+</div>
+
+<script>
+// Team Productivity Hub - Complete Fixed Version
+
+// Data storage
+let tpTasks = [];
+let tpTeamMembers = [];
+let tpCurrentFilter = 'all';
+
+// Priority labels
+const priorityLabels = {
+    1: { label: 'Trivial', color: '#2dd4ff' },
+    2: { label: 'Very Low', color: '#2dd4ff' },
+    3: { label: 'Low', color: '#2dd4ff' },
+    4: { label: 'Low-Medium', color: '#ffcc00' },
+    5: { label: 'Medium', color: '#ffcc00' },
+    6: { label: 'Medium-High', color: '#ffa500' },
+    7: { label: 'High', color: '#ffa500' },
+    8: { label: 'Very High', color: '#ff2d55' },
+    9: { label: 'Critical', color: '#ff2d55' },
+    10: { label: 'Emergency', color: '#ff0066' }
+};
+
+// Initialize
+function tpInitialize() {
+    console.log('Initializing Team Productivity Hub...');
     
     // Load saved data
     tpLoadData();
     
-    // Set default deadline to 3 days from now
-    const defaultDeadline = new Date();
-    defaultDeadline.setDate(defaultDeadline.getDate() + 3);
-    document.getElementById('task-deadline').valueAsDate = defaultDeadline;
+    // Set default deadline to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('task-deadline').valueAsDate = tomorrow;
     
     // Initialize UI
     tpUpdatePriorityDisplay(5);
-    tpUpdateProgressDisplay(0);
-    tpUpdateDeadlineSuggestion();
     
     // Load sample team members if none exist
     if (tpTeamMembers.length === 0) {
         tpTeamMembers = [
-            { name: 'Alex Chen', role: 'Frontend Dev', capacity: 8, specialties: ['design', 'react'] },
-            { name: 'Sam Rivera', role: 'Backend Dev', capacity: 8, specialties: ['api', 'database'] },
-            { name: 'Jordan Taylor', role: 'UX Designer', capacity: 6, specialties: ['design', 'research'] },
-            { name: 'Casey Smith', role: 'QA Engineer', capacity: 6, specialties: ['testing', 'bug'] },
-            { name: 'Morgan Lee', role: 'Project Manager', capacity: 4, specialties: ['planning', 'meeting'] }
+            { name: 'Alex Chen', role: 'Frontend Dev' },
+            { name: 'Sam Rivera', role: 'Backend Dev' },
+            { name: 'Jordan Taylor', role: 'UX Designer' },
+            { name: 'Casey Smith', role: 'QA Engineer' },
+            { name: 'Morgan Lee', role: 'Project Manager' }
         ];
     }
     
@@ -518,182 +218,251 @@ function tpInitializeEnhanced() {
     // Render everything
     tpRenderTasks();
     tpUpdateAnalytics();
-    tpRenderKanban();
-    tpRenderPerformanceTable();
-    tpRenderBurndownChart();
     
     // Set up event listeners
     tpSetupEventListeners();
     
-    // Show welcome tooltip
-    setTimeout(() => {
-        if (tpTasks.length <= 5) {
-            const welcome = document.createElement('div');
-            welcome.style.cssText = `
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: linear-gradient(135deg, rgba(45,212,255,0.1), rgba(45,212,255,0.05));
-                border: 1px solid rgba(45,212,255,0.3);
-                border-radius: 12px;
-                padding: 16px;
-                max-width: 300px;
-                z-index: 100;
-                backdrop-filter: blur(10px);
-            `;
-            welcome.innerHTML = `
-                <div style="color:var(--accent);font-weight:600;margin-bottom:8px;">🚀 Welcome to AI Team Hub!</div>
-                <div style="color:rgba(230,250,255,0.9);font-size:0.9rem;margin-bottom:12px;">
-                    Try these shortcuts:
-                    <div style="margin-top:8px;">
-                        • <strong>Ctrl+N</strong>: New task<br>
-                        • <strong>Ctrl+F</strong>: Advanced filters<br>
-                        • <strong>Ctrl+R</strong>: Analytics report<br>
-                        • <strong>Drag & Drop</strong>: Move tasks
-                    </div>
-                </div>
-                <button onclick="this.parentElement.remove()" style="
-                    width:100%;
-                    padding:8px;
-                    background:rgba(45,212,255,0.2);
-                    border:1px solid rgba(45,212,255,0.3);
-                    border-radius:6px;
-                    color:var(--accent);
-                    cursor:pointer;
-                    font-size:0.9rem;
-                ">
-                    Got it!
-                </button>
-            `;
-            document.body.appendChild(welcome);
-            
-            // Auto-remove after 10 seconds
-            setTimeout(() => {
-                if (welcome.parentElement) welcome.remove();
-            }, 10000);
-        }
-    }, 1000);
-    
-    console.log('Team Productivity Hub: Ready with', tpTasks.length, 'tasks');
+    console.log('Team Productivity Hub ready with', tpTasks.length, 'tasks');
 }
 
-// 10. Enhanced Kanban Render with Filters
-// Replace tpRenderKanban with this enhanced version
-function tpRenderKanbanEnhanced() {
-    const columns = {
-        backlog: document.getElementById('column-backlog'),
-        todo: document.getElementById('column-todo'),
-        inprogress: document.getElementById('column-inprogress'),
-        review: document.getElementById('column-review'),
-        done: document.getElementById('column-done')
-    };
-    
-    // Clear all columns
-    Object.values(columns).forEach(col => col.innerHTML = '');
-    
-    // Count tasks per column
-    const counts = {
-        backlog: 0,
-        todo: 0,
-        inprogress: 0,
-        review: 0,
-        done: 0
-    };
-    
-    // Apply all filters
-    let filteredTasks = tpTasks;
-    
-    // Basic filter
-    if (tpCurrentFilter === 'active') {
-        filteredTasks = filteredTasks.filter(t => t.status !== 'done' && t.status !== 'backlog');
-    } else if (tpCurrentFilter === 'overdue') {
-        filteredTasks = filteredTasks.filter(t => {
-            if (t.status === 'done' || t.status === 'backlog' || !t.deadline) return false;
-            const deadline = new Date(t.deadline);
-            return deadline < new Date();
-        });
-    }
-    
-    // Advanced filters
-    if (tpAdvancedFilters) {
-        filteredTasks = filteredTasks.filter(task => {
-            // Priority filter
-            if (task.priority < tpAdvancedFilters.minPriority || 
-                task.priority > tpAdvancedFilters.maxPriority) {
-                return false;
-            }
-            
-            // Complexity filter
-            if (tpAdvancedFilters.complexities.length > 0 && 
-                !tpAdvancedFilters.complexities.includes(task.complexity)) {
-                return false;
-            }
-            
-            // Member filter
-            if (tpAdvancedFilters.members.length > 0 && 
-                !tpAdvancedFilters.members.includes(task.member)) {
-                return false;
-            }
-            
-            // Due date filter
-            if (task.deadline) {
-                const deadline = new Date(task.deadline);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                
-                switch(tpAdvancedFilters.dueDate) {
-                    case 'today':
-                        deadline.setHours(0, 0, 0, 0);
-                        if (deadline.getTime() !== today.getTime()) return false;
-                        break;
-                    case 'week':
-                        const weekFromNow = new Date(today.getTime() + 7 * 86400000);
-                        if (deadline < today || deadline > weekFromNow) return false;
-                        break;
-                    case 'overdue':
-                        if (deadline >= today || task.status === 'done') return false;
-                        break;
-                    case 'future':
-                        if (deadline <= today) return false;
-                        break;
-                }
-            }
-            
-            return true;
-        });
-    }
-    
-    // Render each task in appropriate column
-    filteredTasks.forEach(task => {
-        counts[task.status]++;
+// Load data from localStorage
+function tpLoadData() {
+    try {
+        const savedTasks = localStorage.getItem('tp-tasks');
+        const savedMembers = localStorage.getItem('tp-members');
         
-        const taskElement = document.createElement('div');
-        taskElement.className = 'kanban-task';
-        taskElement.draggable = true;
-        taskElement.dataset.id = task.id;
-        taskElement.dataset.status = task.status;
-        taskElement.ondragstart = tpDragStart;
-        taskElement.ondblclick = () => tpEditTask(task.id);
-        taskElement.style.cssText = `
-            background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 8px;
-            cursor: move;
-            transition: all 0.2s;
+        if (savedTasks) tpTasks = JSON.parse(savedTasks);
+        if (savedMembers) tpTeamMembers = JSON.parse(savedMembers);
+    } catch (e) {
+        console.error('Failed to load data:', e);
+        tpTasks = [];
+        tpTeamMembers = [];
+    }
+}
+
+// Save data to localStorage
+function tpSaveData() {
+    try {
+        localStorage.setItem('tp-tasks', JSON.stringify(tpTasks));
+        localStorage.setItem('tp-members', JSON.stringify(tpTeamMembers));
+    } catch (e) {
+        console.error('Failed to save data:', e);
+    }
+}
+
+// Add sample tasks for demonstration
+function tpAddSampleTasks() {
+    const sampleTasks = [
+        {
+            id: Date.now() + 1,
+            member: 'Alex Chen',
+            task: 'Redesign dashboard UI',
+            priority: 8,
+            deadline: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+            status: 'inprogress',
+            createdAt: new Date(Date.now() - 2 * 86400000).toISOString()
+        },
+        {
+            id: Date.now() + 2,
+            member: 'Sam Rivera',
+            task: 'Fix authentication bug',
+            priority: 9,
+            deadline: new Date(Date.now() + 1 * 86400000).toISOString().split('T')[0],
+            status: 'todo',
+            createdAt: new Date(Date.now() - 1 * 86400000).toISOString()
+        },
+        {
+            id: Date.now() + 3,
+            member: 'Jordan Taylor',
+            task: 'User research for new feature',
+            priority: 6,
+            deadline: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+            status: 'inprogress',
+            createdAt: new Date(Date.now() - 3 * 86400000).toISOString()
+        },
+        {
+            id: Date.now() + 4,
+            member: 'Casey Smith',
+            task: 'Test payment integration',
+            priority: 7,
+            deadline: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+            status: 'review',
+            createdAt: new Date(Date.now() - 4 * 86400000).toISOString()
+        },
+        {
+            id: Date.now() + 5,
+            member: 'Morgan Lee',
+            task: 'Plan Q4 roadmap',
+            priority: 6,
+            deadline: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+            status: 'todo',
+            createdAt: new Date(Date.now() - 1 * 86400000).toISOString()
+        }
+    ];
+    
+    tpTasks.push(...sampleTasks);
+    tpSaveData();
+}
+
+// Set up event listeners
+function tpSetupEventListeners() {
+    // Enter key to add task
+    document.getElementById('task-description').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            tpAddTask();
+        }
+    });
+    
+    // Enter key in team member field
+    document.getElementById('team-member').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('task-description').focus();
+        }
+    });
+}
+
+// Update priority display
+function tpUpdatePriorityDisplay(value) {
+    const display = document.getElementById('priority-display');
+    const priority = priorityLabels[value] || priorityLabels[5];
+    display.textContent = `${priority.label} (${value})`;
+    display.style.background = `${priority.color}20`;
+    display.style.color = priority.color;
+}
+
+// Suggest members based on input
+function tpSuggestMembers() {
+    const input = document.getElementById('team-member').value.toLowerCase();
+    const suggestions = document.getElementById('member-suggestions');
+    
+    if (input.length < 1) {
+        suggestions.style.display = 'none';
+        return;
+    }
+    
+    const matchingMembers = tpTeamMembers.filter(m => 
+        m.name.toLowerCase().includes(input)
+    ).slice(0, 5);
+    
+    if (matchingMembers.length === 0) {
+        suggestions.style.display = 'none';
+        return;
+    }
+    
+    let html = '';
+    matchingMembers.forEach(member => {
+        html += `
+            <div onclick="tpSelectMember('${member.name}')" style="
+                padding: 8px 12px;
+                cursor: pointer;
+                transition: background 0.2s;
+                color: rgba(230,250,255,0.9);
+            " onmouseover="this.style.background='rgba(45,212,255,0.1)'" 
+               onmouseout="this.style.background='transparent'">
+                ${member.name} <span style="color:rgba(230,250,255,0.5);font-size:0.8rem;">(${member.role})</span>
+            </div>
         `;
-        taskElement.onmouseover = () => {
-            taskElement.style.transform = 'translateY(-2px)';
-            taskElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-        };
-        taskElement.onmouseout = () => {
-            taskElement.style.transform = '';
-            taskElement.style.boxShadow = '';
-        };
-        
-        // Priority indicator
-        const priorityColor = priorityLabels[task.priority]?.color || '#ffffff';
+    });
+    
+    suggestions.innerHTML = html;
+    suggestions.style.display = 'block';
+}
+
+function tpSelectMember(name) {
+    document.getElementById('team-member').value = name;
+    document.getElementById('member-suggestions').style.display = 'none';
+}
+
+// Add new task
+function tpAddTask() {
+    const member = document.getElementById('team-member').value.trim();
+    const task = document.getElementById('task-description').value.trim();
+    const priority = parseInt(document.getElementById('task-priority').value);
+    const deadline = document.getElementById('task-deadline').value;
+    const status = document.getElementById('task-status').value;
+    
+    if (!member || !task) {
+        // Visual feedback for empty fields
+        if (!member) {
+            const memberInput = document.getElementById('team-member');
+            memberInput.style.borderColor = '#ff2d55';
+            setTimeout(() => memberInput.style.borderColor = '', 1000);
+        }
+        if (!task) {
+            const taskInput = document.getElementById('task-description');
+            taskInput.style.borderColor = '#ff2d55';
+            setTimeout(() => taskInput.style.borderColor = '', 1000);
+        }
+        return;
+    }
+    
+    // Add member to team if new
+    if (!tpTeamMembers.some(m => m.name === member)) {
+        tpTeamMembers.push({
+            name: member,
+            role: 'Team Member'
+        });
+    }
+    
+    const newTask = {
+        id: Date.now() + Math.random().toString(36).substr(2, 9),
+        member,
+        task,
+        priority,
+        deadline,
+        status,
+        createdAt: new Date().toISOString(),
+        completedAt: status === 'done' ? new Date().toISOString() : null
+    };
+    
+    tpTasks.unshift(newTask);
+    tpSaveData();
+    tpRenderTasks();
+    tpUpdateAnalytics();
+    
+    // Reset form
+    document.getElementById('team-member').value = '';
+    document.getElementById('task-description').value = '';
+    document.getElementById('task-priority').value = 5;
+    tpUpdatePriorityDisplay(5);
+    document.getElementById('task-status').value = 'todo';
+    
+    // Set deadline to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('task-deadline').valueAsDate = tomorrow;
+    
+    document.getElementById('team-member').focus();
+}
+
+// Render tasks
+function tpRenderTasks() {
+    const container = document.getElementById('task-list-container');
+    
+    // Filter tasks
+    let filteredTasks = tpTasks;
+    if (tpCurrentFilter === 'active') {
+        filteredTasks = tpTasks.filter(t => t.status !== 'done');
+    } else if (tpCurrentFilter === 'done') {
+        filteredTasks = tpTasks.filter(t => t.status === 'done');
+    }
+    
+    if (filteredTasks.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:40px;color:rgba(230,250,255,0.5);">
+                No tasks found. Add your first task above!
+            </div>
+        `;
+        document.getElementById('task-count').textContent = '0 tasks';
+        return;
+    }
+    
+    let html = '';
+    filteredTasks.forEach(task => {
+        const priority = priorityLabels[task.priority] || priorityLabels[5];
+        const priorityColor = priority.color;
         
         // Deadline status
         let deadlineClass = '';
@@ -718,170 +487,228 @@ function tpRenderKanbanEnhanced() {
             }
         }
         
-        // Progress bar
-        const progressBar = task.status === 'done' ? 100 : task.progress || 0;
+        // Status icon
+        const statusIcons = {
+            backlog: '📥',
+            todo: '⏳',
+            inprogress: '🚧',
+            review: '👀',
+            done: '✅'
+        };
         
-        // Time spent indicator
-        let timeSpent = '';
-        if (task.timeSpent) {
-            const hours = Math.floor(task.timeSpent / 3600);
-            const minutes = Math.floor((task.timeSpent % 3600) / 60);
-            timeSpent = `<div style="font-size:0.7rem;color:#ffcc00;margin-top:4px;">⏱️ ${hours}h ${minutes}m</div>`;
-        }
-        
-        taskElement.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-                <div>
-                    <strong style="color:var(--accent);font-size:0.9rem;">${task.member}</strong>
-                    <div style="font-size:0.75rem;color:${priorityColor};margin-top:2px;">
-                        ${priorityLabels[task.priority]?.label || 'Priority'} (${task.priority})
+        html += `
+            <div class="task-item" data-id="${task.id}" style="
+                background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 12px;
+                transition: all 0.2s;
+            ">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                    <div>
+                        <strong style="color:var(--accent);font-size:1rem;">${task.member}</strong>
+                        <div style="
+                            background: ${priorityColor}20;
+                            border-radius: 4px;
+                            padding: 2px 8px;
+                            font-size: 11px;
+                            color: ${priorityColor};
+                            margin-top: 4px;
+                            display: inline-block;
+                        ">
+                            ${priority.label} (${task.priority})
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <select onchange="tpUpdateTaskStatus('${task.id}', this.value)" style="
+                            padding: 4px 8px;
+                            border-radius: 6px;
+                            border: 1px solid rgba(45,212,255,0.3);
+                            background: rgba(45,212,255,0.05);
+                            color: inherit;
+                            font-size: 12px;
+                        ">
+                            <option value="backlog" ${task.status === 'backlog' ? 'selected' : ''}>📥 Backlog</option>
+                            <option value="todo" ${task.status === 'todo' ? 'selected' : ''}>⏳ To Do</option>
+                            <option value="inprogress" ${task.status === 'inprogress' ? 'selected' : ''}>🚧 In Progress</option>
+                            <option value="review" ${task.status === 'review' ? 'selected' : ''}>👀 Review</option>
+                            <option value="done" ${task.status === 'done' ? 'selected' : ''}>✅ Done</option>
+                        </select>
+                        <button onclick="tpDeleteTask('${task.id}')" style="
+                            background: transparent;
+                            border: none;
+                            color: rgba(255,77,77,0.7);
+                            cursor: pointer;
+                            font-size: 14px;
+                            padding: 4px;
+                            border-radius: 4px;
+                        " title="Delete task">
+                            🗑️
+                        </button>
                     </div>
                 </div>
-                <div style="display:flex;gap:4px;">
-                    <button onclick="event.stopPropagation(); tpEditTask('${task.id}')" style="
-                        background: transparent;
-                        border: none;
-                        color: rgba(45,212,255,0.7);
-                        cursor: pointer;
-                        font-size: 12px;
-                        padding: 2px;
-                    " title="Edit">
-                        ✏️
-                    </button>
-                    <button onclick="event.stopPropagation(); tpDeleteTask('${task.id}')" style="
-                        background: transparent;
-                        border: none;
-                        color: rgba(255,77,77,0.7);
-                        cursor: pointer;
-                        font-size: 12px;
-                        padding: 2px;
-                    " title="Delete">
-                        🗑️
-                    </button>
+                
+                <div style="margin-bottom:12px;color:rgba(230,250,255,0.9);font-size:0.95rem;">
+                    ${statusIcons[task.status] || '📝'} ${task.task}
                 </div>
-            </div>
-            
-            <div style="margin-bottom:8px;color:rgba(230,250,255,0.9);font-size:0.85rem;">
-                ${task.task}
-            </div>
-            
-            <div style="margin-bottom:8px;">
-                <div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
-                    <div style="height:100%;width:${progressBar}%;background:${priorityColor};border-radius:2px;"></div>
+                
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;">
+                    <div>
+                        <span style="${deadlineClass}">📅 ${deadlineText}</span>
+                    </div>
+                    <div style="color:rgba(230,250,255,0.5);">
+                        ${new Date(task.createdAt).toLocaleDateString()}
+                    </div>
                 </div>
-                <div style="text-align:center;font-size:0.7rem;color:rgba(230,250,255,0.7);margin-top:2px;">
-                    ${progressBar}%
-                </div>
-                ${timeSpent}
-            </div>
-            
-            <div style="display:flex;justify-content:space-between;font-size:0.7rem;">
-                <div style="${deadlineClass}">📅 ${deadlineText}</div>
-                <div style="display:flex;gap:4px;">
-                    ${(task.tags || []).map(tag => `
-                        <span style="
-                            padding:1px 4px;
-                            background:${tpGetTagColor(tag)};
-                            border-radius:4px;
-                            font-size:0.6rem;
-                        ">${tag}</span>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <div style="font-size:0.6rem;color:rgba(230,250,255,0.5);margin-top:8px;">
-                Double-click to edit • Drag to move
             </div>
         `;
-        
-        if (columns[task.status]) {
-            columns[task.status].appendChild(taskElement);
-        }
     });
     
-    // Update counts
-    Object.keys(counts).forEach(status => {
-        const countElement = document.getElementById(`count-${status}`);
-        if (countElement) {
-            countElement.textContent = counts[status];
-        }
-    });
-    
-    // Update total count
+    container.innerHTML = html;
     document.getElementById('task-count').textContent = `${filteredTasks.length} task${filteredTasks.length !== 1 ? 's' : ''}`;
 }
 
-// Replace the initialization call at the bottom
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', tpInitializeEnhanced);
-} else {
-    tpInitializeEnhanced();
+// Update task status
+function tpUpdateTaskStatus(taskId, newStatus) {
+    const task = tpTasks.find(t => t.id === taskId);
+    if (task) {
+        task.status = newStatus;
+        if (newStatus === 'done' && !task.completedAt) {
+            task.completedAt = new Date().toISOString();
+        }
+        tpSaveData();
+        tpRenderTasks();
+        tpUpdateAnalytics();
+    }
 }
 
-// Add this CSS to enhance the card
-const style = document.createElement('style');
-style.textContent = `
-    .kanban-task {
-        position: relative;
+// Delete task
+function tpDeleteTask(taskId) {
+    if (confirm('Delete this task?')) {
+        tpTasks = tpTasks.filter(t => t.id !== taskId);
+        tpSaveData();
+        tpRenderTasks();
+        tpUpdateAnalytics();
     }
+}
+
+// Filter tasks
+function tpFilterTasks(filter) {
+    tpCurrentFilter = filter;
     
-    .kanban-task::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: var(--accent);
-        opacity: 0;
-        transition: opacity 0.2s;
-        border-radius: 8px 8px 0 0;
-    }
-    
-    .kanban-task:hover::before {
-        opacity: 0.5;
-    }
-    
-    .kanban-column {
-        min-height: 200px;
-        transition: background 0.2s;
-    }
-    
-    .kanban-column.drag-over {
-        background: rgba(45,212,255,0.1);
-        border-color: var(--accent);
-    }
-    
-    /* Animation for new tasks */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
+    // Update filter buttons
+    ['all', 'active', 'done'].forEach(f => {
+        const btn = document.getElementById(`filter-${f}`);
+        if (btn) {
+            if (f === filter) {
+                btn.style.background = 'var(--accent)';
+                btn.style.color = '#000';
+                btn.style.fontWeight = '600';
+            } else {
+                btn.style.background = 'rgba(255,255,255,0.05)';
+                btn.style.color = 'inherit';
+                btn.style.fontWeight = 'normal';
+            }
         }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
+    });
     
-    .kanban-task {
-        animation: fadeInUp 0.3s ease-out;
-    }
+    tpRenderTasks();
+}
+
+// Generate analytics report
+function tpGenerateReport() {
+    const analyticsSection = document.getElementById('analytics-section');
+    analyticsSection.style.display = 'block';
+    tpUpdateAnalytics();
     
-    /* Responsive improvements */
-    @media (max-width: 768px) {
-        .kanban-columns {
-            grid-template-columns: 1fr !important;
-        }
+    // Smooth scroll to analytics
+    analyticsSection.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+    });
+}
+
+// Update analytics
+function tpUpdateAnalytics() {
+    const totalTasks = tpTasks.length;
+    const inprogressTasks = tpTasks.filter(t => t.status === 'inprogress').length;
+    const doneTasks = tpTasks.filter(t => t.status === 'done').length;
+    
+    // Get unique team members
+    const uniqueMembers = [...new Set(tpTasks.map(t => t.member))];
+    
+    // Update metrics
+    document.getElementById('metric-total').textContent = totalTasks;
+    document.getElementById('metric-inprogress').textContent = inprogressTasks;
+    document.getElementById('metric-done').textContent = doneTasks;
+    document.getElementById('metric-members').textContent = uniqueMembers.length;
+}
+
+// Reset board
+function tpResetBoard() {
+    if (confirm('Reset all data? This will clear all tasks and cannot be undone.')) {
+        tpTasks = [];
+        tpSaveData();
+        tpRenderTasks();
+        tpUpdateAnalytics();
         
-        #productivity-title {
-            font-size: 1.2rem;
-        }
-        
-        .actions {
-            grid-template-columns: 1fr !important;
-        }
+        // Hide analytics
+        document.getElementById('analytics-section').style.display = 'none';
     }
-`;
-document.head.appendChild(style);
+}
+
+// Initialize on load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tpInitialize);
+} else {
+    tpInitialize();
+}
 </script>
+
+<style>
+.task-item:hover {
+    border-color: rgba(45,212,255,0.3) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+/* Scrollbar styling */
+#member-suggestions::-webkit-scrollbar {
+    width: 6px;
+}
+
+#member-suggestions::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+}
+
+#member-suggestions::-webkit-scrollbar-thumb {
+    background: rgba(45,212,255,0.3);
+    border-radius: 3px;
+}
+
+#member-suggestions::-webkit-scrollbar-thumb:hover {
+    background: rgba(45,212,255,0.5);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    #productivity-title {
+        font-size: 1.2rem;
+    }
+    
+    .field {
+        grid-column: span 2 !important;
+    }
+    
+    .actions {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .task-item {
+        padding: 12px !important;
+    }
+}
+</style>
+</div>
