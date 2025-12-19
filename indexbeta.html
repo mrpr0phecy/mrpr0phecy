@@ -81,6 +81,7 @@
             --error: #ff4d4d;
             --warning: #ffcc00;
             --premium: #ffd700;
+            --love: #9d4edd; /* Purple heart color instead of red */
         }
         
         /* === BASE RESET === */
@@ -766,6 +767,66 @@
             color: var(--error);
         }
         
+        /* TOOLBOX IFRAME SYSTEM */
+        .toolbox-iframe-container {
+            width: 100%;
+            height: 100%;
+            border: none;
+            overflow: hidden;
+        }
+        
+        .toolbox-iframe-wrapper {
+            width: 100%;
+            height: 100%;
+            border: none;
+            overflow: hidden;
+            background: transparent;
+        }
+        
+        .toolbox-iframe-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            display: block;
+        }
+        
+        /* SANDBOXED CARD LOADING - ISOLATED IFRAME SYSTEM */
+        .card-iframe-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-sm);
+        }
+        
+        .card-iframe-wrapper {
+            width: 100%;
+            height: 100%;
+            border: none;
+            overflow: auto;
+        }
+        
+        .card-iframe-error {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 77, 77, 0.05);
+            border: 2px solid rgba(255, 77, 77, 0.3);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-lg);
+            text-align: center;
+            color: #ff4d4d;
+            font-size: var(--text-sm);
+            z-index: 10;
+            backdrop-filter: blur(10px);
+        }
+        
         /* === MAIN CONTENT AREA === */
         main {
             position: relative;
@@ -987,14 +1048,12 @@
             overflow: hidden;
         }
         
-        .card-body {
+        /* === SANDBOXED CARD BODY (REPLACES .card-body) === */
+        .card-iframe-body {
             width: 100%;
             height: 100%;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding-right: var(--space-sm);
-            color: inherit;
-            font-family: inherit;
+            overflow: hidden;
+            position: relative;
         }
         
         /* Embed Section */
@@ -1322,7 +1381,7 @@
 <button id="toolboxToggle" class="control-btn" title="Toolbox (Ctrl+T)">🧰</button>
 <button id="paletteToggle" class="control-btn" title="Themes (Ctrl+P)">🎨</button>
 <button id="readerToggle" class="control-btn" title="Reader Mode (Ctrl+R)">👓</button>
-<button id="contributionsToggle" class="control-btn" title="Support Us (Ctrl+D)">❤️</button>
+<button id="contributionsToggle" class="control-btn" title="Support Us (Ctrl+D)">💜</button> <!-- Changed to purple heart -->
 
 <!-- ===== PALETTE PANEL ===== -->
 <div id="palettePanel" class="palette-panel" aria-hidden="true">
@@ -1357,7 +1416,7 @@
 <div id="contributionsPanel" class="contributions-panel" aria-hidden="true">
     <div class="contributions-header">
         <div class="contributions-title">
-            <span>❤️ Support & Contribute</span>
+            <span>💜 Support & Contribute</span> <!-- Changed to purple heart -->
             <button id="contributionsClose" class="contributions-close">✕</button>
         </div>
     </div>
@@ -1483,7 +1542,7 @@
                 <br>For custom amounts or sponsorship inquiries: <a href="mailto:hello@themostusefulsiteintheworld.com">hello@themostusefulsiteintheworld.com</a>
             </p>
             <p class="gratitude">
-                Thank you for keeping useful tools free for everyone! ❤️
+                Thank you for keeping useful tools free for everyone! 💜 <!-- Changed to purple heart -->
             </p>
         </div>
     </div>
@@ -1503,10 +1562,12 @@
         </div>
     </div>
     <div class="content" id="toolboxContent" aria-live="polite">
-        <div style="text-align:center;padding:40px 20px;color:var(--text-secondary);">
+        <!-- Toolbox cards will be inserted here dynamically -->
+        <div class="toolbox-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary);">
             <div style="font-size:48px;margin-bottom:16px;">🧰</div>
             <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
-            <p style="margin:0;">Add cards by clicking the + button on any card</p>
+            <p style="margin-bottom:var(--space-md);">Add cards by clicking the + button on any card</p>
+            <p style="font-size:var(--text-sm);color:var(--text-tertiary);">Cards in the toolbox persist across visits</p>
         </div>
     </div>
 </div>
@@ -1514,7 +1575,7 @@
 <!-- ===== HEADER ===== -->
 <header>
     <h1>The Most Useful Site in the World</h1>
-    <p class="subtitle">A collection of essential tools for productivity, creativity, and problem-solving. All free, no sign-ups required. Built with ❤️ for the internet.</p>
+    <p class="subtitle">A collection of essential tools for productivity, creativity, and problem-solving. All free, no sign-ups required. Built with 💜 for the internet.</p> <!-- Changed to purple heart -->
 </header>
 
 <!-- ===== MAIN CONTENT ===== -->
@@ -1555,7 +1616,7 @@
     </div>
     
     <a href="#contributionsPanel" class="footer-contribution-btn" id="footerContributeBtn" onclick="showContributionsPanel()">
-        <span>❤️</span>
+        <span>💜</span> <!-- Changed to purple heart -->
         <span>Support this project</span>
     </a>
     
@@ -1597,6 +1658,7 @@ let isSearching = false;
 let currentSort = 'alpha';
 let toolboxCards = [];
 let toolboxDocked = true;
+let toolboxSortable = null;
 
 // Background themes
 const themes = {
@@ -1609,7 +1671,7 @@ const themes = {
     'deep-space': { bg1: '#000814', bg2: '#1a1a2e' }
 };
 
-// ==================== FIXED CARD LOADING ====================
+// ==================== SANDBOXED CARD LOADING (SAFE & ISOLATED) ====================
 async function loadCardList() {
     try {
         const [owner, repo] = CONFIG.GITHUB_REPO.split('/');
@@ -1669,7 +1731,7 @@ async function loadCardList() {
                     </div>
                 </div>
                 <div class="card-content">
-                    <div class="card-body">
+                    <div class="card-iframe-body" id="card-${cardName}">
                         <div style="padding:40px 20px;text-align:center;">
                             <div style="margin-bottom:16px;font-size:48px;opacity:0.3;">⚙️</div>
                             <div style="color:rgba(230,250,255,0.6);font-size:14px;">Loading ${displayName}...</div>
@@ -1775,32 +1837,84 @@ async function loadCard(card, cardName) {
 }
 
 function renderCardContent(card, cardName, html) {
-    const cardBody = card.querySelector('.card-body');
+    const cardBody = card.querySelector(`#card-${cardName}`);
     if (!cardBody) return;
     
     try {
-        cardBody.innerHTML = html;
+        // Create sandboxed iframe for isolation
+        const iframe = document.createElement('iframe');
+        iframe.className = 'card-iframe-wrapper';
+        iframe.sandbox = 'allow-scripts allow-same-origin';
+        iframe.style.cssText = 'width:100%; height:100%; border:none;';
         
-        // Execute scripts
-        const scripts = cardBody.querySelectorAll('script');
-        scripts.forEach(oldScript => {
-            const newScript = document.createElement('script');
-            
-            if (oldScript.src) {
-                newScript.src = oldScript.src;
-            } else {
-                const scriptContent = oldScript.textContent;
-                if (scriptContent.trim()) {
-                    newScript.textContent = scriptContent;
-                }
+        // Inject the card HTML into the iframe
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        
+        // Create basic HTML structure with our theme variables
+        const themeVariables = `
+            :root {
+                --accent: ${getComputedStyle(document.documentElement).getPropertyValue('--accent')};
+                --accent-dark: ${getComputedStyle(document.documentElement).getPropertyValue('--accent-dark')};
+                --text: ${getComputedStyle(document.documentElement).getPropertyValue('--text')};
+                --text-secondary: ${getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')};
+                --text-tertiary: ${getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary')};
+                --border-light: ${getComputedStyle(document.documentElement).getPropertyValue('--border-light')};
+                --border-accent: ${getComputedStyle(document.documentElement).getPropertyValue('--border-accent')};
+                --space-sm: ${getComputedStyle(document.documentElement).getPropertyValue('--space-sm')};
+                --space-md: ${getComputedStyle(document.documentElement).getPropertyValue('--space-md')};
+                --space-lg: ${getComputedStyle(document.documentElement).getPropertyValue('--space-lg')};
+                --radius-sm: ${getComputedStyle(document.documentElement).getPropertyValue('--radius-sm')};
+                --radius-md: ${getComputedStyle(document.documentElement).getPropertyValue('--radius-md')};
+                --text-sm: ${getComputedStyle(document.documentElement).getPropertyValue('--text-sm')};
+                --text-base: ${getComputedStyle(document.documentElement).getPropertyValue('--text-base')};
+                --text-lg: ${getComputedStyle(document.documentElement).getPropertyValue('--text-lg')};
+                --leading-base: ${getComputedStyle(document.documentElement).getPropertyValue('--leading-base')};
+                --success: ${getComputedStyle(document.documentElement).getPropertyValue('--success')};
+                --error: ${getComputedStyle(document.documentElement).getPropertyValue('--error')};
             }
             
-            Array.from(oldScript.attributes).forEach(attr => {
-                newScript.setAttribute(attr.name, attr.value);
-            });
+            body {
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                color: var(--text);
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                font-size: var(--text-base);
+                line-height: var(--leading-base);
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
             
-            oldScript.parentNode.replaceChild(newScript, oldScript);
-        });
+            * {
+                box-sizing: border-box;
+            }
+        `;
+        
+        iframeDoc.open();
+        iframeDoc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>${themeVariables}</style>
+                <style>
+                    /* Card-specific styles will be injected here */
+                    .card-tool-styles {
+                        /* This class is for card-specific styles */
+                    }
+                </style>
+            </head>
+            <body>
+                ${html}
+            </body>
+            </html>
+        `);
+        iframeDoc.close();
+        
+        // Clear previous content and add iframe
+        cardBody.innerHTML = '';
+        cardBody.appendChild(iframe);
         
         // Show embed section
         const embedSection = card.querySelector('.embed-section');
@@ -1827,15 +1941,17 @@ function renderCardContent(card, cardName, html) {
 }
 
 function showCardError(card, cardName, error) {
-    const cardBody = card.querySelector('.card-body');
+    const cardBody = card.querySelector('.card-iframe-body');
     if (cardBody) {
         const displayName = card.dataset.displayName || cardName;
         cardBody.innerHTML = `
-            <div style="padding:40px 20px;text-align:center;color:rgba(255,77,77,0.8);">
-                <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
-                <h3 style="color:rgba(255,77,77,0.9);margin-bottom:12px;">Failed to load ${displayName}</h3>
-                <div style="font-size:14px;opacity:0.8;">${error.message || 'Unknown error'}</div>
-                <button onclick="loadCardList()" style="margin-top:20px;padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;">Retry All</button>
+            <div class="card-iframe-error">
+                <div>
+                    <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">⚠️</div>
+                    <h3 style="color:#ff4d4d;margin-bottom:12px;">Failed to load ${displayName}</h3>
+                    <div style="font-size:14px;opacity:0.8;max-width:300px;margin:0 auto;">${error.message || 'Unknown error'}</div>
+                    <button onclick="loadCardList()" style="margin-top:20px;padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;">Retry All</button>
+                </div>
             </div>
         `;
         card.classList.remove('loading');
@@ -1867,6 +1983,414 @@ function initIntersectionObserver() {
         observer.observe(card);
     });
 }
+
+// ==================== TOOLBOX SYSTEM ====================
+class ToolboxManager {
+    constructor() {
+        this.cards = [];
+        this.loadFromStorage();
+        this.init();
+    }
+    
+    init() {
+        this.renderToolbox();
+        this.setupEventListeners();
+    }
+    
+    loadFromStorage() {
+        try {
+            const saved = localStorage.getItem('toolboxCards');
+            if (saved) {
+                this.cards = JSON.parse(saved);
+            }
+        } catch (error) {
+            console.error('Failed to load toolbox from storage:', error);
+            this.cards = [];
+        }
+    }
+    
+    saveToStorage() {
+        try {
+            localStorage.setItem('toolboxCards', JSON.stringify(this.cards));
+        } catch (error) {
+            console.error('Failed to save toolbox to storage:', error);
+        }
+    }
+    
+    addCard(cardName, displayName) {
+        // Check if already in toolbox
+        if (this.cards.some(card => card.name === cardName)) {
+            showNotification('Card already in toolbox', 'info');
+            return false;
+        }
+        
+        // Add to toolbox
+        const newCard = {
+            id: 'toolbox-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+            name: cardName,
+            displayName: displayName,
+            x: Math.floor(Math.random() * 100),
+            y: Math.floor(Math.random() * 100),
+            width: 200,
+            height: 150,
+            zIndex: this.cards.length + 1
+        };
+        
+        this.cards.push(newCard);
+        this.saveToStorage();
+        this.renderToolbox();
+        
+        // Show notification with option to open toolbox
+        showNotification(`Added "${displayName}" to toolbox`, 'success');
+        
+        // Auto-open toolbox if it's hidden
+        const toolbox = document.getElementById('toolbox');
+        if (toolbox.classList.contains('hidden')) {
+            toolbox.classList.remove('hidden');
+            document.getElementById('toolboxToggle').classList.add('active');
+        }
+        
+        return true;
+    }
+    
+    removeCard(cardId) {
+        this.cards = this.cards.filter(card => card.id !== cardId);
+        this.saveToStorage();
+        this.renderToolbox();
+    }
+    
+    clearAll() {
+        if (this.cards.length === 0) return;
+        
+        if (confirm('Clear all cards from toolbox?')) {
+            this.cards = [];
+            this.saveToStorage();
+            this.renderToolbox();
+            showNotification('Toolbox cleared', 'info');
+        }
+    }
+    
+    renderToolbox() {
+        const toolboxContent = document.getElementById('toolboxContent');
+        const toolboxCardCount = document.getElementById('toolboxCardCount');
+        
+        if (!toolboxContent) return;
+        
+        // Update card count
+        toolboxCardCount.textContent = `(${this.cards.length} card${this.cards.length !== 1 ? 's' : ''})`;
+        
+        // Clear content
+        toolboxContent.innerHTML = '';
+        
+        if (this.cards.length === 0) {
+            toolboxContent.innerHTML = `
+                <div class="toolbox-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary);">
+                    <div style="font-size:48px;margin-bottom:16px;">🧰</div>
+                    <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
+                    <p style="margin-bottom:var(--space-md);">Add cards by clicking the + button on any card</p>
+                    <p style="font-size:var(--text-sm);color:var(--text-tertiary);">Cards in the toolbox persist across visits</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create container for toolbox cards
+        const container = document.createElement('div');
+        container.id = 'toolboxCardsContainer';
+        container.style.cssText = 'position: relative; width: 100%; height: 100%; min-height: 200px;';
+        toolboxContent.appendChild(container);
+        
+        // Create each toolbox card
+        this.cards.forEach(card => {
+            const toolboxCard = this.createToolboxCard(card);
+            container.appendChild(toolboxCard);
+        });
+        
+        // Initialize drag and drop
+        this.initSortable();
+    }
+    
+    createToolboxCard(cardData) {
+        const card = document.createElement('div');
+        card.id = cardData.id;
+        card.className = 'toolbox-card';
+        card.style.cssText = `
+            position: absolute;
+            left: ${cardData.x}px;
+            top: ${cardData.y}px;
+            width: ${cardData.width}px;
+            height: ${cardData.height}px;
+            z-index: ${cardData.zIndex};
+            resize: both;
+            overflow: hidden;
+        `;
+        
+        // Title bar
+        const titleBar = document.createElement('div');
+        titleBar.className = 'toolbox-card-titlebar';
+        titleBar.innerHTML = `
+            <strong title="${cardData.displayName}">${cardData.displayName}</strong>
+            <button class="toolbox-card-close" data-card-id="${cardData.id}" title="Remove from toolbox">✕</button>
+        `;
+        
+        // Card body (iframe)
+        const body = document.createElement('div');
+        body.className = 'toolbox-card-body';
+        body.innerHTML = `
+            <div class="toolbox-iframe-wrapper">
+                <iframe src="cards/${cardData.name}.html" 
+                        sandbox="allow-scripts allow-same-origin"
+                        loading="lazy"
+                        style="width:100%; height:100%; border:none;">
+                </iframe>
+            </div>
+        `;
+        
+        card.appendChild(titleBar);
+        card.appendChild(body);
+        
+        // Make draggable
+        this.makeDraggable(card, cardData);
+        
+        // Make resizable
+        this.makeResizable(card, cardData);
+        
+        // Add event listeners
+        const closeBtn = card.querySelector('.toolbox-card-close');
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.removeCard(cardData.id);
+        });
+        
+        // Bring to front on click
+        card.addEventListener('mousedown', () => {
+            this.bringToFront(cardData.id);
+        });
+        
+        return card;
+    }
+    
+    makeDraggable(element, cardData) {
+        let isDragging = false;
+        let offsetX, offsetY;
+        
+        const titleBar = element.querySelector('.toolbox-card-titlebar');
+        
+        titleBar.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('toolbox-card-close')) return;
+            
+            isDragging = true;
+            offsetX = e.clientX - element.offsetLeft;
+            offsetY = e.clientY - element.offsetTop;
+            
+            element.style.cursor = 'grabbing';
+            document.body.style.userSelect = 'none';
+            
+            // Bring to front
+            this.bringToFront(cardData.id);
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const x = e.clientX - offsetX;
+            const y = e.clientY - offsetY;
+            
+            // Constrain within toolbox bounds
+            const toolboxContent = document.getElementById('toolboxContent');
+            if (toolboxContent) {
+                const maxX = toolboxContent.offsetWidth - element.offsetWidth;
+                const maxY = toolboxContent.offsetHeight - element.offsetHeight;
+                
+                cardData.x = Math.max(0, Math.min(x, maxX));
+                cardData.y = Math.max(0, Math.min(y, maxY));
+                
+                element.style.left = `${cardData.x}px`;
+                element.style.top = `${cardData.y}px`;
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                element.style.cursor = '';
+                document.body.style.userSelect = '';
+                this.saveToStorage();
+            }
+        });
+    }
+    
+    makeResizable(element, cardData) {
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight;
+        
+        const handleSize = 8;
+        
+        // Create resize handles
+        const handles = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'];
+        handles.forEach(dir => {
+            const handle = document.createElement('div');
+            handle.style.cssText = `
+                position: absolute;
+                background: transparent;
+                z-index: 10;
+            `;
+            
+            // Position handles
+            if (dir.includes('n')) {
+                handle.style.top = '0';
+                handle.style.height = `${handleSize}px`;
+                handle.style.cursor = 'ns-resize';
+            }
+            if (dir.includes('s')) {
+                handle.style.bottom = '0';
+                handle.style.height = `${handleSize}px`;
+                handle.style.cursor = 'ns-resize';
+            }
+            if (dir.includes('e')) {
+                handle.style.right = '0';
+                handle.style.width = `${handleSize}px`;
+                handle.style.cursor = 'ew-resize';
+            }
+            if (dir.includes('w')) {
+                handle.style.left = '0';
+                handle.style.width = `${handleSize}px`;
+                handle.style.cursor = 'ew-resize';
+            }
+            if (dir === 'ne') {
+                handle.style.top = '0';
+                handle.style.right = '0';
+                handle.style.width = `${handleSize}px`;
+                handle.style.height = `${handleSize}px`;
+                handle.style.cursor = 'nesw-resize';
+            }
+            if (dir === 'nw') {
+                handle.style.top = '0';
+                handle.style.left = '0';
+                handle.style.width = `${handleSize}px`;
+                handle.style.height = `${handleSize}px`;
+                handle.style.cursor = 'nwse-resize';
+            }
+            if (dir === 'se') {
+                handle.style.bottom = '0';
+                handle.style.right = '0';
+                handle.style.width = `${handleSize}px`;
+                handle.style.height = `${handleSize}px`;
+                handle.style.cursor = 'nwse-resize';
+            }
+            if (dir === 'sw') {
+                handle.style.bottom = '0';
+                handle.style.left = '0';
+                handle.style.width = `${handleSize}px`;
+                handle.style.height = `${handleSize}px`;
+                handle.style.cursor = 'nesw-resize';
+            }
+            
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                isResizing = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = element.offsetWidth;
+                startHeight = element.offsetHeight;
+                
+                document.body.style.userSelect = 'none';
+                
+                // Bring to front
+                this.bringToFront(cardData.id);
+            });
+            
+            element.appendChild(handle);
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            // Calculate new dimensions with minimum size
+            const minWidth = 180;
+            const minHeight = 140;
+            
+            cardData.width = Math.max(minWidth, startWidth + deltaX);
+            cardData.height = Math.max(minHeight, startHeight + deltaY);
+            
+            element.style.width = `${cardData.width}px`;
+            element.style.height = `${cardData.height}px`;
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.userSelect = '';
+                this.saveToStorage();
+            }
+        });
+    }
+    
+    bringToFront(cardId) {
+        // Find max z-index
+        const maxZIndex = Math.max(...this.cards.map(card => card.zIndex), 0);
+        
+        // Update z-index for clicked card
+        const card = this.cards.find(c => c.id === cardId);
+        if (card) {
+            card.zIndex = maxZIndex + 1;
+            
+            // Update DOM
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                cardElement.style.zIndex = card.zIndex;
+            }
+            
+            this.saveToStorage();
+        }
+    }
+    
+    initSortable() {
+        const container = document.getElementById('toolboxCardsContainer');
+        if (!container || this.cards.length === 0) return;
+        
+        // We're using manual drag/resize instead of SortableJS for better control
+    }
+    
+    setupEventListeners() {
+        // Clear toolbox button
+        const clearBtn = document.getElementById('clearToolboxBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearAll());
+        }
+        
+        // Dock/undock button
+        const dockBtn = document.getElementById('dockBtn');
+        if (dockBtn) {
+            dockBtn.addEventListener('click', () => {
+                const toolbox = document.getElementById('toolbox');
+                toolboxDocked = !toolboxDocked;
+                
+                if (toolboxDocked) {
+                    toolbox.style.position = 'fixed';
+                    toolbox.style.right = 'var(--space-lg)';
+                    toolbox.style.bottom = 'var(--space-lg)';
+                    dockBtn.title = 'Undock';
+                    dockBtn.textContent = '⇱';
+                } else {
+                    toolbox.style.position = 'absolute';
+                    toolbox.style.right = '0';
+                    toolbox.style.bottom = '0';
+                    dockBtn.title = 'Dock';
+                    dockBtn.textContent = '⇲';
+                }
+            });
+        }
+    }
+}
+
+// Initialize toolbox manager
+let toolboxManager;
 
 // ==================== PREMIUM SPONSORSHIP ====================
 function initPremiumSponsorship() {
@@ -2197,6 +2721,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initPremiumSponsorship();
     initColorSystem();
     loadCardList(); // Load cards immediately
+    
+    // Initialize toolbox manager
+    toolboxManager = new ToolboxManager();
+    
     setupEventListeners();
     
     console.log('✅ The Most Useful Site - Initialized successfully');
@@ -2208,6 +2736,13 @@ function setupEventListeners() {
         const toolbox = document.getElementById('toolbox');
         toolbox.classList.toggle('hidden');
         document.getElementById('toolboxToggle').classList.toggle('active');
+    });
+    
+    // Toolbox close
+    document.getElementById('toolboxClose').addEventListener('click', () => {
+        const toolbox = document.getElementById('toolbox');
+        toolbox.classList.add('hidden');
+        document.getElementById('toolboxToggle').classList.remove('active');
     });
     
     // Reader mode
@@ -2300,25 +2835,19 @@ function setupEventListeners() {
                 return;
             }
             
-            const cardBody = card.querySelector('.card-body');
-            if (!cardBody) return;
-            
-            // Clone content but remove embed section
-            const contentClone = cardBody.cloneNode(true);
-            const embedSection = contentClone.querySelector('.embed-section');
-            if (embedSection) embedSection.remove();
-            
-            // Create toolbox card (toolbox functionality needs to be implemented)
-            showNotification('Toolbox functionality coming soon!', 'info');
+            // Add to toolbox using toolbox manager
+            const added = toolboxManager.addCard(cardName, displayName);
             
             // Visual feedback
-            const originalHTML = addBtn.innerHTML;
-            addBtn.innerHTML = '✓';
-            addBtn.style.color = 'var(--accent)';
-            setTimeout(() => {
-                addBtn.innerHTML = originalHTML;
-                addBtn.style.color = '';
-            }, 1500);
+            if (added) {
+                const originalHTML = addBtn.innerHTML;
+                addBtn.innerHTML = '✓';
+                addBtn.style.color = 'var(--accent)';
+                setTimeout(() => {
+                    addBtn.innerHTML = originalHTML;
+                    addBtn.style.color = '';
+                }, 1500);
+            }
         }
     });
     
