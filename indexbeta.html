@@ -767,47 +767,24 @@
             color: var(--error);
         }
         
-        /* TOOLBOX IFRAME SYSTEM */
-        .toolbox-iframe-container {
+        /* SANDBOXED CARD LOADING - SAFE DOM SYSTEM */
+        .card-sandbox {
             width: 100%;
             height: 100%;
-            border: none;
-            overflow: hidden;
-        }
-        
-        .toolbox-iframe-wrapper {
-            width: 100%;
-            height: 100%;
-            border: none;
-            overflow: hidden;
-            background: transparent;
-        }
-        
-        .toolbox-iframe-wrapper iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: transparent;
-            display: block;
-        }
-        
-        /* SANDBOXED CARD LOADING - ISOLATED IFRAME SYSTEM */
-        .card-iframe-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            overflow: hidden;
-            border-radius: var(--radius-sm);
-        }
-        
-        .card-iframe-wrapper {
-            width: 100%;
-            height: 100%;
-            border: none;
             overflow: auto;
+            isolation: isolate; /* Creates new stacking context */
+            position: relative;
         }
         
-        .card-iframe-error {
+        .card-sandbox-content {
+            width: 100%;
+            min-height: 100%;
+            padding: var(--space-md);
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        }
+        
+        .card-sandbox-error {
             position: absolute;
             top: 0;
             left: 0;
@@ -825,6 +802,31 @@
             font-size: var(--text-sm);
             z-index: 10;
             backdrop-filter: blur(10px);
+        }
+        
+        /* SANDBOXED STYLES - CARD-SPECIFIC CSS ISOLATION */
+        .card-sandbox * {
+            max-width: 100%;
+        }
+        
+        .card-sandbox img {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .card-sandbox table {
+            width: 100%;
+            border-collapse: collapse;
+            overflow-x: auto;
+            display: block;
+        }
+        
+        .card-sandbox pre,
+        .card-sandbox code {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: auto;
+            max-width: 100%;
         }
         
         /* === MAIN CONTENT AREA === */
@@ -1046,14 +1048,6 @@
             position: relative;
             min-height: 0;
             overflow: hidden;
-        }
-        
-        /* === SANDBOXED CARD BODY (REPLACES .card-body) === */
-        .card-iframe-body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            position: relative;
         }
         
         /* Embed Section */
@@ -1671,7 +1665,7 @@ const themes = {
     'deep-space': { bg1: '#000814', bg2: '#1a1a2e' }
 };
 
-// ==================== SANDBOXED CARD LOADING (SAFE & ISOLATED) ====================
+// ==================== SAFE CARD LOADING (NO IFRAMES) ====================
 async function loadCardList() {
     try {
         const [owner, repo] = CONFIG.GITHUB_REPO.split('/');
@@ -1731,7 +1725,7 @@ async function loadCardList() {
                     </div>
                 </div>
                 <div class="card-content">
-                    <div class="card-iframe-body" id="card-${cardName}">
+                    <div class="card-sandbox" id="card-${cardName}">
                         <div style="padding:40px 20px;text-align:center;">
                             <div style="margin-bottom:16px;font-size:48px;opacity:0.3;">⚙️</div>
                             <div style="color:rgba(230,250,255,0.6);font-size:14px;">Loading ${displayName}...</div>
@@ -1837,84 +1831,67 @@ async function loadCard(card, cardName) {
 }
 
 function renderCardContent(card, cardName, html) {
-    const cardBody = card.querySelector(`#card-${cardName}`);
-    if (!cardBody) return;
+    const cardSandbox = card.querySelector(`#card-${cardName}`);
+    if (!cardSandbox) return;
     
     try {
-        // Create sandboxed iframe for isolation
-        const iframe = document.createElement('iframe');
-        iframe.className = 'card-iframe-wrapper';
-        iframe.sandbox = 'allow-scripts allow-same-origin';
-        iframe.style.cssText = 'width:100%; height:100%; border:none;';
+        // Create sandboxed container
+        const sandboxContent = document.createElement('div');
+        sandboxContent.className = 'card-sandbox-content';
         
-        // Inject the card HTML into the iframe
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        // Parse and sanitize HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
         
-        // Create basic HTML structure with our theme variables
-        const themeVariables = `
-            :root {
-                --accent: ${getComputedStyle(document.documentElement).getPropertyValue('--accent')};
-                --accent-dark: ${getComputedStyle(document.documentElement).getPropertyValue('--accent-dark')};
-                --text: ${getComputedStyle(document.documentElement).getPropertyValue('--text')};
-                --text-secondary: ${getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')};
-                --text-tertiary: ${getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary')};
-                --border-light: ${getComputedStyle(document.documentElement).getPropertyValue('--border-light')};
-                --border-accent: ${getComputedStyle(document.documentElement).getPropertyValue('--border-accent')};
-                --space-sm: ${getComputedStyle(document.documentElement).getPropertyValue('--space-sm')};
-                --space-md: ${getComputedStyle(document.documentElement).getPropertyValue('--space-md')};
-                --space-lg: ${getComputedStyle(document.documentElement).getPropertyValue('--space-lg')};
-                --radius-sm: ${getComputedStyle(document.documentElement).getPropertyValue('--radius-sm')};
-                --radius-md: ${getComputedStyle(document.documentElement).getPropertyValue('--radius-md')};
-                --text-sm: ${getComputedStyle(document.documentElement).getPropertyValue('--text-sm')};
-                --text-base: ${getComputedStyle(document.documentElement).getPropertyValue('--text-base')};
-                --text-lg: ${getComputedStyle(document.documentElement).getPropertyValue('--text-lg')};
-                --leading-base: ${getComputedStyle(document.documentElement).getPropertyValue('--leading-base')};
-                --success: ${getComputedStyle(document.documentElement).getPropertyValue('--success')};
-                --error: ${getComputedStyle(document.documentElement).getPropertyValue('--error')};
+        // Remove potentially dangerous elements and attributes
+        sanitizeDOM(doc);
+        
+        // Extract and safely handle scripts
+        const scripts = doc.querySelectorAll('script');
+        scripts.forEach(script => {
+            // Remove external scripts (for safety)
+            if (script.src) {
+                script.remove();
+                return;
             }
             
-            body {
-                margin: 0;
-                padding: 0;
-                background: transparent;
-                color: var(--text);
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-                font-size: var(--text-base);
-                line-height: var(--leading-base);
-                -webkit-font-smoothing: antialiased;
-                -moz-osx-font-smoothing: grayscale;
+            // For inline scripts, we'll execute them safely
+            const scriptContent = script.textContent;
+            if (scriptContent.trim()) {
+                try {
+                    // Create a safe execution context
+                    const safeScript = new Function(scriptContent);
+                    // Execute with timeout to prevent infinite loops
+                    setTimeout(() => {
+                        try {
+                            safeScript();
+                        } catch (e) {
+                            console.warn(`Script error in ${cardName}:`, e);
+                        }
+                    }, 0);
+                } catch (error) {
+                    console.warn(`Failed to parse script in ${cardName}:`, error);
+                }
             }
-            
-            * {
-                box-sizing: border-box;
-            }
-        `;
+            script.remove(); // Remove script tag from DOM
+        });
         
-        iframeDoc.open();
-        iframeDoc.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>${themeVariables}</style>
-                <style>
-                    /* Card-specific styles will be injected here */
-                    .card-tool-styles {
-                        /* This class is for card-specific styles */
-                    }
-                </style>
-            </head>
-            <body>
-                ${html}
-            </body>
-            </html>
-        `);
-        iframeDoc.close();
+        // Extract and handle styles
+        const styles = doc.querySelectorAll('style');
+        styles.forEach(style => {
+            // Scope styles to this card only
+            const scopedStyles = scopeStyles(style.textContent, `#card-${cardName}`);
+            style.textContent = scopedStyles;
+        });
         
-        // Clear previous content and add iframe
-        cardBody.innerHTML = '';
-        cardBody.appendChild(iframe);
+        // Move all elements to sandbox
+        Array.from(doc.body.children).forEach(child => {
+            sandboxContent.appendChild(child.cloneNode(true));
+        });
+        
+        // Clear and update sandbox
+        cardSandbox.innerHTML = '';
+        cardSandbox.appendChild(sandboxContent);
         
         // Show embed section
         const embedSection = card.querySelector('.embed-section');
@@ -1940,22 +1917,91 @@ function renderCardContent(card, cardName, html) {
     }
 }
 
+function sanitizeDOM(doc) {
+    // Remove dangerous tags
+    const dangerousTags = ['iframe', 'object', 'embed', 'base', 'link[rel="import"]', 'meta[http-equiv="refresh"]'];
+    dangerousTags.forEach(selector => {
+        doc.querySelectorAll(selector).forEach(el => el.remove());
+    });
+    
+    // Remove dangerous attributes
+    const dangerousAttrs = ['onclick', 'onload', 'onerror', 'onmouseover', 'onkeydown', 'onfocus', 
+                           'javascript:', 'data:', 'vbscript:'];
+    
+    doc.querySelectorAll('*').forEach(el => {
+        Array.from(el.attributes).forEach(attr => {
+            // Remove event handlers
+            if (attr.name.startsWith('on')) {
+                el.removeAttribute(attr.name);
+            }
+            // Remove dangerous protocol attributes
+            if (attr.value && dangerousAttrs.some(danger => attr.value.toLowerCase().includes(danger))) {
+                el.removeAttribute(attr.name);
+            }
+        });
+    });
+}
+
+function scopeStyles(css, selector) {
+    // Simple CSS scoping - prepend selector to all rules
+    // This is a basic implementation; for production, use a proper CSS parser
+    const lines = css.split('}');
+    const scopedLines = lines.map(line => {
+        if (!line.trim()) return '';
+        
+        // Find the opening brace
+        const openBrace = line.indexOf('{');
+        if (openBrace === -1) return line;
+        
+        const beforeBrace = line.substring(0, openBrace);
+        const afterBrace = line.substring(openBrace);
+        
+        // Don't scope keyframes or media queries
+        if (beforeBrace.includes('@keyframes') || beforeBrace.includes('@media')) {
+            return line;
+        }
+        
+        // Scope the selector
+        const selectors = beforeBrace.split(',').map(s => s.trim());
+        const scopedSelectors = selectors.map(s => {
+            // Don't scope global selectors (starting with :root, html, body)
+            if (s.startsWith(':root') || s.startsWith('html') || s.startsWith('body')) {
+                return s.replace(/:root|html|body/g, selector);
+            }
+            // Scope other selectors
+            return `${selector} ${s}`;
+        });
+        
+        return scopedSelectors.join(', ') + afterBrace;
+    });
+    
+    return scopedLines.join('}');
+}
+
 function showCardError(card, cardName, error) {
-    const cardBody = card.querySelector('.card-iframe-body');
-    if (cardBody) {
+    const cardSandbox = card.querySelector('.card-sandbox');
+    if (cardSandbox) {
         const displayName = card.dataset.displayName || cardName;
-        cardBody.innerHTML = `
-            <div class="card-iframe-error">
+        cardSandbox.innerHTML = `
+            <div class="card-sandbox-error">
                 <div>
                     <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">⚠️</div>
                     <h3 style="color:#ff4d4d;margin-bottom:12px;">Failed to load ${displayName}</h3>
                     <div style="font-size:14px;opacity:0.8;max-width:300px;margin:0 auto;">${error.message || 'Unknown error'}</div>
-                    <button onclick="loadCardList()" style="margin-top:20px;padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;">Retry All</button>
+                    <button onclick="retryLoadCard('${cardName}')" style="margin-top:20px;padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;">Retry</button>
                 </div>
             </div>
         `;
         card.classList.remove('loading');
         card.classList.add('loaded', 'visible');
+    }
+}
+
+function retryLoadCard(cardName) {
+    const card = document.querySelector(`.card[data-name="${cardName}"]`);
+    if (card) {
+        card.classList.add('loading');
+        loadCard(card, cardName);
     }
 }
 
@@ -2133,18 +2179,12 @@ class ToolboxManager {
             <button class="toolbox-card-close" data-card-id="${cardData.id}" title="Remove from toolbox">✕</button>
         `;
         
-        // Card body (iframe)
+        // Card body (sandboxed content)
         const body = document.createElement('div');
-        body.className = 'toolbox-card-body';
-        body.innerHTML = `
-            <div class="toolbox-iframe-wrapper">
-                <iframe src="cards/${cardData.name}.html" 
-                        sandbox="allow-scripts allow-same-origin"
-                        loading="lazy"
-                        style="width:100%; height:100%; border:none;">
-                </iframe>
-            </div>
-        `;
+        body.className = 'toolbox-card-body card-sandbox';
+        
+        // Load card content
+        this.loadCardContent(cardData.name, body);
         
         card.appendChild(titleBar);
         card.appendChild(body);
@@ -2168,6 +2208,47 @@ class ToolboxManager {
         });
         
         return card;
+    }
+    
+    async loadCardContent(cardName, container) {
+        try {
+            const response = await fetch(`cards/${cardName}.html`);
+            if (!response.ok) throw new Error('Failed to load card');
+            
+            const html = await response.text();
+            
+            // Parse and sanitize HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Remove scripts for toolbox (safer)
+            doc.querySelectorAll('script').forEach(script => script.remove());
+            
+            // Remove iframes
+            doc.querySelectorAll('iframe').forEach(iframe => iframe.remove());
+            
+            // Create content div
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'card-sandbox-content';
+            
+            // Move all body children to content div
+            Array.from(doc.body.children).forEach(child => {
+                contentDiv.appendChild(child.cloneNode(true));
+            });
+            
+            container.appendChild(contentDiv);
+            
+        } catch (error) {
+            console.error('Failed to load toolbox card:', error);
+            container.innerHTML = `
+                <div class="card-sandbox-error">
+                    <div style="padding:20px;text-align:center;">
+                        <div style="font-size:24px;margin-bottom:8px;opacity:0.5;">⚠️</div>
+                        <div style="font-size:12px;color:var(--text-tertiary);">Failed to load card</div>
+                    </div>
+                </div>
+            `;
+        }
     }
     
     makeDraggable(element, cardData) {
@@ -2353,8 +2434,6 @@ class ToolboxManager {
     initSortable() {
         const container = document.getElementById('toolboxCardsContainer');
         if (!container || this.cards.length === 0) return;
-        
-        // We're using manual drag/resize instead of SortableJS for better control
     }
     
     setupEventListeners() {
