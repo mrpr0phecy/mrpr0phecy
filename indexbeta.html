@@ -1626,7 +1626,6 @@
 </footer>
 
 <!-- ===== JAVASCRIPT ===== -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
 // ==================== CONFIGURATION ====================
 const CONFIG = {
@@ -1651,8 +1650,6 @@ let observer = null;
 let isSearching = false;
 let currentSort = 'alpha';
 let toolboxCards = [];
-let toolboxDocked = true;
-let toolboxSortable = null;
 
 // Background themes
 const themes = {
@@ -1665,7 +1662,7 @@ const themes = {
     'deep-space': { bg1: '#000814', bg2: '#1a1a2e' }
 };
 
-// ==================== SAFE CARD LOADING (NO IFRAMES) ====================
+// ==================== SAFE CARD LOADING (SIMPLIFIED) ====================
 async function loadCardList() {
     try {
         const [owner, repo] = CONFIG.GITHUB_REPO.split('/');
@@ -1835,63 +1832,42 @@ function renderCardContent(card, cardName, html) {
     if (!cardSandbox) return;
     
     try {
-        // Create sandboxed container
-        const sandboxContent = document.createElement('div');
-        sandboxContent.className = 'card-sandbox-content';
+        // Create content container
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'card-sandbox-content';
         
-        // Parse and sanitize HTML
+        // Use DOMParser to safely parse HTML
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         
-        // Remove potentially dangerous elements and attributes
-        sanitizeDOM(doc);
+        // Remove script tags for safety
+        doc.querySelectorAll('script').forEach(script => script.remove());
         
-        // Extract and safely handle scripts
-        const scripts = doc.querySelectorAll('script');
-        scripts.forEach(script => {
-            // Remove external scripts (for safety)
-            if (script.src) {
-                script.remove();
-                return;
-            }
-            
-            // For inline scripts, we'll execute them safely
-            const scriptContent = script.textContent;
-            if (scriptContent.trim()) {
-                try {
-                    // Create a safe execution context
-                    const safeScript = new Function(scriptContent);
-                    // Execute with timeout to prevent infinite loops
-                    setTimeout(() => {
-                        try {
-                            safeScript();
-                        } catch (e) {
-                            console.warn(`Script error in ${cardName}:`, e);
-                        }
-                    }, 0);
-                } catch (error) {
-                    console.warn(`Failed to parse script in ${cardName}:`, error);
-                }
-            }
-            script.remove(); // Remove script tag from DOM
-        });
+        // Remove style tags (we'll handle styling differently)
+        doc.querySelectorAll('style').forEach(style => style.remove());
         
-        // Extract and handle styles
-        const styles = doc.querySelectorAll('style');
-        styles.forEach(style => {
-            // Scope styles to this card only
-            const scopedStyles = scopeStyles(style.textContent, `#card-${cardName}`);
-            style.textContent = scopedStyles;
-        });
+        // Get body content
+        const bodyContent = doc.body.innerHTML;
         
-        // Move all elements to sandbox
-        Array.from(doc.body.children).forEach(child => {
-            sandboxContent.appendChild(child.cloneNode(true));
-        });
+        // Create a temporary div to hold content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = bodyContent;
+        
+        // Apply basic card styles
+        tempDiv.style.cssText = `
+            color: var(--text);
+            font-family: inherit;
+            font-size: var(--text-sm);
+        `;
+        
+        // Move all content to sandbox
+        while (tempDiv.firstChild) {
+            contentDiv.appendChild(tempDiv.firstChild);
+        }
         
         // Clear and update sandbox
         cardSandbox.innerHTML = '';
-        cardSandbox.appendChild(sandboxContent);
+        cardSandbox.appendChild(contentDiv);
         
         // Show embed section
         const embedSection = card.querySelector('.embed-section');
@@ -1915,67 +1891,6 @@ function renderCardContent(card, cardName, html) {
         console.error(`Error rendering card ${cardName}:`, error);
         showCardError(card, cardName, error);
     }
-}
-
-function sanitizeDOM(doc) {
-    // Remove dangerous tags
-    const dangerousTags = ['iframe', 'object', 'embed', 'base', 'link[rel="import"]', 'meta[http-equiv="refresh"]'];
-    dangerousTags.forEach(selector => {
-        doc.querySelectorAll(selector).forEach(el => el.remove());
-    });
-    
-    // Remove dangerous attributes
-    const dangerousAttrs = ['onclick', 'onload', 'onerror', 'onmouseover', 'onkeydown', 'onfocus', 
-                           'javascript:', 'data:', 'vbscript:'];
-    
-    doc.querySelectorAll('*').forEach(el => {
-        Array.from(el.attributes).forEach(attr => {
-            // Remove event handlers
-            if (attr.name.startsWith('on')) {
-                el.removeAttribute(attr.name);
-            }
-            // Remove dangerous protocol attributes
-            if (attr.value && dangerousAttrs.some(danger => attr.value.toLowerCase().includes(danger))) {
-                el.removeAttribute(attr.name);
-            }
-        });
-    });
-}
-
-function scopeStyles(css, selector) {
-    // Simple CSS scoping - prepend selector to all rules
-    // This is a basic implementation; for production, use a proper CSS parser
-    const lines = css.split('}');
-    const scopedLines = lines.map(line => {
-        if (!line.trim()) return '';
-        
-        // Find the opening brace
-        const openBrace = line.indexOf('{');
-        if (openBrace === -1) return line;
-        
-        const beforeBrace = line.substring(0, openBrace);
-        const afterBrace = line.substring(openBrace);
-        
-        // Don't scope keyframes or media queries
-        if (beforeBrace.includes('@keyframes') || beforeBrace.includes('@media')) {
-            return line;
-        }
-        
-        // Scope the selector
-        const selectors = beforeBrace.split(',').map(s => s.trim());
-        const scopedSelectors = selectors.map(s => {
-            // Don't scope global selectors (starting with :root, html, body)
-            if (s.startsWith(':root') || s.startsWith('html') || s.startsWith('body')) {
-                return s.replace(/:root|html|body/g, selector);
-            }
-            // Scope other selectors
-            return `${selector} ${s}`;
-        });
-        
-        return scopedSelectors.join(', ') + afterBrace;
-    });
-    
-    return scopedLines.join('}');
 }
 
 function showCardError(card, cardName, error) {
@@ -2030,7 +1945,7 @@ function initIntersectionObserver() {
     });
 }
 
-// ==================== TOOLBOX SYSTEM ====================
+// ==================== TOOLBOX SYSTEM (SIMPLIFIED) ====================
 class ToolboxManager {
     constructor() {
         this.cards = [];
@@ -2086,7 +2001,6 @@ class ToolboxManager {
         this.saveToStorage();
         this.renderToolbox();
         
-        // Show notification with option to open toolbox
         showNotification(`Added "${displayName}" to toolbox`, 'success');
         
         // Auto-open toolbox if it's hidden
@@ -2151,9 +2065,6 @@ class ToolboxManager {
             const toolboxCard = this.createToolboxCard(card);
             container.appendChild(toolboxCard);
         });
-        
-        // Initialize drag and drop
-        this.initSortable();
     }
     
     createToolboxCard(cardData) {
@@ -2167,8 +2078,6 @@ class ToolboxManager {
             width: ${cardData.width}px;
             height: ${cardData.height}px;
             z-index: ${cardData.zIndex};
-            resize: both;
-            overflow: hidden;
         `;
         
         // Title bar
@@ -2179,12 +2088,23 @@ class ToolboxManager {
             <button class="toolbox-card-close" data-card-id="${cardData.id}" title="Remove from toolbox">✕</button>
         `;
         
-        // Card body (sandboxed content)
+        // Card body (simple content)
         const body = document.createElement('div');
-        body.className = 'toolbox-card-body card-sandbox';
-        
-        // Load card content
-        this.loadCardContent(cardData.name, body);
+        body.className = 'toolbox-card-body';
+        body.style.cssText = `
+            padding: var(--space-md);
+            overflow: auto;
+            height: calc(100% - 46px);
+            font-size: var(--text-sm);
+            color: var(--text);
+        `;
+        body.innerHTML = `
+            <div style="text-align:center;padding:20px;">
+                <div style="font-size:32px;margin-bottom:12px;opacity:0.7;">🔧</div>
+                <div style="color:var(--text-secondary);font-size:12px;">Tool: ${cardData.displayName}</div>
+                <div style="margin-top:12px;font-size:11px;color:var(--text-tertiary);">Double-click to open</div>
+            </div>
+        `;
         
         card.appendChild(titleBar);
         card.appendChild(body);
@@ -2202,53 +2122,17 @@ class ToolboxManager {
             this.removeCard(cardData.id);
         });
         
+        // Double-click to open full card
+        card.addEventListener('dblclick', () => {
+            window.open(`cards/${cardData.name}.html`, '_blank', 'noopener,noreferrer');
+        });
+        
         // Bring to front on click
         card.addEventListener('mousedown', () => {
             this.bringToFront(cardData.id);
         });
         
         return card;
-    }
-    
-    async loadCardContent(cardName, container) {
-        try {
-            const response = await fetch(`cards/${cardName}.html`);
-            if (!response.ok) throw new Error('Failed to load card');
-            
-            const html = await response.text();
-            
-            // Parse and sanitize HTML
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            
-            // Remove scripts for toolbox (safer)
-            doc.querySelectorAll('script').forEach(script => script.remove());
-            
-            // Remove iframes
-            doc.querySelectorAll('iframe').forEach(iframe => iframe.remove());
-            
-            // Create content div
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'card-sandbox-content';
-            
-            // Move all body children to content div
-            Array.from(doc.body.children).forEach(child => {
-                contentDiv.appendChild(child.cloneNode(true));
-            });
-            
-            container.appendChild(contentDiv);
-            
-        } catch (error) {
-            console.error('Failed to load toolbox card:', error);
-            container.innerHTML = `
-                <div class="card-sandbox-error">
-                    <div style="padding:20px;text-align:center;">
-                        <div style="font-size:24px;margin-bottom:8px;opacity:0.5;">⚠️</div>
-                        <div style="font-size:12px;color:var(--text-tertiary);">Failed to load card</div>
-                    </div>
-                </div>
-            `;
-        }
     }
     
     makeDraggable(element, cardData) {
@@ -2271,7 +2155,7 @@ class ToolboxManager {
             this.bringToFront(cardData.id);
         });
         
-        document.addEventListener('mousemove', (e) => {
+        const mouseMoveHandler = (e) => {
             if (!isDragging) return;
             
             const x = e.clientX - offsetX;
@@ -2289,127 +2173,94 @@ class ToolboxManager {
                 element.style.left = `${cardData.x}px`;
                 element.style.top = `${cardData.y}px`;
             }
-        });
+        };
         
-        document.addEventListener('mouseup', () => {
+        const mouseUpHandler = () => {
             if (isDragging) {
                 isDragging = false;
                 element.style.cursor = '';
                 document.body.style.userSelect = '';
                 this.saveToStorage();
+                
+                // Remove event listeners
+                document.removeEventListener('mousemove', mouseMoveHandler);
+                document.removeEventListener('mouseup', mouseUpHandler);
             }
-        });
+        };
+        
+        // Add event listeners
+        document.addEventListener('mousemove', mouseMoveHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
     }
     
     makeResizable(element, cardData) {
+        const handleSize = 8;
+        const minWidth = 180;
+        const minHeight = 140;
+        
+        // Create resize handle
+        const handle = document.createElement('div');
+        handle.style.cssText = `
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: ${handleSize}px;
+            height: ${handleSize}px;
+            background: var(--accent);
+            opacity: 0.3;
+            cursor: nwse-resize;
+            border-radius: 2px;
+        `;
+        
+        element.appendChild(handle);
+        
         let isResizing = false;
         let startX, startY, startWidth, startHeight;
         
-        const handleSize = 8;
-        
-        // Create resize handles
-        const handles = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'];
-        handles.forEach(dir => {
-            const handle = document.createElement('div');
-            handle.style.cssText = `
-                position: absolute;
-                background: transparent;
-                z-index: 10;
-            `;
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             
-            // Position handles
-            if (dir.includes('n')) {
-                handle.style.top = '0';
-                handle.style.height = `${handleSize}px`;
-                handle.style.cursor = 'ns-resize';
-            }
-            if (dir.includes('s')) {
-                handle.style.bottom = '0';
-                handle.style.height = `${handleSize}px`;
-                handle.style.cursor = 'ns-resize';
-            }
-            if (dir.includes('e')) {
-                handle.style.right = '0';
-                handle.style.width = `${handleSize}px`;
-                handle.style.cursor = 'ew-resize';
-            }
-            if (dir.includes('w')) {
-                handle.style.left = '0';
-                handle.style.width = `${handleSize}px`;
-                handle.style.cursor = 'ew-resize';
-            }
-            if (dir === 'ne') {
-                handle.style.top = '0';
-                handle.style.right = '0';
-                handle.style.width = `${handleSize}px`;
-                handle.style.height = `${handleSize}px`;
-                handle.style.cursor = 'nesw-resize';
-            }
-            if (dir === 'nw') {
-                handle.style.top = '0';
-                handle.style.left = '0';
-                handle.style.width = `${handleSize}px`;
-                handle.style.height = `${handleSize}px`;
-                handle.style.cursor = 'nwse-resize';
-            }
-            if (dir === 'se') {
-                handle.style.bottom = '0';
-                handle.style.right = '0';
-                handle.style.width = `${handleSize}px`;
-                handle.style.height = `${handleSize}px`;
-                handle.style.cursor = 'nwse-resize';
-            }
-            if (dir === 'sw') {
-                handle.style.bottom = '0';
-                handle.style.left = '0';
-                handle.style.width = `${handleSize}px`;
-                handle.style.height = `${handleSize}px`;
-                handle.style.cursor = 'nesw-resize';
-            }
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = element.offsetWidth;
+            startHeight = element.offsetHeight;
             
-            handle.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                isResizing = true;
-                startX = e.clientX;
-                startY = e.clientY;
-                startWidth = element.offsetWidth;
-                startHeight = element.offsetHeight;
-                
-                document.body.style.userSelect = 'none';
-                
-                // Bring to front
-                this.bringToFront(cardData.id);
-            });
+            document.body.style.userSelect = 'none';
             
-            element.appendChild(handle);
+            // Bring to front
+            this.bringToFront(cardData.id);
         });
         
-        document.addEventListener('mousemove', (e) => {
+        const mouseMoveHandler = (e) => {
             if (!isResizing) return;
             
             const deltaX = e.clientX - startX;
             const deltaY = e.clientY - startY;
-            
-            // Calculate new dimensions with minimum size
-            const minWidth = 180;
-            const minHeight = 140;
             
             cardData.width = Math.max(minWidth, startWidth + deltaX);
             cardData.height = Math.max(minHeight, startHeight + deltaY);
             
             element.style.width = `${cardData.width}px`;
             element.style.height = `${cardData.height}px`;
-        });
+        };
         
-        document.addEventListener('mouseup', () => {
+        const mouseUpHandler = () => {
             if (isResizing) {
                 isResizing = false;
                 document.body.style.userSelect = '';
                 this.saveToStorage();
+                
+                // Remove event listeners
+                document.removeEventListener('mousemove', mouseMoveHandler);
+                document.removeEventListener('mouseup', mouseUpHandler);
             }
-        });
+        };
+        
+        // Add event listeners
+        document.addEventListener('mousemove', mouseMoveHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
     }
     
     bringToFront(cardId) {
@@ -2431,37 +2282,42 @@ class ToolboxManager {
         }
     }
     
-    initSortable() {
-        const container = document.getElementById('toolboxCardsContainer');
-        if (!container || this.cards.length === 0) return;
-    }
-    
     setupEventListeners() {
         // Clear toolbox button
         const clearBtn = document.getElementById('clearToolboxBtn');
         if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.clearAll());
+            clearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.clearAll();
+            });
         }
         
-        // Dock/undock button
+        // Dock/undock button - FIXED: No page reload
         const dockBtn = document.getElementById('dockBtn');
         if (dockBtn) {
-            dockBtn.addEventListener('click', () => {
-                const toolbox = document.getElementById('toolbox');
-                toolboxDocked = !toolboxDocked;
+            dockBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 
-                if (toolboxDocked) {
+                const toolbox = document.getElementById('toolbox');
+                const isDocked = toolbox.style.position !== 'absolute';
+                
+                if (isDocked) {
+                    // Undock: Make it position absolute within body
+                    toolbox.style.position = 'absolute';
+                    toolbox.style.right = '0';
+                    toolbox.style.bottom = '0';
+                    toolbox.style.width = '500px';
+                    toolbox.style.height = '400px';
+                    dockBtn.title = 'Dock';
+                    dockBtn.textContent = '⇲';
+                } else {
+                    // Dock: Return to fixed position
                     toolbox.style.position = 'fixed';
                     toolbox.style.right = 'var(--space-lg)';
                     toolbox.style.bottom = 'var(--space-lg)';
                     dockBtn.title = 'Undock';
                     dockBtn.textContent = '⇱';
-                } else {
-                    toolbox.style.position = 'absolute';
-                    toolbox.style.right = '0';
-                    toolbox.style.bottom = '0';
-                    dockBtn.title = 'Dock';
-                    dockBtn.textContent = '⇲';
                 }
             });
         }
@@ -2475,6 +2331,8 @@ let toolboxManager;
 function initPremiumSponsorship() {
     const premiumCard = document.getElementById('premiumSponsorship');
     const premiumDetails = document.getElementById('premiumDetails');
+    
+    if (!premiumCard || !premiumDetails) return;
     
     // Toggle premium details on click
     premiumCard.addEventListener('click', (e) => {
@@ -2495,6 +2353,8 @@ function showPremiumDetails() {
     const contributionsToggle = document.getElementById('contributionsToggle');
     const premiumDetails = document.getElementById('premiumDetails');
     
+    if (!contributionsPanel || !contributionsToggle || !premiumDetails) return;
+    
     // Open contributions panel
     contributionsPanel.classList.add('open');
     contributionsToggle.classList.add('active');
@@ -2512,6 +2372,8 @@ function initContributions() {
     const contributionsPanel = document.getElementById('contributionsPanel');
     const contributionsClose = document.getElementById('contributionsClose');
     
+    if (!contributionsToggle || !contributionsPanel || !contributionsClose) return;
+    
     // Toggle contributions panel
     contributionsToggle.addEventListener('click', () => {
         contributionsPanel.classList.toggle('open');
@@ -2524,7 +2386,10 @@ function initContributions() {
         contributionsToggle.classList.remove('active');
         
         // Also close premium details
-        document.getElementById('premiumDetails').classList.remove('show');
+        const premiumDetails = document.getElementById('premiumDetails');
+        if (premiumDetails) {
+            premiumDetails.classList.remove('show');
+        }
     });
     
     // Close panel when clicking outside
@@ -2536,7 +2401,10 @@ function initContributions() {
             contributionsToggle.classList.remove('active');
             
             // Also close premium details
-            document.getElementById('premiumDetails').classList.remove('show');
+            const premiumDetails = document.getElementById('premiumDetails');
+            if (premiumDetails) {
+                premiumDetails.classList.remove('show');
+            }
         }
     });
 }
@@ -2544,6 +2412,8 @@ function initContributions() {
 function showContributionsPanel() {
     const contributionsPanel = document.getElementById('contributionsPanel');
     const contributionsToggle = document.getElementById('contributionsToggle');
+    
+    if (!contributionsPanel || !contributionsToggle) return;
     
     contributionsPanel.classList.add('open');
     contributionsToggle.classList.add('active');
@@ -2558,6 +2428,8 @@ function showContributionsPanel() {
 function initColorSystem() {
     const paletteToggle = document.getElementById('paletteToggle');
     const palettePanel = document.getElementById('palettePanel');
+    
+    if (!paletteToggle || !palettePanel) return;
     
     // Toggle palette panel
     paletteToggle.addEventListener('click', () => {
@@ -2836,70 +2708,90 @@ function setupEventListeners() {
     const searchBtn = document.getElementById('searchBtn');
     
     let searchTimeout;
-    searchInput.addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            performSearch(e.target.value);
-        }, 300);
-    });
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch(e.target.value);
+            }, 300);
+        });
+    }
     
-    searchBtn.addEventListener('click', () => performSearch(searchInput.value));
-    searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') performSearch(searchInput.value);
-    });
+    if (searchBtn) {
+        searchBtn.addEventListener('click', () => performSearch(searchInput.value));
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch(searchInput.value);
+        });
+    }
     
     // Sorting
-    document.getElementById('sortAlphaBtn').addEventListener('click', () => {
-        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
-        document.getElementById('sortAlphaBtn').classList.add('active');
-        sortCards('alpha');
-    });
+    const sortAlphaBtn = document.getElementById('sortAlphaBtn');
+    const sortRandomBtn = document.getElementById('sortRandomBtn');
+    const sortNewestBtn = document.getElementById('sortNewestBtn');
     
-    document.getElementById('sortRandomBtn').addEventListener('click', () => {
-        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
-        document.getElementById('sortRandomBtn').classList.add('active');
-        sortCards('random');
-    });
+    if (sortAlphaBtn) {
+        sortAlphaBtn.addEventListener('click', () => {
+            document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+            sortAlphaBtn.classList.add('active');
+            sortCards('alpha');
+        });
+    }
     
-    document.getElementById('sortNewestBtn').addEventListener('click', () => {
-        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
-        document.getElementById('sortNewestBtn').classList.add('active');
-        sortCards('newest');
-    });
+    if (sortRandomBtn) {
+        sortRandomBtn.addEventListener('click', () => {
+            document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+            sortRandomBtn.classList.add('active');
+            sortCards('random');
+        });
+    }
+    
+    if (sortNewestBtn) {
+        sortNewestBtn.addEventListener('click', () => {
+            document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+            sortNewestBtn.classList.add('active');
+            sortCards('newest');
+        });
+    }
     
     // Load All
-    document.getElementById('loadAllBtn').addEventListener('click', async () => {
-        const btn = document.getElementById('loadAllBtn');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '⏳ Loading...';
-        btn.disabled = true;
-        
-        const cards = document.querySelectorAll('.card:not(.loaded)');
-        const total = cards.length;
-        let loaded = 0;
-        
-        for (let i = 0; i < cards.length; i++) {
-            const card = cards[i];
-            const cardName = card.dataset.name;
+    const loadAllBtn = document.getElementById('loadAllBtn');
+    if (loadAllBtn) {
+        loadAllBtn.addEventListener('click', async () => {
+            const btn = loadAllBtn;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Loading...';
+            btn.disabled = true;
             
-            if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                await loadCard(card, cardName);
-                loaded++;
+            const cards = document.querySelectorAll('.card:not(.loaded)');
+            const total = cards.length;
+            let loaded = 0;
+            
+            for (let i = 0; i < cards.length; i++) {
+                const card = cards[i];
+                const cardName = card.dataset.name;
                 
-                document.getElementById('statusText').textContent = `Loading ${loaded} of ${total}...`;
-                await new Promise(resolve => setTimeout(resolve, 50));
+                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    await loadCard(card, cardName);
+                    loaded++;
+                    
+                    document.getElementById('statusText').textContent = `Loading ${loaded} of ${total}...`;
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
             }
-        }
-        
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        showNotification(`Loaded all ${total} cards`, 'success');
-    });
+            
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            showNotification(`Loaded all ${total} cards`, 'success');
+        });
+    }
     
     // Add to toolbox button
     document.addEventListener('click', (e) => {
         const addBtn = e.target.closest('.add-to-toolbox');
-        if (addBtn) {
+        if (addBtn && toolboxManager) {
             e.preventDefault();
             e.stopPropagation();
             
@@ -2951,41 +2843,50 @@ function setupEventListeners() {
         // Ctrl+T for toolbox
         if ((e.ctrlKey || e.metaKey) && e.key === 't') {
             e.preventDefault();
-            document.getElementById('toolboxToggle').click();
+            const toggleBtn = document.getElementById('toolboxToggle');
+            if (toggleBtn) toggleBtn.click();
         }
         // Ctrl+P for palette
         else if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
             e.preventDefault();
-            document.getElementById('paletteToggle').click();
+            const toggleBtn = document.getElementById('paletteToggle');
+            if (toggleBtn) toggleBtn.click();
         }
         // Ctrl+R for reader mode
         else if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
             e.preventDefault();
-            document.getElementById('readerToggle').click();
+            const toggleBtn = document.getElementById('readerToggle');
+            if (toggleBtn) toggleBtn.click();
         }
         // Ctrl+D for contributions
         else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
             e.preventDefault();
-            document.getElementById('contributionsToggle').click();
+            const toggleBtn = document.getElementById('contributionsToggle');
+            if (toggleBtn) toggleBtn.click();
         }
         // Escape to close panels
         else if (e.key === 'Escape') {
-            document.getElementById('palettePanel').classList.remove('open');
-            document.getElementById('paletteToggle').classList.remove('active');
-            document.getElementById('contributionsPanel').classList.remove('open');
-            document.getElementById('contributionsToggle').classList.remove('active');
+            const palettePanel = document.getElementById('palettePanel');
+            const paletteToggle = document.getElementById('paletteToggle');
+            const contributionsPanel = document.getElementById('contributionsPanel');
+            const contributionsToggle = document.getElementById('contributionsToggle');
+            
+            if (palettePanel) palettePanel.classList.remove('open');
+            if (paletteToggle) paletteToggle.classList.remove('active');
+            if (contributionsPanel) contributionsPanel.classList.remove('open');
+            if (contributionsToggle) contributionsToggle.classList.remove('active');
         }
         // / to focus search
         else if (e.key === '/' && document.activeElement !== searchInput) {
             e.preventDefault();
-            searchInput.focus();
+            if (searchInput) searchInput.focus();
         }
     });
     
     // Auto-focus search on page load
     window.addEventListener('load', () => {
         setTimeout(() => {
-            searchInput.focus();
+            if (searchInput) searchInput.focus();
         }, 500);
     });
 }
