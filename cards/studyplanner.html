@@ -1,31 +1,357 @@
 function printStudyPlan() {
-  const printWindow = window.open('', '_blank');
+  if (studySessions.length === 0) {
+    showHint('No study sessions to print.', 'warning');
+    return;
+  }
+  
+  // Ask user for filtering options
+  const printOption = prompt('Print:\n1. All sessions\n2. Upcoming only\n3. Today\'s sessions\n4. By subject\n\nEnter number (1-4):', '1');
+  
+  let sessionsToPrint = [...studySessions];
+  let titleSuffix = 'All Sessions';
+  
+  switch(printOption) {
+    case '2':
+      const today = new Date().toISOString().split('T')[0];
+      sessionsToPrint = studySessions.filter(s => s.date >= today && !s.completed);
+      titleSuffix = 'Upcoming Sessions';
+      break;
+      
+    case '3':
+      const todayStr = new Date().toISOString().split('T')[0];
+      sessionsToPrint = studySessions.filter(s => s.date === todayStr);
+      titleSuffix = "Today's Sessions";
+      break;
+      
+    case '4':
+      const subject = prompt('Enter subject name:');
+      if (subject) {
+        sessionsToPrint = studySessions.filter(s => 
+          s.subject.toLowerCase().includes(subject.toLowerCase())
+        );
+        titleSuffix = `${subject} Sessions`;
+      }
+      break;
+  }
+  
+  if (sessionsToPrint.length === 0) {
+    showHint('No sessions match your criteria.', 'warning');
+    return;
+  }
+  
+  const printWindow = window.open('', '_blank', 'width=800,height=600');
+  
+  // Group sessions by date for better organization
+  const sessionsByDate = {};
+  sessionsToPrint.forEach(session => {
+    if (!sessionsByDate[session.date]) {
+      sessionsByDate[session.date] = [];
+    }
+    sessionsByDate[session.date].push(session);
+  });
+  
+  // Sort dates
+  const sortedDates = Object.keys(sessionsByDate).sort();
+  
+  // Calculate totals
+  const totalHours = sessionsToPrint.reduce((sum, s) => sum + s.duration, 0);
+  const completedHours = sessionsToPrint
+    .filter(s => s.completed)
+    .reduce((sum, s) => sum + s.duration, 0);
+  const pendingSessions = sessionsToPrint.filter(s => !s.completed).length;
+  
+  // Create priority counts
+  const priorityCounts = {
+    urgent: sessionsToPrint.filter(s => s.priority === 'urgent').length,
+    high: sessionsToPrint.filter(s => s.priority === 'high').length,
+    medium: sessionsToPrint.filter(s => s.priority === 'medium').length,
+    low: sessionsToPrint.filter(s => s.priority === 'low').length
+  };
+  
   const content = `
     <html>
-      <head><title>Study Plan</title></head>
+      <head>
+        <title>Study Plan - ${new Date().toLocaleDateString()}</title>
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+          }
+          
+          body {
+            padding: 20px;
+            color: #333;
+            line-height: 1.6;
+          }
+          
+          .print-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #2196f3;
+          }
+          
+          .print-header h1 {
+            color: #2196f3;
+            margin-bottom: 10px;
+            font-size: 24px;
+          }
+          
+          .print-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+          }
+          
+          .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+          }
+          
+          .summary-card {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #2196f3;
+          }
+          
+          .summary-card .label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+          }
+          
+          .summary-card .value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2196f3;
+          }
+          
+          .date-section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+          }
+          
+          .date-header {
+            background: #e3f2fd;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #1976d2;
+            display: flex;
+            justify-content: space-between;
+          }
+          
+          .date-total {
+            font-size: 14px;
+            color: #666;
+          }
+          
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+          }
+          
+          th {
+            background: #2196f3;
+            color: white;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+          }
+          
+          td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+          }
+          
+          tr:nth-child(even) {
+            background: #f9f9f9;
+          }
+          
+          .priority-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+          }
+          
+          .priority-urgent { background: #fce4ec; color: #c2185b; }
+          .priority-high { background: #ffebee; color: #d32f2f; }
+          .priority-medium { background: #fff3e0; color: #f57c00; }
+          .priority-low { background: #e8f5e9; color: #388e3c; }
+          
+          .completed-check {
+            color: #388e3c;
+            font-weight: bold;
+          }
+          
+          .print-footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+          }
+          
+          .print-actions {
+            display: none;
+          }
+          
+          @media print {
+            body {
+              padding: 10px;
+            }
+            
+            .no-print {
+              display: none !important;
+            }
+            
+            .date-section {
+              page-break-inside: avoid;
+            }
+            
+            table {
+              page-break-inside: auto;
+            }
+            
+            tr {
+              page-break-inside: avoid;
+              page-break-after: auto;
+            }
+          }
+        </style>
+      </head>
       <body>
-        <h1>Study Plan - ${new Date().toLocaleDateString()}</h1>
-        <div>Total Hours: ${studySessions.reduce((a,b) => a + b.duration, 0)}</div>
-        <div>Upcoming Sessions: ${studySessions.filter(s => 
-          new Date(s.date) >= new Date() && !s.completed).length}</div>
-        <table border="1">
-          <tr>
-            <th>Subject</th><th>Date</th><th>Duration</th><th>Priority</th>
-          </tr>
-          ${studySessions.map(s => `
-            <tr>
-              <td>${s.subject}</td>
-              <td>${s.date}</td>
-              <td>${s.duration}h</td>
-              <td>${s.priority}</td>
-            </tr>
-          `).join('')}
-        </table>
+        <div class="print-header">
+          <h1>📚 Study Plan - ${titleSuffix}</h1>
+          <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+        </div>
+        
+        <div class="print-meta">
+          <div>Total Sessions: ${sessionsToPrint.length}</div>
+          <div>Date Range: ${sortedDates[0]} to ${sortedDates[sortedDates.length - 1]}</div>
+          <div>Page 1 of 1</div>
+        </div>
+        
+        <div class="summary-cards">
+          <div class="summary-card">
+            <div class="label">Total Study Hours</div>
+            <div class="value">${totalHours.toFixed(1)}h</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Completed Hours</div>
+            <div class="value">${completedHours.toFixed(1)}h</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Pending Sessions</div>
+            <div class="value">${pendingSessions}</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">Urgent/High Priority</div>
+            <div class="value">${priorityCounts.urgent + priorityCounts.high}</div>
+          </div>
+        </div>
+        
+        ${sortedDates.map(date => {
+          const dateSessions = sessionsByDate[date];
+          const dateTotal = dateSessions.reduce((sum, s) => sum + s.duration, 0);
+          const dateCompleted = dateSessions.filter(s => s.completed).length;
+          const isToday = date === new Date().toISOString().split('T')[0];
+          const isPast = new Date(date) < new Date().setHours(0,0,0,0);
+          
+          return `
+            <div class="date-section">
+              <div class="date-header">
+                <span>${formatDate(date)}${isToday ? ' (Today)' : ''}${isPast ? ' (Past)' : ''}</span>
+                <span class="date-total">${dateSessions.length} sessions • ${dateTotal.toFixed(1)}h • ${dateCompleted}/${dateSessions.length} completed</span>
+              </div>
+              
+              <table>
+                <thead>
+                  <tr>
+                    <th width="25%">Subject</th>
+                    <th width="15%">Time</th>
+                    <th width="15%">Priority</th>
+                    <th width="20%">Type</th>
+                    <th width="15%">Status</th>
+                    <th width="10%">Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${dateSessions.map(session => `
+                    <tr>
+                      <td><strong>${session.subject}</strong></td>
+                      <td>${session.duration.toFixed(1)}h</td>
+                      <td>
+                        <span class="priority-badge priority-${session.priority}">
+                          ${session.priority.toUpperCase()}
+                        </span>
+                      </td>
+                      <td>${session.type}</td>
+                      <td class="${session.completed ? 'completed-check' : ''}">
+                        ${session.completed ? '✅ Completed' : '⏳ Pending'}
+                      </td>
+                      <td><strong>${session.duration.toFixed(1)}</strong></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }).join('')}
+        
+        <div class="print-footer">
+          <p>Generated by Study Planner • Total study hours: ${totalHours.toFixed(1)} • ${sessionsToPrint.filter(s => s.completed).length}/${sessionsToPrint.length} sessions completed</p>
+          <p class="no-print" style="margin-top: 10px;">
+            <button onclick="window.print()" style="padding: 8px 16px; background: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+              🖨️ Print Now
+            </button>
+            <button onclick="window.close()" style="padding: 8px 16px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              Close Window
+            </button>
+          </p>
+        </div>
+        
+        <script>
+          // Auto-print after a short delay
+          setTimeout(() => {
+            window.print();
+          }, 500);
+          
+          // Add keyboard shortcuts
+          document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'p') {
+              e.preventDefault();
+              window.print();
+            }
+            if (e.key === 'Escape') {
+              window.close();
+            }
+          });
+        </script>
       </body>
     </html>
   `;
   
   printWindow.document.write(content);
   printWindow.document.close();
-  printWindow.print();
+  
+  // Focus on the print window
+  printWindow.focus();
+  
+  showHint('Print preview opened. Press Ctrl+P to print.', 'info');
 }
