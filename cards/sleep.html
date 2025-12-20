@@ -1,315 +1,493 @@
-<div class="card" id="sleep-card">
-  <h2 id="sleep-title" style="margin-top:0;">Sleep Calculator</h2>
+<!-- 
+===========================================
+FILE: cards/sleep-calculator.html
+RULE: Follows Sacred Tool Template structure
+===========================================
+-->
 
-  <form aria-describedby="sleep-desc">
-    <p id="sleep-desc" class="small">Find the best times to wake up or go to bed based on 90‑minute sleep cycles.</p>
+<!-- ===== 1. TITLE & DESCRIPTION ===== -->
+<h2 id="tt-title">🛏️ Sleep Cycle Calculator</h2>
+<p id="tt-desc" class="small">
+    Calculate optimal wake-up times based on 90-minute sleep cycles for better rest.
+    <em>No affiliate links - this site is supported by 
+        <a href="#contributionsPanel" onclick="showContributionsPanel()">
+            user contributions
+        </a>.
+    </em>
+</p>
 
-    <div class="row" style="display:grid;grid-template-columns:1fr;gap:10px;">
-      <div class="field">
-        <label for="sleep-bedtime">Planned bedtime</label>
-        <input id="sleep-bedtime" type="time" value="23:00" style="width:100%;" />
-      </div>
+<!-- ===== 2. INPUT INTERFACE ===== -->
+<form id="tt-form" aria-labelledby="tt-title">
+    <div style="margin-bottom:var(--space-md);">
+        <label for="tt-bedtime" style="display:block;margin-bottom:var(--space-micro);color:var(--text-secondary);font-size:var(--text-sm);">
+            🌙 Planned Bedtime
+        </label>
+        <input 
+            type="time" 
+            id="tt-bedtime" 
+            value="23:00"
+            class="glass glass-dark"
+            style="width:100%;padding:var(--space-sm);border-radius:var(--radius-md);border:1px solid var(--border);background:rgba(255,255,255,0.03);color:var(--text);font-family:var(--font-primary);"
+        >
+    </div>
 
-      <div class="field">
-        <label for="sleep-cycles">Number of cycles</label>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <input id="sleep-cycles" type="number" min="1" max="6" value="5" style="width:100%;" />
-          <div class="small" style="white-space:nowrap;">(~1.5h each)</div>
+    <div style="margin-bottom:var(--space-md);">
+        <label for="tt-cycles" style="display:block;margin-bottom:var(--space-micro);color:var(--text-secondary);font-size:var(--text-sm);">
+            🔄 Sleep Cycles (90 min each)
+        </label>
+        <div style="display:flex;align-items:center;gap:var(--space-sm);">
+            <input 
+                type="range" 
+                id="tt-cycles-slider"
+                min="3" 
+                max="7" 
+                value="5"
+                style="flex:1;accent-color:var(--accent);"
+                oninput="document.getElementById('tt-cycles-value').textContent = this.value; ttCalculate()"
+            >
+            <div style="display:flex;align-items:center;gap:var(--space-xs);">
+                <span id="tt-cycles-value" style="font-size:var(--text-lg);font-weight:var(--weight-semibold);color:var(--accent);min-width:24px;text-align:center;">
+                    5
+                </span>
+                <span style="font-size:var(--text-xs);color:var(--text-tertiary);">cycles</span>
+            </div>
         </div>
-      </div>
+        <div style="display:flex;justify-content:space-between;margin-top:var(--space-xs);">
+            <span style="font-size:var(--text-xs);color:var(--text-tertiary);">3 cycles (4.5h)</span>
+            <span style="font-size:var(--text-xs);color:var(--text-tertiary);">Optimal: 5 cycles (7.5h)</span>
+            <span style="font-size:var(--text-xs);color:var(--text-tertiary);">7 cycles (10.5h)</span>
+        </div>
     </div>
 
-    <div class="actions" style="margin-top:12px;display:flex;gap:8px;">
-      <button type="button" onclick="sleepCalc(this)" class="primary">Calculate</button>
-      <button type="button" class="secondary" onclick="sleepReset(this)">Reset</button>
-      <button type="button" onclick="sleepSuggest(this)" class="secondary">Suggest Cycles</button>
+    <div class="button-row" style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md);">
+        <button type="button" onclick="ttSuggestOptimal()" style="flex:1;" class="btn btn-secondary">
+            🤔 Suggest Cycles
+        </button>
+        <button type="button" onclick="ttSetCurrentTime()" style="flex:1;" class="btn btn-secondary">
+            ⏰ Current Time
+        </button>
+        <button type="button" onclick="ttReset()" style="flex:1;" class="btn btn-secondary">
+            🔄 Reset
+        </button>
     </div>
-  </form>
+</form>
 
-  <div class="results" aria-live="polite" style="margin-top:12px;">
-    <h3 class="small">Results</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;">
-      <div class="result-box" style="background:rgba(123, 183, 255, 0.1);border-radius:8px;padding:12px;text-align:center;">
-        <div class="small" style="margin-bottom:4px;">Wake‑up time</div>
-        <div class="value" style="font-size:1.5rem;font-weight:600;" id="sleep-res">–</div>
-      </div>
-      <div class="result-box" style="background:rgba(123, 183, 255, 0.1);border-radius:8px;padding:12px;text-align:center;">
-        <div class="small" style="margin-bottom:4px;">Total sleep</div>
-        <div class="value" style="font-size:1.5rem;font-weight:600;" id="sleep-total">–</div>
-      </div>
+<!-- ===== 3. RESULTS ===== -->
+<div class="results" id="tt-results" style="margin-top:var(--space-lg);">
+    <div style="margin-bottom:var(--space-sm);display:flex;align-items:center;gap:var(--space-sm);">
+        <h3 style="font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--text-secondary);margin:0;">
+            Optimal Wake-up Times
+        </h3>
+        <span id="tt-sleep-duration" style="font-size:var(--text-xs);color:var(--text-tertiary);background:rgba(45,212,255,0.1);padding:2px 8px;border-radius:12px;margin-left:auto;">
+            – hours
+        </span>
     </div>
-  </div>
-
-  <div style="margin-top:12px;">
-    <details class="small" style="border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px;">
-      <summary style="cursor:pointer;font-weight:500;padding:4px;">How it works</summary>
-      <div style="margin-top:8px;padding:4px;border-top:1px solid rgba(255,255,255,0.08);">
-        <p style="margin:8px 0;">Sleep cycles last ~90 minutes. This calculator adds cycles to your bedtime to suggest optimal wake‑up times.</p>
-        <p style="margin:8px 0;"><strong>Recommended cycles:</strong></p>
-        <ul style="margin:8px 0;padding-left:20px;">
-          <li>5 cycles: 7.5 hours (optimal)</li>
-          <li>6 cycles: 9 hours (extended)</li>
-          <li>4 cycles: 6 hours (minimum)</li>
-        </ul>
-      </div>
-    </details>
-  </div>
-
-  <style>
-    .card {
-      background: #1a1a1a;
-      border-radius: 12px;
-      padding: 20px;
-      border: 1px solid #333;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      margin-bottom: 20px;
-    }
     
-    .card h2 {
-      color: #7bb7ff;
-      font-size: 1.5rem;
-      margin-bottom: 8px;
-    }
+    <div class="result-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:var(--space-sm);">
+        <!-- Cycle options will be populated here -->
+        <div id="tt-cycle-options"></div>
+    </div>
     
-    .card .small {
-      font-size: 0.875rem;
-      color: #aaa;
-      margin-bottom: 16px;
-    }
-    
-    .field {
-      margin-bottom: 16px;
-    }
-    
-    .field label {
-      display: block;
-      margin-bottom: 6px;
-      color: #ddd;
-      font-weight: 500;
-    }
-    
-    .field input {
-      padding: 10px 12px;
-      border: 1px solid #444;
-      border-radius: 8px;
-      background: #252525;
-      color: #fff;
-      font-size: 0.95rem;
-    }
-    
-    .field input:focus {
-      outline: none;
-      border-color: #7bb7ff;
-      box-shadow: 0 0 0 2px rgba(123, 183, 255, 0.2);
-    }
-    
-    input[type="time"]::-webkit-calendar-picker-indicator {
-      filter: invert(0.8);
-      cursor: pointer;
-    }
-    
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button {
-      opacity: 1;
-      height: 24px;
-      cursor: pointer;
-    }
-    
-    .actions button {
-      padding: 10px 16px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 0.95rem;
-    }
-    
-    .actions button.primary {
-      background: #4a86e8;
-      color: white;
-    }
-    
-    .actions button.primary:hover {
-      background: #3a76d8;
-    }
-    
-    .actions button.secondary {
-      background: #555;
-      color: white;
-    }
-    
-    .actions button.secondary:hover {
-      background: #666;
-    }
-    
-    .results h3 {
-      color: #7bb7ff;
-      margin-bottom: 8px;
-      font-size: 1rem;
-    }
-    
-    .result-box {
-      transition: transform 0.2s ease;
-    }
-    
-    .result-box:hover {
-      transform: translateY(-2px);
-    }
-    
-    details summary::-webkit-details-marker {
-      display: none;
-    }
-    
-    details summary:after {
-      content: '▼';
-      float: right;
-      font-size: 0.75em;
-      transition: transform 0.2s ease;
-    }
-    
-    details[open] summary:after {
-      transform: rotate(180deg);
-    }
-  </style>
+    <div style="margin-top:var(--space-lg);padding-top:var(--space-md);border-top:1px solid var(--border-light);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm);">
+            <div>
+                <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:2px;">Recommended Wake-up</div>
+                <div id="tt-recommended-time" style="font-size:var(--text-xxl);font-weight:var(--weight-black);color:var(--accent);">
+                    –:– –
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:2px;">Total Sleep</div>
+                <div id="tt-total-sleep" style="font-size:var(--text-xl);font-weight:var(--weight-bold);color:var(--text);">
+                    – hours
+                </div>
+            </div>
+        </div>
+        
+        <!-- Progress bar -->
+        <div style="margin-top:var(--space-md);">
+            <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-xs);">
+                <span style="font-size:var(--text-xs);color:var(--text-tertiary);">Light Sleep</span>
+                <span style="font-size:var(--text-xs);color:var(--text-tertiary);">Deep Sleep</span>
+                <span style="font-size:var(--text-xs);color:var(--text-tertiary);">REM Sleep</span>
+            </div>
+            <div id="tt-sleep-progress" style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;position:relative;">
+                <div style="position:absolute;left:0;width:60%;height:100%;background:linear-gradient(90deg, rgba(45,212,255,0.6), rgba(123,183,255,0.6));border-radius:3px;"></div>
+                <div style="position:absolute;left:60%;width:25%;height:100%;background:linear-gradient(90deg, rgba(123,183,255,0.6), rgba(76,201,240,0.6));border-radius:3px;"></div>
+                <div style="position:absolute;left:85%;width:15%;height:100%;background:linear-gradient(90deg, rgba(76,201,240,0.6), rgba(45,212,255,0.6));border-radius:3px;"></div>
+            </div>
+        </div>
+    </div>
 </div>
 
+<!-- ===== 4. SHARING & EMBED ===== -->
+<div class="share-temple" style="margin-top:var(--space-lg);padding-top:var(--space-md);border-top:1px solid var(--border-light);">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-sm);">
+        <button onclick="ttShare()" class="btn btn-secondary">
+            <span style="display:inline-flex;align-items:center;gap:var(--space-xs);">
+                📤 Share Sleep Schedule
+            </span>
+        </button>
+        <button onclick="ttEmbed()" class="btn btn-secondary">
+            <span style="display:inline-flex;align-items:center;gap:var(--space-xs);">
+                🔗 Embed Calculator
+            </span>
+        </button>
+    </div>
+</div>
+
+<!-- ===== 5. HOW IT WORKS ===== -->
+<details style="margin-top:var(--space-lg);border:1px solid var(--border-light);border-radius:var(--radius-md);padding:var(--space-sm);background:rgba(255,255,255,0.02);">
+    <summary style="cursor:pointer;font-weight:var(--weight-semibold);color:var(--text-secondary);padding:var(--space-xs);list-style:none;display:flex;align-items:center;gap:var(--space-xs);">
+        <span style="font-size:18px;">📚</span>
+        How Sleep Cycles Work
+    </summary>
+    <div style="margin-top:var(--space-sm);padding:var(--space-sm);border-top:1px solid var(--border-light);">
+        <p style="margin:0 0 var(--space-sm) 0;color:var(--text-secondary);font-size:var(--text-sm);line-height:var(--leading-base);">
+            A sleep cycle lasts about 90 minutes and includes light sleep, deep sleep, and REM sleep. 
+            Waking up between cycles (at the end of a cycle) helps you feel more refreshed.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:var(--space-sm);">
+            <div style="background:rgba(45,212,255,0.05);padding:var(--space-sm);border-radius:var(--radius-sm);border:1px solid rgba(45,212,255,0.2);">
+                <div style="font-size:var(--text-xs);color:var(--accent);font-weight:var(--weight-semibold);margin-bottom:4px;">Optimal (5 cycles)</div>
+                <div style="font-size:var(--text-sm);color:var(--text);">7.5 hours</div>
+            </div>
+            <div style="background:rgba(123,183,255,0.05);padding:var(--space-sm);border-radius:var(--radius-sm);border:1px solid rgba(123,183,255,0.2);">
+                <div style="font-size:var(--text-xs);color:#7bb7ff;font-weight:var(--weight-semibold);margin-bottom:4px;">Extended (6 cycles)</div>
+                <div style="font-size:var(--text-sm);color:var(--text);">9 hours</div>
+            </div>
+            <div style="background:rgba(255,183,77,0.05);padding:var(--space-sm);border-radius:var(--radius-sm);border:1px solid rgba(255,183,77,0.2);">
+                <div style="font-size:var(--text-xs);color:#ffb74d;font-weight:var(--weight-semibold);margin-bottom:4px;">Minimum (4 cycles)</div>
+                <div style="font-size:var(--text-sm);color:var(--text);">6 hours</div>
+            </div>
+        </div>
+    </div>
+</details>
+
+<!-- ===== 6. JAVASCRIPT ===== -->
 <script>
-function sleepCalc(btn) {
-  const card = btn.closest('.card');
-  const bedtimeStr = card.querySelector('#sleep-bedtime').value;
-  const cycles = parseInt(card.querySelector('#sleep-cycles').value, 10) || 5;
-  
-  // Validate cycles
-  if (cycles < 1 || cycles > 6) {
-    card.querySelector('#sleep-res').textContent = "Invalid cycles";
-    card.querySelector('#sleep-total').textContent = "–";
-    return;
-  }
+// TOOL-SPECIFIC FUNCTIONS
+const ttState = {
+    bedtime: '23:00',
+    cycles: 5,
+    recommendedCycles: 5
+};
 
-  if (!bedtimeStr) {
-    card.querySelector('#sleep-res').textContent = "–";
-    card.querySelector('#sleep-total').textContent = "–";
-    return;
-  }
-
-  // Parse bedtime
-  const [hours, minutes] = bedtimeStr.split(":").map(Number);
-  const bedtime = new Date();
-  bedtime.setHours(hours, minutes, 0, 0);
-  
-  // Calculate wake time (add cycles * 90 minutes)
-  const wakeTime = new Date(bedtime.getTime() + cycles * 90 * 60000);
-  
-  // Format wake time
-  const hh = wakeTime.getHours().toString().padStart(2, "0");
-  const mm = wakeTime.getMinutes().toString().padStart(2, "0");
-  const period = wakeTime.getHours() >= 12 ? "PM" : "AM";
-  const displayHours = wakeTime.getHours() % 12 || 12;
-  
-  // Calculate total sleep hours
-  const totalHours = (cycles * 1.5).toFixed(1);
-  const hoursInt = Math.floor(cycles * 1.5);
-  const minutesInt = Math.round((cycles * 1.5 - hoursInt) * 60);
-  
-  // Display results
-  card.querySelector('#sleep-res').textContent = `${displayHours}:${mm} ${period}`;
-  card.querySelector('#sleep-total').textContent = `${totalHours}h`;
-  
-  // Add success hint
-  const resultsDiv = card.querySelector('.results');
-  if (!resultsDiv.querySelector('.hint')) {
-    const hint = document.createElement('div');
-    hint.className = 'hint small';
-    hint.style.marginTop = '8px';
-    hint.style.color = '#8bc34a';
-    resultsDiv.appendChild(hint);
-  }
-  
-  const hint = resultsDiv.querySelector('.hint');
-  hint.textContent = `Calculated ${cycles} sleep cycle${cycles !== 1 ? 's' : ''}`;
-}
-
-function sleepReset(btn) {
-  const card = btn.closest('.card');
-  card.querySelector('#sleep-bedtime').value = "23:00";
-  card.querySelector('#sleep-cycles').value = "5";
-  card.querySelector('#sleep-res').textContent = "–";
-  card.querySelector('#sleep-total').textContent = "–";
-  
-  // Clear hint
-  const hint = card.querySelector('.hint');
-  if (hint) hint.textContent = "";
-}
-
-function sleepSuggest(btn) {
-  const card = btn.closest('.card');
-  const cyclesInput = card.querySelector('#sleep-cycles');
-  
-  // Cycle through recommendations
-  const recommendations = [5, 6, 4, 3];
-  const current = parseInt(cyclesInput.value, 10) || 5;
-  const currentIndex = recommendations.indexOf(current);
-  const nextIndex = (currentIndex + 1) % recommendations.length;
-  cyclesInput.value = recommendations[nextIndex];
-  
-  // Auto-calculate with new value
-  const calculateBtn = card.querySelector('button.primary');
-  sleepCalc(calculateBtn);
-  
-  // Show suggestion feedback
-  const hint = card.querySelector('.hint') || 
-               (() => {
-                 const div = document.createElement('div');
-                 div.className = 'hint small';
-                 div.style.marginTop = '8px';
-                 div.style.color = '#ffb74d';
-                 card.querySelector('.results').appendChild(div);
-                 return div;
-               })();
-  
-  const messages = {
-    5: "Optimal: 7.5 hours (5 cycles)",
-    6: "Extended: 9 hours (6 cycles)",
-    4: "Minimum: 6 hours (4 cycles)",
-    3: "Short: 4.5 hours (3 cycles)"
-  };
-  
-  hint.textContent = `Suggested: ${messages[recommendations[nextIndex]]}`;
-  hint.style.color = '#ffb74d';
-  
-  // Reset color after 3 seconds
-  setTimeout(() => {
-    if (hint.textContent.includes("Suggested:")) {
-      hint.style.color = '#8bc34a';
+function ttCalculate() {
+    const bedtimeInput = document.getElementById('tt-bedtime').value;
+    const cycles = parseInt(document.getElementById('tt-cycles-slider').value);
+    
+    if (!bedtimeInput) {
+        showNotification('Please set a bedtime', 'warning');
+        return;
     }
-  }, 3000);
+
+    // Parse bedtime
+    const [hours, minutes] = bedtimeInput.split(':').map(Number);
+    const bedtime = new Date();
+    bedtime.setHours(hours, minutes, 0, 0);
+    
+    // Update state
+    ttState.bedtime = bedtimeInput;
+    ttState.cycles = cycles;
+    
+    // Calculate and display results
+    ttDisplayCycleOptions(bedtime, cycles);
+    ttCalculateRecommended(bedtime);
+    
+    // Update sleep duration
+    const totalHours = (cycles * 1.5).toFixed(1);
+    document.getElementById('tt-sleep-duration').textContent = `${totalHours} hours`;
+    
+    // Track usage
+    if (window.plausible) {
+        window.plausible('Tool Used', { props: { tool: 'sleep-calculator', cycles: cycles } });
+    }
 }
 
-// Auto-calculate on page load
-document.addEventListener('DOMContentLoaded', function() {
-  const card = document.getElementById('sleep-card');
-  if (card) {
-    // Set a small timeout to ensure all elements are loaded
-    setTimeout(() => {
-      const calculateBtn = card.querySelector('button.primary');
-      if (calculateBtn) {
-        sleepCalc(calculateBtn);
-      }
-    }, 100);
-  }
-});
-
-// Auto-calculate when time input changes
-document.addEventListener('input', function(e) {
-  if (e.target.id === 'sleep-bedtime' || e.target.id === 'sleep-cycles') {
-    const card = e.target.closest('.card');
-    if (card && card.id === 'sleep-card') {
-      const calculateBtn = card.querySelector('button.primary');
-      if (calculateBtn) {
-        sleepCalc(calculateBtn);
-      }
+function ttDisplayCycleOptions(bedtime, selectedCycles) {
+    const container = document.getElementById('tt-cycle-options');
+    container.innerHTML = '';
+    
+    // Generate options for 3-7 cycles
+    for (let cycles = 3; cycles <= 7; cycles++) {
+        const wakeTime = new Date(bedtime.getTime() + cycles * 90 * 60000);
+        const totalHours = (cycles * 1.5).toFixed(1);
+        
+        const period = wakeTime.getHours() >= 12 ? 'PM' : 'AM';
+        const displayHours = wakeTime.getHours() % 12 || 12;
+        const displayMinutes = wakeTime.getMinutes().toString().padStart(2, '0');
+        
+        const isSelected = cycles === selectedCycles;
+        
+        const cycleEl = document.createElement('div');
+        cycleEl.className = 'cycle-option';
+        cycleEl.style.cssText = `
+            background: ${isSelected ? 
+                'linear-gradient(135deg, rgba(45,212,255,0.15), rgba(45,212,255,0.05))' : 
+                'rgba(255,255,255,0.03)'};
+            border: 1px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'};
+            border-radius: var(--radius-md);
+            padding: var(--space-sm);
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition-base);
+        `;
+        cycleEl.onclick = () => {
+            document.getElementById('tt-cycles-slider').value = cycles;
+            document.getElementById('tt-cycles-value').textContent = cycles;
+            ttCalculate();
+        };
+        cycleEl.onmouseenter = (e) => {
+            if (!isSelected) e.currentTarget.style.borderColor = 'var(--accent-dark)';
+        };
+        cycleEl.onmouseleave = (e) => {
+            if (!isSelected) e.currentTarget.style.borderColor = 'var(--border-light)';
+        };
+        
+        cycleEl.innerHTML = `
+            <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px;">
+                ${cycles} cycle${cycles !== 1 ? 's' : ''}
+            </div>
+            <div style="font-size:var(--text-lg);font-weight:var(--weight-semibold);color:var(--text);margin-bottom:2px;">
+                ${displayHours}:${displayMinutes} ${period}
+            </div>
+            <div style="font-size:var(--text-xs);color:var(--text-secondary);">
+                ${totalHours}h total
+            </div>
+            ${isSelected ? '<div style="margin-top:4px;"><div style="width:20px;height:3px;background:var(--accent);margin:0 auto;border-radius:2px;"></div></div>' : ''}
+        `;
+        
+        container.appendChild(cycleEl);
     }
-  }
+}
+
+function ttCalculateRecommended(bedtime) {
+    // Use recommended 5 cycles for optimal sleep
+    const recommendedCycles = 5;
+    const wakeTime = new Date(bedtime.getTime() + recommendedCycles * 90 * 60000);
+    
+    const period = wakeTime.getHours() >= 12 ? 'PM' : 'AM';
+    const displayHours = wakeTime.getHours() % 12 || 12;
+    const displayMinutes = wakeTime.getMinutes().toString().padStart(2, '0');
+    
+    // Update recommended time
+    document.getElementById('tt-recommended-time').textContent = 
+        `${displayHours}:${displayMinutes} ${period}`;
+    document.getElementById('tt-total-sleep').textContent = 
+        `${(recommendedCycles * 1.5).toFixed(1)} hours`;
+    
+    ttState.recommendedCycles = recommendedCycles;
+}
+
+function ttSuggestOptimal() {
+    // Suggest optimal cycle based on current bedtime
+    const bedtimeInput = document.getElementById('tt-bedtime').value;
+    const [hours] = bedtimeInput.split(':').map(Number);
+    
+    let suggestion;
+    if (hours >= 22 || hours < 1) {
+        // Late night - suggest optimal sleep
+        suggestion = 5;
+    } else if (hours >= 1 && hours < 4) {
+        // Very late - suggest minimum
+        suggestion = 4;
+    } else {
+        // Unusual time - suggest based on typical patterns
+        suggestion = Math.floor(Math.random() * 2) + 5; // 5 or 6
+    }
+    
+    document.getElementById('tt-cycles-slider').value = suggestion;
+    document.getElementById('tt-cycles-value').textContent = suggestion;
+    
+    // Calculate with new value
+    ttCalculate();
+    
+    // Show suggestion message
+    const messages = {
+        4: "Minimum sleep recommendation (6 hours)",
+        5: "Optimal sleep recommendation (7.5 hours)",
+        6: "Extended sleep recommendation (9 hours)",
+        7: "Maximum sleep recommendation (10.5 hours)"
+    };
+    
+    showNotification(`Suggested: ${messages[suggestion]}`, 'info');
+}
+
+function ttSetCurrentTime() {
+    const now = new Date();
+    const currentHour = now.getHours().toString().padStart(2, '0');
+    const currentMinute = now.getMinutes().toString().padStart(2, '0');
+    
+    document.getElementById('tt-bedtime').value = `${currentHour}:${currentMinute}`;
+    ttCalculate();
+    showNotification('Set bedtime to current time', 'success');
+}
+
+function ttReset() {
+    document.getElementById('tt-bedtime').value = '23:00';
+    document.getElementById('tt-cycles-slider').value = 5;
+    document.getElementById('tt-cycles-value').textContent = '5';
+    ttCalculate();
+    showNotification('Reset to default values', 'info');
+}
+
+function ttShare() {
+    const bedtime = document.getElementById('tt-bedtime').value;
+    const cycles = document.getElementById('tt-cycles-value').textContent;
+    const recommendedTime = document.getElementById('tt-recommended-time').textContent;
+    const totalSleep = document.getElementById('tt-total-sleep').textContent;
+    
+    const shareText = `Sleep Schedule:
+• Bedtime: ${bedtime}
+• ${cycles} sleep cycles (${(parseInt(cycles) * 1.5).toFixed(1)} hours)
+• Optimal wake-up: ${recommendedTime}
+• Total sleep: ${totalSleep}
+
+Calculated with The Most Useful Site's Sleep Calculator`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'My Sleep Schedule',
+            text: shareText,
+            url: window.location.href
+        });
+    } else {
+        navigator.clipboard.writeText(shareText);
+        showNotification('Sleep schedule copied to clipboard!', 'success');
+    }
+}
+
+function ttEmbed() {
+    const embedCode = `<iframe src="${window.location.origin}/cards/sleep-calculator.html" width="100%" height="500" style="border:none;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.3);" title="Sleep Calculator - The Most Useful Site"></iframe>`;
+    
+    navigator.clipboard.writeText(embedCode);
+    showNotification('Embed code copied to clipboard!', 'success');
+    
+    // Track in analytics
+    if (window.plausible) {
+        window.plausible('Embed Generated', { props: { tool: 'sleep-calculator' } });
+    }
+}
+
+// INITIALIZATION
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🛏️ Sleep Calculator loaded');
+    
+    // Set up event listeners
+    document.getElementById('tt-bedtime').addEventListener('change', ttCalculate);
+    document.getElementById('tt-cycles-slider').addEventListener('input', () => {
+        document.getElementById('tt-cycles-value').textContent = 
+            document.getElementById('tt-cycles-slider').value;
+        ttCalculate();
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            ttReset();
+        }
+        if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            ttSuggestOptimal();
+        }
+        if (e.key === 't' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            ttSetCurrentTime();
+        }
+    });
+    
+    // Initial calculation
+    setTimeout(ttCalculate, 100);
 });
 </script>
+
+<!-- ===== 7. CARD-SCOPED STYLES ===== -->
+<style>
+#tt-title { 
+    color: var(--accent); 
+    margin-bottom: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.cycle-option {
+    transition: all var(--transition-base);
+    cursor: pointer;
+}
+
+.cycle-option:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    .result-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    #tt-recommended-time {
+        font-size: var(--text-xl) !important;
+    }
+    
+    .button-row {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 320px) {
+    .result-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Time input customization */
+input[type="time"] {
+    font-family: var(--font-mono);
+    font-size: var(--text-lg);
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity var(--transition-base);
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+/* Range input customization */
+input[type="range"] {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 3px solid var(--bg-panel);
+    box-shadow: 0 0 10px rgba(45, 212, 255, 0.5);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 3px solid var(--bg-panel);
+    box-shadow: 0 0 10px rgba(45, 212, 255, 0.5);
+}
+</style>
