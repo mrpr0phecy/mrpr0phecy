@@ -1,694 +1,914 @@
-<div class="card" id="student-loan-card">
-  <h2 id="studentloan-title" style="margin-top:0;">Student Loan Calculator</h2>
+<!-- 
+===========================================
+FILE: cards/student-loan.html
+DESCRIPTION: Calculate student loan payments, interest, and repayment timeline
+===========================================
+-->
 
-  <form aria-describedby="studentloan-desc">
-    <p id="studentloan-desc" class="small">
-      Calculate monthly payments, total interest, and repayment timeline for student loans.
-      <br>
-      <em style="color:#ff9800;">Important: This is for estimation. Consult with a financial advisor for specific advice.</em>
-    </p>
-
-    <div class="row" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
-      <div class="field">
-        <label for="studentloan-amount">Loan Amount</label>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <select id="studentloan-currency" style="width:80px;">
-            <option value="GBP">£ GBP</option>
-            <option value="USD">$ USD</option>
-            <option value="EUR">€ EUR</option>
-            <option value="CAD">$ CAD</option>
-            <option value="AUD">$ AUD</option>
-          </select>
-          <input id="studentloan-amount" type="number" min="0" step="1000" value="20000" style="width:100%;" />
+<div class="card glass glass-md" id="sl-card">
+    
+    <!-- ===== 1. HEADER ===== -->
+    <div class="card-header">
+        <h3 class="card-title" id="sl-title">
+            <span style="display:inline-flex;align-items:center;gap:8px;">
+                <span style="font-size:20px;">💰</span>
+                <span>Student Loan Calculator</span>
+            </span>
+        </h3>
+        <div class="card-actions">
+            <button class="btn btn-ghost btn-sm" onclick="slReset()" title="Reset to defaults">
+                🔄 Reset
+            </button>
         </div>
-      </div>
-
-      <div class="field">
-        <label for="studentloan-rate">Annual Interest Rate (%)</label>
-        <input id="studentloan-rate" type="number" min="0" max="20" step="0.01" value="5" style="width:100%;" />
-        <div class="small" style="margin-top:4px;color:#aaa;">
-          Current UK Plan 2: 5.5% · US Federal: 4.99-7.54%
+    </div>
+    
+    <!-- ===== 2. CONTENT ===== -->
+    <div class="card-content">
+        
+        <!-- Warning Banner -->
+        <div class="warning-banner glass" style="background:rgba(255,152,0,0.1);border-left:3px solid #ff9800;padding:var(--space-minor);margin-bottom:var(--space-major);border-radius:var(--radius-sm);">
+            <div style="display:flex;align-items:flex-start;gap:var(--space-micro);">
+                <span style="color:#ff9800;font-size:16px;">⚠️</span>
+                <div style="flex:1;">
+                    <div style="font-size:var(--text-tiny);font-weight:var(--weight-semibold);color:#ff9800;">
+                        Important Notice
+                    </div>
+                    <div style="font-size:var(--text-micro);color:var(--text-secondary);margin-top:2px;">
+                        This is an estimation tool. Consult with a financial advisor for specific advice.
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-
-    <div class="row" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-top:12px;">
-      <div class="field">
-        <label for="studentloan-term">Repayment Term</label>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <input id="studentloan-term" type="number" min="1" max="40" value="10" style="width:100%;" />
-          <div style="white-space:nowrap;">years</div>
+        
+        <!-- Loan Amount & Currency -->
+        <div class="form-section" style="margin-bottom:var(--space-major);">
+            <label for="sl-amount" class="form-label">
+                <span>Loan Amount</span>
+                <span class="form-hint">Total amount borrowed</span>
+            </label>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:var(--space-minor);">
+                <select id="sl-currency" class="input glass glass-dark" onchange="slUpdateCurrency()" style="min-width:100px;">
+                    <option value="GBP">£ GBP</option>
+                    <option value="USD">$ USD</option>
+                    <option value="EUR">€ EUR</option>
+                    <option value="CAD">$ CAD</option>
+                    <option value="AUD">$ AUD</option>
+                </select>
+                <input 
+                    id="sl-amount" 
+                    type="number" 
+                    min="0" 
+                    step="1000" 
+                    value="20000" 
+                    class="input glass glass-dark"
+                    oninput="slUpdate()"
+                />
+            </div>
+            
+            <!-- Amount Visualization -->
+            <div class="amount-visualization" style="margin-top:var(--space-micro);">
+                <div style="display:flex;justify-content:space-between;font-size:var(--text-micro);color:var(--text-secondary);margin-bottom:4px;">
+                    <span>£0</span>
+                    <span id="sl-amount-display">£20,000</span>
+                    <span id="sl-amount-max">£100,000</span>
+                </div>
+                <div style="height:6px;background:var(--bg-glass);border-radius:3px;overflow:hidden;">
+                    <div id="sl-amount-bar" style="height:100%;background:linear-gradient(90deg, #2196f3, #64b5f6);width:20%;transition:width 0.5s ease;"></div>
+                </div>
+            </div>
         </div>
-        <div class="small" style="margin-top:4px;color:#aaa;">
-          Standard: 10 years · Extended: 20-25 years
+        
+        <!-- Interest Rate & Term -->
+        <div class="row" style="display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-minor);margin-bottom:var(--space-major);">
+            <div>
+                <label for="sl-rate" class="form-label">
+                    <span>Interest Rate</span>
+                    <span class="form-hint">Annual percentage rate</span>
+                </label>
+                <div style="position:relative;">
+                    <input 
+                        id="sl-rate" 
+                        type="number" 
+                        min="0" 
+                        max="20" 
+                        step="0.01" 
+                        value="5.5" 
+                        class="input glass glass-dark"
+                        oninput="slUpdate()"
+                        style="padding-right:40px;"
+                    />
+                    <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);">%</span>
+                </div>
+                
+                <!-- Rate Comparison -->
+                <div style="margin-top:var(--space-micro);">
+                    <div style="font-size:var(--text-micro);color:var(--text-secondary);">
+                        UK Plan 2: 5.5% · US Federal: 4.99-7.54%
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <label for="sl-term" class="form-label">
+                    <span>Repayment Term</span>
+                    <span class="form-hint">Years to repay</span>
+                </label>
+                <div style="display:grid;grid-template-columns:1fr auto;gap:var(--space-micro);">
+                    <input 
+                        id="sl-term" 
+                        type="number" 
+                        min="1" 
+                        max="40" 
+                        value="10" 
+                        class="input glass glass-dark"
+                        oninput="slUpdate()"
+                    />
+                    <div style="display:flex;align-items:center;padding:0 8px;color:var(--text-tertiary);font-size:var(--text-tiny);">
+                        years
+                    </div>
+                </div>
+                
+                <!-- Term Comparison -->
+                <div style="margin-top:var(--space-micro);">
+                    <div style="font-size:var(--text-micro);color:var(--text-secondary);">
+                        Standard: 10 years · Extended: 20-25 years
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-
-      <div class="field">
-        <label for="studentloan-start">Start Date</label>
-        <input id="studentloan-start" type="month" value="" style="width:100%;" />
-        <div class="small" style="margin-top:4px;color:#aaa;">
-          Graduation or first payment date
+        
+        <!-- Loan Type -->
+        <div class="form-section" style="margin-bottom:var(--space-major);">
+            <label for="sl-type" class="form-label">
+                <span>Repayment Plan</span>
+                <span class="form-hint">Choose your repayment strategy</span>
+            </label>
+            <select id="sl-type" class="input glass glass-dark" onchange="slUpdate()">
+                <option value="standard" selected>Standard Repayment (Fixed)</option>
+                <option value="graduated">Graduated Repayment (Increasing)</option>
+                <option value="income">Income-Based Repayment (10-15% of income)</option>
+                <option value="extended">Extended Repayment (25+ years)</option>
+                <option value="interestonly">Interest-Only (First 3 years)</option>
+            </select>
+            
+            <!-- Loan Type Description -->
+            <div id="sl-type-desc" style="font-size:var(--text-micro);color:var(--text-secondary);margin-top:4px;">
+                Fixed monthly payments for entire term
+            </div>
         </div>
-      </div>
-    </div>
-
-    <div class="field" style="margin-top:12px;">
-      <label for="studentloan-type">Loan Type</label>
-      <select id="studentloan-type" style="width:100%;">
-        <option value="standard" selected>Standard Repayment</option>
-        <option value="graduated">Graduated Repayment</option>
-        <option value="income">Income-Based Repayment</option>
-        <option value="extended">Extended Repayment</option>
-        <option value="interestonly">Interest-Only (first years)</option>
-      </select>
-    </div>
-
-    <div class="field" style="margin-top:12px;">
-      <label for="extra-payment">Extra Monthly Payment (Optional)</label>
-      <input id="extra-payment" type="number" min="0" value="0" style="width:100%;" />
-      <div class="small" style="margin-top:4px;color:#aaa;">
-        Pay extra to reduce principal faster
-      </div>
-    </div>
-
-    <div class="actions" style="margin-top:12px;display:flex;gap:8px;">
-      <button type="button" onclick="studentloanCalc(this)" class="primary">Calculate</button>
-      <button type="button" class="secondary" onclick="studentloanReset(this)">Reset</button>
-      <button type="button" onclick="studentloanCompare(this)" class="secondary">Compare Scenarios</button>
-    </div>
-  </form>
-
-  <div class="results" aria-live="polite" style="margin-top:12px;">
-    <h3 class="small">Repayment Summary</h3>
-    
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:12px;">
-      <div class="metric-box" style="background:rgba(33, 150, 243, 0.1);border-radius:8px;padding:12px;text-align:center;">
-        <div class="small" style="margin-bottom:4px;color:#2196f3;">Monthly Payment</div>
-        <div class="value" style="font-size:1.5rem;font-weight:600;" id="studentloan-monthly">–</div>
-      </div>
-      <div class="metric-box" style="background:rgba(244, 67, 54, 0.1);border-radius:8px;padding:12px;text-align:center;">
-        <div class="small" style="margin-bottom:4px;color:#f44336;">Total Interest</div>
-        <div class="value" style="font-size:1.5rem;font-weight:600;" id="studentloan-interest">–</div>
-      </div>
-      <div class="metric-box" style="background:rgba(76, 175, 80, 0.1);border-radius:8px;padding:12px;text-align:center;">
-        <div class="small" style="margin-bottom:4px;color:#4caf50;">Total Repayment</div>
-        <div class="value" style="font-size:1.5rem;font-weight:600;" id="studentloan-total">–</div>
-      </div>
-    </div>
-
-    <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;margin-bottom:12px;">
-      <div class="small" style="margin-bottom:8px;color:#aaa;">Repayment Timeline</div>
-      <div class="progress-container" style="margin-bottom:4px;">
-        <div class="progress-label" style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px;">
-          <span>Principal paid: <span id="principal-paid">£0</span></span>
-          <span>Interest paid: <span id="interest-paid">£0</span></span>
+        
+        <!-- Extra Payments -->
+        <div class="form-section" style="margin-bottom:var(--space-major);">
+            <label for="sl-extra" class="form-label">
+                <span>Extra Monthly Payment</span>
+                <span class="form-hint">Pay extra to reduce principal faster</span>
+            </label>
+            <div style="position:relative;">
+                <input 
+                    id="sl-extra" 
+                    type="number" 
+                    min="0" 
+                    value="0" 
+                    class="input glass glass-dark"
+                    oninput="slUpdate()"
+                    style="padding-left:32px;"
+                />
+                <span id="sl-extra-symbol" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);">£</span>
+            </div>
+            
+            <!-- Extra Payment Impact -->
+            <div id="sl-extra-impact" style="font-size:var(--text-micro);color:var(--text-secondary);margin-top:4px;">
+                Add extra payments to save on interest
+            </div>
         </div>
-        <div class="progress-bar" style="height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;position:relative;">
-          <div id="principal-progress" style="height:100%;background:#2196f3;width:0%;position:absolute;left:0;"></div>
-          <div id="interest-progress" style="height:100%;background:#f44336;width:0%;position:absolute;left:0;"></div>
+        
+        <!-- Results Grid -->
+        <div class="results-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-minor);margin-bottom:var(--space-major);">
+            <div class="result-card" style="border-color:#2196f3;">
+                <div class="result-label">Monthly Payment</div>
+                <div class="result-value" id="sl-monthly">£212.47</div>
+                <div class="result-unit" id="sl-currency-monthly">GBP</div>
+            </div>
+            <div class="result-card" style="border-color:#f44336;">
+                <div class="result-label">Total Interest</div>
+                <div class="result-value" id="sl-interest">£5,496.40</div>
+                <div class="result-unit" id="sl-currency-interest">GBP</div>
+            </div>
+            <div class="result-card" style="border-color:#4caf50;">
+                <div class="result-label">Total Repayment</div>
+                <div class="result-value" id="sl-total">£25,496.40</div>
+                <div class="result-unit" id="sl-currency-total">GBP</div>
+            </div>
         </div>
-      </div>
-      <div class="small" style="margin-top:8px;display:flex;justify-content:space-between;color:#aaa;">
-        <span id="payoff-date">Payoff date: –</span>
-        <span id="time-saved">Time saved: –</span>
-      </div>
+        
+        <!-- Repayment Progress -->
+        <div class="visualization-section" style="margin-bottom:var(--space-major);">
+            <div class="section-header">
+                <span style="font-size:var(--text-tiny);font-weight:var(--weight-semibold);color:var(--accent);">
+                    📅 Repayment Timeline
+                </span>
+                <span style="font-size:var(--text-micro);color:var(--text-secondary);" id="sl-timeline">
+                    10 years (120 months)
+                </span>
+            </div>
+            
+            <!-- Progress Bars -->
+            <div class="progress-stack" style="margin-top:var(--space-minor);">
+                <div style="margin-bottom:var(--space-micro);">
+                    <div style="display:flex;justify-content:space-between;font-size:var(--text-micro);color:var(--text-secondary);margin-bottom:2px;">
+                        <span>Principal: <span id="sl-principal-display">£20,000</span></span>
+                        <span>Interest: <span id="sl-interest-display">£5,496</span></span>
+                    </div>
+                    <div style="height:12px;background:var(--bg-glass);border-radius:6px;overflow:hidden;position:relative;">
+                        <div id="sl-principal-bar" style="height:100%;background:#2196f3;width:78.4%;position:absolute;left:0;"></div>
+                        <div id="sl-interest-bar" style="height:100%;background:#f44336;width:21.6%;position:absolute;left:78.4%;"></div>
+                    </div>
+                </div>
+                
+                <!-- Payoff Information -->
+                <div style="display:flex;justify-content:space-between;margin-top:var(--space-minor);">
+                    <div>
+                        <div style="font-size:var(--text-micro);color:var(--text-tertiary);">Start Date</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--text-tiny);color:var(--text);" id="sl-start-date">Jun 2024</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:var(--text-micro);color:var(--text-tertiary);">Payoff Date</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--text-tiny);color:var(--text);" id="sl-payoff-date">Jun 2034</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:var(--text-micro);color:var(--text-tertiary);">Time Saved</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--text-tiny);color:#4caf50;" id="sl-time-saved">0 months</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Amortization Preview -->
+        <div class="amortization-preview" style="margin-bottom:var(--space-major);">
+            <div class="section-header" style="margin-bottom:var(--space-minor);">
+                <span style="font-size:var(--text-tiny);font-weight:var(--weight-semibold);color:var(--accent);">
+                    📊 Amortization Preview (First 12 Months)
+                </span>
+                <button onclick="slToggleAmortization()" class="btn btn-ghost btn-sm" style="font-size:var(--text-micro);">
+                    <span id="sl-amortization-toggle">Show Details</span>
+                </button>
+            </div>
+            
+            <div id="sl-amortization-table" style="display:none;">
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;font-size:var(--text-micro);border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid var(--border-light);">
+                                <th style="text-align:left;padding:4px 8px;color:var(--text-tertiary);">Month</th>
+                                <th style="text-align:right;padding:4px 8px;color:var(--text-tertiary);">Payment</th>
+                                <th style="text-align:right;padding:4px 8px;color:var(--text-tertiary);">Principal</th>
+                                <th style="text-align:right;padding:4px 8px;color:var(--text-tertiary);">Interest</th>
+                                <th style="text-align:right;padding:4px 8px;color:var(--text-tertiary);">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sl-amortization-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Quick Stats -->
+            <div id="sl-quick-stats" class="glass glass-dark" style="border-radius:var(--radius-md);padding:var(--space-minor);">
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-minor);text-align:center;">
+                    <div>
+                        <div style="font-size:var(--text-micro);color:var(--text-tertiary);">First Year Interest</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--text-tiny);color:#f44336;" id="sl-first-year-interest">£1,100</div>
+                    </div>
+                    <div>
+                        <div style="font-size:var(--text-micro);color:var(--text-tertiary);">Interest Ratio</div>
+                        <div style="font-family:var(--font-mono);font-size:var(--text-tiny);color:var(--text);" id="sl-interest-ratio">27.5%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
     </div>
-
-    <div id="amortization-preview" style="margin-top:12px;">
-      <div class="small" style="margin-bottom:8px;color:#aaa;">First 12 Months Preview</div>
-      <div style="overflow-x:auto;">
-        <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
-          <thead>
-            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
-              <th style="text-align:left;padding:4px 8px;">Month</th>
-              <th style="text-align:right;padding:4px 8px;">Payment</th>
-              <th style="text-align:right;padding:4px 8px;">Principal</th>
-              <th style="text-align:right;padding:4px 8px;">Interest</th>
-              <th style="text-align:right;padding:4px 8px;">Balance</th>
-            </tr>
-          </thead>
-          <tbody id="amortization-body">
-            <tr><td colspan="5" style="text-align:center;padding:12px;color:#aaa;">Calculate to see amortization</td></tr>
-          </tbody>
-        </table>
-      </div>
+    
+    <!-- ===== 3. FOOTER ===== -->
+    <div class="card-footer">
+        <div class="card-meta">
+            <button onclick="slCompareScenarios()" class="btn btn-ghost btn-sm" style="font-size:var(--text-micro);">
+                📈 Compare Scenarios
+            </button>
+        </div>
+        <div style="display:flex;gap:var(--space-micro);">
+            <button onclick="slShare()" class="btn btn-ghost btn-sm">
+                📤 Share
+            </button>
+            <button onclick="slEmbed()" class="btn btn-ghost btn-sm">
+                🔗 Embed
+            </button>
+        </div>
     </div>
     
-    <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
-      <div id="studentloan-hint" class="small" style="opacity:0.9;"></div>
-    </div>
-  </div>
-
-  <details class="small" style="margin-top:12px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px;">
-    <summary style="cursor:pointer;font-weight:500;padding:4px;">How it works & Formulas</summary>
-    <div style="margin-top:8px;padding:4px;border-top:1px solid rgba(255,255,255,0.08);">
-      <p style="margin:8px 0;"><strong>Standard Amortization Formula:</strong></p>
-      <div style="background:rgba(0,0,0,0.2);padding:8px;border-radius:4px;font-family:monospace;font-size:0.9em;">
-        M = P × [r(1+r)^n] ÷ [(1+r)^n - 1]<br>
-        Where:<br>
-        M = Monthly payment<br>
-        P = Principal loan amount<br>
-        r = Monthly interest rate (annual rate ÷ 12)<br>
-        n = Total number of payments (years × 12)
-      </div>
-      <p style="margin:8px 0;"><strong>Interest Calculation:</strong></p>
-      <ul style="margin:8px 0;padding-left:20px;font-size:0.9em;">
-        <li>Monthly interest = Remaining balance × Monthly interest rate</li>
-        <li>Principal portion = Monthly payment - Monthly interest</li>
-        <li>Early payments are mostly interest</li>
-      </ul>
-      <p style="margin:8px 0;"><strong>Types of Loans:</strong></p>
-      <ul style="margin:8px 0;padding-left:20px;font-size:0.9em;">
-        <li><strong>Standard:</strong> Fixed payments throughout term</li>
-        <li><strong>Graduated:</strong> Payments increase every 2 years</li>
-        <li><strong>Income-Based:</strong> Payments based on income (10-15%)</li>
-        <li><strong>Extended:</strong> Longer term, lower payments, more interest</li>
-      </ul>
-    </div>
-  </details>
-
-  <style>
-    .card {
-      background: #1a1a1a;
-      border-radius: 12px;
-      padding: 20px;
-      border: 1px solid #333;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      margin-bottom: 20px;
-    }
-    
-    .card h2 {
-      color: #2196f3;
-      font-size: 1.5rem;
-      margin-bottom: 8px;
-    }
-    
-    .card .small {
-      font-size: 0.875rem;
-      color: #aaa;
-      margin-bottom: 16px;
-      line-height: 1.5;
-    }
-    
-    .field {
-      margin-bottom: 16px;
-    }
-    
-    .field label {
-      display: block;
-      margin-bottom: 6px;
-      color: #ddd;
-      font-weight: 500;
-    }
-    
-    .field input,
-    .field select {
-      padding: 10px 12px;
-      border: 1px solid #444;
-      border-radius: 8px;
-      background: #252525;
-      color: #fff;
-      font-size: 0.95rem;
-    }
-    
-    .field input:focus,
-    .field select:focus {
-      outline: none;
-      border-color: #2196f3;
-      box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
-    }
-    
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button {
-      opacity: 1;
-      height: 24px;
-      cursor: pointer;
-    }
-    
-    .actions button {
-      padding: 10px 16px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 0.95rem;
-    }
-    
-    .actions button.primary {
-      background: #2196f3;
-      color: white;
-    }
-    
-    .actions button.primary:hover {
-      background: #1976d2;
-    }
-    
-    .actions button.secondary {
-      background: #555;
-      color: white;
-    }
-    
-    .actions button.secondary:hover {
-      background: #666;
-    }
-    
-    .actions button:last-of-type {
-      background: #2d5a27;
-      color: white;
-    }
-    
-    .actions button:last-of-type:hover {
-      background: #3d6a37;
-    }
-    
-    .results h3 {
-      color: #2196f3;
-      margin-bottom: 8px;
-      font-size: 1rem;
-    }
-    
-    .metric-box {
-      transition: transform 0.2s ease;
-    }
-    
-    .metric-box:hover {
-      transform: translateY(-2px);
-    }
-    
-    table {
-      width: 100%;
-    }
-    
-    table th {
-      color: #aaa;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    
-    table td {
-      padding: 6px 8px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-    
-    table tr:hover {
-      background: rgba(255,255,255,0.03);
-    }
-    
-    details summary::-webkit-details-marker {
-      display: none;
-    }
-    
-    details summary:after {
-      content: '▼';
-      float: right;
-      font-size: 0.75em;
-      transition: transform 0.2s ease;
-    }
-    
-    details[open] summary:after {
-      transform: rotate(180deg);
-    }
-    
-    .currency-symbol {
-      font-weight: 600;
-      color: #4caf50;
-    }
-  </style>
 </div>
 
+<!-- ===== 4. JAVASCRIPT ===== -->
 <script>
-// Currency symbols
-const CURRENCY_SYMBOLS = {
-  'GBP': '£',
-  'USD': '$',
-  'EUR': '€',
-  'CAD': '$',
-  'AUD': '$'
-};
-
-// Loan type configurations
-const LOAN_TYPES = {
-  'standard': {
-    name: 'Standard Repayment',
-    description: 'Fixed monthly payments for entire term'
-  },
-  'graduated': {
-    name: 'Graduated Repayment',
-    description: 'Payments start low and increase every 2 years',
-    increaseRate: 0.07 // 7% increase every 2 years
-  },
-  'income': {
-    name: 'Income-Based Repayment',
-    description: 'Payments capped at 10-15% of discretionary income',
-    capRate: 0.10 // 10% of discretionary income (simplified)
-  },
-  'extended': {
-    name: 'Extended Repayment',
-    description: 'Longer term (20-25 years), lower payments, more interest'
-  },
-  'interestonly': {
-    name: 'Interest-Only',
-    description: 'Pay only interest for first 2-4 years',
-    interestOnlyYears: 3
-  }
+// STUDENT LOAN FUNCTIONS (prefixed with sl-)
+const slState = {
+    currency: 'GBP',
+    amount: 20000,
+    rate: 5.5,
+    term: 10,
+    type: 'standard',
+    extraPayment: 0,
+    startDate: new Date(),
+    amortizationSchedule: [],
+    
+    // Currency symbols
+    currencySymbols: {
+        'GBP': '£',
+        'USD': '$',
+        'EUR': '€',
+        'CAD': '$',
+        'AUD': '$'
+    },
+    
+    // Loan type configurations
+    loanTypes: {
+        'standard': {
+            name: 'Standard Repayment',
+            description: 'Fixed monthly payments for entire term',
+            multiplier: 1.0
+        },
+        'graduated': {
+            name: 'Graduated Repayment',
+            description: 'Payments start low and increase every 2 years',
+            multiplier: 0.8,
+            increaseRate: 0.07
+        },
+        'income': {
+            name: 'Income-Based Repayment',
+            description: 'Payments capped at 10-15% of discretionary income',
+            multiplier: 0.6
+        },
+        'extended': {
+            name: 'Extended Repayment',
+            description: 'Longer term (20-25 years), lower payments, more interest',
+            multiplier: 0.7
+        },
+        'interestonly': {
+            name: 'Interest-Only',
+            description: 'Pay only interest for first 3 years',
+            interestOnlyYears: 3,
+            multiplier: 0.5
+        }
+    }
 };
 
 // Format currency
-function formatCurrency(amount, currency) {
-  const symbol = CURRENCY_SYMBOLS[currency] || '£';
-  return `${symbol}${amount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
+function slFormatCurrency(amount) {
+    const symbol = slState.currencySymbols[slState.currency] || '£';
+    return `${symbol}${amount.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })}`;
 }
 
 // Calculate amortization schedule
-function calculateAmortizationSchedule(principal, annualRate, years, extraPayment = 0, loanType = 'standard') {
-  const monthlyRate = annualRate / 100 / 12;
-  const months = years * 12;
-  const schedule = [];
-  let balance = principal;
-  let totalInterest = 0;
-  let totalPrincipal = 0;
-  let currentPayment = 0;
-  
-  // Calculate base payment
-  if (monthlyRate === 0) {
-    currentPayment = principal / months;
-  } else {
-    currentPayment = principal * monthlyRate / (1 - Math.pow(1 + monthlyRate, -months));
-  }
-  
-  // Adjust for loan type
-  let actualPayment = currentPayment;
-  let paymentMultiplier = 1;
-  let interestOnlyPeriod = 0;
-  
-  if (loanType === 'graduated') {
-    // Start with lower payments, increase every 24 months
-    paymentMultiplier = 0.8; // Start at 80%
-  } else if (loanType === 'interestonly') {
-    interestOnlyPeriod = LOAN_TYPES.interestonly.interestOnlyYears * 12;
-  }
-  
-  for (let month = 1; month <= months && balance > 0.01; month++) {
-    // Adjust payment for graduated loans
-    if (loanType === 'graduated' && month > 1 && month % 24 === 1) {
-      paymentMultiplier *= 1.07; // Increase by 7% every 2 years
+function slCalculateAmortization() {
+    const principal = slState.amount;
+    const monthlyRate = slState.rate / 100 / 12;
+    const months = slState.term * 12;
+    const schedule = [];
+    
+    let balance = principal;
+    let totalInterest = 0;
+    let totalPrincipal = 0;
+    let paymentMultiplier = slState.loanTypes[slState.type].multiplier || 1.0;
+    let interestOnlyPeriod = 0;
+    
+    if (slState.type === 'interestonly') {
+        interestOnlyPeriod = slState.loanTypes.interestonly.interestOnlyYears * 12;
     }
     
-    // Calculate interest for this period
-    const interest = balance * monthlyRate;
-    totalInterest += interest;
-    
-    // Calculate principal payment
-    let principalPaid = 0;
-    
-    if (loanType === 'interestonly' && month <= interestOnlyPeriod) {
-      // Interest-only period
-      principalPaid = 0;
-      actualPayment = interest;
+    // Calculate base payment
+    let basePayment = 0;
+    if (monthlyRate === 0) {
+        basePayment = principal / months;
     } else {
-      // Regular amortization
-      actualPayment = currentPayment * paymentMultiplier + extraPayment;
-      principalPaid = Math.min(balance, actualPayment - interest);
-      if (principalPaid < 0) principalPaid = 0;
+        basePayment = principal * monthlyRate / (1 - Math.pow(1 + monthlyRate, -months));
     }
     
-    totalPrincipal += principalPaid;
-    balance -= principalPaid;
+    for (let month = 1; month <= months && balance > 0.01; month++) {
+        // Adjust multiplier for graduated loans
+        if (slState.type === 'graduated' && month > 1 && month % 24 === 1) {
+            paymentMultiplier *= 1.07;
+        }
+        
+        // Calculate interest
+        const interest = balance * monthlyRate;
+        totalInterest += interest;
+        
+        // Calculate payment
+        let payment = basePayment * paymentMultiplier + slState.extraPayment;
+        let principalPaid = 0;
+        
+        if (slState.type === 'interestonly' && month <= interestOnlyPeriod) {
+            // Interest-only period
+            principalPaid = 0;
+            payment = interest;
+        } else {
+            // Regular payment
+            principalPaid = Math.min(balance, payment - interest);
+            if (principalPaid < 0) principalPaid = 0;
+        }
+        
+        totalPrincipal += principalPaid;
+        balance -= principalPaid;
+        
+        if (balance < 0) balance = 0;
+        
+        schedule.push({
+            month,
+            payment,
+            principal: principalPaid,
+            interest,
+            balance
+        });
+        
+        // Break if paid off early
+        if (balance <= 0.01) break;
+    }
     
-    // Ensure balance doesn't go negative
-    if (balance < 0) balance = 0;
-    
-    schedule.push({
-      month,
-      payment: actualPayment,
-      principal: principalPaid,
-      interest: interest,
-      balance: balance
-    });
-    
-    // Break early if paid off
-    if (balance <= 0.01) break;
-  }
-  
-  return {
-    schedule,
-    totalInterest,
-    totalPrincipal,
-    totalPayments: totalInterest + totalPrincipal,
-    actualTerm: schedule.length
-  };
+    return {
+        schedule,
+        totalInterest,
+        totalPrincipal,
+        totalPayments: totalInterest + totalPrincipal,
+        actualMonths: schedule.length
+    };
 }
 
-function studentloanCalc(btn) {
-  const card = btn.closest('.card');
-  const amount = parseFloat(card.querySelector('#studentloan-amount').value) || 0;
-  const rate = parseFloat(card.querySelector('#studentloan-rate').value) || 0;
-  const years = parseFloat(card.querySelector('#studentloan-term').value) || 0;
-  const currency = card.querySelector('#studentloan-currency').value;
-  const loanType = card.querySelector('#studentloan-type').value;
-  const extraPayment = parseFloat(card.querySelector('#extra-payment').value) || 0;
-  const startDate = card.querySelector('#studentloan-start').value;
-  
-  // Validate inputs
-  if (amount <= 0 || years <= 0) {
-    card.querySelector('#studentloan-monthly').textContent = "Invalid";
-    card.querySelector('#studentloan-interest').textContent = "–";
-    card.querySelector('#studentloan-total').textContent = "–";
-    card.querySelector('#studentloan-hint').textContent = "Please enter valid loan details";
-    return;
-  }
-  
-  // Calculate amortization
-  const result = calculateAmortizationSchedule(amount, rate, years, extraPayment, loanType);
-  
-  // Format currency
-  const symbol = CURRENCY_SYMBOLS[currency];
-  
-  // Calculate monthly payment (average of first 12 months)
-  let avgMonthlyPayment = 0;
-  const firstYearPayments = result.schedule.slice(0, 12);
-  if (firstYearPayments.length > 0) {
-    avgMonthlyPayment = firstYearPayments.reduce((sum, payment) => sum + payment.payment, 0) / firstYearPayments.length;
-  }
-  
-  // Update main metrics
-  card.querySelector('#studentloan-monthly').textContent = 
-    `${symbol}${avgMonthlyPayment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  card.querySelector('#studentloan-interest').textContent = 
-    `${symbol}${result.totalInterest.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  card.querySelector('#studentloan-total').textContent = 
-    `${symbol}${result.totalPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  
-  // Update progress bars
-  const principalPercent = (amount / result.totalPayments) * 100;
-  const interestPercent = (result.totalInterest / result.totalPayments) * 100;
-  
-  card.querySelector('#principal-progress').style.width = `${principalPercent}%`;
-  card.querySelector('#interest-progress').style.width = `${interestPercent}%`;
-  card.querySelector('#principal-paid').textContent = `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  card.querySelector('#interest-paid').textContent = `${symbol}${result.totalInterest.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  
-  // Calculate payoff date
-  let payoffDate = "–";
-  let timeSaved = "–";
-  if (startDate) {
-    const start = new Date(startDate + '-01');
-    const payoff = new Date(start);
-    payoff.setMonth(payoff.getMonth() + result.actualTerm);
-    payoffDate = payoff.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+// Update UI based on current state
+function slUpdate() {
+    // Update state from inputs
+    slState.amount = parseFloat(document.getElementById('sl-amount').value) || 0;
+    slState.rate = parseFloat(document.getElementById('sl-rate').value) || 0;
+    slState.term = parseInt(document.getElementById('sl-term').value) || 0;
+    slState.type = document.getElementById('sl-type').value;
+    slState.extraPayment = parseFloat(document.getElementById('sl-extra').value) || 0;
+    
+    // Update currency symbol
+    const currencySymbol = slState.currencySymbols[slState.currency] || '£';
+    document.getElementById('sl-extra-symbol').textContent = currencySymbol;
+    
+    // Update loan type description
+    const typeConfig = slState.loanTypes[slState.type];
+    document.getElementById('sl-type-desc').textContent = typeConfig.description;
+    
+    // Update amount visualization
+    const amountPercent = Math.min((slState.amount / 100000) * 100, 100);
+    document.getElementById('sl-amount-bar').style.width = `${amountPercent}%`;
+    document.getElementById('sl-amount-display').textContent = slFormatCurrency(slState.amount);
+    document.getElementById('sl-amount-max').textContent = currencySymbol + '100,000';
+    
+    // Calculate amortization
+    const result = slCalculateAmortization();
+    slState.amortizationSchedule = result.schedule;
+    
+    // Calculate monthly payment (average of first 12 months)
+    let avgMonthly = 0;
+    if (result.schedule.length > 0) {
+        const firstYear = result.schedule.slice(0, Math.min(12, result.schedule.length));
+        avgMonthly = firstYear.reduce((sum, p) => sum + p.payment, 0) / firstYear.length;
+    }
+    
+    // Update results
+    document.getElementById('sl-monthly').textContent = slFormatCurrency(avgMonthly);
+    document.getElementById('sl-interest').textContent = slFormatCurrency(result.totalInterest);
+    document.getElementById('sl-total').textContent = slFormatCurrency(result.totalPayments);
+    
+    // Update currency labels
+    document.getElementById('sl-currency-monthly').textContent = slState.currency;
+    document.getElementById('sl-currency-interest').textContent = slState.currency;
+    document.getElementById('sl-currency-total').textContent = slState.currency;
+    
+    // Update timeline
+    document.getElementById('sl-timeline').textContent = 
+        `${Math.floor(result.actualMonths / 12)} years (${result.actualMonths} months)`;
+    
+    // Update progress bars
+    const principalPercent = (slState.amount / result.totalPayments) * 100;
+    const interestPercent = (result.totalInterest / result.totalPayments) * 100;
+    
+    document.getElementById('sl-principal-bar').style.width = `${principalPercent}%`;
+    document.getElementById('sl-interest-bar').style.width = `${interestPercent}%`;
+    document.getElementById('sl-principal-display').textContent = slFormatCurrency(slState.amount);
+    document.getElementById('sl-interest-display').textContent = slFormatCurrency(result.totalInterest);
+    
+    // Update dates
+    const startDate = slState.startDate;
+    const payoffDate = new Date(startDate);
+    payoffDate.setMonth(payoffDate.getMonth() + result.actualMonths);
+    
+    document.getElementById('sl-start-date').textContent = 
+        startDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    document.getElementById('sl-payoff-date').textContent = 
+        payoffDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
     
     // Calculate time saved with extra payments
-    if (extraPayment > 0) {
-      const standardResult = calculateAmortizationSchedule(amount, rate, years, 0, loanType);
-      const monthsSaved = standardResult.actualTerm - result.actualTerm;
-      if (monthsSaved > 0) {
-        timeSaved = `${monthsSaved} months`;
-      }
+    if (slState.extraPayment > 0) {
+        const standardResult = slCalculateAmortization();
+        const timeSaved = (slState.term * 12) - result.actualMonths;
+        if (timeSaved > 0) {
+            document.getElementById('sl-time-saved').textContent = `${timeSaved} months`;
+        }
+    } else {
+        document.getElementById('sl-time-saved').textContent = '0 months';
     }
-  }
-  
-  card.querySelector('#payoff-date').textContent = `Payoff date: ${payoffDate}`;
-  if (timeSaved !== "–") {
-    card.querySelector('#time-saved').textContent = `Time saved: ${timeSaved}`;
-  }
-  
-  // Update amortization preview table
-  const amortizationBody = card.querySelector('#amortization-body');
-  amortizationBody.innerHTML = '';
-  
-  const previewMonths = Math.min(12, result.schedule.length);
-  for (let i = 0; i < previewMonths; i++) {
-    const row = result.schedule[i];
-    const tr = document.createElement('tr');
     
-    tr.innerHTML = `
-      <td style="padding:6px 8px;">${row.month}</td>
-      <td style="text-align:right;padding:6px 8px;">${formatCurrency(row.payment, currency)}</td>
-      <td style="text-align:right;padding:6px 8px;">${formatCurrency(row.principal, currency)}</td>
-      <td style="text-align:right;padding:6px 8px;">${formatCurrency(row.interest, currency)}</td>
-      <td style="text-align:right;padding:6px 8px;">${formatCurrency(row.balance, currency)}</td>
-    `;
+    // Update extra payment impact
+    if (slState.extraPayment > 0) {
+        document.getElementById('sl-extra-impact').textContent = 
+            `Extra payment saves ${slFormatCurrency(result.totalInterest)} interest`;
+    } else {
+        document.getElementById('sl-extra-impact').textContent = 
+            'Add extra payments to save on interest';
+    }
     
-    amortizationBody.appendChild(tr);
-  }
-  
-  // Update hint with summary
-  const hint = card.querySelector('#studentloan-hint');
-  const interestRatio = (result.totalInterest / amount * 100).toFixed(1);
-  hint.innerHTML = `
-    <span style="color:#4caf50;">✓</span> 
-    ${result.actualTerm} months · Interest: ${interestRatio}% of principal
-  `;
+    // Update quick stats
+    const firstYearInterest = result.schedule
+        .slice(0, Math.min(12, result.schedule.length))
+        .reduce((sum, p) => sum + p.interest, 0);
+    const interestRatio = (result.totalInterest / slState.amount * 100).toFixed(1);
+    
+    document.getElementById('sl-first-year-interest').textContent = slFormatCurrency(firstYearInterest);
+    document.getElementById('sl-interest-ratio').textContent = `${interestRatio}%`;
+    
+    // Update amortization table if visible
+    slUpdateAmortizationTable();
 }
 
-function studentloanReset(btn) {
-  const card = btn.closest('.card');
-  card.querySelector('#studentloan-amount').value = "20000";
-  card.querySelector('#studentloan-rate').value = "5";
-  card.querySelector('#studentloan-term').value = "10";
-  card.querySelector('#studentloan-currency').value = "GBP";
-  card.querySelector('#studentloan-type').value = "standard";
-  card.querySelector('#extra-payment').value = "0";
-  
-  // Set start date to next month
-  const now = new Date();
-  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const year = nextMonth.getFullYear();
-  const month = String(nextMonth.getMonth() + 1).padStart(2, '0');
-  card.querySelector('#studentloan-start').value = `${year}-${month}`;
-  
-  // Reset results
-  card.querySelector('#studentloan-monthly').textContent = "–";
-  card.querySelector('#studentloan-interest').textContent = "–";
-  card.querySelector('#studentloan-total').textContent = "–";
-  card.querySelector('#principal-progress').style.width = "0%";
-  card.querySelector('#interest-progress').style.width = "0%";
-  card.querySelector('#principal-paid').textContent = "£0";
-  card.querySelector('#interest-paid').textContent = "£0";
-  card.querySelector('#payoff-date').textContent = "Payoff date: –";
-  card.querySelector('#time-saved').textContent = "Time saved: –";
-  card.querySelector('#amortization-body').innerHTML = 
-    '<tr><td colspan="5" style="text-align:center;padding:12px;color:#aaa;">Calculate to see amortization</td></tr>';
-  card.querySelector('#studentloan-hint').textContent = "";
-  
-  // Trigger calculation
-  setTimeout(() => studentloanCalc(card.querySelector('button.primary')), 100);
+// Update amortization table
+function slUpdateAmortizationTable() {
+    const tbody = document.getElementById('sl-amortization-body');
+    tbody.innerHTML = '';
+    
+    const previewMonths = Math.min(12, slState.amortizationSchedule.length);
+    const symbol = slState.currencySymbols[slState.currency] || '£';
+    
+    for (let i = 0; i < previewMonths; i++) {
+        const row = slState.amortizationSchedule[i];
+        const tr = document.createElement('tr');
+        
+        tr.innerHTML = `
+            <td style="padding:4px 8px;">${row.month}</td>
+            <td style="text-align:right;padding:4px 8px;">${symbol}${row.payment.toFixed(2)}</td>
+            <td style="text-align:right;padding:4px 8px;">${symbol}${row.principal.toFixed(2)}</td>
+            <td style="text-align:right;padding:4px 8px;">${symbol}${row.interest.toFixed(2)}</td>
+            <td style="text-align:right;padding:4px 8px;">${symbol}${row.balance.toFixed(2)}</td>
+        `;
+        
+        tbody.appendChild(tr);
+    }
 }
 
-function studentloanCompare(btn) {
-  const card = btn.closest('.card');
-  
-  // Get current values
-  const currentAmount = parseFloat(card.querySelector('#studentloan-amount').value) || 20000;
-  const currentRate = parseFloat(card.querySelector('#studentloan-rate').value) || 5;
-  const currentYears = parseFloat(card.querySelector('#studentloan-term').value) || 10;
-  const currentExtra = parseFloat(card.querySelector('#extra-payment').value) || 0;
-  
-  // Create comparison scenarios
-  const scenarios = [
-    {
-      name: "Current",
-      amount: currentAmount,
-      rate: currentRate,
-      years: currentYears,
-      extra: currentExtra
-    },
-    {
-      name: "Extra £100/month",
-      amount: currentAmount,
-      rate: currentRate,
-      years: currentYears,
-      extra: currentExtra + 100
-    },
-    {
-      name: "1% Lower Rate",
-      amount: currentAmount,
-      rate: Math.max(0, currentRate - 1),
-      years: currentYears,
-      extra: currentExtra
-    },
-    {
-      name: "5 Years Shorter",
-      amount: currentAmount,
-      rate: currentRate,
-      years: Math.max(1, currentYears - 5),
-      extra: currentExtra
+// Toggle amortization table visibility
+function slToggleAmortization() {
+    const table = document.getElementById('sl-amortization-table');
+    const toggle = document.getElementById('sl-amortization-toggle');
+    
+    if (table.style.display === 'none') {
+        table.style.display = 'block';
+        toggle.textContent = 'Hide Details';
+    } else {
+        table.style.display = 'none';
+        toggle.textContent = 'Show Details';
     }
-  ];
-  
-  let comparisonHTML = `<div style="margin-top:12px;padding:8px;background:rgba(33, 150, 243, 0.1);border-radius:8px;">`;
-  comparisonHTML += `<p style="margin:0 0 8px 0;color:#2196f3;"><strong>Scenario Comparison:</strong></p>`;
-  
-  scenarios.forEach(scenario => {
-    const result = calculateAmortizationSchedule(scenario.amount, scenario.rate, scenario.years, scenario.extra);
+}
+
+// Update currency
+function slUpdateCurrency() {
+    slState.currency = document.getElementById('sl-currency').value;
+    slUpdate();
+}
+
+// Reset to defaults
+function slReset() {
+    document.getElementById('sl-currency').value = 'GBP';
+    document.getElementById('sl-amount').value = '20000';
+    document.getElementById('sl-rate').value = '5.5';
+    document.getElementById('sl-term').value = '10';
+    document.getElementById('sl-type').value = 'standard';
+    document.getElementById('sl-extra').value = '0';
+    
+    // Set start date to next month
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    slState.startDate = nextMonth;
+    
+    slUpdate();
+    showNotification('Reset to defaults', 'success');
+}
+
+// Compare scenarios
+function slCompareScenarios() {
+    const scenarios = [
+        { name: 'Current', rate: slState.rate, term: slState.term, extra: slState.extraPayment },
+        { name: 'Rate -1%', rate: Math.max(0, slState.rate - 1), term: slState.term, extra: slState.extraPayment },
+        { name: 'Term +5y', rate: slState.rate, term: slState.term + 5, extra: slState.extraPayment },
+        { name: 'Extra +100', rate: slState.rate, term: slState.term, extra: slState.extraPayment + 100 }
+    ];
+    
+    let comparison = '<div style="margin-top:var(--space-minor);">';
+    comparison += '<div style="font-size:var(--text-tiny);color:var(--accent);margin-bottom:var(--space-micro);">📈 Scenario Comparison:</div>';
+    
+    scenarios.forEach(scenario => {
+        // Temporarily modify state for calculation
+        const originalRate = slState.rate;
+        const originalTerm = slState.term;
+        const originalExtra = slState.extraPayment;
+        
+        slState.rate = scenario.rate;
+        slState.term = scenario.term;
+        slState.extraPayment = scenario.extra;
+        
+        const result = slCalculateAmortization();
+        const monthly = result.schedule.length > 0 ? result.schedule[0].payment : 0;
+        
+        comparison += `
+            <div style="background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:var(--radius-sm);margin-bottom:4px;font-size:var(--text-micro);">
+                <strong>${scenario.name}:</strong> ${slFormatCurrency(monthly)}/mo · 
+                ${Math.floor(result.actualMonths / 12)} years · 
+                ${slFormatCurrency(result.totalInterest)} interest
+            </div>
+        `;
+        
+        // Restore original state
+        slState.rate = originalRate;
+        slState.term = originalTerm;
+        slState.extraPayment = originalExtra;
+    });
+    
+    comparison += '</div>';
+    
+    // Show comparison as notification
+    showNotification(comparison, 'info', 10000);
+}
+
+// Share tool
+function slShare() {
+    const result = slCalculateAmortization();
     const monthly = result.schedule.length > 0 ? result.schedule[0].payment : 0;
-    const symbol = CURRENCY_SYMBOLS[card.querySelector('#studentloan-currency').value];
+    const symbol = slState.currencySymbols[slState.currency] || '£';
     
-    comparisonHTML += `
-      <div style="margin:4px 0;padding:4px 8px;background:rgba(0,0,0,0.2);border-radius:4px;">
-        <strong>${scenario.name}:</strong> 
-        ${symbol}${monthly.toFixed(2)}/mo · 
-        ${result.actualTerm} mo · 
-        ${symbol}${result.totalInterest.toFixed(0)} interest
-      </div>
-    `;
-  });
-  
-  comparisonHTML += `</div>`;
-  
-  // Show comparison
-  const hint = card.querySelector('#studentloan-hint');
-  hint.innerHTML = comparisonHTML;
-  
-  // Auto-hide after 10 seconds
-  setTimeout(() => {
-    if (hint.innerHTML.includes("Scenario Comparison")) {
-      const currentResult = calculateAmortizationSchedule(currentAmount, currentRate, currentYears, currentExtra);
-      const interestRatio = (currentResult.totalInterest / currentAmount * 100).toFixed(1);
-      hint.innerHTML = `
-        <span style="color:#4caf50;">✓</span> 
-        ${currentResult.actualTerm} months · Interest: ${interestRatio}% of principal
-      `;
+    const shareText = `💰 Student Loan Calculation:\n` +
+                     `Loan: ${symbol}${slState.amount.toLocaleString()}\n` +
+                     `Rate: ${slState.rate}%\n` +
+                     `Term: ${slState.term} years\n` +
+                     `Monthly: ${symbol}${monthly.toFixed(2)}\n` +
+                     `Total Interest: ${symbol}${result.totalInterest.toFixed(2)}\n\n` +
+                     `From The Most Useful Site`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Student Loan Calculator',
+            text: shareText,
+            url: window.location.href
+        });
+    } else {
+        navigator.clipboard.writeText(shareText);
+        showNotification('Calculation copied to clipboard!', 'success');
     }
-  }, 10000);
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-  const card = document.getElementById('student-loan-card');
-  if (card) {
-    // Set default start date
-    const now = new Date();
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const year = nextMonth.getFullYear();
-    const month = String(nextMonth.getMonth() + 1).padStart(2, '0');
-    card.querySelector('#studentloan-start').value = `${year}-${month}`;
+// Embed tool
+function slEmbed() {
+    const embedCode = `<iframe src="${window.location.origin}/cards/student-loan.html" width="100%" height="650" style="border:none;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.3);" title="Student Loan Calculator - The Most Useful Site"></iframe>`;
     
-    // Auto-calculate
-    setTimeout(() => {
-      studentloanCalc(card.querySelector('button.primary'));
-    }, 100);
-  }
+    navigator.clipboard.writeText(embedCode);
+    showNotification('Embed code copied to clipboard!', 'success');
+    
+    // Track in analytics
+    if (window.plausible) {
+        window.plausible('Embed Generated', { props: { tool: 'student-loan' } });
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('💰 Student Loan Calculator loaded');
+    
+    // Set start date to next month
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    slState.startDate = nextMonth;
+    
+    // Initial calculation
+    slUpdate();
+    
+    // Auto-update on input with debounce
+    let updateTimer;
+    ['sl-amount', 'sl-rate', 'sl-term', 'sl-extra'].forEach(id => {
+        document.getElementById(id).addEventListener('input', () => {
+            clearTimeout(updateTimer);
+            updateTimer = setTimeout(slUpdate, 300);
+        });
+    });
+    
+    // Update on select changes
+    document.getElementById('sl-currency').addEventListener('change', slUpdateCurrency);
+    document.getElementById('sl-type').addEventListener('change', slUpdate);
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            slReset();
+        }
+        if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            slCompareScenarios();
+        }
+    });
 });
 
-// Auto-calculate on input changes
-let loanCalcTimeout;
-document.addEventListener('input', function(e) {
-  if (e.target.closest('.card') && e.target.closest('.card').id === 'student-loan-card') {
-    clearTimeout(loanCalcTimeout);
-    loanCalcTimeout = setTimeout(() => {
-      const card = e.target.closest('.card');
-      const calculateBtn = card.querySelector('button.primary');
-      if (calculateBtn) {
-        studentloanCalc(calculateBtn);
-      }
-    }, 300);
-  }
-});
+// Make functions available globally
+window.slUpdate = slUpdate;
+window.slReset = slReset;
+window.slCompareScenarios = slCompareScenarios;
+window.slShare = slShare;
+window.slEmbed = slEmbed;
+window.slToggleAmortization = slToggleAmortization;
+window.slUpdateCurrency = slUpdateCurrency;
 </script>
+
+<!-- ===== 5. CARD-SCOPED STYLES ===== -->
+<style>
+/* Card-specific styles */
+#sl-card {
+    --card-width: min(100%, 400px);
+    --card-height: auto;
+    min-height: 600px;
+}
+
+/* Form components */
+.form-section {
+    margin-bottom: var(--space-major);
+}
+
+.form-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: var(--space-micro);
+}
+
+.form-label span:first-child {
+    font-size: var(--text-tiny);
+    font-weight: var(--weight-semibold);
+    color: var(--text);
+}
+
+.form-hint {
+    font-size: var(--text-micro);
+    color: var(--text-tertiary);
+}
+
+/* Result card styling */
+.result-card {
+    background: linear-gradient(145deg, 
+        rgba(255, 255, 255, 0.03), 
+        rgba(255, 255, 255, 0.05));
+    border: 2px solid;
+    border-radius: var(--radius-md);
+    padding: var(--space-minor);
+    text-align: center;
+    transition: var(--transition-base);
+}
+
+.result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.result-label {
+    font-size: var(--text-micro);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.result-value {
+    font-family: var(--font-mono);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-bold);
+    color: var(--text);
+    line-height: 1;
+    margin: var(--space-micro) 0;
+}
+
+.result-unit {
+    font-size: var(--text-micro);
+    color: var(--text-secondary);
+}
+
+/* Section header */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-minor);
+}
+
+/* Progress bar animations */
+.progress-bar {
+    position: relative;
+}
+
+/* Table styles */
+table {
+    width: 100%;
+}
+
+table th {
+    color: var(--text-tertiary);
+    font-weight: var(--weight-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: var(--text-micro);
+}
+
+table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-secondary);
+}
+
+table tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* Warning banner */
+.warning-banner {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    #sl-card {
+        padding: var(--space-minor);
+    }
+    
+    .results-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .row {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 360px) {
+    .form-section > div {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Print styles */
+@media print {
+    #sl-card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        background: white !important;
+        color: black !important;
+    }
+    
+    .card-actions, button, .card-footer {
+        display: none !important;
+    }
+    
+    .warning-banner {
+        display: none !important;
+    }
+    
+    table {
+        background: white !important;
+        color: black !important;
+    }
+}
+</style>
+
+<!-- ===== 6. METADATA FOR CARD LOADER ===== -->
+<div style="display:none;" data-card-metadata>
+    <!-- Metadata for card loader -->
+    <div data-title="Student Loan Calculator"></div>
+    <div data-description="Calculate student loan payments, total interest, and repayment timeline. Compare different repayment plans and see how extra payments can save you money."></div>
+    <div data-tags="finance, loan, student, calculator, debt, repayment, interest, amortization"></div>
+    <div data-category="Finance"></div>
+    <div data-icon="💰"></div>
+    <div data-version="1.0.0"></div>
+</div>
