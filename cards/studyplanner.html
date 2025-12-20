@@ -1,357 +1,1351 @@
-function printStudyPlan() {
-  if (studySessions.length === 0) {
-    showHint('No study sessions to print.', 'warning');
-    return;
-  }
-  
-  // Ask user for filtering options
-  const printOption = prompt('Print:\n1. All sessions\n2. Upcoming only\n3. Today\'s sessions\n4. By subject\n\nEnter number (1-4):', '1');
-  
-  let sessionsToPrint = [...studySessions];
-  let titleSuffix = 'All Sessions';
-  
-  switch(printOption) {
-    case '2':
-      const today = new Date().toISOString().split('T')[0];
-      sessionsToPrint = studySessions.filter(s => s.date >= today && !s.completed);
-      titleSuffix = 'Upcoming Sessions';
-      break;
+<div class="card" id="sleep-card">
+  <!-- Header -->
+  <div class="card-header">
+    <div class="header-content">
+      <div class="header-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          <path d="M12 2v1"></path>
+          <path d="M12 21v1"></path>
+          <path d="M4.22 4.22l.71.71"></path>
+          <path d="M19.07 19.07l.71.71"></path>
+          <path d="M2 12h1"></path>
+          <path d="M21 12h1"></path>
+          <path d="M4.22 19.78l.71-.71"></path>
+          <path d="M19.07 4.93l.71-.71"></path>
+        </svg>
+      </div>
+      <div>
+        <h2 class="card-title">Sleep Cycle Calculator</h2>
+        <p class="card-subtitle">
+          Find optimal sleep and wake times based on 90-minute sleep cycles
+        </p>
+      </div>
+    </div>
+    <div class="mode-switch">
+      <button class="mode-btn active" data-mode="bedtime">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+        </svg>
+        From Bedtime
+      </button>
+      <button class="mode-btn" data-mode="waketime">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <polyline points="12 7 12 12 15 15"></polyline>
+        </svg>
+        From Wake Time
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="card-body">
+    <!-- Time Input -->
+    <div class="input-section">
+      <div class="time-input-group">
+        <div class="time-input">
+          <label class="time-label" id="time-label">Bedtime</label>
+          <div class="time-controls">
+            <button class="time-adjust" onclick="adjustTime(-15)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              -15 min
+            </button>
+            <input type="time" id="sleep-time" class="time-field" value="23:00">
+            <button class="time-adjust" onclick="adjustTime(15)">
+              +15 min
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="time-presets">
+            <button class="preset" data-time="22:30">10:30 PM</button>
+            <button class="preset" data-time="23:00">11:00 PM</button>
+            <button class="preset active" data-time="23:30">11:30 PM</button>
+            <button class="preset" data-time="00:00">12:00 AM</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cycle Control -->
+    <div class="cycle-section">
+      <div class="cycle-header">
+        <label class="section-label">Sleep Cycles</label>
+        <div class="cycle-info">
+          <span class="cycle-count" id="cycle-count">5 cycles</span>
+          <span class="cycle-total" id="cycle-total">7.5 hours</span>
+        </div>
+      </div>
       
-    case '3':
-      const todayStr = new Date().toISOString().split('T')[0];
-      sessionsToPrint = studySessions.filter(s => s.date === todayStr);
-      titleSuffix = "Today's Sessions";
-      break;
-      
-    case '4':
-      const subject = prompt('Enter subject name:');
-      if (subject) {
-        sessionsToPrint = studySessions.filter(s => 
-          s.subject.toLowerCase().includes(subject.toLowerCase())
-        );
-        titleSuffix = `${subject} Sessions`;
-      }
-      break;
-  }
-  
-  if (sessionsToPrint.length === 0) {
-    showHint('No sessions match your criteria.', 'warning');
-    return;
-  }
-  
-  const printWindow = window.open('', '_blank', 'width=800,height=600');
-  
-  // Group sessions by date for better organization
-  const sessionsByDate = {};
-  sessionsToPrint.forEach(session => {
-    if (!sessionsByDate[session.date]) {
-      sessionsByDate[session.date] = [];
-    }
-    sessionsByDate[session.date].push(session);
-  });
-  
-  // Sort dates
-  const sortedDates = Object.keys(sessionsByDate).sort();
-  
-  // Calculate totals
-  const totalHours = sessionsToPrint.reduce((sum, s) => sum + s.duration, 0);
-  const completedHours = sessionsToPrint
-    .filter(s => s.completed)
-    .reduce((sum, s) => sum + s.duration, 0);
-  const pendingSessions = sessionsToPrint.filter(s => !s.completed).length;
-  
-  // Create priority counts
-  const priorityCounts = {
-    urgent: sessionsToPrint.filter(s => s.priority === 'urgent').length,
-    high: sessionsToPrint.filter(s => s.priority === 'high').length,
-    medium: sessionsToPrint.filter(s => s.priority === 'medium').length,
-    low: sessionsToPrint.filter(s => s.priority === 'low').length
-  };
-  
-  const content = `
-    <html>
-      <head>
-        <title>Study Plan - ${new Date().toLocaleDateString()}</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: Arial, sans-serif;
-          }
-          
-          body {
-            padding: 20px;
-            color: #333;
-            line-height: 1.6;
-          }
-          
-          .print-header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #2196f3;
-          }
-          
-          .print-header h1 {
-            color: #2196f3;
-            margin-bottom: 10px;
-            font-size: 24px;
-          }
-          
-          .print-meta {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            font-size: 14px;
-            color: #666;
-          }
-          
-          .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-          }
-          
-          .summary-card {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            border-left: 4px solid #2196f3;
-          }
-          
-          .summary-card .label {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 5px;
-          }
-          
-          .summary-card .value {
-            font-size: 20px;
-            font-weight: bold;
-            color: #2196f3;
-          }
-          
-          .date-section {
-            margin-bottom: 25px;
-            page-break-inside: avoid;
-          }
-          
-          .date-header {
-            background: #e3f2fd;
-            padding: 10px 15px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            font-weight: bold;
-            color: #1976d2;
-            display: flex;
-            justify-content: space-between;
-          }
-          
-          .date-total {
-            font-size: 14px;
-            color: #666;
-          }
-          
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-          }
-          
-          th {
-            background: #2196f3;
-            color: white;
-            padding: 12px 8px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 14px;
-          }
-          
-          td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #eee;
-            font-size: 14px;
-          }
-          
-          tr:nth-child(even) {
-            background: #f9f9f9;
-          }
-          
-          .priority-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-          }
-          
-          .priority-urgent { background: #fce4ec; color: #c2185b; }
-          .priority-high { background: #ffebee; color: #d32f2f; }
-          .priority-medium { background: #fff3e0; color: #f57c00; }
-          .priority-low { background: #e8f5e9; color: #388e3c; }
-          
-          .completed-check {
-            color: #388e3c;
-            font-weight: bold;
-          }
-          
-          .print-footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            font-size: 12px;
-            color: #666;
-            text-align: center;
-          }
-          
-          .print-actions {
-            display: none;
-          }
-          
-          @media print {
-            body {
-              padding: 10px;
-            }
-            
-            .no-print {
-              display: none !important;
-            }
-            
-            .date-section {
-              page-break-inside: avoid;
-            }
-            
-            table {
-              page-break-inside: auto;
-            }
-            
-            tr {
-              page-break-inside: avoid;
-              page-break-after: auto;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="print-header">
-          <h1>📚 Study Plan - ${titleSuffix}</h1>
-          <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-        </div>
-        
-        <div class="print-meta">
-          <div>Total Sessions: ${sessionsToPrint.length}</div>
-          <div>Date Range: ${sortedDates[0]} to ${sortedDates[sortedDates.length - 1]}</div>
-          <div>Page 1 of 1</div>
-        </div>
-        
-        <div class="summary-cards">
-          <div class="summary-card">
-            <div class="label">Total Study Hours</div>
-            <div class="value">${totalHours.toFixed(1)}h</div>
-          </div>
-          <div class="summary-card">
-            <div class="label">Completed Hours</div>
-            <div class="value">${completedHours.toFixed(1)}h</div>
-          </div>
-          <div class="summary-card">
-            <div class="label">Pending Sessions</div>
-            <div class="value">${pendingSessions}</div>
-          </div>
-          <div class="summary-card">
-            <div class="label">Urgent/High Priority</div>
-            <div class="value">${priorityCounts.urgent + priorityCounts.high}</div>
-          </div>
-        </div>
-        
-        ${sortedDates.map(date => {
-          const dateSessions = sessionsByDate[date];
-          const dateTotal = dateSessions.reduce((sum, s) => sum + s.duration, 0);
-          const dateCompleted = dateSessions.filter(s => s.completed).length;
-          const isToday = date === new Date().toISOString().split('T')[0];
-          const isPast = new Date(date) < new Date().setHours(0,0,0,0);
-          
-          return `
-            <div class="date-section">
-              <div class="date-header">
-                <span>${formatDate(date)}${isToday ? ' (Today)' : ''}${isPast ? ' (Past)' : ''}</span>
-                <span class="date-total">${dateSessions.length} sessions • ${dateTotal.toFixed(1)}h • ${dateCompleted}/${dateSessions.length} completed</span>
-              </div>
-              
-              <table>
-                <thead>
-                  <tr>
-                    <th width="25%">Subject</th>
-                    <th width="15%">Time</th>
-                    <th width="15%">Priority</th>
-                    <th width="20%">Type</th>
-                    <th width="15%">Status</th>
-                    <th width="10%">Hours</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${dateSessions.map(session => `
-                    <tr>
-                      <td><strong>${session.subject}</strong></td>
-                      <td>${session.duration.toFixed(1)}h</td>
-                      <td>
-                        <span class="priority-badge priority-${session.priority}">
-                          ${session.priority.toUpperCase()}
-                        </span>
-                      </td>
-                      <td>${session.type}</td>
-                      <td class="${session.completed ? 'completed-check' : ''}">
-                        ${session.completed ? '✅ Completed' : '⏳ Pending'}
-                      </td>
-                      <td><strong>${session.duration.toFixed(1)}</strong></td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+      <div class="cycle-control">
+        <div class="cycle-slider-container">
+          <input type="range" id="cycle-slider" min="3" max="7" value="5" class="cycle-slider">
+          <div class="cycle-markers">
+            <div class="marker" style="left: 0%;" data-cycles="3">
+              <span class="marker-label">3</span>
+              <span class="marker-desc">4.5h</span>
             </div>
-          `;
-        }).join('')}
-        
-        <div class="print-footer">
-          <p>Generated by Study Planner • Total study hours: ${totalHours.toFixed(1)} • ${sessionsToPrint.filter(s => s.completed).length}/${sessionsToPrint.length} sessions completed</p>
-          <p class="no-print" style="margin-top: 10px;">
-            <button onclick="window.print()" style="padding: 8px 16px; background: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">
-              🖨️ Print Now
-            </button>
-            <button onclick="window.close()" style="padding: 8px 16px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer;">
-              Close Window
-            </button>
-          </p>
+            <div class="marker" style="left: 25%;" data-cycles="4">
+              <span class="marker-label">4</span>
+              <span class="marker-desc">6h</span>
+            </div>
+            <div class="marker active" style="left: 50%;" data-cycles="5">
+              <span class="marker-label">5</span>
+              <span class="marker-desc">7.5h</span>
+            </div>
+            <div class="marker" style="left: 75%;" data-cycles="6">
+              <span class="marker-label">6</span>
+              <span class="marker-desc">9h</span>
+            </div>
+            <div class="marker" style="left: 100%;" data-cycles="7">
+              <span class="marker-label">7</span>
+              <span class="marker-desc">10.5h</span>
+            </div>
+          </div>
         </div>
         
-        <script>
-          // Auto-print after a short delay
-          setTimeout(() => {
-            window.print();
-          }, 500);
-          
-          // Add keyboard shortcuts
-          document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'p') {
-              e.preventDefault();
-              window.print();
-            }
-            if (e.key === 'Escape') {
-              window.close();
-            }
-          });
-        </script>
-      </body>
-    </html>
-  `;
-  
-  printWindow.document.write(content);
-  printWindow.document.close();
-  
-  // Focus on the print window
-  printWindow.focus();
-  
-  showHint('Print preview opened. Press Ctrl+P to print.', 'info');
+        <div class="cycle-presets">
+          <button class="cycle-preset" data-cycles="4">Minimum (6h)</button>
+          <button class="cycle-preset active" data-cycles="5">Optimal (7.5h)</button>
+          <button class="cycle-preset" data-cycles="6">Extended (9h)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="results-section">
+      <div class="results-header">
+        <h3 class="section-title">Sleep Schedule</h3>
+        <div class="results-subtitle">
+          <span id="result-direction">Wake up at</span>
+        </div>
+      </div>
+      
+      <div class="results-grid">
+        <div class="result-card main">
+          <div class="result-icon">⏰</div>
+          <div class="result-content">
+            <div class="result-label" id="result-label">Wake-up time</div>
+            <div class="result-value" id="result-time">7:30 AM</div>
+            <div class="result-desc" id="result-desc">5 sleep cycles</div>
+          </div>
+        </div>
+        
+        <div class="result-card">
+          <div class="result-icon">🛌</div>
+          <div class="result-content">
+            <div class="result-label">Total sleep</div>
+            <div class="result-value" id="result-duration">7.5 hours</div>
+            <div class="result-desc" id="result-cycles">5 cycles</div>
+          </div>
+        </div>
+        
+        <div class="result-card">
+          <div class="result-icon">🌙</div>
+          <div class="result-content">
+            <div class="result-label">Light sleep ends</div>
+            <div class="result-value" id="result-light">7:15 AM</div>
+            <div class="result-desc">Best time to wake</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="timeline-container">
+        <div class="timeline-header">
+          <span>Sleep Cycle Timeline</span>
+          <div class="timeline-scale">90 min cycles</div>
+        </div>
+        <div class="timeline" id="sleep-timeline">
+          <!-- Timeline will be generated by JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-section">
+      <button class="btn btn-primary" onclick="calculateSleep()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          <path d="M12 2v1"></path>
+          <path d="M12 21v1"></path>
+        </svg>
+        Update Calculation
+      </button>
+      <div class="action-buttons">
+        <button class="btn btn-secondary" onclick="setNowTime()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          Current Time
+        </button>
+        <button class="btn btn-secondary" onclick="resetSleep()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+          </svg>
+          Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Sleep Tips -->
+    <div class="tips-section">
+      <div class="section-header">
+        <h3 class="section-title">Sleep Tips</h3>
+        <button class="btn-text" onclick="cycleTips()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="17 1 21 5 17 9"></polyline>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+            <polyline points="7 23 3 19 7 15"></polyline>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+          </svg>
+          Next Tip
+        </button>
+      </div>
+      
+      <div class="tips-carousel">
+        <div class="tip-card active">
+          <div class="tip-icon">💡</div>
+          <div class="tip-content">
+            <div class="tip-title">Complete Sleep Cycles</div>
+            <div class="tip-text">Aim for complete 90-minute cycles. Waking between cycles (during light sleep) reduces grogginess.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="card-footer">
+    <div class="footer-content">
+      <div class="footer-text">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        Based on 90-minute sleep cycles. Individual sleep patterns may vary.
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Design System Variables */
+:root {
+  --primary-color: #667eea;
+  --primary-light: #764ba2;
+  --primary-dark: #5a67d8;
+  --secondary-color: #9f7aea;
+  --success-color: #48bb78;
+  --warning-color: #ed8936;
+  --info-color: #4299e1;
+  --surface-color: #1f2937;
+  --surface-light: #374151;
+  --surface-lighter: #4b5563;
+  --surface-dark: #111827;
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  --border-color: #374151;
+  --border-light: #4b5563;
+  --border-radius: 8px;
+  --border-radius-sm: 6px;
+  --border-radius-lg: 12px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Base Card Styles */
+.card {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  transition: var(--transition);
+}
+
+.card:hover {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Card Header */
+.card-header {
+  padding: var(--spacing-xl);
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(135deg, 
+    rgba(102, 126, 234, 0.1) 0%, 
+    rgba(118, 75, 162, 0.05) 50%, 
+    rgba(102, 126, 234, 0.02) 100%);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: var(--border-radius);
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.card-subtitle {
+  margin: var(--spacing-xs) 0 0;
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+  max-width: 600px;
+}
+
+.mode-switch {
+  display: flex;
+  gap: var(--spacing-xs);
+  background: var(--surface-light);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-xs);
+  border: 1px solid var(--border-color);
+}
+
+.mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.mode-btn.active {
+  background: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Card Body */
+.card-body {
+  padding: var(--spacing-xl);
+}
+
+/* Time Input Section */
+.input-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.time-input-group {
+  background: var(--surface-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-lg);
+}
+
+.time-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.time-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.time-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.time-adjust {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--surface-light);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.time-adjust:hover {
+  background: var(--surface-lighter);
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+}
+
+.time-adjust:first-child {
+  margin-right: auto;
+}
+
+.time-adjust:last-child {
+  margin-left: auto;
+}
+
+.time-field {
+  flex: 1;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center;
+  transition: var(--transition);
+}
+
+.time-field:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.time-presets {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.preset {
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--surface-light);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.preset:hover {
+  background: var(--surface-lighter);
+  color: var(--text-primary);
+}
+
+.preset.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+/* Cycle Section */
+.cycle-section {
+  margin-bottom: var(--spacing-xl);
+  background: var(--surface-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-lg);
+}
+
+.cycle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.section-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cycle-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.cycle-count {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.cycle-total {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.cycle-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.cycle-slider-container {
+  position: relative;
+  margin-top: var(--spacing-md);
+}
+
+.cycle-slider {
+  width: 100%;
+  height: 8px;
+  background: var(--surface-light);
+  border-radius: 4px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.cycle-slider::-webkit-slider-thumb {
+  width: 28px;
+  height: 28px;
+  background: var(--primary-color);
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-appearance: none;
+  border: 3px solid var(--surface-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: var(--transition);
+}
+
+.cycle-slider::-webkit-slider-thumb:hover {
+  background: var(--primary-light);
+  transform: scale(1.1);
+}
+
+.cycle-markers {
+  position: relative;
+  margin-top: var(--spacing-lg);
+}
+
+.marker {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.marker:hover .marker-label {
+  color: var(--primary-color);
+}
+
+.marker.active .marker-label {
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.marker-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.marker-desc {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.cycle-presets {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.cycle-preset {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--surface-light);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.cycle-preset:hover {
+  background: var(--surface-lighter);
+  color: var(--text-primary);
+}
+
+.cycle-preset.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+/* Results Section */
+.results-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.section-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.results-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.result-card {
+  background: var(--surface-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-lg);
+  transition: var(--transition);
+}
+
+.result-card:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.result-card.main {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(159, 122, 234, 0.05));
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+.result-icon {
+  font-size: 2rem;
+  margin-bottom: var(--spacing-md);
+}
+
+.result-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.result-label {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.result-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.result-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.timeline-container {
+  background: var(--surface-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.timeline-scale {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  color: var(--primary-color);
+}
+
+.timeline {
+  display: flex;
+  height: 60px;
+  background: var(--surface-light);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  position: relative;
+}
+
+.timeline-cycle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  position: relative;
+  transition: var(--transition);
+}
+
+.timeline-cycle:hover {
+  filter: brightness(1.2);
+  transform: scale(1.05);
+}
+
+.timeline-cycle.rem {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+}
+
+.timeline-cycle.light {
+  background: rgba(102, 126, 234, 0.7);
+}
+
+.timeline-cycle.deep {
+  background: rgba(102, 126, 234, 0.4);
+}
+
+.timeline-cycle-label {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Action Section */
+.action-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-xl);
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-secondary {
+  background: var(--surface-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-lighter);
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition);
+}
+
+.btn-text:hover {
+  color: var(--primary-color);
+}
+
+.action-buttons {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+/* Tips Section */
+.tips-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.tips-carousel {
+  position: relative;
+}
+
+.tip-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+  background: var(--surface-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-lg);
+  animation: fadeIn 0.5s ease;
+}
+
+.tip-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.tip-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.tip-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tip-text {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Card Footer */
+.card-footer {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.footer-content {
+  display: flex;
+  justify-content: center;
+}
+
+.footer-text {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  max-width: 600px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .card-header {
+    padding: var(--spacing-lg);
+  }
+  
+  .card-body {
+    padding: var(--spacing-lg);
+  }
+  
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+  
+  .time-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .time-adjust {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .time-field {
+    order: -1;
+  }
+  
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .cycle-presets {
+    flex-direction: column;
+  }
+  
+  .action-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .action-buttons {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .card-header,
+  .card-body {
+    padding: var(--spacing-md);
+  }
+  
+  .time-presets {
+    flex-wrap: wrap;
+  }
+  
+  .tip-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+</style>
+
+<script>
+// Sleep Calculator Application
+class SleepCalculator {
+  constructor() {
+    this.mode = 'bedtime'; // 'bedtime' or 'waketime'
+    this.currentTips = [
+      {
+        icon: '💡',
+        title: 'Complete Sleep Cycles',
+        text: 'Aim for complete 90-minute cycles. Waking between cycles (during light sleep) reduces grogginess.'
+      },
+      {
+        icon: '🌙',
+        title: 'Consistent Schedule',
+        text: 'Try to go to bed and wake up at the same time every day, even on weekends.'
+      },
+      {
+        icon: '📱',
+        title: 'Digital Detox',
+        text: 'Avoid screens 30-60 minutes before bedtime. Blue light can disrupt melatonin production.'
+      },
+      {
+        icon: '🛌',
+        title: 'Sleep Environment',
+        text: 'Keep your bedroom cool (18-20°C), dark, and quiet for optimal sleep quality.'
+      },
+      {
+        icon: '☕',
+        title: 'Caffeine Timing',
+        text: 'Avoid caffeine 6-8 hours before bedtime as it can interfere with sleep cycles.'
+      }
+    ];
+    this.currentTipIndex = 0;
+    
+    this.init();
+  }
+  
+  init() {
+    // Set up event listeners
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this.setMode(e.target.dataset.mode));
+    });
+    
+    document.getElementById('cycle-slider').addEventListener('input', (e) => {
+      this.updateCycleDisplay(e.target.value);
+    });
+    
+    document.querySelectorAll('.cycle-preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const cycles = parseInt(e.target.dataset.cycles);
+        this.setCycles(cycles);
+      });
+    });
+    
+    document.querySelectorAll('.preset').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        this.setTime(e.target.dataset.time);
+      });
+    });
+    
+    document.querySelectorAll('.marker').forEach(marker => {
+      marker.addEventListener('click', (e) => {
+        const cycles = parseInt(e.currentTarget.dataset.cycles);
+        this.setCycles(cycles);
+      });
+    });
+    
+    // Calculate on page load
+    setTimeout(() => {
+      this.calculate();
+    }, 100);
+  }
+  
+  setMode(mode) {
+    this.mode = mode;
+    
+    // Update UI
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+    
+    document.getElementById('time-label').textContent = 
+      mode === 'bedtime' ? 'Bedtime' : 'Wake Time';
+    document.getElementById('result-direction').textContent = 
+      mode === 'bedtime' ? 'Wake up at' : 'Go to bed at';
+    document.getElementById('result-label').textContent = 
+      mode === 'bedtime' ? 'Wake-up time' : 'Bedtime';
+    
+    // Recalculate
+    this.calculate();
+  }
+  
+  setTime(time) {
+    document.getElementById('sleep-time').value = time;
+    
+    // Update preset buttons
+    document.querySelectorAll('.preset').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.time === time);
+    });
+    
+    this.calculate();
+  }
+  
+  setCycles(cycles) {
+    document.getElementById('cycle-slider').value = cycles;
+    this.updateCycleDisplay(cycles);
+    
+    // Update preset buttons
+    document.querySelectorAll('.cycle-preset').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.cycles) === cycles);
+    });
+    
+    // Update marker states
+    document.querySelectorAll('.marker').forEach(marker => {
+      marker.classList.toggle('active', parseInt(marker.dataset.cycles) === cycles);
+    });
+    
+    this.calculate();
+  }
+  
+  updateCycleDisplay(cycles) {
+    const totalHours = (cycles * 1.5).toFixed(1);
+    document.getElementById('cycle-count').textContent = `${cycles} cycle${cycles !== 1 ? 's' : ''}`;
+    document.getElementById('cycle-total').textContent = `${totalHours} hours`;
+  }
+  
+  calculate() {
+    const timeStr = document.getElementById('sleep-time').value;
+    const cycles = parseInt(document.getElementById('cycle-slider').value);
+    
+    if (!timeStr) return;
+    
+    // Parse time
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const baseTime = new Date();
+    baseTime.setHours(hours, minutes, 0, 0);
+    
+    let resultTime;
+    let description;
+    
+    if (this.mode === 'bedtime') {
+      // Calculate wake time
+      resultTime = new Date(baseTime.getTime() + cycles * 90 * 60000);
+      description = `${cycles} sleep cycles`;
+    } else {
+      // Calculate bedtime
+      resultTime = new Date(baseTime.getTime() - cycles * 90 * 60000);
+      description = `${cycles} sleep cycles`;
+    }
+    
+    // Format result time
+    const formattedTime = this.formatTime(resultTime);
+    
+    // Calculate total sleep
+    const totalHours = (cycles * 1.5).toFixed(1);
+    const totalHoursInt = Math.floor(cycles * 1.5);
+    const totalMinutesInt = Math.round((cycles * 1.5 - totalHoursInt) * 60);
+    
+    // Calculate light sleep end (5 minutes before wake time)
+    const lightSleepEnd = new Date(this.mode === 'bedtime' ? resultTime.getTime() : baseTime.getTime());
+    lightSleepEnd.setMinutes(lightSleepEnd.getMinutes() - 5);
+    
+    // Update UI
+    document.getElementById('result-time').textContent = formattedTime;
+    document.getElementById('result-desc').textContent = description;
+    document.getElementById('result-duration').textContent = `${totalHours} hours`;
+    document.getElementById('result-cycles').textContent = `${cycles} cycles`;
+    document.getElementById('result-light').textContent = this.formatTime(lightSleepEnd);
+    
+    // Update timeline
+    this.updateTimeline(this.mode === 'bedtime' ? baseTime : resultTime, cycles);
+  }
+  
+  formatTime(date) {
+    const hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${minutes} ${period}`;
+  }
+  
+  updateTimeline(startTime, cycles) {
+    const timeline = document.getElementById('sleep-timeline');
+    timeline.innerHTML = '';
+    
+    const cycleStages = [
+      { name: 'Light', duration: 0.25, color: 'light' },
+      { name: 'Deep', duration: 0.5, color: 'deep' },
+      { name: 'REM', duration: 0.25, color: 'rem' }
+    ];
+    
+    let currentTime = new Date(startTime.getTime());
+    
+    for (let i = 0; i < cycles; i++) {
+      const cycleStart = new Date(currentTime.getTime());
+      
+      cycleStages.forEach((stage, stageIndex) => {
+        const stageDuration = stage.duration * 90 * 60000; // Convert to milliseconds
+        const stageEnd = new Date(currentTime.getTime() + stageDuration);
+        
+        const stageElement = document.createElement('div');
+        stageElement.className = `timeline-cycle ${stage.color}`;
+        stageElement.style.width = `${stage.duration * 100}%`;
+        stageElement.title = `${stage.name} sleep: ${this.formatTime(currentTime)} - ${this.formatTime(stageEnd)}`;
+        
+        // Add cycle number label for first stage of each cycle
+        if (stageIndex === 0) {
+          const label = document.createElement('div');
+          label.className = 'timeline-cycle-label';
+          label.textContent = `Cycle ${i + 1}`;
+          stageElement.appendChild(label);
+        }
+        
+        timeline.appendChild(stageElement);
+        currentTime = stageEnd;
+      });
+    }
+  }
+  
+  adjustTime(minutes) {
+    const timeInput = document.getElementById('sleep-time');
+    const [hours, mins] = timeInput.value.split(':').map(Number);
+    
+    let date = new Date();
+    date.setHours(hours, mins, 0, 0);
+    date.setMinutes(date.getMinutes() + minutes);
+    
+    const newHours = date.getHours().toString().padStart(2, '0');
+    const newMinutes = date.getMinutes().toString().padStart(2, '0');
+    const newTime = `${newHours}:${newMinutes}`;
+    
+    this.setTime(newTime);
+  }
+  
+  setNowTime() {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const currentTime = `${hours}:${minutes}`;
+    
+    this.setTime(currentTime);
+  }
+  
+  reset() {
+    this.setMode('bedtime');
+    this.setTime('23:30');
+    this.setCycles(5);
+    this.calculate();
+    
+    this.showNotification('All settings reset to defaults', 'info');
+  }
+  
+  nextTip() {
+    this.currentTipIndex = (this.currentTipIndex + 1) % this.currentTips.length;
+    const tip = this.currentTips[this.currentTipIndex];
+    
+    const tipCard = document.querySelector('.tip-card');
+    tipCard.innerHTML = `
+      <div class="tip-icon">${tip.icon}</div>
+      <div class="tip-content">
+        <div class="tip-title">${tip.title}</div>
+        <div class="tip-text">${tip.text}</div>
+      </div>
+    `;
+    
+    // Add animation
+    tipCard.style.animation = 'none';
+    setTimeout(() => {
+      tipCard.style.animation = 'fadeIn 0.5s ease';
+    }, 10);
+  }
+  
+  showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+      <div class="notification-content">
+        <span class="notification-icon">${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ⓘ'}</span>
+        ${message}
+      </div>
+    `;
+    
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 16px;
+      background: ${type === 'success' ? '#48bb78' : type === 'error' ? '#f56565' : '#4299e1'};
+      color: white;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      z-index: 1000;
+      animation: slideIn 0.3s ease;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.style.animation = 'slideOut 0.3s ease';
+      setTimeout(() => notification.remove(), 300);
+    }, 3000);
+  }
+}
+
+// Initialize the application
+const sleepCalc = new SleepCalculator();
+
+// Global functions for inline event handlers
+function adjustTime(minutes) {
+  sleepCalc.adjustTime(minutes);
+}
+
+function setNowTime() {
+  sleepCalc.setNowTime();
+}
+
+function resetSleep() {
+  sleepCalc.reset();
+}
+
+function cycleTips() {
+  sleepCalc.nextTip();
+}
+
+function calculateSleep() {
+  sleepCalc.calculate();
+  sleepCalc.showNotification('Sleep schedule updated', 'success');
+}
+
+// Add CSS animations for notifications
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideOut {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+`;
+document.head.appendChild(style);
+</script>
