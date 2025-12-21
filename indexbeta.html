@@ -584,23 +584,47 @@
             position: fixed;
             right: var(--space-md);
             top: 60px;
-            width: 500px;
-            height: 420px;
+            width: 600px;
+            height: 500px;
             max-width: calc(100vw - 32px);
             max-height: calc(100vh - 80px);
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            min-width: 320px;
-            min-height: 240px;
+            min-width: 400px;
+            min-height: 300px;
             z-index: 9998;
+            resize: both;
+            border: 1px solid var(--border-light);
+            border-radius: var(--card-radius);
+            background: rgba(10, 15, 20, 0.98);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        /* Resize handle styling */
+        .toolbox::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+            cursor: se-resize;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+        
+        .toolbox:hover::after {
+            opacity: 0.8;
         }
         
         .toolbox .titlebar {
             padding: var(--space-md) var(--space-lg);
             border-bottom: 1px solid var(--border-light);
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
-            cursor: grab;
+            cursor: move;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -652,13 +676,13 @@
         }
         
         /* ===== TOOLBOX CARDS ===== */
-        .toolbox-card {
+        .toolboxCard {
             position: absolute;
             background: var(--bg-card);
             border: 1px solid var(--border-light);
             border-radius: 8px;
-            min-width: 180px;
-            min-height: 140px;
+            min-width: 200px;
+            min-height: 160px;
             max-width: calc(100% - 20px);
             max-height: calc(100% - 20px);
             overflow: hidden;
@@ -668,7 +692,25 @@
             z-index: 1;
         }
         
-        .toolbox-card-titlebar {
+        /* Resize handle for toolbox cards */
+        .toolboxCard::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 12px;
+            height: 12px;
+            background: linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+            cursor: se-resize;
+            opacity: 0.3;
+            transition: opacity 0.2s;
+        }
+        
+        .toolboxCard:hover::after {
+            opacity: 0.6;
+        }
+        
+        .toolboxCard-titlebar {
             padding: var(--space-sm) var(--space-md);
             border-bottom: 1px solid var(--border-light);
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
@@ -679,7 +721,7 @@
             user-select: none;
         }
         
-        .toolbox-card-titlebar strong {
+        .toolboxCard-titlebar strong {
             color: var(--accent);
             font-size: 0.8rem;
             font-weight: 600;
@@ -688,14 +730,14 @@
             text-overflow: ellipsis;
         }
         
-        .toolbox-card-body {
+        .toolboxCard-body {
             padding: var(--space-md);
             overflow: auto;
             height: calc(100% - 46px);
             font-size: 0.8rem;
         }
         
-        .toolbox-card-close {
+        .toolboxCard-close {
             background: transparent;
             border: 0;
             color: var(--text-secondary);
@@ -707,7 +749,7 @@
             transition: all 0.2s;
         }
         
-        .toolbox-card-close:hover {
+        .toolboxCard-close:hover {
             background: rgba(255, 77, 77, 0.1);
             color: var(--error);
         }
@@ -1194,6 +1236,13 @@
                 top: 60px;
             }
             
+            .toolbox {
+                min-width: 300px;
+                min-height: 250px;
+                width: calc(100% - 32px);
+                height: 50vh;
+            }
+            
             .contribution-options {
                 grid-template-columns: 1fr;
             }
@@ -1247,6 +1296,11 @@
             .palette-grid {
                 grid-template-columns: repeat(3, 1fr);
             }
+            
+            .toolboxCard {
+                min-width: 180px;
+                min-height: 140px;
+            }
         }
     </style>
 </head>
@@ -1282,7 +1336,7 @@
         <div class="titlebar" id="toolboxTitle">
             <div class="toolbox-title">
                 <span>🧰 Toolbox</span>
-                <span style="font-size:12px;color:var(--text-secondary)" id="widgetCount">(0 tools)</span>
+                <span style="font-size:12px;color:var(--text-secondary)" id="toolboxCardCount">(0 cards)</span>
             </div>
             <div class="toolbox-controls">
                 <button id="dockBtn" class="toolbox-btn" title="Dock/Undock">⇱</button>
@@ -1294,7 +1348,8 @@
             <div style="text-align:center;padding:40px 20px;color:var(--text-secondary);">
                 <div style="font-size:48px;margin-bottom:16px;">🧰</div>
                 <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
-                <p style="margin:0;">Add tools by clicking the + button on any card</p>
+                <p style="margin:0;">Add cards by clicking the + button on any card</p>
+                <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Drag to reposition • Resize from bottom-right corner</p>
             </div>
         </div>
     </div>
@@ -1485,7 +1540,7 @@
     let observer = null;
     let isSearching = false;
     let cardRatings = {};
-    let widgets = [];
+    let toolboxCards = [];
     let toolboxDocked = true;
     
     // Background themes
@@ -1644,7 +1699,7 @@
         const toolbox = document.getElementById('toolbox');
         const toolboxTitle = document.getElementById('toolboxTitle');
         
-        // Dragging
+        // Dragging for the entire toolbox
         let isDragging = false;
         let dragOffset = { x: 0, y: 0 };
         
@@ -1689,40 +1744,41 @@
         });
         
         document.getElementById('clearToolboxBtn').addEventListener('click', () => {
-            if (widgets.length === 0) return;
+            if (toolboxCards.length === 0) return;
             
-            if (confirm(`Clear all ${widgets.length} widgets from toolbox?`)) {
+            if (confirm(`Clear all ${toolboxCards.length} cards from toolbox?`)) {
                 document.getElementById('toolboxContent').innerHTML = `
                     <div style="text-align:center;padding:40px 20px;color:var(--text-secondary);">
                         <div style="font-size:48px;margin-bottom:16px;">🧰</div>
                         <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
-                        <p style="margin:0;">Add tools by clicking the + button on any card</p>
+                        <p style="margin:0;">Add cards by clicking the + button on any card</p>
+                        <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Drag to reposition • Resize from bottom-right corner</p>
                     </div>
                 `;
-                widgets = [];
-                saveWidgets();
-                updateWidgetCount();
+                toolboxCards = [];
+                saveToolboxCards();
+                updateToolboxCardCount();
                 showNotification('Toolbox cleared', 'success');
             }
         });
         
-        // Load saved widgets
-        loadSavedWidgets();
+        // Load saved toolbox cards
+        loadSavedToolboxCards();
     }
     
-    function createWidget(name, contentHTML) {
-        const widgetId = 'widget-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        const widget = document.createElement('div');
-        widget.className = 'toolbox-card';
-        widget.id = widgetId;
-        widget.dataset.name = name;
+    function createToolboxCard(name, contentHTML) {
+        const cardId = 'toolboxCard-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        const card = document.createElement('div');
+        card.className = 'toolboxCard';
+        card.id = cardId;
+        card.dataset.name = name;
         
-        widget.innerHTML = `
-            <div class="toolbox-card-titlebar">
+        card.innerHTML = `
+            <div class="toolboxCard-titlebar">
                 <strong>${name}</strong>
-                <button class="toolbox-card-close" title="Close widget">✕</button>
+                <button class="toolboxCard-close" title="Remove from toolbox">✕</button>
             </div>
-            <div class="toolbox-card-body">${contentHTML}</div>
+            <div class="toolboxCard-body">${contentHTML}</div>
         `;
         
         const toolboxContent = document.getElementById('toolboxContent');
@@ -1733,60 +1789,61 @@
             toolboxContent.innerHTML = '';
         }
         
-        toolboxContent.appendChild(widget);
+        toolboxContent.appendChild(card);
         
-        // Position randomly
+        // Position randomly but within bounds
         const rect = toolboxContent.getBoundingClientRect();
-        const maxX = rect.width - 180;
-        const maxY = rect.height - 140;
-        widget.style.left = Math.max(20, Math.min(maxX - 20, Math.random() * maxX)) + 'px';
-        widget.style.top = Math.max(20, Math.min(maxY - 20, Math.random() * maxY)) + 'px';
-        widget.style.width = '180px';
-        widget.style.height = '140px';
+        const maxX = rect.width - 200;
+        const maxY = rect.height - 160;
+        card.style.left = Math.max(20, Math.min(maxX - 20, Math.random() * maxX)) + 'px';
+        card.style.top = Math.max(20, Math.min(maxY - 20, Math.random() * maxY)) + 'px';
+        card.style.width = '200px';
+        card.style.height = '160px';
         
         // Make draggable and resizable
-        makeWidgetDraggable(widget);
-        makeWidgetResizable(widget);
+        makeToolboxCardDraggable(card);
+        makeToolboxCardResizable(card);
         
         // Close button
-        widget.querySelector('.toolbox-card-close').addEventListener('click', () => {
-            widget.remove();
-            widgets = widgets.filter(w => w.id !== widgetId);
-            saveWidgets();
-            updateWidgetCount();
+        card.querySelector('.toolboxCard-close').addEventListener('click', () => {
+            card.remove();
+            toolboxCards = toolboxCards.filter(c => c.id !== cardId);
+            saveToolboxCards();
+            updateToolboxCardCount();
             
-            if (widgets.length === 0) {
+            if (toolboxCards.length === 0) {
                 toolboxContent.innerHTML = `
                     <div style="text-align:center;padding:40px 20px;color:var(--text-secondary);">
                         <div style="font-size:48px;margin-bottom:16px;">🧰</div>
                         <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
-                        <p style="margin:0;">Add tools by clicking the + button on any card</p>
+                        <p style="margin:0;">Add cards by clicking the + button on any card</p>
+                        <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Drag to reposition • Resize from bottom-right corner</p>
                     </div>
                 `;
             }
             showNotification(`Removed ${name} from toolbox`, 'success');
         });
         
-        // Save widget
-        widgets.push({
-            id: widgetId,
+        // Save card
+        toolboxCards.push({
+            id: cardId,
             name: name,
             content: contentHTML,
-            x: widget.style.left,
-            y: widget.style.top,
-            width: widget.style.width,
-            height: widget.style.height
+            x: card.style.left,
+            y: card.style.top,
+            width: card.style.width,
+            height: card.style.height
         });
         
-        saveWidgets();
-        updateWidgetCount();
+        saveToolboxCards();
+        updateToolboxCardCount();
         showNotification(`Added ${name} to toolbox`, 'success');
         
-        return widgetId;
+        return cardId;
     }
     
-    function makeWidgetDraggable(widget) {
-        const titlebar = widget.querySelector('.toolbox-card-titlebar');
+    function makeToolboxCardDraggable(card) {
+        const titlebar = card.querySelector('.toolboxCard-titlebar');
         let isDragging = false;
         let dragOffset = { x: 0, y: 0 };
         
@@ -1794,69 +1851,67 @@
             if (e.target.tagName === 'BUTTON') return;
             
             isDragging = true;
-            const rect = widget.getBoundingClientRect();
+            const rect = card.getBoundingClientRect();
             dragOffset.x = e.clientX - rect.left;
             dragOffset.y = e.clientY - rect.top;
             
             document.addEventListener('mousemove', onDrag);
             document.addEventListener('mouseup', stopDrag);
-            widget.style.zIndex = '1000';
+            card.style.zIndex = '1000';
         });
         
         function onDrag(e) {
             if (!isDragging) return;
             
             e.preventDefault();
-            const parentRect = widget.parentElement.getBoundingClientRect();
+            const parentRect = card.parentElement.getBoundingClientRect();
             const x = e.clientX - parentRect.left - dragOffset.x;
             const y = e.clientY - parentRect.top - dragOffset.y;
             
-            const maxX = parentRect.width - widget.offsetWidth;
-            const maxY = parentRect.height - widget.offsetHeight;
+            const maxX = parentRect.width - card.offsetWidth;
+            const maxY = parentRect.height - card.offsetHeight;
             
-            widget.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
-            widget.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+            card.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+            card.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
         }
         
         function stopDrag() {
             isDragging = false;
             document.removeEventListener('mousemove', onDrag);
             document.removeEventListener('mouseup', stopDrag);
-            widget.style.zIndex = '1';
+            card.style.zIndex = '1';
             
-            const widgetObj = widgets.find(w => w.id === widget.id);
-            if (widgetObj) {
-                widgetObj.x = widget.style.left;
-                widgetObj.y = widget.style.top;
-                saveWidgets();
+            const cardObj = toolboxCards.find(c => c.id === card.id);
+            if (cardObj) {
+                cardObj.x = card.style.left;
+                cardObj.y = card.style.top;
+                saveToolboxCards();
             }
         }
     }
     
-    function makeWidgetResizable(widget) {
-        const resizeHandle = document.createElement('div');
-        resizeHandle.style.cssText = `
-            position: absolute;
-            right: 0;
-            bottom: 0;
-            width: 20px;
-            height: 20px;
-            cursor: se-resize;
-            background: transparent;
-            z-index: 10;
-        `;
-        
-        widget.appendChild(resizeHandle);
-        
+    function makeToolboxCardResizable(card) {
         let isResizing = false;
         let startSize = { width: 0, height: 0 };
         let startPos = { x: 0, y: 0 };
         
-        resizeHandle.addEventListener('mousedown', (e) => {
+        // Use the ::after pseudo-element as resize handle
+        card.addEventListener('mousedown', (e) => {
+            // Only start resizing if clicking near the bottom-right corner
+            const rect = card.getBoundingClientRect();
+            const cornerSize = 20;
+            const inCorner = 
+                e.clientX >= rect.right - cornerSize && 
+                e.clientY >= rect.bottom - cornerSize;
+            
+            if (!inCorner) return;
+            
+            e.preventDefault();
             e.stopPropagation();
+            
             isResizing = true;
-            startSize.width = widget.offsetWidth;
-            startSize.height = widget.offsetHeight;
+            startSize.width = card.offsetWidth;
+            startSize.height = card.offsetHeight;
             startPos.x = e.clientX;
             startPos.y = e.clientY;
             
@@ -1871,94 +1926,107 @@
             const dx = e.clientX - startPos.x;
             const dy = e.clientY - startPos.y;
             
-            widget.style.width = Math.max(180, startSize.width + dx) + 'px';
-            widget.style.height = Math.max(140, startSize.height + dy) + 'px';
+            const newWidth = Math.max(200, startSize.width + dx);
+            const newHeight = Math.max(160, startSize.height + dy);
+            
+            // Constrain to toolbox bounds
+            const toolboxContent = card.parentElement;
+            if (toolboxContent) {
+                const maxWidth = toolboxContent.offsetWidth - (parseInt(card.style.left) || 0);
+                const maxHeight = toolboxContent.offsetHeight - (parseInt(card.style.top) || 0);
+                
+                card.style.width = Math.min(newWidth, maxWidth) + 'px';
+                card.style.height = Math.min(newHeight, maxHeight) + 'px';
+            }
         }
         
         function stopResize() {
-            isResizing = false;
-            document.removeEventListener('mousemove', onResize);
-            document.removeEventListener('mouseup', stopResize);
-            
-            const widgetObj = widgets.find(w => w.id === widget.id);
-            if (widgetObj) {
-                widgetObj.width = widget.style.width;
-                widgetObj.height = widget.style.height;
-                saveWidgets();
+            if (isResizing) {
+                isResizing = false;
+                document.removeEventListener('mousemove', onResize);
+                document.removeEventListener('mouseup', stopResize);
+                
+                const cardObj = toolboxCards.find(c => c.id === card.id);
+                if (cardObj) {
+                    cardObj.width = card.style.width;
+                    cardObj.height = card.style.height;
+                    saveToolboxCards();
+                }
             }
         }
     }
     
-    function saveWidgets() {
-        localStorage.setItem('toolboxWidgets', JSON.stringify(widgets));
+    function saveToolboxCards() {
+        localStorage.setItem('toolboxCards', JSON.stringify(toolboxCards));
     }
     
-    function loadSavedWidgets() {
+    function loadSavedToolboxCards() {
         try {
-            const saved = localStorage.getItem('toolboxWidgets');
+            const saved = localStorage.getItem('toolboxCards');
             if (saved) {
-                widgets = JSON.parse(saved) || [];
+                toolboxCards = JSON.parse(saved) || [];
                 
                 const toolboxContent = document.getElementById('toolboxContent');
                 
-                if (widgets.length > 0) {
+                if (toolboxCards.length > 0) {
                     toolboxContent.innerHTML = '';
                 }
                 
-                widgets.forEach(data => {
-                    const widget = document.createElement('div');
-                    widget.className = 'toolbox-card';
-                    widget.id = data.id;
-                    widget.dataset.name = data.name;
-                    widget.style.left = data.x;
-                    widget.style.top = data.y;
-                    widget.style.width = data.width;
-                    widget.style.height = data.height;
+                toolboxCards.forEach(data => {
+                    const card = document.createElement('div');
+                    card.className = 'toolboxCard';
+                    card.id = data.id;
+                    card.dataset.name = data.name;
+                    card.style.left = data.x;
+                    card.style.top = data.y;
+                    card.style.width = data.width;
+                    card.style.height = data.height;
                     
-                    widget.innerHTML = `
-                        <div class="toolbox-card-titlebar">
+                    card.innerHTML = `
+                        <div class="toolboxCard-titlebar">
                             <strong>${data.name}</strong>
-                            <button class="toolbox-card-close" title="Close widget">✕</button>
+                            <button class="toolboxCard-close" title="Remove from toolbox">✕</button>
                         </div>
-                        <div class="toolbox-card-body">${data.content}</div>
+                        <div class="toolboxCard-body">${data.content}</div>
                     `;
                     
-                    toolboxContent.appendChild(widget);
+                    toolboxContent.appendChild(card);
                     
-                    makeWidgetDraggable(widget);
-                    makeWidgetResizable(widget);
+                    makeToolboxCardDraggable(card);
+                    makeToolboxCardResizable(card);
                     
-                    widget.querySelector('.toolbox-card-close').addEventListener('click', () => {
-                        widget.remove();
-                        widgets = widgets.filter(w => w.id !== data.id);
-                        saveWidgets();
-                        updateWidgetCount();
+                    card.querySelector('.toolboxCard-close').addEventListener('click', () => {
+                        card.remove();
+                        toolboxCards = toolboxCards.filter(c => c.id !== data.id);
+                        saveToolboxCards();
+                        updateToolboxCardCount();
                         
-                        if (widgets.length === 0) {
+                        if (toolboxCards.length === 0) {
                             toolboxContent.innerHTML = `
                                 <div style="text-align:center;padding:40px 20px;color:var(--text-secondary);">
                                     <div style="font-size:48px;margin-bottom:16px;">🧰</div>
                                     <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
-                                    <p style="margin:0;">Add tools by clicking the + button on any card</p>
+                                    <p style="margin:0;">Add cards by clicking the + button on any card</p>
+                                    <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Drag to reposition • Resize from bottom-right corner</p>
                                 </div>
                             `;
                         }
                     });
                 });
                 
-                updateWidgetCount();
+                updateToolboxCardCount();
             }
         } catch (e) {
-            console.error('Failed to load widgets:', e);
-            widgets = [];
+            console.error('Failed to load toolbox cards:', e);
+            toolboxCards = [];
         }
     }
     
-    function updateWidgetCount() {
-        const countElement = document.getElementById('widgetCount');
+    function updateToolboxCardCount() {
+        const countElement = document.getElementById('toolboxCardCount');
         if (countElement) {
-            const count = widgets.length;
-            countElement.textContent = `(${count} tool${count !== 1 ? 's' : ''})`;
+            const count = toolboxCards.length;
+            countElement.textContent = `(${count} card${count !== 1 ? 's' : ''})`;
         }
     }
     
@@ -2531,8 +2599,8 @@
                 const displayName = card.dataset.displayName || cardName.replace(/-/g, ' ');
                 const contentHTML = cardSandbox.innerHTML;
                 
-                // Create widget in toolbox
-                createWidget(displayName, contentHTML);
+                // Create card in toolbox
+                createToolboxCard(displayName, contentHTML);
                 
                 // Show toolbox if hidden
                 const toolbox = document.getElementById('toolbox');
