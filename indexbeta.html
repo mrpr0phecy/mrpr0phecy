@@ -143,7 +143,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 380px; /* Increased slightly for better content */
+            height: 380px;
             transition: transform 0.2s, box-shadow 0.2s;
             position: relative;
         }
@@ -200,24 +200,46 @@
             color: var(--accent);
         }
         
-        /* Card Content Area */
+        /* Card Content Area - ORIGINAL LOADING METHOD */
         .card-content {
             flex: 1;
             overflow: hidden;
             position: relative;
-        }
-        
-        .card-frame-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-        }
-        
-        .card-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
             background: transparent;
+        }
+        
+        .card-sandbox {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            position: relative;
+            padding: var(--space-md);
+            pointer-events: auto;
+        }
+        
+        .card-sandbox * {
+            max-width: 100%;
+            pointer-events: auto;
+        }
+        
+        .card-sandbox img {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .card-sandbox table {
+            width: 100%;
+            border-collapse: collapse;
+            overflow-x: auto;
+            display: block;
+        }
+        
+        .card-sandbox pre,
+        .card-sandbox code {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: auto;
+            max-width: 100%;
         }
         
         .card-loading {
@@ -251,7 +273,7 @@
             align-items: center;
             justify-content: space-between;
             gap: var(--space-md);
-            min-height: 44px; /* Much thinner */
+            min-height: 44px;
             z-index: 10;
         }
         
@@ -534,27 +556,6 @@
                 order: 2;
             }
         }
-        
-        @media (max-width: 360px) {
-            .card-footer {
-                flex-direction: column;
-                align-items: stretch;
-                min-height: 60px;
-            }
-            
-            .rating-display {
-                margin-bottom: var(--space-xs);
-            }
-            
-            .embed-section {
-                margin-bottom: var(--space-xs);
-                justify-content: center;
-            }
-            
-            .rating-buttons {
-                justify-content: center;
-            }
-        }
     </style>
 </head>
 <body>
@@ -585,17 +586,21 @@
         INITIAL_LOAD: 6,
         LOAD_DELAY: 100,
         CARDS_DIRECTORY: 'cards/',
-        RATING_STORAGE_KEY: 'cardRatingsV3'
+        RATING_STORAGE_KEY: 'cardRatings',
+        GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
+        GITHUB_BRANCH: 'main',
+        GITHUB_PATH: 'cards'
     };
     
     // ===== STATE MANAGEMENT =====
     let allCards = [];
     let loadedCards = new Set();
+    let loadingCards = new Set();
     let cardRatings = {};
     
     // ===== INITIALIZATION =====
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('🚀 The Most Useful Site - Compact Design');
+        console.log('🚀 The Most Useful Site - Original Loading Method');
         loadRatings();
         loadCardList();
         setupEventListeners();
@@ -666,28 +671,55 @@
         return total === 0 ? 0 : Math.round((rating.up / total) * 100);
     }
     
-    // ===== CARD LOADING =====
+    // ===== ORIGINAL CARD LOADING METHOD =====
     async function loadCardList() {
         try {
-            // Simulated card list - Replace with your actual cards
-            const sampleCards = [
-                'calculator', 'unit-converter', 'color-picker', 
-                'json-formatter', 'base64-encoder', 'qr-generator',
-                'password-generator', 'timestamp-converter', 'image-compressor',
-                'markdown-editor', 'regex-tester', 'uuid-generator'
-            ];
+            console.log('Loading card list...');
             
-            allCards = sampleCards;
+            // Try to fetch from GitHub first
+            const [owner, repo] = CONFIG.GITHUB_REPO.split('/');
+            const url = `https://api.github.com/repos/${owner}/${repo}/contents/${CONFIG.GITHUB_PATH}`;
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`GitHub API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Filter for HTML files
+            const cardFiles = data
+                .filter(item => item.type === 'file' && item.name.endsWith('.html'))
+                .map(item => item.name.replace('.html', ''))
+                .sort();
+            
+            console.log(`Found ${cardFiles.length} cards on GitHub`);
+            allCards = cardFiles;
+            
+            // If no cards found on GitHub, use fallback
+            if (cardFiles.length === 0) {
+                console.log('No cards found on GitHub, using fallback list');
+                const fallbackCards = [
+                    'calculator', 'unit-converter', 'color-picker', 
+                    'json-formatter', 'base64-encoder', 'qr-generator',
+                    'password-generator', 'timestamp-converter', 'image-compressor',
+                    'markdown-editor', 'regex-tester', 'uuid-generator'
+                ];
+                allCards = fallbackCards;
+            }
+            
             const dashboard = document.getElementById('dashboard');
             
-            // Create card placeholders
-            sampleCards.forEach((cardName, index) => {
+            // Create card placeholders - EXACTLY LIKE YOUR ORIGINAL
+            allCards.forEach((cardName, index) => {
                 const displayName = cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 
                 const card = document.createElement('div');
-                card.className = 'card';
+                card.className = 'card loading';
                 card.dataset.name = cardName;
                 card.dataset.index = index;
+                card.dataset.displayName = displayName;
                 
                 card.innerHTML = `
                     <div class="card-header">
@@ -698,15 +730,15 @@
                         </div>
                     </div>
                     <div class="card-content">
-                        <div class="card-frame-container">
+                        <div class="card-sandbox" id="card-${cardName}">
                             <div class="card-loading">
                                 <div style="font-size: 48px; margin-bottom: 16px;">⚙️</div>
                                 <div>Loading ${displayName}...</div>
                             </div>
                         </div>
                     </div>
-                    <div class="card-footer">
-                        <!-- Compact footer will be populated here -->
+                    <div class="card-footer" id="footer-${cardName}">
+                        <!-- Footer will be populated by initializeCardFooter -->
                     </div>
                 `;
                 
@@ -714,52 +746,197 @@
                 
                 // Load card content after a short delay
                 setTimeout(() => {
-                    loadCardContent(cardName, card);
+                    loadCard(card, cardName);
                     initializeCardFooter(cardName, card);
                 }, index * CONFIG.LOAD_DELAY);
             });
             
         } catch (error) {
-            console.error('Error loading cards:', error);
-            showError('Failed to load cards. Please refresh the page.');
+            console.error('Error loading from GitHub:', error);
+            
+            // Fallback to local cards directory
+            console.log('Falling back to local cards directory...');
+            const fallbackCards = [
+                'calculator', 'unit-converter', 'color-picker', 
+                'json-formatter', 'base64-encoder', 'qr-generator',
+                'password-generator', 'timestamp-converter', 'image-compressor',
+                'markdown-editor', 'regex-tester', 'uuid-generator'
+            ];
+            
+            allCards = fallbackCards;
+            const dashboard = document.getElementById('dashboard');
+            
+            fallbackCards.forEach((cardName, index) => {
+                const displayName = cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                const card = document.createElement('div');
+                card.className = 'card loading';
+                card.dataset.name = cardName;
+                card.dataset.index = index;
+                card.dataset.displayName = displayName;
+                
+                card.innerHTML = `
+                    <div class="card-header">
+                        <h3 title="${displayName}">${displayName}</h3>
+                        <div class="card-actions">
+                            <button class="card-action-btn add-to-toolbox" title="Add to Toolbox">+</button>
+                            <button class="card-action-btn card-expand" title="Open Full Screen">↗</button>
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-sandbox" id="card-${cardName}">
+                            <div class="card-loading">
+                                <div style="font-size: 48px; margin-bottom: 16px;">⚙️</div>
+                                <div>Loading ${displayName}...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer" id="footer-${cardName}">
+                        <!-- Footer will be populated by initializeCardFooter -->
+                    </div>
+                `;
+                
+                dashboard.appendChild(card);
+                
+                // Load card content after a short delay
+                setTimeout(() => {
+                    loadCard(card, cardName);
+                    initializeCardFooter(cardName, card);
+                }, index * CONFIG.LOAD_DELAY);
+            });
         }
     }
     
-    function loadCardContent(cardName, cardElement) {
-        const container = cardElement.querySelector('.card-frame-container');
-        if (!container) return;
+    async function loadCard(cardElement, cardName) {
+        if (loadingCards.has(cardName) || loadedCards.has(cardName)) return;
         
-        // Create iframe for card content
-        const iframe = document.createElement('iframe');
-        iframe.className = 'card-frame';
-        iframe.loading = 'lazy';
+        loadingCards.add(cardName);
         
-        // Try to load the actual card file
-        const cardUrl = `${CONFIG.CARDS_DIRECTORY}${cardName}.html`;
-        
-        iframe.onload = () => {
-            const loadingElement = container.querySelector('.card-loading');
-            if (loadingElement) {
-                loadingElement.classList.add('hidden');
+        try {
+            const response = await fetch(`${CONFIG.CARDS_DIRECTORY}${cardName}.html`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+            
+            const html = await response.text();
+            
+            // Render card content exactly like original
+            renderCardContent(cardElement, cardName, html);
+            
+        } catch (error) {
+            console.error(`Failed to load card ${cardName}:`, error);
+            showCardError(cardElement, cardName, error);
+        } finally {
+            loadingCards.delete(cardName);
             loadedCards.add(cardName);
-            console.log(`✅ Loaded: ${cardName}`);
-        };
+        }
+    }
+    
+    function renderCardContent(cardElement, cardName, html) {
+        const cardSandbox = cardElement.querySelector(`#card-${cardName}`);
+        if (!cardSandbox) return;
         
-        iframe.onerror = () => {
-            // Fallback content
-            container.innerHTML = `
-                <div style="padding: 30px 20px; text-align: center; color: var(--text-secondary);">
-                    <div style="font-size: 48px; margin-bottom: 16px;">🔧</div>
-                    <h3 style="color: var(--accent); margin-bottom: 8px;">${cardName.replace(/-/g, ' ')}</h3>
-                    <p>Tool coming soon!</p>
+        try {
+            // Clear loading indicator
+            const loadingElement = cardSandbox.querySelector('.card-loading');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+            
+            // Create content container
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'card-sandbox-content';
+            
+            // Use DOMParser to safely parse HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Remove script tags for safety
+            doc.querySelectorAll('script').forEach(script => script.remove());
+            
+            // Remove style tags (we'll handle styling differently)
+            doc.querySelectorAll('style').forEach(style => style.remove());
+            
+            // Get body content
+            const bodyContent = doc.body.innerHTML;
+            
+            // Create a temporary div to hold content
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = bodyContent;
+            
+            // Apply basic card styles
+            tempDiv.style.cssText = `
+                color: var(--text);
+                font-family: inherit;
+                font-size: 14px;
+                line-height: 1.5;
+            `;
+            
+            // Move all content to sandbox
+            while (tempDiv.firstChild) {
+                contentDiv.appendChild(tempDiv.firstChild);
+            }
+            
+            // Clear and update sandbox
+            cardSandbox.innerHTML = '';
+            cardSandbox.appendChild(contentDiv);
+            
+            cardElement.classList.remove('loading');
+            
+            // Fix clickability for interactive elements
+            fixCardClickability(cardSandbox);
+            
+        } catch (error) {
+            console.error(`Error rendering card ${cardName}:`, error);
+            showCardError(cardElement, cardName, error);
+        }
+    }
+    
+    function fixCardClickability(cardSandbox) {
+        // Ensure all interactive elements are clickable
+        const interactiveElements = cardSandbox.querySelectorAll(
+            'button, input, select, textarea, a, [onclick]'
+        );
+        
+        interactiveElements.forEach(el => {
+            el.style.pointerEvents = 'auto';
+            el.style.cursor = el.tagName === 'INPUT' ? 'text' : 'pointer';
+        });
+    }
+    
+    function showCardError(cardElement, cardName, error) {
+        const cardSandbox = cardElement.querySelector(`#card-${cardName}`);
+        if (cardSandbox) {
+            const displayName = cardElement.dataset.displayName || cardName;
+            cardSandbox.innerHTML = `
+                <div style="padding: 40px 20px; text-align: center; color: var(--error);">
+                    <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                    <h3 style="color: var(--error); margin-bottom: 12px;">Failed to load ${displayName}</h3>
+                    <p style="font-size: 14px; opacity: 0.8;">${error.message || 'File not found'}</p>
+                    <button onclick="retryLoadCard('${cardName}')" style="
+                        margin-top: 20px;
+                        padding: 8px 16px;
+                        background: rgba(45, 212, 255, 0.1);
+                        border: 1px solid rgba(45, 212, 255, 0.3);
+                        color: var(--accent);
+                        border-radius: 6px;
+                        cursor: pointer;
+                    ">
+                        Retry
+                    </button>
                 </div>
             `;
-            loadedCards.add(cardName);
-        };
-        
-        iframe.src = cardUrl;
-        container.appendChild(iframe);
+            cardElement.classList.remove('loading');
+        }
+    }
+    
+    function retryLoadCard(cardName) {
+        const card = document.querySelector(`.card[data-name="${cardName}"]`);
+        if (card) {
+            card.classList.add('loading');
+            loadCard(card, cardName);
+        }
     }
     
     function initializeCardFooter(cardName, cardElement) {
@@ -777,6 +954,7 @@
                     <div class="rating-fill" style="width: ${percentage}%"></div>
                 </div>
                 <span class="rating-percentage">${percentage}%</span>
+                <span style="color: var(--text-secondary); font-size: 0.8rem; margin-left: 4px;">(${totalVotes})</span>
             </div>
             
             <div class="rating-buttons">
@@ -928,26 +1106,6 @@
         
         saveRatings();
         console.log(`Rated ${cardName}: ${rating.up}👍 ${rating.down}👎`);
-        
-        // Log rating statistics periodically
-        logRatingStats();
-    }
-    
-    function logRatingStats() {
-        const totalCards = Object.keys(cardRatings).length;
-        if (totalCards > 0) {
-            let totalVotes = 0;
-            let usefulVotes = 0;
-            
-            Object.values(cardRatings).forEach(rating => {
-                totalVotes += rating.up + rating.down;
-                usefulVotes += rating.up;
-            });
-            
-            const overallUsefulness = totalVotes > 0 ? Math.round((usefulVotes / totalVotes) * 100) : 0;
-            
-            console.log(`📊 Rating Stats: ${totalCards} cards, ${totalVotes} votes, ${overallUsefulness}% useful`);
-        }
     }
     
     function addToToolbox(cardName) {
@@ -991,7 +1149,7 @@
             const displayName = card.querySelector('h3')?.textContent.toLowerCase() || '';
             
             const matches = query === '' || cardName.includes(query) || displayName.includes(query);
-            card.parentElement.style.display = matches ? '' : 'none';
+            card.style.display = matches ? '' : 'none';
             
             if (matches) visibleCount++;
         });
@@ -1032,28 +1190,6 @@
         }, 3000);
     }
     
-    function showError(message) {
-        const dashboard = document.getElementById('dashboard');
-        dashboard.innerHTML = `
-            <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
-                <div style="font-size: 48px; margin-bottom: 16px; color: var(--error);">⚠️</div>
-                <h3 style="color: var(--error); margin-bottom: 16px;">Error Loading Content</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 24px;">${message}</p>
-                <button onclick="location.reload()" style="
-                    padding: 12px 24px;
-                    background: rgba(45, 212, 255, 0.1);
-                    border: 1px solid rgba(45, 212, 255, 0.3);
-                    color: var(--accent);
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-weight: 600;
-                ">
-                    Reload Page
-                </button>
-            </div>
-        `;
-    }
-    
     // ===== INITIALIZE =====
     // Add slideIn animation
     const style = document.createElement('style');
@@ -1070,9 +1206,6 @@
         }
     `;
     document.head.appendChild(style);
-    
-    // Initial rating stats log
-    setTimeout(logRatingStats, 2000);
     </script>
 </body>
 </html>
