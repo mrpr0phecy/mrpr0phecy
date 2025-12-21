@@ -667,12 +667,76 @@
             color: var(--accent);
         }
         
+        /* Magic Layout Button */
+        .toolbox-btn.magic {
+            background: rgba(157, 78, 221, 0.1);
+            color: var(--love);
+            border-color: rgba(157, 78, 221, 0.3);
+        }
+        
+        .toolbox-btn.magic:hover {
+            background: rgba(157, 78, 221, 0.2);
+            border-color: var(--love);
+            transform: translateY(-1px) scale(1.05);
+            animation: magicPulse 0.5s ease;
+        }
+        
+        .toolbox-btn.magic.active {
+            background: rgba(157, 78, 221, 0.2);
+            border-color: var(--love);
+            color: var(--love);
+            box-shadow: 0 0 15px rgba(157, 78, 221, 0.3);
+        }
+        
         .toolbox .content {
             flex: 1;
             padding: var(--space-md);
             overflow: auto;
             position: relative;
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent);
+        }
+        
+        /* Toolbox in grid mode */
+        .toolbox.grid-mode .content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: var(--space-md);
+            padding: var(--space-md);
+            align-items: start;
+        }
+        
+        .toolbox.grid-mode .toolboxCard {
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            width: 100% !important;
+            height: 220px !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            resize: none !important;
+            overflow: hidden;
+        }
+        
+        .toolbox.grid-mode .toolboxCard::after {
+            display: none;
+        }
+        
+        .toolbox.grid-mode .toolboxCard-titlebar {
+            cursor: default;
+        }
+        
+        /* Auto grid columns based on width */
+        @media (max-width: 600px) {
+            .toolbox.grid-mode .content {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            }
+        }
+        
+        @media (max-width: 450px) {
+            .toolbox.grid-mode .content {
+                grid-template-columns: 1fr;
+            }
         }
         
         /* ===== TOOLBOX CARDS ===== */
@@ -683,8 +747,8 @@
             border-radius: 8px;
             min-width: 200px;
             min-height: 160px;
-            max-width: calc(100% - 20px);
-            max-height: calc(100% - 20px);
+            max-width: 100%;
+            max-height: 100%;
             overflow: hidden;
             resize: both;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
@@ -735,6 +799,33 @@
             overflow: auto;
             height: calc(100% - 46px);
             font-size: 0.8rem;
+            width: 100%;
+        }
+        
+        /* Make toolbox cards display all content */
+        .toolboxCard-body * {
+            max-width: 100% !important;
+            white-space: normal !important;
+        }
+        
+        .toolboxCard-body img {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+        
+        .toolboxCard-body table {
+            width: 100% !important;
+            border-collapse: collapse;
+            overflow-x: auto;
+            display: block;
+        }
+        
+        .toolboxCard-body pre,
+        .toolboxCard-body code {
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+            overflow-x: auto;
+            max-width: 100% !important;
         }
         
         .toolboxCard-close {
@@ -1139,6 +1230,12 @@
             to { transform: translateX(0); opacity: 1; }
         }
         
+        @keyframes magicPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
         /* ===== MOBILE RESPONSIVE ===== */
         @media (max-width: 1024px) {
             .dashboard {
@@ -1339,6 +1436,9 @@
                 <span style="font-size:12px;color:var(--text-secondary)" id="toolboxCardCount">(0 cards)</span>
             </div>
             <div class="toolbox-controls">
+                <button id="magicLayoutBtn" class="toolbox-btn magic" title="Auto-arrange cards (M)">
+                    ✨
+                </button>
                 <button id="dockBtn" class="toolbox-btn" title="Dock/Undock">⇱</button>
                 <button id="clearToolboxBtn" class="toolbox-btn" title="Clear All">🗑️</button>
                 <button id="toolboxClose" class="toolbox-btn" title="Close">✕</button>
@@ -1350,6 +1450,7 @@
                 <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
                 <p style="margin:0;">Add cards by clicking the + button on any card</p>
                 <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Drag to reposition • Resize from bottom-right corner</p>
+                <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Click ✨ to auto-arrange cards in a grid</p>
             </div>
         </div>
     </div>
@@ -1542,6 +1643,7 @@
     let cardRatings = {};
     let toolboxCards = [];
     let toolboxDocked = true;
+    let isGridMode = false;
     
     // Background themes
     const themes = {
@@ -1698,6 +1800,7 @@
     function initToolbox() {
         const toolbox = document.getElementById('toolbox');
         const toolboxTitle = document.getElementById('toolboxTitle');
+        const magicLayoutBtn = document.getElementById('magicLayoutBtn');
         
         // Dragging for the entire toolbox
         let isDragging = false;
@@ -1735,6 +1838,11 @@
             toolboxTitle.style.cursor = '';
         }
         
+        // Magic Layout Button
+        magicLayoutBtn.addEventListener('click', () => {
+            toggleGridMode();
+        });
+        
         // Controls
         document.getElementById('dockBtn').addEventListener('click', () => {
             toolboxDocked = !toolboxDocked;
@@ -1753,17 +1861,103 @@
                         <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
                         <p style="margin:0;">Add cards by clicking the + button on any card</p>
                         <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Drag to reposition • Resize from bottom-right corner</p>
+                        <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Click ✨ to auto-arrange cards in a grid</p>
                     </div>
                 `;
                 toolboxCards = [];
                 saveToolboxCards();
                 updateToolboxCardCount();
+                isGridMode = false;
+                toolbox.classList.remove('grid-mode');
+                magicLayoutBtn.classList.remove('active');
                 showNotification('Toolbox cleared', 'success');
             }
         });
         
         // Load saved toolbox cards
         loadSavedToolboxCards();
+    }
+    
+    function toggleGridMode() {
+        const toolbox = document.getElementById('toolbox');
+        const magicLayoutBtn = document.getElementById('magicLayoutBtn');
+        
+        isGridMode = !isGridMode;
+        
+        if (isGridMode) {
+            toolbox.classList.add('grid-mode');
+            magicLayoutBtn.classList.add('active');
+            arrangeCardsInGrid();
+            showNotification('Cards arranged in grid layout ✨', 'success');
+        } else {
+            toolbox.classList.remove('grid-mode');
+            magicLayoutBtn.classList.remove('active');
+            restoreCardPositions();
+            showNotification('Grid layout disabled', 'info');
+        }
+        
+        // Save mode preference
+        localStorage.setItem('toolboxGridMode', isGridMode ? 'on' : 'off');
+    }
+    
+    function arrangeCardsInGrid() {
+        const toolboxContent = document.getElementById('toolboxContent');
+        const cards = Array.from(toolboxContent.querySelectorAll('.toolboxCard'));
+        
+        if (cards.length === 0) return;
+        
+        // Save current positions before arranging
+        cards.forEach((card, index) => {
+            const cardObj = toolboxCards.find(c => c.id === card.id);
+            if (cardObj) {
+                cardObj.preGridPosition = {
+                    x: card.style.left,
+                    y: card.style.top,
+                    width: card.style.width,
+                    height: card.style.height
+                };
+            }
+        });
+        
+        // Force CSS grid to layout the cards
+        cards.forEach(card => {
+            card.style.position = 'relative';
+            card.style.left = 'auto';
+            card.style.top = 'auto';
+            card.style.width = '100%';
+            card.style.height = '220px';
+            card.style.margin = '0';
+            card.style.resize = 'none';
+        });
+        
+        // Update saved positions
+        saveToolboxCards();
+    }
+    
+    function restoreCardPositions() {
+        const toolboxContent = document.getElementById('toolboxContent');
+        const cards = Array.from(toolboxContent.querySelectorAll('.toolboxCard'));
+        
+        cards.forEach(card => {
+            const cardObj = toolboxCards.find(c => c.id === card.id);
+            if (cardObj && cardObj.preGridPosition) {
+                card.style.position = 'absolute';
+                card.style.left = cardObj.preGridPosition.x;
+                card.style.top = cardObj.preGridPosition.y;
+                card.style.width = cardObj.preGridPosition.width;
+                card.style.height = cardObj.preGridPosition.height;
+                card.style.margin = '0';
+                card.style.resize = 'both';
+            } else {
+                // Default position if no saved position
+                card.style.position = 'absolute';
+                card.style.left = '20px';
+                card.style.top = '20px';
+                card.style.width = '200px';
+                card.style.height = '160px';
+                card.style.resize = 'both';
+            }
+        });
     }
     
     function createToolboxCard(name, contentHTML) {
@@ -1773,12 +1967,15 @@
         card.id = cardId;
         card.dataset.name = name;
         
+        // Clean up the HTML for toolbox display
+        const cleanContent = contentHTML.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+        
         card.innerHTML = `
             <div class="toolboxCard-titlebar">
                 <strong>${name}</strong>
                 <button class="toolboxCard-close" title="Remove from toolbox">✕</button>
             </div>
-            <div class="toolboxCard-body">${contentHTML}</div>
+            <div class="toolboxCard-body">${cleanContent}</div>
         `;
         
         const toolboxContent = document.getElementById('toolboxContent');
@@ -1795,14 +1992,29 @@
         const rect = toolboxContent.getBoundingClientRect();
         const maxX = rect.width - 200;
         const maxY = rect.height - 160;
-        card.style.left = Math.max(20, Math.min(maxX - 20, Math.random() * maxX)) + 'px';
-        card.style.top = Math.max(20, Math.min(maxY - 20, Math.random() * maxY)) + 'px';
-        card.style.width = '200px';
-        card.style.height = '160px';
         
-        // Make draggable and resizable
-        makeToolboxCardDraggable(card);
-        makeToolboxCardResizable(card);
+        if (isGridMode) {
+            // If in grid mode, just add to grid
+            card.style.position = 'relative';
+            card.style.left = 'auto';
+            card.style.top = 'auto';
+            card.style.width = '100%';
+            card.style.height = '220px';
+            card.style.margin = '0';
+            card.style.resize = 'none';
+        } else {
+            // Free positioning mode
+            card.style.left = Math.max(20, Math.min(maxX - 20, Math.random() * maxX)) + 'px';
+            card.style.top = Math.max(20, Math.min(maxY - 20, Math.random() * maxY)) + 'px';
+            card.style.width = '200px';
+            card.style.height = '160px';
+        }
+        
+        // Make draggable and resizable (if not in grid mode)
+        if (!isGridMode) {
+            makeToolboxCardDraggable(card);
+            makeToolboxCardResizable(card);
+        }
         
         // Close button
         card.querySelector('.toolboxCard-close').addEventListener('click', () => {
@@ -1818,6 +2030,7 @@
                         <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
                         <p style="margin:0;">Add cards by clicking the + button on any card</p>
                         <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Drag to reposition • Resize from bottom-right corner</p>
+                        <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Click ✨ to auto-arrange cards in a grid</p>
                     </div>
                 `;
             }
@@ -1828,11 +2041,12 @@
         toolboxCards.push({
             id: cardId,
             name: name,
-            content: contentHTML,
+            content: cleanContent,
             x: card.style.left,
             y: card.style.top,
             width: card.style.width,
-            height: card.style.height
+            height: card.style.height,
+            inGridMode: isGridMode
         });
         
         saveToolboxCards();
@@ -1848,7 +2062,7 @@
         let dragOffset = { x: 0, y: 0 };
         
         titlebar.addEventListener('mousedown', (e) => {
-            if (e.target.tagName === 'BUTTON') return;
+            if (e.target.tagName === 'BUTTON' || isGridMode) return;
             
             isDragging = true;
             const rect = card.getBoundingClientRect();
@@ -1861,7 +2075,7 @@
         });
         
         function onDrag(e) {
-            if (!isDragging) return;
+            if (!isDragging || isGridMode) return;
             
             e.preventDefault();
             const parentRect = card.parentElement.getBoundingClientRect();
@@ -1876,6 +2090,7 @@
         }
         
         function stopDrag() {
+            if (!isDragging) return;
             isDragging = false;
             document.removeEventListener('mousemove', onDrag);
             document.removeEventListener('mouseup', stopDrag);
@@ -1897,7 +2112,9 @@
         
         // Use the ::after pseudo-element as resize handle
         card.addEventListener('mousedown', (e) => {
-            // Only start resizing if clicking near the bottom-right corner
+            // Only start resizing if clicking near the bottom-right corner and not in grid mode
+            if (isGridMode) return;
+            
             const rect = card.getBoundingClientRect();
             const cornerSize = 20;
             const inCorner = 
@@ -1920,7 +2137,7 @@
         });
         
         function onResize(e) {
-            if (!isResizing) return;
+            if (!isResizing || isGridMode) return;
             
             e.preventDefault();
             const dx = e.clientX - startPos.x;
@@ -1966,6 +2183,16 @@
             if (saved) {
                 toolboxCards = JSON.parse(saved) || [];
                 
+                // Check for grid mode preference
+                isGridMode = localStorage.getItem('toolboxGridMode') === 'on';
+                const toolbox = document.getElementById('toolbox');
+                const magicLayoutBtn = document.getElementById('magicLayoutBtn');
+                
+                if (isGridMode) {
+                    toolbox.classList.add('grid-mode');
+                    magicLayoutBtn.classList.add('active');
+                }
+                
                 const toolboxContent = document.getElementById('toolboxContent');
                 
                 if (toolboxCards.length > 0) {
@@ -1977,10 +2204,20 @@
                     card.className = 'toolboxCard';
                     card.id = data.id;
                     card.dataset.name = data.name;
-                    card.style.left = data.x;
-                    card.style.top = data.y;
-                    card.style.width = data.width;
-                    card.style.height = data.height;
+                    
+                    if (isGridMode) {
+                        card.style.position = 'relative';
+                        card.style.left = 'auto';
+                        card.style.top = 'auto';
+                        card.style.width = '100%';
+                        card.style.height = '220px';
+                    } else {
+                        card.style.position = 'absolute';
+                        card.style.left = data.x || '20px';
+                        card.style.top = data.y || '20px';
+                        card.style.width = data.width || '200px';
+                        card.style.height = data.height || '160px';
+                    }
                     
                     card.innerHTML = `
                         <div class="toolboxCard-titlebar">
@@ -1992,8 +2229,10 @@
                     
                     toolboxContent.appendChild(card);
                     
-                    makeToolboxCardDraggable(card);
-                    makeToolboxCardResizable(card);
+                    if (!isGridMode) {
+                        makeToolboxCardDraggable(card);
+                        makeToolboxCardResizable(card);
+                    }
                     
                     card.querySelector('.toolboxCard-close').addEventListener('click', () => {
                         card.remove();
@@ -2008,6 +2247,7 @@
                                     <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
                                     <p style="margin:0;">Add cards by clicking the + button on any card</p>
                                     <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Drag to reposition • Resize from bottom-right corner</p>
+                                    <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">Click ✨ to auto-arrange cards in a grid</p>
                                 </div>
                             `;
                         }
@@ -2569,6 +2809,11 @@
             else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
                 e.preventDefault();
                 document.getElementById('stickyContributionsToggle').click();
+            }
+            // M key for magic layout
+            else if (e.key === 'm' && document.getElementById('toolbox').classList.contains('open')) {
+                e.preventDefault();
+                document.getElementById('magicLayoutBtn').click();
             }
             // / to focus search
             else if (e.key === '/' && document.activeElement !== mainSearchInput && document.activeElement !== stickySearchInput) {
