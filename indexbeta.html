@@ -511,12 +511,17 @@ const AppState = {
   init() {
     const saved = localStorage.getItem('appState');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      this.workspaces = parsed.workspaces || [{ name: 'Default', widgets: [] }];
-      this.currentWorkspace = parsed.currentWorkspace || 0;
-      this.snapToGrid = parsed.snapToGrid || false;
-      this.globalFontScale = parsed.globalFontScale || 1;
-      this.customThemes = parsed.customThemes || {};
+      try {
+        const parsed = JSON.parse(saved);
+        this.workspaces = parsed.workspaces || [{ name: 'Default', widgets: [] }];
+        this.currentWorkspace = parsed.currentWorkspace || 0;
+        this.snapToGrid = parsed.snapToGrid || false;
+        this.globalFontScale = parsed.globalFontScale || 1;
+        this.customThemes = parsed.customThemes || {};
+      } catch (e) {
+        console.error('Failed to parse saved state:', e);
+        this.workspaces = [{ name: 'Default', widgets: [] }];
+      }
     } else {
       this.workspaces = [{ name: 'Default', widgets: [] }];
     }
@@ -524,13 +529,17 @@ const AppState = {
   },
   
   save() {
-    localStorage.setItem('appState', JSON.stringify({
-      workspaces: this.workspaces,
-      currentWorkspace: this.currentWorkspace,
-      snapToGrid: this.snapToGrid,
-      globalFontScale: this.globalFontScale,
-      customThemes: this.customThemes
-    }));
+    try {
+      localStorage.setItem('appState', JSON.stringify({
+        workspaces: this.workspaces,
+        currentWorkspace: this.currentWorkspace,
+        snapToGrid: this.snapToGrid,
+        globalFontScale: this.globalFontScale,
+        customThemes: this.customThemes
+      }));
+    } catch (e) {
+      console.error('Failed to save state:', e);
+    }
   },
   
   get current() {
@@ -1020,12 +1029,13 @@ function renderToolboxTabs() {
 }
 
 function switchWorkspace(index) {
+  // FIX: Use AppState instead of this
   AppState.workspaces[AppState.currentWorkspace].widgets = [...AppState.widgets];
   
   document.getElementById('toolboxContent').innerHTML = '';
   
   AppState.currentWorkspace = index;
-  AppState.widgets = [...(this.workspaces[index]?.widgets || [])];
+  AppState.widgets = [...(AppState.workspaces[index]?.widgets || [])];
   
   AppState.widgets.forEach(w => {
     const widget = document.createElement('div');
@@ -1550,21 +1560,21 @@ async function loadDashboard() {
   try {
     const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
     const DEFAULT_BRANCH = 'main';
-    const [owner, repo] = DEFAULT_REPO.split('/');
-    
-    document.getElementById('status').textContent = 'Fetching card list...';
-    
-    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    const cardFiles = (data.tree || [])
-      .filter(item => item.path.startsWith('cards/
+    const [owner, repo] = DEFAULT_REPO
 
-') && item.path.endsWith('.html'))
-.map(item => item.path.replace(/^cards//, ''));
+.split('/');
 plain
 Copy
+
+document.getElementById('status').textContent = 'Fetching card list...';
+
+const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
+const response = await fetch(url);
+const data = await response.json();
+
+const cardFiles = (data.tree || [])
+  .filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html'))
+  .map(item => item.path.replace(/^cards\//, ''));
 
 console.log("Found", cardFiles.length, "cards");
 
@@ -1652,22 +1662,33 @@ if (widgetId) {
 
 });
 }
+// Wrap initialization in try-catch to catch any errors
 document.addEventListener('DOMContentLoaded', () => {
+try {
 console.log("=== DOM READY ===");
+plain
+Copy
+
 window.scrollTo(0, 0);
+
 AppState.init();
+
 const savedTheme = localStorage.getItem('theme') || 'default';
 applyTheme(savedTheme);
+
 const savedAccent = localStorage.getItem('accent') || '#2dd4ff';
 document.documentElement.style.setProperty('--accent', savedAccent);
+
 if (localStorage.getItem('readerMode') === 'on') {
-document.body.classList.add('reader-mode');
-document.getElementById('readerToggle').classList.add('active');
+  document.body.classList.add('reader-mode');
+  document.getElementById('readerToggle').classList.add('active');
 }
+
 document.getElementById('globalFontScale').value = AppState.globalFontScale;
-document.getElementById('fontScaleValue').textContent = ${Math.round(AppState.globalFontScale * 100)}%;
+document.getElementById('fontScaleValue').textContent = `${Math.round(AppState.globalFontScale * 100)}%`;
 document.documentElement.style.setProperty('--global-font-scale', AppState.globalFontScale);
 document.getElementById('snapToGrid').checked = AppState.snapToGrid;
+
 initToolbox();
 initToolboxToggle();
 initPalette();
@@ -1677,16 +1698,33 @@ initReaderMode();
 initSearch();
 initSortButtons();
 initAddToToolbox();
+
 renderWorkspaceList();
 renderToolboxTabs();
-switchWorkspace(AppState.currentWorkspace);
+
+// Only restore workspace if we have saved widgets, otherwise start fresh
+if (AppState.widgets.length > 0) {
+  switchWorkspace(AppState.currentWorkspace);
+} else {
+  document.getElementById('workspaceIndicator').textContent = AppState.current.name;
+  updateWidgetCount();
+}
+
+// Load cards last
 loadDashboard();
+
 new Sortable(document.getElementById('gridContainer'), { animation: 150 });
+
 setTimeout(() => {
-const searchBar = document.querySelector('.search-bar');
-if (searchBar) searchBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
-document.getElementById('searchInput')?.focus();
+  const searchBar = document.querySelector('.search-bar');
+  if (searchBar) searchBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('searchInput')?.focus();
 }, 100);
+
+} catch (err) {
+console.error("Initialization error:", err);
+document.getElementById('status').textContent = 'Error initializing app: ' + err.message;
+}
 });
 window.addEventListener('load', () => {
 window.scrollTo(0, 0);
