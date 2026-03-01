@@ -1029,7 +1029,6 @@ function renderToolboxTabs() {
 }
 
 function switchWorkspace(index) {
-  // FIX: Use AppState instead of this
   AppState.workspaces[AppState.currentWorkspace].widgets = [...AppState.widgets];
   
   document.getElementById('toolboxContent').innerHTML = '';
@@ -1504,20 +1503,29 @@ const BATCH_SIZE = 5;
 const BATCH_DELAY = 50;
 
 function loadCardBatch() {
+  console.log("loadCardBatch called, queue length:", cardQueue.length, "isCardLoading:", isCardLoading);
   if (isCardLoading || cardQueue.length === 0) return;
   
   isCardLoading = true;
   const batch = cardQueue.splice(0, BATCH_SIZE);
   let loadedCount = 0;
   
+  console.log("Processing batch of", batch.length, "cards");
+  
   batch.forEach((cardData, index) => {
     setTimeout(() => {
       const { card, file, name } = cardData;
       const content = card.querySelector('.content');
       
+      console.log("Fetching card:", file);
+      
       fetch(`cards/${file}`)
-        .then(r => r.ok ? r.text() : Promise.reject())
+        .then(r => {
+          console.log("Fetch response for", file, "status:", r.status, "ok:", r.ok);
+          return r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`));
+        })
         .then(html => {
+          console.log("Got HTML for", file, "length:", html.length);
           content.innerHTML = html;
           addEmbedSectionToCard(card, file);
           
@@ -1530,7 +1538,8 @@ function loadCardBatch() {
             script.parentNode.replaceChild(newScript, script);
           });
         })
-        .catch(() => {
+        .catch(err => {
+          console.error("Failed to load card:", file, err);
           content.textContent = 'Preview unavailable';
           addEmbedSectionToCard(card, file);
         })
@@ -1544,41 +1553,57 @@ function loadCardBatch() {
           document.getElementById('status').textContent = `Loaded ${loadedCards} of ${totalCards} tools`;
           
           if (loadedCount === batch.length) {
-            isCardLoading = false;
-            if (cardQueue.length > 0) {
-              setTimeout(loadCardBatch, BATCH_DELAY);
-            } else {
-              document.getElementById('status').textContent = `${totalCards} tools loaded`;
-            }
-          }
-        });
-    }, index * 20);
-  });
+            isCardLoading =
+
+false;
+if (cardQueue.length > 0) {
+setTimeout(loadCardBatch, BATCH_DELAY);
+} else {
+document.getElementById('status').textContent = ${totalCards} tools loaded;
 }
-
+}
+});
+}, index * 20);
+});
+}
 async function loadDashboard() {
-  try {
-    const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
-    const DEFAULT_BRANCH = 'main';
-    const [owner, repo] = DEFAULT_REPO
-
-.split('/');
+console.log("loadDashboard called");
+try {
+const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
+const DEFAULT_BRANCH = 'main';
+const [owner, repo] = DEFAULT_REPO.split('/');
 plain
 Copy
+
+console.log("Fetching from GitHub:", owner, repo, DEFAULT_BRANCH);
 
 document.getElementById('status').textContent = 'Fetching card list...';
 
 const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
+console.log("URL:", url);
+
 const response = await fetch(url);
+console.log("GitHub API response status:", response.status);
+
+if (!response.ok) {
+  throw new Error(`GitHub API returned ${response.status}`);
+}
+
 const data = await response.json();
+console.log("GitHub API data received, tree length:", data.tree?.length);
 
 const cardFiles = (data.tree || [])
-  .filter(item => item.path.startsWith('cards/') && item.path.endsWith('.html'))
+  .filter(item => {
+    const isCard = item.path.startsWith('cards/') && item.path.endsWith('.html');
+    if (isCard) console.log("Found card file:", item.path);
+    return isCard;
+  })
   .map(item => item.path.replace(/^cards\//, ''));
 
 console.log("Found", cardFiles.length, "cards");
 
 const grid = document.getElementById('gridContainer');
+console.log("Grid container:", grid);
 
 if (!cardFiles.length) {
   document.getElementById('status').textContent = 'No cards found';
@@ -1621,6 +1646,7 @@ cardFiles.sort().forEach(file => {
   });
 });
 
+console.log("Created", cardQueue.length, "card elements, starting batch load");
 document.getElementById('status').textContent = `Loading 0 of ${cardFiles.length} tools...`;
 setTimeout(loadCardBatch, 300);
 
@@ -1711,6 +1737,7 @@ if (AppState.widgets.length > 0) {
 }
 
 // Load cards last
+console.log("About to call loadDashboard");
 loadDashboard();
 
 new Sortable(document.getElementById('gridContainer'), { animation: 150 });
