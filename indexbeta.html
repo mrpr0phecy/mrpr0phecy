@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>The Most Useful Site in the World</title>
 <style>
+  /* === CORE STYLES (PRESERVED FROM YOUR WORKING VERSION) === */
   html,body{
     height:100%;
     margin:0;
@@ -1497,273 +1498,245 @@ function initToolboxToggle() {
   });
 }
 
-let cardQueue = [];
-let isCardLoading = false;
-const BATCH_SIZE = 5;
-const BATCH_DELAY = 50;
-
-function loadCardBatch() {
-  console.log("loadCardBatch called, queue length:", cardQueue.length, "isCardLoading:", isCardLoading);
-  if (isCardLoading || cardQueue.length === 0) return;
-  
-  isCardLoading = true;
-  const batch = cardQueue.splice(0, BATCH_SIZE);
-  let loadedCount = 0;
-  
-  console.log("Processing batch of", batch.length, "cards");
-  
-  batch.forEach((cardData, index) => {
-    setTimeout(() => {
-      const { card, file, name } = cardData;
-      const content = card.querySelector('.content');
-      
-      console.log("Fetching card:", file);
-      
-      fetch(`cards/${file}`)
-        .then(r => {
-          console.log("Fetch response for", file, "status:", r.status, "ok:", r.ok);
-          return r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`));
-        })
-        .then(html => {
-          console.log("Got HTML for", file, "length:", html.length);
-          content.innerHTML = html;
-          addEmbedSectionToCard(card, file);
-          
-          const scripts = content.querySelectorAll('script');
-          scripts.forEach(script => {
-            const newScript = document.createElement('script');
-            if (script.src) newScript.src = script.src;
-            else newScript.textContent = script.textContent;
-            [...script.attributes].forEach(attr => newScript.setAttribute(attr.name, attr.value));
-            script.parentNode.replaceChild(newScript, script);
-          });
-        })
-        .catch(err => {
-          console.error("Failed to load card:", file, err);
-          content.textContent = 'Preview unavailable';
-          addEmbedSectionToCard(card, file);
-        })
-        .finally(() => {
-          loadedCount++;
-          
-          setTimeout(() => card.classList.add('visible'), index * 30);
-          
-          const totalCards = document.querySelectorAll('.card').length;
-          const loadedCards = document.querySelectorAll('.card.visible').length;
-          document.getElementById('status').textContent = `Loaded ${loadedCards} of ${totalCards} tools`;
-          
-          if (loadedCount === batch.length) {
-            isCardLoading =
-
-false;
-if (cardQueue.length > 0) {
-setTimeout(loadCardBatch, BATCH_DELAY);
-} else {
-document.getElementById('status').textContent = ${totalCards} tools loaded;
-}
-}
-});
-}, index * 20);
-});
-}
+// ===== FIXED CARD LOADING - USING YOUR WORKING VERSION'S APPROACH =====
 async function loadDashboard() {
-console.log("loadDashboard called");
-try {
-const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
-const DEFAULT_BRANCH = 'main';
-const [owner, repo] = DEFAULT_REPO.split('/');
-plain
-Copy
-
-console.log("Fetching from GitHub:", owner, repo, DEFAULT_BRANCH);
-
-document.getElementById('status').textContent = 'Fetching card list...';
-
-const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${DEFAULT_BRANCH}?recursive=1`;
-console.log("URL:", url);
-
-const response = await fetch(url);
-console.log("GitHub API response status:", response.status);
-
-if (!response.ok) {
-  throw new Error(`GitHub API returned ${response.status}`);
+  console.log("=== loadDashboard called ===");
+  
+  try {
+    const DEFAULT_REPO = 'mrpr0phecy/mrpr0phecy';
+    const [owner, repo] = DEFAULT_REPO.split('/');
+    
+    console.log("Fetching from GitHub:", owner, repo);
+    document.getElementById('status').textContent = 'Fetching card list...';
+    
+    // Use the CONTENTS API (not git/trees) - this is what your working version uses
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/cards`;
+    console.log("URL:", url);
+    
+    const response = await fetch(url);
+    console.log("GitHub API response status:", response.status);
+    
+    if (!response.ok) {
+      throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log("GitHub API data received, items:", data.length);
+    
+    // Filter for HTML files only
+    const cardFiles = data
+      .filter(item => item.type === 'file' && item.name.endsWith('.html'))
+      .map(item => item.name.replace('.html', ''))
+      .sort();
+    
+    console.log("Found", cardFiles.length, "cards");
+    
+    const grid = document.getElementById('gridContainer');
+    
+    if (cardFiles.length === 0) {
+      document.getElementById('status').textContent = 'No cards found';
+      return;
+    }
+    
+    grid.innerHTML = '';
+    
+    cardFiles.forEach((cardName, index) => {
+      const displayName = cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.name = cardName;
+      card.dataset.displayName = displayName;
+      card.dataset.file = `${cardName}.html`;
+      
+      card.innerHTML = `
+        <div class="card-header">
+          <h3>${displayName}</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="reader-card-toggle" title="Expand in reader mode">📄</button>
+            <div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent);font-size:18px;">+</div>
+          </div>
+        </div>
+        <div class="content">
+          <div style="padding:40px 20px;text-align:center;">
+            <div style="margin-bottom:16px;font-size:48px;opacity:0.3;">⚙️</div>
+            <div style="color:rgba(230,250,255,0.6);font-size:14px;">Loading ${displayName}...</div>
+          </div>
+        </div>
+      `;
+      
+      grid.appendChild(card);
+      
+      // Add event listeners
+      card.querySelector('.reader-card-toggle').addEventListener('click', () => {
+        card.classList.toggle('reader-expanded');
+        card.querySelector('.reader-card-toggle').classList.toggle('active');
+      });
+      
+      // Load card content
+      loadCardContent(card, cardName);
+    });
+    
+    document.getElementById('status').textContent = `${cardFiles.length} tools loaded`;
+    
+  } catch (error) {
+    console.error("Error loading dashboard:", error);
+    document.getElementById('status').textContent = 'Error loading cards: ' + error.message;
+    showToast('Failed to load cards', error.message, '⚠️');
+  }
 }
 
-const data = await response.json();
-console.log("GitHub API data received, tree length:", data.tree?.length);
-
-const cardFiles = (data.tree || [])
-  .filter(item => {
-    const isCard = item.path.startsWith('cards/') && item.path.endsWith('.html');
-    if (isCard) console.log("Found card file:", item.path);
-    return isCard;
-  })
-  .map(item => item.path.replace(/^cards\//, ''));
-
-console.log("Found", cardFiles.length, "cards");
-
-const grid = document.getElementById('gridContainer');
-console.log("Grid container:", grid);
-
-if (!cardFiles.length) {
-  document.getElementById('status').textContent = 'No cards found';
-  return;
+async function loadCardContent(card, cardName) {
+  try {
+    console.log("Loading card:", cardName);
+    const response = await fetch(`cards/${cardName}.html`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const html = await response.text();
+    const contentDiv = card.querySelector('.content');
+    
+    // Parse and clean HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    
+    // Remove scripts for safety
+    doc.querySelectorAll('script').forEach(s => s.remove());
+    doc.querySelectorAll('style').forEach(s => s.remove());
+    
+    contentDiv.innerHTML = doc.body.innerHTML;
+    
+    // Add embed section
+    addEmbedSectionToCard(card, `${cardName}.html`);
+    
+    // Show card with animation
+    setTimeout(() => {
+      card.classList.add('visible');
+    }, 50);
+    
+  } catch (error) {
+    console.error(`Failed to load card ${cardName}:`, error);
+    card.querySelector('.content').innerHTML = `
+      <div style="padding:40px 20px;text-align:center;color:#ff6b6b;">
+        <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
+        <div>Failed to load ${cardName}</div>
+        <div style="font-size:12px;opacity:0.7;margin-top:8px;">${error.message}</div>
+      </div>
+    `;
+    card.classList.add('visible');
+  }
 }
 
-grid.innerHTML = '';
-cardQueue = [];
-
-cardFiles.sort().forEach(file => {
-  const name = file.replace('.html', '');
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.dataset.file = file;
-  card.dataset.name = name;
-  
-  const header = document.createElement('div');
-  header.className = 'card-header';
-  header.innerHTML = `
-    <h3>${name}</h3>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <button class="reader-card-toggle" title="Expand in reader mode">📄</button>
-      <div class="add-to-toolbox" title="Add to toolbox" style="cursor:pointer;font-weight:bold;color:var(--accent);font-size:18px;">+</div>
-    </div>
-  `;
-  
-  const content = document.createElement('div');
-  content.className = 'content';
-  content.textContent = 'Loading…';
-  
-  card.appendChild(header);
-  card.appendChild(content);
-  grid.appendChild(card);
-  
-  cardQueue.push({ card, file, name });
-  
-  header.querySelector('.reader-card-toggle').addEventListener('click', () => {
-    card.classList.toggle('reader-expanded');
-    header.querySelector('.reader-card-toggle').classList.toggle('active');
-  });
-});
-
-console.log("Created", cardQueue.length, "card elements, starting batch load");
-document.getElementById('status').textContent = `Loading 0 of ${cardFiles.length} tools...`;
-setTimeout(loadCardBatch, 300);
-
-} catch (error) {
-console.error("Error loading dashboard:", error);
-document.getElementById('status').textContent = 'Error loading cards: ' + error.message;
-}
-}
 function initAddToToolbox() {
-document.addEventListener('click', (e) => {
-const addBtn = e.target.closest('.add-to-toolbox');
-if (!addBtn) return;
-plain
-Copy
-
-const card = addBtn.closest('.card');
-if (!card) return;
-
-const cardName = card.dataset.name;
-const contentElement = card.querySelector('.content');
-const contentHTML = contentElement.innerHTML;
-
-animateToToolbox(card);
-
-const widgetId = createWidget(cardName, contentHTML);
-
-if (widgetId) {
-  const toolbox = document.getElementById('toolbox');
-  toolbox.classList.remove('hidden');
-  document.getElementById('toolboxToggle').classList.add('active');
-  
-  addBtn.textContent = '✓';
-  addBtn.style.color = 'var(--accent)';
-  setTimeout(() => {
-    addBtn.textContent = '+';
-    addBtn.style.color = '';
-  }, 1000);
+  document.addEventListener('click', (e) => {
+    const addBtn = e.target.closest('.add-to-toolbox');
+    if (!addBtn) return;
+    
+    const card = addBtn.closest('.card');
+    if (!card) return;
+    
+    const cardName = card.dataset.name;
+    const contentElement = card.querySelector('.content');
+    const contentHTML = contentElement.innerHTML;
+    
+    animateToToolbox(card);
+    
+    const widgetId = createWidget(cardName, contentHTML);
+    
+    if (widgetId) {
+      const toolbox = document.getElementById('toolbox');
+      toolbox.classList.remove('hidden');
+      document.getElementById('toolboxToggle').classList.add('active');
+      
+      addBtn.textContent = '✓';
+      addBtn.style.color = 'var(--accent)';
+      setTimeout(() => {
+        addBtn.textContent = '+';
+        addBtn.style.color = '';
+      }, 1000);
+    }
+  });
 }
 
-});
-}
-// Wrap initialization in try-catch to catch any errors
+// Wrap initialization in try-catch
 document.addEventListener('DOMContentLoaded', () => {
-try {
-console.log("=== DOM READY ===");
-plain
-Copy
-
-window.scrollTo(0, 0);
-
-AppState.init();
-
-const savedTheme = localStorage.getItem('theme') || 'default';
-applyTheme(savedTheme);
-
-const savedAccent = localStorage.getItem('accent') || '#2dd4ff';
-document.documentElement.style.setProperty('--accent', savedAccent);
-
-if (localStorage.getItem('readerMode') === 'on') {
-  document.body.classList.add('reader-mode');
-  document.getElementById('readerToggle').classList.add('active');
-}
-
-document.getElementById('globalFontScale').value = AppState.globalFontScale;
-document.getElementById('fontScaleValue').textContent = `${Math.round(AppState.globalFontScale * 100)}%`;
-document.documentElement.style.setProperty('--global-font-scale', AppState.globalFontScale);
-document.getElementById('snapToGrid').checked = AppState.snapToGrid;
-
-initToolbox();
-initToolboxToggle();
-initPalette();
-initShortcuts();
-initKeyboardShortcuts();
-initReaderMode();
-initSearch();
-initSortButtons();
-initAddToToolbox();
-
-renderWorkspaceList();
-renderToolboxTabs();
-
-// Only restore workspace if we have saved widgets, otherwise start fresh
-if (AppState.widgets.length > 0) {
-  switchWorkspace(AppState.currentWorkspace);
-} else {
-  document.getElementById('workspaceIndicator').textContent = AppState.current.name;
-  updateWidgetCount();
-}
-
-// Load cards last
-console.log("About to call loadDashboard");
-loadDashboard();
-
-new Sortable(document.getElementById('gridContainer'), { animation: 150 });
-
-setTimeout(() => {
-  const searchBar = document.querySelector('.search-bar');
-  if (searchBar) searchBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  document.getElementById('searchInput')?.focus();
-}, 100);
-
-} catch (err) {
-console.error("Initialization error:", err);
-document.getElementById('status').textContent = 'Error initializing app: ' + err.message;
-}
+  try {
+    console.log("=== DOM READY ===");
+    
+    window.scrollTo(0, 0);
+    
+    AppState.init();
+    
+    const savedTheme = localStorage.getItem('theme') || 'default';
+    applyTheme(savedTheme);
+    
+    const savedAccent = localStorage.getItem('accent') || '#2dd4ff';
+    document.documentElement.style.setProperty('--accent', savedAccent);
+    
+    if (localStorage.getItem('readerMode') === 'on') {
+      document.body.classList.add('reader-mode');
+      document.getElementById('readerToggle').classList.add('active');
+    }
+    
+    document.getElementById('globalFontScale').value = AppState.globalFontScale;
+    document.getElementById('fontScaleValue').textContent = `${Math.round(AppState.globalFontScale * 100)}%`;
+    document.documentElement.style.setProperty('--global-font-scale', AppState.globalFontScale);
+    document.getElementById('snapToGrid').checked = AppState.snapToGrid;
+    
+    initToolbox();
+    initToolboxToggle();
+    initPalette();
+    initShortcuts();
+    initKeyboardShortcuts();
+    initReaderMode();
+    initSearch();
+    initSortButtons();
+    initAddToToolbox();
+    
+    renderWorkspaceList();
+    renderToolboxTabs();
+    
+    if (AppState.widgets.length > 0) {
+      switchWorkspace(AppState.currentWorkspace);
+    } else {
+      document.getElementById('workspaceIndicator').textContent = AppState.current.name;
+      updateWidgetCount();
+    }
+    
+    // Load cards
+    console.log("About to call loadDashboard");
+    loadDashboard();
+    
+    new Sortable(document.getElementById('gridContainer'), { animation: 150 });
+    
+    setTimeout(() => {
+      const searchBar = document.querySelector('.search-bar');
+      if (searchBar) searchBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('searchInput')?.focus();
+    }, 100);
+    
+  } catch (err) {
+    console.error("Initialization error:", err);
+    document.getElementById('status').textContent = 'Error initializing app: ' + err.message;
+  }
 });
+
 window.addEventListener('load', () => {
-window.scrollTo(0, 0);
+  window.scrollTo(0, 0);
 });
+
 if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-document.documentElement.style.setProperty('--card-min', '280px');
-const toolbox = document.getElementById('toolbox');
-if (toolbox) {
-toolbox.style.minWidth = '280px';
-toolbox.style.minHeight = '300px';
+  document.documentElement.style.setProperty('--card-min', '280px');
+  const toolbox = document.getElementById('toolbox');
+  if (toolbox) {
+    toolbox.style.minWidth = '280px';
+    toolbox.style.minHeight = '300px';
+  }
 }
-}
+
 console.log("=== ENHANCED APP INITIALIZED ===");
+</script>
 </body>
 </html>
