@@ -14,6 +14,9 @@ html,body{height:100%;font-family:var(--font-primary);background:linear-gradient
 .loading-spinner{width:60px;height:60px;border:3px solid rgba(45,212,255,0.1);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-text{margin-top:20px;color:var(--text-secondary);font-size:14px;font-weight:300;letter-spacing:2px;text-transform:uppercase}
+.loading-progress{width:200px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:16px;overflow:hidden}
+.loading-progress-bar{height:100%;background:var(--accent);width:0%;transition:width 0.3s}
+.loading-stats{color:var(--text-secondary);font-size:12px;margin-top:8px;font-family:var(--font-primary)}
 .sticky-command-bar{position:fixed;top:0;left:0;right:0;height:50px;background:rgba(10,15,20,0.98);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;transform:translateY(-100%);transition:transform 0.3s;z-index:1000;gap:8px}
 .sticky-command-bar.visible{transform:translateY(0)}
 .sticky-search-container{flex:1;min-width:0}
@@ -123,9 +126,15 @@ h1{font-family:var(--font-display);font-size:2.8rem;font-weight:300;background:l
 @media(max-width:768px){h1{font-size:1.8rem}.sticky-command-bar{height:46px}.dashboard{padding:8px;column-gap:8px}.card{margin-bottom:8px}}
 @media(max-width:480px){h1{font-size:1.5rem}}
 </style>
+<base target="_blank">
 </head>
 <body>
-<div id="loadingScreen"><div class="loading-spinner"></div><div class="loading-text">Loading tools...</div></div>
+<div id="loadingScreen">
+<div class="loading-spinner"></div>
+<div class="loading-text">Loading tools...</div>
+<div class="loading-progress"><div class="loading-progress-bar" id="progressBar"></div></div>
+<div class="loading-stats" id="loadingStats">0 / 0 loaded</div>
+</div>
 <div class="sticky-command-bar" id="stickyCommandBar">
 <div class="sticky-search-container"><div class="sticky-search-bar"><input type="text" id="stickySearchInput" placeholder="Search tools..."></div></div>
 <div class="sticky-actions">
@@ -196,402 +205,417 @@ h1{font-family:var(--font-display);font-size:2.8rem;font-weight:300;background:l
 </div>
 <div class="notification-container" id="notificationContainer"></div>
 <script>
-const CONFIG={GITHUB_REPO:'mrpr0phecy/mrpr0phecy',GITHUB_PATH:'cards',STICKY_THRESHOLD:100,NOTIFICATION_DURATION:4000};
-let allCards=[],cardRatings={},toolboxCards=[],toolboxViewMode='grid',expandedToolboxItems=new Set(),isToolboxOpen=false;
+const CONFIG={GITHUB_REPO:'mrpr0phecy/mrpr0phecy',GITHUB_PATH:'cards',STICKY_THRESHOLD:100,NOTIFICATION_DURATION:4000,PARALLEL_BATCH:6};
+let allCards=[],cardRatings={},toolboxCards=[],toolboxViewMode='grid',expandedToolboxItems=new Set(),isToolboxOpen=false,loadedCount=0,totalCount=0;
 const themes={default:{bg1:'#0a0f14',bg2:'#141e28'},'deep-blue':{bg1:'#05080c',bg2:'#0f151f'},'deep-purple':{bg1:'#12081a',bg2:'#1f1229'},'deep-teal':{bg1:'#061616',bg2:'#0f2525'},'deep-red':{bg1:'#160606',bg2:'#251010'},'deep-forest':{bg1:'#081408',bg2:'#152015'},'deep-space':{bg1:'#000814',bg2:'#1a1a2e'}};
 
-document.addEventListener('DOMContentLoaded',async function(){
-  loadSettings();
-  setupEventListeners();
-  setupStickyBar();
-  setupFAB();
-  setupToolbox();
-  await loadCards();
-  document.getElementById('loadingScreen').classList.add('hidden');
-  notify('Welcome!','All tools loaded','success');
-});
-
-async function loadCards(){
-  try{
-    var ownerRepo=CONFIG.GITHUB_REPO.split('/');
-    var url='https://api.github.com/repos/'+ownerRepo[0]+'/'+ownerRepo[1]+'/contents/'+CONFIG.GITHUB_PATH;
-    var response=await fetch(url);
-    if(!response.ok) throw new Error('GitHub API: '+response.status);
-    var data=await response.json();
-    var cardFiles=data.filter(function(item){return item.type==='file'&&item.name.endsWith('.html');}).map(function(item){return item.name.replace('.html','');}).sort();
-    allCards=cardFiles;
-    var dashboard=document.getElementById('dashboard');
-    for(var i=0;i<cardFiles.length;i++){
-      var cardName=cardFiles[i];
-      var displayName=cardName.replace(/-/g,' ').replace(/\b\w/g,function(l){return l.toUpperCase();});
-      var card=document.createElement('div');
-      card.className='card';
-      card.dataset.name=cardName;
-      card.dataset.displayName=displayName;
-      card.style.animationDelay=(i*0.03)+'s';
-      card.innerHTML='<div class="card-header"><h3>'+displayName+'</h3><div class="card-actions"><button class="card-action-btn add-toolbox" data-card="'+cardName+'">🧰</button><button class="card-action-btn expand-card" data-card="'+cardName+'">↗</button></div></div><div class="card-shadow-host" id="host-'+cardName+'"><div class="card-loading"><div class="card-loading-spinner"></div><div>Loading...</div></div></div>';
-      dashboard.appendChild(card);
-      await loadCardShadowDOM(cardName);
-      addCardFooter(card,cardName);
-      setTimeout(function(){card.classList.add('visible');},50);
-    }
-  }catch(error){
-    notify('Error',error.message,'error');
-    console.error(error);
-  }
+function updateProgress(){
+loadedCount++;
+var pct=Math.round((loadedCount/totalCount)*100);
+document.getElementById('progressBar').style.width=pct+'%';
+document.getElementById('loadingStats').textContent=loadedCount+' / '+totalCount+' loaded';
+if(loadedCount>=totalCount){
+setTimeout(function(){
+document.getElementById('loadingScreen').classList.add('hidden');
+notify('Ready!','All tools loaded','success');
+},300);
+}
 }
 
-async function loadCardShadowDOM(cardName){
-  var host=document.getElementById('host-'+cardName);
-  if(!host) return;
-  try{
-    var response=await fetch('cards/'+cardName+'.html');
-    if(!response.ok) throw new Error('HTTP '+response.status);
-    var html=await response.text();
-    host.innerHTML='';
-    var shadow=host.attachShadow({mode:'closed'});
-    var style=document.createElement('style');
-    style.textContent=':host{display:block;padding:16px;color:#e6faff;font-family:"Exo 2",sans-serif;font-size:14px;line-height:1.6;background:rgba(0,0,0,0.1);font-weight:300}*{max-width:100%;box-sizing:border-box}img,video,canvas,svg,iframe{max-width:100%;height:auto}table{width:100%;border-collapse:collapse}pre,code{white-space:pre-wrap;word-wrap:break-word}input,textarea,select,button{max-width:100%;font-family:inherit;font-size:14px}button{cursor:pointer}';
-    shadow.appendChild(style);
-    var parser=new DOMParser();
-    var doc=parser.parseFromString(html,'text/html');
-    var scripts=doc.querySelectorAll('script');
-    for(var i=0;i<scripts.length;i++) scripts[i].remove();
-    var content=document.createElement('div');
-    content.innerHTML=doc.body.innerHTML;
-    shadow.appendChild(content);
-  }catch(error){
-    host.innerHTML='<div style="padding:40px;text-align:center;color:#ff6b6b">⚠️ Failed to load '+cardName+'</div>';
-  }
+function createCardElement(cardName,index){
+var displayName=cardName.replace(/-/g,' ').replace(/\w/g,function(l){return l.toUpperCase();});
+var card=document.createElement('div');
+card.className='card';
+card.dataset.name=cardName;
+card.dataset.displayName=displayName;
+card.innerHTML='<div class="card-header"><h3>'+displayName+'</h3><div class="card-actions"><button class="card-action-btn add-toolbox" data-card="'+cardName+'">🧰</button><button class="card-action-btn expand-card" data-card="'+cardName+'">↗</button></div></div><div class="card-shadow-host" id="host-'+cardName+'"><div class="card-loading"><div class="card-loading-spinner"></div><div>Loading...</div></div></div>';
+return card;
+}
+
+async function loadCardBatch(cardNames,startIndex){
+var promises=cardNames.map(function(cardName,index){
+return loadCardContent(cardName,startIndex+index);
+});
+await Promise.all(promises);
+}
+
+async function loadCardContent(cardName,index){
+var card=document.getElementById('host-'+cardName).parentNode;
+try{
+var response=await fetch('cards/'+cardName+'.html');
+if(!response.ok) throw new Error('HTTP '+response.status);
+var html=await response.text();
+var host=document.getElementById('host-'+cardName);
+host.innerHTML='';
+var shadow=host.attachShadow({mode:'closed'});
+var style=document.createElement('style');
+style.textContent=':host{display:block;padding:16px;color:#e6faff;font-family:"Exo 2",sans-serif;font-size:14px;line-height:1.6;background:rgba(0,0,0,0.1);font-weight:300}*{max-width:100%;box-sizing:border-box}img,video,canvas,svg,iframe{max-width:100%;height:auto}table{width:100%;border-collapse:collapse}pre,code{white-space:pre-wrap;word-wrap:break-word}input,textarea,select,button{max-width:100%;font-family:inherit;font-size:14px}button{cursor:pointer}';
+shadow.appendChild(style);
+var parser=new DOMParser();
+var doc=parser.parseFromString(html,'text/html');
+var scripts=doc.querySelectorAll('script');
+for(var i=0;i<scripts.length;i++) scripts[i].remove();
+var content=document.createElement('div');
+content.innerHTML=doc.body.innerHTML;
+shadow.appendChild(content);
+addCardFooter(card,cardName);
+}catch(error){
+var host=document.getElementById('host-'+cardName);
+if(host) host.innerHTML='<div style="padding:40px;text-align:center;color:#ff6b6b">⚠️ Failed to load</div>';
+}
+updateProgress();
+setTimeout(function(){card.classList.add('visible');},50);
+}
+
+async function loadCards(){
+try{
+var ownerRepo=CONFIG.GITHUB_REPO.split('/');
+var url='https://api.github.com/repos/'+ownerRepo[0]+'/'+ownerRepo[1]+'/contents/'+CONFIG.GITHUB_PATH;
+var response=await fetch(url);
+if(!response.ok) throw new Error('GitHub API: '+response.status);
+var data=await response.json();
+var cardFiles=data.filter(function(item){return item.type==='file'&&item.name.endsWith('.html');}).map(function(item){return item.name.replace('.html','');}).sort();
+allCards=cardFiles;
+totalCount=cardFiles.length;
+document.getElementById('loadingStats').textContent='0 / '+totalCount+' loaded';
+var dashboard=document.getElementById('dashboard');
+for(var i=0;i<cardFiles.length;i++){
+dashboard.appendChild(createCardElement(cardFiles[i],i));
+}
+for(var i=0;i<cardFiles.length;i+=CONFIG.PARALLEL_BATCH){
+var batch=cardFiles.slice(i,i+CONFIG.PARALLEL_BATCH);
+await loadCardBatch(batch,i);
+}
+}catch(error){
+notify('Error',error.message,'error');
+console.error(error);
+document.getElementById('loadingScreen').classList.add('hidden');
+}
 }
 
 function addCardFooter(card,cardName){
-  var rating=getRating(cardName);
-  var total=rating.up+rating.down;
-  var percent=total===0?0:Math.round((rating.up/total)*100);
-  var footer=document.createElement('div');
-  footer.className='card-footer';
-  var votedUp=rating.userVote==='up'?'voted':'';
-  var votedDown=rating.userVote==='down'?'voted':'';
-  footer.innerHTML='<div class="rating-display"><span class="rating-label">Useful:</span><div class="rating-bar"><div class="rating-fill" style="width:'+percent+'%"></div></div><span class="rating-percentage">'+percent+'%</span></div><div class="rating-buttons"><button class="rating-btn up '+votedUp+'" data-card="'+cardName+'" data-vote="up">👍</button><button class="rating-btn down '+votedDown+'" data-card="'+cardName+'" data-vote="down">👎</button></div><button class="embed-btn" data-card="'+cardName+'">🔗 Embed</button>';
-  card.appendChild(footer);
+var rating=getRating(cardName);
+var total=rating.up+rating.down;
+var percent=total===0?0:Math.round((rating.up/total)*100);
+var footer=document.createElement('div');
+footer.className='card-footer';
+var votedUp=rating.userVote==='up'?'voted':'';
+var votedDown=rating.userVote==='down'?'voted':'';
+footer.innerHTML='<div class="rating-display"><span class="rating-label">Useful:</span><div class="rating-bar"><div class="rating-fill" style="width:'+percent+'%"></div></div><span class="rating-percentage">'+percent+'%</span></div><div class="rating-buttons"><button class="rating-btn up '+votedUp+'" data-card="'+cardName+'" data-vote="up">👍</button><button class="rating-btn down '+votedDown+'" data-card="'+cardName+'" data-vote="down">👎</button></div><button class="embed-btn" data-card="'+cardName+'">🔗 Embed</button>';
+card.appendChild(footer);
 }
 
 function setupToolbox(){
-  document.getElementById('stickyToolboxToggle').addEventListener('click',toggleToolbox);
-  document.getElementById('toolboxGridBtn').addEventListener('click',function(){setToolboxViewMode('grid');});
-  document.getElementById('toolboxListBtn').addEventListener('click',function(){setToolboxViewMode('list');});
-  document.getElementById('clearToolboxBtn').addEventListener('click',clearToolbox);
-  document.addEventListener('click',function(e){
-    if(isToolboxOpen && !document.getElementById('toolboxPopout').contains(e.target) && !document.getElementById('stickyToolboxToggle').contains(e.target)){
-      closeToolbox();
-    }
-  });
+document.getElementById('stickyToolboxToggle').addEventListener('click',toggleToolbox);
+document.getElementById('toolboxGridBtn').addEventListener('click',function(){setToolboxViewMode('grid');});
+document.getElementById('toolboxListBtn').addEventListener('click',function(){setToolboxViewMode('list');});
+document.getElementById('clearToolboxBtn').addEventListener('click',clearToolbox);
+document.addEventListener('click',function(e){
+if(isToolboxOpen && !document.getElementById('toolboxPopout').contains(e.target) && !document.getElementById('stickyToolboxToggle').contains(e.target)){
+closeToolbox();
+}
+});
 }
 
 function toggleToolbox(){
-  var toolbox=document.getElementById('toolboxPopout');
-  var btn=document.getElementById('stickyToolboxToggle');
-  if(isToolboxOpen){
-    closeToolbox();
-  }else{
-    toolbox.classList.add('open');
-    btn.classList.add('active');
-    isToolboxOpen=true;
-    renderToolbox();
-  }
+var toolbox=document.getElementById('toolboxPopout');
+var btn=document.getElementById('stickyToolboxToggle');
+if(isToolboxOpen){
+closeToolbox();
+}else{
+toolbox.classList.add('open');
+btn.classList.add('active');
+isToolboxOpen=true;
+renderToolbox();
+}
 }
 
 function closeToolbox(){
-  document.getElementById('toolboxPopout').classList.remove('open');
-  document.getElementById('stickyToolboxToggle').classList.remove('active');
-  isToolboxOpen=false;
+document.getElementById('toolboxPopout').classList.remove('open');
+document.getElementById('stickyToolboxToggle').classList.remove('active');
+isToolboxOpen=false;
 }
 
 function setToolboxViewMode(mode){
-  toolboxViewMode=mode;
-  document.getElementById('toolboxGridBtn').classList.toggle('active',mode==='grid');
-  document.getElementById('toolboxListBtn').classList.toggle('active',mode==='list');
-  renderToolbox();
-  saveSettings();
+toolboxViewMode=mode;
+document.getElementById('toolboxGridBtn').classList.toggle('active',mode==='grid');
+document.getElementById('toolboxListBtn').classList.toggle('active',mode==='list');
+renderToolbox();
+saveSettings();
 }
 
 function addToToolbox(cardName){
-  if(toolboxCards.find(function(c){return c.name===cardName;})){
-    notify('Already added',cardName+' is in toolbox','warning');
-    return;
-  }
-  var host=document.getElementById('host-'+cardName);
-  var content='';
-  if(host && host.shadowRoot){
-    var contentDiv=host.shadowRoot.querySelector('div:last-child');
-    if(contentDiv) content=contentDiv.innerHTML;
-  }
-  var displayName=cardName.replace(/-/g,' ').replace(/\b\w/g,function(l){return l.toUpperCase();});
-  toolboxCards.push({name:cardName,displayName:displayName,content:content,addedAt:Date.now()});
-  saveSettings();
-  if(isToolboxOpen) renderToolbox();
-  notify('Added',displayName+' added to toolbox','success');
-  if(!isToolboxOpen) toggleToolbox();
+if(toolboxCards.find(function(c){return c.name===cardName;})){
+notify('Already added',cardName+' is in toolbox','warning');
+return;
+}
+var host=document.getElementById('host-'+cardName);
+var content='';
+if(host && host.shadowRoot){
+var contentDiv=host.shadowRoot.querySelector('div:last-child');
+if(contentDiv) content=contentDiv.innerHTML;
+}
+var displayName=cardName.replace(/-/g,' ').replace(/\w/g,function(l){return l.toUpperCase();});
+toolboxCards.push({name:cardName,displayName:displayName,content:content,addedAt:Date.now()});
+saveSettings();
+if(isToolboxOpen) renderToolbox();
+notify('Added',displayName+' added to toolbox','success');
+if(!isToolboxOpen) toggleToolbox();
 }
 
 function renderToolbox(){
-  var content=document.getElementById('toolboxContent');
-  if(toolboxCards.length===0){
-    content.innerHTML='<div class="toolbox-empty"><div class="toolbox-empty-icon">📦</div><h3 style="color:var(--premium);margin-bottom:8px;font-family:var(--font-display)">Empty Toolbox</h3><p>Click 🧰 on any card to add it here</p></div>';
-    return;
-  }
-  content.innerHTML='';
-  toolboxCards.forEach(function(card,index){
-    var isExpanded=expandedToolboxItems.has(index);
-    var item=document.createElement('div');
-    item.className='toolbox-item '+(isExpanded?'expanded':'');
-    item.innerHTML='<div class="toolbox-item-header" data-index="'+index+'"><span class="toolbox-item-name">'+card.displayName+'</span><div class="toolbox-item-actions"><button class="toolbox-item-btn expand-btn" data-index="'+index+'">'+(isExpanded?'−':'+')+'</button><button class="toolbox-item-btn remove" data-index="'+index+'">✕</button></div></div><div class="toolbox-item-content"><div class="toolbox-item-preview">'+(card.content||'Preview not available')+'</div></div>';
-    
-    item.querySelector('.toolbox-item-header').addEventListener('click',function(e){
-      if(!e.target.closest('.toolbox-item-btn')) toggleToolboxItem(index);
-    });
-    item.querySelector('.expand-btn').addEventListener('click',function(e){
-      e.stopPropagation();
-      toggleToolboxItem(index);
-    });
-    item.querySelector('.remove').addEventListener('click',function(e){
-      e.stopPropagation();
-      removeFromToolbox(index);
-    });
-    content.appendChild(item);
-  });
+var content=document.getElementById('toolboxContent');
+if(toolboxCards.length===0){
+content.innerHTML='<div class="toolbox-empty"><div class="toolbox-empty-icon">📦</div><h3 style="color:var(--premium);margin-bottom:8px;font-family:var(--font-display)">Empty Toolbox</h3><p>Click 🧰 on any card to add it here</p></div>';
+return;
+}
+content.innerHTML='';
+toolboxCards.forEach(function(card,index){
+var isExpanded=expandedToolboxItems.has(index);
+var item=document.createElement('div');
+item.className='toolbox-item '+(isExpanded?'expanded':'');
+item.innerHTML='<div class="toolbox-item-header" data-index="'+index+'"><span class="toolbox-item-name">'+card.displayName+'</span><div class="toolbox-item-actions"><button class="toolbox-item-btn expand-btn" data-index="'+index+'">'+(isExpanded?'−':'+')+'</button><button class="toolbox-item-btn remove" data-index="'+index+'">✕</button></div></div><div class="toolbox-item-content"><div class="toolbox-item-preview">'+(card.content||'Preview not available')+'</div></div>';
+item.querySelector('.toolbox-item-header').addEventListener('click',function(e){
+if(!e.target.closest('.toolbox-item-btn')) toggleToolboxItem(index);
+});
+item.querySelector('.expand-btn').addEventListener('click',function(e){
+e.stopPropagation();
+toggleToolboxItem(index);
+});
+item.querySelector('.remove').addEventListener('click',function(e){
+e.stopPropagation();
+removeFromToolbox(index);
+});
+content.appendChild(item);
+});
 }
 
 function toggleToolboxItem(index){
-  if(expandedToolboxItems.has(index)){
-    expandedToolboxItems.delete(index);
-  }else{
-    expandedToolboxItems.add(index);
-  }
-  renderToolbox();
+if(expandedToolboxItems.has(index)){
+expandedToolboxItems.delete(index);
+}else{
+expandedToolboxItems.add(index);
+}
+renderToolbox();
 }
 
 function removeFromToolbox(index){
-  var cardName=toolboxCards[index].displayName;
-  toolboxCards.splice(index,1);
-  expandedToolboxItems.delete(index);
-  var newExpanded=new Set();
-  expandedToolboxItems.forEach(function(i){
-    if(i<index) newExpanded.add(i);
-    if(i>index) newExpanded.add(i-1);
-  });
-  expandedToolboxItems=newExpanded;
-  renderToolbox();
-  saveSettings();
-  notify('Removed',cardName+' removed','info');
+var cardName=toolboxCards[index].displayName;
+toolboxCards.splice(index,1);
+expandedToolboxItems.delete(index);
+var newExpanded=new Set();
+expandedToolboxItems.forEach(function(i){
+if(i<index) newExpanded.add(i);
+if(i>index) newExpanded.add(i-1);
+});
+expandedToolboxItems=newExpanded;
+renderToolbox();
+saveSettings();
+notify('Removed',cardName+' removed','info');
 }
 
 function clearToolbox(){
-  if(toolboxCards.length===0) return;
-  if(confirm('Clear all '+toolboxCards.length+' tools?')){
-    toolboxCards=[];
-    expandedToolboxItems.clear();
-    renderToolbox();
-    saveSettings();
-    notify('Cleared','All tools removed','info');
-  }
+if(toolboxCards.length===0) return;
+if(confirm('Clear all '+toolboxCards.length+' tools?')){
+toolboxCards=[];
+expandedToolboxItems.clear();
+renderToolbox();
+saveSettings();
+notify('Cleared','All tools removed','info');
+}
 }
 
 function setupEventListeners(){
-  var searchHandler=function(e){
-    var query=e.target.value.toLowerCase();
-    document.querySelectorAll('.card').forEach(function(card){
-      var name=card.dataset.name.toLowerCase();
-      var displayName=card.dataset.displayName.toLowerCase();
-      card.style.display=(name.indexOf(query)>-1||displayName.indexOf(query)>-1)?'':'none';
-    });
-  };
-  document.getElementById('mainSearchInput').addEventListener('input',searchHandler);
-  document.getElementById('stickySearchInput').addEventListener('input',searchHandler);
-  
-  document.getElementById('dashboard').addEventListener('click',function(e){
-    var btn=e.target.closest('.card-action-btn');
-    if(!btn) return;
-    var cardName=btn.dataset.card;
-    if(btn.classList.contains('add-toolbox')){
-      addToToolbox(cardName);
-    }else if(btn.classList.contains('expand-card')){
-      window.open('cards/'+cardName+'.html','_blank');
-    }
-  });
-  
-  document.getElementById('dashboard').addEventListener('click',function(e){
-    var btn=e.target.closest('.rating-btn');
-    if(!btn) return;
-    rateCard(btn.dataset.card,btn.dataset.vote);
-  });
-  
-  document.getElementById('dashboard').addEventListener('click',function(e){
-    var btn=e.target.closest('.embed-btn');
-    if(!btn) return;
-    copyEmbed(btn.dataset.card);
-  });
-  
-  document.getElementById('stickyPaletteToggle').addEventListener('click',function(){
-    document.getElementById('palettePanel').classList.toggle('open');
-  });
-  
-  document.getElementById('stickyReaderToggle').addEventListener('click',function(){
-    document.body.classList.toggle('reader-mode');
-    document.getElementById('stickyReaderToggle').classList.toggle('active',document.body.classList.contains('reader-mode'));
-    saveSettings();
-  });
-  
-  document.querySelectorAll('.palette-color').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      document.querySelectorAll('.palette-color').forEach(function(b){b.classList.remove('active');});
-      btn.classList.add('active');
-      document.documentElement.style.setProperty('--accent',btn.dataset.accent);
-      saveSettings();
-    });
-  });
-  
-  document.querySelectorAll('.theme-btn').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      document.querySelectorAll('.theme-btn').forEach(function(b){b.classList.remove('active');});
-      btn.classList.add('active');
-      var theme=themes[btn.dataset.theme];
-      if(theme) document.body.style.background='linear-gradient(135deg,'+theme.bg1+','+theme.bg2+')';
-      saveSettings();
-    });
-  });
-  
-  document.addEventListener('click',function(e){
-    if(!e.target.closest('.palette-panel') && !e.target.closest('#stickyPaletteToggle')){
-      document.getElementById('palettePanel').classList.remove('open');
-    }
-  });
-  
-  document.addEventListener('keydown',function(e){
-    if(e.ctrlKey || e.metaKey){
-      if(e.key==='t'){e.preventDefault();toggleToolbox();}
-      else if(e.key==='p'){e.preventDefault();document.getElementById('stickyPaletteToggle').click();}
-      else if(e.key==='r'){e.preventDefault();document.getElementById('stickyReaderToggle').click();}
-      else if(e.key==='k'){e.preventDefault();document.getElementById('mainSearchInput').focus();}
-    }
-    if(e.key==='Escape'){
-      closeToolbox();
-      document.getElementById('palettePanel').classList.remove('open');
-    }
-  });
+var searchHandler=function(e){
+var query=e.target.value.toLowerCase();
+document.querySelectorAll('.card').forEach(function(card){
+var name=card.dataset.name.toLowerCase();
+var displayName=card.dataset.displayName.toLowerCase();
+card.style.display=(name.indexOf(query)>-1||displayName.indexOf(query)>-1)?'':'none';
+});
+};
+document.getElementById('mainSearchInput').addEventListener('input',searchHandler);
+document.getElementById('stickySearchInput').addEventListener('input',searchHandler);
+document.getElementById('dashboard').addEventListener('click',function(e){
+var btn=e.target.closest('.card-action-btn');
+if(!btn) return;
+var cardName=btn.dataset.card;
+if(btn.classList.contains('add-toolbox')) addToToolbox(cardName);
+else if(btn.classList.contains('expand-card')) window.open('cards/'+cardName+'.html','_blank');
+});
+document.getElementById('dashboard').addEventListener('click',function(e){
+var btn=e.target.closest('.rating-btn');
+if(!btn) return;
+rateCard(btn.dataset.card,btn.dataset.vote);
+});
+document.getElementById('dashboard').addEventListener('click',function(e){
+var btn=e.target.closest('.embed-btn');
+if(!btn) return;
+copyEmbed(btn.dataset.card);
+});
+document.getElementById('stickyPaletteToggle').addEventListener('click',function(){
+document.getElementById('palettePanel').classList.toggle('open');
+});
+document.getElementById('stickyReaderToggle').addEventListener('click',function(){
+document.body.classList.toggle('reader-mode');
+document.getElementById('stickyReaderToggle').classList.toggle('active',document.body.classList.contains('reader-mode'));
+saveSettings();
+});
+document.querySelectorAll('.palette-color').forEach(function(btn){
+btn.addEventListener('click',function(){
+document.querySelectorAll('.palette-color').forEach(function(b){b.classList.remove('active');});
+btn.classList.add('active');
+document.documentElement.style.setProperty('--accent',btn.dataset.accent);
+saveSettings();
+});
+});
+document.querySelectorAll('.theme-btn').forEach(function(btn){
+btn.addEventListener('click',function(){
+document.querySelectorAll('.theme-btn').forEach(function(b){b.classList.remove('active');});
+btn.classList.add('active');
+var theme=themes[btn.dataset.theme];
+if(theme) document.body.style.background='linear-gradient(135deg,'+theme.bg1+','+theme.bg2+')';
+saveSettings();
+});
+});
+document.addEventListener('click',function(e){
+if(!e.target.closest('.palette-panel') && !e.target.closest('#stickyPaletteToggle')){
+document.getElementById('palettePanel').classList.remove('open');
+}
+});
+document.addEventListener('keydown',function(e){
+if(e.ctrlKey || e.metaKey){
+if(e.key==='t'){e.preventDefault();toggleToolbox();}
+else if(e.key==='p'){e.preventDefault();document.getElementById('stickyPaletteToggle').click();}
+else if(e.key==='r'){e.preventDefault();document.getElementById('stickyReaderToggle').click();}
+else if(e.key==='k'){e.preventDefault();document.getElementById('mainSearchInput').focus();}
+}
+if(e.key==='Escape'){
+closeToolbox();
+document.getElementById('palettePanel').classList.remove('open');
+}
+});
 }
 
 function setupStickyBar(){
-  var bar=document.getElementById('stickyCommandBar');
-  window.addEventListener('scroll',function(){
-    if(window.pageYOffset>CONFIG.STICKY_THRESHOLD){
-      bar.classList.add('visible');
-    }else{
-      bar.classList.remove('visible');
-    }
-  },{passive:true});
+var bar=document.getElementById('stickyCommandBar');
+window.addEventListener('scroll',function(){
+if(window.pageYOffset>CONFIG.STICKY_THRESHOLD){
+bar.classList.add('visible');
+}else{
+bar.classList.remove('visible');
+}
+},{passive:true});
 }
 
 function setupFAB(){
-  var fab=document.getElementById('fabMain');
-  var menu=document.getElementById('fabMenu');
-  fab.addEventListener('click',function(){
-    menu.classList.toggle('open');
-    fab.style.transform=menu.classList.contains('open')?'rotate(45deg)':'';
-  });
-  document.getElementById('fabScrollTop').addEventListener('click',function(){
-    window.scrollTo({top:0,behavior:'smooth'});
-    menu.classList.remove('open');
-    fab.style.transform='';
-  });
-  document.getElementById('fabRandom').addEventListener('click',function(){
-    var visibleCards=document.querySelectorAll('.card.visible');
-    if(visibleCards.length>0){
-      var random=visibleCards[Math.floor(Math.random()*visibleCards.length)];
-      random.scrollIntoView({behavior:'smooth',block:'center'});
-    }
-    menu.classList.remove('open');
-    fab.style.transform='';
-  });
+var fab=document.getElementById('fabMain');
+var menu=document.getElementById('fabMenu');
+fab.addEventListener('click',function(){
+menu.classList.toggle('open');
+fab.style.transform=menu.classList.contains('open')?'rotate(45deg)':'';
+});
+document.getElementById('fabScrollTop').addEventListener('click',function(){
+window.scrollTo({top:0,behavior:'smooth'});
+menu.classList.remove('open');
+fab.style.transform='';
+});
+document.getElementById('fabRandom').addEventListener('click',function(){
+var visibleCards=document.querySelectorAll('.card.visible');
+if(visibleCards.length>0){
+var random=visibleCards[Math.floor(Math.random()*visibleCards.length)];
+random.scrollIntoView({behavior:'smooth',block:'center'});
+}
+menu.classList.remove('open');
+fab.style.transform='';
+});
 }
 
 function getRating(cardName){
-  return cardRatings[cardName] || {up:0,down:0,userVote:null};
+return cardRatings[cardName] || {up:0,down:0,userVote:null};
 }
 
 function rateCard(cardName,type){
-  if(!cardRatings[cardName]) cardRatings[cardName]={up:0,down:0,userVote:null};
-  if(cardRatings[cardName].userVote==='up') cardRatings[cardName].up--;
-  if(cardRatings[cardName].userVote==='down') cardRatings[cardName].down--;
-  cardRatings[cardName][type]++;
-  cardRatings[cardName].userVote=type;
-  saveSettings();
-  var card=document.querySelector('.card[data-name="'+cardName+'"]');
-  if(card){
-    var footer=card.querySelector('.card-footer');
-    if(footer) footer.remove();
-    addCardFooter(card,cardName);
-  }
-  notify('Thanks!','Rated '+(type==='up'?'👍':'👎'),'success');
+if(!cardRatings[cardName]) cardRatings[cardName]={up:0,down:0,userVote:null};
+if(cardRatings[cardName].userVote==='up') cardRatings[cardName].up--;
+if(cardRatings[cardName].userVote==='down') cardRatings[cardName].down--;
+cardRatings[cardName][type]++;
+cardRatings[cardName].userVote=type;
+saveSettings();
+var card=document.querySelector('.card[data-name="'+cardName+'"]');
+if(card){
+var footer=card.querySelector('.card-footer');
+if(footer) footer.remove();
+addCardFooter(card,cardName);
+}
+notify('Thanks!','Rated '+(type==='up'?'👍':'👎'),'success');
 }
 
 function copyEmbed(cardName){
-  var code='<iframe src="'+window.location.origin+'/cards/'+cardName+'.html" width="100%" height="400" style="border:none;border-radius:12px" title="'+cardName+'"></iframe>';
-  navigator.clipboard.writeText(code).then(function(){
-    var btn=document.querySelector('.embed-btn[data-card="'+cardName+'"]');
-    if(btn){
-      btn.textContent='✅ Copied!';
-      btn.classList.add('copied');
-      setTimeout(function(){
-        btn.textContent='🔗 Embed';
-        btn.classList.remove('copied');
-      },2000);
-    }
-    notify('Copied!','Embed code copied','success');
-  });
+var code='<iframe src="'+window.location.origin+'/cards/'+cardName+'.html" width="100%" height="400" style="border:none;border-radius:12px" title="'+cardName+'"></iframe>';
+navigator.clipboard.writeText(code).then(function(){
+var btn=document.querySelector('.embed-btn[data-card="'+cardName+'"]');
+if(btn){
+btn.textContent='✅ Copied!';
+btn.classList.add('copied');
+setTimeout(function(){
+btn.textContent='🔗 Embed';
+btn.classList.remove('copied');
+},2000);
+}
+notify('Copied!','Embed code copied','success');
+});
 }
 
 function loadSettings(){
-  var saved=localStorage.getItem('usefulSiteSettings');
-  if(saved){
-    var data=JSON.parse(saved);
-    cardRatings=data.ratings || {};
-    toolboxCards=data.toolbox || [];
-    toolboxViewMode=data.toolboxViewMode || 'grid';
-    if(data.accent) document.documentElement.style.setProperty('--accent',data.accent);
-    if(data.theme){
-      var theme=themes[data.theme];
-      if(theme) document.body.style.background='linear-gradient(135deg,'+theme.bg1+','+theme.bg2+')';
-    }
-    if(data.readerMode) document.body.classList.add('reader-mode');
-  }
+var saved=localStorage.getItem('usefulSiteSettings');
+if(saved){
+var data=JSON.parse(saved);
+cardRatings=data.ratings || {};
+toolboxCards=data.toolbox || [];
+toolboxViewMode=data.toolboxViewMode || 'grid';
+if(data.accent) document.documentElement.style.setProperty('--accent',data.accent);
+if(data.theme){
+var theme=themes[data.theme];
+if(theme) document.body.style.background='linear-gradient(135deg,'+theme.bg1+','+theme.bg2+')';
+}
+if(data.readerMode) document.body.classList.add('reader-mode');
+}
 }
 
 function saveSettings(){
-  var data={
-    ratings:cardRatings,
-    toolbox:toolboxCards,
-    toolboxViewMode:toolboxViewMode,
-    accent:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
-    theme:document.querySelector('.theme-btn.active')?document.querySelector('.theme-btn.active').dataset.theme:'default',
-    readerMode:document.body.classList.contains('reader-mode')
-  };
-  localStorage.setItem('usefulSiteSettings',JSON.stringify(data));
+var data={
+ratings:cardRatings,
+toolbox:toolboxCards,
+toolboxViewMode:toolboxViewMode,
+accent:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
+theme:document.querySelector('.theme-btn.active')?document.querySelector('.theme-btn.active').dataset.theme:'default',
+readerMode:document.body.classList.contains('reader-mode')
+};
+localStorage.setItem('usefulSiteSettings',JSON.stringify(data));
 }
 
 function notify(title,message,type){
-  var container=document.getElementById('notificationContainer');
-  var notif=document.createElement('div');
-  notif.className='notification';
-  var icons={success:'✅',error:'❌',warning:'⚠️',info:'ℹ️'};
-  notif.innerHTML='<div class="notification-title">'+icons[type]+' '+title+'</div><div class="notification-message">'+message+'</div>';
-  container.appendChild(notif);
-  setTimeout(function(){
-    notif.classList.add('hiding');
-    setTimeout(function(){notif.remove();},300);
-  },CONFIG.NOTIFICATION_DURATION);
+var container=document.getElementById('notificationContainer');
+var notif=document.createElement('div');
+notif.className='notification';
+var icons={success:'✅',error:'❌',warning:'⚠️',info:'ℹ️'};
+notif.innerHTML='<div class="notification-title">'+icons[type]+' '+title+'</div><div class="notification-message">'+message+'</div>';
+container.appendChild(notif);
+setTimeout(function(){
+notif.classList.add('hiding');
+setTimeout(function(){notif.remove();},300);
+},CONFIG.NOTIFICATION_DURATION);
 }
+
+document.addEventListener('DOMContentLoaded',function(){
+loadSettings();
+setupEventListeners();
+setupStickyBar();
+setupFAB();
+setupToolbox();
+loadCards();
+});
 </script>
 </body>
 </html>
