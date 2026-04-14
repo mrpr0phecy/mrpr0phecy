@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🌆 NEON METROPOLIS — Living City Simulation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { overflow: hidden; background: #000; font-family: 'Share Tech Mono', monospace; }
+
+        /* ── HUD ── */
+        #hud {
+            position: fixed; top: 0; left: 0; right: 0;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding: 18px 24px; pointer-events: none; z-index: 100;
+        }
+        #logo {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900; font-size: 13px; letter-spacing: 4px;
+            color: #00ffe7;
+            text-shadow: 0 0 12px #00ffe7, 0 0 30px #00ffe755;
+            line-height: 1.4;
+        }
+        #logo span { display: block; font-size: 9px; color: #ff44cc; letter-spacing: 6px; font-weight: 400; margin-top: 2px; text-shadow: 0 0 8px #ff44cc; }
+
+        #stats-panel {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 6px 18px; font-size: 11px; text-align: right;
+        }
+        .stat { color: #7af; letter-spacing: 1px; }
+        .stat b { color: #fff; font-weight: normal; }
+
+        /* ── THOUGHT BUBBLE ── */
+        #thought {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.88);
+            border: 1px solid rgba(255,68,204,0.7);
+            border-radius: 999px;
+            padding: 10px 28px;
+            color: #ffccf5;
+            font-size: 14px; letter-spacing: 1px;
+            box-shadow: 0 0 30px rgba(255,68,204,0.35), inset 0 0 20px rgba(255,68,204,0.05);
+            white-space: nowrap;
+            z-index: 200; display: none; pointer-events: none;
+            animation: thoughtPulse 3s ease-in-out infinite;
+        }
+        @keyframes thoughtPulse {
+            0%,100% { box-shadow: 0 0 20px rgba(255,68,204,0.3); }
+            50% { box-shadow: 0 0 40px rgba(255,68,204,0.6); }
+        }
+
+        /* ── WEATHER TICKER ── */
+        #weather-bar {
+            position: fixed; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, #00ffe7, #ff44cc, #00ffe7);
+            background-size: 200% 100%;
+            animation: shimmer 3s linear infinite;
+            z-index: 99;
+        }
+        @keyframes shimmer { from { background-position: 0% 0%; } to { background-position: 200% 0%; } }
+
+        /* ── CONTROLS ── */
+        #controls {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 150;
+        }
+        .cam-btn {
+            background: rgba(0,0,0,0.75);
+            border: 1px solid rgba(0,255,231,0.4);
+            color: #00ffe7;
+            padding: 8px 16px;
+            border-radius: 999px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px; letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(8px);
+        }
+        .cam-btn:hover, .cam-btn.active {
+            background: rgba(0,255,231,0.15);
+            border-color: #00ffe7;
+            box-shadow: 0 0 18px rgba(0,255,231,0.5);
+            color: #fff;
+        }
+
+        /* ── TIME OF DAY OVERLAY ── */
+        #tod-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none; z-index: 50;
+            mix-blend-mode: multiply;
+            transition: background 4s ease;
+        }
+
+        /* ── SCAN LINE effect ── */
+        #scanlines {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none; z-index: 300;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+                rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
+            );
+        }
+
+        /* ── INFO BOX ── */
+        #info {
+            position: fixed; bottom: 20px; left: 20px;
+            color: rgba(255,255,255,0.3); font-size: 10px; letter-spacing: 1px;
+            pointer-events: none; z-index: 100; line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+<div id="weather-bar"></div>
+<div id="scanlines"></div>
+<div id="tod-overlay"></div>
+
+<div id="hud">
+    <div id="logo">NEON METROPOLIS<span>▸ LIVE SIMULATION v2.0</span></div>
+    <div id="stats-panel">
+        <div class="stat">POPULATION <b id="s-pop">0</b></div>
+        <div class="stat">BUILDINGS <b id="s-bld">0</b></div>
+        <div class="stat">VEHICLES <b id="s-veh">0</b></div>
+        <div class="stat">WEATHER <b id="s-wx">CLEAR</b></div>
+        <div class="stat">TIME <b id="s-time">06:00</b></div>
+        <div class="stat">DISTRICT <b id="s-dist">CENTRAL</b></div>
+    </div>
+</div>
+
+<div id="thought">💭 ...</div>
+
+<div id="controls">
+    <button class="cam-btn active" id="btn0" onclick="setCamera(0)">⟳ ORBIT</button>
+    <button class="cam-btn" id="btn1" onclick="setCamera(1)">👁 FOLLOW</button>
+    <button class="cam-btn" id="btn2" onclick="setCamera(2)">◈ FIRST PERSON</button>
+    <button class="cam-btn" id="btn3" onclick="setCamera(3)">🎬 CINEMATIC</button>
+</div>
+
+<div id="info">
+    DRAG → ORBIT &nbsp;|&nbsp; SCROLL → ZOOM &nbsp;|&nbsp; KEYS 1-4 → CAMERA
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+// =====================================================
+//  NEON METROPOLIS — ENHANCED CITY SIMULATION
+// =====================================================
+let scene, camera, renderer, mainLight, skyUniforms;
+let buildings = [], residents = [], vehicles = [];
+let rainSystem = null, rainPositions = null;
+let timeOfDay = 0;
+let currentWeather = 'clear';
+let cameraMode = 0;
+let followTarget = null;
+let orbitAngle = 0.8, orbitHeight = 65;
+let isDragging = false, lastMX = 0, lastMY = 0;
+let camZoom = 115;
+let frameCount = 0;
+
+const WEATHER_STATES = ['clear', 'rain', 'fog', 'storm', 'clear', 'clear'];
+const DISTRICTS = ['CENTRAL', 'WESTSIDE', 'HARBOR', 'UPTOWN', 'INDUSTRIAL', 'NEON STRIP'];
+
+function rand(a, b) { return a + Math.random() * (b - a); }
+function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+
+// ─── TERRAIN ──────────────────────────────────────
+function getTerrainY(x, z) {
+    let y = Math.sin(x*0.025)*1.2*Math.cos(z*0.025) + Math.sin(x*0.08)*0.5 + Math.cos(z*0.07)*0.5;
+    let river = Math.exp(-Math.pow(x/60,6)) * Math.exp(-Math.pow(z/180,2)) * 2.0;
+    y -= river;
+    if (Math.hypot(x,z) > 145) y += 1.8*Math.sin(x*0.04)*Math.cos(z*0.04);
+    return y;
+}
+
+function buildTerrain() {
+    const geo = new THREE.PlaneGeometry(420, 420, 140, 140);
+    geo.rotateX(-Math.PI/2);
+    const pos = geo.attributes.position.array;
+    for (let i = 0; i < pos.length; i += 3) {
+        pos[i+1] = getTerrainY(pos[i], pos[i+2]);
+    }
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x1a1a28, roughness: 0.85, metalness: 0.1 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+
+    // Roads
+    const roadMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.5, metalness: 0.6 });
+    const markMat = new THREE.MeshStandardMaterial({ color: 0xffdd00, emissive: 0x332200, emissiveIntensity: 0.3 });
+    for (let i = -160; i <= 160; i += 28) {
+        for (const [w, h, xi, zi] of [[11, 0.18, i, 0], [380, 0.18, 0, i]]) {
+            const r = new THREE.Mesh(new THREE.BoxGeometry(w, h, 380 - (w===380?0:0)), roadMat);
+            r.position.set(xi, getTerrainY(xi,zi)+0.12, zi);
+            r.receiveShadow = true;
+            scene.add(r);
+        }
+        // center lane dashes
+        for (let d = -170; d < 170; d += 12) {
+            const dash = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 4), markMat);
+            dash.position.set(i, getTerrainY(i,d)+0.14, d);
+            scene.add(dash);
+        }
+    }
+}
+
+// ─── RIVER ────────────────────────────────────────
+function buildRiver() {
+    const geo = new THREE.PlaneGeometry(85, 290, 20, 20);
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0x0d2d44, emissive: 0x003355, emissiveIntensity: 0.5,
+        metalness: 0.95, roughness: 0.1, transparent: true, opacity: 0.88
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI/2;
+    mesh.position.set(0, getTerrainY(0,-20)-0.1, -20);
+    scene.add(mesh);
+    return mesh;
+}
+
+// ─── BRIDGE ───────────────────────────────────────
+function buildBridge() {
+    const g = new THREE.Group();
+    const deckMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.75, roughness: 0.35 });
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(11, 0.55, 70), deckMat);
+    deck.position.set(0, getTerrainY(0,-30)+3.4, -30);
+    deck.castShadow = true; deck.receiveShadow = true;
+    g.add(deck);
+
+    // Guardrails
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x00ffe7, emissive: 0x004455, emissiveIntensity: 0.6 });
+    for (let side of [-5.2, 5.2]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.2, 68), railMat);
+        rail.position.set(side, getTerrainY(0,-30)+4.4, -30);
+        g.add(rail);
+    }
+
+    // Pillars
+    const pMat = new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.6 });
+    for (let z = -58; z <= -4; z += 16) {
+        for (let px of [-3.5, 3.5]) {
+            const p = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 7, 8), pMat);
+            p.position.set(px, getTerrainY(px,z)+2.8, z);
+            p.castShadow = true;
+            g.add(p);
+        }
+    }
+
+    // Arch cables with neon glow
+    const archMat = new THREE.MeshStandardMaterial({ color: 0xff8800, emissive: 0xff4400, emissiveIntensity: 0.8 });
+    for (let z of [-45, -25]) {
+        const arch = new THREE.Mesh(new THREE.TorusGeometry(9, 0.5, 8, 32, Math.PI), archMat);
+        arch.rotation.x = Math.PI/2; arch.position.set(0, 8.5, z);
+        g.add(arch);
+    }
+    // Bridge lights
+    const bLightMat = new THREE.MeshStandardMaterial({ color: 0xffffaa, emissive: 0xffcc44, emissiveIntensity: 1.5 });
+    for (let z = -60; z <= 0; z += 10) {
+        for (let bx of [-5.8, 5.8]) {
+            const bl = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), bLightMat);
+            bl.position.set(bx, getTerrainY(0,-30)+5.2, z);
+            g.add(bl);
+            const pl = new THREE.PointLight(0xffcc44, 0.4, 8);
+            pl.position.copy(bl.position);
+            g.add(pl);
+        }
+    }
+    scene.add(g);
+}
+
+// ─── BUILDINGS ────────────────────────────────────
+const BUILDING_PALETTES = [
+    { base: [0.6,0.7,0.45], emissive: 0x001133, win: 0x88ccff },
+    { base: [0.0,0.6,0.5],  emissive: 0x002200, win: 0xaaffcc },
+    { base: [0.85,0.8,0.5], emissive: 0x220011, win: 0xffaacc },
+    { base: [0.55,0.5,0.4], emissive: 0x111100, win: 0xffdd88 },
+];
+
+function createBuilding(x, z) {
+    if (buildings.length > 240) return;
+    const h = rand(5, 48);
+    const w = rand(3.8, 10);
+    const d = rand(3.8, 10);
+    const pal = BUILDING_PALETTES[Math.floor(Math.random()*BUILDING_PALETTES.length)];
+    const col = new THREE.Color().setHSL(...pal.base);
+    const mat = new THREE.MeshStandardMaterial({ color: col, metalness: 0.35, roughness: 0.45, emissive: new THREE.Color(pal.emissive) });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    const gy = getTerrainY(x,z);
+    mesh.position.set(x, gy+h/2, z);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    scene.add(mesh);
+
+    // window rows
+    const winMat = new THREE.MeshStandardMaterial({ color: pal.win, emissive: new THREE.Color(pal.win), emissiveIntensity: 0.4 });
+    const floors = Math.floor(h/2.8);
+    for (let fl = 1; fl < floors; fl++) {
+        const wy = gy + fl*2.8;
+        // front/back windows
+        for (let side of [1,-1]) {
+            const ww = new THREE.Mesh(new THREE.PlaneGeometry(w*0.7, 1.2), winMat);
+            ww.position.set(x, wy, z + side*(d/2+0.05));
+            ww.rotation.y = side > 0 ? 0 : Math.PI;
+            scene.add(ww);
+        }
+    }
+
+    // rooftop details — antenna, water tower, etc.
+    if (h > 20 && Math.random() > 0.4) {
+        const antMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+        const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, rand(3,8), 6), antMat);
+        ant.position.set(x + rand(-w/3,w/3), gy+h + ant.geometry.parameters.height/2, z + rand(-d/3,d/3));
+        ant.castShadow = true;
+        scene.add(ant);
+        // blinking light
+        const blinkMat = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 1.0 });
+        const blink = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), blinkMat);
+        blink.position.copy(ant.position);
+        blink.position.y += ant.geometry.parameters.height/2;
+        blink.userData.isBlinker = true;
+        scene.add(blink);
+    }
+
+    // Neon sign on tall buildings
+    if (h > 25 && Math.random() > 0.5) {
+        const signColors = [0xff44cc, 0x00ffe7, 0xffdd00, 0xff6600];
+        const sc = signColors[Math.floor(Math.random()*signColors.length)];
+        const signMat = new THREE.MeshStandardMaterial({ color: sc, emissive: new THREE.Color(sc), emissiveIntensity: 1.2 });
+        const sign = new THREE.Mesh(new THREE.BoxGeometry(w*0.6, 0.4, 0.2), signMat);
+        sign.position.set(x, gy+h*0.75, z+d/2+0.2);
+        scene.add(sign);
+        const pl = new THREE.PointLight(sc, 0.8, 15);
+        pl.position.copy(sign.position);
+        scene.add(pl);
+    }
+    buildings.push(mesh);
+}
+
+// ─── CITIZENS ─────────────────────────────────────
+const MALE_THOUGHTS = [
+    "💻 need more RAM for my augments","🍺 where's the synth-bar?","🏠 rent's too high in this district",
+    "🔧 gotta fix my neural link","⚡ rain makes everything glitch","📡 scanning for open WiFi",
+    "🚇 metro's late again","🤖 saw a bot glitch on level 4","🎰 lost 200 credits at the casino",
+    "🌃 this city never sleeps"
+];
+const FEMALE_THOUGHTS = [
+    "✨ love the neon reflections","🚁 my drone needs an upgrade","⚡ this city breathes energy",
+    "🛍️ should open a tech-shop","🌉 let's climb the bridge tonight","💎 found a rare data shard",
+    "🎵 new track drops at midnight","🌧️ rain smells like circuits","📸 perfect shot for the feed",
+    "🌺 even dystopias have beauty"
+];
+
+class Citizen {
+    constructor(x, z, gender) {
+        this.gender = gender || (Math.random()>0.5?'male':'female');
+        this.g = new THREE.Group();
+        const skin = new THREE.Color().setHSL(0.06+Math.random()*0.05, 0.55, 0.55+Math.random()*0.2);
+        const shirt = new THREE.Color().setHSL(Math.random(), 0.75, 0.45);
+        const pants = new THREE.Color().setHSL(Math.random()*0.15+0.55, 0.4, 0.3);
+
+        // legs
+        const legM = new THREE.MeshStandardMaterial({color:pants});
+        for (let sx of [-0.18, 0.18]) {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.75, 0.28), legM);
+            leg.position.set(sx, 0.4, 0); leg.castShadow=true; this.g.add(leg);
+        }
+        // torso
+        const torsoM = new THREE.MeshStandardMaterial({color:shirt});
+        this.torso = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.78, 0.35), torsoM);
+        this.torso.position.y = 1.05; this.torso.castShadow=true; this.g.add(this.torso);
+        // arms
+        const armM = new THREE.MeshStandardMaterial({color:shirt});
+        for (let sx of [-0.42, 0.42]) {
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.65, 0.25), armM);
+            arm.position.set(sx, 1.0, 0); this.g.add(arm);
+        }
+        // head
+        const headM = new THREE.MeshStandardMaterial({color:skin});
+        this.head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 16), headM);
+        this.head.position.y = 1.72; this.head.castShadow=true; this.g.add(this.head);
+        // hair
+        const hairCol = new THREE.Color().setHSL(0.07*Math.random(), 0.6, 0.3);
+        const hairM = new THREE.MeshStandardMaterial({color:hairCol});
+        if (this.gender==='female') {
+            const hair = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.38, 0.22, 8), hairM);
+            hair.position.y = 1.93; this.g.add(hair);
+        } else {
+            const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, 0.16, 6), hairM);
+            cap.position.y = 1.94; this.g.add(cap);
+        }
+        const gy = getTerrainY(x,z);
+        this.g.position.set(x, gy+0.18, z);
+        scene.add(this.g);
+        this.x=x; this.z=z; this.tx=x; this.tz=z;
+        this.speed = rand(0.08, 0.16);
+        this.walk = 0;
+        this.thought = "just arrived";
+        this.lastThought = Date.now() - rand(0,3000);
+        this.home = { x, z };
+        this.state = 'wander'; // wander, rest, social
+    }
+    update() {
+        this.walk += 0.12;
+        const bob = Math.sin(this.walk)*0.025;
+        this.g.position.y = getTerrainY(this.x,this.z)+0.18+bob;
+        // arm swing
+        this.torso && (this.torso.rotation.z = Math.sin(this.walk)*0.04);
+
+        // thought update
+        if (Date.now()-this.lastThought > rand(3000,5500)) {
+            const pool = this.gender==='male' ? MALE_THOUGHTS : FEMALE_THOUGHTS;
+            this.thought = pool[Math.floor(Math.random()*pool.length)];
+            if (currentWeather==='storm') this.thought = "⛈️ sheltering from the storm!";
+            this.lastThought = Date.now();
+        }
+        // movement
+        if (Math.hypot(this.x-this.tx, this.z-this.tz) < 2.5 || Math.random()<0.012) {
+            this.tx = clamp(this.x+(Math.random()-0.5)*70, -175, 175);
+            this.tz = clamp(this.z+(Math.random()-0.5)*70, -175, 175);
+        }
+        const dx=this.tx-this.x, dz=this.tz-this.z, dist=Math.hypot(dx,dz);
+        if (dist > 0.05) {
+            const spd = currentWeather==='storm' ? this.speed*1.6 : this.speed;
+            this.x += (dx/dist)*spd; this.z += (dz/dist)*spd;
+        }
+        this.g.position.x=this.x; this.g.position.z=this.z;
+        this.g.rotation.y = Math.atan2(dx,dz);
+    }
+}
+
+// ─── VEHICLES ─────────────────────────────────────
+const CAR_COLORS = [0xcc2222,0x2244cc,0x22aa44,0xcccc22,0xaa44aa,0xffffff,0x111111,0xff6600];
+function createVehicle(x,z) {
+    const g = new THREE.Group();
+    const cc = CAR_COLORS[Math.floor(Math.random()*CAR_COLORS.length)];
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.9,0.55,3.5), new THREE.MeshStandardMaterial({color:cc,metalness:0.9,roughness:0.2}));
+    body.castShadow=true; g.add(body);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.42,2.2), new THREE.MeshStandardMaterial({color:0x111111}));
+    roof.position.y=0.48; g.add(roof);
+    // wheels
+    const wMat = new THREE.MeshStandardMaterial({color:0x222222,metalness:0.3});
+    for (let wx of [-0.9,0.9]) for (let wz of [-1.1,1.1]) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.25,12), wMat);
+        w.rotation.z=Math.PI/2; w.position.set(wx,-0.25,wz); g.add(w);
+    }
+    // headlights
+    const hlMat = new THREE.MeshStandardMaterial({color:0xffffcc,emissive:0xffffcc,emissiveIntensity:1.5});
+    for (let hx of [-0.6,0.6]) {
+        const hl = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.15,0.1), hlMat);
+        hl.position.set(hx,-0.05,1.8); g.add(hl);
+    }
+    // tail lights
+    const tlMat = new THREE.MeshStandardMaterial({color:0xff2200,emissive:0xff2200,emissiveIntensity:1.2});
+    for (let tx of [-0.6,0.6]) {
+        const tl = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.12,0.1), tlMat);
+        tl.position.set(tx,-0.05,-1.8); g.add(tl);
+    }
+    g.position.set(x,getTerrainY(x,z)+0.28,z);
+    scene.add(g);
+    return {mesh:g, x, z, tx:x+(Math.random()-0.5)*140, tz:z+(Math.random()-0.5)*140, speed:rand(0.6,1.5)};
+}
+
+// ─── RAIN ─────────────────────────────────────────
+function startRain(heavy=false) {
+    if (rainSystem) { scene.remove(rainSystem); rainSystem=null; }
+    const count = heavy ? 6000 : 3500;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(count*3);
+    for (let i=0;i<count;i++) {
+        pos[i*3]   = (Math.random()-0.5)*420;
+        pos[i*3+1] = Math.random()*130;
+        pos[i*3+2] = (Math.random()-0.5)*420;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    const mat = new THREE.PointsMaterial({color: heavy?0x99bbdd:0xbbddff, size:0.22, transparent:true, opacity:0.65});
+    rainSystem = new THREE.Points(geo, mat);
+    rainPositions = pos;
+    scene.add(rainSystem);
+}
+function stopRain() {
+    if (rainSystem) { scene.remove(rainSystem); rainSystem=null; rainPositions=null; }
+}
+
+// ─── LIGHTING ─────────────────────────────────────
+function setupLighting() {
+    scene.add(new THREE.AmbientLight(0x1a1a3a, 0.7));
+    mainLight = new THREE.DirectionalLight(0xffdd99, 1.4);
+    mainLight.position.set(70, 100, 50);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.set(2048,2048);
+    mainLight.shadow.camera.near = 0.5;
+    mainLight.shadow.camera.far = 350;
+    mainLight.shadow.camera.left = -100; mainLight.shadow.camera.right = 100;
+    mainLight.shadow.camera.top = 100; mainLight.shadow.camera.bottom = -100;
+    mainLight.shadow.bias = -0.001;
+    scene.add(mainLight);
+
+    const fill = new THREE.PointLight(0x2244aa, 0.5);
+    fill.position.set(-40, 50, 35); scene.add(fill);
+    const back = new THREE.PointLight(0xff44cc, 0.35);
+    back.position.set(25, 40, -60); scene.add(back);
+}
+
+// ─── SKY ──────────────────────────────────────────
+function buildSky() {
+    const v = `varying vec3 vWP; void main(){vec4 w=modelMatrix*vec4(position,1.);vWP=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`;
+    const f = `uniform vec3 top,bot; uniform float sun; varying vec3 vWP;
+    void main(){float h=clamp((normalize(vWP).y+0.3)/1.2,0.,1.);
+    vec3 c=mix(bot,top,h); c+=vec3(.1,.03,.18)*sun*(1.-h); gl_FragColor=vec4(c,1.);}`;
+    skyUniforms = {
+        top:{value:new THREE.Color(0x060818)},
+        bot:{value:new THREE.Color(0x1a0a2e)},
+        sun:{value:1.0}
+    };
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(480,64,64),
+        new THREE.ShaderMaterial({uniforms:skyUniforms,vertexShader:v,fragmentShader:f,side:THREE.BackSide}));
+    scene.add(sky);
+
+    // Stars
+    const sg = new THREE.BufferGeometry();
+    const sp = [];
+    for(let i=0;i<2200;i++){
+        sp.push((Math.random()-0.5)*900, Math.random()*400+50, (Math.random()-0.5)*700);
+    }
+    sg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(sp),3));
+    scene.add(new THREE.Points(sg, new THREE.PointsMaterial({color:0xffffff,size:0.38,transparent:true,opacity:0.8})));
+
+    // Moon
+    const moonMat = new THREE.MeshStandardMaterial({color:0xeeeedd, emissive:0x222211, emissiveIntensity:0.3});
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(5,20,20), moonMat);
+    moon.position.set(-120, 180, -300); scene.add(moon);
+    const moonGlow = new THREE.PointLight(0xccddff, 0.3, 500);
+    moonGlow.position.copy(moon.position); scene.add(moonGlow);
+}
+
+// ─── POPULATE ─────────────────────────────────────
+function populateCity() {
+    for (let i=-145;i<=145;i+=22) for (let j=-145;j<=145;j+=22) {
+        if (Math.random()>0.3 && Math.hypot(i,j)<165) {
+            createBuilding(i+rand(-4,4), j+rand(-4,4));
+        }
+    }
+    for (let k=0;k<25;k++) {
+        const a=Math.random()*Math.PI*2, r=Math.random()*65;
+        createBuilding(Math.cos(a)*r, Math.sin(a)*r);
+    }
+    for (let i=0;i<115;i++) {
+        const a=Math.random()*Math.PI*2, r=Math.random()*155;
+        residents.push(new Citizen(Math.cos(a)*r, Math.sin(a)*r));
+    }
+    for (let i=0;i<35;i++) {
+        const x=rand(-170,170), z=rand(-170,170);
+        vehicles.push(createVehicle(x,z));
+    }
+}
+
+// ─── CAMERA ───────────────────────────────────────
+function setCamera(mode) {
+    cameraMode = mode;
+    document.querySelectorAll('.cam-btn').forEach((b,i)=>b.classList.toggle('active',i===mode));
+    if ((mode===1||mode===2) && residents.length) {
+        followTarget = residents[Math.floor(Math.random()*residents.length)];
+    }
+}
+window.setCamera = setCamera;
+
+// ─── SIMULATION UPDATE ────────────────────────────
+let weatherTimer = 0;
+function updateSim(dt) {
+    frameCount++;
+    timeOfDay += 0.006;
+    weatherTimer += dt;
+
+    // Weather change
+    if (weatherTimer > 22000 || Math.random()<0.0004) {
+        weatherTimer=0;
+        const prev = currentWeather;
+        currentWeather = WEATHER_STATES[Math.floor(Math.random()*WEATHER_STATES.length)];
+        if (currentWeather!==prev) {
+            stopRain();
+            if (currentWeather==='rain') startRain(false);
+            if (currentWeather==='storm') startRain(true);
+            scene.fog.density = (currentWeather==='fog'||currentWeather==='storm')?0.009:0.0025;
+        }
+    }
+
+    // Rain animation
+    if (rainPositions && (currentWeather==='rain'||currentWeather==='storm')) {
+        const spd = currentWeather==='storm' ? 0.7 : 0.42;
+        for (let i=1;i<rainPositions.length;i+=3) {
+            rainPositions[i] -= spd;
+            if (rainPositions[i]<0) rainPositions[i]=125;
+        }
+        rainSystem.geometry.attributes.position.needsUpdate=true;
+    }
+
+    // Residents
+    residents.forEach(r=>r.update());
+
+    // Vehicles
+    vehicles.forEach(v=>{
+        const dx=v.tx-v.x, dz=v.tz-v.z, dist=Math.hypot(dx,dz);
+        if (dist<6||Math.random()<0.015){
+            v.tx=clamp(v.x+rand(-140,140),-170,170);
+            v.tz=clamp(v.z+rand(-140,140),-170,170);
+        }
+        if (dist>0.1){
+            v.x+=(dx/dist)*v.speed; v.z+=(dz/dist)*v.speed;
+        }
+        v.mesh.position.set(v.x,getTerrainY(v.x,v.z)+0.28,v.z);
+        v.mesh.rotation.y=Math.atan2(dx,dz);
+    });
+
+    // Organic growth
+    if (buildings.length<250&&Math.random()<0.008){
+        const a=Math.random()*Math.PI*2,r=Math.random()*155;
+        createBuilding(Math.cos(a)*r,Math.sin(a)*r);
+    }
+    if (residents.length<190&&Math.random()<0.007){
+        const a=Math.random()*Math.PI*2,r=Math.random()*150;
+        residents.push(new Citizen(Math.cos(a)*r,Math.sin(a)*r));
+    }
+
+    // Blinkers
+    if (frameCount%45===0) {
+        scene.children.forEach(c=>{ if(c.userData&&c.userData.isBlinker) {
+            c.material.emissiveIntensity = Math.random()>0.5?1.0:0.1;
+        }});
+    }
+
+    // Dynamic lighting day/night
+    const dayProgress = (Math.sin(timeOfDay*0.3)+1)/2; // 0=night,1=day
+    if (mainLight) {
+        mainLight.intensity = 0.35 + dayProgress*1.1;
+        mainLight.color.setHSL(0.1+dayProgress*0.05, 1.0, 0.5+dayProgress*0.15);
+        mainLight.position.set(
+            Math.cos(timeOfDay*0.3)*80,
+            50+Math.sin(timeOfDay*0.3)*50,
+            40
+        );
+    }
+    if (skyUniforms) {
+        const nightBlue = new THREE.Color(0x06080e);
+        const dayBlue = new THREE.Color(0x0a1535);
+        skyUniforms.top.value.lerpColors(nightBlue, dayBlue, dayProgress);
+        skyUniforms.sun.value = 1-dayProgress*0.5;
+    }
+
+    // UI update
+    const simHour = Math.floor(((timeOfDay*0.3*180/Math.PI)%360)/15) % 24;
+    const simMin = Math.floor(((timeOfDay*18)%60));
+    document.getElementById('s-pop').textContent = residents.length;
+    document.getElementById('s-bld').textContent = buildings.length;
+    document.getElementById('s-veh').textContent = vehicles.length;
+    document.getElementById('s-wx').textContent = currentWeather.toUpperCase();
+    document.getElementById('s-time').textContent = `${String(simHour).padStart(2,'0')}:${String(simMin).padStart(2,'0')}`;
+    document.getElementById('s-dist').textContent = followTarget
+        ? DISTRICTS[residents.indexOf(followTarget)%DISTRICTS.length]
+        : DISTRICTS[Math.floor(timeOfDay*0.1)%DISTRICTS.length];
+
+    // Thought bubble
+    const tb = document.getElementById('thought');
+    if ((cameraMode===1||cameraMode===2)&&followTarget){
+        tb.style.display='block';
+        tb.textContent = `💭 ${followTarget.thought}`;
+    } else { tb.style.display='none'; }
+
+    // TOD overlay
+    const todEl = document.getElementById('tod-overlay');
+    if (dayProgress < 0.3) {
+        todEl.style.background = `rgba(5,0,20,${0.3*(1-dayProgress/0.3)})`;
+    } else { todEl.style.background = 'transparent'; }
+}
+
+// ─── CAMERA ANIMATION ─────────────────────────────
+const camV3 = new THREE.Vector3();
+function animateCamera() {
+    if (cameraMode===0) {
+        camV3.set(
+            Math.sin(orbitAngle)*camZoom,
+            orbitHeight,
+            Math.cos(orbitAngle)*camZoom
+        );
+        camera.position.lerp(camV3, 0.06);
+        camera.lookAt(0,12,0);
+    } else if (cameraMode===1 && followTarget) {
+        const p = followTarget.g.position;
+        camV3.set(p.x+16, p.y+11, p.z+16);
+        camera.position.lerp(camV3, 0.07);
+        camera.lookAt(p);
+    } else if (cameraMode===2 && followTarget) {
+        const p = followTarget.g.position;
+        camera.position.set(p.x, p.y+1.65, p.z);
+        const fwd = new THREE.Vector3(
+            Math.sin(followTarget.g.rotation.y)*10,
+            -0.6,
+            Math.cos(followTarget.g.rotation.y)*10
+        );
+        camera.lookAt(p.clone().add(fwd));
+    } else if (cameraMode===3) {
+        const t = timeOfDay*0.22;
+        camV3.set(Math.sin(t)*195, 78+Math.sin(t*1.2)*30, Math.cos(t*0.88)*195);
+        camera.position.lerp(camV3, 0.012);
+        camera.lookAt(Math.sin(t*0.65)*45, 18, Math.cos(t*0.55)*45);
+    }
+}
+
+// ─── INPUT ────────────────────────────────────────
+function setupInput() {
+    const c = renderer.domElement;
+    c.addEventListener('mousedown', e=>{ if(e.button===0){isDragging=true;lastMX=e.clientX;lastMY=e.clientY;} });
+    window.addEventListener('mouseup', ()=>isDragging=false);
+    window.addEventListener('mousemove', e=>{
+        if (!isDragging) return;
+        orbitAngle += (e.clientX-lastMX)*0.005;
+        orbitHeight = clamp(orbitHeight-(e.clientY-lastMY)*0.3, 20, 200);
+        lastMX=e.clientX; lastMY=e.clientY;
+    });
+    c.addEventListener('wheel', e=>{ camZoom=clamp(camZoom+e.deltaY*0.1, 25, 280); });
+    // touch
+    let lt = null;
+    c.addEventListener('touchstart', e=>{ lt=e.touches[0]; });
+    c.addEventListener('touchmove', e=>{
+        if(!lt) return; const t=e.touches[0];
+        orbitAngle += (t.clientX-lt.clientX)*0.006;
+        orbitHeight = clamp(orbitHeight-(t.clientY-lt.clientY)*0.35, 20, 200);
+        lt=t; e.preventDefault();
+    },{passive:false});
+    window.addEventListener('keydown', e=>{ const k=parseInt(e.key); if(k>=1&&k<=4) setCamera(k-1); });
+    window.addEventListener('resize',()=>{
+        camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth,window.innerHeight);
+    });
+}
+
+// ─── MAIN ─────────────────────────────────────────
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x030310);
+    scene.fog = new THREE.FogExp2(0x030310, 0.0025);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.9;
+    document.body.appendChild(renderer.domElement);
+
+    camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.3, 750);
+    camera.position.set(90, 65, 120);
+
+    setupLighting();
+    buildSky();
+    buildTerrain();
+    buildRiver();
+    buildBridge();
+    populateCity();
+    setupInput();
+
+    let last = performance.now();
+    function loop(now) {
+        requestAnimationFrame(loop);
+        const dt = now - last; last = now;
+        updateSim(dt);
+        animateCamera();
+        renderer.render(scene, camera);
+    }
+    loop(performance.now());
+}
+init();
+</script>
+</body>
+</html>
