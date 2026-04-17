@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPEN SOURCE NEWS · GLOBAL LIVE BROADCAST</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+  --primary:#00b8d9; --primary2:#00d4f5;
+  --secondary:#cc1a2a; --secondary2:#e8192c;
+  --bg:#05060e; --panel:rgba(5,6,14,0.98);
+  --border:rgba(255,255,255,0.1);
+  --text:rgba(255,255,255,0.9); --dim:rgba(255,255,255,0.5);
+  --pink:#ff69b4; --zeus-gold:#ffd700;
+  --success:#00ff88; --warning:#ffaa33;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  margin:0; overflow:hidden;
+  background: var(--bg);
+  color: #fff;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+canvas { display: block; }
+
+/* LOADING SCREEN */
+#loading {
+  position: fixed; inset:0; z-index: 9999; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 28px; transition: opacity 1.2s ease;
+}
+#loading.out { opacity:0; pointer-events:none; }
+.l-logo {
+  font-family: 'Oswald', sans-serif; font-size: 84px; font-weight: 700; letter-spacing: 8px;
+  background: linear-gradient(135deg, var(--primary2) 20%, var(--secondary2) 80%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  animation: breathe 2s ease-in-out infinite;
+  text-shadow: 0 0 60px rgba(0, 184, 217, 0.3);
+}
+@keyframes breathe { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.85; transform:scale(1.02); } }
+.l-subtitle { font-family: 'Space Mono', monospace; font-size: 12px; letter-spacing: 3px; color: var(--dim); text-transform: uppercase; }
+.l-bar { width:400px; height:3px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden; }
+.l-fill { position:absolute; inset-block:0; left:0; width:0%; background:linear-gradient(90deg,var(--secondary),var(--primary2)); box-shadow:0 0 15px var(--primary2); transition:width 0.3s ease; }
+.l-status { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--dim); margin-top:8px; }
+
+/* TOP CHROME */
+.top-chrome {
+  position: fixed; top:0; left:0; right:0;
+  height: 56px; z-index: 400;
+  background: linear-gradient(to bottom, rgba(5,6,14,0.99) 70%, transparent);
+  border-bottom: 1px solid rgba(0, 184, 217, 0.4);
+  display: flex; align-items: center;
+  padding: 0 24px; gap: 0;
+}
+.tc-logo {
+  font-family: 'Oswald', sans-serif;
+  font-size: 24px; font-weight: 700;
+  letter-spacing: 3px; color: #fff;
+  padding-right: 20px;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  text-shadow: 0 0 20px rgba(0, 184, 217, 0.1);
+}
+.tc-logo em { color: var(--primary2); font-style: normal; }
+.tc-service {
+  padding:0 18px;
+  font-family:'Space Mono',monospace;
+  font-size:9px; letter-spacing:2px;
+  color:var(--dim);
+  flex-shrink:0;
+  text-transform: uppercase;
+}
+.tc-spacer { flex:1; }
+.tc-seg {
+  font-family:'Space Mono',monospace;
+  font-size:10px; letter-spacing:1px;
+  padding:4px 12px; border-radius:3px;
+  margin-right:8px; display:none;
+  transition:all 0.3s; font-weight:600;
+  text-transform: uppercase;
+}
+.tc-seg.active { display:block; }
+.tc-seg.wx { background:rgba(0,184,217,0.15); border:1px solid rgba(0,184,217,0.5); color:var(--primary2); }
+.tc-seg.sp { background:rgba(255,105,180,0.15); border:1px solid rgba(255,105,180,0.5); color:var(--pink); }
+.tc-seg.fi { background:rgba(0,255,136,0.15); border:1px solid rgba(0,255,136,0.5); color:var(--success); }
+.tc-live {
+  display:flex; align-items:center; gap:6px;
+  font-family:'Space Mono',monospace;
+  font-size:10px; font-weight:700;
+  letter-spacing:1px; color:var(--secondary2);
+  margin-right:12px; flex-shrink:0;
+}
+.tc-dot {
+  width:6px; height:6px;
+  background:var(--secondary2);
+  border-radius:50%;
+  box-shadow:0 0 10px var(--secondary2);
+  animation: dpulse 1s infinite;
+}
+@keyframes dpulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.3; transform:scale(0.75); } }
+.tc-clock {
+  font-family:'Space Mono',monospace;
+  font-size:12px; letter-spacing:1px;
+  color:rgba(255,255,255,0.85);
+  flex-shrink:0; font-weight:500;
+  margin-right: 16px;
+}
+
+/* VOLUME DROPDOWN */
+.volume-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 16px;
+}
+.volume-btn {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  color: var(--primary2);
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.volume-btn:hover {
+  background: rgba(0,184,217,0.2);
+  border-color: var(--primary);
+}
+.volume-menu {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  width: 200px;
+  background: rgba(5,6,14,0.98);
+  border: 1px solid rgba(0,184,217,0.3);
+  border-radius: 8px;
+  padding: 10px;
+  z-index: 500;
+  display: none;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+}
+.volume-menu.show {
+  display: block;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.volume-row:last-child { margin-bottom: 0; }
+.volume-row label {
+  color: var(--dim);
+  letter-spacing: 1px;
+  width: 70px;
+}
+.volume-row input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 4px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  outline: none;
+}
+.volume-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary2);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--primary2);
+}
+.volume-row .value {
+  color: var(--primary2);
+  font-weight: 600;
+  width: 30px;
+  text-align: right;
+}
+
+/* STUDIO PANEL */
+#studioWrap {
+  position: fixed; bottom: 20px; right: 20px;
+  width: 380px; height: 280px; z-index: 350;
+  border: 2px solid rgba(0,184,217,0.6);
+  border-radius: 12px;
+  background: #0a0f1a;
+  overflow: hidden;
+  box-shadow:
+    0 0 30px rgba(0,184,217,0.25),
+    0 0 80px rgba(0,0,0,0.8);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.5s ease;
+}
+#studioWrap.closeup {
+  width: 440px; height: 340px;
+  right: 50%; transform: translateX(50%);
+  bottom: 40px; z-index: 500;
+  border-color: var(--zeus-gold);
+}
+#studioWrap.sports-mode { border-color: var(--pink); }
+#studioWrap.zeus-mode { border-color: var(--zeus-gold); }
+.studio-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0a0f1a;
+}
+#studioCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.studio-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%);
+  pointer-events: none;
+}
+
+/* Anchor badges */
+.anchor-row {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 8px;
+  z-index: 10;
+}
+.anchor-badge {
+  padding: 4px 12px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.2);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+.anchor-badge.active {
+  background: rgba(0,184,217,0.35);
+  border-color: var(--primary);
+  box-shadow: 0 0 12px rgba(0,184,217,0.4);
+}
+.anchor-badge strong { font-family: 'Oswald'; font-size: 10px; color: #fff; }
+.anchor-badge span { font-family: 'Space Mono'; font-size: 7px; color: var(--dim); display: block; }
+
+/* EQ bars */
+.studio-eq {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 12px;
+  z-index: 10;
+}
+.s-eq {
+  width: 2px;
+  background: linear-gradient(to top, var(--success), #88ff88);
+  border-radius: 1px;
+  transition: height 0.1s;
+}
+.s-eq.off { height: 10% !important; opacity: 0.2; }
+
+/* Open source data panel */
+.open-data-panel {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  left: 60px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  border-radius: 6px;
+  padding: 4px 8px;
+  border: 1px solid rgba(0,184,217,0.3);
+  font-family: 'Space Mono', monospace;
+  font-size: 7px;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 10;
+}
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  white-space: nowrap;
+}
+.data-label { color: var(--primary2); margin-right: 8px; }
+.data-value { color: #fff; }
+
+.live-feed-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(204,26,42,0.8);
+  color: #fff;
+  font-family: 'Space Mono';
+  font-size: 7px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+  border: 1px solid var(--secondary2);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* NEWS CARD */
+.news-card {
+  position: fixed;
+  left: -700px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(500px, 40vw);
+  background: var(--panel);
+  border-left: 5px solid var(--primary2);
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding: 20px 24px 16px;
+  box-shadow:
+    10px 0 40px rgba(0,184,217,0.3),
+    0 8px 30px rgba(0,0,0,0.5);
+  transition: left 0.5s cubic-bezier(0.22,1,0.36,1);
+  z-index: 300;
+  pointer-events: none;
+}
+.news-card.in { left: 20px; }
+.news-card.breaking {
+  border-left-color: #ff0000;
+  animation: pulseBorder 1.2s infinite;
+}
+@keyframes pulseBorder {
+  0%,100% { box-shadow: 10px 0 40px rgba(255,0,0,0.5); }
+  50% { box-shadow: 10px 0 60px rgba(255,60,60,0.8); }
+}
+.nc-meta {
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.nc-tag {
+  padding: 3px 8px;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  border-radius: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.nc-tag.world { background: var(--primary2); color: #000; }
+.nc-tag.breaking { background: #ff0000; color: #fff; }
+.nc-tag.military { background: linear-gradient(135deg, #cc0000, #ff5555); color: #fff; }
+.nc-tag.sport { background: var(--pink); color: #000; }
+.nc-tag.finance { background: var(--success); color: #000; }
+.nc-tag.weather { background: var(--primary); color: #000; }
+.nc-time { color: var(--dim); font-weight: 500; }
+.nc-citation { font-family: 'Space Mono', monospace; font-size: 8px; color: var(--dim); margin-top: 8px; letter-spacing: 0.5px; }
+.nc-hl {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  margin-bottom: 12px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+}
+.nc-body {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  font-weight: 400;
+}
+.nc-div {
+  margin-top: 12px;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* SEGMENT PANEL */
+.seg-panel {
+  position: fixed;
+  right: -480px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(420px, 30vw);
+  background: var(--panel);
+  border-right: 5px solid var(--primary);
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+  padding: 16px 20px;
+  transition: right 0.5s cubic-bezier(0.22,1,0.36,1);
+  z-index: 300;
+  pointer-events: none;
+}
+.seg-panel.sport-mode { border-color: var(--pink); }
+.seg-panel.zeus-mode {
+  border-color: var(--zeus-gold);
+  background: linear-gradient(135deg, rgba(20,15,40,0.97), rgba(10,10,25,0.98));
+}
+.seg-panel.finance-mode { border-color: var(--success); }
+.seg-panel.in { right: 20px; }
+.sp-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+}
+.sp-hdr.wc { color: var(--primary2); }
+.sp-hdr.sc { color: var(--pink); }
+.sp-hdr.zeus { color: var(--zeus-gold); text-shadow: 0 0 10px rgba(255,215,0,0.5); }
+.sp-hdr.fi { color: var(--success); }
+.sp-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sp-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.sp-icon { font-size: 18px; line-height: 24px; text-align: center; }
+.sp-t {
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.2;
+}
+.sp-d {
+  font-size: 12px;
+  color: var(--text);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+/* LOCATION BANNER */
+.loc-banner {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 300;
+  text-align: center;
+  pointer-events: none;
+  background: rgba(5,6,14,0.97);
+  border: 1px solid rgba(0,184,217,0.4);
+  padding: 10px 30px;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.loc-banner.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.lb-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.lb-coords {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--primary);
+  margin-top: 3px;
+  font-weight: 500;
+}
+.lb-region {
+  font-family: 'Space Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 2px;
+}
+
+/* SEGMENT TIMER */
+.seg-timer {
+  position: fixed;
+  top: 70px;
+  right: 20px;
+  z-index: 300;
+  pointer-events: none;
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-weight: 600;
+}
+.seg-timer.show { opacity: 1; }
+.seg-timer.wx {
+  background: rgba(0,140,190,0.15);
+  border: 1px solid rgba(0,184,217,0.3);
+  color: var(--primary2);
+}
+.seg-timer.sp {
+  background: rgba(180,148,50,0.15);
+  border: 1px solid rgba(255,105,180,0.3);
+  color: var(--pink);
+}
+.seg-timer.fi {
+  background: rgba(0,136,70,0.15);
+  border: 1px solid rgba(0,255,136,0.3);
+  color: var(--success);
+}
+
+/* CAMERA INDICATOR */
+.cam-indicator {
+  position: fixed;
+  bottom: 280px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 280;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+.cam-indicator.show { opacity: 1; }
+.cam-indicator-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(0,0,0,0.8);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 16px;
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.7);
+}
+.cam-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary2);
+  animation: pulse 1s infinite;
+  box-shadow: 0 0 8px var(--primary2);
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* DATA STREAMS */
+.data-streams {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  z-index: 300;
+  pointer-events: none;
+  overflow: hidden;
+}
+.data-stream {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--primary2), transparent);
+  animation: streamFlow 3s linear infinite;
+}
+@keyframes streamFlow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* TICKER SYSTEM */
+.ticker-container {
+  position: fixed;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  z-index: 310;
+  display: flex;
+  flex-direction: column;
+}
+.ticker-wrap {
+  background: rgba(5,6,14,0.99);
+  border-top: 1px solid var(--primary2);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+.ticker-label {
+  flex-shrink: 0;
+  background: var(--primary2);
+  color: #000;
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 0 14px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  clip-path: polygon(0 0, 85% 0, 100% 100%, 0 100%);
+  z-index: 2;
+}
+.ticker-label.wxm { background: var(--primary)!important; color: #fff!important; }
+.ticker-label.spm { background: var(--pink)!important; color: #000!important; }
+.ticker-label.fim { background: var(--success)!important; color: #000!important; }
+.ticker-mask {
+  flex: 1;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 15px), transparent);
+}
+.ticker-track {
+  display: flex;
+  white-space: nowrap;
+  align-items: center;
+  height: 32px;
+  animation: tick 35s linear infinite;
+}
+@keyframes tick {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ti {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 40px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+}
+.ti-t { color: var(--primary); font-weight: 700; }
+.ti-k {
+  padding: 1px 6px;
+  border-radius: 1px;
+  font-size: 7px;
+  letter-spacing: 1px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.ti-k.w { background: var(--secondary2); }
+.ti-k.m { background: linear-gradient(135deg, #cc0000, #ff5555); }
+.ti-k.b { background: #ff0000; }
+.ti-k.s { background: var(--pink); color: #000; }
+.ti-k.f { background: var(--success); color: #000; }
+.ti-k.x { background: var(--primary); color: #000; }
+.ti-txt { color: rgba(255,255,255,0.9); font-weight: 500; }
+.ti-sep { color: rgba(255,255,255,0.2); font-size: 12px; }
+
+/* DUAL TICKER */
+.sports-ticker-wrap {
+  background: rgba(5,6,14,0.99);
+  border-top: 1px solid var(--pink);
+  height: 24px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.financial-ticker-wrap {
+  background: rgba(5,6,14,0.99);
+  border-top: 1px solid var(--success);
+  height: 24px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.sports-ticker-label {
+  flex-shrink: 0;
+  background: var(--pink);
+  color: #000;
+  font-family: 'Oswald', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 0 12px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  clip-path: polygon(0 0, 85% 0, 100% 100%, 0 100%);
+  z-index: 2;
+}
+.financial-ticker-label {
+  flex-shrink: 0;
+  background: var(--success);
+  color: #000;
+  font-family: 'Oswald', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 0 12px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  clip-path: polygon(0 0, 85% 0, 100% 100%, 0 100%);
+  z-index: 2;
+}
+.sports-ticker-mask, .financial-ticker-mask {
+  flex: 1;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 15px), transparent);
+}
+.sports-ticker-track, .financial-ticker-track {
+  display: flex;
+  white-space: nowrap;
+  align-items: center;
+  height: 24px;
+  animation: tickerScroll 25s linear infinite;
+}
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.bottom { position: fixed; bottom: 0; left: 0; right: 0; z-index: 300; }
+.b-fade {
+  height: 30px;
+  background: linear-gradient(to top, rgba(5,6,14,1) 30%, transparent);
+  pointer-events: none;
+}
+
+/* AMBIENT EFFECTS */
+.ambient-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 25% 20%, rgba(0,184,217,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 80%, rgba(204,26,42,0.04) 0%, transparent 50%);
+}
+
+/* ZEUS LIGHTNING */
+.zeus-lightning {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  pointer-events: none;
+  opacity: 0;
+  background: #fff;
+}
+.zeus-lightning.active {
+  animation: lightningFlash 0.4s ease-out;
+}
+@keyframes lightningFlash {
+  0% { opacity: 0; }
+  5% { opacity: 0.35; }
+  15% { opacity: 0.1; }
+  30% { opacity: 0.25; }
+  45% { opacity: 0.05; }
+  100% { opacity: 0; }
+}
+
+/* MILITARY ALERT */
+.mil-alert {
+  position: fixed;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 320;
+  background: linear-gradient(135deg, #900000, #cc0000);
+  border: 1px solid #ff4444;
+  color: #fff;
+  padding: 8px 24px;
+  border-radius: 4px;
+  box-shadow: 0 0 25px rgba(255,68,68,0.7);
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  display: none;
+  animation: milAlertPulse 1.5s infinite;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.mil-alert.show { display: block; }
+@keyframes milAlertPulse {
+  0%,100% { box-shadow: 0 0 25px rgba(255,68,68,0.7); }
+  50% { box-shadow: 0 0 40px rgba(255,100,100,1); }
+}
+
+/* ANCHOR TRANSITION */
+.anchor-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  background: radial-gradient(ellipse at center, var(--bg) 0%, #000 100%);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+.anchor-transition.show {
+  display: flex;
+  animation: fadeTransition 0.6s ease;
+}
+@keyframes fadeTransition {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.transition-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  color: var(--zeus-gold);
+  text-shadow: 0 0 30px rgba(255,215,0,0.5);
+}
+.transition-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+/* EDUCATIONAL TIP */
+.edu-tip {
+  position: fixed;
+  bottom: 180px;
+  left: 20px;
+  z-index: 300;
+  max-width: 240px;
+  background: rgba(5,6,14,0.95);
+  border: 1px solid rgba(0,184,217,0.3);
+  border-radius: 6px;
+  padding: 10px 14px;
+  opacity: 0;
+  transform: translateX(-15px);
+  transition: all 0.5s ease;
+}
+.edu-tip.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+.edu-tip-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--primary2);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.edu-tip-txt {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+/* NEXT UP INDICATOR */
+.next-up {
+  position: fixed;
+  bottom: 280px;
+  right: 20px;
+  z-index: 300;
+  background: rgba(5,6,14,0.9);
+  border: 1px solid rgba(200,168,75,0.4);
+  border-radius: 4px;
+  padding: 6px 12px;
+  opacity: 0;
+  transition: all 0.4s;
+}
+.next-up.show { opacity: 1; }
+.next-up-lbl {
+  font-family: 'Space Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: var(--pink);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.next-up-txt {
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  color: #fff;
+}
+
+/* SCANLINES */
+.scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 3px
+  );
+}
+
+/* Spacing adjustment */
+.news-card.shifted { left: 360px !important; }
+.seg-panel.shifted { right: 360px !important; }
+
+/* Globe info overlay */
+.globe-info {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 300;
+  background: rgba(5,6,14,0.95);
+  border: 1px solid rgba(0,184,217,0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  color: var(--text);
+  max-width: 280px;
+}
+.globe-info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.globe-info-row:last-child { margin-bottom: 0; }
+.globe-info-label { color: var(--primary2); }
+
+/* Source map markers */
+.source-marker {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary2);
+  box-shadow: 0 0 8px var(--primary2);
+  pointer-events: none;
+  z-index: 5;
+}
+.source-marker.weather { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+.source-marker.military { background: var(--secondary2); box-shadow: 0 0 8px var(--secondary2); }
+.source-marker.sport { background: var(--pink); box-shadow: 0 0 8px var(--pink); }
+</style>
+</head>
+<body>
+
+<div class="ambient-glow"></div>
+<div class="zeus-lightning" id="zeusLightning"></div>
+<div class="scanlines"></div>
+
+<div id="loading">
+  <div class="l-logo">OPEN SOURCE</div>
+  <div class="l-subtitle">NEWS · GLOBAL LIVE BROADCAST</div>
+  <div class="l-bar"><div class="l-fill" id="lFill"></div></div>
+  <div class="l-status" id="loadStatus">Initializing global news network...</div>
+</div>
+
+<div class="anchor-transition" id="anchorTransition">
+  <div class="transition-name" id="transName">ANCHOR</div>
+  <div class="transition-title" id="transTitle">Main Desk</div>
+</div>
+
+<div id="canvas-wrap"></div>
+
+<div class="data-streams" id="dataStreams">
+  <div class="data-stream" style="width:35%;animation-delay:0s;"></div>
+  <div class="data-stream" style="width:50%;animation-delay:1s;opacity:0.6;"></div>
+  <div class="data-stream" style="width:30%;animation-delay:2s;opacity:0.35;"></div>
+</div>
+
+<div class="top-chrome">
+  <div class="tc-logo" id="tcLogo">OPEN <em>SOURCE</em></div>
+  <div class="tc-service">NEWS</div>
+  <div class="tc-spacer"></div>
+  <div class="tc-seg wx" id="segWxLabel">⚡ WEATHER</div>
+  <div class="tc-seg sp" id="segSpLabel">🏆 SPORTS</div>
+  <div class="tc-seg fi" id="segFiLabel">💹 FINANCE</div>
+  <div class="tc-live"><div class="tc-dot"></div>LIVE</div>
+
+  <div class="volume-dropdown">
+    <div class="volume-btn" onclick="toggleVolumeMenu(event)">
+      <i class="fas fa-volume-up"></i>
+    </div>
+    <div class="volume-menu" id="volumeMenu">
+      <div class="volume-row">
+        <label for="speechVolume">Speech:</label>
+        <input type="range" id="speechVolume" min="0" max="1" step="0.01" value="1" oninput="setSpeechVolume(this.value)">
+        <span class="value" id="speechVolumeValue">100%</span>
+      </div>
+      <div class="volume-row">
+        <label for="musicVolume">Music:</label>
+        <input type="range" id="musicVolume" min="0" max="1" step="0.01" value="0.25" oninput="setMusicVolume(this.value)">
+        <span class="value" id="musicVolumeValue">25%</span>
+      </div>
+      <div class="volume-row">
+        <button onclick="toggleMute()" id="muteBtn" style="width:100%; padding:4px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:3px; cursor:pointer; font-family:'Space Mono',monospace; font-size:9px; letter-spacing:0.5px;">
+          🔊 MUTE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tc-clock" id="clock">—</div>
+</div>
+
+<!-- STUDIO PANEL -->
+<div id="studioWrap">
+  <div class="studio-canvas-wrap">
+    <canvas id="studioCanvas" width="380" height="280"></canvas>
+    <div class="studio-overlay"></div>
+  </div>
+  <div class="anchor-row">
+    <div class="anchor-badge active" id="badgeMrP" onclick="manualSwitchAnchor('mrp')">
+      <strong>RUSTY</strong>
+      <span>MAIN</span>
+    </div>
+    <div class="anchor-badge marcy" id="badgeMarcy" onclick="manualSwitchAnchor('marcy')">
+      <strong>MARCY</strong>
+      <span>SPORTS</span>
+    </div>
+    <div class="anchor-badge zeus" id="badgeZeus" onclick="manualSwitchAnchor('zeus')">
+      <strong>ZEUS</strong>
+      <span>WEATHER</span>
+    </div>
+  </div>
+  <div class="studio-eq" id="studioEq">
+    <div class="s-eq off"></div><div class="s-eq off"></div><div class="s-eq off"></div><div class="s-eq off"></div><div class="s-eq off"></div>
+  </div>
+  <div class="open-data-panel" id="openDataPanel">
+    <div class="data-row"><span class="data-label">SOURCES</span><span class="data-value" id="sourceCount">0/12</span></div>
+    <div class="data-row"><span class="data-label">UPDATED</span><span class="data-value" id="lastUpdate">--:--</span></div>
+    <div class="data-row"><span class="data-label">TOP STORY</span><span class="data-value" id="topStoryTicker">—</span></div>
+  </div>
+  <div class="live-feed-badge">🔴 LIVE FEED</div>
+</div>
+
+<div class="news-card" id="newsCard">
+  <div class="nc-meta">
+    <span class="nc-tag world" id="ncTag">GLOBAL NEWS</span>
+    <span class="nc-time" id="ncTime">—</span>
+    <span class="nc-citation" id="ncCitation"></span>
+  </div>
+  <div class="nc-hl" id="ncHl">—</div>
+  <div class="nc-body" id="ncBody">—</div>
+  <hr class="nc-div">
+</div>
+
+<div class="seg-panel" id="segPanel">
+  <div class="sp-hdr wc" id="segHdr">WEATHER REPORT</div>
+  <div id="segBody"></div>
+</div>
+
+<div class="loc-banner" id="locBanner">
+  <div class="lb-name" id="locName">—</div>
+  <div class="lb-coords" id="locCoords">—</div>
+  <div class="lb-region" id="locRegion"></div>
+</div>
+
+<div class="seg-timer" id="segTimer"></div>
+
+<div class="cam-indicator" id="camIndicator">
+  <div class="cam-indicator-inner">
+    <div class="cam-indicator-dot"></div>
+    <span id="camTargetLabel">TRACKING</span>
+  </div>
+</div>
+
+<div class="mil-alert" id="milAlert">⚠️ DEVELOPING STORY</div>
+
+<div class="edu-tip" id="eduTip">
+  <div class="edu-tip-hdr">📚 DID YOU KNOW?</div>
+  <div class="edu-tip-txt" id="eduTipTxt">Loading educational content...</div>
+</div>
+
+<div class="next-up" id="nextUp">
+  <div class="next-up-lbl">Next</div>
+  <div class="next-up-txt" id="nextUpTxt">—</div>
+</div>
+
+<!-- TICKER SYSTEM -->
+<div class="ticker-container">
+  <div class="sports-ticker-wrap">
+    <div class="sports-ticker-label">🏆 SPORTS</div>
+    <div class="sports-ticker-mask">
+      <div class="sports-ticker-track" id="sportsTickerTrack">
+        <div class="ti"><span class="ti-txt">Loading live sports data...</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="financial-ticker-wrap">
+    <div class="financial-ticker-label">💹 MARKETS</div>
+    <div class="financial-ticker-mask">
+      <div class="financial-ticker-track" id="financialTickerTrack">
+        <div class="ti"><span class="ti-txt">Loading live market data...</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="ticker-wrap">
+    <div class="ticker-label" id="tickerLabel">NEWS</div>
+    <div class="ticker-mask">
+      <div class="ticker-track" id="tickerTrack">
+        <div class="ti"><span class="ti-txt">Connecting to global news sources...</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom">
+  <div class="b-fade"></div>
+</div>
+
+<audio id="bgMusic" loop preload="auto">
+  <source src="https://cdn.pixabay.com/audio/2022/03/10/audio_2d3e8a4e5c.mp3" type="audio/mpeg">
+  <source src="https://cdn.pixabay.com/audio/2022/01/20/audio_1c2f7c6a7d.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+// ==================== CONFIGURATION ====================
+const CONFIG = {
+  STORY_DURATION: 14000,
+  SEGMENT_DURATION: 100000,
+  TRANSITION_DURATION: 600,
+  CAMERA_FLY_DURATION: 1500,
+  IDLE_CAMERA_INTERVAL: 15000,
+  VOICES: {
+    RUSTY: { rate: 0.85, pitch: 0.8, volume: 1.0 },
+    MARCY: { rate: 1.2, pitch: 1.25, volume: 0.95 },
+    ZEUS: { rate: 0.75, pitch: 0.6, volume: 1.1 }
+  },
+  FEEDS: [
+    // Global News
+    { url: 'https://www.aljazeera.com/xml/rss/all.xml', src: 'Al Jazeera', cat: 'world', weight: 1.0, region: 'MIDDLE EAST' },
+    { url: 'https://www.france24.com/en/rss', src: 'France 24', cat: 'world', weight: 1.0, region: 'EUROPE' },
+    { url: 'https://rss.dw.com/xml/rss-en-all', src: 'Deutsche Welle', cat: 'world', weight: 1.0, region: 'EUROPE' },
+    { url: 'https://www.democracynow.org/democracynow.rss', src: 'Democracy Now', cat: 'world', weight: 0.95, region: 'NORTH AMERICA' },
+    { url: 'https://theintercept.com/feed/?lang=en', src: 'The Intercept', cat: 'world', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.commondreams.org/rss.xml', src: 'Common Dreams', cat: 'world', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.africanews.com/feed/rss', src: 'Africanews', cat: 'world', weight: 0.9, region: 'AFRICA' },
+    { url: 'https://www.scmp.com/rss/91/feed', src: 'South China Morning Post', cat: 'world', weight: 0.9, region: 'ASIA' },
+    { url: 'https://www.thehindu.com/news/international/?service=rss', src: 'The Hindu', cat: 'world', weight: 0.9, region: 'ASIA' },
+    { url: 'https://www.trtworld.com/rss', src: 'TRT World', cat: 'world', weight: 0.9, region: 'MIDDLE EAST' },
+    { url: 'https://www.rt.com/rss/', src: 'RT', cat: 'world', weight: 0.85, region: 'EUROPE' },
+    { url: 'https://www.presstv.com/rss', src: 'Press TV', cat: 'world', weight: 0.85, region: 'MIDDLE EAST' },
+    { url: 'https://www.euronews.com/rss', src: 'Euronews', cat: 'world', weight: 0.95, region: 'EUROPE' },
+    { url: 'https://www.rfi.fr/en/rss', src: 'RFI', cat: 'world', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://www.abc.net.au/news/feed/rss', src: 'ABC News Australia', cat: 'world', weight: 0.9, region: 'OCEANIA' },
+    { url: 'https://www.sbs.com.au/news/rss', src: 'SBS Australia', cat: 'world', weight: 0.9, region: 'OCEANIA' },
+    { url: 'https://www.cbc.ca/cmlink/rss-world', src: 'CBC Canada', cat: 'world', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://globalnews.ca/feed/', src: 'Global News Canada', cat: 'world', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', src: 'BBC World', cat: 'world', weight: 1.0, region: 'EUROPE' },
+    { url: 'https://feeds.reuters.com/reuters/worldNews', src: 'Reuters', cat: 'world', weight: 1.0, region: 'EUROPE' },
+    { url: 'https://rss.cnn.com/rss/edition_world.rss', src: 'CNN', cat: 'world', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.theguardian.com/world/rss', src: 'The Guardian', cat: 'world', weight: 0.95, region: 'EUROPE' },
+    { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', src: 'NY Times', cat: 'world', weight: 0.95, region: 'NORTH AMERICA' },
+    { url: 'https://feeds.npr.org/1004/rss.xml', src: 'NPR', cat: 'world', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://feeds.apnews.com/apf-topnews', src: 'AP', cat: 'world', weight: 1.0, region: 'NORTH AMERICA' },
+    { url: 'https://www.un.org/en/rss.xml', src: 'UN News', cat: 'world', weight: 0.95, region: 'INTERNATIONAL' },
+    { url: 'https://www.csis.org/analysis/feed', src: 'CSIS', cat: 'world', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.atlanticcouncil.org/feed/', src: 'Atlantic Council', cat: 'world', weight: 0.9, region: 'NORTH AMERICA' },
+    
+    // Military/Defense
+    { url: 'https://www.defensenews.com/arc/outboundfeeds/rss/', src: 'Defense News', cat: 'military', weight: 0.95, region: 'NORTH AMERICA' },
+    { url: 'https://breakingdefense.com/feed/', src: 'Breaking Defense', cat: 'military', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.nato.int/rss/news.xml', src: 'NATO', cat: 'military', weight: 0.98, region: 'EUROPE' },
+    { url: 'https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?max=20', src: 'US DoD', cat: 'military', weight: 0.95, region: 'NORTH AMERICA' },
+    { url: 'https://www.army.mil/rss/news', src: 'US Army', cat: 'military', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.navy.mil/DesktopModules/ArticleCS/RSS.ashx?max=20', src: 'US Navy', cat: 'military', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.af.mil/DesktopModules/ArticleCS/RSS.ashx?max=20', src: 'US Air Force', cat: 'military', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.marines.mil/DesktopModules/ArticleCS/RSS.ashx?max=20', src: 'US Marines', cat: 'military', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.janes.com/feeds/news', src: 'Janes', cat: 'military', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://www.iiss.org/rss', src: 'IISS', cat: 'military', weight: 0.92, region: 'EUROPE' },
+    
+    // Sports
+    { url: 'https://feeds.bbci.co.uk/sport/rss.xml', src: 'BBC Sport', cat: 'sport', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://www.espn.com/espn/rss/news', src: 'ESPN', cat: 'sport', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.skysports.com/rss/12040', src: 'Sky Sports', cat: 'sport', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', src: 'BBC Football', cat: 'sport', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://feeds.reuters.com/reuters/sportsNews', src: 'Reuters Sport', cat: 'sport', weight: 0.9, region: 'EUROPE' },
+    
+    // Finance
+    { url: 'https://finance.yahoo.com/news/rssindex', src: 'Yahoo Finance', cat: 'finance', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.bloomberg.com/feed/podcast/businessweek.xml', src: 'Bloomberg', cat: 'finance', weight: 0.95, region: 'NORTH AMERICA' },
+    { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', src: 'BBC Business', cat: 'finance', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', src: 'CNBC', cat: 'finance', weight: 0.9, region: 'NORTH AMERICA' },
+    { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', src: 'CoinDesk', cat: 'finance', weight: 0.85, region: 'NORTH AMERICA' },
+    
+    // Weather/Disaster
+    { url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.atom', src: 'USGS', cat: 'weather', weight: 0.95, region: 'GLOBAL' },
+    { url: 'https://www.emsc-csem.org/service/rss/rss.php?typ=emsc', src: 'EMSC', cat: 'weather', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://www.volcanodiscovery.com/volcano_news.rss', src: 'VolcanoDiscovery', cat: 'weather', weight: 0.85, region: 'GLOBAL' },
+    { url: 'https://www.nhc.noaa.gov/xml/TWOAT.xml', src: 'NOAA Tropical', cat: 'weather', weight: 0.95, region: 'NORTH AMERICA' },
+    { url: 'https://www.metoffice.gov.uk/weather/warnings-and-advice/uk-warnings/rss', src: 'Met Office', cat: 'weather', weight: 0.92, region: 'EUROPE' },
+    { url: 'https://wmo.int/feeds/news.xml', src: 'WMO', cat: 'weather', weight: 0.95, region: 'INTERNATIONAL' },
+    { url: 'https://www.gdacs.org/xml/rss.xml', src: 'GDACS', cat: 'weather', weight: 0.9, region: 'GLOBAL' },
+    
+    // Regional
+    { url: 'https://www.news24.com/rss', src: 'News24 SA', cat: 'world', weight: 0.85, region: 'AFRICA' },
+    { url: 'https://mg.co.za/rss', src: 'Mail & Guardian', cat: 'world', weight: 0.85, region: 'AFRICA' },
+    { url: 'https://www.indiatoday.in/rss/68/news/india', src: 'India Today', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://timesofindia.indiatimes.com/rssfeedstopstories.cms', src: 'Times of India', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://www.hindustantimes.com/rss', src: 'Hindustan Times', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://www.news.cctv.com/rss/index.xml', src: 'CCTV', cat: 'world', weight: 0.8, region: 'ASIA' },
+    { url: 'https://www.kbs.co.kr/rss/news', src: 'KBS', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://www.yonhapnews.co.kr/rss/rss_news.xml', src: 'Yonhap', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://www.channelnewsasia.com/rss', src: 'CNA', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://www.straitstimes.com/rss', src: 'Straits Times', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://www.thejakartapost.com/rss', src: 'Jakarta Post', cat: 'world', weight: 0.8, region: 'ASIA' },
+    { url: 'https://www.bangkokpost.com/rss', src: 'Bangkok Post', cat: 'world', weight: 0.8, region: 'ASIA' },
+    { url: 'https://www.philstar.com/rss', src: 'Philstar', cat: 'world', weight: 0.8, region: 'ASIA' },
+    { url: 'https://www.nst.com.my/rss', src: 'New Straits Times', cat: 'world', weight: 0.8, region: 'ASIA' },
+    { url: 'https://www.dawn.com/rss', src: 'Dawn', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://www.thenews.com.pk/rss', src: 'The News', cat: 'world', weight: 0.8, region: 'ASIA' },
+    { url: 'https://www.tehrantimes.com/rss', src: 'Tehran Times', cat: 'world', weight: 0.8, region: 'MIDDLE EAST' },
+    { url: 'https://www.arabnews.com/rss', src: 'Arab News', cat: 'world', weight: 0.85, region: 'MIDDLE EAST' },
+    { url: 'https://www.jpost.com/rss', src: 'Jerusalem Post', cat: 'world', weight: 0.85, region: 'MIDDLE EAST' },
+    { url: 'https://www.haaretz.com/rss', src: 'Haaretz', cat: 'world', weight: 0.85, region: 'MIDDLE EAST' },
+    { url: 'https://www.aa.com.tr/en/rss', src: 'Anadolu Agency', cat: 'world', weight: 0.85, region: 'MIDDLE EAST' },
+    { url: 'https://www.tass.com/rss/v2.xml', src: 'TASS', cat: 'world', weight: 0.85, region: 'EUROPE' },
+    { url: 'https://sputniknews.com/export/rss2/index.xml', src: 'Sputnik', cat: 'world', weight: 0.8, region: 'EUROPE' },
+    { url: 'https://www.xinhuanet.com/english/rss/worldrss.xml', src: 'Xinhua', cat: 'world', weight: 0.85, region: 'ASIA' },
+    { url: 'https://www.globaltimes.cn/rss/world.xml', src: 'Global Times', cat: 'world', weight: 0.8, region: 'ASIA' },
+    { url: 'https://www.telesurtv.net/rss', src: 'TeleSUR', cat: 'world', weight: 0.85, region: 'LATIN AMERICA' },
+    { url: 'https://www.bbc.com/mundo/rss.xml', src: 'BBC Mundo', cat: 'world', weight: 0.9, region: 'LATIN AMERICA' },
+    { url: 'https://www.elpais.com/rss', src: 'El País', cat: 'world', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://www.lemonde.fr/rss/une.xml', src: 'Le Monde', cat: 'world', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://www.corriere.it/rss', src: 'Corriere della Sera', cat: 'world', weight: 0.85, region: 'EUROPE' },
+    { url: 'https://www.spiegel.de/schlagzeilen/index.rss', src: 'Der Spiegel', cat: 'world', weight: 0.9, region: 'EUROPE' },
+    { url: 'https://www.themoscowtimes.com/rss', src: 'Moscow Times', cat: 'world', weight: 0.85, region: 'EUROPE' },
+    { url: 'https://www.kyivpost.com/rss', src: 'Kyiv Post', cat: 'world', weight: 0.85, region: 'EUROPE' },
+    { url: 'https://www.baltictimes.com/rss', src: 'Baltic Times', cat: 'world', weight: 0.8, region: 'EUROPE' },
+    { url: 'https://www.pravda.com.ua/rss/', src: 'Ukrainska Pravda', cat: 'world', weight: 0.85, region: 'EUROPE' }
+  ],
+  PRIORITY_KEYWORDS: {
+    BREAKING: ['breaking', 'urgent', 'alert', 'developing', 'just in', 'emergency', 'critical', 'exclusive'],
+    MILITARY: ['military', 'defense', 'troop', 'airstrike', 'missile', 'nato', 'pentagon', 'army', 'navy', 'airforce', 'marines', 'fleet', 'deployment', 'drone', 'cyber', 'intelligence'],
+    DISASTER: ['earthquake', 'tsunami', 'hurricane', 'typhoon', 'flood', 'wildfire', 'volcano', 'eruption', 'cyclone', 'storm'],
+    POLITICS: ['election', 'vote', 'parliament', 'congress', 'president', 'prime minister', 'senate', 'government'],
+    ECONOMY: ['recession', 'inflation', 'interest rate', 'gdp', 'unemployment', 'market', 'stock', 'crypto', 'bitcoin']
+  },
+  EDU_FACTS: [
+    "Open Source News uses only publicly available RSS feeds - 100% transparent.",
+    "The Earth's circumference is 40,075 km - perfect for a 24-hour rotation.",
+    "There are 195 countries in the world, with South Sudan being the newest (2011).",
+    "The Mariana Trench is the deepest point on Earth at 10,984 meters.",
+    "Weather satellites detect temperature differences as small as 0.1°C.",
+    "The first live TV news broadcast was the 1936 Berlin Olympics.",
+    "The ISS orbits Earth every 90 minutes at 27,600 km/h.",
+    "Over 70% of Earth's surface is covered by water.",
+    "The Amazon rainforest produces about 20% of Earth's oxygen.",
+    "There are more than 7,000 languages spoken worldwide.",
+    "The Great Wall of China is visible from low Earth orbit.",
+    "Antarctica holds about 70% of Earth's fresh water.",
+    "The Pacific Ocean is larger than all landmasses combined.",
+    "Lightning strikes Earth about 100 times per second.",
+    "The human brain processes images 60,000 times faster than text."
+  ]
+};
+
+// ==================== GLOBAL STATE ====================
+let scene, camera, renderer, globeGroup;
+let studioScene, studioCamera, studioRenderer;
+let globe, clouds, nightLights, starField, starFieldFar, liveIndicatorsGroup, flightPathsGroup, shipRoutesGroup, weatherSystemsGroup;
+let studioAnchors = {};
+let currentAnchor = 'mrp';
+let anchorVoices = { mrp: null, marcy: null, zeus: null };
+let camCtrl, camTarget = null, camFrom = null, camMoveStart = 0, camLookTarget = null;
+let newsQueue = [], currentStoryIndex = 0;
+let currentSeg = 'news', segEnd = 0;
+let muteOn = false, narrating = false, isTalking = false;
+let narrateQ = [];
+let currentSpeechVolume = 1.0, currentMusicVolume = 0.25;
+let seenStoryKeys = new Set();
+let cycleTimer = null;
+let eduFactIndex = 0;
+let isTransitioning = false;
+let animationFrameId = null;
+let cachedStories = [];
+let sourceHealth = { active: 0, total: CONFIG.FEEDS.length };
+let flightData = [], shipData = [], weatherData = [];
+let sourceMarkers = [];
+
+const PROXY_LIST = ['https://api.allorigins.win/get?url=', 'https://corsproxy.io/?', 'https://api.codetabs.com/v1/proxy?quest='];
+let currentProxyIndex = 0;
+function getProxy() { return PROXY_LIST[currentProxyIndex]; }
+function rotateProxy() { currentProxyIndex = (currentProxyIndex + 1) % PROXY_LIST.length; }
+
+const GEO = {
+  'london': { name: 'LONDON, UK', lat: 51.5074, lon: -0.1278, coords: "51°30'N 00°08'W", region: 'EUROPE', pop: '9M' },
+  'new york': { name: 'NEW YORK, USA', lat: 40.7128, lon: -74.0060, coords: "40°43'N 74°00'W", region: 'NORTH AMERICA', pop: '8.4M' },
+  'tokyo': { name: 'TOKYO, JAPAN', lat: 35.6762, lon: 139.6503, coords: "35°41'N 139°41'E", region: 'ASIA', pop: '37M' },
+  'kyiv': { name: 'KYIV, UKRAINE', lat: 50.4501, lon: 30.5234, coords: "50°27'N 30°31'E", region: 'EASTERN EUROPE', pop: '2.9M', hotspot: true },
+  'gaza': { name: 'GAZA CITY', lat: 31.5, lon: 34.4667, coords: "31°30'N 34°28'E", region: 'MIDDLE EAST', pop: '590K', hotspot: true },
+  'tehran': { name: 'TEHRAN, IRAN', lat: 35.6892, lon: 51.3890, coords: "35°41'N 51°23'E", region: 'MIDDLE EAST', pop: '8.7M', hotspot: true },
+  'moscow': { name: 'MOSCOW, RUSSIA', lat: 55.7558, lon: 37.6173, coords: "55°45'N 37°37'E", region: 'EUROPE', pop: '12.5M' },
+  'beijing': { name: 'BEIJING, CHINA', lat: 39.9042, lon: 116.4074, coords: "39°54'N 116°24'E", region: 'ASIA', pop: '21.5M' },
+  'washington': { name: 'WASHINGTON DC', lat: 38.9072, lon: -77.0369, coords: "38°54'N 77°02'W", region: 'NORTH AMERICA', pop: '700K' },
+  'paris': { name: 'PARIS, FRANCE', lat: 48.8566, lon: 2.3522, coords: "48°51'N 02°21'E", region: 'EUROPE', pop: '2.2M' },
+  'berlin': { name: 'BERLIN, GERMANY', lat: 52.5200, lon: 13.4050, coords: "52°31'N 13°24'E", region: 'EUROPE', pop: '3.7M' },
+  'rome': { name: 'ROME, ITALY', lat: 41.9028, lon: 12.4964, coords: "41°54'N 12°29'E", region: 'EUROPE', pop: '2.9M' },
+  'madrid': { name: 'MADRID, SPAIN', lat: 40.4168, lon: -3.7038, coords: "40°25'N 03°42'W", region: 'EUROPE', pop: '3.3M' },
+  'cairo': { name: 'CAIRO, EGYPT', lat: 30.0444, lon: 31.2357, coords: "30°03'N 31°14'E", region: 'AFRICA', pop: '20M' },
+  'lagos': { name: 'LAGOS, NIGERIA', lat: 6.5244, lon: 3.3792, coords: "06°31'N 03°23'E", region: 'AFRICA', pop: '14M' },
+  'johannesburg': { name: 'JOHANNESBURG, SA', lat: -26.2041, lon: 28.0473, coords: "26°12'S 28°03'E", region: 'AFRICA', pop: '5.6M' },
+  'nairobi': { name: 'NAIROBI, KENYA', lat: -1.2921, lon: 36.8219, coords: "01°17'S 36°49'E", region: 'AFRICA', pop: '4.4M' },
+  'mumbai': { name: 'MUMBAI, INDIA', lat: 19.0760, lon: 72.8777, coords: "19°05'N 72°53'E", region: 'ASIA', pop: '20M' },
+  'delhi': { name: 'DELHI, INDIA', lat: 28.7041, lon: 77.1025, coords: "28°42'N 77°06'E", region: 'ASIA', pop: '32M' },
+  'bangkok': { name: 'BANGKOK, THAILAND', lat: 13.7563, lon: 100.5018, coords: "13°45'N 100°30'E", region: 'ASIA', pop: '10M' },
+  'jakarta': { name: 'JAKARTA, INDONESIA', lat: -6.2088, lon: 106.8456, coords: "06°12'S 106°51'E", region: 'ASIA', pop: '10.6M' },
+  'manila': { name: 'MANILA, PHILIPPINES', lat: 14.5995, lon: 120.9842, coords: "14°36'N 120°59'E", region: 'ASIA', pop: '1.8M' },
+  'singapore': { name: 'SINGAPORE', lat: 1.3521, lon: 103.8198, coords: "01°21'N 103°49'E", region: 'ASIA', pop: '5.7M' },
+  'sydney': { name: 'SYDNEY, AUSTRALIA', lat: -33.8688, lon: 151.2093, coords: "33°52'S 151°13'E", region: 'OCEANIA', pop: '5.3M' },
+  'melbourne': { name: 'MELBOURNE, AUSTRALIA', lat: -37.8136, lon: 144.9631, coords: "37°49'S 144°58'E", region: 'OCEANIA', pop: '5.1M' },
+  'auckland': { name: 'AUCKLAND, NZ', lat: -36.8485, lon: 174.7633, coords: "36°51'S 174°46'E", region: 'OCEANIA', pop: '1.7M' },
+  'toronto': { name: 'TORONTO, CANADA', lat: 43.65107, lon: -79.347015, coords: "43°39'N 79°21'W", region: 'NORTH AMERICA', pop: '2.9M' },
+  'vancouver': { name: 'VANCOUVER, CANADA', lat: 49.2827, lon: -123.1207, coords: "49°17'N 123°07'W", region: 'NORTH AMERICA', pop: '675K' },
+  'mexico city': { name: 'MEXICO CITY', lat: 19.4326, lon: -99.1332, coords: "19°26'N 99°08'W", region: 'LATIN AMERICA', pop: '21.8M' },
+  'sao paulo': { name: 'SÃO PAULO, BRAZIL', lat: -23.5505, lon: -46.6333, coords: "23°33'S 46°38'W", region: 'LATIN AMERICA', pop: '12.3M' },
+  'buenos aires': { name: 'BUENOS AIRES', lat: -34.6037, lon: -58.3816, coords: "34°36'S 58°23'W", region: 'LATIN AMERICA', pop: '15.2M' },
+  'lima': { name: 'LIMA, PERU', lat: -12.0464, lon: -77.0428, coords: "12°03'S 77°03'W", region: 'LATIN AMERICA', pop: '10.7M' },
+  'bogota': { name: 'BOGOTÁ, COLOMBIA', lat: 4.7110, lon: -74.0721, coords: "04°43'N 74°04'W", region: 'LATIN AMERICA', pop: '8.1M' },
+  'santiago': { name: 'SANTIAGO, CHILE', lat: -33.4489, lon: -70.6693, coords: "33°27'S 70°40'W", region: 'LATIN AMERICA', pop: '7.1M' },
+  'caracas': { name: 'CARACAS, VENEZUELA', lat: 10.4806, lon: -66.9036, coords: "10°29'N 66°54'W", region: 'LATIN AMERICA', pop: '2.9M' }
+};
+const GEO_KEYS = Object.keys(GEO).sort((a, b) => b.length - a.length);
+function geoFromText(t) { if (!t) return null; const low = t.toLowerCase(); for (const k of GEO_KEYS) if (low.includes(k)) return GEO[k]; return null; }
+
+function ll2v(lat, lon, r = 25) { const ph = (90 - lat) * (Math.PI / 180); const th = (lon + 180) * (Math.PI / 180); return new THREE.Vector3(r * Math.sin(ph) * Math.sin(th), r * Math.cos(ph), r * Math.sin(ph) * Math.cos(th)); }
+function utcStr() { const n = new Date(); return n.toISOString().slice(0, 19).replace('T', ' ') + ' UTC'; }
+function hm() { const n = new Date(); return n.getUTCHours().toString().padStart(2, '0') + ':' + n.getUTCMinutes().toString().padStart(2, '0') + ' UTC'; }
+function pad2(n) { return n.toString().padStart(2, '0'); }
+function cleanText(v = '') { return String(v).replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]+>/g, ' ').replace(/&\w+;/g, ' ').replace(/\s+/g, ' ').trim(); }
+function speechText(v = '') { return cleanText(v).replace(/\bUS\b/g, 'United States').replace(/\bUK\b/g, 'United Kingdom').replace(/\bEU\b/g, 'European Union').replace(/\bUN\b/g, 'United Nations').replace(/\bNATO\b/g, 'NATO').replace(/\s*[-|]\s*/g, '. ').replace(/&/g, 'and'); }
+
+// ==================== LOADING ====================
+let loadProgress = 0;
+const loadInterval = setInterval(() => {
+  loadProgress = Math.min(loadProgress + Math.random() * 20, 95);
+  const f = document.getElementById('lFill'); if (f) f.style.width = loadProgress + '%';
+  const s = document.getElementById('loadStatus'); 
+  if (s) {
+    if (loadProgress < 30) s.textContent = 'Loading 3D globe...';
+    else if (loadProgress < 60) s.textContent = 'Initializing anchor models...';
+    else if (loadProgress < 85) s.textContent = 'Connecting to RSS feeds...';
+    else s.textContent = 'Finalizing broadcast...';
+  }
+}, 150);
+function finishLoading() {
+  clearInterval(loadInterval);
+  document.getElementById('lFill').style.width = '100%';
+  setTimeout(() => { document.getElementById('loading').classList.add('out'); setTimeout(() => document.getElementById('loading').style.display = 'none', 1200); }, 300);
+}
+
+// ==================== VOLUME & MUSIC ====================
+window.toggleVolumeMenu = (e) => { e.stopPropagation(); document.getElementById('volumeMenu').classList.toggle('show'); };
+document.addEventListener('click', (e) => { const m = document.getElementById('volumeMenu'); const b = document.querySelector('.volume-btn'); if (m && b && !m.contains(e.target) && !b.contains(e.target)) m.classList.remove('show'); });
+function setSpeechVolume(v) { currentSpeechVolume = parseFloat(v); document.getElementById('speechVolumeValue').textContent = Math.round(v * 100) + '%'; }
+function setMusicVolume(v) { currentMusicVolume = parseFloat(v); document.getElementById('musicVolumeValue').textContent = Math.round(v * 100) + '%'; const a = document.getElementById('bgMusic'); if (a) a.volume = v; }
+window.toggleMute = function() { muteOn = !muteOn; document.getElementById('muteBtn').innerHTML = muteOn ? '🔇 UNMUTE' : '🔊 MUTE'; if (muteOn) clearQ(); };
+
+// ==================== ENHANCED VOICE SYSTEM ====================
+function initializeVoices() {
+  if (!('speechSynthesis' in window)) return;
+  const voices = speechSynthesis.getVoices();
+  
+  // Better voice selection with fallbacks
+  const findVoice = (patterns, fallback) => {
+    for (const pattern of patterns) {
+      const v = voices.find(voice => pattern.test(voice.name) && pattern.test(voice.lang));
+      if (v) return v;
+    }
+    return voices.find(v => fallback.test(v.lang)) || voices[0];
+  };
+  
+  anchorVoices.mrp = findVoice([/Alex|Google US|Daniel|Male.*US/i], /en-US/i);
+  anchorVoices.marcy = findVoice([/Samantha|Victoria|Karen|Female.*US/i], /en-US/i);
+  anchorVoices.zeus = findVoice([/Daniel|George|British.*Male/i], /en-GB/i);
+  
+  // Log available voices for debugging
+  console.log(`Loaded ${voices.length} voices. Selected: MR P=${anchorVoices.mrp?.name}, MARCY=${anchorVoices.marcy?.name}, ZEUS=${anchorVoices.zeus?.name}`);
+}
+if ('speechSynthesis' in window) { 
+  speechSynthesis.addEventListener('voiceschanged', initializeVoices); 
+  // Trigger voice loading
+  setTimeout(initializeVoices, 500);
+  // Retry if voices not ready
+  setTimeout(() => {
+    if (!anchorVoices.mrp) initializeVoices();
+  }, 2000);
+}
+
+// ==================== ROBUST NARRATION QUEUE ====================
+function enqueue(text, anchor = 'mrp', onDone) {
+  if (muteOn) { if (onDone) onDone(); return; }
+  
+  // Ensure text is clean and not empty
+  if (!text || text.trim().length < 5) { if (onDone) onDone(); return; }
+  
+  narrateQ.push({ text, anchor, onDone, timestamp: Date.now() });
+  
+  // Limit queue size to prevent buildup
+  if (narrateQ.length > 10) narrateQ = narrateQ.slice(-10);
+  
+  if (!narrating) drainQ();
+}
+
+function drainQ() {
+  if (!narrateQ.length || muteOn || !('speechSynthesis' in window)) { 
+    narrating = false; 
+    setStudioEq(false); 
+    return; 
+  }
+  
+  narrating = true;
+  const { text, anchor, onDone } = narrateQ.shift();
+  const voice = anchorVoices[anchor] || anchorVoices.mrp;
+  const settings = CONFIG.VOICES[anchor === 'mrp' ? 'RUSTY' : anchor.toUpperCase()] || CONFIG.VOICES.RUSTY;
+  
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = settings.rate; 
+  u.pitch = settings.pitch; 
+  u.volume = settings.volume * currentSpeechVolume;
+  
+  if (voice) u.voice = voice;
+  
+  // Add error recovery
+  let retries = 0;
+  const maxRetries = 2;
+  
+  const speakWithRetry = () => {
+    try {
+      isTalking = true; 
+      setStudioEq(true);
+      if (studioAnchors[currentAnchor]) studioAnchors[currentAnchor].userData.talking = true;
+      
+      u.onend = () => { 
+        isTalking = false; 
+        setStudioEq(false); 
+        if (studioAnchors[currentAnchor]) studioAnchors[currentAnchor].userData.talking = false; 
+        narrating = false; 
+        if (onDone) onDone(); 
+        if (narrateQ.length) drainQ(); 
+      };
+      
+      u.onerror = (e) => { 
+        console.warn('Speech error:', e);
+        isTalking = false; 
+        setStudioEq(false); 
+        if (studioAnchors[currentAnchor]) studioAnchors[currentAnchor].userData.talking = false;
+        
+        // Retry logic
+        if (retries < maxRetries) {
+          retries++;
+          console.log(`Retrying speech (${retries}/${maxRetries})...`);
+          setTimeout(() => {
+            if (!muteOn) speechSynthesis.speak(u);
+          }, 500 * retries);
+          return;
+        }
+        
+        narrating = false; 
+        if (onDone) onDone(); 
+        drainQ(); 
+      };
+      
+      speechSynthesis.speak(u);
+    } catch (e) {
+      console.error('Speech synthesis failed:', e);
+      isTalking = false; 
+      setStudioEq(false);
+      narrating = false;
+      if (onDone) onDone();
+      drainQ();
+    }
+  };
+  
+  speakWithRetry();
+}
+
+function setStudioEq(on) {
+  document.querySelectorAll('.s-eq').forEach((b, i) => { 
+    b.classList.toggle('off', !on); 
+    if (on) b.style.height = (30 + Math.random() * 70) + '%'; 
+  });
+}
+
+function clearQ() { 
+  narrateQ = []; 
+  if ('speechSynthesis' in window) {
+    try { speechSynthesis.cancel(); } catch(e) {}
+  }
+  narrating = false; 
+  isTalking = false; 
+  setStudioEq(false); 
+  Object.values(studioAnchors).forEach(a => { if (a) a.userData.talking = false; }); 
+}
+
+// ==================== SPACING SYSTEM ====================
+function adjustUISpacing() {
+  const studio = document.getElementById('studioWrap');
+  const newsCard = document.getElementById('newsCard');
+  const segPanel = document.getElementById('segPanel');
+  if (!studio) return;
+  const sr = studio.getBoundingClientRect();
+  let overlapLeft = false, overlapRight = false;
+  if (newsCard.classList.contains('in')) {
+    const nr = newsCard.getBoundingClientRect();
+    if (!(nr.right < sr.left || nr.left > sr.right)) overlapLeft = true;
+  }
+  if (segPanel.classList.contains('in')) {
+    const sr2 = segPanel.getBoundingClientRect();
+    if (!(sr2.right < sr.left || sr2.left > sr.right)) overlapRight = true;
+  }
+  newsCard.classList.toggle('shifted', overlapLeft);
+  segPanel.classList.toggle('shifted', overlapRight);
+}
+
+// ==================== ENHANCED 3D GLOBE ====================
+function initGlobe() {
+  try {
+    scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x05060e, 0.0015);
+    camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 1000); camera.position.set(60, 35, 60); camera.lookAt(0, 8, 0);
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+    document.getElementById('canvas-wrap').appendChild(renderer.domElement);
+    globeGroup = new THREE.Group(); scene.add(globeGroup);
+    
+    // Stars
+    const sg = new THREE.BufferGeometry(); const sp = new Float32Array(8000 * 3); for (let i = 0; i < 8000 * 3; i++) sp[i] = (Math.random() - 0.5) * 2500;
+    sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+    starField = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xe0e8ff, size: 0.5, sizeAttenuation: true })); scene.add(starField);
+    
+    // Lighting
+    scene.add(new THREE.AmbientLight(0x223355, 1));
+    const sun = new THREE.DirectionalLight(0xfff8ee, 2); sun.position.set(100, 70, 40); scene.add(sun);
+    const fill = new THREE.DirectionalLight(0x2244cc, 0.4); fill.position.set(-70, -25, -50); scene.add(fill);
+    
+    // Globe with better textures
+    const tl = new THREE.TextureLoader();
+    globe = new THREE.Mesh(new THREE.SphereGeometry(25, 64, 64), new THREE.MeshPhongMaterial({ 
+      map: tl.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'), 
+      bumpMap: tl.load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg'), 
+      bumpScale: 0.05, 
+      specularMap: tl.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg'), 
+      specular: new THREE.Color(0x3399aa), 
+      shininess: 25 
+    }));
+    globeGroup.add(globe);
+    
+    // Clouds
+    clouds = new THREE.Mesh(new THREE.SphereGeometry(25.4, 48, 48), new THREE.MeshPhongMaterial({ 
+      map: tl.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png'), 
+      transparent: true, 
+      opacity: 0.25 
+    })); 
+    clouds.rotation.y = 0.5;
+    globeGroup.add(clouds);
+    
+    // Night lights
+    nightLights = new THREE.Mesh(new THREE.SphereGeometry(25.1, 48, 48), new THREE.MeshBasicMaterial({
+      map: tl.load('https://threejs.org/examples/textures/planets/earth_lights_2048.jpg'),
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending
+    }));
+    globeGroup.add(nightLights);
+    
+    // Groups for dynamic elements
+    liveIndicatorsGroup = new THREE.Group(); globeGroup.add(liveIndicatorsGroup);
+    flightPathsGroup = new THREE.Group(); globeGroup.add(flightPathsGroup);
+    shipRoutesGroup = new THREE.Group(); globeGroup.add(shipRoutesGroup);
+    weatherSystemsGroup = new THREE.Group(); globeGroup.add(weatherSystemsGroup);
+    
+    // Add hotspots and source markers
+    Object.values(GEO).forEach(g => { 
+      if (g.hotspot) createHotspot(g.lat, g.lon); 
+      createSourceMarker(g.lat, g.lon, g.region);
+    });
+    
+    // Add some flight paths
+    createFlightPath(51.5, -0.12, 40.7, -74.0, 'LON-NYC');
+    createFlightPath(35.7, 139.7, 34.1, -118.3, 'TYO-LAX');
+    createFlightPath(-33.9, 151.2, 1.35, 103.8, 'SYD-SIN');
+    
+    // Add some ship routes
+    createShipRoute(1.3, 103.8, 25.2, 55.3, 'SIN-DXB');
+    createShipRoute(51.5, -0.1, 40.7, -74.0, 'LON-NYC');
+    
+    // Add weather systems
+    createWeatherSystem(25.8, -80.2, 'Hurricane');
+    createWeatherSystem(35.7, 139.7, 'Typhoon');
+    
+    initCamCtrl();
+    window.addEventListener('resize', onWindowResize);
+    return true;
+  } catch (e) { console.error('Globe init error:', e); return false; }
+}
+
+function createHotspot(lat, lon) { 
+  const h = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12), new THREE.MeshBasicMaterial({ color: 0xff3333, transparent: true, blending: THREE.AdditiveBlending })); 
+  h.position.copy(ll2v(lat, lon, 25.2)); 
+  liveIndicatorsGroup.add(h); 
+}
+
+function createSourceMarker(lat, lon, region) {
+  const marker = document.createElement('div');
+  marker.className = 'source-marker';
+  if (region === 'MIDDLE EAST') marker.classList.add('military');
+  else if (region === 'EUROPE') marker.classList.add('weather');
+  else if (region === 'ASIA') marker.classList.add('sport');
+  
+  // Position marker on globe (simplified 2D projection for overlay)
+  const x = (lon + 180) / 360 * 100;
+  const y = (90 - lat) / 180 * 100;
+  marker.style.left = `${x}%`;
+  marker.style.top = `${y}%`;
+  
+  document.getElementById('canvas-wrap').appendChild(marker);
+  sourceMarkers.push(marker);
+}
+
+function createFlightPath(lat1, lon1, lat2, lon2, label) {
+  const p1 = ll2v(lat1, lon1, 25.5);
+  const p2 = ll2v(lat2, lon2, 25.5);
+  const mid = p1.clone().add(p2).multiplyScalar(0.5).normalize().multiplyScalar(32);
+  
+  const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+  const points = curve.getPoints(30);
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({ color: 0x00d4f5, transparent: true, opacity: 0.6 });
+  const line = new THREE.Line(geometry, material);
+  
+  flightPathsGroup.add(line);
+}
+
+function createShipRoute(lat1, lon1, lat2, lon2, label) {
+  const p1 = ll2v(lat1, lon1, 25.3);
+  const p2 = ll2v(lat2, lon2, 25.3);
+  
+  const geometry = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+  const material = new THREE.LineBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.5 });
+  const line = new THREE.Line(geometry, material);
+  
+  shipRoutesGroup.add(line);
+}
+
+function createWeatherSystem(lat, lon, type) {
+  const system = new THREE.Mesh(
+    new THREE.SphereGeometry(1.5, 16, 16),
+    new THREE.MeshBasicMaterial({ 
+      color: type === 'Hurricane' ? 0xff6633 : 0x4488ff,
+      transparent: true,
+      opacity: 0.4,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  system.position.copy(ll2v(lat, lon, 25.8));
+  weatherSystemsGroup.add(system);
+}
+
+function onWindowResize() { 
+  if (camera && renderer) { 
+    camera.aspect = innerWidth / innerHeight; 
+    camera.updateProjectionMatrix(); 
+    renderer.setSize(innerWidth, innerHeight); 
+  } 
+  if (studioCamera && studioRenderer) { 
+    studioCamera.aspect = 380 / 280; 
+    studioCamera.updateProjectionMatrix(); 
+    studioRenderer.setSize(380, 280); 
+  } 
+}
+
+const IDLE_HOTSPOTS = Object.values(GEO).filter(g => g.hotspot).concat([{ name: 'LONDON', lat: 51.5, lon: -0.12 }, { name: 'NEW YORK', lat: 40.7, lon: -74 }]);
+let idleIdx = 0, idleTimer = Date.now();
+function initCamCtrl() {
+  camCtrl = {
+    _lastLookAt: null,
+    update() {
+      if (camTarget) {
+        const t = Math.min((Date.now() - camMoveStart) / CONFIG.CAMERA_FLY_DURATION, 1); const ease = 1 - Math.pow(1 - t, 4);
+        camera.position.lerpVectors(camFrom, camTarget, ease);
+        if (camLookTarget) camera.lookAt(camLookTarget);
+        if (t >= 1) { camTarget = null; camLookTarget = null; hideCamIndicator(); }
+      } else if (Date.now() - idleTimer > CONFIG.IDLE_CAMERA_INTERVAL) {
+        idleIdx = (idleIdx + 1) % IDLE_HOTSPOTS.length; this.flyTo(IDLE_HOTSPOTS[idleIdx]); idleTimer = Date.now();
+      }
+    },
+    flyTo(geo) {
+      if (!geo) return;
+      const surf = ll2v(geo.lat, geo.lon, 25); camFrom = camera.position.clone(); camTarget = surf.clone().add(new THREE.Vector3(20, 15, 20)); camLookTarget = surf; camMoveStart = Date.now();
+      showLocBanner(geo); showCamIndicator(geo.name); idleTimer = Date.now();
+    }
+  };
+}
+function showLocBanner(g) { document.getElementById('locName').textContent = g.name; document.getElementById('locCoords').textContent = g.coords; document.getElementById('locRegion').textContent = g.region || ''; const b = document.getElementById('locBanner'); b.classList.add('show'); setTimeout(() => b.classList.remove('show'), 5000); }
+function showCamIndicator(n) { document.getElementById('camTargetLabel').textContent = '▶ ' + n; document.getElementById('camIndicator').classList.add('show'); }
+function hideCamIndicator() { document.getElementById('camIndicator').classList.remove('show'); }
+
+// ==================== ENHANCED 3D ANCHORS ====================
+function createGradientMap(base, highlight = '#ffffff', shadow = '#2a1e0e') {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 1; const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 256, 0); g.addColorStop(0, shadow); g.addColorStop(0.4, base); g.addColorStop(0.8, base); g.addColorStop(1, highlight);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 1); const t = new THREE.CanvasTexture(c); t.minFilter = THREE.NearestFilter; return t;
+}
+function createSkinMaterial(baseColor) { return new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: createGradientMap(baseColor), shininess: 10 }); }
+
+function createRustyBucket() {
+  const g = new THREE.Group(); g.userData = { talking: false };
+  
+  // Head with better detail
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.8, 48, 48), createSkinMaterial('#f1c8a0')); head.scale.y = 0.92; g.add(head); g.head = head;
+  
+  // Eyes with pupils
+  const eyeW = new THREE.Mesh(new THREE.SphereGeometry(0.14, 24), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+  const iris = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16), new THREE.MeshStandardMaterial({ color: 0x2a6f97 }));
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12), new THREE.MeshStandardMaterial({ color: 0x000000 }));
+  
+  [-0.3, 0.3].forEach((x, i) => { 
+    const ew = eyeW.clone(); ew.position.set(x, 0.28, 0.72); g.add(ew); 
+    const ir = iris.clone(); ir.position.set(x, 0.28, 0.85); g.add(ir); 
+    const p = pupil.clone(); p.position.set(x, 0.28, 0.9); g.add(p); 
+    if (i === 0) g.leftEye = ew; else g.rightEye = ew; 
+  });
+  
+  // Mouth with animation
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.035, 12, 24, Math.PI), new THREE.MeshStandardMaterial({ color: 0x8b3a3a })); 
+  mouth.position.set(0, -0.25, 0.82); mouth.rotation.x = Math.PI; g.add(mouth); g.mouth = mouth;
+  
+  // Hair
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.85, 24), new THREE.MeshStandardMaterial({ color: 0x4a2c1b })); 
+  hair.scale.set(1.1, 0.45, 1.05); hair.position.y = 0.65; g.add(hair);
+  
+  // Suit with tie
+  const suit = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.78, 1.1, 12), new THREE.MeshStandardMaterial({ color: 0x1a3050 })); 
+  suit.position.y = -1.7; g.add(suit);
+  
+  const tie = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.6), new THREE.MeshStandardMaterial({ color: 0x8b1a2a, side: THREE.DoubleSide }));
+  tie.position.set(0, -1.4, 0.55); g.add(tie);
+  
+  return g;
+}
+
+function createMarcyLou() {
+  const g = new THREE.Group(); g.userData = { talking: false };
+  
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.8, 48), createSkinMaterial('#8b4513')); head.scale.y = 0.92; g.add(head); g.head = head;
+  
+  const eyeW = new THREE.Mesh(new THREE.SphereGeometry(0.14, 24), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+  const iris = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16), new THREE.MeshStandardMaterial({ color: 0x2a6f97 }));
+  
+  [-0.3, 0.3].forEach((x, i) => { 
+    const ew = eyeW.clone(); ew.position.set(x, 0.28, 0.72); g.add(ew); 
+    const ir = iris.clone(); ir.position.set(x, 0.28, 0.85); g.add(ir); 
+  });
+  
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.035, 12, 24, Math.PI), new THREE.MeshStandardMaterial({ color: 0xcc7060 })); 
+  mouth.position.set(0, -0.28, 0.82); mouth.rotation.x = Math.PI; g.add(mouth); g.mouth = mouth;
+  
+  // Afro hairstyle
+  const afro = new THREE.Mesh(new THREE.SphereGeometry(0.95, 24), new THREE.MeshStandardMaterial({ color: 0x000000 })); 
+  afro.scale.set(1.08, 0.85, 1.08); afro.position.y = 0.65; g.add(afro);
+  
+  // Sporty outfit
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 1.5, 12), new THREE.MeshStandardMaterial({ color: 0xff69b4 })); 
+  skirt.position.y = -1.7; g.add(skirt);
+  
+  return g;
+}
+
+function createZeus() {
+  const g = new THREE.Group(); g.userData = { talking: false };
+  
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.8, 48), createSkinMaterial('#fff8dc')); head.scale.y = 0.92; g.add(head); g.head = head;
+  
+  const eyeW = new THREE.Mesh(new THREE.SphereGeometry(0.14, 24), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+  const iris = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16), new THREE.MeshStandardMaterial({ color: 0x4a6a9a }));
+  
+  [-0.3, 0.3].forEach((x, i) => { 
+    const ew = eyeW.clone(); ew.position.set(x, 0.28, 0.72); g.add(ew); 
+    const ir = iris.clone(); ir.position.set(x, 0.28, 0.85); g.add(ir); 
+  });
+  
+  // Beard
+  const beard = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16), new THREE.MeshStandardMaterial({ color: 0xcccccc })); 
+  beard.scale.set(1.15, 0.35, 0.75); beard.position.set(0, -0.45, 0.75); g.add(beard);
+  
+  // Robe
+  const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 1.8, 12), new THREE.MeshStandardMaterial({ color: 0xfafaff })); 
+  robe.position.y = -1.8; g.add(robe);
+  
+  // Crown
+  const crown = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.08, 8, 16), new THREE.MeshStandardMaterial({ color: 0xffd700 }));
+  crown.position.set(0, 0.9, 0); crown.rotation.x = Math.PI/2; g.add(crown);
+  
+  return g;
+}
+
+function initStudio() {
+  const cv = document.getElementById('studioCanvas'); if (!cv) return;
+  studioRenderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: false }); studioRenderer.setSize(380, 280); studioRenderer.setClearColor(0x0a0f1a, 1);
+  studioScene = new THREE.Scene(); studioCamera = new THREE.PerspectiveCamera(50, 380 / 280, 0.1, 100); studioCamera.position.set(0, 0.2, 4.0); studioCamera.lookAt(0, 0, 0);
+  studioScene.add(new THREE.AmbientLight(0x6677aa, 1));
+  const key = new THREE.DirectionalLight(0xfff4ec, 1.8); key.position.set(3, 6, 4); studioScene.add(key);
+  const fill = new THREE.DirectionalLight(0x2255cc, 0.5); fill.position.set(-3, 2, 3); studioScene.add(fill);
+  
+  studioAnchors.mrp = createRustyBucket(); studioAnchors.mrp.position.set(0, -0.2, 0);
+  studioAnchors.marcy = createMarcyLou(); studioAnchors.marcy.position.set(0, -0.2, 0);
+  studioAnchors.zeus = createZeus(); studioAnchors.zeus.position.set(0, -0.2, 0);
+  
+  Object.values(studioAnchors).forEach(a => { a.visible = false; studioScene.add(a); });
+  studioAnchors.mrp.visible = true;
+}
+
+function updateStudioAnimations(t) {
+  Object.values(studioAnchors).forEach((a, i) => {
+    if (!a.visible) return;
+    a.position.y = -0.2 + Math.sin(t * 1.2 + i) * 0.02;
+    if (a.head) a.head.rotation.y = a.userData.talking ? Math.sin(t * 8) * 0.05 : Math.sin(t * 0.4) * 0.02;
+    if (a.mouth) a.mouth.scale.y = a.userData.talking ? 0.6 + 0.5 * Math.sin(t * 10) : 1;
+  });
+}
+
+// ==================== ANCHOR SWITCH ====================
+function showAnchorTransition(name, title) {
+  return new Promise(resolve => {
+    const trans = document.getElementById('anchorTransition'), n = document.getElementById('transName'), t = document.getElementById('transTitle');
+    if (n) n.textContent = name; if (t) t.textContent = title; if (trans) trans.classList.add('show');
+    setTimeout(() => { if (trans) trans.classList.remove('show'); setTimeout(resolve, 150); }, 600);
+  });
+}
+async function setActiveAnchor(name, showTrans = true) {
+  if (currentAnchor === name) return;
+  if (studioAnchors[currentAnchor]) studioAnchors[currentAnchor].userData.talking = false;
+  currentAnchor = name;
+  document.getElementById('badgeMrP')?.classList.toggle('active', name === 'mrp');
+  document.getElementById('badgeMarcy')?.classList.toggle('active', name === 'marcy');
+  document.getElementById('badgeZeus')?.classList.toggle('active', name === 'zeus');
+  const wrap = document.getElementById('studioWrap'); wrap.classList.remove('sports-mode', 'zeus-mode'); if (name === 'marcy') wrap.classList.add('sports-mode'); if (name === 'zeus') wrap.classList.add('zeus-mode');
+  Object.values(studioAnchors).forEach(a => a.visible = false); studioAnchors[name].visible = true;
+  if (showTrans) {
+    const transNames = { mrp: 'RUSTYBUCKET', marcy: 'MARCY-LOU', zeus: 'ZEUS' };
+    const transTitles = { mrp: 'Main Desk', marcy: 'Sports Anchor', zeus: 'Weather Forecast' };
+    await showAnchorTransition(transNames[name], transTitles[name]);
+  }
+}
+window.manualSwitchAnchor = (name) => { if (isTransitioning) return; isTransitioning = true; setActiveAnchor(name, true).then(() => isTransitioning = false); };
+
+// ==================== ROBUST FETCH & QUEUE ====================
+async function fetchFeeds() {
+  let allItems = [];
+  let activeCount = 0;
+  
+  // Batch fetch with concurrency limit
+  const batchSize = 5;
+  for (let i = 0; i < CONFIG.FEEDS.length; i += batchSize) {
+    const batch = CONFIG.FEEDS.slice(i, i + batchSize);
+    const batchPromises = batch.map(async (feed) => {
+      try {
+        const p = getProxy(); 
+        const res = await fetch(p + encodeURIComponent(feed.url), { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) return null;
+        activeCount++;
+        const txt = await res.text(); 
+        const data = p.includes('allorigins') ? JSON.parse(txt).contents : txt;
+        const dom = new DOMParser().parseFromString(data, 'text/xml');
+        const items = Array.from(dom.querySelectorAll('item, entry')).slice(0, 2).map(it => {
+          const title = cleanText(it.querySelector('title')?.textContent || '');
+          const desc = cleanText(it.querySelector('description, summary, content')?.textContent || '').substring(0, 200);
+          const pub = it.querySelector('pubDate, published, updated'); let time = hm(), ts = Date.now();
+          if (pub) { try { ts = new Date(pub.textContent).getTime(); time = new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC'; } catch (e) {} }
+          return { title, desc, time, src: feed.src, cat: feed.cat, weight: feed.weight || 0.8, ts, geo: geoFromText(title + desc), region: feed.region };
+        }).filter(it => it.title.length > 10);
+        return items;
+      } catch (e) { 
+        rotateProxy(); // Try next proxy on failure
+        return null; 
+      }
+    });
+    
+    const batchResults = await Promise.all(batchPromises);
+    batchResults.forEach(result => { if (result) allItems.push(...result); });
+    
+    // Small delay between batches to avoid rate limiting
+    await new Promise(r => setTimeout(r, 200));
+  }
+  
+  sourceHealth.active = activeCount;
+  if (allItems.length === 0 && cachedStories.length > 0) { allItems = cachedStories; } else { cachedStories = allItems; }
+  
+  const prioritized = allItems.map(item => {
+    let priority = 0; const text = `${item.title} ${item.desc}`.toLowerCase();
+    if (CONFIG.PRIORITY_KEYWORDS.BREAKING.some(kw => text.includes(kw))) priority = 4;
+    else if (CONFIG.PRIORITY_KEYWORDS.MILITARY.some(kw => text.includes(kw))) priority = 3;
+    else if (CONFIG.PRIORITY_KEYWORDS.DISASTER.some(kw => text.includes(kw))) priority = 3;
+    else if (CONFIG.PRIORITY_KEYWORDS.POLITICS.some(kw => text.includes(kw))) priority = 2;
+    else if (CONFIG.PRIORITY_KEYWORDS.ECONOMY.some(kw => text.includes(kw))) priority = 2;
+    const ageHours = (Date.now() - item.ts) / 3600000; if (ageHours < 1) priority += 1; else if (ageHours < 3) priority += 0.5;
+    if (item.geo) priority += 0.5; priority += (item.weight || 0.8) * 0.5;
+    return { ...item, priority };
+  });
+  
+  const deduped = prioritized.filter(it => { const k = it.title.slice(0, 60).toLowerCase(); if (seenStoryKeys.has(k)) return false; seenStoryKeys.add(k); return true; });
+  newsQueue = deduped.sort((a, b) => b.priority - a.priority || b.ts - a.ts);
+  if (seenStoryKeys.size > 500) seenStoryKeys.clear();
+  currentStoryIndex = 0;
+  buildTickers();
+  updateOpenDataPanel();
+  updateGlobeInfo();
+}
+
+function buildTickers() {
+  const world = newsQueue.filter(i => i.cat === 'world').slice(0, 15);
+  const track = document.getElementById('tickerTrack'); if (track) track.innerHTML = world.length ? world.concat(world).map(n => `<div class="ti"><span class="ti-t">${n.time}</span><span class="ti-k">NEWS</span><span class="ti-txt">${n.title}</span><span class="ti-sep">◆</span></div>`).join('') : '<div class="ti"><span class="ti-txt">Awaiting global headlines...</span></div>';
+  
+  const sports = newsQueue.filter(i => i.cat === 'sport').slice(0, 10);
+  const st = document.getElementById('sportsTickerTrack'); if (st) st.innerHTML = sports.length ? sports.concat(sports).map(n => `<div class="ti"><span class="ti-t">${n.time}</span><span class="ti-k s">SPORTS</span><span class="ti-txt">${n.title}</span></div>`).join('') : '<div class="ti">No sports updates</div>';
+  
+  const fin = newsQueue.filter(i => i.cat === 'finance').slice(0, 10);
+  const ft = document.getElementById('financialTickerTrack'); if (ft) ft.innerHTML = fin.length ? fin.concat(fin).map(n => `<div class="ti"><span class="ti-t">${n.time}</span><span class="ti-k f">MARKETS</span><span class="ti-txt">${n.title}</span></div>`).join('') : '<div class="ti">No market data</div>';
+}
+
+function updateOpenDataPanel() {
+  document.getElementById('sourceCount').textContent = `${sourceHealth.active}/${CONFIG.FEEDS.length}`;
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  if (newsQueue.length > 0) {
+    const top = newsQueue[0];
+    document.getElementById('topStoryTicker').textContent = top.title.substring(0, 25) + (top.title.length > 25 ? '…' : '');
+  }
+}
+
+function updateGlobeInfo() {
+  const info = document.getElementById('globeInfo');
+  if (info) {
+    const regions = [...new Set(CONFIG.FEEDS.map(f => f.region))];
+    info.innerHTML = `
+      <div class="globe-info-row"><span class="globe-info-label">REGIONS:</span><span>${regions.length} covered</span></div>
+      <div class="globe-info-row"><span class="globe-info-label">FEEDS:</span><span>${CONFIG.FEEDS.length} active</span></div>
+      <div class="globe-info-row"><span class="globe-info-label">STORIES:</span><span>${newsQueue.length} queued</span></div>
+    `;
+  }
+}
+
+function getNextStory(cat = 'world') {
+  let list = newsQueue.filter(i => i.cat === cat); if (!list.length) list = newsQueue.filter(i => i.cat === 'world');
+  if (currentStoryIndex >= list.length) currentStoryIndex = 0;
+  return list[currentStoryIndex++];
+}
+
+// ==================== BROADCAST ====================
+function showCard(item) {
+  const tagEl = document.getElementById('ncTag'), cardEl = document.getElementById('newsCard');
+  let tag = 'GLOBAL NEWS', tagClass = 'world';
+  if (item.priority >= 4) { tag = 'BREAKING'; tagClass = 'breaking'; } else if (item.priority >= 3) { tag = 'URGENT'; tagClass = 'breaking'; }
+  tagEl.textContent = tag; tagEl.className = `nc-tag ${tagClass}`; cardEl.className = `news-card in ${item.priority >= 3 ? 'breaking' : ''}`;
+  document.getElementById('ncTime').textContent = item.time; document.getElementById('ncCitation').textContent = `Source: ${item.src}`;
+  document.getElementById('ncHl').textContent = item.title; document.getElementById('ncBody').textContent = item.desc;
+  adjustUISpacing();
+}
+function hideCard() { document.getElementById('newsCard').classList.remove('in', 'breaking'); adjustUISpacing(); }
+
+function scheduleNextStory() {
+  clearTimeout(cycleTimer);
+  if (currentSeg !== 'news') return;
+  const story = getNextStory('world');
+  if (!story) { cycleTimer = setTimeout(scheduleNextStory, 5000); return; }
+  if (story.geo && camCtrl) camCtrl.flyTo(story.geo);
+  showCard(story);
+  const intro = story.priority >= 4 ? 'BREAKING NEWS: ' : (story.priority >= 3 ? 'URGENT: ' : '');
+  enqueue(intro + speechText(story.title) + '. ' + speechText(story.desc), 'mrp', () => { hideCard(); cycleTimer = setTimeout(scheduleNextStory, 800); });
+}
+
+function startSegment(type) {
+  currentSeg = type; segEnd = Date.now() + CONFIG.SEGMENT_DURATION;
+  const anchor = type === 'weather' ? 'zeus' : type === 'sport' ? 'marcy' : 'mrp';
+  setActiveAnchor(anchor, true).then(() => {
+    const panel = document.getElementById('segPanel'); panel.classList.add('in');
+    document.getElementById('segHdr').textContent = type === 'weather' ? '⚡ WEATHER FORECAST' : type === 'sport' ? '🏆 SPORTS DESK' : '💹 MARKET UPDATE';
+    const items = newsQueue.filter(i => i.cat === type).slice(0, 3);
+    document.getElementById('segBody').innerHTML = items.map(n => `<div class="sp-row"><div class="sp-icon">${type === 'weather' ? '⚡' : type === 'sport' ? '🏆' : '💹'}</div><div><div class="sp-t">${n.title}</div><div class="sp-d">${n.desc.substring(0, 80)}...</div></div></div>`).join('');
+    adjustUISpacing();
+    enqueue(`Now for your ${type} update.`, anchor, () => narrateSegment(items, anchor, () => {
+      enqueue(`That's all for ${type}. Back to RustyBucket.`, anchor, () => {
+        document.getElementById('segPanel').classList.remove('in'); currentSeg = 'news';
+        setActiveAnchor('mrp', false).then(() => scheduleNextStory());
+      });
+    }));
+  });
+}
+function narrateSegment(items, anchor, onDone) {
+  let idx = 0;
+  function next() { if (idx >= items.length) return onDone(); const s = items[idx++]; if (s.geo && camCtrl) camCtrl.flyTo(s.geo); showCard(s); enqueue(speechText(s.title) + '. ' + speechText(s.desc), anchor, () => { hideCard(); next(); }); }
+  next();
+}
+
+// ==================== SCHEDULER ====================
+let lastMin = -1;
+function checkSchedule() {
+  const min = new Date().getUTCMinutes();
+  if (min !== lastMin && currentSeg === 'news') {
+    lastMin = min;
+    if (min % 15 === 0 && newsQueue.some(i => i.cat === 'weather')) startSegment('weather');
+    else if (min % 15 === 5 && newsQueue.some(i => i.cat === 'sport')) startSegment('sport');
+    else if (min % 15 === 10 && newsQueue.some(i => i.cat === 'finance')) startSegment('finance');
+  }
+}
+
+// ==================== EDUCATIONAL TIP ====================
+function showEduTip() {
+  const tip = document.getElementById('eduTip');
+  const txt = document.getElementById('eduTipTxt');
+  if (txt) txt.textContent = CONFIG.EDU_FACTS[eduFactIndex % CONFIG.EDU_FACTS.length];
+  if (tip) tip.classList.add('show');
+  eduFactIndex++;
+  setTimeout(() => { if (tip) tip.classList.remove('show'); }, 8000);
+}
+
+// ==================== ANIMATION LOOP ====================
+function animate() {
+  animationFrameId = requestAnimationFrame(animate);
+  const t = Date.now() * 0.001;
+  if (camCtrl) camCtrl.update();
+  if (globeGroup) { globeGroup.rotation.y += 0.0004; if (clouds) clouds.rotation.y += 0.0001; }
+  if (starField) starField.rotation.y = t * 0.0006;
+  
+  // Animate dynamic elements
+  if (weatherSystemsGroup) {
+    weatherSystemsGroup.children.forEach((sys, i) => {
+      sys.scale.set(1 + Math.sin(t * 2 + i) * 0.2, 1 + Math.sin(t * 2 + i) * 0.2, 1 + Math.sin(t * 2 + i) * 0.2);
+      sys.material.opacity = 0.3 + Math.sin(t * 3 + i) * 0.2;
+    });
+  }
+  
+  if (renderer && scene && camera) renderer.render(scene, camera);
+  if (studioRenderer && studioScene && studioCamera) { updateStudioAnimations(t); studioRenderer.render(studioScene, studioCamera); }
+}
+
+// ==================== CLOCK & BOOT ====================
+function startClock() {
+  setInterval(() => { document.getElementById('clock').textContent = utcStr(); checkSchedule(); }, 1000);
+}
+
+(async function boot() {
+  try {
+    initGlobe(); initStudio(); animate(); startClock();
+    if ('speechSynthesis' in window) initializeVoices();
+    await new Promise(r => setTimeout(r, 1200)); finishLoading();
+    await fetchFeeds(); setInterval(fetchFeeds, 60000);
+    setInterval(showEduTip, 45000);
+    
+    // Music with better error handling
+    const audio = document.getElementById('bgMusic');
+    audio.volume = currentMusicVolume;
+    
+    // Try to play music on user interaction
+    const playMusic = async () => {
+      try {
+        await audio.play();
+        console.log('Music started');
+      } catch (e) {
+        console.log('Autoplay blocked, waiting for interaction');
+        // Add click listener as fallback
+        document.body.addEventListener('click', () => {
+          audio.play().catch(() => {});
+        }, { once: true });
+      }
+    };
+    
+    // Try immediately, then on first click
+    playMusic();
+    
+    setTimeout(() => {
+      enqueue("Welcome to Open Source News. I'm RustyBucket. Our mission: transparent, independent news from open sources worldwide. No corporate agenda, just facts.", 'mrp', () => scheduleNextStory());
+    }, 2000);
+  } catch (e) { console.error('Boot error:', e); }
+})();
+
+window.addEventListener('beforeunload', () => { if (animationFrameId) cancelAnimationFrame(animationFrameId); if ('speechSynthesis' in window) speechSynthesis.cancel(); });
+</script>
+</body>
+</html>
