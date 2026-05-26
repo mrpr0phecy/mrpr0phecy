@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>🌿 Bedfordshire & Northamptonshire Garden Birds · Continuous Soundscape</title>
+<title>🌿 Beds & Northants Garden Birds · Continuous Layered Soundscape</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   background: #0b1120;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -25,13 +25,14 @@ body {
 }
 .btn-primary {
   background: linear-gradient(135deg, #10b981, #059669);
-  padding: 10px 24px;
+  padding: 12px 28px;
   border-radius: 40px;
   color: white;
   font-weight: 700;
   border: none;
   cursor: pointer;
   transition: 0.2s;
+  font-size: 1rem;
 }
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16,185,129,0.3); }
 .btn-secondary {
@@ -230,31 +231,30 @@ async function fetchBirdRecording(latinName) {
       return audioUrl;
     }
   } catch(e) { console.warn(`Failed to fetch ${latinName}`, e); }
-  // fallback to a generic bird sound (still real, from xeno-canto)
-  const fallback = 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_5f5f5f5f5f.mp3';
+  // Use a reliable fallback (short bird-like sound from freesound CDN)
+  const fallback = 'https://cdn.freesound.org/previews/322/322324_5444971-lq.mp3';
   recordingCache.set(latinName, fallback);
   return fallback;
 }
 
 // ============================================================================
-// CONTINUOUS LAYERED SOUNDSCAPE ENGINE
+// CONTINUOUS LAYERED SOUNDSCAPE ENGINE (NO DELAYS, IMMEDIATE PLAY)
 // ============================================================================
 class SoundscapeEngine {
   constructor() {
-    this.enabled = new Map();        // bird id -> boolean
-    this.activeTimeouts = new Map(); // bird id -> timeout handle
-    this.currentlyPlaying = new Set(); // bird ids actively playing audio
+    this.enabled = new Map();         // bird id -> boolean
     this.activeAudios = new Map();    // bird id -> audio element
+    this.currentlyPlaying = new Set(); // bird ids actively playing
     this.volume = 0.65;
-    this.targetLayers = 5;            // desired number of simultaneous birds
+    this.targetLayers = 5;
     this.onUpdate = null;
     this.isRunning = true;
-    this.maintainInterval = null;
+    this.maintenanceInterval = null;
   }
 
   setOnUpdate(cb) { this.onUpdate = cb; }
   setVolume(v) { this.volume = v; this.updateAllVolumes(); }
-  setTargetLayers(n) { this.targetLayers = n; this.fillLayersIfNeeded(); }
+  setTargetLayers(n) { this.targetLayers = n; this.fillLayers(); }
 
   updateAllVolumes() {
     for (const audio of this.activeAudios.values()) {
@@ -262,100 +262,98 @@ class SoundscapeEngine {
     }
   }
 
-  // Enable all birds by default
-  enableAll() {
+  // Enable all birds and start the soundscape immediately
+  async enableAll() {
     for (const bird of BIRDS) {
-      if (!this.enabled.get(bird.id)) {
-        this.enabled.set(bird.id, true);
-        this.scheduleBird(bird);
-      }
+      this.enabled.set(bird.id, true);
     }
-    this.startLayerMaintenance();
+    // Pre-fetch URLs for a subset to speed up first plays
+    const prefetchBirds = BIRDS.slice(0, 15);
+    await Promise.all(prefetchBirds.map(b => fetchBirdRecording(b.latin)));
+    this.startMaintenance();
+    // Immediately trigger enough birds to reach target layers
+    await this.fillLayers();
     if (this.onUpdate) this.onUpdate();
   }
 
-  startLayerMaintenance() {
-    if (this.maintainInterval) clearInterval(this.maintainInterval);
-    this.maintainInterval = setInterval(() => this.fillLayersIfNeeded(), 3000);
-    this.fillLayersIfNeeded();
+  startMaintenance() {
+    if (this.maintenanceInterval) clearInterval(this.maintenanceInterval);
+    this.maintenanceInterval = setInterval(() => this.fillLayers(), 4000);
   }
 
-  fillLayersIfNeeded() {
+  async fillLayers() {
     if (!this.isRunning) return;
     const currentActive = this.currentlyPlaying.size;
-    const deficit = this.targetLayers - currentActive;
-    if (deficit > 0) {
-      // pick eligible birds (enabled and not already playing)
-      const eligible = BIRDS.filter(b => this.enabled.get(b.id) && !this.currentlyPlaying.has(b.id));
-      for (let i = 0; i < Math.min(deficit, eligible.length, 3); i++) {
-        const bird = eligible[Math.floor(Math.random() * eligible.length)];
-        if (bird) this.triggerBirdNow(bird);
+    const needed = this.targetLayers - currentActive;
+    if (needed <= 0) return;
+    
+    const eligible = BIRDS.filter(b => this.enabled.get(b.id) && !this.currentlyPlaying.has(b.id));
+    // Shuffle to get random selection
+    for (let i = 0; i < Math.min(needed, eligible.length, 3); i++) {
+      const randomIndex = Math.floor(Math.random() * eligible.length);
+      const bird = eligible[randomIndex];
+      if (bird) {
+        await this.playBird(bird);
+        // Remove from eligible to avoid duplicate
+        eligible.splice(randomIndex, 1);
       }
     }
   }
 
-  async triggerBirdNow(bird) {
-    if (!this.enabled.get(bird.id)) return;
-    if (this.currentlyPlaying.has(bird.id)) return;
-    if (this.currentlyPlaying.size >= this.targetLayers + 2) return; // soft limit
-
+  async playBird(bird) {
+    if (!this.enabled.get(bird.id)) return false;
+    if (this.currentlyPlaying.has(bird.id)) return false;
+    if (this.activeAudios.has(bird.id)) return false;
+    
     const url = await fetchBirdRecording(bird.latin);
     const audio = new Audio();
     audio.src = url;
     audio.volume = this.volume * (0.5 + Math.random() * 0.5);
     audio.crossOrigin = 'anonymous';
-
-    const onEnd = () => {
-      this.currentlyPlaying.delete(bird.id);
-      this.activeAudios.delete(bird.id);
-      if (this.onUpdate) this.onUpdate();
-      // after ending, schedule the bird's next random occurrence
-      if (this.enabled.get(bird.id)) {
-        this.scheduleBird(bird);
-      }
-    };
-
-    audio.addEventListener('ended', onEnd);
-    audio.addEventListener('error', onEnd);
-
-    try {
-      await audio.play();
-      this.currentlyPlaying.add(bird.id);
-      this.activeAudios.set(bird.id, audio);
-      if (this.onUpdate) this.onUpdate();
-    } catch(e) {
-      console.warn(`Could not play ${bird.name}`, e);
-      onEnd();
-    }
+    
+    return new Promise((resolve) => {
+      const onEnd = () => {
+        this.currentlyPlaying.delete(bird.id);
+        this.activeAudios.delete(bird.id);
+        if (this.onUpdate) this.onUpdate();
+        // Schedule next play for this bird after a random delay (so it's not immediate)
+        if (this.enabled.get(bird.id) && this.isRunning) {
+          this.scheduleNext(bird);
+        }
+        resolve(true);
+      };
+      audio.addEventListener('ended', onEnd);
+      audio.addEventListener('error', onEnd);
+      
+      audio.play().then(() => {
+        this.currentlyPlaying.add(bird.id);
+        this.activeAudios.set(bird.id, audio);
+        if (this.onUpdate) this.onUpdate();
+        resolve(true);
+      }).catch(e => {
+        console.warn(`Failed to play ${bird.name}`, e);
+        onEnd();
+        resolve(false);
+      });
+    });
   }
 
-  scheduleBird(bird) {
+  scheduleNext(bird) {
     if (!this.enabled.get(bird.id)) return;
-    // Cancel existing timeout for this bird
-    const existing = this.activeTimeouts.get(bird.id);
-    if (existing) clearTimeout(existing);
-
-    // Activity-based delay: more active birds sing more often (2 to 18 seconds)
     const activity = bird.activity || 0.7;
-    const baseDelay = Math.max(2000, 16000 / Math.max(0.2, activity));
-    const delay = baseDelay * (0.5 + Math.random());
-
-    const timeout = setTimeout(() => {
-      if (this.enabled.get(bird.id) && this.isRunning) {
-        this.triggerBirdNow(bird);
+    const delay = Math.max(3000, 14000 / Math.max(0.2, activity)) * (0.6 + Math.random());
+    setTimeout(() => {
+      if (this.enabled.get(bird.id) && this.isRunning && !this.currentlyPlaying.has(bird.id)) {
+        this.playBird(bird).catch(console.warn);
       }
     }, delay);
-    this.activeTimeouts.set(bird.id, timeout);
   }
 
   toggleBird(bird) {
     const wasEnabled = this.enabled.get(bird.id);
     if (wasEnabled) {
-      // Disable: cancel scheduled play, stop current audio
       this.enabled.set(bird.id, false);
-      const timeout = this.activeTimeouts.get(bird.id);
-      if (timeout) clearTimeout(timeout);
-      this.activeTimeouts.delete(bird.id);
+      // Stop currently playing audio
       const audio = this.activeAudios.get(bird.id);
       if (audio) {
         audio.pause();
@@ -365,18 +363,18 @@ class SoundscapeEngine {
       }
     } else {
       this.enabled.set(bird.id, true);
-      this.scheduleBird(bird);
-      // optionally fill layer if needed
-      this.fillLayersIfNeeded();
+      // If we need layers, play immediately
+      if (this.currentlyPlaying.size < this.targetLayers) {
+        this.playBird(bird).catch(console.warn);
+      } else {
+        this.scheduleNext(bird);
+      }
     }
     if (this.onUpdate) this.onUpdate();
     return !wasEnabled;
   }
 
   stopAll() {
-    // Stop all audio and cancel all timeouts
-    for (const timeout of this.activeTimeouts.values()) clearTimeout(timeout);
-    this.activeTimeouts.clear();
     for (const audio of this.activeAudios.values()) {
       audio.pause();
       audio.src = '';
@@ -388,24 +386,27 @@ class SoundscapeEngine {
 
   shutdown() {
     this.isRunning = false;
-    if (this.maintainInterval) clearInterval(this.maintainInterval);
+    if (this.maintenanceInterval) clearInterval(this.maintenanceInterval);
     this.stopAll();
   }
 }
 
 // ============================================================================
-// UI APP (NO AMBIENT, ONLY BIRDS)
+// UI APP
 // ============================================================================
 let engine = null;
-let uiState = { started: false, volume: 65, targetLayers: 5 };
+let uiState = { started: false, volume: 65, targetLayers: 5, loading: false };
 
-function init() {
+async function init() {
   if (engine) engine.shutdown();
   engine = new SoundscapeEngine();
   engine.setVolume(uiState.volume / 100);
   engine.setTargetLayers(uiState.targetLayers);
   engine.setOnUpdate(() => render());
-  engine.enableAll();  // all birds start enabled → continuous layered soundscape
+  uiState.loading = true;
+  render();
+  await engine.enableAll();  // this triggers immediate bird songs
+  uiState.loading = false;
   uiState.started = true;
   render();
 }
@@ -423,7 +424,7 @@ function render() {
           <div style="font-size:4rem;">🌲🐦</div>
           <h1 style="font-size:1.8rem;font-weight:900;margin:1rem 0 0.5rem;">Bedfordshire & Northamptonshire Garden Birds</h1>
           <p style="color:#94a3b8;margin-bottom:1rem;">82 real British bird species · Continuous layered soundscape<br><strong>All birds enabled by default</strong> — a rich, ever-changing chorus</p>
-          <button class="btn-primary" onclick="init()">🌿 Enter the Garden</button>
+          <button class="btn-primary" onclick="init()" ${uiState.loading ? 'disabled' : ''}>${uiState.loading ? '🔄 Loading bird songs...' : '🌿 Enter the Garden'}</button>
           <p style="font-size:0.7rem;color:#475569;margin-top:1.5rem;">Real recordings from xeno-canto · Birds sing randomly, respecting your layer limit · Click any bird to enable/disable</p>
         </div>
       </div>
@@ -469,12 +470,12 @@ function render() {
           <div style="width:${fillPercent}%;height:100%;background:linear-gradient(90deg,#10b981,#fbbf24);border-radius:10px;transition:width 0.3s;"></div>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          ${currentlyPlaying.size === 0 ? '<span style="font-size:0.7rem;color:#fbbf24;">✨ Building layers — birds will start singing any moment... ✨</span>' : ''}
+          ${activeCount === 0 ? '<span style="font-size:0.7rem;color:#fbbf24;">✨ Building layers — birds will start singing any moment... ✨</span>' : ''}
           ${Array.from(currentlyPlaying).slice(0, 18).map(id => {
             const b = BIRDS.find(bird => bird.id === id);
             return b ? `<div class="now-playing"><span></span>${b.icon} ${b.name}</div>` : '';
           }).join('')}
-          ${currentlyPlaying.size > 18 ? `<div class="now-playing">+${currentlyPlaying.size-18} more</div>` : ''}
+          ${activeCount > 18 ? `<div class="now-playing">+${activeCount-18} more</div>` : ''}
         </div>
       </div>
       
@@ -506,7 +507,6 @@ function render() {
   document.getElementById('app').innerHTML = html;
 }
 
-// Expose globals
 window.init = init;
 window.toggleBird = toggleBird;
 window.updateVolume = updateVolume;
@@ -514,6 +514,7 @@ window.updateLayers = updateLayers;
 window.stopAll = stopAll;
 window.BIRDS = BIRDS;
 
+// Initial render (start screen)
 render();
 </script>
 </body>
