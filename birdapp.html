@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>🌿 Beds & Northants Garden Birds · WORKING SOUNDSCAPE</title>
+<title>🌿 Beds & Northants Garden Birds · Procedural Soundscape</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -122,97 +122,677 @@ body {
 input[type="range"] { -webkit-appearance: none; background: #1e293b; height: 4px; border-radius: 10px; width: 100%; }
 input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #10b981; border-radius: 50%; cursor: pointer; }
 .card { background: #111827; border-radius: 1.25rem; padding: 1rem; border: 1px solid #1f2a3e; }
-.error-toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #ef4444;
-  color: white;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  z-index: 200;
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-}
-.error-toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 <div id="app"></div>
-<div id="error-toast" class="error-toast"></div>
 
 <script>
 // ============================================================================
-// 30 BIRDS OF BEDFORDSHIRE & NORTHAMPTONSHIRE with WORKING AUDIO URLs
-// Sources: Wikimedia Commons (allows hotlinking), Pixabay, reliable MP3 hosts
+// 30 BIRDS OF BEDFORDSHIRE & NORTHAMPTONSHIRE
+// Each bird has a unique synthesized voice using Web Audio API
 // ============================================================================
 const BIRDS = [
-  // === Wikimedia Commons - verified working direct URLs ===
-  { id: 'blackbird', name: 'Blackbird', icon: '🎵', url: 'https://upload.wikimedia.org/wikipedia/commons/6/63/Common_Blackbird_song_%28Turdus_merula%29.ogg', activity: 0.92 },
-  { id: 'robin', name: 'Robin', icon: '🐦', url: 'https://upload.wikimedia.org/wikipedia/commons/5/55/Erithacus_rubecula_-_Robin_-_XC80088_-_song.mp3', activity: 0.95 },
-  { id: 'great-tit', name: 'Great Tit', icon: '💛', url: 'https://upload.wikimedia.org/wikipedia/commons/2/24/Parus_major_-_Great_Tit_-_XC80090_-_song.mp3', activity: 0.93 },
-  { id: 'blue-tit', name: 'Blue Tit', icon: '💙', url: 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Cyanistes_caeruleus_-_Eurasian_Blue_Tit_-_XC80091_-_song.mp3', activity: 0.91 },
-  { id: 'song-thrush', name: 'Song Thrush', icon: '🌿', url: 'https://upload.wikimedia.org/wikipedia/commons/9/9c/Turdus_philomelos_-_Song_Thrush_-_XC80092_-_song.mp3', activity: 0.9 },
-  { id: 'house-sparrow', name: 'House Sparrow', icon: '🏠', url: 'https://upload.wikimedia.org/wikipedia/commons/8/8e/Passer_domesticus_-_House_Sparrow_-_XC80093_-_song.mp3', activity: 0.94 },
-  { id: 'wren', name: 'Wren', icon: '🔥', url: 'https://upload.wikimedia.org/wikipedia/commons/1/1a/Troglodytes_troglodytes_-_Eurasian_Wren_-_XC80094_-_song.mp3', activity: 0.96 },
-  { id: 'chaffinch', name: 'Chaffinch', icon: '🐤', url: 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Fringilla_coelebs_-_Common_Chaffinch_-_XC80095_-_song.mp3', activity: 0.9 },
-  { id: 'goldfinch', name: 'Goldfinch', icon: '✨', url: 'https://upload.wikimedia.org/wikipedia/commons/4/4e/Carduelis_carduelis_-_European_Goldfinch_-_XC80096_-_song.mp3', activity: 0.89 },
-  { id: 'greenfinch', name: 'Greenfinch', icon: '💚', url: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Chloris_chloris_-_European_Greenfinch_-_XC80097_-_song.mp3', activity: 0.87 },
-  { id: 'wood-pigeon', name: 'Wood Pigeon', icon: '🌳', url: 'https://upload.wikimedia.org/wikipedia/commons/7/7a/Columba_palumbus_-_Common_Wood_Pigeon_-_XC80098_-_song.mp3', activity: 0.8 },
-  { id: 'collared-dove', name: 'Collared Dove', icon: '🕊️', url: 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Streptopelia_decaocto_-_Eurasian_Collared_Dove_-_XC80099_-_song.mp3', activity: 0.82 },
-  { id: 'skylark', name: 'Skylark', icon: '☀️', url: 'https://upload.wikimedia.org/wikipedia/commons/9/9d/Alauda_arvensis_-_Eurasian_Skylark_-_XC80100_-_song.mp3', activity: 0.85 },
-  { id: 'starling', name: 'Starling', icon: '⭐', url: 'https://upload.wikimedia.org/wikipedia/commons/1/1e/Sturnus_vulgaris_-_Common_Starling_-_XC80101_-_song.mp3', activity: 0.88 },
-  { id: 'blackcap', name: 'Blackcap', icon: '🎼', url: 'https://upload.wikimedia.org/wikipedia/commons/2/2c/Sylvia_atricapilla_-_Eurasian_Blackcap_-_XC80102_-_song.mp3', activity: 0.9 },
-  { id: 'chiffchaff', name: 'Chiffchaff', icon: '🎶', url: 'https://upload.wikimedia.org/wikipedia/commons/3/3a/Phylloscopus_collybita_-_Common_Chiffchaff_-_XC80103_-_song.mp3', activity: 0.92 },
-  { id: 'willow-warbler', name: 'Willow Warbler', icon: '🍃', url: 'https://upload.wikimedia.org/wikipedia/commons/4/4d/Phylloscopus_trochilus_-_Willow_Warbler_-_XC80104_-_song.mp3', activity: 0.88 },
-  { id: 'cuckoo', name: 'Cuckoo', icon: '⏰', url: 'https://upload.wikimedia.org/wikipedia/commons/5/5e/Cuculus_canorus_-_Common_Cuckoo_-_XC80105_-_song.mp3', activity: 0.7 },
-  { id: 'tawny-owl', name: 'Tawny Owl', icon: '🌙', url: 'https://upload.wikimedia.org/wikipedia/commons/6/6f/Strix_aluco_-_Tawny_Owl_-_XC80106_-_song.mp3', activity: 0.55 },
-  { id: 'green-woodpecker', name: 'Green Woodpecker', icon: '🟢', url: 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Picus_viridis_-_European_Green_Woodpecker_-_XC80107_-_song.mp3', activity: 0.7 },
-  { id: 'nuthatch', name: 'Nuthatch', icon: '🔵', url: 'https://upload.wikimedia.org/wikipedia/commons/8/8e/Sitta_europaea_-_Eurasian_Nuthatch_-_XC80108_-_song.mp3', activity: 0.78 },
-  { id: 'bullfinch', name: 'Bullfinch', icon: '💗', url: 'https://upload.wikimedia.org/wikipedia/commons/9/9f/Pyrrhula_pyrrhula_-_Eurasian_Bullfinch_-_XC80109_-_song.mp3', activity: 0.72 },
-  { id: 'yellowhammer', name: 'Yellowhammer', icon: '🟡', url: 'https://upload.wikimedia.org/wikipedia/commons/1/1a/Emberiza_citrinella_-_Yellowhammer_-_XC80110_-_song.mp3', activity: 0.8 },
-  { id: 'jay', name: 'Jay', icon: '🎨', url: 'https://upload.wikimedia.org/wikipedia/commons/2/2d/Garrulus_glandarius_-_Eurasian_Jay_-_XC80111_-_song.mp3', activity: 0.62 },
-  { id: 'magpie', name: 'Magpie', icon: '🖤', url: 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Pica_pica_-_Eurasian_Magpie_-_XC80112_-_song.mp3', activity: 0.68 },
-  { id: 'jackdaw', name: 'Jackdaw', icon: '👁️', url: 'https://upload.wikimedia.org/wikipedia/commons/4/4e/Coloeus_monedula_-_Western_Jackdaw_-_XC80113_-_song.mp3', activity: 0.7 },
-  { id: 'carrion-crow', name: 'Carrion Crow', icon: '⚫', url: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Corvus_corone_-_Carrion_Crow_-_XC80114_-_song.mp3', activity: 0.58 },
-  { id: 'buzzard', name: 'Buzzard', icon: '🪶', url: 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Buteo_buteo_-_Common_Buzzard_-_XC80115_-_song.mp3', activity: 0.6 },
-  { id: 'lapwing', name: 'Lapwing', icon: '🪁', url: 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Vanellus_vanellus_-_Northern_Lapwing_-_XC80116_-_song.mp3', activity: 0.7 },
-  { id: 'mallard', name: 'Mallard', icon: '🦆', url: 'https://upload.wikimedia.org/wikipedia/commons/8/8e/Anas_platyrhynchos_-_Mallard_-_XC80117_-_song.mp3', activity: 0.6 }
+  { id: 'robin', name: 'Robin', icon: '🐦', activity: 0.95, voice: 'warble' },
+  { id: 'blackbird', name: 'Blackbird', icon: '🎵', activity: 0.92, voice: 'flute' },
+  { id: 'song-thrush', name: 'Song Thrush', icon: '🌿', activity: 0.9, voice: 'repeat' },
+  { id: 'great-tit', name: 'Great Tit', icon: '💛', activity: 0.93, voice: 'tee-cher' },
+  { id: 'blue-tit', name: 'Blue Tit', icon: '💙', activity: 0.91, voice: 'tsee-tsee' },
+  { id: 'house-sparrow', icon: '🏠', name: 'House Sparrow', activity: 0.94, voice: 'chirrup' },
+  { id: 'starling', name: 'Starling', icon: '⭐', activity: 0.88, voice: 'mimic' },
+  { id: 'wren', name: 'Wren', icon: '🔥', activity: 0.96, voice: 'trill' },
+  { id: 'goldfinch', name: 'Goldfinch', icon: '✨', activity: 0.89, voice: 'tinkling' },
+  { id: 'chaffinch', name: 'Chaffinch', icon: '🐤', activity: 0.9, voice: 'pink' },
+  { id: 'greenfinch', name: 'Greenfinch', icon: '💚', activity: 0.87, voice: 'wheezing' },
+  { id: 'wood-pigeon', name: 'Wood Pigeon', icon: '🌳', activity: 0.8, voice: 'coo' },
+  { id: 'collared-dove', name: 'Collared Dove', icon: '🕊️', activity: 0.82, voice: 'coo-coo' },
+  { id: 'blackcap', name: 'Blackcap', icon: '🎼', activity: 0.9, voice: 'warble-fast' },
+  { id: 'chiffchaff', name: 'Chiffchaff', icon: '🎶', activity: 0.92, voice: 'chiff-chaff' },
+  { id: 'willow-warbler', name: 'Willow Warbler', icon: '🍃', activity: 0.88, voice: 'descend' },
+  { id: 'cuckoo', name: 'Cuckoo', icon: '⏰', activity: 0.7, voice: 'cuckoo' },
+  { id: 'nightingale', name: 'Nightingale', icon: '🌙', activity: 0.9, voice: 'nightingale' },
+  { id: 'skylark', name: 'Skylark', icon: '☀️', activity: 0.85, voice: 'skylark' },
+  { id: 'tawny-owl', name: 'Tawny Owl', icon: '🌙', activity: 0.55, voice: 'hoot' },
+  { id: 'green-woodpecker', name: 'Green Woodpecker', icon: '🟢', activity: 0.7, voice: 'yaffle' },
+  { id: 'great-spotted-woodpecker', name: 'Great Spotted', icon: '🪓', activity: 0.75, voice: 'drum' },
+  { id: 'nuthatch', name: 'Nuthatch', icon: '🔵', activity: 0.78, voice: 'pip' },
+  { id: 'bullfinch', name: 'Bullfinch', icon: '💗', activity: 0.72, voice: 'sad-pipe' },
+  { id: 'yellowhammer', name: 'Yellowhammer', icon: '🟡', activity: 0.8, voice: 'a-little-bit' },
+  { id: 'jay', name: 'Jay', icon: '🎨', activity: 0.62, voice: 'screech' },
+  { id: 'magpie', name: 'Magpie', icon: '🖤', activity: 0.68, voice: 'magpie' },
+  { id: 'jackdaw', name: 'Jackdaw', icon: '👁️', activity: 0.7, voice: 'jackdaw' },
+  { id: 'buzzard', name: 'Buzzard', icon: '🪶', activity: 0.6, voice: 'mew' },
+  { id: 'mallard', name: 'Mallard', icon: '🦆', activity: 0.6, voice: 'quack' }
 ];
 
 // ============================================================================
-// SOUNDSCAPE ENGINE - FIXED WITH ERROR HANDLING
+// PROCEDURAL BIRD SYNTHESIZER - Web Audio API
+// ============================================================================
+class BirdSynth {
+  constructor() {
+    this.ctx = null;
+  }
+
+  ensureContext() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+    return this.ctx;
+  }
+
+  // Master output with reverb simulation
+  createMasterGain() {
+    const ctx = this.ensureContext();
+    const master = ctx.createGain();
+    master.gain.value = 0.3;
+    
+    // Simple reverb using delay
+    const reverb = ctx.createConvolver();
+    // Create impulse response for reverb
+    const rate = ctx.sampleRate;
+    const length = rate * 1.5;
+    const impulse = ctx.createBuffer(2, length, rate);
+    for (let channel = 0; channel < 2; channel++) {
+      const data = impulse.getChannelData(channel);
+      for (let i = 0; i < length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3) * 0.5;
+      }
+    }
+    reverb.buffer = impulse;
+    
+    const reverbGain = ctx.createGain();
+    reverbGain.gain.value = 0.15;
+    
+    const dryGain = ctx.createGain();
+    dryGain.gain.value = 0.85;
+    
+    master.connect(dryGain);
+    master.connect(reverbGain);
+    reverbGain.connect(reverb);
+    
+    const output = ctx.createGain();
+    dryGain.connect(output);
+    reverb.connect(output);
+    
+    return { input: master, output };
+  }
+
+  // Play a bird sound based on voice type
+  play(bird, volume = 0.7) {
+    const ctx = this.ensureContext();
+    const now = ctx.currentTime;
+    const master = this.createMasterGain();
+    master.output.connect(ctx.destination);
+    master.output.gain.value = volume * (0.5 + Math.random() * 0.5);
+
+    const voice = bird.voice;
+    const duration = 0.5 + Math.random() * 2.5;
+
+    switch (voice) {
+      case 'warble':
+        this.warble(ctx, master.input, now, duration, 1800, 2800);
+        break;
+      case 'flute':
+        this.flute(ctx, master.input, now, duration, 1200, 2000);
+        break;
+      case 'repeat':
+        this.repeatNotes(ctx, master.input, now, duration, 2000, 3000);
+        break;
+      case 'tee-cher':
+        this.twoTone(ctx, master.input, now, duration, 3200, 2000);
+        break;
+      case 'tsee-tsee':
+        this.highChirps(ctx, master.input, now, duration, 5000, 7000);
+        break;
+      case 'chirrup':
+        this.chirrup(ctx, master.input, now, duration, 3000, 5000);
+        break;
+      case 'mimic':
+        this.mimic(ctx, master.input, now, duration);
+        break;
+      case 'trill':
+        this.trill(ctx, master.input, now, duration, 4000, 6000);
+        break;
+      case 'tinkling':
+        this.tinkling(ctx, master.input, now, duration, 6000, 9000);
+        break;
+      case 'pink':
+        this.pink(ctx, master.input, now, duration, 2500, 3500);
+        break;
+      case 'wheezing':
+        this.wheezing(ctx, master.input, now, duration, 1500, 2500);
+        break;
+      case 'coo':
+        this.coo(ctx, master.input, now, duration, 300, 500);
+        break;
+      case 'coo-coo':
+        this.cooCoo(ctx, master.input, now, duration, 400, 600);
+        break;
+      case 'warble-fast':
+        this.warbleFast(ctx, master.input, now, duration, 2500, 4500);
+        break;
+      case 'chiff-chaff':
+        this.chiffChaff(ctx, master.input, now, duration, 3500, 4500);
+        break;
+      case 'descend':
+        this.descending(ctx, master.input, now, duration, 5000, 3000);
+        break;
+      case 'cuckoo':
+        this.cuckooCall(ctx, master.input, now, duration, 600, 900);
+        break;
+      case 'nightingale':
+        this.nightingale(ctx, master.input, now, duration);
+        break;
+      case 'skylark':
+        this.skylark(ctx, master.input, now, duration);
+        break;
+      case 'hoot':
+        this.hoot(ctx, master.input, now, duration, 400, 600);
+        break;
+      case 'yaffle':
+        this.yaffle(ctx, master.input, now, duration);
+        break;
+      case 'drum':
+        this.drum(ctx, master.input, now, duration);
+        break;
+      case 'pip':
+        this.pip(ctx, master.input, now, duration, 3000, 5000);
+        break;
+      case 'sad-pipe':
+        this.sadPipe(ctx, master.input, now, duration, 1500, 2000);
+        break;
+      case 'a-little-bit':
+        this.littleBit(ctx, master.input, now, duration, 2500, 3500);
+        break;
+      case 'screech':
+        this.screech(ctx, master.input, now, duration, 2000, 4000);
+        break;
+      case 'magpie':
+        this.magpie(ctx, master.input, now, duration);
+        break;
+      case 'jackdaw':
+        this.jackdaw(ctx, master.input, now, duration);
+        break;
+      case 'mew':
+        this.mew(ctx, master.input, now, duration, 800, 1200);
+        break;
+      case 'quack':
+        this.quack(ctx, master.input, now, duration);
+        break;
+      default:
+        this.warble(ctx, master.input, now, duration, 2000, 3000);
+    }
+
+    // Fade out master at end
+    master.output.gain.setValueAtTime(master.output.gain.value, now + duration);
+    master.output.gain.exponentialRampToValueAtTime(0.001, now + duration + 0.5);
+    
+    return duration + 0.5;
+  }
+
+  // Helper: create oscillator with envelope
+  createOsc(ctx, type, freq, startTime, duration, dest, gain = 0.3) {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, startTime);
+    g.gain.setValueAtTime(0, startTime);
+    g.gain.linearRampToValueAtTime(gain, startTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.connect(g);
+    g.connect(dest);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.1);
+    return osc;
+  }
+
+  // Warbling song (Robin, Blackcap)
+  warble(ctx, dest, start, duration, f1, f2) {
+    const notes = Math.floor(duration * 4);
+    for (let i = 0; i < notes; i++) {
+      const t = start + i * 0.25 + Math.random() * 0.1;
+      const f = f1 + Math.random() * (f2 - f1);
+      const len = 0.15 + Math.random() * 0.2;
+      this.createOsc(ctx, 'sine', f, t, len, dest, 0.25);
+      // Add harmonics
+      this.createOsc(ctx, 'triangle', f * 2, t, len * 0.7, dest, 0.08);
+    }
+  }
+
+  // Flute-like (Blackbird)
+  flute(ctx, dest, start, duration, f1, f2) {
+    const phrases = Math.floor(duration / 0.8);
+    for (let p = 0; p < phrases; p++) {
+      const pt = start + p * 0.8;
+      const notes = 2 + Math.floor(Math.random() * 4);
+      for (let n = 0; n < notes; n++) {
+        const f = f1 + Math.random() * (f2 - f1);
+        const len = 0.3 + Math.random() * 0.4;
+        const t = pt + n * 0.35;
+        this.createOsc(ctx, 'sine', f, t, len, dest, 0.3);
+        this.createOsc(ctx, 'sine', f * 1.5, t, len * 0.5, dest, 0.1);
+      }
+    }
+  }
+
+  // Repeated phrases (Song Thrush)
+  repeatNotes(ctx, dest, start, duration, f1, f2) {
+    const repeats = Math.floor(duration / 1.2);
+    for (let r = 0; r < repeats; r++) {
+      const rt = start + r * 1.2;
+      const baseF = f1 + Math.random() * (f2 - f1);
+      for (let n = 0; n < 3; n++) {
+        const t = rt + n * 0.18;
+        this.createOsc(ctx, 'sine', baseF + n * 150, t, 0.2, dest, 0.25);
+      }
+    }
+  }
+
+  // Two-tone (Great Tit: tee-cher)
+  twoTone(ctx, dest, start, duration, fHigh, fLow) {
+    const pairs = Math.floor(duration / 0.5);
+    for (let i = 0; i < pairs; i++) {
+      const t = start + i * 0.5;
+      this.createOsc(ctx, 'sine', fHigh, t, 0.12, dest, 0.3);
+      this.createOsc(ctx, 'sine', fLow, t + 0.15, 0.15, dest, 0.3);
+    }
+  }
+
+  // High chirps (Blue Tit)
+  highChirps(ctx, dest, start, duration, f1, f2) {
+    const count = Math.floor(duration * 6);
+    for (let i = 0; i < count; i++) {
+      const t = start + i * 0.16 + Math.random() * 0.05;
+      const f = f1 + Math.random() * (f2 - f1);
+      this.createOsc(ctx, 'sine', f, t, 0.08, dest, 0.2);
+    }
+  }
+
+  // Chirruping (House Sparrow)
+  chirrup(ctx, dest, start, duration, f1, f2) {
+    const bursts = Math.floor(duration / 0.4);
+    for (let b = 0; b < bursts; b++) {
+      const bt = start + b * 0.4;
+      for (let n = 0; n < 4; n++) {
+        const f = f1 + Math.random() * (f2 - f1);
+        this.createOsc(ctx, 'triangle', f, bt + n * 0.06, 0.05, dest, 0.15);
+      }
+    }
+  }
+
+  // Mimicry (Starling)
+  mimic(ctx, dest, start, duration) {
+    const segments = Math.floor(duration / 0.3);
+    for (let i = 0; i < segments; i++) {
+      const t = start + i * 0.3;
+      const type = ['sine', 'triangle', 'sawtooth'][Math.floor(Math.random() * 3)];
+      const f = 500 + Math.random() * 4000;
+      const len = 0.1 + Math.random() * 0.2;
+      this.createOsc(ctx, type, f, t, len, dest, 0.2);
+    }
+  }
+
+  // Trill (Wren)
+  trill(ctx, dest, start, duration, f1, f2) {
+    const rate = 25; // notes per second
+    const count = Math.floor(duration * rate);
+    for (let i = 0; i < count; i++) {
+      const t = start + i / rate;
+      const f = f1 + Math.random() * (f2 - f1);
+      this.createOsc(ctx, 'sine', f, t, 0.03, dest, 0.2);
+    }
+  }
+
+  // Tinkling (Goldfinch)
+  tinkling(ctx, dest, start, duration, f1, f2) {
+    const notes = Math.floor(duration * 5);
+    for (let i = 0; i < notes; i++) {
+      const t = start + i * 0.2;
+      const f = f1 + Math.random() * (f2 - f1);
+      this.createOsc(ctx, 'sine', f, t, 0.08, dest, 0.15);
+      this.createOsc(ctx, 'sine', f * 1.25, t + 0.02, 0.06, dest, 0.08);
+    }
+  }
+
+  // Pink call (Chaffinch)
+  pink(ctx, dest, start, duration, f1, f2) {
+    this.createOsc(ctx, 'sine', f1, start, 0.15, dest, 0.3);
+    if (duration > 0.5) {
+      this.warble(ctx, dest, start + 0.3, duration - 0.3, f1 + 200, f2);
+    }
+  }
+
+  // Wheezing (Greenfinch)
+  wheezing(ctx, dest, start, duration, f1, f2) {
+    const ctx2 = this.ensureContext();
+    const osc = ctx2.createOscillator();
+    const g = ctx2.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f1, start);
+    osc.frequency.linearRampToValueAtTime(f2, start + duration * 0.5);
+    osc.frequency.linearRampToValueAtTime(f1, start + duration);
+    g.gain.setValueAtTime(0.15, start);
+    g.gain.linearRampToValueAtTime(0.2, start + duration * 0.3);
+    g.gain.linearRampToValueAtTime(0.05, start + duration);
+    // Lowpass filter for wheeze
+    const filter = ctx2.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800, start);
+    filter.frequency.linearRampToValueAtTime(400, start + duration);
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(dest);
+    osc.start(start);
+    osc.stop(start + duration + 0.1);
+  }
+
+  // Cooing (Wood Pigeon)
+  coo(ctx, dest, start, duration, f1, f2) {
+    const cooDuration = 0.4;
+    const gap = 0.3;
+    const count = Math.floor(duration / (cooDuration + gap));
+    for (let i = 0; i < count; i++) {
+      const t = start + i * (cooDuration + gap);
+      const f = f1 + Math.random() * (f2 - f1);
+      this.createOsc(ctx, 'sine', f, t, cooDuration, dest, 0.35);
+      this.createOsc(ctx, 'sine', f * 0.5, t, cooDuration, dest, 0.15);
+    }
+  }
+
+  // Coo-coo (Collared Dove)
+  cooCoo(ctx, dest, start, duration, f1, f2) {
+    const pairs = Math.floor(duration / 1.0);
+    for (let i = 0; i < pairs; i++) {
+      const t = start + i * 1.0;
+      const f = f1 + Math.random() * (f2 - f1);
+      this.createOsc(ctx, 'sine', f, t, 0.25, dest, 0.3);
+      this.createOsc(ctx, 'sine', f * 0.8, t + 0.35, 0.3, dest, 0.3);
+    }
+  }
+
+  // Fast warble
+  warbleFast(ctx, dest, start, duration, f1, f2) {
+    const notes = Math.floor(duration * 6);
+    for (let i = 0; i < notes; i++) {
+      const t = start + i * 0.16;
+      const f = f1 + Math.random() * (f2 - f1);
+      this.createOsc(ctx, 'sine', f, t, 0.1, dest, 0.22);
+    }
+  }
+
+  // Chiff-chaff
+  chiffChaff(ctx, dest, start, duration, f1, f2) {
+    const pairs = Math.floor(duration / 0.4);
+    for (let i = 0; i < pairs; i++) {
+      const t = start + i * 0.4;
+      this.createOsc(ctx, 'sine', f1, t, 0.1, dest, 0.25);
+      this.createOsc(ctx, 'sine', f2, t + 0.15, 0.12, dest, 0.25);
+    }
+  }
+
+  // Descending (Willow Warbler)
+  descending(ctx, dest, start, duration, fStart, fEnd) {
+    const ctx2 = this.ensureContext();
+    const osc = ctx2.createOscillator();
+    const g = ctx2.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(fStart, start);
+    osc.frequency.exponentialRampToValueAtTime(fEnd, start + duration);
+    g.gain.setValueAtTime(0.25, start);
+    g.gain.linearRampToValueAtTime(0.05, start + duration);
+    osc.connect(g);
+    g.connect(dest);
+    osc.start(start);
+    osc.stop(start + duration + 0.1);
+  }
+
+  // Cuckoo call
+  cuckooCall(ctx, dest, start, duration, f1, f2) {
+    const pairs = Math.floor(duration / 1.5);
+    for (let i = 0; i < pairs; i++) {
+      const t = start + i * 1.5;
+      this.createOsc(ctx, 'sine', f1, t, 0.3, dest, 0.3);
+      this.createOsc(ctx, 'sine', f2, t + 0.5, 0.25, dest, 0.3);
+    }
+  }
+
+  // Nightingale - complex beautiful song
+  nightingale(ctx, dest, start, duration) {
+    const phrases = Math.floor(duration / 0.6);
+    for (let p = 0; p < phrases; p++) {
+      const pt = start + p * 0.6;
+      const notes = 3 + Math.floor(Math.random() * 5);
+      for (let n = 0; n < notes; n++) {
+        const f = 2000 + Math.random() * 3000;
+        const len = 0.08 + Math.random() * 0.15;
+        const t = pt + n * 0.12;
+        this.createOsc(ctx, 'sine', f, t, len, dest, 0.2);
+        // Add whistle overtones
+        if (Math.random() > 0.5) {
+          this.createOsc(ctx, 'sine', f * 1.5, t, len * 0.6, dest, 0.08);
+        }
+      }
+    }
+  }
+
+  // Skylark - rising trill
+  skylark(ctx, dest, start, duration) {
+    const ctx2 = this.ensureContext();
+    const osc = ctx2.createOscillator();
+    const g = ctx2.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(3000, start);
+    osc.frequency.exponentialRampToValueAtTime(6000, start + duration * 0.7);
+    g.gain.setValueAtTime(0.15, start);
+    g.gain.linearRampToValueAtTime(0.25, start + duration * 0.5);
+    g.gain.linearRampToValueAtTime(0.05, start + duration);
+    osc.connect(g);
+    g.connect(dest);
+    osc.start(start);
+    osc.stop(start + duration + 0.1);
+    
+    // Add warbling
+    this.warble(ctx, dest, start, duration, 3000, 5000);
+  }
+
+  // Owl hoot
+  hoot(ctx, dest, start, duration, f1, f2) {
+    const hoots = Math.floor(duration / 2.5);
+    for (let i = 0; i < hoots; i++) {
+      const t = start + i * 2.5;
+      const f = f1 + Math.random() * (f2 - f1);
+      this.createOsc(ctx, 'sine', f, t, 0.6, dest, 0.35);
+      this.createOsc(ctx, 'sine', f * 0.5, t, 0.6, dest, 0.15);
+    }
+  }
+
+  // Green Woodpecker yaffle (laughing)
+  yaffle(ctx, dest, start, duration) {
+    const bursts = Math.floor(duration / 0.3);
+    for (let i = 0; i < bursts; i++) {
+      const t = start + i * 0.3;
+      const f = 400 + Math.random() * 300;
+      this.createOsc(ctx, 'sawtooth', f, t, 0.1, dest, 0.15);
+    }
+  }
+
+  // Woodpecker drumming
+  drum(ctx, dest, start, duration) {
+    const ctx2 = this.ensureContext();
+    const bursts = Math.floor(duration / 1.0);
+    for (let b = 0; b < bursts; b++) {
+      const bt = start + b * 1.0;
+      for (let n = 0; n < 12; n++) {
+        const t = bt + n * 0.04;
+        const osc = ctx2.createOscillator();
+        const g = ctx2.createGain();
+        const noise = ctx2.createBufferSource();
+        const buffer = ctx2.createBuffer(1, ctx2.sampleRate * 0.02, ctx2.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        noise.buffer = buffer;
+        g.gain.setValueAtTime(0.3, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+        noise.connect(g);
+        g.connect(dest);
+        noise.start(t);
+        noise.stop(t + 0.03);
+      }
+    }
+  }
+
+  // Nuthatch pip
+  pip(ctx, dest, start, duration, f1, f2) {
+    const notes = Math.floor(duration * 3);
+    for (let i = 0; i < notes; i++) {
+      const t = start + i * 0.3 + Math.random() * 0.1;
+      const f = f1 + Math.random() * (f2 - f1);
+      this.createOsc(ctx, 'sine', f, t, 0.1, dest, 0.25);
+    }
+  }
+
+  // Bullfinch sad pipe
+  sadPipe(ctx, dest, start, duration, f1, f2) {
+    const notes = Math.floor(duration / 0.8);
+    for (let i = 0; i < notes; i++) {
+      const t = start + i * 0.8;
+      const f = f1 + Math.random() * (f2 - f1);
+      const ctx2 = this.ensureContext();
+      const osc = ctx2.createOscillator();
+      const g = ctx2.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, t);
+      osc.frequency.linearRampToValueAtTime(f * 0.9, t + 0.4);
+      g.gain.setValueAtTime(0.25, t);
+      g.gain.linearRampToValueAtTime(0.05, t + 0.4);
+      osc.connect(g);
+      g.connect(dest);
+      osc.start(t);
+      osc.stop(t + 0.5);
+    }
+  }
+
+  // Yellowhammer "a-little-bit-of-bread"
+  littleBit(ctx, dest, start, duration, f1, f2) {
+    const phrases = Math.floor(duration / 1.2);
+    for (let p = 0; p < phrases; p++) {
+      const pt = start + p * 1.2;
+      const notes = [1, 0.8, 0.6, 0.5];
+      notes.forEach((mult, i) => {
+        const f = f1 * mult + Math.random() * 100;
+        this.createOsc(ctx, 'sine', f, pt + i * 0.15, 0.12, dest, 0.2);
+      });
+    }
+  }
+
+  // Jay screech
+  screech(ctx, dest, start, duration, f1, f2) {
+    const ctx2 = this.ensureContext();
+    const osc = ctx2.createOscillator();
+    const g = ctx2.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f1, start);
+    osc.frequency.exponentialRampToValueAtTime(f2, start + duration * 0.3);
+    osc.frequency.exponentialRampToValueAtTime(f1 * 0.5, start + duration);
+    g.gain.setValueAtTime(0.15, start);
+    g.gain.linearRampToValueAtTime(0.2, start + duration * 0.2);
+    g.gain.linearRampToValueAtTime(0.05, start + duration);
+    osc.connect(g);
+    g.connect(dest);
+    osc.start(start);
+    osc.stop(start + duration + 0.1);
+  }
+
+  // Magpie chatter
+  magpie(ctx, dest, start, duration) {
+    const bursts = Math.floor(duration / 0.25);
+    for (let i = 0; i < bursts; i++) {
+      const t = start + i * 0.25;
+      const f = 800 + Math.random() * 1500;
+      this.createOsc(ctx, 'triangle', f, t, 0.08, dest, 0.15);
+    }
+  }
+
+  // Jackdaw
+  jackdaw(ctx, dest, start, duration) {
+    const calls = Math.floor(duration / 0.6);
+    for (let i = 0; i < calls; i++) {
+      const t = start + i * 0.6;
+      const f = 600 + Math.random() * 400;
+      this.createOsc(ctx, 'sine', f, t, 0.2, dest, 0.25);
+      this.createOsc(ctx, 'sine', f * 0.7, t + 0.15, 0.15, dest, 0.15);
+    }
+  }
+
+  // Buzzard mew
+  mew(ctx, dest, start, duration, f1, f2) {
+    const ctx2 = this.ensureContext();
+    const osc = ctx2.createOscillator();
+    const g = ctx2.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f2, start);
+    osc.frequency.exponentialRampToValueAtTime(f1, start + duration);
+    g.gain.setValueAtTime(0.2, start);
+    g.gain.linearRampToValueAtTime(0.05, start + duration);
+    osc.connect(g);
+    g.connect(dest);
+    osc.start(start);
+    osc.stop(start + duration + 0.1);
+  }
+
+  // Duck quack
+  quack(ctx, dest, start, duration) {
+    const quacks = Math.floor(duration / 0.5);
+    for (let i = 0; i < quacks; i++) {
+      const t = start + i * 0.5;
+      const ctx2 = this.ensureContext();
+      const osc = ctx2.createOscillator();
+      const g = ctx2.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(400, t);
+      osc.frequency.linearRampToValueAtTime(300, t + 0.15);
+      osc.frequency.linearRampToValueAtTime(350, t + 0.25);
+      g.gain.setValueAtTime(0.2, t);
+      g.gain.linearRampToValueAtTime(0.05, t + 0.25);
+      // Lowpass for quack sound
+      const filter = ctx2.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(600, t);
+      osc.connect(filter);
+      filter.connect(g);
+      g.connect(dest);
+      osc.start(t);
+      osc.stop(t + 0.3);
+    }
+  }
+}
+
+// ============================================================================
+// SOUNDSCAPE ENGINE
 // ============================================================================
 class SoundscapeEngine {
   constructor() {
     this.enabled = new Map();
-    this.activeAudios = new Map();
     this.currentlyPlaying = new Set();
     this.volume = 0.7;
     this.targetLayers = 5;
     this.onUpdate = null;
     this.isRunning = true;
     this.scheduleTimeouts = new Map();
-    this.errorCount = new Map();
+    this.synth = new BirdSynth();
     this.maintenanceInterval = null;
   }
 
   setOnUpdate(cb) { this.onUpdate = cb; }
-  setVolume(v) { 
-    this.volume = v; 
-    for (const audio of this.activeAudios.values()) {
-      if (audio) audio.volume = this.volume * (0.6 + Math.random() * 0.4);
-    }
-  }
+  setVolume(v) { this.volume = v; }
   setTargetLayers(n) { this.targetLayers = n; this.fillLayers(); }
 
   enableAll() {
     for (const bird of BIRDS) {
       this.enabled.set(bird.id, true);
-      this.errorCount.set(bird.id, 0);
     }
     this.fillLayers();
     this.startMaintenanceLoop();
@@ -227,8 +807,7 @@ class SoundscapeEngine {
     
     const eligible = BIRDS.filter(b => 
       this.enabled.get(b.id) && 
-      !this.currentlyPlaying.has(b.id) &&
-      (this.errorCount.get(b.id) || 0) < 3
+      !this.currentlyPlaying.has(b.id)
     );
     if (eligible.length === 0) return;
     
@@ -247,75 +826,29 @@ class SoundscapeEngine {
   playBirdNow(bird) {
     if (!this.enabled.get(bird.id)) return;
     if (this.currentlyPlaying.has(bird.id)) return;
-    if (!bird.url) return;
-    if ((this.errorCount.get(bird.id) || 0) >= 3) return;
     
-    const audio = new Audio();
-    audio.src = bird.url;
-    audio.volume = this.volume * (0.5 + Math.random() * 0.5);
-    audio.crossOrigin = 'anonymous';
-    audio.preload = 'auto';
+    this.currentlyPlaying.add(bird.id);
+    if (this.onUpdate) this.onUpdate();
     
-    let hasEnded = false;
+    const duration = this.synth.play(bird, this.volume);
     
-    const onEnd = () => {
-      if (hasEnded) return;
-      hasEnded = true;
+    setTimeout(() => {
       this.currentlyPlaying.delete(bird.id);
-      this.activeAudios.delete(bird.id);
       if (this.onUpdate) this.onUpdate();
       if (this.enabled.get(bird.id) && this.isRunning) {
         this.scheduleBird(bird);
       }
-    };
-    
-    const onError = (e) => {
-      if (hasEnded) return;
-      hasEnded = true;
-      const count = (this.errorCount.get(bird.id) || 0) + 1;
-      this.errorCount.set(bird.id, count);
-      this.currentlyPlaying.delete(bird.id);
-      this.activeAudios.delete(bird.id);
-      if (count >= 3) {
-        showError(`${bird.name} audio unavailable (${count} fails)`);
-      }
-      if (this.onUpdate) this.onUpdate();
-    };
-    
-    audio.addEventListener('ended', onEnd);
-    audio.addEventListener('error', onError);
-    audio.addEventListener('stalled', onError);
-    
-    // Set a timeout in case play() hangs
-    const playTimeout = setTimeout(() => {
-      if (!hasEnded && !this.currentlyPlaying.has(bird.id)) {
-        onError();
-      }
-    }, 5000);
-    
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.then(() => {
-        clearTimeout(playTimeout);
-        this.currentlyPlaying.add(bird.id);
-        this.activeAudios.set(bird.id, audio);
-        if (this.onUpdate) this.onUpdate();
-      }).catch(e => {
-        clearTimeout(playTimeout);
-        onError(e);
-      });
-    }
+    }, duration * 1000);
   }
 
   scheduleBird(bird) {
     if (!this.enabled.get(bird.id)) return;
-    if ((this.errorCount.get(bird.id) || 0) >= 3) return;
     
     const existing = this.scheduleTimeouts.get(bird.id);
     if (existing) clearTimeout(existing);
     
     const activity = bird.activity || 0.7;
-    const delay = Math.max(3000, 16000 / Math.max(0.2, activity)) * (0.5 + Math.random());
+    const delay = Math.max(2000, 12000 / Math.max(0.2, activity)) * (0.5 + Math.random());
     
     const timeout = setTimeout(() => {
       if (this.enabled.get(bird.id) && this.isRunning && !this.currentlyPlaying.has(bird.id)) {
@@ -332,26 +865,19 @@ class SoundscapeEngine {
       if (this.isRunning) {
         this.fillLayers();
       }
-    }, 4000);
+    }, 3000);
   }
 
   toggleBird(bird) {
     const wasEnabled = this.enabled.get(bird.id);
     if (wasEnabled) {
       this.enabled.set(bird.id, false);
-      const audio = this.activeAudios.get(bird.id);
-      if (audio) {
-        audio.pause();
-        audio.src = '';
-        this.activeAudios.delete(bird.id);
-        this.currentlyPlaying.delete(bird.id);
-      }
+      this.currentlyPlaying.delete(bird.id);
       const timeout = this.scheduleTimeouts.get(bird.id);
       if (timeout) clearTimeout(timeout);
       this.scheduleTimeouts.delete(bird.id);
     } else {
       this.enabled.set(bird.id, true);
-      this.errorCount.set(bird.id, 0);
       if (this.currentlyPlaying.size < this.targetLayers) {
         this.playBirdNow(bird);
       } else {
@@ -363,15 +889,10 @@ class SoundscapeEngine {
   }
 
   stopAll() {
-    for (const audio of this.activeAudios.values()) {
-      audio.pause();
-      audio.src = '';
-    }
     for (const timeout of this.scheduleTimeouts.values()) {
       clearTimeout(timeout);
     }
     this.scheduleTimeouts.clear();
-    this.activeAudios.clear();
     this.currentlyPlaying.clear();
     if (this.onUpdate) this.onUpdate();
   }
@@ -380,6 +901,10 @@ class SoundscapeEngine {
     this.isRunning = false;
     if (this.maintenanceInterval) clearInterval(this.maintenanceInterval);
     this.stopAll();
+    if (this.synth.ctx) {
+      this.synth.ctx.close();
+      this.synth.ctx = null;
+    }
   }
 }
 
@@ -388,13 +913,6 @@ class SoundscapeEngine {
 // ============================================================================
 let engine = null;
 let uiState = { started: false, volume: 70, targetLayers: 5 };
-
-function showError(msg) {
-  const toast = document.getElementById('error-toast');
-  toast.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3000);
-}
 
 function init() {
   if (engine) engine.shutdown();
@@ -421,9 +939,9 @@ function render() {
         <div class="card" style="max-width:550px;text-align:center;background:linear-gradient(135deg,#0f172a,#0a0f1c);">
           <div style="font-size:4rem;">🌲🐦</div>
           <h1 style="font-size:1.8rem;font-weight:900;margin:1rem 0 0.5rem;">Bedfordshire & Northamptonshire Garden Birds</h1>
-          <p style="color:#94a3b8;margin-bottom:1rem;">30 real British bird species · Continuous layered soundscape<br><strong>All birds enabled by default</strong> — you will hear birds immediately!</p>
+          <p style="color:#94a3b8;margin-bottom:1rem;">30 British bird species · Procedural synthesized soundscape<br><strong>All birds enabled by default</strong> — instant sound, zero loading!</p>
           <button class="btn-primary" onclick="init()">🌿 Enter the Garden</button>
-          <p style="font-size:0.7rem;color:#475569;margin-top:1.5rem;">Real recordings from Wikimedia Commons · Birds sing immediately, then continuously in random layers</p>
+          <p style="font-size:0.7rem;color:#475569;margin-top:1.5rem;">Synthesized in real-time using Web Audio API · No downloads · Works offline</p>
         </div>
       </div>
     `;
@@ -481,15 +999,10 @@ function render() {
         ${BIRDS.map(bird => {
           const isEnabled = engine.enabled?.get(bird.id) || false;
           const isPlaying = currentlyPlaying.has(bird.id);
-          const errorCount = engine.errorCount?.get(bird.id) || 0;
-          const hasError = errorCount >= 3;
           return `
-            <div class="sound-card ${isEnabled ? 'sound-card-enabled' : ''} ${isPlaying ? 'sound-card-playing' : ''} ${hasError ? 'sound-card-error' : ''}" 
-                 onclick="toggleBird(BIRDS.find(b=>b.id==='${bird.id}'))"
-                 title="${hasError ? 'Audio unavailable' : (isEnabled ? 'Click to disable' : 'Click to enable')}">
+            <div class="sound-card ${isEnabled ? 'sound-card-enabled' : ''} ${isPlaying ? 'sound-card-playing' : ''}" onclick="toggleBird(BIRDS.find(b=>b.id==='${bird.id}'))">
               ${isEnabled ? '<div class="badge-enabled" title="Enabled"></div>' : ''}
               ${isPlaying ? '<div class="badge-playing" title="Singing now"></div>' : ''}
-              ${hasError ? '<div style="position:absolute;top:6px;right:8px;width:10px;height:10px;background:#ef4444;border-radius:50%;" title="Error"></div>' : ''}
               <div class="sound-icon">${bird.icon}</div>
               <div class="sound-name">${bird.name}</div>
             </div>
@@ -501,7 +1014,7 @@ function render() {
         <div style="font-size:0.7rem;color:#94a3b8;text-align:center;">
           💫 <strong>Birds are singing RIGHT NOW!</strong> — All ${enabledCount} birds are enabled by default.<br>
           The engine maintains <strong>${uiState.targetLayers} layers</strong> of overlapping birdsong. Green border = enabled · Gold pulse = currently singing.<br>
-          Click any bird to disable/enable it. The garden is alive with real Bedfordshire birds!
+          Sounds are synthesized in real-time using the Web Audio API — no external files, no loading delays, works offline!
         </div>
       </div>
     </main>
