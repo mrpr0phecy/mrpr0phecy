@@ -1,61 +1,79 @@
-<h2 id="science-title" style="margin-top:0;">Science Helper</h2>
+<h2 id="science-title" style="margin-top:0;color:var(--accent);">🔬 Science Study List</h2>
 
-<form aria-describedby="science-desc">
-  <p id="science-desc" class="small">Add science topics and notes to build your study list.</p>
+<div class="sc-container" style="font-family:inherit;color:var(--text);">
+  <p class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Build your science study list. Add topics and notes, then test yourself by hiding the notes.
+    <span style="color:var(--accent);">Saved locally in your browser.</span>
+  </p>
 
-  <div class="row">
-    <div class="field" style="flex:1;">
-      <label for="science-topic">Topic</label>
-      <input id="science-topic" type="text" placeholder="e.g. Photosynthesis" />
+  <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="science-topic" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">📖 Topic</label>
+      <input id="science-topic" type="text" placeholder="e.g. Photosynthesis" value=""
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
     </div>
-    <div class="field" style="flex:2;">
-      <label for="science-notes">Notes</label>
-      <input id="science-notes" type="text" placeholder="e.g. Converts light energy into chemical energy" />
+    <div>
+      <label for="science-notes" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">✏️ Notes</label>
+      <input id="science-notes" type="text" placeholder="e.g. Converts light into chemical energy" value=""
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
     </div>
   </div>
 
-  <div class="actions">
-    <button type="button" onclick="scienceAdd(this)">Add Topic</button>
-    <button type="button" class="secondary" onclick="scienceReset(this)">Reset</button>
+  <div style="display:flex;gap:8px;margin-bottom:16px;">
+    <button type="button" onclick="(function(b){var c=b.closest('.sc-container');var topic=c.querySelector('#science-topic').value.trim();var notes=c.querySelector('#science-notes').value.trim();if(!topic){c.querySelector('#science-topic').style.borderColor='#ff4d4d';return;}var items=JSON.parse(localStorage.getItem('sc-items')||'[]');items.push({id:Date.now(),topic:topic,notes:notes});localStorage.setItem('sc-items',JSON.stringify(items));c.querySelector('#science-topic').value='';c.querySelector('#science-notes').value='';c.querySelector('#science-topic').style.borderColor='rgba(45,212,255,0.2)';scRender(c);})(this)"
+            style="padding:10px 20px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;font-size:14px;">➕ Add</button>
+    <button type="button" onclick="(function(b){var c=b.closest('.sc-container');c.querySelector('#science-topic').value='';c.querySelector('#science-notes').value='';})(this)"
+            style="padding:10px 20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;font-size:14px;">Clear</button>
+    <button type="button" onclick="(function(b){var c=b.closest('.sc-container');var btns=c.querySelectorAll('.sc-reveal-btn');c._scHidden=!c._scHidden;btns.forEach(function(btn){btn.textContent=c._scHidden?'👁️ Show Notes':'🙈 Hide Notes';});scRender(c);})(this)" class="sc-reveal-btn"
+            style="padding:10px 20px;background:rgba(157,78,221,0.1);border:1px solid rgba(157,78,221,0.3);border-radius:8px;color:#9d4edd;cursor:pointer;font-size:14px;">🙈 Hide Notes</button>
+    <button type="button" onclick="(function(b){if(confirm('Delete all items?')){var c=b.closest('.sc-container');localStorage.setItem('sc-items','[]');scRender(c);}})(this)"
+            style="padding:10px 20px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.2);border-radius:8px;color:#ff4d4d;cursor:pointer;font-size:14px;">🗑 Clear All</button>
   </div>
-</form>
 
-<div class="results" aria-live="polite">
-  <h3 class="small">Science Topics</h3>
-  <ul id="science-list" class="small"></ul>
+  <div id="science-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+  <div id="science-empty" style="text-align:center;padding:30px 20px;color:rgba(230,250,255,0.4);">
+    <div style="font-size:36px;margin-bottom:8px;opacity:0.5;">🔬</div>
+    <div>No topics yet. Add one above!</div>
+  </div>
 </div>
 
 <script>
-let scienceItems = [];
+function scRender(container) {
+  var items = JSON.parse(localStorage.getItem('sc-items') || '[]');
+  var listEl = container.querySelector('#science-list');
+  var emptyEl = container.querySelector('#science-empty');
+  var hidden = container._scHidden;
 
-function scienceAdd(btn) {
-  // Remove .card reference since it doesn't exist
-  const form = btn.closest('form');
-  const topic = document.querySelector('#science-topic').value.trim();
-  const notes = document.querySelector('#science-notes').value.trim();
-
-  if (!topic) return;
-
-  scienceItems.push({ topic, notes });
-  renderScience();
-  form.reset();
+  if (items.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = items.map(function(item) {
+    var notesDisplay = (hidden && item.notes) ? '<span style="color:rgba(230,250,255,0.3);font-style:italic;">[hidden — click Show Notes]</span>' : (item.notes || '<span style="color:rgba(230,250,255,0.3);">No notes</span>');
+    return '<div style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid rgba(255,255,255,0.05);border-left:3px solid #2dd4ff;">' +
+      '<div style="flex:1;">' +
+        '<div style="font-weight:600;color:var(--text);margin-bottom:4px;">📖 ' + item.topic + '</div>' +
+        '<div style="font-size:0.85rem;color:rgba(230,250,255,0.6);">' + notesDisplay + '</div>' +
+      '</div>' +
+      '<button onclick="(function(b){var c=b.closest(\'.sc-container\');var items=JSON.parse(localStorage.getItem(\'sc-items\')||\'[]\');items=items.filter(function(i){return i.id!==' + item.id + ';});localStorage.setItem(\'sc-items\',JSON.stringify(items));scRender(c);})(this)" ' +
+        'style="background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.2);border-radius:6px;color:#ff4d4d;cursor:pointer;padding:6px 10px;font-size:12px;">✕</button>' +
+    '</div>';
+  }).join('');
 }
 
-function renderScience() {
-  const list = document.querySelector('#science-list');
-  list.innerHTML = "";
-  scienceItems.forEach(s => {
-    const li = document.createElement('li');
-    li.innerHTML = `<strong>${s.topic}</strong>${s.notes ? " — " + s.notes : ""}`;
-    list.appendChild(li);
+// Init standalone
+if (!document.querySelector('.card-sandbox')) {
+  document.addEventListener('DOMContentLoaded', function() {
+    var c = document.querySelector('.sc-container');
+    if (c) scRender(c);
   });
 }
-
-function scienceReset(btn) {
-  // Remove .card reference since it doesn't exist
-  const form = btn.closest('form');
-  scienceItems = [];
-  form.reset();
-  document.querySelector('#science-list').innerHTML = "";
-}
+// Init in dashboard
+setTimeout(function() {
+  document.querySelectorAll('.sc-container').forEach(function(c) {
+    if (!c._scInit) { c._scInit = true; scRender(c); }
+  });
+}, 500);
 </script>
