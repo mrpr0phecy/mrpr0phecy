@@ -2329,6 +2329,7 @@
             }
             
             lastScrollTop = scrollTop;
+            onScrollLazyLoad();
         }, { passive: true });
     }
     
@@ -3056,6 +3057,11 @@
             setTimeout(() => {
                 loadInitialCards();
                 initIntersectionObserver();
+                
+                // Periodic stuck-card recovery — catches cards the observer missed
+                setInterval(() => {
+                    if (!isSearching) scrollFallbackLoader();
+                }, 3000);
             }, 300);
             
         } catch (error) {
@@ -3090,6 +3096,17 @@
     async function loadCard(card, cardName) {
         if (loadingCards.has(cardName) || loadedCards.has(cardName)) return;
         
+        // Concurrency limit — prevent overwhelming browser connections
+        if (loadingCards.size >= 8) {
+            // Re-queue this card for after a slot frees up
+            setTimeout(() => {
+                if (!loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    loadCard(card, cardName);
+                }
+            }, 200);
+            return;
+        }
+        
         loadingCards.add(cardName);
         
         // Check cache
@@ -3099,6 +3116,7 @@
                 renderCardContent(card, cardName, cached.html);
                 loadingCards.delete(cardName);
                 loadedCards.add(cardName);
+                if (observer) observer.unobserve(card);
             }, 50);
             return;
         }
@@ -3119,13 +3137,14 @@
             });
             
             renderCardContent(card, cardName, html);
+            loadedCards.add(cardName);
             
         } catch (error) {
             console.error(`Failed to load card ${cardName}:`, error);
             showCardError(card, cardName, error);
+            // Do NOT add to loadedCards — allow retry via observer or scroll
         } finally {
             loadingCards.delete(cardName);
-            loadedCards.add(cardName);
             
             if (observer) {
                 observer.unobserve(card);
@@ -3357,6 +3376,9 @@
         const card = document.querySelector(`.card[data-name="${cardName}"]`);
         if (card) {
             card.classList.add('loading');
+            card.classList.remove('loaded', 'visible');
+            loadedCards.delete(cardName);
+            loadingCards.delete(cardName);
             loadCard(card, cardName);
         }
     }
@@ -3402,6 +3424,47 @@
         document.querySelectorAll('.card:not(.loaded)').forEach(card => {
             observer.observe(card);
         });
+    }
+    
+    // ===== SCROLL-BASED FALLBACK LOADER =====
+    // Backup for IntersectionObserver — catches cards that the observer missed
+    // (browser resource limits with 250+ observed elements can cause missed callbacks)
+    let scrollLoadTimeout = null;
+    let scrollLoadActive = false;
+    
+    function scrollFallbackLoader() {
+        if (scrollLoadActive || isSearching) return;
+        scrollLoadActive = true;
+        
+        const viewportTop = window.scrollY - 300;
+        const viewportBottom = window.scrollY + window.innerHeight + 300;
+        
+        const unloadedCards = document.querySelectorAll('.card:not(.loaded):not(.loading-fallback)');
+        let loaded = 0;
+        
+        unloadedCards.forEach(card => {
+            if (loaded >= 6) return; // Limit per scroll event
+            
+            const rect = card.getBoundingClientRect();
+            const cardTop = rect.top + window.scrollY;
+            const cardBottom = cardTop + rect.height;
+            
+            if (cardBottom >= viewportTop && cardTop <= viewportBottom) {
+                const cardName = card.dataset.name;
+                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    card.classList.add('loading-fallback');
+                    loadCard(card, cardName);
+                    loaded++;
+                }
+            }
+        });
+        
+        scrollLoadActive = false;
+    }
+    
+    function onScrollLazyLoad() {
+        if (scrollLoadTimeout) clearTimeout(scrollLoadTimeout);
+        scrollLoadTimeout = setTimeout(scrollFallbackLoader, 150);
     }
     
     // ===== EVENT HANDLERS =====
