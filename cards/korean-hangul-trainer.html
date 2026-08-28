@@ -1,0 +1,155 @@
+<h2 id="korean-hangul-trainer-title" style="margin-top:0;color:var(--accent);">🇰🇷 HangulMaster: Korean Alphabet & Syllable Builder</h2>
+
+<form aria-describedby="korean-hangul-trainer-desc" onsubmit="event.preventDefault();">
+  <p id="korean-hangul-trainer-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Learn Hangul (한글), the world's most scientific writing system. Explore the 14 basic consonants, 10 vowels, and combine them into complete Korean syllable blocks with native audio pronunciation (`ko-KR`).
+  </p>
+
+  <!-- Interactive Syllable Builder Preview -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:20px;text-align:center;margin-bottom:16px;">
+    <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;">Assembled Syllable Block</div>
+    <div id="hangul-block-big" style="font-family:'Exo 2',sans-serif;font-size:4rem;font-weight:900;color:#fff;margin:4px 0;">한</div>
+    <div id="hangul-romanized" style="font-size:1.1rem;color:#00ffcc;font-weight:700;">han (h + a + n)</div>
+    <div id="hangul-meaning-hint" style="font-size:0.8rem;color:#ffd700;margin-top:4px;">As in 'Hangul' (Great Script)</div>
+
+    <button type="button" id="hangul-speak-btn" style="margin-top:12px;padding:8px 20px;border-radius:20px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;font-size:0.85rem;cursor:pointer;">
+      🔊 Pronounce Block
+    </button>
+  </div>
+
+  <!-- Consonant Selector Grid -->
+  <div style="margin-bottom:12px;">
+    <div style="font-size:0.75rem;color:var(--accent);font-weight:700;margin-bottom:4px;">1. Select Initial Consonant (Choseong):</div>
+    <div id="hangul-consonants-row" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+
+  <!-- Vowel Selector Grid -->
+  <div style="margin-bottom:12px;">
+    <div style="font-size:0.75rem;color:#b026ff;font-weight:700;margin-bottom:4px;">2. Select Vowel (Jungseong):</div>
+    <div id="hangul-vowels-row" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+
+  <!-- Final Batchim Selector Grid -->
+  <div style="margin-bottom:10px;">
+    <div style="font-size:0.75rem;color:#ffd700;font-weight:700;margin-bottom:4px;">3. Optional Final Consonant (Jongseong / Batchim):</div>
+    <div id="hangul-batchim-row" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const CONSONANTS = [
+    { char: 'ㄱ', r: 'g/k', idx: 0 }, { char: 'ㄴ', r: 'n', idx: 2 }, { char: 'ㄷ', r: 'd/t', idx: 3 },
+    { char: 'ㄹ', r: 'r/l', idx: 5 }, { char: 'ㅁ', r: 'm', idx: 6 }, { char: 'ㅂ', r: 'b/p', idx: 7 },
+    { char: 'ㅅ', r: 's', idx: 9 }, { char: 'ㅇ', r: '(silent)', idx: 11 }, { char: 'ㅈ', r: 'j', idx: 12 },
+    { char: 'ㅊ', r: 'ch', idx: 14 }, { char: 'ㅋ', r: 'k', idx: 15 }, { char: 'ㅌ', r: 't', idx: 16 },
+    { char: 'ㅍ', r: 'p', idx: 17 }, { char: 'ㅎ', r: 'h', idx: 18 }
+  ];
+
+  const VOWELS = [
+    { char: 'ㅏ', r: 'a', idx: 0 }, { char: 'ㅑ', r: 'ya', idx: 2 }, { char: 'ㅓ', r: 'eo', idx: 4 },
+    { char: 'ㅕ', r: 'yeo', idx: 6 }, { char: 'ㅗ', r: 'o', idx: 8 }, { char: 'ㅛ', r: 'yo', idx: 12 },
+    { char: 'ㅜ', r: 'u', idx: 13 }, { char: 'ㅠ', r: 'yu', idx: 17 }, { char: 'ㅡ', r: 'eu', idx: 18 },
+    { char: 'ㅣ', r: 'i', idx: 20 }
+  ];
+
+  const BATCHIM = [
+    { char: '(None)', r: '', idx: 0 },
+    { char: 'ㄱ', r: 'k', idx: 1 },
+    { char: 'ㄴ', r: 'n', idx: 4 },
+    { char: 'ㄹ', r: 'l', idx: 8 },
+    { char: 'ㅁ', r: 'm', idx: 16 },
+    { char: 'ㅂ', r: 'p', idx: 17 },
+    { char: 'ㅇ', r: 'ng', idx: 21 }
+  ];
+
+  let selectedC = CONSONANTS[13]; // ㅎ (h)
+  let selectedV = VOWELS[0];      // ㅏ (a)
+  let selectedB = BATCHIM[2];     // ㄴ (n)
+
+  const bigBlock = document.getElementById('hangul-block-big');
+  const romText = document.getElementById('hangul-romanized');
+  const cRow = document.getElementById('hangul-consonants-row');
+  const vRow = document.getElementById('hangul-vowels-row');
+  const bRow = document.getElementById('hangul-batchim-row');
+  const speakBtn = document.getElementById('hangul-speak-btn');
+
+  function composeHangul(cIdx, vIdx, bIdx) {
+    // Unicode Hangul composition formula:
+    // 0xAC00 + (initial * 588) + (medial * 28) + final
+    const code = 0xAC00 + (cIdx * 588) + (vIdx * 28) + bIdx;
+    return String.fromCharCode(code);
+  }
+
+  function render() {
+    const syllable = composeHangul(selectedC.idx, selectedV.idx, selectedB.idx);
+    bigBlock.textContent = syllable;
+
+    const cRoman = selectedC.r === '(silent)' ? '' : selectedC.r.split('/')[0];
+    const vRoman = selectedV.r;
+    const bRoman = selectedB.r;
+    romText.textContent = `${cRoman}${vRoman}${bRoman} (${selectedC.char} + ${selectedV.char}${selectedB.char !== '(None)' ? ' + ' + selectedB.char : ''})`;
+  }
+
+  function speak(text) {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ko-KR';
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+  }
+
+  // Populate Consonants
+  CONSONANTS.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = `${c.char}`;
+    btn.title = c.r;
+    btn.style.cssText = 'padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#fff;font-weight:700;cursor:pointer;';
+    btn.addEventListener('click', () => {
+      cRow.querySelectorAll('button').forEach(b => b.style.borderColor = 'rgba(255,255,255,0.1)');
+      btn.style.borderColor = '#00ffcc';
+      selectedC = c;
+      render();
+    });
+    cRow.appendChild(btn);
+  });
+
+  // Populate Vowels
+  VOWELS.forEach(v => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = `${v.char}`;
+    btn.title = v.r;
+    btn.style.cssText = 'padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#fff;font-weight:700;cursor:pointer;';
+    btn.addEventListener('click', () => {
+      vRow.querySelectorAll('button').forEach(b => b.style.borderColor = 'rgba(255,255,255,0.1)');
+      btn.style.borderColor = '#b026ff';
+      selectedV = v;
+      render();
+    });
+    vRow.appendChild(btn);
+  });
+
+  // Populate Batchim
+  BATCHIM.forEach(b => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = `${b.char}`;
+    btn.style.cssText = 'padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#fff;font-weight:700;cursor:pointer;';
+    btn.addEventListener('click', () => {
+      bRow.querySelectorAll('button').forEach(b => b.style.borderColor = 'rgba(255,255,255,0.1)');
+      btn.style.borderColor = '#ffd700';
+      selectedB = b;
+      render();
+    });
+    bRow.appendChild(btn);
+  });
+
+  speakBtn.addEventListener('click', () => speak(bigBlock.textContent));
+
+  render();
+})();
+</script>

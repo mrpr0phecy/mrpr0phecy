@@ -1,0 +1,162 @@
+<h2 id="chinese-tones-pinyin-title" style="margin-top:0;color:var(--accent);">🇨🇳 ToneMaster: Mandarin Chinese Tones & Pinyin Studio</h2>
+
+<form aria-describedby="chinese-tones-pinyin-desc" onsubmit="event.preventDefault();">
+  <p id="chinese-tones-pinyin-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Conquer the 4 tonal contours of Mandarin Chinese (High Flat, Rising, Dipping, Falling) and explore foundational HSK 1 vocabulary with native Mandarin speech audio (`zh-CN`).
+  </p>
+
+  <!-- The 4 Tones Interactive Selector -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:16px;">
+    <button type="button" class="tone-card-btn active" data-tone="1" style="padding:10px 6px;border-radius:10px;background:rgba(0,255,204,0.15);border:1px solid #00ffcc;color:#e6faff;text-align:center;cursor:pointer;">
+      <div style="font-size:1.4rem;font-weight:900;color:#00ffcc;">mā (妈)</div>
+      <div style="font-size:0.72rem;color:var(--muted);">1st Tone: High Flat (5-5)</div>
+      <div style="font-size:0.75rem;color:#ffd700;margin-top:2px;">Mother</div>
+    </button>
+
+    <button type="button" class="tone-card-btn" data-tone="2" style="padding:10px 6px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#e6faff;text-align:center;cursor:pointer;">
+      <div style="font-size:1.4rem;font-weight:900;color:#39ff14;">má (麻)</div>
+      <div style="font-size:0.72rem;color:var(--muted);">2nd Tone: Rising (3-5)</div>
+      <div style="font-size:0.75rem;color:#ffd700;margin-top:2px;">Hemp / Numb</div>
+    </button>
+
+    <button type="button" class="tone-card-btn" data-tone="3" style="padding:10px 6px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#e6faff;text-align:center;cursor:pointer;">
+      <div style="font-size:1.4rem;font-weight:900;color:#ffd700;">mǎ (马)</div>
+      <div style="font-size:0.72rem;color:var(--muted);">3rd Tone: Dipping (2-1-4)</div>
+      <div style="font-size:0.75rem;color:#ffd700;margin-top:2px;">Horse</div>
+    </button>
+
+    <button type="button" class="tone-card-btn" data-tone="4" style="padding:10px 6px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#e6faff;text-align:center;cursor:pointer;">
+      <div style="font-size:1.4rem;font-weight:900;color:#ff4757;">mà (骂)</div>
+      <div style="font-size:0.72rem;color:var(--muted);">4th Tone: Falling (5-1)</div>
+      <div style="font-size:0.75rem;color:#ffd700;margin-top:2px;">To Scold</div>
+    </button>
+  </div>
+
+  <!-- Visual Pitch Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:16px;text-align:center;">
+    <canvas id="chinese-pitch-canvas" width="380" height="90" style="width:100%;height:90px;display:block;border-radius:6px;"></canvas>
+    <div id="tone-desc-bar" style="font-size:0.8rem;color:#00ffcc;font-weight:700;margin-top:6px;">
+      1st Tone: High, steady pitch like singing "ahhh" at high pitch
+    </div>
+  </div>
+
+  <!-- HSK 1 Core Words Deck -->
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;margin-bottom:12px;">
+    <div style="font-weight:700;font-size:0.85rem;color:#fff;margin-bottom:8px;">🇨🇳 Essential HSK 1 Words (Click to pronounce):</div>
+    <div id="hsk-words-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:6px;"></div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('chinese-pitch-canvas');
+  const ctx = canvas.getContext('2d');
+  const toneDesc = document.getElementById('tone-desc-bar');
+  const hskGrid = document.getElementById('hsk-words-grid');
+
+  const HSK_WORDS = [
+    { hanzi: '你好', pinyin: 'nǐ hǎo', eng: 'Hello' },
+    { hanzi: '谢谢', pinyin: 'xiè xie', eng: 'Thank you' },
+    { hanzi: '中国', pinyin: 'zhōng guó', eng: 'China' },
+    { hanzi: '再见', pinyin: 'zài jiàn', eng: 'Goodbye' },
+    { hanzi: '朋友', pinyin: 'péng you', eng: 'Friend' },
+    { hanzi: '水', pinyin: 'shuǐ', eng: 'Water' }
+  ];
+
+  function speakChinese(text) {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'zh-CN';
+      u.rate = 0.85;
+      window.speechSynthesis.speak(u);
+    }
+  }
+
+  function drawPitch(tone) {
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw pitch lines (5 high, 1 low)
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 5; i++) {
+      const y = (canvas.height / 6) * i;
+      ctx.beginPath();
+      ctx.moveTo(30, y);
+      ctx.lineTo(canvas.width - 30, y);
+      ctx.stroke();
+    }
+
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    if (tone === 1) {
+      // High flat (level 5)
+      ctx.strokeStyle = '#00ffcc';
+      ctx.moveTo(50, h * 0.2);
+      ctx.lineTo(w - 50, h * 0.2);
+      toneDesc.textContent = '1st Tone: High, steady pitch like singing "ahhh"';
+      toneDesc.style.color = '#00ffcc';
+      speakChinese('妈');
+    } else if (tone === 2) {
+      // Rising (3 to 5)
+      ctx.strokeStyle = '#39ff14';
+      ctx.moveTo(50, h * 0.55);
+      ctx.lineTo(w - 50, h * 0.2);
+      toneDesc.textContent = '2nd Tone: Rising question tone like saying "What?!"';
+      toneDesc.style.color = '#39ff14';
+      speakChinese('麻');
+    } else if (tone === 3) {
+      // Dipping (2 to 1 to 4)
+      ctx.strokeStyle = '#ffd700';
+      ctx.moveTo(50, h * 0.6);
+      ctx.quadraticCurveTo(w / 2, h * 0.9, w - 50, h * 0.35);
+      toneDesc.textContent = '3rd Tone: Low dipping tone like groaning "uhh..."';
+      toneDesc.style.color = '#ffd700';
+      speakChinese('马');
+    } else if (tone === 4) {
+      // Falling (5 to 1)
+      ctx.strokeStyle = '#ff4757';
+      ctx.moveTo(50, h * 0.2);
+      ctx.lineTo(w - 50, h * 0.85);
+      toneDesc.textContent = '4th Tone: Sharp, decisive falling tone like commanding "NO!"';
+      toneDesc.style.color = '#ff4757';
+      speakChinese('骂');
+    }
+    ctx.stroke();
+  }
+
+  document.querySelectorAll('.tone-card-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tone-card-btn').forEach(b => {
+        b.style.background = 'rgba(255,255,255,0.04)';
+        b.style.borderColor = 'rgba(255,255,255,0.08)';
+      });
+      btn.style.background = 'rgba(0,255,204,0.15)';
+      btn.style.borderColor = '#00ffcc';
+
+      const tone = parseInt(btn.dataset.tone, 10);
+      drawPitch(tone);
+    });
+  });
+
+  // Render HSK word list
+  HSK_WORDS.forEach(w => {
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:8px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);text-align:center;cursor:pointer;';
+    card.innerHTML = `
+      <div style="font-size:1.1rem;font-weight:700;color:#fff;">${w.hanzi}</div>
+      <div style="font-size:0.75rem;color:#00ffcc;">${w.pinyin}</div>
+      <div style="font-size:0.7rem;color:var(--muted);">${w.eng}</div>
+    `;
+    card.addEventListener('click', () => speakChinese(w.hanzi));
+    hskGrid.appendChild(card);
+  });
+
+  drawPitch(1);
+})();
+</script>
