@@ -1,0 +1,140 @@
+<h2 id="japanese-romaji-converter-title" style="margin-top:0;color:var(--accent);">🔄 RomajiFlow: Romaji ↔ Kana ↔ Furigana Converter</h2>
+
+<form aria-describedby="japanese-romaji-converter-desc" onsubmit="event.preventDefault();">
+  <p id="japanese-romaji-converter-desc" class="small" style="color:var(--muted);margin-bottom:16px;">
+    Type in standard alphabet (Romaji) and watch it convert in real-time into Hiragana and Katakana. Also translates Kana back into Hepburn Romaji with 1-click text-to-speech audio pronunciation.
+  </p>
+
+  <div style="margin-bottom:14px;">
+    <label for="romaji-input-text" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">
+      Type Romaji or Japanese Text:
+    </label>
+    <input type="text" id="romaji-input-text" value="arigatou gozaimasu" placeholder="e.g. konnichiwa, tokyo, nihongo, sushi..." style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,204,0.3);color:#e6faff;font-size:1.1rem;">
+  </div>
+
+  <!-- Quick preset buttons -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+    <button type="button" class="rj-preset-btn" data-text="ohayou gozaimasu" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">Good Morning</button>
+    <button type="button" class="rj-preset-btn" data-text="watashi wa gakusei desu" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">I am a student</button>
+    <button type="button" class="rj-preset-btn" data-text="nihongo o benkyou shite imasu" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">Studying Japanese</button>
+    <button type="button" class="rj-preset-btn" data-text="sushi ga daisuki desu" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">I love sushi</button>
+  </div>
+
+  <!-- Output Cards -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+    <!-- Hiragana -->
+    <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:10px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:0.75rem;color:#00ffcc;font-weight:700;text-transform:uppercase;">Hiragana (ひらがな)</span>
+        <button type="button" class="copy-field-btn" data-target="out-hiragana" style="background:none;border:none;color:var(--muted);font-size:0.75rem;cursor:pointer;">📋 Copy</button>
+      </div>
+      <div id="out-hiragana" style="font-size:1.6rem;font-weight:700;color:#fff;min-height:40px;word-break:break-all;">ありがとう ございます</div>
+    </div>
+
+    <!-- Katakana -->
+    <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(176,38,255,0.3);border-radius:10px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:0.75rem;color:#b026ff;font-weight:700;text-transform:uppercase;">Katakana (カタカナ)</span>
+        <button type="button" class="copy-field-btn" data-target="out-katakana" style="background:none;border:none;color:var(--muted);font-size:0.75rem;cursor:pointer;">📋 Copy</button>
+      </div>
+      <div id="out-katakana" style="font-size:1.6rem;font-weight:700;color:#fff;min-height:40px;word-break:break-all;">アリガトウ ゴザイマス</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;">
+    <button type="button" id="romaji-speak-btn" style="flex:1;padding:12px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+      🔊 Listen (Native Japanese Pronunciation)
+    </button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const ROMAJI_TABLE = [
+    { r: 'kya', h: 'きゃ', k: 'キャ' }, { r: 'kyu', h: 'きゅ', k: 'キュ' }, { r: 'kyo', h: 'きょ', k: 'キョ' },
+    { r: 'sha', h: 'しゃ', k: 'シャ' }, { r: 'shu', h: 'しゅ', k: 'シュ' }, { r: 'sho', h: 'しょ', k: 'ショ' },
+    { r: 'cha', h: 'ちゃ', k: 'チャ' }, { r: 'chu', h: 'ちゅ', k: 'チュ' }, { r: 'cho', h: 'ちょ', k: 'チョ' },
+    { r: 'nya', h: 'にゃ', k: 'ニャ' }, { r: 'nyu', h: 'にゅ', k: 'ニュ' }, { r: 'nyo', h: 'にょ', k: 'ニョ' },
+    { r: 'hya', h: 'ひゃ', k: 'ヒャ' }, { r: 'hyu', h: 'ひゅ', k: 'ヒュ' }, { r: 'hyo', h: 'ひょ', k: 'ヒョ' },
+    { r: 'mya', h: 'みゃ', k: 'ミャ' }, { r: 'myu', h: 'みゅ', k: 'ミュ' }, { r: 'myo', h: 'みょ', k: 'ミョ' },
+    { r: 'rya', h: 'りゃ', k: 'リャ' }, { r: 'ryu', h: 'りゅ', k: 'リュ' }, { r: 'ryo', h: 'りょ', k: 'リョ' },
+    { r: 'gya', h: 'ぎゃ', k: 'ギャ' }, { r: 'gyu', h: 'ぎゅ', k: 'ギュ' }, { r: 'gyo', h: 'ぎょ', k: 'ギョ' },
+    { r: 'ja', h: 'じゃ', k: 'ジャ' }, { r: 'ju', h: 'じゅ', k: 'ジュ' }, { r: 'jo', h: 'じょ', k: 'ジョ' },
+    { r: 'bya', h: 'びゃ', k: 'ビャ' }, { r: 'byu', h: 'びゅ', k: 'ビュ' }, { r: 'byo', h: 'びょ', k: 'ビョ' },
+    { r: 'pya', h: 'ぴゃ', k: 'ピャ' }, { r: 'pyu', h: 'ぴゅ', k: 'ピュ' }, { r: 'pyo', h: 'ぴょ', k: 'ピョ' },
+    { r: 'shi', h: 'し', k: 'シ' }, { r: 'chi', h: 'ち', k: 'チ' }, { r: 'tsu', h: 'つ', k: 'ツ' },
+    { r: 'fu', h: 'ふ', k: 'フ' }, { r: 'ji', h: 'じ', k: 'ジ' }, { r: 'zu', h: 'ず', k: 'ズ' },
+    { r: 'ka', h: 'か', k: 'カ' }, { r: 'ki', h: 'き', k: 'キ' }, { r: 'ku', h: 'く', k: 'ク' }, { r: 'ke', h: 'け', k: 'ケ' }, { r: 'ko', h: 'こ', k: 'コ' },
+    { r: 'sa', h: 'さ', k: 'サ' }, { r: 'su', h: 'す', k: 'ス' }, { r: 'se', h: 'せ', k: 'セ' }, { r: 'so', h: 'そ', k: 'ソ' },
+    { r: 'ta', h: 'た', k: 'タ' }, { r: 'te', h: 'て', k: 'テ' }, { r: 'to', h: 'と', k: 'ト' },
+    { r: 'na', h: 'な', k: 'ナ' }, { r: 'ni', h: 'に', k: 'ニ' }, { r: 'nu', h: 'ぬ', k: 'ヌ' }, { r: 'ne', h: 'ね', k: 'ネ' }, { r: 'no', h: 'の', k: 'ノ' },
+    { r: 'ha', h: 'は', k: 'ハ' }, { r: 'hi', h: 'ひ', k: 'ヒ' }, { r: 'he', h: 'へ', k: 'ヘ' }, { r: 'ho', h: 'ほ', k: 'ホ' },
+    { r: 'ma', h: 'ま', k: 'マ' }, { r: 'mi', h: 'み', k: 'ミ' }, { r: 'mu', h: 'む', k: 'ム' }, { r: 'me', h: 'め', k: 'メ' }, { r: 'mo', h: 'も', k: 'モ' },
+    { r: 'ya', h: 'や', k: 'ヤ' }, { r: 'yu', h: 'ゆ', k: 'ユ' }, { r: 'yo', h: 'よ', k: 'ヨ' },
+    { r: 'ra', h: 'ら', k: 'ラ' }, { r: 'ri', h: 'り', k: 'リ' }, { r: 'ru', h: 'る', k: 'ル' }, { r: 're', h: 'れ', k: 'レ' }, { r: 'ro', h: 'ろ', k: 'ロ' },
+    { r: 'wa', h: 'わ', k: 'ワ' }, { r: 'wo', h: 'を', k: 'ヲ' }, { r: 'nn', h: 'ん', k: 'ン' }, { r: 'n', h: 'ん', k: 'ン' },
+    { r: 'ga', h: 'が', k: 'ガ' }, { r: 'gi', h: 'ぎ', k: 'ギ' }, { r: 'gu', h: 'ぐ', k: 'グ' }, { r: 'ge', h: 'げ', k: 'ゲ' }, { r: 'go', h: 'ご', k: 'ゴ' },
+    { r: 'za', h: 'ざ', k: 'ザ' }, { r: 'ze', h: 'ぜ', k: 'ゼ' }, { r: 'zo', h: 'ぞ', k: 'ゾ' },
+    { r: 'da', h: 'だ', k: 'ダ' }, { r: 'de', h: 'で', k: 'デ' }, { r: 'do', h: 'ど', k: 'ド' },
+    { r: 'ba', h: 'ば', k: 'バ' }, { r: 'bi', h: 'び', k: 'ビ' }, { r: 'bu', h: 'ぶ', k: 'ブ' }, { r: 'be', h: 'べ', k: 'ベ' }, { r: 'bo', h: 'ぼ', k: 'ボ' },
+    { r: 'pa', h: 'ぱ', k: 'パ' }, { r: 'pi', h: 'ぴ', k: 'ピ' }, { r: 'pu', h: 'ぷ', k: 'プ' }, { r: 'pe', h: 'ぺ', k: 'ペ' }, { r: 'po', h: 'ぽ', k: 'ポ' },
+    { r: 'a', h: 'あ', k: 'ア' }, { r: 'i', h: 'い', k: 'イ' }, { r: 'u', h: 'う', k: 'ウ' }, { r: 'e', h: 'え', k: 'エ' }, { r: 'o', h: 'お', k: 'オ' }
+  ];
+
+  const input = document.getElementById('romaji-input-text');
+  const outH = document.getElementById('out-hiragana');
+  const outK = document.getElementById('out-katakana');
+  const speakBtn = document.getElementById('romaji-speak-btn');
+
+  function convert(text) {
+    let lower = text.toLowerCase();
+    // Handle sokuon double consonants (e.g. 'kk', 'tt', 'pp')
+    lower = lower.replace(/([bcdfghjklmpqrstvwxyz])\1/g, 'っ$1');
+
+    let hiragana = lower;
+    let katakana = lower;
+
+    ROMAJI_TABLE.forEach(item => {
+      const rx = new RegExp(item.r, 'g');
+      hiragana = hiragana.replace(rx, item.h);
+      katakana = katakana.replace(rx, item.k);
+    });
+
+    // Replace residual sokuon in katakana
+    katakana = katakana.replace(/っ/g, 'ッ');
+
+    outH.textContent = hiragana;
+    outK.textContent = katakana;
+  }
+
+  input.addEventListener('input', () => convert(input.value));
+
+  document.querySelectorAll('.rj-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      input.value = btn.dataset.text;
+      convert(input.value);
+    });
+  });
+
+  document.querySelectorAll('.copy-field-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.target);
+      navigator.clipboard.writeText(target.textContent);
+      btn.textContent = '✅ Copied';
+      setTimeout(() => btn.textContent = '📋 Copy', 1500);
+    });
+  });
+
+  speakBtn.addEventListener('click', () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(outH.textContent);
+      u.lang = 'ja-JP';
+      u.rate = 0.85;
+      window.speechSynthesis.speak(u);
+    }
+  });
+
+  convert(input.value);
+})();
+</script>

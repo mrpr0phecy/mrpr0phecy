@@ -1,0 +1,206 @@
+<h2 id="japanese-numbers-counters-title" style="margin-top:0;color:var(--accent);">🔢 KazueMaster: Japanese Counters & Numbers Studio</h2>
+
+<form aria-describedby="japanese-numbers-counters-desc" onsubmit="event.preventDefault();">
+  <p id="japanese-numbers-counters-desc" class="small" style="color:var(--muted);margin-bottom:16px;">
+    Conquer Japanese counter words (助数詞 - Josūshi). In Japanese, you cannot simply say "three beers" or "two cats"—objects require specific counters with euphonic sound shifts (rendaku).
+  </p>
+
+  <!-- Category Selector -->
+  <div style="margin-bottom:14px;">
+    <label for="counter-category-select" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">
+      Select Object Type to Count:
+    </label>
+    <select id="counter-category-select" style="width:100%;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(0,255,204,0.3);color:#e6faff;font-size:0.9rem;">
+      <option value="tsu" selected>General Objects (一つ、二つ - 1 to 10)</option>
+      <option value="nin">People (人 - ひとり、ふたり、三人...)</option>
+      <option value="hon">Cylindrical / Long Objects (本 - Bottles, Pens, Roads)</option>
+      <option value="mai">Flat / Thin Objects (枚 - Paper, Tickets, Shirts)</option>
+      <option value="hiki">Small Animals (匹 - Cats, Dogs, Fish)</option>
+      <option value="satsu">Bound Volumes (冊 - Books, Magazines)</option>
+      <option value="nichi">Days of the Month (日 - 1st to 10th irregulars)</option>
+      <option value="hai">Cups & Drinks (杯 - Glasses, Bowls of ramen)</option>
+    </select>
+  </div>
+
+  <!-- Number Slider -->
+  <div style="margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px;">
+      <span style="color:var(--text);">Quantity to Count:</span>
+      <span id="counter-num-display" style="color:var(--accent);font-weight:700;">3 items</span>
+    </div>
+    <input type="range" id="counter-num-slider" min="1" max="10" value="3" style="width:100%;">
+  </div>
+
+  <!-- Featured Active Result Card -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:20px;text-align:center;margin-bottom:16px;">
+    <div id="counter-kanji-big" style="font-family:'Exo 2',sans-serif;font-size:3.2rem;font-weight:900;color:#fff;">三つ</div>
+    <div id="counter-hiragana" style="font-size:1.2rem;color:#00ffcc;font-weight:700;margin:4px 0;">みっつ</div>
+    <div id="counter-romaji" style="font-family:monospace;font-size:0.9rem;color:#ffd700;">mittsu</div>
+    <div id="counter-note" style="font-size:0.78rem;color:var(--muted);margin-top:8px;">Native Japanese Wago numbering (1-10 only)</div>
+
+    <button type="button" id="counter-audio-btn" style="margin-top:14px;padding:8px 20px;border-radius:20px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;font-size:0.85rem;cursor:pointer;">
+      🔊 Hear Pronunciation
+    </button>
+  </div>
+
+  <!-- Complete 1-10 Reference Table -->
+  <details style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px;">
+    <summary style="font-size:0.82rem;font-weight:700;color:var(--accent);cursor:pointer;">
+      📋 View Complete 1 to 10 Chart with Sound Shifts
+    </summary>
+    <div id="counter-full-chart" style="margin-top:10px;font-size:0.8rem;display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
+  </details>
+</form>
+
+<script>
+(function() {
+  const COUNTER_DATA = {
+    tsu: {
+      name: 'General Objects (つ)',
+      desc: 'Used for general 3D items without a specific counter. Only exists from 1 to 10!',
+      items: [
+        { num: 1, kanji: '一つ', hira: 'ひとつ', r: 'hitotsu', note: 'Standard' },
+        { num: 2, kanji: '二つ', hira: 'ふたつ', r: 'futatsu', note: 'Standard' },
+        { num: 3, kanji: '三つ', hira: 'みっつ', r: 'mittsu', note: 'Small tsu pause' },
+        { num: 4, kanji: '四つ', hira: 'よっつ', r: 'yottsu', note: 'Small tsu pause' },
+        { num: 5, kanji: '五つ', hira: 'いつつ', r: 'itsutsu', note: 'Standard' },
+        { num: 6, kanji: '六つ', hira: 'むっつ', r: 'muttsu', note: 'Small tsu pause' },
+        { num: 7, kanji: '七つ', hira: 'ななつ', r: 'nanatsu', note: 'Standard' },
+        { num: 8, kanji: '八つ', hira: 'やっつ', r: 'yattsu', note: 'Small tsu pause' },
+        { num: 9, kanji: '九つ', hira: 'ここのつ', r: 'kokonotsu', note: 'Standard' },
+        { num: 10, kanji: '十', hira: 'とお', r: 'too', note: 'Irregular (no つ!)' }
+      ]
+    },
+    nin: {
+      name: 'People (人)',
+      desc: 'Count people. Watch out: 1 and 2 are completely irregular!',
+      items: [
+        { num: 1, kanji: '一人', hira: 'ひとり', r: 'hitori', note: '⚠️ Completely irregular!' },
+        { num: 2, kanji: '二人', hira: 'ふたり', r: 'futari', note: '⚠️ Completely irregular!' },
+        { num: 3, kanji: '三人', hira: 'さんにん', r: 'sannin', note: 'Regular nin' },
+        { num: 4, kanji: '四人', hira: 'よにん', r: 'yonin', note: '⚠️ yo-nin (not yon-nin)' },
+        { num: 5, kanji: '五人', hira: 'ごにん', r: 'gonin', note: 'Regular' },
+        { num: 6, kanji: '六人', hira: 'ろくにん', r: 'rokunin', note: 'Regular' },
+        { num: 7, kanji: '七人', hira: 'しちにん / ななにん', r: 'shichinin / nananin', note: 'Both used' },
+        { num: 8, kanji: '八人', hira: 'はちにん', r: 'hachinin', note: 'Regular' },
+        { num: 9, kanji: '九人', hira: 'きゅうにん / くにん', r: 'kyuunin / kunin', note: 'Regular' },
+        { num: 10, kanji: '十人', hira: 'じゅうにん', r: 'juunin', note: 'Regular' }
+      ]
+    },
+    hon: {
+      name: 'Long Objects (本 - bottles, pens, umbrellas)',
+      desc: 'Suffers rendaku sound changes: switches between hon, pon, and bon!',
+      items: [
+        { num: 1, kanji: '一本', hira: 'いっぽん', r: 'ippon', note: 'P-sound shift' },
+        { num: 2, kanji: '二本', hira: 'にほん', r: 'nihon', note: 'H-sound' },
+        { num: 3, kanji: '三本', hira: 'さんぼん', r: 'sanbon', note: '⚠️ B-sound shift!' },
+        { num: 4, kanji: '四本', hira: 'よんほん', r: 'yonhon', note: 'H-sound' },
+        { num: 5, kanji: '五本', hira: 'ごほん', r: 'gohon', note: 'H-sound' },
+        { num: 6, kanji: '六本', hira: 'ろっぽん', r: 'roppon', note: 'P-sound shift' },
+        { num: 7, kanji: '七本', hira: 'ななほん', r: 'nanahon', note: 'H-sound' },
+        { num: 8, kanji: '八本', hira: 'はっぽん / はちほん', r: 'happon', note: 'P-sound shift' },
+        { num: 9, kanji: '九本', hira: 'きゅうほん', r: 'kyuuhon', note: 'H-sound' },
+        { num: 10, kanji: '十本', hira: 'じゅっぽん', r: 'juppon', note: 'P-sound shift' }
+      ]
+    },
+    mai: {
+      name: 'Flat Objects (枚 - paper, shirts, photos)',
+      desc: 'One of the easiest counters! No euphonic sound shifts.',
+      items: [
+        { num: 1, kanji: '一枚', hira: 'いちまい', r: 'ichimai', note: 'Consistent mai' },
+        { num: 2, kanji: '二枚', hira: 'にまい', r: 'nimai', note: 'Consistent mai' },
+        { num: 3, kanji: '三枚', hira: 'さんまい', r: 'sanmai', note: 'Consistent mai' },
+        { num: 4, kanji: '四枚', hira: 'よんまい', r: 'yonmai', note: 'Consistent mai' },
+        { num: 5, kanji: '五枚', hira: 'ごまい', r: 'gomai', note: 'Consistent mai' },
+        { num: 6, kanji: '六枚', hira: 'ろくまい', r: 'rokumai', note: 'Consistent mai' },
+        { num: 7, kanji: '七枚', hira: 'ななまい', r: 'nanamai', note: 'Consistent mai' },
+        { num: 8, kanji: '八枚', hira: 'はちまい', r: 'hachimai', note: 'Consistent mai' },
+        { num: 9, kanji: '九枚', hira: 'きゅうまい', r: 'kyuumai', note: 'Consistent mai' },
+        { num: 10, kanji: '十枚', hira: 'じゅうまい', r: 'juumai', note: 'Consistent mai' }
+      ]
+    },
+    hiki: {
+      name: 'Small Animals (匹 - cats, dogs, birds)',
+      desc: 'Switches between hiki, piki, and biki!',
+      items: [
+        { num: 1, kanji: '一匹', hira: 'いっぴき', r: 'ippiki', note: 'P-sound shift' },
+        { num: 2, kanji: '二匹', hira: 'にひき', r: 'nihiki', note: 'H-sound' },
+        { num: 3, kanji: '三匹', hira: 'さんびき', r: 'sanbiki', note: '⚠️ B-sound shift!' },
+        { num: 4, kanji: '四匹', hira: 'よんひき', r: 'yonhiki', note: 'H-sound' },
+        { num: 5, kanji: '五匹', hira: 'ごひき', r: 'gohiki', note: 'H-sound' },
+        { num: 6, kanji: '六匹', hira: 'ろっぴき', r: 'roppiki', note: 'P-sound shift' },
+        { num: 7, kanji: '七匹', hira: 'ななひき', r: 'nanahiki', note: 'H-sound' },
+        { num: 8, kanji: '八匹', hira: 'はっぴき', r: 'happiki', note: 'P-sound shift' },
+        { num: 9, kanji: '九匹', hira: 'きゅうひき', r: 'kyuuhiki', note: 'H-sound' },
+        { num: 10, kanji: '十匹', hira: 'じゅっぴき', r: 'juppiki', note: 'P-sound shift' }
+      ]
+    },
+    nichi: {
+      name: 'Days of the Month (日)',
+      desc: 'Days 1-10 use ancient native Japanese pronunciation and are almost all irregular!',
+      items: [
+        { num: 1, kanji: '1日', hira: 'ついたち', r: 'tsuitachi', note: '⚠️ Unique reading' },
+        { num: 2, kanji: '2日', hira: 'ふつか', r: 'futsuka', note: '⚠️ Irregular' },
+        { num: 3, kanji: '3日', hira: 'みっか', r: 'mikka', note: '⚠️ Irregular' },
+        { num: 4, kanji: '4日', hira: 'よっか', r: 'yokka', note: '⚠️ Irregular' },
+        { num: 5, kanji: '5日', hira: 'いつか', r: 'itsuka', note: '⚠️ Irregular' },
+        { num: 6, kanji: '6日', hira: 'むいか', r: 'muika', note: '⚠️ Irregular' },
+        { num: 7, kanji: '7日', hira: 'なのか', r: 'nanoka', note: '⚠️ Irregular' },
+        { num: 8, kanji: '8日', hira: 'ようか', r: 'youka', note: '⚠️ Irregular' },
+        { num: 9, kanji: '9日', hira: 'ここのか', r: 'kokonoka', note: '⚠️ Irregular' },
+        { num: 10, kanji: '10日', hira: 'とおか', r: 'tooka', note: '⚠️ Irregular' }
+      ]
+    }
+  };
+
+  const catSel = document.getElementById('counter-category-select');
+  const numSlider = document.getElementById('counter-num-slider');
+  const numDisplay = document.getElementById('counter-num-display');
+  const kanjiBig = document.getElementById('counter-kanji-big');
+  const hiraBig = document.getElementById('counter-hiragana');
+  const romajiBig = document.getElementById('counter-romaji');
+  const noteBig = document.getElementById('counter-note');
+  const audioBtn = document.getElementById('counter-audio-btn');
+  const chartBox = document.getElementById('counter-full-chart');
+
+  function render() {
+    const cat = catSel.value;
+    const data = COUNTER_DATA[cat] || COUNTER_DATA.tsu;
+    const num = parseInt(numSlider.value, 10);
+    numDisplay.textContent = `${num} ${data.name.split(' ')[0]}`;
+
+    const currentItem = data.items[num - 1];
+    kanjiBig.textContent = currentItem.kanji;
+    hiraBig.textContent = currentItem.hira;
+    romajiBig.textContent = currentItem.r;
+    noteBig.textContent = currentItem.note;
+
+    // Render 1-10 reference
+    chartBox.innerHTML = '';
+    data.items.forEach(it => {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:6px 8px;border-radius:4px;background:rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;';
+      row.innerHTML = `
+        <div><strong>${it.num}. ${it.kanji}</strong> (${it.hira})</div>
+        <div style="font-size:0.7rem;color:${it.note.includes('⚠️') ? '#ff6b81' : 'var(--muted)'};">${it.r}</div>
+      `;
+      chartBox.appendChild(row);
+    });
+  }
+
+  catSel.addEventListener('change', render);
+  numSlider.addEventListener('input', render);
+
+  audioBtn.addEventListener('click', () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(hiraBig.textContent);
+      u.lang = 'ja-JP';
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+  });
+
+  render();
+})();
+</script>

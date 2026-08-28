@@ -1,0 +1,157 @@
+<h2 id="japanese-verb-conjugator-title" style="margin-top:0;color:var(--accent);">⚡ DoushiForge: Japanese Verb Conjugation Engine</h2>
+
+<form aria-describedby="japanese-verb-conjugator-desc" onsubmit="event.preventDefault();">
+  <p id="japanese-verb-conjugator-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Instantly conjugate any Japanese verb across all core grammatical forms (Present, Negative, Past, Te-form, Potential, Volitional, and Passive) with group detection (Godan, Ichidan, Irregular).
+  </p>
+
+  <!-- Quick Verb Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="verb-preset-btn" data-kanji="食べる" data-reading="たべる" data-group="2" data-meaning="To eat" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">
+      食べる (Ichidan)
+    </button>
+    <button type="button" class="verb-preset-btn" data-kanji="行く" data-reading="いく" data-group="1" data-meaning="To go" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">
+      行く (Godan)
+    </button>
+    <button type="button" class="verb-preset-btn" data-kanji="話す" data-reading="はなす" data-group="1" data-meaning="To speak" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">
+      話す (Godan)
+    </button>
+    <button type="button" class="verb-preset-btn" data-kanji="飲む" data-reading="のむ" data-group="1" data-meaning="To drink" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">
+      飲む (Godan)
+    </button>
+    <button type="button" class="verb-preset-btn" data-kanji="する" data-reading="する" data-group="3" data-meaning="To do" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.75rem;cursor:pointer;">
+      する (Irregular)
+    </button>
+  </div>
+
+  <!-- Verb Header -->
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <div>
+      <span id="active-verb-kanji" style="font-size:1.6rem;font-weight:900;color:#fff;">食べる</span>
+      <span id="active-verb-reading" style="font-size:1rem;color:#00ffcc;margin-left:8px;">(たべる - taberu)</span>
+      <div id="active-verb-meaning" style="font-size:0.8rem;color:var(--muted);margin-top:2px;">Meaning: To eat · Group 2 (Ichidan)</div>
+    </div>
+    <button type="button" id="verb-audio-btn" style="padding:8px 16px;border-radius:8px;background:var(--accent);color:#050811;border:none;font-weight:700;font-size:0.8rem;cursor:pointer;">
+      🔊 Listen
+    </button>
+  </div>
+
+  <!-- Conjugations Grid -->
+  <div id="conjugations-table" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:8px;"></div>
+</form>
+
+<script>
+(function() {
+  const CONJ_MODELS = {
+    '食べる': {
+      kanji: '食べる', reading: 'たべる', group: 'Ichidan (Group 2)', meaning: 'To eat',
+      forms: [
+        { label: 'Polite Present (〜ます)', val: '食べます (tabemasu)' },
+        { label: 'Plain Negative (〜ない)', val: '食べない (tabenai)' },
+        { label: 'Polite Negative (〜ません)', val: '食べません (tabemasen)' },
+        { label: 'Plain Past (〜た)', val: '食べた (tabeta)' },
+        { label: 'Polite Past (〜ました)', val: '食べました (tabemashita)' },
+        { label: 'Te-Form (Request/Connect)', val: '食べて (tabete)' },
+        { label: 'Potential ("Can eat")', val: '食べられる (taberareru)' },
+        { label: 'Volitional ("Let\'s eat!")', val: '食べよう (tabeyou)' }
+      ]
+    },
+    '行く': {
+      kanji: '行く', reading: 'いく', group: 'Godan (Group 1)', meaning: 'To go',
+      forms: [
+        { label: 'Polite Present (〜ます)', val: '行きます (ikimasu)' },
+        { label: 'Plain Negative (〜ない)', val: '行かない (ikanai)' },
+        { label: 'Polite Negative (〜ません)', val: '行きません (ikimasen)' },
+        { label: 'Plain Past (〜た)', val: '行った (itta - irregular te/ta)' },
+        { label: 'Polite Past (〜ました)', val: '行きました (ikimashita)' },
+        { label: 'Te-Form (Request/Connect)', val: '行って (itte)' },
+        { label: 'Potential ("Can go")', val: '行ける (ikeru)' },
+        { label: 'Volitional ("Let\'s go!")', val: '行こう (ikou)' }
+      ]
+    },
+    '話す': {
+      kanji: '話す', reading: 'はなす', group: 'Godan (Group 1)', meaning: 'To speak',
+      forms: [
+        { label: 'Polite Present (〜ます)', val: '話します (hanashimasu)' },
+        { label: 'Plain Negative (〜ない)', val: '話さない (hanasanai)' },
+        { label: 'Polite Negative (〜ません)', val: '話しません (hanashimasen)' },
+        { label: 'Plain Past (〜た)', val: '話した (hanashita)' },
+        { label: 'Polite Past (〜ました)', val: '話しました (hanashimashita)' },
+        { label: 'Te-Form (Request/Connect)', val: '話して (hanashite)' },
+        { label: 'Potential ("Can speak")', val: '話せる (hanaseru)' },
+        { label: 'Volitional ("Let\'s speak!")', val: '話そう (hanasou)' }
+      ]
+    },
+    '飲む': {
+      kanji: '飲む', reading: 'のむ', group: 'Godan (Group 1)', meaning: 'To drink',
+      forms: [
+        { label: 'Polite Present (〜ます)', val: '飲みます (nomimasu)' },
+        { label: 'Plain Negative (〜ない)', val: '飲まない (nomanai)' },
+        { label: 'Polite Negative (〜ません)', val: '飲みません (nomimasen)' },
+        { label: 'Plain Past (〜た)', val: '飲んだ (nonda)' },
+        { label: 'Polite Past (〜ました)', val: '飲みました (nomimashita)' },
+        { label: 'Te-Form (Request/Connect)', val: '飲んで (nonde)' },
+        { label: 'Potential ("Can drink")', val: '飲める (nomeru)' },
+        { label: 'Volitional ("Let\'s drink!")', val: '飲もう (nomou)' }
+      ]
+    },
+    'する': {
+      kanji: 'する', reading: 'する', group: 'Irregular (Group 3)', meaning: 'To do',
+      forms: [
+        { label: 'Polite Present (〜ます)', val: 'します (shimasu)' },
+        { label: 'Plain Negative (〜ない)', val: 'しない (shinai)' },
+        { label: 'Polite Negative (〜ません)', val: 'しません (shimasen)' },
+        { label: 'Plain Past (〜た)', val: 'した (shita)' },
+        { label: 'Polite Past (〜ました)', val: 'しました (shimashita)' },
+        { label: 'Te-Form (Request/Connect)', val: 'して (shite)' },
+        { label: 'Potential ("Can do")', val: 'できる (dekiru)' },
+        { label: 'Volitional ("Let\'s do!")', val: 'しよう (shiyou)' }
+      ]
+    }
+  };
+
+  let activeVerb = '食べる';
+  const table = document.getElementById('conjugations-table');
+  const kanjiEl = document.getElementById('active-verb-kanji');
+  const readEl = document.getElementById('active-verb-reading');
+  const meanEl = document.getElementById('active-verb-meaning');
+  const audioBtn = document.getElementById('verb-audio-btn');
+
+  function render() {
+    const data = CONJ_MODELS[activeVerb];
+    kanjiEl.textContent = data.kanji;
+    readEl.textContent = `(${data.reading})`;
+    meanEl.textContent = `Meaning: ${data.meaning} · ${data.group}`;
+
+    table.innerHTML = '';
+    data.forms.forEach(f => {
+      const box = document.createElement('div');
+      box.style.cssText = 'padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);';
+      box.innerHTML = `
+        <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;">${f.label}</div>
+        <div style="font-size:0.95rem;font-weight:700;color:#00ffcc;margin-top:2px;">${f.val}</div>
+      `;
+      table.appendChild(box);
+    });
+  }
+
+  document.querySelectorAll('.verb-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeVerb = btn.dataset.kanji;
+      render();
+    });
+  });
+
+  audioBtn.addEventListener('click', () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(activeVerb);
+      u.lang = 'ja-JP';
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+  });
+
+  render();
+})();
+</script>

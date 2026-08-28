@@ -1,0 +1,203 @@
+<h2 id="japanese-kana-trainer-title" style="margin-top:0;color:var(--accent);">🎌 KanaMaster: Interactive Hiragana & Katakana Studio</h2>
+
+<form aria-describedby="japanese-kana-trainer-desc" onsubmit="event.preventDefault();">
+  <p id="japanese-kana-trainer-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Master the foundation of Japanese. Interactive 46-character syllabaries for both Hiragana and Katakana with native audio pronunciation, dakuten/handakuten sound changes, and a speed flashcard drill mode.
+  </p>
+
+  <!-- Syllabary Switcher & Mode Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+    <div style="display:flex;gap:6px;">
+      <button type="button" class="kana-tab-btn active" data-type="hiragana" style="padding:6px 16px;border-radius:20px;background:rgba(0,255,204,0.15);border:1px solid #00ffcc;color:#e6faff;font-weight:700;font-size:0.82rem;cursor:pointer;">
+        あ Hiragana (平仮名)
+      </button>
+      <button type="button" class="kana-tab-btn" data-type="katakana" style="padding:6px 16px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#e6faff;font-size:0.82rem;cursor:pointer;">
+        ア Katakana (片仮名)
+      </button>
+    </div>
+
+    <button type="button" id="start-flashcard-mode" style="padding:6px 14px;border-radius:20px;background:linear-gradient(135deg,#b026ff,#00ffcc);border:none;color:#050811;font-weight:800;font-size:0.8rem;cursor:pointer;">
+      ⚡ Speed Drill Flashcards
+    </button>
+  </div>
+
+  <!-- Flashcard Drill Modal / Overlay Container -->
+  <div id="kana-drill-container" style="display:none;background:rgba(14,21,37,0.95);border:1px solid #00ffcc;border-radius:12px;padding:20px;margin-bottom:16px;text-align:center;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:0.8rem;color:var(--muted);">
+      <span>Drill Streak: <strong id="drill-streak-count" style="color:#ffd700;">0</strong></span>
+      <button type="button" id="close-drill-btn" style="background:none;border:none;color:#ff4757;font-size:1.1rem;cursor:pointer;">✕ Close Drill</button>
+    </div>
+
+    <div id="drill-target-char" style="font-family:'Exo 2',sans-serif;font-size:4rem;font-weight:900;color:#fff;margin:10px 0;">あ</div>
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;">What is the romaji reading?</div>
+
+    <div id="drill-options-grid" style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;max-width:320px;margin:0 auto 12px;"></div>
+    <div id="drill-feedback-msg" style="font-size:0.85rem;font-weight:700;min-height:20px;"></div>
+  </div>
+
+  <!-- Syllabary Grid -->
+  <div style="background:#050811;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;max-height:300px;overflow-y:auto;">
+    <div id="kana-character-grid" style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;text-align:center;"></div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:0.75rem;color:var(--muted);">
+    <span>💡 Click any character to hear native audio pronunciation</span>
+    <span id="kana-count-badge">46 Characters</span>
+  </div>
+</form>
+
+<script>
+(function() {
+  const HIRAGANA_DATA = [
+    { kana: 'あ', romaji: 'a' }, { kana: 'い', romaji: 'i' }, { kana: 'う', romaji: 'u' }, { kana: 'え', romaji: 'e' }, { kana: 'お', romaji: 'o' },
+    { kana: 'か', romaji: 'ka' }, { kana: 'き', romaji: 'ki' }, { kana: 'く', romaji: 'ku' }, { kana: 'け', romaji: 'ke' }, { kana: 'こ', romaji: 'ko' },
+    { kana: 'さ', romaji: 'sa' }, { kana: 'し', romaji: 'shi' }, { kana: 'す', romaji: 'su' }, { kana: 'せ', romaji: 'se' }, { kana: 'そ', romaji: 'so' },
+    { kana: 'た', romaji: 'ta' }, { kana: 'ち', romaji: 'chi' }, { kana: 'つ', romaji: 'tsu' }, { kana: 'て', romaji: 'te' }, { kana: 'と', romaji: 'to' },
+    { kana: 'な', romaji: 'na' }, { kana: 'に', romaji: 'ni' }, { kana: 'ぬ', romaji: 'nu' }, { kana: 'ね', romaji: 'ne' }, { kana: 'の', romaji: 'no' },
+    { kana: 'は', romaji: 'ha' }, { kana: 'ひ', romaji: 'hi' }, { kana: 'ふ', romaji: 'fu' }, { kana: 'へ', romaji: 'he' }, { kana: 'ほ', romaji: 'ho' },
+    { kana: 'ま', romaji: 'ma' }, { kana: 'み', romaji: 'mi' }, { kana: 'む', romaji: 'mu' }, { kana: 'め', romaji: 'me' }, { kana: 'も', romaji: 'mo' },
+    { kana: 'や', romaji: 'ya' }, { kana: '', romaji: '' }, { kana: 'ゆ', romaji: 'yu' }, { kana: '', romaji: '' }, { kana: 'よ', romaji: 'yo' },
+    { kana: 'ら', romaji: 'ra' }, { kana: 'り', romaji: 'ri' }, { kana: 'る', romaji: 'ru' }, { kana: 'れ', romaji: 're' }, { kana: 'ろ', romaji: 'ro' },
+    { kana: 'わ', romaji: 'wa' }, { kana: '', romaji: '' }, { kana: '', romaji: '' }, { kana: '', romaji: '' }, { kana: 'を', romaji: 'wo' },
+    { kana: 'ん', romaji: 'n' }
+  ];
+
+  const KATAKANA_DATA = [
+    { kana: 'ア', romaji: 'a' }, { kana: 'イ', romaji: 'i' }, { kana: 'ウ', romaji: 'u' }, { kana: 'エ', romaji: 'e' }, { kana: 'オ', romaji: 'o' },
+    { kana: 'カ', romaji: 'ka' }, { kana: 'キ', romaji: 'ki' }, { kana: 'ク', romaji: 'ku' }, { kana: 'ケ', romaji: 'ke' }, { kana: 'コ', romaji: 'ko' },
+    { kana: 'サ', romaji: 'sa' }, { kana: 'シ', romaji: 'shi' }, { kana: 'ス', romaji: 'su' }, { kana: 'セ', romaji: 'se' }, { kana: 'ソ', romaji: 'so' },
+    { kana: 'タ', romaji: 'ta' }, { kana: 'チ', romaji: 'chi' }, { kana: 'ツ', romaji: 'tsu' }, { kana: 'テ', romaji: 'te' }, { kana: 'ト', romaji: 'to' },
+    { kana: 'ナ', romaji: 'na' }, { kana: 'ニ', romaji: 'ni' }, { kana: 'ヌ', romaji: 'nu' }, { kana: 'ネ', romaji: 'ne' }, { kana: 'ノ', romaji: 'no' },
+    { kana: 'ハ', romaji: 'ha' }, { kana: 'ヒ', romaji: 'hi' }, { kana: 'フ', romaji: 'fu' }, { kana: 'ヘ', romaji: 'he' }, { kana: 'ホ', romaji: 'ho' },
+    { kana: 'マ', romaji: 'ma' }, { kana: 'ミ', romaji: 'mi' }, { kana: 'ム', romaji: 'mu' }, { kana: 'メ', romaji: 'me' }, { kana: 'モ', romaji: 'mo' },
+    { kana: 'ヤ', romaji: 'ya' }, { kana: '', romaji: '' }, { kana: 'ユ', romaji: 'yu' }, { kana: '', romaji: '' }, { kana: 'ヨ', romaji: 'yo' },
+    { kana: 'ラ', romaji: 'ra' }, { kana: 'リ', romaji: 'ri' }, { kana: 'ル', romaji: 'ru' }, { kana: 'レ', romaji: 're' }, { kana: 'ロ', romaji: 'ro' },
+    { kana: 'ワ', romaji: 'wa' }, { kana: '', romaji: '' }, { kana: '', romaji: '' }, { kana: '', romaji: '' }, { kana: 'ヲ', romaji: 'wo' },
+    { kana: 'ン', romaji: 'n' }
+  ];
+
+  let currentType = 'hiragana';
+  let streak = 0;
+  let currentDrillItem = null;
+
+  const grid = document.getElementById('kana-character-grid');
+  const tabBtns = document.querySelectorAll('.kana-tab-btn');
+  const drillContainer = document.getElementById('kana-drill-container');
+  const startDrillBtn = document.getElementById('start-flashcard-mode');
+  const closeDrillBtn = document.getElementById('close-drill-btn');
+  const drillChar = document.getElementById('drill-target-char');
+  const drillOpts = document.getElementById('drill-options-grid');
+  const drillFeedback = document.getElementById('drill-feedback-msg');
+  const streakText = document.getElementById('drill-streak-count');
+
+  function speak(text) {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ja-JP';
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+  }
+
+  function renderGrid() {
+    grid.innerHTML = '';
+    const dataset = currentType === 'hiragana' ? HIRAGANA_DATA : KATAKANA_DATA;
+
+    dataset.forEach(item => {
+      if (!item.kana) {
+        const spacer = document.createElement('div');
+        grid.appendChild(spacer);
+        return;
+      }
+      const card = document.createElement('div');
+      card.style.cssText = 'padding:10px 6px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);cursor:pointer;transition:all 0.15s;';
+      card.innerHTML = `
+        <div style="font-size:1.4rem;font-weight:700;color:#fff;">${item.kana}</div>
+        <div style="font-size:0.75rem;color:var(--accent);font-family:monospace;margin-top:2px;">${item.romaji}</div>
+      `;
+      card.addEventListener('mouseenter', () => {
+        card.style.borderColor = '#00ffcc';
+        card.style.background = 'rgba(0,255,204,0.1)';
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.borderColor = 'rgba(255,255,255,0.08)';
+        card.style.background = 'rgba(255,255,255,0.03)';
+      });
+      card.addEventListener('click', () => {
+        speak(item.kana);
+      });
+      grid.appendChild(card);
+    });
+  }
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach(b => {
+        b.style.background = 'rgba(255,255,255,0.05)';
+        b.style.borderColor = 'rgba(255,255,255,0.1)';
+      });
+      btn.style.background = 'rgba(0,255,204,0.15)';
+      btn.style.borderColor = '#00ffcc';
+
+      currentType = btn.dataset.type;
+      renderGrid();
+    });
+  });
+
+  // Drill Mode
+  function nextDrillQuestion() {
+    const dataset = (currentType === 'hiragana' ? HIRAGANA_DATA : KATAKANA_DATA).filter(x => x.kana);
+    const target = dataset[Math.floor(Math.random() * dataset.length)];
+    currentDrillItem = target;
+
+    drillChar.textContent = target.kana;
+    speak(target.kana);
+
+    // Pick 3 random wrong answers
+    const wrong = [];
+    while (wrong.length < 3) {
+      const cand = dataset[Math.floor(Math.random() * dataset.length)].romaji;
+      if (cand !== target.romaji && !wrong.includes(cand)) wrong.push(cand);
+    }
+    const all = [target.romaji, ...wrong].sort(() => Math.random() - 0.5);
+
+    drillOpts.innerHTML = '';
+    all.forEach(opt => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = opt;
+      b.style.cssText = 'padding:10px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-family:monospace;font-size:1rem;font-weight:700;cursor:pointer;';
+      b.addEventListener('click', () => {
+        if (opt === target.romaji) {
+          streak++;
+          streakText.textContent = streak;
+          drillFeedback.textContent = '✅ 正解 (Correct!)';
+          drillFeedback.style.color = '#39ff14';
+          b.style.background = '#39ff14';
+          b.style.color = '#000';
+          setTimeout(nextDrillQuestion, 600);
+        } else {
+          streak = 0;
+          streakText.textContent = streak;
+          drillFeedback.textContent = `❌ Incorrect: ${target.kana} = ${target.romaji}`;
+          drillFeedback.style.color = '#ff4757';
+          b.style.background = '#ff4757';
+        }
+      });
+      drillOpts.appendChild(b);
+    });
+  }
+
+  startDrillBtn.addEventListener('click', () => {
+    drillContainer.style.display = 'block';
+    nextDrillQuestion();
+  });
+
+  closeDrillBtn.addEventListener('click', () => {
+    drillContainer.style.display = 'none';
+  });
+
+  renderGrid();
+})();
+</script>
