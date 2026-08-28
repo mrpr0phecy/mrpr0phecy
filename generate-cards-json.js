@@ -1,31 +1,68 @@
 // generate-cards-json.js
-// Node.js script to auto-generate cards.json from /cards directory
+// Standalone zero-dependency script to auto-generate cards/cards.json
 
 const fs = require('fs');
 const path = require('path');
-const cheerio = require('cheerio'); // npm install cheerio
 
 const cardsDir = path.join(__dirname, 'cards');
 const outputFile = path.join(cardsDir, 'cards.json');
 
-const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html'));
+const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html') || f.endsWith('.hmtl'));
+
+const musicList = ['bpm-counter', 'capo-calculator', 'carol-karaoke', 'chord-finder', 'chord-progression', 'ear-trainer', 'instrument-care', 'interval-trainer', 'metronome', 'music-quiz', 'music-theory', 'recording-basics', 'rhythm-generator', 'scale-trainer', 'sheet-music', 'song-writer', 'tempo-map', 'transposer', 'tuner', 'youtube-dj'];
+const healthList = ['bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'targetheartrate', 'tdee', 'vo2max', 'waisthip', 'waterintake'];
+const financeList = ['break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax'];
+const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
+const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
+const scienceList = ['anatomy', 'astronomy', 'battery-sizing', 'biology-tools', 'boiling-point-finder', 'breaker-sizing', 'builders-workmate', 'cable-length', 'capacitor-calculator', 'circuit-calculator', 'conduit-sizing', 'earthing-calculator', 'ecology', 'electrical-standards', 'electricity', 'energy', 'environmental-science', 'evolution-walker', 'experiment-ideas', 'genetics', 'geography', 'geology', 'inductance-calculator', 'inverter-sizing', 'lab-planner', 'lab-safety', 'lighting-design', 'load-calculator', 'materials-science', 'melting-point-finder', 'microbiology', 'motor-startup', 'ohms-law', 'optics', 'oscilloscope', 'pcb-trace-width', 'physics', 'plant-encyclopedia', 'power-calculator', 'resistor-color-code', 'science-quiz', 'science', 'scientific-method', 'seed-germination-calculator', 'soil-ph-guide', 'solar-panel-calculator', 'solar-system-simulator', 'thermodynamics', 'transformer-calculator', 'unit-converter-science', 'unit-converter', 'unitconverter', 'voltage-drop', 'wire-gauge'];
+const writingList = ['business-writing', 'citation', 'cover-letter', 'creative-writing', 'email-templates', 'essay-templates', 'essay', 'grammar-proof', 'kanji-helper', 'languages', 'literature-analysis', 'literature', 'meme-translation', 'plagiarism-check', 'proofreading', 'public-speaking', 'punctuation-guide', 'readability-score', 'readingtime', 'resume', 'seo-helper', 'seo-writing', 'spelling-check', 'summary-generator', 'translation-helper', 'vocab', 'vocabulary-trainer'];
+
+function getCategory(name) {
+  if (slList.some(s => name.includes(s))) return 'Virtual Worlds & Gaming';
+  if (musicList.some(s => name.includes(s))) return 'Music & Audio';
+  if (healthList.some(s => name.includes(s))) return 'Health & Fitness';
+  if (financeList.some(s => name.includes(s))) return 'Finance & Money';
+  if (mathList.some(s => name.includes(s))) return 'Mathematics';
+  if (scienceList.some(s => name.includes(s))) return 'Science & Engineering';
+  if (writingList.some(s => name.includes(s))) return 'Writing & Language';
+  return 'Productivity & Lifestyle';
+}
 
 const manifest = files.map(file => {
+  const base = file.replace(/\.(html|hmtl)$/, '');
   const filePath = path.join(cardsDir, file);
   const html = fs.readFileSync(filePath, 'utf8');
-  const $ = cheerio.load(html);
 
   // Extract title from first <h2>
-  const h2 = $('h2').first();
-  const title = h2.text().trim();
-  const id = h2.attr('id') || path.basename(file, '.html');
+  const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+  let title = '';
+  let id = base;
+  if (h2Match) {
+    const idAttr = h2Match[0].match(/id=["']([^"']+)["']/i);
+    if (idAttr) id = idAttr[1];
+    title = h2Match[1].replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').trim();
+  }
+  if (!title) {
+    title = base.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  // Extract description
+  const pMatch = html.match(/<p[^>]*class=["'][^"']*(?:desc|description|small)["'][^>]*>([\s\S]*?)<\/p>/i) ||
+                 html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+  let description = '';
+  if (pMatch) {
+    description = pMatch[1].replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').trim();
+    if (description.length > 200) description = description.substring(0, 197) + '...';
+  }
 
   return {
     id,
+    name: base,
     title,
-    path: `cards/${file}`,
-    category: "Uncategorized",
-    version: "1.0"
+    description,
+    category: getCategory(base),
+    file: file,
+    path: `cards/${file}`
   };
 });
 
