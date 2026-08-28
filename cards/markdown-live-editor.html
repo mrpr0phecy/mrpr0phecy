@@ -1,0 +1,151 @@
+<h2 id="markdown-live-editor-title" style="margin-top:0;color:var(--accent);">📝 MarkFlow: Instant Live Markdown Studio</h2>
+
+<form aria-describedby="markdown-live-editor-desc" onsubmit="event.preventDefault();">
+  <p id="markdown-live-editor-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Write, preview, and format Markdown in real-time. Features instant HTML rendering, live word & reading time analytics, syntax quick-tags, and 1-click export to Markdown or HTML.
+  </p>
+
+  <!-- Toolbar -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px;margin-bottom:10px;">
+    <button type="button" class="md-tool-btn" data-tag="bold" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:none;color:#fff;font-weight:bold;cursor:pointer;">B</button>
+    <button type="button" class="md-tool-btn" data-tag="italic" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:none;color:#fff;font-style:italic;cursor:pointer;">I</button>
+    <button type="button" class="md-tool-btn" data-tag="h1" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:none;color:#fff;cursor:pointer;">H1</button>
+    <button type="button" class="md-tool-btn" data-tag="h2" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:none;color:#fff;cursor:pointer;">H2</button>
+    <button type="button" class="md-tool-btn" data-tag="list" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:none;color:#fff;cursor:pointer;">• List</button>
+    <button type="button" class="md-tool-btn" data-tag="quote" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:none;color:#fff;cursor:pointer;">" Quote</button>
+    <button type="button" class="md-tool-btn" data-tag="code" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:none;color:#fff;font-family:monospace;cursor:pointer;">&lt;/&gt;</button>
+    <button type="button" class="md-tool-btn" data-tag="table" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:none;color:#fff;cursor:pointer;">⊞ Table</button>
+  </div>
+
+  <!-- Split Screen Editor & Preview -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Markdown Source:</div>
+      <textarea id="markdown-raw-input" rows="10" style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;background:#050811;border:1px solid rgba(255,255,255,0.15);color:#e6faff;font-family:'JetBrains Mono', monospace;font-size:0.82rem;line-height:1.5;resize:vertical;"># Project Overview
+
+Welcome to **MarkFlow**! Build fast, clean documents.
+
+## Key Features
+- Live split-screen preview
+- **Zero dependencies** & fast rendering
+- Export to `.md` or `.html` with one click
+
+> "Simplicity is the prerequisite for reliability." — Edsger W. Dijkstra
+
+### Quick Task Matrix
+| Task | Owner | Status |
+|---|---|---|
+| Sound Design | MrProphecy | Completed |
+| Web3 Tools | Arena AI | In Progress |</textarea>
+    </div>
+
+    <div>
+      <div style="font-size:0.75rem;color:var(--accent);text-transform:uppercase;margin-bottom:4px;">Live HTML Preview:</div>
+      <div id="markdown-live-preview" style="min-height:220px;max-height:260px;overflow-y:auto;box-sizing:border-box;padding:12px;border-radius:8px;background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);color:#e6faff;font-size:0.85rem;line-height:1.6;"></div>
+    </div>
+  </div>
+
+  <!-- Analytics & Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;font-size:0.8rem;color:var(--muted);">
+    <div id="md-stats-text">Words: 52 · Characters: 360 · Est. Reading: 15s</div>
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="copy-html-btn" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.78rem;cursor:pointer;">📋 Copy HTML</button>
+      <button type="button" id="download-md-btn" style="padding:6px 14px;border-radius:6px;background:var(--accent);color:#050811;border:none;font-weight:700;font-size:0.78rem;cursor:pointer;">💾 Download .md</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const input = document.getElementById('markdown-raw-input');
+  const preview = document.getElementById('markdown-live-preview');
+  const stats = document.getElementById('md-stats-text');
+  const copyBtn = document.getElementById('copy-html-btn');
+  const downloadBtn = document.getElementById('download-md-btn');
+
+  // Lightweight regex markdown parser (handles headers, bold, italics, blockquotes, code, tables, lists)
+  function parseMarkdown(md) {
+    let html = md
+      // Escape script tags
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      // Tables
+      .replace(/\|(.+)\|/g, function(match, row) {
+        if (/^[\s:-|]+$/.test(row)) return '';
+        const cols = row.split('|').map(c => `<td>${c.trim()}</td>`).join('');
+        return `<tr>${cols}</tr>`;
+      })
+      // Headers
+      .replace(/^### (.*$)/gim, '<h3 style="color:#00ffcc;margin:10px 0 4px;font-size:1.05rem;">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 style="color:#00ffcc;margin:12px 0 6px;font-size:1.2rem;">$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1 style="color:#00ffcc;margin:14px 0 8px;font-size:1.35rem;">$1</h1>')
+      // Blockquotes
+      .replace(/^\> (.*$)/gim, '<blockquote style="border-left:3px solid #00ffcc;margin:8px 0;padding-left:10px;color:rgba(230,250,255,0.7);font-style:italic;">$1</blockquote>')
+      // Bold & Italic
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      // Inline code
+      .replace(/`(.*?)`/g, '<code style="background:rgba(0,0,0,0.4);padding:2px 5px;border-radius:4px;font-family:monospace;color:#ffd700;">$1</code>')
+      // Bullet lists
+      .replace(/^\- (.*$)/gim, '<li style="margin-left:16px;">$1</li>')
+      // Line breaks
+      .replace(/\n$/gim, '<br>');
+
+    // Wrap table rows in a table element if present
+    if (html.includes('<tr>')) {
+      html = html.replace(/(<tr>[\s\S]*?<\/tr>)/g, '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:0.8rem;" border="1" bordercolor="rgba(255,255,255,0.15)">$1</table>');
+    }
+    return html;
+  }
+
+  function update() {
+    const raw = input.value;
+    preview.innerHTML = parseMarkdown(raw);
+
+    const words = raw.trim() ? raw.trim().split(/\s+/).length : 0;
+    const chars = raw.length;
+    const readSeconds = Math.ceil(words / 3.3);
+    stats.textContent = `Words: ${words} · Characters: ${chars} · Est. Reading: ${readSeconds}s`;
+  }
+
+  input.addEventListener('input', update);
+
+  // Syntax buttons
+  document.querySelectorAll('.md-tool-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tag = btn.dataset.tag;
+      let insert = '';
+      if (tag === 'bold') insert = '**Bold Text**';
+      else if (tag === 'italic') insert = '*Italic Text*';
+      else if (tag === 'h1') insert = '\n# Heading 1\n';
+      else if (tag === 'h2') insert = '\n## Heading 2\n';
+      else if (tag === 'list') insert = '\n- Item 1\n- Item 2\n';
+      else if (tag === 'quote') insert = '\n> Inspiring quote\n';
+      else if (tag === 'code') insert = '`code_snippet()`';
+      else if (tag === 'table') insert = '\n| Col 1 | Col 2 |\n|---|---|\n| Data 1 | Data 2 |\n';
+
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      input.value = input.value.substring(0, start) + insert + input.value.substring(end);
+      input.focus();
+      update();
+    });
+  });
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(preview.innerHTML).then(() => {
+      copyBtn.textContent = '✅ Copied!';
+      setTimeout(() => copyBtn.textContent = '📋 Copy HTML', 2000);
+    });
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    const blob = new Blob([input.value], { type: 'text/markdown' });
+    const link = document.createElement('a');
+    link.download = 'document.md';
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  });
+
+  update();
+})();
+</script>

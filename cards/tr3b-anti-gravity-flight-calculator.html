@@ -1,0 +1,182 @@
+<h2 id="tr3b-anti-gravity-flight-calculator-title" style="margin-top:0;color:var(--accent);">🛸 TR-3B Astra Aurora: Plasma Ring & Gravity Disruptor Simulator</h2>
+
+<form aria-describedby="tr3b-anti-gravity-flight-calculator-desc" onsubmit="event.preventDefault();">
+  <p id="tr3b-anti-gravity-flight-calculator-desc" class="small" style="color:var(--muted);margin-bottom:16px;">
+    Simulate the theoretical physics of the triangular TR-3B aerospace platform. Calculates Mercury-based Magnetic Field Disruptor (MFD) plasma acceleration, inertial mass reduction percentage, and supersonic transit times.
+  </p>
+
+  <!-- Animated Plasma Ring Canvas -->
+  <div style="background:#03050c;border:1px solid rgba(176,38,255,0.3);border-radius:12px;padding:10px;margin-bottom:16px;text-align:center;">
+    <canvas id="tr3b-plasma-canvas" width="400" height="130" style="width:100%;height:130px;display:block;border-radius:8px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--muted);margin-top:6px;">
+      <span id="tr3b-mfd-status">MFD Field: Active (60,000 RPM)</span>
+      <span id="tr3b-mass-reduc" style="color:#00ffcc;font-weight:700;">Mass Reduction: 89.0%</span>
+    </div>
+  </div>
+
+  <!-- Interactive Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:14px;margin-bottom:16px;">
+    <div>
+      <label for="tr3b-rpm-slider" style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--text);margin-bottom:4px;">
+        <span>Mercury Plasma Ring Velocity:</span>
+        <span id="tr3b-rpm-val" style="color:#b026ff;font-weight:700;">60,000 RPM</span>
+      </label>
+      <input type="range" id="tr3b-rpm-slider" min="10000" max="100000" value="60000" step="5000" style="width:100%;">
+    </div>
+
+    <div>
+      <label for="tr3b-dest-select" style="display:block;font-size:0.8rem;color:var(--text);margin-bottom:4px;">
+        Flight Trajectory & Destination:
+      </label>
+      <select id="tr3b-dest-select" style="width:100%;padding:8px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:inherit;font-size:0.85rem;">
+        <option value="pyramids" selected>London (Luton) → Great Pyramids of Giza (2,200 mi)</option>
+        <option value="area51">London → Area 51, Groom Lake Nevada (5,200 mi)</option>
+        <option value="moon">Earth Low Orbit → Lunar Surface (238,900 mi)</option>
+        <option value="mars">Earth → Mars Transfer Orbit (33,900,000 mi)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Flight Telemetry Results -->
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:16px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;text-align:center;">
+      <div style="background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;">
+        <div style="font-size:0.7rem;color:var(--muted);">Atmospheric Cruise</div>
+        <div id="tr3b-mach-speed" style="font-family:'Exo 2',sans-serif;font-size:1.4rem;font-weight:900;color:#00ffcc;">Mach 9.4</div>
+        <div style="font-size:0.68rem;color:var(--muted);">~7,200 mph</div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;">
+        <div style="font-size:0.7rem;color:var(--muted);">Effective G-Force</div>
+        <div id="tr3b-gforce" style="font-family:'Exo 2',sans-serif;font-size:1.4rem;font-weight:900;color:#39ff14;">0.11 G</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Inertia Negated</div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;">
+        <div style="font-size:0.7rem;color:var(--muted);">Calculated Transit Time</div>
+        <div id="tr3b-transit-time" style="font-family:'Exo 2',sans-serif;font-size:1.4rem;font-weight:900;color:#ffd700;">18.3 Mins</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Point-to-Point</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('tr3b-plasma-canvas');
+  const ctx = canvas.getContext('2d');
+  const rpmSlider = document.getElementById('tr3b-rpm-slider');
+  const rpmVal = document.getElementById('tr3b-rpm-val');
+  const destSelect = document.getElementById('tr3b-dest-select');
+
+  const mfdStatus = document.getElementById('tr3b-mfd-status');
+  const massReduc = document.getElementById('tr3b-mass-reduc');
+  const machSpeed = document.getElementById('tr3b-mach-speed');
+  const gforce = document.getElementById('tr3b-gforce');
+  const transitTime = document.getElementById('tr3b-transit-time');
+
+  let angle = 0;
+
+  function renderSim() {
+    const rpm = parseFloat(rpmSlider.value);
+    rpmVal.textContent = `${rpm.toLocaleString()} RPM`;
+
+    // Lorentz mass reduction formula simulation
+    const reduc = Math.min(89.0, (rpm / 60000) * 89.0);
+    massReduc.textContent = `Mass Reduction: ${reduc.toFixed(1)}%`;
+    mfdStatus.textContent = `MFD Field: Active (${rpm.toLocaleString()} RPM)`;
+
+    const mach = 3.0 + (rpm / 60000) * 6.4;
+    machSpeed.textContent = `Mach ${mach.toFixed(1)}`;
+    const mph = mach * 767;
+
+    const remainingG = (1 - (reduc / 100)).toFixed(2);
+    gforce.textContent = `${remainingG} G`;
+
+    const dest = destSelect.value;
+    let distMiles = 2200; // London to Pyramids
+    if (dest === 'area51') distMiles = 5200;
+    else if (dest === 'moon') distMiles = 238900;
+    else if (dest === 'mars') distMiles = 33900000;
+
+    let effectiveMph = mph;
+    if (dest === 'moon' || dest === 'mars') {
+      // Exo-atmospheric acceleration
+      effectiveMph = mph * 14;
+    }
+
+    const hours = distMiles / effectiveMph;
+    if (hours < 1) {
+      transitTime.textContent = `${(hours * 60).toFixed(1)} Mins`;
+    } else if (hours < 48) {
+      transitTime.textContent = `${hours.toFixed(1)} Hours`;
+    } else {
+      transitTime.textContent = `${(hours / 24).toFixed(1)} Days`;
+    }
+  }
+
+  function drawCanvas() {
+    ctx.fillStyle = '#03050c';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const rpm = parseFloat(rpmSlider.value);
+
+    // Draw Triangular TR-3B Silhouette
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 40);
+    ctx.lineTo(cx + 60, cy + 35);
+    ctx.lineTo(cx - 60, cy + 35);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Draw 3 Corner Plasma Thrusters
+    const corners = [
+      { x: cx, y: cy - 40 },
+      { x: cx + 60, y: cy + 35 },
+      { x: cx - 60, y: cy + 35 }
+    ];
+    corners.forEach(c => {
+      ctx.fillStyle = '#00ffcc';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Draw Central Rotating Mercury Plasma Ring
+    ctx.strokeStyle = '#b026ff';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#b026ff';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(cx, cy + 8, 22, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Rotating plasma particles
+    const particleCount = 8;
+    for (let i = 0; i < particleCount; i++) {
+      const a = angle + (i * (Math.PI * 2 / particleCount));
+      const px = cx + Math.cos(a) * 22;
+      const py = (cy + 8) + Math.sin(a) * 22;
+      ctx.fillStyle = '#00ffcc';
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    angle += (rpm / 60000) * 0.15;
+    requestAnimationFrame(drawCanvas);
+  }
+
+  rpmSlider.addEventListener('input', renderSim);
+  destSelect.addEventListener('change', renderSim);
+
+  renderSim();
+  drawCanvas();
+})();
+</script>

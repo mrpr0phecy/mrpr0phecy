@@ -1,0 +1,110 @@
+<h2 id="audio-bpm-tapper-title" style="margin-top:0;color:var(--accent);">🥁 BeatTapper: Live Tap Tempo & Delay Calculator</h2>
+
+<form aria-describedby="audio-bpm-tapper-desc" onsubmit="event.preventDefault();">
+  <p id="audio-bpm-tapper-desc" class="small" style="color:var(--muted);margin-bottom:16px;">
+    Tap to the rhythm of any track or beat. Calculates exact BPM, musical delay times in milliseconds, reverb pre-delay values, and audio frequency modulation timings for music producers and DJs.
+  </p>
+
+  <!-- Big Tap Button -->
+  <div style="text-align:center;margin-bottom:20px;">
+    <button type="button" id="big-tap-btn" style="width:100%;max-width:340px;height:120px;border-radius:20px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,255,204,0.35);transition:transform 0.05s ease;">
+      <span style="font-family:'Exo 2',sans-serif;font-size:2.8rem;font-weight:900;line-height:1;" id="tap-bpm-display">TAP</span>
+      <span style="font-size:0.85rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:4px;">Click or Press Spacebar</span>
+    </button>
+  </div>
+
+  <!-- Stats Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:16px;text-align:center;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px;">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;">Total Taps</div>
+      <div id="tap-count-text" style="font-size:1.2rem;font-weight:700;color:#fff;">0</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px;">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;">Quarter Note</div>
+      <div id="delay-1-4" style="font-size:1.2rem;font-weight:700;color:#00ffcc;">- ms</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px;">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;">Eighth Note</div>
+      <div id="delay-1-8" style="font-size:1.2rem;font-weight:700;color:#ffd700;">- ms</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px;">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;">Sixteenth Note</div>
+      <div id="delay-1-16" style="font-size:1.2rem;font-weight:700;color:#e6faff;">- ms</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;justify-content:center;">
+    <button type="button" id="reset-taps-btn" style="padding:8px 20px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.85rem;cursor:pointer;">
+      ↺ Reset Taps
+    </button>
+  </div>
+</form>
+
+<script>
+(function() {
+  let taps = [];
+  const tapBtn = document.getElementById('big-tap-btn');
+  const bpmDisplay = document.getElementById('tap-bpm-display');
+  const countDisplay = document.getElementById('tap-count-text');
+  const dQuarter = document.getElementById('delay-1-4');
+  const dEighth = document.getElementById('delay-1-8');
+  const dSixteenth = document.getElementById('delay-1-16');
+  const resetBtn = document.getElementById('reset-taps-btn');
+
+  function triggerTap() {
+    const now = performance.now();
+    // If last tap was more than 2.5 seconds ago, restart sequence
+    if (taps.length > 0 && (now - taps[taps.length - 1]) > 2500) {
+      taps = [];
+    }
+
+    taps.push(now);
+    if (taps.length > 16) taps.shift();
+
+    countDisplay.textContent = taps.length;
+
+    // Visual button bounce
+    tapBtn.style.transform = 'scale(0.96)';
+    setTimeout(() => tapBtn.style.transform = 'scale(1)', 60);
+
+    if (taps.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < taps.length; i++) {
+        intervals.push(taps[i] - taps[i - 1]);
+      }
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const bpm = 60000 / avgInterval;
+
+      bpmDisplay.textContent = bpm.toFixed(1);
+
+      // Delay calculations
+      const quarterMs = Math.round(60000 / bpm);
+      const eighthMs = Math.round(quarterMs / 2);
+      const sixteenthMs = Math.round(quarterMs / 4);
+
+      dQuarter.textContent = `${quarterMs} ms`;
+      dEighth.textContent = `${eighthMs} ms`;
+      dSixteenth.textContent = `${sixteenthMs} ms`;
+    }
+  }
+
+  tapBtn.addEventListener('click', triggerTap);
+
+  // Keyboard spacebar support
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      triggerTap();
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    taps = [];
+    bpmDisplay.textContent = 'TAP';
+    countDisplay.textContent = '0';
+    dQuarter.textContent = '- ms';
+    dEighth.textContent = '- ms';
+    dSixteenth.textContent = '- ms';
+  });
+})();
+</script>
