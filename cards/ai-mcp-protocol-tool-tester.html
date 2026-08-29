@@ -1,0 +1,251 @@
+<h2 id="mcp-title" style="margin-top:0;color:var(--accent);">🔌 AI MCP Tool Protocol Inspector</h2>
+
+<form aria-describedby="mcp-desc" onsubmit="event.preventDefault();">
+  <p id="mcp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Model Context Protocol (MCP) JSON-RPC 2.0 inspector and mock runner. Validates protocol compliance for Anthropic and open-agent tool calling servers.
+  </p>
+
+  <!-- Server & Method Selector -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="mcp-server-select" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;color:var(--text);">MCP Server Target</label>
+      <select id="mcp-server-select" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:4px;font-size:0.8rem;">
+        <option value="fs" selected>@modelcontextprotocol/server-filesystem</option>
+        <option value="fetch">@modelcontextprotocol/server-fetch</option>
+        <option value="memory">@modelcontextprotocol/server-memory</option>
+      </select>
+    </div>
+    <div>
+      <label for="mcp-method-select" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;color:var(--text);">RPC Method</label>
+      <select id="mcp-method-select" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:4px;font-size:0.8rem;">
+        <option value="tools/call" selected>tools/call (Invoke Tool)</option>
+        <option value="tools/list">tools/list (Discover Schema)</option>
+        <option value="resources/list">resources/list (Enumerate URIs)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- JSON-RPC Request Payload -->
+  <div style="margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <label for="mcp-req-payload" style="font-size:0.75rem;font-weight:700;color:#fff;">JSON-RPC 2.0 Client Request:</label>
+      <span id="mcp-req-status" style="font-size:0.7rem;color:#00ffcc;font-weight:600;">Valid JSON-RPC</span>
+    </div>
+    <textarea id="mcp-req-payload" rows="6" style="width:100%;padding:8px;background:#060d16;border:1px solid rgba(0,243,255,0.3);color:#00ffcc;border-radius:6px;font-family:monospace;font-size:0.75rem;resize:vertical;"></textarea>
+  </div>
+
+  <button type="button" id="mcp-execute-btn" style="width:100%;padding:8px;background:linear-gradient(135deg, #00f3ff, #0077ff);border:none;color:#050d18;border-radius:6px;font-weight:700;font-size:0.85rem;cursor:pointer;margin-bottom:12px;">
+    Transmit MCP RPC Request ⚡
+  </button>
+
+  <!-- Server JSON-RPC Response -->
+  <div style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <label for="mcp-res-payload" style="font-size:0.75rem;font-weight:700;color:#fff;">Server JSON-RPC Response:</label>
+      <span id="mcp-protocol-badge" style="font-size:0.68rem;padding:2px 6px;border-radius:3px;background:rgba(0,255,204,0.15);color:#00ffcc;font-weight:600;">MCP 2024-11-05 SPEC</span>
+    </div>
+    <textarea id="mcp-res-payload" rows="6" readonly style="width:100%;padding:8px;background:#050a12;border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;border-radius:6px;font-family:monospace;font-size:0.75rem;resize:vertical;"></textarea>
+  </div>
+
+  <!-- MCP Architecture Note -->
+  <div style="background:rgba(255,215,0,0.06);border-left:3px solid #ffd700;border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.73rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:#ffd700;">MCP Standard Architecture:</strong>
+    <span>Model Context Protocol standardizes how LLM clients securely interact with local filesystems, APIs, and databases via stdio or Server-Sent Events (SSE), preventing vendor lock-in.</span>
+  </div>
+</form>
+
+<script>
+(function initMcpTester() {
+  const serverSelect = document.getElementById('mcp-server-select');
+  const methodSelect = document.getElementById('mcp-method-select');
+  const reqEl = document.getElementById('mcp-req-payload');
+  const resEl = document.getElementById('mcp-res-payload');
+  const execBtn = document.getElementById('mcp-execute-btn');
+  const statusEl = document.getElementById('mcp-req-status');
+
+  if (!serverSelect || !reqEl) return;
+
+  const mockTemplates = {
+    'fs:tools/call': {
+      jsonrpc: "2.0",
+      id: 101,
+      method: "tools/call",
+      params: {
+        name: "read_file",
+        arguments: {
+          path: "/workspace/config/llm_router.json"
+        }
+      }
+    },
+    'fs:tools/list': {
+      jsonrpc: "2.0",
+      id: 102,
+      method: "tools/list",
+      params: {}
+    },
+    'fs:resources/list': {
+      jsonrpc: "2.0",
+      id: 103,
+      method: "resources/list",
+      params: {}
+    },
+    'fetch:tools/call': {
+      jsonrpc: "2.0",
+      id: 104,
+      method: "tools/call",
+      params: {
+        name: "fetch",
+        arguments: {
+          url: "https://api.github.com/repos/modelcontextprotocol/servers",
+          headers: { "Accept": "application/vnd.github.v3+json" }
+        }
+      }
+    },
+    'fetch:tools/list': {
+      jsonrpc: "2.0",
+      id: 105,
+      method: "tools/list",
+      params: {}
+    },
+    'fetch:resources/list': {
+      jsonrpc: "2.0",
+      id: 106,
+      method: "resources/list",
+      params: {}
+    },
+    'memory:tools/call': {
+      jsonrpc: "2.0",
+      id: 107,
+      method: "tools/call",
+      params: {
+        name: "create_graph_entity",
+        arguments: {
+          name: "Project_Apollo",
+          entityType: "AutonomousAgent",
+          observations: ["Equipped with Claude 3.5 Sonnet", "Active in VPC subnet-3a"]
+        }
+      }
+    },
+    'memory:tools/list': {
+      jsonrpc: "2.0",
+      id: 108,
+      method: "tools/list",
+      params: {}
+    },
+    'memory:resources/list': {
+      jsonrpc: "2.0",
+      id: 109,
+      method: "resources/list",
+      params: {}
+    }
+  };
+
+  function updateTemplate() {
+    const key = `${serverSelect.value}:${methodSelect.value}`;
+    const tmpl = mockTemplates[key] || {
+      jsonrpc: "2.0",
+      id: Date.now(),
+      method: methodSelect.value,
+      params: {}
+    };
+    reqEl.value = JSON.stringify(tmpl, null, 2);
+    validateJson();
+  }
+
+  function validateJson() {
+    try {
+      const parsed = JSON.parse(reqEl.value);
+      if (parsed.jsonrpc === "2.0" && parsed.method) {
+        statusEl.textContent = "Valid JSON-RPC 2.0";
+        statusEl.style.color = "#00ffcc";
+        return true;
+      } else {
+        statusEl.textContent = "Missing 'jsonrpc': '2.0'";
+        statusEl.style.color = "#ffd700";
+        return false;
+      }
+    } catch (err) {
+      statusEl.textContent = "Malformed JSON syntax";
+      statusEl.style.color = "#ff3366";
+      return false;
+    }
+  }
+
+  function executeRpc() {
+    if (!validateJson()) {
+      resEl.value = JSON.stringify({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32700, message: "Parse error: Invalid JSON was received by the server." }
+      }, null, 2);
+      return;
+    }
+
+    const req = JSON.parse(reqEl.value);
+    let mockResponse = {};
+
+    if (req.method === "tools/list") {
+      mockResponse = {
+        jsonrpc: "2.0",
+        id: req.id,
+        result: {
+          tools: [
+            {
+              name: serverSelect.value === 'fs' ? "read_file" : serverSelect.value === 'fetch' ? "fetch" : "create_graph_entity",
+              description: "Official MCP certified capability",
+              inputSchema: {
+                type: "object",
+                properties: { target: { type: "string" } },
+                required: ["target"]
+              }
+            },
+            {
+              name: serverSelect.value === 'fs' ? "write_file" : serverSelect.value === 'fetch' ? "fetch_markdown" : "query_graph",
+              description: "Secondary tool execution node",
+              inputSchema: { type: "object" }
+            }
+          ]
+        }
+      };
+    } else if (req.method === "resources/list") {
+      mockResponse = {
+        jsonrpc: "2.0",
+        id: req.id,
+        result: {
+          resources: [
+            {
+              uri: `file://${serverSelect.value}/context.md`,
+              name: "System Context Log",
+              mimeType: "text/markdown"
+            }
+          ]
+        }
+      };
+    } else {
+      // tools/call
+      mockResponse = {
+        jsonrpc: "2.0",
+        id: req.id,
+        result: {
+          content: [
+            {
+              type: "text",
+              text: `[MCP Server: ${serverSelect.value}] Executed ${req.params?.name || 'tool'} successfully. Status: 200 OK. Operation validated against sandboxed environment.`
+            }
+          ],
+          isError: false
+        }
+      };
+    }
+
+    resEl.value = JSON.stringify(mockResponse, null, 2);
+  }
+
+  serverSelect.addEventListener('change', updateTemplate);
+  methodSelect.addEventListener('change', updateTemplate);
+  reqEl.addEventListener('input', validateJson);
+  execBtn.addEventListener('click', executeRpc);
+
+  updateTemplate();
+})();
+</script>

@@ -1,0 +1,196 @@
+<h2 id="hal-title" style="margin-top:0;color:var(--accent);">🔍 AI Hallucination &amp; Fact Check</h2>
+
+<form aria-describedby="hal-desc" onsubmit="event.preventDefault();">
+  <p id="hal-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Contextual grounding and hallucination risk evaluator for RAG pipelines. Pinpoints unverified entities, phantom dates, numbers, and ungrounded lexical assertions.
+  </p>
+
+  <!-- Presets -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <label style="font-size:0.8rem;font-weight:600;color:var(--text);">Evaluation Scenario:</label>
+    <select id="hal-preset" style="padding:4px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:4px;font-size:0.75rem;">
+      <option value="hallucinated" selected>🚨 Hallucinated Claim (Phantom metrics &amp; dates)</option>
+      <option value="grounded">✅ Well-Grounded Output (100% faithful)</option>
+      <option value="fabrication">⚠️ Complete Confabulation (Extrapolated fiction)</option>
+    </select>
+  </div>
+
+  <!-- Inputs Grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="hal-context" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;color:#a0aec0;">Ground Truth Source (RAG Context Chunk):</label>
+      <textarea id="hal-context" rows="5" style="width:100%;padding:8px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:6px;font-size:0.75rem;resize:vertical;"></textarea>
+    </div>
+    <div>
+      <label for="hal-response" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;color:#a0aec0;">Generated LLM Response Claim:</label>
+      <textarea id="hal-response" rows="5" style="width:100%;padding:8px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:6px;font-size:0.75rem;resize:vertical;"></textarea>
+    </div>
+  </div>
+
+  <button type="button" id="hal-eval-btn" style="width:100%;padding:10px;background:linear-gradient(135deg, #00f3ff, #0077ff);border:none;color:#050d18;border-radius:6px;font-weight:700;font-size:0.85rem;cursor:pointer;margin-bottom:14px;">
+    Run Grounding &amp; Hallucination Verification
+  </button>
+
+  <!-- Metric Dashboard -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;margin-bottom:14px;">
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;">Faithfulness Score</div>
+      <div id="hal-faith-score" style="font-size:1.25rem;font-weight:800;color:#00ffcc;margin-top:2px;">0%</div>
+      <div id="hal-faith-label" style="font-size:0.65rem;color:var(--text-secondary);">Grounding Ratio</div>
+    </div>
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;">Hallucination Risk</div>
+      <div id="hal-risk-badge" style="font-size:1.05rem;font-weight:800;color:#ff3366;margin-top:4px;">HIGH RISK</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);">Confabulation metric</div>
+    </div>
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;">Ungrounded Tokens</div>
+      <div id="hal-unverified-count" style="font-size:1.25rem;font-weight:800;color:#ffd700;margin-top:2px;">0</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);">Novel Named/Numeric Terms</div>
+    </div>
+  </div>
+
+  <!-- Unverified Entities Alert Box -->
+  <div style="background:#070f1a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:10px;margin-bottom:12px;">
+    <div style="font-size:0.75rem;font-weight:700;color:#ff85a2;margin-bottom:6px;">
+      ⚠️ Flagged Unsupported Entities &amp; Numbers (Absent in Context):
+    </div>
+    <div id="hal-unverified-tags" style="display:flex;flex-wrap:wrap;gap:6px;min-height:24px;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- RAG Verification Protocol -->
+  <div style="background:rgba(0,243,255,0.04);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.73rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:var(--accent);">Self-Correction Mitigation:</strong>
+    <span>If hallucination risk is moderate or high, inject an explicit CoT prompt constraint: <em>"Answer strictly using only the facts mentioned in the context. For any fact not explicitly mentioned, state: 'The provided documents do not state this.'"</em></span>
+  </div>
+</form>
+
+<script>
+(function initHallucinationGauge() {
+  const presetEl = document.getElementById('hal-preset');
+  const contextEl = document.getElementById('hal-context');
+  const responseEl = document.getElementById('hal-response');
+  const evalBtn = document.getElementById('hal-eval-btn');
+  const faithScoreEl = document.getElementById('hal-faith-score');
+  const riskBadgeEl = document.getElementById('hal-risk-badge');
+  const unverifiedCountEl = document.getElementById('hal-unverified-count');
+  const unverifiedTagsEl = document.getElementById('hal-unverified-tags');
+
+  if (!presetEl || !contextEl) return;
+
+  const scenarios = {
+    'hallucinated': {
+      context: "Project Aurora was initiated in March 2023 with a preliminary budget of $4.2 million. The team consisted of 14 distributed engineers working across Berlin and Tokyo, focusing on low-latency WebAssembly compilers.",
+      response: "Project Aurora launched in March 2023 with $18.5 million in funding, employing 85 senior engineers across Berlin, Tokyo, and San Francisco. They successfully deployed quantum encryption protocols in November 2023."
+    },
+    'grounded': {
+      context: "The Voyager 1 space probe was launched by NASA on September 5, 1977. As of 2024, it remains active in interstellar space, communicating via the Deep Space Network.",
+      response: "NASA launched Voyager 1 on September 5, 1977. It is currently operating in interstellar space and maintains contact through the Deep Space Network."
+    },
+    'fabrication': {
+      context: "SQLite is a C-language library that implements a small, fast, self-contained, high-reliability, full-featured SQL database engine.",
+      response: "SQLite was created by Microsoft in 1992 as a direct competitor to Oracle 7, featuring distributed multi-master replication across satellite constellations."
+    }
+  };
+
+  function loadPreset() {
+    const sc = scenarios[presetEl.value];
+    if (sc) {
+      contextEl.value = sc.context;
+      responseEl.value = sc.response;
+      analyze();
+    }
+  }
+
+  function extractKeyEntities(text) {
+    // Extract numbers, capitalized words (proper nouns), dates, currency
+    const matches = text.match(/\b(?:\$?\d+(?:\.\d+)?%?|\b[A-Z][a-zA-Z0-9_-]+\b)/g) || [];
+    return [...new Set(matches.map(m => m.trim()).filter(m => m.length > 1))];
+  }
+
+  function analyze() {
+    const ctx = contextEl.value;
+    const res = responseEl.value;
+
+    if (!ctx.trim() || !res.trim()) {
+      faithScoreEl.textContent = '0%';
+      riskBadgeEl.textContent = 'NO DATA';
+      riskBadgeEl.style.color = '#888';
+      unverifiedCountEl.textContent = '0';
+      unverifiedTagsEl.innerHTML = '<span style="color:#666;font-size:0.72rem;">Enter text to evaluate</span>';
+      return;
+    }
+
+    const ctxWords = new Set(ctx.toLowerCase().match(/\b[a-z0-9_$%-]+\b/g) || []);
+    const resWords = res.toLowerCase().match(/\b[a-z0-9_$%-]+\b/g) || [];
+    
+    // Stopwords filter
+    const stopWords = new Set(['the','and','a','to','of','in','is','it','that','for','as','with','on','was','by','at','be','this','from','an','or','are']);
+    const nonStopRes = resWords.filter(w => !stopWords.has(w));
+    
+    let matchedWords = 0;
+    nonStopRes.forEach(w => {
+      if (ctxWords.has(w)) matchedWords++;
+    });
+
+    const lexicalOverlapRatio = nonStopRes.length > 0 ? (matchedWords / nonStopRes.length) : 1;
+
+    // Check specific critical entity / number grounding
+    const resEntities = extractKeyEntities(res);
+    const ungroundedEntities = [];
+
+    resEntities.forEach(ent => {
+      // Check if entity or lowercased entity appears in context
+      const inCtx = ctx.includes(ent) || ctx.toLowerCase().includes(ent.toLowerCase());
+      if (!inCtx && !stopWords.has(ent.toLowerCase())) {
+        ungroundedEntities.push(ent);
+      }
+    });
+
+    // Score calculation
+    const entityPenalty = Math.min(60, ungroundedEntities.length * 15);
+    const faithPct = Math.max(0, Math.min(100, Math.round((lexicalOverlapRatio * 100) - (entityPenalty * 0.5))));
+
+    faithScoreEl.textContent = faithPct + '%';
+    if (faithPct > 80) {
+      faithScoreEl.style.color = '#00ffcc';
+    } else if (faithPct > 50) {
+      faithScoreEl.style.color = '#ffd700';
+    } else {
+      faithScoreEl.style.color = '#ff3366';
+    }
+
+    unverifiedCountEl.textContent = ungroundedEntities.length;
+
+    if (ungroundedEntities.length === 0 && faithPct > 75) {
+      riskBadgeEl.textContent = 'LOW RISK';
+      riskBadgeEl.style.color = '#00ffcc';
+    } else if (ungroundedEntities.length <= 2 && faithPct >= 50) {
+      riskBadgeEl.textContent = 'MODERATE RISK';
+      riskBadgeEl.style.color = '#ffd700';
+    } else {
+      riskBadgeEl.textContent = 'HIGH RISK';
+      riskBadgeEl.style.color = '#ff3366';
+    }
+
+    if (ungroundedEntities.length === 0) {
+      unverifiedTagsEl.innerHTML = '<span style="color:#00ffcc;font-size:0.75rem;">✓ All key numbers and proper entities match source context!</span>';
+    } else {
+      unverifiedTagsEl.innerHTML = ungroundedEntities.map(e => `
+        <span style="background:rgba(255,51,102,0.15);border:1px solid #ff3366;color:#ff85a2;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-family:monospace;font-weight:600;">
+          ${e}
+        </span>
+      `).join('');
+    }
+  }
+
+  presetEl.addEventListener('change', loadPreset);
+  evalBtn.addEventListener('click', analyze);
+  contextEl.addEventListener('input', analyze);
+  responseEl.addEventListener('input', analyze);
+
+  loadPreset();
+})();
+</script>

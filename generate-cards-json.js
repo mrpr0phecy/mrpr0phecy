@@ -269,7 +269,21 @@ const dogList = [
   'dog-crate-sizing-den-blueprint'
 ];
 
+const aiList = [
+  'ai-function-call-schema-validator',
+  'ai-context-window-budget-calc',
+  'ai-prompt-injection-defense-lab',
+  'ai-vector-embedding-similarity',
+  'ai-chain-of-thought-scratchpad',
+  'ai-agent-react-loop-simulator',
+  'ai-few-shot-prompt-synthesizer',
+  'ai-hallucination-entropy-gauge',
+  'ai-model-cost-latency-matrix',
+  'ai-mcp-protocol-tool-tester'
+];
+
 function getCategory(name) {
+  if (aiList.some(s => name.includes(s))) return 'AI & Autonomous Agents';
   if (dogList.some(s => name.includes(s))) return 'Dogs & Canine Care';
   if (birdingList.some(s => name.includes(s))) return 'Birdwatching & Ornithology';
   if (remedyList.some(s => name.includes(s))) return 'Natural Remedies & Herbs';

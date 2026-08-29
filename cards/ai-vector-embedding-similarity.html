@@ -1,0 +1,194 @@
+<h2 id="vec-title" style="margin-top:0;color:var(--accent);">📐 AI Vector Similarity Matrix</h2>
+
+<form aria-describedby="vec-desc" onsubmit="event.preventDefault();">
+  <p id="vec-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    RAG &amp; vector database embedding distance engine. Computes Cosine Similarity, Euclidean $L_2$, Dot Product, and Angular separation across semantic embeddings.
+  </p>
+
+  <!-- Preset Embeddings -->
+  <div style="margin-bottom:10px;">
+    <label for="vec-preset" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Semantic Embedding Scenario:</label>
+    <select id="vec-preset" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+      <option value="high" selected>🟢 High Semantic Closeness ("feline domestic pet" vs "kitten cat")</option>
+      <option value="orthogonal">🟡 Orthogonal / Independent ("quantum electrodynamics" vs "baking sourdough")</option>
+      <option value="opposite">🔴 Inverted Polar Opposites ("pure joy bliss" vs "agony misery despair")</option>
+    </select>
+  </div>
+
+  <!-- Vector Inputs -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="vec-u" style="display:block;font-size:0.75rem;font-weight:600;margin-bottom:2px;color:var(--text);">Vector A (Query Embedding)</label>
+      <input type="text" id="vec-u" value="0.75, 0.45, -0.25, 0.60" style="width:100%;padding:6px 8px;background:#060d16;border:1px solid rgba(0,243,255,0.3);color:#00ffcc;border-radius:5px;font-family:monospace;font-size:0.75rem;">
+    </div>
+    <div>
+      <label for="vec-v" style="display:block;font-size:0.75rem;font-weight:600;margin-bottom:2px;color:var(--text);">Vector B (Chunk Embedding)</label>
+      <input type="text" id="vec-v" value="0.71, 0.49, -0.22, 0.58" style="width:100%;padding:6px 8px;background:#060d16;border:1px solid rgba(180,75,255,0.3);color:#d896ff;border-radius:5px;font-family:monospace;font-size:0.75rem;">
+    </div>
+  </div>
+
+  <!-- 2D Vector Angle Visualizer Canvas -->
+  <div style="background:#03070d;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px;margin-bottom:12px;text-align:center;">
+    <canvas id="vec-canvas" width="460" height="110" style="display:block;width:100%;height:110px;"></canvas>
+  </div>
+
+  <!-- Metric Calculation Readout Grid -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;text-align:center;">
+    <div style="background:rgba(0,243,255,0.08);border:1px solid rgba(0,243,255,0.3);border-radius:6px;padding:8px 4px;">
+      <div style="font-size:0.65rem;color:var(--accent);font-weight:700;">COSINE SIMILARITY</div>
+      <div id="vec-out-cosine" style="font-size:1.15rem;font-weight:800;color:#fff;font-family:monospace;">+0.994</div>
+      <div style="font-size:0.65rem;color:#39ff14;margin-top:2px;">Top-1 RAG Match</div>
+    </div>
+    <div style="background:rgba(180,75,255,0.08);border:1px solid rgba(180,75,255,0.3);border-radius:6px;padding:8px 4px;">
+      <div style="font-size:0.65rem;color:#d896ff;font-weight:700;">ANGULAR DISTANCE</div>
+      <div id="vec-out-angle" style="font-size:1.15rem;font-weight:800;color:#d896ff;font-family:monospace;">6.2°</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">Arc Separation</div>
+    </div>
+    <div style="background:rgba(57,255,20,0.08);border:1px solid rgba(57,255,20,0.3);border-radius:6px;padding:8px 4px;">
+      <div style="font-size:0.65rem;color:#39ff14;font-weight:700;">EUCLIDEAN (L2)</div>
+      <div id="vec-out-l2" style="font-size:1.15rem;font-weight:800;color:#39ff14;font-family:monospace;">0.082</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">Geometric Distance</div>
+    </div>
+  </div>
+
+  <!-- RAG Retrieval Rule -->
+  <div style="background:rgba(255,255,255,0.02);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.73rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:#fff;">Production RAG Threshold:</strong>
+    <span>In vector databases (Pinecone, Qdrant, pgvector), a Cosine Similarity score <strong>&gt; 0.82</strong> generally indicates strong semantic relevance for context retrieval, while scores <strong>&lt; 0.65</strong> frequently introduce hallucinated noise into the model's generation loop.</span>
+  </div>
+</form>
+
+<script>
+(function initVectorSimilarity() {
+  const presetSelect = document.getElementById('vec-preset');
+  const uInput = document.getElementById('vec-u');
+  const vInput = document.getElementById('vec-v');
+  const canvas = document.getElementById('vec-canvas');
+  const outCosine = document.getElementById('vec-out-cosine');
+  const outAngle = document.getElementById('vec-out-angle');
+  const outL2 = document.getElementById('vec-out-l2');
+
+  if (!uInput || !vInput || !canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const presetData = {
+    'high': {
+      u: '0.75, 0.45, -0.25, 0.60',
+      v: '0.71, 0.49, -0.22, 0.58'
+    },
+    'orthogonal': {
+      u: '0.90, 0.10, 0.05, 0.02',
+      v: '-0.05, 0.85, 0.35, -0.12'
+    },
+    'opposite': {
+      u: '0.85, 0.55, -0.30, 0.40',
+      v: '-0.82, -0.52, 0.28, -0.42'
+    }
+  };
+
+  function parseVec(str) {
+    return str.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+  }
+
+  function calculate() {
+    let u = parseVec(uInput.value);
+    let v = parseVec(vInput.value);
+
+    if (u.length === 0 || v.length === 0 || u.length !== v.length) {
+      outCosine.textContent = 'Dim Mismatch';
+      return;
+    }
+
+    // Dot product
+    let dot = 0;
+    let normU = 0;
+    let normV = 0;
+    let l2Sum = 0;
+
+    for (let i = 0; i < u.length; i++) {
+      dot += u[i] * v[i];
+      normU += u[i] * u[i];
+      normV += v[i] * v[i];
+      l2Sum += Math.pow(u[i] - v[i], 2);
+    }
+
+    normU = Math.sqrt(normU);
+    normV = Math.sqrt(normV);
+    const l2 = Math.sqrt(l2Sum);
+
+    const cosine = normU > 0 && normV > 0 ? (dot / (normU * normV)) : 0;
+    const clampedCos = Math.max(-1, Math.min(1, cosine));
+    const angleRad = Math.acos(clampedCos);
+    const angleDeg = (angleRad * (180 / Math.PI)).toFixed(1);
+
+    outCosine.textContent = (cosine >= 0 ? '+' : '') + cosine.toFixed(4);
+    outAngle.textContent = `${angleDeg}°`;
+    outL2.textContent = l2.toFixed(3);
+
+    // Draw Vector Projection
+    drawVectors(clampedCos, angleRad);
+  }
+
+  function drawVectors(cosVal, rad) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cx = canvas.width / 2;
+    const cy = canvas.height - 15;
+    const len = 70;
+
+    // Origin
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Vector A (Reference along standard baseline, rotated slightly)
+    const baseAngle = -Math.PI / 4;
+    const ax = cx + Math.cos(baseAngle) * len;
+    const ay = cy + Math.sin(baseAngle) * len;
+
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(ax, ay);
+    ctx.stroke();
+
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = '10px monospace';
+    ctx.fillText('Vector A (Query)', ax + 6, ay);
+
+    // Vector B (Rotated by angleRad from baseAngle)
+    const bAngle = baseAngle - rad;
+    const bx = cx + Math.cos(bAngle) * len;
+    const by = cy + Math.sin(bAngle) * len;
+
+    ctx.strokeStyle = '#d896ff';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+
+    ctx.fillStyle = '#d896ff';
+    ctx.fillText('Vector B (Chunk)', bx - 95, by);
+
+    // Arc between them
+    ctx.strokeStyle = 'rgba(255,215,0,0.6)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 35, Math.min(baseAngle, bAngle), Math.max(baseAngle, bAngle));
+    ctx.stroke();
+  }
+
+  presetSelect.addEventListener('change', () => {
+    const cur = presetData[presetSelect.value] || presetData['high'];
+    uInput.value = cur.u;
+    vInput.value = cur.v;
+    calculate();
+  });
+
+  uInput.addEventListener('input', calculate);
+  vInput.addEventListener('input', calculate);
+  calculate();
+})();
+</script>

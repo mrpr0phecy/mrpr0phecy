@@ -1,0 +1,143 @@
+<h2 id="ctx-title" style="margin-top:0;color:var(--accent);">📊 AI Context Window Budget Lab</h2>
+
+<form aria-describedby="ctx-desc" onsubmit="event.preventDefault();">
+  <p id="ctx-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    LLM token budget architect. Allocates context capacity across system prompt, RAG retrieval chunks, few-shots, conversation history, and reasoning tokens to prevent catastrophic truncation.
+  </p>
+
+  <!-- Model Context Window Architecture -->
+  <div style="margin-bottom:12px;">
+    <label for="ctx-model-preset" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Target LLM Context Window:</label>
+    <select id="ctx-model-preset" style="width:100%;padding:8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.85rem;">
+      <option value="128000" selected>GPT-4o / GPT-4.5 (128,000 Tokens)</option>
+      <option value="200000">Claude 3.5 Sonnet / Haiku (200,000 Tokens)</option>
+      <option value="2000000">Gemini 1.5 Pro / Flash (2,000,000 Tokens)</option>
+      <option value="32768">Llama 3.3 / Mistral Large (32,768 Tokens)</option>
+      <option value="8192">Local Small LLM (8,192 Tokens)</option>
+    </select>
+  </div>
+
+  <!-- Token Component Inputs -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+    <div>
+      <label for="ctx-system" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:2px;color:var(--text);">System Prompt + Tools</label>
+      <input type="number" id="ctx-system" min="0" max="50000" step="500" value="4500" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:5px;font-size:0.8rem;">
+    </div>
+    <div>
+      <label for="ctx-rag" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:2px;color:var(--text);">RAG Knowledge Chunks</label>
+      <input type="number" id="ctx-rag" min="0" max="200000" step="1000" value="18000" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:5px;font-size:0.8rem;">
+    </div>
+    <div>
+      <label for="ctx-history" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:2px;color:var(--text);">Chat History (Turns)</label>
+      <input type="number" id="ctx-history" min="0" max="500000" step="1000" value="24000" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:5px;font-size:0.8rem;">
+    </div>
+    <div>
+      <label for="ctx-output" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:2px;color:var(--text);">Max Output Tokens</label>
+      <input type="number" id="ctx-output" min="500" max="32000" step="500" value="4096" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:5px;font-size:0.8rem;">
+    </div>
+  </div>
+
+  <!-- Visual Capacity Progress Bar -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:0.75rem;font-weight:700;color:#fff;">Context Window Utilization:</span>
+      <span id="ctx-utilization-pct" style="font-size:0.95rem;font-weight:800;color:#00ffcc;font-family:monospace;">39.5%</span>
+    </div>
+    <div style="height:14px;background:rgba(255,255,255,0.06);border-radius:7px;overflow:hidden;margin-bottom:6px;">
+      <div id="ctx-utilization-bar" style="height:100%;width:39.5%;background:linear-gradient(90deg, #00ffcc, #39ff14 70%, #ff3366 100%);transition:width 0.3s ease;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);">
+      <span>Used: <strong id="ctx-used-tokens" style="color:#fff;">50,596</strong></span>
+      <span>Remaining: <strong id="ctx-remaining-tokens" style="color:#39ff14;">77,404</strong></span>
+    </div>
+  </div>
+
+  <!-- Economic Cost Estimation & Caching -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;text-align:center;">
+    <div style="background:rgba(0,243,255,0.06);border:1px solid rgba(0,243,255,0.25);border-radius:6px;padding:8px 4px;">
+      <div style="font-size:0.65rem;color:var(--accent);font-weight:700;">REQUEST API COST</div>
+      <div id="ctx-cost-standard" style="font-size:1.15rem;font-weight:800;color:#fff;font-family:monospace;">$0.158</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">Standard rate</div>
+    </div>
+    <div style="background:rgba(57,255,20,0.06);border:1px solid rgba(57,255,20,0.25);border-radius:6px;padding:8px 4px;">
+      <div style="font-size:0.65rem;color:#39ff14;font-weight:700;">WITH PROMPT CACHING</div>
+      <div id="ctx-cost-cached" style="font-size:1.15rem;font-weight:800;color:#39ff14;font-family:monospace;">$0.042 (-73%)</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">Anthropic / OpenAI Cache</div>
+    </div>
+  </div>
+
+  <!-- Truncation Strategy Advice -->
+  <div id="ctx-advice-box" style="background:rgba(255,255,255,0.02);border:1px solid rgba(180,75,255,0.3);border-radius:6px;padding:10px 12px;font-size:0.73rem;color:var(--text-secondary);line-height:1.45;">
+    <!-- Injected dynamically -->
+  </div>
+</form>
+
+<script>
+(function initContextBudgetCalc() {
+  const modelPreset = document.getElementById('ctx-model-preset');
+  const sysInput = document.getElementById('ctx-system');
+  const ragInput = document.getElementById('ctx-rag');
+  const histInput = document.getElementById('ctx-history');
+  const outInput = document.getElementById('ctx-output');
+  const utilPctEl = document.getElementById('ctx-utilization-pct');
+  const utilBarEl = document.getElementById('ctx-utilization-bar');
+  const usedTokensEl = document.getElementById('ctx-used-tokens');
+  const remainingTokensEl = document.getElementById('ctx-remaining-tokens');
+  const costStdEl = document.getElementById('ctx-cost-standard');
+  const costCacheEl = document.getElementById('ctx-cost-cached');
+  const adviceBox = document.getElementById('ctx-advice-box');
+
+  if (!modelPreset || !sysInput) return;
+
+  function calculate() {
+    const limit = parseInt(modelPreset.value, 10);
+    const sys = parseInt(sysInput.value, 10) || 0;
+    const rag = parseInt(ragInput.value, 10) || 0;
+    const hist = parseInt(histInput.value, 10) || 0;
+    const out = parseInt(outInput.value, 10) || 0;
+
+    const totalUsed = sys + rag + hist + out;
+    const remaining = limit - totalUsed;
+    const pct = Math.min(100, Math.max(0, (totalUsed / limit) * 100));
+
+    utilPctEl.textContent = `${pct.toFixed(1)}%`;
+    utilBarEl.style.width = `${pct}%`;
+    usedTokensEl.textContent = totalUsed.toLocaleString();
+    remainingTokensEl.textContent = (remaining > 0 ? remaining : 0).toLocaleString();
+
+    if (remaining < 0) {
+      utilPctEl.style.color = '#ff3366';
+      remainingTokensEl.style.color = '#ff3366';
+      remainingTokensEl.textContent = `OVER BY ${Math.abs(remaining).toLocaleString()} TOKENS!`;
+      adviceBox.innerHTML = '<strong style="color:#ff3366;">⚠️ CONTEXT WINDOW OVERFLOW!</strong> Model will throw a 400 ContextWindowExceeded error. Implement immediate FIFO message compaction or RAG chunk reranking truncation.';
+    } else {
+      utilPctEl.style.color = pct > 85 ? '#ffd700' : '#00ffcc';
+      remainingTokensEl.style.color = '#39ff14';
+      adviceBox.innerHTML = `<strong style="color:var(--accent);">Context Optimization Tip:</strong> Store your System Prompt (${sys.toLocaleString()} tokens) and Top-K RAG Chunks (${rag.toLocaleString()} tokens) in cache breakpoints. This lowers input costs by up to 90% and reduces TTFT (Time-To-First-Token) from 3.2s to 0.4s!`;
+    }
+
+    // Cost estimation: ~$2.50 per 1M input, $10.00 per 1M output (average frontier rate)
+    const inputTokens = sys + rag + hist;
+    const costInput = (inputTokens / 1000000) * 2.50;
+    const costOutput = (out / 1000000) * 10.00;
+    const totalCost = costInput + costOutput;
+
+    // With prompt caching (cache read = $0.25/M, 90% savings on sys+rag)
+    const cachedInput = (sys + rag);
+    const nonCachedInput = hist;
+    const costCachedInput = (cachedInput / 1000000) * 0.30 + (nonCachedInput / 1000000) * 2.50;
+    const totalCachedCost = costCachedInput + costOutput;
+    const savingsPct = Math.round((1 - (totalCachedCost / totalCost)) * 100);
+
+    costStdEl.textContent = `$${totalCost.toFixed(4)}`;
+    costCacheEl.textContent = `$${totalCachedCost.toFixed(4)} (-${savingsPct}%)`;
+  }
+
+  modelPreset.addEventListener('change', calculate);
+  sysInput.addEventListener('input', calculate);
+  ragInput.addEventListener('input', calculate);
+  histInput.addEventListener('input', calculate);
+  outInput.addEventListener('input', calculate);
+  calculate();
+})();
+</script>

@@ -1,0 +1,232 @@
+<h2 id="fc-title" style="margin-top:0;color:var(--accent);">🤖 AI Function Calling Validator</h2>
+
+<form aria-describedby="fc-desc" onsubmit="event.preventDefault();">
+  <p id="fc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Validate LLM tool-calling declarations against JSON Schema (OpenAI, Anthropic &amp; Gemini). Tests simulated model payloads, identifies missing required fields, and detects type mismatches.
+  </p>
+
+  <!-- Preset Templates -->
+  <div style="margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <label for="fc-preset-select" style="font-size:0.8rem;font-weight:600;color:var(--text);">Tool Declaration Preset:</label>
+      <span style="font-size:0.7rem;color:var(--accent);">JSON Schema Standard</span>
+    </div>
+    <select id="fc-preset-select" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+      <option value="weather" selected>1. Weather API (location: string, units: enum, days: integer)</option>
+      <option value="sql">2. SQL Query Execution (query: string, max_rows: number, read_only: bool)</option>
+      <option value="email">3. Send Email (to: array, subject: string, body: string, priority: string)</option>
+    </select>
+  </div>
+
+  <!-- Schema & Test Arguments Inputs -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="fc-schema-input" style="display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px;color:var(--text);">Tool Parameters (JSON Schema)</label>
+      <textarea id="fc-schema-input" rows="8" style="width:100%;padding:8px;background:#060d16;border:1px solid rgba(255,255,255,0.15);color:#00ffcc;border-radius:6px;font-family:monospace;font-size:0.75rem;resize:vertical;"></textarea>
+    </div>
+    <div>
+      <label for="fc-args-input" style="display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px;color:var(--text);">Simulated LLM Arguments (JSON)</label>
+      <textarea id="fc-args-input" rows="8" style="width:100%;padding:8px;background:#060d16;border:1px solid rgba(255,255,255,0.15);color:#ffd700;border-radius:6px;font-family:monospace;font-size:0.75rem;resize:vertical;"></textarea>
+    </div>
+  </div>
+
+  <!-- Validation Status Readout Banner -->
+  <div id="fc-status-banner" style="border-radius:6px;padding:10px 12px;margin-bottom:12px;text-align:center;">
+    <!-- Injected dynamically -->
+  </div>
+
+  <!-- Detailed Error / Success Log Box -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px;margin-bottom:12px;">
+    <div style="font-size:0.75rem;font-weight:700;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">
+      📋 Schema Verification Diagnostics:
+    </div>
+    <div id="fc-diagnostics-log" style="font-size:0.75rem;color:var(--text-secondary);font-family:monospace;line-height:1.4;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- Format Export Actions -->
+  <div style="display:flex;gap:8px;">
+    <button type="button" id="fc-btn-validate" style="flex:1;padding:8px;background:var(--accent);border:none;color:#050d18;border-radius:6px;font-size:0.8rem;font-weight:700;cursor:pointer;">
+      ✓ Validate Schema
+    </button>
+    <button type="button" id="fc-btn-inject-error" style="padding:8px 12px;background:rgba(255,51,102,0.15);border:1px solid #ff3366;color:#ff85a2;border-radius:6px;font-size:0.78rem;cursor:pointer;">
+      Simulate Broken Payload
+    </button>
+  </div>
+</form>
+
+<script>
+(function initFunctionCallingValidator() {
+  const presetSelect = document.getElementById('fc-preset-select');
+  const schemaInput = document.getElementById('fc-schema-input');
+  const argsInput = document.getElementById('fc-args-input');
+  const bannerEl = document.getElementById('fc-status-banner');
+  const logEl = document.getElementById('fc-diagnostics-log');
+  const validateBtn = document.getElementById('fc-btn-validate');
+  const injectErrorBtn = document.getElementById('fc-btn-inject-error');
+
+  if (!schemaInput || !argsInput) return;
+
+  const presets = {
+    'weather': {
+      schema: JSON.stringify({
+        type: "object",
+        properties: {
+          location: { type: "string", description: "City and country" },
+          units: { type: "string", enum: ["celsius", "fahrenheit"] },
+          forecast_days: { type: "integer", minimum: 1, maximum: 14 }
+        },
+        required: ["location", "units"]
+      }, null, 2),
+      args: JSON.stringify({
+        location: "Tokyo, Japan",
+        units: "celsius",
+        forecast_days: 7
+      }, null, 2)
+    },
+    'sql': {
+      schema: JSON.stringify({
+        type: "object",
+        properties: {
+          query: { type: "string", description: "SQL statement" },
+          max_rows: { type: "number", maximum: 1000 },
+          read_only: { type: "boolean" }
+        },
+        required: ["query", "read_only"]
+      }, null, 2),
+      args: JSON.stringify({
+        query: "SELECT id, email, created_at FROM users LIMIT 50;",
+        max_rows: 50,
+        read_only: true
+      }, null, 2)
+    },
+    'email': {
+      schema: JSON.stringify({
+        type: "object",
+        properties: {
+          recipients: { type: "array", items: { type: "string" } },
+          subject: { type: "string", minLength: 3 },
+          body: { type: "string" },
+          priority: { type: "string", enum: ["low", "normal", "urgent"] }
+        },
+        required: ["recipients", "subject", "body"]
+      }, null, 2),
+      args: JSON.stringify({
+        recipients: ["team@anthropic.com", "agent@ai.internal"],
+        subject: "Autonomous Deployment Success",
+        body: "All validation test suites passed with zero errors.",
+        priority: "urgent"
+      }, null, 2)
+    }
+  };
+
+  function loadPreset() {
+    const cur = presets[presetSelect.value] || presets['weather'];
+    schemaInput.value = cur.schema;
+    argsInput.value = cur.args;
+    validate();
+  }
+
+  function validate() {
+    let schemaObj = null;
+    let argsObj = null;
+
+    try {
+      schemaObj = JSON.parse(schemaInput.value);
+    } catch(e) {
+      showError(`JSON Parse Error in Schema: ${e.message}`);
+      return;
+    }
+
+    try {
+      argsObj = JSON.parse(argsInput.value);
+    } catch(e) {
+      showError(`JSON Parse Error in Arguments: ${e.message}`);
+      return;
+    }
+
+    const errors = [];
+    const props = schemaObj.properties || {};
+    const required = schemaObj.required || [];
+
+    // Check required fields
+    required.forEach(req => {
+      if (!(req in argsObj) || argsObj[req] === undefined || argsObj[req] === null) {
+        errors.push(`Missing required parameter: '${req}'`);
+      }
+    });
+
+    // Check types and constraints
+    for (let key in argsObj) {
+      if (props[key]) {
+        const spec = props[key];
+        const val = argsObj[key];
+
+        if (spec.type === 'string' && typeof val !== 'string') {
+          errors.push(`Type mismatch on '${key}': Expected string, got ${typeof val}`);
+        } else if (spec.type === 'number' && typeof val !== 'number') {
+          errors.push(`Type mismatch on '${key}': Expected number, got ${typeof val}`);
+        } else if (spec.type === 'integer' && (!Number.isInteger(val))) {
+          errors.push(`Type mismatch on '${key}': Expected integer, got float/other`);
+        } else if (spec.type === 'boolean' && typeof val !== 'boolean') {
+          errors.push(`Type mismatch on '${key}': Expected boolean, got ${typeof val}`);
+        } else if (spec.type === 'array' && !Array.isArray(val)) {
+          errors.push(`Type mismatch on '${key}': Expected array, got ${typeof val}`);
+        }
+
+        // Enum check
+        if (spec.enum && !spec.enum.includes(val)) {
+          errors.push(`Invalid enum on '${key}': Value '${val}' is not in [${spec.enum.join(', ')}]`);
+        }
+
+        // Number bounds
+        if (spec.maximum !== undefined && val > spec.maximum) {
+          errors.push(`Constraint violation on '${key}': ${val} exceeds maximum ${spec.maximum}`);
+        }
+        if (spec.minimum !== undefined && val < spec.minimum) {
+          errors.push(`Constraint violation on '${key}': ${val} is below minimum ${spec.minimum}`);
+        }
+      }
+    }
+
+    if (errors.length === 0) {
+      bannerEl.style.background = 'rgba(57,255,20,0.1)';
+      bannerEl.style.border = '1px solid #39ff14';
+      bannerEl.style.color = '#39ff14';
+      bannerEl.innerHTML = '<strong style="font-size:0.95rem;">✓ 100% VALID TOOL CALL PAYLOAD</strong>';
+      logEl.innerHTML = `<span style="color:#39ff14;">[SUCCESS]</span> All ${required.length} required parameters verified.<br>[SUCCESS] Types, enums, and bounds conform to JSON Schema v7 / OpenAPI 3.0 specs.`;
+    } else {
+      bannerEl.style.background = 'rgba(255,51,102,0.15)';
+      bannerEl.style.border = '1px solid #ff3366';
+      bannerEl.style.color = '#ff85a2';
+      bannerEl.innerHTML = `<strong style="font-size:0.95rem;">❌ ${errors.length} SCHEMA VIOLATION(S) DETECTED</strong>`;
+      logEl.innerHTML = errors.map(err => `<span style="color:#ff3366;">[FAIL]</span> ${err}`).join('<br>');
+    }
+  }
+
+  function showError(msg) {
+    bannerEl.style.background = 'rgba(255,51,102,0.15)';
+    bannerEl.style.border = '1px solid #ff3366';
+    bannerEl.style.color = '#ff85a2';
+    bannerEl.innerHTML = `<strong style="font-size:0.95rem;">❌ SYNTAX ERROR</strong>`;
+    logEl.innerHTML = `<span style="color:#ff3366;">[SYNTAX]</span> ${msg}`;
+  }
+
+  presetSelect.addEventListener('change', loadPreset);
+  validateBtn.addEventListener('click', validate);
+  injectErrorBtn.addEventListener('click', () => {
+    try {
+      const parsed = JSON.parse(argsInput.value);
+      // Delete a required key or inject wrong type
+      if (parsed.units) parsed.units = "kelvin"; // invalid enum
+      else if (parsed.query) delete parsed.query; // missing required
+      else if (parsed.subject) parsed.subject = 12345; // wrong type
+      argsInput.value = JSON.stringify(parsed, null, 2);
+      validate();
+    } catch(e) {}
+  });
+
+  loadPreset();
+})();
+</script>

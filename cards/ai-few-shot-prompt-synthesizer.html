@@ -1,0 +1,160 @@
+<h2 id="fs-title" style="margin-top:0;color:var(--accent);">⚡ AI Few-Shot Prompt Builder</h2>
+
+<form aria-describedby="fs-desc" onsubmit="event.preventDefault();">
+  <p id="fs-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    In-context learning exemplar synthesizer. Enforces structured framing (XML tags vs JSON vs Markdown) and validates class distribution balance to prevent majority label bias.
+  </p>
+
+  <!-- Formatting Paradigm & Task Template -->
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="fs-format-style" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Exemplar Framing Style</label>
+      <select id="fs-format-style" style="width:100%;padding:8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+        <option value="xml" selected>XML Enclosed (&lt;example&gt; Tags — Anthropic Best Practice)</option>
+        <option value="markdown">Markdown Headers (### Input / ### Output)</option>
+        <option value="json">JSON Array Objects ([{"in":..., "out":...}])</option>
+      </select>
+    </div>
+    <div>
+      <label for="fs-preset-task" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Task Template</label>
+      <select id="fs-preset-task" style="width:100%;padding:8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+        <option value="entity" selected>Entity Extraction (Named Entity JSON)</option>
+        <option value="sentiment">Sentiment &amp; Intent Classification</option>
+        <option value="code">SQL Generation from Natural Language</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Exemplars List Container -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:0.75rem;font-weight:700;color:var(--accent);text-transform:uppercase;">
+        Active Few-Shot Exemplars (<span id="fs-count">2</span> Pairs):
+      </span>
+      <button type="button" id="fs-btn-add" style="padding:4px 10px;background:var(--accent);border:none;color:#050d18;border-radius:4px;font-weight:700;font-size:0.72rem;cursor:pointer;">
+        + Add Exemplar
+      </button>
+    </div>
+    <div id="fs-exemplars-container" style="display:flex;flex-direction:column;gap:8px;max-height:160px;overflow-y:auto;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- Formatted Prompt Output -->
+  <div style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <label style="font-size:0.75rem;font-weight:700;color:#fff;">Synthesized Prompt Injection Block:</label>
+      <button type="button" id="fs-copy-btn" style="padding:2px 8px;background:rgba(0,243,255,0.15);border:1px solid var(--accent);color:#fff;border-radius:4px;font-size:0.7rem;cursor:pointer;">Copy</button>
+    </div>
+    <textarea id="fs-output-view" rows="6" readonly style="width:100%;padding:8px;background:#060d16;border:1px solid rgba(0,243,255,0.3);color:#00ffcc;border-radius:6px;font-family:monospace;font-size:0.75rem;resize:vertical;"></textarea>
+  </div>
+
+  <!-- Bias Guard Tip -->
+  <div style="background:rgba(255,215,0,0.06);border-left:3px solid #ffd700;border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.73rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:#ffd700;">Recency &amp; Majority Bias Guard:</strong>
+    <span>LLMs are highly vulnerable to predicting whichever class appears most frequently or appears last in the few-shot demonstrations. Always maintain <strong>balanced label parity</strong> (e.g. 1 positive, 1 neutral, 1 negative) and vary input length.</span>
+  </div>
+</form>
+
+<script>
+(function initFewShotBuilder() {
+  const formatSelect = document.getElementById('fs-format-style');
+  const taskSelect = document.getElementById('fs-preset-task');
+  const countEl = document.getElementById('fs-count');
+  const addBtn = document.getElementById('fs-btn-add');
+  const container = document.getElementById('fs-exemplars-container');
+  const outputView = document.getElementById('fs-output-view');
+  const copyBtn = document.getElementById('fs-copy-btn');
+
+  if (!formatSelect || !container) return;
+
+  const presets = {
+    'entity': [
+      { input: "Apple CEO Tim Cook announced the Vision Pro in Cupertino for $3499.", output: '{"person": "Tim Cook", "org": "Apple", "location": "Cupertino", "price": "$3499"}' },
+      { input: "Jensen Huang unveiled NVIDIA Blackwell GPUs in San Jose on Tuesday.", output: '{"person": "Jensen Huang", "org": "NVIDIA", "location": "San Jose", "price": null}' }
+    ],
+    'sentiment': [
+      { input: "The latency dropped from 300ms to 40ms, incredible release!", output: '{"sentiment": "positive", "urgency": "low", "intent": "praise"}' },
+      { input: "Checkout button throws 500 error, lost three enterprise sales today.", output: '{"sentiment": "negative", "urgency": "critical", "intent": "bug_report"}' }
+    ],
+    'code': [
+      { input: "Get all active customers who joined after January 2024.", output: 'SELECT * FROM users WHERE status = "active" AND created_at > "2024-01-01";' },
+      { input: "Find total revenue grouped by product category in descending order.", output: 'SELECT category, SUM(revenue) AS total FROM sales GROUP BY category ORDER BY total DESC;' }
+    ]
+  };
+
+  let activeExemplars = [];
+
+  function loadTask() {
+    activeExemplars = JSON.parse(JSON.stringify(presets[taskSelect.value] || presets['entity']));
+    renderList();
+  }
+
+  function renderList() {
+    countEl.textContent = activeExemplars.length;
+    container.innerHTML = '';
+
+    activeExemplars.forEach((ex, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);padding:6px 8px;border-radius:5px;display:flex;gap:6px;align-items:center;';
+      row.innerHTML = `
+        <div style="flex:1;display:flex;flex-direction:column;gap:3px;overflow:hidden;">
+          <input type="text" class="fs-input-field" data-idx="${idx}" value="${ex.input.replace(/"/g, '&quot;')}" style="width:100%;padding:4px 6px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:3px;font-size:0.72rem;">
+          <input type="text" class="fs-output-field" data-idx="${idx}" value="${ex.output.replace(/"/g, '&quot;')}" style="width:100%;padding:4px 6px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#00ffcc;border-radius:3px;font-size:0.72rem;font-family:monospace;">
+        </div>
+        <button type="button" class="fs-del-btn" data-idx="${idx}" style="padding:4px 6px;background:rgba(255,51,102,0.2);border:1px solid #ff3366;color:#ff85a2;border-radius:3px;font-size:0.7rem;cursor:pointer;">✕</button>
+      `;
+
+      row.querySelector('.fs-input-field').addEventListener('input', (e) => {
+        activeExemplars[idx].input = e.target.value;
+        synthesize();
+      });
+
+      row.querySelector('.fs-output-field').addEventListener('input', (e) => {
+        activeExemplars[idx].output = e.target.value;
+        synthesize();
+      });
+
+      row.querySelector('.fs-del-btn').addEventListener('click', () => {
+        activeExemplars.splice(idx, 1);
+        renderList();
+      });
+
+      container.appendChild(row);
+    });
+
+    synthesize();
+  }
+
+  function synthesize() {
+    const fmt = formatSelect.value;
+    let out = '';
+
+    if (fmt === 'xml') {
+      out = `<examples>\n` + activeExemplars.map(e => `  <example>\n    <input>${e.input}</input>\n    <output>${e.output}</output>\n  </example>`).join('\n') + `\n</examples>`;
+    } else if (fmt === 'markdown') {
+      out = activeExemplars.map((e, i) => `### Example ${i + 1}\n**Input:** ${e.input}\n**Output:** ${e.output}`).join('\n\n');
+    } else {
+      out = JSON.stringify(activeExemplars, null, 2);
+    }
+
+    outputView.value = out;
+  }
+
+  addBtn.addEventListener('click', () => {
+    activeExemplars.push({ input: 'New sample input query...', output: 'Expected structured output...' });
+    renderList();
+  });
+
+  taskSelect.addEventListener('change', loadTask);
+  formatSelect.addEventListener('change', synthesize);
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(outputView.value);
+    copyBtn.textContent = 'Copied!';
+    setTimeout(() => copyBtn.textContent = 'Copy', 1500);
+  });
+
+  loadTask();
+})();
+</script>
