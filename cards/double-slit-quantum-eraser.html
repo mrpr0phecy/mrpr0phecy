@@ -1,0 +1,249 @@
+<h2 id="qes-title" style="margin-top:0;color:var(--accent);">🔬 Quantum Eraser &amp; Double Slit</h2>
+
+<form aria-describedby="qes-desc" onsubmit="event.preventDefault();">
+  <p id="qes-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Quantum optics delayed-choice experiment. Observe wave interference, wavefunction collapse via which-way detectors, and quantum erasure recovery.
+  </p>
+
+  <!-- Quantum Regime Modes -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="qes-mode-btn active" data-mode="interference" style="padding:4px 10px;border-radius:4px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">1. Pure Wave Interference</button>
+    <button type="button" class="qes-mode-btn" data-mode="whichway" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">2. Which-Way Detector (Collapse)</button>
+    <button type="button" class="qes-mode-btn" data-mode="erased" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">3. Quantum Eraser Active</button>
+  </div>
+
+  <!-- Photon Accumulation Detector Screen -->
+  <div style="background:#02050b;border:1px solid rgba(0,255,204,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="qes-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#010307;border-radius:6px;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span id="qes-status-tag" style="color:#00ffcc;font-family:monospace;">Superposition: |Ψ⟩ = (|Slit A⟩ + |Slit B⟩)/√2</span>
+      <span id="qes-photon-count" style="color:#ffd700;font-family:monospace;">Photons Detected: 0</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Fringe Visibility (V)</div>
+      <div id="qes-tel-vis" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">98.4%</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Which-Way Info (D)</div>
+      <div id="qes-tel-dist" style="font-size:0.95rem;font-weight:bold;color:#ff3366;font-family:monospace;">0.00 (Erased)</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Complementarity</div>
+      <div style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">V² + D² ≤ 1</div>
+    </div>
+  </div>
+
+  <!-- Parameter Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Slit Separation (d)</span>
+        <span id="qes-val-d">0.25 mm</span>
+      </div>
+      <input type="range" id="qes-slider-d" min="0.10" max="0.60" step="0.05" value="0.25" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Laser Emission Rate</span>
+        <span id="qes-val-rate">Fast (10 / frame)</span>
+      </div>
+      <input type="range" id="qes-slider-rate" min="1" max="25" value="10" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="qes-btn-burst" style="padding:6px 14px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;">⚡ Fire 200 Photons</button>
+    <button type="button" id="qes-btn-clear" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Clear Screen</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('qes-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sD = document.getElementById('qes-slider-d');
+  const sRate = document.getElementById('qes-slider-rate');
+  const vD = document.getElementById('qes-val-d');
+  const vRate = document.getElementById('qes-val-rate');
+
+  const telVis = document.getElementById('qes-tel-vis');
+  const telDist = document.getElementById('qes-tel-dist');
+  const statusTag = document.getElementById('qes-status-tag');
+  const photonCountEl = document.getElementById('qes-photon-count');
+
+  const btnBurst = document.getElementById('qes-btn-burst');
+  const btnClear = document.getElementById('qes-btn-clear');
+
+  let mode = 'interference';
+  let slitDist = 0.25;
+  let emitRate = 10;
+  let totalPhotons = 0;
+
+  // Screen hit histogram bins (width 560 bins)
+  const hits = new Uint16Array(canvas.width);
+  let maxHit = 1;
+
+  function getProbability(x) {
+    const normX = (x - canvas.width / 2) / 35;
+    const k = slitDist * 14;
+
+    if (mode === 'interference') {
+      // Wave interference: cos^2(k * x) with sinc envelope
+      const env = Math.exp(-0.06 * normX * normX);
+      const wave = Math.cos(k * normX);
+      return env * wave * wave;
+    } else if (mode === 'whichway') {
+      // Classical two clumps (one behind each slit)
+      const slitSep = k * 1.6;
+      const clump1 = Math.exp(-0.35 * Math.pow(normX - slitSep, 2));
+      const clump2 = Math.exp(-0.35 * Math.pow(normX + slitSep, 2));
+      return (clump1 + clump2) * 0.5;
+    } else if (mode === 'erased') {
+      // Quantum eraser restores wave fringes with subtle phase signature
+      const env = Math.exp(-0.06 * normX * normX);
+      const wave = Math.cos(k * normX);
+      return env * (0.15 + 0.85 * wave * wave);
+    }
+    return 0;
+  }
+
+  function samplePhotonX() {
+    // Rejection sampling
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const candidateX = Math.floor(Math.random() * canvas.width);
+      const p = getProbability(candidateX);
+      if (Math.random() < p) {
+        return candidateX;
+      }
+    }
+    return Math.floor(canvas.width / 2);
+  }
+
+  function firePhotons(count) {
+    for (let i = 0; i < count; i++) {
+      const x = samplePhotonX();
+      hits[x]++;
+      if (hits[x] > maxHit) maxHit = hits[x];
+      totalPhotons++;
+    }
+    photonCountEl.textContent = `Photons Detected: ${totalPhotons.toLocaleString()}`;
+  }
+
+  function render() {
+    ctx.fillStyle = '#010307';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const midY = H * 0.55;
+
+    // Draw theoretical probability curve (Cyan line)
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let x = 0; x < W; x += 2) {
+      const prob = getProbability(x);
+      const y = midY - prob * 70;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Baseline detector strip
+    const screenY = H - 28;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeRect(20, screenY - 10, W - 40, 20);
+
+    // Draw accumulated photon clicks on screen
+    for (let x = 20; x < W - 20; x++) {
+      const count = hits[x];
+      if (count > 0) {
+        const norm = Math.min(1.0, count / Math.max(1, maxHit * 0.7));
+        ctx.fillStyle = mode === 'whichway' ? `rgba(255, 51, 102, ${norm.toFixed(2)})` : `rgba(0, 255, 204, ${norm.toFixed(2)})`;
+        ctx.fillRect(x, screenY - 8, 1.2, 16);
+
+        // Histogram height
+        const barH = (count / maxHit) * 55;
+        ctx.fillStyle = mode === 'whichway' ? 'rgba(255, 51, 102, 0.4)' : 'rgba(0, 255, 204, 0.4)';
+        ctx.fillRect(x, midY + 15, 1, barH);
+      }
+    }
+
+    // Fire continuous photons
+    firePhotons(emitRate);
+
+    requestAnimationFrame(render);
+  }
+
+  function updateTelemetry() {
+    if (mode === 'interference') {
+      telVis.textContent = '98.4%';
+      telVis.style.color = '#00ffcc';
+      telDist.textContent = '0.00 (Erased)';
+      telDist.style.color = '#888';
+      statusTag.textContent = 'Superposition: |Ψ⟩ = (|Slit A⟩ + |Slit B⟩)/√2';
+    } else if (mode === 'whichway') {
+      telVis.textContent = '0.0% (Destroyed)';
+      telVis.style.color = '#ff3366';
+      telDist.textContent = '1.00 (Known Path)';
+      telDist.style.color = '#ff3366';
+      statusTag.textContent = 'Wavefunction Collapsed: Deterministic Particle Paths';
+    } else if (mode === 'erased') {
+      telVis.textContent = '86.2% (Recovered)';
+      telVis.style.color = '#00ffcc';
+      telDist.textContent = '0.00 (Erased)';
+      telDist.style.color = '#00ffcc';
+      statusTag.textContent = 'Quantum Eraser: Complementarity Restores Wave Nature';
+    }
+  }
+
+  sD.addEventListener('input', () => {
+    slitDist = parseFloat(sD.value);
+    vD.textContent = `${slitDist.toFixed(2)} mm`;
+  });
+
+  sRate.addEventListener('input', () => {
+    emitRate = parseInt(sRate.value, 10);
+    vRate.textContent = `${emitRate} / frame`;
+  });
+
+  document.querySelectorAll('.qes-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.qes-mode-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(0,255,204,0.2)';
+      btn.style.borderColor = '#00ffcc';
+      btn.style.color = '#00ffcc';
+
+      mode = btn.dataset.mode;
+      updateTelemetry();
+    });
+  });
+
+  btnBurst.addEventListener('click', () => {
+    firePhotons(200);
+  });
+
+  btnClear.addEventListener('click', () => {
+    hits.fill(0);
+    maxHit = 1;
+    totalPhotons = 0;
+    photonCountEl.textContent = 'Photons Detected: 0';
+  });
+
+  updateTelemetry();
+  requestAnimationFrame(render);
+})();
+</script>

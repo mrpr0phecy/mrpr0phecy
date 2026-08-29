@@ -1,0 +1,292 @@
+<h2 id="cmp-title" style="margin-top:0;color:var(--accent);">🧭 Chaotic Magnetic Pendulum</h2>
+
+<form aria-describedby="cmp-desc" onsubmit="event.preventDefault();">
+  <p id="cmp-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Nonlinear chaos theory exhibit. A metallic pendulum swings over three magnetic attractors, demonstrating sensitive dependence on initial conditions.
+  </p>
+
+  <!-- Simulation Mode Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="cmp-mode-btn active" data-mode="single" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Single Trajectory</button>
+    <button type="button" class="cmp-mode-btn" data-mode="swarm" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Butterfly Swarm (Divergence)</button>
+    <button type="button" class="cmp-mode-btn" data-mode="lowfric" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Perpetual Chaos (Low Damping)</button>
+  </div>
+
+  <!-- Chaos Attractor Basin Canvas -->
+  <div style="background:#02050c;border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="cmp-canvas" width="560" height="250" style="width:100%;height:250px;display:block;background:#010308;border-radius:6px;cursor:grab;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG BOB TO RELEASE FROM NEW COORDINATE</span>
+      <span id="cmp-basin-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Active Chaotic Orbit</span>
+    </div>
+  </div>
+
+  <!-- Parameter Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <!-- Magnetic Attraction -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Magnetic Pull Strength (μ)</span>
+        <span id="cmp-val-mag">1.8</span>
+      </div>
+      <input type="range" id="cmp-slider-mag" min="0.5" max="3.5" step="0.1" value="1.8" style="width:100%;">
+    </div>
+
+    <!-- Damping / Friction -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Air Damping (γ)</span>
+        <span id="cmp-val-damp">0.015</span>
+      </div>
+      <input type="range" id="cmp-slider-damp" min="0.002" max="0.050" step="0.002" value="0.015" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="cmp-btn-relaunch" style="padding:6px 16px;border-radius:6px;background:rgba(45,212,255,0.25);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">⚡ Random Launch</button>
+    <button type="button" id="cmp-btn-clear" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Clear Trails</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('cmp-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sMag = document.getElementById('cmp-slider-mag');
+  const sDamp = document.getElementById('cmp-slider-damp');
+  const vMag = document.getElementById('cmp-val-mag');
+  const vDamp = document.getElementById('cmp-val-damp');
+  const basinTag = document.getElementById('cmp-basin-tag');
+
+  const btnRelaunch = document.getElementById('cmp-btn-relaunch');
+  const btnClear = document.getElementById('cmp-btn-clear');
+
+  let magStrength = 1.8;
+  let damping = 0.015;
+  let simMode = 'single';
+  let isDragging = false;
+
+  // Triangular Magnets
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const triR = 65;
+
+  const magnets = [
+    { x: cx, y: cy - triR, color: '#ff3366', name: 'Magnet Alpha (Red)' },
+    { x: cx - triR * 0.866, y: cy + triR * 0.5, color: '#00ffcc', name: 'Magnet Beta (Cyan)' },
+    { x: cx + triR * 0.866, y: cy + triR * 0.5, color: '#ffd700', name: 'Magnet Gamma (Gold)' }
+  ];
+
+  // Bob state
+  let bobs = [{ x: cx + 50, y: cy - 70, vx: 0, vy: 0, trail: [] }];
+
+  function initBobs() {
+    bobs = [];
+    if (simMode === 'single' || simMode === 'lowfric') {
+      bobs.push({
+        x: cx + (Math.random() - 0.5) * 120,
+        y: cy + (Math.random() - 0.5) * 120,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        trail: []
+      });
+    } else if (simMode === 'swarm') {
+      // 12 particles with tiny 0.01px differences in initial position
+      const ox = cx + 60;
+      const oy = cy - 40;
+      for (let i = 0; i < 12; i++) {
+        bobs.push({
+          x: ox + (i * 0.1),
+          y: oy + (i * 0.1),
+          vx: 0,
+          vy: 0,
+          trail: []
+        });
+      }
+    }
+  }
+
+  function stepPhysics(b) {
+    const kRestoring = 0.0018; // gravity spring force toward center
+    let fx = -kRestoring * (b.x - cx);
+    let fy = -kRestoring * (b.y - cy);
+
+    // Sum magnetic forces: F_i = mu * (r_i - r) / ((|r_i - r|^2 + d^2)^(3/2))
+    const d2 = 250; // vertical offset squared
+    magnets.forEach(m => {
+      const dx = m.x - b.x;
+      const dy = m.y - b.y;
+      const distSq = dx * dx + dy * dy;
+      const denom = Math.pow(distSq + d2, 1.5);
+      const pull = (magStrength * 800) / denom;
+      fx += dx * pull;
+      fy += dy * pull;
+    });
+
+    // Apply damping
+    fx -= b.vx * damping * 60;
+    fy -= b.vy * damping * 60;
+
+    b.vx += fx;
+    b.vy += fy;
+    b.x += b.vx;
+    b.y += b.vy;
+
+    b.trail.push({ x: b.x, y: b.y });
+    if (b.trail.length > 250) b.trail.shift();
+  }
+
+  function render() {
+    ctx.fillStyle = 'rgba(1, 3, 8, 0.2)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw 3 Permanent Magnets
+    magnets.forEach(m => {
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = m.color;
+      ctx.fillStyle = m.color;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, 9, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.shadowBlur = 0;
+
+    // Simulate and render bobs
+    bobs.forEach((b, idx) => {
+      if (!isDragging) {
+        stepPhysics(b);
+      }
+
+      // Draw trajectory trail
+      if (b.trail.length > 1) {
+        ctx.beginPath();
+        ctx.lineWidth = simMode === 'swarm' ? 1 : 1.6;
+        for (let i = 0; i < b.trail.length; i++) {
+          const pt = b.trail[i];
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        }
+
+        // Color based on closest magnet
+        let closestDist = Infinity;
+        let cColor = '#2dd4ff';
+        magnets.forEach(m => {
+          const d = Math.hypot(b.x - m.x, b.y - m.y);
+          if (d < closestDist) {
+            closestDist = d;
+            cColor = m.color;
+          }
+        });
+        ctx.strokeStyle = simMode === 'swarm' ? `hsl(${idx * 30}, 85%, 65%)` : cColor;
+        ctx.stroke();
+      }
+
+      // Draw suspended bob sphere
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#ffffff';
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, simMode === 'swarm' ? 3.5 : 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    if (bobs.length === 1) {
+      let nearest = magnets[0];
+      let minD = Infinity;
+      magnets.forEach(m => {
+        const d = Math.hypot(bobs[0].x - m.x, bobs[0].y - m.y);
+        if (d < minD) { minD = d; nearest = m; }
+      });
+      basinTag.textContent = minD < 35 ? `Captured by ${nearest.name}` : 'Transiting Chaotic Basin';
+      basinTag.style.color = nearest.color;
+    } else {
+      basinTag.textContent = `Swarm Divergence: ${bobs.length} Trajectories Separating`;
+      basinTag.style.color = '#c084fc';
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of primary bob
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    canvas.style.cursor = 'grabbing';
+    const rect = canvas.getBoundingClientRect();
+    bobs[0].x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    bobs[0].y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    bobs[0].vx = 0;
+    bobs[0].vy = 0;
+    bobs[0].trail = [];
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    canvas.style.cursor = 'grab';
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      const rect = canvas.getBoundingClientRect();
+      bobs[0].x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      bobs[0].y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    }
+  });
+
+  sMag.addEventListener('input', () => {
+    magStrength = parseFloat(sMag.value);
+    vMag.textContent = magStrength.toFixed(1);
+  });
+
+  sDamp.addEventListener('input', () => {
+    damping = parseFloat(sDamp.value);
+    vDamp.textContent = damping.toFixed(3);
+  });
+
+  document.querySelectorAll('.cmp-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cmp-mode-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      simMode = btn.dataset.mode;
+      if (simMode === 'lowfric') {
+        damping = 0.003;
+        sDamp.value = 0.003;
+        vDamp.textContent = '0.003';
+      } else {
+        damping = 0.015;
+        sDamp.value = 0.015;
+        vDamp.textContent = '0.015';
+      }
+      initBobs();
+    });
+  });
+
+  btnRelaunch.addEventListener('click', initBobs);
+
+  btnClear.addEventListener('click', () => {
+    bobs.forEach(b => b.trail = []);
+    ctx.fillStyle = '#010308';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  });
+
+  initBobs();
+  requestAnimationFrame(render);
+})();
+</script>

@@ -1,0 +1,337 @@
+<h2 id="soa-title" style="margin-top:0;color:var(--accent);">🔥 Schlieren Optics Airflow</h2>
+
+<form aria-describedby="soa-desc" onsubmit="event.preventDefault();">
+  <p id="soa-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    August Toepler's 1864 Schlieren photography system. Visualizes invisible thermal convection plumes and supersonic shockwaves via refractive index gradients.
+  </p>
+
+  <!-- Flow Source Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="soa-src-btn active" data-src="candle" style="padding:4px 10px;border-radius:4px;background:rgba(255,136,0,0.2);border:1px solid #ff8800;color:#ff8800;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Candle Flame Plume</button>
+    <button type="button" class="soa-src-btn" data-src="supersonic" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Supersonic Bullet (Mach 1.8)</button>
+    <button type="button" class="soa-src-btn" data-src="dryice" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Dry Ice Sinking Cascade</button>
+    <button type="button" class="soa-src-btn" data-src="hand" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Human Hand Body Heat</button>
+  </div>
+
+  <!-- Schlieren Optical Viewport -->
+  <div style="background:#02050b;border:1px solid rgba(255,136,0,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="soa-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#182028;border-radius:6px;cursor:grab;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG THERMAL SOURCE ACROSS COLLIMATED BEAM</span>
+      <span id="soa-grad-tag" style="color:#ffaa00;font-family:monospace;font-weight:bold;">Refraction Gradient ∇n Active</span>
+    </div>
+  </div>
+
+  <!-- Filter & Sensitivity Controls -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <!-- Knife Edge Cutoff -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Knife-Edge Cutoff Depth</span>
+        <span id="soa-val-cutoff">65%</span>
+      </div>
+      <input type="range" id="soa-slider-cutoff" min="20" max="95" value="65" style="width:100%;">
+    </div>
+
+    <!-- Turbulence -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Convective Turbulence</span>
+        <span id="soa-val-turb">1.2x</span>
+      </div>
+      <input type="range" id="soa-slider-turb" min="0.5" max="2.5" step="0.1" value="1.2" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Filter Type Selector -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:0.72rem;color:var(--muted);">Aperture Filter:</span>
+      <button type="button" class="soa-filt-btn active" data-filt="gray" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.2);border:1px solid #fff;color:#fff;font-size:0.72rem;cursor:pointer;">Monochrome Knife-Edge</button>
+      <button type="button" class="soa-filt-btn" data-filt="rainbow" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;">Rainbow Color Schlieren</button>
+    </div>
+    <button type="button" id="soa-btn-freeze" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Pause Flow</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('soa-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sCutoff = document.getElementById('soa-slider-cutoff');
+  const sTurb = document.getElementById('soa-slider-turb');
+  const vCutoff = document.getElementById('soa-val-cutoff');
+  const vTurb = document.getElementById('soa-val-turb');
+
+  const gradTag = document.getElementById('soa-grad-tag');
+  const btnFreeze = document.getElementById('soa-btn-freeze');
+
+  let sourceType = 'candle';
+  let filterMode = 'gray';
+  let cutoff = 0.65;
+  let turbulence = 1.2;
+  let isFrozen = false;
+
+  let sourceX = canvas.width / 2;
+  let sourceY = canvas.height * 0.75;
+  let isDragging = false;
+
+  // Thermal particles / eddy eddies
+  const eddies = [];
+  const MAX_EDDIES = 120;
+
+  function spawnEddy() {
+    let vy = -2.2;
+    let life = 1.0;
+    if (sourceType === 'dryice') {
+      vy = 2.0; // sinking heavy cold CO2
+    } else if (sourceType === 'supersonic') {
+      vy = 0;
+    } else if (sourceType === 'hand') {
+      vy = -1.2;
+    }
+
+    eddies.push({
+      x: sourceX + (Math.random() - 0.5) * (sourceType === 'hand' ? 50 : 16),
+      y: sourceY + (sourceType === 'dryice' ? 10 : -10),
+      vx: (Math.random() - 0.5) * 0.8,
+      vy: vy + (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 8 + 6,
+      life: 1.0,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+
+  function render() {
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Base collimated optical field (neutral Schlieren gray backdrop)
+    const baseBrightness = Math.floor((1.0 - cutoff) * 200) + 40;
+    ctx.fillStyle = `rgb(${baseBrightness}, ${baseBrightness + 6}, ${baseBrightness + 12})`;
+    ctx.fillRect(0, 0, W, H);
+
+    // Circular mirror collimated field aperture mask
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, H * 0.48, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Render Supersonic Mach Cones if selected
+    if (sourceType === 'supersonic') {
+      const machAngle = Math.asin(1 / 1.8); // Mach 1.8 cone angle ~33.7 degrees
+      const bulletX = sourceX;
+      const bulletY = sourceY;
+
+      // Bow Shockwave
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = filterMode === 'rainbow' ? '#ff3366' : 'rgba(255, 255, 255, 0.85)';
+      ctx.beginPath();
+      ctx.moveTo(bulletX + 25, bulletY);
+      ctx.lineTo(bulletX - 220, bulletY - Math.tan(machAngle) * 245);
+      ctx.stroke();
+
+      ctx.strokeStyle = filterMode === 'rainbow' ? '#00e5ff' : 'rgba(10, 10, 15, 0.85)';
+      ctx.beginPath();
+      ctx.moveTo(bulletX + 25, bulletY);
+      ctx.lineTo(bulletX - 220, bulletY + Math.tan(machAngle) * 245);
+      ctx.stroke();
+
+      // Tail expansion fan
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.beginPath();
+      ctx.moveTo(bulletX - 20, bulletY);
+      ctx.lineTo(bulletX - 220, bulletY - Math.tan(machAngle * 1.2) * 200);
+      ctx.moveTo(bulletX - 20, bulletY);
+      ctx.lineTo(bulletX - 220, bulletY + Math.tan(machAngle * 1.2) * 200);
+      ctx.stroke();
+
+      // Bullet silhouette
+      ctx.fillStyle = '#0a0d14';
+      ctx.beginPath();
+      ctx.moveTo(bulletX + 25, bulletY);
+      ctx.lineTo(bulletX - 20, bulletY - 7);
+      ctx.lineTo(bulletX - 20, bulletY + 7);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Render Thermal Convection Plumes & Eddies
+    for (let i = eddies.length - 1; i >= 0; i--) {
+      const e = eddies[i];
+      if (!isFrozen) {
+        e.x += e.vx * turbulence;
+        e.y += e.vy * turbulence;
+        e.vx += (Math.sin(e.phase) * 0.15) * turbulence;
+        e.phase += 0.08;
+        e.r += 0.22 * turbulence;
+        e.life -= 0.012;
+      }
+
+      if (e.life <= 0 || e.y < 10 || e.y > H - 10) {
+        eddies.splice(i, 1);
+        continue;
+      }
+
+      // Schlieren optical density gradient shading:
+      // High gradient on one side causes brightening (light bent past knife edge),
+      // opposite side causes darkening (light blocked by knife edge)
+      const grad = ctx.createLinearGradient(e.x - e.r, e.y, e.x + e.r, e.y);
+      if (filterMode === 'rainbow') {
+        grad.addColorStop(0, `rgba(255, 50, 80, ${(e.life * 0.6).toFixed(2)})`);
+        grad.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+        grad.addColorStop(1, `rgba(0, 220, 255, ${(e.life * 0.6).toFixed(2)})`);
+      } else {
+        grad.addColorStop(0, `rgba(255, 255, 255, ${(e.life * 0.55 * cutoff).toFixed(2)})`);
+        grad.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+        grad.addColorStop(1, `rgba(0, 0, 0, ${(e.life * 0.7 * cutoff).toFixed(2)})`);
+      }
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Render Physical Obstacle / Heat Source
+    if (sourceType === 'candle') {
+      // Candle stick
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(sourceX - 6, sourceY, 12, 45);
+      // Wick
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sourceX, sourceY);
+      ctx.lineTo(sourceX, sourceY - 7);
+      ctx.stroke();
+      // Glowing flame
+      ctx.fillStyle = '#ff8800';
+      ctx.beginPath();
+      ctx.ellipse(sourceX, sourceY - 14, 5, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffee44';
+      ctx.beginPath();
+      ctx.ellipse(sourceX, sourceY - 12, 2.5, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (sourceType === 'dryice') {
+      // Cold block of dry ice
+      ctx.fillStyle = 'rgba(230, 245, 255, 0.85)';
+      ctx.fillRect(sourceX - 24, sourceY - 12, 48, 24);
+      ctx.strokeStyle = '#4488bb';
+      ctx.strokeRect(sourceX - 24, sourceY - 12, 48, 24);
+    } else if (sourceType === 'hand') {
+      // Stylized hand silhouette
+      ctx.fillStyle = '#2d1b14';
+      ctx.beginPath();
+      ctx.arc(sourceX, sourceY + 15, 22, 0, Math.PI * 2);
+      ctx.fill();
+      // Extended finger
+      ctx.fillRect(sourceX - 6, sourceY - 25, 12, 40);
+    }
+
+    ctx.restore(); // end mirror clip
+
+    // Circular mirror metal bezel
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, H * 0.48 + 5, 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (!isFrozen && sourceType !== 'supersonic') {
+      if (eddies.length < MAX_EDDIES) {
+        spawnEddy();
+        if (Math.random() < 0.6) spawnEddy();
+      }
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of the thermal source
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    canvas.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    canvas.style.cursor = 'grab';
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      const rect = canvas.getBoundingClientRect();
+      sourceX = (e.clientX - rect.left) * (canvas.width / rect.width);
+      sourceY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    }
+  });
+
+  sCutoff.addEventListener('input', () => {
+    cutoff = parseInt(sCutoff.value, 10) / 100;
+    vCutoff.textContent = `${Math.round(cutoff * 100)}%`;
+  });
+
+  sTurb.addEventListener('input', () => {
+    turbulence = parseFloat(sTurb.value);
+    vTurb.textContent = `${turbulence.toFixed(1)}x`;
+  });
+
+  document.querySelectorAll('.soa-src-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.soa-src-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(255,136,0,0.2)';
+      btn.style.borderColor = '#ff8800';
+      btn.style.color = '#ff8800';
+
+      sourceType = btn.dataset.src;
+      eddies.length = 0;
+
+      if (sourceType === 'supersonic') {
+        sourceX = canvas.width * 0.65;
+        sourceY = canvas.height * 0.5;
+        gradTag.textContent = 'Supersonic Gas Shockwave (Mach 1.8)';
+      } else if (sourceType === 'dryice') {
+        sourceX = canvas.width / 2;
+        sourceY = canvas.height * 0.3;
+        gradTag.textContent = 'Cold CO2 Dense Thermal Cascade';
+      } else {
+        sourceX = canvas.width / 2;
+        sourceY = canvas.height * 0.75;
+        gradTag.textContent = 'Refraction Gradient ∇n Active';
+      }
+    });
+  });
+
+  document.querySelectorAll('.soa-filt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.soa-filt-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(255,255,255,0.2)';
+      btn.style.borderColor = '#fff';
+      filterMode = btn.dataset.filt;
+    });
+  });
+
+  btnFreeze.addEventListener('click', () => {
+    isFrozen = !isFrozen;
+    btnFreeze.textContent = isFrozen ? 'Resume Flow' : 'Pause Flow';
+  });
+
+  requestAnimationFrame(render);
+})();
+</script>

@@ -1,0 +1,295 @@
+<h2 id="fpe-title" style="margin-top:0;color:var(--accent);">🌍 Foucault Pendulum Spin</h2>
+
+<form aria-describedby="fpe-desc" onsubmit="event.preventDefault();">
+  <p id="fpe-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Léon Foucault's 1851 Paris Panthéon experiment proving Earth's diurnal rotation. The swing plane stays fixed in inertial space while Earth rotates below.
+  </p>
+
+  <!-- Latitude Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="fpe-lat-btn active" data-lat="48.85" data-name="Paris (48.8°N)" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Paris (48.8°N · 31.9h)</button>
+    <button type="button" class="fpe-lat-btn" data-lat="90.0" data-name="North Pole (90°N)" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">North Pole (90°N · 24.0h)</button>
+    <button type="button" class="fpe-lat-btn" data-lat="51.5" data-name="London (51.5°N)" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">London (51.5°N · 30.7h)</button>
+    <button type="button" class="fpe-lat-btn" data-lat="0.0" data-name="Equator (0°)" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Equator (0° · No Spin)</button>
+    <button type="button" class="fpe-lat-btn" data-lat="-33.8" data-name="Sydney (33.8°S)" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Sydney (33.8°S · Clockwise)</button>
+  </div>
+
+  <!-- Interactive Panthéon Rotunda Canvas -->
+  <div style="background:#02050b;border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="fpe-canvas" width="560" height="250" style="width:100%;height:250px;display:block;background:#010306;border-radius:6px;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span id="fpe-pins-knocked" style="color:#ffd700;font-family:monospace;font-weight:bold;">Perimeter Pins Knocked: 0 / 36</span>
+      <span id="fpe-precess-rate" style="color:#00ffcc;font-family:monospace;">Precession Rate: 11.3°/hr</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Foucault Period (T)</div>
+      <div id="fpe-tel-period" style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">31.9 hrs</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Cumulative Precession</div>
+      <div id="fpe-tel-angle" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">0.0°</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Coriolis Acceleration</div>
+      <div id="fpe-tel-coriolis" style="font-size:0.95rem;font-weight:bold;color:#c084fc;font-family:monospace;">2v × Ω sin(φ)</div>
+    </div>
+  </div>
+
+  <!-- Sliders & Speed Multiplier -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Geographic Latitude (φ)</span>
+        <span id="fpe-val-lat">48.8° N</span>
+      </div>
+      <input type="range" id="fpe-slider-lat" min="-90" max="90" step="1" value="48.8" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Time-Lapse Warp</span>
+        <span id="fpe-val-speed">300x Speed</span>
+      </div>
+      <input type="range" id="fpe-slider-speed" min="1" max="1200" step="10" value="300" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="fpe-btn-reset" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">🔄 Reset All Pins &amp; Plane</button>
+    <button type="button" id="fpe-btn-trail" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">Trail: ON</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('fpe-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sLat = document.getElementById('fpe-slider-lat');
+  const sSpeed = document.getElementById('fpe-slider-speed');
+  const vLat = document.getElementById('fpe-val-lat');
+  const vSpeed = document.getElementById('fpe-val-speed');
+
+  const telPeriod = document.getElementById('fpe-tel-period');
+  const telAngle = document.getElementById('fpe-tel-angle');
+  const precessRateEl = document.getElementById('fpe-precess-rate');
+  const pinsKnockedEl = document.getElementById('fpe-pins-knocked');
+
+  const btnReset = document.getElementById('fpe-btn-reset');
+  const btnTrail = document.getElementById('fpe-btn-trail');
+
+  let latitude = 48.85;
+  let timeMultiplier = 300;
+  let showTrail = true;
+
+  // Pendulum physical parameters
+  const swingRadius = 96;
+  let swingPhase = 0;
+  let precessAngle = 0; // in radians
+  const trailPoints = [];
+
+  // Perimeter pins
+  const PIN_COUNT = 36;
+  const pins = [];
+  function initPins() {
+    pins.length = 0;
+    for (let i = 0; i < PIN_COUNT; i++) {
+      const a = (Math.PI * 2 / PIN_COUNT) * i;
+      pins.push({
+        angle: a,
+        x: Math.cos(a) * (swingRadius + 6),
+        y: Math.sin(a) * (swingRadius + 6),
+        standing: true
+      });
+    }
+  }
+
+  function updateTelemetry() {
+    const sinLat = Math.sin(latitude * Math.PI / 180);
+    const hourlyRate = 15.04 * sinLat; // degrees per hour
+    precessRateEl.textContent = `Precession Rate: ${Math.abs(hourlyRate).toFixed(1)}°/hr ${hourlyRate >= 0 ? '(Clockwise)' : '(Counter-Clockwise)'}`;
+
+    if (Math.abs(latitude) < 0.5) {
+      telPeriod.textContent = '∞ (Invariant)';
+    } else {
+      const periodHours = 24.0 / Math.abs(sinLat);
+      telPeriod.textContent = `${periodHours.toFixed(1)} hrs`;
+    }
+  }
+
+  function render() {
+    // Top-down view of the rotunda dial
+    ctx.fillStyle = '#010306';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    // Panthéon circular stone compass rose floor
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, swingRadius + 14, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Degree markings
+    for (let d = 0; d < 360; d += 30) {
+      const rad = d * Math.PI / 180;
+      const x1 = cx + Math.cos(rad) * (swingRadius + 8);
+      const y1 = cy + Math.sin(rad) * (swingRadius + 8);
+      const x2 = cx + Math.cos(rad) * (swingRadius + 14);
+      const y2 = cy + Math.sin(rad) * (swingRadius + 14);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // Draw knockdown wooden pins
+    let knockedCount = 0;
+    pins.forEach(pin => {
+      const px = cx + pin.x;
+      const py = cy + pin.y;
+
+      if (pin.standing) {
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath();
+        ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        knockedCount++;
+        // Toppled pin lying flat
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px - 4, py - 4);
+        ctx.lineTo(px + 4, py + 4);
+        ctx.stroke();
+      }
+    });
+    pinsKnockedEl.textContent = `Perimeter Pins Knocked: ${knockedCount} / ${PIN_COUNT}`;
+
+    // Swing motion
+    swingPhase += 0.08;
+    const r = Math.sin(swingPhase) * swingRadius;
+
+    // Foucault precession rate calculation
+    const sinLat = Math.sin(latitude * Math.PI / 180);
+    // Earth rotates at 2pi / 86400 rad/sec
+    const dPrecess = (-(Math.PI * 2) / 86400) * sinLat * (timeMultiplier * 0.016);
+    precessAngle += dPrecess;
+
+    const bobX = cx + Math.cos(precessAngle) * r;
+    const bobY = cy + Math.sin(precessAngle) * r;
+
+    // Check collision with pins
+    pins.forEach(pin => {
+      if (pin.standing) {
+        const d = Math.hypot(bobX - (cx + pin.x), bobY - (cy + pin.y));
+        if (d < 7) {
+          pin.standing = false;
+        }
+      }
+    });
+
+    // Rosette Trajectory Trail
+    if (showTrail) {
+      trailPoints.push({ x: bobX, y: bobY });
+      if (trailPoints.length > 280) trailPoints.shift();
+
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(0, 255, 204, 0.25)';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < trailPoints.length; i++) {
+        const pt = trailPoints[i];
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+    }
+
+    // Suspension wire from central apex
+    ctx.strokeStyle = 'rgba(200, 230, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(bobX, bobY);
+    ctx.stroke();
+
+    // Heavy Brass Bob Sphere
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#2dd4ff';
+    ctx.fillStyle = '#2dd4ff';
+    ctx.beginPath();
+    ctx.arc(bobX, bobY, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Specular highlight
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(bobX - 1.8, bobY - 1.8, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    const degPrecess = (Math.abs(precessAngle * 180 / Math.PI)) % 360;
+    telAngle.textContent = `${degPrecess.toFixed(1)}°`;
+
+    requestAnimationFrame(render);
+  }
+
+  sLat.addEventListener('input', () => {
+    latitude = parseFloat(sLat.value);
+    vLat.textContent = `${Math.abs(latitude).toFixed(1)}° ${latitude >= 0 ? 'N' : 'S'}`;
+    updateTelemetry();
+  });
+
+  sSpeed.addEventListener('input', () => {
+    timeMultiplier = parseInt(sSpeed.value, 10);
+    vSpeed.textContent = `${timeMultiplier}x Speed`;
+  });
+
+  document.querySelectorAll('.fpe-lat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.fpe-lat-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      latitude = parseFloat(btn.dataset.lat);
+      sLat.value = latitude;
+      vLat.textContent = `${Math.abs(latitude).toFixed(1)}° ${latitude >= 0 ? 'N' : 'S'}`;
+      updateTelemetry();
+      initPins();
+      precessAngle = 0;
+      trailPoints.length = 0;
+    });
+  });
+
+  btnReset.addEventListener('click', () => {
+    initPins();
+    precessAngle = 0;
+    trailPoints.length = 0;
+  });
+
+  btnTrail.addEventListener('click', () => {
+    showTrail = !showTrail;
+    btnTrail.textContent = showTrail ? 'Trail: ON' : 'Trail: OFF';
+    if (!showTrail) trailPoints.length = 0;
+  });
+
+  initPins();
+  updateTelemetry();
+  requestAnimationFrame(render);
+})();
+</script>

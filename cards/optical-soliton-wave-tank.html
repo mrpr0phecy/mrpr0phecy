@@ -1,0 +1,257 @@
+<h2 id="swt-title" style="margin-top:0;color:var(--accent);">🌊 Soliton Wave Flume Tank</h2>
+
+<form aria-describedby="swt-desc" onsubmit="event.preventDefault();">
+  <p id="swt-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    John Scott Russell's 1834 hydrodynamic flume exhibit. Simulates the Korteweg–de Vries (KdV) equation where nonlinear steepening balances dispersion to form permanent solitons.
+  </p>
+
+  <!-- Experiment Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="swt-preset-btn active" data-mode="single" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Single Solitary Wave</button>
+    <button type="button" class="swt-preset-btn" data-mode="collision" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Two-Soliton Collision (KdV)</button>
+    <button type="button" class="swt-preset-btn" data-mode="overtake" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Soliton Overtaking (Phase Shift)</button>
+  </div>
+
+  <!-- Glass Flume Tank Canvas -->
+  <div style="background:#02050c;border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="swt-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#01040a;border-radius:6px;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK ON TANK WATER SURFACE TO INDUCE LOCAL HYDRAULIC DISPLACEMENT</span>
+      <span id="swt-froude-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Soliton Speed c = 1.25 m/s</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Nonlinear Parameter</div>
+      <div id="swt-tel-nonlin" style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">ε = 0.35</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Dispersive Length</div>
+      <div id="swt-tel-disp" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">L = 42 mm</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Stability Regime</div>
+      <div style="font-size:0.95rem;font-weight:bold;color:#2dd4ff;">Invariant Sech² Envelope</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Water Channel Depth (h)</span>
+        <span id="swt-val-h">80 mm</span>
+      </div>
+      <input type="range" id="swt-slider-h" min="40" max="140" value="80" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Paddle Stroke Amplitude (A)</span>
+        <span id="swt-val-a">35 mm</span>
+      </div>
+      <input type="range" id="swt-slider-a" min="15" max="60" value="35" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="swt-btn-pulse" style="padding:6px 16px;border-radius:6px;background:rgba(45,212,255,0.25);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">⚡ Launch Soliton Paddle</button>
+    <button type="button" id="swt-btn-reset" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Quiescent Water</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('swt-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sH = document.getElementById('swt-slider-h');
+  const sA = document.getElementById('swt-slider-a');
+  const vH = document.getElementById('swt-val-h');
+  const vA = document.getElementById('swt-val-a');
+
+  const telNonlin = document.getElementById('swt-tel-nonlin');
+  const telDisp = document.getElementById('swt-tel-disp');
+  const froudeTag = document.getElementById('swt-froude-tag');
+
+  const btnPulse = document.getElementById('swt-btn-pulse');
+  const btnReset = document.getElementById('swt-btn-reset');
+
+  let channelH = 80;
+  let waveAmp = 35;
+  let simMode = 'single';
+
+  // Solitons: [{ x, amp, speed, dir }]
+  const solitons = [];
+
+  function initSolitons() {
+    solitons.length = 0;
+    if (simMode === 'single') {
+      solitons.push({ x: 30, amp: waveAmp, speed: 2.2, dir: 1 });
+    } else if (simMode === 'collision') {
+      solitons.push({ x: 40, amp: waveAmp, speed: 2.2, dir: 1 });
+      solitons.push({ x: canvas.width - 40, amp: waveAmp * 0.85, speed: 2.0, dir: -1 });
+    } else if (simMode === 'overtake') {
+      solitons.push({ x: 120, amp: waveAmp * 0.5, speed: 1.4, dir: 1 });
+      solitons.push({ x: 30, amp: waveAmp * 1.2, speed: 2.5, dir: 1 });
+    }
+  }
+
+  function sech(z) {
+    return 1 / Math.cosh(z);
+  }
+
+  function getSurfaceHeight(x) {
+    let eta = 0;
+    solitons.forEach(s => {
+      // KdV solitary wave solution: eta(x) = A * sech^2( k * (x - x_0) )
+      // where k = sqrt(3 * A / (4 * h^3))
+      const k = Math.sqrt((3 * s.amp) / (4 * Math.pow(channelH * 0.6, 3))) * 2.2;
+      const z = k * (x - s.x);
+      const val = sech(z);
+      eta += s.amp * val * val;
+    });
+    return eta;
+  }
+
+  function render() {
+    ctx.fillStyle = '#01040a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const bedY = H - 25; // bottom of flume tank
+    const waterBaseY = bedY - channelH;
+
+    // Glass Tank bottom flume rail
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(10, bedY, W - 20, 16);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(10, bedY, W - 20, 16);
+
+    // Update soliton positions
+    solitons.forEach(s => {
+      s.x += s.speed * s.dir;
+      // Wrap around or bounce with periodic boundary
+      if (s.x > W + 60) s.x = -60;
+      if (s.x < -60) s.x = W + 60;
+    });
+
+    // Render water body polygon with translucent oceanic gradient
+    const waterGrad = ctx.createLinearGradient(0, waterBaseY - 50, 0, bedY);
+    waterGrad.addColorStop(0, 'rgba(45, 212, 255, 0.45)');
+    waterGrad.addColorStop(0.5, 'rgba(0, 140, 220, 0.55)');
+    waterGrad.addColorStop(1, 'rgba(2, 20, 50, 0.85)');
+
+    ctx.beginPath();
+    ctx.moveTo(15, bedY);
+    for (let x = 15; x <= W - 15; x += 3) {
+      const eta = getSurfaceHeight(x);
+      ctx.lineTo(x, waterBaseY - eta);
+    }
+    ctx.lineTo(W - 15, bedY);
+    ctx.closePath();
+    ctx.fillStyle = waterGrad;
+    ctx.fill();
+
+    // Glowing free surface line
+    ctx.beginPath();
+    for (let x = 15; x <= W - 15; x += 3) {
+      const eta = getSurfaceHeight(x);
+      if (x === 15) ctx.moveTo(x, waterBaseY - eta);
+      else ctx.lineTo(x, waterBaseY - eta);
+    }
+    ctx.strokeStyle = '#2dd4ff';
+    ctx.lineWidth = 2.2;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#2dd4ff';
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Internal velocity vector arrows inside the water column
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    for (let x = 40; x < W - 40; x += 35) {
+      const eta = getSurfaceHeight(x);
+      const surfY = waterBaseY - eta;
+      for (let y = surfY + 18; y < bedY - 5; y += 22) {
+        // Horizontal fluid velocity proportional to surface displacement (shallow water theory u = c * eta / h)
+        const u = Math.min(18, (eta / channelH) * 28);
+        if (Math.abs(u) > 1.5) {
+          ctx.beginPath();
+          ctx.moveTo(x - u, y);
+          ctx.lineTo(x + u, y);
+          ctx.lineTo(x + u - 3, y - 2);
+          ctx.moveTo(x + u, y);
+          ctx.lineTo(x + u - 3, y + 2);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Flume glass boundary struts
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeRect(10, 15, W - 20, bedY - 15);
+
+    // Telemetry updates
+    const eps = (waveAmp / channelH).toFixed(2);
+    telNonlin.textContent = `ε = ${eps}`;
+    const dispL = Math.round(channelH * 0.55);
+    telDisp.textContent = `L = ${dispL} mm`;
+    const speedMs = (Math.sqrt(9.81 * (channelH * 0.001) * (1 + parseFloat(eps)))).toFixed(2);
+    froudeTag.textContent = `Soliton Speed c = ${speedMs} m/s (Froude Fn > 1)`;
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive water surface clicking
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    solitons.push({ x, amp: waveAmp, speed: 2.2, dir: 1 });
+  });
+
+  sH.addEventListener('input', () => {
+    channelH = parseInt(sH.value, 10);
+    vH.textContent = `${channelH} mm`;
+  });
+
+  sA.addEventListener('input', () => {
+    waveAmp = parseInt(sA.value, 10);
+    vA.textContent = `${waveAmp} mm`;
+  });
+
+  document.querySelectorAll('.swt-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.swt-preset-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      simMode = btn.dataset.mode;
+      initSolitons();
+    });
+  });
+
+  btnPulse.addEventListener('click', () => {
+    solitons.push({ x: 25, amp: waveAmp, speed: 2.4, dir: 1 });
+  });
+
+  btnReset.addEventListener('click', () => {
+    solitons.length = 0;
+  });
+
+  initSolitons();
+  requestAnimationFrame(render);
+})();
+</script>

@@ -1,0 +1,270 @@
+<h2 id="ffs-title" style="margin-top:0;color:var(--accent);">🧲 Ferrofluid Spiking Lab</h2>
+
+<form aria-describedby="ffs-desc" onsubmit="event.preventDefault();">
+  <p id="ffs-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Rosensweig normal-field magnetic instability simulator. Superparamagnetic liquid self-organizes into conical spikes balancing surface tension and magnetic stress.
+  </p>
+
+  <!-- Magnetic Pole Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="ffs-pole-btn active" data-pole="single" style="padding:4px 10px;border-radius:4px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Single NdFeB Pole</button>
+    <button type="button" class="ffs-pole-btn" data-pole="dual" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Dual Dipole</button>
+    <button type="button" class="ffs-pole-btn" data-pole="quad" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Quadrupole Ring</button>
+    <button type="button" class="ffs-pole-btn" data-pole="orbit" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Rotating Field Vortex</button>
+  </div>
+
+  <!-- Ferrofluid Basin Canvas -->
+  <div style="background:#020509;border:1px solid rgba(0,255,204,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="ffs-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#010306;border-radius:6px;cursor:grab;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG MAGNET POSITION UNDER FLUID POOL</span>
+      <span id="ffs-regime-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Rosensweig Spiking Active (B &gt; Bc)</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Field Strength (B)</div>
+      <div id="ffs-tel-b" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">142 mT</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Critical Threshold (Bc)</div>
+      <div style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">85 mT</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Instability Wavelength</div>
+      <div id="ffs-tel-lambda" style="font-size:0.95rem;font-weight:bold;color:#2dd4ff;font-family:monospace;">λc = 8.4 mm</div>
+    </div>
+  </div>
+
+  <!-- Parameter Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Electromagnet Current</span>
+        <span id="ffs-val-current">6.5 A</span>
+      </div>
+      <input type="range" id="ffs-slider-current" min="0" max="10" step="0.1" value="6.5" style="width:100%;">
+    </div>
+
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Fluid Viscosity (cP)</span>
+        <span id="ffs-val-visc">12 cP</span>
+      </div>
+      <input type="range" id="ffs-slider-visc" min="4" max="30" value="12" style="width:100%;">
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('ffs-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sCurrent = document.getElementById('ffs-slider-current');
+  const sVisc = document.getElementById('ffs-slider-visc');
+  const vCurrent = document.getElementById('ffs-val-current');
+  const vVisc = document.getElementById('ffs-val-visc');
+
+  const telB = document.getElementById('ffs-tel-b');
+  const telLambda = document.getElementById('ffs-tel-lambda');
+  const regimeTag = document.getElementById('ffs-regime-tag');
+
+  let currentAmps = 6.5;
+  let viscosity = 12;
+  let poleMode = 'single';
+
+  let magnetX = canvas.width / 2;
+  let magnetY = canvas.height * 0.7;
+  let isDragging = false;
+  let orbitAngle = 0;
+
+  // Discrete hexagonal mesh points for ferrofluid spikes
+  const spikes = [];
+  const spacing = 14;
+  for (let y = 30; y < canvas.height - 30; y += spacing * 0.866) {
+    const rowOffset = (Math.floor(y / (spacing * 0.866)) % 2) * (spacing / 2);
+    for (let x = 40; x < canvas.width - 40; x += spacing) {
+      spikes.push({
+        baseX: x + rowOffset,
+        baseY: y,
+        height: 0,
+        targetHeight: 0
+      });
+    }
+  }
+
+  function getMagneticFieldAt(x, y) {
+    let bTot = 0;
+    const bScale = currentAmps * 28;
+
+    if (poleMode === 'single') {
+      const d = Math.hypot(x - magnetX, y - magnetY);
+      bTot = bScale / (1 + (d * d) / 2200);
+    } else if (poleMode === 'dual') {
+      const d1 = Math.hypot(x - (magnetX - 55), y - magnetY);
+      const d2 = Math.hypot(x - (magnetX + 55), y - magnetY);
+      bTot = (bScale * 0.8) / (1 + (d1 * d1) / 1800) + (bScale * 0.8) / (1 + (d2 * d2) / 1800);
+    } else if (poleMode === 'quad') {
+      const r = 45;
+      for (let a = 0; a < 4; a++) {
+        const ang = (Math.PI / 2) * a;
+        const px = magnetX + Math.cos(ang) * r;
+        const py = magnetY + Math.sin(ang) * r;
+        const d = Math.hypot(x - px, y - py);
+        bTot += (bScale * 0.45) / (1 + (d * d) / 1600);
+      }
+    } else if (poleMode === 'orbit') {
+      const ox = magnetX + Math.cos(orbitAngle) * 50;
+      const oy = magnetY + Math.sin(orbitAngle) * 35;
+      const d = Math.hypot(x - ox, y - oy);
+      bTot = bScale / (1 + (d * d) / 2000);
+    }
+    return bTot;
+  }
+
+  function render() {
+    ctx.fillStyle = '#010306';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const Bc = 85; // Critical threshold mT
+    const maxB = getMagneticFieldAt(magnetX, magnetY);
+    telB.textContent = `${Math.round(maxB)} mT`;
+
+    if (maxB >= Bc) {
+      regimeTag.textContent = 'Rosensweig Spiking Active (B > Bc)';
+      regimeTag.style.color = '#00ffcc';
+      const lambda = (8.4 * Math.sqrt(100 / Math.max(50, maxB))).toFixed(1);
+      telLambda.textContent = `λc = ${lambda} mm`;
+    } else {
+      regimeTag.textContent = 'Sub-Critical: Smooth Fluid Mirror (B < Bc)';
+      regimeTag.style.color = '#888';
+      telLambda.textContent = 'Quiescent Pool';
+    }
+
+    if (poleMode === 'orbit') {
+      orbitAngle += 0.04;
+    }
+
+    // Draw fluid basin pool shadow
+    ctx.fillStyle = '#050a12';
+    ctx.beginPath();
+    ctx.ellipse(canvas.width / 2, canvas.height / 2, canvas.width * 0.46, canvas.height * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.2)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Magnet indicator beneath pool
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(magnetX, magnetY, 18, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Sort spikes by Y so front spikes overlap back spikes (pseudo-3D isometric depth)
+    spikes.sort((a, b) => a.baseY - b.baseY);
+
+    const damp = Math.max(0.1, 0.35 - (viscosity / 100));
+
+    spikes.forEach(s => {
+      const B = getMagneticFieldAt(s.baseX, s.baseY);
+      if (B > Bc) {
+        // Conical spike grows with magnetic overpressure
+        s.targetHeight = Math.min(32, (B - Bc) * 0.38);
+      } else {
+        s.targetHeight = 0;
+      }
+      s.height += (s.targetHeight - s.height) * damp;
+
+      if (s.height > 1.0) {
+        // Render 3D metallic dark ferrofluid conical spike
+        const tipX = s.baseX;
+        const tipY = s.baseY - s.height;
+        const baseHalf = Math.max(3, s.height * 0.32);
+
+        // Dark cone body
+        ctx.fillStyle = '#0a1017';
+        ctx.beginPath();
+        ctx.moveTo(s.baseX - baseHalf, s.baseY);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(s.baseX + baseHalf, s.baseY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Specular highlight edge (oil reflection)
+        ctx.strokeStyle = 'rgba(100, 230, 255, 0.6)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(s.baseX - baseHalf * 0.5, s.baseY);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+
+        // Bright needle tip
+        ctx.fillStyle = '#2dd4ff';
+        ctx.fillRect(tipX - 0.8, tipY - 0.8, 1.6, 1.6);
+      } else {
+        // Flat liquid droplet speckle
+        ctx.fillStyle = 'rgba(20, 35, 50, 0.5)';
+        ctx.beginPath();
+        ctx.arc(s.baseX, s.baseY, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of the magnet
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    canvas.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    canvas.style.cursor = 'grab';
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      const rect = canvas.getBoundingClientRect();
+      magnetX = (e.clientX - rect.left) * (canvas.width / rect.width);
+      magnetY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    }
+  });
+
+  sCurrent.addEventListener('input', () => {
+    currentAmps = parseFloat(sCurrent.value);
+    vCurrent.textContent = `${currentAmps.toFixed(1)} A`;
+  });
+
+  sVisc.addEventListener('input', () => {
+    viscosity = parseInt(sVisc.value, 10);
+    vVisc.textContent = `${viscosity} cP`;
+  });
+
+  document.querySelectorAll('.ffs-pole-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ffs-pole-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(0,255,204,0.2)';
+      btn.style.borderColor = '#00ffcc';
+      btn.style.color = '#00ffcc';
+
+      poleMode = btn.dataset.pole;
+    });
+  });
+
+  requestAnimationFrame(render);
+})();
+</script>

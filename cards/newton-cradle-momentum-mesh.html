@@ -1,0 +1,341 @@
+<h2 id="kmc-title" style="margin-top:0;color:var(--accent);">⚪ Kinetic Momentum Cradle</h2>
+
+<form aria-describedby="kmc-desc" onsubmit="event.preventDefault();">
+  <p id="kmc-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Conservation of momentum and kinetic energy exhibit. Demonstrates compressive acoustic stress wave transmission across elastic collision chains.
+  </p>
+
+  <!-- Ball Count Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="kmc-preset-btn active" data-lift="1" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Pull 1 Ball</button>
+    <button type="button" class="kmc-preset-btn" data-lift="2" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Pull 2 Balls</button>
+    <button type="button" class="kmc-preset-btn" data-lift="3" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Pull 3 Balls</button>
+    <button type="button" class="kmc-preset-btn" data-lift="dual" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Dual Opposite Release</button>
+  </div>
+
+  <!-- Interactive Cradle Canvas -->
+  <div style="background:#02050b;border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="kmc-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#010306;border-radius:6px;cursor:grab;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG END SPHERES TO CHARGE COLLISION</span>
+      <span id="kmc-p-readout" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Total Momentum Σp = Const</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Kinetic Energy (Ek)</div>
+      <div id="kmc-tel-ke" style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">0.42 J</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Restitution (e)</div>
+      <div id="kmc-tel-e" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">0.98 (Elastic)</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Stress Pulse Speed</div>
+      <div style="font-size:0.95rem;font-weight:bold;color:#c084fc;font-family:monospace;">5,100 m/s (Steel)</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Restitution Elasticity</span>
+        <span id="kmc-val-e">0.98</span>
+      </div>
+      <input type="range" id="kmc-slider-e" min="0.50" max="1.00" step="0.01" value="0.98" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Air Drag Damping</span>
+        <span id="kmc-val-drag">Minimal (0.001)</span>
+      </div>
+      <input type="range" id="kmc-slider-drag" min="0.000" max="0.008" step="0.001" value="0.001" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="kmc-btn-sound" style="padding:6px 14px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">🔊 Impact Click: ON</button>
+    <button type="button" id="kmc-btn-reset" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Reset at Rest</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('kmc-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sE = document.getElementById('kmc-slider-e');
+  const sDrag = document.getElementById('kmc-slider-drag');
+  const vE = document.getElementById('kmc-val-e');
+  const vDrag = document.getElementById('kmc-val-drag');
+
+  const telKe = document.getElementById('kmc-tel-ke');
+  const telE = document.getElementById('kmc-tel-e');
+  const pReadout = document.getElementById('kmc-p-readout');
+
+  const btnSound = document.getElementById('kmc-btn-sound');
+  const btnReset = document.getElementById('kmc-btn-reset');
+
+  let restitution = 0.98;
+  let dragDamping = 0.001;
+  let isSoundOn = true;
+
+  // Audio Context
+  let audioCtx = null;
+  function playClick() {
+    if (!isSoundOn) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.03);
+
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.035);
+    } catch(e) {}
+  }
+
+  // 5 Spheres
+  const N = 5;
+  const ballR = 18;
+  const cordLen = 135;
+  const topY = 30;
+  const cx = canvas.width / 2;
+
+  const balls = [];
+  for (let i = 0; i < N; i++) {
+    const anchorX = cx + (i - (N - 1) / 2) * (ballR * 2);
+    balls.push({
+      anchorX,
+      theta: 0,
+      omega: 0,
+      r: ballR,
+      pulse: 0
+    });
+  }
+
+  let isDragging = false;
+  let dragBallIdx = -1;
+
+  function liftBalls(count, isDual) {
+    balls.forEach(b => { b.theta = 0; b.omega = 0; });
+    if (isDual) {
+      balls[0].theta = -0.55;
+      balls[N - 1].theta = 0.55;
+    } else {
+      for (let i = 0; i < count; i++) {
+        balls[i].theta = -0.65;
+      }
+    }
+  }
+
+  function stepPhysics() {
+    const g = 9.81 * 40; // scaled gravity
+    const dt = 0.016;
+
+    // Numerical integration of pendulum swings
+    balls.forEach((b, idx) => {
+      if (isDragging && idx === dragBallIdx) return;
+      const alpha = -(g / cordLen) * Math.sin(b.theta) - b.omega * dragDamping * 60;
+      b.omega += alpha * dt;
+      b.theta += b.omega * dt;
+    });
+
+    // Collision detection between adjacent balls
+    let anyImpact = false;
+    for (let i = 0; i < N - 1; i++) {
+      const b1 = balls[i];
+      const b2 = balls[i + 1];
+
+      const x1 = b1.anchorX + cordLen * Math.sin(b1.theta);
+      const x2 = b2.anchorX + cordLen * Math.sin(b2.theta);
+
+      if (x1 + ballR * 2 > x2) {
+        // Impact occurs!
+        // 1D elastic momentum exchange
+        const relV = b1.omega - b2.omega;
+        if (relV > 0) {
+          anyImpact = true;
+          b1.pulse = 1.0;
+          b2.pulse = 1.0;
+
+          const v1 = b1.omega;
+          const v2 = b2.omega;
+
+          // Equal mass exchange with restitution e
+          const newV1 = ((1 - restitution) * v1 + (1 + restitution) * v2) / 2;
+          const newV2 = ((1 + restitution) * v1 + (1 - restitution) * v2) / 2;
+
+          b1.omega = newV1;
+          b2.omega = newV2;
+
+          // Separate angular positions to prevent overlap
+          const midX = (x1 + x2) / 2;
+          b1.theta = Math.asin((midX - ballR - b1.anchorX) / cordLen);
+          b2.theta = Math.asin((midX + ballR - b2.anchorX) / cordLen);
+        }
+      }
+    }
+
+    if (anyImpact) {
+      playClick();
+    }
+  }
+
+  function render() {
+    ctx.fillStyle = '#010306';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Top mounting suspension bar
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(cx - 140, topY - 8, 280, 10);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(cx - 140, topY - 8, 280, 10);
+
+    stepPhysics();
+
+    let totalKE = 0;
+    let totalP = 0;
+
+    // Render strings and steel spheres
+    balls.forEach((b) => {
+      const bx = b.anchorX + cordLen * Math.sin(b.theta);
+      const by = topY + cordLen * Math.cos(b.theta);
+
+      totalKE += 0.5 * Math.pow(b.omega * cordLen * 0.01, 2);
+      totalP += b.omega * cordLen * 0.01;
+
+      // Bifilar suspension strings
+      ctx.strokeStyle = 'rgba(200, 225, 255, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(b.anchorX - 10, topY);
+      ctx.lineTo(bx, by);
+      ctx.moveTo(b.anchorX + 10, topY);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+
+      // Stress pulse flash during impact
+      if (b.pulse > 0) {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00ffcc';
+        b.pulse -= 0.1;
+      }
+
+      // Metallic chrome sphere rendering with radial gradient
+      const grad = ctx.createRadialGradient(bx - 5, by - 5, 2, bx, by, ballR);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.3, '#d1d5db');
+      grad.addColorStop(0.7, '#64748b');
+      grad.addColorStop(1, '#1e293b');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(bx, by, ballR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    });
+
+    telKe.textContent = `${(totalKE * 10).toFixed(2)} J`;
+    pReadout.textContent = `Total Momentum Σp = ${Math.abs(totalP).toFixed(2)} kg·m/s`;
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of end spheres
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    balls.forEach((b, idx) => {
+      const bx = b.anchorX + cordLen * Math.sin(b.theta);
+      const by = topY + cordLen * Math.cos(b.theta);
+      if (Math.hypot(mx - bx, my - by) < ballR + 5) {
+        isDragging = true;
+        dragBallIdx = idx;
+        canvas.style.cursor = 'grabbing';
+      }
+    });
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    dragBallIdx = -1;
+    canvas.style.cursor = 'grab';
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging && dragBallIdx !== -1) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const b = balls[dragBallIdx];
+      const dx = mx - b.anchorX;
+      b.theta = Math.max(-0.8, Math.min(0.8, Math.asin(Math.max(-0.95, Math.min(0.95, dx / cordLen)))));
+      b.omega = 0;
+    }
+  });
+
+  sE.addEventListener('input', () => {
+    restitution = parseFloat(sE.value);
+    vE.textContent = restitution.toFixed(2);
+    telE.textContent = `${restitution.toFixed(2)} (${restitution > 0.95 ? 'Elastic' : 'Inelastic'})`;
+  });
+
+  sDrag.addEventListener('input', () => {
+    dragDamping = parseFloat(sDrag.value);
+    vDrag.textContent = dragDamping.toFixed(3);
+  });
+
+  document.querySelectorAll('.kmc-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.kmc-preset-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      const liftVal = btn.dataset.lift;
+      if (liftVal === 'dual') liftBalls(1, true);
+      else liftBalls(parseInt(liftVal, 10), false);
+    });
+  });
+
+  btnSound.addEventListener('click', () => {
+    isSoundOn = !isSoundOn;
+    btnSound.textContent = isSoundOn ? '🔊 Impact Click: ON' : '🔈 Impact Click: OFF';
+  });
+
+  btnReset.addEventListener('click', () => {
+    balls.forEach(b => { b.theta = 0; b.omega = 0; });
+  });
+
+  liftBalls(1, false);
+  requestAnimationFrame(render);
+})();
+</script>

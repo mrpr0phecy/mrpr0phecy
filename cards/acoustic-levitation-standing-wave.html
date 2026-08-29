@@ -1,0 +1,306 @@
+<h2 id="ual-title" style="margin-top:0;color:var(--accent);">🔊 Ultrasonic Acoustic Levitation</h2>
+
+<form aria-describedby="ual-desc" onsubmit="event.preventDefault();">
+  <p id="ual-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    40 kHz ultrasonic standing wave acoustic trap. Non-contact levitation of micro-beads and liquid droplets suspended in mid-air at acoustic pressure nodes.
+  </p>
+
+  <!-- Particle Material Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="ual-mat-btn active" data-mat="poly" data-col="#00ffcc" style="padding:4px 10px;border-radius:4px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Polystyrene Spheres</button>
+    <button type="button" class="ual-mat-btn" data-mat="water" data-col="#2dd4ff" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Pure Water Droplets</button>
+    <button type="button" class="ual-mat-btn" data-mat="gold" data-col="#ffd700" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Gold Micro-Flakes</button>
+  </div>
+
+  <!-- Interactive Acoustic Chamber Canvas -->
+  <div style="background:#02050b;border:1px solid rgba(0,255,204,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="ual-canvas" width="560" height="250" style="width:100%;height:250px;display:block;background:#010307;border-radius:6px;cursor:grab;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG LEVITATING PARTICLES BETWEEN ACOUSTIC NODES</span>
+      <span id="ual-trap-status" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Acoustic Gor'kov Trap Stable</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Radiation Pressure</div>
+      <div id="ual-tel-press" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">158 dB SPL</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Acoustic Wavelength</div>
+      <div id="ual-tel-wl" style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">λ = 8.57 mm</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Ultrasonic Frequency</div>
+      <div style="font-size:0.95rem;font-weight:bold;color:#2dd4ff;">40.0 kHz (Inaudible)</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Transducer Acoustic Power</span>
+        <span id="ual-val-power">85%</span>
+      </div>
+      <input type="range" id="ual-slider-power" min="0" max="100" value="85" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Harmonic Trap Count</span>
+        <span id="ual-val-nodes">5 Pressure Nodes</span>
+      </div>
+      <input type="range" id="ual-slider-nodes" min="3" max="7" step="2" value="5" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="ual-btn-inject" style="padding:6px 16px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;">✨ Inject Particle Column</button>
+    <button type="button" id="ual-btn-cut" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">Cut Power (Drop)</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('ual-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sPower = document.getElementById('ual-slider-power');
+  const sNodes = document.getElementById('ual-slider-nodes');
+  const vPower = document.getElementById('ual-val-power');
+  const vNodes = document.getElementById('ual-val-nodes');
+
+  const telPress = document.getElementById('ual-tel-press');
+  const trapStatus = document.getElementById('ual-trap-status');
+
+  const btnInject = document.getElementById('ual-btn-inject');
+  const btnCut = document.getElementById('ual-btn-cut');
+
+  let powerPercent = 85;
+  let nodeCount = 5;
+  let particleColor = '#00ffcc';
+
+  const topEmitterY = 32;
+  const bottomEmitterY = canvas.height - 32;
+  const chamberH = bottomEmitterY - topEmitterY;
+
+  // Levitating Particles
+  const particles = [];
+  let isDragging = false;
+  let dragParticle = null;
+
+  function getNodeYPositions() {
+    const arr = [];
+    for (let i = 1; i <= nodeCount; i++) {
+      arr.push(topEmitterY + (chamberH / (nodeCount + 1)) * i);
+    }
+    return arr;
+  }
+
+  function initParticles() {
+    particles.length = 0;
+    const nodes = getNodeYPositions();
+    const cx = canvas.width / 2;
+
+    nodes.forEach(ny => {
+      // 1 to 3 particles per node
+      particles.push({
+        x: cx + (Math.random() - 0.5) * 8,
+        y: ny + (Math.random() - 0.5) * 4,
+        vx: 0,
+        vy: 0,
+        r: 4.5
+      });
+    });
+  }
+
+  function render() {
+    ctx.fillStyle = '#010307';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const cx = W / 2;
+    const emitterW = 180;
+
+    // Top Piezo Transducer Horn
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(cx - emitterW / 2, topEmitterY - 14, emitterW, 14);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - emitterW / 2, topEmitterY - 14, emitterW, 14);
+
+    // Bottom Piezo Transducer Horn
+    ctx.fillRect(cx - emitterW / 2, bottomEmitterY, emitterW, 14);
+    ctx.strokeRect(cx - emitterW / 2, bottomEmitterY, emitterW, 14);
+
+    // Standing Sound Wave Visualizer (Translucent isobar glow)
+    const nodes = getNodeYPositions();
+    const k = (Math.PI * (nodeCount + 1)) / chamberH;
+
+    ctx.lineWidth = 1.2;
+    for (let y = topEmitterY; y <= bottomEmitterY; y += 3) {
+      // Standing wave pressure amplitude P(y) = cos(k * y)
+      const pVal = Math.cos(k * (y - topEmitterY));
+      const intensity = Math.abs(pVal) * (powerPercent / 100);
+
+      // Pressure antinodes glow red/amber; nodes (zero pressure) are dark / cyan
+      if (intensity > 0.05) {
+        ctx.fillStyle = `rgba(255, 100, 50, ${(intensity * 0.12).toFixed(3)})`;
+        ctx.fillRect(cx - emitterW / 2 + 10, y, emitterW - 20, 2);
+      }
+    }
+
+    // Node trap equilibrium dotted lines
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.35)';
+    nodes.forEach(ny => {
+      ctx.beginPath();
+      ctx.moveTo(cx - emitterW / 2 + 15, ny);
+      ctx.lineTo(cx + emitterW / 2 - 15, ny);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // Physics simulation for levitating particles
+    const g = 0.55; // gravity pulling downward
+    const kTrap = (powerPercent / 100) * 0.18; // acoustic radiation restoring force
+
+    particles.forEach(p => {
+      if (p === dragParticle) return;
+
+      // Find nearest acoustic pressure node
+      let nearestNodeY = nodes[0];
+      let minDy = Infinity;
+      nodes.forEach(ny => {
+        const dy = Math.abs(p.y - ny);
+        if (dy < minDy) {
+          minDy = dy;
+          nearestNodeY = ny;
+        }
+      });
+
+      if (powerPercent > 20) {
+        // Acoustic radiation force pushing towards node: F = -k * (y - ny)
+        const fy = -kTrap * (p.y - nearestNodeY) + g;
+        const fx = -0.05 * (p.x - cx); // lateral acoustic gradient centering force
+
+        p.vy = (p.vy + fy) * 0.88;
+        p.vx = (p.vx + fx) * 0.88;
+
+        p.x += p.vx;
+        p.y += p.vy;
+      } else {
+        // Power lost: Gravity drops particle to bottom horn
+        p.vy += g;
+        p.y += p.vy;
+        if (p.y > bottomEmitterY - p.r) {
+          p.y = bottomEmitterY - p.r;
+          p.vy = 0;
+          p.vx *= 0.8;
+        }
+        p.x += p.vx;
+      }
+
+      // Render glowing particle sphere
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = particleColor;
+      ctx.fillStyle = particleColor;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Specular gloss
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(p.x - 1.5, p.y - 1.5, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    if (powerPercent > 20) {
+      trapStatus.textContent = 'Acoustic Gor\'kov Trap Stable (Hovering)';
+      trapStatus.style.color = '#00ffcc';
+      telPress.textContent = `${Math.round(135 + (powerPercent * 0.25))} dB SPL`;
+    } else {
+      trapStatus.textContent = '⚠️ Insufficient Power: Gravity Collapse';
+      trapStatus.style.color = '#ff3366';
+      telPress.textContent = '0 dB (Off)';
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of suspended particles
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    particles.forEach(p => {
+      if (Math.hypot(mx - p.x, my - p.y) < p.r + 8) {
+        isDragging = true;
+        dragParticle = p;
+        canvas.style.cursor = 'grabbing';
+      }
+    });
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    dragParticle = null;
+    canvas.style.cursor = 'grab';
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging && dragParticle) {
+      const rect = canvas.getBoundingClientRect();
+      dragParticle.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      dragParticle.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      dragParticle.vx = 0;
+      dragParticle.vy = 0;
+    }
+  });
+
+  sPower.addEventListener('input', () => {
+    powerPercent = parseInt(sPower.value, 10);
+    vPower.textContent = `${powerPercent}%`;
+  });
+
+  sNodes.addEventListener('input', () => {
+    nodeCount = parseInt(sNodes.value, 10);
+    vNodes.textContent = `${nodeCount} Pressure Nodes`;
+    initParticles();
+  });
+
+  document.querySelectorAll('.ual-mat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ual-mat-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = `${btn.dataset.col}33`;
+      btn.style.borderColor = btn.dataset.col;
+      btn.style.color = btn.dataset.col;
+
+      particleColor = btn.dataset.col;
+    });
+  });
+
+  btnInject.addEventListener('click', initParticles);
+
+  btnCut.addEventListener('click', () => {
+    powerPercent = 0;
+    sPower.value = 0;
+    vPower.textContent = '0%';
+  });
+
+  initParticles();
+  requestAnimationFrame(render);
+})();
+</script>
