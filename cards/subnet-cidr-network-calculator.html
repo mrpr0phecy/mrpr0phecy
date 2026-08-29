@@ -1,0 +1,212 @@
+<h2 id="cidr-title" style="margin-top:0;color:var(--accent);">🌐 Subnet &amp; CIDR Calculator</h2>
+
+<form aria-describedby="cidr-desc" onsubmit="event.preventDefault();">
+  <p id="cidr-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Calculate IPv4 subnets, network boundaries, usable host ranges, and binary bit allocation. Essential for cloud VPCs, DevOps, and network routing.
+  </p>
+
+  <!-- Quick Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="cidr-preset" data-ip="192.168.1.1" data-cidr="24" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Home LAN (/24)</button>
+    <button type="button" class="cidr-preset" data-ip="10.0.0.0" data-cidr="16" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Cloud VPC (/16)</button>
+    <button type="button" class="cidr-preset" data-ip="172.16.0.0" data-cidr="20" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Corporate Subnet (/20)</button>
+    <button type="button" class="cidr-preset" data-ip="192.168.10.1" data-cidr="28" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Container Pod (/28)</button>
+    <button type="button" class="cidr-preset" data-ip="10.254.0.1" data-cidr="30" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Point-to-Point (/30)</button>
+  </div>
+
+  <!-- Input Row -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:14px;">
+    <div>
+      <label for="cidr-input-ip" style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">IPv4 Address</label>
+      <input type="text" id="cidr-input-ip" value="192.168.1.100" style="width:100%;padding:6px 10px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#00ffcc;font-family:monospace;font-size:0.85rem;box-sizing:border-box;">
+    </div>
+    <div>
+      <label for="cidr-input-mask" style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Prefix / CIDR</label>
+      <select id="cidr-input-mask" style="width:100%;padding:6px 8px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#ffd700;font-family:monospace;font-size:0.85rem;box-sizing:border-box;">
+        <!-- Populated via JS /1 to /32 -->
+      </select>
+    </div>
+  </div>
+
+  <!-- Calculated Core Boundaries -->
+  <div style="background:rgba(0,0,0,0.35);border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px;">NETWORK ADDRESS</div>
+        <div id="cidr-res-net" style="font-family:monospace;font-size:0.95rem;font-weight:bold;color:#00ffcc;">192.168.1.0</div>
+      </div>
+      <div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px;">BROADCAST ADDRESS</div>
+        <div id="cidr-res-broad" style="font-family:monospace;font-size:0.95rem;font-weight:bold;color:#ff6b9d;">192.168.1.255</div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;margin-bottom:8px;">
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px;">USABLE HOST RANGE (MIN – MAX)</div>
+      <div id="cidr-res-range" style="font-family:monospace;font-size:0.85rem;font-weight:bold;color:#2dd4ff;">192.168.1.1 – 192.168.1.254</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;font-size:0.75rem;">
+      <div>
+        <div style="color:var(--muted);font-size:0.65rem;">USABLE HOSTS</div>
+        <strong id="cidr-res-hosts" style="color:#ffd700;font-family:monospace;">254</strong>
+      </div>
+      <div>
+        <div style="color:var(--muted);font-size:0.65rem;">SUBNET MASK</div>
+        <strong id="cidr-res-mask" style="color:#e6faff;font-family:monospace;">255.255.255.0</strong>
+      </div>
+      <div>
+        <div style="color:var(--muted);font-size:0.65rem;">WILDCARD MASK</div>
+        <strong id="cidr-res-wildcard" style="color:#e6faff;font-family:monospace;">0.0.0.255</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Binary Bit Allocation Visualization -->
+  <div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;margin-bottom:12px;font-family:monospace;font-size:0.72rem;">
+    <div style="font-size:0.68rem;font-weight:bold;color:var(--accent);margin-bottom:6px;">32-BIT BINARY MASK BREAKDOWN:</div>
+    <div id="cidr-binary-display" style="word-break:break-all;line-height:1.6;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- Scope & Class Info Tag -->
+  <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--muted);">
+    <div>Scope: <strong id="cidr-info-scope" style="color:#00ffcc;">Private Network (RFC 1918)</strong></div>
+    <div>Class: <strong id="cidr-info-class" style="color:#ffd700;">Class C</strong></div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const ipInput = document.getElementById('cidr-input-ip');
+  const maskSelect = document.getElementById('cidr-input-mask');
+
+  const resNet = document.getElementById('cidr-res-net');
+  const resBroad = document.getElementById('cidr-res-broad');
+  const resRange = document.getElementById('cidr-res-range');
+  const resHosts = document.getElementById('cidr-res-hosts');
+  const resMask = document.getElementById('cidr-res-mask');
+  const resWild = document.getElementById('cidr-res-wildcard');
+  const binDisplay = document.getElementById('cidr-binary-display');
+  const infoScope = document.getElementById('cidr-info-scope');
+  const infoClass = document.getElementById('cidr-info-class');
+
+  // Populate CIDR dropdown
+  for (let i = 1; i <= 32; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    const count = i <= 30 ? Math.pow(2, 32 - i) - 2 : (i === 31 ? 2 : 1);
+    opt.textContent = `/${i} (${count.toLocaleString()} hosts)`;
+    if (i === 24) opt.selected = true;
+    maskSelect.appendChild(opt);
+  }
+
+  function ipToInt(ip) {
+    const parts = ip.split('.').map(Number);
+    if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return null;
+    return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  }
+
+  function intToIp(intVal) {
+    return [
+      (intVal >>> 24) & 255,
+      (intVal >>> 16) & 255,
+      (intVal >>> 8) & 255,
+      intVal & 255
+    ].join('.');
+  }
+
+  function toBinaryStr(intVal) {
+    return [
+      ((intVal >>> 24) & 255).toString(2).padStart(8, '0'),
+      ((intVal >>> 16) & 255).toString(2).padStart(8, '0'),
+      ((intVal >>> 8) & 255).toString(2).padStart(8, '0'),
+      (intVal & 255).toString(2).padStart(8, '0')
+    ].join('.');
+  }
+
+  function calculate() {
+    const ipStr = ipInput.value.trim();
+    const cidr = parseInt(maskSelect.value, 10);
+    const ipInt = ipToInt(ipStr);
+
+    if (ipInt === null) {
+      resNet.textContent = 'Invalid IPv4';
+      resBroad.textContent = '–';
+      resRange.textContent = '–';
+      return;
+    }
+
+    const maskInt = cidr === 0 ? 0 : ((0xFFFFFFFF << (32 - cidr)) >>> 0);
+    const wildcardInt = (~maskInt) >>> 0;
+
+    const netInt = (ipInt & maskInt) >>> 0;
+    const broadInt = (netInt | wildcardInt) >>> 0;
+
+    let minHostInt = netInt + 1;
+    let maxHostInt = broadInt - 1;
+    let usableCount = Math.max(0, Math.pow(2, 32 - cidr) - 2);
+
+    if (cidr === 31) {
+      minHostInt = netInt;
+      maxHostInt = broadInt;
+      usableCount = 2;
+    } else if (cidr === 32) {
+      minHostInt = netInt;
+      maxHostInt = netInt;
+      usableCount = 1;
+    }
+
+    resNet.textContent = intToIp(netInt);
+    resBroad.textContent = intToIp(broadInt);
+    resRange.textContent = `${intToIp(minHostInt)} – ${intToIp(maxHostInt)}`;
+    resHosts.textContent = usableCount.toLocaleString();
+    resMask.textContent = intToIp(maskInt);
+    resWild.textContent = intToIp(wildcardInt);
+
+    // Binary highlight
+    const binMask = toBinaryStr(maskInt);
+    const binIp = toBinaryStr(ipInt);
+
+    binDisplay.innerHTML = `
+      <div><span style="color:var(--muted)">IP Binary: </span><span style="color:#00ffcc;">${binIp}</span></div>
+      <div><span style="color:var(--muted)">Mask Bin:  </span><span style="color:#ffd700;">${binMask}</span></div>
+    `;
+
+    // Scope check
+    const p1 = (ipInt >>> 24) & 255;
+    const p2 = (ipInt >>> 16) & 255;
+
+    let scope = 'Public Internet';
+    if (p1 === 10) scope = 'Private (RFC 1918 Class A)';
+    else if (p1 === 172 && p2 >= 16 && p2 <= 31) scope = 'Private (RFC 1918 Class B)';
+    else if (p1 === 192 && p2 === 168) scope = 'Private (RFC 1918 Class C)';
+    else if (p1 === 127) scope = 'Loopback (Localhost)';
+    else if (p1 === 169 && p2 === 254) scope = 'Link-Local (APIPA)';
+
+    infoScope.textContent = scope;
+
+    // Class check
+    let cls = 'Class A';
+    if (p1 >= 128 && p1 <= 191) cls = 'Class B';
+    else if (p1 >= 192 && p1 <= 223) cls = 'Class C';
+    else if (p1 >= 224 && p1 <= 239) cls = 'Class D (Multicast)';
+    else if (p1 >= 240) cls = 'Class E (Experimental)';
+    infoClass.textContent = cls;
+  }
+
+  ipInput.addEventListener('input', calculate);
+  maskSelect.addEventListener('change', calculate);
+
+  document.querySelectorAll('.cidr-preset').forEach(b => {
+    b.addEventListener('click', () => {
+      ipInput.value = b.dataset.ip;
+      maskSelect.value = b.dataset.cidr;
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>

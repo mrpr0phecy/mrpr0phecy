@@ -1,0 +1,154 @@
+<h2 id="lpc-title" style="margin-top:0;color:var(--accent);">💬 LLM Prompt Token Counter</h2>
+
+<form aria-describedby="lpc-desc" onsubmit="event.preventDefault();">
+  <p id="lpc-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Estimate LLM token usage, calculate API cost per query, and compress prompt text to eliminate token waste and latency.
+  </p>
+
+  <!-- Big Token Metric Display -->
+  <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(45,212,255,0.35);border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:2px;">ESTIMATED TOKENS (BPE)</div>
+      <div id="lpc-stat-tokens" style="font-family:monospace;font-size:2.4rem;font-weight:900;color:#00ffcc;line-height:1;">0</div>
+    </div>
+    <div style="display:flex;gap:12px;font-size:0.75rem;font-family:monospace;color:#e6faff;">
+      <div style="background:rgba(255,255,255,0.04);padding:6px 10px;border-radius:6px;text-align:right;">
+        <div style="color:var(--muted);font-size:0.65rem;">FLAGSHIP TIER</div>
+        <strong id="lpc-cost-flagship" style="color:#ffd700;">$0.0000</strong>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);padding:6px 10px;border-radius:6px;text-align:right;">
+        <div style="color:var(--muted);font-size:0.65rem;">MINI / FAST TIER</div>
+        <strong id="lpc-cost-mini" style="color:#2dd4ff;">$0.0000</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prompt Input Textarea -->
+  <div style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <label for="lpc-input-text" style="font-size:0.72rem;color:var(--muted);">System Prompt &amp; User Message</label>
+      <div style="display:flex;gap:6px;">
+        <button type="button" id="lpc-btn-compress" style="padding:2px 8px;border-radius:4px;background:rgba(0,255,204,0.15);border:1px solid #00ffcc;color:#00ffcc;font-size:0.7rem;cursor:pointer;font-weight:bold;">⚡ Auto-Compress Prompt</button>
+        <button type="button" id="lpc-btn-sample" style="padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--accent);font-size:0.7rem;cursor:pointer;">Load Sample</button>
+        <button type="button" id="lpc-btn-clear" style="padding:2px 8px;border-radius:4px;background:none;border:none;color:#ff6b6b;font-size:0.7rem;cursor:pointer;">Clear</button>
+      </div>
+    </div>
+    <textarea id="lpc-input-text" rows="8" style="width:100%;font-family:monospace;font-size:0.78rem;padding:8px 10px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#fff;box-sizing:border-box;line-height:1.4;resize:vertical;" placeholder="Paste prompt text here to calculate tokens and cost..."></textarea>
+  </div>
+
+  <!-- Secondary Metrics Grid -->
+  <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:12px;background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);font-size:0.72rem;text-align:center;">
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">WORDS</div>
+      <strong id="lpc-stat-words" style="color:#e6faff;font-family:monospace;">0</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">CHARS</div>
+      <strong id="lpc-stat-chars" style="color:#e6faff;font-family:monospace;">0</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">CHARS / TOKEN</div>
+      <strong id="lpc-stat-ratio" style="color:#ffd700;font-family:monospace;">0.0</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">READ TIME</div>
+      <strong id="lpc-stat-read" style="color:#2dd4ff;font-family:monospace;">0s</strong>
+    </div>
+  </div>
+
+  <!-- Token Optimization Advice Box -->
+  <div id="lpc-advice-box" style="background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);border-radius:6px;padding:10px;font-size:0.72rem;color:#e6faff;line-height:1.4;">
+    💡 <strong>Optimization Tip:</strong> Removing conversational pleasantries ("Please", "Could you kindly", "Thank you very much") preserves reasoning quality while saving ~15–25% on token costs and latency.
+  </div>
+</form>
+
+<script>
+(function() {
+  const inputEl = document.getElementById('lpc-input-text');
+  const statTokens = document.getElementById('lpc-stat-tokens');
+  const costFlagship = document.getElementById('lpc-cost-flagship');
+  const costMini = document.getElementById('lpc-cost-mini');
+
+  const statWords = document.getElementById('lpc-stat-words');
+  const statChars = document.getElementById('lpc-stat-chars');
+  const statRatio = document.getElementById('lpc-stat-ratio');
+  const statRead = document.getElementById('lpc-stat-read');
+
+  // BPE Tokenizer approximation (cl100k)
+  // Average English: ~4 characters per token or ~0.75 words per token
+  function estimateTokens(text) {
+    if (!text) return 0;
+    // Word boundary + punctuation matching heuristic
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    const punctuation = (text.match(/[,.;:!?'"()\[\]{}]/g) || []).length;
+    const numbers = (text.match(/[0-9]+/g) || []).length;
+    const special = (text.match(/[^a-zA-Z0-9\s,.;:!?'"()\[\]{}]/g) || []).length;
+
+    // Rule of thumb: words + 0.5 * punctuation + numbers + special characters
+    const estimated = Math.round(words.length * 1.25 + punctuation * 0.4 + numbers * 0.8 + special * 1.5);
+    return Math.max(words.length, estimated);
+  }
+
+  function update() {
+    const text = inputEl.value;
+    const tokens = estimateTokens(text);
+    const chars = text.length;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+
+    statTokens.textContent = tokens.toLocaleString();
+    statChars.textContent = chars.toLocaleString();
+    statWords.textContent = words.toLocaleString();
+
+    const ratio = tokens > 0 ? (chars / tokens).toFixed(2) : '0.0';
+    statRatio.textContent = ratio;
+
+    // Reading time (220 wpm)
+    const readSecs = Math.round((words / 220) * 60);
+    statRead.textContent = readSecs >= 60 ? `${Math.round(readSecs/60)}m` : `${readSecs}s`;
+
+    // Cost estimation per query:
+    // Flagship: $2.50 per 1M input tokens ($0.0000025 / token)
+    // Mini: $0.15 per 1M input tokens ($0.00000015 / token)
+    const cFlag = tokens * 0.0000025;
+    const cMini = tokens * 0.00000015;
+
+    costFlagship.textContent = '$' + cFlag.toFixed(5);
+    costMini.textContent = '$' + cMini.toFixed(6);
+  }
+
+  inputEl.addEventListener('input', update);
+
+  document.getElementById('lpc-btn-sample').addEventListener('click', () => {
+    inputEl.value = `You are an elite software architecture consultant. Please could you kindly review the following TypeScript microservices repository and identify any potential security vulnerabilities, race conditions, or memory leaks? I would be extremely grateful if you could provide detailed remediation steps and explain your reasoning step by step. Thank you very much!`;
+    update();
+  });
+
+  document.getElementById('lpc-btn-clear').addEventListener('click', () => {
+    inputEl.value = '';
+    update();
+  });
+
+  // Prompt compression: strip conversational fluff
+  document.getElementById('lpc-btn-compress').addEventListener('click', () => {
+    let text = inputEl.value;
+    const fluff = [
+      /\bplease could you kindly\b/gi,
+      /\bcould you please\b/gi,
+      /\bplease\b/gi,
+      /\bi would be extremely grateful if you could\b/gi,
+      /\bi would appreciate it if you\b/gi,
+      /\bthank you very much!?\b/gi,
+      /\bthanks in advance!?\b/gi,
+      /\bhello,\s*/gi,
+      /\bhi there,\s*/gi
+    ];
+    fluff.forEach(re => text = text.replace(re, ''));
+    // clean multiple spaces
+    text = text.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    inputEl.value = text;
+    update();
+  });
+
+  document.getElementById('lpc-btn-sample').click();
+})();
+</script>

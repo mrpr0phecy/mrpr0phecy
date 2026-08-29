@@ -1,0 +1,172 @@
+<h2 id="rts-title" style="margin-top:0;color:var(--accent);">⚡ Regex Transform Studio</h2>
+
+<form aria-describedby="rts-desc" onsubmit="event.preventDefault();">
+  <p id="rts-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Search, replace, extract capture groups, and batch-transform text with real-time regular expression pattern matching.
+  </p>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="rts-preset" data-pat="<[^>]+>" data-rep="" data-flags="g" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Strip HTML</button>
+    <button type="button" class="rts-preset" data-pat="^([a-z]+)_([a-z]+)" data-rep="$1-$2" data-flags="gm" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">snake_case ➔ kebab</button>
+    <button type="button" class="rts-preset" data-pat="[ \t]+" data-rep=" " data-flags="g" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Collapse Spaces</button>
+    <button type="button" class="rts-preset" data-pat="^(.*)$" data-rep="\"$1\"," data-flags="gm" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Quote Lines</button>
+    <button type="button" class="rts-preset" data-pat="https?://[^\s\"']+" data-rep="[LINK: $&]" data-flags="g" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Wrap URLs</button>
+  </div>
+
+  <!-- Regex Pattern & Replacement Row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <!-- Pattern Input -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <label for="rts-pat-input" style="font-size:0.72rem;color:var(--muted);">Regular Expression Pattern</label>
+        <div style="display:flex;gap:4px;font-size:0.7rem;color:var(--accent);">
+          <label style="cursor:pointer;"><input type="checkbox" id="rts-flag-g" checked> g</label>
+          <label style="cursor:pointer;"><input type="checkbox" id="rts-flag-i"> i</label>
+          <label style="cursor:pointer;"><input type="checkbox" id="rts-flag-m" checked> m</label>
+        </div>
+      </div>
+      <input type="text" id="rts-pat-input" value="(\w+)@(\w+\.\w+)" placeholder="e.g. (\w+)" style="width:100%;padding:6px 10px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#00ffcc;font-family:monospace;font-size:0.85rem;box-sizing:border-box;">
+    </div>
+
+    <!-- Replacement Input -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <label for="rts-rep-input" style="font-size:0.72rem;color:var(--muted);">Replacement String (Supports $1, $2)</label>
+        <span id="rts-match-count" style="font-size:0.7rem;color:#ffd700;font-weight:bold;">0 matches</span>
+      </div>
+      <input type="text" id="rts-rep-input" value="[USER: $1 | DOMAIN: $2]" placeholder="e.g. $1" style="width:100%;padding:6px 10px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#ffd700;font-family:monospace;font-size:0.85rem;box-sizing:border-box;">
+    </div>
+  </div>
+
+  <!-- Dual Text Areas: Input vs Output -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <!-- Input Source Text -->
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:0.72rem;color:var(--muted);">
+        <span>Source Text</span>
+        <button type="button" id="rts-btn-sample" style="background:none;border:none;color:var(--accent);cursor:pointer;">Load Sample</button>
+      </div>
+      <textarea id="rts-source-text" rows="8" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.12);color:#fff;box-sizing:border-box;resize:vertical;" placeholder="Paste text here..."></textarea>
+    </div>
+
+    <!-- Transformed Output Text -->
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:0.72rem;color:var(--muted);">
+        <span>Transformed Output</span>
+        <button type="button" id="rts-btn-copy" style="background:none;border:none;color:#00ffcc;font-weight:bold;cursor:pointer;">Copy Output</button>
+      </div>
+      <textarea id="rts-output-text" readonly rows="8" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(0,255,204,0.3);color:#00ffcc;box-sizing:border-box;resize:vertical;"></textarea>
+    </div>
+  </div>
+
+  <!-- Quick Text Case Helpers -->
+  <div style="display:flex;gap:6px;align-items:center;background:rgba(0,0,0,0.25);padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);flex-wrap:wrap;font-size:0.72rem;">
+    <span style="color:var(--muted);">One-Click Case:</span>
+    <button type="button" id="rts-case-lower" style="padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;cursor:pointer;">lowercase</button>
+    <button type="button" id="rts-case-upper" style="padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;cursor:pointer;">UPPERCASE</button>
+    <button type="button" id="rts-case-title" style="padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;cursor:pointer;">Title Case</button>
+    <button type="button" id="rts-case-dedup" style="padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;cursor:pointer;">Remove Duplicate Lines</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const patInput = document.getElementById('rts-pat-input');
+  const repInput = document.getElementById('rts-rep-input');
+  const sourceText = document.getElementById('rts-source-text');
+  const outputText = document.getElementById('rts-output-text');
+  const matchCount = document.getElementById('rts-match-count');
+
+  const flagG = document.getElementById('rts-flag-g');
+  const flagI = document.getElementById('rts-flag-i');
+  const flagM = document.getElementById('rts-flag-m');
+
+  function getFlags() {
+    let f = '';
+    if (flagG.checked) f += 'g';
+    if (flagI.checked) f += 'i';
+    if (flagM.checked) f += 'm';
+    return f;
+  }
+
+  function transform() {
+    const rawPat = patInput.value;
+    const rep = repInput.value;
+    const text = sourceText.value;
+
+    if (!rawPat) {
+      outputText.value = text;
+      matchCount.textContent = '0 matches';
+      return;
+    }
+
+    try {
+      const regex = new RegExp(rawPat, getFlags());
+      const matches = text.match(regex);
+      matchCount.textContent = matches ? `${matches.length} match${matches.length === 1 ? '' : 'es'}` : '0 matches';
+
+      const result = text.replace(regex, rep);
+      outputText.value = result;
+      patInput.style.borderColor = 'rgba(255,255,255,0.15)';
+    } catch(e) {
+      matchCount.textContent = 'Invalid Regex';
+      patInput.style.borderColor = '#ff6b6b';
+    }
+  }
+
+  [patInput, repInput, sourceText, flagG, flagI, flagM].forEach(el => {
+    el.addEventListener('input', transform);
+    el.addEventListener('change', transform);
+  });
+
+  document.querySelectorAll('.rts-preset').forEach(b => {
+    b.addEventListener('click', () => {
+      patInput.value = b.dataset.pat;
+      repInput.value = b.dataset.rep;
+      const flags = b.dataset.flags || 'g';
+      flagG.checked = flags.includes('g');
+      flagI.checked = flags.includes('i');
+      flagM.checked = flags.includes('m');
+      transform();
+    });
+  });
+
+  document.getElementById('rts-btn-sample').addEventListener('click', () => {
+    sourceText.value = `Contact the dev team at admin@themostusefulsiteintheworld.com or support@mrprophecy.cloud.
+Also reach out to sales@example.org for partnership queries.`;
+    patInput.value = '([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})';
+    repInput.value = '[ID: $1 | HOST: $2]';
+    transform();
+  });
+
+  document.getElementById('rts-btn-copy').addEventListener('click', () => {
+    navigator.clipboard.writeText(outputText.value);
+    const b = document.getElementById('rts-btn-copy');
+    b.textContent = '✓ Copied';
+    setTimeout(() => b.textContent = 'Copy Output', 1500);
+  });
+
+  // Case helpers
+  document.getElementById('rts-case-lower').addEventListener('click', () => {
+    sourceText.value = sourceText.value.toLowerCase();
+    transform();
+  });
+  document.getElementById('rts-case-upper').addEventListener('click', () => {
+    sourceText.value = sourceText.value.toUpperCase();
+    transform();
+  });
+  document.getElementById('rts-case-title').addEventListener('click', () => {
+    sourceText.value = sourceText.value.replace(/\b\w/g, c => c.toUpperCase());
+    transform();
+  });
+  document.getElementById('rts-case-dedup').addEventListener('click', () => {
+    const lines = sourceText.value.split('\n');
+    sourceText.value = Array.from(new Set(lines)).join('\n');
+    transform();
+  });
+
+  // Initialize Sample
+  document.getElementById('rts-btn-sample').click();
+})();
+</script>

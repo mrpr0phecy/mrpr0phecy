@@ -1,0 +1,200 @@
+<h2 id="spv-title" style="margin-top:0;color:var(--accent);">📐 SVG Path Visualizer</h2>
+
+<form aria-describedby="spv-desc" onsubmit="event.preventDefault();">
+  <p id="spv-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Inspect, edit, and optimize SVG path data (d="...") in real time. Visualizes anchor nodes, control handles, bounding box, and minified code.
+  </p>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="spv-preset" data-path="M 50 15 C 20 15, 10 45, 10 65 C 10 95, 50 125, 100 160 C 150 125, 190 95, 190 65 C 190 45, 180 15, 150 15 C 120 15, 105 35, 100 45 C 95 35, 80 15, 50 15 Z" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Heart</button>
+    <button type="button" class="spv-preset" data-path="M 100 10 L 125 70 L 190 70 L 138 110 L 158 175 L 100 135 L 42 175 L 62 110 L 10 70 L 75 70 Z" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Star</button>
+    <button type="button" class="spv-preset" data-path="M 100 20 L 180 50 L 180 110 C 180 150, 140 180, 100 195 C 60 180, 20 150, 20 110 L 20 50 Z" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Shield</button>
+    <button type="button" class="spv-preset" data-path="M 20 100 Q 60 30, 100 100 T 180 100" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Smooth Wave</button>
+    <button type="button" class="spv-preset" data-path="M 30 100 L 80 150 L 170 50" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Checkmark</button>
+  </div>
+
+  <!-- Interactive SVG Canvas Display -->
+  <div style="background:#060a0f;border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:10px;text-align:center;margin-bottom:12px;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-bottom:6px;">
+      <span>INTERACTIVE SVG VIEWPORT (200 × 200)</span>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+          <input type="checkbox" id="spv-chk-nodes" checked> Show Nodes
+        </label>
+        <label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+          <input type="checkbox" id="spv-chk-fill" checked> Fill
+        </label>
+      </div>
+    </div>
+
+    <!-- SVG Element -->
+    <svg id="spv-svg" viewBox="0 0 200 200" width="100%" height="200" style="background:#090d14;border-radius:6px;border:1px dashed rgba(255,255,255,0.1);max-width:320px;margin:0 auto;display:block;">
+      <!-- Grid Lines -->
+      <defs>
+        <pattern id="spv-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255, 255, 255, 0.04)" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect width="200" height="200" fill="url(#spv-grid)"/>
+
+      <!-- Path under inspection -->
+      <path id="spv-main-path" d="" fill="rgba(0, 255, 204, 0.15)" stroke="#00ffcc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <!-- Dynamic Nodes Layer -->
+      <g id="spv-nodes-layer"></g>
+    </svg>
+  </div>
+
+  <!-- Path Input Data -->
+  <div style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <label for="spv-input-path" style="font-size:0.72rem;color:var(--muted);">Path Data (d attribute)</label>
+      <div style="display:flex;gap:6px;">
+        <button type="button" id="spv-btn-round" style="padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--accent);font-size:0.7rem;cursor:pointer;">Round Decimals (1dp)</button>
+        <button type="button" id="spv-btn-copy" style="padding:2px 8px;border-radius:4px;background:rgba(0,255,204,0.15);border:1px solid #00ffcc;color:#00ffcc;font-size:0.7rem;cursor:pointer;">Copy Path</button>
+      </div>
+    </div>
+    <textarea id="spv-input-path" rows="3" style="width:100%;font-family:monospace;font-size:0.78rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#ffd700;box-sizing:border-box;resize:vertical;"></textarea>
+  </div>
+
+  <!-- Geometric Stats Bar -->
+  <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:12px;background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);font-size:0.72rem;text-align:center;">
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">WIDTH</div>
+      <strong id="spv-stat-w" style="color:#e6faff;font-family:monospace;">0 px</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">HEIGHT</div>
+      <strong id="spv-stat-h" style="color:#e6faff;font-family:monospace;">0 px</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">LENGTH</div>
+      <strong id="spv-stat-len" style="color:#2dd4ff;font-family:monospace;">0 px</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">NODES</div>
+      <strong id="spv-stat-nodes" style="color:#00ffcc;font-family:monospace;">0</strong>
+    </div>
+  </div>
+
+  <!-- Export Actions -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="spv-btn-download" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">Download .SVG File</button>
+    <button type="button" id="spv-btn-center" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Fit &amp; Center Path</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const inputPath = document.getElementById('spv-input-path');
+  const mainPath = document.getElementById('spv-main-path');
+  const nodesLayer = document.getElementById('spv-nodes-layer');
+  const chkNodes = document.getElementById('spv-chk-nodes');
+  const chkFill = document.getElementById('spv-chk-fill');
+
+  const statW = document.getElementById('spv-stat-w');
+  const statH = document.getElementById('spv-stat-h');
+  const statLen = document.getElementById('spv-stat-len');
+  const statNodes = document.getElementById('spv-stat-nodes');
+
+  function renderPath() {
+    const d = inputPath.value.trim();
+    mainPath.setAttribute('d', d);
+    mainPath.setAttribute('fill', chkFill.checked ? 'rgba(0, 255, 204, 0.15)' : 'none');
+
+    nodesLayer.innerHTML = '';
+
+    try {
+      const bbox = mainPath.getBBox();
+      const len = mainPath.getTotalLength();
+
+      statW.textContent = Math.round(bbox.width) + ' px';
+      statH.textContent = Math.round(bbox.height) + ' px';
+      statLen.textContent = Math.round(len) + ' px';
+
+      // Extract node coordinates from numbers
+      const matches = d.match(/[-+]?[0-9]*\.?[0-9]+/g) || [];
+      const nodeCount = Math.floor(matches.length / 2);
+      statNodes.textContent = nodeCount;
+
+      if (chkNodes.checked && matches.length >= 2) {
+        for (let i = 0; i < matches.length; i += 2) {
+          const x = parseFloat(matches[i]);
+          const y = parseFloat(matches[i+1]);
+          if (!isNaN(x) && !isNaN(y)) {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', '3.5');
+            circle.setAttribute('fill', '#ff6b9d');
+            circle.setAttribute('stroke', '#fff');
+            circle.setAttribute('stroke-width', '1');
+            nodesLayer.appendChild(circle);
+          }
+        }
+      }
+    } catch(e) {
+      statW.textContent = '–';
+      statH.textContent = '–';
+      statLen.textContent = '–';
+    }
+  }
+
+  inputPath.addEventListener('input', renderPath);
+  chkNodes.addEventListener('change', renderPath);
+  chkFill.addEventListener('change', renderPath);
+
+  document.querySelectorAll('.spv-preset').forEach(b => {
+    b.addEventListener('click', () => {
+      inputPath.value = b.dataset.path;
+      renderPath();
+    });
+  });
+
+  document.getElementById('spv-btn-round').addEventListener('click', () => {
+    const rounded = inputPath.value.replace(/[-+]?[0-9]*\.?[0-9]+/g, num => {
+      const n = parseFloat(num);
+      return Math.round(n * 10) / 10;
+    });
+    inputPath.value = rounded;
+    renderPath();
+  });
+
+  document.getElementById('spv-btn-copy').addEventListener('click', () => {
+    navigator.clipboard.writeText(inputPath.value);
+    const b = document.getElementById('spv-btn-copy');
+    b.textContent = '✓ Copied';
+    setTimeout(() => b.textContent = 'Copy Path', 1500);
+  });
+
+  document.getElementById('spv-btn-download').addEventListener('click', () => {
+    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">\n  <path d="${inputPath.value}" fill="${chkFill.checked ? '#00ffcc' : 'none'}" stroke="#00ffcc" stroke-width="2"/>\n</svg>`;
+    const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'vector-path.svg';
+    a.click();
+  });
+
+  document.getElementById('spv-btn-center').addEventListener('click', () => {
+    try {
+      const bbox = mainPath.getBBox();
+      if (bbox.width > 0 && bbox.height > 0) {
+        const cx = bbox.x + bbox.width / 2;
+        const cy = bbox.y + bbox.height / 2;
+        const dx = 100 - cx;
+        const dy = 100 - cy;
+        const shifted = inputPath.value.replace(/([0-9.]+)\s+([0-9.]+)/g, (match, x, y) => {
+          return `${(parseFloat(x) + dx).toFixed(1)} ${(parseFloat(y) + dy).toFixed(1)}`;
+        });
+        inputPath.value = shifted;
+        renderPath();
+      }
+    } catch(e) {}
+  });
+
+  // Default preset
+  document.querySelector('.spv-preset').click();
+})();
+</script>

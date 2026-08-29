@@ -1,0 +1,191 @@
+<h2 id="mdf-title" style="margin-top:0;color:var(--accent);">📄 Markdown Document Forge</h2>
+
+<form aria-describedby="mdf-desc" onsubmit="event.preventDefault();">
+  <p id="mdf-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Transform raw Markdown into publication-ready corporate memos, academic whitepapers, and printable PDFs with 1-click browser export.
+  </p>
+
+  <!-- Controls & Style Toolbar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span style="font-size:0.72rem;color:var(--muted);">Theme:</span>
+      <select id="mdf-theme-select" style="padding:4px 8px;border-radius:4px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;">
+        <option value="whitepaper">Executive Whitepaper (Light)</option>
+        <option value="github">Modern Developer (Neutral)</option>
+        <option value="cyber" selected>Cyber Tech (Dark)</option>
+      </select>
+      <button type="button" id="mdf-btn-sample" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#e6faff;font-size:0.72rem;cursor:pointer;">Load Template</button>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="mdf-btn-copy-html" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.15);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;cursor:pointer;">Copy HTML</button>
+      <button type="button" id="mdf-btn-print" style="padding:4px 12px;border-radius:4px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-weight:bold;font-size:0.75rem;cursor:pointer;">🖨️ Print / Save PDF</button>
+    </div>
+  </div>
+
+  <!-- Dual Split Panes: Editor vs Rendered Document -->
+  <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:12px;margin-bottom:12px;">
+    <!-- Raw Markdown Input -->
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:0.7rem;color:var(--muted);">
+        <span>MARKDOWN SOURCE</span>
+        <span id="mdf-word-count">0 words</span>
+      </div>
+      <textarea id="mdf-input-md" rows="14" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px 10px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#ffd700;line-height:1.4;box-sizing:border-box;resize:vertical;" placeholder="# Title&#10;&#10;Write markdown here..."></textarea>
+    </div>
+
+    <!-- Live Rendered Document Viewport -->
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:0.7rem;color:var(--muted);">
+        <span>LIVE DOCUMENT PREVIEW</span>
+        <span style="color:#00ffcc;">Formatted</span>
+      </div>
+      <div id="mdf-preview" style="height:280px;overflow-y:auto;padding:16px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);box-sizing:border-box;line-height:1.6;font-size:0.85rem;">
+        <!-- Populated via JS -->
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const inputMd = document.getElementById('mdf-input-md');
+  const preview = document.getElementById('mdf-preview');
+  const themeSelect = document.getElementById('mdf-theme-select');
+  const wordCount = document.getElementById('mdf-word-count');
+  const btnPrint = document.getElementById('mdf-btn-print');
+  const btnCopy = document.getElementById('mdf-btn-copy-html');
+
+  // Lightweight standalone Markdown parser (handles headings, bold, italic, lists, blockquotes, code, tables, links)
+  function parseMarkdown(md) {
+    let html = md;
+    // Escape angle brackets that aren't tags
+    html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Code blocks ``` ... ```
+    html = html.replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre style="background:rgba(0,0,0,0.5);padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);overflow-x:auto;"><code>$2</code></pre>');
+
+    // Inline code `...`
+    html = html.replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.85em;">$1</code>');
+
+    // Headings #, ##, ###
+    html = html.replace(/^### (.*$)/gim, '<h3 style="margin:16px 0 6px 0;font-size:1.1em;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2 style="margin:20px 0 8px 0;font-size:1.3em;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:4px;">$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1 style="margin:0 0 12px 0;font-size:1.6em;letter-spacing:-0.5px;">$1</h1>');
+
+    // Blockquotes >
+    html = html.replace(/^\> (.*$)/gim, '<blockquote style="margin:10px 0;padding:8px 14px;border-left:4px solid #2dd4ff;background:rgba(45,212,255,0.06);border-radius:0 4px 4px 0;font-style:italic;">$1</blockquote>');
+
+    // Bold & Italic
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+    // Unordered lists - or *
+    html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li style="margin-left:20px;">$1</li>');
+
+    // Paragraphs
+    html = html.replace(/\n\n+/g, '</p><p style="margin:10px 0;">');
+    html = '<p style="margin:10px 0;">' + html + '</p>';
+
+    return html;
+  }
+
+  function applyTheme() {
+    const t = themeSelect.value;
+    if (t === 'whitepaper') {
+      preview.style.background = '#fcfdfd';
+      preview.style.color = '#111827';
+      preview.style.fontFamily = 'Georgia, serif';
+      preview.style.border = '1px solid #d1d5db';
+    } else if (t === 'github') {
+      preview.style.background = '#0d1117';
+      preview.style.color = '#c9d1d9';
+      preview.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      preview.style.border = '1px solid #30363d';
+    } else {
+      // cyber
+      preview.style.background = '#080e14';
+      preview.style.color = '#e6faff';
+      preview.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+      preview.style.border = '1px solid rgba(45,212,255,0.3)';
+    }
+  }
+
+  function render() {
+    const md = inputMd.value;
+    preview.innerHTML = parseMarkdown(md);
+    const words = md.trim() ? md.trim().split(/\s+/).length : 0;
+    wordCount.textContent = `${words} word${words === 1 ? '' : 's'}`;
+  }
+
+  inputMd.addEventListener('input', render);
+  themeSelect.addEventListener('change', () => {
+    applyTheme();
+    render();
+  });
+
+  document.getElementById('mdf-btn-sample').addEventListener('click', () => {
+    inputMd.value = `# Technical Architecture Memorandum
+
+## 1. Executive Summary
+This document specifies the deployment criteria for zero-dependency distributed web utilities. All runtime operations execute **entirely client-side**, guaranteeing zero database latency and strict user data privacy.
+
+> "Simplicity is the prerequisite for reliability."
+
+## 2. Key Capabilities
+- **Zero Latency:** Direct browser execution via Web APIs.
+- **Offline Resilience:** Fully functional without active network access.
+- **Zero Subscriptions:** Free perpetually without recurring overhead.
+
+\`\`\`javascript
+function auditSystemHealth() {
+  return { status: "NOMINAL", uptimePct: 100 };
+}
+\`\`\`
+
+## 3. Implementation Milestones
+- Phase 1: Core algorithmic verification.
+- Phase 2: Responsive glassmorphism interface integration.
+- Phase 3: Global zero-cost delivery.`;
+    render();
+  });
+
+  btnCopy.addEventListener('click', () => {
+    navigator.clipboard.writeText(preview.innerHTML);
+    btnCopy.textContent = '✓ Copied';
+    setTimeout(() => btnCopy.textContent = 'Copy HTML', 1500);
+  });
+
+  btnPrint.addEventListener('click', () => {
+    const printWin = window.open('', '_blank');
+    const bg = themeSelect.value === 'whitepaper' ? '#fff' : '#080e14';
+    const color = themeSelect.value === 'whitepaper' ? '#000' : '#fff';
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Document Print</title>
+        <style>
+          @page { margin: 1.5cm; }
+          body { font-family: system-ui, sans-serif; line-height: 1.6; color: ${color}; background: ${bg}; max-width: 800px; margin: 0 auto; padding: 20px; }
+          h1, h2, h3 { color: inherit; }
+          code, pre { font-family: monospace; }
+        </style>
+      </head>
+      <body>
+        ${preview.innerHTML}
+      </body>
+      </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      printWin.print();
+      printWin.close();
+    }, 250);
+  });
+
+  applyTheme();
+  document.getElementById('mdf-btn-sample').click();
+})();
+</script>

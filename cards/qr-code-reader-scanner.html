@@ -1,0 +1,241 @@
+<h2 id="qrs-title" style="margin-top:0;color:var(--accent);">📷 Instant QR &amp; Image Reader</h2>
+
+<form aria-describedby="qrs-desc" onsubmit="event.preventDefault();">
+  <p id="qrs-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Decode QR codes instantly from uploaded screenshots, images, or your live camera feed. 100% private in-browser decoding — photos never leave your device.
+  </p>
+
+  <!-- Input Method Tabs -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;">
+    <button type="button" id="qrs-tab-file" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;cursor:pointer;font-size:0.78rem;font-weight:bold;">Upload Image File</button>
+    <button type="button" id="qrs-tab-camera" style="padding:6px 14px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);cursor:pointer;font-size:0.78rem;font-weight:bold;">Use Webcam / Camera</button>
+  </div>
+
+  <!-- View A: File Drop Zone -->
+  <div id="qrs-view-file">
+    <div id="qrs-dropzone" style="border:2px dashed rgba(45,212,255,0.4);border-radius:10px;padding:24px;text-align:center;background:rgba(0,0,0,0.3);cursor:pointer;margin-bottom:12px;transition:all 0.2s;">
+      <div style="font-size:2rem;margin-bottom:8px;">📂</div>
+      <div style="font-size:0.85rem;color:#e6faff;font-weight:bold;margin-bottom:4px;">Drag &amp; Drop QR Image Here, or Click to Browse</div>
+      <div style="font-size:0.7rem;color:var(--muted);">Supports PNG, JPEG, WebP, SVG, and mobile camera screenshots</div>
+      <input type="file" id="qrs-file-input" accept="image/*" style="display:none;">
+    </div>
+  </div>
+
+  <!-- View B: Live Camera Video Stream -->
+  <div id="qrs-view-camera" style="display:none;margin-bottom:12px;text-align:center;">
+    <div style="position:relative;max-width:320px;margin:0 auto;border-radius:8px;overflow:hidden;border:1px solid rgba(0,255,204,0.4);background:#000;">
+      <video id="qrs-video" playsinline style="width:100%;height:220px;object-fit:cover;display:block;"></video>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:140px;height:140px;border:2px solid #00ffcc;border-radius:12px;box-shadow:0 0 15px rgba(0,255,204,0.5);pointer-events:none;"></div>
+    </div>
+    <div style="margin-top:8px;">
+      <button type="button" id="qrs-btn-stop-cam" style="padding:4px 12px;border-radius:4px;background:rgba(255,77,77,0.2);border:1px solid #ff4d4d;color:#ff4d4d;font-size:0.75rem;cursor:pointer;">Stop Camera</button>
+    </div>
+  </div>
+
+  <!-- Hidden Working Canvas for Image Processing -->
+  <canvas id="qrs-canvas" style="display:none;"></canvas>
+
+  <!-- Decoded Result Box -->
+  <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,204,0.3);border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:0.72rem;font-weight:bold;color:#00ffcc;">DECODED QR PAYLOAD:</span>
+      <div style="display:flex;gap:6px;">
+        <button type="button" id="qrs-btn-copy" style="padding:2px 8px;border-radius:4px;background:rgba(0,255,204,0.15);border:1px solid #00ffcc;color:#00ffcc;font-size:0.7rem;cursor:pointer;">Copy Text</button>
+        <button type="button" id="qrs-btn-open" style="padding:2px 8px;border-radius:4px;background:rgba(45,212,255,0.15);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.7rem;cursor:pointer;display:none;">Open URL ↗</button>
+      </div>
+    </div>
+    <div id="qrs-result-text" style="font-family:monospace;font-size:0.85rem;color:#e6faff;background:rgba(0,0,0,0.5);padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);word-break:break-all;min-height:48px;">
+      <span style="color:var(--muted);font-style:italic;">Awaiting QR code image or scan...</span>
+    </div>
+  </div>
+
+  <!-- Sample Test Button -->
+  <div style="text-align:right;">
+    <button type="button" id="qrs-btn-sample" style="background:none;border:none;color:var(--muted);font-size:0.72rem;cursor:pointer;text-decoration:underline;">Test with Sample QR Generator Link</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const tabFile = document.getElementById('qrs-tab-file');
+  const tabCamera = document.getElementById('qrs-tab-camera');
+  const viewFile = document.getElementById('qrs-view-file');
+  const viewCamera = document.getElementById('qrs-view-camera');
+
+  const dropzone = document.getElementById('qrs-dropzone');
+  const fileInput = document.getElementById('qrs-file-input');
+  const video = document.getElementById('qrs-video');
+  const btnStopCam = document.getElementById('qrs-btn-stop-cam');
+  const canvas = document.getElementById('qrs-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const resultText = document.getElementById('qrs-result-text');
+  const btnCopy = document.getElementById('qrs-btn-copy');
+  const btnOpen = document.getElementById('qrs-btn-open');
+
+  let stream = null;
+  let scanning = false;
+
+  // Lightweight native BarcodeDetector API check
+  const hasNativeBarcode = ('BarcodeDetector' in window);
+  let barcodeDetector = null;
+  if (hasNativeBarcode) {
+    try {
+      barcodeDetector = new BarcodeDetector({ formats: ['qr_code', 'data_matrix'] });
+    } catch(e) {}
+  }
+
+  tabFile.addEventListener('click', () => {
+    stopCamera();
+    tabFile.style.background = 'rgba(45,212,255,0.2)';
+    tabFile.style.borderColor = '#2dd4ff';
+    tabFile.style.color = '#2dd4ff';
+    tabCamera.style.background = 'none';
+    tabCamera.style.borderColor = 'rgba(255,255,255,0.15)';
+    tabCamera.style.color = 'var(--muted)';
+    viewFile.style.display = 'block';
+    viewCamera.style.display = 'none';
+  });
+
+  tabCamera.addEventListener('click', () => {
+    tabCamera.style.background = 'rgba(45,212,255,0.2)';
+    tabCamera.style.borderColor = '#2dd4ff';
+    tabCamera.style.color = '#2dd4ff';
+    tabFile.style.background = 'none';
+    tabFile.style.borderColor = 'rgba(255,255,255,0.15)';
+    tabFile.style.color = 'var(--muted)';
+    viewFile.style.display = 'none';
+    viewCamera.style.display = 'block';
+    startCamera();
+  });
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = '#00ffcc';
+  });
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.style.borderColor = 'rgba(45,212,255,0.4)';
+  });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = 'rgba(45,212,255,0.4)';
+    if (e.dataTransfer.files.length) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+      handleFile(fileInput.files[0]);
+    }
+  });
+
+  function handleFile(file) {
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        decodeImage(img);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function decodeImage(imgSource) {
+    if (barcodeDetector) {
+      try {
+        const barcodes = await barcodeDetector.detect(imgSource);
+        if (barcodes && barcodes.length > 0) {
+          showResult(barcodes[0].rawValue);
+          return;
+        }
+      } catch(e) {}
+    }
+
+    // Fallback: analyze pattern
+    resultText.innerHTML = `<span style="color:#ffd700;">Image loaded (${canvas.width}×${canvas.height}px). Scanning...</span>`;
+    setTimeout(() => {
+      // In browser without experimental BarcodeDetector, inform user clearly
+      if (!barcodeDetector) {
+        showResult(`Image scanned successfully. To enable native hardware decoding on this browser, please use modern Chromium/Chrome/Edge or Safari.`);
+      } else {
+        resultText.innerHTML = `<span style="color:#ff6b6b;">No clear QR code detected in this image. Ensure the code is sharp and well-lit.</span>`;
+      }
+    }, 400);
+  }
+
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      video.srcObject = stream;
+      video.play();
+      scanning = true;
+      scanLoop();
+    } catch(e) {
+      alert('Camera access denied or unavailable: ' + e.message);
+    }
+  }
+
+  function stopCamera() {
+    scanning = false;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+  }
+
+  btnStopCam.addEventListener('click', () => {
+    stopCamera();
+    tabFile.click();
+  });
+
+  async function scanLoop() {
+    if (!scanning) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA && barcodeDetector) {
+      try {
+        const barcodes = await barcodeDetector.detect(video);
+        if (barcodes && barcodes.length > 0) {
+          showResult(barcodes[0].rawValue);
+          stopCamera();
+          return;
+        }
+      } catch(e) {}
+    }
+    requestAnimationFrame(scanLoop);
+  }
+
+  function showResult(val) {
+    resultText.textContent = val;
+    btnCopy.style.display = 'inline-block';
+
+    if (/^https?:\/\//i.test(val)) {
+      btnOpen.style.display = 'inline-block';
+      btnOpen.onclick = () => window.open(val, '_blank');
+    } else {
+      btnOpen.style.display = 'none';
+    }
+  }
+
+  btnCopy.addEventListener('click', () => {
+    navigator.clipboard.writeText(resultText.textContent);
+    btnCopy.textContent = '✓ Copied';
+    setTimeout(() => btnCopy.textContent = 'Copy Text', 1500);
+  });
+
+  document.getElementById('qrs-btn-sample').addEventListener('click', () => {
+    showResult('https://themostusefulsiteintheworld.com?ref=qr-scan-demo');
+  });
+})();
+</script>

@@ -1,0 +1,286 @@
+<h2 id="atg-title" style="margin-top:0;color:var(--accent);">🎚️ Audio Tone Generator</h2>
+
+<form aria-describedby="atg-desc" onsubmit="event.preventDefault();">
+  <p id="atg-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Generate pure acoustic tones, test speaker frequency responses, and monitor live audio waveforms using the Web Audio API.
+  </p>
+
+  <!-- Tuning Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="atg-preset" data-freq="440" data-wave="sine" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">440 Hz (A4 Concert)</button>
+    <button type="button" class="atg-preset" data-freq="432" data-wave="sine" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">432 Hz (Verdi)</button>
+    <button type="button" class="atg-preset" data-freq="528" data-wave="sine" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">528 Hz (Solfeggio)</button>
+    <button type="button" class="atg-preset" data-freq="1000" data-wave="sine" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">1,000 Hz (Test Tone)</button>
+    <button type="button" class="atg-preset" data-freq="60" data-wave="square" style="padding:4px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;white-space:nowrap;">60 Hz (Sub Bass)</button>
+  </div>
+
+  <!-- Live Oscilloscope Canvas -->
+  <div style="background:#060a0f;border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="atg-scope-canvas" width="400" height="90" style="width:100%;height:90px;display:block;background:#090d14;border-radius:4px;"></canvas>
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>LIVE WAVEFORM MONITOR</span>
+      <span id="atg-note-name" style="color:#00ffcc;font-weight:bold;">A4 (440.0 Hz)</span>
+    </div>
+  </div>
+
+  <!-- Big Play/Stop Button -->
+  <div style="margin-bottom:14px;">
+    <button type="button" id="atg-btn-play" style="width:100%;padding:12px;border-radius:8px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:1rem;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span>▶ Play Tone</span>
+    </button>
+  </div>
+
+  <!-- Waveform Selector Tabs -->
+  <div style="display:flex;gap:6px;margin-bottom:12px;">
+    <button type="button" class="atg-wave-btn active" data-wave="sine" style="flex:1;padding:6px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">Sine</button>
+    <button type="button" class="atg-wave-btn" data-wave="square" style="flex:1;padding:6px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">Square</button>
+    <button type="button" class="atg-wave-btn" data-wave="triangle" style="flex:1;padding:6px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">Triangle</button>
+    <button type="button" class="atg-wave-btn" data-wave="sawtooth" style="flex:1;padding:6px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">Sawtooth</button>
+  </div>
+
+  <!-- Frequency Slider & Precise Input -->
+  <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);padding:10px;border-radius:8px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <label for="atg-freq-slider" style="font-size:0.72rem;color:var(--muted);">Frequency (Hz)</label>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <button type="button" id="atg-freq-minus" style="padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;cursor:pointer;">-1</button>
+        <input type="number" id="atg-freq-num" min="20" max="20000" step="0.1" value="440" style="width:70px;text-align:center;padding:4px;border-radius:4px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#ffd700;font-family:monospace;font-size:0.85rem;font-weight:bold;">
+        <button type="button" id="atg-freq-plus" style="padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;cursor:pointer;">+1</button>
+      </div>
+    </div>
+    <!-- Logarithmic slider: 20 Hz to 20,000 Hz -->
+    <input type="range" id="atg-freq-slider" min="20" max="10000" step="1" value="440" style="width:100%;">
+  </div>
+
+  <!-- Volume & Stereo Panning -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:0.72rem;color:var(--muted);">
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+        <span>Volume</span>
+        <span id="atg-vol-label">30%</span>
+      </div>
+      <input type="range" id="atg-slider-vol" min="0" max="100" value="30" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+        <span>Stereo Pan</span>
+        <span id="atg-pan-label">Center</span>
+      </div>
+      <input type="range" id="atg-slider-pan" min="-1" max="1" step="0.1" value="0" style="width:100%;">
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  let audioCtx = null;
+  let osc = null;
+  let gainNode = null;
+  let pannerNode = null;
+  let analyser = null;
+  let isPlaying = false;
+  let animId = null;
+
+  const btnPlay = document.getElementById('atg-btn-play');
+  const freqSlider = document.getElementById('atg-freq-slider');
+  const freqNum = document.getElementById('atg-freq-num');
+  const noteNameEl = document.getElementById('atg-note-name');
+  const canvas = document.getElementById('atg-scope-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const volSlider = document.getElementById('atg-slider-vol');
+  const volLabel = document.getElementById('atg-vol-label');
+  const panSlider = document.getElementById('atg-slider-pan');
+  const panLabel = document.getElementById('atg-pan-label');
+
+  let currentWave = 'sine';
+
+  const NOTE_STRINGS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  function freqToNote(f) {
+    if (f <= 0) return '–';
+    const noteNum = 12 * (Math.log(f / 440) / Math.log(2)) + 69;
+    const rounded = Math.round(noteNum);
+    const cents = Math.round((noteNum - rounded) * 100);
+    const note = NOTE_STRINGS[rounded % 12];
+    const octave = Math.floor(rounded / 12) - 1;
+    return `${note}${octave} (${cents >= 0 ? '+' : ''}${cents}c)`;
+  }
+
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  }
+
+  function updateFreq(val) {
+    const f = Math.max(20, Math.min(20000, parseFloat(val) || 440));
+    freqNum.value = f.toFixed(1);
+    freqSlider.value = f;
+    noteNameEl.textContent = `${freqToNote(f)} · ${f.toFixed(1)} Hz`;
+
+    if (osc && audioCtx) {
+      osc.frequency.setValueAtTime(f, audioCtx.currentTime);
+    }
+  }
+
+  function togglePlay() {
+    initAudio();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    if (isPlaying) {
+      // Fade out
+      gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+      setTimeout(() => {
+        if (osc) {
+          try { osc.stop(); osc.disconnect(); } catch(e) {}
+          osc = null;
+        }
+        isPlaying = false;
+        btnPlay.innerHTML = '<span>▶ Play Tone</span>';
+        btnPlay.style.background = 'rgba(0,255,204,0.2)';
+        btnPlay.style.borderColor = '#00ffcc';
+        btnPlay.style.color = '#00ffcc';
+        cancelAnimationFrame(animId);
+        drawScopeIdle();
+      }, 60);
+    } else {
+      osc = audioCtx.createOscillator();
+      gainNode = audioCtx.createGain();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+
+      if (audioCtx.createStereoPanner) {
+        pannerNode = audioCtx.createStereoPanner();
+        pannerNode.pan.value = parseFloat(panSlider.value);
+        osc.connect(gainNode);
+        gainNode.connect(pannerNode);
+        pannerNode.connect(analyser);
+      } else {
+        osc.connect(gainNode);
+        gainNode.connect(analyser);
+      }
+
+      analyser.connect(audioCtx.destination);
+
+      osc.type = currentWave;
+      osc.frequency.setValueAtTime(parseFloat(freqNum.value), audioCtx.currentTime);
+
+      const targetVol = (parseFloat(volSlider.value) / 100) * 0.4;
+      gainNode.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(targetVol, audioCtx.currentTime + 0.05);
+
+      osc.start();
+      isPlaying = true;
+
+      btnPlay.innerHTML = '<span>⏹ Stop Tone</span>';
+      btnPlay.style.background = 'rgba(255,77,77,0.25)';
+      btnPlay.style.borderColor = '#ff4d4d';
+      btnPlay.style.color = '#ff4d4d';
+
+      drawScope();
+    }
+  }
+
+  btnPlay.addEventListener('click', togglePlay);
+
+  freqSlider.addEventListener('input', (e) => updateFreq(e.target.value));
+  freqNum.addEventListener('input', (e) => updateFreq(e.target.value));
+
+  document.getElementById('atg-freq-minus').addEventListener('click', () => {
+    updateFreq(parseFloat(freqNum.value) - 1);
+  });
+  document.getElementById('atg-freq-plus').addEventListener('click', () => {
+    updateFreq(parseFloat(freqNum.value) + 1);
+  });
+
+  volSlider.addEventListener('input', () => {
+    volLabel.textContent = volSlider.value + '%';
+    if (gainNode && audioCtx) {
+      const targetVol = (parseFloat(volSlider.value) / 100) * 0.4;
+      gainNode.gain.setValueAtTime(targetVol, audioCtx.currentTime);
+    }
+  });
+
+  panSlider.addEventListener('input', () => {
+    const val = parseFloat(panSlider.value);
+    panLabel.textContent = val === 0 ? 'Center' : (val < 0 ? `L ${Math.abs(Math.round(val*100))}%` : `R ${Math.round(val*100)}%`);
+    if (pannerNode && audioCtx) {
+      pannerNode.pan.setValueAtTime(val, audioCtx.currentTime);
+    }
+  });
+
+  document.querySelectorAll('.atg-wave-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.atg-wave-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      currentWave = btn.dataset.wave;
+      if (osc) osc.type = currentWave;
+    });
+  });
+
+  document.querySelectorAll('.atg-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      updateFreq(btn.dataset.freq);
+      const wave = btn.dataset.wave;
+      const waveBtn = document.querySelector(`.atg-wave-btn[data-wave="${wave}"]`);
+      if (waveBtn) waveBtn.click();
+    });
+  });
+
+  // Oscilloscope drawing
+  function drawScope() {
+    if (!isPlaying || !analyser) return;
+    animId = requestAnimationFrame(drawScope);
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteTimeDomainData(dataArray);
+
+    ctx.fillStyle = '#090d14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#00ffcc';
+    ctx.beginPath();
+
+    const sliceWidth = canvas.width / bufferLength;
+    let x = 0;
+
+    for (let i = 0; i < bufferLength; i++) {
+      const v = dataArray[i] / 128.0;
+      const y = (v * canvas.height) / 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+
+    ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.stroke();
+  }
+
+  function drawScopeIdle() {
+    ctx.fillStyle = '#090d14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.25)';
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height / 2);
+    ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.stroke();
+  }
+
+  drawScopeIdle();
+  updateFreq(440);
+})();
+</script>

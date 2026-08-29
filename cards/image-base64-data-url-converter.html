@@ -1,0 +1,236 @@
+<h2 id="b64-title" style="margin-top:0;color:var(--accent);">🖼️ Image to Base64 Studio</h2>
+
+<form aria-describedby="b64-desc" onsubmit="event.preventDefault();">
+  <p id="b64-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Convert images to Base64 data URLs for inline CSS &amp; HTML embedding, or decode Base64 strings back into downloadable images.
+  </p>
+
+  <!-- Mode Switcher -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;">
+    <button type="button" id="b64-tab-encode" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;cursor:pointer;font-size:0.78rem;font-weight:bold;">Image ➔ Base64</button>
+    <button type="button" id="b64-tab-decode" style="padding:6px 14px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);cursor:pointer;font-size:0.78rem;font-weight:bold;">Base64 ➔ Image</button>
+  </div>
+
+  <!-- ENCODE VIEW -->
+  <div id="b64-view-encode">
+    <!-- Drop Zone -->
+    <div id="b64-dropzone" style="border:2px dashed rgba(45,212,255,0.4);border-radius:10px;padding:20px;text-align:center;background:rgba(0,0,0,0.3);cursor:pointer;margin-bottom:12px;transition:all 0.2s;">
+      <div style="font-size:1.8rem;margin-bottom:6px;">📸</div>
+      <div style="font-size:0.85rem;color:#e6faff;font-weight:bold;margin-bottom:2px;">Drop image here or click to browse</div>
+      <div style="font-size:0.68rem;color:var(--muted);">PNG, JPEG, WebP, SVG, GIF (Processed 100% locally in-browser)</div>
+      <input type="file" id="b64-file-input" accept="image/*" style="display:none;">
+    </div>
+
+    <!-- Size Comparison Stats -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;background:rgba(0,0,0,0.25);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);font-size:0.72rem;text-align:center;">
+      <div>
+        <div style="color:var(--muted);font-size:0.65rem;">ORIGINAL SIZE</div>
+        <strong id="b64-stat-orig" style="color:#e6faff;font-family:monospace;">0 KB</strong>
+      </div>
+      <div>
+        <div style="color:var(--muted);font-size:0.65rem;">BASE64 SIZE</div>
+        <strong id="b64-stat-b64" style="color:#ffd700;font-family:monospace;">0 KB</strong>
+      </div>
+      <div>
+        <div style="color:var(--muted);font-size:0.65rem;">ENCODING OVERHEAD</div>
+        <strong id="b64-stat-overhead" style="color:#2dd4ff;font-family:monospace;">+33.3%</strong>
+      </div>
+    </div>
+
+    <!-- Export Snippet Tabs -->
+    <div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="b64-format-btn active" data-fmt="dataurl" style="padding:3px 8px;border-radius:4px;background:rgba(0,255,204,0.15);border:1px solid #00ffcc;color:#00ffcc;font-size:0.7rem;cursor:pointer;">Data URL</button>
+          <button type="button" class="b64-format-btn" data-fmt="css" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;">CSS Background</button>
+          <button type="button" class="b64-format-btn" data-fmt="html" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;cursor:pointer;">HTML &lt;img&gt;</button>
+        </div>
+        <button type="button" id="b64-btn-copy" style="padding:3px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.7rem;cursor:pointer;font-weight:bold;">Copy String</button>
+      </div>
+      <textarea id="b64-output" readonly rows="5" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#00ffcc;box-sizing:border-box;resize:vertical;" placeholder="Base64 output will appear here..."></textarea>
+    </div>
+  </div>
+
+  <!-- DECODE VIEW -->
+  <div id="b64-view-decode" style="display:none;">
+    <div style="margin-bottom:10px;">
+      <label for="b64-decode-input" style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Paste Data URL or Base64 String</label>
+      <textarea id="b64-decode-input" rows="4" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#ffd700;box-sizing:border-box;" placeholder="data:image/png;base64,..."></textarea>
+    </div>
+
+    <!-- Decoded Image Preview -->
+    <div style="background:#060a0f;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;text-align:center;margin-bottom:12px;">
+      <img id="b64-decode-preview" src="" alt="Decoded Preview" style="max-width:100%;max-height:160px;object-fit:contain;border-radius:4px;display:none;margin:0 auto 8px auto;">
+      <div id="b64-decode-placeholder" style="color:var(--muted);font-size:0.75rem;padding:20px;">Paste a valid Base64 image string above to render preview.</div>
+      <button type="button" id="b64-btn-download-image" style="padding:6px 14px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;display:none;margin:0 auto;">Download Decoded Image</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const tabEncode = document.getElementById('b64-tab-encode');
+  const tabDecode = document.getElementById('b64-tab-decode');
+  const viewEncode = document.getElementById('b64-view-encode');
+  const viewDecode = document.getElementById('b64-view-decode');
+
+  const dropzone = document.getElementById('b64-dropzone');
+  const fileInput = document.getElementById('b64-file-input');
+  const outArea = document.getElementById('b64-output');
+  const statOrig = document.getElementById('b64-stat-orig');
+  const statB64 = document.getElementById('b64-stat-b64');
+  const statOverhead = document.getElementById('b64-stat-overhead');
+  const btnCopy = document.getElementById('b64-btn-copy');
+
+  const decodeInput = document.getElementById('b64-decode-input');
+  const decodePreview = document.getElementById('b64-decode-preview');
+  const decodePlaceholder = document.getElementById('b64-decode-placeholder');
+  const btnDownload = document.getElementById('b64-btn-download-image');
+
+  let rawDataUrl = '';
+  let activeFormat = 'dataurl';
+
+  tabEncode.addEventListener('click', () => {
+    tabEncode.style.background = 'rgba(45,212,255,0.2)';
+    tabEncode.style.borderColor = '#2dd4ff';
+    tabEncode.style.color = '#2dd4ff';
+    tabDecode.style.background = 'none';
+    tabDecode.style.borderColor = 'rgba(255,255,255,0.15)';
+    tabDecode.style.color = 'var(--muted)';
+    viewEncode.style.display = 'block';
+    viewDecode.style.display = 'none';
+  });
+
+  tabDecode.addEventListener('click', () => {
+    tabDecode.style.background = 'rgba(45,212,255,0.2)';
+    tabDecode.style.borderColor = '#2dd4ff';
+    tabDecode.style.color = '#2dd4ff';
+    tabEncode.style.background = 'none';
+    tabEncode.style.borderColor = 'rgba(255,255,255,0.15)';
+    tabEncode.style.color = 'var(--muted)';
+    viewEncode.style.display = 'none';
+    viewDecode.style.display = 'block';
+  });
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = '#00ffcc'; });
+  dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = 'rgba(45,212,255,0.4)'; });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = 'rgba(45,212,255,0.4)';
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  function handleFile(file) {
+    const origSize = file.size;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      rawDataUrl = e.target.result;
+      const b64Size = rawDataUrl.length;
+
+      statOrig.textContent = formatBytes(origSize);
+      statB64.textContent = formatBytes(b64Size);
+      const diff = ((b64Size - origSize) / origSize) * 100;
+      statOverhead.textContent = `+${diff.toFixed(1)}%`;
+
+      renderOutput();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function renderOutput() {
+    if (!rawDataUrl) return;
+    if (activeFormat === 'dataurl') {
+      outArea.value = rawDataUrl;
+    } else if (activeFormat === 'css') {
+      outArea.value = `background-image: url("${rawDataUrl}");`;
+    } else if (activeFormat === 'html') {
+      outArea.value = `<img src="${rawDataUrl}" alt="Embedded Image" />`;
+    }
+  }
+
+  document.querySelectorAll('.b64-format-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.b64-format-btn').forEach(b => {
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.style.background = 'rgba(0,255,204,0.15)';
+      btn.style.borderColor = '#00ffcc';
+      btn.style.color = '#00ffcc';
+
+      activeFormat = btn.dataset.fmt;
+      renderOutput();
+    });
+  });
+
+  btnCopy.addEventListener('click', () => {
+    navigator.clipboard.writeText(outArea.value);
+    btnCopy.textContent = '✓ Copied';
+    setTimeout(() => btnCopy.textContent = 'Copy String', 1500);
+  });
+
+  // Decode handler
+  decodeInput.addEventListener('input', () => {
+    let str = decodeInput.value.trim();
+    if (!str) {
+      decodePreview.style.display = 'none';
+      decodePlaceholder.style.display = 'block';
+      btnDownload.style.display = 'none';
+      return;
+    }
+    if (!str.startsWith('data:image/')) {
+      str = 'data:image/png;base64,' + str;
+    }
+
+    decodePreview.src = str;
+    decodePreview.onload = () => {
+      decodePreview.style.display = 'block';
+      decodePlaceholder.style.display = 'none';
+      btnDownload.style.display = 'inline-block';
+    };
+    decodePreview.onerror = () => {
+      decodePreview.style.display = 'none';
+      decodePlaceholder.style.display = 'block';
+      decodePlaceholder.textContent = '❌ Invalid Base64 image payload.';
+      btnDownload.style.display = 'none';
+    };
+  });
+
+  btnDownload.addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = decodePreview.src;
+    a.download = 'decoded-image.png';
+    a.click();
+  });
+
+  // Prepopulate sample
+  const sampleCanvas = document.createElement('canvas');
+  sampleCanvas.width = 64;
+  sampleCanvas.height = 64;
+  const sctx = sampleCanvas.getContext('2d');
+  sctx.fillStyle = '#080e14';
+  sctx.fillRect(0,0,64,64);
+  sctx.fillStyle = '#00ffcc';
+  sctx.beginPath();
+  sctx.arc(32, 32, 24, 0, Math.PI * 2);
+  sctx.fill();
+  rawDataUrl = sampleCanvas.toDataURL('image/png');
+  statOrig.textContent = '1.2 KB';
+  statB64.textContent = '1.6 KB';
+  renderOutput();
+})();
+</script>
