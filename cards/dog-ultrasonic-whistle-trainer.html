@@ -1,0 +1,165 @@
+<h2 id="whis-title" style="margin-top:0;color:var(--accent);">📯 Dog Ultrasonic Whistle Lab</h2>
+
+<form aria-describedby="whis-desc" onsubmit="event.preventDefault();">
+  <p id="whis-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    High-frequency acoustic trainer (14,000 Hz to 22,000 Hz). Capitalizes on canine ultrasonic hearing up to 45 kHz for long-distance park recalls and focus interrupts.
+  </p>
+
+  <!-- Frequency Slider & Presets -->
+  <div style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <label for="whis-freq-slider" style="font-size:0.8rem;font-weight:600;color:var(--text);">Oscillator Frequency (Hz):</label>
+      <span id="whis-freq-display" style="font-size:1.1rem;font-weight:800;color:var(--accent);font-family:monospace;">18,000 Hz</span>
+    </div>
+    <input type="range" id="whis-freq-slider" min="12000" max="22000" step="500" value="18000" style="width:100%;accent-color:var(--accent);cursor:pointer;">
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:2px;">
+      <span>12 kHz (Audible to humans)</span>
+      <span>16 kHz</span>
+      <span>22 kHz (Canine ultrasonic zone)</span>
+    </div>
+  </div>
+
+  <!-- Sound Trigger Buttons -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <button type="button" id="whis-btn-pip" style="padding:10px;background:rgba(0,243,255,0.15);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-weight:700;font-size:0.82rem;cursor:pointer;">
+      ⚡ Single Focus Pip (0.3s)
+    </button>
+    <button type="button" id="whis-btn-recall" style="padding:10px;background:rgba(57,255,20,0.15);border:1px solid #39ff14;color:#39ff14;border-radius:6px;font-weight:700;font-size:0.82rem;cursor:pointer;">
+      📢 Triple Recall Blast
+    </button>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <button type="button" id="whis-btn-continuous" style="width:100%;padding:10px;background:rgba(180,75,255,0.15);border:1px solid #d896ff;color:#d896ff;border-radius:6px;font-weight:700;font-size:0.82rem;cursor:pointer;">
+      ▶ Continuous Tone (Press to Toggle)
+    </button>
+  </div>
+
+  <!-- Conditioning Recall Protocol -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="font-size:0.75rem;font-weight:700;color:var(--accent);margin-bottom:6px;text-transform:uppercase;">
+      🐕 3-Day Silent Whistle Conditioning Guide:
+    </div>
+    <ol style="margin:0;padding-left:18px;font-size:0.75rem;color:var(--text-secondary);line-height:1.45;">
+      <li><strong>Step 1 (Charging):</strong> Inside the house with zero distractions, sound the triple blast and immediately feed a piece of hot dog or roast chicken. Repeat 10 times daily.</li>
+      <li><strong>Step 2 (Distance):</strong> Call your dog from another room using the whistle blast. Throw a celebration jackpot treat party when they arrive.</li>
+      <li><strong>Step 3 (Field Recall):</strong> In a park, the high-frequency sound pierces wind noise and echoes where human voices get lost, triggering an immediate sprint back!</li>
+    </ol>
+  </div>
+
+  <!-- Hearing Note -->
+  <div style="background:rgba(255,255,255,0.02);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.73rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:#fff;">Acoustic Note:</strong>
+    <span>Most adult humans cannot hear frequencies above 15,000–16,000 Hz. If you slide above 17 kHz, you may hear silence while your dog's ears perk up immediately!</span>
+  </div>
+</form>
+
+<script>
+(function initDogWhistle() {
+  const slider = document.getElementById('whis-freq-slider');
+  const display = document.getElementById('whis-freq-display');
+  const btnPip = document.getElementById('whis-btn-pip');
+  const btnRecall = document.getElementById('whis-btn-recall');
+  const btnContinuous = document.getElementById('whis-btn-continuous');
+
+  if (!slider || !btnPip) return;
+
+  let audioCtx = null;
+  let contOsc = null;
+  let contGain = null;
+  let isContinuous = false;
+
+  function getAudioContext() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  slider.addEventListener('input', () => {
+    const val = parseInt(slider.value, 10);
+    display.textContent = `${val.toLocaleString()} Hz`;
+    if (isContinuous && contOsc) {
+      contOsc.frequency.setValueAtTime(val, audioCtx.currentTime);
+    }
+  });
+
+  function playToneBurst(freq, startTime, duration) {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, startTime);
+
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.25, startTime + 0.02);
+    gain.gain.setValueAtTime(0.25, startTime + duration - 0.02);
+    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.05);
+  }
+
+  btnPip.addEventListener('click', () => {
+    const ctx = getAudioContext();
+    const freq = parseInt(slider.value, 10);
+    playToneBurst(freq, ctx.currentTime, 0.3);
+  });
+
+  btnRecall.addEventListener('click', () => {
+    const ctx = getAudioContext();
+    const freq = parseInt(slider.value, 10);
+    playToneBurst(freq, ctx.currentTime, 0.2);
+    playToneBurst(freq, ctx.currentTime + 0.35, 0.2);
+    playToneBurst(freq, ctx.currentTime + 0.7, 0.4);
+  });
+
+  btnContinuous.addEventListener('click', () => {
+    const ctx = getAudioContext();
+    const freq = parseInt(slider.value, 10);
+
+    if (isContinuous) {
+      if (contOsc) {
+        contGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.05);
+        setTimeout(() => {
+          if (contOsc) {
+            contOsc.stop();
+            contOsc.disconnect();
+            contOsc = null;
+          }
+        }, 60);
+      }
+      isContinuous = false;
+      btnContinuous.textContent = '▶ Continuous Tone (Press to Toggle)';
+      btnContinuous.style.background = 'rgba(180,75,255,0.15)';
+      btnContinuous.style.borderColor = '#d896ff';
+      btnContinuous.style.color = '#d896ff';
+    } else {
+      contOsc = ctx.createOscillator();
+      contGain = ctx.createGain();
+      contOsc.type = 'sine';
+      contOsc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+      contGain.gain.setValueAtTime(0, ctx.currentTime);
+      contGain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 0.05);
+
+      contOsc.connect(contGain);
+      contGain.connect(ctx.destination);
+      contOsc.start();
+
+      isContinuous = true;
+      btnContinuous.textContent = '⏸ Stop Continuous Tone';
+      btnContinuous.style.background = 'rgba(255,51,102,0.2)';
+      btnContinuous.style.borderColor = '#ff3366';
+      btnContinuous.style.color = '#ff85a2';
+    }
+  });
+})();
+</script>

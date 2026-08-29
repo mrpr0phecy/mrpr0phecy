@@ -256,7 +256,21 @@ const birdingList = [
   'bird-molt-cycle-ageing'
 ];
 
+const dogList = [
+  'dog-human-age-epigenetic-calc',
+  'dog-chocolate-toxicity-calc',
+  'dog-calorie-portion-calculator',
+  'dog-ultrasonic-whistle-trainer',
+  'dog-safe-toxic-food-checker',
+  'dog-daily-walk-exercise-calc',
+  'dog-dehydration-vital-checker',
+  'dog-clicker-trainer-cadence',
+  'puppy-adult-weight-predictor',
+  'dog-crate-sizing-den-blueprint'
+];
+
 function getCategory(name) {
+  if (dogList.some(s => name.includes(s))) return 'Dogs & Canine Care';
   if (birdingList.some(s => name.includes(s))) return 'Birdwatching & Ornithology';
   if (remedyList.some(s => name.includes(s))) return 'Natural Remedies & Herbs';
   if (lucidList.some(s => name.includes(s))) return 'Lucid Dreaming & Sleep';

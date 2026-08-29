@@ -1,0 +1,129 @@
+<h2 id="pup-title" style="margin-top:0;color:var(--accent);">🐾 Puppy Adult Weight Forecaster</h2>
+
+<form aria-describedby="pup-desc" onsubmit="event.preventDefault();">
+  <p id="pup-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Canine Gompertz growth velocity forecaster. Predicts final adult weight based on current puppy weight, age in weeks, and breed skeletal frame category.
+  </p>
+
+  <!-- Weight, Age in Weeks & Frame Inputs -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:8px;margin-bottom:12px;">
+    <div>
+      <label for="pup-weight" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Current Weight (kg)</label>
+      <input type="number" id="pup-weight" min="0.5" max="40" step="0.2" value="6.5" style="width:100%;padding:8px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.85rem;font-weight:bold;">
+    </div>
+    <div>
+      <label for="pup-age-weeks" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Age in Weeks</label>
+      <input type="number" id="pup-age-weeks" min="6" max="52" step="1" value="16" style="width:100%;padding:8px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.85rem;font-weight:bold;">
+    </div>
+    <div>
+      <label for="pup-frame" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Breed Frame</label>
+      <select id="pup-frame" style="width:100%;padding:8px 6px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+        <option value="toy">Toy / Small (&lt;10 kg adult)</option>
+        <option value="medium" selected>Medium (11–25 kg adult)</option>
+        <option value="large">Large (26–42 kg adult)</option>
+        <option value="giant">Giant Breed (43+ kg adult)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Forecast Output Dashboard -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div style="background:rgba(0,243,255,0.08);border:1px solid rgba(0,243,255,0.35);border-radius:8px;padding:12px;text-align:center;">
+      <div style="font-size:0.7rem;color:var(--accent);font-weight:700;text-transform:uppercase;">ESTIMATED ADULT WEIGHT</div>
+      <div id="pup-out-adult-kg" style="font-size:1.6rem;font-weight:800;color:#fff;font-family:monospace;margin:2px 0;">20.8 kg</div>
+      <div id="pup-out-adult-lbs" style="font-size:0.75rem;color:#00ffcc;">~45.9 lbs</div>
+    </div>
+    <div style="background:rgba(57,255,20,0.08);border:1px solid rgba(57,255,20,0.35);border-radius:8px;padding:12px;text-align:center;">
+      <div style="font-size:0.7rem;color:#39ff14;font-weight:700;text-transform:uppercase;">GROWTH COMPLETED</div>
+      <div id="pup-out-pct" style="font-size:1.6rem;font-weight:800;color:#39ff14;font-family:monospace;margin:2px 0;">31%</div>
+      <div id="pup-out-finish-age" style="font-size:0.75rem;color:var(--text-secondary);">Full size at 12–14 months</div>
+    </div>
+  </div>
+
+  <!-- Growth Milestone Trajectory -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="font-size:0.75rem;font-weight:700;color:var(--accent);margin-bottom:6px;text-transform:uppercase;">
+      📈 Skeletal Maturation Timeline:
+    </div>
+    <div id="pup-growth-summary" style="font-size:0.78rem;color:var(--text-secondary);line-height:1.45;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- Giant Breed Nutrition Tip -->
+  <div style="background:rgba(255,215,0,0.06);border-left:3px solid #ffd700;border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.73rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:#ffd700;">Large/Giant Breed Feeding Note:</strong>
+    <span>Never overfeed large breed puppies to speed up growth! Rapid weight gain before growth plates fuse causes severe developmental orthopedic disease (hip dysplasia, osteochondritis dissecans). Feed precise large-breed puppy formulas controlled in calcium (0.8%–1.2%) and phosphorus.</span>
+  </div>
+</form>
+
+<script>
+(function initPuppyGrowth() {
+  const weightInput = document.getElementById('pup-weight');
+  const ageInput = document.getElementById('pup-age-weeks');
+  const frameSelect = document.getElementById('pup-frame');
+  const adultKgEl = document.getElementById('pup-out-adult-kg');
+  const adultLbsEl = document.getElementById('pup-out-adult-lbs');
+  const pctEl = document.getElementById('pup-out-pct');
+  const finishAgeEl = document.getElementById('pup-out-finish-age');
+  const summaryEl = document.getElementById('pup-growth-summary');
+
+  if (!weightInput || !ageInput) return;
+
+  function calculate() {
+    const curWeight = parseFloat(weightInput.value) || 5;
+    const ageWeeks = parseInt(ageInput.value, 10) || 16;
+    const frame = frameSelect.value;
+
+    // Percent of adult weight completed at given weeks by breed frame
+    // Toy/Small: 50% at 12 wks, 75% at 20 wks, 100% at 38 wks
+    // Medium: 50% at 16 wks, 75% at 26 wks, 100% at 52 wks
+    // Large: 50% at 20 wks, 75% at 32 wks, 100% at 65 wks
+    // Giant: 50% at 24 wks, 75% at 40 wks, 100% at 90 wks
+    let halfWeek = 16;
+    let fullWeeks = 52;
+    let fullLabel = 'Full adult size at 12–14 months';
+
+    if (frame === 'toy') {
+      halfWeek = 12;
+      fullWeeks = 38;
+      fullLabel = 'Full adult size at 9–10 months';
+    } else if (frame === 'medium') {
+      halfWeek = 16;
+      fullWeeks = 52;
+      fullLabel = 'Full adult size at 12–14 months';
+    } else if (frame === 'large') {
+      halfWeek = 20;
+      fullWeeks = 65;
+      fullLabel = 'Full adult size at 15–18 months';
+    } else if (frame === 'giant') {
+      halfWeek = 24;
+      fullWeeks = 90;
+      fullLabel = 'Full skeletal maturity at 20–24 months';
+    }
+
+    // Sigmoidal approximation of percentage of adult weight:
+    // pct = 1 / (1 + exp(-k * (age - halfWeek)))
+    // When age == halfWeek, pct is roughly 50%
+    const k = 0.08;
+    let pct = 1 / (1 + Math.exp(-k * (ageWeeks - halfWeek)));
+    pct = Math.max(0.1, Math.min(0.99, pct));
+
+    const adultKg = +(curWeight / pct).toFixed(1);
+    const adultLbs = (adultKg * 2.20462).toFixed(1);
+    const pctDisplay = Math.round(pct * 100);
+
+    adultKgEl.textContent = `${adultKg} kg`;
+    adultLbsEl.textContent = `~${adultLbs} lbs`;
+    pctEl.textContent = `${pctDisplay}%`;
+    finishAgeEl.textContent = fullLabel;
+
+    summaryEl.innerHTML = `At <strong>${ageWeeks} weeks</strong>, your puppy has attained approximately <strong>${pctDisplay}%</strong> of their final adult skeletal mass. Expect another ~${(adultKg - curWeight).toFixed(1)} kg (${((adultKg - curWeight) * 2.205).toFixed(1)} lbs) of growth before their growth plates fully fuse.`;
+  }
+
+  weightInput.addEventListener('input', calculate);
+  ageInput.addEventListener('input', calculate);
+  frameSelect.addEventListener('change', calculate);
+  calculate();
+})();
+</script>
