@@ -1,0 +1,240 @@
+<h2 id="aqua-thermal-title" style="margin-top:0;color:var(--accent);">🌡️ AquaThermal: Aquarium Heater Wattage, Chiller &amp; Redundancy Safety Calculator</h2>
+
+<form aria-describedby="aqua-thermal-desc" onsubmit="event.preventDefault();">
+  <p id="aqua-thermal-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Calculate precision heating wattage, evaporative surface loss, and cooling chiller ratings. Eliminates the catastrophic "stuck heater" disaster using fail-safe dual heater redundancy math.
+  </p>
+
+  <!-- Tank Specs & Target Preset -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="at-species" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Livestock Preset</label>
+      <select id="at-species" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="community" selected>Tropical Community (25°C / 77°F)</option>
+        <option value="betta">Betta Splendens (26°C / 79°F)</option>
+        <option value="discus">Discus &amp; Rams (29°C / 84°F)</option>
+        <option value="goldfish">Fancy Goldfish (20°C / 68°F)</option>
+        <option value="axolotl">Axolotl Coldwater (17°C / 62°F)</option>
+        <option value="reef">Marine Reef (25.5°C / 78°F)</option>
+        <option value="custom">Custom Temperatures...</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="at-vol" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Tank Volume</label>
+      <input type="number" id="at-vol" value="40" min="2" max="1000" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="at-units" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Units</label>
+      <select id="at-units" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="f" selected>Fahrenheit (°F) &amp; Gallons</option>
+        <option value="c">Celsius (°C) &amp; Liters</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="at-lid" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Aquarium Top / Lid</label>
+      <select id="at-lid" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="lid" selected>Glass Canopy / Solid Lid (Low heat loss)</option>
+        <option value="open">Open-Top Rimless (+35% heat &amp; evaporation loss)</option>
+        <option value="mesh">Mesh Screen Top (+25% heat loss)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Temperature Differential Inputs -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:14px;">
+    <div>
+      <label for="at-target-temp" id="at-label-target" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Target Water Temp (°F)</label>
+      <input type="number" id="at-target-temp" value="77" min="45" max="95" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="at-room-cold" id="at-label-cold" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Room Winter Low (°F)</label>
+      <input type="number" id="at-room-cold" value="65" min="30" max="95" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="at-room-hot" id="at-label-hot" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Room Summer Peak (°F)</label>
+      <input type="number" id="at-room-hot" value="78" min="50" max="110" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+  </div>
+
+  <!-- Heating Results with Redundancy Sizing -->
+  <div id="at-heating-section" style="background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.25);border-radius:8px;padding:14px;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:600;">Recommended Heating Wattage</span>
+        <div id="at-res-total-watts" style="font-size:1.6rem;font-weight:700;color:#fff;">200 Watts</div>
+      </div>
+      <div style="text-align:right;">
+        <span style="font-size:0.75rem;color:var(--muted);">Thermal Lift Needed</span>
+        <div id="at-res-delta" style="font-size:1.1rem;font-weight:600;color:var(--text-secondary);">+12°F (+6.7°C)</div>
+      </div>
+    </div>
+
+    <!-- Dual Heater Safety Architecture -->
+    <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(57,255,20,0.3);border-radius:6px;padding:12px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:6px;color:#39ff14;font-size:0.8rem;font-weight:700;margin-bottom:6px;">
+        🛡️ Failsafe Redundant Configuration (Prevents Stuck Thermostat Disasters)
+      </div>
+      <div style="font-size:0.82rem;color:#fff;line-height:1.4;">
+        Deploy <strong>TWO independent <span id="at-res-split-watts" style="color:var(--accent);">100-Watt</span> heaters</strong> placed on opposite ends of the tank.
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;line-height:1.4;">
+        <strong>Why this saves your livestock:</strong> A single 200W heater stuck "ON" will boil your aquarium within 12 hours. A single 100W heater stuck "ON" lacks the thermal wattage to overheat your water past safe limits, while if one fails "OFF", the second prevents lethal hypothermia.
+      </div>
+    </div>
+
+    <div style="font-size:0.75rem;color:var(--muted);">
+      ⚡ <strong>Pro Tip:</strong> Plug both heaters into an external dual-relay controller (e.g. <em>Inkbird ITC-308</em>). Set the heater dials 2° higher than the Inkbird probe setpoint for dual hardware protection.
+    </div>
+  </div>
+
+  <!-- Cooling / Chiller Section (Conditionals for Summer / Axolotls) -->
+  <div id="at-cooling-section" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:0.85rem;font-weight:600;color:#fff;">❄️ Summer Cooling &amp; Chiller Analysis</span>
+      <span id="at-cooling-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:10px;background:rgba(57,255,20,0.2);color:#39ff14;border:1px solid rgba(57,255,20,0.4);">No chiller needed</span>
+    </div>
+    <div id="at-cooling-details" style="font-size:0.8rem;color:var(--text-secondary);line-height:1.4;">
+      Your peak summer room temperature does not exceed target water temperature. Normal ambient thermal dissipation is sufficient.
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const speciesSelect = document.getElementById('at-species');
+  const volInput = document.getElementById('at-vol');
+  const unitsSelect = document.getElementById('at-units');
+  const lidSelect = document.getElementById('at-lid');
+  const targetTempInput = document.getElementById('at-target-temp');
+  const roomColdInput = document.getElementById('at-room-cold');
+  const roomHotInput = document.getElementById('at-room-hot');
+
+  const labelTarget = document.getElementById('at-label-target');
+  const labelCold = document.getElementById('at-label-cold');
+  const labelHot = document.getElementById('at-label-hot');
+
+  const resTotalWatts = document.getElementById('at-res-total-watts');
+  const resDelta = document.getElementById('at-res-delta');
+  const resSplitWatts = document.getElementById('at-res-split-watts');
+  const coolingBadge = document.getElementById('at-cooling-badge');
+  const coolingDetails = document.getElementById('at-cooling-details');
+
+  const presets = {
+    community: { targetF: 77, targetC: 25 },
+    betta: { targetF: 79, targetC: 26 },
+    discus: { targetF: 84, targetC: 29 },
+    goldfish: { targetF: 68, targetC: 20 },
+    axolotl: { targetF: 62, targetC: 16.5 },
+    reef: { targetF: 78, targetC: 25.5 }
+  };
+
+  function updateUnitDisplay() {
+    const isF = unitsSelect.value === 'f';
+    labelTarget.textContent = `Target Water Temp (${isF ? '°F' : '°C'})`;
+    labelCold.textContent = `Room Winter Low (${isF ? '°F' : '°C'})`;
+    labelHot.textContent = `Room Summer Peak (${isF ? '°F' : '°C'})`;
+
+    const p = presets[speciesSelect.value];
+    if (p) {
+      targetTempInput.value = isF ? p.targetF : p.targetC;
+    }
+  }
+
+  function handleSpeciesChange() {
+    const isF = unitsSelect.value === 'f';
+    const p = presets[speciesSelect.value];
+    if (p) {
+      targetTempInput.value = isF ? p.targetF : p.targetC;
+    }
+    calculate();
+  }
+
+  function calculate() {
+    const isF = unitsSelect.value === 'f';
+    const rawVol = parseFloat(volInput.value) || 20;
+    const volGallons = isF ? rawVol : rawVol * 0.264172;
+    const volLiters = isF ? rawVol * 3.78541 : rawVol;
+
+    let target = parseFloat(targetTempInput.value) || (isF ? 77 : 25);
+    let cold = parseFloat(roomColdInput.value) || (isF ? 65 : 18);
+    let hot = parseFloat(roomHotInput.value) || (isF ? 78 : 26);
+
+    // Convert all to Fahrenheit for standard thermodynamic delta math
+    const targetF = isF ? target : (target * 9/5) + 32;
+    const coldF = isF ? cold : (cold * 9/5) + 32;
+    const hotF = isF ? hot : (hot * 9/5) + 32;
+
+    const deltaLiftF = Math.max(0, targetF - coldF);
+    const deltaLiftC = deltaLiftF * 5/9;
+
+    const lidMult = lidSelect.value === 'open' ? 1.35 : (lidSelect.value === 'mesh' ? 1.25 : 1.0);
+
+    // Baseline heater sizing rule: ~2.5W to 5W per gallon scaled by delta T
+    // Delta <= 5F -> ~2.5 W/gal; Delta 10F -> 4 W/gal; Delta 15F+ -> 5-6 W/gal
+    let wattsPerGal = 2.5;
+    if (deltaLiftF > 5) wattsPerGal = 3.5;
+    if (deltaLiftF > 10) wattsPerGal = 5.0;
+    if (deltaLiftF > 15) wattsPerGal = 6.5;
+
+    let totalWatts = Math.max(25, Math.ceil((volGallons * wattsPerGal * lidMult) / 25) * 25);
+
+    // Standard commercial heater watt sizes: 25, 50, 75, 100, 150, 200, 300, 500
+    const heaterSizes = [25, 50, 75, 100, 150, 200, 300, 500];
+    function getStandardSize(w) {
+      for (let s of heaterSizes) {
+        if (s >= w) return s;
+      }
+      return heaterSizes[heaterSizes.length - 1];
+    }
+
+    const recSingle = getStandardSize(totalWatts);
+    const splitTarget = totalWatts / 2;
+    const recSplit = getStandardSize(splitTarget);
+
+    resTotalWatts.textContent = `${recSingle} Watts`;
+    resDelta.textContent = `+${deltaLiftF.toFixed(1)}°F (+${deltaLiftC.toFixed(1)}°C)`;
+    resSplitWatts.textContent = `${recSplit}-Watt`;
+
+    // Chiller / Cooling Analysis
+    const coolingDeltaF = hotF - targetF;
+    if (coolingDeltaF > 1.5) {
+      const coolingDeltaC = coolingDeltaF * 5/9;
+      coolingBadge.style.background = 'rgba(255,77,77,0.2)';
+      coolingBadge.style.color = '#ff4d4d';
+      coolingBadge.style.borderColor = 'rgba(255,77,77,0.4)';
+      coolingBadge.textContent = 'Active Cooling Required!';
+
+      let chillerRec = '1/10 HP Chiller';
+      if (volGallons > 80 || coolingDeltaF > 12) chillerRec = '1/4 HP Chiller';
+      if (volGallons > 150) chillerRec = '1/2 HP Chiller';
+
+      coolingDetails.innerHTML = `
+        Room peaks at <strong>${hotF.toFixed(1)}°F</strong>, which is <strong>+${coolingDeltaF.toFixed(1)}°F (+${coolingDeltaC.toFixed(1)}°C) above safe limits</strong> for ${speciesSelect.options[speciesSelect.selectedIndex].text.split('(')[0]}.<br>
+        • <strong>Recommendation:</strong> Install a <strong>${chillerRec}</strong> (e.g. JBJ Arctica, Hailea).<br>
+        • <strong>Budget Alternative:</strong> Cross-flow aquarium clip-on fan over surface (yields 2°–4°F cooling through evaporation; requires daily RO water top-offs).
+      `;
+    } else {
+      coolingBadge.style.background = 'rgba(57,255,20,0.2)';
+      coolingBadge.style.color = '#39ff14';
+      coolingBadge.style.borderColor = 'rgba(57,255,20,0.4)';
+      coolingBadge.textContent = 'No chiller needed';
+      coolingDetails.textContent = 'Your peak summer room temperature does not dangerously exceed target water temperature. Standard ambient room climate is sufficient.';
+    }
+  }
+
+  speciesSelect.addEventListener('change', handleSpeciesChange);
+  unitsSelect.addEventListener('change', () => { updateUnitDisplay(); calculate(); });
+  lidSelect.addEventListener('change', calculate);
+  volInput.addEventListener('input', calculate);
+  targetTempInput.addEventListener('input', () => { speciesSelect.value = 'custom'; calculate(); });
+  roomColdInput.addEventListener('input', calculate);
+  roomHotInput.addEventListener('input', calculate);
+
+  calculate();
+})();
+</script>

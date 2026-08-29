@@ -119,7 +119,21 @@ const animeList = [
   'anime-recommendation-mood-engine'
 ];
 
+const aquariumList = [
+  'aquarium-volume-weight-calculator',
+  'aquarium-nitrogen-cycle-tracker',
+  'aquarium-stocking-compatibility-calculator',
+  'aquarium-water-change-salinity-calculator',
+  'aquarium-heater-chiller-calculator',
+  'aquarium-lighting-par-calculator',
+  'aquarium-co2-drop-checker-calculator',
+  'aquarium-medication-dosing-calculator',
+  'aquarium-substrate-hardscape-calculator',
+  'aquarium-feeding-vacation-planner'
+];
+
 function getCategory(name) {
+  if (aquariumList.some(s => name.includes(s))) return 'Aquatics & Fishkeeping';
   if (animeList.some(s => name.includes(s))) return 'Anime & Otaku Culture';
   if (slList.some(s => name.includes(s))) return 'Virtual Worlds & Gaming';
   if (musicList.some(s => name.includes(s))) return 'Music & Audio';
