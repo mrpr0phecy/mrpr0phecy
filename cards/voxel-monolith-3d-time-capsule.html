@@ -1,0 +1,386 @@
+<h2 id="voxel-monolith-title" style="margin-top:0;color:var(--accent);">🗿 VoxelMonolith: 3D Isometric Time-Capsule &amp; Communal Monument</h2>
+
+<form aria-describedby="voxel-monolith-desc" onsubmit="event.preventDefault();">
+  <p id="voxel-monolith-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    An isometric 3D voxel monument sculpted across time. Place obsidian, glowing crystal, gold, and marble blocks layer by layer. Scrub the chronological time slider to watch historical construction from inception.
+  </p>
+
+  <!-- Voxel Material & Mode Selectors -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="vm-material" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Voxel Material</label>
+      <select id="vm-material" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="gold" selected>🪙 Solar Gold (Polished Metal)</option>
+        <option value="cyan">💎 Bioluminescent Cyan Crystal</option>
+        <option value="purple">🔮 Amethyst Void Stone</option>
+        <option value="emerald">🌿 Jade Imperial Marble</option>
+        <option value="obsidian">🖤 Volcanic Obsidian Glass</option>
+        <option value="white">🏛️ Classical Carrara Marble</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="vm-action-mode" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Sculpting Action</label>
+      <select id="vm-action-mode" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="add" selected>➕ Place Voxel Block</option>
+        <option value="carve">⛏️ Chisel / Remove Block</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="vm-view-angle" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Isometric Orbit: <span id="vm-rot-val">45°</span></label>
+      <input type="range" id="vm-view-angle" min="0" max="360" value="45" step="15" style="width:100%;accent-color:var(--accent);">
+    </div>
+
+    <div>
+      <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Monument Presets</label>
+      <select id="vm-preset-select" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="temple" selected>Step Ziggurat Temple</option>
+        <option value="tower">Babel Obelisk Tower</option>
+        <option value="portal">Interstellar Stargate</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 3D Isometric Viewport -->
+  <div style="background:#03060a;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;display:flex;flex-direction:column;align-items:center;">
+    <div style="width:100%;display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Click on isometric plinth or existing voxels to stack blocks</span>
+      <div style="display:flex;gap:12px;">
+        <span>Voxel Mass: <strong id="vm-block-count" style="color:var(--accent);">0</strong></span>
+        <span>Height: <strong id="vm-max-height" style="color:#ffd700;">1 layer</strong></span>
+      </div>
+    </div>
+
+    <div style="width:100%;height:330px;position:relative;overflow:hidden;border-radius:6px;background:radial-gradient(circle at center, #09121e 0%, #020407 100%);">
+      <canvas id="vm-canvas" width="600" height="330" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+    </div>
+  </div>
+
+  <!-- Chronological Time-Lapse Slider -->
+  <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 14px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <span style="font-size:0.75rem;font-weight:600;color:var(--accent);">⏳ Chronological Revision History Scrub</span>
+      <span id="vm-history-step" style="font-size:0.72rem;color:var(--text-secondary);">Block 42 of 42</span>
+    </div>
+    <input type="range" id="vm-history-slider" min="1" max="1" value="1" style="width:100%;accent-color:var(--accent);">
+  </div>
+
+  <!-- Actions & Export -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="vm-btn-copy" style="padding:6px 12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;">Copy Monolith DNA</button>
+      <button type="button" id="vm-btn-import" style="padding:6px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;font-size:0.75rem;cursor:pointer;">Import Monument</button>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="vm-btn-clear" style="padding:6px 10px;background:none;border:1px solid rgba(255,77,77,0.3);color:#ff6b6b;border-radius:6px;font-size:0.75rem;cursor:pointer;">Clear</button>
+      <button type="button" id="vm-btn-export" style="padding:6px 12px;background:rgba(57,255,20,0.18);border:1px solid #39ff14;color:#39ff14;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">💾 Save 3D Isometric PNG</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('vm-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const matSelect = document.getElementById('vm-material');
+  const modeSelect = document.getElementById('vm-action-mode');
+  const angleInput = document.getElementById('vm-view-angle');
+  const rotVal = document.getElementById('vm-rot-val');
+  const presetSelect = document.getElementById('vm-preset-select');
+
+  const blockCountDisplay = document.getElementById('vm-block-count');
+  const maxHeightDisplay = document.getElementById('vm-max-height');
+  const historySlider = document.getElementById('vm-history-slider');
+  const historyStepDisplay = document.getElementById('vm-history-step');
+
+  const btnCopy = document.getElementById('vm-btn-copy');
+  const btnImport = document.getElementById('vm-btn-import');
+  const btnClear = document.getElementById('vm-btn-clear');
+  const btnExport = document.getElementById('vm-btn-export');
+
+  // Voxel Palette with directional shading (top, left, right faces)
+  const materials = {
+    gold: { top: '#ffe066', left: '#f59f00', right: '#d97706' },
+    cyan: { top: '#00ffcc', left: '#2dd4ff', right: '#0984e3' },
+    purple: { top: '#e056fd', left: '#b026ff', right: '#6c5ce7' },
+    emerald: { top: '#55efc4', left: '#00b894', right: '#006266' },
+    obsidian: { top: '#34495e', left: '#1e272e', right: '#0c1013' },
+    white: { top: '#ffffff', left: '#dfe6e9', right: '#b2bec3' }
+  };
+
+  // 3D Voxel Coordinate Dictionary: key "x,y,z" => { material }
+  let voxels = new Map();
+  let voxelHistory = []; // chronological placement list
+
+  const TILE_W = 28;
+  const TILE_H = 14;
+  const VOXEL_H = 16;
+
+  function setVoxel(x, y, z, mat) {
+    const key = `${x},${y},${z}`;
+    voxels.set(key, { x, y, z, mat });
+    voxelHistory.push({ x, y, z, mat });
+    updateHistoryControls();
+  }
+
+  function removeVoxel(x, y, z) {
+    const key = `${x},${y},${z}`;
+    voxels.delete(key);
+    voxelHistory = voxelHistory.filter(v => !(v.x === x && v.y === y && v.z === z));
+    updateHistoryControls();
+  }
+
+  function updateHistoryControls() {
+    historySlider.max = Math.max(1, voxelHistory.length);
+    historySlider.value = voxelHistory.length;
+    historyStepDisplay.textContent = `Block ${voxelHistory.length} of ${voxelHistory.length}`;
+    blockCountDisplay.textContent = voxels.size;
+
+    let maxZ = 0;
+    voxels.forEach(v => { maxZ = Math.max(maxZ, v.z); });
+    maxHeightDisplay.textContent = `${maxZ + 1} layer${maxZ === 0 ? '' : 's'}`;
+  }
+
+  function isoProject(x, y, z, angleDeg) {
+    const rad = (angleDeg * Math.PI) / 180;
+    // Rotate coordinates around Z axis
+    const rx = x * Math.cos(rad) - y * Math.sin(rad);
+    const ry = x * Math.sin(rad) + y * Math.cos(rad);
+
+    const screenX = canvas.width / 2 + (rx - ry) * (TILE_W / 2);
+    const screenY = canvas.height / 2 + 60 + (rx + ry) * (TILE_H / 2) - (z * VOXEL_H);
+    return { x: screenX, y: screenY, depth: rx + ry + z * 2 };
+  }
+
+  function drawVoxel(x, y, z, matKey, angleDeg) {
+    const mat = materials[matKey] || materials.gold;
+    const p = isoProject(x, y, z, angleDeg);
+
+    const hw = TILE_W / 2;
+    const hh = TILE_H / 2;
+    const h = VOXEL_H;
+
+    // Top Face
+    ctx.fillStyle = mat.top;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - hh);
+    ctx.lineTo(p.x + hw, p.y);
+    ctx.lineTo(p.x, p.y + hh);
+    ctx.lineTo(p.x - hw, p.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Left Face
+    ctx.fillStyle = mat.left;
+    ctx.beginPath();
+    ctx.moveTo(p.x - hw, p.y);
+    ctx.lineTo(p.x, p.y + hh);
+    ctx.lineTo(p.x, p.y + hh + h);
+    ctx.lineTo(p.x - hw, p.y + h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Right Face
+    ctx.fillStyle = mat.right;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y + hh);
+    ctx.lineTo(p.x + hw, p.y);
+    ctx.lineTo(p.x + hw, p.y + h);
+    ctx.lineTo(p.x, p.y + hh + h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Edges
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const angle = parseFloat(angleInput.value) || 45;
+
+    // Draw isometric base grid plinth
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.15)';
+    ctx.lineWidth = 1;
+    for (let gx = -4; gx <= 4; gx++) {
+      const p1 = isoProject(gx, -4, 0, angle);
+      const p2 = isoProject(gx, 4, 0, angle);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y + VOXEL_H);
+      ctx.lineTo(p2.x, p2.y + VOXEL_H);
+      ctx.stroke();
+    }
+    for (let gy = -4; gy <= 4; gy++) {
+      const p1 = isoProject(-4, gy, 0, angle);
+      const p2 = isoProject(4, gy, 0, angle);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y + VOXEL_H);
+      ctx.lineTo(p2.x, p2.y + VOXEL_H);
+      ctx.stroke();
+    }
+
+    // Sort voxels by painter's depth algorithm
+    const list = Array.from(voxels.values());
+    list.forEach(v => {
+      v.depth = isoProject(v.x, v.y, v.z, angle).depth;
+    });
+    list.sort((a, b) => a.depth - b.depth);
+
+    list.forEach(v => {
+      drawVoxel(v.x, v.y, v.z, v.mat, angle);
+    });
+  }
+
+  function loadPreset(preset) {
+    voxels.clear();
+    voxelHistory = [];
+
+    if (preset === 'temple') {
+      // 3-tiered step ziggurat
+      for (let x = -2; x <= 2; x++) {
+        for (let y = -2; y <= 2; y++) {
+          setVoxel(x, y, 0, 'obsidian');
+        }
+      }
+      for (let x = -1; x <= 1; x++) {
+        for (let y = -1; y <= 1; y++) {
+          setVoxel(x, y, 1, 'gold');
+        }
+      }
+      setVoxel(0, 0, 2, 'cyan');
+    } else if (preset === 'tower') {
+      for (let z = 0; z < 6; z++) {
+        setVoxel(0, 0, z, z % 2 === 0 ? 'cyan' : 'purple');
+        if (z < 3) {
+          setVoxel(1, 0, z, 'obsidian');
+          setVoxel(-1, 0, z, 'obsidian');
+          setVoxel(0, 1, z, 'obsidian');
+          setVoxel(0, -1, z, 'obsidian');
+        }
+      }
+      setVoxel(0, 0, 6, 'gold');
+    } else {
+      // Stargate portal
+      for (let x = -2; x <= 2; x++) {
+        setVoxel(x, 0, 0, 'obsidian');
+        setVoxel(x, 0, 4, 'obsidian');
+      }
+      for (let z = 1; z <= 3; z++) {
+        setVoxel(-2, 0, z, 'obsidian');
+        setVoxel(2, 0, z, 'obsidian');
+        setVoxel(-1, 0, z, 'cyan');
+        setVoxel(0, 0, z, 'cyan');
+        setVoxel(1, 0, z, 'cyan');
+      }
+    }
+
+    render();
+  }
+
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const clickY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const angle = parseFloat(angleInput.value) || 45;
+    const mode = modeSelect.value;
+    const mat = matSelect.value;
+
+    // Find closest voxel clicked
+    let best = null;
+    let minD = 24;
+
+    voxels.forEach(v => {
+      const p = isoProject(v.x, v.y, v.z, angle);
+      const d = Math.sqrt((p.x - clickX) ** 2 + (p.y - clickY) ** 2);
+      if (d < minD) {
+        minD = d;
+        best = v;
+      }
+    });
+
+    if (best) {
+      if (mode === 'carve') {
+        removeVoxel(best.x, best.y, best.z);
+      } else {
+        // Stack on top
+        setVoxel(best.x, best.y, best.z + 1, mat);
+      }
+      render();
+    } else {
+      // Spawn on base ground level near center
+      const randX = Math.round((Math.random() - 0.5) * 4);
+      const randY = Math.round((Math.random() - 0.5) * 4);
+      setVoxel(randX, randY, 0, mat);
+      render();
+    }
+  });
+
+  angleInput.addEventListener('input', () => {
+    rotVal.textContent = `${angleInput.value}°`;
+    render();
+  });
+
+  presetSelect.addEventListener('change', () => loadPreset(presetSelect.value));
+
+  // Time scrubber
+  historySlider.addEventListener('input', () => {
+    const count = parseInt(historySlider.value, 10);
+    historyStepDisplay.textContent = `Block ${count} of ${voxelHistory.length}`;
+
+    voxels.clear();
+    for (let i = 0; i < count; i++) {
+      const v = voxelHistory[i];
+      voxels.set(`${v.x},${v.y},${v.z}`, v);
+    }
+    render();
+  });
+
+  btnClear.addEventListener('click', () => {
+    voxels.clear();
+    voxelHistory = [];
+    updateHistoryControls();
+    render();
+  });
+
+  btnCopy.addEventListener('click', () => {
+    const code = btoa(JSON.stringify(Array.from(voxels.values())));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopy.textContent = 'DNA Copied!';
+      setTimeout(() => { btnCopy.textContent = 'Copy Monolith DNA'; }, 2000);
+    });
+  });
+
+  btnImport.addEventListener('click', () => {
+    const input = prompt('Paste Monolith DNA:');
+    if (!input) return;
+    try {
+      const arr = JSON.parse(atob(input.trim()));
+      voxels.clear();
+      voxelHistory = [];
+      arr.forEach(v => setVoxel(v.x, v.y, v.z, v.mat));
+      render();
+    } catch(e) {
+      alert('Invalid monolith string.');
+    }
+  });
+
+  btnExport.addEventListener('click', () => {
+    const out = document.createElement('canvas');
+    out.width = 1200;
+    out.height = 800;
+    const octx = out.getContext('2d');
+    octx.drawImage(canvas, 0, 0, 1200, 800);
+
+    const a = document.createElement('a');
+    a.href = out.toDataURL('image/png');
+    a.download = `voxel_monolith_3d_${Date.now()}.png`;
+    a.click();
+  });
+
+  loadPreset('temple');
+})();
+</script>

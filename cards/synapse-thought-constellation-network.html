@@ -1,0 +1,404 @@
+<h2 id="neuro-synapse-title" style="margin-top:0;color:var(--accent);">🧠 NeuroSynapse: Generative Thought Web &amp; Memory Constellation</h2>
+
+<form aria-describedby="neuro-synapse-desc" onsubmit="event.preventDefault();">
+  <p id="neuro-synapse-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    An organic neural graph where thoughts, insights, and memories connect via pulsating synaptic axons. Fire bio-electric action potentials, watch ideas resonate across clusters, and author collective mind-maps.
+  </p>
+
+  <!-- Node Input Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div style="grid-column:1/-2;">
+      <label for="ns-thought-text" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">New Thought / Concept</label>
+      <input type="text" id="ns-thought-text" value="Quantum Entanglement" placeholder="e.g. Epiphenomenon, Amor Fati, Synchronicity" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+    </div>
+
+    <div>
+      <label for="ns-category" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Memory Cluster</label>
+      <select id="ns-category" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="#2dd4ff" selected>Physics &amp; Cosmos (Cyan)</option>
+        <option value="#b026ff">Philosophy &amp; Mind (Purple)</option>
+        <option value="#00ffcc">Biology &amp; Gaia (Mint)</option>
+        <option value="#ffd700">Art &amp; Poetry (Gold)</option>
+      </select>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Add to Web</label>
+      <button type="button" id="ns-btn-add-node" style="width:100%;padding:6px 10px;background:var(--accent);color:#0a0f14;border:none;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">
+        + Spark Thought
+      </button>
+    </div>
+  </div>
+
+  <!-- Neural Canvas Viewport -->
+  <div style="background:#04070d;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span id="ns-hint">Click any neuron to trigger bio-electric action impulse · Drag between nodes to link</span>
+      <div style="display:flex;gap:12px;">
+        <span>Neurons: <strong id="ns-stat-nodes" style="color:var(--accent);">7</strong></span>
+        <span>Synapses: <strong id="ns-stat-edges" style="color:#00ffcc;">9</strong></span>
+      </div>
+    </div>
+
+    <div style="width:100%;height:330px;position:relative;overflow:hidden;border-radius:6px;background:radial-gradient(circle at center, #07101c 0%, #020509 100%);">
+      <canvas id="ns-canvas" width="600" height="330" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="ns-btn-pulse-all" style="padding:6px 12px;background:rgba(176,38,255,0.18);border:1px solid #b026ff;color:#e6faff;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">⚡ Fire Global Cascade</button>
+      <button type="button" id="ns-btn-clear" style="padding:6px 10px;background:none;border:1px solid rgba(255,77,77,0.3);color:#ff6b6b;border-radius:6px;font-size:0.75rem;cursor:pointer;">Reset</button>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="ns-btn-copy" style="padding:6px 12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;">Copy Synapse DNA</button>
+      <button type="button" id="ns-btn-import" style="padding:6px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;font-size:0.75rem;cursor:pointer;">Import Network</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('ns-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const thoughtInput = document.getElementById('ns-thought-text');
+  const categorySelect = document.getElementById('ns-category');
+  const btnAddNode = document.getElementById('ns-btn-add-node');
+  const hintDisplay = document.getElementById('ns-hint');
+  const statNodes = document.getElementById('ns-stat-nodes');
+  const statEdges = document.getElementById('ns-stat-edges');
+
+  const btnPulseAll = document.getElementById('ns-btn-pulse-all');
+  const btnClear = document.getElementById('ns-btn-clear');
+  const btnCopy = document.getElementById('ns-btn-copy');
+  const btnImport = document.getElementById('ns-btn-import');
+
+  let audioCtx = null;
+  function getAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function pingAudio(freq = 440) {
+    try {
+      const actx = getAudio();
+      const osc = actx.createOscillator();
+      const g = actx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, actx.currentTime);
+      g.gain.setValueAtTime(0.08, actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.5);
+      osc.connect(g);
+      g.connect(actx.destination);
+      osc.start();
+      osc.stop(actx.currentTime + 0.55);
+    } catch(e) {}
+  }
+
+  let nodes = [];
+  let edges = [];
+  let impulses = []; // electrical wave animations
+  let draggedNode = null;
+  let connectingSource = null;
+
+  function initDefaultNetwork() {
+    nodes = [
+      { id: 0, label: 'Cosmic Consciousness', color: '#b026ff', x: 300, y: 160, vx: 0, vy: 0, r: 18, glow: 0 },
+      { id: 1, label: 'Quantum Entanglement', color: '#2dd4ff', x: 200, y: 100, vx: 0, vy: 0, r: 14, glow: 0 },
+      { id: 2, label: 'Syntropy & Order', color: '#2dd4ff', x: 170, y: 220, vx: 0, vy: 0, r: 13, glow: 0 },
+      { id: 3, label: 'Panpsychism', color: '#b026ff', x: 420, y: 110, vx: 0, vy: 0, r: 13, glow: 0 },
+      { id: 4, label: 'Bioluminescence', color: '#00ffcc', x: 410, y: 230, vx: 0, vy: 0, r: 14, glow: 0 },
+      { id: 5, label: 'Amor Fati', color: '#ffd700', x: 310, y: 260, vx: 0, vy: 0, r: 12, glow: 0 }
+    ];
+
+    edges = [
+      { from: 0, to: 1 },
+      { from: 0, to: 2 },
+      { from: 0, to: 3 },
+      { from: 0, to: 4 },
+      { from: 0, to: 5 },
+      { from: 1, to: 2 },
+      { from: 3, to: 4 },
+      { from: 4, to: 5 }
+    ];
+
+    updateCounts();
+  }
+
+  function updateCounts() {
+    statNodes.textContent = nodes.length;
+    statEdges.textContent = edges.length;
+  }
+
+  function fireImpulse(nodeId, originEdge = null) {
+    const n = nodes.find(item => item.id === nodeId);
+    if (!n) return;
+    n.glow = 1.0;
+    pingAudio(300 + (nodeId % 8) * 80);
+
+    // Spread along axons
+    edges.forEach(e => {
+      if (e.from === nodeId) {
+        impulses.push({ from: e.from, to: e.to, progress: 0, speed: 0.04 });
+      } else if (e.to === nodeId) {
+        impulses.push({ from: e.to, to: e.from, progress: 0, speed: 0.04 });
+      }
+    });
+  }
+
+  function physicsStep() {
+    // Coulomb repulsion between all node pairs
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const n1 = nodes[i];
+        const n2 = nodes[j];
+        const dx = n2.x - n1.x;
+        const dy = n2.y - n1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const rep = 800 / (dist * dist);
+        const fx = (dx / dist) * rep;
+        const fy = (dy / dist) * rep;
+
+        n1.vx -= fx;
+        n1.vy -= fy;
+        n2.vx += fx;
+        n2.vy += fy;
+      }
+    }
+
+    // Hooke spring attraction along synapses
+    edges.forEach(e => {
+      const n1 = nodes.find(n => n.id === e.from);
+      const n2 = nodes.find(n => n.id === e.to);
+      if (!n1 || !n2) return;
+
+      const dx = n2.x - n1.x;
+      const dy = n2.y - n1.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const targetDist = 95;
+      const spring = (dist - targetDist) * 0.02;
+
+      const fx = (dx / dist) * spring;
+      const fy = (dy / dist) * spring;
+
+      n1.vx += fx;
+      n1.vy += fy;
+      n2.vx -= fx;
+      n2.vy -= fy;
+    });
+
+    // Center gravitational pull and damping
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    nodes.forEach(n => {
+      if (n === draggedNode) return;
+      n.vx += (cx - n.x) * 0.005;
+      n.vy += (cy - n.y) * 0.005;
+
+      n.vx *= 0.88;
+      n.vy *= 0.88;
+
+      n.x += n.vx;
+      n.y += n.vy;
+
+      // Decay glow
+      if (n.glow > 0) n.glow = Math.max(0, n.glow - 0.03);
+    });
+
+    // Advance electrical impulses
+    for (let i = impulses.length - 1; i >= 0; i--) {
+      const imp = impulses[i];
+      imp.progress += imp.speed;
+      if (imp.progress >= 1.0) {
+        const dest = nodes.find(n => n.id === imp.to);
+        if (dest && dest.glow < 0.2) {
+          dest.glow = 0.8;
+          pingAudio(400 + (dest.id % 8) * 60);
+        }
+        impulses.splice(i, 1);
+      }
+    }
+  }
+
+  function render() {
+    physicsStep();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw Synaptic Axons
+    edges.forEach(e => {
+      const n1 = nodes.find(n => n.id === e.from);
+      const n2 = nodes.find(n => n.id === e.to);
+      if (!n1 || !n2) return;
+
+      ctx.strokeStyle = 'rgba(45, 212, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(n1.x, n1.y);
+      ctx.lineTo(n2.x, n2.y);
+      ctx.stroke();
+    });
+
+    // Draw traveling bio-electric impulses
+    impulses.forEach(imp => {
+      const n1 = nodes.find(n => n.id === imp.from);
+      const n2 = nodes.find(n => n.id === imp.to);
+      if (!n1 || !n2) return;
+
+      const px = n1.x + (n2.x - n1.x) * imp.progress;
+      const py = n1.y + (n2.y - n1.y) * imp.progress;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#00ffcc';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    // Draw Nodes
+    nodes.forEach(n => {
+      // Glow halo
+      if (n.glow > 0) {
+        ctx.fillStyle = n.color;
+        ctx.globalAlpha = n.glow * 0.4;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      }
+
+      ctx.fillStyle = n.color;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Node label
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(n.label, n.x, n.y + n.r + 14);
+    });
+
+    requestAnimationFrame(render);
+  }
+
+  function findNode(x, y) {
+    for (let n of nodes) {
+      const dx = n.x - x;
+      const dy = n.y - y;
+      if (dx * dx + dy * dy < (n.r + 10) * (n.r + 10)) return n;
+    }
+    return null;
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const clicked = findNode(x, y);
+
+    if (clicked) {
+      if (e.shiftKey) {
+        // Shift+click to link
+        if (!connectingSource) {
+          connectingSource = clicked;
+          hintDisplay.textContent = `Connecting from "${clicked.label}". Click target node.`;
+        } else if (connectingSource !== clicked) {
+          edges.push({ from: connectingSource.id, to: clicked.id });
+          connectingSource = null;
+          hintDisplay.textContent = 'Synapse created!';
+          updateCounts();
+        }
+      } else {
+        draggedNode = clicked;
+        fireImpulse(clicked.id);
+      }
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!draggedNode) return;
+    const rect = canvas.getBoundingClientRect();
+    draggedNode.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    draggedNode.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+  });
+
+  window.addEventListener('mouseup', () => { draggedNode = null; });
+
+  btnAddNode.addEventListener('click', () => {
+    const txt = thoughtInput.value.trim();
+    if (!txt) return;
+    const col = categorySelect.value;
+    const newId = nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 0;
+
+    const newNode = {
+      id: newId,
+      label: txt,
+      color: col,
+      x: canvas.width / 2 + (Math.random() - 0.5) * 80,
+      y: canvas.height / 2 + (Math.random() - 0.5) * 80,
+      vx: 0,
+      vy: 0,
+      r: 13,
+      glow: 1.0
+    };
+
+    nodes.push(newNode);
+    if (nodes.length > 1) {
+      // Connect to random existing node
+      const other = nodes[Math.floor(Math.random() * (nodes.length - 1))];
+      edges.push({ from: other.id, to: newNode.id });
+    }
+
+    fireImpulse(newNode.id);
+    updateCounts();
+    thoughtInput.value = '';
+  });
+
+  btnPulseAll.addEventListener('click', () => {
+    nodes.forEach(n => fireImpulse(n.id));
+  });
+
+  btnClear.addEventListener('click', () => {
+    nodes = [];
+    edges = [];
+    impulses = [];
+    updateCounts();
+  });
+
+  btnCopy.addEventListener('click', () => {
+    const code = btoa(JSON.stringify({ nodes, edges }));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopy.textContent = 'Synapse DNA Copied!';
+      setTimeout(() => { btnCopy.textContent = 'Copy Synapse DNA'; }, 2000);
+    });
+  });
+
+  btnImport.addEventListener('click', () => {
+    const input = prompt('Paste Synapse DNA:');
+    if (!input) return;
+    try {
+      const parsed = JSON.parse(atob(input.trim()));
+      if (parsed.nodes && parsed.edges) {
+        nodes = parsed.nodes;
+        edges = parsed.edges;
+        updateCounts();
+      }
+    } catch(e) {
+      alert('Invalid synapse code.');
+    }
+  });
+
+  initDefaultNetwork();
+  render();
+})();
+</script>

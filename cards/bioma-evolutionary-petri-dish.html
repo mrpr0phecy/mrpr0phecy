@@ -1,0 +1,428 @@
+<h2 id="bioma-life-title" style="margin-top:0;color:var(--accent);">🦠 BiomaLife: Continuous Cellular Ecosystem &amp; Evolutionary Petri Dish</h2>
+
+<form aria-describedby="bioma-life-desc" onsubmit="event.preventDefault();">
+  <p id="bioma-life-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    An artificial life (ALife) Darwinian simulation. Engineer genetic cellular strains, watch natural selection optimize camouflage and hunting behaviors across thousands of generations, and introduce custom species to a shared petri dish.
+  </p>
+
+  <!-- Environmental Dashboard & Ticker -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="bl-sim-speed" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Simulation Speed</label>
+      <select id="bl-sim-speed" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="1">1x Real Time</option>
+        <option value="2" selected>2x Evolutionary Warp</option>
+        <option value="4">4x Hyper Evolution</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="bl-mutation-rate" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Mutation Rate: <span id="bl-mut-val">12%</span></label>
+      <input type="range" id="bl-mutation-rate" min="1" max="40" value="12" step="1" style="width:100%;accent-color:var(--accent);">
+    </div>
+
+    <div>
+      <label for="bl-diet-inject" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Inject Strain Trophic Role</label>
+      <select id="bl-diet-inject" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="herbivore" selected>🌿 Herbivore Algae Grazer</option>
+        <option value="carnivore">🩸 Apex Carnivore Hunter</option>
+        <option value="scavenger">🔷 Scavenger Detritivore</option>
+      </select>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Eco Interventions</label>
+      <div style="display:flex;gap:4px;">
+        <button type="button" id="bl-btn-algae" style="flex:1;padding:6px 4px;background:rgba(57,255,20,0.15);border:1px solid #39ff14;color:#39ff14;border-radius:4px;font-size:0.7rem;font-weight:700;cursor:pointer;">+ Algae Bloom</button>
+        <button type="button" id="bl-btn-toxin" style="flex:1;padding:6px 4px;background:rgba(255,77,77,0.15);border:1px solid #ff4d4d;color:#ff4d4d;border-radius:4px;font-size:0.7rem;font-weight:700;cursor:pointer;">Drop Toxin</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Petri Dish Canvas -->
+  <div style="background:#050a0f;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Click inside dish to spawn engineered organism strain</span>
+      <div style="display:flex;gap:12px;">
+        <span>Population: <strong id="bl-stat-pop" style="color:#00ffcc;">45</strong></span>
+        <span>Generations: <strong id="bl-stat-gen" style="color:#ffd700;">1</strong></span>
+      </div>
+    </div>
+
+    <div style="width:100%;height:330px;position:relative;overflow:hidden;border-radius:6px;background:radial-gradient(circle, #081525 0%, #03080e 100%);">
+      <canvas id="bl-canvas" width="600" height="330" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+    </div>
+  </div>
+
+  <!-- Ecological Population Breakdown & Gene Sharing -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;align-items:center;font-size:0.75rem;">
+      <span style="color:#39ff14;">🌿 Grazers: <span id="bl-count-herb">30</span></span>
+      <span style="color:#ff4d4d;margin-left:8px;">🩸 Predators: <span id="bl-count-carn">15</span></span>
+      <span style="color:#2dd4ff;margin-left:8px;">🍃 Algae Spores: <span id="bl-count-food">40</span></span>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="bl-btn-copy" style="padding:6px 12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;">Export Gene Pool</button>
+      <button type="button" id="bl-btn-import" style="padding:6px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;font-size:0.75rem;cursor:pointer;">Import Strain</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('bl-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const speedSelect = document.getElementById('bl-sim-speed');
+  const mutationInput = document.getElementById('bl-mutation-rate');
+  const mutVal = document.getElementById('bl-mut-val');
+  const dietInjectSelect = document.getElementById('bl-diet-inject');
+  const btnAlgae = document.getElementById('bl-btn-algae');
+  const btnToxin = document.getElementById('bl-btn-toxin');
+
+  const statPop = document.getElementById('bl-stat-pop');
+  const statGen = document.getElementById('bl-stat-gen');
+  const countHerb = document.getElementById('bl-count-herb');
+  const countCarn = document.getElementById('bl-count-carn');
+  const countFood = document.getElementById('bl-count-food');
+
+  const btnCopy = document.getElementById('bl-btn-copy');
+  const btnImport = document.getElementById('bl-btn-import');
+
+  let organisms = [];
+  let foods = [];
+  let toxins = [];
+  let maxGeneration = 1;
+
+  // Organism constructor with genetic chromosomes
+  class Organism {
+    constructor(x, y, genes = null, generation = 1) {
+      this.x = x;
+      this.y = y;
+      this.generation = generation;
+      this.energy = 100;
+      this.age = 0;
+      this.vx = (Math.random() - 0.5) * 2;
+      this.vy = (Math.random() - 0.5) * 2;
+
+      if (genes) {
+        this.genes = { ...genes };
+      } else {
+        // Default randomized genome
+        this.genes = {
+          speed: 1.2 + Math.random() * 1.5,
+          sensorRadius: 35 + Math.random() * 40,
+          size: 4 + Math.random() * 3,
+          diet: Math.random() > 0.25 ? 'herbivore' : 'carnivore',
+          reproductionThreshold: 150 + Math.random() * 50
+        };
+      }
+
+      this.color = this.genes.diet === 'carnivore' ? '#ff3b30' : (this.genes.diet === 'scavenger' ? '#007aff' : '#34c759');
+    }
+
+    mutate(rate) {
+      const g = { ...this.genes };
+      if (Math.random() < rate) g.speed = Math.max(0.6, Math.min(3.5, g.speed + (Math.random() - 0.5) * 0.4));
+      if (Math.random() < rate) g.sensorRadius = Math.max(20, Math.min(100, g.sensorRadius + (Math.random() - 0.5) * 10));
+      if (Math.random() < rate) g.size = Math.max(3, Math.min(9, g.size + (Math.random() - 0.5) * 1));
+      return g;
+    }
+
+    update() {
+      this.age++;
+      // Basal metabolic cost scaled by size and speed^2
+      const metabolicCost = 0.08 + (this.genes.size * 0.02) + (this.genes.speed * this.genes.speed * 0.03);
+      this.energy -= metabolicCost;
+
+      // Target seeking
+      let target = null;
+      let closestDist = Infinity;
+
+      if (this.genes.diet === 'herbivore') {
+        // Seek nearest food
+        foods.forEach(f => {
+          const dx = f.x - this.x;
+          const dy = f.y - this.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < this.genes.sensorRadius && d < closestDist) {
+            closestDist = d;
+            target = f;
+          }
+        });
+      } else if (this.genes.diet === 'carnivore') {
+        // Seek nearest herbivore
+        organisms.forEach(other => {
+          if (other !== this && other.genes.diet === 'herbivore') {
+            const dx = other.x - this.x;
+            const dy = other.y - this.y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d < this.genes.sensorRadius && d < closestDist) {
+              closestDist = d;
+              target = other;
+            }
+          }
+        });
+      }
+
+      // Steer towards target or wander
+      if (target) {
+        const dx = target.x - this.x;
+        const dy = target.y - this.y;
+        const angle = Math.atan2(dy, dx);
+        this.vx += Math.cos(angle) * 0.25;
+        this.vy += Math.sin(angle) * 0.25;
+      } else {
+        // Brownian wander
+        this.vx += (Math.random() - 0.5) * 0.2;
+        this.vy += (Math.random() - 0.5) * 0.2;
+      }
+
+      // Limit speed
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > this.genes.speed) {
+        this.vx = (this.vx / speed) * this.genes.speed;
+        this.vy = (this.vy / speed) * this.genes.speed;
+      }
+
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Soft bounce against walls
+      if (this.x < this.genes.size) { this.x = this.genes.size; this.vx *= -1; }
+      if (this.x > canvas.width - this.genes.size) { this.x = canvas.width - this.genes.size; this.vx *= -1; }
+      if (this.y < this.genes.size) { this.y = this.genes.size; this.vy *= -1; }
+      if (this.y > canvas.height - this.genes.size) { this.y = canvas.height - this.genes.size; this.vy *= -1; }
+    }
+  }
+
+  function initEcosystem() {
+    organisms = [];
+    foods = [];
+
+    // Seed 30 herbivores
+    for (let i = 0; i < 30; i++) {
+      organisms.push(new Organism(Math.random() * canvas.width, Math.random() * canvas.height, {
+        speed: 1.5, sensorRadius: 45, size: 4.5, diet: 'herbivore', reproductionThreshold: 150
+      }, 1));
+    }
+
+    // Seed 8 predators
+    for (let i = 0; i < 8; i++) {
+      organisms.push(new Organism(Math.random() * canvas.width, Math.random() * canvas.height, {
+        speed: 2.1, sensorRadius: 75, size: 6.5, diet: 'carnivore', reproductionThreshold: 180
+      }, 1));
+    }
+
+    // Seed 40 food particles
+    spawnFood(40);
+  }
+
+  function spawnFood(count) {
+    for (let i = 0; i < count; i++) {
+      foods.push({
+        x: 10 + Math.random() * (canvas.width - 20),
+        y: 10 + Math.random() * (canvas.height - 20),
+        energy: 45
+      });
+    }
+  }
+
+  function step() {
+    const simCycles = parseInt(speedSelect.value, 10) || 2;
+    const mutRate = (parseFloat(mutationInput.value) || 12) / 100;
+
+    for (let c = 0; c < simCycles; c++) {
+      // Natural plant / algae regrowth
+      if (Math.random() < 0.35 && foods.length < 90) {
+        spawnFood(1);
+      }
+
+      // Update organisms
+      for (let i = organisms.length - 1; i >= 0; i--) {
+        const org = organisms[i];
+        org.update();
+
+        // Check food consumption
+        if (org.genes.diet === 'herbivore') {
+          for (let f = foods.length - 1; f >= 0; f--) {
+            const food = foods[f];
+            const dx = food.x - org.x;
+            const dy = food.y - org.y;
+            if (dx * dx + dy * dy < (org.genes.size + 4) * (org.genes.size + 4)) {
+              org.energy += food.energy;
+              foods.splice(f, 1);
+              break;
+            }
+          }
+        } else if (org.genes.diet === 'carnivore') {
+          for (let p = organisms.length - 1; p >= 0; p--) {
+            const prey = organisms[p];
+            if (prey !== org && prey.genes.diet === 'herbivore') {
+              const dx = prey.x - org.x;
+              const dy = prey.y - org.y;
+              if (dx * dx + dy * dy < (org.genes.size + prey.genes.size) * (org.genes.size + prey.genes.size)) {
+                org.energy += 85;
+                organisms.splice(p, 1);
+                if (p < i) i--;
+                break;
+              }
+            }
+          }
+        }
+
+        // Toxin collision
+        for (let t = toxins.length - 1; t >= 0; t--) {
+          const tox = toxins[t];
+          const dx = tox.x - org.x;
+          const dy = tox.y - org.y;
+          if (dx * dx + dy * dy < (org.genes.size + tox.r) * (org.genes.size + tox.r)) {
+            org.energy -= 40;
+          }
+        }
+
+        // Mitosis / Reproduction
+        if (org.energy >= org.genes.reproductionThreshold && organisms.length < 110) {
+          org.energy /= 2;
+          const childGenes = org.mutate(mutRate);
+          const childGen = org.generation + 1;
+          maxGeneration = Math.max(maxGeneration, childGen);
+          organisms.push(new Organism(org.x + (Math.random() - 0.5) * 8, org.y + (Math.random() - 0.5) * 8, childGenes, childGen));
+        }
+
+        // Starvation or senescence death
+        if (org.energy <= 0 || org.age > 2400) {
+          organisms.splice(i, 1);
+        }
+      }
+
+      // Dissipate toxins
+      for (let t = toxins.length - 1; t >= 0; t--) {
+        toxins[t].life--;
+        if (toxins[t].life <= 0) toxins.splice(t, 1);
+      }
+    }
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw food / algae spores
+    ctx.fillStyle = '#2dd4ff';
+    foods.forEach(f => {
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Draw toxins
+    toxins.forEach(t => {
+      ctx.fillStyle = 'rgba(255, 77, 77, 0.35)';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    let herbCount = 0;
+    let carnCount = 0;
+
+    // Draw organisms with sensory perception aura
+    organisms.forEach(org => {
+      if (org.genes.diet === 'carnivore') carnCount++;
+      else herbCount++;
+
+      // Sensory halo
+      ctx.strokeStyle = org.genes.diet === 'carnivore' ? 'rgba(255, 59, 48, 0.08)' : 'rgba(52, 199, 89, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(org.x, org.y, org.genes.sensorRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Organism body
+      ctx.fillStyle = org.color;
+      ctx.beginPath();
+      ctx.arc(org.x, org.y, org.genes.size, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Orientation flagellum
+      ctx.strokeStyle = org.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(org.x, org.y);
+      ctx.lineTo(org.x - org.vx * 3, org.y - org.vy * 3);
+      ctx.stroke();
+    });
+
+    statPop.textContent = organisms.length;
+    statGen.textContent = maxGeneration;
+    countHerb.textContent = herbCount;
+    countCarn.textContent = carnCount;
+    countFood.textContent = foods.length;
+  }
+
+  function loop() {
+    step();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // Click to inject customized strain
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const diet = dietInjectSelect.value;
+
+    const customGenes = {
+      speed: diet === 'carnivore' ? 2.5 : 1.8,
+      sensorRadius: 60,
+      size: diet === 'carnivore' ? 7 : 5,
+      diet: diet,
+      reproductionThreshold: 140
+    };
+    organisms.push(new Organism(x, y, customGenes, maxGeneration));
+  });
+
+  btnAlgae.addEventListener('click', () => spawnFood(30));
+  btnToxin.addEventListener('click', () => {
+    toxins.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: 35,
+      life: 300
+    });
+  });
+
+  mutationInput.addEventListener('input', () => {
+    mutVal.textContent = `${mutationInput.value}%`;
+  });
+
+  btnCopy.addEventListener('click', () => {
+    const dna = organisms.map(o => o.genes);
+    const code = btoa(JSON.stringify(dna.slice(0, 40)));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopy.textContent = 'Gene Pool Copied!';
+      setTimeout(() => { btnCopy.textContent = 'Export Gene Pool'; }, 2000);
+    });
+  });
+
+  btnImport.addEventListener('click', () => {
+    const input = prompt('Paste genetic organism strain code:');
+    if (!input) return;
+    try {
+      const genesArr = JSON.parse(atob(input.trim()));
+      if (Array.isArray(genesArr)) {
+        genesArr.forEach(g => {
+          organisms.push(new Organism(Math.random() * canvas.width, Math.random() * canvas.height, g, maxGeneration));
+        });
+      }
+    } catch(e) {
+      alert('Invalid gene pool code.');
+    }
+  });
+
+  initEcosystem();
+  loop();
+})();
+</script>

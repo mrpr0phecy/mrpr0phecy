@@ -1,0 +1,381 @@
+<h2 id="pixel-mural-title" style="margin-top:0;color:var(--accent);">🎨 PixelVerse: Collaborative Infinite Canvas &amp; Communal Mural</h2>
+
+<form aria-describedby="pixel-mural-desc" onsubmit="event.preventDefault();">
+  <p id="pixel-mural-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    An evolving communal pixel art tapestry. Paint with friends over time, record generational brushstrokes, watch the creation time-lapse from inception, and export high-res artwork without paywalls.
+  </p>
+
+  <!-- Toolbar & Color Palette -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+    <!-- Tools -->
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button type="button" id="pv-tool-pen" class="pv-tool-btn pv-active" style="padding:5px 10px;border-radius:6px;background:var(--accent);color:#0a0f14;border:none;font-weight:700;font-size:0.75rem;cursor:pointer;">✏️ Pen</button>
+      <button type="button" id="pv-tool-fill" class="pv-tool-btn" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);font-size:0.75rem;cursor:pointer;">🪣 Bucket</button>
+      <button type="button" id="pv-tool-pick" class="pv-tool-btn" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);font-size:0.75rem;cursor:pointer;">💉 Eyedropper</button>
+      <button type="button" id="pv-tool-erase" class="pv-tool-btn" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);font-size:0.75rem;cursor:pointer;">🧹 Erase</button>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button type="button" id="pv-btn-timelapse" style="padding:5px 10px;border-radius:6px;background:rgba(176,38,255,0.18);border:1px solid #b026ff;color:#e6faff;font-size:0.75rem;font-weight:700;cursor:pointer;">▶ Play Timelapse</button>
+      <button type="button" id="pv-btn-export" style="padding:5px 10px;border-radius:6px;background:rgba(57,255,20,0.18);border:1px solid #39ff14;color:#39ff14;font-size:0.75rem;font-weight:700;cursor:pointer;">💾 Save PNG</button>
+    </div>
+  </div>
+
+  <!-- Palette Swatches -->
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px;" id="pv-palette-container">
+    <!-- Populated dynamically with 24 vibrant swatches -->
+  </div>
+
+  <!-- Main Canvas Container -->
+  <div style="background:#05080c;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px;margin-bottom:12px;display:flex;flex-direction:column;align-items:center;position:relative;">
+    <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:0.72rem;color:var(--muted);">
+      <span id="pv-coord-display">Coordinate: [0, 0]</span>
+      <span id="pv-stroke-count">Total Contributions: 0 strokes</span>
+      <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
+        <input type="checkbox" id="pv-grid-toggle" checked style="accent-color:var(--accent);"> Show Pixel Grid
+      </label>
+    </div>
+
+    <div style="width:100%;max-width:480px;aspect-ratio:1/1;display:flex;justify-content:center;align-items:center;overflow:hidden;background:#090d12;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <canvas id="pv-canvas" width="64" height="64" style="width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;cursor:crosshair;"></canvas>
+    </div>
+  </div>
+
+  <!-- Share & Communal Sync Controls -->
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:0.8rem;font-weight:600;color:var(--accent);">🤝 Communal Collaboration &amp; State Sharing</span>
+      <div style="display:flex;gap:6px;">
+        <button type="button" id="pv-btn-copy-code" style="padding:4px 8px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:4px;font-size:0.72rem;cursor:pointer;">Copy Mural Code</button>
+        <button type="button" id="pv-btn-import-code" style="padding:4px 8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:4px;font-size:0.72rem;cursor:pointer;">Import Code</button>
+        <button type="button" id="pv-btn-clear" style="padding:4px 8px;background:none;border:1px solid rgba(255,77,77,0.3);color:#ff6b6b;border-radius:4px;font-size:0.72rem;cursor:pointer;">Reset Canvas</button>
+      </div>
+    </div>
+    <div style="font-size:0.75rem;color:var(--muted);line-height:1.4;">
+      Your mural changes persist locally in your browser. Click <strong>Copy Mural Code</strong> to send your evolving artwork to collaborators so they can contribute their own pixels and send it back!
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('pv-canvas');
+  const ctx = canvas.getContext('2d');
+  const paletteContainer = document.getElementById('pv-palette-container');
+  const coordDisplay = document.getElementById('pv-coord-display');
+  const strokeCountDisplay = document.getElementById('pv-stroke-count');
+  const gridToggle = document.getElementById('pv-grid-toggle');
+
+  const toolPen = document.getElementById('pv-tool-pen');
+  const toolFill = document.getElementById('pv-tool-fill');
+  const toolPick = document.getElementById('pv-tool-pick');
+  const toolErase = document.getElementById('pv-tool-erase');
+
+  const btnTimelapse = document.getElementById('pv-btn-timelapse');
+  const btnExport = document.getElementById('pv-btn-export');
+  const btnCopyCode = document.getElementById('pv-btn-copy-code');
+  const btnImportCode = document.getElementById('pv-btn-import-code');
+  const btnClear = document.getElementById('pv-btn-clear');
+
+  const GRID_SIZE = 64;
+  let activeTool = 'pen';
+  let activeColor = '#00ffcc';
+  let isDrawing = false;
+  let isPlayingTimelapse = false;
+
+  // 64x64 color grid state
+  let grid = [];
+  let history = []; // array of {x, y, color}
+
+  const palette = [
+    '#ffffff', '#cbd5e1', '#64748b', '#0f172a',
+    '#ff0055', '#ff4757', '#ff6b81', '#ffa502',
+    '#ffd700', '#2ed573', '#00ffcc', '#2dd4ff',
+    '#1e90ff', '#3742fa', '#70a1ff', '#b026ff',
+    '#9b59b6', '#e056fd', '#ff7979', '#badc58',
+    '#f6e58d', '#dff9fb', '#ffbe76', '#130f40'
+  ];
+
+  function initPalette() {
+    paletteContainer.innerHTML = '';
+    palette.forEach((c, idx) => {
+      const sw = document.createElement('div');
+      sw.style.cssText = `width:22px;height:22px;border-radius:4px;background:${c};cursor:pointer;flex-shrink:0;box-sizing:border-box;transition:transform 0.15s;border:2px solid ${c === activeColor ? '#ffffff' : 'transparent'};`;
+      if (c === activeColor) sw.style.transform = 'scale(1.15)';
+      sw.addEventListener('click', () => {
+        activeColor = c;
+        if (activeTool === 'erase') setTool('pen');
+        initPalette();
+      });
+      paletteContainer.appendChild(sw);
+    });
+  }
+
+  function setTool(t) {
+    activeTool = t;
+    [toolPen, toolFill, toolPick, toolErase].forEach(btn => {
+      btn.style.background = 'rgba(255,255,255,0.08)';
+      btn.style.color = 'var(--text-secondary)';
+      btn.style.fontWeight = 'normal';
+    });
+
+    const activeBtn = t === 'pen' ? toolPen : (t === 'fill' ? toolFill : (t === 'pick' ? toolPick : toolErase));
+    activeBtn.style.background = 'var(--accent)';
+    activeBtn.style.color = '#0a0f14';
+    activeBtn.style.fontWeight = '700';
+  }
+
+  function initGrid() {
+    grid = new Array(GRID_SIZE);
+    for (let x = 0; x < GRID_SIZE; x++) {
+      grid[x] = new Array(GRID_SIZE).fill(null);
+    }
+
+    // Load from localStorage if present
+    const saved = localStorage.getItem('pixelverse_mural_state');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.grid && parsed.history) {
+          grid = parsed.grid;
+          history = parsed.history;
+          render();
+          strokeCountDisplay.textContent = `Total Contributions: ${history.length} strokes`;
+          return;
+        }
+      } catch(e) {}
+    }
+
+    // Default welcoming pixel icon (heart / star / earth pattern)
+    drawPresetStamp();
+    render();
+  }
+
+  function drawPresetStamp() {
+    // Stamp a small celestial orb in center
+    const cx = 32, cy = 32;
+    for (let r = 0; r < 14; r++) {
+      for (let theta = 0; theta < Math.PI * 2; theta += 0.1) {
+        const px = Math.round(cx + r * Math.cos(theta));
+        const py = Math.round(cy + r * Math.sin(theta));
+        if (px >= 0 && px < GRID_SIZE && py >= 0 && py < GRID_SIZE) {
+          const col = r < 5 ? '#ffd700' : (r < 9 ? '#00ffcc' : '#2dd4ff');
+          grid[px][py] = col;
+          history.push({ x: px, y: py, color: col });
+        }
+      }
+    }
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, GRID_SIZE, GRID_SIZE);
+
+    // Render pixels
+    for (let x = 0; x < GRID_SIZE; x++) {
+      for (let y = 0; y < GRID_SIZE; y++) {
+        if (grid[x][y]) {
+          ctx.fillStyle = grid[x][y];
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+
+    strokeCountDisplay.textContent = `Total Contributions: ${history.length} strokes`;
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem('pixelverse_mural_state', JSON.stringify({ grid, history }));
+    } catch(e) {}
+  }
+
+  function getCanvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const scaleX = GRID_SIZE / rect.width;
+    const scaleY = GRID_SIZE / rect.height;
+    const x = Math.floor((clientX - rect.left) * scaleX);
+    const y = Math.floor((clientY - rect.top) * scaleY);
+    return { x: Math.max(0, Math.min(GRID_SIZE - 1, x)), y: Math.max(0, Math.min(GRID_SIZE - 1, y)) };
+  }
+
+  function applyPixel(x, y) {
+    if (activeTool === 'pick') {
+      if (grid[x][y]) {
+        activeColor = grid[x][y];
+        setTool('pen');
+        initPalette();
+      }
+      return;
+    }
+
+    if (activeTool === 'fill') {
+      floodFill(x, y, activeColor);
+      render();
+      saveState();
+      return;
+    }
+
+    const c = activeTool === 'erase' ? null : activeColor;
+    if (grid[x][y] !== c) {
+      grid[x][y] = c;
+      history.push({ x, y, color: c });
+      render();
+      saveState();
+    }
+  }
+
+  function floodFill(startX, startY, targetColor) {
+    const original = grid[startX][startY];
+    if (original === targetColor) return;
+
+    const queue = [[startX, startY]];
+    const visited = new Set();
+
+    while (queue.length > 0) {
+      const [x, y] = queue.pop();
+      const key = `${x},${y}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      if (grid[x][y] === original) {
+        grid[x][y] = targetColor;
+        history.push({ x, y, color: targetColor });
+
+        if (x > 0) queue.push([x - 1, y]);
+        if (x < GRID_SIZE - 1) queue.push([x + 1, y]);
+        if (y > 0) queue.push([x, y - 1]);
+        if (y < GRID_SIZE - 1) queue.push([x, y + 1]);
+      }
+    }
+  }
+
+  // Pointer events
+  canvas.addEventListener('mousedown', (e) => {
+    if (isPlayingTimelapse) return;
+    isDrawing = true;
+    const { x, y } = getCanvasCoords(e);
+    coordDisplay.textContent = `Coordinate: [${x}, ${y}]`;
+    applyPixel(x, y);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDrawing || isPlayingTimelapse) return;
+    const { x, y } = getCanvasCoords(e);
+    coordDisplay.textContent = `Coordinate: [${x}, ${y}]`;
+    applyPixel(x, y);
+  });
+
+  window.addEventListener('mouseup', () => { isDrawing = false; });
+
+  // Touch
+  canvas.addEventListener('touchstart', (e) => {
+    if (isPlayingTimelapse) return;
+    isDrawing = true;
+    const { x, y } = getCanvasCoords(e);
+    coordDisplay.textContent = `Coordinate: [${x}, ${y}]`;
+    applyPixel(x, y);
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (!isDrawing || isPlayingTimelapse) return;
+    const { x, y } = getCanvasCoords(e);
+    coordDisplay.textContent = `Coordinate: [${x}, ${y}]`;
+    applyPixel(x, y);
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => { isDrawing = false; });
+
+  // Tool buttons
+  toolPen.addEventListener('click', () => setTool('pen'));
+  toolFill.addEventListener('click', () => setTool('fill'));
+  toolPick.addEventListener('click', () => setTool('pick'));
+  toolErase.addEventListener('click', () => setTool('erase'));
+
+  // Timelapse replay
+  btnTimelapse.addEventListener('click', () => {
+    if (isPlayingTimelapse || history.length === 0) return;
+    isPlayingTimelapse = true;
+    btnTimelapse.textContent = '⏳ Replaying...';
+
+    // Clear board
+    for (let x = 0; x < GRID_SIZE; x++) grid[x].fill(null);
+    render();
+
+    let step = 0;
+    const batch = Math.max(1, Math.floor(history.length / 120)); // replay in ~2 seconds
+
+    function tick() {
+      for (let i = 0; i < batch && step < history.length; i++, step++) {
+        const item = history[step];
+        grid[item.x][item.y] = item.color;
+      }
+      render();
+      if (step < history.length) {
+        requestAnimationFrame(tick);
+      } else {
+        isPlayingTimelapse = false;
+        btnTimelapse.textContent = '▶ Play Timelapse';
+      }
+    }
+    requestAnimationFrame(tick);
+  });
+
+  // Export high-res PNG (upscaled 1024x1024)
+  btnExport.addEventListener('click', () => {
+    const exp = document.createElement('canvas');
+    exp.width = 1024;
+    exp.height = 1024;
+    const ectx = exp.getContext('2d');
+    ectx.imageSmoothingEnabled = false;
+    ectx.drawImage(canvas, 0, 0, 1024, 1024);
+
+    const a = document.createElement('a');
+    a.href = exp.toDataURL('image/png');
+    a.download = `pixelverse_communal_mural_${Date.now()}.png`;
+    a.click();
+  });
+
+  // Copy mural code (JSON string)
+  btnCopyCode.addEventListener('click', () => {
+    const code = btoa(JSON.stringify({ grid, history: history.slice(-500) }));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopyCode.textContent = 'Code Copied!';
+      setTimeout(() => { btnCopyCode.textContent = 'Copy Mural Code'; }, 2000);
+    });
+  });
+
+  btnImportCode.addEventListener('click', () => {
+    const input = prompt('Paste the communal mural code from a collaborator:');
+    if (!input) return;
+    try {
+      const parsed = JSON.parse(atob(input.trim()));
+      if (parsed.grid) {
+        grid = parsed.grid;
+        if (parsed.history) history = history.concat(parsed.history);
+        render();
+        saveState();
+        alert('Mural successfully loaded from collaborator!');
+      }
+    } catch(e) {
+      alert('Invalid mural code string.');
+    }
+  });
+
+  btnClear.addEventListener('click', () => {
+    if (confirm('Reset canvas to blank state?')) {
+      for (let x = 0; x < GRID_SIZE; x++) grid[x].fill(null);
+      history = [];
+      saveState();
+      render();
+    }
+  });
+
+  initPalette();
+  initGrid();
+})();
+</script>

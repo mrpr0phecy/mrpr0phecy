@@ -1,0 +1,288 @@
+<h2 id="quilt-weaver-title" style="margin-top:0;color:var(--accent);">🧵 QuiltWeaver: Generative Patchwork &amp; Mathematical Tapestry</h2>
+
+<form aria-describedby="quilt-weaver-desc" onsubmit="event.preventDefault();">
+  <p id="quilt-weaver-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Weave an evolving mathematical patchwork tapestry with friends. Design geometric quilt blocks using wallpaper group symmetries, Truchet curves, and Islamic rosettes, then stitch them into a shared master mosaic.
+  </p>
+
+  <!-- Block Design Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="qw-palette" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Textile Colorway</label>
+      <select id="qw-palette" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="indigo" selected>🌊 Indigo &amp; Gilded Gold</option>
+        <option value="morocco">🏺 Moroccan Zellige (Cobalt &amp; Terracotta)</option>
+        <option value="nordic">❄️ Nordic Folk Wool (Crimson &amp; Pine)</option>
+        <option value="cyber">⚡ Cyber Silk (Violet &amp; Neon Mint)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="qw-tile-style" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Geometric Pattern</label>
+      <select id="qw-tile-style" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="rosette" selected>Eight-Pointed Star Rosette</option>
+        <option value="truchet">Smith-Truchet Curved Arcs</option>
+        <option value="diamond">Pinwheel Log Cabin Diamond</option>
+        <option value="celtic">Celtic Interlaced Knot</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="qw-rotation" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Tile Rotation</label>
+      <select id="qw-rotation" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="0" selected>0° (Upright)</option>
+        <option value="90">90° Clockwise</option>
+        <option value="180">180° Inverted</option>
+        <option value="270">270° Counter-Clockwise</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Interactive Quilt Canvas -->
+  <div style="background:#080d14;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;display:flex;flex-direction:column;align-items:center;">
+    <div style="width:100%;display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Click any grid square to stitch your current pattern block</span>
+      <span id="qw-stitched-count" style="color:var(--accent);font-weight:600;">Stitched Blocks: 0 / 36</span>
+    </div>
+
+    <div style="width:100%;max-width:440px;aspect-ratio:1/1;display:flex;justify-content:center;align-items:center;overflow:hidden;background:#05070a;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <canvas id="qw-canvas" width="480" height="480" style="width:100%;height:100%;cursor:pointer;"></canvas>
+    </div>
+  </div>
+
+  <!-- Actions & Export -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="qw-btn-fill-all" style="padding:6px 12px;background:rgba(176,38,255,0.18);border:1px solid #b026ff;color:#e6faff;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">Fill Full Quilt</button>
+      <button type="button" id="qw-btn-clear" style="padding:6px 10px;background:none;border:1px solid rgba(255,77,77,0.3);color:#ff6b6b;border-radius:6px;font-size:0.75rem;cursor:pointer;">Clear Canvas</button>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="qw-btn-copy" style="padding:6px 12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;">Copy Quilt Code</button>
+      <button type="button" id="qw-btn-export" style="padding:6px 12px;background:rgba(57,255,20,0.18);border:1px solid #39ff14;color:#39ff14;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">💾 Save High-Res Seamless PNG</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('qw-canvas');
+  const ctx = canvas.getContext('2d');
+  const paletteSelect = document.getElementById('qw-palette');
+  const styleSelect = document.getElementById('qw-tile-style');
+  const rotSelect = document.getElementById('qw-rotation');
+  const countDisplay = document.getElementById('qw-stitched-count');
+
+  const btnFillAll = document.getElementById('qw-btn-fill-all');
+  const btnClear = document.getElementById('qw-btn-clear');
+  const btnCopy = document.getElementById('qw-btn-copy');
+  const btnExport = document.getElementById('qw-btn-export');
+
+  const GRID_COLS = 6;
+  const TILE_SIZE = 480 / GRID_COLS; // 80px per tile
+
+  let tiles = new Array(GRID_COLS * GRID_COLS).fill(null);
+
+  const palettes = {
+    indigo: { bg: '#0b162c', primary: '#2dd4ff', accent: '#ffd700', trim: '#ffffff' },
+    morocco: { bg: '#1c120c', primary: '#ff6b4a', accent: '#00d2d3', trim: '#feca57' },
+    nordic: { bg: '#1a1d20', primary: '#ff4757', accent: '#2ed573', trim: '#f1f2f6' },
+    cyber: { bg: '#10051d', primary: '#b026ff', accent: '#00ffcc', trim: '#ff007f' }
+  };
+
+  function initDefaultQuilt() {
+    // Generate an initial symmetrical floral mosaic
+    for (let r = 0; r < GRID_COLS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const idx = r * GRID_COLS + c;
+        const distFromCenter = Math.abs(r - 2.5) + Math.abs(c - 2.5);
+        const style = distFromCenter < 2 ? 'rosette' : (distFromCenter < 4 ? 'diamond' : 'truchet');
+        const rot = ((r + c) % 4) * 90;
+        tiles[idx] = { style, palette: 'indigo', rot };
+      }
+    }
+    render();
+  }
+
+  function drawTile(x, y, size, tile) {
+    if (!tile) {
+      // Empty grid cell placeholder
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.strokeRect(x, y, size, size);
+      return;
+    }
+
+    const p = palettes[tile.palette] || palettes.indigo;
+    const half = size / 2;
+
+    ctx.save();
+    ctx.translate(x + half, y + half);
+    ctx.rotate((tile.rot * Math.PI) / 180);
+    ctx.translate(-half, -half);
+
+    // Tile Background
+    ctx.fillStyle = p.bg;
+    ctx.fillRect(0, 0, size, size);
+
+    if (tile.style === 'rosette') {
+      // Eight-pointed Islamic star
+      ctx.fillStyle = p.primary;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4;
+        const r = i % 2 === 0 ? half * 0.9 : half * 0.45;
+        const px = half + Math.cos(a) * r;
+        const py = half + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Inner rosette core
+      ctx.fillStyle = p.accent;
+      ctx.beginPath();
+      ctx.arc(half, half, size * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = p.trim;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    } else if (tile.style === 'truchet') {
+      // Dual interlocking quarter-circle arcs
+      ctx.strokeStyle = p.primary;
+      ctx.lineWidth = size * 0.18;
+      ctx.beginPath();
+      ctx.arc(0, 0, half, 0, Math.PI / 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = p.accent;
+      ctx.beginPath();
+      ctx.arc(size, size, half, Math.PI, (Math.PI * 3) / 2);
+      ctx.stroke();
+
+      // Corner accent dot
+      ctx.fillStyle = p.trim;
+      ctx.beginPath();
+      ctx.arc(half, half, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (tile.style === 'diamond') {
+      // Concentric rotational diamond
+      ctx.fillStyle = p.primary;
+      ctx.beginPath();
+      ctx.moveTo(half, 0);
+      ctx.lineTo(size, half);
+      ctx.lineTo(half, size);
+      ctx.lineTo(0, half);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = p.accent;
+      ctx.beginPath();
+      ctx.moveTo(half, size * 0.2);
+      ctx.lineTo(size * 0.8, half);
+      ctx.lineTo(half, size * 0.8);
+      ctx.lineTo(size * 0.2, half);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = p.trim;
+      ctx.fillRect(half - 4, half - 4, 8, 8);
+    } else {
+      // Celtic knot lines
+      ctx.strokeStyle = p.primary;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, half);
+      ctx.quadraticCurveTo(half, half, half, 0);
+      ctx.moveTo(half, size);
+      ctx.quadraticCurveTo(half, half, size, half);
+      ctx.stroke();
+
+      ctx.strokeStyle = p.accent;
+      ctx.beginPath();
+      ctx.arc(half, half, size * 0.25, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Border stitching seam
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, 0, size, size);
+
+    ctx.restore();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let count = 0;
+
+    for (let r = 0; r < GRID_COLS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const idx = r * GRID_COLS + c;
+        drawTile(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, tiles[idx]);
+        if (tiles[idx]) count++;
+      }
+    }
+
+    countDisplay.textContent = `Stitched Blocks: ${count} / ${GRID_COLS * GRID_COLS}`;
+  }
+
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    const c = Math.floor(x / TILE_SIZE);
+    const r = Math.floor(y / TILE_SIZE);
+    if (c >= 0 && c < GRID_COLS && r >= 0 && r < GRID_COLS) {
+      const idx = r * GRID_COLS + c;
+      tiles[idx] = {
+        style: styleSelect.value,
+        palette: paletteSelect.value,
+        rot: parseInt(rotSelect.value, 10) || 0
+      };
+      render();
+    }
+  });
+
+  btnFillAll.addEventListener('click', () => {
+    const curStyle = styleSelect.value;
+    const curPal = paletteSelect.value;
+    const curRot = parseInt(rotSelect.value, 10) || 0;
+
+    for (let i = 0; i < tiles.length; i++) {
+      tiles[i] = { style: curStyle, palette: curPal, rot: (curRot + (i % 4) * 90) % 360 };
+    }
+    render();
+  });
+
+  btnClear.addEventListener('click', () => {
+    tiles.fill(null);
+    render();
+  });
+
+  btnCopy.addEventListener('click', () => {
+    const code = btoa(JSON.stringify(tiles));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopy.textContent = 'Quilt Code Copied!';
+      setTimeout(() => { btnCopy.textContent = 'Copy Quilt Code'; }, 2000);
+    });
+  });
+
+  btnExport.addEventListener('click', () => {
+    const out = document.createElement('canvas');
+    out.width = 1440;
+    out.height = 1440;
+    const octx = out.getContext('2d');
+    octx.drawImage(canvas, 0, 0, 1440, 1440);
+
+    const a = document.createElement('a');
+    a.href = out.toDataURL('image/png');
+    a.download = `quilt_weaver_tapestry_${Date.now()}.png`;
+    a.click();
+  });
+
+  initDefaultQuilt();
+})();
+</script>

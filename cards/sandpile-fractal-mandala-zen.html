@@ -1,0 +1,262 @@
+<h2 id="sandpile-zen-title" style="margin-top:0;color:var(--accent);">⏳ SandpileZen: Abelian Sandpile Fractal Avalanches &amp; Grain Mandala</h2>
+
+<form aria-describedby="sandpile-zen-desc" onsubmit="event.preventDefault();">
+  <p id="sandpile-zen-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    An emergent self-organized criticality simulator. Drop grains of sand into an abelian lattice. When cells exceed four grains, they topple into cascading avalanches, spontaneously forming hyper-complex fractal mandalas.
+  </p>
+
+  <!-- Simulation & Color Palette Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="sz-palette" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Fractal Color Theme</label>
+      <select id="sz-palette" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="neon" selected>⚡ Cyberpunk Neon (Cyan / Purple / Gold)</option>
+        <option value="solar">☀️ Solar Flare (Amber / Crimson / Sun)</option>
+        <option value="emerald">🌿 Jade &amp; Emerald Zen (Bioluminescent)</option>
+        <option value="monochrome">⚪ High-Contrast Monochrome</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="sz-drop-rate" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Grains Per Drop: <span id="sz-drop-val">50</span></label>
+      <input type="range" id="sz-drop-rate" min="1" max="250" value="50" step="5" style="width:100%;accent-color:var(--accent);">
+    </div>
+
+    <div>
+      <label for="sz-symmetry" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Symmetry Reflection</label>
+      <select id="sz-symmetry" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="1">Direct Point</option>
+        <option value="4" selected>4-Fold Cross Symmetry</option>
+        <option value="8">8-Fold Kaleidoscope</option>
+      </select>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Avalanche Fountain</label>
+      <button type="button" id="sz-btn-stream" style="width:100%;padding:6px 10px;border-radius:6px;background:var(--accent);color:#0a0f14;border:none;font-weight:700;font-size:0.75rem;cursor:pointer;">
+        ▶ Auto-Pour Sand
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Canvas -->
+  <div style="background:#05080d;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;display:flex;flex-direction:column;align-items:center;">
+    <div style="width:100%;display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Click anywhere on the sand bed to trigger grain avalanches</span>
+      <div style="display:flex;gap:12px;">
+        <span>Total Grains: <strong id="sz-total-grains" style="color:var(--accent);">0</strong></span>
+        <span>Avalanches: <strong id="sz-topple-count" style="color:#ffd700;">0</strong></span>
+      </div>
+    </div>
+
+    <div style="width:100%;max-width:440px;aspect-ratio:1/1;display:flex;justify-content:center;align-items:center;overflow:hidden;background:#030508;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <canvas id="sz-canvas" width="128" height="128" style="width:100%;height:100%;image-rendering:pixelated;cursor:pointer;"></canvas>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="sz-btn-center-10k" style="padding:6px 12px;background:rgba(176,38,255,0.18);border:1px solid #b026ff;color:#e6faff;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">Drop 10,000 Center Monolith</button>
+      <button type="button" id="sz-btn-clear" style="padding:6px 10px;background:none;border:1px solid rgba(255,77,77,0.3);color:#ff6b6b;border-radius:6px;font-size:0.75rem;cursor:pointer;">Reset Grid</button>
+    </div>
+
+    <button type="button" id="sz-btn-export" style="padding:6px 12px;background:rgba(57,255,20,0.18);border:1px solid #39ff14;color:#39ff14;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">💾 Save 4K Fractal PNG</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('sz-canvas');
+  const ctx = canvas.getContext('2d');
+  const paletteSelect = document.getElementById('sz-palette');
+  const dropRateInput = document.getElementById('sz-drop-rate');
+  const dropVal = document.getElementById('sz-drop-val');
+  const symmetrySelect = document.getElementById('sz-symmetry');
+  const btnStream = document.getElementById('sz-btn-stream');
+  const totalGrainsDisplay = document.getElementById('sz-total-grains');
+  const toppleCountDisplay = document.getElementById('sz-topple-count');
+
+  const btnCenter10k = document.getElementById('sz-btn-center-10k');
+  const btnClear = document.getElementById('sz-btn-clear');
+  const btnExport = document.getElementById('sz-btn-export');
+
+  const N = 128;
+  let grid = new Int32Array(N * N);
+  let totalGrains = 0;
+  let totalTopples = 0;
+  let isPouring = false;
+
+  const colorThemes = {
+    neon: [
+      [5, 8, 13],    // 0 grains: dark void
+      [45, 212, 255],// 1 grain: cyan
+      [176, 38, 255],// 2 grains: purple
+      [255, 215, 0]  // 3 grains: gold
+    ],
+    solar: [
+      [15, 5, 5],
+      [255, 77, 77],
+      [255, 170, 51],
+      [255, 235, 59]
+    ],
+    emerald: [
+      [4, 12, 8],
+      [0, 255, 204],
+      [57, 255, 20],
+      [240, 255, 140]
+    ],
+    monochrome: [
+      [10, 10, 10],
+      [80, 80, 80],
+      [165, 165, 165],
+      [255, 255, 255]
+    ]
+  };
+
+  const imgData = ctx.createImageData(N, N);
+
+  function dropSand(x, y, amount) {
+    if (x < 0 || x >= N || y < 0 || y >= N) return;
+    grid[y * N + x] += amount;
+    totalGrains += amount;
+  }
+
+  function toppleStep(maxIterations = 1500) {
+    let toppled = false;
+    let count = 0;
+
+    for (let it = 0; it < maxIterations; it++) {
+      let activeInCycle = false;
+      for (let y = 0; y < N; y++) {
+        const row = y * N;
+        for (let x = 0; x < N; x++) {
+          const idx = row + x;
+          const val = grid[idx];
+          if (val >= 4) {
+            activeInCycle = true;
+            toppled = true;
+            const topples = Math.floor(val / 4);
+            grid[idx] -= topples * 4;
+            totalTopples += topples;
+
+            if (x > 0) grid[idx - 1] += topples;
+            if (x < N - 1) grid[idx + 1] += topples;
+            if (y > 0) grid[idx - N] += topples;
+            if (y < N - 1) grid[idx + N] += topples;
+          }
+        }
+      }
+      if (!activeInCycle) break;
+    }
+
+    totalGrainsDisplay.textContent = totalGrains.toLocaleString();
+    toppleCountDisplay.textContent = totalTopples.toLocaleString();
+    return toppled;
+  }
+
+  function render() {
+    const theme = colorThemes[paletteSelect.value] || colorThemes.neon;
+    const data = imgData.data;
+
+    let p = 0;
+    for (let i = 0; i < N * N; i++) {
+      const v = Math.min(3, grid[i]);
+      const c = theme[v];
+      data[p] = c[0];
+      data[p + 1] = c[1];
+      data[p + 2] = c[2];
+      data[p + 3] = 255;
+      p += 4;
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  function loop() {
+    if (isPouring) {
+      const rate = parseInt(dropRateInput.value, 10) || 50;
+      dropSand(N / 2, N / 2, rate);
+    }
+
+    toppleStep(12);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function applyDropWithSymmetry(cx, cy, count) {
+    const sym = parseInt(symmetrySelect.value, 10);
+    const mid = N / 2;
+
+    if (sym === 1) {
+      dropSand(cx, cy, count);
+    } else if (sym === 4) {
+      const dx = Math.abs(cx - mid);
+      const dy = Math.abs(cy - mid);
+      dropSand(Math.floor(mid + dx), Math.floor(mid + dy), count);
+      dropSand(Math.floor(mid - dx), Math.floor(mid + dy), count);
+      dropSand(Math.floor(mid + dx), Math.floor(mid - dy), count);
+      dropSand(Math.floor(mid - dx), Math.floor(mid - dy), count);
+    } else {
+      // 8-Fold
+      const dx = Math.abs(cx - mid);
+      const dy = Math.abs(cy - mid);
+      [
+        [dx, dy], [-dx, dy], [dx, -dy], [-dx, -dy],
+        [dy, dx], [-dy, dx], [dy, -dx], [-dy, -dx]
+      ].forEach(([ox, oy]) => {
+        dropSand(Math.floor(mid + ox), Math.floor(mid + oy), count);
+      });
+    }
+  }
+
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) * (N / rect.width));
+    const y = Math.floor((e.clientY - rect.top) * (N / rect.height));
+    const amount = parseInt(dropRateInput.value, 10) || 50;
+    applyDropWithSymmetry(x, y, amount * 2);
+  });
+
+  dropRateInput.addEventListener('input', () => {
+    dropVal.textContent = dropRateInput.value;
+  });
+
+  btnStream.addEventListener('click', () => {
+    isPouring = !isPouring;
+    btnStream.textContent = isPouring ? '⏸ Pause Pouring' : '▶ Auto-Pour Sand';
+    btnStream.style.background = isPouring ? '#ff4757' : 'var(--accent)';
+  });
+
+  btnCenter10k.addEventListener('click', () => {
+    dropSand(N / 2, N / 2, 10000);
+  });
+
+  btnClear.addEventListener('click', () => {
+    grid.fill(0);
+    totalGrains = 0;
+    totalTopples = 0;
+    totalGrainsDisplay.textContent = '0';
+    toppleCountDisplay.textContent = '0';
+    render();
+  });
+
+  btnExport.addEventListener('click', () => {
+    const out = document.createElement('canvas');
+    out.width = 1024;
+    out.height = 1024;
+    const octx = out.getContext('2d');
+    octx.imageSmoothingEnabled = false;
+    octx.drawImage(canvas, 0, 0, 1024, 1024);
+
+    const a = document.createElement('a');
+    a.href = out.toDataURL('image/png');
+    a.download = `abelian_sandpile_fractal_${Date.now()}.png`;
+    a.click();
+  });
+
+  // Seed center with 5,000 grains to start
+  dropSand(N / 2, N / 2, 5000);
+  loop();
+})();
+</script>

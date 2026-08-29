@@ -145,7 +145,21 @@ const saasKillerList = [
   'social-proof-testimonial-card-generator'
 ];
 
+const interactiveArtList = [
+  'pixel-collaborative-infinite-mural',
+  'chrono-garden-l-system-botany',
+  'harmonic-orbit-gravitational-soundscape',
+  'bioma-evolutionary-petri-dish',
+  'constellation-chronicle-star-weaver',
+  'sandpile-fractal-mandala-zen',
+  'quilt-tapestry-geometric-mosaic',
+  'voxel-monolith-3d-time-capsule',
+  'synapse-thought-constellation-network',
+  'echo-pond-water-cymatics-soundscape'
+];
+
 function getCategory(name) {
+  if (interactiveArtList.some(s => name.includes(s))) return 'Interactive Art & Living Worlds';
   if (saasKillerList.some(s => name.includes(s))) return 'SaaS & Business Killers';
   if (aquariumList.some(s => name.includes(s))) return 'Aquatics & Fishkeeping';
   if (animeList.some(s => name.includes(s))) return 'Anime & Otaku Culture';

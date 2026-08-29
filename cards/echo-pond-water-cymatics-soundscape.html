@@ -1,0 +1,367 @@
+<h2 id="echo-pond-title" style="margin-top:0;color:var(--accent);">🌊 EchoPond: Water Ripple Cymatics &amp; Ambient Sound Synthesis</h2>
+
+<form aria-describedby="echo-pond-desc" onsubmit="event.preventDefault();">
+  <p id="echo-pond-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    A communal fluid-dynamics sanctuary. Cast water drops into a resonant pond. Wave ripples interfere via the physical wave equation, triggering soothing pentatonic water chimes when constructive wavefronts strike river stones.
+  </p>
+
+  <!-- Sound & Fluid Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="ep-interaction-mode" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Touch Action</label>
+      <select id="ep-interaction-mode" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="ripple" selected>💧 Cast Water Drop</option>
+        <option value="stone">🪨 Place Acoustic Stone</option>
+        <option value="petal">🌸 Drop Lotus Petal</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="ep-damping" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Ripple Decay: <span id="ep-decay-val">Moderate</span></label>
+      <select id="ep-damping" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="0.992">Long Resonant Waves</option>
+        <option value="0.985" selected>Balanced Pond</option>
+        <option value="0.97">High Viscosity Calm</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="ep-pentatonic" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Acoustic Chime Scale</label>
+      <select id="ep-pentatonic" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="zen" selected>🎋 Kyoto Bamboo Chimes</option>
+        <option value="crystal">💎 Crystal Singing Bowls</option>
+        <option value="harp">✨ Celtic Water Harp</option>
+      </select>
+    </div>
+
+    <div>
+      <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Ambient Environment</label>
+      <button type="button" id="ep-btn-rain" style="width:100%;padding:6px 10px;background:rgba(45,212,255,0.18);border:1px solid #2dd4ff;color:#e6faff;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">
+        🌧️ Toggle Gentle Rain
+      </button>
+    </div>
+  </div>
+
+  <!-- Pond Simulation Canvas -->
+  <div style="background:#02060b;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Click or glide mouse across pond to generate fluid interference ripples</span>
+      <span id="ep-stone-count" style="color:var(--accent);font-weight:600;">Acoustic Stones: 3</span>
+    </div>
+
+    <div style="width:100%;height:330px;position:relative;overflow:hidden;border-radius:6px;background:radial-gradient(circle at 50% 50%, #081d33 0%, #02070d 100%);">
+      <canvas id="ep-canvas" width="300" height="165" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="ep-btn-zen-preset" style="padding:6px 12px;background:rgba(0,255,204,0.18);border:1px solid #00ffcc;color:#e6faff;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">Harmonic Chime Arrangement</button>
+      <button type="button" id="ep-btn-clear" style="padding:6px 10px;background:none;border:1px solid rgba(255,77,77,0.3);color:#ff6b6b;border-radius:6px;font-size:0.75rem;cursor:pointer;">Still Waters</button>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="ep-btn-copy" style="padding:6px 12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;">Copy Pond DNA</button>
+      <button type="button" id="ep-btn-import" style="padding:6px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;font-size:0.75rem;cursor:pointer;">Import Pond</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('ep-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const modeSelect = document.getElementById('ep-interaction-mode');
+  const dampingSelect = document.getElementById('ep-damping');
+  const scaleSelect = document.getElementById('ep-pentatonic');
+  const btnRain = document.getElementById('ep-btn-rain');
+  const stoneCountDisplay = document.getElementById('ep-stone-count');
+
+  const btnZenPreset = document.getElementById('ep-btn-zen-preset');
+  const btnClear = document.getElementById('ep-btn-clear');
+  const btnCopy = document.getElementById('ep-btn-copy');
+  const btnImport = document.getElementById('ep-btn-import');
+
+  let audioCtx = null;
+  function getAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  const chimeScales = {
+    zen: [293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25], // D Pentatonic
+    crystal: [440.00, 493.88, 554.37, 659.25, 739.99, 880.00],      // A Major Bell
+    harp: [349.23, 392.00, 440.00, 523.25, 587.33, 698.46]          // F Lydian
+  };
+
+  function playWaterChime(freq, intensity = 1.0) {
+    try {
+      const actx = getAudio();
+      const osc = actx.createOscillator();
+      const g = actx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, actx.currentTime);
+      // Slight resonant frequency shimmer
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.005, actx.currentTime + 0.3);
+
+      const now = actx.currentTime;
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(Math.min(0.18, 0.08 * intensity), now + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+
+      osc.connect(g);
+      g.connect(actx.destination);
+      osc.start(now);
+      osc.stop(now + 1.25);
+    } catch(e) {}
+  }
+
+  const W = 300;
+  const H = 165;
+
+  let buffer1 = new Float32Array(W * H);
+  let buffer2 = new Float32Array(W * H);
+  let stones = [];
+  let petals = [];
+  let isRaining = false;
+
+  const imgData = ctx.createImageData(W, H);
+
+  function initStones() {
+    stones = [
+      { x: 75, y: 80, r: 12, pitchIndex: 0, cooldown: 0 },
+      { x: 150, y: 70, r: 16, pitchIndex: 2, cooldown: 0 },
+      { x: 225, y: 95, r: 14, pitchIndex: 4, cooldown: 0 }
+    ];
+
+    petals = [
+      { x: 60, y: 40, vx: 0.1, vy: 0.05, r: 4, rot: 0.4 },
+      { x: 190, y: 120, vx: -0.08, vy: 0.02, r: 3.5, rot: 1.2 },
+      { x: 250, y: 50, vx: 0.05, vy: 0.08, r: 4.5, rot: 2.1 }
+    ];
+
+    stoneCountDisplay.textContent = `Acoustic Stones: ${stones.length}`;
+  }
+
+  function addRipple(cx, cy, intensity = 120) {
+    const r = 4;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const x = Math.round(cx + dx);
+        const y = Math.round(cy + dy);
+        if (x >= 0 && x < W && y >= 0 && y < H) {
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d <= r) {
+            buffer1[y * W + x] += (1 - d / r) * intensity;
+          }
+        }
+      }
+    }
+  }
+
+  function stepWaveEquation() {
+    const damping = parseFloat(dampingSelect.value) || 0.985;
+    const currentScale = chimeScales[scaleSelect.value] || chimeScales.zen;
+
+    for (let y = 1; y < H - 1; y++) {
+      const row = y * W;
+      for (let x = 1; x < W - 1; x++) {
+        const idx = row + x;
+        // Wave equation discrete Laplacian
+        const wave = (
+          buffer1[idx - 1] +
+          buffer1[idx + 1] +
+          buffer1[idx - W] +
+          buffer1[idx + W]
+        ) * 0.5 - buffer2[idx];
+
+        buffer2[idx] = wave * damping;
+      }
+    }
+
+    // Acoustic stones reflection & chime triggering
+    stones.forEach(st => {
+      if (st.cooldown > 0) st.cooldown--;
+
+      // Sample wave amplitude at stone edge
+      const edgeIdx = Math.floor(st.y) * W + Math.floor(st.x + st.r);
+      const amp = Math.abs(buffer2[edgeIdx] || 0);
+
+      if (amp > 15 && st.cooldown === 0) {
+        const freq = currentScale[st.pitchIndex % currentScale.length];
+        playWaterChime(freq, Math.min(1.5, amp / 20));
+        st.cooldown = 24; // prevent machine-gunning
+      }
+
+      // Zero out wave inside stone mass (barrier reflection)
+      for (let dy = -st.r; dy <= st.r; dy++) {
+        for (let dx = -st.r; dx <= st.r; dx++) {
+          if (dx * dx + dy * dy <= st.r * st.r) {
+            const sx = Math.floor(st.x + dx);
+            const sy = Math.floor(st.y + dy);
+            if (sx >= 0 && sx < W && sy >= 0 && sy < H) {
+              buffer2[sy * W + sx] = 0;
+            }
+          }
+        }
+      }
+    });
+
+    // Swap buffers
+    const temp = buffer1;
+    buffer1 = buffer2;
+    buffer2 = temp;
+
+    // Ambient Rain
+    if (isRaining && Math.random() < 0.25) {
+      addRipple(Math.random() * W, Math.random() * H, 70 + Math.random() * 60);
+    }
+
+    // Drift petals
+    petals.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += 0.01;
+      if (p.x > W) p.x = 0;
+      if (p.x < 0) p.x = W;
+      if (p.y > H) p.y = 0;
+      if (p.y < 0) p.y = H;
+    });
+  }
+
+  function render() {
+    stepWaveEquation();
+
+    const data = imgData.data;
+    let ptr = 0;
+
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const val = buffer1[row + x];
+        // Refractive water caustics color calculation
+        const r = Math.max(2, Math.min(255, 6 + val * 1.5));
+        const g = Math.max(8, Math.min(255, 24 + val * 3.2));
+        const b = Math.max(16, Math.min(255, 52 + val * 4.5));
+
+        data[ptr] = r;
+        data[ptr + 1] = g;
+        data[ptr + 2] = b;
+        data[ptr + 3] = 255;
+        ptr += 4;
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+
+    // Draw acoustic river stones
+    stones.forEach(st => {
+      const grad = ctx.createRadialGradient(st.x - 3, st.y - 3, 2, st.x, st.y, st.r);
+      grad.addColorStop(0, '#57606f');
+      grad.addColorStop(0.8, '#2f3542');
+      grad.addColorStop(1, '#1e272e');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Golden ring pulse when chiming
+      if (st.cooldown > 0) {
+        ctx.strokeStyle = `rgba(0, 255, 204, ${st.cooldown / 24})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(st.x, st.y, st.r + 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
+
+    // Draw floating sakura petals
+    petals.forEach(p => {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = '#ff99bb';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.r * 1.5, p.r * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    requestAnimationFrame(render);
+  }
+
+  // Pointer interactions
+  canvas.addEventListener('mousedown', (e) => {
+    getAudio();
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (W / rect.width);
+    const y = (e.clientY - rect.top) * (H / rect.height);
+    const mode = modeSelect.value;
+
+    if (mode === 'ripple') {
+      addRipple(x, y, 160);
+    } else if (mode === 'stone') {
+      stones.push({ x, y, r: 14, pitchIndex: stones.length, cooldown: 0 });
+      stoneCountDisplay.textContent = `Acoustic Stones: ${stones.length}`;
+    } else if (mode === 'petal') {
+      petals.push({ x, y, vx: (Math.random() - 0.5) * 0.1, vy: (Math.random() - 0.5) * 0.1, r: 4, rot: Math.random() * 3 });
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (e.buttons === 1 && modeSelect.value === 'ripple') {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (W / rect.width);
+      const y = (e.clientY - rect.top) * (H / rect.height);
+      addRipple(x, y, 40);
+    }
+  });
+
+  btnRain.addEventListener('click', () => {
+    isRaining = !isRaining;
+    btnRain.textContent = isRaining ? '🌧️ Pause Rain' : '🌧️ Toggle Gentle Rain';
+    btnRain.style.background = isRaining ? '#00ffcc' : 'rgba(45,212,255,0.18)';
+    btnRain.style.color = isRaining ? '#0a0f14' : '#e6faff';
+  });
+
+  btnZenPreset.addEventListener('click', () => {
+    initStones();
+    // Drop single radiant drop in center
+    addRipple(W / 2, H / 2, 220);
+  });
+
+  btnClear.addEventListener('click', () => {
+    buffer1.fill(0);
+    buffer2.fill(0);
+  });
+
+  btnCopy.addEventListener('click', () => {
+    const code = btoa(JSON.stringify({ stones, petals }));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopy.textContent = 'Pond DNA Copied!';
+      setTimeout(() => { btnCopy.textContent = 'Copy Pond DNA'; }, 2000);
+    });
+  });
+
+  btnImport.addEventListener('click', () => {
+    const input = prompt('Paste Pond DNA:');
+    if (!input) return;
+    try {
+      const parsed = JSON.parse(atob(input.trim()));
+      if (parsed.stones) stones = parsed.stones;
+      if (parsed.petals) petals = parsed.petals;
+      stoneCountDisplay.textContent = `Acoustic Stones: ${stones.length}`;
+    } catch(e) {
+      alert('Invalid pond DNA.');
+    }
+  });
+
+  initStones();
+  render();
+})();
+</script>

@@ -1,0 +1,360 @@
+<h2 id="chrono-garden-title" style="margin-top:0;color:var(--accent);">🌿 ChronoGarden: Emergent L-System Botanical Terrarium &amp; Genetic Flora</h2>
+
+<form aria-describedby="chrono-garden-desc" onsubmit="event.preventDefault();">
+  <p id="chrono-garden-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Cultivate a communal fractal botanical garden over time. Plant mathematical trees using Aristid Lindenmayer's L-Systems, cross-breed genetic strains, watch branches sway in the dynamic breeze, and share seeds with collaborators.
+  </p>
+
+  <!-- Botanical Controls & Species Selector -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="cg-species" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Seed Phenotype</label>
+      <select id="cg-species" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="sakura" selected>🌸 Japanese Sakura (Soft Pink / Organic)</option>
+        <option value="willow">🌿 Bioluminescent Willow (Cyan Glow)</option>
+        <option value="fern">🌱 Barnsley Fractal Fern (Vivid Emerald)</option>
+        <option value="crystal">💎 Cosmic Crystal Shrub (Amethyst Violet)</option>
+        <option value="acacia">☀️ Golden Savanna Acacia (Broad Canopy)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="cg-angle" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Branching Angle: <span id="cg-angle-val">25°</span></label>
+      <input type="range" id="cg-angle" min="15" max="45" value="25" step="1" style="width:100%;accent-color:var(--accent);">
+    </div>
+
+    <div>
+      <label for="cg-depth" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Growth Generations</label>
+      <select id="cg-depth" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="3">Young Sapling (3 Iterations)</option>
+        <option value="4" selected>Mature Tree (4 Iterations)</option>
+        <option value="5">Ancient Elder (5 Iterations)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="cg-wind" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Breeze Intensity</label>
+      <input type="range" id="cg-wind" min="0" max="100" value="45" style="width:100%;accent-color:var(--accent);">
+    </div>
+  </div>
+
+  <!-- Interactive Terrarium Canvas -->
+  <div style="background:#05090f;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Click anywhere along the ground line to plant a seed!</span>
+      <span id="cg-flora-count" style="color:var(--accent);font-weight:600;">Specimens in Garden: 0</span>
+    </div>
+
+    <div style="width:100%;height:320px;position:relative;overflow:hidden;border-radius:6px;background:linear-gradient(180deg, #070d18 0%, #0c1626 70%, #152238 100%);">
+      <canvas id="cg-canvas" width="600" height="320" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+    </div>
+  </div>
+
+  <!-- Garden Sharing & Cross-Breeding Controls -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="cg-btn-crossbreed" style="padding:6px 12px;background:rgba(176,38,255,0.2);border:1px solid #b026ff;color:#e6faff;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">🧬 Cross-Breed Strains</button>
+      <button type="button" id="cg-btn-clear" style="padding:6px 10px;background:none;border:1px solid rgba(255,77,77,0.3);color:#ff6b6b;border-radius:6px;font-size:0.75rem;cursor:pointer;">Clear Garden</button>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="cg-btn-copy-garden" style="padding:6px 12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;">Copy Garden DNA</button>
+      <button type="button" id="cg-btn-import-garden" style="padding:6px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;font-size:0.75rem;cursor:pointer;">Import Garden</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('cg-canvas');
+  const ctx = canvas.getContext('2d');
+  const speciesSelect = document.getElementById('cg-species');
+  const angleInput = document.getElementById('cg-angle');
+  const angleVal = document.getElementById('cg-angle-val');
+  const depthSelect = document.getElementById('cg-depth');
+  const windInput = document.getElementById('cg-wind');
+  const floraCountDisplay = document.getElementById('cg-flora-count');
+
+  const btnCrossbreed = document.getElementById('cg-btn-crossbreed');
+  const btnClear = document.getElementById('cg-btn-clear');
+  const btnCopyGarden = document.getElementById('cg-btn-copy-garden');
+  const btnImportGarden = document.getElementById('cg-btn-import-garden');
+
+  let plants = [];
+  let spores = [];
+  let animTime = 0;
+
+  // L-System Rulesets
+  const speciesDb = {
+    sakura: {
+      axiom: 'X',
+      rules: { 'X': 'F[+X][-X]FX', 'F': 'FF' },
+      branchColor: '#4a2e2b',
+      bloomColor: '#ff99bb',
+      leafShape: 'blossom',
+      scale: 3.8
+    },
+    willow: {
+      axiom: 'X',
+      rules: { 'X': 'F-[[X]+X]+F[+FX]-X', 'F': 'FF' },
+      branchColor: '#1a3a3a',
+      bloomColor: '#00ffcc',
+      leafShape: 'droplet',
+      scale: 3.2
+    },
+    fern: {
+      axiom: 'X',
+      rules: { 'X': 'F[+X]F[-X]+X', 'F': 'FF' },
+      branchColor: '#1e381e',
+      bloomColor: '#39ff14',
+      leafShape: 'fern',
+      scale: 3.5
+    },
+    crystal: {
+      axiom: 'F',
+      rules: { 'F': 'FF+[+F-F-F]-[-F+F+F]' },
+      branchColor: '#3d1c5a',
+      bloomColor: '#b026ff',
+      leafShape: 'crystal',
+      scale: 4.2
+    },
+    acacia: {
+      axiom: 'X',
+      rules: { 'X': 'F[+X][-X]F[+X]', 'F': 'FF' },
+      branchColor: '#5a3d28',
+      bloomColor: '#ffd700',
+      leafShape: 'acacia',
+      scale: 3.6
+    }
+  };
+
+  function generateLSystem(axiom, rules, iterations) {
+    let current = axiom;
+    for (let i = 0; i < iterations; i++) {
+      let next = '';
+      for (let ch of current) {
+        next += rules[ch] || ch;
+      }
+      current = next;
+    }
+    return current;
+  }
+
+  function addPlant(x, speciesKey, angleDeg, iterations, customBloom) {
+    const sp = speciesDb[speciesKey] || speciesDb.sakura;
+    const lstring = generateLSystem(sp.axiom, sp.rules, iterations);
+
+    plants.push({
+      x: x,
+      y: canvas.height - 20,
+      speciesKey: speciesKey,
+      angle: (angleDeg * Math.PI) / 180,
+      iterations: iterations,
+      lstring: lstring,
+      branchColor: sp.branchColor,
+      bloomColor: customBloom || sp.bloomColor,
+      leafShape: sp.leafShape,
+      baseLength: sp.scale * (6 - iterations),
+      windPhase: Math.random() * Math.PI * 2,
+      birthTime: animTime
+    });
+
+    saveGarden();
+    updateCount();
+  }
+
+  function updateCount() {
+    floraCountDisplay.textContent = `Specimens in Garden: ${plants.length}`;
+  }
+
+  function saveGarden() {
+    try {
+      localStorage.setItem('chronogarden_plants', JSON.stringify(plants));
+    } catch(e) {}
+  }
+
+  function loadGarden() {
+    const saved = localStorage.getItem('chronogarden_plants');
+    if (saved) {
+      try {
+        plants = JSON.parse(saved);
+        updateCount();
+        return;
+      } catch(e) {}
+    }
+
+    // Default welcoming starter grove
+    addPlant(150, 'sakura', 24, 4);
+    addPlant(320, 'willow', 28, 4);
+    addPlant(470, 'crystal', 22, 4);
+  }
+
+  // Spores / floating pollen simulation
+  function initSpores() {
+    spores = [];
+    for (let i = 0; i < 35; i++) {
+      spores.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * (canvas.height - 30),
+        vx: 0.2 + Math.random() * 0.4,
+        vy: (Math.random() - 0.5) * 0.2,
+        r: 1 + Math.random() * 1.5,
+        alpha: 0.3 + Math.random() * 0.5
+      });
+    }
+  }
+
+  function drawPlant(p, windOffset) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+
+    let stack = [];
+    const len = p.baseLength;
+    const ang = p.angle + windOffset * 0.08;
+
+    ctx.lineWidth = Math.max(1, p.iterations);
+    ctx.strokeStyle = p.branchColor;
+
+    for (let i = 0; i < p.lstring.length; i++) {
+      const ch = p.lstring[i];
+      if (ch === 'F') {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -len);
+        ctx.stroke();
+        ctx.translate(0, -len);
+      } else if (ch === '+') {
+        ctx.rotate(ang + Math.sin(animTime * 1.5 + p.windPhase) * 0.02);
+      } else if (ch === '-') {
+        ctx.rotate(-ang + Math.sin(animTime * 1.5 + p.windPhase) * 0.02);
+      } else if (ch === '[') {
+        stack.push({
+          x: 0,
+          y: 0,
+          lw: ctx.lineWidth
+        });
+        ctx.save();
+        ctx.lineWidth = Math.max(0.7, ctx.lineWidth * 0.75);
+      } else if (ch === ']') {
+        // Draw blossom petal at branch terminus
+        ctx.fillStyle = p.bloomColor;
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+        stack.pop();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  function loop() {
+    animTime += 0.03;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw horizon soil and terrain
+    ctx.fillStyle = '#0f1722';
+    ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height - 20);
+    ctx.lineTo(canvas.width, canvas.height - 20);
+    ctx.stroke();
+
+    const windPower = (parseFloat(windInput.value) / 100);
+    const globalWind = Math.sin(animTime * 1.2) * windPower * 0.15;
+
+    // Draw all botanical specimens
+    plants.forEach(p => {
+      drawPlant(p, globalWind);
+    });
+
+    // Draw floating bioluminescent pollen spores
+    spores.forEach(s => {
+      s.x += s.vx + globalWind * 2;
+      s.y += s.vy;
+      if (s.x > canvas.width) s.x = 0;
+      if (s.x < 0) s.x = canvas.width;
+      if (s.y > canvas.height - 20) s.y = 10;
+      if (s.y < 10) s.y = canvas.height - 25;
+
+      ctx.fillStyle = `rgba(0, 255, 204, ${s.alpha})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const sp = speciesSelect.value;
+    const ang = parseFloat(angleInput.value) || 25;
+    const depth = parseInt(depthSelect.value, 10) || 4;
+
+    addPlant(x, sp, ang, depth);
+  });
+
+  angleInput.addEventListener('input', () => {
+    angleVal.textContent = `${angleInput.value}°`;
+  });
+
+  // Cross-Breeding engine: synthesizes hybrid genome
+  btnCrossbreed.addEventListener('click', () => {
+    if (plants.length < 2) {
+      alert('Plant at least 2 different trees in your terrarium to cross-breed a hybrid!');
+      return;
+    }
+    const p1 = plants[Math.floor(Math.random() * plants.length)];
+    const p2 = plants[Math.floor(Math.random() * plants.length)];
+
+    const hybridSpecies = Math.random() > 0.5 ? p1.speciesKey : p2.speciesKey;
+    const hybridAngle = Math.round((p1.angle + p2.angle) / 2 * 180 / Math.PI);
+    const hybridBloom = '#ffffff'; // rare glowing hybrid white/rainbow bloom
+
+    const spawnX = Math.max(40, Math.min(canvas.width - 40, (p1.x + p2.x) / 2));
+    addPlant(spawnX, hybridSpecies, hybridAngle, 4, hybridBloom);
+  });
+
+  btnCopyGarden.addEventListener('click', () => {
+    const code = btoa(JSON.stringify(plants));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopyGarden.textContent = 'Garden DNA Copied!';
+      setTimeout(() => { btnCopyGarden.textContent = 'Copy Garden DNA'; }, 2000);
+    });
+  });
+
+  btnImportGarden.addEventListener('click', () => {
+    const input = prompt('Paste Garden DNA string from collaborator:');
+    if (!input) return;
+    try {
+      const parsed = JSON.parse(atob(input.trim()));
+      if (Array.isArray(parsed)) {
+        plants = parsed;
+        saveGarden();
+        updateCount();
+      }
+    } catch(e) {
+      alert('Invalid garden DNA string.');
+    }
+  });
+
+  btnClear.addEventListener('click', () => {
+    if (confirm('Clear the entire botanical garden?')) {
+      plants = [];
+      saveGarden();
+      updateCount();
+    }
+  });
+
+  loadGarden();
+  initSpores();
+  loop();
+})();
+</script>

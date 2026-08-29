@@ -1,0 +1,287 @@
+<h2 id="constellation-title" style="margin-top:0;color:var(--accent);">✨ ConstellationChronicle: Communal Star Map &amp; Mythological Sky Weaver</h2>
+
+<form aria-describedby="constellation-desc" onsubmit="event.preventDefault();">
+  <p id="constellation-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Weave constellations across a shared celestial sphere. Place spectral stars, connect mythological asterisms, record astronomical lore, and preserve collective starlit storytelling over time.
+  </p>
+
+  <!-- Sky Cartography Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="cc-spectral-class" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Star Spectral Class</label>
+      <select id="cc-spectral-class" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="#9bb0ff" selected>Class O / B (Hyper-luminous Blue)</option>
+        <option value="#ffffff">Class A / F (Pure White Vega)</option>
+        <option value="#ffd700">Class G / K (Solar Golden Warmth)</option>
+        <option value="#ff6b6b">Class M (Supergiant Red Betelgeuse)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="cc-mode-select" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Stargazing Tool</label>
+      <select id="cc-mode-select" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="line" selected>Connect Constellation Line</option>
+        <option value="star">Birth New Star</option>
+        <option value="pan">Orbit Sky Map</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="cc-constellation-name" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Constellation Lore Name</label>
+      <input type="text" id="cc-constellation-name" value="The Astral Heron" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+  </div>
+
+  <!-- Interactive Starlight Canvas -->
+  <div style="background:#020408;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span id="cc-hint-text">Click star A then star B to draw constellation edge</span>
+      <div style="display:flex;gap:12px;">
+        <span>Stars: <strong id="cc-star-count" style="color:#ffd700;">28</strong></span>
+        <span>Constellations: <strong id="cc-line-count" style="color:var(--accent);">4</strong></span>
+      </div>
+    </div>
+
+    <div style="width:100%;height:330px;position:relative;overflow:hidden;border-radius:6px;background:radial-gradient(circle at center, #07101e 0%, #010206 100%);">
+      <canvas id="cc-canvas" width="600" height="330" style="width:100%;height:100%;display:block;cursor:crosshair;"></canvas>
+    </div>
+  </div>
+
+  <!-- Starlight Lore Archive & Sync -->
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:0.8rem;font-weight:600;color:var(--accent);">📜 Celestial Mythology Chronicle</span>
+      <div style="display:flex;gap:6px;">
+        <button type="button" id="cc-btn-copy" style="padding:4px 8px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:4px;font-size:0.72rem;cursor:pointer;">Copy Star Chart</button>
+        <button type="button" id="cc-btn-import" style="padding:4px 8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:4px;font-size:0.72rem;cursor:pointer;">Import Chart</button>
+      </div>
+    </div>
+    <div id="cc-lore-list" style="font-size:0.75rem;color:var(--text-secondary);display:flex;flex-direction:column;gap:4px;max-height:80px;overflow-y:auto;">
+      <!-- Populated dynamically with myth entries -->
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('cc-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const spectralSelect = document.getElementById('cc-spectral-class');
+  const modeSelect = document.getElementById('cc-mode-select');
+  const constNameInput = document.getElementById('cc-constellation-name');
+  const hintText = document.getElementById('cc-hint-text');
+  const starCountDisplay = document.getElementById('cc-star-count');
+  const lineCountDisplay = document.getElementById('cc-line-count');
+  const loreList = document.getElementById('cc-lore-list');
+
+  const btnCopy = document.getElementById('cc-btn-copy');
+  const btnImport = document.getElementById('cc-btn-import');
+
+  let stars = [];
+  let lines = [];
+  let constellations = [];
+  let selectedStar = null;
+  let animTime = 0;
+
+  // Background deep space nebula particles
+  let nebulae = [];
+  for (let i = 0; i < 20; i++) {
+    nebulae.push({
+      x: Math.random() * 600,
+      y: Math.random() * 330,
+      r: 60 + Math.random() * 90,
+      color: i % 2 === 0 ? 'rgba(176, 38, 255, 0.04)' : 'rgba(0, 255, 204, 0.03)'
+    });
+  }
+
+  function initStarMap() {
+    stars = [];
+    lines = [];
+    constellations = [];
+
+    // Seed major reference stars
+    const seedCoords = [
+      { x: 120, y: 80, color: '#9bb0ff', r: 3.5, name: 'Rigel Minor' },
+      { x: 180, y: 110, color: '#ffffff', r: 2.8, name: 'Altair VII' },
+      { x: 150, y: 170, color: '#ffd700', r: 4.0, name: 'Solaria' },
+      { x: 230, y: 150, color: '#ff6b6b', r: 3.2, name: 'Betelgeuse Prime' },
+      { x: 340, y: 70, color: '#9bb0ff', r: 4.2, name: 'Cygnus Apex' },
+      { x: 420, y: 120, color: '#ffffff', r: 2.5, name: 'Vega Light' },
+      { x: 380, y: 210, color: '#ffd700', r: 3.8, name: 'Deneb Core' },
+      { x: 480, y: 240, color: '#00ffcc', r: 3.0, name: 'Andromeda Needle' }
+    ];
+
+    seedCoords.forEach(s => stars.push({ ...s, twinklePhase: Math.random() * Math.PI * 2 }));
+
+    // Connect a starter constellation: The Astral Heron
+    lines.push({ a: 0, b: 1, name: 'The Astral Heron' });
+    lines.push({ a: 1, b: 2, name: 'The Astral Heron' });
+    lines.push({ a: 2, b: 3, name: 'The Astral Heron' });
+    lines.push({ a: 4, b: 5, name: 'Cygnus Compass' });
+    lines.push({ a: 5, b: 6, name: 'Cygnus Compass' });
+
+    constellations.push({ name: 'The Astral Heron', lore: 'A celestial water bird watching over wandering void-travelers across the northern spiral arm.' });
+    constellations.push({ name: 'Cygnus Compass', lore: 'Three ancient beacon stars that guided interstellar explorers before warp gates.' });
+
+    renderLore();
+    updateCounts();
+  }
+
+  function updateCounts() {
+    starCountDisplay.textContent = stars.length;
+    lineCountDisplay.textContent = constellations.length;
+  }
+
+  function renderLore() {
+    loreList.innerHTML = '';
+    constellations.forEach(c => {
+      const row = document.createElement('div');
+      row.innerHTML = `<strong style="color:var(--accent);">✦ ${c.name}:</strong> <span style="color:#cbd5e1;">${c.lore}</span>`;
+      loreList.appendChild(row);
+    });
+  }
+
+  function render() {
+    animTime += 0.02;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw nebulae dust clouds
+    nebulae.forEach(n => {
+      const grad = ctx.createRadialGradient(n.x, n.y, 5, n.x, n.y, n.r);
+      grad.addColorStop(0, n.color);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Draw constellation lines with glowing starlight aura
+    lines.forEach(l => {
+      const sa = stars[l.a];
+      const sb = stars[l.b];
+      if (!sa || !sb) return;
+
+      ctx.strokeStyle = 'rgba(45, 212, 255, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sa.x, sa.y);
+      ctx.lineTo(sb.x, sb.y);
+      ctx.stroke();
+    });
+
+    // Draw stars
+    stars.forEach((s, idx) => {
+      const twinkle = 0.8 + 0.3 * Math.sin(animTime * 2 + s.twinklePhase);
+      const radius = s.r * twinkle;
+
+      // Glow halo
+      ctx.fillStyle = s.color;
+      ctx.globalAlpha = 0.2;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, radius * 2.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Star core
+      ctx.globalAlpha = 1.0;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Selected ring
+      if (selectedStar === idx) {
+        ctx.strokeStyle = '#39ff14';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
+
+    requestAnimationFrame(render);
+  }
+
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const mode = modeSelect.value;
+
+    if (mode === 'star') {
+      stars.push({
+        x: x,
+        y: y,
+        color: spectralSelect.value,
+        r: 2.8 + Math.random() * 1.5,
+        twinklePhase: Math.random() * Math.PI * 2,
+        name: `Stella-${stars.length + 1}`
+      });
+      updateCounts();
+      return;
+    }
+
+    if (mode === 'line') {
+      // Find star clicked
+      let clickedIdx = -1;
+      stars.forEach((s, idx) => {
+        const dx = s.x - x;
+        const dy = s.y - y;
+        if (dx * dx + dy * dy < 18 * 18) {
+          clickedIdx = idx;
+        }
+      });
+
+      if (clickedIdx !== -1) {
+        if (selectedStar === null) {
+          selectedStar = clickedIdx;
+          hintText.textContent = `Selected star #${clickedIdx + 1}. Now click second star to connect edge.`;
+        } else if (selectedStar !== clickedIdx) {
+          const name = constNameInput.value.trim() || 'Unnamed Asterism';
+          lines.push({ a: selectedStar, b: clickedIdx, name });
+
+          if (!constellations.some(c => c.name === name)) {
+            constellations.push({ name, lore: `Forged by communal sky weavers on coordinate ${Math.round(x)}, ${Math.round(y)}.` });
+            renderLore();
+          }
+
+          selectedStar = null;
+          hintText.textContent = 'Edge created! Click star A then star B to connect more.';
+          updateCounts();
+        } else {
+          selectedStar = null;
+          hintText.textContent = 'Deselected.';
+        }
+      }
+    }
+  });
+
+  btnCopy.addEventListener('click', () => {
+    const code = btoa(JSON.stringify({ stars, lines, constellations }));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopy.textContent = 'Star Chart Copied!';
+      setTimeout(() => { btnCopy.textContent = 'Copy Star Chart'; }, 2000);
+    });
+  });
+
+  btnImport.addEventListener('click', () => {
+    const input = prompt('Paste star chart string from collaborator:');
+    if (!input) return;
+    try {
+      const parsed = JSON.parse(atob(input.trim()));
+      if (parsed.stars && parsed.lines) {
+        stars = parsed.stars;
+        lines = parsed.lines;
+        if (parsed.constellations) constellations = parsed.constellations;
+        renderLore();
+        updateCounts();
+      }
+    } catch(e) {
+      alert('Invalid star chart code.');
+    }
+  });
+
+  initStarMap();
+  render();
+})();
+</script>

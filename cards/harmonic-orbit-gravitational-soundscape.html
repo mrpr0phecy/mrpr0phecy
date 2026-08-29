@@ -1,0 +1,356 @@
+<h2 id="harmonic-orbit-title" style="margin-top:0;color:var(--accent);">🪐 HarmonicOrbit: Gravitational Soundscape &amp; Celestial Polyrhythm Loom</h2>
+
+<form aria-describedby="harmonic-orbit-desc" onsubmit="event.preventDefault();">
+  <p id="harmonic-orbit-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    An evolving celestial music box. Launch orbiting planets into gravitational fields. As orbital bodies cross harmonic resonance spokes, they trigger soothing mathematical melodies synthesized in real time.
+  </p>
+
+  <!-- Sound & Physics Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="ho-scale" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Musical Tuning Scale</label>
+      <select id="ho-scale" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="celestial" selected>✨ Celestial Lydian (Cosmic Ambient)</option>
+        <option value="pentatonic">⛩️ Asian Pentatonic (Meditative)</option>
+        <option value="dorian">🌌 Deep Space Dorian (Mysterious)</option>
+        <option value="major7">🎹 Neo-Jazz Major 7ths (Warm)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="ho-gravity" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Central Mass Gravity</label>
+      <input type="range" id="ho-gravity" min="500" max="3500" value="1800" step="50" style="width:100%;accent-color:var(--accent);">
+    </div>
+
+    <div>
+      <label for="ho-trails" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Orbital Trail Echo</label>
+      <select id="ho-trails" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="0.08">Long Radiant Trails</option>
+        <option value="0.2" selected>Balanced Trails</option>
+        <option value="0.5">Crisp Motion</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="ho-spokes" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Harmonic Trigger Spokes</label>
+      <select id="ho-spokes" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+        <option value="4">4 Spokes (Quarter Note Time)</option>
+        <option value="6">6 Spokes (Triplet Polyrhythm)</option>
+        <option value="8" selected>8 Spokes (Octave Mandala)</option>
+        <option value="12">12 Spokes (Chromatic Wheel)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Interactive Orbital Canvas -->
+  <div style="background:#04070d;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;margin-bottom:12px;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Click &amp; drag to fling new celestial bodies into orbit</span>
+      <span id="ho-body-count" style="color:var(--accent);font-weight:600;">Active Orbits: 3</span>
+    </div>
+
+    <div style="width:100%;height:330px;position:relative;overflow:hidden;border-radius:6px;background:#030509;">
+      <canvas id="ho-canvas" width="600" height="330" style="width:100%;height:100%;display:block;cursor:crosshair;"></canvas>
+    </div>
+  </div>
+
+  <!-- Action Bar & Audio Toggle -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="ho-btn-preset" style="padding:6px 12px;background:rgba(0,255,204,0.18);border:1px solid #00ffcc;color:#e6faff;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">🌌 Harmonic Resonance Preset</button>
+      <button type="button" id="ho-btn-clear" style="padding:6px 10px;background:none;border:1px solid rgba(255,77,77,0.3);color:#ff6b6b;border-radius:6px;font-size:0.75rem;cursor:pointer;">Clear All Bodies</button>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="ho-btn-copy" style="padding:6px 12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;">Copy Orbital Code</button>
+      <button type="button" id="ho-btn-import" style="padding:6px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;font-size:0.75rem;cursor:pointer;">Import Orbit</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('ho-canvas');
+  const ctx = canvas.getContext('2d');
+  const scaleSelect = document.getElementById('ho-scale');
+  const gravityInput = document.getElementById('ho-gravity');
+  const trailsSelect = document.getElementById('ho-trails');
+  const spokesSelect = document.getElementById('ho-spokes');
+  const bodyCountDisplay = document.getElementById('ho-body-count');
+
+  const btnPreset = document.getElementById('ho-btn-preset');
+  const btnClear = document.getElementById('ho-btn-clear');
+  const btnCopy = document.getElementById('ho-btn-copy');
+  const btnImport = document.getElementById('ho-btn-import');
+
+  // Web Audio Context synthesizer
+  let audioCtx = null;
+
+  function getAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  // Musical Scale Frequencies (Hz)
+  const scales = {
+    celestial: [261.63, 293.66, 329.63, 369.99, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25], // C Lydian (#4)
+    pentatonic: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00], // C Pentatonic
+    dorian: [220.00, 246.94, 261.63, 293.66, 329.63, 369.99, 392.00, 440.00, 493.88, 523.25],     // A Dorian
+    major7: [261.63, 329.63, 392.00, 493.88, 523.25, 659.25, 783.99, 987.77]                      // C Maj7 / 9
+  };
+
+  function playTone(freq, pan = 0) {
+    try {
+      const actx = getAudio();
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      const panner = actx.createStereoPanner ? actx.createStereoPanner() : null;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, actx.currentTime);
+
+      const now = actx.currentTime;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+
+      if (panner) {
+        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        osc.connect(gain);
+        gain.connect(panner);
+        panner.connect(actx.destination);
+      } else {
+        osc.connect(gain);
+        gain.connect(actx.destination);
+      }
+
+      osc.start(now);
+      osc.stop(now + 0.95);
+    } catch(e) {}
+  }
+
+  // Central star attractor
+  const star = { x: canvas.width / 2, y: canvas.height / 2, r: 9, mass: 1800 };
+
+  // Planets
+  let bodies = [];
+
+  // Drag interaction
+  let isDragging = false;
+  let dragStart = { x: 0, y: 0 };
+  let dragCurrent = { x: 0, y: 0 };
+
+  function spawnPlanet(x, y, vx, vy, color = null) {
+    const colors = ['#2dd4ff', '#00ffcc', '#b026ff', '#ffd700', '#ff0077', '#39ff14'];
+    bodies.push({
+      x: x,
+      y: y,
+      vx: vx,
+      vy: vy,
+      r: 4 + Math.random() * 2,
+      color: color || colors[bodies.length % colors.length],
+      lastAngle: Math.atan2(y - star.y, x - star.x),
+      spokeCrossed: false
+    });
+    bodyCountDisplay.textContent = `Active Orbits: ${bodies.length}`;
+  }
+
+  function loadPreset() {
+    bodies = [];
+    star.x = canvas.width / 2;
+    star.y = canvas.height / 2;
+
+    // 3 perfectly nested circular orbits forming a mathematical 3:4:5 polyrhythm
+    const r1 = 65, v1 = Math.sqrt(star.mass / r1);
+    const r2 = 105, v2 = Math.sqrt(star.mass / r2);
+    const r3 = 145, v3 = Math.sqrt(star.mass / r3);
+
+    spawnPlanet(star.x, star.y - r1, v1, 0, '#00ffcc');
+    spawnPlanet(star.x, star.y - r2, v2, 0, '#2dd4ff');
+    spawnPlanet(star.x, star.y - r3, v3, 0, '#b026ff');
+  }
+
+  function tickPhysics() {
+    star.mass = parseFloat(gravityInput.value) || 1800;
+    const spokesCount = parseInt(spokesSelect.value, 10) || 8;
+    const currentScale = scales[scaleSelect.value] || scales.celestial;
+
+    for (let i = bodies.length - 1; i >= 0; i--) {
+      const b = bodies[i];
+      const dx = star.x - b.x;
+      const dy = star.y - b.y;
+      const distSq = dx * dx + dy * dy;
+      const dist = Math.sqrt(distSq);
+
+      if (dist < star.r + b.r) {
+        // Collided with star
+        bodies.splice(i, 1);
+        bodyCountDisplay.textContent = `Active Orbits: ${bodies.length}`;
+        continue;
+      }
+
+      if (dist > 700) {
+        // Escaped into deep space
+        bodies.splice(i, 1);
+        bodyCountDisplay.textContent = `Active Orbits: ${bodies.length}`;
+        continue;
+      }
+
+      // Gravitational force: F = G * M / r^2
+      const force = star.mass / Math.max(100, distSq);
+      b.vx += (dx / dist) * force * 0.08;
+      b.vy += (dy / dist) * force * 0.08;
+
+      b.x += b.vx;
+      b.y += b.vy;
+
+      // Spoke crossing detection for musical tone triggers
+      const currentAngle = Math.atan2(b.y - star.y, b.x - star.x);
+      const prevSpoke = Math.floor(((b.lastAngle + Math.PI) / (Math.PI * 2)) * spokesCount);
+      const currSpoke = Math.floor(((currentAngle + Math.PI) / (Math.PI * 2)) * spokesCount);
+
+      if (prevSpoke !== currSpoke) {
+        // Determine pitch based on distance from central star
+        const octaveIndex = Math.min(currentScale.length - 1, Math.floor((dist / 160) * currentScale.length));
+        const freq = currentScale[octaveIndex];
+        const stereoPan = (b.x - star.x) / (canvas.width / 2);
+        playTone(freq, stereoPan);
+        b.spokeCrossed = true;
+      }
+
+      b.lastAngle = currentAngle;
+    }
+  }
+
+  function render() {
+    const alpha = parseFloat(trailsSelect.value) || 0.2;
+    ctx.fillStyle = `rgba(3, 5, 9, ${alpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw central star with corona glow
+    const grad = ctx.createRadialGradient(star.x, star.y, 2, star.x, star.y, star.r * 3.5);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.3, '#ffd700');
+    grad.addColorStop(0.7, 'rgba(255, 140, 0, 0.4)');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(star.x, star.y, star.r * 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw harmonic spokes
+    const spokesCount = parseInt(spokesSelect.value, 10) || 8;
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.06)';
+    ctx.lineWidth = 1;
+    for (let s = 0; s < spokesCount; s++) {
+      const a = (s / spokesCount) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(star.x, star.y);
+      ctx.lineTo(star.x + Math.cos(a) * 300, star.y + Math.sin(a) * 300);
+      ctx.stroke();
+    }
+
+    // Draw planets
+    bodies.forEach(b => {
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (b.spokeCrossed) {
+        // Flash halo when note is triggered
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r * 2.5, 0, Math.PI * 2);
+        ctx.stroke();
+        b.spokeCrossed = false;
+      }
+    });
+
+    // Draw launch trajectory vector when dragging
+    if (isDragging) {
+      ctx.strokeStyle = '#39ff14';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(dragStart.x, dragStart.y);
+      ctx.lineTo(dragCurrent.x, dragCurrent.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#39ff14';
+      ctx.beginPath();
+      ctx.arc(dragStart.x, dragStart.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function loop() {
+    tickPhysics();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // Pointer drag fling
+  canvas.addEventListener('mousedown', (e) => {
+    getAudio(); // unlock audio on user gesture
+    isDragging = true;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    dragStart = { x, y };
+    dragCurrent = { x, y };
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    dragCurrent = { x, y };
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    // Launch planet with reverse slingshot velocity
+    const vx = (dragStart.x - dragCurrent.x) * 0.08;
+    const vy = (dragStart.y - dragCurrent.y) * 0.08;
+    spawnPlanet(dragStart.x, dragStart.y, vx, vy);
+  });
+
+  btnPreset.addEventListener('click', loadPreset);
+  btnClear.addEventListener('click', () => {
+    bodies = [];
+    bodyCountDisplay.textContent = 'Active Orbits: 0';
+  });
+
+  btnCopy.addEventListener('click', () => {
+    const code = btoa(JSON.stringify(bodies));
+    navigator.clipboard.writeText(code).then(() => {
+      btnCopy.textContent = 'Orbital Code Copied!';
+      setTimeout(() => { btnCopy.textContent = 'Copy Orbital Code'; }, 2000);
+    });
+  });
+
+  btnImport.addEventListener('click', () => {
+    const input = prompt('Paste orbital code:');
+    if (!input) return;
+    try {
+      bodies = JSON.parse(atob(input.trim()));
+      bodyCountDisplay.textContent = `Active Orbits: ${bodies.length}`;
+    } catch(e) {
+      alert('Invalid orbital string.');
+    }
+  });
+
+  loadPreset();
+  loop();
+})();
+</script>
