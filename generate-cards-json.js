@@ -303,6 +303,23 @@ function getCategory(name) {
   return 'Productivity & Lifestyle';
 }
 
+// Decode HTML entities so catalogue titles/descriptions read as plain text
+// (titles are rendered as text, so a literal "&amp;" would show up verbatim).
+function decodeEntities(str) {
+  return String(str)
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;|&#x27;/gi, "'")
+    .replace(/&mdash;/g, '\u2014')
+    .replace(/&ndash;/g, '\u2013')
+    .replace(/&hellip;/g, '\u2026')
+    .replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16)));
+}
+
 const manifest = files.map(file => {
   const base = file.replace(/\.html$/, '');
   const filePath = path.join(cardsDir, file);
@@ -317,7 +334,7 @@ const manifest = files.map(file => {
   if (h2Match) {
     let rawTitle = h2Match[1];
     rawTitle = rawTitle.replace(/<(span|div|small|p)[^>]*>[\s\S]*?<\/\1>/gi, '');
-    title = rawTitle.replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    title = decodeEntities(rawTitle.replace(/<[^>]+>/g, '')).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
   }
   if (!title) {
     title = base.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -329,7 +346,7 @@ const manifest = files.map(file => {
                  html.match(/<div[^>]*style=["'][^"']*rgba\(230,\s*250,\s*255[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
   let description = '';
   if (pMatch) {
-    description = pMatch[1].replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    description = decodeEntities(pMatch[1].replace(/<[^>]+>/g, '')).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
     if (description.length > 200) description = description.substring(0, 197) + '...';
   }
   if (!description) {

@@ -1,0 +1,112 @@
+<!-- cards/boxing-round-by-round-analyzer.html -->
+<h2 id="brba-title" style="margin-top:0;color:var(--accent);">📈 Boxing Momentum &amp; Swing Round Analyser</h2>
+
+<form aria-describedby="brba-desc" onsubmit="event.preventDefault();">
+  <p id="brba-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Paste a completed card and see the shape of the fight — momentum swings, the longest run of rounds, who finished stronger, and which rounds were decisive enough to change the result.
+  </p>
+
+  <label for="brba-in" style="display:block;font-size:0.76rem;font-weight:600;margin-bottom:4px;color:#a0aec0;">Round winners (<code>A</code>, <code>B</code>, <code>E</code>) — one per round</label>
+  <textarea id="brba-in" rows="3" style="width:100%;padding:8px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:6px;font-size:0.78rem;font-family:monospace;resize:vertical;margin-bottom:10px;">A A B B B A A E B B A A</textarea>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <input type="text" id="brba-a" value="Boxer A" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,80,80,0.45);color:#e2e8f0;border-radius:6px;font-size:0.78rem;">
+    <input type="text" id="brba-b" value="Boxer B" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(80,140,255,0.45);color:#e2e8f0;border-radius:6px;font-size:0.78rem;">
+  </div>
+
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;margin-bottom:12px;">
+    <div style="font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:6px;">Momentum (cumulative lead)</div>
+    <div id="brba-chart" style="position:relative;height:90px;"></div>
+    <div id="brba-axis" style="display:flex;margin-top:3px;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;">Score</div>
+      <div id="brba-score" style="font-size:1.05rem;font-weight:800;color:#ffd700;margin-top:3px;font-family:monospace;">–</div>
+    </div>
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;">Longest Run</div>
+      <div id="brba-run" style="font-size:1.05rem;font-weight:800;color:#00ffcc;margin-top:3px;">–</div>
+    </div>
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;">Lead Changes</div>
+      <div id="brba-sw" style="font-size:1.05rem;font-weight:800;color:#ff9b6b;margin-top:3px;">0</div>
+    </div>
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;">Closed Better</div>
+      <div id="brba-close" style="font-size:0.85rem;font-weight:800;color:#6b9dff;margin-top:5px;">–</div>
+    </div>
+  </div>
+
+  <div id="brba-out" style="background:#070f1a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:10px;font-size:0.76rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const parse=t=>t.toUpperCase().split(/[\s,;\n]+/).filter(x=>['A','B','E'].includes(x));
+
+  function calc(){
+    const r=parse($('brba-in').value);
+    const an=$('brba-a').value||'Boxer A', bn=$('brba-b').value||'Boxer B';
+    if(!r.length){
+      $('brba-chart').innerHTML=''; $('brba-axis').innerHTML='';
+      $('brba-out').innerHTML='Enter the winner of each round to plot the shape of the fight.';
+      return;
+    }
+    // cumulative lead in rounds won (A positive)
+    let cum=0; const series=r.map(x=>{ cum += x==='A'?1:x==='B'?-1:0; return cum; });
+    const peak=Math.max(1,...series.map(Math.abs));
+    const H=90;
+    let bars='';
+    series.forEach((v,i)=>{
+      const h=Math.abs(v)/peak*(H/2-4);
+      const up=v>=0;
+      const col=v>0?'#ff6b6b':v<0?'#6b9dff':'#ffd700';
+      bars+=`<div title="After R${i+1}: ${v>0?an+' +'+v:v<0?bn+' +'+(-v):'level'}" style="flex:1;display:flex;flex-direction:column;justify-content:${up?'flex-end':'flex-start'};height:${H}px;position:relative;">
+        <div style="position:absolute;top:${H/2-1}px;left:0;right:0;height:1px;background:rgba(255,255,255,0.18);"></div>
+        <div style="height:${H/2}px;display:flex;align-items:flex-end;">${up?`<div style="width:78%;margin:0 auto;height:${h}px;background:${col};border-radius:2px 2px 0 0;opacity:0.85;"></div>`:''}</div>
+        <div style="height:${H/2}px;display:flex;align-items:flex-start;">${!up?`<div style="width:78%;margin:0 auto;height:${h}px;background:${col};border-radius:0 0 2px 2px;opacity:0.85;"></div>`:''}</div>
+      </div>`;
+    });
+    $('brba-chart').innerHTML=`<div style="display:flex;gap:2px;height:${H}px;">${bars}</div>`;
+    $('brba-axis').innerHTML=r.map((_,i)=>`<div style="flex:1;text-align:center;font-size:0.58rem;color:var(--text-secondary);">${i+1}</div>`).join('');
+
+    let a=0,b=0;
+    r.forEach(x=>{ if(x==='A'){a+=10;b+=9;} else if(x==='B'){a+=9;b+=10;} else {a+=10;b+=10;} });
+    $('brba-score').textContent=a+'-'+b;
+    $('brba-score').style.color=a>b?'#ff6b6b':b>a?'#6b9dff':'#ffd700';
+
+    // longest streak
+    let best=0,bestW='',cur=0,curW='';
+    r.forEach(x=>{ if(x===curW&&x!=='E'){cur++;} else {curW=x;cur=x==='E'?0:1;} if(cur>best){best=cur;bestW=curW;} });
+    $('brba-run').textContent=best?best+' ('+(bestW==='A'?an:bn)+')':'–';
+
+    // lead changes
+    let changes=0,prev=0;
+    series.forEach(v=>{ const s=Math.sign(v); if(s!==0&&prev!==0&&s!==prev) changes++; if(s!==0) prev=s; });
+    $('brba-sw').textContent=changes;
+
+    // who closed better (last third)
+    const k=Math.max(1,Math.round(r.length/3)), tail=r.slice(-k);
+    const ta=tail.filter(x=>x==='A').length, tb=tail.filter(x=>x==='B').length;
+    $('brba-close').textContent = ta>tb?an:tb>ta?bn:'Level';
+    $('brba-close').style.color = ta>tb?'#ff6b6b':tb>ta?'#6b9dff':'#ffd700';
+
+    const wins={A:r.filter(x=>x==='A').length,B:r.filter(x=>x==='B').length,E:r.filter(x=>x==='E').length};
+    const margin=Math.abs(a-b);
+    let msg=`<strong>${r.length} rounds — ${an} ${wins.A}, ${bn} ${wins.B}${wins.E?', even '+wins.E:''}.</strong> `;
+    msg+= a===b?'The card is level. ':`${a>b?an:bn} wins by ${margin} point${margin===1?'':'s'}. `;
+    msg+=`Longest unanswered run: ${best} round${best===1?'':'s'} by ${bestW==='A'?an:bestW==='B'?bn:'nobody'}. `;
+    if(changes===0) msg+='The lead never changed hands — a one-way fight on the cards. ';
+    else if(changes>=3) msg+=`<span style="color:#ffd700;">The lead changed ${changes} times: a genuine back-and-forth contest.</span> `;
+    else msg+=`The lead changed ${changes} time${changes===1?'':'s'}. `;
+    msg+=`In the closing ${k} round${k===1?'':'s'}, ${ta>tb?an+' finished stronger':tb>ta?bn+' finished stronger':'neither pulled ahead'}. `;
+    if(margin<=2&&margin>0) msg+='<span style="color:#ff9b6b;">A one- or two-round swing anywhere would change the result — expect judges to differ.</span>';
+    $('brba-out').innerHTML=msg;
+  }
+  ['brba-in','brba-a','brba-b'].forEach(i=>$(i).addEventListener('input',calc));
+  calc();
+})();
+</script>

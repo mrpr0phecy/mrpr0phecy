@@ -1,0 +1,120 @@
+<!-- cards/boxing-weight-class-checker.html -->
+<h2 id="bwcc-title" style="margin-top:0;color:var(--accent);">⚖️ Boxing Weight Class &amp; Weigh-In Checker</h2>
+
+<form aria-describedby="bwcc-desc" onsubmit="event.preventDefault();">
+  <p id="bwcc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Find the correct division for any weight, check whether a fighter has made the limit, and see rehydration-clause and catchweight implications. Covers all seventeen professional classes.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="bwcc-w" style="display:block;font-size:0.74rem;font-weight:600;margin-bottom:4px;color:#a0aec0;">Scale weight</label>
+      <input type="number" id="bwcc-w" value="147" step="0.25" min="0" style="width:100%;padding:8px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:6px;font-size:0.85rem;font-family:monospace;font-weight:700;">
+    </div>
+    <div>
+      <label for="bwcc-u" style="display:block;font-size:0.74rem;font-weight:600;margin-bottom:4px;color:#a0aec0;">Units</label>
+      <select id="bwcc-u" style="width:100%;padding:8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.8rem;">
+        <option value="lb" selected>Pounds (lb)</option>
+        <option value="kg">Kilograms (kg)</option>
+        <option value="st">Stones &amp; pounds</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="bwcc-stwrap" style="display:none;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><label for="bwcc-st" style="display:block;font-size:0.72rem;color:#a0aec0;margin-bottom:3px;">Stones</label>
+        <input type="number" id="bwcc-st" value="10" min="0" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.8rem;"></div>
+      <div><label for="bwcc-stlb" style="display:block;font-size:0.72rem;color:#a0aec0;margin-bottom:3px;">Pounds</label>
+        <input type="number" id="bwcc-stlb" value="7" min="0" max="13.75" step="0.25" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.8rem;"></div>
+    </div>
+  </div>
+
+  <div id="bwcc-result" style="background:#09121d;border:2px solid rgba(45,212,255,0.3);border-radius:8px;padding:13px;text-align:center;margin-bottom:12px;">
+    <div id="bwcc-div" style="font-size:1.3rem;font-weight:800;color:#00ffcc;">Welterweight</div>
+    <div id="bwcc-limit" style="font-size:0.78rem;color:var(--text-secondary);margin-top:3px;">Limit 147 lb · 66.68 kg · 10 st 7 lb</div>
+    <div id="bwcc-margin" style="font-size:0.85rem;font-weight:700;color:#ffd700;margin-top:6px;">On the limit</div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <label for="bwcc-target" style="display:block;font-size:0.74rem;font-weight:600;margin-bottom:4px;color:#a0aec0;">Check against a specific division</label>
+    <select id="bwcc-target" style="width:100%;padding:8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.8rem;"></select>
+  </div>
+
+  <div id="bwcc-out" style="background:#070f1a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:10px;font-size:0.75rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  // Professional divisions with their upper limits in pounds
+  const D=[
+    ['Minimumweight',105],['Light Flyweight',108],['Flyweight',112],
+    ['Super Flyweight',115],['Bantamweight',118],['Super Bantamweight',122],
+    ['Featherweight',126],['Super Featherweight',130],['Lightweight',135],
+    ['Super Lightweight',140],['Welterweight',147],['Super Welterweight',154],
+    ['Middleweight',160],['Super Middleweight',168],['Light Heavyweight',175],
+    ['Cruiserweight',200],['Heavyweight',Infinity]
+  ];
+  $('bwcc-target').innerHTML='<option value="-1">— auto (nearest division) —</option>'+
+    D.map((d,i)=>`<option value="${i}">${d[0]}${d[1]===Infinity?' (no limit)':' — '+d[1]+' lb'}</option>`).join('');
+
+  const fmt=lb=>{
+    const kg=(lb*0.45359237).toFixed(2);
+    const st=Math.floor(lb/14), r=(lb-st*14);
+    return `${lb} lb · ${kg} kg · ${st} st ${r % 1 === 0 ? r : r.toFixed(2)} lb`;
+  };
+
+  function weightLb(){
+    const u=$('bwcc-u').value;
+    if(u==='kg') return (+$('bwcc-w').value||0)/0.45359237;
+    if(u==='st') return (+$('bwcc-st').value||0)*14+(+$('bwcc-stlb').value||0);
+    return +$('bwcc-w').value||0;
+  }
+
+  function calc(){
+    const lb=weightLb();
+    $('bwcc-stwrap').style.display = $('bwcc-u').value==='st'?'block':'none';
+    $('bwcc-w').parentElement.style.display = $('bwcc-u').value==='st'?'none':'block';
+
+    let idx=D.findIndex(d=>lb<=d[1]);
+    if(idx<0) idx=D.length-1;
+    const sel=+$('bwcc-target').value;
+    const use=sel>=0?sel:idx;
+    const [name,lim]=D[use];
+
+    $('bwcc-div').textContent=name;
+    $('bwcc-limit').textContent = lim===Infinity?'No upper limit':'Limit '+fmt(lim);
+
+    const m=$('bwcc-margin');
+    let msg;
+    if(lim===Infinity){
+      m.textContent='Inside the limit'; m.style.color='#00ffcc';
+      msg=`At ${lb.toFixed(2)} lb the fighter is a heavyweight — the division has no upper limit. The cruiserweight ceiling below it is 200 lb.`;
+    } else {
+      const diff=lim-lb;
+      if(Math.abs(diff)<0.005){ m.textContent='Exactly on the limit ✓'; m.style.color='#00ffcc'; }
+      else if(diff>0){ m.textContent=diff.toFixed(2)+' lb inside the limit ✓'; m.style.color='#00ffcc'; }
+      else { m.textContent=Math.abs(diff).toFixed(2)+' lb OVER the limit ✗'; m.style.color='#ff3366'; }
+
+      if(diff>=0){
+        msg=`At <strong>${lb.toFixed(2)} lb</strong> the fighter makes ${name} with ${diff.toFixed(2)} lb to spare. `;
+        if(diff>6) msg+=`That is a comfortable margin — they could also make ${D[Math.max(0,use-1)][0]} at ${D[Math.max(0,use-1)][1]} lb if they wished.`;
+        else if(diff<1) msg+='<span style="color:#ffd700;">This is very tight; a second attempt on the scales is common at this margin.</span>';
+      } else {
+        const over=Math.abs(diff);
+        msg=`<span style="color:#ff3366;"><strong>${over.toFixed(2)} lb over the ${name} limit.</strong></span> `+
+          `Standard practice allows a two-hour window to shed the excess and re-weigh. If the fighter cannot make it, the bout typically proceeds at a catchweight: `+
+          `the offending fighter usually forfeits a percentage of the purse and, in a title fight, can lose the belt on the scales while the opponent remains eligible to win it. `+
+          `They would instead make <strong>${(D.find(d=>lb<=d[1])||D[D.length-1])[0]}</strong> at this weight.`;
+      }
+    }
+    $('bwcc-out').innerHTML=msg+'<div style="margin-top:6px;font-size:0.7rem;opacity:0.75;">Same-day and day-before weigh-in rules vary by commission; championship bouts often add a rehydration clause capping weight on fight morning.</div>';
+  }
+
+  ['bwcc-w','bwcc-u','bwcc-st','bwcc-stlb','bwcc-target'].forEach(i=>{
+    $(i).addEventListener('input',calc); $(i).addEventListener('change',calc);
+  });
+  calc();
+})();
+</script>

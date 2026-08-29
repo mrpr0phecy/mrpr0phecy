@@ -1,0 +1,124 @@
+<!-- cards/boxing-knockdown-count-rules.html -->
+<h2 id="bkcr-title" style="margin-top:0;color:var(--accent);">🛎️ Boxing Knockdown &amp; Count Rules Assistant</h2>
+
+<form aria-describedby="bkcr-desc" onsubmit="event.preventDefault();">
+  <p id="bkcr-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Work out whether an incident is a scoring knockdown or a slip, how the count runs, and what it does to the round score. Includes a live count timer at the official pace.
+  </p>
+
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;margin-bottom:12px;">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--text);margin-bottom:8px;">What happened?</div>
+    <div id="bkcr-qs"></div>
+  </div>
+
+  <div id="bkcr-ruling" style="background:#09121d;border:2px solid rgba(45,212,255,0.3);border-radius:8px;padding:12px;text-align:center;margin-bottom:12px;">
+    <div id="bkcr-verdict" style="font-size:1.2rem;font-weight:800;color:#ffd700;">Answer the questions</div>
+    <div id="bkcr-effect" style="font-size:0.78rem;color:var(--text-secondary);margin-top:4px;"></div>
+  </div>
+
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:0.78rem;font-weight:700;color:var(--text);">Referee's Count</span>
+      <span style="font-size:0.68rem;color:var(--text-secondary);">One second per number</span>
+    </div>
+    <div id="bkcr-count" style="font-size:2.6rem;font-weight:800;color:#00ffcc;font-family:monospace;text-align:center;line-height:1.1;">0</div>
+    <div id="bkcr-countmsg" style="font-size:0.72rem;color:var(--text-secondary);text-align:center;min-height:18px;margin-bottom:8px;">Press Start Count</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button type="button" id="bkcr-start" style="padding:9px;background:linear-gradient(135deg,#00f3ff,#0077ff);border:none;color:#050d18;border-radius:6px;font-weight:700;font-size:0.78rem;cursor:pointer;">Start Count</button>
+      <button type="button" id="bkcr-stop" style="padding:9px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--text);border-radius:6px;font-weight:600;font-size:0.78rem;cursor:pointer;">Boxer Beat It</button>
+    </div>
+  </div>
+
+  <div id="bkcr-notes" style="background:#070f1a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:10px;font-size:0.74rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const Q=[
+    {k:'down',  q:'Did any part of the body other than the feet touch the canvas?'},
+    {k:'punch', q:'Was it caused or contributed to by a legal punch (rather than a slip, push or trip)?'},
+    {k:'ropes', q:'Was the boxer held up only by the ropes, or hanging helpless on them?'},
+    {k:'unfit', q:'Was the boxer unable to defend themselves / did the referee begin a count?'}
+  ];
+  const st={};
+  $('bkcr-qs').innerHTML=Q.map(o=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <span style="font-size:0.74rem;color:var(--text-secondary);flex:1;padding-right:8px;">${o.q}</span>
+      <span style="display:flex;gap:4px;">
+        <button type="button" data-k="${o.k}" data-v="1" style="padding:4px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-secondary);border-radius:4px;font-size:0.7rem;font-weight:700;cursor:pointer;">Yes</button>
+        <button type="button" data-k="${o.k}" data-v="0" style="padding:4px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-secondary);border-radius:4px;font-size:0.7rem;font-weight:700;cursor:pointer;">No</button>
+      </span>
+    </div>`).join('');
+
+  $('bkcr-qs').querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      st[b.dataset.k]=b.dataset.v==='1';
+      $('bkcr-qs').querySelectorAll(`button[data-k="${b.dataset.k}"]`).forEach(x=>{
+        const on=x===b;
+        x.style.background=on?(x.dataset.v==='1'?'rgba(0,255,204,0.18)':'rgba(255,51,102,0.15)'):'rgba(255,255,255,0.06)';
+        x.style.borderColor=on?(x.dataset.v==='1'?'#00ffcc':'#ff3366'):'rgba(255,255,255,0.18)';
+        x.style.color=on?(x.dataset.v==='1'?'#00ffcc':'#ff85a2'):'var(--text-secondary)';
+      });
+      rule();
+    });
+  });
+
+  function rule(){
+    const answered=Q.every(o=>o.k in st);
+    if(!answered){ 
+      $('bkcr-verdict').textContent='Answer the questions';
+      $('bkcr-verdict').style.color='#ffd700';
+      $('bkcr-effect').textContent='';
+      $('bkcr-notes').innerHTML='A knockdown is scored when a legal punch puts a boxer down or leaves them helpless on the ropes. Contact with the canvas alone is not enough — the cause matters.';
+      return;
+    }
+    let v,c,e,n;
+    if(st.down&&st.punch){ v='SCORING KNOCKDOWN'; c='#ff6b6b';
+      e='The referee takes up a mandatory count. The fighter knocked down loses an extra point on the card.';
+      n='On the 10-Point Must System the round normally becomes <strong>10-8</strong> to the fighter who scored it, or <strong>10-7</strong> if there were two knockdowns. A fighter can still win a round on merit after scoring a knockdown against them, but that is rare.'; }
+    else if(st.ropes&&st.punch){ v='KNOCKDOWN (ON THE ROPES)'; c='#ff6b6b';
+      e='Being held up by the ropes counts as down. The referee counts and the round is scored as a knockdown.';
+      n='The ropes rule prevents a fighter avoiding a count simply by falling into them. Score this as <strong>10-8</strong>.'; }
+    else if(st.down&&!st.punch&&st.unfit){ v='SLIP — BUT COUNT GIVEN'; c='#ffd700';
+      e='If the referee wrongly counts on a slip, the count stands as administered but the card should not treat it as a knockdown.';
+      n='Judges score what they see: a slip is <strong>not</strong> a scoring knockdown even if a count was mistakenly applied. The round is scored on the punching, usually <strong>10-9</strong>.'; }
+    else if(st.down&&!st.punch){ v='SLIP — NO SCORE'; c='#00ffcc';
+      e='No count, no deduction, no effect on the card.';
+      n='A slip, trip, push or tangle of legs is not a knockdown. The referee waves it off and the round is scored normally.'; }
+    else if(!st.down&&st.unfit&&st.punch){ v='STANDING COUNT'; c='#ffd700';
+      e='Permitted under some amateur and regional rules; not used in most professional championship bouts.';
+      n='Where a standing count is allowed it is generally scored as a knockdown (<strong>10-8</strong>). Under most professional rules the referee either lets the fight continue or stops it.'; }
+    else { v='NO KNOCKDOWN'; c='#00ffcc';
+      e='Score the round on the punching alone.';
+      n='Nothing here meets the definition of a knockdown. Use the ordinary criteria — clean punching first.'; }
+    $('bkcr-verdict').textContent=v; $('bkcr-verdict').style.color=c;
+    $('bkcr-effect').textContent=e;
+    $('bkcr-notes').innerHTML=n;
+  }
+
+  let t=null,n=0;
+  $('bkcr-start').addEventListener('click',()=>{
+    clearInterval(t); n=0;
+    $('bkcr-count').textContent='0'; $('bkcr-count').style.color='#00ffcc';
+    $('bkcr-countmsg').textContent='Counting…';
+    t=setInterval(()=>{
+      n++;
+      $('bkcr-count').textContent=n;
+      if(n>=8){ $('bkcr-count').style.color='#ff3366'; }
+      else if(n>=5){ $('bkcr-count').style.color='#ffd700'; }
+      if(n===8) $('bkcr-countmsg').textContent='Eight — referee checks if the boxer can continue';
+      else if(n>=10){
+        clearInterval(t);
+        $('bkcr-countmsg').innerHTML='<strong style="color:#ff3366;">TEN — COUNTED OUT. Knockout.</strong>';
+      }
+    },1000);
+  });
+  $('bkcr-stop').addEventListener('click',()=>{
+    clearInterval(t);
+    if(n>0&&n<10) $('bkcr-countmsg').innerHTML=`Beat the count at <strong>${n}</strong>. Still a scoring knockdown — the round is 10-8.`;
+    else if(n===0) $('bkcr-countmsg').textContent='Press Start Count';
+  });
+  rule();
+})();
+</script>

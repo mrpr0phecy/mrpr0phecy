@@ -1,0 +1,116 @@
+<!-- cards/boxing-fight-decision-predictor.html -->
+<h2 id="bfdp-title" style="margin-top:0;color:var(--accent);">📊 Boxing Fight Outcome Projector</h2>
+
+<form aria-describedby="bfdp-desc" onsubmit="event.preventDefault();">
+  <p id="bfdp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Mid-fight maths for fans and cornermen. Enter the score so far and see exactly what each fighter needs in the remaining rounds — including whether a knockout has become the only route.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <input type="text" id="bfdp-a" value="Boxer A" style="width:100%;padding:8px;background:#070f18;border:1px solid rgba(255,80,80,0.45);color:#e2e8f0;border-radius:6px;font-size:0.8rem;">
+    <input type="text" id="bfdp-b" value="Boxer B" style="width:100%;padding:8px;background:#070f18;border:1px solid rgba(80,140,255,0.45);color:#e2e8f0;border-radius:6px;font-size:0.8rem;">
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+    <div><label for="bfdp-total" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Total Rds</label>
+      <input type="number" id="bfdp-total" value="12" min="4" max="15" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.78rem;text-align:center;"></div>
+    <div><label for="bfdp-done" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Completed</label>
+      <input type="number" id="bfdp-done" value="8" min="0" max="15" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.78rem;text-align:center;"></div>
+    <div><label for="bfdp-sa" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:3px;color:#ff9b9b;">A points</label>
+      <input type="number" id="bfdp-sa" value="77" min="0" max="200" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,80,80,0.4);color:#ff9b9b;border-radius:5px;font-size:0.78rem;text-align:center;font-family:monospace;font-weight:700;"></div>
+    <div><label for="bfdp-sb" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:3px;color:#9bbcff;">B points</label>
+      <input type="number" id="bfdp-sb" value="75" min="0" max="200" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(80,140,255,0.4);color:#9bbcff;border-radius:5px;font-size:0.78rem;text-align:center;font-family:monospace;font-weight:700;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.65rem;color:var(--text-secondary);text-transform:uppercase;">Lead</div>
+      <div id="bfdp-lead" style="font-size:1.15rem;font-weight:800;color:#ffd700;margin-top:4px;">—</div>
+    </div>
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.65rem;color:var(--text-secondary);text-transform:uppercase;">Rounds Left</div>
+      <div id="bfdp-left" style="font-size:1.35rem;font-weight:800;color:#00ffcc;margin-top:2px;">0</div>
+    </div>
+    <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.65rem;color:var(--text-secondary);text-transform:uppercase;">Status</div>
+      <div id="bfdp-stat" style="font-size:0.95rem;font-weight:800;color:#ffd700;margin-top:6px;">Live</div>
+    </div>
+  </div>
+
+  <div id="bfdp-paths" style="margin-bottom:12px;"></div>
+  <div id="bfdp-out" style="background:#070f1a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:10px;font-size:0.76rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  function calc(){
+    const an=$('bfdp-a').value||'Boxer A', bn=$('bfdp-b').value||'Boxer B';
+    const tot=+$('bfdp-total').value||12;
+    let done=Math.min(+$('bfdp-done').value||0,tot);
+    const sa=+$('bfdp-sa').value||0, sb=+$('bfdp-sb').value||0;
+    const left=Math.max(0,tot-done);
+    const gap=sa-sb, lead=gap>0?an:gap<0?bn:null, mag=Math.abs(gap);
+
+    $('bfdp-lead').textContent = lead?lead+' +'+mag:'Level';
+    $('bfdp-lead').style.color = gap>0?'#ff6b6b':gap<0?'#6b9dff':'#ffd700';
+    $('bfdp-left').textContent=left;
+
+    const st=$('bfdp-stat');
+    let paths='';
+    if(left===0){
+      st.textContent='Final'; st.style.color='#ff6b6b';
+      $('bfdp-out').innerHTML = gap===0
+        ? `<strong style="color:#ffd700;">Final: draw ${sa}-${sb}.</strong>`
+        : `<strong style="color:${gap>0?'#ff6b6b':'#6b9dff'};">Final: ${lead} wins ${Math.max(sa,sb)}-${Math.min(sa,sb)}.</strong>`;
+      $('bfdp-paths').innerHTML='';
+      return;
+    }
+    // Trailing fighter's best realistic case: win every remaining round 10-9
+    const trail=gap===0?null:(gap>0?bn:an);
+    const needSweep=mag;               // points to close with 10-9 rounds
+    const canCatch=needSweep<=left;
+    const needTen8=Math.ceil((mag-left)/1);  // extra points needed beyond a sweep
+    st.textContent = canCatch?'Live':'KO needed';
+    st.style.color = canCatch?'#00ffcc':'#ff6b6b';
+
+    const rows=[];
+    if(gap===0){
+      rows.push(['Level fight',`Whoever wins more of the last ${left} round${left===1?'':'s'} takes the decision. A ${left}-round split leaves a draw.`,'#ffd700']);
+    } else {
+      if(canCatch){
+        rows.push([`${trail} sweeps all ${left}`,
+          mag<left?`Wins by ${left-mag} point${left-mag===1?'':'s'}.`:`Draws level — a draw on this card.`,'#00ffcc']);
+        const need=mag+1;
+        rows.push([`${trail} needs`,
+          need<=left?`to win ${need} of the last ${left} rounds outright to take the lead.`:`more than the remaining rounds allow at 10-9.`,
+          need<=left?'#00ffcc':'#ff6b6b']);
+      } else {
+        rows.push([`${trail} cannot catch up`,
+          `Even winning every remaining round 10-9 leaves them ${mag-left} point${mag-left===1?'':'s'} short. A knockdown (10-8) or stoppage is required.`,'#ff6b6b']);
+        const kds=Math.ceil((mag-left)/1);
+        rows.push([`Knockdowns required`,
+          `About ${kds} additional point${kds===1?'':'s'} — i.e. ${kds} scoring knockdown${kds===1?'':'s'} on top of sweeping the rest.`,'#ffd700']);
+      }
+      rows.push([`${lead} needs`,
+        `to win ${Math.max(0,Math.ceil((left-mag+1)/2))} of the last ${left} to be mathematically safe.`,'#6b9dff']);
+    }
+    $('bfdp-paths').innerHTML=rows.map(r=>`
+      <div style="display:flex;gap:8px;background:#09121d;border:1px solid rgba(255,255,255,0.08);border-left:3px solid ${r[2]};border-radius:5px;padding:7px 9px;margin-bottom:5px;">
+        <div style="font-size:0.73rem;font-weight:700;color:${r[2]};min-width:130px;">${r[0]}</div>
+        <div style="font-size:0.73rem;color:var(--text-secondary);flex:1;">${r[1]}</div>
+      </div>`).join('');
+
+    const maxSwing=left*10;
+    $('bfdp-out').innerHTML=`After ${done} round${done===1?'':'s'} the card reads <strong>${sa}-${sb}</strong>. `+
+      (lead?`${lead} leads by ${mag}. `:'The fight is level. ')+
+      `There are ${left} round${left===1?'':'s'} left, worth up to ${maxSwing} points each. `+
+      (canCatch?'':'<span style="color:#ff6b6b;">On points alone the deficit is now unrecoverable.</span>')+
+      '<div style="margin-top:6px;font-size:0.7rem;opacity:0.75;">Projection assumes standard 10-9 rounds unless knockdowns intervene. Judges score independently, so a real bout can diverge from any single card.</div>';
+  }
+  ['bfdp-a','bfdp-b','bfdp-total','bfdp-done','bfdp-sa','bfdp-sb'].forEach(i=>{
+    $(i).addEventListener('input',calc); $(i).addEventListener('change',calc);
+  });
+  calc();
+})();
+</script>

@@ -1,0 +1,106 @@
+<!-- cards/boxing-three-judge-simulator.html -->
+<h2 id="b3js-title" style="margin-top:0;color:var(--accent);">👨‍⚖️ Boxing Three-Judge Decision Simulator</h2>
+
+<form aria-describedby="b3js-desc" onsubmit="event.preventDefault();">
+  <p id="b3js-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Enter three official cards and get the correct verdict — unanimous, split, majority, or draw. Handles every decision type including the frequently confused majority draw.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <input type="text" id="b3js-a" value="Boxer A" style="width:100%;padding:8px;background:#070f18;border:1px solid rgba(255,80,80,0.45);color:#e2e8f0;border-radius:6px;font-size:0.8rem;">
+    <input type="text" id="b3js-b" value="Boxer B" style="width:100%;padding:8px;background:#070f18;border:1px solid rgba(80,140,255,0.45);color:#e2e8f0;border-radius:6px;font-size:0.8rem;">
+  </div>
+
+  <div id="b3js-judges" style="margin-bottom:12px;"></div>
+
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+    <button type="button" class="b3js-preset" data-p="115,113|114,114|116,112" style="flex:1;min-width:110px;padding:7px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-secondary);border-radius:5px;font-size:0.7rem;cursor:pointer;">Majority Example</button>
+    <button type="button" class="b3js-preset" data-p="116,112|112,116|115,113" style="flex:1;min-width:110px;padding:7px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-secondary);border-radius:5px;font-size:0.7rem;cursor:pointer;">Split Example</button>
+    <button type="button" class="b3js-preset" data-p="114,114|114,114|115,113" style="flex:1;min-width:110px;padding:7px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:var(--text-secondary);border-radius:5px;font-size:0.7rem;cursor:pointer;">Majority Draw</button>
+  </div>
+
+  <div id="b3js-verdict" style="background:#09121d;border:2px solid rgba(45,212,255,0.3);border-radius:8px;padding:14px;text-align:center;margin-bottom:12px;">
+    <div id="b3js-type" style="font-size:1.15rem;font-weight:800;color:#ffd700;letter-spacing:1px;">—</div>
+    <div id="b3js-winner" style="font-size:1.5rem;font-weight:800;color:var(--text);margin-top:4px;">Enter three cards</div>
+    <div id="b3js-tally" style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px;font-family:monospace;"></div>
+  </div>
+
+  <div id="b3js-notes" style="background:#070f1a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:10px;font-size:0.75rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const J=[{n:'Judge 1',a:115,b:113},{n:'Judge 2',a:114,b:114},{n:'Judge 3',a:116,b:112}];
+
+  $('b3js-judges').innerHTML=J.map((j,i)=>`
+    <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr 1.1fr;gap:8px;align-items:center;background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;margin-bottom:6px;">
+      <input type="text" id="b3js-n${i}" value="${j.n}" style="padding:6px;background:#070f18;border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:5px;font-size:0.74rem;">
+      <input type="number" id="b3js-a${i}" value="${j.a}" min="0" max="200" style="padding:6px;background:#070f18;border:1px solid rgba(255,80,80,0.4);color:#ff9b9b;border-radius:5px;font-size:0.78rem;text-align:center;font-family:monospace;font-weight:700;">
+      <input type="number" id="b3js-b${i}" value="${j.b}" min="0" max="200" style="padding:6px;background:#070f18;border:1px solid rgba(80,140,255,0.4);color:#9bbcff;border-radius:5px;font-size:0.78rem;text-align:center;font-family:monospace;font-weight:700;">
+      <div id="b3js-r${i}" style="font-size:0.72rem;font-weight:700;text-align:center;color:var(--text-secondary);">—</div>
+    </div>`).join('');
+
+  function calc(){
+    const an=$('b3js-a').value||'Boxer A', bn=$('b3js-b').value||'Boxer B';
+    let forA=0,forB=0,even=0; const cards=[];
+    for(let i=0;i<3;i++){
+      const a=parseInt($('b3js-a'+i).value,10)||0, b=parseInt($('b3js-b'+i).value,10)||0;
+      const nm=$('b3js-n'+i).value||('Judge '+(i+1));
+      cards.push({nm,a,b});
+      const r=$('b3js-r'+i);
+      if(a>b){ forA++; r.textContent=an+' '+a+'-'+b; r.style.color='#ff6b6b'; }
+      else if(b>a){ forB++; r.textContent=bn+' '+b+'-'+a; r.style.color='#6b9dff'; }
+      else { even++; r.textContent='Even '+a+'-'+b; r.style.color='#ffd700'; }
+    }
+
+    // Official decision logic
+    let type,winner,col,note;
+    if(forA===3||forB===3){
+      const w=forA===3?an:bn; type='UNANIMOUS DECISION'; winner=w;
+      col=forA===3?'#ff6b6b':'#6b9dff';
+      note='All three judges scored for the same fighter. The clearest form of win on points.';
+    } else if(forA===2&&forB===1||forB===2&&forA===1){
+      const w=forA===2?an:bn; type='SPLIT DECISION'; winner=w;
+      col=forA===2?'#ff6b6b':'#6b9dff';
+      note='Two judges favoured the winner while the third scored for the opponent — a genuinely contested result.';
+    } else if((forA===2&&even===1)||(forB===2&&even===1)){
+      const w=forA===2?an:bn; type='MAJORITY DECISION'; winner=w;
+      col=forA===2?'#ff6b6b':'#6b9dff';
+      note='Two judges scored for the winner and the third scored it even. Note this differs from a split decision: no judge favoured the loser.';
+    } else if(even===3){
+      type='UNANIMOUS DRAW'; winner='Draw'; col='#ffd700';
+      note='All three judges scored the bout level.';
+    } else if(even===2&&(forA===1||forB===1)){
+      type='MAJORITY DRAW'; winner='Draw'; col='#ffd700';
+      note='Two judges scored it level, so no fighter has a majority — the bout is a draw despite one judge finding a winner.';
+    } else if(forA===1&&forB===1&&even===1){
+      type='SPLIT DRAW'; winner='Draw'; col='#ffd700';
+      note='One judge for each fighter and one even card. No majority, so the result is a draw.';
+    } else { type='—'; winner='Enter three cards'; col='var(--text)'; note=''; }
+
+    $('b3js-type').textContent=type;
+    $('b3js-winner').textContent=winner;
+    $('b3js-winner').style.color=col;
+    $('b3js-tally').textContent=cards.map(c=>c.a+'-'+c.b).join('  ·  ')+`   (${forA} ${an} / ${forB} ${bn} / ${even} even)`;
+
+    const spread=Math.max(...cards.map(c=>Math.abs(c.a-c.b)))-Math.min(...cards.map(c=>Math.abs(c.a-c.b)));
+    let extra=note;
+    if(spread>=6) extra+=` <span style="color:#ffd700;">The cards diverge widely (${spread}-point spread in margin), which usually signals several close swing rounds.</span>`;
+    $('b3js-notes').innerHTML=extra;
+  }
+
+  for(let i=0;i<3;i++) ['n','a','b'].forEach(f=>$('b3js-'+f+i).addEventListener('input',calc));
+  $('b3js-a').addEventListener('input',calc); $('b3js-b').addEventListener('input',calc);
+  document.querySelectorAll('.b3js-preset').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      btn.dataset.p.split('|').forEach((pair,i)=>{
+        const [a,b]=pair.split(',');
+        $('b3js-a'+i).value=a; $('b3js-b'+i).value=b;
+      });
+      calc();
+    });
+  });
+  calc();
+})();
+</script>

@@ -1,0 +1,157 @@
+<!-- cards/boxing-round-timer-bell.html -->
+<h2 id="brtb-title" style="margin-top:0;color:var(--accent);">🔔 Boxing Round Timer &amp; Bell</h2>
+
+<form aria-describedby="brtb-desc" onsubmit="event.preventDefault();">
+  <p id="brtb-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Full bout timer with authentic bell and ten-second clapper, generated live in your browser. Configure round length, rest interval and round count for sparring, training or scoring practice.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+    <div><label for="brtb-rl" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Round (s)</label>
+      <input type="number" id="brtb-rl" value="180" min="30" max="900" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.78rem;"></div>
+    <div><label for="brtb-rest" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Rest (s)</label>
+      <input type="number" id="brtb-rest" value="60" min="10" max="300" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.78rem;"></div>
+    <div><label for="brtb-n" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Rounds</label>
+      <input type="number" id="brtb-n" value="12" min="1" max="15" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.78rem;"></div>
+    <div><label for="brtb-warn" style="display:block;font-size:0.72rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Clapper (s)</label>
+      <input type="number" id="brtb-warn" value="10" min="0" max="60" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.78rem;"></div>
+  </div>
+
+  <div id="brtb-face" style="background:#09121d;border:2px solid rgba(45,212,255,0.3);border-radius:10px;padding:18px;text-align:center;margin-bottom:12px;transition:all 0.3s;">
+    <div id="brtb-phase" style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:2px;">Ready</div>
+    <div id="brtb-clock" style="font-size:3.2rem;font-weight:800;color:#00ffcc;font-family:monospace;line-height:1.1;margin:4px 0;">3:00</div>
+    <div id="brtb-rd" style="font-size:0.8rem;color:var(--text-secondary);">Round 1 of 12</div>
+    <div style="background:rgba(255,255,255,0.08);height:6px;border-radius:3px;margin-top:10px;overflow:hidden;">
+      <div id="brtb-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#00f3ff,#0077ff);transition:width 0.25s linear;"></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+    <button type="button" id="brtb-start" style="padding:11px;background:linear-gradient(135deg,#00f3ff,#0077ff);border:none;color:#050d18;border-radius:6px;font-weight:800;font-size:0.85rem;cursor:pointer;">▶ Start</button>
+    <button type="button" id="brtb-skip" style="padding:11px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--text);border-radius:6px;font-weight:600;font-size:0.78rem;cursor:pointer;">Skip ⏭</button>
+    <button type="button" id="brtb-reset" style="padding:11px;background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.4);color:#ff9b9b;border-radius:6px;font-weight:600;font-size:0.78rem;cursor:pointer;">Reset</button>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+    <input type="checkbox" id="brtb-sound" checked style="accent-color:#00c8ff;width:16px;height:16px;">
+    <label for="brtb-sound" style="font-size:0.76rem;color:var(--text-secondary);">Bell &amp; clapper sound (Web Audio — no files needed)</label>
+    <button type="button" id="brtb-test" style="margin-left:auto;padding:5px 10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--text);border-radius:5px;font-size:0.7rem;cursor:pointer;">Test Bell</button>
+  </div>
+
+  <div id="brtb-log" style="background:#070f1a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:10px;font-size:0.73rem;color:var(--text-secondary);line-height:1.6;max-height:110px;overflow-y:auto;">
+    Set your format and press Start. The bell sounds at the beginning and end of every round; the clapper warns before each round ends.
+  </div>
+</form>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  let ctx=null, timer=null, phase='ready', rd=1, left=0, total=0, warned=false;
+
+  function audio(){ if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(AC) ctx=new AC(); } return ctx; }
+
+  function bell(times){
+    if(!$('brtb-sound').checked) return;
+    const c=audio(); if(!c) return;
+    if(c.state==='suspended') c.resume();
+    for(let n=0;n<(times||1);n++){
+      const t0=c.currentTime+n*0.42;
+      [1180,1760,2340].forEach((f,i)=>{
+        const o=c.createOscillator(), g=c.createGain();
+        o.type='sine'; o.frequency.setValueAtTime(f,t0);
+        g.gain.setValueAtTime(0.0001,t0);
+        g.gain.exponentialRampToValueAtTime(0.34/(i+1.4),t0+0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+1.5);
+        o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0+1.6);
+      });
+    }
+  }
+  function clapper(){
+    if(!$('brtb-sound').checked) return;
+    const c=audio(); if(!c) return;
+    if(c.state==='suspended') c.resume();
+    for(let n=0;n<7;n++){
+      const t0=c.currentTime+n*0.11;
+      const o=c.createOscillator(), g=c.createGain();
+      o.type='square'; o.frequency.setValueAtTime(880,t0);
+      g.gain.setValueAtTime(0.0001,t0);
+      g.gain.exponentialRampToValueAtTime(0.18,t0+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+0.07);
+      o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0+0.08);
+    }
+  }
+
+  const mmss=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+  function log(m){
+    const d=document.createElement('div');
+    d.innerHTML='<span style="color:#00ffcc;">•</span> '+m;
+    $('brtb-log').prepend(d);
+  }
+
+  function paint(){
+    $('brtb-clock').textContent=mmss(Math.max(0,left));
+    $('brtb-rd').textContent='Round '+rd+' of '+($('brtb-n').value||12);
+    const f=$('brtb-face');
+    if(phase==='work'){
+      $('brtb-phase').textContent='Round in progress'; $('brtb-phase').style.color='#00ffcc';
+      $('brtb-clock').style.color = (left<=+($('brtb-warn').value||10)&&left>0)?'#ffd700':'#00ffcc';
+      f.style.borderColor='rgba(0,255,204,0.45)';
+    } else if(phase==='rest'){
+      $('brtb-phase').textContent='Rest'; $('brtb-phase').style.color='#ffd700';
+      $('brtb-clock').style.color='#ffd700'; f.style.borderColor='rgba(255,215,0,0.4)';
+    } else if(phase==='done'){
+      $('brtb-phase').textContent='Bout complete'; $('brtb-phase').style.color='#ff6b6b';
+      $('brtb-clock').style.color='#ff6b6b'; f.style.borderColor='rgba(255,107,107,0.45)';
+    } else {
+      $('brtb-phase').textContent='Ready'; $('brtb-phase').style.color='var(--text-secondary)';
+      $('brtb-clock').style.color='#00ffcc'; f.style.borderColor='rgba(45,212,255,0.3)';
+    }
+    $('brtb-bar').style.width = total>0 ? (100-(left/total*100))+'%' : '0%';
+  }
+
+  function tick(){
+    left--;
+    const w=+($('brtb-warn').value||10);
+    if(phase==='work'&&!warned&&w>0&&left===w){ warned=true; clapper(); log('Ten-second clapper — round '+rd); }
+    if(left<=0) next(); else paint();
+  }
+
+  function next(){
+    const n=+($('brtb-n').value||12);
+    if(phase==='work'){
+      bell(1); log('End of round '+rd);
+      if(rd>=n){ phase='done'; stop(); paint(); log('<strong>Bout complete — '+n+' rounds.</strong>'); return; }
+      phase='rest'; left=total=+($('brtb-rest').value||60);
+    } else {
+      rd++; phase='work'; warned=false;
+      left=total=+($('brtb-rl').value||180);
+      bell(1); log('Round '+rd+' — seconds out');
+    }
+    paint();
+  }
+
+  function stop(){ clearInterval(timer); timer=null; $('brtb-start').innerHTML='▶ Start'; }
+
+  $('brtb-start').addEventListener('click',()=>{
+    audio();
+    if(timer){ stop(); log('Paused'); return; }
+    if(phase==='ready'||phase==='done'){
+      rd=1; phase='work'; warned=false;
+      left=total=+($('brtb-rl').value||180);
+      bell(1); log('Round 1 — seconds out');
+    }
+    timer=setInterval(tick,1000);
+    $('brtb-start').innerHTML='⏸ Pause';
+    paint();
+  });
+  $('brtb-skip').addEventListener('click',()=>{ if(phase==='ready'||phase==='done')return; next(); });
+  $('brtb-reset').addEventListener('click',()=>{
+    stop(); phase='ready'; rd=1; warned=false;
+    left=total=+($('brtb-rl').value||180);
+    $('brtb-log').innerHTML='Timer reset.'; paint();
+  });
+  $('brtb-test').addEventListener('click',()=>{ audio(); bell(1); });
+  ['brtb-rl','brtb-n'].forEach(id=>$(id).addEventListener('change',()=>{ if(phase==='ready'){ left=total=+($('brtb-rl').value||180); paint(); } }));
+  paint();
+})();
+</script>
