@@ -1,0 +1,279 @@
+<h2 id="four-bar-linkage-title" style="margin-top:0;color:var(--accent);">⚙️ KineLink: Four-Bar Mechanism & Coupler Curve Synthesizer</h2>
+
+<form aria-describedby="four-bar-linkage-desc" onsubmit="event.preventDefault();">
+  <p id="four-bar-linkage-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Synthesize planar four-bar kinematic mechanisms. Classify via Grashof's Theorem ($s + l \le p + q$), trace coupler curves (Chebyshev, Watt, Hoeken), and analyze transmission angles.
+  </p>
+
+  <!-- Link Dimensions Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="fb-frame-d" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Frame ($d$)</label>
+      <input type="number" id="fb-frame-d" value="120" min="20" max="300" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Ground distance</span>
+    </div>
+
+    <div>
+      <label for="fb-crank-a" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Input Crank ($a$)</label>
+      <input type="number" id="fb-crank-a" value="40" min="10" max="200" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Driver arm</span>
+    </div>
+
+    <div>
+      <label for="fb-coupler-b" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Coupler ($b$)</label>
+      <input type="number" id="fb-coupler-b" value="100" min="20" max="300" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Floating link</span>
+    </div>
+
+    <div>
+      <label for="fb-rocker-c" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Output Rocker ($c$)</label>
+      <input type="number" id="fb-rocker-c" value="80" min="20" max="300" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Follower arm</span>
+    </div>
+  </div>
+
+  <!-- Historical Kinematic Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="fb-preset" data-d="120" data-a="40" data-b="100" data-c="80" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Classic Crank-Rocker</button>
+    <button type="button" class="fb-preset" data-d="100" data-a="50" data-b="125" data-c="125" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Chebyshev Straight-Line</button>
+    <button type="button" class="fb-preset" data-d="80" data-a="40" data-b="80" data-c="40" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Parallelogram Double-Crank</button>
+    <button type="button" class="fb-preset" data-d="140" data-a="60" data-b="70" data-c="65" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Non-Grashof Triple-Rocker</button>
+  </div>
+
+  <!-- Interactive Kinematic Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="fb-canvas" width="600" height="220" style="width:100%;height:220px;display:block;"></canvas>
+    <div style="position:absolute;bottom:6px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Gold Trail = Coupler Point Trajectory Path
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Grashof Classification</div>
+        <div id="fb-res-grashof" style="font-size:1.2rem;font-weight:bold;color:#00ffcc;">CRANK-ROCKER</div>
+        <div id="fb-res-inequality" style="font-size:0.68rem;color:var(--muted);">$s + l \le p + q$ (Satisfied)</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Transmission Angle ($\mu$)</div>
+        <div id="fb-res-trans-angle" style="font-size:1.2rem;font-weight:bold;color:#ffd700;">64.2°</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Optimal range: 45° - 135°</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Shortest Link ($s$)</div>
+        <div id="fb-res-shortest" style="font-size:1.2rem;font-weight:bold;color:#b026ff;">Crank $a$ (40 mm)</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Capable of full 360° spin</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Rocker Oscillation Swing</div>
+        <div id="fb-res-swing" style="font-size:1.2rem;font-weight:bold;color:#ff5577;">78.5°</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Output stroke range</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const dIn = document.getElementById('fb-frame-d');
+  const aIn = document.getElementById('fb-crank-a');
+  const bIn = document.getElementById('fb-coupler-b');
+  const cIn = document.getElementById('fb-rocker-c');
+
+  const canvas = document.getElementById('fb-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const grashofOut = document.getElementById('fb-res-grashof');
+  const ineqOut = document.getElementById('fb-res-inequality');
+  const transOut = document.getElementById('fb-res-trans-angle');
+  const shortOut = document.getElementById('fb-res-shortest');
+  const swingOut = document.getElementById('fb-res-swing');
+
+  let theta2 = 0;
+  let couplerTrail = [];
+
+  function evaluateGrashof(d, a, b, c) {
+    const links = [
+      { name: 'Frame d', len: d },
+      { name: 'Crank a', len: a },
+      { name: 'Coupler b', len: b },
+      { name: 'Rocker c', len: c }
+    ];
+    links.sort((x, y) => x.len - y.len);
+
+    const s = links[0];
+    const l = links[3];
+    const p = links[1];
+    const q = links[2];
+
+    const sumSL = s.len + l.len;
+    const sumPQ = p.len + q.len;
+
+    let type = '';
+    let satisfied = false;
+
+    if (sumSL < sumPQ) {
+      satisfied = true;
+      if (s.name.includes('Crank')) type = 'CRANK-ROCKER';
+      else if (s.name.includes('Frame')) type = 'DOUBLE-CRANK (DRAG-LINK)';
+      else if (s.name.includes('Coupler')) type = 'DOUBLE-ROCKER';
+      else type = 'ROCKER-CRANK';
+    } else if (sumSL === sumPQ) {
+      type = 'CHANGE-POINT (TOGGLE)';
+      satisfied = true;
+    } else {
+      type = 'TRIPLE-ROCKER (NON-GRASHOF)';
+      satisfied = false;
+    }
+
+    grashofOut.textContent = type;
+    grashofOut.style.color = satisfied ? '#00ffcc' : '#ff5577';
+    ineqOut.textContent = `s+l=${sumSL.toFixed(0)} vs p+q=${sumPQ.toFixed(0)} (${satisfied ? 'Satisfied' : 'Exceeded'})`;
+    shortOut.textContent = `${s.name} (${s.len} mm)`;
+  }
+
+  function loop() {
+    theta2 += 0.035;
+
+    const d = parseFloat(dIn.value) || 120;
+    const a = parseFloat(aIn.value) || 40;
+    const b = parseFloat(bIn.value) || 100;
+    const c = parseFloat(cIn.value) || 80;
+
+    evaluateGrashof(d, a, b, c);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    // Fixed ground pivots: O_A at (180, 140), O_B at (180 + d, 140)
+    const ox = 200;
+    const oy = 140;
+    const oAx = ox;
+    const oAy = oy;
+    const oBx = ox + d;
+    const oBy = oy;
+
+    // Pin A: Crank rotation
+    const ax = oAx + a * Math.cos(theta2);
+    const ay = oAy - a * Math.sin(theta2); // screen Y inverted
+
+    // Solve for Pin B via intersection of circle(A, b) and circle(O_B, c)
+    const dx = oBx - ax;
+    const dy = oBy - ay;
+    const distAB = Math.sqrt(dx * dx + dy * dy);
+
+    let hasSolution = false;
+    let bx = 0, by = 0;
+
+    if (distAB <= (b + c) && distAB >= Math.abs(b - c) && distAB > 1e-4) {
+      hasSolution = true;
+      const alpha = (b * b - c * c + distAB * distAB) / (2 * distAB);
+      const h = Math.sqrt(Math.max(0, b * b - alpha * alpha));
+
+      const cx2 = ax + (alpha * dx) / distAB;
+      const cy2 = ay + (alpha * dy) / distAB;
+
+      // Choose branch (elbow up / forward)
+      bx = cx2 - (h * dy) / distAB;
+      by = cy2 + (h * dx) / distAB;
+
+      // Coupler point P (midpoint + perpendicular apex)
+      const px = 0.5 * (ax + bx) - 0.25 * (by - ay);
+      const py = 0.5 * (ay + by) + 0.25 * (bx - ax);
+
+      couplerTrail.push({ x: px, y: py });
+      if (couplerTrail.length > 200) couplerTrail.shift();
+
+      // Transmission angle mu between coupler and rocker
+      // cos(mu) = (b^2 + c^2 - distAB^2) / (2 * b * c)
+      const cosMu = (b * b + c * c - distAB * distAB) / (2 * b * c);
+      const muDeg = Math.acos(Math.min(1, Math.max(-1, cosMu))) * (180 / Math.PI);
+      transOut.textContent = `${muDeg.toFixed(1)}°`;
+      if (muDeg < 40 || muDeg > 140) transOut.style.color = '#ff5577';
+      else transOut.style.color = '#ffd700';
+    }
+
+    // Draw Coupler Path Trail
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    for (let i = 0; i < couplerTrail.length; i++) {
+      if (i === 0) ctx.moveTo(couplerTrail[i].x, couplerTrail[i].y);
+      else ctx.lineTo(couplerTrail[i].x, couplerTrail[i].y);
+    }
+    ctx.stroke();
+
+    // Draw Ground Frame line (link 1)
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(oAx, oAy);
+    ctx.lineTo(oBx, oBy);
+    ctx.stroke();
+
+    // Draw Ground Supports (Triangles)
+    ctx.fillStyle = '#888';
+    [oAx, oBx].forEach(gx => {
+      ctx.beginPath();
+      ctx.moveTo(gx, oy);
+      ctx.lineTo(gx - 8, oy + 15);
+      ctx.lineTo(gx + 8, oy + 15);
+      ctx.fill();
+    });
+
+    if (hasSolution) {
+      // Draw Coupler Link (triangle / bar between A and B)
+      ctx.strokeStyle = '#b026ff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+
+      // Draw Rocker Link (B to O_B)
+      ctx.strokeStyle = '#0099ff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(oBx, oBy);
+      ctx.stroke();
+
+      // Draw Crank Link (O_A to A)
+      ctx.strokeStyle = '#00ffcc';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(oAx, oAy);
+      ctx.lineTo(ax, ay);
+      ctx.stroke();
+
+      // Pins
+      [ { x: oAx, y: oAy }, { x: oBx, y: oBy }, { x: ax, y: ay }, { x: bx, y: by } ].forEach(pin => {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(pin.x, pin.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  [dIn, aIn, bIn, cIn].forEach(elem => elem.addEventListener('input', () => { couplerTrail = []; }));
+
+  document.querySelectorAll('.fb-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      dIn.value = btn.dataset.d;
+      aIn.value = btn.dataset.a;
+      bIn.value = btn.dataset.b;
+      cIn.value = btn.dataset.c;
+      couplerTrail = [];
+    });
+  });
+
+  loop();
+})();
+</script>

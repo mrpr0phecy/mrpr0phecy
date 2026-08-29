@@ -1,0 +1,301 @@
+<h2 id="damped-harmonic-title" style="margin-top:0;color:var(--accent);">⚡ VibroDynamics: Damped & Forced Harmonic Resonance</h2>
+
+<form aria-describedby="damped-harmonic-desc" onsubmit="event.preventDefault();">
+  <p id="damped-harmonic-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Analyze classical mass-spring-damper dynamics ($m\ddot{x} + c\dot{x} + kx = F_0\cos\omega t$). Inspect damping ratios ($\zeta$), Q-factor resonance peaks, phase lag, and transient vs steady-state response.
+  </p>
+
+  <!-- Input Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="dho-mass" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Mass ($m$)</label>
+      <input type="number" id="dho-mass" value="2.0" min="0.1" max="100" step="0.1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">kg</span>
+    </div>
+
+    <div>
+      <label for="dho-stiffness" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Spring Stiffness ($k$)</label>
+      <input type="number" id="dho-stiffness" value="200" min="1" max="5000" step="10" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">N/m</span>
+    </div>
+
+    <div>
+      <label for="dho-damping" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Damping ($c$)</label>
+      <input type="number" id="dho-damping" value="4.0" min="0" max="100" step="0.5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">N·s/m</span>
+    </div>
+
+    <div>
+      <label for="dho-driving-w" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Driving Freq ($\omega$)</label>
+      <input type="number" id="dho-driving-w" value="10.0" min="0" max="100" step="0.5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">rad/s</span>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="dho-preset" data-m="2" data-k="200" data-c="0.8" data-w="10" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Near-Resonance Peak ($\omega \approx \omega_n$)</button>
+    <button type="button" class="dho-preset" data-m="1" data-k="100" data-c="20" data-w="10" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Critical Damping ($\zeta = 1.0$)</button>
+    <button type="button" class="dho-preset" data-m="1" data-k="100" data-c="40" data-w="5" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Overdamped Dashpot ($\zeta = 2.0$)</button>
+    <button type="button" class="dho-preset" data-m="1" data-k="400" data-c="1" data-w="5" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">High Q Bell / Tuning Fork</button>
+  </div>
+
+  <!-- Dual Canvas: Mechanical Rig & Resonance Magnification Curve -->
+  <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-bottom:12px;">
+    <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;">
+      <canvas id="dho-rig-canvas" width="220" height="180" style="width:100%;height:180px;display:block;"></canvas>
+      <div style="position:absolute;bottom:4px;left:6px;font-size:0.65rem;color:var(--muted);">Spring-Mass-Dashpot</div>
+    </div>
+    <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;">
+      <canvas id="dho-curve-canvas" width="320" height="180" style="width:100%;height:180px;display:block;"></canvas>
+      <div style="position:absolute;bottom:4px;left:6px;font-size:0.65rem;color:var(--muted);">Magnification $M(\beta)$ vs $\beta = \omega/\omega_n$</div>
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Natural Freq ($\omega_n$)</div>
+        <div id="dho-res-wn" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">10.0 rad/s</div>
+        <div id="dho-res-fn" style="font-size:0.68rem;color:var(--muted);">1.59 Hz</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Damping Ratio ($\zeta$)</div>
+        <div id="dho-res-zeta" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">0.100</div>
+        <div id="dho-res-regime" style="font-size:0.68rem;color:#00ffcc;font-weight:bold;">UNDERDAMPED</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Dynamic Amplification ($M$)</div>
+        <div id="dho-res-mag" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">5.00×</div>
+        <div id="dho-res-q" style="font-size:0.68rem;color:var(--muted);">Quality Factor Q = 5.0</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Phase Lag ($\phi$)</div>
+        <div id="dho-res-phase" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">90.0°</div>
+        <div id="dho-res-ratio" style="font-size:0.68rem;color:var(--muted);">Freq ratio $\beta = 1.00$</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const mIn = document.getElementById('dho-mass');
+  const kIn = document.getElementById('dho-stiffness');
+  const cIn = document.getElementById('dho-damping');
+  const wIn = document.getElementById('dho-driving-w');
+
+  const rigCanvas = document.getElementById('dho-rig-canvas');
+  const rigCtx = rigCanvas.getContext('2d');
+  const curveCanvas = document.getElementById('dho-curve-canvas');
+  const curveCtx = curveCanvas.getContext('2d');
+
+  const wnOut = document.getElementById('dho-res-wn');
+  const fnOut = document.getElementById('dho-res-fn');
+  const zetaOut = document.getElementById('dho-res-zeta');
+  const regimeOut = document.getElementById('dho-res-regime');
+  const magOut = document.getElementById('dho-res-mag');
+  const qOut = document.getElementById('dho-res-q');
+  const phaseOut = document.getElementById('dho-res-phase');
+  const ratioOut = document.getElementById('dho-res-ratio');
+
+  let simTime = 0;
+
+  function calculate() {
+    const m = Math.max(0.01, parseFloat(mIn.value) || 1);
+    const k = Math.max(0.1, parseFloat(kIn.value) || 100);
+    const c = Math.max(0, parseFloat(cIn.value) || 0);
+    const w = Math.max(0, parseFloat(wIn.value) || 0);
+
+    const wn = Math.sqrt(k / m);
+    const fn = wn / (2 * Math.PI);
+    const cCrit = 2 * Math.sqrt(k * m);
+    const zeta = c / cCrit;
+    const beta = w / wn;
+
+    // Magnification factor M(beta) = 1 / sqrt((1 - beta^2)^2 + (2*zeta*beta)^2)
+    const denom = Math.sqrt(Math.pow(1 - beta * beta, 2) + Math.pow(2 * zeta * beta, 2));
+    const M = denom > 1e-6 ? 1 / denom : 100;
+
+    // Phase angle phi = atan2(2*zeta*beta, 1 - beta^2)
+    let phi = Math.atan2(2 * zeta * beta, 1 - beta * beta);
+    if (phi < 0) phi += Math.PI * 2;
+    const phiDeg = phi * (180 / Math.PI);
+
+    const Q = zeta > 0 ? 1 / (2 * zeta) : 999;
+
+    wnOut.textContent = wn.toFixed(2) + ' rad/s';
+    fnOut.textContent = fn.toFixed(2) + ' Hz';
+    zetaOut.textContent = zeta.toFixed(3);
+
+    if (zeta < 0.999) {
+      regimeOut.textContent = 'UNDERDAMPED';
+      regimeOut.style.color = '#00ffcc';
+    } else if (zeta <= 1.001) {
+      regimeOut.textContent = 'CRITICALLY DAMPED';
+      regimeOut.style.color = '#ffd700';
+    } else {
+      regimeOut.textContent = 'OVERDAMPED';
+      regimeOut.style.color = '#b026ff';
+    }
+
+    magOut.textContent = M > 50 ? '> 50×' : M.toFixed(2) + '×';
+    qOut.textContent = `Quality Factor Q = ${Q > 100 ? '> 100' : Q.toFixed(1)}`;
+    phaseOut.textContent = phiDeg.toFixed(1) + '°';
+    ratioOut.textContent = `Freq ratio β = ${beta.toFixed(2)}`;
+
+    return { m, k, c, w, wn, zeta, beta, M, phi };
+  }
+
+  function drawResonanceCurve(params) {
+    const W = curveCanvas.width;
+    const H = curveCanvas.height;
+    curveCtx.fillStyle = '#050811';
+    curveCtx.fillRect(0, 0, W, H);
+
+    const padL = 35, padR = 15, padT = 15, padB = 25;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    // Axes
+    curveCtx.strokeStyle = 'rgba(255,255,255,0.2)';
+    curveCtx.lineWidth = 1;
+    curveCtx.beginPath();
+    curveCtx.moveTo(padL, padT);
+    curveCtx.lineTo(padL, H - padB);
+    curveCtx.lineTo(W - padR, H - padB);
+    curveCtx.stroke();
+
+    const maxBeta = 2.5;
+    const maxM = Math.max(6, Math.min(25, params.M * 1.3));
+
+    // Plot theoretical M(beta) curve
+    curveCtx.strokeStyle = '#00ffcc';
+    curveCtx.lineWidth = 2;
+    curveCtx.beginPath();
+
+    for (let px = 0; px <= plotW; px++) {
+      const b = (px / plotW) * maxBeta;
+      const d = Math.sqrt(Math.pow(1 - b * b, 2) + Math.pow(2 * params.zeta * b, 2));
+      const mVal = d > 1e-4 ? Math.min(maxM, 1 / d) : maxM;
+      const py = (H - padB) - (mVal / maxM) * plotH;
+
+      if (px === 0) curveCtx.moveTo(padL + px, py);
+      else curveCtx.lineTo(padL + px, py);
+    }
+    curveCtx.stroke();
+
+    // Mark current operating point
+    if (params.beta <= maxBeta) {
+      const markX = padL + (params.beta / maxBeta) * plotW;
+      const markM = Math.min(maxM, params.M);
+      const markY = (H - padB) - (markM / maxM) * plotH;
+
+      curveCtx.strokeStyle = '#ff5577';
+      curveCtx.setLineDash([3, 3]);
+      curveCtx.beginPath();
+      curveCtx.moveTo(markX, H - padB);
+      curveCtx.lineTo(markX, markY);
+      curveCtx.stroke();
+      curveCtx.setLineDash([]);
+
+      curveCtx.fillStyle = '#ffd700';
+      curveCtx.beginPath();
+      curveCtx.arc(markX, markY, 4.5, 0, Math.PI * 2);
+      curveCtx.fill();
+    }
+
+    // Grid labels
+    curveCtx.fillStyle = 'rgba(255,255,255,0.4)';
+    curveCtx.font = '9px sans-serif';
+    curveCtx.fillText('β=1.0', padL + (1.0 / maxBeta) * plotW - 10, H - 8);
+    curveCtx.fillText('β=2.0', padL + (2.0 / maxBeta) * plotW - 10, H - 8);
+    curveCtx.fillText('M=1', padL - 25, (H - padB) - (1 / maxM) * plotH + 3);
+  }
+
+  function drawRig(params) {
+    const W = rigCanvas.width;
+    const H = rigCanvas.height;
+    rigCtx.fillStyle = '#050811';
+    rigCtx.fillRect(0, 0, W, H);
+
+    // Ceiling
+    rigCtx.strokeStyle = '#888';
+    rigCtx.lineWidth = 3;
+    rigCtx.beginPath();
+    rigCtx.moveTo(30, 20);
+    rigCtx.lineTo(W - 30, 20);
+    rigCtx.stroke();
+
+    // Calculate dynamic displacement x(t)
+    const steadyAmp = Math.min(45, params.M * 10);
+    const disp = steadyAmp * Math.cos(params.w * simTime - params.phi);
+    const massY = 90 + disp;
+
+    // Draw Spring on left (X=70)
+    rigCtx.strokeStyle = '#00ffcc';
+    rigCtx.lineWidth = 2;
+    rigCtx.beginPath();
+    rigCtx.moveTo(70, 20);
+    const coils = 10;
+    const springLen = massY - 20;
+    for (let i = 1; i <= coils; i++) {
+      const y = 20 + (i / coils) * springLen;
+      const x = 70 + (i % 2 === 0 ? -10 : 10);
+      rigCtx.lineTo(x, y - (springLen / coils) * 0.5);
+    }
+    rigCtx.lineTo(70, massY);
+    rigCtx.stroke();
+
+    // Draw Dashpot Damper on right (X=140)
+    rigCtx.strokeStyle = '#ffd700';
+    rigCtx.lineWidth = 1.8;
+    // Cylinder
+    const cylTop = 50;
+    const cylBot = massY + 25;
+    rigCtx.strokeRect(130, 45, 20, 40);
+    // Piston rod
+    rigCtx.beginPath();
+    rigCtx.moveTo(140, 20);
+    rigCtx.lineTo(140, Math.min(massY - 10, 75));
+    // Piston plate
+    rigCtx.moveTo(133, Math.min(massY - 10, 75));
+    rigCtx.lineTo(147, Math.min(massY - 10, 75));
+    // Lower rod to mass
+    rigCtx.moveTo(140, 85);
+    rigCtx.lineTo(140, massY);
+    rigCtx.stroke();
+
+    // Mass block
+    rigCtx.fillStyle = '#b026ff';
+    rigCtx.fillRect(50, massY, 110, 26);
+    rigCtx.strokeStyle = '#fff';
+    rigCtx.lineWidth = 1.5;
+    rigCtx.strokeRect(50, massY, 110, 26);
+
+    rigCtx.fillStyle = '#fff';
+    rigCtx.font = '10px sans-serif';
+    rigCtx.fillText(`Mass m = ${params.m}kg`, 65, massY + 16);
+  }
+
+  function loop() {
+    simTime += 0.03;
+    const params = calculate();
+    drawRig(params);
+    drawResonanceCurve(params);
+    requestAnimationFrame(loop);
+  }
+
+  document.querySelectorAll('.dho-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      mIn.value = btn.dataset.m;
+      kIn.value = btn.dataset.k;
+      cIn.value = btn.dataset.c;
+      wIn.value = btn.dataset.w;
+    });
+  });
+
+  loop();
+})();
+</script>

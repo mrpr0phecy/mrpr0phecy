@@ -1,0 +1,261 @@
+<h2 id="vibration-isolation-title" style="margin-top:0;color:var(--accent);">🛡️ VibrationShield: Isolator Transmissibility & Mount Designer</h2>
+
+<form aria-describedby="vibration-isolation-desc" onsubmit="event.preventDefault();">
+  <p id="vibration-isolation-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Design mechanical vibration isolators and shock mounts using force transmissibility ($T_R$). Calculate required static deflection ($\delta_{st}$), isolation efficiency ($\eta$), and operating frequency ratio ($r = \omega/\omega_n > \sqrt{2}$).
+  </p>
+
+  <!-- Input Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="vi-mass" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Machine Mass ($m$)</label>
+      <input type="number" id="vi-mass" value="500" min="1" max="100000" step="10" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">kg</span>
+    </div>
+
+    <div>
+      <label for="vi-rpm" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Disturbance Speed ($N$)</label>
+      <input type="number" id="vi-rpm" value="1800" min="60" max="60000" step="50" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">RPM (30 Hz)</span>
+    </div>
+
+    <div>
+      <label for="vi-isolation-target" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Target Isolation ($\eta$)</label>
+      <input type="number" id="vi-isolation-target" value="90" min="10" max="99" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">% reduction</span>
+    </div>
+
+    <div>
+      <label for="vi-damping-ratio" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Isolator Damping ($\zeta$)</label>
+      <select id="vi-damping-ratio" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="0.01">Steel Coil Springs (ζ = 0.01)</option>
+        <option value="0.05" selected>Neoprene / Rubber Pad (ζ = 0.05)</option>
+        <option value="0.15">High-Damping Elastomer (ζ = 0.15)</option>
+        <option value="0.30">Fluid Viscous Mount (ζ = 0.30)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Real-World Equipment Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="vi-preset" data-m="800" data-rpm="1750" data-target="92" data-zeta="0.05" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">HVAC Chiller (1750 RPM)</button>
+    <button type="button" class="vi-preset" data-m="300" data-rpm="3600" data-target="95" data-zeta="0.05" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Industrial Centrifugal Pump (3600 RPM)</button>
+    <button type="button" class="vi-preset" data-m="2500" data-rpm="1200" data-target="85" data-zeta="0.15" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Diesel Generator Set (1200 RPM)</button>
+    <button type="button" class="vi-preset" data-m="150" data-rpm="900" data-target="80" data-zeta="0.01" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Air Compressor (900 RPM)</button>
+  </div>
+
+  <!-- Transmissibility Plot Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="vi-canvas" width="600" height="180" style="width:100%;height:180px;display:block;"></canvas>
+    <div style="position:absolute;top:6px;right:10px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Isolation Zone starts at $r > \sqrt{2} \approx 1.414$
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Transmissibility ($T_R$)</div>
+        <div id="vi-res-tr" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">0.100 (10%)</div>
+        <div id="vi-res-eff" style="font-size:0.68rem;color:#00ffcc;">90.0% Vibration Blocked</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Required Mount $f_n$</div>
+        <div id="vi-res-fn" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">8.94 Hz</div>
+        <div id="vi-res-ratio" style="font-size:0.68rem;color:var(--muted);">Freq ratio $r = 3.35$</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Static Deflection ($\delta_{st}$)</div>
+        <div id="vi-res-deflection" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">3.08 mm</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Sag under gravity $g$</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Total Spring Stiffness ($K$)</div>
+        <div id="vi-res-stiffness" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">1,591 kN/m</div>
+        <div id="vi-res-per-mount" style="font-size:0.68rem;color:var(--muted);">398 kN/m × 4 mounts</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Engineering Design Guideline -->
+  <div id="vi-guideline-box" style="background:rgba(255,255,255,0.03);border-left:3px solid #00ffcc;border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:var(--muted);">
+    <strong>Design Recommendation:</strong> To achieve 90% isolation of an 1800 RPM (30 Hz) disturbance, select 4 elastomeric/spring mounts providing at least 3.1 mm static deflection under a 500 kg total dead load.
+  </div>
+</form>
+
+<script>
+(function() {
+  const mIn = document.getElementById('vi-mass');
+  const rpmIn = document.getElementById('vi-rpm');
+  const targetIn = document.getElementById('vi-isolation-target');
+  const zetaSel = document.getElementById('vi-damping-ratio');
+
+  const canvas = document.getElementById('vi-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const trOut = document.getElementById('vi-res-tr');
+  const effOut = document.getElementById('vi-res-eff');
+  const fnOut = document.getElementById('vi-res-fn');
+  const ratioOut = document.getElementById('vi-res-ratio');
+  const deflOut = document.getElementById('vi-res-deflection');
+  const stiffOut = document.getElementById('vi-res-stiffness');
+  const perMountOut = document.getElementById('vi-res-per-mount');
+  const guideBox = document.getElementById('vi-guideline-box');
+
+  function calculate() {
+    const m = Math.max(1, parseFloat(mIn.value) || 500);
+    const rpm = Math.max(1, parseFloat(rpmIn.value) || 1800);
+    const targetEff = Math.min(99, Math.max(1, parseFloat(targetIn.value) || 90));
+    const zeta = parseFloat(zetaSel.value) || 0.05;
+
+    const fDisturb = rpm / 60; // Hz
+    const targetTR = (100 - targetEff) / 100; // e.g. 0.10 for 90% isolation
+
+    // For an un-damped or lightly damped isolator: TR approx 1 / (r^2 - 1)
+    // => r = sqrt(1 + 1/TR)
+    let r = Math.sqrt(1 + (1 / targetTR));
+    // Refine r using actual damped TR equation: TR = sqrt((1 + (2*zeta*r)^2) / ((1 - r^2)^2 + (2*zeta*r)^2))
+    for (let iter = 0; iter < 10; iter++) {
+      const num = 1 + Math.pow(2 * zeta * r, 2);
+      const den = Math.pow(1 - r * r, 2) + Math.pow(2 * zeta * r, 2);
+      const curTR = Math.sqrt(num / den);
+      r += (curTR - targetTR) * 0.4;
+    }
+
+    const fn = fDisturb / r;
+    const wn = 2 * Math.PI * fn;
+
+    // Static deflection delta_st = g / wn^2 (meters)
+    const g = 9.80665;
+    const deltaStM = g / (wn * wn);
+    const deltaStMm = deltaStM * 1000;
+
+    // Total stiffness K = m * wn^2
+    const totalK = m * wn * wn; // N/m
+    const kPerMount = totalK / 4;
+
+    const actualNum = 1 + Math.pow(2 * zeta * r, 2);
+    const actualDen = Math.pow(1 - r * r, 2) + Math.pow(2 * zeta * r, 2);
+    const actualTR = Math.sqrt(actualNum / actualDen);
+    const actualEff = (1 - actualTR) * 100;
+
+    trOut.textContent = `${actualTR.toFixed(3)} (${(actualTR * 100).toFixed(1)}%)`;
+    effOut.textContent = `${actualEff.toFixed(1)}% Vibration Blocked`;
+    fnOut.textContent = `${fn.toFixed(2)} Hz`;
+    ratioOut.textContent = `Freq ratio r = ${r.toFixed(2)}`;
+    deflOut.textContent = deltaStMm < 1 ? `${(deltaStMm * 1000).toFixed(0)} µm` : `${deltaStMm.toFixed(2)} mm`;
+
+    if (totalK >= 1e6) {
+      stiffOut.textContent = `${(totalK / 1e6).toFixed(2)} MN/m`;
+    } else {
+      stiffOut.textContent = `${(totalK / 1000).toFixed(1)} kN/m`;
+    }
+    perMountOut.textContent = `${(kPerMount / 1000).toFixed(1)} kN/m × 4 mounts`;
+
+    guideBox.innerHTML = `<strong>Engineering Recommendation:</strong> To isolate the <strong>${rpm} RPM (${fDisturb.toFixed(1)} Hz)</strong> vibration by <strong>${targetEff}%</strong>, select four isolator mounts providing <strong>${deltaStMm.toFixed(2)} mm</strong> static sag under <strong>${m} kg</strong> machine weight, setting mounting natural resonance at <strong>${fn.toFixed(2)} Hz</strong> safely below the disturbance frequency.`;
+
+    drawChart(r, zeta);
+  }
+
+  function drawChart(currentR, zeta) {
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const padL = 40, padR = 20, padT = 15, padB = 25;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const maxR = 5.0;
+    const maxTR = 3.5;
+
+    // Green Isolation Zone background (r > sqrt(2))
+    const isoStartX = padL + (Math.SQRT2 / maxR) * plotW;
+    ctx.fillStyle = 'rgba(0, 255, 204, 0.06)';
+    ctx.fillRect(isoStartX, padT, (W - padR) - isoStartX, plotH);
+
+    // Axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, H - padB);
+    ctx.lineTo(W - padR, H - padB);
+    ctx.stroke();
+
+    // TR = 1.0 threshold line
+    const yTR1 = (H - padB) - (1.0 / maxTR) * plotH;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(padL, yTR1);
+    ctx.lineTo(W - padR, yTR1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Curve TR(r)
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+
+    for (let px = 0; px <= plotW; px++) {
+      const r = (px / plotW) * maxR;
+      const num = 1 + Math.pow(2 * zeta * r, 2);
+      const den = Math.pow(1 - r * r, 2) + Math.pow(2 * zeta * r, 2);
+      const tr = Math.min(maxTR, Math.sqrt(num / Math.max(1e-6, den)));
+      const py = (H - padB) - (tr / maxTR) * plotH;
+
+      if (px === 0) ctx.moveTo(padL + px, py);
+      else ctx.lineTo(padL + px, py);
+    }
+    ctx.stroke();
+
+    // Operating point marker
+    if (currentR <= maxR) {
+      const num = 1 + Math.pow(2 * zeta * currentR, 2);
+      const den = Math.pow(1 - currentR * currentR, 2) + Math.pow(2 * zeta * currentR, 2);
+      const tr = Math.min(maxTR, Math.sqrt(num / den));
+      const mx = padL + (currentR / maxR) * plotW;
+      const my = (H - padB) - (tr / maxTR) * plotH;
+
+      ctx.strokeStyle = '#ff5577';
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(mx, H - padB);
+      ctx.lineTo(mx, my);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.arc(mx, my, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Grid labels
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('r=1.0', padL + (1.0 / maxR) * plotW - 10, H - 8);
+    ctx.fillText('r=√2', isoStartX - 8, H - 8);
+    ctx.fillText('TR=1', padL - 28, yTR1 + 3);
+    ctx.fillStyle = '#00ffcc';
+    ctx.fillText('ISOLATION ZONE (TR < 1)', isoStartX + 15, padT + 18);
+  }
+
+  [mIn, rpmIn, targetIn, zetaSel].forEach(elem => elem.addEventListener('input', calculate));
+
+  document.querySelectorAll('.vi-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      mIn.value = btn.dataset.m;
+      rpmIn.value = btn.dataset.rpm;
+      targetIn.value = btn.dataset.target;
+      zetaSel.value = btn.dataset.zeta;
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>

@@ -15,6 +15,16 @@ const financeList = ['freelance-rate-calculator', 'smart-contract-gas-estimator'
 const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
 const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
+  'cymatics-chladni-plate',
+  'damped-harmonic-oscillator',
+  'double-pendulum-chaos',
+  'vibration-isolation-transmissibility',
+  'coupled-oscillators-normal-modes',
+  'beam-vibration-modal-analysis',
+  'four-bar-linkage-kinematics',
+  'gyroscopic-precession-dynamics',
+  'torsional-vibration-critical-speed',
+  'faraday-waves-cymatics-fluid',
   'periodic-table-explorer',
   'doppler-effect-simulator',
   'special-relativity-calculator',

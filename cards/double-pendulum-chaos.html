@@ -1,0 +1,290 @@
+<h2 id="double-pendulum-title" style="margin-top:0;color:var(--accent);">🌀 ChaosDynamics: Double Pendulum & Phase Space Lab</h2>
+
+<form aria-describedby="double-pendulum-desc" onsubmit="event.preventDefault();">
+  <p id="double-pendulum-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Simulate non-linear Hamiltonian chaos via Lagrangian mechanics solved with 4th-Order Runge-Kutta (RK4). Track sensitive dependence on initial conditions (Butterfly Effect) with an overlaid $0.001$ rad perturbation twin.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="dp-theta1" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Angle 1 ($\theta_1$)</label>
+      <input type="number" id="dp-theta1" value="90" min="-180" max="180" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Degrees</span>
+    </div>
+
+    <div>
+      <label for="dp-theta2" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Angle 2 ($\theta_2$)</label>
+      <input type="number" id="dp-theta2" value="90" min="-180" max="180" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Degrees</span>
+    </div>
+
+    <div>
+      <label for="dp-mass-ratio" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Mass Ratio ($m_2 / m_1$)</label>
+      <input type="number" id="dp-mass-ratio" value="1.0" min="0.1" max="5.0" step="0.1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="dp-gravity" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Gravity ($g$)</label>
+      <input type="number" id="dp-gravity" value="9.81" min="1" max="30" step="0.5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">m/s²</span>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="dp-preset" data-t1="90" data-t2="90" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Classic Horizontal (90°, 90°)</button>
+    <button type="button" class="dp-preset" data-t1="179" data-t2="179" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Inverted Saddle (179°, 179°)</button>
+    <button type="button" class="dp-preset" data-t1="120" data-t2="-120" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Opposing Flip (120°, -120°)</button>
+    <button type="button" class="dp-preset" data-t1="15" data-t2="10" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Linear Regime (15°, 10°)</button>
+  </div>
+
+  <!-- Dual Canvas: Articulated Arms & Trajectory Tracer -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="dp-canvas" width="600" height="260" style="width:100%;height:260px;display:block;"></canvas>
+    <div style="position:absolute;bottom:6px;left:8px;font-size:0.7rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:4px;">
+      <span style="color:#00ffcc;">■ Main System</span> &nbsp;|&nbsp; <span style="color:#ff5577;">■ +0.001 rad Twin (Butterfly Divergence)</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Twin Divergence ($\Delta \theta$)</div>
+        <div id="dp-res-divergence" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">0.001 rad</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Exponential divergence</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Total Energy ($E = T + V$)</div>
+        <div id="dp-res-energy" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">-12.4 J</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Hamiltonian conserved</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Angular Velocity 1 ($\dot{\theta}_1$)</div>
+        <div id="dp-res-w1" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">0.0 rad/s</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Upper arm momentum</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Angular Velocity 2 ($\dot{\theta}_2$)</div>
+        <div id="dp-res-w2" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">0.0 rad/s</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Lower tip momentum</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;">
+    <button type="button" id="dp-restart-btn" style="flex:1;padding:10px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#0099ff);color:#050811;font-weight:bold;border:none;cursor:pointer;">
+      🔄 Restart Simulation
+    </button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const t1In = document.getElementById('dp-theta1');
+  const t2In = document.getElementById('dp-theta2');
+  const mRatioIn = document.getElementById('dp-mass-ratio');
+  const gIn = document.getElementById('dp-gravity');
+  const restartBtn = document.getElementById('dp-restart-btn');
+
+  const canvas = document.getElementById('dp-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const divOut = document.getElementById('dp-res-divergence');
+  const energyOut = document.getElementById('dp-res-energy');
+  const w1Out = document.getElementById('dp-res-w1');
+  const w2Out = document.getElementById('dp-res-w2');
+
+  const l1 = 60; // pixels
+  const l2 = 55;
+
+  let stateA = { t1: 0, t2: 0, w1: 0, w2: 0 };
+  let stateB = { t1: 0, t2: 0, w1: 0, w2: 0 }; // perturbed shadow twin
+  let trailA = [];
+  let trailB = [];
+
+  function resetState() {
+    const rad1 = (parseFloat(t1In.value) || 90) * (Math.PI / 180);
+    const rad2 = (parseFloat(t2In.value) || 90) * (Math.PI / 180);
+    stateA = { t1: rad1, t2: rad2, w1: 0, w2: 0 };
+    // Perturb theta1 by 0.001 radian (1 milliradian)
+    stateB = { t1: rad1 + 0.001, t2: rad2, w1: 0, w2: 0 };
+    trailA = [];
+    trailB = [];
+  }
+
+  // Lagrangian ODE derivatives [w1, w2, alpha1, alpha2]
+  function derivatives(s, m1, m2, g) {
+    const delta = s.t1 - s.t2;
+    const sinD = Math.sin(delta);
+    const cosD = Math.cos(delta);
+
+    const denom1 = l1 * (2 * m1 + m2 - m2 * Math.cos(2 * s.t1 - 2 * s.t2));
+    const num1 = -g * (2 * m1 + m2) * Math.sin(s.t1) - m2 * g * Math.sin(s.t1 - 2 * s.t2) - 2 * sinD * m2 * (s.w2 * s.w2 * l2 + s.w1 * s.w1 * l1 * cosD);
+    const a1 = num1 / denom1;
+
+    const denom2 = l2 * (2 * m1 + m2 - m2 * Math.cos(2 * s.t1 - 2 * s.t2));
+    const num2 = 2 * sinD * (s.w1 * s.w1 * l1 * (m1 + m2) + g * (m1 + m2) * Math.cos(s.t1) + s.w2 * s.w2 * l2 * m2 * cosD);
+    const a2 = num2 / denom2;
+
+    return { dw1: a1, dw2: a2 };
+  }
+
+  // 4th Order Runge-Kutta (RK4) Step
+  function rk4Step(s, dt, m1, m2, g) {
+    const k1 = derivatives(s, m1, m2, g);
+
+    const s2 = {
+      t1: s.t1 + 0.5 * dt * s.w1,
+      t2: s.t2 + 0.5 * dt * s.w2,
+      w1: s.w1 + 0.5 * dt * k1.dw1,
+      w2: s.w2 + 0.5 * dt * k1.dw2
+    };
+    const k2 = derivatives(s2, m1, m2, g);
+
+    const s3 = {
+      t1: s.t1 + 0.5 * dt * s2.w1,
+      t2: s.t2 + 0.5 * dt * s2.w2,
+      w1: s.w1 + 0.5 * dt * k2.dw1,
+      w2: s.w2 + 0.5 * dt * k2.dw2
+    };
+    const k3 = derivatives(s3, m1, m2, g);
+
+    const s4 = {
+      t1: s.t1 + dt * s3.w1,
+      t2: s.t2 + dt * s3.w2,
+      w1: s.w1 + dt * k3.dw1,
+      w2: s.w2 + dt * k3.dw2
+    };
+    const k4 = derivatives(s4, m1, m2, g);
+
+    s.t1 += (dt / 6) * (s.w1 + 2 * s2.w1 + 2 * s3.w1 + s4.w1);
+    s.t2 += (dt / 6) * (s.w2 + 2 * s2.w2 + 2 * s3.w2 + s4.w2);
+    s.w1 += (dt / 6) * (k1.dw1 + 2 * k2.dw1 + 2 * k3.dw1 + k4.dw1);
+    s.w2 += (dt / 6) * (k1.dw2 + 2 * k2.dw2 + 2 * k3.dw2 + k4.dw2);
+  }
+
+  function loop() {
+    const m1 = 1.0;
+    const m2 = parseFloat(mRatioIn.value) || 1.0;
+    const g = (parseFloat(gIn.value) || 9.81) * 8; // scaled for simulation
+
+    const dt = 0.04;
+    // Sub-stepping for numerical precision
+    for (let sub = 0; sub < 4; sub++) {
+      rk4Step(stateA, dt / 4, m1, m2, g);
+      rk4Step(stateB, dt / 4, m1, m2, g);
+    }
+
+    // Pivot origin
+    const ox = canvas.width / 2;
+    const oy = 80;
+
+    const x1A = ox + l1 * Math.sin(stateA.t1);
+    const y1A = oy + l1 * Math.cos(stateA.t1);
+    const x2A = x1A + l2 * Math.sin(stateA.t2);
+    const y2A = y1A + l2 * Math.cos(stateA.t2);
+
+    const x1B = ox + l1 * Math.sin(stateB.t1);
+    const y1B = oy + l1 * Math.cos(stateB.t1);
+    const x2B = x1B + l2 * Math.sin(stateB.t2);
+    const y2B = y1B + l2 * Math.cos(stateB.t2);
+
+    trailA.push({ x: x2A, y: y2A });
+    trailB.push({ x: x2B, y: y2B });
+    if (trailA.length > 250) trailA.shift();
+    if (trailB.length > 250) trailB.shift();
+
+    // Divergence distance in phase space
+    const dTheta = Math.abs(stateA.t1 - stateB.t1) + Math.abs(stateA.t2 - stateB.t2);
+    divOut.textContent = dTheta < 0.01 ? dTheta.toFixed(4) + ' rad' : dTheta.toFixed(2) + ' rad (DIVERGED)';
+    if (dTheta > 0.5) divOut.style.color = '#ff0055';
+    else divOut.style.color = '#ff5577';
+
+    // Conservation of Hamiltonian energy
+    const T = 0.5 * (m1 + m2) * l1 * l1 * stateA.w1 * stateA.w1 + 0.5 * m2 * l2 * l2 * stateA.w2 * stateA.w2 + m2 * l1 * l2 * stateA.w1 * stateA.w2 * Math.cos(stateA.t1 - stateA.t2);
+    const V = -(m1 + m2) * g * l1 * Math.cos(stateA.t1) - m2 * g * l2 * Math.cos(stateA.t2);
+    const totalE = (T + V) * 0.01;
+    energyOut.textContent = totalE.toFixed(1) + ' J';
+    w1Out.textContent = stateA.w1.toFixed(1) + ' rad/s';
+    w2Out.textContent = stateA.w2.toFixed(1) + ' rad/s';
+
+    // Draw
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw shadow trail B (red)
+    ctx.strokeStyle = 'rgba(255, 85, 119, 0.4)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i < trailB.length; i++) {
+      if (i === 0) ctx.moveTo(trailB[i].x, trailB[i].y);
+      else ctx.lineTo(trailB[i].x, trailB[i].y);
+    }
+    ctx.stroke();
+
+    // Draw main trail A (cyan)
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.7)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    for (let i = 0; i < trailA.length; i++) {
+      if (i === 0) ctx.moveTo(trailA[i].x, trailA[i].y);
+      else ctx.lineTo(trailA[i].x, trailA[i].y);
+    }
+    ctx.stroke();
+
+    // Draw shadow arms B
+    ctx.strokeStyle = 'rgba(255, 85, 119, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(x1B, y1B);
+    ctx.lineTo(x2B, y2B);
+    ctx.stroke();
+
+    // Draw main arms A
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(x1A, y1A);
+    ctx.lineTo(x2A, y2A);
+    ctx.stroke();
+
+    // Pivot
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath();
+    ctx.arc(ox, oy, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bob 1
+    ctx.fillStyle = '#00ffcc';
+    ctx.beginPath();
+    ctx.arc(x1A, y1A, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bob 2
+    ctx.fillStyle = '#b026ff';
+    ctx.beginPath();
+    ctx.arc(x2A, y2A, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    requestAnimationFrame(loop);
+  }
+
+  restartBtn.addEventListener('click', resetState);
+  [t1In, t2In, mRatioIn, gIn].forEach(i => i.addEventListener('input', resetState));
+
+  document.querySelectorAll('.dp-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      t1In.value = btn.dataset.t1;
+      t2In.value = btn.dataset.t2;
+      resetState();
+    });
+  });
+
+  resetState();
+  loop();
+})();
+</script>

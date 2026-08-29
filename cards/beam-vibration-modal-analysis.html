@@ -1,0 +1,258 @@
+<h2 id="beam-vibration-title" style="margin-top:0;color:var(--accent);">🏗️ ModalBeam: Euler-Bernoulli Beam Modes & Harmonics</h2>
+
+<form aria-describedby="beam-vibration-desc" onsubmit="event.preventDefault();">
+  <p id="beam-vibration-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Compute natural flexural vibration eigenfrequencies and mode shapes for structural beams ($EI \frac{\partial^4 w}{\partial x^4} + \rho A \frac{\partial^2 w}{\partial t^2} = 0$). Inspect nodal points, flexural rigidity ($EI$), and boundary condition dynamics.
+  </p>
+
+  <!-- Input Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="bm-boundary" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Boundary Fixity</label>
+      <select id="bm-boundary" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="cantilever" selected>Cantilever (Fixed - Free)</option>
+        <option value="simply_supported">Simply Supported (Pin - Pin)</option>
+        <option value="clamped_clamped">Clamped - Clamped (Fixed - Fixed)</option>
+        <option value="free_free">Free - Free (Xylophone / Bar)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="bm-material" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Material</label>
+      <select id="bm-material" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="steel" selected>Structural Steel (210 GPa)</option>
+        <option value="aluminum">Aluminum 6061 (69 GPa)</option>
+        <option value="titanium">Titanium Ti-6Al-4V (114 GPa)</option>
+        <option value="carbon_fiber">Carbon Fiber Epoxy (150 GPa)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="bm-length" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Span Length ($L$)</label>
+      <input type="number" id="bm-length" value="1.2" min="0.1" max="50" step="0.1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Meters</span>
+    </div>
+
+    <div>
+      <label for="bm-mode-idx" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Vibration Harmonic</label>
+      <select id="bm-mode-idx" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="0" selected>Mode 1: Fundamental</option>
+        <option value="1">Mode 2: 2nd Harmonic</option>
+        <option value="2">Mode 3: 3rd Harmonic</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Realtime Mode Shape Animated Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="bm-canvas" width="600" height="170" style="width:100%;height:170px;display:block;"></canvas>
+    <div style="position:absolute;bottom:6px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Yellow Dots = Stationary Nodal Points (Zero displacement)
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Natural Frequency ($f_n$)</div>
+        <div id="bm-res-fn" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">42.8 Hz</div>
+        <div id="bm-res-wn" style="font-size:0.68rem;color:var(--muted);">269.0 rad/s</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Eigenvalue ($\beta_n L$)</div>
+        <div id="bm-res-beta" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">1.875</div>
+        <div id="bm-res-ratio" style="font-size:0.68rem;color:var(--muted);">Fundamental baseline</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Flexural Rigidity ($EI$)</div>
+        <div id="bm-res-ei" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">3,500 N·m²</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Beam stiffness factor</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Stationary Nodes</div>
+        <div id="bm-res-nodes" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">0 Interior Nodes</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Zero displacement points</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const MATERIALS = {
+    steel: { E: 210e9, rho: 7850 },
+    aluminum: { E: 69e9, rho: 2700 },
+    titanium: { E: 114e9, rho: 4430 },
+    carbon_fiber: { E: 150e9, rho: 1550 }
+  };
+
+  // Eigenvalues beta_n * L
+  const BETAS = {
+    cantilever: [1.875104, 4.694091, 7.854757],
+    simply_supported: [Math.PI, 2 * Math.PI, 3 * Math.PI],
+    clamped_clamped: [4.730041, 7.853205, 10.995608],
+    free_free: [4.730041, 7.853205, 10.995608]
+  };
+
+  const bndSel = document.getElementById('bm-boundary');
+  const matSel = document.getElementById('bm-material');
+  const lenIn = document.getElementById('bm-length');
+  const modeSel = document.getElementById('bm-mode-idx');
+
+  const canvas = document.getElementById('bm-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const fnOut = document.getElementById('bm-res-fn');
+  const wnOut = document.getElementById('bm-res-wn');
+  const betaOut = document.getElementById('bm-res-beta');
+  const ratioOut = document.getElementById('bm-res-ratio');
+  const eiOut = document.getElementById('bm-res-ei');
+  const nodesOut = document.getElementById('bm-res-nodes');
+
+  let simTime = 0;
+
+  // Mode shape function W(x/L) normalized in [-1, 1]
+  function getModeShape(xi, bnd, modeIdx) {
+    if (bnd === 'simply_supported') {
+      const n = modeIdx + 1;
+      return Math.sin(n * Math.PI * xi);
+    }
+
+    const betaL = BETAS[bnd][modeIdx];
+    const betaX = betaL * xi;
+
+    if (bnd === 'cantilever') {
+      const sigma = (Math.cosh(betaL) + Math.cos(betaL)) / (Math.sinh(betaL) + Math.sin(betaL));
+      return (Math.cosh(betaX) - Math.cos(betaX)) - sigma * (Math.sinh(betaX) - Math.sin(betaX));
+    } else {
+      // Clamped-clamped or Free-free
+      const sigma = (Math.cosh(betaL) - Math.cos(betaL)) / (Math.sinh(betaL) - Math.sin(betaL));
+      return (Math.cosh(betaX) - Math.cos(betaX)) - sigma * (Math.sinh(betaX) - Math.sin(betaX));
+    }
+  }
+
+  function loop() {
+    simTime += 0.035;
+
+    const bnd = bndSel.value;
+    const mat = MATERIALS[matSel.value] || MATERIALS.steel;
+    const L = Math.max(0.1, parseFloat(lenIn.value) || 1.0);
+    const modeIdx = parseInt(modeSel.value, 10) || 0;
+
+    // Cross-section: Rectangular bar width 40mm x height 20mm
+    const b = 0.04;
+    const h = 0.02;
+    const A = b * h;
+    const I = (b * Math.pow(h, 3)) / 12;
+    const EI = mat.E * I;
+
+    const betaL = BETAS[bnd][modeIdx];
+    const beta = betaL / L;
+
+    // Natural circular frequency: wn = beta^2 * sqrt(EI / (rho * A))
+    const wn = Math.pow(beta, 2) * Math.sqrt(EI / (mat.rho * A));
+    const fn = wn / (2 * Math.PI);
+
+    const f1 = (Math.pow(BETAS[bnd][0] / L, 2) * Math.sqrt(EI / (mat.rho * A))) / (2 * Math.PI);
+    const harmonicRatio = (fn / f1).toFixed(2);
+
+    fnOut.textContent = fn > 1000 ? `${(fn / 1000).toFixed(2)} kHz` : `${fn.toFixed(1)} Hz`;
+    wnOut.textContent = `${wn.toFixed(1)} rad/s`;
+    betaOut.textContent = betaL.toFixed(3);
+    ratioOut.textContent = `${harmonicRatio}× Fundamental`;
+    eiOut.textContent = `${Math.round(EI).toLocaleString()} N·m²`;
+    nodesOut.textContent = `${modeIdx} Interior Nodes`;
+
+    // Canvas drawing
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const cy = H / 2;
+    const marginL = 50;
+    const marginR = 50;
+    const spanW = W - marginL - marginR;
+
+    // Draw boundary supports
+    ctx.fillStyle = '#666';
+    if (bnd === 'cantilever') {
+      // Wall clamp on left
+      ctx.fillRect(marginL - 16, cy - 50, 16, 100);
+      ctx.strokeStyle = '#00ffcc';
+      ctx.strokeRect(marginL - 16, cy - 50, 16, 100);
+    } else if (bnd === 'simply_supported') {
+      // Pin triangle on left and roller on right
+      ctx.fillStyle = '#888';
+      ctx.beginPath();
+      ctx.moveTo(marginL, cy);
+      ctx.lineTo(marginL - 10, cy + 20);
+      ctx.lineTo(marginL + 10, cy + 20);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(W - marginR, cy);
+      ctx.lineTo(W - marginR - 10, cy + 20);
+      ctx.lineTo(W - marginR + 10, cy + 20);
+      ctx.fill();
+    } else if (bnd === 'clamped_clamped') {
+      ctx.fillRect(marginL - 16, cy - 50, 16, 100);
+      ctx.fillRect(W - marginR, cy - 50, 16, 100);
+    }
+
+    // Dynamic deflection: w(x, t) = W(x) * sin(w * t)
+    const timeFactor = Math.sin(simTime * 4.0);
+    const maxAmpPx = 38;
+
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+
+    let nodePoints = [];
+    const steps = 150;
+    for (let i = 0; i <= steps; i++) {
+      const xi = i / steps;
+      const px = marginL + xi * spanW;
+      const shapeVal = getModeShape(xi, bnd, modeIdx);
+      const py = cy - shapeVal * maxAmpPx * timeFactor;
+
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+
+      // Detect zero-crossing nodes (inside span)
+      if (i > 5 && i < steps - 5) {
+        const prevShape = getModeShape((i - 1) / steps, bnd, modeIdx);
+        if ((prevShape < 0 && shapeVal >= 0) || (prevShape > 0 && shapeVal <= 0)) {
+          nodePoints.push({ x: px, y: cy });
+        }
+      }
+    }
+    ctx.stroke();
+
+    // Neutral resting axis
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marginL, cy);
+    ctx.lineTo(W - marginR, cy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw stationary nodes
+    nodePoints.forEach(pt => {
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    requestAnimationFrame(loop);
+  }
+
+  [bndSel, matSel, lenIn, modeSel].forEach(elem => elem.addEventListener('change', () => { simTime = 0; }));
+
+  loop();
+})();
+</script>

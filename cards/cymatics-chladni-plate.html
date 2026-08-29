@@ -1,0 +1,354 @@
+<h2 id="cymatics-chladni-title" style="margin-top:0;color:var(--accent);">📐 ChladniForge: 2D Cymatics & Nodal Resonance Plate</h2>
+
+<form aria-describedby="cymatics-chladni-desc" onsubmit="event.preventDefault();">
+  <p id="cymatics-chladni-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Explore Ernst Chladni's 1787 acoustic nodal resonance figures. Observe sand grains scatter away from high-amplitude vibrating antinodes and crystallize into intricate geometric standing wave geometries ($w(x,y)=0$).
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="chladni-m" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Modal Index $m$</label>
+      <input type="number" id="chladni-m" value="3" min="1" max="10" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="chladni-n" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Modal Index $n$</label>
+      <input type="number" id="chladni-n" value="5" min="1" max="10" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="chladni-plate-shape" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Plate Geometry</label>
+      <select id="chladni-plate-shape" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="square" selected>Square Brass Plate</option>
+        <option value="circular">Circular Aluminum Plate</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="chladni-grain-count" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Grain Density</label>
+      <select id="chladni-grain-count" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="800">800 Grains (Fast)</option>
+        <option value="1500" selected>1,500 Grains (Balanced)</option>
+        <option value="3000">3,000 Grains (Dense)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="chladni-preset" data-m="1" data-n="3" data-shape="square" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Cross (m=1, n=3)</button>
+    <button type="button" class="chladni-preset" data-m="2" data-n="4" data-shape="square" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Grid Matrix (m=2, n=4)</button>
+    <button type="button" class="chladni-preset" data-m="3" data-n="5" data-shape="square" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Rosette Flower (m=3, n=5)</button>
+    <button type="button" class="chladni-preset" data-m="4" data-n="6" data-shape="square" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">High Harmonic (m=4, n=6)</button>
+    <button type="button" class="chladni-preset" data-m="2" data-n="3" data-shape="circular" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Bessel Rings (Circular 2,3)</button>
+  </div>
+
+  <!-- Interactive 2D Resonator Canvas -->
+  <div style="position:relative;background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;margin-bottom:12px;text-align:center;">
+    <canvas id="chladni-canvas" width="400" height="400" style="max-width:100%;height:auto;aspect-ratio:1/1;display:inline-block;background:#070a14;cursor:crosshair;"></canvas>
+    <div style="position:absolute;top:8px;left:8px;font-size:0.7rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:4px;">
+      Click/Drag on plate to scatter sand
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics & Tone Button -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Eigenfrequency ($f_{m,n}$)</div>
+        <div id="chladni-res-freq" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">1,048 Hz</div>
+        <div style="font-size:0.68rem;color:var(--muted);">C6 (Musical Pitch)</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Nodal Line Count</div>
+        <div id="chladni-res-nodes" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">8 Lines</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Zero displacement contour</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Modal Wavenumber ($k$)</div>
+        <div id="chladni-res-k" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">18.3 rad/m</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$\sqrt{m^2 + n^2} \cdot \pi/L$</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;">
+    <button type="button" id="chladni-audio-btn" style="flex:1;padding:10px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#0099ff);color:#050811;font-weight:bold;border:none;cursor:pointer;">
+      🔊 Play Acoustic Resonance Tone
+    </button>
+    <button type="button" id="chladni-reset-btn" style="padding:10px 16px;border-radius:8px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);cursor:pointer;font-weight:600;">
+      🔄 Rescatter Sand
+    </button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const mIn = document.getElementById('chladni-m');
+  const nIn = document.getElementById('chladni-n');
+  const shapeSel = document.getElementById('chladni-plate-shape');
+  const grainSel = document.getElementById('chladni-grain-count');
+  const canvas = document.getElementById('chladni-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const freqOut = document.getElementById('chladni-res-freq');
+  const nodesOut = document.getElementById('chladni-res-nodes');
+  const kOut = document.getElementById('chladni-res-k');
+  const audioBtn = document.getElementById('chladni-audio-btn');
+  const resetBtn = document.getElementById('chladni-reset-btn');
+
+  let particles = [];
+  let audioCtx = null;
+  let osc = null;
+  let gainNode = null;
+  let isPlaying = false;
+
+  function initParticles() {
+    const count = parseInt(grainSel.value, 10) || 1500;
+    particles = [];
+    const size = canvas.width;
+    const isCirc = shapeSel.value === 'circular';
+    const radius = size * 0.44;
+    const cx = size / 2;
+    const cy = size / 2;
+
+    for (let i = 0; i < count; i++) {
+      if (isCirc) {
+        const r = Math.sqrt(Math.random()) * radius;
+        const theta = Math.random() * Math.PI * 2;
+        particles.push({
+          x: cx + r * Math.cos(theta),
+          y: cy + r * Math.sin(theta),
+          vx: 0,
+          vy: 0
+        });
+      } else {
+        particles.push({
+          x: 20 + Math.random() * (size - 40),
+          y: 20 + Math.random() * (size - 40),
+          vx: 0,
+          vy: 0
+        });
+      }
+    }
+  }
+
+  // Chladni displacement function w(x, y)
+  function getVibrationAmp(x, y) {
+    const size = canvas.width;
+    const m = parseInt(mIn.value, 10) || 3;
+    const n = parseInt(nIn.value, 10) || 5;
+
+    if (shapeSel.value === 'circular') {
+      const cx = size / 2;
+      const cy = size / 2;
+      const dx = x - cx;
+      const dy = y - cy;
+      const r = Math.sqrt(dx * dx + dy * dy) / (size * 0.44);
+      if (r > 1) return 1.0; // outside boundary
+      const theta = Math.atan2(dy, dx);
+      // Approximation of circular plate Bessel-like standing wave J_m(k*r)*cos(n*theta)
+      return Math.sin(m * Math.PI * r) * Math.cos(n * theta);
+    } else {
+      // Normalized coordinates [-1, 1]
+      const nx = ((x - 20) / (size - 40)) * 2 - 1;
+      const ny = ((y - 20) / (size - 40)) * 2 - 1;
+      // Classic Chladni equation for square plate:
+      // a * cos(n * pi * x) * cos(m * pi * y) - b * cos(m * pi * x) * cos(n * pi * y)
+      const term1 = Math.cos(n * Math.PI * nx * 0.5) * Math.cos(m * Math.PI * ny * 0.5);
+      const term2 = Math.cos(m * Math.PI * nx * 0.5) * Math.cos(n * Math.PI * ny * 0.5);
+      return term1 - term2;
+    }
+  }
+
+  function updateTelemetry() {
+    const m = parseInt(mIn.value, 10) || 3;
+    const n = parseInt(nIn.value, 10) || 5;
+
+    // Eigenfrequency estimation proportional to (m^2 + n^2)
+    const baseFreq = 72; // fundamental Hz
+    const f = Math.round(baseFreq * (m * m + n * n) * 0.35);
+    freqOut.textContent = f.toLocaleString() + ' Hz';
+
+    const k = Math.sqrt(m * m + n * n) * 3.14159;
+    kOut.textContent = k.toFixed(1) + ' rad/m';
+    nodesOut.textContent = (m + n) + ' Lines';
+
+    if (osc && isPlaying) {
+      osc.frequency.setValueAtTime(Math.min(f, 6000), audioCtx.currentTime);
+    }
+  }
+
+  function stepSimulation() {
+    const size = canvas.width;
+    const isCirc = shapeSel.value === 'circular';
+    const cx = size / 2;
+    const cy = size / 2;
+    const maxR = size * 0.44;
+
+    const dt = 0.05;
+    const delta = 1.5;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+
+      // Estimate gradient of absolute displacement |w| using central differences
+      const ampCenter = Math.abs(getVibrationAmp(p.x, p.y));
+      const ampXPlus = Math.abs(getVibrationAmp(p.x + delta, p.y));
+      const ampXMinus = Math.abs(getVibrationAmp(p.x - delta, p.y));
+      const ampYPlus = Math.abs(getVibrationAmp(p.x, p.y + delta));
+      const ampYMinus = Math.abs(getVibrationAmp(p.x, p.y - delta));
+
+      // Particles get kicked by vibration amplitude towards minimum amplitude (nodal lines)
+      const gradX = (ampXPlus - ampXMinus) / (2 * delta);
+      const gradY = (ampYPlus - ampYMinus) / (2 * delta);
+
+      // Force pushes grains away from high vibration (negative gradient of amplitude)
+      const kick = ampCenter * 2.8;
+      p.vx = (p.vx - gradX * kick) * 0.88 + (Math.random() - 0.5) * (ampCenter * 0.4);
+      p.vy = (p.vy - gradY * kick) * 0.88 + (Math.random() - 0.5) * (ampCenter * 0.4);
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Boundaries
+      if (isCirc) {
+        const dx = p.x - cx;
+        const dy = p.y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxR) {
+          p.x = cx + (dx / dist) * (maxR - 1);
+          p.y = cy + (dy / dist) * (maxR - 1);
+          p.vx *= -0.4;
+          p.vy *= -0.4;
+        }
+      } else {
+        if (p.x < 22) { p.x = 22; p.vx *= -0.4; }
+        if (p.x > size - 22) { p.x = size - 22; p.vx *= -0.4; }
+        if (p.y < 22) { p.y = 22; p.vy *= -0.4; }
+        if (p.y > size - 22) { p.y = size - 22; p.vy *= -0.4; }
+      }
+    }
+  }
+
+  function draw() {
+    ctx.fillStyle = '#070a14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const size = canvas.width;
+    const isCirc = shapeSel.value === 'circular';
+
+    // Draw plate perimeter
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#00ffcc';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(0,255,204,0.4)';
+
+    if (isCirc) {
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.strokeRect(20, 20, size - 40, size - 40);
+    }
+    ctx.shadowBlur = 0;
+
+    // Draw sand grains
+    ctx.fillStyle = '#ffd700';
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      ctx.fillRect(p.x, p.y, 1.8, 1.8);
+    }
+
+    stepSimulation();
+    requestAnimationFrame(draw);
+  }
+
+  // Interactive mouse drag to scatter sand
+  canvas.addEventListener('mousemove', e => {
+    if (e.buttons === 1) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mx = (e.clientX - rect.left) * scaleX;
+      const my = (e.clientY - rect.top) * scaleY;
+
+      for (let i = 0; i < 40; i++) {
+        const idx = Math.floor(Math.random() * particles.length);
+        particles[idx].x = mx + (Math.random() - 0.5) * 30;
+        particles[idx].y = my + (Math.random() - 0.5) * 30;
+        particles[idx].vx = (Math.random() - 0.5) * 4;
+        particles[idx].vy = (Math.random() - 0.5) * 4;
+      }
+    }
+  });
+
+  audioBtn.addEventListener('click', () => {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    if (!isPlaying) {
+      const m = parseInt(mIn.value, 10) || 3;
+      const n = parseInt(nIn.value, 10) || 5;
+      const f = Math.min(Math.round(72 * (m * m + n * n) * 0.35), 6000);
+
+      osc = audioCtx.createOscillator();
+      gainNode = audioCtx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, audioCtx.currentTime);
+
+      gainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.1);
+
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      osc.start();
+
+      isPlaying = true;
+      audioBtn.textContent = '⏹ Stop Acoustic Tone';
+      audioBtn.style.background = 'linear-gradient(135deg, #ff5577, #ff0044)';
+      audioBtn.style.color = '#fff';
+    } else {
+      if (gainNode) {
+        gainNode.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+        setTimeout(() => {
+          if (osc) { osc.stop(); osc.disconnect(); osc = null; }
+          isPlaying = false;
+        }, 120);
+      }
+      audioBtn.textContent = '🔊 Play Acoustic Resonance Tone';
+      audioBtn.style.background = 'linear-gradient(135deg, #00ffcc, #0099ff)';
+      audioBtn.style.color = '#050811';
+    }
+  });
+
+  document.querySelectorAll('.chladni-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      mIn.value = btn.dataset.m;
+      nIn.value = btn.dataset.n;
+      shapeSel.value = btn.dataset.shape;
+      initParticles();
+      updateTelemetry();
+    });
+  });
+
+  [mIn, nIn, shapeSel, grainSel].forEach(elem => {
+    elem.addEventListener('change', () => {
+      initParticles();
+      updateTelemetry();
+    });
+  });
+
+  resetBtn.addEventListener('click', initParticles);
+
+  initParticles();
+  updateTelemetry();
+  draw();
+})();
+</script>

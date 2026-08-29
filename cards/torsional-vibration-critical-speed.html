@@ -1,0 +1,223 @@
+<h2 id="torsional-vibration-title" style="margin-top:0;color:var(--accent);">⚡ TorqueVibe: Torsional Vibration & Critical Shaft Speed</h2>
+
+<form aria-describedby="torsional-vibration-desc" onsubmit="event.preventDefault();">
+  <p id="torsional-vibration-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Calculate torsional stiffness ($k_t = \frac{GJ}{L}$), natural angular frequencies ($\omega_n = \sqrt{k_t/I}$), and critical whirling RPM. Analyze engine harmonic orders ($1\times, 2\times, 3\times, 4\times$) on a Campbell interference diagram.
+  </p>
+
+  <!-- Input Parameters Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="tv-shaft-diam" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Shaft Diameter ($d$)</label>
+      <input type="number" id="tv-shaft-diam" value="50" min="5" max="500" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">mm (5 cm)</span>
+    </div>
+
+    <div>
+      <label for="tv-shaft-len" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Shaft Length ($L$)</label>
+      <input type="number" id="tv-shaft-len" value="1.5" min="0.1" max="20" step="0.1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Meters</span>
+    </div>
+
+    <div>
+      <label for="tv-disk-inertia" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Rotor Inertia ($I_d$)</label>
+      <input type="number" id="tv-disk-inertia" value="0.25" min="0.001" max="50" step="0.01" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">kg·m²</span>
+    </div>
+
+    <div>
+      <label for="tv-shear-modulus" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Shaft Material ($G$)</label>
+      <select id="tv-shear-modulus" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="79.3" selected>Alloy Steel (G = 79.3 GPa)</option>
+        <option value="26.0">Aluminum 6061 (G = 26.0 GPa)</option>
+        <option value="44.0">Titanium (G = 44.0 GPa)</option>
+        <option value="40.0">Cast Iron (G = 40.0 GPa)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Real-World Drivetrain Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="tv-preset" data-d="50" data-l="1.5" data-i="0.25" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Automotive Propeller Driveshaft</button>
+    <button type="button" class="tv-preset" data-d="80" data-l="0.8" data-i="1.2" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">V8 Crankshaft + Flywheel</button>
+    <button type="button" class="tv-preset" data-d="180" data-l="4.0" data-i="15.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Marine Vessel Propeller Shaft</button>
+    <button type="button" class="tv-preset" data-d="25" data-l="0.5" data-i="0.02" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Electric Servo Spindle</button>
+  </div>
+
+  <!-- Campbell / Order Interference Diagram Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="tv-canvas" width="600" height="180" style="width:100%;height:180px;display:block;"></canvas>
+    <div style="position:absolute;bottom:4px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Campbell Diagram: Critical speeds occur where harmonic rays (1×, 2×, 3×, 4×) cross natural frequency
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Torsional Natural Freq ($f_n$)</div>
+        <div id="tv-res-fn" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">57.1 Hz</div>
+        <div id="tv-res-wn" style="font-size:0.68rem;color:var(--muted);">358.8 rad/s</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Fundamental 1× Critical Speed</div>
+        <div id="tv-res-ncrit" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">3,426 RPM</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$N_{crit} = 60 \cdot f_n$</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Torsional Stiffness ($k_t$)</div>
+        <div id="tv-res-kt" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">32.2 kN·m/rad</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$GJ/L$ Polar resistance</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">4-Cyl 2nd Order Danger ($2\times$)</div>
+        <div id="tv-res-order2" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">1,713 RPM</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Harmonic resonance point</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const dIn = document.getElementById('tv-shaft-diam');
+  const lenIn = document.getElementById('tv-shaft-len');
+  const iIn = document.getElementById('tv-disk-inertia');
+  const gSel = document.getElementById('tv-shear-modulus');
+
+  const canvas = document.getElementById('tv-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const fnOut = document.getElementById('tv-res-fn');
+  const wnOut = document.getElementById('tv-res-wn');
+  const ncritOut = document.getElementById('tv-res-ncrit');
+  const ktOut = document.getElementById('tv-res-kt');
+  const order2Out = document.getElementById('tv-res-order2');
+
+  function calculate() {
+    const dMm = Math.max(1, parseFloat(dIn.value) || 50);
+    const dM = dMm / 1000;
+    const L = Math.max(0.05, parseFloat(lenIn.value) || 1.5);
+    const Id = Math.max(0.0001, parseFloat(iIn.value) || 0.25);
+    const GPa = parseFloat(gSel.value) || 79.3;
+    const G = GPa * 1e9;
+
+    // Polar moment of inertia J = pi * d^4 / 32
+    const J = (Math.PI * Math.pow(dM, 4)) / 32;
+
+    // Torsional stiffness kt = G * J / L
+    const kt = (G * J) / L; // N*m / rad
+
+    // Natural frequency wn = sqrt(kt / Id)
+    const wn = Math.sqrt(kt / Id);
+    const fn = wn / (2 * Math.PI);
+
+    // Critical speeds
+    const nCrit1 = fn * 60; // 1x order
+    const nCrit2 = nCrit1 / 2; // 2x order
+    const nCrit3 = nCrit1 / 3; // 3x order
+    const nCrit4 = nCrit1 / 4; // 4x order
+
+    fnOut.textContent = fn > 1000 ? `${(fn / 1000).toFixed(2)} kHz` : `${fn.toFixed(1)} Hz`;
+    wnOut.textContent = `${wn.toFixed(1)} rad/s`;
+    ncritOut.textContent = `${Math.round(nCrit1).toLocaleString()} RPM`;
+
+    if (kt >= 1e6) {
+      ktOut.textContent = `${(kt / 1e6).toFixed(2)} MN·m/rad`;
+    } else {
+      ktOut.textContent = `${(kt / 1000).toFixed(1)} kN·m/rad`;
+    }
+    order2Out.textContent = `${Math.round(nCrit2).toLocaleString()} RPM`;
+
+    drawCampbell(fn, nCrit1);
+  }
+
+  function drawCampbell(fn, nCrit1) {
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const padL = 45, padR = 25, padT = 15, padB = 25;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const maxRpm = Math.max(6000, nCrit1 * 1.6);
+    const maxFreq = fn * 2.2;
+
+    // Axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, H - padB);
+    ctx.lineTo(W - padR, H - padB);
+    ctx.stroke();
+
+    // Constant Natural Frequency Horizontal Line
+    const fnY = (H - padB) - (fn / maxFreq) * plotH;
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(padL, fnY);
+    ctx.lineTo(W - padR, fnY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText(`fn = ${fn.toFixed(0)} Hz`, W - padR - 65, fnY - 6);
+
+    // Excitation Order Lines: f = (Order * RPM) / 60
+    const orders = [
+      { num: 1, name: '1×', color: '#888' },
+      { num: 2, name: '2× (4-Cyl)', color: '#ff5577' },
+      { num: 3, name: '3× (6-Cyl)', color: '#ffd700' },
+      { num: 4, name: '4× (V8)', color: '#b026ff' }
+    ];
+
+    orders.forEach(ord => {
+      const topFreq = (ord.num * maxRpm) / 60;
+      const endY = (H - padB) - (topFreq / maxFreq) * plotH;
+
+      ctx.strokeStyle = ord.color;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(padL, H - padB);
+      ctx.lineTo(W - padR, endY);
+      ctx.stroke();
+
+      // Intersection with fn line: RPM = 60 * fn / num
+      const crossRpm = (60 * fn) / ord.num;
+      if (crossRpm <= maxRpm) {
+        const crossX = padL + (crossRpm / maxRpm) * plotW;
+        ctx.fillStyle = ord.color;
+        ctx.beginPath();
+        ctx.arc(crossX, fnY, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillText(ord.name, crossX - 10, fnY - 8);
+      }
+    });
+
+    // Labels
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('0 RPM', padL, H - 8);
+    ctx.fillText(`${Math.round(maxRpm).toLocaleString()} RPM`, W - padR - 40, H - 8);
+    ctx.fillText('Freq (Hz)', padL - 40, padT + 10);
+  }
+
+  [dIn, lenIn, iIn, gSel].forEach(elem => elem.addEventListener('input', calculate));
+
+  document.querySelectorAll('.tv-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      dIn.value = btn.dataset.d;
+      lenIn.value = btn.dataset.l;
+      iIn.value = btn.dataset.i;
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>

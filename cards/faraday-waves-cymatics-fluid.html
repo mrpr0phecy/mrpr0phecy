@@ -1,0 +1,282 @@
+<h2 id="faraday-waves-title" style="margin-top:0;color:var(--accent);">💧 FluidCymatics: Faraday Surface Waves & Liquid Resonance</h2>
+
+<form aria-describedby="faraday-waves-desc" onsubmit="event.preventDefault();">
+  <p id="faraday-waves-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Simulate Michael Faraday's 1831 parametric liquid surface waves ($\omega^2 = [gk + \frac{\sigma}{\rho}k^3]\tanh kh$). Observe subharmonic resonance ($f_{wave} = f_0/2$) and pattern transitions across square, hexagonal, and striped hydrodynamic lattices.
+  </p>
+
+  <!-- Input Controls Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="fw-drive-freq" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Drive Freq ($f_0$)</label>
+      <input type="number" id="fw-drive-freq" value="60" min="5" max="300" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Hz (Vibration table)</span>
+    </div>
+
+    <div>
+      <label for="fw-fluid-select" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Liquid Medium</label>
+      <select id="fw-fluid-select" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="water" selected>Water (σ = 0.0728 N/m)</option>
+        <option value="ethanol">Ethanol (σ = 0.0223 N/m)</option>
+        <option value="glycerol">Glycerol (σ = 0.0634 N/m)</option>
+        <option value="mercury">Mercury (σ = 0.4865 N/m)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="fw-pattern-type" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Lattice Symmetry</label>
+      <select id="fw-pattern-type" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="hexagonal" selected>Hexagonal Honeycomb</option>
+        <option value="square">Square Checkerboard</option>
+        <option value="stripes">Linear Parallel Stripes</option>
+        <option value="radial">Concentric Radial Soliton</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="fw-fluid-depth" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Fluid Depth ($h$)</label>
+      <input type="number" id="fw-fluid-depth" value="5.0" min="0.5" max="50" step="0.5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">mm</span>
+    </div>
+  </div>
+
+  <!-- Real-World Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="fw-preset" data-f="40" data-pat="hexagonal" data-fluid="water" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">40 Hz Water Hexagons</button>
+    <button type="button" class="fw-preset" data-f="60" data-pat="square" data-fluid="water" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">60 Hz Square Checkerboard</button>
+    <button type="button" class="fw-preset" data-f="120" data-pat="radial" data-fluid="glycerol" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">120 Hz Viscous Star Soliton</button>
+    <button type="button" class="fw-preset" data-f="25" data-pat="stripes" data-fluid="ethanol" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">25 Hz Low Surface Tension Rolls</button>
+  </div>
+
+  <!-- Realtime Fluid Undulation 2D Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;text-align:center;">
+    <canvas id="fw-canvas" width="400" height="220" style="width:100%;height:220px;display:block;"></canvas>
+    <div style="position:absolute;bottom:6px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Cyan = Surface Wave Crests &nbsp;|&nbsp; Dark Navy = Troughs
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Surface Response ($f_{wave}$)</div>
+        <div id="fw-res-fwave" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">30.0 Hz</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Subharmonic $f_0 / 2$</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Wavelength ($\lambda$)</div>
+        <div id="fw-res-wavelength" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">6.24 mm</div>
+        <div id="fw-res-regime" style="font-size:0.68rem;color:var(--muted);">Capillary dominant</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Wavenumber ($k$)</div>
+        <div id="fw-res-k" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">1,007 rad/m</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$2\pi / \lambda$</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Phase Velocity ($c_p$)</div>
+        <div id="fw-res-cp" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">0.187 m/s</div>
+        <div style="font-size:0.68rem;color:var(--muted);">&omega; / k surface propagation</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;">
+    <button type="button" id="fw-audio-btn" style="flex:1;padding:10px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#0099ff);color:#050811;font-weight:bold;border:none;cursor:pointer;">
+      🔊 Hear Vibration Table Shaker ($f_0$)
+    </button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const FLUIDS = {
+    water: { sigma: 0.0728, rho: 1000, color: '#00ccff' },
+    ethanol: { sigma: 0.0223, rho: 789, color: '#00ffaa' },
+    glycerol: { sigma: 0.0634, rho: 1260, color: '#ffd700' },
+    mercury: { sigma: 0.4865, rho: 13534, color: '#cccccc' }
+  };
+
+  const f0In = document.getElementById('fw-drive-freq');
+  const fluidSel = document.getElementById('fw-fluid-select');
+  const patSel = document.getElementById('fw-pattern-type');
+  const depthIn = document.getElementById('fw-fluid-depth');
+  const audioBtn = document.getElementById('fw-audio-btn');
+
+  const canvas = document.getElementById('fw-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const fwaveOut = document.getElementById('fw-res-fwave');
+  const wlOut = document.getElementById('fw-res-wavelength');
+  const regimeOut = document.getElementById('fw-res-regime');
+  const kOut = document.getElementById('fw-res-k');
+  const cpOut = document.getElementById('fw-res-cp');
+
+  let simTime = 0;
+  let audioCtx = null;
+  let osc = null;
+  let gain = null;
+  let isPlaying = false;
+
+  function calculateDispersion() {
+    const f0 = Math.max(1, parseFloat(f0In.value) || 60);
+    const fluid = FLUIDS[fluidSel.value] || FLUIDS.water;
+    const hMm = Math.max(0.1, parseFloat(depthIn.value) || 5.0);
+    const hM = hMm / 1000;
+
+    // Subharmonic response at f0 / 2
+    const fWave = f0 / 2;
+    const omega = 2 * Math.PI * fWave;
+    const g = 9.80665;
+
+    // Solve for wavenumber k using Newton-Raphson:
+    // f(k) = (g*k + (sigma/rho)*k^3) * tanh(k*h) - omega^2 = 0
+    let k = 500; // initial guess rad/m
+    for (let iter = 0; iter < 12; iter++) {
+      const th = Math.tanh(k * hM);
+      const sech2 = 1 - th * th;
+      const term1 = g * k + (fluid.sigma / fluid.rho) * Math.pow(k, 3);
+      const val = term1 * th - omega * omega;
+
+      const dTerm1 = g + 3 * (fluid.sigma / fluid.rho) * k * k;
+      const dVal = dTerm1 * th + term1 * sech2 * hM;
+      k = Math.max(1, k - val / Math.max(1e-6, dVal));
+    }
+
+    const lambdaM = (2 * Math.PI) / k;
+    const lambdaMm = lambdaM * 1000;
+    const cp = omega / k;
+
+    // Transition wavelength between gravity and capillary waves: lambda_c = 2*pi * sqrt(sigma / (rho * g))
+    const lambdaCap = 2 * Math.PI * Math.sqrt(fluid.sigma / (fluid.rho * g)) * 1000;
+
+    fwaveOut.textContent = `${fWave.toFixed(1)} Hz`;
+    wlOut.textContent = lambdaMm < 1 ? `${(lambdaMm * 1000).toFixed(0)} µm` : `${lambdaMm.toFixed(2)} mm`;
+    regimeOut.textContent = lambdaMm < lambdaCap ? 'Capillary wave dominant' : 'Gravity wave dominant';
+    kOut.textContent = `${Math.round(k).toLocaleString()} rad/m`;
+    cpOut.textContent = `${cp.toFixed(3)} m/s`;
+
+    return { f0, fWave, k, lambdaMm };
+  }
+
+  function loop() {
+    simTime += 0.04;
+    const data = calculateDispersion();
+    const pat = patSel.value;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const kNorm = 0.08;
+    const cx = W / 2;
+    const cy = H / 2;
+
+    const imgData = ctx.createImageData(W, H);
+    const pixels = imgData.data;
+
+    // Step by 2 pixels for performance
+    for (let y = 0; y < H; y += 2) {
+      for (let x = 0; x < W; x += 2) {
+        let wave = 0;
+        const dx = x - cx;
+        const dy = y - cy;
+
+        if (pat === 'stripes') {
+          wave = Math.cos(kNorm * dx - simTime * 4);
+        } else if (pat === 'square') {
+          wave = 0.5 * (Math.cos(kNorm * dx - simTime * 4) + Math.cos(kNorm * dy - simTime * 4));
+        } else if (pat === 'hexagonal') {
+          // Hexagonal 3-wave interference
+          const k1 = kNorm * dx;
+          const k2 = kNorm * (-0.5 * dx + 0.866 * dy);
+          const k3 = kNorm * (-0.5 * dx - 0.866 * dy);
+          wave = (Math.cos(k1 - simTime * 4) + Math.cos(k2 - simTime * 4) + Math.cos(k3 - simTime * 4)) / 3;
+        } else {
+          // Radial Bessel-like soliton ripples
+          const r = Math.sqrt(dx * dx + dy * dy);
+          wave = Math.cos(kNorm * r - simTime * 4) * Math.cos(6 * Math.atan2(dy, dx));
+        }
+
+        // Color mapping: -1 (trough) -> 0 (mean) -> +1 (crest)
+        const norm = (wave + 1) * 0.5; // [0, 1]
+        const rVal = Math.floor(norm * 0);
+        const gVal = Math.floor(norm * 255);
+        const bVal = Math.floor(norm * 204);
+
+        // Fill 2x2 block
+        for (let oy = 0; oy < 2; oy++) {
+          for (let ox = 0; ox < 2; ox++) {
+            const idx = ((y + oy) * W + (x + ox)) * 4;
+            pixels[idx] = rVal;
+            pixels[idx + 1] = gVal;
+            pixels[idx + 2] = bVal;
+            pixels[idx + 3] = 255;
+          }
+        }
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+
+    requestAnimationFrame(loop);
+  }
+
+  audioBtn.addEventListener('click', () => {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    if (!isPlaying) {
+      const f0 = Math.max(20, Math.min(600, parseFloat(f0In.value) || 60));
+      osc = audioCtx.createOscillator();
+      gain = audioCtx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f0, audioCtx.currentTime);
+
+      gain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.08);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+
+      isPlaying = true;
+      audioBtn.textContent = '⏹ Stop Vibration Shaker';
+      audioBtn.style.background = 'linear-gradient(135deg, #ff5577, #ff0044)';
+      audioBtn.style.color = '#fff';
+    } else {
+      if (gain) {
+        gain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.08);
+        setTimeout(() => {
+          if (osc) { osc.stop(); osc.disconnect(); osc = null; }
+          isPlaying = false;
+        }, 100);
+      }
+      audioBtn.textContent = '🔊 Hear Vibration Table Shaker (f₀)';
+      audioBtn.style.background = 'linear-gradient(135deg, #00ffcc, #0099ff)';
+      audioBtn.style.color = '#050811';
+    }
+  });
+
+  document.querySelectorAll('.fw-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      f0In.value = btn.dataset.f;
+      patSel.value = btn.dataset.pat;
+      fluidSel.value = btn.dataset.fluid;
+      calculateDispersion();
+    });
+  });
+
+  [f0In, fluidSel, patSel, depthIn].forEach(elem => elem.addEventListener('input', calculateDispersion));
+
+  calculateDispersion();
+  loop();
+})();
+</script>

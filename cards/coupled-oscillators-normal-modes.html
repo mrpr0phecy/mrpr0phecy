@@ -1,0 +1,224 @@
+<h2 id="coupled-oscillators-title" style="margin-top:0;color:var(--accent);">🎛️ HarmoniCoupled: Coupled Oscillators & Energy Beat Lab</h2>
+
+<form aria-describedby="coupled-oscillators-desc" onsubmit="event.preventDefault();">
+  <p id="coupled-oscillators-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Simulate multi-degree-of-freedom coupled mechanical oscillators. Observe symmetric ($\omega_1$) vs anti-symmetric ($\omega_2$) normal modes and cyclic mechanical energy sloshing ($T_{beat}$).
+  </p>
+
+  <!-- Input Controls Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="co-mass" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Oscillator Mass ($m$)</label>
+      <input type="number" id="co-mass" value="1.0" min="0.1" max="20" step="0.1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">kg</span>
+    </div>
+
+    <div>
+      <label for="co-stiffness" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Anchor Spring ($k$)</label>
+      <input type="number" id="co-stiffness" value="50" min="1" max="500" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">N/m</span>
+    </div>
+
+    <div>
+      <label for="co-coupling" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Coupling Spring ($k_c$)</label>
+      <input type="number" id="co-coupling" value="8" min="0" max="200" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">N/m</span>
+    </div>
+
+    <div>
+      <label for="co-mode-select" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Initial Excitation</label>
+      <select id="co-mode-select" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="beats" selected>Single Mass Kick (Beats)</option>
+        <option value="symmetric">Mode 1: Symmetric (In-phase)</option>
+        <option value="antisymmetric">Mode 2: Anti-Symmetric (Out-of-phase)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Realtime Dynamic Coupled Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="co-canvas" width="600" height="150" style="width:100%;height:150px;display:block;"></canvas>
+    <div style="position:absolute;bottom:4px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Wall —[k]— Mass 1 —[kc]— Mass 2 —[k]— Wall
+    </div>
+  </div>
+
+  <!-- Instantaneous Energy Transfer Sloshing Meter -->
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 14px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Mass 1 Energy: <strong id="co-e1-val" style="color:#00ffcc;">50%</strong></span>
+      <span style="color:#ffd700;">Energy Transfer Slosh ($E_1 \leftrightarrow E_2$)</span>
+      <span>Mass 2 Energy: <strong id="co-e2-val" style="color:#b026ff;">50%</strong></span>
+    </div>
+    <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:#111;">
+      <div id="co-bar-e1" style="width:50%;background:#00ffcc;transition:width 0.05s;"></div>
+      <div id="co-bar-e2" style="width:50%;background:#b026ff;transition:width 0.05s;"></div>
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Symmetric Mode ($\omega_1$)</div>
+        <div id="co-res-w1" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">7.07 rad/s</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$\sqrt{k/m}$ (1.13 Hz)</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Anti-Symmetric ($\omega_2$)</div>
+        <div id="co-res-w2" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">8.12 rad/s</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$\sqrt{(k+2k_c)/m}$ (1.29 Hz)</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Beat Period ($T_{beat}$)</div>
+        <div id="co-res-tbeat" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">5.98 s</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Full energy exchange time</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Coupling Ratio ($k_c / k$)</div>
+        <div id="co-res-coupling-ratio" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">0.160</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Weak coupling regime</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const mIn = document.getElementById('co-mass');
+  const kIn = document.getElementById('co-stiffness');
+  const kcIn = document.getElementById('co-coupling');
+  const modeSel = document.getElementById('co-mode-select');
+
+  const canvas = document.getElementById('co-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const w1Out = document.getElementById('co-res-w1');
+  const w2Out = document.getElementById('co-res-w2');
+  const tbeatOut = document.getElementById('co-res-tbeat');
+  const ratioOut = document.getElementById('co-res-coupling-ratio');
+
+  const e1Val = document.getElementById('co-e1-val');
+  const e2Val = document.getElementById('co-e2-val');
+  const barE1 = document.getElementById('co-bar-e1');
+  const barE2 = document.getElementById('co-bar-e2');
+
+  let simTime = 0;
+
+  function drawSpring(x1, y1, x2, y2, coils, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    for (let i = 1; i <= coils; i++) {
+      const frac = i / coils;
+      const x = x1 + frac * dx;
+      const offset = (i % 2 === 0 ? -7 : 7);
+      ctx.lineTo(x, y1 + offset);
+    }
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  function loop() {
+    simTime += 0.03;
+
+    const m = Math.max(0.05, parseFloat(mIn.value) || 1);
+    const k = Math.max(0.1, parseFloat(kIn.value) || 50);
+    const kc = Math.max(0, parseFloat(kcIn.value) || 8);
+    const mode = modeSel.value;
+
+    // Normal mode frequencies
+    const w1 = Math.sqrt(k / m);
+    const w2 = Math.sqrt((k + 2 * kc) / m);
+    const wBeat = Math.abs(w2 - w1);
+    const tBeat = wBeat > 1e-4 ? (2 * Math.PI / wBeat) : 999;
+
+    w1Out.textContent = `${w1.toFixed(2)} rad/s`;
+    w2Out.textContent = `${w2.toFixed(2)} rad/s`;
+    tbeatOut.textContent = tBeat > 100 ? 'Infinite' : `${tBeat.toFixed(2)} s`;
+    ratioOut.textContent = (kc / k).toFixed(3);
+
+    const amp = 35; // max pixel displacement
+    let x1Disp = 0;
+    let x2Disp = 0;
+
+    if (mode === 'symmetric') {
+      // In phase: x1(t) = x2(t) = amp * cos(w1 * t)
+      x1Disp = amp * Math.cos(w1 * simTime);
+      x2Disp = amp * Math.cos(w1 * simTime);
+    } else if (mode === 'antisymmetric') {
+      // Out of phase: x1(t) = -x2(t) = amp * cos(w2 * t)
+      x1Disp = amp * Math.cos(w2 * simTime);
+      x2Disp = -amp * Math.cos(w2 * simTime);
+    } else {
+      // Beats: mass 1 released from amp, mass 2 released from 0
+      x1Disp = amp * Math.cos(0.5 * (w1 + w2) * simTime) * Math.cos(0.5 * (w2 - w1) * simTime);
+      x2Disp = amp * Math.sin(0.5 * (w1 + w2) * simTime) * Math.sin(0.5 * (w2 - w1) * simTime);
+    }
+
+    // Energy distribution calculation
+    const e1 = Math.pow(Math.cos(0.5 * (w2 - w1) * simTime), 2);
+    const e2 = Math.pow(Math.sin(0.5 * (w2 - w1) * simTime), 2);
+    const e1Pct = mode === 'beats' ? Math.round(e1 * 100) : (mode === 'symmetric' ? 50 : 50);
+    const e2Pct = 100 - e1Pct;
+
+    barE1.style.width = `${e1Pct}%`;
+    barE2.style.width = `${e2Pct}%`;
+    e1Val.textContent = `${e1Pct}%`;
+    e2Val.textContent = `${e2Pct}%`;
+
+    // Canvas rendering
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const cy = H / 2;
+    const wallLeft = 40;
+    const wallRight = W - 40;
+
+    // Draw Walls
+    ctx.fillStyle = '#444';
+    ctx.fillRect(wallLeft - 10, cy - 45, 10, 90);
+    ctx.fillRect(wallRight, cy - 45, 10, 90);
+
+    const baseM1X = 200;
+    const baseM2X = 400;
+
+    const m1X = baseM1X + x1Disp;
+    const m2X = baseM2X + x2Disp;
+
+    // Draw Spring 1 (Wall to Mass 1)
+    drawSpring(wallLeft, cy, m1X - 25, cy, 14, '#00ffcc');
+
+    // Draw Coupling Spring (Mass 1 to Mass 2)
+    drawSpring(m1X + 25, cy, m2X - 25, cy, 12, '#ffd700');
+
+    // Draw Spring 2 (Mass 2 to Wall)
+    drawSpring(m2X + 25, cy, wallRight, cy, 14, '#00ffcc');
+
+    // Draw Mass 1 Block
+    ctx.fillStyle = '#00ffcc';
+    ctx.fillRect(m1X - 25, cy - 25, 50, 50);
+    ctx.fillStyle = '#050811';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText('M1', m1X - 9, cy + 4);
+
+    // Draw Mass 2 Block
+    ctx.fillStyle = '#b026ff';
+    ctx.fillRect(m2X - 25, cy - 25, 50, 50);
+    ctx.fillStyle = '#fff';
+    ctx.fillText('M2', m2X - 9, cy + 4);
+
+    requestAnimationFrame(loop);
+  }
+
+  modeSel.addEventListener('change', () => { simTime = 0; });
+
+  loop();
+})();
+</script>
