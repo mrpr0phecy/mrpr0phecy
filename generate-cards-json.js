@@ -230,7 +230,21 @@ const lucidList = [
   'sleep-circadian-rem-calculator'
 ];
 
+const remedyList = [
+  'herbal-tincture-ratio-calc',
+  'essential-oil-dilution-calc',
+  'herbal-infusion-decoction-timer',
+  'herb-drug-interaction-checker',
+  'adaptogen-matcher-matrix',
+  'herbal-salve-beeswax-ratio',
+  'poultice-compress-remedy-lab',
+  'cold-flu-natural-remedy-hub',
+  'natural-electrolyte-tonic-calc',
+  'acupressure-somatic-point-map'
+];
+
 function getCategory(name) {
+  if (remedyList.some(s => name.includes(s))) return 'Natural Remedies & Herbs';
   if (lucidList.some(s => name.includes(s))) return 'Lucid Dreaming & Sleep';
   if (interactiveArtList.some(s => name.includes(s))) return 'Interactive Art & Living Worlds';
   if (saasKillerList.some(s => name.includes(s))) return 'SaaS & Business Killers';
