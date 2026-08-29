@@ -1,0 +1,253 @@
+<h2 id="dms-title" style="margin-top:0;color:var(--accent);">⚖️ Decision Matrix Scorer</h2>
+
+<form aria-describedby="dms-desc" onsubmit="event.preventDefault();">
+  <p id="dms-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Evaluate complex career, business, or lifestyle choices using weighted multi-criteria scoring. Removes emotional bias and highlights the winning tradeoff.
+  </p>
+
+  <!-- Criteria & Weights Configuration -->
+  <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);padding:10px;border-radius:8px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:0.75rem;font-weight:bold;color:var(--accent);">EVALUATION CRITERIA &amp; WEIGHTS (%)</span>
+      <button type="button" id="dms-btn-add-crit" style="background:none;border:none;color:#00ffcc;cursor:pointer;font-size:0.72rem;text-decoration:underline;">+ Add Criterion</button>
+    </div>
+    <div id="dms-criteria-list" style="display:flex;flex-direction:column;gap:6px;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- Options & Scoring Grid -->
+  <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);padding:10px;border-radius:8px;margin-bottom:14px;overflow-x:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:0.75rem;font-weight:bold;color:#ffd700;">OPTIONS &amp; SCORES (1–10 SCALE)</span>
+      <button type="button" id="dms-btn-add-opt" style="background:none;border:none;color:#ffd700;cursor:pointer;font-size:0.72rem;text-decoration:underline;">+ Add Option</button>
+    </div>
+    <table id="dms-table" style="width:100%;border-collapse:collapse;font-size:0.75rem;text-align:left;">
+      <thead>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.15);color:var(--muted);">
+          <th style="padding:6px;">Option Name</th>
+          <!-- Criteria headers -->
+          <th style="padding:6px;text-align:right;">Total Score</th>
+        </tr>
+      </thead>
+      <tbody id="dms-table-body">
+        <!-- Populated via JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Leaderboard / Results Rank -->
+  <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,204,0.3);border-radius:8px;padding:12px;">
+    <div style="font-size:0.72rem;font-weight:bold;color:#00ffcc;margin-bottom:8px;">FINAL RANKINGS &amp; WINNER:</div>
+    <div id="dms-rankings-list" style="display:flex;flex-direction:column;gap:6px;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  let criteria = [
+    { id: 1, name: 'Growth Potential', weight: 35 },
+    { id: 2, name: 'Compensation / Financials', weight: 30 },
+    { id: 3, name: 'Work-Life Balance', weight: 20 },
+    { id: 4, name: 'Location / Commute', weight: 15 }
+  ];
+
+  let options = [
+    { id: 1, name: 'Startup Venture', scores: { 1: 9, 2: 7, 3: 5, 4: 8 } },
+    { id: 2, name: 'Enterprise Lead', scores: { 1: 6, 2: 9, 3: 8, 4: 6 } },
+    { id: 3, name: 'Solo Contractor', scores: { 1: 8, 2: 8, 3: 9, 4: 10 } }
+  ];
+
+  const critList = document.getElementById('dms-criteria-list');
+  const tableHead = document.querySelector('#dms-table thead tr');
+  const tableBody = document.getElementById('dms-table-body');
+  const rankingsList = document.getElementById('dms-rankings-list');
+
+  function renderCriteria() {
+    critList.innerHTML = '';
+    const totalWeight = criteria.reduce((sum, c) => sum + (c.weight || 0), 0);
+
+    criteria.forEach((c, idx) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '8px';
+      row.style.alignItems = 'center';
+
+      row.innerHTML = `
+        <input type="text" value="${c.name}" data-idx="${idx}" class="crit-name-input" style="flex:2;padding:4px 8px;border-radius:4px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;">
+        <div style="display:flex;align-items:center;gap:4px;flex:1;">
+          <input type="number" min="0" max="100" value="${c.weight}" data-idx="${idx}" class="crit-weight-input" style="width:50px;padding:4px;border-radius:4px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#00ffcc;font-size:0.75rem;text-align:center;">
+          <span style="font-size:0.72rem;color:var(--muted);">%</span>
+        </div>
+        <button type="button" data-idx="${idx}" class="crit-del-btn" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:0.8rem;">✕</button>
+      `;
+      critList.appendChild(row);
+    });
+
+    const weightStatus = document.createElement('div');
+    weightStatus.style.fontSize = '0.7rem';
+    weightStatus.style.color = totalWeight === 100 ? '#00ffcc' : '#ffd700';
+    weightStatus.style.marginTop = '4px';
+    weightStatus.textContent = `Total Weight: ${totalWeight}% ${totalWeight === 100 ? '✓ (Normalized)' : '(Note: Weights auto-proportion)'}`;
+    critList.appendChild(weightStatus);
+
+    // Event listeners
+    critList.querySelectorAll('.crit-name-input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        criteria[e.target.dataset.idx].name = e.target.value;
+        renderTable();
+      });
+    });
+
+    critList.querySelectorAll('.crit-weight-input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        criteria[e.target.dataset.idx].weight = parseFloat(e.target.value) || 0;
+        renderTable();
+      });
+    });
+
+    critList.querySelectorAll('.crit-del-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        if (criteria.length <= 1) return;
+        criteria.splice(e.target.dataset.idx, 1);
+        renderCriteria();
+        renderTable();
+      });
+    });
+  }
+
+  function renderTable() {
+    // Rebuild Table Header
+    tableHead.innerHTML = `<th style="padding:6px;">Option Name</th>`;
+    criteria.forEach(c => {
+      const th = document.createElement('th');
+      th.style.padding = '6px';
+      th.style.whiteSpace = 'nowrap';
+      th.textContent = `${c.name} (${c.weight}%)`;
+      tableHead.appendChild(th);
+    });
+    tableHead.innerHTML += `<th style="padding:6px;text-align:right;">Weighted Score</th><th style="padding:6px;text-align:center;"></th>`;
+
+    // Rebuild Body
+    tableBody.innerHTML = '';
+    const totalWeight = criteria.reduce((sum, c) => sum + (c.weight || 0), 0) || 1;
+
+    options.forEach((opt, oIdx) => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+
+      let totalScore = 0;
+      criteria.forEach(c => {
+        const score = opt.scores[c.id] !== undefined ? opt.scores[c.id] : 5;
+        totalScore += score * ((c.weight || 0) / totalWeight);
+      });
+      opt.calculatedScore = totalScore;
+
+      let colsHtml = `
+        <td style="padding:6px;">
+          <input type="text" value="${opt.name}" data-oidx="${oIdx}" class="opt-name-input" style="width:120px;padding:3px 6px;border-radius:4px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;">
+        </td>
+      `;
+
+      criteria.forEach(c => {
+        const score = opt.scores[c.id] !== undefined ? opt.scores[c.id] : 5;
+        colsHtml += `
+          <td style="padding:6px;">
+            <input type="number" min="1" max="10" value="${score}" data-oidx="${oIdx}" data-cid="${c.id}" class="opt-score-input" style="width:42px;padding:3px;border-radius:4px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#ffd700;font-size:0.75rem;text-align:center;">
+          </td>
+        `;
+      });
+
+      colsHtml += `
+        <td style="padding:6px;text-align:right;font-weight:bold;color:#00ffcc;font-family:monospace;font-size:0.85rem;">
+          ${(totalScore * 10).toFixed(1)}/100
+        </td>
+        <td style="padding:6px;text-align:center;">
+          <button type="button" data-oidx="${oIdx}" class="opt-del-btn" style="background:none;border:none;color:#ff6b6b;cursor:pointer;">✕</button>
+        </td>
+      `;
+
+      tr.innerHTML = colsHtml;
+      tableBody.appendChild(tr);
+    });
+
+    // Event Listeners for inputs
+    tableBody.querySelectorAll('.opt-name-input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        options[e.target.dataset.oidx].name = e.target.value;
+        renderRankings();
+      });
+    });
+
+    tableBody.querySelectorAll('.opt-score-input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        const oIdx = e.target.dataset.oidx;
+        const cId = e.target.dataset.cid;
+        options[oIdx].scores[cId] = parseFloat(e.target.value) || 0;
+        renderTable();
+      });
+    });
+
+    tableBody.querySelectorAll('.opt-del-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        if (options.length <= 1) return;
+        options.splice(e.target.dataset.oidx, 1);
+        renderTable();
+      });
+    });
+
+    renderRankings();
+  }
+
+  function renderRankings() {
+    const sorted = [...options].sort((a, b) => b.calculatedScore - a.calculatedScore);
+    rankingsList.innerHTML = '';
+
+    sorted.forEach((opt, rank) => {
+      const isWinner = rank === 0;
+      const pct = Math.min(100, Math.max(0, Math.round(opt.calculatedScore * 10)));
+
+      const item = document.createElement('div');
+      item.style.padding = '8px';
+      item.style.borderRadius = '6px';
+      item.style.background = isWinner ? 'rgba(0,255,204,0.1)' : 'rgba(255,255,255,0.03)';
+      item.style.border = isWinner ? '1px solid #00ffcc' : '1px solid rgba(255,255,255,0.08)';
+
+      item.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-weight:bold;color:${isWinner ? '#00ffcc' : '#e6faff'};">
+            ${isWinner ? '👑 ' : ''}#${rank + 1}: ${opt.name}
+          </span>
+          <span style="font-family:monospace;font-weight:bold;color:${isWinner ? '#00ffcc' : '#2dd4ff'};">
+            ${pct}% (${(opt.calculatedScore).toFixed(2)} / 10)
+          </span>
+        </div>
+        <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${isWinner ? '#00ffcc' : '#2dd4ff'};border-radius:3px;transition:width 0.3s;"></div>
+        </div>
+      `;
+      rankingsList.appendChild(item);
+    });
+  }
+
+  document.getElementById('dms-btn-add-crit').addEventListener('click', () => {
+    const nextId = criteria.length ? Math.max(...criteria.map(c => c.id)) + 1 : 1;
+    criteria.push({ id: nextId, name: `Criterion ${criteria.length + 1}`, weight: 15 });
+    renderCriteria();
+    renderTable();
+  });
+
+  document.getElementById('dms-btn-add-opt').addEventListener('click', () => {
+    const nextId = options.length ? Math.max(...options.map(o => o.id)) + 1 : 1;
+    const newScores = {};
+    criteria.forEach(c => newScores[c.id] = 5);
+    options.push({ id: nextId, name: `Option ${options.length + 1}`, scores: newScores });
+    renderTable();
+  });
+
+  renderCriteria();
+  renderTable();
+})();
+</script>

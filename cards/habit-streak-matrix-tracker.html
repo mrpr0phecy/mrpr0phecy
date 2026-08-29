@@ -1,0 +1,250 @@
+<h2 id="hsm-title" style="margin-top:0;color:var(--accent);">🔥 Habit Streak Grid</h2>
+
+<form aria-describedby="hsm-desc" onsubmit="event.preventDefault();">
+  <p id="hsm-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Track daily habits and build unstoppable momentum with a GitHub-style contribution heat map. Saves automatically in your browser.
+  </p>
+
+  <!-- Habit Selector Bar -->
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+    <select id="hsm-habit-select" style="flex:1;min-width:140px;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.8rem;">
+      <option value="deep-work">⚡ Deep Work (90m)</option>
+      <option value="workout">🏋️ Daily Workout / Gym</option>
+      <option value="reading">📖 20 Pages Reading</option>
+      <option value="meditation">🧘 Mindfulness / Meditate</option>
+    </select>
+    <button type="button" id="hsm-btn-today" style="padding:6px 14px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-weight:bold;font-size:0.78rem;cursor:pointer;">+ Check In Today</button>
+  </div>
+
+  <!-- Stats Ticker -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:14px;">
+    <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);padding:8px 10px;border-radius:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px;">CURRENT STREAK</div>
+      <div id="hsm-stat-cur" style="font-size:1.2rem;font-weight:bold;color:#00ffcc;font-family:monospace;">0 Days</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);padding:8px 10px;border-radius:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px;">LONGEST STREAK</div>
+      <div id="hsm-stat-best" style="font-size:1.2rem;font-weight:bold;color:#ffd700;font-family:monospace;">0 Days</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);padding:8px 10px;border-radius:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:2px;">COMPLETION RATE</div>
+      <div id="hsm-stat-rate" style="font-size:1.2rem;font-weight:bold;color:#2dd4ff;font-family:monospace;">0%</div>
+    </div>
+  </div>
+
+  <!-- Heat Map Canvas Container -->
+  <div style="background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;margin-bottom:12px;overflow-x:auto;">
+    <div style="font-size:0.7rem;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;">
+      <span>LAST 16 WEEKS (CLICK ANY CELL TO TOGGLE)</span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        Less 
+        <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:rgba(255,255,255,0.06);"></span>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#0e4429;"></span>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#00ffcc;"></span>
+        More
+      </span>
+    </div>
+    <div id="hsm-grid" style="display:grid;grid-template-rows:repeat(7, 12px);grid-auto-flow:column;gap:3px;justify-content:start;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- Quick Action & Reset -->
+  <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;">
+    <button type="button" id="hsm-btn-add-custom" style="background:none;border:none;color:#2dd4ff;cursor:pointer;text-decoration:underline;">+ Add Custom Habit</button>
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="hsm-btn-export" style="background:none;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;">Export Data</button>
+      <button type="button" id="hsm-btn-clear" style="background:none;border:none;color:#ff6b6b;cursor:pointer;text-decoration:underline;">Reset Habit</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const selectEl = document.getElementById('hsm-habit-select');
+  const btnToday = document.getElementById('hsm-btn-today');
+  const gridEl = document.getElementById('hsm-grid');
+
+  const statCur = document.getElementById('hsm-stat-cur');
+  const statBest = document.getElementById('hsm-stat-best');
+  const statRate = document.getElementById('hsm-stat-rate');
+
+  const STORAGE_KEY = 'mrprophecy_habit_tracker_data_v1';
+  let habits = {};
+
+  function loadHabits() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      habits = raw ? JSON.parse(raw) : {};
+    } catch(e) {
+      habits = {};
+    }
+  }
+
+  function saveHabits() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
+    } catch(e) {}
+  }
+
+  function getDateKey(d) {
+    return d.toISOString().split('T')[0];
+  }
+
+  function renderGrid() {
+    const curHabit = selectEl.value;
+    const history = habits[curHabit] || {};
+
+    gridEl.innerHTML = '';
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    // Total days: 16 weeks * 7 = 112 days
+    const totalDays = 16 * 7;
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - (totalDays - 1));
+
+    let completedCount = 0;
+    let curStreak = 0;
+    let maxStreak = 0;
+    let tempStreak = 0;
+
+    // Check streak
+    let checkDate = new Date(today);
+    while (true) {
+      const k = getDateKey(checkDate);
+      if (history[k]) {
+        curStreak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      const dateKey = getDateKey(d);
+      const isDone = !!history[dateKey];
+      const isToday = dateKey === getDateKey(today);
+
+      if (isDone) {
+        completedCount++;
+        tempStreak++;
+        if (tempStreak > maxStreak) maxStreak = tempStreak;
+      } else {
+        tempStreak = 0;
+      }
+
+      const cell = document.createElement('div');
+      cell.style.width = '12px';
+      cell.style.height = '12px';
+      cell.style.borderRadius = '2px';
+      cell.style.cursor = 'pointer';
+      cell.style.transition = 'all 0.15s';
+      cell.title = `${dateKey}: ${isDone ? 'Completed' : 'Missed'}`;
+
+      if (isDone) {
+        cell.style.background = '#00ffcc';
+        cell.style.boxShadow = '0 0 4px rgba(0,255,204,0.5)';
+      } else {
+        cell.style.background = 'rgba(255, 255, 255, 0.07)';
+      }
+
+      if (isToday) {
+        cell.style.outline = '1px solid #2dd4ff';
+      }
+
+      cell.addEventListener('click', () => {
+        if (history[dateKey]) {
+          delete history[dateKey];
+        } else {
+          history[dateKey] = true;
+        }
+        habits[curHabit] = history;
+        saveHabits();
+        renderGrid();
+      });
+
+      gridEl.appendChild(cell);
+    }
+
+    // Update Stats
+    statCur.textContent = curStreak + ' Day' + (curStreak === 1 ? '' : 's');
+    statBest.textContent = Math.max(maxStreak, curStreak) + ' Day' + (maxStreak === 1 ? '' : 's');
+    statRate.textContent = Math.round((completedCount / totalDays) * 100) + '%';
+
+    // Update today button status
+    const todayDone = !!history[getDateKey(today)];
+    if (todayDone) {
+      btnToday.textContent = '✓ Done Today!';
+      btnToday.style.background = 'rgba(0,255,204,0.35)';
+    } else {
+      btnToday.textContent = '+ Check In Today';
+      btnToday.style.background = 'rgba(0,255,204,0.2)';
+    }
+  }
+
+  btnToday.addEventListener('click', () => {
+    const curHabit = selectEl.value;
+    if (!habits[curHabit]) habits[curHabit] = {};
+    const todayKey = getDateKey(new Date());
+    if (habits[curHabit][todayKey]) {
+      delete habits[curHabit][todayKey];
+    } else {
+      habits[curHabit][todayKey] = true;
+    }
+    saveHabits();
+    renderGrid();
+  });
+
+  selectEl.addEventListener('change', renderGrid);
+
+  document.getElementById('hsm-btn-add-custom').addEventListener('click', () => {
+    const name = prompt('Enter name for your custom habit:');
+    if (name && name.trim()) {
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const opt = document.createElement('option');
+      opt.value = slug;
+      opt.textContent = '🎯 ' + name.trim();
+      selectEl.appendChild(opt);
+      selectEl.value = slug;
+      renderGrid();
+    }
+  });
+
+  document.getElementById('hsm-btn-clear').addEventListener('click', () => {
+    if (confirm('Reset tracking history for this habit?')) {
+      delete habits[selectEl.value];
+      saveHabits();
+      renderGrid();
+    }
+  });
+
+  document.getElementById('hsm-btn-export').addEventListener('click', () => {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(habits, null, 2));
+    const a = document.createElement('a');
+    a.href = dataStr;
+    a.download = 'habit-tracker-backup.json';
+    a.click();
+  });
+
+  loadHabits();
+  // Prepopulate initial demo check-ins if completely empty
+  if (Object.keys(habits).length === 0) {
+    const demo = {};
+    const d = new Date();
+    for (let i = 0; i < 40; i++) {
+      if (Math.random() > 0.3) {
+        const dt = new Date(d);
+        dt.setDate(d.getDate() - i);
+        demo[getDateKey(dt)] = true;
+      }
+    }
+    habits['deep-work'] = demo;
+    saveHabits();
+  }
+
+  renderGrid();
+})();
+</script>

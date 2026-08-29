@@ -1,0 +1,373 @@
+<h2 id="jyd-title" style="margin-top:0;color:var(--accent);">🔧 JSON &amp; YAML Studio</h2>
+
+<form aria-describedby="jyd-desc" onsubmit="event.preventDefault();">
+  <p id="jyd-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Format, validate, convert between JSON &amp; YAML, and compare structural diffs side-by-side. 100% private in-browser processing.
+  </p>
+
+  <!-- Mode Tabs -->
+  <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:10px;">
+    <button type="button" id="jyd-tab-editor" class="jyd-tab active" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;cursor:pointer;font-size:0.8rem;font-weight:600;">Formatter &amp; Converter</button>
+    <button type="button" id="jyd-tab-diff" class="jyd-tab" style="padding:6px 14px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);cursor:pointer;font-size:0.8rem;font-weight:600;">Side-by-Side Diff</button>
+  </div>
+
+  <!-- EDITOR & CONVERTER VIEW -->
+  <div id="jyd-view-editor">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="font-size:0.75rem;color:var(--muted);">Format:</span>
+        <select id="jyd-indent" style="padding:4px 8px;border-radius:4px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;">
+          <option value="2">2 Spaces</option>
+          <option value="4">4 Spaces</option>
+          <option value="tab">Tab</option>
+        </select>
+        <button type="button" id="jyd-btn-sample" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#e6faff;font-size:0.75rem;cursor:pointer;">Load Sample</button>
+      </div>
+
+      <div style="display:flex;gap:6px;">
+        <button type="button" id="jyd-btn-beautify" style="padding:4px 12px;border-radius:4px;background:rgba(0,255,204,0.15);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;">Beautify JSON</button>
+        <button type="button" id="jyd-btn-minify" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.2);color:#e6faff;font-size:0.75rem;cursor:pointer;">Minify</button>
+        <button type="button" id="jyd-btn-to-yaml" style="padding:4px 10px;border-radius:4px;background:rgba(255,215,0,0.15);border:1px solid #ffd700;color:#ffd700;font-size:0.75rem;cursor:pointer;">JSON ➔ YAML</button>
+        <button type="button" id="jyd-btn-to-json" style="padding:4px 10px;border-radius:4px;background:rgba(176,38,255,0.15);border:1px solid #b026ff;color:#e6faff;font-size:0.75rem;cursor:pointer;">YAML ➔ JSON</button>
+      </div>
+    </div>
+
+    <div style="position:relative;margin-bottom:10px;">
+      <textarea id="jyd-editor-input" rows="12" style="width:100%;font-family:monospace;font-size:0.8rem;padding:10px;border-radius:8px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#00ffcc;line-height:1.4;box-sizing:border-box;resize:vertical;" placeholder="Paste JSON or YAML here..."></textarea>
+      <div id="jyd-status-badge" style="display:inline-flex;align-items:center;gap:6px;position:absolute;bottom:12px;right:14px;padding:3px 8px;border-radius:4px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.2);font-size:0.72rem;color:var(--muted);">Ready</div>
+    </div>
+
+    <!-- Quick Stats Bar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,0.25);padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);font-size:0.75rem;color:var(--muted);">
+      <div>
+        <span id="jyd-stat-lines">0 lines</span> · 
+        <span id="jyd-stat-chars">0 characters</span> · 
+        <span id="jyd-stat-keys">0 keys</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="jyd-btn-copy" style="background:none;border:none;color:#2dd4ff;cursor:pointer;font-size:0.75rem;text-decoration:underline;">Copy Code</button>
+        <button type="button" id="jyd-btn-clear" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:0.75rem;text-decoration:underline;">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE BY SIDE DIFF VIEW -->
+  <div id="jyd-view-diff" style="display:none;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:0.72rem;color:var(--muted);">
+          <span>Original (A)</span>
+          <span id="jyd-diff-a-status">Valid</span>
+        </div>
+        <textarea id="jyd-diff-a" rows="8" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.12);color:#fff;box-sizing:border-box;" placeholder='{"version": 1, "name": "app", "debug": false}'></textarea>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:0.72rem;color:var(--muted);">
+          <span>Modified (B)</span>
+          <span id="jyd-diff-b-status">Valid</span>
+        </div>
+        <textarea id="jyd-diff-b" rows="8" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.12);color:#fff;box-sizing:border-box;" placeholder='{"version": 2, "name": "app-next", "status": "active"}'></textarea>
+      </div>
+    </div>
+
+    <button type="button" id="jyd-btn-compare" style="width:100%;padding:8px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-weight:bold;font-size:0.8rem;cursor:pointer;margin-bottom:12px;">Compare JSON Structures</button>
+
+    <!-- Diff Results -->
+    <div id="jyd-diff-output" style="max-height:220px;overflow-y:auto;background:rgba(0,0,0,0.4);border-radius:6px;border:1px solid rgba(255,255,255,0.1);padding:10px;font-family:monospace;font-size:0.75rem;color:#e6faff;">
+      <div style="color:var(--muted);text-align:center;padding:12px;">Click "Compare JSON Structures" to see changes.</div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const inputEl = document.getElementById('jyd-editor-input');
+  const indentEl = document.getElementById('jyd-indent');
+  const statusBadge = document.getElementById('jyd-status-badge');
+  const statLines = document.getElementById('jyd-stat-lines');
+  const statChars = document.getElementById('jyd-stat-chars');
+  const statKeys = document.getElementById('jyd-stat-keys');
+
+  // Tabs
+  const tabEditor = document.getElementById('jyd-tab-editor');
+  const tabDiff = document.getElementById('jyd-tab-diff');
+  const viewEditor = document.getElementById('jyd-view-editor');
+  const viewDiff = document.getElementById('jyd-view-diff');
+
+  tabEditor.addEventListener('click', () => {
+    tabEditor.classList.add('active');
+    tabEditor.style.background = 'rgba(45,212,255,0.2)';
+    tabEditor.style.borderColor = '#2dd4ff';
+    tabEditor.style.color = '#2dd4ff';
+    tabDiff.classList.remove('active');
+    tabDiff.style.background = 'none';
+    tabDiff.style.borderColor = 'rgba(255,255,255,0.15)';
+    tabDiff.style.color = 'var(--muted)';
+    viewEditor.style.display = 'block';
+    viewDiff.style.display = 'none';
+  });
+
+  tabDiff.addEventListener('click', () => {
+    tabDiff.classList.add('active');
+    tabDiff.style.background = 'rgba(45,212,255,0.2)';
+    tabDiff.style.borderColor = '#2dd4ff';
+    tabDiff.style.color = '#2dd4ff';
+    tabEditor.classList.remove('active');
+    tabEditor.style.background = 'none';
+    tabEditor.style.borderColor = 'rgba(255,255,255,0.15)';
+    tabEditor.style.color = 'var(--muted)';
+    viewEditor.style.display = 'none';
+    viewDiff.style.display = 'block';
+  });
+
+  function getIndent() {
+    const val = indentEl.value;
+    return val === 'tab' ? '\t' : parseInt(val, 10);
+  }
+
+  function updateStats(str) {
+    const lines = str.length ? str.split('\n').length : 0;
+    const chars = str.length;
+    statLines.textContent = lines + ' line' + (lines === 1 ? '' : 's');
+    statChars.textContent = chars + ' char' + (chars === 1 ? '' : 's');
+
+    try {
+      const obj = JSON.parse(str);
+      let count = 0;
+      function countKeys(o) {
+        if (o && typeof o === 'object') {
+          Object.keys(o).forEach(k => {
+            count++;
+            countKeys(o[k]);
+          });
+        }
+      }
+      countKeys(obj);
+      statKeys.textContent = count + ' key' + (count === 1 ? '' : 's');
+      statusBadge.textContent = '✅ Valid JSON';
+      statusBadge.style.color = '#00ffcc';
+      statusBadge.style.borderColor = 'rgba(0,255,204,0.4)';
+    } catch(e) {
+      statKeys.textContent = '–';
+      if (str.trim().length > 0) {
+        statusBadge.textContent = '⚠️ Invalid JSON';
+        statusBadge.style.color = '#ff6b6b';
+        statusBadge.style.borderColor = 'rgba(255,107,107,0.4)';
+      } else {
+        statusBadge.textContent = 'Empty';
+        statusBadge.style.color = 'var(--muted)';
+        statusBadge.style.borderColor = 'rgba(255,255,255,0.2)';
+      }
+    }
+  }
+
+  inputEl.addEventListener('input', () => updateStats(inputEl.value));
+
+  // Beautify
+  document.getElementById('jyd-btn-beautify').addEventListener('click', () => {
+    try {
+      const obj = JSON.parse(inputEl.value);
+      inputEl.value = JSON.stringify(obj, null, getIndent());
+      updateStats(inputEl.value);
+    } catch (e) {
+      alert('JSON Syntax Error: ' + e.message);
+    }
+  });
+
+  // Minify
+  document.getElementById('jyd-btn-minify').addEventListener('click', () => {
+    try {
+      const obj = JSON.parse(inputEl.value);
+      inputEl.value = JSON.stringify(obj);
+      updateStats(inputEl.value);
+    } catch (e) {
+      alert('JSON Syntax Error: ' + e.message);
+    }
+  });
+
+  // Simple YAML serializer (pure JS, no external lib)
+  function jsonToYaml(obj, depth = 0) {
+    const indent = '  '.repeat(depth);
+    if (obj === null) return 'null';
+    if (typeof obj === 'boolean' || typeof obj === 'number') return String(obj);
+    if (typeof obj === 'string') {
+      return (obj.includes('\n') || /[:#\[\]\{\},&*?|<>=!%@]/.test(obj)) ? JSON.stringify(obj) : obj;
+    }
+    if (Array.isArray(obj)) {
+      if (obj.length === 0) return '[]';
+      return obj.map(item => {
+        if (item !== null && typeof item === 'object') {
+          const inner = jsonToYaml(item, depth + 1).trim();
+          return `${indent}- ${inner.replace(/\n/g, '\n' + indent + '  ')}`;
+        }
+        return `${indent}- ${jsonToYaml(item, depth)}`;
+      }).join('\n');
+    }
+    if (typeof obj === 'object') {
+      const keys = Object.keys(obj);
+      if (keys.length === 0) return '{}';
+      return keys.map(k => {
+        const val = obj[k];
+        if (val !== null && typeof val === 'object' && !Array.isArray(val) && Object.keys(val).length > 0) {
+          return `${indent}${k}:\n${jsonToYaml(val, depth + 1)}`;
+        } else if (Array.isArray(val) && val.length > 0) {
+          return `${indent}${k}:\n${jsonToYaml(val, depth + 1)}`;
+        }
+        return `${indent}${k}: ${jsonToYaml(val, depth)}`;
+      }).join('\n');
+    }
+    return String(obj);
+  }
+
+  // Simple YAML to JSON parser for standard scalar/nested maps
+  function yamlToJson(yamlStr) {
+    const lines = yamlStr.split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
+    const root = {};
+    const stack = [{ indent: -1, node: root }];
+
+    for (let line of lines) {
+      const indent = line.search(/\S/);
+      const content = line.trim();
+
+      while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {
+        stack.pop();
+      }
+      const parent = stack[stack.length - 1].node;
+
+      if (content.startsWith('- ')) {
+        const itemVal = parseVal(content.substring(2).trim());
+        // find list
+        if (!Array.isArray(parent)) {
+          // fallback
+        }
+      } else if (content.includes(':')) {
+        const colonIdx = content.indexOf(':');
+        const key = content.substring(0, colonIdx).trim();
+        const rawVal = content.substring(colonIdx + 1).trim();
+
+        if (rawVal === '') {
+          const newNode = {};
+          parent[key] = newNode;
+          stack.push({ indent, node: newNode });
+        } else {
+          parent[key] = parseVal(rawVal);
+        }
+      }
+    }
+
+    function parseVal(val) {
+      if (val === 'true') return true;
+      if (val === 'false') return false;
+      if (val === 'null' || val === '~') return null;
+      if (!isNaN(val) && val !== '') return Number(val);
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        return val.slice(1, -1);
+      }
+      return val;
+    }
+
+    return root;
+  }
+
+  document.getElementById('jyd-btn-to-yaml').addEventListener('click', () => {
+    try {
+      const obj = JSON.parse(inputEl.value);
+      inputEl.value = jsonToYaml(obj);
+      updateStats(inputEl.value);
+    } catch(e) {
+      alert('Must be valid JSON before converting to YAML: ' + e.message);
+    }
+  });
+
+  document.getElementById('jyd-btn-to-json').addEventListener('click', () => {
+    try {
+      const res = yamlToJson(inputEl.value);
+      inputEl.value = JSON.stringify(res, null, getIndent());
+      updateStats(inputEl.value);
+    } catch(e) {
+      alert('Could not parse YAML: ' + e.message);
+    }
+  });
+
+  // Sample
+  document.getElementById('jyd-btn-sample').addEventListener('click', () => {
+    inputEl.value = JSON.stringify({
+      app: "MrProphecy Cloud Studio",
+      version: "2.5.0",
+      active: true,
+      features: ["zero-ads", "offline-first", "high-speed"],
+      limits: { maxRequestsPerMinute: 600, burst: 1200 },
+      metadata: { region: "global", latencyMs: 12.4 }
+    }, null, 2);
+    updateStats(inputEl.value);
+  });
+
+  // Copy
+  document.getElementById('jyd-btn-copy').addEventListener('click', () => {
+    navigator.clipboard.writeText(inputEl.value).then(() => alert('Copied to clipboard!'));
+  });
+
+  // Clear
+  document.getElementById('jyd-btn-clear').addEventListener('click', () => {
+    inputEl.value = '';
+    updateStats('');
+  });
+
+  // Structural Diff
+  document.getElementById('jyd-btn-compare').addEventListener('click', () => {
+    const strA = document.getElementById('jyd-diff-a').value.trim();
+    const strB = document.getElementById('jyd-diff-b').value.trim();
+    const out = document.getElementById('jyd-diff-output');
+
+    let objA, objB;
+    try { objA = JSON.parse(strA || '{}'); } catch(e) { out.innerHTML = `<span style="color:#ff6b6b">Error parsing Original JSON: ${e.message}</span>`; return; }
+    try { objB = JSON.parse(strB || '{}'); } catch(e) { out.innerHTML = `<span style="color:#ff6b6b">Error parsing Modified JSON: ${e.message}</span>`; return; }
+
+    const changes = [];
+
+    function compare(path, a, b) {
+      if (typeof a !== typeof b) {
+        changes.push({ type: 'type', path, oldVal: a, newVal: b });
+        return;
+      }
+      if (a === null || b === null || typeof a !== 'object') {
+        if (a !== b) changes.push({ type: 'modified', path, oldVal: a, newVal: b });
+        return;
+      }
+      const allKeys = Array.from(new Set([...Object.keys(a), ...Object.keys(b)]));
+      allKeys.forEach(k => {
+        const curPath = path ? `${path}.${k}` : k;
+        if (!(k in a)) {
+          changes.push({ type: 'added', path: curPath, newVal: b[k] });
+        } else if (!(k in b)) {
+          changes.push({ type: 'removed', path: curPath, oldVal: a[k] });
+        } else {
+          compare(curPath, a[k], b[k]);
+        }
+      });
+    }
+
+    compare('', objA, objB);
+
+    if (changes.length === 0) {
+      out.innerHTML = '<div style="color:#00ffcc;text-align:center;padding:10px;">✅ Identical structures! Zero differences detected.</div>';
+      return;
+    }
+
+    let html = `<div style="margin-bottom:8px;font-weight:bold;color:#2dd4ff;">Detected ${changes.length} Difference${changes.length === 1 ? '' : 's'}:</div>`;
+    changes.forEach(c => {
+      if (c.type === 'added') {
+        html += `<div style="background:rgba(0,255,204,0.1);padding:4px 8px;border-left:3px solid #00ffcc;margin-bottom:4px;"><span style="color:#00ffcc;">[+ ADDED]</span> <strong>${c.path}</strong>: <code>${JSON.stringify(c.newVal)}</code></div>`;
+      } else if (c.type === 'removed') {
+        html += `<div style="background:rgba(255,107,107,0.1);padding:4px 8px;border-left:3px solid #ff6b6b;margin-bottom:4px;"><span style="color:#ff6b6b;">[- REMOVED]</span> <strong>${c.path}</strong>: <code>${JSON.stringify(c.oldVal)}</code></div>`;
+      } else {
+        html += `<div style="background:rgba(255,215,0,0.1);padding:4px 8px;border-left:3px solid #ffd700;margin-bottom:4px;"><span style="color:#ffd700;">[~ CHANGED]</span> <strong>${c.path}</strong>: <code>${JSON.stringify(c.oldVal)}</code> ➔ <code>${JSON.stringify(c.newVal)}</code></div>`;
+      }
+    });
+    out.innerHTML = html;
+  });
+
+  // Init sample
+  document.getElementById('jyd-btn-sample').click();
+})();
+</script>

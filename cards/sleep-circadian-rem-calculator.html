@@ -1,0 +1,179 @@
+<h2 id="rem-title" style="margin-top:0;color:var(--accent);">🌙 Sleep &amp; REM Optimizer</h2>
+
+<form aria-describedby="rem-desc" onsubmit="event.preventDefault();">
+  <p id="rem-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Calculate optimal bedtimes and wake alarms based on natural 90-minute REM cycles. Wake up refreshed and eliminate morning sleep inertia.
+  </p>
+
+  <!-- Mode Switcher Tabs -->
+  <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;">
+    <button type="button" id="rem-tab-wake" style="padding:6px 12px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;cursor:pointer;font-size:0.78rem;font-weight:600;">Wake Up At...</button>
+    <button type="button" id="rem-tab-now" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);cursor:pointer;font-size:0.78rem;font-weight:600;">Sleep Right Now</button>
+  </div>
+
+  <!-- View A: Wake Up At Specific Time -->
+  <div id="rem-view-wake">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:rgba(0,0,0,0.25);padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);">
+      <label for="rem-wake-time" style="font-size:0.75rem;color:var(--muted);">I need to wake up at:</label>
+      <input type="time" id="rem-wake-time" value="07:00" style="padding:6px 10px;border-radius:4px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#00ffcc;font-size:0.9rem;font-family:monospace;font-weight:bold;">
+    </div>
+  </div>
+
+  <!-- View B: Sleep Now -->
+  <div id="rem-view-now" style="display:none;margin-bottom:14px;background:rgba(0,0,0,0.25);padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);text-align:center;">
+    <div style="font-size:0.75rem;color:var(--muted);margin-bottom:4px;">If you go to bed right now:</div>
+    <div id="rem-current-time" style="font-size:1.4rem;font-weight:bold;color:#ffd700;font-family:monospace;">--:--</div>
+  </div>
+
+  <!-- Latency Setting -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:0.72rem;color:var(--muted);">
+    <span>Time to fall asleep (latency):</span>
+    <select id="rem-latency" style="padding:3px 8px;border-radius:4px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;">
+      <option value="10">10 minutes</option>
+      <option value="14" selected>14 minutes (Average)</option>
+      <option value="20">20 minutes</option>
+      <option value="30">30 minutes</option>
+    </select>
+  </div>
+
+  <!-- Results Schedule Cards -->
+  <div style="font-size:0.72rem;font-weight:bold;color:var(--accent);margin-bottom:8px;">RECOMMENDED CYCLE TIMINGS:</div>
+  <div id="rem-results-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+    <!-- Populated via JS -->
+  </div>
+
+  <!-- Circadian Education Box -->
+  <div style="background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;font-size:0.72rem;color:var(--muted);line-height:1.4;">
+    💤 <strong>Why 90-Minute Cycles?</strong> Human sleep consists of alternating Non-REM and REM stages lasting ~90 minutes. Waking up in the middle of deep sleep causes grogginess and brain fog (sleep inertia). Waking at the end of a full cycle ensures maximum energy and focus.
+  </div>
+</form>
+
+<script>
+(function() {
+  const tabWake = document.getElementById('rem-tab-wake');
+  const tabNow = document.getElementById('rem-tab-now');
+  const viewWake = document.getElementById('rem-view-wake');
+  const viewNow = document.getElementById('rem-view-now');
+
+  const inWakeTime = document.getElementById('rem-wake-time');
+  const inLatency = document.getElementById('rem-latency');
+  const curTimeEl = document.getElementById('rem-current-time');
+  const resultsList = document.getElementById('rem-results-list');
+
+  let mode = 'wake'; // 'wake' or 'now'
+
+  tabWake.addEventListener('click', () => {
+    mode = 'wake';
+    tabWake.style.background = 'rgba(45,212,255,0.2)';
+    tabWake.style.borderColor = '#2dd4ff';
+    tabWake.style.color = '#2dd4ff';
+    tabNow.style.background = 'none';
+    tabNow.style.borderColor = 'rgba(255,255,255,0.15)';
+    tabNow.style.color = 'var(--muted)';
+    viewWake.style.display = 'block';
+    viewNow.style.display = 'none';
+    calculate();
+  });
+
+  tabNow.addEventListener('click', () => {
+    mode = 'now';
+    tabNow.style.background = 'rgba(45,212,255,0.2)';
+    tabNow.style.borderColor = '#2dd4ff';
+    tabNow.style.color = '#2dd4ff';
+    tabWake.style.background = 'none';
+    tabWake.style.borderColor = 'rgba(255,255,255,0.15)';
+    tabWake.style.color = 'var(--muted)';
+    viewWake.style.display = 'none';
+    viewNow.style.display = 'block';
+    calculate();
+  });
+
+  function formatTime(d) {
+    let hours = d.getHours();
+    let mins = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    mins = mins < 10 ? '0' + mins : mins;
+    return `${hours}:${mins} ${ampm}`;
+  }
+
+  function calculate() {
+    resultsList.innerHTML = '';
+    const latencyMins = parseInt(inLatency.value, 10);
+    const now = new Date();
+    curTimeEl.textContent = formatTime(now);
+
+    const cycles = [
+      { count: 6, label: 'Optimal Sleep', desc: '9 Hours (Peak cellular & memory restoration)', color: '#00ffcc' },
+      { count: 5, label: 'Recommended', desc: '7.5 Hours (Standard adult goal)', color: '#2dd4ff' },
+      { count: 4, label: 'Minimum Viable', desc: '6 Hours (Good recovery without grogginess)', color: '#ffd700' },
+      { count: 3, label: 'Power Recovery', desc: '4.5 Hours (Survival / Short night)', color: '#ff6b6b' }
+    ];
+
+    if (mode === 'wake') {
+      const [wHour, wMin] = inWakeTime.value.split(':').map(Number);
+      const target = new Date();
+      target.setHours(wHour, wMin, 0, 0);
+
+      cycles.forEach(c => {
+        // Bedtime = Target - (cycles * 90 mins) - latency
+        const totalMinutes = (c.count * 90) + latencyMins;
+        const bedtime = new Date(target.getTime() - totalMinutes * 60000);
+
+        const card = document.createElement('div');
+        card.style.background = 'rgba(0,0,0,0.3)';
+        card.style.border = `1px solid ${c.color}40`;
+        card.style.borderRadius = '6px';
+        card.style.padding = '8px 12px';
+        card.style.display = 'flex';
+        card.style.justifyContent = 'space-between';
+        card.style.alignItems = 'center';
+
+        card.innerHTML = `
+          <div>
+            <div style="font-size:0.75rem;font-weight:bold;color:${c.color};">${c.label} (${c.count} Cycles)</div>
+            <div style="font-size:0.68rem;color:var(--muted);">${c.desc}</div>
+          </div>
+          <div style="font-family:monospace;font-size:1.1rem;font-weight:bold;color:#fff;">
+            ${formatTime(bedtime)}
+          </div>
+        `;
+        resultsList.appendChild(card);
+      });
+    } else {
+      // mode === 'now'
+      cycles.forEach(c => {
+        // Wakeup = Now + latency + (cycles * 90 mins)
+        const totalMinutes = (c.count * 90) + latencyMins;
+        const wakeTime = new Date(now.getTime() + totalMinutes * 60000);
+
+        const card = document.createElement('div');
+        card.style.background = 'rgba(0,0,0,0.3)';
+        card.style.border = `1px solid ${c.color}40`;
+        card.style.borderRadius = '6px';
+        card.style.padding = '8px 12px';
+        card.style.display = 'flex';
+        card.style.justifyContent = 'space-between';
+        card.style.alignItems = 'center';
+
+        card.innerHTML = `
+          <div>
+            <div style="font-size:0.75rem;font-weight:bold;color:${c.color};">${c.label} (${c.count} Cycles)</div>
+            <div style="font-size:0.68rem;color:var(--muted);">${c.desc}</div>
+          </div>
+          <div style="font-family:monospace;font-size:1.1rem;font-weight:bold;color:#fff;">
+            ${formatTime(wakeTime)}
+          </div>
+        `;
+        resultsList.appendChild(card);
+      });
+    }
+  }
+
+  inWakeTime.addEventListener('input', calculate);
+  inLatency.addEventListener('change', calculate);
+
+  calculate();
+})();
+</script>

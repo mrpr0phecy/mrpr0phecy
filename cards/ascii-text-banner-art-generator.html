@@ -1,0 +1,140 @@
+<h2 id="atb-title" style="margin-top:0;color:var(--accent);">🔤 ASCII Banner Generator</h2>
+
+<form aria-describedby="atb-desc" onsubmit="event.preventDefault();">
+  <p id="atb-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Generate retro ASCII text banners and terminal art for code headers, GitHub READMEs, Discord bots, and CLI scripts.
+  </p>
+
+  <!-- Input and Style Selector -->
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+    <input type="text" id="atb-input-text" value="CYBER" maxlength="16" placeholder="Type text (max 16 chars)..." style="flex:2;min-width:140px;padding:6px 10px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#00ffcc;font-family:monospace;font-size:0.85rem;">
+    
+    <select id="atb-font-style" style="flex:1;min-width:120px;padding:6px 8px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;">
+      <option value="block" selected>Classic Block</option>
+      <option value="slant">Isometric Slant</option>
+      <option value="shadow">Cyber Shadow</option>
+      <option value="bubble">Bubble Circle</option>
+      <option value="framed">Enclosed Box</option>
+    </select>
+
+    <button type="button" id="atb-btn-copy" style="padding:6px 14px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;">Copy ASCII</button>
+  </div>
+
+  <!-- ASCII Output Display -->
+  <div style="position:relative;margin-bottom:12px;">
+    <pre id="atb-output" style="margin:0;padding:12px;border-radius:8px;background:#060a0f;border:1px solid rgba(45,212,255,0.3);color:#2dd4ff;font-family:'Courier New', Courier, monospace;font-size:0.68rem;line-height:1.2;overflow-x:auto;white-space:pre;user-select:all;"></pre>
+  </div>
+
+  <!-- Quick Presets Bar -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">
+    <button type="button" class="atb-preset" data-text="DEV" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.7rem;cursor:pointer;">"DEV"</button>
+    <button type="button" class="atb-preset" data-text="API" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.7rem;cursor:pointer;">"API"</button>
+    <button type="button" class="atb-preset" data-text="READY" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.7rem;cursor:pointer;">"READY"</button>
+    <button type="button" class="atb-preset" data-text="MATRIX" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.7rem;cursor:pointer;">"MATRIX"</button>
+    <button type="button" class="atb-preset" data-text="WEB3" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.7rem;cursor:pointer;">"WEB3"</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const inputEl = document.getElementById('atb-input-text');
+  const styleEl = document.getElementById('atb-font-style');
+  const outputEl = document.getElementById('atb-output');
+  const btnCopy = document.getElementById('atb-btn-copy');
+
+  // Compact 5x5 font bitmaps for ASCII rendering
+  const GLYPHS = {
+    'A': ["  █  ", " █ █ ", "█████", "█   █", "█   █"],
+    'B': ["████ ", "█   █", "████ ", "█   █", "████ "],
+    'C': [" ████", "█    ", "█    ", "█    ", " ████"],
+    'D': ["████ ", "█   █", "█   █", "█   █", "████ "],
+    'E': ["█████", "█    ", "████ ", "█    ", "█████"],
+    'F': ["█████", "█    ", "████ ", "█    ", "█    "],
+    'G': [" ████", "█    ", "█  ██", "█   █", " ████"],
+    'H': ["█   █", "█   █", "█████", "█   █", "█   █"],
+    'I': ["█████", "  █  ", "  █  ", "  █  ", "█████"],
+    'J': ["  ███", "    █", "    █", "█   █", " ███ "],
+    'K': ["█   █", "█  █ ", "███  ", "█  █ ", "█   █"],
+    'L': ["█    ", "█    ", "█    ", "█    ", "█████"],
+    'M': ["█   █", "██ ██", "█ █ █", "█   █", "█   █"],
+    'N': ["█   █", "██  █", "█ █ █", "█  ██", "█   █"],
+    'O': [" ███ ", "█   █", "█   █", "█   █", " ███ "],
+    'P': ["████ ", "█   █", "████ ", "█    ", "█    "],
+    'Q': [" ███ ", "█   █", "█ █ █", "█  ██", " ████"],
+    'R': ["████ ", "█   █", "████ ", "█  █ ", "█   █"],
+    'S': [" ████", "█    ", " ███ ", "    █", "████ "],
+    'T': ["█████", "  █  ", "  █  ", "  █  ", "  █  "],
+    'U': ["█   █", "█   █", "█   █", "█   █", " ███ "],
+    'V': ["█   █", "█   █", "█   █", " █ █ ", "  █  "],
+    'W': ["█   █", "█   █", "█ █ █", "██ ██", "█   █"],
+    'X': ["█   █", " █ █ ", "  █  ", " █ █ ", "█   █"],
+    'Y': ["█   █", " █ █ ", "  █  ", "  █  ", "  █  "],
+    'Z': ["█████", "   █ ", "  █  ", " █   ", "█████"],
+    '0': ["█████", "█  ██", "█ █ █", "██  █", "█████"],
+    '1': [" ██  ", "  █  ", "  █  ", "  █  ", "█████"],
+    '2': ["████ ", "    █", " ███ ", "█    ", "█████"],
+    '3': ["████ ", "    █", " ███ ", "    █", "████ "],
+    '4': ["█  █ ", "█  █ ", "█████", "   █ ", "   █ "],
+    '5': ["█████", "█    ", "████ ", "    █", "████ "],
+    '6': [" ████", "█    ", "████ ", "█   █", " ████"],
+    '7': ["█████", "    █", "   █ ", "  █  ", " █   "],
+    '8': [" ███ ", "█   █", " ███ ", "█   █", " ███ "],
+    '9': [" ████", "█   █", " ████", "    █", " ████"],
+    ' ': ["     ", "     ", "     ", "     ", "     "],
+    '-': ["     ", "     ", "█████", "     ", "     "],
+    '!': ["  █  ", "  █  ", "  █  ", "     ", "  █  "]
+  };
+
+  function renderAscii() {
+    const text = (inputEl.value || 'CYBER').toUpperCase();
+    const style = styleEl.value;
+
+    const lines = ["", "", "", "", ""];
+
+    for (let char of text) {
+      const g = GLYPHS[char] || GLYPHS[' '];
+      for (let i = 0; i < 5; i++) {
+        let seg = g[i];
+        if (style === 'slant') {
+          seg = seg.replace(/█/g, '/').replace(/ /g, ' ');
+        } else if (style === 'shadow') {
+          seg = seg.replace(/█/g, '▓');
+        } else if (style === 'bubble') {
+          seg = seg.replace(/█/g, '●');
+        }
+        lines[i] += seg + " ";
+      }
+    }
+
+    let result = lines.join("\n");
+
+    if (style === 'framed') {
+      const width = lines[0].length;
+      const top = "╔" + "═".repeat(width + 2) + "╗";
+      const bottom = "╚" + "═".repeat(width + 2) + "╝";
+      const framedLines = lines.map(l => "║ " + l + " ║");
+      result = [top, ...framedLines, bottom].join("\n");
+    }
+
+    outputEl.textContent = result;
+  }
+
+  inputEl.addEventListener('input', renderAscii);
+  styleEl.addEventListener('change', renderAscii);
+
+  document.querySelectorAll('.atb-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      inputEl.value = btn.dataset.text;
+      renderAscii();
+    });
+  });
+
+  btnCopy.addEventListener('click', () => {
+    navigator.clipboard.writeText(outputEl.textContent);
+    btnCopy.textContent = '✓ Copied';
+    setTimeout(() => btnCopy.textContent = 'Copy ASCII', 1500);
+  });
+
+  renderAscii();
+})();
+</script>

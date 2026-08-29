@@ -1,0 +1,254 @@
+<h2 id="jwt-title" style="margin-top:0;color:var(--accent);">🔑 JWT Token Inspector</h2>
+
+<form aria-describedby="jwt-desc" onsubmit="event.preventDefault();">
+  <p id="jwt-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Decode and audit JSON Web Tokens offline. Zero network calls — your security tokens never leave your browser.
+  </p>
+
+  <!-- Input Area -->
+  <div style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <label for="jwt-input" style="font-size:0.75rem;color:var(--muted);">Encoded Token (Header.Payload.Signature)</label>
+      <div style="display:flex;gap:6px;">
+        <button type="button" id="jwt-btn-sample" style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#e6faff;font-size:0.72rem;cursor:pointer;">Load Sample JWT</button>
+        <button type="button" id="jwt-btn-clear" style="padding:3px 8px;border-radius:4px;background:none;border:none;color:#ff6b6b;font-size:0.72rem;cursor:pointer;">Clear</button>
+      </div>
+    </div>
+    <textarea id="jwt-input" rows="4" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px 10px;border-radius:6px;background:#090d14;border:1px solid rgba(255,255,255,0.15);color:#ff6b9d;box-sizing:border-box;resize:vertical;" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+  </div>
+
+  <!-- Token Status Banner -->
+  <div id="jwt-status-box" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);margin-bottom:14px;font-size:0.78rem;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="jwt-status-icon">⚪</span>
+      <span id="jwt-status-text" style="font-weight:600;color:var(--muted);">Awaiting token input...</span>
+    </div>
+    <div id="jwt-countdown" style="font-family:monospace;font-size:0.72rem;color:var(--muted);">–</div>
+  </div>
+
+  <!-- Decoded Grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <!-- Header -->
+    <div>
+      <div style="font-size:0.72rem;font-weight:bold;color:#ff6b9d;margin-bottom:4px;display:flex;justify-content:space-between;">
+        <span>HEADER (Algorithm &amp; Token Type)</span>
+        <button type="button" id="jwt-copy-header" style="background:none;border:none;color:var(--accent);font-size:0.7rem;cursor:pointer;">Copy</button>
+      </div>
+      <textarea id="jwt-out-header" readonly rows="5" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(255,107,157,0.3);color:#ff6b9d;box-sizing:border-box;"></textarea>
+    </div>
+
+    <!-- Signature -->
+    <div>
+      <div style="font-size:0.72rem;font-weight:bold;color:#2dd4ff;margin-bottom:4px;display:flex;justify-content:space-between;">
+        <span>SIGNATURE / DIGEST</span>
+        <button type="button" id="jwt-copy-sig" style="background:none;border:none;color:var(--accent);font-size:0.7rem;cursor:pointer;">Copy</button>
+      </div>
+      <textarea id="jwt-out-sig" readonly rows="5" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(45,212,255,0.3);color:#2dd4ff;box-sizing:border-box;"></textarea>
+    </div>
+  </div>
+
+  <!-- Payload -->
+  <div style="margin-bottom:12px;">
+    <div style="font-size:0.72rem;font-weight:bold;color:#00ffcc;margin-bottom:4px;display:flex;justify-content:space-between;">
+      <span>PAYLOAD (Data Claims &amp; Timestamps)</span>
+      <button type="button" id="jwt-copy-payload" style="background:none;border:none;color:var(--accent);font-size:0.7rem;cursor:pointer;">Copy JSON</button>
+    </div>
+    <textarea id="jwt-out-payload" readonly rows="7" style="width:100%;font-family:monospace;font-size:0.75rem;padding:8px;border-radius:6px;background:#090d14;border:1px solid rgba(0,255,204,0.3);color:#00ffcc;box-sizing:border-box;"></textarea>
+  </div>
+
+  <!-- Human Explanations of Standard Claims -->
+  <div id="jwt-claims-explainer" style="background:rgba(0,0,0,0.25);border-radius:6px;border:1px solid rgba(255,255,255,0.08);padding:10px;font-size:0.75rem;">
+    <div style="font-weight:bold;color:var(--accent);margin-bottom:6px;">Standard Claims Breakdown:</div>
+    <div id="jwt-claims-list" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:6px;color:var(--muted);">
+      <div><em>Paste a valid token above to audit claims.</em></div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const inputEl = document.getElementById('jwt-input');
+  const headerEl = document.getElementById('jwt-out-header');
+  const payloadEl = document.getElementById('jwt-out-payload');
+  const sigEl = document.getElementById('jwt-out-sig');
+  const statusIcon = document.getElementById('jwt-status-icon');
+  const statusText = document.getElementById('jwt-status-text');
+  const statusBox = document.getElementById('jwt-status-box');
+  const countdownEl = document.getElementById('jwt-countdown');
+  const claimsList = document.getElementById('jwt-claims-list');
+
+  function b64DecodeUnicode(str) {
+    try {
+      str = str.replace(/-/g, '+').replace(/_/g, '/');
+      while (str.length % 4) str += '=';
+      const binary = atob(str);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch(e) {
+      return null;
+    }
+  }
+
+  function parseJwt() {
+    const raw = inputEl.value.trim();
+    if (!raw) {
+      headerEl.value = '';
+      payloadEl.value = '';
+      sigEl.value = '';
+      statusIcon.textContent = '⚪';
+      statusText.textContent = 'Awaiting token input...';
+      statusText.style.color = 'var(--muted)';
+      statusBox.style.borderColor = 'rgba(255,255,255,0.1)';
+      countdownEl.textContent = '–';
+      claimsList.innerHTML = '<div><em>Paste a valid token above to audit claims.</em></div>';
+      return;
+    }
+
+    const parts = raw.split('.');
+    if (parts.length !== 3) {
+      statusIcon.textContent = '❌';
+      statusText.textContent = 'Malformed JWT (must have 3 parts separated by dots)';
+      statusText.style.color = '#ff6b6b';
+      statusBox.style.borderColor = 'rgba(255,107,107,0.4)';
+      countdownEl.textContent = 'Invalid';
+      return;
+    }
+
+    const headerStr = b64DecodeUnicode(parts[0]);
+    const payloadStr = b64DecodeUnicode(parts[1]);
+    sigEl.value = parts[2];
+
+    if (!headerStr || !payloadStr) {
+      statusIcon.textContent = '❌';
+      statusText.textContent = 'Failed to base64url decode token parts';
+      statusText.style.color = '#ff6b6b';
+      return;
+    }
+
+    let headerObj = null;
+    let payloadObj = null;
+
+    try {
+      headerObj = JSON.parse(headerStr);
+      headerEl.value = JSON.stringify(headerObj, null, 2);
+    } catch(e) {
+      headerEl.value = headerStr;
+    }
+
+    try {
+      payloadObj = JSON.parse(payloadStr);
+      payloadEl.value = JSON.stringify(payloadObj, null, 2);
+    } catch(e) {
+      payloadEl.value = payloadStr;
+    }
+
+    // Evaluate Expiry and standard claims
+    if (payloadObj) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      let expText = '';
+
+      if (payloadObj.exp) {
+        const expSec = payloadObj.exp;
+        const diff = expSec - nowSec;
+        const expDate = new Date(expSec * 1000).toLocaleString();
+
+        if (diff > 0) {
+          const mins = Math.floor(diff / 60);
+          const hours = Math.floor(mins / 60);
+          const remMins = mins % 60;
+          statusIcon.textContent = '🟢';
+          statusText.textContent = `Token Active & Valid (Expires: ${expDate})`;
+          statusText.style.color = '#00ffcc';
+          statusBox.style.borderColor = 'rgba(0,255,204,0.4)';
+          countdownEl.textContent = `${hours}h ${remMins}m remaining`;
+        } else {
+          statusIcon.textContent = '🔴';
+          statusText.textContent = `Token EXPIRED at ${expDate}`;
+          statusText.style.color = '#ff6b6b';
+          statusBox.style.borderColor = 'rgba(255,107,107,0.4)';
+          countdownEl.textContent = `Expired ${Math.abs(Math.floor(diff / 60))}m ago`;
+        }
+      } else {
+        statusIcon.textContent = '🟡';
+        statusText.textContent = 'Valid JWT (No Expiration claim found)';
+        statusText.style.color = '#ffd700';
+        statusBox.style.borderColor = 'rgba(255,215,0,0.4)';
+        countdownEl.textContent = 'No exp';
+      }
+
+      // Populate claims list
+      let claimsHtml = '';
+      const known = [
+        { k: 'sub', desc: 'Subject (User ID / Entity)' },
+        { k: 'iss', desc: 'Issuer' },
+        { k: 'aud', desc: 'Audience' },
+        { k: 'iat', desc: 'Issued At' },
+        { k: 'exp', desc: 'Expiration Time' },
+        { k: 'nbf', desc: 'Not Before' },
+        { k: 'role', desc: 'User Role' },
+        { k: 'email', desc: 'Email Address' }
+      ];
+
+      known.forEach(item => {
+        if (payloadObj[item.k] !== undefined) {
+          let val = payloadObj[item.k];
+          if (['iat', 'exp', 'nbf'].includes(item.k) && typeof val === 'number') {
+            val = new Date(val * 1000).toISOString().replace('T', ' ').substring(0, 19);
+          }
+          claimsHtml += `
+            <div style="background:rgba(255,255,255,0.04);padding:4px 8px;border-radius:4px;">
+              <strong style="color:#e6faff;">${item.k}</strong> (${item.desc}):<br>
+              <span style="color:#00ffcc;word-break:break-all;">${val}</span>
+            </div>
+          `;
+        }
+      });
+
+      if (!claimsHtml) {
+        claimsHtml = '<div>No standard RFC 7519 claims found in payload.</div>';
+      }
+      claimsList.innerHTML = claimsHtml;
+    }
+  }
+
+  inputEl.addEventListener('input', parseJwt);
+
+  // Sample token generator
+  document.getElementById('jwt-btn-sample').addEventListener('click', () => {
+    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" })).replace(/=/g, '');
+    const now = Math.floor(Date.now() / 1000);
+    const payload = btoa(JSON.stringify({
+      sub: "usr_94821a8f",
+      name: "Alex Dev",
+      email: "alex@mrprophecy.cloud",
+      role: "lead_engineer",
+      iat: now,
+      exp: now + 7200,
+      iss: "themostusefulsiteintheworld.com"
+    })).replace(/=/g, '');
+    const signature = "c088a29b0df483b879c94389e782d449";
+    inputEl.value = `${header}.${payload}.${signature}`;
+    parseJwt();
+  });
+
+  document.getElementById('jwt-btn-clear').addEventListener('click', () => {
+    inputEl.value = '';
+    parseJwt();
+  });
+
+  // Copy buttons
+  document.getElementById('jwt-copy-header').addEventListener('click', () => {
+    navigator.clipboard.writeText(headerEl.value);
+  });
+  document.getElementById('jwt-copy-payload').addEventListener('click', () => {
+    navigator.clipboard.writeText(payloadEl.value);
+  });
+  document.getElementById('jwt-copy-sig').addEventListener('click', () => {
+    navigator.clipboard.writeText(sigEl.value);
+  });
+
+  // Initialize sample
+  document.getElementById('jwt-btn-sample').click();
+})();
+</script>

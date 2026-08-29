@@ -10,11 +10,12 @@ const outputFile = path.join(cardsDir, 'cards.json');
 const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html') || f.endsWith('.hmtl'));
 
 const musicList = ['audio-bpm-tapper', 'binaural-neuro-tuner', 'bpm-counter', 'capo-calculator', 'carol-karaoke', 'chord-finder', 'chord-progression', 'ear-trainer', 'instrument-care', 'interval-trainer', 'metronome', 'music-quiz', 'music-theory', 'recording-basics', 'rhythm-generator', 'scale-trainer', 'sheet-music', 'song-writer', 'tempo-map', 'transposer', 'tuner', 'youtube-dj'];
-const healthList = ['crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'targetheartrate', 'tdee', 'vo2max', 'waisthip', 'waterintake'];
+const healthList = ['sleep-circadian-rem-calculator', 'crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'targetheartrate', 'tdee', 'vo2max', 'waisthip', 'waterintake'];
 const financeList = ['freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax'];
 const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
 const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
+  'logic-gate-circuit-simulator',
   'water-density-anomaly',
   'water-phase-diagram',
   'steam-tables-thermodynamics',
@@ -133,6 +134,7 @@ const aquariumList = [
 ];
 
 const saasKillerList = [
+  'meeting-cost-live-ticker',
   'invoice-billing-pdf-generator',
   'nda-contract-service-agreement-builder',
   'utm-campaign-matrix-builder',
@@ -185,7 +187,9 @@ const manifest = files.map(file => {
   if (h2Match) {
     const idAttr = h2Match[0].match(/id=["']([^"']+)["']/i);
     if (idAttr) id = idAttr[1];
-    title = h2Match[1].replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').trim();
+    let rawTitle = h2Match[1];
+    rawTitle = rawTitle.replace(/<(span|div|small|p)[^>]*>[\s\S]*?<\/\1>/gi, '');
+    title = rawTitle.replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
   }
   if (!title) {
     title = base.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -193,11 +197,15 @@ const manifest = files.map(file => {
 
   // Extract description
   const pMatch = html.match(/<p[^>]*class=["'][^"']*(?:desc|description|small)["'][^>]*>([\s\S]*?)<\/p>/i) ||
-                 html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+                 html.match(/<p[^>]*>([\s\S]*?)<\/p>/i) ||
+                 html.match(/<div[^>]*style=["'][^"']*rgba\(230,\s*250,\s*255[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
   let description = '';
   if (pMatch) {
-    description = pMatch[1].replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').trim();
+    description = pMatch[1].replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
     if (description.length > 200) description = description.substring(0, 197) + '...';
+  }
+  if (!description) {
+    description = `Instant, free online ${title.replace(/^[^\w\s]+/, '').trim()} tool. No signup required.`;
   }
 
   return {
