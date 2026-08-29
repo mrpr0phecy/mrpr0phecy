@@ -1,0 +1,280 @@
+<h2 id="glb-title" style="margin-top:0;color:var(--accent);">🕳️ Gravitational Lensing Lab</h2>
+
+<form aria-describedby="glb-desc" onsubmit="event.preventDefault();">
+  <p id="glb-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    General Relativity astrophysics exhibit. Drag a supermassive Schwarzschild black hole across cosmic starfields to observe Einstein rings and photon deflection.
+  </p>
+
+  <!-- Interactive Relativistic Canvas -->
+  <div style="background:#020408;border:1px solid rgba(45,212,255,0.4);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="glb-canvas" width="560" height="260" style="width:100%;height:260px;display:block;background:#000;border-radius:6px;cursor:grab;"></canvas>
+    
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG SINGULARITY TO BEND SPACETIME</span>
+      <span id="glb-einstein-radius" style="color:#00ffcc;font-family:monospace;font-weight:bold;">θ_E (Einstein Radius) = 48 px</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:12px;background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);font-size:0.72rem;text-align:center;">
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">SCHWARZSCHILD RADIUS</div>
+      <strong id="glb-stat-rs" style="color:#ff4d4d;font-family:monospace;">24.0 px</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">PHOTON SPHERE (1.5 R_s)</div>
+      <strong id="glb-stat-rph" style="color:#ffd700;font-family:monospace;">36.0 px</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">DEFLECTION ANGLE</div>
+      <strong id="glb-stat-deflect" style="color:#2dd4ff;font-family:monospace;">4.12 rad</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">STELLAR BODIES</div>
+      <strong id="glb-stat-stars" style="color:#e6faff;font-family:monospace;">240 Stars</strong>
+    </div>
+  </div>
+
+  <!-- Relativistic Dials -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+    <!-- Mass Slider -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Black Hole Mass</span>
+        <span id="glb-val-mass">4.1M M☉</span>
+      </div>
+      <input type="range" id="glb-slider-mass" min="10" max="80" value="40" style="width:100%;">
+    </div>
+
+    <!-- Accretion Glow -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Accretion Disk Glow</span>
+        <span id="glb-val-glow">High (Relativistic)</span>
+      </div>
+      <input type="range" id="glb-slider-glow" min="0" max="100" value="75" style="width:100%;">
+    </div>
+
+    <!-- Starfield Density -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Cosmic Nebula</span>
+        <span id="glb-val-nebula">Active</span>
+      </div>
+      <input type="range" id="glb-slider-nebula" min="0" max="100" value="60" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Exhibit Physics Explainer -->
+  <div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;font-size:0.72rem;color:var(--muted);line-height:1.4;">
+    🕳️ <strong>Einstein Ring &amp; Gravitational Deflection:</strong> According to General Relativity, immense mass warps spacetime. Photons traveling past a black hole follow curved null geodesics. When a background star aligns directly behind the singularity, light rays bend symmetrically into a closed glowing circle called an <em>Einstein Ring</em>.
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('glb-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sMass = document.getElementById('glb-slider-mass');
+  const sGlow = document.getElementById('glb-slider-glow');
+  const sNebula = document.getElementById('glb-slider-nebula');
+
+  const vMass = document.getElementById('glb-val-mass');
+  const vGlow = document.getElementById('glb-val-glow');
+  const vNebula = document.getElementById('glb-val-nebula');
+
+  const statRs = document.getElementById('glb-stat-rs');
+  const statRph = document.getElementById('glb-stat-rph');
+  const statDeflect = document.getElementById('glb-stat-deflect');
+  const tagEinstein = document.getElementById('glb-einstein-radius');
+
+  // Black hole position
+  let bhX = canvas.width / 2;
+  let bhY = canvas.height / 2;
+  let bhMass = 40; // controls rs and deflection
+  let accretionGlow = 0.75;
+  let nebulaOpacity = 0.6;
+
+  // Background stars catalogue
+  const STAR_COUNT = 240;
+  const stars = [];
+  for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: 0.8 + Math.random() * 2.2,
+      brightness: 0.4 + Math.random() * 0.6,
+      color: Math.random() > 0.8 ? '#2dd4ff' : (Math.random() > 0.6 ? '#ffd700' : (Math.random() > 0.4 ? '#ff6b9d' : '#ffffff'))
+    });
+  }
+
+  // Pre-render cosmic nebula canvas
+  const nebCanvas = document.createElement('canvas');
+  nebCanvas.width = canvas.width;
+  nebCanvas.height = canvas.height;
+  const nctx = nebCanvas.getContext('2d');
+
+  function renderNebula() {
+    nctx.clearRect(0, 0, nebCanvas.width, nebCanvas.height);
+    const grad1 = nctx.createRadialGradient(140, 80, 10, 140, 80, 200);
+    grad1.addColorStop(0, 'rgba(176, 38, 255, 0.25)');
+    grad1.addColorStop(1, 'transparent');
+    nctx.fillStyle = grad1;
+    nctx.fillRect(0, 0, nebCanvas.width, nebCanvas.height);
+
+    const grad2 = nctx.createRadialGradient(420, 170, 20, 420, 170, 240);
+    grad2.addColorStop(0, 'rgba(0, 255, 204, 0.2)');
+    grad2.addColorStop(1, 'transparent');
+    nctx.fillStyle = grad2;
+    nctx.fillRect(0, 0, nebCanvas.width, nebCanvas.height);
+  }
+  renderNebula();
+
+  let time = 0;
+  function render() {
+    time += 0.02;
+    ctx.fillStyle = '#020408';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw background nebula
+    if (nebulaOpacity > 0.05) {
+      ctx.globalAlpha = nebulaOpacity;
+      ctx.drawImage(nebCanvas, 0, 0);
+      ctx.globalAlpha = 1.0;
+    }
+
+    const rs = bhMass * 0.65; // Schwarzschild radius
+    const rph = rs * 1.5;     // Photon sphere radius
+    const rEinstein = rs * 2.1;
+
+    statRs.textContent = `${rs.toFixed(1)} px`;
+    statRph.textContent = `${rph.toFixed(1)} px`;
+    statDeflect.textContent = `${(4 * (bhMass / 35)).toFixed(2)} rad`;
+    tagEinstein.textContent = `θ_E (Einstein Radius) = ${Math.round(rEinstein)} px`;
+
+    // Relativistic gravitational light deflection of stars
+    stars.forEach(st => {
+      const dx = st.x - bhX;
+      const dy = st.y - bhY;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist < rs * 0.8) {
+        // Trapped within event horizon
+        return;
+      }
+
+      // Einstein gravitational lensing deflection: delta_r = r_Einstein^2 / r
+      const angle = Math.atan2(dy, dx);
+      const lensedDist = dist + (rEinstein * rEinstein) / (dist + 5);
+
+      const lx = bhX + Math.cos(angle) * lensedDist;
+      const ly = bhY + Math.sin(angle) * lensedDist;
+
+      // Draw secondary mirage image on opposite side
+      if (dist < rEinstein * 2.2) {
+        const secondaryDist = Math.max(rs * 1.05, rEinstein * (rEinstein / (dist + 15)));
+        const oppAngle = angle + Math.PI;
+        const sx = bhX + Math.cos(oppAngle) * secondaryDist;
+        const sy = bhY + Math.sin(oppAngle) * secondaryDist;
+
+        ctx.beginPath();
+        ctx.arc(sx, sy, st.r * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = st.color;
+        ctx.globalAlpha = (st.brightness * 0.5) * (secondaryDist / rEinstein);
+        ctx.fill();
+      }
+
+      // Main lensed star
+      ctx.beginPath();
+      ctx.arc(lx, ly, st.r, 0, Math.PI * 2);
+      ctx.fillStyle = st.color;
+      ctx.globalAlpha = st.brightness;
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
+
+    // Draw Glowing Accretion Disk (Doppler Beaming: left side approaching is blue/brighter, right side receding is red/dimmer)
+    if (accretionGlow > 0.05) {
+      ctx.save();
+      ctx.translate(bhX, bhY);
+      ctx.rotate(-0.2);
+
+      // Back half of disk (behind event horizon)
+      const gradAccretion = ctx.createRadialGradient(0, 0, rph, 0, 0, rs * 4.5);
+      gradAccretion.addColorStop(0, 'rgba(0, 255, 204, 0.85)');
+      gradAccretion.addColorStop(0.3, 'rgba(45, 212, 255, 0.6)');
+      gradAccretion.addColorStop(0.7, 'rgba(255, 107, 157, 0.3)');
+      gradAccretion.addColorStop(1, 'transparent');
+
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rs * 4.2, rs * 1.1, 0, 0, Math.PI * 2);
+      ctx.fillStyle = gradAccretion;
+      ctx.fill();
+
+      // Doppler Beaming asymmetry (approaching gas boosted)
+      const gradBeam = ctx.createLinearGradient(-rs * 4, 0, rs * 4, 0);
+      gradBeam.addColorStop(0, 'rgba(0, 255, 204, 0.4)');
+      gradBeam.addColorStop(0.5, 'transparent');
+      gradBeam.addColorStop(1, 'rgba(255, 77, 77, 0.15)');
+      ctx.fillStyle = gradBeam;
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // Event Horizon (Absolute pitch black sphere)
+    ctx.beginPath();
+    ctx.arc(bhX, bhY, rs, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000';
+    ctx.fill();
+
+    // Photon Sphere Thin Glow Ring
+    ctx.beginPath();
+    ctx.arc(bhX, bhY, rph, 0, Math.PI * 2);
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = `rgba(255, 215, 0, ${0.4 + Math.sin(time) * 0.15})`;
+    ctx.stroke();
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of black hole
+  let isDragging = false;
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    canvas.style.cursor = 'grabbing';
+    moveBh(e);
+  });
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    canvas.style.cursor = 'grab';
+  });
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging) moveBh(e);
+  });
+
+  function moveBh(e) {
+    const rect = canvas.getBoundingClientRect();
+    bhX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    bhY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  }
+
+  sMass.addEventListener('input', () => {
+    bhMass = parseFloat(sMass.value);
+    vMass.textContent = `${(bhMass * 0.1).toFixed(1)}M M☉`;
+  });
+
+  sGlow.addEventListener('input', () => {
+    accretionGlow = parseFloat(sGlow.value) / 100;
+    vGlow.textContent = accretionGlow > 0.5 ? 'Relativistic' : 'Dormant';
+  });
+
+  sNebula.addEventListener('input', () => {
+    nebulaOpacity = parseFloat(sNebula.value) / 100;
+    vNebula.textContent = `${sNebula.value}%`;
+  });
+
+  requestAnimationFrame(render);
+})();
+</script>

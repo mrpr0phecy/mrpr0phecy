@@ -1,0 +1,293 @@
+<h2 id="qwt-title" style="margin-top:0;color:var(--accent);">⚛️ Quantum Wave Tunneling</h2>
+
+<form aria-describedby="qwt-desc" onsubmit="event.preventDefault();">
+  <p id="qwt-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Quantum mechanical wavepacket simulator solving the time-dependent Schrödinger equation across an impenetrable classical potential barrier.
+  </p>
+
+  <!-- Quantum Telemetry Dashboard -->
+  <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Transmission (T)</div>
+      <div id="qwt-tel-t" style="font-size:1.1rem;font-weight:bold;color:#00ffcc;font-family:monospace;">14.2%</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Reflection (R)</div>
+      <div id="qwt-tel-r" style="font-size:1.1rem;font-weight:bold;color:#ff3366;font-family:monospace;">85.8%</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Energy Ratio (E/V₀)</div>
+      <div id="qwt-tel-ratio" style="font-size:1.1rem;font-weight:bold;color:#ffd700;font-family:monospace;">0.75</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Regime</div>
+      <div id="qwt-tel-regime" style="font-size:0.85rem;font-weight:bold;color:#c084fc;line-height:26px;">Tunneling (E &lt; V₀)</div>
+    </div>
+  </div>
+
+  <!-- Interactive Wavefunction Canvas -->
+  <div style="background:#03050c;border:1px solid rgba(192,132,252,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="qwt-canvas" width="560" height="220" style="width:100%;height:220px;display:block;background:#020408;border-radius:6px;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span style="color:#c084fc;">■ |Ψ(x)|² Probability Density</span>
+      <span style="color:#2dd4ff;">─ Re[Ψ] Wave Phase</span>
+      <span style="color:#ffd700;">■ Potential Barrier V₀</span>
+    </div>
+  </div>
+
+  <!-- Controls Grid -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;margin-bottom:12px;">
+    <!-- Particle Energy E -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Particle Energy (E)</span>
+        <span id="qwt-val-e">3.0 eV</span>
+      </div>
+      <input type="range" id="qwt-slider-e" min="1.0" max="8.0" step="0.1" value="3.0" style="width:100%;">
+    </div>
+
+    <!-- Barrier Height V0 -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Barrier Height (V₀)</span>
+        <span id="qwt-val-v">4.0 eV</span>
+      </div>
+      <input type="range" id="qwt-slider-v" min="1.0" max="8.0" step="0.1" value="4.0" style="width:100%;">
+    </div>
+
+    <!-- Barrier Width d -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Barrier Thickness</span>
+        <span id="qwt-val-d">28 nm</span>
+      </div>
+      <input type="range" id="qwt-slider-d" min="10" max="60" value="28" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="qwt-btn-fire" style="padding:6px 16px;border-radius:6px;background:rgba(192,132,252,0.25);border:1px solid #c084fc;color:#c084fc;font-size:0.75rem;font-weight:bold;cursor:pointer;">⚡ Launch Wavepacket</button>
+    <button type="button" id="qwt-btn-loop" style="padding:6px 14px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">🔁 Continuous Loop: ON</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('qwt-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sE = document.getElementById('qwt-slider-e');
+  const sV = document.getElementById('qwt-slider-v');
+  const sD = document.getElementById('qwt-slider-d');
+
+  const vE = document.getElementById('qwt-val-e');
+  const vV = document.getElementById('qwt-val-v');
+  const vD = document.getElementById('qwt-val-d');
+
+  const telT = document.getElementById('qwt-tel-t');
+  const telR = document.getElementById('qwt-tel-r');
+  const telRatio = document.getElementById('qwt-tel-ratio');
+  const telRegime = document.getElementById('qwt-tel-regime');
+
+  const btnFire = document.getElementById('qwt-btn-fire');
+  const btnLoop = document.getElementById('qwt-btn-loop');
+
+  let energy = 3.0;
+  let barrierV = 4.0;
+  let barrierWidth = 28;
+  let isLooping = true;
+
+  // Wavepacket state
+  let packetX = 60;
+  let packetSigma = 24;
+  let packetK = Math.sqrt(energy) * 1.2;
+  let time = 0;
+  let transmittedAmp = 0;
+  let reflectedAmp = 0;
+
+  function updateTransmission() {
+    const ratio = energy / barrierV;
+    telRatio.textContent = ratio.toFixed(2);
+
+    let T = 0;
+    if (energy < barrierV) {
+      // Quantum tunneling formula: T = 1 / [1 + (V0^2 sinh^2(k2 * a)) / (4 E (V0 - E))]
+      const k2 = Math.sqrt(barrierV - energy) * 0.12;
+      const sinhVal = Math.sinh(k2 * barrierWidth);
+      const denom = 1 + (Math.pow(barrierV, 2) * Math.pow(sinhVal, 2)) / (4 * energy * (barrierV - energy));
+      T = 1 / denom;
+      telRegime.textContent = 'Tunneling (E < V₀)';
+      telRegime.style.color = '#c084fc';
+    } else if (energy > barrierV) {
+      const k2 = Math.sqrt(energy - barrierV) * 0.12;
+      const sinVal = Math.sin(k2 * barrierWidth);
+      const denom = 1 + (Math.pow(barrierV, 2) * Math.pow(sinVal, 2)) / (4 * energy * (energy - barrierV));
+      T = 1 / denom;
+      telRegime.textContent = 'Classical Pass (E > V₀)';
+      telRegime.style.color = '#00ffcc';
+    } else {
+      T = 0.5;
+      telRegime.textContent = 'Resonance (E = V₀)';
+    }
+
+    T = Math.max(0.001, Math.min(0.999, T));
+    const R = 1.0 - T;
+
+    telT.textContent = (T * 100).toFixed(1) + '%';
+    telR.textContent = (R * 100).toFixed(1) + '%';
+
+    transmittedAmp = Math.sqrt(T);
+    reflectedAmp = Math.sqrt(R);
+  }
+
+  function resetPacket() {
+    packetX = 50;
+    time = 0;
+    updateTransmission();
+  }
+
+  function render() {
+    ctx.fillStyle = '#020408';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const midY = H * 0.65;
+    const barrierX = W * 0.5;
+
+    // Draw Potential Barrier
+    const barH = (barrierV / 8.0) * (H * 0.5);
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.15)';
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.fillRect(barrierX - barrierWidth / 2, midY - barH, barrierWidth, barH);
+    ctx.strokeRect(barrierX - barrierWidth / 2, midY - barH, barrierWidth, barH);
+
+    // Energy level indicator line
+    const eY = midY - (energy / 8.0) * (H * 0.5);
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.4)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(30, eY);
+    ctx.lineTo(W - 30, eY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = '10px monospace';
+    ctx.fillText(`E = ${energy.toFixed(1)} eV`, 35, eY - 4);
+
+    // Draw Wavepacket
+    const barrierLeft = barrierX - barrierWidth / 2;
+    const barrierRight = barrierX + barrierWidth / 2;
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#2dd4ff';
+    ctx.lineWidth = 1.5;
+
+    // Fill for probability density |psi|^2
+    ctx.fillStyle = 'rgba(192, 132, 252, 0.25)';
+    let polyPoints = [];
+
+    for (let x = 0; x < W; x += 2) {
+      let psi = 0;
+      let prob = 0;
+
+      if (packetX < barrierLeft) {
+        // Incident packet approaching barrier
+        const envelope = Math.exp(-Math.pow((x - packetX) / packetSigma, 2));
+        psi = envelope * Math.sin(packetK * (x - packetX) - time * 6);
+        prob = envelope * envelope;
+      } else {
+        // After interaction: split into reflected (moving left) and transmitted (moving right)
+        const distPast = packetX - barrierLeft;
+        const refCenter = barrierLeft - distPast;
+        const transCenter = barrierRight + distPast;
+
+        const envRef = Math.exp(-Math.pow((x - refCenter) / packetSigma, 2));
+        const envTrans = Math.exp(-Math.pow((x - transCenter) / packetSigma, 2));
+
+        const psiRef = reflectedAmp * envRef * Math.sin(-packetK * (x - refCenter) - time * 6);
+        const psiTrans = transmittedAmp * envTrans * Math.sin(packetK * (x - transCenter) - time * 6);
+
+        psi = (x < barrierLeft ? psiRef : 0) + (x > barrierRight ? psiTrans : 0);
+        prob = Math.pow(x < barrierLeft ? reflectedAmp * envRef : (x > barrierRight ? transmittedAmp * envTrans : 0), 2);
+      }
+
+      const yWave = midY - psi * 45;
+      const yProb = midY - prob * 55;
+
+      if (x === 0) {
+        ctx.moveTo(x, yWave);
+      } else {
+        ctx.lineTo(x, yWave);
+      }
+      polyPoints.push({ x, y: yProb });
+    }
+    ctx.stroke();
+
+    // Fill probability density area
+    if (polyPoints.length > 0) {
+      ctx.beginPath();
+      ctx.moveTo(polyPoints[0].x, midY);
+      for (const p of polyPoints) {
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.lineTo(polyPoints[polyPoints.length - 1].x, midY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Baseline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, midY);
+    ctx.lineTo(W, midY);
+    ctx.stroke();
+
+    // Advance packet
+    packetX += 1.8;
+    time += 0.05;
+
+    if (packetX > W + 80) {
+      if (isLooping) {
+        resetPacket();
+      }
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  sE.addEventListener('input', () => {
+    energy = parseFloat(sE.value);
+    vE.textContent = `${energy.toFixed(1)} eV`;
+    packetK = Math.sqrt(energy) * 1.2;
+    updateTransmission();
+  });
+
+  sV.addEventListener('input', () => {
+    barrierV = parseFloat(sV.value);
+    vV.textContent = `${barrierV.toFixed(1)} eV`;
+    updateTransmission();
+  });
+
+  sD.addEventListener('input', () => {
+    barrierWidth = parseInt(sD.value, 10);
+    vD.textContent = `${barrierWidth} nm`;
+    updateTransmission();
+  });
+
+  btnFire.addEventListener('click', resetPacket);
+
+  btnLoop.addEventListener('click', () => {
+    isLooping = !isLooping;
+    btnLoop.textContent = isLooping ? '🔁 Continuous Loop: ON' : '⏸ Loop: OFF';
+  });
+
+  resetPacket();
+  requestAnimationFrame(render);
+})();
+</script>

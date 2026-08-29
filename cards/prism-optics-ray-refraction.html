@@ -1,0 +1,271 @@
+<h2 id="por-title" style="margin-top:0;color:var(--accent);">🌈 Prism Optics &amp; Snell's Law</h2>
+
+<form aria-describedby="por-desc" onsubmit="event.preventDefault();">
+  <p id="por-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Interactive optical bench simulating chromatic dispersion, Snell's law refraction, and total internal reflection (TIR) through a triangular prism.
+  </p>
+
+  <!-- Material & Mode Selector -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="por-mat-btn active" data-b="1.51" data-c="0.0042" data-name="Crown Glass" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Crown Glass (n≈1.52)</button>
+    <button type="button" class="por-mat-btn" data-b="1.62" data-c="0.013" data-name="Flint Glass" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Dense Flint Glass (n≈1.66)</button>
+    <button type="button" class="por-mat-btn" data-b="2.40" data-c="0.018" data-name="Diamond" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Diamond (n≈2.42)</button>
+    <button type="button" class="por-mat-btn" data-b="1.33" data-c="0.003" data-name="Water" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Water Prism (n≈1.33)</button>
+  </div>
+
+  <!-- Optical Bench Canvas -->
+  <div style="background:#020509;border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="por-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#010307;border-radius:6px;cursor:ns-resize;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>DRAG VERTICALLY TO ADJUST INCIDENT RAY HEIGHT</span>
+      <span id="por-tir-flag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Refraction Mode</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Row -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Critical Angle (θc)</div>
+      <div id="por-tel-crit" style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">41.1°</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Angular Dispersion (Δθ)</div>
+      <div id="por-tel-disp" style="font-size:0.95rem;font-weight:bold;color:#ff3366;font-family:monospace;">2.4°</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Current Material</div>
+      <div id="por-tel-mat" style="font-size:0.95rem;font-weight:bold;color:#2dd4ff;">Crown Glass</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Incident Angle (θ₁)</span>
+        <span id="por-val-angle">48°</span>
+      </div>
+      <input type="range" id="por-slider-angle" min="15" max="75" value="48" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Prism Apex Angle (A)</span>
+        <span id="por-val-apex">60°</span>
+      </div>
+      <input type="range" id="por-slider-apex" min="40" max="70" value="60" style="width:100%;">
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('por-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sAngle = document.getElementById('por-slider-angle');
+  const sApex = document.getElementById('por-slider-apex');
+  const vAngle = document.getElementById('por-val-angle');
+  const vApex = document.getElementById('por-val-apex');
+
+  const telCrit = document.getElementById('por-tel-crit');
+  const telDisp = document.getElementById('por-tel-disp');
+  const telMat = document.getElementById('por-tel-mat');
+  const tirFlag = document.getElementById('por-tir-flag');
+
+  let cauchyB = 1.51;
+  let cauchyC = 0.0042;
+  let matName = 'Crown Glass';
+  let incidentDeg = 48;
+  let apexDeg = 60;
+  let rayY = 120;
+
+  // Discrete spectrum wavelengths (Red to Violet)
+  const spectrum = [
+    { name: 'Red',    wl: 0.680, color: '#ff2a2a' },
+    { name: 'Orange', wl: 0.600, color: '#ff8800' },
+    { name: 'Yellow', wl: 0.570, color: '#ffee00' },
+    { name: 'Green',  wl: 0.520, color: '#00ff66' },
+    { name: 'Cyan',   wl: 0.490, color: '#00eeff' },
+    { name: 'Blue',   wl: 0.450, color: '#2a55ff' },
+    { name: 'Violet', wl: 0.405, color: '#9933ff' }
+  ];
+
+  function getRefractiveIndex(wlMicrons) {
+    return cauchyB + (cauchyC / (wlMicrons * wlMicrons));
+  }
+
+  function render() {
+    ctx.fillStyle = '#010307';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W * 0.48;
+    const cy = H * 0.52;
+
+    // Calculate equilateral / isosceles prism vertices
+    const prismSide = 170;
+    const halfApex = (apexDeg * Math.PI / 180) / 2;
+    const topX = cx;
+    const topY = cy - (prismSide * Math.cos(halfApex)) / 1.5;
+
+    const baseHalfW = prismSide * Math.sin(halfApex);
+    const baseH = prismSide * Math.cos(halfApex);
+    const leftX = topX - baseHalfW;
+    const leftY = topY + baseH;
+    const rightX = topX + baseHalfW;
+    const rightY = leftY;
+
+    // Draw Glass Prism Body
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(topX, topY);
+    ctx.lineTo(leftX, leftY);
+    ctx.lineTo(rightX, rightY);
+    ctx.closePath();
+
+    const grad = ctx.createLinearGradient(leftX, topY, rightX, leftY);
+    grad.addColorStop(0, 'rgba(45, 212, 255, 0.08)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0.15)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    // Critical Angle calculation for base index
+    const baseN = getRefractiveIndex(0.550);
+    const critAngle = Math.asin(1.0 / baseN) * (180 / Math.PI);
+    telCrit.textContent = `${critAngle.toFixed(1)}°`;
+
+    // Incoming White Beam
+    const inStartX = 20;
+    const faceNormalAngle = Math.atan2(leftY - topY, leftX - topX) + Math.PI / 2;
+    const hitX = (topX + leftX) / 2 + (rayY - 120) * 0.5;
+    const hitY = (topY + leftY) / 2 + (rayY - 120);
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(inStartX, hitY - Math.tan((incidentDeg - 45) * Math.PI / 180) * (hitX - inStartX));
+    ctx.lineTo(hitX, hitY);
+    ctx.stroke();
+
+    // Trace each wavelength through Snell's Law at both faces
+    let minExitAngle = 0;
+    let maxExitAngle = 0;
+    let anyTIR = false;
+
+    spectrum.forEach((band, idx) => {
+      const n = getRefractiveIndex(band.wl);
+
+      // Snell's Law 1: Air (n=1) -> Glass (n)
+      const theta1 = (incidentDeg * Math.PI / 180);
+      const sinTheta2 = Math.sin(theta1) / n;
+      if (Math.abs(sinTheta2) > 1) return;
+      const theta2 = Math.asin(sinTheta2);
+
+      // Ray inside prism
+      const apexRad = apexDeg * Math.PI / 180;
+      const theta3 = apexRad - theta2;
+      const sinTheta4 = n * Math.sin(theta3);
+
+      const face2HitX = (topX + rightX) / 2 + (idx - 3) * 3;
+      const face2HitY = (topY + rightY) / 2 + (theta2 * 20);
+
+      // Internal ray path
+      ctx.strokeStyle = band.color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(hitX, hitY);
+      ctx.lineTo(face2HitX, face2HitY);
+      ctx.stroke();
+
+      // Exit ray
+      if (Math.abs(sinTheta4) <= 1.0) {
+        const theta4 = Math.asin(sinTheta4);
+        if (idx === 0) minExitAngle = theta4;
+        if (idx === spectrum.length - 1) maxExitAngle = theta4;
+
+        const exitLen = 170;
+        const exitEndX = face2HitX + exitLen * Math.cos(theta4 - 0.2);
+        const exitEndY = face2HitY + exitLen * Math.sin(theta4 - 0.2);
+
+        ctx.beginPath();
+        ctx.moveTo(face2HitX, face2HitY);
+        ctx.lineTo(exitEndX, exitEndY);
+        ctx.stroke();
+      } else {
+        anyTIR = true;
+        // Total Internal Reflection
+        ctx.beginPath();
+        ctx.moveTo(face2HitX, face2HitY);
+        ctx.lineTo(face2HitX - 60, face2HitY + 70);
+        ctx.stroke();
+      }
+    });
+
+    if (anyTIR) {
+      tirFlag.textContent = '⚠️ Total Internal Reflection (TIR)';
+      tirFlag.style.color = '#ffd700';
+    } else {
+      tirFlag.textContent = '🌈 Multi-Wavelength Dispersion Active';
+      tirFlag.style.color = '#00ffcc';
+    }
+
+    const deltaDisp = Math.abs((maxExitAngle - minExitAngle) * (180 / Math.PI));
+    telDisp.textContent = `${deltaDisp.toFixed(2)}°`;
+  }
+
+  // Interactive beam height dragging
+  let isDragging = false;
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      const rect = canvas.getBoundingClientRect();
+      rayY = Math.max(70, Math.min(180, e.clientY - rect.top));
+      render();
+    }
+  });
+
+  sAngle.addEventListener('input', () => {
+    incidentDeg = parseInt(sAngle.value, 10);
+    vAngle.textContent = `${incidentDeg}°`;
+    render();
+  });
+
+  sApex.addEventListener('input', () => {
+    apexDeg = parseInt(sApex.value, 10);
+    vApex.textContent = `${apexDeg}°`;
+    render();
+  });
+
+  document.querySelectorAll('.por-mat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.por-mat-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      cauchyB = parseFloat(btn.dataset.b);
+      cauchyC = parseFloat(btn.dataset.c);
+      matName = btn.dataset.name;
+      telMat.textContent = matName;
+      render();
+    });
+  });
+
+  render();
+})();
+</script>

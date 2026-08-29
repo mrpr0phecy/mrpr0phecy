@@ -1,0 +1,249 @@
+<h2 id="rdt-title" style="margin-top:0;color:var(--accent);">🐆 Turing Reaction Diffusion</h2>
+
+<form aria-describedby="rdt-desc" onsubmit="event.preventDefault();">
+  <p id="rdt-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Alan Turing's 1952 morphogenesis simulator. Nonlinear chemical reaction-diffusion equations generating biological spots, stripes, and coral textures.
+  </p>
+
+  <!-- Biological Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="rdt-preset-btn active" data-f="0.035" data-k="0.065" style="padding:4px 10px;border-radius:4px;background:rgba(255,215,0,0.2);border:1px solid #ffd700;color:#ffd700;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Leopard Spots</button>
+    <button type="button" class="rdt-preset-btn" data-f="0.042" data-k="0.059" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Zebra Stripes</button>
+    <button type="button" class="rdt-preset-btn" data-f="0.029" data-k="0.057" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Brain Coral</button>
+    <button type="button" class="rdt-preset-btn" data-f="0.030" data-k="0.062" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Cell Mitosis</button>
+    <button type="button" class="rdt-preset-btn" data-f="0.014" data-k="0.054" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Soliton Waves</button>
+  </div>
+
+  <!-- Morphogenesis Canvas -->
+  <div style="background:#02050a;border:1px solid rgba(255,215,0,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="rdt-canvas" width="160" height="90" style="width:100%;height:220px;display:block;background:#000;border-radius:6px;image-rendering:pixelated;cursor:crosshair;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG TO INJECT CHEMICAL ACTIVATOR (V)</span>
+      <span id="rdt-status" style="color:#ffd700;font-family:monospace;">Simulating Gray-Scott PDE</span>
+    </div>
+  </div>
+
+  <!-- Parameters Sliders Grid -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <!-- Feed Rate F -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Feed Rate (F)</span>
+        <span id="rdt-val-f">0.0350</span>
+      </div>
+      <input type="range" id="rdt-slider-f" min="0.010" max="0.080" step="0.001" value="0.035" style="width:100%;">
+    </div>
+
+    <!-- Kill Rate K -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Kill Rate (k)</span>
+        <span id="rdt-val-k">0.0650</span>
+      </div>
+      <input type="range" id="rdt-slider-k" min="0.045" max="0.070" step="0.001" value="0.065" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="rdt-btn-seed" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">🌱 Random Seed</button>
+      <button type="button" id="rdt-btn-toggle" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">⏸ Pause</button>
+    </div>
+    <button type="button" id="rdt-btn-clear" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Clear Mesh</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('rdt-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = 160;
+  const H = 90;
+  canvas.width = W;
+  canvas.height = H;
+
+  const sF = document.getElementById('rdt-slider-f');
+  const sK = document.getElementById('rdt-slider-k');
+  const vF = document.getElementById('rdt-val-f');
+  const vK = document.getElementById('rdt-val-k');
+
+  const btnSeed = document.getElementById('rdt-btn-seed');
+  const btnToggle = document.getElementById('rdt-btn-toggle');
+  const btnClear = document.getElementById('rdt-btn-clear');
+
+  let F = 0.035;
+  let K = 0.065;
+  const Da = 1.0;
+  const Db = 0.5;
+
+  let u = new Float32Array(W * H);
+  let v = new Float32Array(W * H);
+  let nextU = new Float32Array(W * H);
+  let nextV = new Float32Array(W * H);
+
+  let isRunning = true;
+  let imgData = ctx.createImageData(W, H);
+
+  function resetGrid() {
+    for (let i = 0; i < W * H; i++) {
+      u[i] = 1.0;
+      v[i] = 0.0;
+    }
+  }
+
+  function seedRandom() {
+    resetGrid();
+    for (let s = 0; s < 12; s++) {
+      const cx = Math.floor(Math.random() * (W - 20)) + 10;
+      const cy = Math.floor(Math.random() * (H - 20)) + 10;
+      const r = Math.floor(Math.random() * 5) + 3;
+      for (let y = cy - r; y <= cy + r; y++) {
+        for (let x = cx - r; x <= cx + r; x++) {
+          if (x >= 0 && x < W && y >= 0 && y < H) {
+            const idx = y * W + x;
+            v[idx] = 1.0;
+            u[idx] = 0.5;
+          }
+        }
+      }
+    }
+  }
+
+  function stepSim() {
+    for (let y = 0; y < H; y++) {
+      const yUp = ((y - 1 + H) % H) * W;
+      const yMid = y * W;
+      const yDown = ((y + 1) % H) * W;
+
+      for (let x = 0; x < W; x++) {
+        const xLeft = (x - 1 + W) % W;
+        const xRight = (x + 1) % W;
+        const idx = yMid + x;
+
+        const uVal = u[idx];
+        const vVal = v[idx];
+
+        // Laplacian 5-point stencil
+        const lapU = u[yUp + x] + u[yDown + x] + u[yMid + xLeft] + u[yMid + xRight] - 4 * uVal;
+        const lapV = v[yUp + x] + v[yDown + x] + v[yMid + xLeft] + v[yMid + xRight] - 4 * vVal;
+
+        const uvv = uVal * vVal * vVal;
+
+        nextU[idx] = uVal + (Da * lapU - uvv + F * (1.0 - uVal));
+        nextV[idx] = vVal + (Db * lapV + uvv - (F + K) * vVal);
+      }
+    }
+
+    // Swap buffers
+    let temp = u; u = nextU; nextU = temp;
+    temp = v; v = nextV; nextV = temp;
+  }
+
+  function render() {
+    const data = imgData.data;
+    for (let i = 0; i < W * H; i++) {
+      const val = v[i];
+      const p = i * 4;
+
+      // Color mapping: gold/amber for high V (activator), deep navy/black for inhibitor
+      const c = Math.min(Math.max(val * 3.5, 0), 1);
+      data[p] = Math.floor(c * 255);       // R
+      data[p + 1] = Math.floor(c * 190);   // G
+      data[p + 2] = Math.floor((1 - c) * 70); // B
+      data[p + 3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  function loop() {
+    if (isRunning) {
+      for (let i = 0; i < 8; i++) {
+        stepSim();
+      }
+      render();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // Interactive drawing of activator
+  let isDrawing = false;
+  function injectAt(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
+    const cx = Math.floor((e.clientX - rect.left) * scaleX);
+    const cy = Math.floor((e.clientY - rect.top) * scaleY);
+
+    const r = 4;
+    for (let y = cy - r; y <= cy + r; y++) {
+      for (let x = cx - r; x <= cx + r; x++) {
+        if (x >= 0 && x < W && y >= 0 && y < H) {
+          const idx = y * W + x;
+          v[idx] = 0.9;
+          u[idx] = 0.3;
+        }
+      }
+    }
+    if (!isRunning) render();
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    isDrawing = true;
+    injectAt(e);
+  });
+  window.addEventListener('mouseup', () => { isDrawing = false; });
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDrawing) injectAt(e);
+  });
+
+  sF.addEventListener('input', () => {
+    F = parseFloat(sF.value);
+    vF.textContent = F.toFixed(4);
+  });
+
+  sK.addEventListener('input', () => {
+    K = parseFloat(sK.value);
+    vK.textContent = K.toFixed(4);
+  });
+
+  document.querySelectorAll('.rdt-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.rdt-preset-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(255,215,0,0.2)';
+      btn.style.borderColor = '#ffd700';
+      btn.style.color = '#ffd700';
+
+      F = parseFloat(btn.dataset.f);
+      K = parseFloat(btn.dataset.k);
+      sF.value = F;
+      sK.value = K;
+      vF.textContent = F.toFixed(4);
+      vK.textContent = K.toFixed(4);
+      seedRandom();
+    });
+  });
+
+  btnSeed.addEventListener('click', seedRandom);
+
+  btnToggle.addEventListener('click', () => {
+    isRunning = !isRunning;
+    btnToggle.textContent = isRunning ? '⏸ Pause' : '▶ Resume';
+  });
+
+  btnClear.addEventListener('click', () => {
+    resetGrid();
+    render();
+  });
+
+  seedRandom();
+  requestAnimationFrame(loop);
+})();
+</script>

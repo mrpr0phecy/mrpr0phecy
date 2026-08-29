@@ -1,0 +1,274 @@
+<h2 id="css-title" style="margin-top:0;color:var(--accent);">🔉 3D Cymatic Sound Sculpture</h2>
+
+<form aria-describedby="css-desc" onsubmit="event.preventDefault();">
+  <p id="css-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Acoustic resonance installation. Granular silica particles migrate across a vibrating resonant Chladni plate into standing wave geometric nodal lines.
+  </p>
+
+  <!-- Modal Frequency Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="css-mode-btn active" data-n="1" data-m="3" data-freq="432" style="padding:4px 10px;border-radius:4px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Mode (1,3) 432 Hz</button>
+    <button type="button" class="css-mode-btn" data-n="2" data-m="2" data-freq="528" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Mode (2,2) 528 Hz</button>
+    <button type="button" class="css-mode-btn" data-n="3" data-m="5" data-freq="1080" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Mode (3,5) 1080 Hz</button>
+    <button type="button" class="css-mode-btn" data-n="4" data-m="4" data-freq="1720" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Mode (4,4) 1720 Hz</button>
+    <button type="button" class="css-mode-btn" data-n="6" data-m="2" data-freq="2400" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Mode (6,2) 2400 Hz</button>
+  </div>
+
+  <!-- Chladni Resonant Plate Canvas -->
+  <div style="background:#02050b;border:1px solid rgba(0,255,204,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="css-canvas" width="560" height="250" style="width:100%;height:250px;display:block;background:#010307;border-radius:6px;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span id="css-nodal-tag" style="color:#00ffcc;font-family:monospace;">Chladni Resonator: f = 432 Hz</span>
+      <span style="color:var(--muted);">1,200 Active Silica Granules</span>
+    </div>
+  </div>
+
+  <!-- Parameter Sliders Grid -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <!-- Frequency Slider -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Excitation Frequency</span>
+        <span id="css-val-freq">432 Hz</span>
+      </div>
+      <input type="range" id="css-slider-freq" min="100" max="3000" step="10" value="432" style="width:100%;">
+    </div>
+
+    <!-- Vibration Amplitude -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Vibration Intensity</span>
+        <span id="css-val-amp">1.50x</span>
+      </div>
+      <input type="range" id="css-slider-amp" min="0.5" max="3.0" step="0.1" value="1.5" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar with Tone Synthesizer Toggle -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="css-btn-sound" style="padding:6px 14px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">🔈 Audio Tone: OFF</button>
+      <button type="button" id="css-btn-scatter" style="padding:6px 14px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;">✨ Scatter Particles</button>
+    </div>
+    <button type="button" id="css-btn-freeze" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Freeze Motion</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('css-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sFreq = document.getElementById('css-slider-freq');
+  const sAmp = document.getElementById('css-slider-amp');
+  const vFreq = document.getElementById('css-val-freq');
+  const vAmp = document.getElementById('css-val-amp');
+
+  const nodalTag = document.getElementById('css-nodal-tag');
+  const btnSound = document.getElementById('css-btn-sound');
+  const btnScatter = document.getElementById('css-btn-scatter');
+  const btnFreeze = document.getElementById('css-btn-freeze');
+
+  let modeN = 1;
+  let modeM = 3;
+  let frequency = 432;
+  let vibrationAmp = 1.5;
+  let isFrozen = false;
+
+  // Web Audio state
+  let audioCtx = null;
+  let oscNode = null;
+  let gainNode = null;
+  let isSoundOn = false;
+
+  // Particle Simulation
+  const PARTICLE_COUNT = 1200;
+  const particles = [];
+  const plateSize = 220;
+
+  function initParticles() {
+    particles.length = 0;
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push({
+        x: (Math.random() - 0.5) * plateSize * 0.95,
+        y: (Math.random() - 0.5) * plateSize * 0.95,
+        vx: 0,
+        vy: 0
+      });
+    }
+  }
+
+  // Chladni displacement formula: w(x,y) = a sin(n pi x/L) sin(m pi y/L) - b sin(m pi x/L) sin(n pi y/L)
+  function chladni(x, y) {
+    const nx = (x / (plateSize / 2)) * (Math.PI / 2);
+    const ny = (y / (plateSize / 2)) * (Math.PI / 2);
+    return Math.sin(modeN * nx) * Math.sin(modeM * ny) - Math.sin(modeM * nx) * Math.sin(modeN * ny);
+  }
+
+  function startAudio() {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      oscNode = audioCtx.createOscillator();
+      gainNode = audioCtx.createGain();
+
+      oscNode.type = 'sine';
+      oscNode.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+
+      oscNode.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscNode.start();
+      isSoundOn = true;
+      btnSound.textContent = '🔊 Audio Tone: ON';
+      btnSound.style.borderColor = '#00ffcc';
+      btnSound.style.color = '#00ffcc';
+    } catch(e) {
+      console.warn(e);
+    }
+  }
+
+  function stopAudio() {
+    if (oscNode) {
+      try {
+        oscNode.stop();
+        oscNode.disconnect();
+      } catch(e) {}
+    }
+    if (audioCtx) {
+      try { audioCtx.close(); } catch(e) {}
+    }
+    audioCtx = null;
+    oscNode = null;
+    isSoundOn = false;
+    btnSound.textContent = '🔈 Audio Tone: OFF';
+    btnSound.style.borderColor = 'rgba(255,255,255,0.15)';
+    btnSound.style.color = '#fff';
+  }
+
+  function render() {
+    ctx.fillStyle = '#010307';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    // Resonant Plate outline (Metallic Square)
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.4)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - plateSize / 2, cy - plateSize / 2, plateSize, plateSize);
+
+    // Plate background gradient
+    const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, plateSize / 1.4);
+    grad.addColorStop(0, '#0c1a24');
+    grad.addColorStop(1, '#02070d');
+    ctx.fillStyle = grad;
+    ctx.fillRect(cx - plateSize / 2, cy - plateSize / 2, plateSize, plateSize);
+
+    // Update and draw particles
+    ctx.fillStyle = '#ffd700';
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = '#ffd700';
+
+    const half = plateSize / 2;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+
+      if (!isFrozen) {
+        // Evaluate vibration intensity at current position
+        const val = Math.abs(chladni(p.x, p.y));
+
+        // Particles are kicked off antinodes (high vibration) towards nodes (zero vibration)
+        // Numerical gradient
+        const eps = 1.0;
+        const dx = (Math.abs(chladni(p.x + eps, p.y)) - Math.abs(chladni(p.x - eps, p.y))) / (2 * eps);
+        const dy = (Math.abs(chladni(p.x, p.y + eps)) - Math.abs(chladni(p.x, p.y - eps))) / (2 * eps);
+
+        // Force directed downhill towards nodal line
+        const kick = val * vibrationAmp * 2.2;
+        p.vx = (p.vx - dx * kick + (Math.random() - 0.5) * val * 0.8) * 0.85;
+        p.vy = (p.vy - dy * kick + (Math.random() - 0.5) * val * 0.8) * 0.85;
+
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Boundary reflection
+        if (p.x < -half + 2) { p.x = -half + 2; p.vx *= -0.5; }
+        if (p.x > half - 2) { p.x = half - 2; p.vx *= -0.5; }
+        if (p.y < -half + 2) { p.y = -half + 2; p.vy *= -0.5; }
+        if (p.y > half - 2) { p.y = half - 2; p.vy *= -0.5; }
+      }
+
+      ctx.fillRect(cx + p.x, cy + p.y, 1.6, 1.6);
+    }
+    ctx.shadowBlur = 0;
+
+    requestAnimationFrame(render);
+  }
+
+  sFreq.addEventListener('input', () => {
+    frequency = parseInt(sFreq.value, 10);
+    vFreq.textContent = `${frequency} Hz`;
+    nodalTag.textContent = `Chladni Resonator: f = ${frequency} Hz`;
+
+    // Map frequency to modal numbers
+    modeN = Math.max(1, Math.floor(frequency / 350));
+    modeM = Math.max(1, Math.floor((frequency % 500) / 100) + 1);
+
+    if (isSoundOn && oscNode && audioCtx) {
+      oscNode.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+    }
+  });
+
+  sAmp.addEventListener('input', () => {
+    vibrationAmp = parseFloat(sAmp.value);
+    vAmp.textContent = `${vibrationAmp.toFixed(2)}x`;
+  });
+
+  document.querySelectorAll('.css-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.css-mode-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(0,255,204,0.2)';
+      btn.style.borderColor = '#00ffcc';
+      btn.style.color = '#00ffcc';
+
+      modeN = parseInt(btn.dataset.n, 10);
+      modeM = parseInt(btn.dataset.m, 10);
+      frequency = parseInt(btn.dataset.freq, 10);
+
+      sFreq.value = frequency;
+      vFreq.textContent = `${frequency} Hz`;
+      nodalTag.textContent = `Chladni Mode (${modeN},${modeM}) @ ${frequency} Hz`;
+
+      if (isSoundOn && oscNode && audioCtx) {
+        oscNode.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+      }
+    });
+  });
+
+  btnSound.addEventListener('click', () => {
+    if (isSoundOn) {
+      stopAudio();
+    } else {
+      startAudio();
+    }
+  });
+
+  btnScatter.addEventListener('click', initParticles);
+
+  btnFreeze.addEventListener('click', () => {
+    isFrozen = !isFrozen;
+    btnFreeze.textContent = isFrozen ? 'Resume Vibration' : 'Freeze Motion';
+  });
+
+  initParticles();
+  requestAnimationFrame(render);
+})();
+</script>

@@ -1,0 +1,381 @@
+<h2 id="fst-title" style="margin-top:0;color:var(--accent);">🌪️ Fluid Smoke Tunnel</h2>
+
+<form aria-describedby="fst-desc" onsubmit="event.preventDefault();">
+  <p id="fst-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Aerodynamic wind tunnel museum exhibit. Visualize laminar airflow, von Kármán vortex shedding, and lift/drag forces around aerodynamic obstacles.
+  </p>
+
+  <!-- Obstacle Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="fst-obs-btn active" data-obs="cylinder" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Cylinder (Vortex Street)</button>
+    <button type="button" class="fst-obs-btn" data-obs="airfoil" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">NACA Airfoil (Wing)</button>
+    <button type="button" class="fst-obs-btn" data-obs="plate" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Flat Plate (High Drag)</button>
+    <button type="button" class="fst-obs-btn" data-obs="sphere" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Sphere (Ball)</button>
+  </div>
+
+  <!-- Interactive Wind Tunnel Canvas -->
+  <div style="background:#04070b;border:1px solid rgba(45,212,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;position:relative;">
+    <canvas id="fst-canvas" width="600" height="240" style="width:100%;height:240px;display:block;background:#050a10;border-radius:6px;cursor:crosshair;"></canvas>
+    
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK/DRAG TO INJECT SMOKE DYE STREAMLINES</span>
+      <span id="fst-reynolds-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Re ≈ 1,420 (Turbulent Wake)</span>
+    </div>
+  </div>
+
+  <!-- Real-Time Aerodynamic Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:12px;background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);font-size:0.72rem;text-align:center;">
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">LIFT FORCE (C_L)</div>
+      <strong id="fst-stat-lift" style="color:#00ffcc;font-family:monospace;">+0.12</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">DRAG FORCE (C_D)</div>
+      <strong id="fst-stat-drag" style="color:#ff6b6b;font-family:monospace;">0.84</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">FLOW VELOCITY</div>
+      <strong id="fst-stat-vel" style="color:#2dd4ff;font-family:monospace;">32.0 m/s</strong>
+    </div>
+    <div>
+      <div style="color:var(--muted);font-size:0.65rem;">ACTIVE PARTICLES</div>
+      <strong id="fst-stat-particles" style="color:#ffd700;font-family:monospace;">600</strong>
+    </div>
+  </div>
+
+  <!-- Wind Tunnel Controls -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+    <!-- Speed -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Wind Speed</span>
+        <span id="fst-val-speed">32 m/s</span>
+      </div>
+      <input type="range" id="fst-slider-speed" min="5" max="60" value="32" style="width:100%;">
+    </div>
+
+    <!-- Angle of Attack -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Angle of Attack</span>
+        <span id="fst-val-aoa">8°</span>
+      </div>
+      <input type="range" id="fst-slider-aoa" min="-25" max="25" value="8" style="width:100%;">
+    </div>
+
+    <!-- Smoke Density -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Smoke Lines</span>
+        <span id="fst-val-smoke">18 Lines</span>
+      </div>
+      <input type="range" id="fst-slider-smoke" min="8" max="32" value="18" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Exhibit Physics Explainer -->
+  <div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;font-size:0.72rem;color:var(--muted);line-height:1.4;">
+    🌪️ <strong>Von Kármán Vortex Street:</strong> As fluid flows past a blunt body at critical Reynolds numbers, alternating vortices peel off from opposite sides of the obstacle in periodic oscillation. This causes periodic lift oscillations responsible for singing power cables, flutter in bridges, and aircraft turbulence.
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('fst-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sSpeed = document.getElementById('fst-slider-speed');
+  const sAoa = document.getElementById('fst-slider-aoa');
+  const sSmoke = document.getElementById('fst-slider-smoke');
+
+  const vSpeed = document.getElementById('fst-val-speed');
+  const vAoa = document.getElementById('fst-val-aoa');
+  const vSmoke = document.getElementById('fst-val-smoke');
+
+  const statLift = document.getElementById('fst-stat-lift');
+  const statDrag = document.getElementById('fst-stat-drag');
+  const statVel = document.getElementById('fst-stat-vel');
+  const statParticles = document.getElementById('fst-stat-particles');
+  const reynoldsTag = document.getElementById('fst-reynolds-tag');
+
+  let obstacleType = 'cylinder';
+  let flowSpeed = 32;
+  let angleOfAttack = 8 * (Math.PI / 180);
+  let smokeLinesCount = 18;
+
+  // Particle Tracers System
+  const MAX_PARTICLES = 650;
+  const particles = [];
+
+  class SmokeParticle {
+    constructor(isCustom = false, cx = 0, cy = 0) {
+      this.reset(isCustom, cx, cy);
+    }
+
+    reset(isCustom = false, cx = 0, cy = 0) {
+      if (isCustom) {
+        this.x = cx;
+        this.y = cy;
+      } else {
+        this.x = Math.random() * -30;
+        // Evenly distributed streamline lanes
+        const lane = Math.floor(Math.random() * smokeLinesCount);
+        this.y = 20 + (lane / (smokeLinesCount - 1 || 1)) * (canvas.height - 40) + (Math.random() - 0.5) * 4;
+      }
+      this.vx = flowSpeed * 0.1;
+      this.vy = 0;
+      this.history = [];
+      this.maxHistory = 14;
+      this.color = Math.random() > 0.85 ? '#00ffcc' : (Math.random() > 0.5 ? '#2dd4ff' : '#ffffff');
+      this.opacity = 0.5 + Math.random() * 0.4;
+      this.age = 0;
+    }
+
+    update(time) {
+      this.age++;
+      this.history.push({ x: this.x, y: this.y });
+      if (this.history.length > this.maxHistory) this.history.shift();
+
+      // Fluid Obstacle deflection physics
+      const obsX = canvas.width * 0.42;
+      const obsY = canvas.height * 0.5;
+      const dx = this.x - obsX;
+      const dy = this.y - obsY;
+      const dist = Math.hypot(dx, dy);
+
+      let targetVx = flowSpeed * 0.08;
+      let targetVy = 0;
+
+      if (obstacleType === 'cylinder' || obstacleType === 'sphere') {
+        const radius = 32;
+        if (dist < radius + 8) {
+          // Boundary layer deflection
+          const angle = Math.atan2(dy, dx);
+          this.x = obsX + Math.cos(angle) * (radius + 9);
+          this.y = obsY + Math.sin(angle) * (radius + 9);
+          targetVy = Math.sin(angle) * flowSpeed * 0.08;
+        } else if (dist < radius * 3.5) {
+          // Potential flow dipole field
+          const dipoleFactor = (radius * radius) / (dist * dist);
+          targetVy += -Math.sin(2 * Math.atan2(dy, dx)) * dipoleFactor * 2.5;
+        }
+
+        // Von Kármán vortex shedding wake behind obstacle
+        if (dx > radius && dx < 280 && Math.abs(dy) < radius * 2.2) {
+          const wakePhase = (dx * 0.04) - (time * 0.008 * flowSpeed);
+          const vortexStrength = Math.sin(wakePhase) * (dx * 0.03);
+          targetVy += vortexStrength;
+        }
+      } else if (obstacleType === 'airfoil') {
+        // NACA 0012 camber deflection
+        const chord = 80;
+        if (dx > -chord/2 && dx < chord/2 && Math.abs(dy) < 30) {
+          // Rotate coordinates along AoA
+          const rotY = dy * Math.cos(-angleOfAttack) - dx * Math.sin(-angleOfAttack);
+          if (rotY > -14 && rotY < 14) {
+            this.y += rotY > 0 ? 2.5 : -2.5;
+          }
+          // Downwash causing Lift
+          targetVy += Math.sin(angleOfAttack) * 2.2;
+          targetVx *= (1 + (rotY > 0 ? 0.2 : -0.1)); // Bernoulli speed difference
+        }
+      } else if (obstacleType === 'plate') {
+        // Flat plate obstruction (massive turbulent recirculation zone)
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 45) {
+          this.x = obsX - 9;
+          targetVy = (dy > 0 ? 1 : -1) * 3;
+        } else if (dx > 0 && dx < 220 && Math.abs(dy) < 55) {
+          // Large turbulent wake
+          targetVy += (Math.random() - 0.5) * 3 + Math.sin(dx * 0.06 - time * 0.02) * 2;
+          targetVx *= 0.5;
+        }
+      }
+
+      this.vx += (targetVx - this.vx) * 0.15;
+      this.vy += (targetVy - this.vy) * 0.15;
+
+      this.x += this.vx;
+      this.y += this.vy;
+
+      if (this.x > canvas.width + 20 || this.y < 0 || this.y > canvas.height) {
+        this.reset();
+      }
+    }
+
+    draw() {
+      if (this.history.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(this.history[0].x, this.history[0].y);
+      for (let i = 1; i < this.history.length; i++) {
+        ctx.lineTo(this.history[i].x, this.history[i].y);
+      }
+      ctx.strokeStyle = this.color;
+      ctx.globalAlpha = this.opacity;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+    }
+  }
+
+  // Initialize particles
+  for (let i = 0; i < MAX_PARTICLES; i++) {
+    const p = new SmokeParticle();
+    p.x = Math.random() * canvas.width;
+    particles.push(p);
+  }
+
+  function drawObstacle() {
+    const obsX = canvas.width * 0.42;
+    const obsY = canvas.height * 0.5;
+
+    ctx.save();
+    ctx.translate(obsX, obsY);
+
+    if (obstacleType === 'cylinder' || obstacleType === 'sphere') {
+      ctx.beginPath();
+      ctx.arc(0, 0, 32, 0, Math.PI * 2);
+      ctx.fillStyle = '#0e1824';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#2dd4ff';
+      ctx.stroke();
+
+      // Core lighting reflection
+      ctx.beginPath();
+      ctx.arc(-10, -10, 8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fill();
+    } else if (obstacleType === 'airfoil') {
+      ctx.rotate(angleOfAttack);
+      ctx.beginPath();
+      // Teardrop aerodynamic wing geometry
+      ctx.moveTo(-40, 0);
+      ctx.bezierCurveTo(-35, -20, 20, -16, 45, 0);
+      ctx.bezierCurveTo(20, 10, -35, 12, -40, 0);
+      ctx.closePath();
+      ctx.fillStyle = '#0e1824';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#00ffcc';
+      ctx.stroke();
+    } else if (obstacleType === 'plate') {
+      ctx.rotate(angleOfAttack);
+      ctx.beginPath();
+      ctx.roundRect(-6, -42, 12, 84, 3);
+      ctx.fillStyle = '#1c1015';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  let time = 0;
+  function loop() {
+    time++;
+    // Subtle motion blur trail background
+    ctx.fillStyle = 'rgba(5, 10, 16, 0.28)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Tunnel wall guide boundaries
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 4);
+    ctx.lineTo(canvas.width, 4);
+    ctx.moveTo(0, canvas.height - 4);
+    ctx.lineTo(canvas.width, canvas.height - 4);
+    ctx.stroke();
+
+    // Update and draw smoke particles
+    particles.forEach(p => {
+      p.update(time);
+      p.draw();
+    });
+
+    drawObstacle();
+
+    // Telemetry updates
+    const reynolds = Math.round(flowSpeed * 44);
+    reynoldsTag.textContent = `Re ≈ ${reynolds.toLocaleString()} (${reynolds > 1000 ? 'Turbulent Shedding' : 'Laminar Flow'})`;
+
+    let cl = 0, cd = 0;
+    if (obstacleType === 'airfoil') {
+      cl = (Math.sin(angleOfAttack * 2) * 1.4).toFixed(2);
+      cd = (0.05 + Math.abs(Math.sin(angleOfAttack)) * 0.6).toFixed(2);
+    } else if (obstacleType === 'cylinder') {
+      cl = (Math.sin(time * 0.05) * 0.25).toFixed(2);
+      cd = '0.84';
+    } else if (obstacleType === 'plate') {
+      cl = (Math.sin(angleOfAttack) * 0.4).toFixed(2);
+      cd = (1.9 + Math.sin(angleOfAttack) * 0.3).toFixed(2);
+    } else {
+      cl = '0.00';
+      cd = '0.47';
+    }
+
+    statLift.textContent = (cl >= 0 ? '+' : '') + cl;
+    statDrag.textContent = cd;
+    statVel.textContent = `${flowSpeed.toFixed(1)} m/s`;
+    statParticles.textContent = particles.length;
+
+    requestAnimationFrame(loop);
+  }
+
+  // Interactive mouse smoke dye injection
+  let isMouseDown = false;
+  canvas.addEventListener('mousedown', (e) => { isMouseDown = true; injectSmoke(e); });
+  window.addEventListener('mouseup', () => { isMouseDown = false; });
+  canvas.addEventListener('mousemove', (e) => { if (isMouseDown) injectSmoke(e); });
+
+  function injectSmoke(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    for (let i = 0; i < 8; i++) {
+      const p = particles[Math.floor(Math.random() * particles.length)];
+      p.reset(true, x + (Math.random() - 0.5) * 10, y + (Math.random() - 0.5) * 10);
+      p.color = '#ffd700';
+      p.opacity = 1.0;
+    }
+  }
+
+  sSpeed.addEventListener('input', () => {
+    flowSpeed = parseFloat(sSpeed.value);
+    vSpeed.textContent = `${flowSpeed} m/s`;
+  });
+
+  sAoa.addEventListener('input', () => {
+    const deg = parseFloat(sAoa.value);
+    angleOfAttack = deg * (Math.PI / 180);
+    vAoa.textContent = `${deg}°`;
+  });
+
+  sSmoke.addEventListener('input', () => {
+    smokeLinesCount = parseInt(sSmoke.value, 10);
+    vSmoke.textContent = `${smokeLinesCount} Lines`;
+  });
+
+  document.querySelectorAll('.fst-obs-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.fst-obs-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      obstacleType = btn.dataset.obs;
+    });
+  });
+
+  requestAnimationFrame(loop);
+})();
+</script>

@@ -1,0 +1,238 @@
+<h2 id="mil-title" style="margin-top:0;color:var(--accent);">〰️ Moiré Optical Interference</h2>
+
+<form aria-describedby="mil-desc" onsubmit="event.preventDefault();">
+  <p id="mil-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Kinetic optical interference exhibit. Overlay geometric optical gratings and rotate them to observe emergent macro-scale moiré superlattices.
+  </p>
+
+  <!-- Pattern Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="mil-pat-btn active" data-pat="circles" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Concentric Circles</button>
+    <button type="button" class="mil-pat-btn" data-pat="lines" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Parallel Gratings</button>
+    <button type="button" class="mil-pat-btn" data-pat="hex" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Hexagonal Lattice (Graphene)</button>
+    <button type="button" class="mil-pat-btn" data-pat="radial" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Radial Starburst</button>
+  </div>
+
+  <!-- Interactive Optical Canvas -->
+  <div style="background:#020407;border:1px solid rgba(45,212,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="mil-canvas" width="560" height="260" style="width:100%;height:260px;display:block;background:#03070d;border-radius:6px;cursor:crosshair;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG TO TRANSLATE / SHIFT SUPERLATTICE</span>
+      <span id="mil-twist-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Twist Angle θ = 1.1° (Magic Angle)</span>
+    </div>
+  </div>
+
+  <!-- Dials & Controls Grid -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;margin-bottom:12px;">
+    <!-- Angle -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Rotation Angle</span>
+        <span id="mil-val-angle">1.1°</span>
+      </div>
+      <input type="range" id="mil-slider-angle" min="0" max="90" step="0.1" value="1.1" style="width:100%;">
+    </div>
+
+    <!-- Frequency / Density -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Grating Density</span>
+        <span id="mil-val-density">48 lines</span>
+      </div>
+      <input type="range" id="mil-slider-density" min="16" max="90" value="48" style="width:100%;">
+    </div>
+
+    <!-- Scale Ratio -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Scale Mismatch</span>
+        <span id="mil-val-scale">1.00x</span>
+      </div>
+      <input type="range" id="mil-slider-scale" min="0.8" max="1.2" step="0.01" value="1.0" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Controls Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="mil-btn-anim" style="padding:6px 14px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;">▶ Kinetic Auto-Rotate</button>
+    <button type="button" id="mil-btn-reset" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Reset to Origin</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('mil-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sAngle = document.getElementById('mil-slider-angle');
+  const sDensity = document.getElementById('mil-slider-density');
+  const sScale = document.getElementById('mil-slider-scale');
+
+  const vAngle = document.getElementById('mil-val-angle');
+  const vDensity = document.getElementById('mil-val-density');
+  const vScale = document.getElementById('mil-val-scale');
+  const twistTag = document.getElementById('mil-twist-tag');
+
+  const btnAnim = document.getElementById('mil-btn-anim');
+  const btnReset = document.getElementById('mil-btn-reset');
+
+  let patternType = 'circles';
+  let twistAngle = 1.1 * (Math.PI / 180);
+  let density = 48;
+  let scaleMismatch = 1.0;
+
+  let shiftX = 0;
+  let shiftY = 0;
+  let isRotating = false;
+
+  function drawPattern(context, type, count, w, h) {
+    context.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    context.lineWidth = 1.2;
+
+    if (type === 'circles') {
+      const maxR = Math.hypot(w, h) / 2;
+      const step = maxR / count;
+      for (let r = step; r < maxR; r += step) {
+        context.beginPath();
+        context.arc(0, 0, r, 0, Math.PI * 2);
+        context.stroke();
+      }
+    } else if (type === 'lines') {
+      const step = w / count;
+      for (let x = -w; x < w; x += step) {
+        context.beginPath();
+        context.moveTo(x, -h);
+        context.lineTo(x, h);
+        context.stroke();
+      }
+    } else if (type === 'radial') {
+      const angleStep = (Math.PI * 2) / count;
+      const r = Math.hypot(w, h);
+      for (let a = 0; a < Math.PI * 2; a += angleStep) {
+        context.beginPath();
+        context.moveTo(0, 0);
+        context.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        context.stroke();
+      }
+    } else if (type === 'hex') {
+      const step = w / count;
+      context.fillStyle = '#2dd4ff';
+      for (let x = -w; x < w; x += step) {
+        for (let y = -h; y < h; y += step * 0.866) {
+          const offsetX = (Math.floor(y / (step * 0.866)) % 2) * (step / 2);
+          context.beginPath();
+          context.arc(x + offsetX, y, 1.8, 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+    }
+  }
+
+  function render() {
+    ctx.fillStyle = '#03070d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    // Layer 1 (Static Base Grating - Cyan Tint)
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = '#00ffcc';
+    drawPattern(ctx, patternType, density, canvas.width, canvas.height);
+    ctx.restore();
+
+    // Layer 2 (Rotated & Translated Overlap - Yellow Tint with Additive Blend)
+    ctx.save();
+    ctx.translate(cx + shiftX, cy + shiftY);
+    ctx.rotate(twistAngle);
+    ctx.scale(scaleMismatch, scaleMismatch);
+    ctx.strokeStyle = '#ffd700';
+    ctx.globalCompositeOperation = 'difference';
+    drawPattern(ctx, patternType, density, canvas.width, canvas.height);
+    ctx.restore();
+
+    const deg = (twistAngle * 180 / Math.PI) % 360;
+    vAngle.textContent = `${deg.toFixed(1)}°`;
+    twistTag.textContent = `Twist Angle θ = ${deg.toFixed(1)}° ${Math.abs(deg - 1.1) < 0.2 ? '(Magic Angle Graphene Superlattice)' : ''}`;
+
+    if (isRotating) {
+      twistAngle += 0.004;
+      sAngle.value = (twistAngle * 180 / Math.PI) % 90;
+      requestAnimationFrame(render);
+    }
+  }
+
+  // Interactive dragging of layer 2
+  let isDragging = false;
+  let lastX = 0, lastY = 0;
+
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      shiftX += (e.clientX - lastX);
+      shiftY += (e.clientY - lastY);
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (!isRotating) render();
+    }
+  });
+
+  sAngle.addEventListener('input', () => {
+    twistAngle = parseFloat(sAngle.value) * (Math.PI / 180);
+    render();
+  });
+
+  sDensity.addEventListener('input', () => {
+    density = parseInt(sDensity.value, 10);
+    vDensity.textContent = `${density} lines`;
+    render();
+  });
+
+  sScale.addEventListener('input', () => {
+    scaleMismatch = parseFloat(sScale.value);
+    vScale.textContent = `${scaleMismatch.toFixed(2)}x`;
+    render();
+  });
+
+  document.querySelectorAll('.mil-pat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mil-pat-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      patternType = btn.dataset.pat;
+      render();
+    });
+  });
+
+  btnAnim.addEventListener('click', () => {
+    isRotating = !isRotating;
+    btnAnim.textContent = isRotating ? '⏸ Pause Rotation' : '▶ Kinetic Auto-Rotate';
+    if (isRotating) render();
+  });
+
+  btnReset.addEventListener('click', () => {
+    shiftX = 0;
+    shiftY = 0;
+    twistAngle = 1.1 * (Math.PI / 180);
+    sAngle.value = 1.1;
+    render();
+  });
+
+  render();
+})();
+</script>
