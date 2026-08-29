@@ -1,0 +1,247 @@
+<h2 id="social-crop-title" style="margin-top:0;color:var(--accent);">🎨 SocialCrop: Multi-Platform Image Resizer &amp; Canvas Cropper</h2>
+
+<form aria-describedby="social-crop-desc" onsubmit="event.preventDefault();">
+  <p id="social-crop-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Crop and export pixel-perfect images for every social media network directly in your browser. 100% client-side HTML5 Canvas with zero server uploads, zero watermarks, and zero $13/mo Canva Pro subscriptions.
+  </p>
+
+  <!-- Platform & Aspect Ratio Selectors -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="sc-preset" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Platform Target</label>
+      <select id="sc-preset" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="1280x720" selected>YouTube Thumbnail (1280 × 720 · 16:9)</option>
+        <option value="1080x1080">Instagram Square Post (1080 × 1080 · 1:1)</option>
+        <option value="1080x1350">Instagram Portrait Post (1080 × 1350 · 4:5)</option>
+        <option value="1080x1920">TikTok / Reels / Shorts (1080 × 1920 · 9:16)</option>
+        <option value="1200x675">Twitter / X In-Feed (1200 × 675 · 16:9)</option>
+        <option value="1500x500">Twitter / X Header Banner (1500 × 500 · 3:1)</option>
+        <option value="1584x396">LinkedIn Cover Banner (1584 × 396 · 4:1)</option>
+        <option value="1200x630">OpenGraph Social Card (1200 × 630 · 1.91:1)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="sc-file-input" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Choose Image File</label>
+      <input type="file" id="sc-file-input" accept="image/*" style="width:100%;font-size:0.75rem;color:var(--text-secondary);">
+    </div>
+
+    <div>
+      <label for="sc-zoom" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Zoom: <span id="sc-zoom-val">1.0x</span></label>
+      <input type="range" id="sc-zoom" min="0.5" max="3.0" step="0.05" value="1.0" style="width:100%;accent-color:var(--accent);">
+    </div>
+  </div>
+
+  <!-- Interactive Canvas Preview Box -->
+  <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px;margin-bottom:12px;text-align:center;overflow:hidden;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:0.75rem;color:var(--muted);">
+      <span>Pan image by dragging on canvas</span>
+      <span id="sc-dim-badge" style="color:var(--accent);font-weight:600;">Target: 1280 × 720 px</span>
+    </div>
+    
+    <div style="max-height:300px;display:flex;justify-content:center;align-items:center;overflow:hidden;background:#05080b;border-radius:6px;position:relative;">
+      <canvas id="sc-canvas" width="640" height="360" style="max-width:100%;max-height:280px;border-radius:4px;cursor:grab;box-shadow:0 4px 12px rgba(0,0,0,0.5);"></canvas>
+    </div>
+  </div>
+
+  <!-- Export Options -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:10px;align-items:center;">
+      <label for="sc-format" style="font-size:0.75rem;color:var(--muted);">Format:</label>
+      <select id="sc-format" style="padding:4px 8px;border-radius:4px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;">
+        <option value="image/png" selected>PNG (Lossless High Quality)</option>
+        <option value="image/jpeg">JPEG (Compressed Web Photo)</option>
+        <option value="image/webp">WebP (Modern Compact)</option>
+      </select>
+    </div>
+
+    <button type="button" id="sc-btn-download" style="padding:7px 16px;background:var(--accent);color:#0a0f14;border:none;border-radius:6px;font-size:0.8rem;font-weight:700;cursor:pointer;">
+      💾 Download Cropped Image
+    </button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const presetSelect = document.getElementById('sc-preset');
+  const fileInput = document.getElementById('sc-file-input');
+  const zoomSlider = document.getElementById('sc-zoom');
+  const zoomVal = document.getElementById('sc-zoom-val');
+  const dimBadge = document.getElementById('sc-dim-badge');
+  const canvas = document.getElementById('sc-canvas');
+  const ctx = canvas.getContext('2d');
+  const formatSelect = document.getElementById('sc-format');
+  const btnDownload = document.getElementById('sc-btn-download');
+
+  let img = new Image();
+  let imgLoaded = false;
+  let targetW = 1280;
+  let targetH = 720;
+
+  let panX = 0;
+  let panY = 0;
+  let isDragging = false;
+  let startX, startY;
+
+  // Initialize placeholder test image
+  function loadDefaultImage() {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 1280;
+    tempCanvas.height = 720;
+    const tctx = tempCanvas.getContext('2d');
+
+    // Create nice gradient
+    const grad = tctx.createLinearGradient(0, 0, 1280, 720);
+    grad.addColorStop(0, '#0a0f14');
+    grad.addColorStop(0.5, '#142838');
+    grad.addColorStop(1, '#00ffcc');
+    tctx.fillStyle = grad;
+    tctx.fillRect(0, 0, 1280, 720);
+
+    tctx.fillStyle = '#ffffff';
+    tctx.font = 'bold 48px sans-serif';
+    tctx.textAlign = 'center';
+    tctx.fillText('Drop or Select Any Image to Crop', 640, 340);
+    tctx.font = '24px sans-serif';
+    tctx.fillStyle = 'rgba(230,250,255,0.7)';
+    tctx.fillText('100% Free · Client-Side Canvas · Zero Uploads', 640, 390);
+
+    img.src = tempCanvas.toDataURL();
+    img.onload = () => {
+      imgLoaded = true;
+      resetPanAndDraw();
+    };
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (re) => {
+      img = new Image();
+      img.onload = () => {
+        imgLoaded = true;
+        resetPanAndDraw();
+      };
+      img.src = re.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function updatePreset() {
+    const [w, h] = presetSelect.value.split('x').map(Number);
+    targetW = w;
+    targetH = h;
+    dimBadge.textContent = `Target: ${targetW} × ${targetH} px`;
+
+    // Scale canvas aspect ratio cleanly to preview box
+    const maxPreviewW = 600;
+    const scaleRatio = Math.min(1, maxPreviewW / targetW);
+    canvas.width = Math.round(targetW * scaleRatio);
+    canvas.height = Math.round(targetH * scaleRatio);
+
+    resetPanAndDraw();
+  }
+
+  function resetPanAndDraw() {
+    panX = 0;
+    panY = 0;
+    zoomSlider.value = 1.0;
+    zoomVal.textContent = '1.0x';
+    draw();
+  }
+
+  function draw() {
+    if (!imgLoaded) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const zoom = parseFloat(zoomSlider.value);
+    zoomVal.textContent = `${zoom.toFixed(2)}x`;
+
+    // Draw scaled and centered
+    const baseScale = Math.max(canvas.width / img.width, canvas.height / img.height);
+    const drawW = img.width * baseScale * zoom;
+    const drawH = img.height * baseScale * zoom;
+
+    const centerX = (canvas.width - drawW) / 2 + panX;
+    const centerY = (canvas.height - drawH) / 2 + panY;
+
+    ctx.drawImage(img, centerX, centerY, drawW, drawH);
+  }
+
+  // Pan controls
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    startX = e.clientX - panX;
+    startY = e.clientY - panY;
+    canvas.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    panX = e.clientX - startX;
+    panY = e.clientY - startY;
+    draw();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    canvas.style.cursor = 'grab';
+  });
+
+  // Touch controls for mobile
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      startX = e.touches[0].clientX - panX;
+      startY = e.touches[0].clientY - panY;
+    }
+  });
+
+  window.addEventListener('touchmove', (e) => {
+    if (!isDragging || e.touches.length !== 1) return;
+    panX = e.touches[0].clientX - startX;
+    panY = e.touches[0].clientY - startY;
+    draw();
+  });
+
+  window.addEventListener('touchend', () => { isDragging = false; });
+
+  zoomSlider.addEventListener('input', draw);
+  presetSelect.addEventListener('change', updatePreset);
+
+  btnDownload.addEventListener('click', () => {
+    if (!imgLoaded) return;
+
+    // Render off-screen canvas at FULL native target resolution
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = targetW;
+    exportCanvas.height = targetH;
+    const ectx = exportCanvas.getContext('2d');
+
+    const zoom = parseFloat(zoomSlider.value);
+    const baseScale = Math.max(targetW / img.width, targetH / img.height);
+    const drawW = img.width * baseScale * zoom;
+    const drawH = img.height * baseScale * zoom;
+
+    // Scale pan proportionally
+    const scaleFactor = targetW / canvas.width;
+    const centerX = (targetW - drawW) / 2 + (panX * scaleFactor);
+    const centerY = (targetH - drawH) / 2 + (panY * scaleFactor);
+
+    ectx.drawImage(img, centerX, centerY, drawW, drawH);
+
+    const mime = formatSelect.value;
+    const ext = mime === 'image/jpeg' ? 'jpg' : (mime === 'image/webp' ? 'webp' : 'png');
+    const dataUrl = exportCanvas.toDataURL(mime, 0.95);
+
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `socialcrop_${targetW}x${targetH}.${ext}`;
+    a.click();
+  });
+
+  loadDefaultImage();
+  updatePreset();
+})();
+</script>

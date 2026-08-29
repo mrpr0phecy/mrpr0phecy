@@ -132,7 +132,21 @@ const aquariumList = [
   'aquarium-feeding-vacation-planner'
 ];
 
+const saasKillerList = [
+  'invoice-billing-pdf-generator',
+  'nda-contract-service-agreement-builder',
+  'utm-campaign-matrix-builder',
+  'gdpr-ccpa-privacy-policy-generator',
+  'startup-cap-table-dilution-simulator',
+  'social-media-image-resizer-cropper',
+  'b2b-cold-email-sequence-generator',
+  'saas-metrics-ltv-cac-calculator',
+  'seo-meta-tag-social-previewer',
+  'social-proof-testimonial-card-generator'
+];
+
 function getCategory(name) {
+  if (saasKillerList.some(s => name.includes(s))) return 'SaaS & Business Killers';
   if (aquariumList.some(s => name.includes(s))) return 'Aquatics & Fishkeeping';
   if (animeList.some(s => name.includes(s))) return 'Anime & Otaku Culture';
   if (slList.some(s => name.includes(s))) return 'Virtual Worlds & Gaming';

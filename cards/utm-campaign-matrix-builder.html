@@ -1,0 +1,180 @@
+<h2 id="utm-master-title" style="margin-top:0;color:var(--accent);">🔗 UTMMaster: Bulk Campaign URL Builder &amp; Tagging Matrix</h2>
+
+<form aria-describedby="utm-master-desc" onsubmit="event.preventDefault();">
+  <p id="utm-master-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Generate standardized Google Analytics 4 (GA4) tracking URLs across multiple marketing channels simultaneously. Enforces lowercase slugification, auto-encodes illegal spaces, and exports batch CSVs. Replaces $50/mo HubSpot and Bitly tools.
+  </p>
+
+  <!-- Base Campaign Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:12px;">
+    <div style="grid-column:1/-1;">
+      <label for="utm-base-url" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Website Destination URL</label>
+      <input type="url" id="utm-base-url" value="https://themostusefulsiteintheworld.com" placeholder="https://example.com/landing-page" style="width:100%;padding:6px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="utm-campaign" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Campaign Name (utm_campaign)</label>
+      <input type="text" id="utm-campaign" value="summer_launch_2026" placeholder="e.g. black_friday_sale" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="utm-content" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Ad Content (utm_content)</label>
+      <input type="text" id="utm-content" value="hero_cta_v2" placeholder="e.g. blue_button_variant_a" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="utm-term" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Keyword / Term (utm_term)</label>
+      <input type="text" id="utm-term" value="best+free+tools" placeholder="e.g. saas+alternative" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+  </div>
+
+  <!-- Primary Single Tagged URL -->
+  <div style="background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.25);border-radius:8px;padding:12px;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:0.75rem;text-transform:uppercase;color:var(--accent);font-weight:600;">Custom Generated UTM Link</span>
+      <button type="button" id="utm-btn-copy-single" style="background:var(--accent);border:none;color:#0a0f14;padding:3px 10px;border-radius:4px;font-size:0.72rem;font-weight:700;cursor:pointer;">Copy Link</button>
+    </div>
+    <div id="utm-single-output" style="background:rgba(0,0,0,0.35);padding:8px 10px;border-radius:6px;font-family:monospace;font-size:0.78rem;color:#85e3ff;word-break:break-all;">
+      https://themostusefulsiteintheworld.com?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign=summer_launch_2026&amp;utm_content=hero_cta_v2&amp;utm_term=best+free+tools
+    </div>
+  </div>
+
+  <!-- Multi-Channel Batch Matrix -->
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:0.85rem;font-weight:600;color:var(--accent);">⚡ 1-Click Multi-Channel Distribution Matrix</span>
+      <div style="display:flex;gap:6px;">
+        <button type="button" id="utm-btn-copy-all" style="padding:4px 10px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:4px;font-size:0.72rem;cursor:pointer;">Copy All URLs</button>
+        <button type="button" id="utm-btn-export-csv" style="padding:4px 10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:4px;font-size:0.72rem;cursor:pointer;">Export CSV</button>
+      </div>
+    </div>
+
+    <div id="utm-matrix-list" style="display:flex;flex-direction:column;gap:6px;font-size:0.78rem;">
+      <!-- Populated dynamically -->
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const baseUrlInp = document.getElementById('utm-base-url');
+  const campaignInp = document.getElementById('utm-campaign');
+  const contentInp = document.getElementById('utm-content');
+  const termInp = document.getElementById('utm-term');
+  const singleOutput = document.getElementById('utm-single-output');
+  const matrixList = document.getElementById('utm-matrix-list');
+  const btnCopySingle = document.getElementById('utm-btn-copy-single');
+  const btnCopyAll = document.getElementById('utm-btn-copy-all');
+  const btnExportCsv = document.getElementById('utm-btn-export-csv');
+
+  const channels = [
+    { name: 'Google Search Ads', source: 'google', medium: 'cpc' },
+    { name: 'Meta / Facebook Ads', source: 'facebook', medium: 'paid_social' },
+    { name: 'Instagram Bio / Stories', source: 'instagram', medium: 'social_bio' },
+    { name: 'TikTok Ads', source: 'tiktok', medium: 'paid_video' },
+    { name: 'LinkedIn Campaign', source: 'linkedin', medium: 'b2b_social' },
+    { name: 'Email Newsletter', source: 'newsletter', medium: 'email' },
+    { name: 'Affiliate Partner', source: 'affiliate', medium: 'partner_referral' }
+  ];
+
+  function cleanSlug(val) {
+    if (!val) return '';
+    return val.toLowerCase().trim().replace(/\s+/g, '_');
+  }
+
+  function buildUrl(base, source, medium, campaign, content, term) {
+    let cleanBase = base.trim() || 'https://themostusefulsiteintheworld.com';
+    if (!cleanBase.startsWith('http://') && !cleanBase.startsWith('https://')) {
+      cleanBase = 'https://' + cleanBase;
+    }
+
+    const url = new URL(cleanBase);
+    if (source) url.searchParams.set('utm_source', cleanSlug(source));
+    if (medium) url.searchParams.set('utm_medium', cleanSlug(medium));
+    if (campaign) url.searchParams.set('utm_campaign', cleanSlug(campaign));
+    if (content) url.searchParams.set('utm_content', cleanSlug(content));
+    if (term) url.searchParams.set('utm_term', encodeURIComponent(term.trim()));
+
+    return url.toString();
+  }
+
+  function update() {
+    const base = baseUrlInp.value;
+    const camp = campaignInp.value;
+    const cont = contentInp.value;
+    const term = termInp.value;
+
+    const singleUrl = buildUrl(base, 'google', 'cpc', camp, cont, term);
+    singleOutput.textContent = singleUrl;
+
+    matrixList.innerHTML = '';
+    channels.forEach(ch => {
+      const u = buildUrl(base, ch.source, ch.medium, camp, cont, term);
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,0.3);padding:6px 10px;border-radius:6px;gap:10px;';
+      row.innerHTML = `
+        <div style="flex:1;overflow:hidden;">
+          <strong style="color:#fff;display:block;margin-bottom:2px;">${ch.name} <span style="font-size:0.7rem;color:var(--muted);">(${ch.source} / ${ch.medium})</span></strong>
+          <div style="color:#85e3ff;font-family:monospace;font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u}</div>
+        </div>
+        <button type="button" data-url="${u}" style="background:rgba(255,255,255,0.1);border:none;color:#fff;padding:4px 8px;border-radius:4px;font-size:0.7rem;cursor:pointer;">Copy</button>
+      `;
+      matrixList.appendChild(row);
+    });
+
+    matrixList.querySelectorAll('button').forEach(b => {
+      b.addEventListener('click', () => {
+        navigator.clipboard.writeText(b.dataset.url).then(() => {
+          b.textContent = 'Copied!';
+          setTimeout(() => { b.textContent = 'Copy'; }, 2000);
+        });
+      });
+    });
+  }
+
+  btnCopySingle.addEventListener('click', () => {
+    navigator.clipboard.writeText(singleOutput.textContent).then(() => {
+      btnCopySingle.textContent = 'Copied!';
+      setTimeout(() => { btnCopySingle.textContent = 'Copy Link'; }, 2000);
+    });
+  });
+
+  btnCopyAll.addEventListener('click', () => {
+    const base = baseUrlInp.value;
+    const camp = campaignInp.value;
+    const cont = contentInp.value;
+    const term = termInp.value;
+
+    const lines = channels.map(ch => `${ch.name}: ${buildUrl(base, ch.source, ch.medium, camp, cont, term)}`).join('\n');
+    navigator.clipboard.writeText(lines).then(() => {
+      btnCopyAll.textContent = 'All Copied!';
+      setTimeout(() => { btnCopyAll.textContent = 'Copy All URLs'; }, 2000);
+    });
+  });
+
+  btnExportCsv.addEventListener('click', () => {
+    const base = baseUrlInp.value;
+    const camp = campaignInp.value;
+    const cont = contentInp.value;
+    const term = termInp.value;
+
+    let csv = "Channel,Source,Medium,Campaign,Content,Term,Final_Tagged_URL\n";
+    channels.forEach(ch => {
+      const u = buildUrl(base, ch.source, ch.medium, camp, cont, term);
+      csv += `"${ch.name}","${ch.source}","${ch.medium}","${cleanSlug(camp)}","${cleanSlug(cont)}","${term}","${u}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `utm_campaign_matrix_${cleanSlug(camp) || 'links'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  [baseUrlInp, campaignInp, contentInp, termInp].forEach(el => el.addEventListener('input', update));
+
+  update();
+})();
+</script>
