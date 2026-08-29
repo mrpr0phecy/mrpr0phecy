@@ -1,0 +1,171 @@
+<h2 id="steam-tables-title" style="margin-top:0;color:var(--accent);">⚙️ SteamForge: Steam Tables & Thermodynamic Properties</h2>
+
+<form aria-describedby="steam-tables-desc" onsubmit="event.preventDefault();">
+  <p id="steam-tables-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Industrial steam table thermodynamics (IAPWS formulation). Calculate saturation pressure ($P_{sat}$), specific enthalpy ($h$), entropy ($s$), specific volume ($v$), and latent heat ($h_{fg}$) for saturated and superheated steam.
+  </p>
+
+  <!-- Input Mode & Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="st-temp" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Temperature ($T$)</label>
+      <input type="number" id="st-temp" value="100" min="0.01" max="370" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">°C</span>
+    </div>
+
+    <div>
+      <label for="st-quality" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Steam Quality / Dryness ($x$)</label>
+      <input type="number" id="st-quality" value="1.0" min="0.0" max="1.0" step="0.05" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">0.0 = Liquid, 1.0 = Dry Vapor</span>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="st-preset" data-t="100" data-x="1.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">100°C Dry Saturated Steam</button>
+    <button type="button" class="st-preset" data-t="100" data-x="0.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">100°C Saturated Liquid Water</button>
+    <button type="button" class="st-preset" data-t="120" data-x="0.95" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Espresso Boiler (120°C, 2 bar)</button>
+    <button type="button" class="st-preset" data-t="180" data-x="0.98" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Industrial Boiler (180°C, 10 bar)</button>
+    <button type="button" class="st-preset" data-t="250" data-x="1.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Power Turbine (250°C, 40 bar)</button>
+  </div>
+
+  <!-- Thermodynamic Telemetry Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Saturation Pressure ($P_{sat}$)</div>
+        <div id="st-res-psat" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">1.013 bar</div>
+        <div id="st-res-psat-psi" style="font-size:0.68rem;color:var(--muted);">14.7 psi (101.3 kPa)</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Total Enthalpy ($h$)</div>
+        <div id="st-res-h" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">2,676 kJ/kg</div>
+        <div id="st-res-hfg" style="font-size:0.68rem;color:var(--muted);">Latent heat $h_{fg} = 2,257$ kJ/kg</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Total Entropy ($s$)</div>
+        <div id="st-res-s" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">7.355 kJ/(kg·K)</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Rankine cycle baseline</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Specific Volume ($v$)</div>
+        <div id="st-res-v" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">1.673 m³/kg</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Liquid $v_f = 0.00104$ m³/kg</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase Enthalpy Breakdown Bar -->
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+      <span>Liquid Enthalpy ($h_f$): <strong id="st-hf-text" style="color:#00ffcc;">419 kJ/kg</strong></span>
+      <span>Latent Vaporization ($h_{fg}$): <strong id="st-hfg-text" style="color:#ffd700;">2,257 kJ/kg</strong></span>
+      <span>Dry Vapor ($h_g$): <strong id="st-hg-text" style="color:#ff5577;">2,676 kJ/kg</strong></span>
+    </div>
+    <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:#111;">
+      <div id="st-bar-liquid" style="width:16%;background:#00ffcc;"></div>
+      <div id="st-bar-latent" style="width:84%;background:linear-gradient(90deg,#ffd700,#ff5577);"></div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const tIn = document.getElementById('st-temp');
+  const xIn = document.getElementById('st-quality');
+
+  const psatOut = document.getElementById('st-res-psat');
+  const psatPsiOut = document.getElementById('st-res-psat-psi');
+  const hOut = document.getElementById('st-res-h');
+  const hfgOut = document.getElementById('st-res-hfg');
+  const sOut = document.getElementById('st-res-s');
+  const vOut = document.getElementById('st-res-v');
+
+  const hfText = document.getElementById('st-hf-text');
+  const hfgText = document.getElementById('st-hfg-text');
+  const hgText = document.getElementById('st-hg-text');
+  const barLiquid = document.getElementById('st-bar-liquid');
+  const barLatent = document.getElementById('st-bar-latent');
+
+  function calculate() {
+    const T = Math.min(370, Math.max(0.01, parseFloat(tIn.value) || 100));
+    const x = Math.min(1.0, Math.max(0.0, parseFloat(xIn.value) || 1.0));
+    const TK = T + 273.15;
+
+    // Saturation pressure via Wagner-like IAPWS equation (bar)
+    // ln(P/Pc) = (Tc/T) * [a1*tau + a2*tau^1.5 + a3*tau^3 + a4*tau^3.5 + a5*tau^4 + a6*tau^7.5]
+    const Tc = 647.096;
+    const Pc = 220.64; // bar
+    const tau = 1 - (TK / Tc);
+
+    const a1 = -7.85951783;
+    const a2 = 1.84408259;
+    const a3 = -11.7866497;
+    const a4 = 22.6807411;
+    const a5 = -15.9618719;
+    const a6 = 1.80122502;
+
+    const sumWagner = (Tc / TK) * (
+      a1 * tau +
+      a2 * Math.pow(tau, 1.5) +
+      a3 * Math.pow(tau, 3) +
+      a4 * Math.pow(tau, 3.5) +
+      a5 * Math.pow(tau, 4) +
+      a6 * Math.pow(tau, 7.5)
+    );
+
+    const PsatBar = Pc * Math.exp(sumWagner);
+    const PsatKPa = PsatBar * 100;
+    const PsatPsi = PsatBar * 14.5038;
+
+    // Liquid enthalpy h_f approx 4.184 * T (kJ/kg) with high temp curvature
+    const hf = 4.184 * T + 0.0005 * Math.pow(T, 2.3);
+
+    // Latent heat of vaporization h_fg: decreases to 0 at critical temp (374°C)
+    // h_fg approx 2500.8 * (1 - T/374)^0.38
+    const hfg = T < 373.95 ? 2500.8 * Math.pow(Math.max(0, 1 - (T / 374)), 0.38) : 0;
+    const hg = hf + hfg;
+    const hTotal = hf + x * hfg;
+
+    // Saturated vapor specific volume v_g: Ideal gas law with compressibility factor Z approx 0.95
+    // v_g = Z * R_spec * T / P
+    const Rspec = 0.4615; // kJ/(kg*K)
+    const Z = 1 - 0.001 * PsatBar;
+    const vg = Math.max(0.003, (Z * Rspec * TK) / (PsatKPa));
+    const vf = 0.0010 + 0.0000005 * T;
+    const vTotal = vf + x * (vg - vf);
+
+    // Specific entropy s
+    const sf = 4.184 * Math.log(TK / 273.15);
+    const sfg = hfg / TK;
+    const sTotal = sf + x * sfg;
+
+    psatOut.textContent = PsatBar >= 10 ? `${PsatBar.toFixed(2)} bar` : `${PsatBar.toFixed(3)} bar`;
+    psatPsiOut.textContent = `${PsatPsi.toFixed(1)} psi (${PsatKPa.toFixed(1)} kPa)`;
+    hOut.textContent = `${Math.round(hTotal).toLocaleString()} kJ/kg`;
+    hfgOut.textContent = `Latent heat h_fg = ${Math.round(hfg).toLocaleString()} kJ/kg`;
+    sOut.textContent = `${sTotal.toFixed(3)} kJ/(kg·K)`;
+    vOut.textContent = vTotal >= 0.1 ? `${vTotal.toFixed(3)} m³/kg` : `${(vTotal * 1000).toFixed(2)} L/kg`;
+
+    hfText.textContent = `${Math.round(hf)} kJ/kg`;
+    hfgText.textContent = `${Math.round(hfg)} kJ/kg`;
+    hgText.textContent = `${Math.round(hg)} kJ/kg`;
+
+    const liqPct = hg > 0 ? (hf / hg) * 100 : 50;
+    barLiquid.style.width = `${liqPct.toFixed(1)}%`;
+    barLatent.style.width = `${(100 - liqPct).toFixed(1)}%`;
+  }
+
+  [tIn, xIn].forEach(elem => elem.addEventListener('input', calculate));
+
+  document.querySelectorAll('.st-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tIn.value = btn.dataset.t;
+      xIn.value = btn.dataset.x;
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>

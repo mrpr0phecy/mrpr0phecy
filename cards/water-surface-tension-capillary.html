@@ -1,0 +1,240 @@
+<h2 id="surface-tension-title" style="margin-top:0;color:var(--accent);">🧪 AquaTension: Water Surface Tension & Jurin's Capillary Lab</h2>
+
+<form aria-describedby="surface-tension-desc" onsubmit="event.preventDefault();">
+  <p id="surface-tension-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Explore water's extraordinary cohesive hydrogen-bond surface tension ($\sigma = 72.86\text{ mN/m}$). Calculate Jurin's Law capillary rise ($h = \frac{2\sigma\cos\theta}{\rho g r}$) and Young-Laplace droplet excess pressure ($\Delta P = \frac{2\sigma}{R}$).
+  </p>
+
+  <!-- Input Parameters Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="stc-temp" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Water Temp ($T$)</label>
+      <input type="number" id="stc-temp" value="20" min="0" max="100" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">°C</span>
+    </div>
+
+    <div>
+      <label for="stc-radius" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Capillary Tube Radius ($r$)</label>
+      <input type="number" id="stc-radius" value="0.5" min="0.05" max="5.0" step="0.05" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">mm (inner radius)</span>
+    </div>
+
+    <div>
+      <label for="stc-contact-angle" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Contact Angle ($\theta$)</label>
+      <input type="number" id="stc-contact-angle" value="0" min="0" max="180" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Degrees (0° = Clean glass)</span>
+    </div>
+
+    <div>
+      <label for="stc-surfactant" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Surfactant / Additive</label>
+      <select id="stc-surfactant" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="none" selected>Pure Distilled Water</option>
+        <option value="mild_soap">Mild Soap Solution (-40%)</option>
+        <option value="high_surfactant">Concentrated Detergent (-60%)</option>
+        <option value="salt">Saline Seawater (+2%)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Real-World Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="stc-preset" data-t="20" data-r="0.5" data-theta="0" data-surf="none" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Standard Clean Glass Capillary</button>
+    <button type="button" class="stc-preset" data-t="20" data-r="0.05" data-theta="0" data-surf="none" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Plant Xylem Vessel (50 µm)</button>
+    <button type="button" class="stc-preset" data-t="20" data-r="0.5" data-theta="105" data-surf="none" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Hydrophobic Teflon (Capillary Depression)</button>
+    <button type="button" class="stc-preset" data-t="20" data-r="0.5" data-theta="0" data-surf="high_surfactant" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Detergent (Soap Film Breakdown)</button>
+  </div>
+
+  <!-- Interactive Capillary Rise Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="stc-canvas" width="600" height="170" style="width:100%;height:170px;display:block;"></canvas>
+    <div style="position:absolute;bottom:4px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Capillary Action: Smaller tube radius produces higher liquid elevation ($h \propto 1/r$)
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Surface Tension ($\sigma$)</div>
+        <div id="stc-res-sigma" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">72.75 mN/m</div>
+        <div id="stc-res-sigma-cgs" style="font-size:0.68rem;color:var(--muted);">72.75 dyn/cm</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Capillary Rise Height ($h$)</div>
+        <div id="stc-res-height" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">29.7 mm</div>
+        <div id="stc-res-behavior" style="font-size:0.68rem;color:#00ffcc;">Capillary Elevation</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Young-Laplace ($\Delta P$)</div>
+        <div id="stc-res-laplace" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">291 Pa</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Meniscus pressure jump</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Capillary Length ($l_c$)</div>
+        <div id="stc-res-cap-len" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">2.72 mm</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$\sqrt{\sigma / (\rho g)}$</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const tIn = document.getElementById('stc-temp');
+  const rIn = document.getElementById('stc-radius');
+  const thetaIn = document.getElementById('stc-contact-angle');
+  const surfSel = document.getElementById('stc-surfactant');
+
+  const canvas = document.getElementById('stc-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sigmaOut = document.getElementById('stc-res-sigma');
+  const sigmaCgsOut = document.getElementById('stc-res-sigma-cgs');
+  const hOut = document.getElementById('stc-res-height');
+  const behavOut = document.getElementById('stc-res-behavior');
+  const laplaceOut = document.getElementById('stc-res-laplace');
+  const capLenOut = document.getElementById('stc-res-cap-len');
+
+  // IAPWS formulation for surface tension of pure water (mN/m)
+  function getPureWaterSigma(T) {
+    const Tc = 647.096;
+    const TK = T + 273.15;
+    const tau = Math.max(0, 1 - (TK / Tc));
+    const B = 235.8;
+    const b = -0.625;
+    const mu = 1.256;
+    return B * Math.pow(tau, mu) * (1 + b * tau);
+  }
+
+  function calculate() {
+    const T = Math.min(100, Math.max(0, parseFloat(tIn.value) || 20));
+    const rMm = Math.max(0.01, parseFloat(rIn.value) || 0.5);
+    const rM = rMm / 1000;
+    const thetaDeg = Math.min(180, Math.max(0, parseFloat(thetaIn.value) || 0));
+    const thetaRad = thetaDeg * (Math.PI / 180);
+    const surf = surfSel.value;
+
+    let sigmaMN = getPureWaterSigma(T);
+    if (surf === 'mild_soap') sigmaMN *= 0.60;
+    else if (surf === 'high_surfactant') sigmaMN *= 0.40;
+    else if (surf === 'salt') sigmaMN *= 1.02;
+
+    const sigmaN = sigmaMN / 1000; // N/m
+    const rho = 998.2; // kg/m^3
+    const g = 9.80665;
+
+    // Jurin's Law: h = (2 * sigma * cos(theta)) / (rho * g * r)
+    const hM = (2 * sigmaN * Math.cos(thetaRad)) / (rho * g * rM);
+    const hMm = hM * 1000;
+
+    // Young-Laplace pressure jump: deltaP = 2 * sigma / r
+    const deltaP = (2 * sigmaN * Math.cos(thetaRad)) / rM;
+
+    // Capillary length: lc = sqrt(sigma / (rho * g))
+    const lcMm = Math.sqrt(sigmaN / (rho * g)) * 1000;
+
+    sigmaOut.textContent = `${sigmaMN.toFixed(2)} mN/m`;
+    sigmaCgsOut.textContent = `${sigmaMN.toFixed(2)} dyn/cm`;
+
+    if (Math.abs(hMm) >= 1000) {
+      hOut.textContent = `${(hMm / 1000).toFixed(2)} m (${Math.round(hMm)} mm)`;
+    } else {
+      hOut.textContent = `${hMm.toFixed(1)} mm`;
+    }
+
+    if (hMm > 0.5) {
+      behavOut.textContent = 'Capillary Elevation (Wetting)';
+      behavOut.style.color = '#00ffcc';
+    } else if (hMm < -0.5) {
+      behavOut.textContent = 'Capillary Depression (Non-wetting)';
+      behavOut.style.color = '#ff5577';
+    } else {
+      behavOut.textContent = 'Neutral Meniscus (θ = 90°)';
+      behavOut.style.color = '#ffd700';
+    }
+
+    laplaceOut.textContent = `${Math.round(Math.abs(deltaP)).toLocaleString()} Pa`;
+    capLenOut.textContent = `${lcMm.toFixed(2)} mm`;
+
+    drawCapillaries(hMm, rMm, thetaRad);
+  }
+
+  function drawCapillaries(hCurrentMm, rCurrentMm, thetaRad) {
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const waterLineY = 125;
+
+    // Water reservoir basin
+    ctx.fillStyle = 'rgba(0, 255, 204, 0.2)';
+    ctx.fillRect(30, waterLineY, W - 60, H - waterLineY - 10);
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(30, waterLineY, W - 60, H - waterLineY - 10);
+
+    // Three comparison tubes: Fine (0.25mm), Current, Wide (1.5mm)
+    const tubes = [
+      { x: 120, r: 0.25, label: '0.25 mm' },
+      { x: 300, r: rCurrentMm, label: `${rCurrentMm.toFixed(2)} mm (Active)` },
+      { x: 480, r: 1.5, label: '1.50 mm' }
+    ];
+
+    tubes.forEach(tube => {
+      const tubeW = Math.min(40, Math.max(10, tube.r * 18));
+      const leftX = tube.x - tubeW / 2;
+      const rightX = tube.x + tubeW / 2;
+
+      // Height scaled inversely with radius
+      const scaleH = (hCurrentMm * (rCurrentMm / tube.r)) * 1.5;
+      const menisY = Math.min(waterLineY + 25, Math.max(20, waterLineY - scaleH));
+
+      // Draw Glass Tube Walls
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(leftX, 15, tubeW, waterLineY + 25);
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(leftX, 15);
+      ctx.lineTo(leftX, waterLineY + 25);
+      ctx.moveTo(rightX, 15);
+      ctx.lineTo(rightX, waterLineY + 25);
+      ctx.stroke();
+
+      // Liquid column inside tube
+      ctx.fillStyle = tube.label.includes('Active') ? 'rgba(0, 255, 204, 0.65)' : 'rgba(0, 153, 255, 0.4)';
+      ctx.fillRect(leftX, menisY, tubeW, (waterLineY + 25) - menisY);
+
+      // Meniscus curvature
+      ctx.beginPath();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      const curveOffset = Math.cos(thetaRad) * 4;
+      ctx.moveTo(leftX, menisY);
+      ctx.quadraticCurveTo(tube.x, menisY + curveOffset, rightX, menisY);
+      ctx.stroke();
+
+      // Tube label
+      ctx.fillStyle = tube.label.includes('Active') ? '#00ffcc' : 'rgba(255,255,255,0.6)';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(tube.label, tube.x - 22, H - 14);
+    });
+  }
+
+  [tIn, rIn, thetaIn, surfSel].forEach(elem => elem.addEventListener('input', calculate));
+
+  document.querySelectorAll('.stc-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tIn.value = btn.dataset.t;
+      rIn.value = btn.dataset.r;
+      thetaIn.value = btn.dataset.theta;
+      surfSel.value = btn.dataset.surf;
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>

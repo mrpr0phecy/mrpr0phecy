@@ -15,6 +15,16 @@ const financeList = ['freelance-rate-calculator', 'smart-contract-gas-estimator'
 const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
 const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
+  'water-density-anomaly',
+  'water-phase-diagram',
+  'steam-tables-thermodynamics',
+  'water-surface-tension-capillary',
+  'water-ion-product-kw-ph',
+  'seawater-salinity-density-teos',
+  'psychrometric-dewpoint-analyzer',
+  'underwater-acoustics-sound-speed',
+  'water-hardness-langelier-index',
+  'water-dielectric-dipole-relaxation',
   'cymatics-chladni-plate',
   'damped-harmonic-oscillator',
   'double-pendulum-chaos',

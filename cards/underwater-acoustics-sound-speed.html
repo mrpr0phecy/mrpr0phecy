@@ -1,0 +1,222 @@
+<h2 id="underwater-acoustics-title" style="margin-top:0;color:var(--accent);">🐬 AquaSonar: Acoustic Sound Speed & Bulk Modulus Lab</h2>
+
+<form aria-describedby="underwater-acoustics-desc" onsubmit="event.preventDefault();">
+  <p id="underwater-acoustics-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Investigate acoustic wave mechanics in water. Calculate high-precision sound velocity ($c \approx 1,482\text{ m/s}$, 4.3× faster than air), bulk modulus incompressibility ($K_s = \rho c^2 \approx 2.19\text{ GPa}$), and active sonar round-trip ping telemetry ($d = \frac{c \Delta t}{2}$).
+  </p>
+
+  <!-- Input Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="uas-temp" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Water Temp ($T$)</label>
+      <input type="number" id="uas-temp" value="20" min="0" max="95" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">°C</span>
+    </div>
+
+    <div>
+      <label for="uas-medium-type" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Water Medium</label>
+      <select id="uas-medium-type" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="pure" selected>Distilled / Freshwater (0 PSU)</option>
+        <option value="seawater">Open Seawater (35 PSU, 1 atm)</option>
+        <option value="deep_ocean">Deep Ocean (35 PSU, 2000m depth)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="uas-ping-time" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Sonar Echo Time ($\Delta t$)</label>
+      <input type="number" id="uas-ping-time" value="1.35" min="0.01" max="60" step="0.05" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Seconds round-trip</span>
+    </div>
+  </div>
+
+  <!-- Real-World Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="uas-preset" data-t="20" data-med="pure" data-dt="1.35" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Freshwater Lake (20°C)</button>
+    <button type="button" class="uas-preset" data-t="4" data-med="pure" data-dt="2.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Ice Cold Lake Bed (4°C)</button>
+    <button type="button" class="uas-preset" data-t="15" data-med="seawater" data-dt="2.65" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Submarine Patrol (15°C Ocean)</button>
+    <button type="button" class="uas-preset" data-t="2" data-med="deep_ocean" data-dt="5.33" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Abyssal Hydrographic Survey</button>
+  </div>
+
+  <!-- Sonar Ping Visualization Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="uas-canvas" width="600" height="170" style="width:100%;height:170px;display:block;"></canvas>
+    <div style="position:absolute;bottom:4px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Active Sonar Ping: Emits acoustic compression pulse, detects seabed/target echo
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Sound Speed in Water ($c$)</div>
+        <div id="uas-res-speed" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">1,482.3 m/s</div>
+        <div id="uas-res-air-ratio" style="font-size:0.68rem;color:var(--muted);">4.32× faster than air (343 m/s)</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Target / Seabed Depth ($d$)</div>
+        <div id="uas-res-distance" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">1,000.6 m</div>
+        <div id="uas-res-oneway" style="font-size:0.68rem;color:var(--muted);">$d = \frac{c \cdot \Delta t}{2}$ One-way range</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Bulk Modulus ($K_s$)</div>
+        <div id="uas-res-bulk" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">2.19 GPa</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$K_s = \rho c^2$ (Incompressible)</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Acoustic Impedance ($Z$)</div>
+        <div id="uas-res-impedance" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">1.48 MRayl</div>
+        <div style="font-size:0.68rem;color:var(--muted);">$\rho \cdot c$ Acoustic coupling</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const tIn = document.getElementById('uas-temp');
+  const medSel = document.getElementById('uas-medium-type');
+  const dtIn = document.getElementById('uas-ping-time');
+
+  const canvas = document.getElementById('uas-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const speedOut = document.getElementById('uas-res-speed');
+  const airRatioOut = document.getElementById('uas-res-air-ratio');
+  const distOut = document.getElementById('uas-res-distance');
+  const onewayOut = document.getElementById('uas-res-oneway');
+  const bulkOut = document.getElementById('uas-res-bulk');
+  const impOut = document.getElementById('uas-res-impedance');
+
+  let pingY = 20;
+  let pingDirection = 1; // 1 = down, -1 = up
+
+  // Bilaniuk & Wong high-precision formulation for speed of sound in pure water
+  function getPureWaterSoundSpeed(T) {
+    return 1402.388 + 5.03711 * T - 0.0580852 * T * T + 0.00033420 * Math.pow(T, 3) - 0.0000014780 * Math.pow(T, 4);
+  }
+
+  function calculate() {
+    const T = Math.min(95, Math.max(0, parseFloat(tIn.value) || 20));
+    const med = medSel.value;
+    const dt = Math.max(0.001, parseFloat(dtIn.value) || 1.35);
+
+    let c = 0;
+    let rho = 998.2; // kg/m^3
+
+    if (med === 'pure') {
+      c = getPureWaterSoundSpeed(T);
+      rho = 999.84 - 0.008 * Math.pow(T - 4, 2);
+    } else if (med === 'seawater') {
+      // Mackenzie equation at S=35, D=0
+      c = 1448.96 + 4.591 * T - 0.05304 * T * T + 0.0002374 * Math.pow(T, 3);
+      rho = 1025.0;
+    } else {
+      // Deep ocean: S=35, D=2000m
+      c = 1448.96 + 4.591 * T - 0.05304 * T * T + 0.0002374 * Math.pow(T, 3) + 0.0163 * 2000;
+      rho = 1034.0;
+    }
+
+    const distM = (c * dt) / 2;
+    const ratioAir = c / 343;
+
+    // Bulk modulus Ks = rho * c^2 (Pa -> GPa)
+    const KsPa = rho * c * c;
+    const KsGpa = KsPa / 1e9;
+
+    // Acoustic impedance Z = rho * c (Rayl -> MRayl)
+    const Z = (rho * c) / 1e6;
+
+    speedOut.textContent = `${c.toFixed(1)} m/s`;
+    airRatioOut.textContent = `${ratioAir.toFixed(2)}× faster than air (343 m/s)`;
+
+    if (distM >= 1000) {
+      distOut.textContent = `${(distM / 1000).toFixed(2)} km (${Math.round(distM).toLocaleString()} m)`;
+    } else {
+      distOut.textContent = `${distM.toFixed(1)} m`;
+    }
+    onewayOut.textContent = `d = c · Δt / 2 (${(dt / 2).toFixed(3)}s transit)`;
+    bulkOut.textContent = `${KsGpa.toFixed(2)} GPa`;
+    impOut.textContent = `${Z.toFixed(2)} MRayl`;
+  }
+
+  function animateSonar() {
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const shipX = W / 2;
+    const surfaceY = 25;
+    const seaFloorY = H - 25;
+
+    // Water background
+    ctx.fillStyle = 'rgba(0, 50, 100, 0.25)';
+    ctx.fillRect(0, surfaceY, W, seaFloorY - surfaceY);
+
+    // Seabed
+    ctx.fillStyle = '#3a2f20';
+    ctx.fillRect(0, seaFloorY, W, 25);
+    ctx.strokeStyle = '#5a4f35';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, seaFloorY);
+    ctx.lineTo(W, seaFloorY);
+    ctx.stroke();
+
+    // Research Vessel Ship at surface
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(shipX - 30, surfaceY);
+    ctx.lineTo(shipX + 30, surfaceY);
+    ctx.lineTo(shipX + 22, surfaceY + 12);
+    ctx.lineTo(shipX - 22, surfaceY + 12);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sonar Ping Wavefront
+    pingY += pingDirection * 2.5;
+    if (pingY > seaFloorY) {
+      pingDirection = -1;
+      pingY = seaFloorY;
+    } else if (pingY < surfaceY + 12) {
+      pingDirection = 1;
+      pingY = surfaceY + 12;
+    }
+
+    const waveR = Math.abs(pingY - surfaceY);
+    ctx.strokeStyle = pingDirection === 1 ? 'rgba(0, 255, 204, 0.8)' : 'rgba(255, 215, 0, 0.8)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(shipX, pingY, Math.min(60, waveR * 0.4), 0, Math.PI);
+    ctx.stroke();
+
+    // Ping dot
+    ctx.fillStyle = pingDirection === 1 ? '#00ffcc' : '#ffd700';
+    ctx.beginPath();
+    ctx.arc(shipX, pingY, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('Sonar Transducer', shipX + 38, surfaceY + 8);
+    ctx.fillText('Seafloor / Target Echo', shipX + 38, seaFloorY + 16);
+
+    requestAnimationFrame(animateSonar);
+  }
+
+  [tIn, medSel, dtIn].forEach(elem => elem.addEventListener('input', calculate));
+
+  document.querySelectorAll('.uas-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tIn.value = btn.dataset.t;
+      medSel.value = btn.dataset.med;
+      dtIn.value = btn.dataset.dt;
+      calculate();
+    });
+  });
+
+  calculate();
+  animateSonar();
+})();
+</script>

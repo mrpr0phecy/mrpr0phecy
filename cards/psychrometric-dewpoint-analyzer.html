@@ -1,0 +1,227 @@
+<h2 id="psychrometric-dewpoint-title" style="margin-top:0;color:var(--accent);">☁️ HydroPsychro: Moist Air Psychrometrics & Dew Point</h2>
+
+<form aria-describedby="psychrometric-dewpoint-desc" onsubmit="event.preventDefault();">
+  <p id="psychrometric-dewpoint-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Analyze atmospheric water vapor psychrometrics using Magnus-Tetens formulas. Calculate exact Dew Point ($T_{dp}$), saturation vapor pressure ($e_s$), moisture humidity ratio ($W$), and surface condensation risks.
+  </p>
+
+  <!-- Input Parameters Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="hpd-dry-bulb" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Dry-Bulb Temp ($T_{db}$)</label>
+      <input type="number" id="hpd-dry-bulb" value="22" min="-20" max="60" step="0.5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">°C (Air temperature)</span>
+    </div>
+
+    <div>
+      <label for="hpd-rh" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Relative Humidity ($RH$)</label>
+      <input type="number" id="hpd-rh" value="65" min="1" max="100" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">%</span>
+    </div>
+
+    <div>
+      <label for="hpd-pressure" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Barometric Pressure</label>
+      <input type="number" id="hpd-pressure" value="1013.25" min="700" max="1100" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">hPa / mbar</span>
+    </div>
+  </div>
+
+  <!-- Meteorological Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="hpd-preset" data-t="21" data-rh="50" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">ASHRAE Ideal Comfort (21°C, 50% RH)</button>
+    <button type="button" class="hpd-preset" data-t="32" data-rh="85" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Tropical Swelter (32°C, 85% RH)</button>
+    <button type="button" class="hpd-preset" data-t="10" data-rh="95" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Dense Morning Fog (10°C, 95% RH)</button>
+    <button type="button" class="hpd-preset" data-t="38" data-rh="12" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Desert Arid Heat (38°C, 12% RH)</button>
+  </div>
+
+  <!-- Psychrometric Curve Canvas Display -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="hpd-canvas" width="600" height="170" style="width:100%;height:170px;display:block;"></canvas>
+    <div style="position:absolute;bottom:4px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Psychrometric Chart: Moisture content vs Dry-Bulb Temperature with 100% saturation dew curve
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Dew Point Temperature ($T_{dp}$)</div>
+        <div id="hpd-res-dewpoint" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">15.1°C</div>
+        <div id="hpd-res-dew-delta" style="font-size:0.68rem;color:var(--muted);">6.9°C margin to condensation</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Vapor Pressure ($e$)</div>
+        <div id="hpd-res-vapor-p" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">17.2 hPa</div>
+        <div id="hpd-res-esat" style="font-size:0.68rem;color:var(--muted);">Sat: $e_s = 26.4$ hPa</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Humidity Ratio ($W$)</div>
+        <div id="hpd-res-w" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">10.8 g/kg</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Grams of water per kg dry air</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Moist Air Enthalpy ($h$)</div>
+        <div id="hpd-res-enthalpy" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">49.6 kJ/kg</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Total thermal energy</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Condensation Hazard Banner -->
+  <div id="hpd-condensation-banner" style="padding:10px 14px;border-radius:8px;font-size:0.8rem;text-align:center;background:rgba(0, 255, 204, 0.1);border:1px solid #00ffcc;color:#00ffcc;">
+    ✅ <strong>Safe Moisture Margin:</strong> Any surface cooler than 15.1°C will collect condensation.
+  </div>
+</form>
+
+<script>
+(function() {
+  const tIn = document.getElementById('hpd-dry-bulb');
+  const rhIn = document.getElementById('hpd-rh');
+  const pIn = document.getElementById('hpd-pressure');
+
+  const canvas = document.getElementById('hpd-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const dpOut = document.getElementById('hpd-res-dewpoint');
+  const deltaOut = document.getElementById('hpd-res-dew-delta');
+  const vapOut = document.getElementById('hpd-res-vapor-p');
+  const esatOut = document.getElementById('hpd-res-esat');
+  const wOut = document.getElementById('hpd-res-w');
+  const enthOut = document.getElementById('hpd-res-enthalpy');
+  const banner = document.getElementById('hpd-condensation-banner');
+
+  // Buck / Magnus formula for saturation vapor pressure (hPa)
+  function getEs(T) {
+    return 6.1121 * Math.exp((17.67 * T) / (T + 243.5));
+  }
+
+  function calculate() {
+    const T = Math.min(60, Math.max(-20, parseFloat(tIn.value) || 20));
+    const RH = Math.min(100, Math.max(1, parseFloat(rhIn.value) || 50));
+    const P = Math.max(500, parseFloat(pIn.value) || 1013.25);
+
+    const es = getEs(T);
+    const e = es * (RH / 100);
+
+    // Dew point calculation: Magnus inverse formula
+    const alpha = (17.27 * T) / (237.7 + T) + Math.log(RH / 100);
+    const Tdp = (237.7 * alpha) / (17.27 - alpha);
+    const margin = T - Tdp;
+
+    // Humidity ratio W (g/kg)
+    const W = 621.98 * (e / (P - e));
+
+    // Enthalpy (kJ/kg)
+    const h = 1.006 * T + (W / 1000) * (2501 + 1.86 * T);
+
+    dpOut.textContent = `${Tdp.toFixed(1)}°C`;
+    deltaOut.textContent = `${margin.toFixed(1)}°C margin to condensation`;
+    vapOut.textContent = `${e.toFixed(1)} hPa`;
+    esatOut.textContent = `Sat: e_s = ${es.toFixed(1)} hPa`;
+    wOut.textContent = `${W.toFixed(1)} g/kg`;
+    enthOut.textContent = `${h.toFixed(1)} kJ/kg`;
+
+    if (margin <= 1.0) {
+      banner.style.background = 'rgba(255, 85, 119, 0.2)';
+      banner.style.borderColor = '#ff5577';
+      banner.style.color = '#ff88aa';
+      banner.innerHTML = '🚨 <strong>IMMINENT CONDENSATION & FOG:</strong> Air is nearly saturated. Heavy surface dew/condensation forming!';
+    } else if (margin <= 4.0) {
+      banner.style.background = 'rgba(255, 215, 0, 0.15)';
+      banner.style.borderColor = '#ffd700';
+      banner.style.color = '#ffd700';
+      banner.innerHTML = `⚠️ <strong>HIGH CONDENSATION RISK:</strong> Surfaces cooler than <strong>${Tdp.toFixed(1)}°C</strong> will form water droplets / mold.`;
+    } else {
+      banner.style.background = 'rgba(0, 255, 204, 0.1)';
+      banner.style.borderColor = '#00ffcc';
+      banner.style.color = '#00ffcc';
+      banner.innerHTML = `✅ <strong>HEALTHY MOISTURE MARGIN:</strong> Any surface cooler than <strong>${Tdp.toFixed(1)}°C</strong> will collect condensation.`;
+    }
+
+    drawChart(T, W, P);
+  }
+
+  function drawChart(curT, curW, P) {
+    const W_canvas = canvas.width;
+    const H_canvas = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W_canvas, H_canvas);
+
+    const padL = 40, padR = 20, padT = 15, padB = 25;
+    const plotW = W_canvas - padL - padR;
+    const plotH = H_canvas - padT - padB;
+
+    const minT = 0;
+    const maxT = 50;
+    const maxW = 35; // g/kg
+
+    // Axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, H_canvas - padB);
+    ctx.lineTo(W_canvas - padR, H_canvas - padB);
+    ctx.stroke();
+
+    // Draw RH curves: 100% (Saturation Dew Line), 75%, 50%, 25%
+    [100, 75, 50, 25].forEach(rhVal => {
+      ctx.strokeStyle = rhVal === 100 ? '#00ffcc' : 'rgba(0, 255, 204, 0.25)';
+      ctx.lineWidth = rhVal === 100 ? 2.2 : 1.0;
+      ctx.beginPath();
+
+      for (let px = 0; px <= plotW; px++) {
+        const tVal = minT + (px / plotW) * (maxT - minT);
+        const esVal = getEs(tVal);
+        const eVal = esVal * (rhVal / 100);
+        const wVal = 621.98 * (eVal / (P - eVal));
+        const py = (H_canvas - padB) - (wVal / maxW) * plotH;
+
+        if (px === 0) ctx.moveTo(padL + px, py);
+        else ctx.lineTo(padL + px, py);
+      }
+      ctx.stroke();
+    });
+
+    // Current State Operating Point
+    if (curT >= minT && curT <= maxT && curW <= maxW) {
+      const px = padL + ((curT - minT) / (maxT - minT)) * plotW;
+      const py = (H_canvas - padB) - (curW / maxW) * plotH;
+
+      ctx.strokeStyle = '#ffd700';
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(px, H_canvas - padB);
+      ctx.lineTo(px, py);
+      ctx.lineTo(padL, py);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('0°C', padL, H_canvas - 8);
+    ctx.fillText('25°C', padL + (25 / 50) * plotW - 8, H_canvas - 8);
+    ctx.fillText('50°C', W_canvas - padR - 15, H_canvas - 8);
+    ctx.fillText('100% Saturation', padL + (30 / 50) * plotW - 10, padT + 25);
+  }
+
+  [tIn, rhIn, pIn].forEach(elem => elem.addEventListener('input', calculate));
+
+  document.querySelectorAll('.hpd-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tIn.value = btn.dataset.t;
+      rhIn.value = btn.dataset.rh;
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>

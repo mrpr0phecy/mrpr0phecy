@@ -1,0 +1,296 @@
+<h2 id="water-density-anomaly-title" style="margin-top:0;color:var(--accent);">💧 AquaDensity: Water Density Anomaly & Lake Stratification</h2>
+
+<form aria-describedby="water-density-anomaly-desc" onsubmit="event.preventDefault();">
+  <p id="water-density-anomaly-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Investigate water's famous thermodynamic density anomaly ($\rho_{max}$ at $3.98^\circ\text{C}$). Explore negative thermal expansion, the $+9\%$ ice phase transition volume expansion, and ecological lake winter stratification.
+  </p>
+
+  <!-- Input Controls Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="wda-temp" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Water Temperature ($T$)</label>
+      <input type="number" id="wda-temp" value="3.98" min="-10" max="100" step="0.5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">°C</span>
+    </div>
+
+    <div>
+      <label for="wda-water-volume" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Sample Volume ($V$)</label>
+      <input type="number" id="wda-water-volume" value="1000" min="1" max="1000000" step="100" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Liters (L)</span>
+    </div>
+
+    <div>
+      <label for="wda-state-override" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Phase State</label>
+      <select id="wda-state-override" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="auto" selected>Auto (Ice if T ≤ 0°C)</option>
+        <option value="supercooled">Supercooled Liquid Water</option>
+        <option value="solid_ice">Solid Hexagonal Ice (Ih)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="wda-preset" data-t="3.98" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Peak Density (3.98°C)</button>
+    <button type="button" class="wda-preset" data-t="0.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Freezing Point (0.0°C)</button>
+    <button type="button" class="wda-preset" data-t="20.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Room Temp (20°C)</button>
+    <button type="button" class="wda-preset" data-t="37.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Human Body (37°C)</button>
+    <button type="button" class="wda-preset" data-t="100.0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Boiling Water (100°C)</button>
+  </div>
+
+  <!-- Dual Display Canvas: Density Curve + Ecological Lake Stratification -->
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px;margin-bottom:12px;">
+    <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;">
+      <canvas id="wda-curve-canvas" width="280" height="180" style="width:100%;height:180px;display:block;"></canvas>
+      <div style="position:absolute;bottom:4px;left:6px;font-size:0.65rem;color:var(--muted);">Density vs Temperature Curve</div>
+    </div>
+    <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;">
+      <canvas id="wda-lake-canvas" width="240" height="180" style="width:100%;height:180px;display:block;"></canvas>
+      <div style="position:absolute;bottom:4px;left:6px;font-size:0.65rem;color:var(--muted);">Winter Lake Thermal Layering</div>
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Water Density ($\rho$)</div>
+        <div id="wda-res-density" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">999.97 kg/m³</div>
+        <div id="wda-res-pct-max" style="font-size:0.68rem;color:var(--muted);">100.0% of Maximum</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Thermal Expansion ($\beta$)</div>
+        <div id="wda-res-beta" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">0.00 × 10⁻⁶ /°C</div>
+        <div id="wda-res-expansion-regime" style="font-size:0.68rem;color:#00ffcc;">ZERO (Maximum Density)</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Specific Volume ($v$)</div>
+        <div id="wda-res-spec-vol" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">1.00003 cm³/g</div>
+        <div id="wda-res-sample-mass" style="font-size:0.68rem;color:var(--muted);">Mass: 999.97 kg</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Freezing Vol. Expansion</div>
+        <div id="wda-res-ice-jump" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">+9.08% Volume</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Ice Ih: 916.7 kg/m³</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ecological & Molecular Explanation Box -->
+  <div id="wda-insight-box" style="background:rgba(255,255,255,0.03);border-left:3px solid #00ffcc;border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:var(--muted);">
+    <strong>Molecular Anomaly:</strong> Below 3.98°C, tetrahedral hydrogen bonding forces water molecules into an open, cavernous cage-like lattice. As water cools toward 0°C, it expands, becoming lighter. Thus, ice floats on top, insulating aquatic life in the 4°C water settled at the bottom of frozen lakes!
+  </div>
+</form>
+
+<script>
+(function() {
+  const tIn = document.getElementById('wda-temp');
+  const volIn = document.getElementById('wda-water-volume');
+  const stateSel = document.getElementById('wda-state-override');
+
+  const curveCanvas = document.getElementById('wda-curve-canvas');
+  const curveCtx = curveCanvas.getContext('2d');
+  const lakeCanvas = document.getElementById('wda-lake-canvas');
+  const lakeCtx = lakeCanvas.getContext('2d');
+
+  const densOut = document.getElementById('wda-res-density');
+  const pctMaxOut = document.getElementById('wda-res-pct-max');
+  const betaOut = document.getElementById('wda-res-beta');
+  const regOut = document.getElementById('wda-res-expansion-regime');
+  const specVolOut = document.getElementById('wda-res-spec-vol');
+  const massOut = document.getElementById('wda-res-sample-mass');
+  const iceJumpOut = document.getElementById('wda-res-ice-jump');
+
+  // Tanaka formulation for liquid water density (kg/m^3)
+  function getLiquidWaterDensity(T) {
+    const a1 = -3.983035;
+    const a2 = 301.797;
+    const a3 = 522528.9;
+    const a4 = 69.34881;
+    const a5 = 999.974950;
+    const num = Math.pow(T + a1, 2) * (T + a2);
+    const den = a3 * (T + a4);
+    return a5 * (1 - num / den);
+  }
+
+  // Hexagonal Ice Ih density (kg/m^3)
+  function getIceDensity(T) {
+    return 916.7 - 0.13 * T;
+  }
+
+  function calculate() {
+    const T = parseFloat(tIn.value) || 0;
+    const volL = parseFloat(volIn.value) || 1000;
+    const volM3 = volL / 1000;
+    const state = stateSel.value;
+
+    const isIce = state === 'solid_ice' || (state === 'auto' && T <= 0);
+
+    let rho = 0;
+    if (isIce) {
+      rho = getIceDensity(T);
+    } else {
+      rho = getLiquidWaterDensity(T);
+    }
+
+    const rhoMax = 999.975;
+    const pctMax = (rho / rhoMax) * 100;
+    const massKg = rho * volM3;
+    const specVol = (1 / rho) * 1000; // cm^3 / g
+
+    // Numerical derivative for thermal expansion coefficient beta = -(1/rho) * (drho/dT)
+    const dT = 0.05;
+    const rhoPlus = isIce ? getIceDensity(T + dT) : getLiquidWaterDensity(T + dT);
+    const rhoMinus = isIce ? getIceDensity(T - dT) : getLiquidWaterDensity(T - dT);
+    const drho_dT = (rhoPlus - rhoMinus) / (2 * dT);
+    const beta = -(1 / rho) * drho_dT; // 1 / K
+
+    densOut.textContent = `${rho.toFixed(2)} kg/m³`;
+    pctMaxOut.textContent = `${pctMax.toFixed(2)}% of Maximum`;
+    betaOut.textContent = `${(beta * 1e6).toFixed(1)} × 10⁻⁶ /°C`;
+
+    if (isIce) {
+      regOut.textContent = 'SOLID ICE (Hexagonal Ih)';
+      regOut.style.color = '#0099ff';
+      iceJumpOut.textContent = 'Floating (+9.08% vol)';
+    } else if (Math.abs(T - 3.98) < 0.2) {
+      regOut.textContent = 'ZERO (Peak Density Point)';
+      regOut.style.color = '#ffd700';
+      iceJumpOut.textContent = 'Densest State';
+    } else if (T < 3.98) {
+      regOut.textContent = 'NEGATIVE (Expands on cooling)';
+      regOut.style.color = '#ff5577';
+      iceJumpOut.textContent = 'Anomalous Expansion';
+    } else {
+      regOut.textContent = 'POSITIVE (Expands on heating)';
+      regOut.style.color = '#00ffcc';
+      iceJumpOut.textContent = 'Normal Liquid Expansion';
+    }
+
+    specVolOut.textContent = `${specVol.toFixed(5)} cm³/g`;
+    massOut.textContent = `Mass: ${massKg.toFixed(2)} kg`;
+
+    drawCurve(T, isIce);
+    drawLake(T);
+  }
+
+  function drawCurve(currentT, isIce) {
+    const W = curveCanvas.width;
+    const H = curveCanvas.height;
+    curveCtx.fillStyle = '#050811';
+    curveCtx.fillRect(0, 0, W, H);
+
+    const padL = 40, padR = 15, padT = 15, padB = 25;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const minT = -5;
+    const maxT = 30;
+    const minRho = 990;
+    const maxRho = 1001;
+
+    // Axes
+    curveCtx.strokeStyle = 'rgba(255,255,255,0.2)';
+    curveCtx.lineWidth = 1;
+    curveCtx.beginPath();
+    curveCtx.moveTo(padL, padT);
+    curveCtx.lineTo(padL, H - padB);
+    curveCtx.lineTo(W - padR, H - padB);
+    curveCtx.stroke();
+
+    // Plot Liquid Density Curve
+    curveCtx.strokeStyle = '#00ffcc';
+    curveCtx.lineWidth = 2.2;
+    curveCtx.beginPath();
+
+    for (let px = 0; px <= plotW; px++) {
+      const curT = minT + (px / plotW) * (maxT - minT);
+      const rVal = getLiquidWaterDensity(curT);
+      const py = (H - padB) - ((rVal - minRho) / (maxRho - minRho)) * plotH;
+
+      if (px === 0) curveCtx.moveTo(padL + px, py);
+      else curveCtx.lineTo(padL + px, py);
+    }
+    curveCtx.stroke();
+
+    // Mark 3.98°C maximum point
+    const xMax = padL + ((3.98 - minT) / (maxT - minT)) * plotW;
+    const yMax = (H - padB) - ((999.975 - minRho) / (maxRho - minRho)) * plotH;
+    curveCtx.fillStyle = '#ffd700';
+    curveCtx.beginPath();
+    curveCtx.arc(xMax, yMax, 4, 0, Math.PI * 2);
+    curveCtx.fill();
+
+    // Mark current selected point
+    if (currentT >= minT && currentT <= maxT && !isIce) {
+      const curX = padL + ((currentT - minT) / (maxT - minT)) * plotW;
+      const curRho = getLiquidWaterDensity(currentT);
+      const curY = (H - padB) - ((curRho - minRho) / (maxRho - minRho)) * plotH;
+
+      curveCtx.strokeStyle = '#ff5577';
+      curveCtx.setLineDash([3, 3]);
+      curveCtx.beginPath();
+      curveCtx.moveTo(curX, H - padB);
+      curveCtx.lineTo(curX, curY);
+      curveCtx.stroke();
+      curveCtx.setLineDash([]);
+
+      curveCtx.fillStyle = '#ff5577';
+      curveCtx.beginPath();
+      curveCtx.arc(curX, curY, 5, 0, Math.PI * 2);
+      curveCtx.fill();
+    }
+
+    curveCtx.fillStyle = 'rgba(255,255,255,0.4)';
+    curveCtx.font = '9px sans-serif';
+    curveCtx.fillText('0°C', padL + ((0 - minT) / (maxT - minT)) * plotW - 6, H - 8);
+    curveCtx.fillText('4°C', xMax - 6, H - 8);
+    curveCtx.fillText('20°C', padL + ((20 - minT) / (maxT - minT)) * plotW - 10, H - 8);
+    curveCtx.fillText('1000', padL - 28, yMax + 3);
+  }
+
+  function drawLake(currentT) {
+    const W = lakeCanvas.width;
+    const H = lakeCanvas.height;
+    lakeCtx.fillStyle = '#050811';
+    lakeCtx.fillRect(0, 0, W, H);
+
+    // Lake Bed & Water Layers
+    const layers = [
+      { y: 25, h: 25, temp: '0°C Ice (Ih)', color: 'rgba(180, 230, 255, 0.85)', textColor: '#050811' },
+      { y: 50, h: 35, temp: '1°C - 2°C (Cold Water)', color: 'rgba(0, 180, 220, 0.6)', textColor: '#fff' },
+      { y: 85, h: 40, temp: '3°C Water', color: 'rgba(0, 140, 180, 0.7)', textColor: '#fff' },
+      { y: 125, h: 45, temp: '4°C Densest Layer (Aquatic Haven)', color: 'rgba(0, 80, 140, 0.9)', textColor: '#00ffcc' }
+    ];
+
+    layers.forEach(l => {
+      lakeCtx.fillStyle = l.color;
+      lakeCtx.fillRect(20, l.y, W - 40, l.h);
+
+      lakeCtx.strokeStyle = 'rgba(255,255,255,0.1)';
+      lakeCtx.strokeRect(20, l.y, W - 40, l.h);
+
+      lakeCtx.fillStyle = l.textColor;
+      lakeCtx.font = 'bold 9px sans-serif';
+      lakeCtx.fillText(l.temp, 28, l.y + l.h / 2 + 3);
+    });
+
+    // Fish symbol swimming in the 4°C bottom layer
+    lakeCtx.fillStyle = '#ffd700';
+    lakeCtx.font = '14px sans-serif';
+    lakeCtx.fillText('🐟', W - 60, 150);
+  }
+
+  [tIn, volIn, stateSel].forEach(elem => elem.addEventListener('input', calculate));
+
+  document.querySelectorAll('.wda-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tIn.value = btn.dataset.t;
+      stateSel.value = 'auto';
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>

@@ -1,0 +1,227 @@
+<h2 id="water-dielectric-title" style="margin-top:0;color:var(--accent);">⚡ AquaDipole: Water Dielectric & Microwave Relaxation Lab</h2>
+
+<form aria-describedby="water-dielectric-desc" onsubmit="event.preventDefault();">
+  <p id="water-dielectric-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Investigate water's molecular dipole moment ($\mu = 1.854\text{ Debye}$) and huge dielectric permittivity ($\epsilon_r \approx 80.1$). Model Debye relaxation ($\epsilon^*(\omega) = \epsilon_\infty + \frac{\epsilon_s - \epsilon_\infty}{1 + i\omega\tau}$), Coulomb screening, and $2.45\text{ GHz}$ microwave heating loss.
+  </p>
+
+  <!-- Input Parameters Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="wdr-temp" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Water Temp ($T$)</label>
+      <input type="number" id="wdr-temp" value="25" min="0" max="95" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">°C</span>
+    </div>
+
+    <div>
+      <label for="wdr-freq-ghz" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">EM Frequency ($f$)</label>
+      <input type="number" id="wdr-freq-ghz" value="2.45" min="0.001" max="1000" step="0.1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">GHz (2.45 GHz = Microwave Oven)</span>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="wdr-preset" data-t="25" data-f="2.45" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">2.45 GHz Microwave Oven (Dielectric Heating)</button>
+    <button type="button" class="wdr-preset" data-t="25" data-f="19.2" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">19.2 GHz Relaxation Peak (Max Absorption)</button>
+    <button type="button" class="wdr-preset" data-t="20" data-f="0.001" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Static DC / 1 MHz Field (ε_s = 80.1)</button>
+    <button type="button" class="wdr-preset" data-t="0" data-f="2.45" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Ice Cold 0°C (Slow Dipole Flipping)</button>
+  </div>
+
+  <!-- Debye Permittivity Spectrum Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;position:relative;margin-bottom:12px;">
+    <canvas id="wdr-canvas" width="600" height="180" style="width:100%;height:180px;display:block;"></canvas>
+    <div style="position:absolute;bottom:4px;left:8px;font-size:0.68rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      <span style="color:#00ffcc;">■ Real Permittivity &epsilon;&prime; (Storage)</span> &nbsp;|&nbsp; <span style="color:#ff5577;">■ Loss Factor &epsilon;&Prime; (Thermal Dissipation)</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Static Permittivity ($\epsilon_s$)</div>
+        <div id="wdr-res-eps-static" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">78.36</div>
+        <div id="wdr-res-coulomb" style="font-size:0.68rem;color:var(--muted);">Screens Coulomb force by 1/78</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Real Permittivity ($\epsilon'$)</div>
+        <div id="wdr-res-eps-prime" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">76.8</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Polarization storage</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Dielectric Loss ($\epsilon''$)</div>
+        <div id="wdr-res-eps-double" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">12.1</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Loss tangent $\tan\delta = 0.158$</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Relaxation Time ($\tau$)</div>
+        <div id="wdr-res-tau" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">8.27 ps</div>
+        <div id="wdr-res-f-rel" style="font-size:0.68rem;color:var(--muted);">Peak $f_{rel} = 19.2$ GHz</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const tIn = document.getElementById('wdr-temp');
+  const fIn = document.getElementById('wdr-freq-ghz');
+
+  const canvas = document.getElementById('wdr-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const epsStaticOut = document.getElementById('wdr-res-eps-static');
+  const coulombOut = document.getElementById('wdr-res-coulomb');
+  const primeOut = document.getElementById('wdr-res-eps-prime');
+  const doubleOut = document.getElementById('wdr-res-eps-double');
+  const tauOut = document.getElementById('wdr-res-tau');
+  const fRelOut = document.getElementById('wdr-res-f-rel');
+
+  // Empirical formula for static dielectric constant of water eps_s(T)
+  function getStaticEps(T) {
+    return 87.914 - 0.404399 * T + 0.000958726 * T * T - 0.000001328 * Math.pow(T, 3);
+  }
+
+  // Relaxation time tau in picoseconds (ps)
+  function getRelaxationTimePs(T) {
+    // Arrhenius-like behavior: 17.7 ps at 0°C down to 8.27 ps at 25°C and ~3.5 ps at 80°C
+    const TK = T + 273.15;
+    return 0.0014 * Math.exp(2100 / TK);
+  }
+
+  function calculate() {
+    const T = Math.min(95, Math.max(0, parseFloat(tIn.value) || 25));
+    const fGhz = Math.max(0.0001, parseFloat(fIn.value) || 2.45);
+
+    const epsS = getStaticEps(T);
+    const epsInf = 4.9; // optical/high-frequency limit
+    const tauPs = getRelaxationTimePs(T);
+    const tauSec = tauPs * 1e-12;
+
+    const omega = 2 * Math.PI * (fGhz * 1e9); // rad/s
+    const wt = omega * tauSec;
+
+    // Debye Equations
+    const epsPrime = epsInf + (epsS - epsInf) / (1 + wt * wt);
+    const epsDouble = ((epsS - epsInf) * wt) / (1 + wt * wt);
+    const lossTan = epsDouble / epsPrime;
+
+    const fPeakGhz = (1 / (2 * Math.PI * tauSec)) / 1e9;
+
+    epsStaticOut.textContent = epsS.toFixed(2);
+    coulombOut.textContent = `Screens Coulomb force by 1/${epsS.toFixed(0)}`;
+    primeOut.textContent = epsPrime.toFixed(1);
+    doubleOut.textContent = epsDouble.toFixed(1);
+    tauOut.textContent = `${tauPs.toFixed(2)} ps`;
+    fRelOut.textContent = `Peak f_rel = ${fPeakGhz.toFixed(1)} GHz`;
+
+    drawDebyeSpectrum(epsS, epsInf, tauSec, fGhz);
+  }
+
+  function drawDebyeSpectrum(epsS, epsInf, tauSec, currentFGhz) {
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const padL = 40, padR = 20, padT = 15, padB = 25;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const minLogF = -1; // 0.1 GHz (100 MHz)
+    const maxLogF = 2.5; // ~300 GHz
+    const maxEps = 90;
+
+    function toX(fGhz) {
+      const logF = Math.log10(Math.max(0.01, fGhz));
+      return padL + ((logF - minLogF) / (maxLogF - minLogF)) * plotW;
+    }
+    function toY(val) {
+      return (H - padB) - (Math.min(maxEps, Math.max(0, val)) / maxEps) * plotH;
+    }
+
+    // Axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, H - padB);
+    ctx.lineTo(W - padR, H - padB);
+    ctx.stroke();
+
+    // Plot Real Permittivity eps' (Cyan)
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+
+    for (let px = 0; px <= plotW; px++) {
+      const logF = minLogF + (px / plotW) * (maxLogF - minLogF);
+      const fG = Math.pow(10, logF);
+      const om = 2 * Math.PI * (fG * 1e9);
+      const wt = om * tauSec;
+      const ep = epsInf + (epsS - epsInf) / (1 + wt * wt);
+      const py = toY(ep);
+
+      if (px === 0) ctx.moveTo(padL + px, py);
+      else ctx.lineTo(padL + px, py);
+    }
+    ctx.stroke();
+
+    // Plot Imaginary Loss Factor eps'' (Red)
+    ctx.strokeStyle = '#ff5577';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+
+    for (let px = 0; px <= plotW; px++) {
+      const logF = minLogF + (px / plotW) * (maxLogF - minLogF);
+      const fG = Math.pow(10, logF);
+      const om = 2 * Math.PI * (fG * 1e9);
+      const wt = om * tauSec;
+      const ed = ((epsS - epsInf) * wt) / (1 + wt * wt);
+      const py = toY(ed);
+
+      if (px === 0) ctx.moveTo(padL + px, py);
+      else ctx.lineTo(padL + px, py);
+    }
+    ctx.stroke();
+
+    // Mark current frequency position
+    const curX = toX(currentFGhz);
+    if (curX >= padL && curX <= W - padR) {
+      ctx.strokeStyle = '#ffd700';
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(curX, H - padB);
+      ctx.lineTo(curX, padT);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.arc(curX, toY(epsInf + (epsS - epsInf) / (1 + Math.pow(2 * Math.PI * currentFGhz * 1e9 * tauSec, 2))), 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Grid labels
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '9px sans-serif';
+    ctx.fillText('0.1 GHz', padL, H - 8);
+    ctx.fillText('2.45 GHz (Microwave)', toX(2.45) - 30, H - 8);
+    ctx.fillText('100 GHz', W - padR - 30, H - 8);
+    ctx.fillText('ε=80', padL - 25, toY(80) + 3);
+  }
+
+  [tIn, fIn].forEach(elem => elem.addEventListener('input', calculate));
+
+  document.querySelectorAll('.wdr-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tIn.value = btn.dataset.t;
+      fIn.value = btn.dataset.f;
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>
