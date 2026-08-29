@@ -1,0 +1,165 @@
+<h2 id="ds-title" style="margin-top:0;color:var(--accent);">📓 Lucid Dream Sign Analyzer</h2>
+
+<form aria-describedby="ds-desc" onsubmit="event.preventDefault();">
+  <p id="ds-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Identify personal recurring anomalies across your dreams (LaBerge 4-Category taxonomy). Recognizing your frequent dream signs is the #1 trigger for spontaneous lucidity.
+  </p>
+
+  <!-- Add Dream Sign Input -->
+  <div style="display:grid;grid-template-columns:1fr 110px 80px;gap:8px;margin-bottom:12px;">
+    <input type="text" id="ds-input-name" placeholder="Enter dream sign (e.g. flying, teeth loose, late for exam)..." style="width:100%;padding:8px 10px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+    <select id="ds-input-cat" style="width:100%;padding:8px 6px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.8rem;">
+      <option value="Action">Action</option>
+      <option value="Form">Form</option>
+      <option value="Context">Context</option>
+      <option value="Awareness">Awareness</option>
+    </select>
+    <button type="button" id="ds-add-btn" style="padding:8px 10px;background:var(--accent);border:none;color:#050d18;border-radius:6px;font-weight:700;font-size:0.8rem;cursor:pointer;">
+      + Add
+    </button>
+  </div>
+
+  <!-- Quick Add Badges -->
+  <div style="margin-bottom:12px;">
+    <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:6px;">⚡ Quick Presets:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;">
+      <button type="button" class="ds-quick-chip" data-name="Flying / Floating" data-cat="Action" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:4px 8px;border-radius:12px;font-size:0.72rem;cursor:pointer;">🕊️ Flying</button>
+      <button type="button" class="ds-quick-chip" data-name="Car Brakes Failing" data-cat="Action" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:4px 8px;border-radius:12px;font-size:0.72rem;cursor:pointer;">🚗 Failing Brakes</button>
+      <button type="button" class="ds-quick-chip" data-name="Childhood Home / School" data-cat="Context" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:4px 8px;border-radius:12px;font-size:0.72rem;cursor:pointer;">🏫 Old School</button>
+      <button type="button" class="ds-quick-chip" data-name="Deceased Person Present" data-cat="Form" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:4px 8px;border-radius:12px;font-size:0.72rem;cursor:pointer;">👤 Deceased Person</button>
+      <button type="button" class="ds-quick-chip" data-name="Teeth Loose or Falling" data-cat="Form" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:4px 8px;border-radius:12px;font-size:0.72rem;cursor:pointer;">🦷 Teeth Falling</button>
+      <button type="button" class="ds-quick-chip" data-name="Breathing Underwater" data-cat="Action" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:4px 8px;border-radius:12px;font-size:0.72rem;cursor:pointer;">🌊 Breathe Underwater</button>
+    </div>
+  </div>
+
+  <!-- Active Dream Signs Table -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:0.75rem;font-weight:700;color:#fff;">
+      <span>Active Dream Sign Vault (<span id="ds-total-count">0</span> tracked)</span>
+      <span style="color:var(--accent);font-size:0.7rem;">Click sign to generate MILD trigger</span>
+    </div>
+    <div id="ds-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- Selected Sign Prospective Trigger Box -->
+  <div id="ds-trigger-box" style="background:rgba(180,75,255,0.08);border:1px solid rgba(180,75,255,0.3);border-radius:8px;padding:10px 12px;font-size:0.75rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:#d896ff;">Prospective MILD Anchor:</strong>
+    <div id="ds-trigger-text" style="color:#fff;margin-top:3px;font-weight:600;">
+      "Whenever I notice a dream sign, I immediately perform a reality test and realize I am dreaming."
+    </div>
+  </div>
+</form>
+
+<script>
+(function initDreamSignVault() {
+  const nameInput = document.getElementById('ds-input-name');
+  const catInput = document.getElementById('ds-input-cat');
+  const addBtn = document.getElementById('ds-add-btn');
+  const listEl = document.getElementById('ds-list');
+  const totalCountEl = document.getElementById('ds-total-count');
+  const triggerText = document.getElementById('ds-trigger-text');
+  const quickChips = document.querySelectorAll('.ds-quick-chip');
+
+  if (!nameInput || !listEl) return;
+
+  const defaultSigns = [
+    { name: 'Flying / Floating Unassisted', cat: 'Action', freq: 4 },
+    { name: 'Failing Car Brakes', cat: 'Action', freq: 3 },
+    { name: 'Childhood Elementary School', cat: 'Context', freq: 2 },
+    { name: 'Deceased Grandparent Present', cat: 'Form', freq: 2 },
+    { name: 'Extreme Slow-Motion Running', cat: 'Awareness', freq: 3 }
+  ];
+
+  let signs = [];
+  try {
+    const saved = localStorage.getItem('mrprophecy_dream_signs');
+    signs = saved ? JSON.parse(saved) : defaultSigns;
+  } catch(e) {
+    signs = defaultSigns;
+  }
+
+  function saveAndRender() {
+    try {
+      localStorage.setItem('mrprophecy_dream_signs', JSON.stringify(signs));
+    } catch(e) {}
+    renderList();
+  }
+
+  function renderList() {
+    totalCountEl.textContent = signs.length;
+    listEl.innerHTML = '';
+    if (signs.length === 0) {
+      listEl.innerHTML = '<div style="font-size:0.75rem;color:var(--text-secondary);text-align:center;padding:10px;">No dream signs added yet. Enter one above or click a quick preset.</div>';
+      return;
+    }
+
+    // Sort by frequency descending
+    signs.sort((a,b) => b.freq - a.freq);
+
+    signs.forEach((s, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:5px;cursor:pointer;border:1px solid transparent;transition:all 0.2s;';
+      row.onmouseover = () => row.style.borderColor = 'rgba(0,243,255,0.4)';
+      row.onmouseout = () => row.style.borderColor = 'transparent';
+      
+      const catColor = s.cat === 'Action' ? '#00ffcc' : s.cat === 'Form' ? '#ffd700' : s.cat === 'Context' ? '#d896ff' : '#ff85a2';
+
+      row.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
+          <span style="font-size:0.68rem;padding:2px 5px;border-radius:3px;background:rgba(255,255,255,0.06);color:${catColor};font-weight:700;">${s.cat}</span>
+          <span style="font-size:0.78rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.name}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();">
+          <span style="font-size:0.72rem;color:var(--text-secondary);">${s.freq}x</span>
+          <button type="button" class="ds-inc-btn" style="padding:2px 6px;background:rgba(0,243,255,0.2);border:1px solid var(--accent);color:#fff;border-radius:3px;font-size:0.7rem;cursor:pointer;">+1</button>
+          <button type="button" class="ds-del-btn" style="padding:2px 6px;background:rgba(255,51,102,0.2);border:1px solid #ff3366;color:#ff85a2;border-radius:3px;font-size:0.7rem;cursor:pointer;">✕</button>
+        </div>
+      `;
+
+      row.onclick = () => {
+        triggerText.textContent = `"Whenever I encounter [${s.name}], I will instantly realize that I am dreaming and take full control."`;
+      };
+
+      row.querySelector('.ds-inc-btn').onclick = (e) => {
+        e.stopPropagation();
+        s.freq++;
+        saveAndRender();
+      };
+
+      row.querySelector('.ds-del-btn').onclick = (e) => {
+        e.stopPropagation();
+        signs.splice(idx, 1);
+        saveAndRender();
+      };
+
+      listEl.appendChild(row);
+    });
+  }
+
+  addBtn.addEventListener('click', () => {
+    const val = nameInput.value.trim();
+    if (!val) return;
+    signs.push({ name: val, cat: catInput.value, freq: 1 });
+    nameInput.value = '';
+    saveAndRender();
+  });
+
+  quickChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const name = chip.dataset.name;
+      const cat = chip.dataset.cat;
+      const existing = signs.find(s => s.name === name);
+      if (existing) {
+        existing.freq++;
+      } else {
+        signs.push({ name, cat, freq: 1 });
+      }
+      saveAndRender();
+    });
+  });
+
+  saveAndRender();
+})();
+</script>

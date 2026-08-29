@@ -1,0 +1,175 @@
+<h2 id="mild-title" style="margin-top:0;color:var(--accent);">🧠 MILD Lucid Dream Mantra Lab</h2>
+
+<form aria-describedby="mild-desc" onsubmit="event.preventDefault();">
+  <p id="mild-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Mnemonic Induction of Lucid Dreams (Stanford / Dr. Stephen LaBerge). Primes prospective memory to recognize the dream state right before entering REM sleep.
+  </p>
+
+  <!-- Mantra Selector / Custom Input -->
+  <div style="margin-bottom:12px;">
+    <label for="mild-preset" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Select Prospective Intention Formula:</label>
+    <select id="mild-preset" style="width:100%;padding:8px 10px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.85rem;margin-bottom:6px;">
+      <option value="Next time I'm dreaming, I will remember that I'm dreaming." selected>Classic LaBerge: "Next time I'm dreaming, I will remember that I'm dreaming."</option>
+      <option value="I am aware that I am dreaming right now.">Direct Presence: "I am aware that I am dreaming right now."</option>
+      <option value="When I see a dream sign, I immediately achieve full lucidity.">Dream Sign Anchor: "When I see a dream sign, I immediately achieve full lucidity."</option>
+      <option value="My mind remains awake while my physical body falls asleep.">WILD Hybrid: "My mind remains awake while my physical body falls asleep."</option>
+      <option value="custom">✏️ Custom Affirmation...</option>
+    </select>
+    <input type="text" id="mild-custom-text" style="display:none;width:100%;padding:8px 10px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.85rem;" placeholder="Type your custom mantra here...">
+  </div>
+
+  <!-- Pulsing Breathing & Cadence Pacer Canvas / Display -->
+  <div style="background:#060d16;border:1px solid rgba(180,75,255,0.3);border-radius:8px;padding:16px;text-align:center;margin-bottom:12px;position:relative;overflow:hidden;">
+    <div id="mild-orb" style="width:100px;height:100px;border-radius:50%;margin:0 auto 12px;background:radial-gradient(circle, #d896ff 0%, rgba(180,75,255,0.2) 65%, transparent 70%);box-shadow:0 0 25px rgba(180,75,255,0.4);display:flex;align-items:center;justify-content:center;transition:transform 4s ease-in-out, opacity 4s ease-in-out;">
+      <span style="font-size:24px;">✨</span>
+    </div>
+
+    <div id="mild-phase-text" style="font-size:0.8rem;color:#ffd700;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Inhale &bull; Focus Intention</div>
+    
+    <div id="mild-active-mantra" style="font-size:1.05rem;font-weight:700;color:#fff;line-height:1.4;max-width:440px;margin:0 auto;min-height:48px;">
+      "Next time I'm dreaming, I will remember that I'm dreaming."
+    </div>
+
+    <div style="font-size:0.7rem;color:var(--text-secondary);margin-top:8px;">
+      Repeat mentally with clear emotional conviction during each breath cycle as you drift to sleep.
+    </div>
+  </div>
+
+  <!-- Controls: Pacer Speed & Ambient Drone Audio -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <button type="button" id="mild-toggle-pacer" style="padding:10px;background:rgba(0,243,255,0.15);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-weight:700;font-size:0.82rem;cursor:pointer;">
+      ▶ Start Pacer Loop
+    </button>
+    <button type="button" id="mild-sound-toggle" style="padding:10px;background:rgba(180,75,255,0.15);border:1px solid #d896ff;color:#d896ff;border-radius:6px;font-weight:700;font-size:0.82rem;cursor:pointer;">
+      🔊 Audio Cue: OFF
+    </button>
+  </div>
+
+  <!-- 4-Step Stanford MILD Protocol Guide -->
+  <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 12px;font-size:0.75rem;color:var(--text-secondary);line-height:1.45;">
+    <strong style="color:#fff;">The 4 Core Stanford MILD Steps:</strong>
+    <ol style="margin:4px 0 0;padding-left:18px;">
+      <li><strong>Dream Recall:</strong> Wake from a dream during WBTB and recall details thoroughly.</li>
+      <li><strong>Focus Intention:</strong> Mentally affirm your mantra as you prepare to fall asleep again.</li>
+      <li><strong>Visualize Lucidity:</strong> Picture yourself back in that same dream, spotting a dream sign, and realizing <em>"I'm dreaming!"</em></li>
+      <li><strong>Persevere:</strong> Maintain this mental state until consciousness lapses into sleep.</li>
+    </ol>
+  </div>
+</form>
+
+<script>
+(function initMILDStudio() {
+  const presetSelect = document.getElementById('mild-preset');
+  const customInput = document.getElementById('mild-custom-text');
+  const activeMantra = document.getElementById('mild-active-mantra');
+  const orb = document.getElementById('mild-orb');
+  const phaseText = document.getElementById('mild-phase-text');
+  const toggleBtn = document.getElementById('mild-toggle-pacer');
+  const soundBtn = document.getElementById('mild-sound-toggle');
+
+  if (!presetSelect || !activeMantra || !orb) return;
+
+  let isRunning = false;
+  let audioEnabled = false;
+  let cycleTimer = null;
+  let audioCtx = null;
+
+  function updateMantraText() {
+    if (presetSelect.value === 'custom') {
+      customInput.style.display = 'block';
+      activeMantra.textContent = `"${customInput.value || 'I am dreaming now.'}"`;
+    } else {
+      customInput.style.display = 'none';
+      activeMantra.textContent = `"${presetSelect.value}"`;
+    }
+  }
+
+  presetSelect.addEventListener('change', updateMantraText);
+  customInput.addEventListener('input', updateMantraText);
+
+  function playTone(freq) {
+    if (!audioEnabled) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 2.5);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 2.6);
+    } catch(e) {}
+  }
+
+  function startCycle() {
+    let step = 0;
+    // Step 0: Inhale (4s), Step 1: Hold (4s), Step 2: Exhale (6s)
+    function tick() {
+      if (!isRunning) return;
+      if (step === 0) {
+        orb.style.transform = 'scale(1.4)';
+        orb.style.opacity = '1';
+        phaseText.textContent = 'Inhale • Set Lucid Intention';
+        phaseText.style.color = '#00ffcc';
+        playTone(432);
+        step = 1;
+        cycleTimer = setTimeout(tick, 4000);
+      } else if (step === 1) {
+        orb.style.transform = 'scale(1.4)';
+        phaseText.textContent = 'Hold • Visualize Yourself in Dream Scene';
+        phaseText.style.color = '#ffd700';
+        step = 2;
+        cycleTimer = setTimeout(tick, 4000);
+      } else {
+        orb.style.transform = 'scale(0.85)';
+        orb.style.opacity = '0.4';
+        phaseText.textContent = 'Exhale • Rehearse Mantra & Surrender';
+        phaseText.style.color = '#d896ff';
+        playTone(324);
+        step = 0;
+        cycleTimer = setTimeout(tick, 6000);
+      }
+    }
+    tick();
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    isRunning = !isRunning;
+    if (isRunning) {
+      toggleBtn.textContent = '⏸ Pause Pacer';
+      toggleBtn.style.background = 'rgba(255,51,102,0.2)';
+      toggleBtn.style.borderColor = '#ff3366';
+      toggleBtn.style.color = '#ff85a2';
+      startCycle();
+    } else {
+      toggleBtn.textContent = '▶ Start Pacer Loop';
+      toggleBtn.style.background = 'rgba(0,243,255,0.15)';
+      toggleBtn.style.borderColor = 'var(--accent)';
+      toggleBtn.style.color = 'var(--accent)';
+      clearTimeout(cycleTimer);
+      orb.style.transform = 'scale(1)';
+      orb.style.opacity = '0.7';
+      phaseText.textContent = 'Pacer Paused';
+      phaseText.style.color = '#ffd700';
+    }
+  });
+
+  soundBtn.addEventListener('click', () => {
+    audioEnabled = !audioEnabled;
+    if (audioEnabled) {
+      soundBtn.textContent = '🔊 Audio Cue: ON';
+      soundBtn.style.background = 'rgba(180,75,255,0.3)';
+      playTone(432);
+    } else {
+      soundBtn.textContent = '🔊 Audio Cue: OFF';
+      soundBtn.style.background = 'rgba(180,75,255,0.15)';
+    }
+  });
+})();
+</script>

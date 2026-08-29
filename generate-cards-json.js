@@ -216,7 +216,22 @@ const culinaryList = [
   'meal-cost-calculator'
 ];
 
+const lucidList = [
+  'wbtb-rem-sleep-calculator',
+  'lucid-reality-check-trainer',
+  'mild-mnemonic-mantra-engine',
+  'dream-sign-frequency-matrix',
+  'wild-hypnagogia-tracker',
+  'lucid-dream-stabilizer-sim',
+  'lucid-supplements-timing-calc',
+  'lucid-dream-quest-taskboard',
+  'sleep-paralysis-hypnopompic',
+  'binaural-lucid-frequency-gen',
+  'sleep-circadian-rem-calculator'
+];
+
 function getCategory(name) {
+  if (lucidList.some(s => name.includes(s))) return 'Lucid Dreaming & Sleep';
   if (interactiveArtList.some(s => name.includes(s))) return 'Interactive Art & Living Worlds';
   if (saasKillerList.some(s => name.includes(s))) return 'SaaS & Business Killers';
   if (aquariumList.some(s => name.includes(s))) return 'Aquatics & Fishkeeping';
