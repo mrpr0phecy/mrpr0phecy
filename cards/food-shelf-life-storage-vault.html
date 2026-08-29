@@ -1,0 +1,146 @@
+<h2 id="fs-title" style="margin-top:0;color:var(--accent);">🧊 Food Shelf-Life &amp; Safety</h2>
+
+<form aria-describedby="fs-desc" onsubmit="event.preventDefault();">
+  <p id="fs-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    USDA / FDA Food Safety &amp; Inspection Service shelf-life database. Evaluates storage windows across Pantry, Refrigerator, and Freezer, plus Danger Zone temperature limits.
+  </p>
+
+  <!-- Category & Item Selector -->
+  <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="fs-category" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Category</label>
+      <select id="fs-category" style="width:100%;padding:8px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+        <option value="raw-meat" selected>🥩 Raw Meat &amp; Poultry</option>
+        <option value="cooked">🍲 Cooked Leftovers &amp; Soups</option>
+        <option value="seafood">🐟 Fresh Fish &amp; Shellfish</option>
+        <option value="dairy">🧀 Dairy, Eggs &amp; Cheeses</option>
+        <option value="produce">🥦 Fresh Produce &amp; Greens</option>
+        <option value="pantry">🥫 Pantry &amp; Condiments</option>
+      </select>
+    </div>
+    <div>
+      <label for="fs-item" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Food Item</label>
+      <select id="fs-item" style="width:100%;padding:8px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+        <!-- Populated via JS -->
+      </select>
+    </div>
+  </div>
+
+  <!-- Storage Locations 3-Way Matrix -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,0,0.3);border-radius:8px;padding:10px 8px;text-align:center;">
+      <div style="font-size:0.68rem;color:#ffd700;font-weight:700;text-transform:uppercase;">🍞 Pantry</div>
+      <div id="fs-out-pantry" style="font-size:1.05rem;font-weight:800;color:#fff;margin-top:2px;">Do Not Store</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">Room Temp (20°C)</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(0,243,255,0.3);border-radius:8px;padding:10px 8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--accent);font-weight:700;text-transform:uppercase;">❄️ Fridge (≤4°C)</div>
+      <div id="fs-out-fridge" style="font-size:1.05rem;font-weight:800;color:var(--accent);margin-top:2px;">1 to 2 Days</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">35°F - 38°F Ideal</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(57,255,20,0.3);border-radius:8px;padding:10px 8px;text-align:center;">
+      <div style="font-size:0.68rem;color:#39ff14;font-weight:700;text-transform:uppercase;">🧊 Freezer (≤-18°C)</div>
+      <div id="fs-out-freezer" style="font-size:1.05rem;font-weight:800;color:#39ff14;margin-top:2px;">9 Months</div>
+      <div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">Indefinite Safety</div>
+    </div>
+  </div>
+
+  <!-- Food Safety Rules & Signs of Spoilage -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:4px;">
+      <span style="color:#ffd700;font-weight:700;">⚠️ Spoilage Signs vs Safe Changes:</span>
+      <span id="fs-danger-tag" style="color:#ff4d4d;font-weight:bold;">Danger Zone: 2h Max</span>
+    </div>
+    <div id="fs-spoilage-signs" style="font-size:0.78rem;color:var(--text-secondary);line-height:1.45;">
+      Raw poultry spoiled: sour odor, slimy surface film, grayish cast. Discard immediately; bacteria will not be neutralized safely by high heat cooking.
+    </div>
+  </div>
+
+  <!-- Preservation Tip -->
+  <div style="background:rgba(0,243,255,0.05);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.75rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:#fff;">Freezer Burn Prevention:</strong>
+    <span id="fs-pro-tip">Wrap tightly in heavy aluminum foil or vacuum seal. While food stored continuously at 0°F (-18°C) remains safe forever microbiologically, quality drops as sublimation occurs.</span>
+  </div>
+</form>
+
+<script>
+(function initFoodShelf() {
+  const catEl = document.getElementById('fs-category');
+  const itemEl = document.getElementById('fs-item');
+  const outPantry = document.getElementById('fs-out-pantry');
+  const outFridge = document.getElementById('fs-out-fridge');
+  const outFreezer = document.getElementById('fs-out-freezer');
+  const spoilageSigns = document.getElementById('fs-spoilage-signs');
+  const proTip = document.getElementById('fs-pro-tip');
+
+  if (!catEl || !itemEl) return;
+
+  const catalog = {
+    'raw-meat': [
+      { name: 'Ground Beef / Turkey / Pork', pantry: 'Discard (>2h)', fridge: '1 to 2 Days', freezer: '3 to 4 Months', signs: 'Sour/ammonia smell, sticky or slimy film, grayish-green color.', tip: 'Divide bulk ground meat into flat 1-lb ziploc bags before freezing; flat bags thaw in under 20 mins.' },
+      { name: 'Raw Steaks & Roasts (Beef)', pantry: 'Discard (>2h)', fridge: '3 to 5 Days', freezer: '6 to 12 Months', signs: 'Dry browning is normal oxidation (myoglobin). Discard if tacky, sticky, or foul smelling.', tip: 'Dry-brine on an elevated wire rack in the fridge for 24 hours to intensify beefy flavor.' },
+      { name: 'Raw Chicken & Poultry (Whole/Pieces)', pantry: 'Discard (>2h)', fridge: '1 to 2 Days', freezer: '9 Months (parts) / 1 Year', signs: 'Pungent sulfur odor, tacky slime, dull gray-yellow skin.', tip: 'Never wash raw chicken under the tap! It aerosolizes Campylobacter bacteria up to 3 feet across the kitchen.' },
+      { name: 'Bacon (Unopened Pack)', pantry: 'Discard (>2h)', fridge: '2 Weeks', freezer: '1 Month', signs: 'Sour smell, iridescent oily slime, discoloration.', tip: 'Roll individual bacon strips like pinwheels onto a baking tray, freeze solid, then store in a freezer bag.' },
+      { name: 'Pork Chops & Tenderloin', pantry: 'Discard (>2h)', fridge: '3 to 5 Days', freezer: '4 to 6 Months', signs: 'Off-sour odor, discoloration, slimy liquid in package.', tip: 'Thaw in refrigerator overnight. Never thaw raw pork on the countertop at room temp.' }
+    ],
+    'cooked': [
+      { name: 'Cooked Poultry & Meat Leftovers', pantry: 'Discard (>2h)', fridge: '3 to 4 Days', freezer: '2 to 6 Months', signs: 'Sour smell, fuzzy mold spots, slippery texture.', tip: 'Cool leftovers in shallow containers before refrigerating; deep pots trap heat in the danger zone for hours.' },
+      { name: 'Cooked Soups & Stews', pantry: 'Discard (>2h)', fridge: '3 to 4 Days', freezer: '2 to 3 Months', signs: 'Sour fermentation bubbles, foul aroma, white mold film.', tip: 'Reheat soups to a rolling boil (74°C / 165°F) before serving.' },
+      { name: 'Cooked Rice & Grains', pantry: 'Discard (>2h)', fridge: '3 to 4 Days', freezer: '1 to 2 Months', signs: 'Bacillus cereus heat-resistant spores produce toxins. Sour aroma or gummy texture.', tip: 'Cool cooked rice rapidly spread flat on a tray within 1 hour. Never leave cooked rice out overnight.' },
+      { name: 'Pizza Leftovers', pantry: 'Discard (>2h)', fridge: '3 to 4 Days', freezer: '1 to 2 Months', signs: 'Hard dried crust is safe, but sour cheese or fungal spots indicate spoilage.', tip: 'Reheat in a hot skillet with a splash of water and a lid for a crispy bottom and melted cheese.' }
+    ],
+    'seafood': [
+      { name: 'Fresh Raw Fish Fillets (Salmon, Cod)', pantry: 'Discard (>2h)', fridge: '1 to 2 Days', freezer: '6 to 8 Months', signs: 'Strong fishy/ammonia odor, soft mushy flesh that does not bounce back when pressed.', tip: 'Store fish in the fridge packed on top of crushed ice inside a perforated pan over a drip tray.' },
+      { name: 'Live Shellfish (Oysters, Mussels, Clams)', pantry: 'Discard (>2h)', fridge: '1 to 2 Days', freezer: '3 Months (shucked)', signs: 'Open shells that do not close when tapped are dead and toxic. Discard immediately.', tip: 'Store live shellfish in an open bowl covered with a damp towel. Never submerge live shellfish in fresh water.' },
+      { name: 'Cooked Fish & Seafood Leftovers', pantry: 'Discard (>2h)', fridge: '3 to 4 Days', freezer: '2 Months', signs: 'Sharp fishy aroma, dry rubbery texture, slimy liquid.', tip: 'Gentle reheating in a warm oven or flaked into cold salads prevents fish oil oxidation.' }
+    ],
+    'dairy': [
+      { name: 'Fresh Whole Milk / Cream', pantry: 'Discard (>2h)', fridge: '5 to 7 Days past date', freezer: '3 Months', signs: 'Sour odor, curdling lumps, yellowish separation.', tip: 'Keep milk inside the fridge body on the bottom shelf, never in the door where temperature fluctuates.' },
+      { name: 'Fresh Shell Eggs', pantry: 'Discard (>2h in US)', fridge: '3 to 5 Weeks', freezer: 'Do not freeze in shell', signs: 'Float test: bad eggs float due to gas accumulation. Rotten sulfur smell when cracked.', tip: 'In the US, eggs are washed and sanitized, stripping the protective cuticle; they MUST remain refrigerated.' },
+      { name: 'Hard Cheeses (Cheddar, Parmesan)', pantry: '1 to 2 Days', fridge: '3 to 4 Weeks opened', freezer: '6 Months', signs: 'Surface mold on hard cheese can be safely cut away (cut 1 inch around and below the mold).', tip: 'Wrap hard cheese in cheese paper or parchment, then loose plastic wrap so it can breathe without drying.' },
+      { name: 'Soft Cheeses (Brie, Mozzarella, Ricotta)', pantry: 'Discard (>2h)', fridge: '1 to 2 Weeks', freezer: 'Not recommended', signs: 'Pink, green, or black mold on soft cheeses penetrates throughout. Discard immediately.', tip: 'Consume fresh mozzarella within 48 hours of opening for pristine lactic sweetness.' }
+    ],
+    'produce': [
+      { name: 'Leafy Greens & Lettuce (Spinach, Arugula)', pantry: '1 Day', fridge: '5 to 7 Days', freezer: 'Blanch first (8 mo)', signs: 'Brown slimy liquified leaves, pungent rot odor.', tip: 'Line container with dry paper towels to absorb excess moisture; humidity accelerates rot.' },
+      { name: 'Fresh Berries (Strawberries, Blueberries)', pantry: '1 Day', fridge: '3 to 6 Days', freezer: '10 to 12 Months', signs: 'White fuzzy Botrytis mold. Spreads rapidly to adjacent berries.', tip: 'Bathe berries in a 1:3 vinegar-to-water wash for 1 min, rinse, dry thoroughly before chilling.' },
+      { name: 'Avocados (Uncut)', pantry: '3 to 5 Days (ripening)', fridge: '7 to 10 Days (ripe)', freezer: 'Puréed with lemon', signs: 'Brown flesh is safe enzymatic oxidation. Black stringy flesh with rancid smell is spoiled.', tip: 'Once ripe on the counter, move avocados to the fridge to stall the ripening window for up to 10 days.' },
+      { name: 'Potatoes & Onions', pantry: '2 to 3 Months (Cool/Dark)', fridge: 'Not recommended', freezer: 'Blanch first', signs: 'Green skin on potatoes contains toxic solanine. Sprouted eyes should be removed.', tip: 'Never store onions and potatoes together; onions emit ethylene gas that causes potatoes to sprout.' }
+    ],
+    'pantry': [
+      { name: 'Canned Goods (High Acid: Tomatoes, Fruit)', pantry: '12 to 18 Months', fridge: '5 to 7 Days (opened)', freezer: 'Freeze in container', signs: 'Dents along rims, bulging lids, hissing gas when opened, spurting liquid indicate botulism.', tip: 'Never leave canned food in the open metal can in the fridge; transfer to glass or plastic.' },
+      { name: 'Canned Goods (Low Acid: Beans, Soups)', pantry: '2 to 5 Years', fridge: '3 to 4 Days (opened)', freezer: 'Freeze in container', signs: 'Bulging cans, pinhole rust leaks, metallic taste, cloudy foul-smelling brine.', tip: 'Rotate pantry with First-In-First-Out (FIFO) method; store in cool dark pantry below 21°C (70°F).' },
+      { name: 'Soy Sauce & Fish Sauce', pantry: '1 Year', fridge: '2 to 3 Years', freezer: 'Do not freeze', signs: 'High salinity prevents bacterial growth. Flavor slowly oxidizes over years.', tip: 'Refrigerating soy sauce preserves delicate volatile aromatics and prevents flavor darkening.' }
+    ]
+  };
+
+  function populateItems() {
+    const cat = catEl.value;
+    const items = catalog[cat] || catalog['raw-meat'];
+    itemEl.innerHTML = '';
+    items.forEach((it, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = it.name;
+      itemEl.appendChild(opt);
+    });
+    updateDetails();
+  }
+
+  function updateDetails() {
+    const cat = catEl.value;
+    const items = catalog[cat] || catalog['raw-meat'];
+    const idx = parseInt(itemEl.value) || 0;
+    const it = items[idx] || items[0];
+
+    outPantry.textContent = it.pantry;
+    outFridge.textContent = it.fridge;
+    outFreezer.textContent = it.freezer;
+    spoilageSigns.textContent = it.signs;
+    proTip.textContent = it.tip;
+  }
+
+  catEl.addEventListener('change', populateItems);
+  itemEl.addEventListener('change', updateDetails);
+  populateItems();
+})();
+</script>

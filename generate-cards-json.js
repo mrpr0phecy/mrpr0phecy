@@ -196,11 +196,32 @@ const interactiveArtList = [
   'echo-pond-water-cymatics-soundscape'
 ];
 
+const culinaryList = [
+  'sous-vide-precision-cooker',
+  'sourdough-hydration-calculator',
+  'coffee-brew-ratio-calculator',
+  'candy-sugar-stages-calculator',
+  'meat-brining-salinity-calculator',
+  'fermentation-salt-brine-calc',
+  'flavor-wine-pairing-matrix',
+  'pizza-dough-calculator',
+  'food-shelf-life-storage-vault',
+  'chocolate-tempering-curve-lab',
+  'cooking-time-adjuster',
+  'cooking-unit-converter',
+  'recipeconverter',
+  'recipe-scaler',
+  'baking-pan-converter',
+  'mealplanner',
+  'meal-cost-calculator'
+];
+
 function getCategory(name) {
   if (interactiveArtList.some(s => name.includes(s))) return 'Interactive Art & Living Worlds';
   if (saasKillerList.some(s => name.includes(s))) return 'SaaS & Business Killers';
   if (aquariumList.some(s => name.includes(s))) return 'Aquatics & Fishkeeping';
   if (animeList.some(s => name.includes(s))) return 'Anime & Otaku Culture';
+  if (culinaryList.some(s => name.includes(s))) return 'Culinary & Food Science';
   if (slList.some(s => name.includes(s))) return 'Virtual Worlds & Gaming';
   if (musicList.some(s => name.includes(s))) return 'Music & Audio';
   if (healthList.some(s => name.includes(s))) return 'Health & Fitness';

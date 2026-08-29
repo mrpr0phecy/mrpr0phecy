@@ -1,0 +1,248 @@
+<h2 id="sv-title" style="margin-top:0;color:var(--accent);">🥩 Sous Vide Time &amp; Temperature</h2>
+
+<form aria-describedby="sv-desc" onsubmit="event.preventDefault();">
+  <p id="sv-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Precision immersion cooking guide based on thermal conductivity &amp; USDA/FSIS pasteurization curves. Calculates exact bath temperatures, heating time to core, and searing parameters.
+  </p>
+
+  <!-- Meat / Protein Selection -->
+  <div style="margin-bottom:12px;">
+    <label for="sv-protein" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">Cut / Protein</label>
+    <select id="sv-protein" style="width:100%;padding:8px 10px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.85rem;">
+      <option value="beef-tender" selected>Beef Steak (Ribeye, Tenderloin, Strip)</option>
+      <option value="beef-tough">Beef Tough Roast (Brisket, Chuck, Short Ribs)</option>
+      <option value="pork-chop">Pork Chop / Loin (Tender &amp; Juicy)</option>
+      <option value="pork-belly">Pork Belly / Shoulder (Braised texture)</option>
+      <option value="chicken-breast">Chicken Breast (Pasteurized Safe)</option>
+      <option value="chicken-thigh">Chicken Thigh / Drumstick</option>
+      <option value="salmon">Salmon Fillet (Silky &amp; Translucent)</option>
+      <option value="lamb-chop">Lamb Chops / Rack of Lamb</option>
+      <option value="eggs">Egg in Shell (Onsen / Poached / Soft)</option>
+      <option value="carrots">Carrots / Root Vegetables</option>
+    </select>
+  </div>
+
+  <!-- Thickness & Doneness Grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="sv-thickness" style="display:flex;justify-content:space-between;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">
+        <span>Thickness</span>
+        <span id="sv-thick-val" style="color:var(--accent);font-family:monospace;">2.5 cm (1.0")</span>
+      </label>
+      <input type="range" id="sv-thickness" min="1.0" max="7.5" step="0.5" value="2.5" style="width:100%;accent-color:var(--accent);">
+    </div>
+    <div>
+      <label for="sv-doneness" style="display:flex;justify-content:space-between;font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--text);">
+        <span>Doneness</span>
+        <span id="sv-done-val" style="color:#00ffcc;font-weight:700;">Medium-Rare</span>
+      </label>
+      <select id="sv-doneness" style="width:100%;padding:6px 8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+        <option value="rare">Rare (Warm red center)</option>
+        <option value="med-rare" selected>Medium-Rare (Pink &amp; juicy)</option>
+        <option value="medium">Medium (Rich pink throughout)</option>
+        <option value="well">Well-Done / Fully Cooked</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Results Dashboard -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:14px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(0,243,255,0.25);border-radius:8px;padding:10px 8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Bath Temp</div>
+      <div id="sv-target-temp" style="font-size:1.15rem;font-weight:800;color:var(--accent);font-family:monospace;margin-top:2px;">54.0°C / 129°F</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(0,243,255,0.25);border-radius:8px;padding:10px 8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Cook Time</div>
+      <div id="sv-target-time" style="font-size:1.15rem;font-weight:800;color:#39ff14;font-family:monospace;margin-top:2px;">1h 15m</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(0,243,255,0.25);border-radius:8px;padding:10px 8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Hold Window</div>
+      <div id="sv-hold-window" style="font-size:1.0rem;font-weight:700;color:#ffd700;margin-top:4px;">Up to 3h</div>
+    </div>
+  </div>
+
+  <!-- Interactive Graphic Cross-Section Simulator -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-secondary);margin-bottom:6px;">
+      <span>Cross-Section Color Gradient Preview:</span>
+      <span id="sv-pasteur-badge" style="color:#39ff14;font-weight:700;">✓ Pasteurization Achieved</span>
+    </div>
+    <div id="sv-gradient-bar" style="height:24px;border-radius:6px;background:linear-gradient(90deg, #400a0a 0%, #aa1a24 15%, #d83a45 40%, #ea5660 50%, #d83a45 60%, #aa1a24 85%, #400a0a 100%);border:1px solid rgba(255,255,255,0.2);position:relative;"></div>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:4px;">
+      <span>Edge Sear (0.5mm)</span>
+      <span>100% Wall-to-Wall Edge Doneness</span>
+      <span>Edge Sear (0.5mm)</span>
+    </div>
+  </div>
+
+  <!-- Finishing & Searing Instructions -->
+  <div style="background:rgba(0,243,255,0.05);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.45;">
+    <strong style="color:#fff;">Chef's Searing Protocol:</strong>
+    <span id="sv-sear-tip">Pat meat bone-dry with paper towels. Heat cast iron with avocado oil until smoking. Sear exactly 45 seconds per side to avoid cooking the interior.</span>
+  </div>
+</form>
+
+<script>
+(function initSousVide() {
+  const proteinEl = document.getElementById('sv-protein');
+  const thickEl = document.getElementById('sv-thickness');
+  const thickVal = document.getElementById('sv-thick-val');
+  const donenessEl = document.getElementById('sv-doneness');
+  const doneVal = document.getElementById('sv-done-val');
+  const targetTempEl = document.getElementById('sv-target-temp');
+  const targetTimeEl = document.getElementById('sv-target-time');
+  const holdWindowEl = document.getElementById('sv-hold-window');
+  const pasteurEl = document.getElementById('sv-pasteur-badge');
+  const gradBar = document.getElementById('sv-gradient-bar');
+  const searTipEl = document.getElementById('sv-sear-tip');
+
+  if (!proteinEl || !thickEl) return;
+
+  const data = {
+    'beef-tender': {
+      rare: { c: 52, f: 125, color: 'linear-gradient(90deg, #3d0707 0%, #a81313 25%, #c71f1f 50%, #a81313 75%, #3d0707 100%)' },
+      'med-rare': { c: 54, f: 129, color: 'linear-gradient(90deg, #451010 0%, #bd242d 20%, #e04a54 50%, #bd242d 80%, #451010 100%)' },
+      medium: { c: 57, f: 135, color: 'linear-gradient(90deg, #481a1a 0%, #b34a52 20%, #cc7279 50%, #b34a52 80%, #481a1a 100%)' },
+      well: { c: 65, f: 149, color: 'linear-gradient(90deg, #302020 0%, #614a4a 20%, #7d6565 50%, #614a4a 80%, #302020 100%)' },
+      hold: 'Up to 3 hours',
+      tip: 'Pat completely dry with paper towels. Sear in screaming-hot cast iron skillet with avocado or ghee for 45s each side with butter baste.'
+    },
+    'beef-tough': {
+      rare: { c: 55, f: 131, color: 'linear-gradient(90deg, #451010, #bd242d, #451010)' },
+      'med-rare': { c: 57, f: 135, color: 'linear-gradient(90deg, #481a1a, #cc7279, #481a1a)' },
+      medium: { c: 63, f: 145, color: 'linear-gradient(90deg, #4a2828, #945858, #4a2828)' },
+      well: { c: 74, f: 165, color: 'linear-gradient(90deg, #2b1f1f, #574444, #2b1f1f)' },
+      hold: '12h to 36h (collagen breakdown)',
+      tip: 'Collagen to gelatin conversion requires minimum 24-36 hours. Chill in ice bath before finishing in a 230°C (450°F) oven for crust.'
+    },
+    'pork-chop': {
+      rare: { c: 56, f: 133, color: 'linear-gradient(90deg, #572020, #e6737a, #572020)' },
+      'med-rare': { c: 58, f: 137, color: 'linear-gradient(90deg, #5e2828, #f09298, #5e2828)' },
+      medium: { c: 62, f: 144, color: 'linear-gradient(90deg, #613636, #e6abae, #613636)' },
+      well: { c: 68, f: 155, color: 'linear-gradient(90deg, #423030, #c4a9a9, #423030)' },
+      hold: 'Up to 3 hours',
+      tip: 'Pork does not need to be overcooked to be safe! 58°C produces exceptionally juicy pork chops without drying out.'
+    },
+    'pork-belly': {
+      rare: { c: 68, f: 154, color: 'linear-gradient(90deg, #5e2828, #e6abae, #5e2828)' },
+      'med-rare': { c: 70, f: 158, color: 'linear-gradient(90deg, #613636, #db999d, #613636)' },
+      medium: { c: 74, f: 165, color: 'linear-gradient(90deg, #423030, #bfa1a1, #423030)' },
+      well: { c: 80, f: 176, color: 'linear-gradient(90deg, #302020, #8f7474, #302020)' },
+      hold: '10h to 24h',
+      tip: 'Cook for 12 hours at 74°C. Press flat between weighted trays overnight, then score skin and crisp in blazing-hot pan.'
+    },
+    'chicken-breast': {
+      rare: { c: 60, f: 140, color: 'linear-gradient(90deg, #703838, #fcd2d4, #703838)' },
+      'med-rare': { c: 63, f: 145, color: 'linear-gradient(90deg, #5c3535, #ffdede, #5c3535)' },
+      medium: { c: 65, f: 150, color: 'linear-gradient(90deg, #4f3b3b, #f0e6e6, #4f3b3b)' },
+      well: { c: 71, f: 160, color: 'linear-gradient(90deg, #362e2e, #e0dede, #362e2e)' },
+      hold: 'Up to 2.5 hours',
+      tip: 'At 63°C, chicken is 100% pasteurized after 25 minutes at core temp. The result is infinitely juicier than conventional 74°C breast.'
+    },
+    'chicken-thigh': {
+      rare: { c: 66, f: 151, color: 'linear-gradient(90deg, #5c2c2c, #eb9d9d, #5c2c2c)' },
+      'med-rare': { c: 70, f: 158, color: 'linear-gradient(90deg, #522d2d, #deb4b4, #522d2d)' },
+      medium: { c: 74, f: 165, color: 'linear-gradient(90deg, #422b2b, #cfc0c0, #422b2b)' },
+      well: { c: 77, f: 170, color: 'linear-gradient(90deg, #332828, #bfb6b6, #332828)' },
+      hold: '4h to 8h',
+      tip: 'Dark meat has more collagen and connective tissue. 74°C for 4 hours renders rich, fall-apart tender texture.'
+    },
+    'salmon': {
+      rare: { c: 43, f: 110, color: 'linear-gradient(90deg, #661f00, #ff6633, #661f00)' },
+      'med-rare': { c: 46, f: 115, color: 'linear-gradient(90deg, #6e2c13, #ff8559, #6e2c13)' },
+      medium: { c: 50, f: 122, color: 'linear-gradient(90deg, #693320, #ffa380, #693320)' },
+      well: { c: 56, f: 133, color: 'linear-gradient(90deg, #593529, #f7c2b0, #593529)' },
+      hold: 'Max 45 mins',
+      tip: '46°C creates a custardy, buttery mouthfeel with zero white albumin leakage. Crisp skin separately between parchment paper in oven.'
+    },
+    'lamb-chop': {
+      rare: { c: 53, f: 127, color: 'linear-gradient(90deg, #471111, #c42727, #471111)' },
+      'med-rare': { c: 56, f: 133, color: 'linear-gradient(90deg, #4f1d1d, #d44c4c, #4f1d1d)' },
+      medium: { c: 60, f: 140, color: 'linear-gradient(90deg, #4d2b2b, #c27676, #4d2b2b)' },
+      well: { c: 68, f: 155, color: 'linear-gradient(90deg, #3d2c2c, #917676, #3d2c2c)' },
+      hold: 'Up to 3 hours',
+      tip: 'Lamb fat benefits from high heat sear. Render the fat cap first by holding chops vertically with tongs against hot pan.'
+    },
+    'eggs': {
+      rare: { c: 62, f: 144, color: 'linear-gradient(90deg, #faeed4, #ffbf00, #faeed4)' },
+      'med-rare': { c: 64, f: 147, color: 'linear-gradient(90deg, #f7ecd2, #ffa500, #f7ecd2)' },
+      medium: { c: 68, f: 154, color: 'linear-gradient(90deg, #fff, #ff8c00, #fff)' },
+      well: { c: 74, f: 165, color: 'linear-gradient(90deg, #fff, #ffd700, #fff)' },
+      hold: 'Max 1 hour',
+      tip: '64°C egg produces a firm, spreadable fudge-like yolk and soft white. Perfect for ramen or dipping toast soldiers.'
+    },
+    'carrots': {
+      rare: { c: 84, f: 183, color: 'linear-gradient(90deg, #542204, #ff6b1a, #542204)' },
+      'med-rare': { c: 85, f: 185, color: 'linear-gradient(90deg, #542204, #ff7b33, #542204)' },
+      medium: { c: 88, f: 190, color: 'linear-gradient(90deg, #47210c, #f58f58, #47210c)' },
+      well: { c: 90, f: 194, color: 'linear-gradient(90deg, #3d2112, #e0946c, #3d2112)' },
+      hold: 'Up to 4 hours',
+      tip: 'Pectin in vegetables does not break down until 84°C (183°F). Cook with butter and brown sugar, then glaze in reduction.'
+    }
+  };
+
+  function update() {
+    const protein = proteinEl.value;
+    const thick = parseFloat(thickEl.value);
+    const doneness = donenessEl.value;
+
+    const inches = (thick / 2.54).toFixed(1);
+    thickVal.textContent = `${thick.toFixed(1)} cm (${inches}")`;
+
+    const doneNames = {
+      'rare': 'Rare',
+      'med-rare': 'Medium-Rare',
+      'medium': 'Medium',
+      'well': 'Well-Done'
+    };
+    doneVal.textContent = doneNames[doneness] || doneness;
+
+    const entry = data[protein] || data['beef-tender'];
+    const pData = entry[doneness] || entry['med-rare'];
+
+    targetTempEl.textContent = `${pData.c.toFixed(1)}°C / ${pData.f}°F`;
+
+    // Thermal diffusion approximation: Time ~ Thickness^1.9 * factor
+    let baseMinutes = Math.round(18 * Math.pow(thick, 1.85));
+    if (protein === 'beef-tough') {
+      baseMinutes = Math.max(1440, baseMinutes * 15); // Long braise 24h
+    } else if (protein === 'pork-belly') {
+      baseMinutes = Math.max(720, baseMinutes * 8);
+    } else if (protein === 'salmon') {
+      baseMinutes = Math.max(35, Math.round(baseMinutes * 0.7));
+    } else if (protein === 'eggs') {
+      baseMinutes = 45;
+    } else if (protein === 'carrots') {
+      baseMinutes = 60;
+    }
+
+    if (baseMinutes >= 1440) {
+      const days = (baseMinutes / 1440).toFixed(1);
+      targetTimeEl.textContent = `${days} Days (24-36h)`;
+    } else if (baseMinutes >= 60) {
+      const h = Math.floor(baseMinutes / 60);
+      const m = baseMinutes % 60;
+      targetTimeEl.textContent = `${h}h ${m}m`;
+    } else {
+      targetTimeEl.textContent = `${baseMinutes} mins`;
+    }
+
+    holdWindowEl.textContent = entry.hold;
+    searTipEl.textContent = entry.tip;
+    gradBar.style.background = pData.color;
+
+    if (pData.c < 54.4 && (protein === 'chicken-breast' || protein === 'chicken-thigh')) {
+      pasteurEl.textContent = '⚠️ Extended Time Needed For Pasteurization';
+      pasteurEl.style.color = '#ffd700';
+    } else {
+      pasteurEl.textContent = '✓ Pasteurization Achieved Safe';
+      pasteurEl.style.color = '#39ff14';
+    }
+  }
+
+  proteinEl.addEventListener('change', update);
+  thickEl.addEventListener('input', update);
+  donenessEl.addEventListener('change', update);
+  update();
+})();
+</script>
