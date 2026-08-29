@@ -1,0 +1,193 @@
+<h2 id="radioactive-decay-title" style="margin-top:0;color:var(--accent);">☢️ RadioDecay: Half-Life & Isotope Dating Lab</h2>
+
+<form aria-describedby="radioactive-decay-desc" onsubmit="event.preventDefault();">
+  <p id="radioactive-decay-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Model exponential nuclear decay, remaining isotope fractions, and radiometric carbon dating via the fundamental decay law $N(t) = N_0 (1/2)^{t / t_{1/2}}$.
+  </p>
+
+  <!-- Isotope Selection & Presets -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="rd-isotope-select" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Radioisotope Preset</label>
+      <select id="rd-isotope-select" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="c14" selected>Carbon-14 (5,730 yrs - Dating)</option>
+        <option value="cs137">Cesium-137 (30.17 yrs - Fission)</option>
+        <option value="u238">Uranium-238 (4.47B yrs - Earth Age)</option>
+        <option value="i131">Iodine-131 (8.02 days - Medicine)</option>
+        <option value="tc99m">Technetium-99m (6 hrs - SPECT scan)</option>
+        <option value="ra226">Radium-226 (1,600 yrs - Luminous)</option>
+        <option value="custom">Custom Half-Life...</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="rd-half-life" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Half-Life ($t_{1/2}$ in years)</label>
+      <input type="number" id="rd-half-life" value="5730" min="0.00001" step="any" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="rd-initial-amount" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Initial Quantity ($N_0$)</label>
+      <input type="number" id="rd-initial-amount" value="100" min="0.01" step="any" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">grams or %</span>
+    </div>
+
+    <div>
+      <label for="rd-elapsed-time" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Elapsed Time ($t$ in years)</label>
+      <input type="number" id="rd-elapsed-time" value="11460" min="0" step="any" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+  </div>
+
+  <!-- Realtime Decay Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;margin-bottom:14px;">
+    <canvas id="rd-canvas" width="600" height="170" style="width:100%;height:170px;display:block;"></canvas>
+  </div>
+
+  <!-- Telemetry Metrics -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:14px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:12px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Remaining ($N(t)$)</div>
+        <div id="rd-res-remaining" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">25.00</div>
+        <div id="rd-res-rem-percent" style="font-size:0.7rem;color:var(--muted);">25.0% of initial</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Decayed Amount</div>
+        <div id="rd-res-decayed" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">75.00</div>
+        <div id="rd-res-dec-percent" style="font-size:0.7rem;color:var(--muted);">75.0% transformed</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Half-Lives Elapsed</div>
+        <div id="rd-res-halflives" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">2.00 $t_{1/2}$</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Decay Constant ($\lambda$)</div>
+        <div id="rd-res-lambda" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">1.21 × 10⁻⁴ yr⁻¹</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const PRESETS = {
+    c14: { hl: 5730, defaultT: 11460 },
+    cs137: { hl: 30.17, defaultT: 60.34 },
+    u238: { hl: 4468000000, defaultT: 4468000000 },
+    i131: { hl: 8.02 / 365.25, defaultT: 16.04 / 365.25 },
+    tc99m: { hl: 6 / (24 * 365.25), defaultT: 18 / (24 * 365.25) },
+    ra226: { hl: 1600, defaultT: 3200 }
+  };
+
+  const isoSel = document.getElementById('rd-isotope-select');
+  const hlIn = document.getElementById('rd-half-life');
+  const n0In = document.getElementById('rd-initial-amount');
+  const tIn = document.getElementById('rd-elapsed-time');
+  const canvas = document.getElementById('rd-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const remOut = document.getElementById('rd-res-remaining');
+  const remPctOut = document.getElementById('rd-res-rem-percent');
+  const decOut = document.getElementById('rd-res-decayed');
+  const decPctOut = document.getElementById('rd-res-dec-percent');
+  const hlOut = document.getElementById('rd-res-halflives');
+  const lamOut = document.getElementById('rd-res-lambda');
+
+  function update() {
+    const hl = parseFloat(hlIn.value) || 1;
+    const n0 = parseFloat(n0In.value) || 100;
+    const t = parseFloat(tIn.value) || 0;
+
+    const numHalfLives = t / hl;
+    const remainingFrac = Math.pow(0.5, numHalfLives);
+    const remaining = n0 * remainingFrac;
+    const decayed = n0 - remaining;
+    const lambda = Math.LN2 / hl;
+
+    remOut.textContent = remaining > 1e6 || (remaining < 1e-4 && remaining > 0) ? remaining.toExponential(3) : remaining.toFixed(2);
+    remPctOut.textContent = (remainingFrac * 100).toFixed(2) + '% of initial';
+
+    decOut.textContent = decayed > 1e6 || (decayed < 1e-4 && decayed > 0) ? decayed.toExponential(3) : decayed.toFixed(2);
+    decPctOut.textContent = ((1 - remainingFrac) * 100).toFixed(2) + '% transformed';
+
+    hlOut.textContent = numHalfLives.toFixed(2) + ' t½';
+    lamOut.textContent = lambda.toExponential(3) + ' yr⁻¹';
+
+    // Canvas Plotting
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    const padLeft = 45;
+    const padBottom = 25;
+    const padTop = 15;
+    const padRight = 20;
+
+    const plotW = W - padLeft - padRight;
+    const plotH = H - padTop - padBottom;
+
+    // Draw coordinate axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, padTop);
+    ctx.lineTo(padLeft, H - padBottom);
+    ctx.lineTo(W - padRight, H - padBottom);
+    ctx.stroke();
+
+    // Plot up to 5 half-lives
+    const maxT = Math.max(hl * 5, t * 1.2);
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+
+    for (let px = 0; px <= plotW; px++) {
+      const curT = (px / plotW) * maxT;
+      const curN = n0 * Math.pow(0.5, curT / hl);
+      const py = padTop + (1 - (curN / n0)) * plotH;
+
+      if (px === 0) ctx.moveTo(padLeft + px, py);
+      else ctx.lineTo(padLeft + px, py);
+    }
+    ctx.stroke();
+
+    // Draw current time marker
+    if (t <= maxT) {
+      const curMarkerX = padLeft + (t / maxT) * plotW;
+      const curMarkerY = padTop + (1 - (remaining / n0)) * plotH;
+
+      ctx.strokeStyle = 'rgba(255, 85, 119, 0.7)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(curMarkerX, H - padBottom);
+      ctx.lineTo(curMarkerX, curMarkerY);
+      ctx.lineTo(padLeft, curMarkerY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.arc(curMarkerX, curMarkerY, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('N₀', padLeft - 22, padTop + 8);
+    ctx.fillText('0', padLeft - 15, H - padBottom);
+    ctx.fillText(`t=${t.toLocaleString()} yr`, Math.min(padLeft + (t / maxT) * plotW - 20, W - 80), H - 8);
+  }
+
+  isoSel.addEventListener('change', () => {
+    const val = isoSel.value;
+    if (PRESETS[val]) {
+      hlIn.value = PRESETS[val].hl;
+      tIn.value = PRESETS[val].defaultT;
+    }
+    update();
+  });
+
+  [hlIn, n0In, tIn].forEach(input => input.addEventListener('input', update));
+  update();
+})();
+</script>

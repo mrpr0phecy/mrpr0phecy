@@ -1,0 +1,216 @@
+<h2 id="doppler-effect-title" style="margin-top:0;color:var(--accent);">🔊 DopplerShift: Wave & Redshift Simulator</h2>
+
+<form aria-describedby="doppler-effect-desc" onsubmit="event.preventDefault();">
+  <p id="doppler-effect-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Simulate frequency shifts and wavefront compression for acoustic sound waves and relativistic light redshift ($z$). Features real-time wavefront propagation canvas and Web Audio tone simulation.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:14px;">
+    <div>
+      <label for="doppler-source-freq" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Emitted Freq ($f_0$)</label>
+      <input type="number" id="doppler-source-freq" value="440" min="20" max="20000" step="10" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Hz</span>
+    </div>
+
+    <div>
+      <label for="doppler-source-vel" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Source Velocity ($v_s$)</label>
+      <input type="number" id="doppler-source-vel" value="68" min="-300" max="340" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">m/s (+ toward observer)</span>
+    </div>
+
+    <div>
+      <label for="doppler-medium" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Wave Medium</label>
+      <select id="doppler-medium" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="343" selected>Air (343 m/s, 20°C)</option>
+        <option value="1480">Water (1,480 m/s)</option>
+        <option value="5960">Steel (5,960 m/s)</option>
+        <option value="299792458">Vacuum / Light ($c$)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="doppler-obs-vel" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Observer Velocity ($v_o$)</label>
+      <input type="number" id="doppler-obs-vel" value="0" min="-300" max="340" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">m/s (+ toward source)</span>
+    </div>
+  </div>
+
+  <!-- Interactive Wavefront Canvas -->
+  <div style="position:relative;background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;margin-bottom:14px;">
+    <canvas id="doppler-canvas" width="600" height="180" style="width:100%;height:180px;display:block;"></canvas>
+    <div style="position:absolute;bottom:6px;left:8px;font-size:0.7rem;color:var(--muted);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px;">
+      Blue = Compressed wavefronts (Approaching) | Red = Stretched (Receding)
+    </div>
+  </div>
+
+  <!-- Audio Listen & Telemetry Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;background:rgba(0,255,204,0.05);border:1px solid rgba(0,255,204,0.2);border-radius:10px;padding:12px;margin-bottom:12px;">
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);">Observed Frequency ($f'$)</div>
+      <div id="doppler-res-freq" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">548.8 Hz</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);">Mach Number ($M$)</div>
+      <div id="doppler-res-mach" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">0.198 M</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);">Pitch Shift Ratio</div>
+      <div id="doppler-res-ratio" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">+24.7% (+3.8 st)</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);">Redshift Parameter ($z$)</div>
+      <div id="doppler-res-z" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">-0.198 (Blueshift)</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;">
+    <button type="button" id="doppler-play-btn" style="flex:1;padding:10px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#0099ff);color:#050811;font-weight:bold;border:none;cursor:pointer;">
+      ▶ Play Drive-By Audio Pass
+    </button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const f0In = document.getElementById('doppler-source-freq');
+  const vsIn = document.getElementById('doppler-source-vel');
+  const medIn = document.getElementById('doppler-medium');
+  const voIn = document.getElementById('doppler-obs-vel');
+  const canvas = document.getElementById('doppler-canvas');
+  const ctx = canvas.getContext('2d');
+  const playBtn = document.getElementById('doppler-play-btn');
+
+  const resFreq = document.getElementById('doppler-res-freq');
+  const resMach = document.getElementById('doppler-res-mach');
+  const resRatio = document.getElementById('doppler-res-ratio');
+  const resZ = document.getElementById('doppler-res-z');
+
+  let audioCtx = null;
+  let animFrame = null;
+  let waves = [];
+  let sourceX = 100;
+  let sourceY = 90;
+  let frameCount = 0;
+
+  function calculate() {
+    const f0 = parseFloat(f0In.value) || 440;
+    const vs = parseFloat(vsIn.value) || 0;
+    const v = parseFloat(medIn.value) || 343;
+    const vo = parseFloat(voIn.value) || 0;
+
+    const mach = Math.abs(vs / v);
+    resMach.textContent = mach.toFixed(3) + (mach >= 1 ? ' (Supersonic!)' : ' M');
+
+    let fObs = f0 * ((v + vo) / (v - vs));
+    if (v - vs <= 0) {
+      resFreq.textContent = 'Shockwave (Mach)';
+    } else {
+      resFreq.textContent = fObs.toFixed(1) + ' Hz';
+    }
+
+    const ratio = (fObs / f0);
+    const semitones = 12 * Math.log2(ratio);
+    const sign = ratio >= 1 ? '+' : '';
+    resRatio.textContent = sign + ((ratio - 1) * 100).toFixed(1) + '% (' + (semitones > 0 ? '+' : '') + semitones.toFixed(1) + ' st)';
+
+    // Relativistic redshift parameter z
+    const beta = vs / v;
+    let z = (1 / ratio) - 1;
+    let type = z < 0 ? 'Blueshift' : 'Redshift';
+    resZ.textContent = `${z.toFixed(3)} (${type})`;
+  }
+
+  function renderWavefronts() {
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const vs = parseFloat(vsIn.value) || 0;
+    const v = parseFloat(medIn.value) || 343;
+    const normSpeed = Math.min(Math.max(vs / v, -0.9), 0.9) * 2;
+
+    sourceX += normSpeed;
+    if (sourceX > canvas.width + 40) sourceX = -40;
+    if (sourceX < -40) sourceX = canvas.width + 40;
+
+    frameCount++;
+    if (frameCount % 10 === 0) {
+      waves.push({ x: sourceX, y: sourceY, r: 2, alpha: 1.0 });
+    }
+
+    for (let i = waves.length - 1; i >= 0; i--) {
+      const w = waves[i];
+      w.r += 2.2;
+      w.alpha -= 0.012;
+      if (w.alpha <= 0 || w.r > 280) {
+        waves.splice(i, 1);
+        continue;
+      }
+
+      ctx.beginPath();
+      ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2);
+      ctx.strokeStyle = vs >= 0 ? `rgba(0, 255, 204, ${w.alpha})` : `rgba(255, 85, 119, ${w.alpha})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Draw Source (Vehicle / Emitter)
+    ctx.beginPath();
+    ctx.arc(sourceX, sourceY, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffd700';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw Observer at center-right
+    ctx.fillStyle = '#b026ff';
+    ctx.fillRect(canvas.width - 50, sourceY - 8, 16, 16);
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('Observer', canvas.width - 70, sourceY + 22);
+
+    animFrame = requestAnimationFrame(renderWavefronts);
+  }
+
+  playBtn.addEventListener('click', () => {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const f0 = parseFloat(f0In.value) || 440;
+    const vs = parseFloat(vsIn.value) || 68;
+    const v = 343;
+
+    const fApproaching = f0 * (v / (v - Math.min(vs, 300)));
+    const fReceding = f0 * (v / (v + Math.min(vs, 300)));
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(fApproaching, now);
+    osc.frequency.linearRampToValueAtTime(fApproaching, now + 1.2);
+    osc.frequency.exponentialRampToValueAtTime(fReceding, now + 1.6);
+    osc.frequency.setValueAtTime(fReceding, now + 3.0);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.2, now + 1.35);
+    gain.gain.linearRampToValueAtTime(0.0001, now + 3.2);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + 3.3);
+  });
+
+  [f0In, vsIn, medIn, voIn].forEach(input => input.addEventListener('input', calculate));
+  calculate();
+  renderWavefronts();
+})();
+</script>

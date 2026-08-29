@@ -1,0 +1,187 @@
+<h2 id="projectile-motion-title" style="margin-top:0;color:var(--accent);">🎯 BallistiCalc: 2D Projectile Motion Simulator</h2>
+
+<form aria-describedby="projectile-motion-desc" onsubmit="event.preventDefault();">
+  <p id="projectile-motion-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Simulate parabolic ballistic trajectories in real time across different planetary gravitational fields. Computes flight time, apex altitude, total ground range, and impact velocity.
+  </p>
+
+  <!-- Input Controls -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="pm-velocity" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Velocity ($v_0$)</label>
+      <input type="number" id="pm-velocity" value="45" min="1" max="1000" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">m/s</span>
+    </div>
+
+    <div>
+      <label for="pm-angle" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Launch Angle ($\theta$)</label>
+      <input type="number" id="pm-angle" value="45" min="0" max="90" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Degrees (°)</span>
+    </div>
+
+    <div>
+      <label for="pm-height" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Initial Height ($h_0$)</label>
+      <input type="number" id="pm-height" value="0" min="0" max="500" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Meters ($m$)</span>
+    </div>
+
+    <div>
+      <label for="pm-gravity" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Gravity ($g$)</label>
+      <select id="pm-gravity" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="9.80665" selected>Earth (9.81 m/s²)</option>
+        <option value="1.62">Moon (1.62 m/s²)</option>
+        <option value="3.72">Mars (3.72 m/s²)</option>
+        <option value="24.79">Jupiter (24.79 m/s²)</option>
+        <option value="8.87">Venus (8.87 m/s²)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Trajectory Canvas Display -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;margin-bottom:14px;">
+    <canvas id="pm-canvas" width="600" height="200" style="width:100%;height:200px;display:block;"></canvas>
+  </div>
+
+  <!-- Telemetry Metrics Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;background:rgba(14,21,37,0.8);border:1px solid rgba(0,255,204,0.2);border-radius:10px;padding:12px;">
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);">Total Range ($R$)</div>
+      <div id="pm-res-range" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">206.5 m</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);">Max Altitude ($H_{max}$)</div>
+      <div id="pm-res-apex" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">51.6 m</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);">Flight Time ($t_f$)</div>
+      <div id="pm-res-time" style="font-size:1.3rem;font-weight:bold;color:#b026ff;">6.49 s</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);">Impact Speed ($v_f$)</div>
+      <div id="pm-res-impact" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">45.0 m/s</div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const vIn = document.getElementById('pm-velocity');
+  const aIn = document.getElementById('pm-angle');
+  const hIn = document.getElementById('pm-height');
+  const gIn = document.getElementById('pm-gravity');
+  const canvas = document.getElementById('pm-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const rangeOut = document.getElementById('pm-res-range');
+  const apexOut = document.getElementById('pm-res-apex');
+  const timeOut = document.getElementById('pm-res-time');
+  const impactOut = document.getElementById('pm-res-impact');
+
+  function calculateAndDraw() {
+    const v0 = parseFloat(vIn.value) || 1;
+    const deg = parseFloat(aIn.value) || 0;
+    const rad = deg * (Math.PI / 180);
+    const h0 = parseFloat(hIn.value) || 0;
+    const g = parseFloat(gIn.value) || 9.81;
+
+    const vx = v0 * Math.cos(rad);
+    const vy = v0 * Math.sin(rad);
+
+    // Time of flight: t_f = (vy + sqrt(vy^2 + 2*g*h0)) / g
+    const discriminant = vy * vy + 2 * g * h0;
+    const tf = (vy + Math.sqrt(Math.max(0, discriminant))) / g;
+
+    // Range: R = vx * tf
+    const range = vx * tf;
+
+    // Max height: H = h0 + (vy^2)/(2g)
+    const apexH = h0 + (vy * vy) / (2 * g);
+    const apexT = vy / g;
+    const apexX = vx * apexT;
+
+    // Terminal velocity at impact
+    const vyFinal = vy - g * tf;
+    const vFinal = Math.sqrt(vx * vx + vyFinal * vyFinal);
+
+    rangeOut.textContent = range.toFixed(1) + ' m';
+    apexOut.textContent = apexH.toFixed(1) + ' m';
+    timeOut.textContent = tf.toFixed(2) + ' s';
+    impactOut.textContent = vFinal.toFixed(1) + ' m/s';
+
+    // Canvas drawing
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, W, H);
+
+    // Coordinate scaling
+    const marginX = 40;
+    const marginY = 30;
+    const usableW = W - marginX * 2;
+    const usableH = H - marginY * 2;
+
+    const scaleX = usableW / Math.max(range * 1.1, 10);
+    const scaleY = usableH / Math.max(apexH * 1.2, 10);
+
+    // Draw Ground line
+    const groundY = H - marginY;
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marginX, groundY);
+    ctx.lineTo(W - marginX + 20, groundY);
+    ctx.stroke();
+
+    // Draw grid markings
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('0 m', marginX - 10, groundY + 14);
+    ctx.fillText(range.toFixed(0) + ' m', marginX + range * scaleX - 15, groundY + 14);
+
+    // Draw trajectory path
+    ctx.beginPath();
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2.5;
+
+    const steps = 100;
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * tf;
+      const x = vx * t;
+      const y = h0 + vy * t - 0.5 * g * t * t;
+
+      const px = marginX + x * scaleX;
+      const py = groundY - y * scaleY;
+
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Draw Apex Point
+    if (apexH > h0 && apexT > 0 && apexT < tf) {
+      const apx = marginX + apexX * scaleX;
+      const apy = groundY - apexH * scaleY;
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.arc(apx, apy, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillText(`Apex: ${apexH.toFixed(1)}m`, apx - 25, apy - 8);
+    }
+
+    // Draw Launch Point
+    ctx.fillStyle = '#b026ff';
+    ctx.beginPath();
+    ctx.arc(marginX, groundY - h0 * scaleY, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw Impact Point
+    ctx.fillStyle = '#ff5577';
+    ctx.beginPath();
+    ctx.arc(marginX + range * scaleX, groundY, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  [vIn, aIn, hIn, gIn].forEach(input => input.addEventListener('input', calculateAndDraw));
+  calculateAndDraw();
+})();
+</script>

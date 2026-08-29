@@ -1,0 +1,135 @@
+<h2 id="periodic-table-explorer-title" style="margin-top:0;color:var(--accent);">⚛️ ElementForge: Interactive Periodic Table of Elements</h2>
+
+<form aria-describedby="periodic-table-explorer-desc" onsubmit="event.preventDefault();">
+  <p id="periodic-table-explorer-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Explore the fundamental building blocks of the universe. Search by name, symbol, or atomic number, filter by chemical series, and inspect atomic mass, electron configuration, and electronegativity.
+  </p>
+
+  <!-- Filter & Search Bar -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <input type="text" id="pte-search-input" placeholder="Search element (e.g. Au, Gold, 79, Carbon)..." style="flex:1;min-width:180px;padding:8px 12px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,204,0.3);color:#e6faff;font-size:0.85rem;">
+    <select id="pte-series-filter" style="padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.85rem;">
+      <option value="all" selected>All Element Groups</option>
+      <option value="nonmetal">Nonmetals</option>
+      <option value="noble">Noble Gases</option>
+      <option value="alkali">Alkali Metals</option>
+      <option value="transition">Transition Metals</option>
+      <option value="metalloid">Metalloids</option>
+      <option value="halogen">Halogens</option>
+    </select>
+  </div>
+
+  <!-- Active Element Detailed Inspector Card -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:16px;margin-bottom:14px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;">
+    <div style="width:75px;height:75px;border-radius:10px;background:linear-gradient(135deg,rgba(0,255,204,0.15),rgba(176,38,255,0.15));border:2px solid #00ffcc;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+      <div id="pte-active-atomic-num" style="font-size:0.65rem;color:var(--muted);">6</div>
+      <div id="pte-active-symbol" style="font-family:'Exo 2',sans-serif;font-size:1.8rem;font-weight:900;color:#fff;line-height:1;">C</div>
+      <div id="pte-active-mass" style="font-size:0.65rem;color:#ffd700;">12.011</div>
+    </div>
+
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span id="pte-active-name" style="font-size:1.2rem;font-weight:800;color:#00ffcc;">Carbon</span>
+        <span id="pte-active-group" style="font-size:0.75rem;color:#b026ff;text-transform:uppercase;font-weight:700;">Reactive Nonmetal</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:6px;margin-top:6px;font-size:0.75rem;color:var(--muted);">
+        <div>Electrons: <strong id="pte-active-electrons" style="color:#fff;">[He] 2s² 2p²</strong></div>
+        <div>Electronegativity: <strong id="pte-active-en" style="color:#fff;">2.55 (Pauling)</strong></div>
+        <div>State at 20°C: <strong id="pte-active-state" style="color:#fff;">Solid</strong></div>
+        <div>Density: <strong id="pte-active-density" style="color:#fff;">2.267 g/cm³</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Elements Quick Grid -->
+  <div id="pte-elements-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(52px, 1fr));gap:4px;max-height:220px;overflow-y:auto;background:#050811;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);"></div>
+</form>
+
+<script>
+(function() {
+  const ELEMENTS = [
+    { num: 1, sym: 'H', name: 'Hydrogen', mass: '1.008', group: 'nonmetal', conf: '1s¹', en: '2.20', state: 'Gas', dens: '0.000089' },
+    { num: 2, sym: 'He', name: 'Helium', mass: '4.0026', group: 'noble', conf: '1s²', en: '-', state: 'Gas', dens: '0.000178' },
+    { num: 3, sym: 'Li', name: 'Lithium', mass: '6.94', group: 'alkali', conf: '[He] 2s¹', en: '0.98', state: 'Solid', dens: '0.534' },
+    { num: 4, sym: 'Be', name: 'Beryllium', mass: '9.0122', group: 'alkaline_earth', conf: '[He] 2s²', en: '1.57', state: 'Solid', dens: '1.85' },
+    { num: 5, sym: 'B', name: 'Boron', mass: '10.81', group: 'metalloid', conf: '[He] 2s² 2p¹', en: '2.04', state: 'Solid', dens: '2.34' },
+    { num: 6, sym: 'C', name: 'Carbon', mass: '12.011', group: 'nonmetal', conf: '[He] 2s² 2p²', en: '2.55', state: 'Solid', dens: '2.267' },
+    { num: 7, sym: 'N', name: 'Nitrogen', mass: '14.007', group: 'nonmetal', conf: '[He] 2s² 2p³', en: '3.04', state: 'Gas', dens: '0.00125' },
+    { num: 8, sym: 'O', name: 'Oxygen', mass: '15.999', group: 'nonmetal', conf: '[He] 2s² 2p⁴', en: '3.44', state: 'Gas', dens: '0.00143' },
+    { num: 9, sym: 'F', name: 'Fluorine', mass: '18.998', group: 'halogen', conf: '[He] 2s² 2p⁵', en: '3.98', state: 'Gas', dens: '0.0017' },
+    { num: 10, sym: 'Ne', name: 'Neon', mass: '20.180', group: 'noble', conf: '[He] 2s² 2p⁶', en: '-', state: 'Gas', dens: '0.0009' },
+    { num: 11, sym: 'Na', name: 'Sodium', mass: '22.990', group: 'alkali', conf: '[Ne] 3s¹', en: '0.93', state: 'Solid', dens: '0.97' },
+    { num: 12, sym: 'Mg', name: 'Magnesium', mass: '24.305', group: 'alkaline_earth', conf: '[Ne] 3s²', en: '1.31', state: 'Solid', dens: '1.74' },
+    { num: 13, sym: 'Al', name: 'Aluminium', mass: '26.982', group: 'post_transition', conf: '[Ne] 3s² 3p¹', en: '1.61', state: 'Solid', dens: '2.70' },
+    { num: 14, sym: 'Si', name: 'Silicon', mass: '28.085', group: 'metalloid', conf: '[Ne] 3s² 3p²', en: '1.90', state: 'Solid', dens: '2.33' },
+    { num: 15, sym: 'P', name: 'Phosphorus', mass: '30.974', group: 'nonmetal', conf: '[Ne] 3s² 3p³', en: '2.19', state: 'Solid', dens: '1.82' },
+    { num: 16, sym: 'S', name: 'Sulfur', mass: '32.06', group: 'nonmetal', conf: '[Ne] 3s² 3p⁴', en: '2.58', state: 'Solid', dens: '2.07' },
+    { num: 17, sym: 'Cl', name: 'Chlorine', mass: '35.45', group: 'halogen', conf: '[Ne] 3s² 3p⁵', en: '3.16', state: 'Gas', dens: '0.0032' },
+    { num: 18, sym: 'Ar', name: 'Argon', mass: '39.948', group: 'noble', conf: '[Ne] 3s² 3p⁶', en: '-', state: 'Gas', dens: '0.00178' },
+    { num: 19, sym: 'K', name: 'Potassium', mass: '39.098', group: 'alkali', conf: '[Ar] 4s¹', en: '0.82', state: 'Solid', dens: '0.86' },
+    { num: 20, sym: 'Ca', name: 'Calcium', mass: '40.078', group: 'alkaline_earth', conf: '[Ar] 4s²', en: '1.00', state: 'Solid', dens: '1.55' },
+    { num: 26, sym: 'Fe', name: 'Iron', mass: '55.845', group: 'transition', conf: '[Ar] 3d⁶ 4s²', en: '1.83', state: 'Solid', dens: '7.874' },
+    { num: 29, sym: 'Cu', name: 'Copper', mass: '63.546', group: 'transition', conf: '[Ar] 3d¹⁰ 4s¹', en: '1.90', state: 'Solid', dens: '8.96' },
+    { num: 47, sym: 'Ag', name: 'Silver', mass: '107.87', group: 'transition', conf: '[Kr] 4d¹⁰ 5s¹', en: '1.93', state: 'Solid', dens: '10.49' },
+    { num: 79, sym: 'Au', name: 'Gold', mass: '196.97', group: 'transition', conf: '[Xe] 4f¹⁴ 5d¹⁰ 6s¹', en: '2.54', state: 'Solid', dens: '19.30' },
+    { num: 80, sym: 'Hg', name: 'Mercury', mass: '200.59', group: 'transition', conf: '[Xe] 4f¹⁴ 5d¹⁰ 6s²', en: '2.00', state: 'Liquid', dens: '13.53' },
+    { num: 92, sym: 'U', name: 'Uranium', mass: '238.03', group: 'actinide', conf: '[Rn] 5f³ 6d¹ 7s²', en: '1.38', state: 'Solid', dens: '19.1' }
+  ];
+
+  const searchInput = document.getElementById('pte-search-input');
+  const seriesFilter = document.getElementById('pte-series-filter');
+  const grid = document.getElementById('pte-elements-grid');
+
+  const actNum = document.getElementById('pte-active-atomic-num');
+  const actSym = document.getElementById('pte-active-symbol');
+  const actMass = document.getElementById('pte-active-mass');
+  const actName = document.getElementById('pte-active-name');
+  const actGroup = document.getElementById('pte-active-group');
+  const actElec = document.getElementById('pte-active-electrons');
+  const actEn = document.getElementById('pte-active-en');
+  const actState = document.getElementById('pte-active-state');
+  const actDens = document.getElementById('pte-active-density');
+
+  function selectElement(el) {
+    actNum.textContent = el.num;
+    actSym.textContent = el.sym;
+    actMass.textContent = el.mass;
+    actName.textContent = el.name;
+    actGroup.textContent = el.group.replace(/_/g, ' ');
+    actElec.textContent = el.conf;
+    actEn.textContent = el.en;
+    actState.textContent = el.state;
+    actDens.textContent = el.dens;
+  }
+
+  function renderGrid() {
+    const q = searchInput.value.toLowerCase().trim();
+    const grp = seriesFilter.value;
+
+    grid.innerHTML = '';
+    ELEMENTS.forEach(el => {
+      const matchQ = !q || el.name.toLowerCase().includes(q) || el.sym.toLowerCase().includes(q) || el.num.toString() === q;
+      const matchG = grp === 'all' || el.group === grp;
+
+      if (matchQ && matchG) {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:4px 2px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;text-align:center;cursor:pointer;transition:all 0.1s;';
+        item.innerHTML = `
+          <div style="font-size:0.6rem;color:var(--muted);">${el.num}</div>
+          <div style="font-weight:700;color:#00ffcc;font-size:0.95rem;">${el.sym}</div>
+        `;
+        item.addEventListener('mouseenter', () => { item.style.borderColor = '#00ffcc'; item.style.background = 'rgba(0,255,204,0.15)'; });
+        item.addEventListener('mouseleave', () => { item.style.borderColor = 'rgba(255,255,255,0.1)'; item.style.background = 'rgba(255,255,255,0.04)'; });
+        item.addEventListener('click', () => selectElement(el));
+        grid.appendChild(item);
+      }
+    });
+  }
+
+  searchInput.addEventListener('input', renderGrid);
+  seriesFilter.addEventListener('change', renderGrid);
+
+  renderGrid();
+  selectElement(ELEMENTS[5]); // Carbon default
+})();
+</script>

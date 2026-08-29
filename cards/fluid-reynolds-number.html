@@ -1,0 +1,206 @@
+<h2 id="fluid-reynolds-title" style="margin-top:0;color:var(--accent);">🌊 FlowDynamic: Reynolds Number & Turbulence Simulator</h2>
+
+<form aria-describedby="fluid-reynolds-desc" onsubmit="event.preventDefault();">
+  <p id="fluid-reynolds-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Calculate the dimensionless Reynolds number ($\text{Re} = \frac{\rho v D}{\mu}$) for internal pipe flow and aerodynamics. Visualize laminar streamline transitions into chaotic turbulent vortices.
+  </p>
+
+  <!-- Fluid Preset & Inputs -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="re-fluid-select" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Working Fluid</label>
+      <select id="re-fluid-select" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="water" selected>Water (20°C)</option>
+        <option value="air">Air (20°C, 1 atm)</option>
+        <option value="blood">Human Blood</option>
+        <option value="oil">Motor Oil (SAE 30)</option>
+        <option value="glycerin">Glycerin (Viscous)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="re-velocity" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Flow Velocity ($v$)</label>
+      <input type="number" id="re-velocity" value="1.5" min="0.001" max="500" step="0.1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">m/s</span>
+    </div>
+
+    <div>
+      <label for="re-diameter" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Pipe Diameter ($D$)</label>
+      <input type="number" id="re-diameter" value="0.05" min="0.001" max="10" step="0.005" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">Meters (5 cm)</span>
+    </div>
+
+    <div>
+      <label for="re-density" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Fluid Density ($\rho$)</label>
+      <input type="number" id="re-density" value="998" min="0.1" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">kg/m³</span>
+    </div>
+  </div>
+
+  <!-- Realtime Streamline Flow Canvas -->
+  <div style="background:#050811;border:1px solid rgba(0,255,204,0.3);border-radius:10px;overflow:hidden;margin-bottom:14px;">
+    <canvas id="re-canvas" width="600" height="150" style="width:100%;height:150px;display:block;"></canvas>
+  </div>
+
+  <!-- Telemetry Metrics -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:14px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:12px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Reynolds Number ($\text{Re}$)</div>
+        <div id="re-val-display" style="font-size:1.4rem;font-weight:bold;color:#00ffcc;">74,700</div>
+        <div id="re-scientific" style="font-size:0.7rem;color:var(--muted);">7.47 × 10⁴</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Flow Regime</div>
+        <div id="re-regime-badge" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">TURBULENT</div>
+        <div style="font-size:0.7rem;color:var(--muted);">&gt; 4,000 critical</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Kinematic Viscosity ($\nu$)</div>
+        <div id="re-kinematic" style="font-size:1.4rem;font-weight:bold;color:#ffd700;">1.004 × 10⁻⁶</div>
+        <div style="font-size:0.7rem;color:var(--muted);">m²/s</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Friction Regime</div>
+        <div id="re-friction" style="font-size:1.4rem;font-weight:bold;color:#b026ff;">High Head Loss</div>
+        <div style="font-size:0.7rem;color:var(--muted);">Moody friction dominant</div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const FLUIDS = {
+    water: { rho: 998, mu: 0.001002 },
+    air: { rho: 1.204, mu: 0.00001825 },
+    blood: { rho: 1060, mu: 0.0035 },
+    oil: { rho: 888, mu: 0.29 },
+    glycerin: { rho: 1260, mu: 1.412 }
+  };
+
+  const fluidSel = document.getElementById('re-fluid-select');
+  const vIn = document.getElementById('re-velocity');
+  const dIn = document.getElementById('re-diameter');
+  const rhoIn = document.getElementById('re-density');
+
+  const reValDisplay = document.getElementById('re-val-display');
+  const reSciDisplay = document.getElementById('re-scientific');
+  const reBadge = document.getElementById('re-regime-badge');
+  const kinDisplay = document.getElementById('re-kinematic');
+  const fricDisplay = document.getElementById('re-friction');
+
+  const canvas = document.getElementById('re-canvas');
+  const ctx = canvas.getContext('2d');
+
+  let currentMu = 0.001002;
+  let particles = [];
+  const NUM_PARTICLES = 70;
+
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: 20 + Math.random() * (canvas.height - 40),
+      baseY: 20 + Math.random() * (canvas.height - 40),
+      phase: Math.random() * Math.PI * 2,
+      speed: 1 + Math.random() * 2
+    });
+  }
+
+  function update() {
+    const v = parseFloat(vIn.value) || 0.1;
+    const d = parseFloat(dIn.value) || 0.01;
+    const rho = parseFloat(rhoIn.value) || 1000;
+
+    // Reynolds number Re = (rho * v * d) / mu
+    const re = (rho * v * d) / currentMu;
+    const nu = currentMu / rho; // m^2 / s
+
+    reValDisplay.textContent = Math.round(re).toLocaleString();
+    reSciDisplay.textContent = re.toExponential(2);
+    kinDisplay.textContent = nu.toExponential(3);
+
+    if (re < 2300) {
+      reBadge.textContent = 'LAMINAR';
+      reBadge.style.color = '#00ffcc';
+      fricDisplay.textContent = 'Darcy: f = 64/Re';
+      fricDisplay.style.color = '#00ffcc';
+    } else if (re <= 4000) {
+      reBadge.textContent = 'TRANSITIONAL';
+      reBadge.style.color = '#ffd700';
+      fricDisplay.textContent = 'Unstable Eddies';
+      fricDisplay.style.color = '#ffd700';
+    } else {
+      reBadge.textContent = 'TURBULENT';
+      reBadge.style.color = '#ff5577';
+      fricDisplay.textContent = 'High Head Loss';
+      fricDisplay.style.color = '#ff5577';
+    }
+  }
+
+  function animate() {
+    ctx.fillStyle = '#050811';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Pipe boundaries
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 15);
+    ctx.lineTo(canvas.width, 15);
+    ctx.moveTo(0, canvas.height - 15);
+    ctx.lineTo(canvas.width, canvas.height - 15);
+    ctx.stroke();
+
+    const v = parseFloat(vIn.value) || 1;
+    const d = parseFloat(dIn.value) || 0.05;
+    const rho = parseFloat(rhoIn.value) || 1000;
+    const re = (rho * v * d) / currentMu;
+
+    const isTurbulent = re > 4000;
+    const isTransitional = re >= 2300 && re <= 4000;
+
+    particles.forEach(p => {
+      p.x += (v * 1.5) + p.speed;
+      if (p.x > canvas.width) {
+        p.x = 0;
+        p.baseY = 25 + Math.random() * (canvas.height - 50);
+      }
+
+      if (isTurbulent) {
+        p.phase += 0.15;
+        p.y = p.baseY + Math.sin(p.phase + p.x * 0.05) * 14 + (Math.random() - 0.5) * 4;
+        ctx.fillStyle = '#ff5577';
+      } else if (isTransitional) {
+        p.phase += 0.05;
+        p.y = p.baseY + Math.sin(p.phase + p.x * 0.02) * 5;
+        ctx.fillStyle = '#ffd700';
+      } else {
+        // Pure smooth laminar flow
+        p.y = p.baseY;
+        ctx.fillStyle = '#00ffcc';
+      }
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    requestAnimationFrame(animate);
+  }
+
+  fluidSel.addEventListener('change', () => {
+    const f = FLUIDS[fluidSel.value];
+    if (f) {
+      rhoIn.value = f.rho;
+      currentMu = f.mu;
+    }
+    update();
+  });
+
+  [vIn, dIn, rhoIn].forEach(i => i.addEventListener('input', update));
+
+  update();
+  animate();
+})();
+</script>
