@@ -1,0 +1,162 @@
+<h2 id="life-title" style="margin-top:0;color:var(--accent);">📋 Birding Life List &amp; Big Year</h2>
+
+<form aria-describedby="life-desc" onsubmit="event.preventDefault();">
+  <p id="life-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Personal field lifer ledger &amp; annual Big Year tally. Records lifetime ticks, date of observation, habitat biome, and exports to CSV for eBird backup.
+  </p>
+
+  <!-- Add Sighting Form -->
+  <div style="display:grid;grid-template-columns:1.2fr 1fr 80px;gap:8px;margin-bottom:12px;">
+    <input type="text" id="life-species-input" placeholder="Species name (e.g. Peregrine Falcon)..." style="padding:8px 10px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.82rem;">
+    <select id="life-habitat-input" style="padding:8px;background:rgba(20,30,40,0.8);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:6px;font-size:0.8rem;">
+      <option value="Forest / Woodland">🌲 Forest / Woodland</option>
+      <option value="Wetland / Marsh">🌊 Wetland / Marsh</option>
+      <option value="Coast / Pelagic">⚓ Coast / Pelagic</option>
+      <option value="Grassland / Field">🌾 Grassland / Field</option>
+      <option value="Backyard / Urban">🏡 Backyard / Urban</option>
+    </select>
+    <button type="button" id="life-add-btn" style="padding:8px;background:var(--accent);border:none;color:#050d18;border-radius:6px;font-weight:700;font-size:0.82rem;cursor:pointer;">
+      + Log
+    </button>
+  </div>
+
+  <!-- Statistics Counters Dashboard -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div style="background:rgba(0,243,255,0.08);border:1px solid rgba(0,243,255,0.35);border-radius:8px;padding:10px;text-align:center;">
+      <div style="font-size:0.7rem;color:var(--accent);font-weight:700;text-transform:uppercase;">🌟 TOTAL LIFE LIST TICKS</div>
+      <div id="life-total-count" style="font-size:1.6rem;font-weight:800;color:#fff;font-family:monospace;margin:2px 0;">0</div>
+      <div style="font-size:0.68rem;color:var(--text-secondary);">Lifetime unique species</div>
+    </div>
+    <div style="background:rgba(57,255,20,0.08);border:1px solid rgba(57,255,20,0.35);border-radius:8px;padding:10px;text-align:center;">
+      <div style="font-size:0.7rem;color:#39ff14;font-weight:700;text-transform:uppercase;">📅 CURRENT BIG YEAR</div>
+      <div id="life-year-count" style="font-size:1.6rem;font-weight:800;color:#39ff14;font-family:monospace;margin:2px 0;">0</div>
+      <div id="life-current-year-label" style="font-size:0.68rem;color:var(--text-secondary);">Logged this year</div>
+    </div>
+  </div>
+
+  <!-- Active Sightings Log List -->
+  <div style="background:#091018;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:0.75rem;font-weight:700;color:#fff;">
+      <span>Recent Life List Ticks:</span>
+      <button type="button" id="life-export-btn" style="padding:3px 8px;background:rgba(0,243,255,0.2);border:1px solid var(--accent);color:#fff;border-radius:4px;font-size:0.7rem;cursor:pointer;">
+        📥 Export CSV
+      </button>
+    </div>
+    <div id="life-list-container" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;">
+      <!-- Populated via JS -->
+    </div>
+  </div>
+
+  <!-- ABA Birding Ethics Note -->
+  <div style="background:rgba(255,255,255,0.02);border-left:3px solid #00ffcc;border-radius:0 6px 6px 0;padding:8px 12px;font-size:0.73rem;color:var(--text-secondary);line-height:1.4;">
+    <strong style="color:#00ffcc;">ABA Code of Birding Ethics:</strong>
+    <span>Never harass wildlife or flush nesting birds for photos. Keep playback calls to an absolute minimum, especially during peak breeding season and near endangered or threatened species.</span>
+  </div>
+</form>
+
+<script>
+(function initLifeListTally() {
+  const inputSpecies = document.getElementById('life-species-input');
+  const inputHabitat = document.getElementById('life-habitat-input');
+  const addBtn = document.getElementById('life-add-btn');
+  const totalCountEl = document.getElementById('life-total-count');
+  const yearCountEl = document.getElementById('life-year-count');
+  const yearLabel = document.getElementById('life-current-year-label');
+  const listContainer = document.getElementById('life-list-container');
+  const exportBtn = document.getElementById('life-export-btn');
+
+  if (!inputSpecies || !addBtn || !listContainer) return;
+
+  const currentYear = new Date().getFullYear();
+  yearLabel.textContent = `Logged in ${currentYear}`;
+
+  const defaultSightings = [
+    { species: 'Peregrine Falcon', habitat: 'Coast / Pelagic', date: `${currentYear}-04-12`, id: '1' },
+    { species: 'Pileated Woodpecker', habitat: 'Forest / Woodland', date: `${currentYear}-05-03`, id: '2' },
+    { species: 'Snowy Owl', habitat: 'Grassland / Field', date: `${currentYear}-01-18`, id: '3' },
+    { species: 'Prothonotary Warbler', habitat: 'Wetland / Marsh', date: `${currentYear}-05-22`, id: '4' }
+  ];
+
+  let sightings = [];
+  try {
+    const saved = localStorage.getItem('mrprophecy_bird_life_list');
+    sightings = saved ? JSON.parse(saved) : defaultSightings;
+  } catch(e) {
+    sightings = defaultSightings;
+  }
+
+  function saveAndRender() {
+    try {
+      localStorage.setItem('mrprophecy_bird_life_list', JSON.stringify(sightings));
+    } catch(e) {}
+    render();
+  }
+
+  function render() {
+    totalCountEl.textContent = sightings.length;
+    
+    // Calculate Big Year for current calendar year
+    const thisYearCount = sightings.filter(s => s.date && s.date.startsWith(currentYear.toString())).length;
+    yearCountEl.textContent = thisYearCount;
+
+    listContainer.innerHTML = '';
+    if (sightings.length === 0) {
+      listContainer.innerHTML = '<div style="font-size:0.75rem;color:var(--text-secondary);text-align:center;padding:12px;">No species logged yet. Add your first lifer above!</div>';
+      return;
+    }
+
+    sightings.slice().reverse().forEach(s => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:5px;';
+      row.innerHTML = `
+        <div style="display:flex;flex-direction:column;overflow:hidden;">
+          <strong style="color:#fff;font-size:0.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.species}</strong>
+          <span style="font-size:0.68rem;color:var(--text-secondary);">${s.habitat} &bull; ${s.date}</span>
+        </div>
+        <button type="button" class="life-del-btn" style="padding:2px 6px;background:rgba(255,51,102,0.2);border:1px solid #ff3366;color:#ff85a2;border-radius:3px;font-size:0.7rem;cursor:pointer;">✕</button>
+      `;
+
+      row.querySelector('.life-del-btn').onclick = () => {
+        sightings = sightings.filter(item => item.id !== s.id);
+        saveAndRender();
+      };
+
+      listContainer.appendChild(row);
+    });
+  }
+
+  addBtn.addEventListener('click', () => {
+    const val = inputSpecies.value.trim();
+    if (!val) return;
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+
+    sightings.push({
+      id: Date.now().toString(),
+      species: val,
+      habitat: inputHabitat.value,
+      date: dateStr
+    });
+
+    inputSpecies.value = '';
+    saveAndRender();
+  });
+
+  exportBtn.addEventListener('click', () => {
+    if (sightings.length === 0) return;
+    let csv = 'Species,Habitat,Date\n';
+    sightings.forEach(s => {
+      csv += `"${s.species.replace(/"/g, '""')}","${s.habitat}","${s.date}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `birding_life_list_${currentYear}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+
+  render();
+})();
+</script>

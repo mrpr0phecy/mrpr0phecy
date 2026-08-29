@@ -243,7 +243,21 @@ const remedyList = [
   'acupressure-somatic-point-map'
 ];
 
+const birdingList = [
+  'birding-binocular-optics-calc',
+  'bird-silhouette-flight-id',
+  'bird-song-mnemonic-trainer',
+  'bird-nest-box-hole-sizing',
+  'backyard-bird-feeder-diet',
+  'bird-topography-field-marks',
+  'birding-life-list-tally',
+  'bird-migration-weather-calc',
+  'hummingbird-nectar-spoilage',
+  'bird-molt-cycle-ageing'
+];
+
 function getCategory(name) {
+  if (birdingList.some(s => name.includes(s))) return 'Birdwatching & Ornithology';
   if (remedyList.some(s => name.includes(s))) return 'Natural Remedies & Herbs';
   if (lucidList.some(s => name.includes(s))) return 'Lucid Dreaming & Sleep';
   if (interactiveArtList.some(s => name.includes(s))) return 'Interactive Art & Living Worlds';
