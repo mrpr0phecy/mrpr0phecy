@@ -7,7 +7,7 @@ const path = require('path');
 const cardsDir = path.join(__dirname, 'cards');
 const outputFile = path.join(cardsDir, 'cards.json');
 
-const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html') || f.endsWith('.hmtl'));
+const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html'));
 
 const musicList = ['audio-tone-frequency-generator', 'audio-bpm-tapper', 'binaural-neuro-tuner', 'bpm-counter', 'capo-calculator', 'carol-karaoke', 'chord-finder', 'chord-progression', 'ear-trainer', 'instrument-care', 'interval-trainer', 'metronome', 'music-quiz', 'music-theory', 'recording-basics', 'rhythm-generator', 'scale-trainer', 'sheet-music', 'song-writer', 'tempo-map', 'transposer', 'tuner', 'youtube-dj'];
 const healthList = ['sleep-circadian-rem-calculator', 'crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'targetheartrate', 'tdee', 'vo2max', 'waisthip', 'waterintake'];
@@ -304,17 +304,17 @@ function getCategory(name) {
 }
 
 const manifest = files.map(file => {
-  const base = file.replace(/\.(html|hmtl)$/, '');
+  const base = file.replace(/\.html$/, '');
   const filePath = path.join(cardsDir, file);
   const html = fs.readFileSync(filePath, 'utf8');
 
   // Extract title from first <h2>
   const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
   let title = '';
-  let id = base;
+  // Always derive id from the filename slug: <h2> ids are not unique across
+  // cards (23 collisions found), and duplicate ids break DOM lookups.
+  let id = base + '-title';
   if (h2Match) {
-    const idAttr = h2Match[0].match(/id=["']([^"']+)["']/i);
-    if (idAttr) id = idAttr[1];
     let rawTitle = h2Match[1];
     rawTitle = rawTitle.replace(/<(span|div|small|p)[^>]*>[\s\S]*?<\/\1>/gi, '');
     title = rawTitle.replace(/<[^>]+>/g, '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
