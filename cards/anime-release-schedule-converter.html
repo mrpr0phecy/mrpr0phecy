@@ -1,0 +1,205 @@
+<h2 id="anime-schedule-title" style="margin-top:0;color:var(--accent);">🕒 SimuCast: Anime Airtime & 30-Hour JST Zone Converter</h2>
+
+<form aria-describedby="anime-schedule-desc" onsubmit="event.preventDefault();">
+  <p id="anime-schedule-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Convert Tokyo Japan Standard Time (JST / UTC+9) anime broadcasts to your local timezone. Decodes Japanese TV late-night 30-hour clock conventions (e.g. 25:30 JST = 1:30 AM next day) and calculates global simulcast subtitle drops.
+  </p>
+
+  <!-- Input Broadcast Details -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="as-broadcast-day" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Japanese Broadcast Day</label>
+      <select id="as-broadcast-day" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="0">Sunday</option>
+        <option value="1">Monday</option>
+        <option value="2">Tuesday</option>
+        <option value="3">Wednesday</option>
+        <option value="4">Thursday</option>
+        <option value="5" selected>Friday</option>
+        <option value="6">Saturday</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="as-broadcast-hour" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">JST Broadcast Hour (0 - 29)</label>
+      <input type="number" id="as-broadcast-hour" value="24" min="0" max="29" step="1" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+      <span style="font-size:0.7rem;color:var(--muted);">24:00 = 00:00, 25:30 = 01:30 AM</span>
+    </div>
+
+    <div>
+      <label for="as-broadcast-min" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Minute (0 - 59)</label>
+      <input type="number" id="as-broadcast-min" value="30" min="0" max="59" step="5" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+
+    <div>
+      <label for="as-simulcast-delay" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Streaming Sub Delay</label>
+      <select id="as-simulcast-delay" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="0">Live Raw TV Broadcast (+0h)</option>
+        <option value="60" selected>Simulcast Subtitles (+1.0h)</option>
+        <option value="90">Crunchyroll Standard (+1.5h)</option>
+        <option value="120">Delayed Stream (+2.0h)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Famous Broadcast Block Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="as-preset" data-day="5" data-h="24" data-m="0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Friday Midnight (24:00 JST / Tokyo MX)</button>
+    <button type="button" class="as-preset" data-day="0" data-h="9" data-m="30" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Sunday Morning (9:30 AM JST / One Piece)</button>
+    <button type="button" class="as-preset" data-day="6" data-h="23" data-m="0" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Saturday Prime (23:00 JST / Bleach/Demon Slayer)</button>
+    <button type="button" class="as-preset" data-day="4" data-h="25" data-m="28" style="font-size:0.7rem;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;cursor:pointer;">Thursday Late Night (25:28 JST / Noitamina)</button>
+  </div>
+
+  <!-- Realtime Global Airtime Matrix -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:14px;margin-bottom:12px;">
+    <div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;text-transform:uppercase;font-weight:bold;">
+      🌍 Global Simultaneous Airtime Grid
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div style="background:rgba(0,255,204,0.08);border:1px solid rgba(0,255,204,0.25);border-radius:8px;padding:10px;">
+        <div style="font-size:0.7rem;color:#00ffcc;font-weight:bold;">📍 YOUR LOCAL TIME</div>
+        <div id="as-res-local-time" style="font-size:1.1rem;font-weight:bold;color:#fff;">Fri 16:30</div>
+        <div id="as-res-local-tz" style="font-size:0.68rem;color:var(--muted);">Local Zone</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px;">
+        <div style="font-size:0.7rem;color:var(--muted);">🇯🇵 Tokyo (JST UTC+9)</div>
+        <div id="as-res-jst-time" style="font-size:1.1rem;font-weight:bold;color:#ffd700;">Sat 01:30 JST</div>
+        <div id="as-res-30h-label" style="font-size:0.68rem;color:var(--muted);">25:30 JST (Fri Late)</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px;">
+        <div style="font-size:0.7rem;color:var(--muted);">🇬🇧 London (GMT/BST)</div>
+        <div id="as-res-lon-time" style="font-size:1.1rem;font-weight:bold;color:#fff;">Fri 16:30 BST</div>
+        <div style="font-size:0.68rem;color:var(--muted);">UK / Western Europe</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px;">
+        <div style="font-size:0.7rem;color:var(--muted);">🇺🇸 New York (EDT/EST)</div>
+        <div id="as-res-nyc-time" style="font-size:1.1rem;font-weight:bold;color:#fff;">Fri 11:30 EDT</div>
+        <div style="font-size:0.68rem;color:var(--muted);">US East Coast</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px;">
+        <div style="font-size:0.7rem;color:var(--muted);">🇺🇸 Los Angeles (PDT/PST)</div>
+        <div id="as-res-lax-time" style="font-size:1.1rem;font-weight:bold;color:#fff;">Fri 08:30 PDT</div>
+        <div style="font-size:0.68rem;color:var(--muted);">US West Coast</div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px;">
+        <div style="font-size:0.7rem;color:var(--muted);">🇦🇺 Sydney (AEST/AEDT)</div>
+        <div id="as-res-syd-time" style="font-size:1.1rem;font-weight:bold;color:#fff;">Sat 02:30 AEST</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Australia East</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Countdown Banner -->
+  <div id="as-countdown-banner" style="padding:10px 14px;border-radius:8px;text-align:center;background:rgba(0, 255, 204, 0.1);border:1px solid #00ffcc;color:#00ffcc;font-weight:bold;font-size:0.85rem;">
+    ⏳ Next Broadcast In: Calculating...
+  </div>
+</form>
+
+<script>
+(function() {
+  const daySel = document.getElementById('as-broadcast-day');
+  const hourIn = document.getElementById('as-broadcast-hour');
+  const minIn = document.getElementById('as-broadcast-min');
+  const delaySel = document.getElementById('as-simulcast-delay');
+
+  const localTimeOut = document.getElementById('as-res-local-time');
+  const localTzOut = document.getElementById('as-res-local-tz');
+  const jstTimeOut = document.getElementById('as-res-jst-time');
+  const label30hOut = document.getElementById('as-res-30h-label');
+  const lonTimeOut = document.getElementById('as-res-lon-time');
+  const nycTimeOut = document.getElementById('as-res-nyc-time');
+  const laxTimeOut = document.getElementById('as-res-lax-time');
+  const sydTimeOut = document.getElementById('as-res-syd-time');
+  const countdownBanner = document.getElementById('as-countdown-banner');
+
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  function pad(n) { return n < 10 ? '0' + n : n; }
+
+  function calculate() {
+    let day = parseInt(daySel.value, 10);
+    const rawH = parseInt(hourIn.value, 10) || 0;
+    const m = parseInt(minIn.value, 10) || 0;
+    const delayMin = parseInt(delaySel.value, 10) || 0;
+
+    // Handle Japanese 30-hour clock: e.g. 25:30 -> day + 1, hour 01:30
+    let actualJstDay = day;
+    let actualJstH = rawH;
+    let is30h = false;
+
+    if (rawH >= 24) {
+      is30h = true;
+      actualJstH = rawH - 24;
+      actualJstDay = (day + 1) % 7;
+      label30hOut.textContent = `${rawH}:${pad(m)} JST (${DAYS[day]} Late Night)`;
+    } else {
+      label30hOut.textContent = `Standard JST`;
+    }
+
+    jstTimeOut.textContent = `${DAYS[actualJstDay]} ${pad(actualJstH)}:${pad(m)} JST`;
+
+    // Reference date construction in UTC
+    // JST is UTC+9. So UTC hour = JST hour - 9
+    let totalJstMinutes = actualJstDay * 24 * 60 + actualJstH * 60 + m + delayMin;
+    let totalUtcMinutes = totalJstMinutes - (9 * 60);
+
+    // Format in target time zones
+    function formatTz(offsetHours, dayNames) {
+      let totalMin = totalUtcMinutes + (offsetHours * 60);
+      let targetDay = Math.floor(totalMin / (24 * 60)) % 7;
+      if (targetDay < 0) targetDay += 7;
+      let remMin = totalMin % (24 * 60);
+      if (remMin < 0) remMin += (24 * 60);
+      let h = Math.floor(remMin / 60);
+      let min = remMin % 60;
+      return `${dayNames[targetDay]} ${pad(h)}:${pad(min)}`;
+    }
+
+    // Local offset
+    const localOffsetHours = -new Date().getTimezoneOffset() / 60;
+    localTimeOut.textContent = formatTz(localOffsetHours, DAYS);
+    localTzOut.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || `UTC${localOffsetHours >= 0 ? '+' : ''}${localOffsetHours}`;
+
+    lonTimeOut.textContent = formatTz(1, DAYS) + ' BST';
+    nycTimeOut.textContent = formatTz(-4, DAYS) + ' EDT';
+    laxTimeOut.textContent = formatTz(-7, DAYS) + ' PDT';
+    sydTimeOut.textContent = formatTz(10, DAYS) + ' AEST';
+
+    // Countdown to next weekly drop
+    const now = new Date();
+    const nowJstDay = (now.getUTCDay() + (now.getUTCHours() + 9 >= 24 ? 1 : 0)) % 7;
+    const nowJstH = (now.getUTCHours() + 9) % 24;
+    const nowJstM = now.getUTCMinutes();
+
+    let diffMin = (actualJstDay * 24 * 60 + actualJstH * 60 + m + delayMin) - (nowJstDay * 24 * 60 + nowJstH * 60 + nowJstM);
+    if (diffMin <= 0) diffMin += 7 * 24 * 60;
+
+    const cdDays = Math.floor(diffMin / (24 * 60));
+    const cdHours = Math.floor((diffMin % (24 * 60)) / 60);
+    const cdMins = diffMin % 60;
+
+    countdownBanner.innerHTML = `⏳ Next Episode Drops In: <strong>${cdDays}d ${cdHours}h ${cdMins}m</strong> (Simulcast)`;
+  }
+
+  [daySel, hourIn, minIn, delaySel].forEach(elem => {
+    elem.addEventListener('input', calculate);
+    elem.addEventListener('change', calculate);
+  });
+
+  document.querySelectorAll('.as-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      daySel.value = btn.dataset.day;
+      hourIn.value = btn.dataset.h;
+      minIn.value = btn.dataset.m;
+      calculate();
+    });
+  });
+
+  calculate();
+})();
+</script>

@@ -1,0 +1,212 @@
+<h2 id="anime-filler-title" style="margin-top:0;color:var(--accent);">📜 CanonFilter: Anime Filler & Canon Episode Navigator</h2>
+
+<form aria-describedby="anime-filler-desc" onsubmit="event.preventDefault();">
+  <p id="anime-filler-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Distinguish manga canon, anime canon, and skippable studio filler arcs across major long-running anime. Search any episode number or generate a streamlined, filler-free binge list.
+  </p>
+
+  <!-- Anime Series Selection -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="af-series-select" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Select Anime Series</label>
+      <select id="af-series-select" style="width:100%;padding:8px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,204,0.3);color:#fff;">
+        <option value="naruto_shippuden" selected>Naruto: Shippuden (500 eps · 41% Filler)</option>
+        <option value="naruto">Naruto Original (220 eps · 44% Filler)</option>
+        <option value="bleach">Bleach (366 eps · 45% Filler)</option>
+        <option value="one_piece">One Piece (1,110+ eps · 11% Filler)</option>
+        <option value="dbz">Dragon Ball Z (291 eps · 13% Filler)</option>
+        <option value="hxh">Hunter x Hunter 2011 (148 eps · 1% Filler)</option>
+        <option value="fairy_tail">Fairy Tail (328 eps · 19% Filler)</option>
+        <option value="boruto">Boruto: Next Generations (293 eps · 74% Anime Canon/Filler)</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="af-search-ep" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Check Episode #</label>
+      <input type="number" id="af-search-ep" placeholder="e.g. 101" min="1" max="2000" style="width:100%;padding:8px 10px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+    </div>
+  </div>
+
+  <!-- Single Episode Instant Checker Result -->
+  <div id="af-check-result" style="display:none;padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:0.85rem;font-weight:bold;"></div>
+
+  <!-- Series Canon Telemetry Stats -->
+  <div style="background:rgba(14,21,37,0.9);border:1px solid rgba(0,255,204,0.3);border-radius:12px;padding:12px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Total Episodes</div>
+        <div id="af-res-total" style="font-size:1.3rem;font-weight:bold;color:#fff;">500 Eps</div>
+        <div id="af-res-hours" style="font-size:0.68rem;color:var(--muted);">~167 hours total</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Manga Canon</div>
+        <div id="af-res-canon" style="font-size:1.3rem;font-weight:bold;color:#00ffcc;">295 Eps (59%)</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Core author story</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Pure Filler (Skippable)</div>
+        <div id="af-res-filler" style="font-size:1.3rem;font-weight:bold;color:#ff5577;">205 Eps (41%)</div>
+        <div id="af-res-saved-time" style="font-size:0.68rem;color:var(--muted);">Skip saves 68.3 hours</div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--muted);">Filler Severity</div>
+        <div id="af-res-severity" style="font-size:1.3rem;font-weight:bold;color:#ffd700;">VERY HIGH</div>
+        <div style="font-size:0.68rem;color:var(--muted);">Skip guide recommended</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Arc Breakdown & Skippable Ranges -->
+  <div style="background:#050811;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:0.75rem;color:#ffd700;font-weight:bold;text-transform:uppercase;">🚫 Skippable Filler Ranges</span>
+      <button type="button" id="af-copy-ranges-btn" style="padding:4px 10px;border-radius:4px;background:rgba(0,255,204,0.15);border:1px solid #00ffcc;color:#00ffcc;font-size:0.7rem;cursor:pointer;font-weight:bold;">
+        📋 Copy Canon Watchlist
+      </button>
+    </div>
+    <div id="af-ranges-list" style="font-size:0.8rem;line-height:1.6;color:var(--muted);max-height:130px;overflow-y:auto;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;"></div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const ANIME_DB = {
+    naruto_shippuden: {
+      name: 'Naruto: Shippuden', total: 500,
+      fillerRanges: '28, 57-71, 91-112, 144-151, 170-171, 176-196, 223-242, 257-260, 271, 279-281, 284-295, 303-320, 347-361, 376-377, 388-390, 394-413, 416-417, 422-423, 427-450, 464-469, 480-483',
+      fillerList: [28, ...range(57,71), ...range(91,112), ...range(144,151), 170, 171, ...range(176,196), ...range(223,242), ...range(257,260), 271, ...range(279,281), ...range(284,295), ...range(303,320), ...range(347,361), 376, 377, ...range(388,390), ...range(394,413), 416, 417, 422, 423, ...range(427,450), ...range(464,469), ...range(480,483)],
+      notable: 'The Infinite Tsukuyomi filler dreams (427-450) and Itachi Shinden / Power Arc are notable.'
+    },
+    naruto: {
+      name: 'Naruto (Original)', total: 220,
+      fillerRanges: '26, 97, 101-106, 136-219',
+      fillerList: [26, 97, ...range(101,106), ...range(136,219)],
+      notable: 'Episodes 136-219 are uninterrupted filler! You can jump straight from Ep 135 to Naruto Shippuden Ep 1.'
+    },
+    bleach: {
+      name: 'Bleach', total: 366,
+      fillerRanges: '33, 50, 64-109 (Bount Arc), 128-137, 147-149, 168-189 (Amagai Arc), 204-205, 213-214, 228-265 (Zanpakuto Rebellion), 287, 298-299, 303-305, 311-341 (Regai Arc), 355',
+      fillerList: [33, 50, ...range(64,109), ...range(128,137), ...range(147,149), ...range(168,189), 204, 205, 213, 214, ...range(228,265), 287, 298, 299, ...range(303,305), ...range(311,341), 355],
+      notable: 'Bount Arc (64-109) is completely skippable. Zanpakuto Rebellion (228-265) is widely praised despite being filler.'
+    },
+    one_piece: {
+      name: 'One Piece', total: 1110,
+      fillerRanges: '54-61, 98-99, 102, 131-143, 196-206 (G-8 Arc), 220-226, 279-283, 317-319, 326-335, 382-384, 406-407, 426-429, 457-458, 492, 542, 575-578, 590, 626-628, 747-750, 775, 780-782, 807, 881, 895-896, 907, 1029-1030',
+      fillerList: [...range(54,61), 98, 99, 102, ...range(131,143), ...range(196,206), ...range(220,226), ...range(279,283), ...range(317,319), ...range(326,335), ...range(382,384), 406, 407, ...range(426,429), 457, 458, 492, 542, ...range(575,578), 590, ...range(626,628), ...range(747,750), 775, ...range(780,782), 807, 881, 895, 896, 907, 1029, 1030],
+      notable: 'G-8 Arc (196-206 with Commander Jonathan) is acclaimed by fans as the greatest filler arc in anime history.'
+    },
+    dbz: {
+      name: 'Dragon Ball Z', total: 291,
+      fillerRanges: '9-10, 12-17, 39-44, 100, 102, 108-117 (Garlic Jr), 124-125 (Goku Driving School), 170-171, 174, 195-199 (Other World Tournament), 202-204, 274, 288',
+      fillerList: [9, 10, ...range(12,17), ...range(39,44), 100, 102, ...range(108,117), 124, 125, 170, 171, 174, ...range(195,199), 202, 203, 204, 274, 288],
+      notable: 'Episode 125 (Goku and Piccolo getting their driving licenses) is legendary comedy canon in fans hearts.'
+    },
+    hxh: {
+      name: 'Hunter x Hunter (2011)', total: 148,
+      fillerRanges: '13, 26 (Recaps)',
+      fillerList: [13, 26],
+      notable: 'Nearly 100% pure manga canon! Only episodes 13 and 26 are recap fillers.'
+    },
+    fairy_tail: {
+      name: 'Fairy Tail', total: 328,
+      fillerRanges: '19-20, 69-75, 125-150, 202-226, 268',
+      fillerList: [19, 20, ...range(69,75), ...range(125,150), ...range(202,226), 268],
+      notable: 'Key of the Starry Sky (125-150) and Eclipse Celestial Spirits (202-226) are primary skippable arcs.'
+    },
+    boruto: {
+      name: 'Boruto: Naruto Next Generations', total: 293,
+      fillerRanges: '16-17, 40-50, 67-69, 96-97, 112-114, 138-140, 152-156, 256-258',
+      fillerList: [16, 17, ...range(40,50), 67, 68, 69, 96, 97, 112, 113, 114, ...range(138,140), ...range(152,156), ...range(256,258)],
+      notable: 'Boruto relies heavily on Anime Canon (overseen by Kodachi/Kishimoto) alongside pure manga adaptation.'
+    }
+  };
+
+  function range(start, end) {
+    const arr = [];
+    for (let i = start; i <= end; i++) arr.push(i);
+    return arr;
+  }
+
+  const seriesSel = document.getElementById('af-series-select');
+  const searchIn = document.getElementById('af-search-ep');
+  const checkResult = document.getElementById('af-check-result');
+  const totalOut = document.getElementById('af-res-total');
+  const hoursOut = document.getElementById('af-res-hours');
+  const canonOut = document.getElementById('af-res-canon');
+  const fillerOut = document.getElementById('af-res-filler');
+  const savedTimeOut = document.getElementById('af-res-saved-time');
+  const severityOut = document.getElementById('af-res-severity');
+  const rangesList = document.getElementById('af-ranges-list');
+  const copyBtn = document.getElementById('af-copy-ranges-btn');
+
+  function update() {
+    const data = ANIME_DB[seriesSel.value];
+    if (!data) return;
+
+    const fillerCount = data.fillerList.length;
+    const canonCount = data.total - fillerCount;
+    const fillerPct = (fillerCount / data.total) * 100;
+    const totalHours = (data.total * 20) / 60;
+    const savedHours = (fillerCount * 20) / 60;
+
+    totalOut.textContent = `${data.total} Eps`;
+    hoursOut.textContent = `~${Math.round(totalHours)} hours total`;
+    canonOut.textContent = `${canonCount} Eps (${(100 - fillerPct).toFixed(0)}%)`;
+    fillerOut.textContent = `${fillerCount} Eps (${fillerPct.toFixed(0)}%)`;
+    savedTimeOut.textContent = `Skip saves ${savedHours.toFixed(1)} hours!`;
+
+    if (fillerPct >= 40) {
+      severityOut.textContent = 'EXTREME';
+      severityOut.style.color = '#ff5577';
+    } else if (fillerPct >= 20) {
+      severityOut.textContent = 'MODERATE';
+      severityOut.style.color = '#ffd700';
+    } else {
+      severityOut.textContent = 'LOW / MINIMAL';
+      severityOut.style.color = '#00ffcc';
+    }
+
+    rangesList.innerHTML = `
+      <div style="margin-bottom:6px;"><strong style="color:#ff5577;">Pure Filler Episodes:</strong> ${data.fillerRanges}</div>
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.7);">${data.notable}</div>
+    `;
+
+    // Check specific episode
+    const epNum = parseInt(searchIn.value, 10);
+    if (!isNaN(epNum) && epNum > 0) {
+      checkResult.style.display = 'block';
+      if (epNum > data.total) {
+        checkResult.style.background = 'rgba(255,255,255,0.06)';
+        checkResult.style.color = '#fff';
+        checkResult.textContent = `Episode ${epNum} exceeds series total of ${data.total} episodes.`;
+      } else if (data.fillerList.includes(epNum)) {
+        checkResult.style.background = 'rgba(255, 85, 119, 0.2)';
+        checkResult.style.border = '1px solid #ff5577';
+        checkResult.style.color = '#ff88aa';
+        checkResult.innerHTML = `🔴 Episode ${epNum} is <strong>FILLER</strong>. You can safely skip this without missing the main manga plot.`;
+      } else {
+        checkResult.style.background = 'rgba(0, 255, 204, 0.2)';
+        checkResult.style.border = '1px solid #00ffcc';
+        checkResult.style.color = '#00ffcc';
+        checkResult.innerHTML = `🟢 Episode ${epNum} is <strong>MANGA CANON</strong>. Essential canon storyline—must watch!`;
+      }
+    } else {
+      checkResult.style.display = 'none';
+    }
+  }
+
+  seriesSel.addEventListener('change', update);
+  searchIn.addEventListener('input', update);
+
+  copyBtn.addEventListener('click', () => {
+    const data = ANIME_DB[seriesSel.value];
+    const text = `${data.name} Skippable Filler Guide:\nFiller Episodes: ${data.fillerRanges}\nNote: ${data.notable}`;
+    navigator.clipboard.writeText(text).then(() => {
+      copyBtn.textContent = '✅ Copied Guide!';
+      setTimeout(() => { copyBtn.textContent = '📋 Copy Canon Watchlist'; }, 2000);
+    });
+  });
+
+  update();
+})();
+</script>

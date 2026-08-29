@@ -106,7 +106,21 @@ const scienceList = [
 ];
 const writingList = ['spanish-verb-master', 'french-pronunciation-verbs', 'chinese-tones-pinyin', 'german-cases-gender', 'korean-hangul-trainer', 'multilingual-phrase-matrix', 'japanese-kana-trainer', 'japanese-romaji-converter', 'japanese-numbers-counters', 'japanese-particles-master', 'japanese-jlpt-vocabulary', 'japanese-verb-conjugator', 'japanese-keigo-politeness', 'regex-tester-explainer', 'markdown-live-editor', 'morse-code-translator', 'cognitive-bias-detector', 'business-writing', 'citation', 'cover-letter', 'creative-writing', 'email-templates', 'essay-templates', 'essay', 'grammar-proof', 'kanji-helper', 'languages', 'literature-analysis', 'literature', 'meme-translation', 'plagiarism-check', 'proofreading', 'public-speaking', 'punctuation-guide', 'readability-score', 'readingtime', 'resume', 'seo-helper', 'seo-writing', 'spelling-check', 'summary-generator', 'translation-helper', 'vocab', 'vocabulary-trainer'];
 
+const animeList = [
+  'anime-binge-watch-calculator',
+  'anime-release-schedule-converter',
+  'anime-filler-canon-guide',
+  'anime-japanese-phrases-tropes',
+  'anime-character-archetype-matrix',
+  'anime-cosplay-prop-scaler',
+  'anime-convention-budget-planner',
+  'manga-to-anime-chapter-converter',
+  'anime-oped-music-analyzer',
+  'anime-recommendation-mood-engine'
+];
+
 function getCategory(name) {
+  if (animeList.some(s => name.includes(s))) return 'Anime & Otaku Culture';
   if (slList.some(s => name.includes(s))) return 'Virtual Worlds & Gaming';
   if (musicList.some(s => name.includes(s))) return 'Music & Audio';
   if (healthList.some(s => name.includes(s))) return 'Health & Fitness';
