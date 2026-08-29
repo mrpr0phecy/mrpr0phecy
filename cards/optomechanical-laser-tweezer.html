@@ -1,0 +1,314 @@
+<h2 id="olt-title" style="margin-top:0;color:var(--accent);">🔬 Optical Tweezers &amp; Trapping</h2>
+
+<form aria-describedby="olt-desc" onsubmit="event.preventDefault();">
+  <p id="olt-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Arthur Ashkin's 2018 Nobel Prize optical trap. Focused Gaussian laser beam gradient forces trap micro-particles and counter thermal Brownian diffusion.
+  </p>
+
+  <!-- Micro-Target Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="olt-target-btn active" data-type="silica" style="padding:4px 10px;border-radius:4px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Silica Micro-Beads (1.0 μm)</button>
+    <button type="button" class="olt-target-btn" data-type="ecoli" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">E. coli Bacterium</button>
+    <button type="button" class="olt-target-btn" data-type="dna" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">DNA Tether Bead</button>
+  </div>
+
+  <!-- Microscope Chamber Canvas -->
+  <div style="background:#010408;border:1px solid rgba(0,255,204,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="olt-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#000206;border-radius:6px;cursor:crosshair;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG LASER WAIST FOCUS TO CATCH &amp; MOVE BEADS</span>
+      <span id="olt-trap-force" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Trap Restoring Force: 0.00 pN</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Trap Stiffness (k)</div>
+      <div id="olt-tel-k" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">0.085 pN/nm</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Thermal Energy (kBT)</div>
+      <div style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">4.1 pN·nm (295 K)</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Status</div>
+      <div id="olt-tel-status" style="font-size:0.95rem;font-weight:bold;color:#c084fc;">Bead Trapped</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <!-- Laser Power -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Laser Power (1064 nm)</span>
+        <span id="olt-val-power">80 mW</span>
+      </div>
+      <input type="range" id="olt-slider-power" min="5" max="200" value="80" style="width:100%;">
+    </div>
+
+    <!-- Fluid Viscosity -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Thermal Brownian Agitation</span>
+        <span id="olt-val-brown">Normal (1.0x)</span>
+      </div>
+      <input type="range" id="olt-slider-brown" min="0.2" max="3.0" step="0.1" value="1.0" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="olt-btn-recenter" style="padding:6px 14px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;">🎯 Center Laser Focal Waist</button>
+    <button type="button" id="olt-btn-release" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Turn Laser Off</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('olt-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sPower = document.getElementById('olt-slider-power');
+  const sBrown = document.getElementById('olt-slider-brown');
+  const vPower = document.getElementById('olt-val-power');
+  const vBrown = document.getElementById('olt-val-brown');
+
+  const telK = document.getElementById('olt-tel-k');
+  const telStatus = document.getElementById('olt-tel-status');
+  const forceReadout = document.getElementById('olt-trap-force');
+
+  const btnRecenter = document.getElementById('olt-btn-recenter');
+  const btnRelease = document.getElementById('olt-btn-release');
+
+  let laserPower = 80;
+  let brownianScale = 1.0;
+  let isLaserOn = true;
+  let targetType = 'silica';
+
+  // Laser Waist Focus Coordinates
+  let trapX = canvas.width / 2;
+  let trapY = canvas.height / 2;
+  let isDraggingTrap = false;
+
+  // Dielectric Micro-Beads
+  const BEAD_COUNT = 16;
+  const beads = [];
+
+  function initBeads() {
+    beads.length = 0;
+    for (let i = 0; i < BEAD_COUNT; i++) {
+      beads.push({
+        x: i === 0 ? trapX : Math.random() * (canvas.width - 40) + 20,
+        y: i === 0 ? trapY : Math.random() * (canvas.height - 40) + 20,
+        vx: 0,
+        vy: 0,
+        r: targetType === 'dna' ? 7 : (targetType === 'ecoli' ? 9 : 6),
+        isTrapped: false
+      });
+    }
+  }
+
+  function render() {
+    ctx.fillStyle = '#000206';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Focused Gaussian Laser Beam Rays (Infrared 1064nm visualized as glowing emerald cone)
+    if (isLaserOn) {
+      const waistR = 12;
+      const topW = 90;
+
+      // Incident cone from objective lens (top)
+      const gradTop = ctx.createRadialGradient(trapX, trapY, waistR, trapX, trapY - 100, topW);
+      gradTop.addColorStop(0, 'rgba(0, 255, 204, 0.45)');
+      gradTop.addColorStop(1, 'rgba(0, 255, 204, 0.0)');
+
+      ctx.fillStyle = gradTop;
+      ctx.beginPath();
+      ctx.moveTo(trapX - topW, 0);
+      ctx.lineTo(trapX + topW, 0);
+      ctx.lineTo(trapX + waistR, trapY);
+      ctx.lineTo(trapX - waistR, trapY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Transmitted cone (bottom)
+      const gradBot = ctx.createRadialGradient(trapX, trapY, waistR, trapX, trapY + 100, topW);
+      gradBot.addColorStop(0, 'rgba(0, 255, 204, 0.45)');
+      gradBot.addColorStop(1, 'rgba(0, 255, 204, 0.0)');
+
+      ctx.fillStyle = gradBot;
+      ctx.beginPath();
+      ctx.moveTo(trapX - waistR, trapY);
+      ctx.lineTo(trapX + waistR, trapY);
+      ctx.lineTo(trapX + topW, H);
+      ctx.lineTo(trapX - topW, H);
+      ctx.closePath();
+      ctx.fill();
+
+      // High-intensity focal spot
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = '#00ffcc';
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(trapX, trapY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // Trap stiffness k proportional to laser power
+    const kStiff = (laserPower / 80) * 0.085;
+    telK.textContent = `${kStiff.toFixed(3)} pN/nm`;
+
+    let anyTrapped = false;
+    let maxTrapF = 0;
+
+    // Simulate Beads: Brownian Langevin diffusion + Optical gradient force
+    beads.forEach((b, idx) => {
+      // Thermal Brownian kick
+      const brownianAmp = Math.sqrt(brownianScale) * 0.45;
+      b.vx += (Math.random() - 0.5) * brownianAmp;
+      b.vy += (Math.random() - 0.5) * brownianAmp;
+
+      if (isLaserOn) {
+        const dx = trapX - b.x;
+        const dy = trapY - b.y;
+        const dist = Math.hypot(dx, dy);
+
+        // Gaussian gradient force: F_grad ~ -k * r * exp(-r^2 / 2w^2)
+        const waist = 35;
+        if (dist < waist * 2.2) {
+          const trapForce = (kStiff * 12) * Math.exp(-Math.pow(dist / waist, 2));
+          b.vx += (dx / Math.max(1, dist)) * trapForce;
+          b.vy += (dy / Math.max(1, dist)) * trapForce;
+
+          if (dist < 15) {
+            b.isTrapped = true;
+            anyTrapped = true;
+            if (trapForce > maxTrapF) maxTrapF = trapForce * dist;
+          }
+        } else {
+          b.isTrapped = false;
+        }
+      }
+
+      // Drag damping in fluid
+      b.vx *= 0.88;
+      b.vy *= 0.88;
+      b.x += b.vx;
+      b.y += b.vy;
+
+      // Bounce at boundary
+      if (b.x < b.r) { b.x = b.r; b.vx *= -0.5; }
+      if (b.x > W - b.r) { b.x = W - b.r; b.vx *= -0.5; }
+      if (b.y < b.r) { b.y = b.r; b.vy *= -0.5; }
+      if (b.y > H - b.r) { b.y = H - b.r; b.vy *= -0.5; }
+
+      // Render Bead / Microbe
+      if (targetType === 'ecoli') {
+        // Rod-shaped bacterium with flagella
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.fillStyle = b.isTrapped ? '#00ffcc' : '#4ade80';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 9, 4.5, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        // Translucent dielectric spherical bead with refraction highlight
+        const bGrad = ctx.createRadialGradient(b.x - 2, b.y - 2, 1, b.x, b.y, b.r);
+        bGrad.addColorStop(0, '#ffffff');
+        bGrad.addColorStop(0.4, b.isTrapped ? '#a7f3d0' : '#bae6fd');
+        bGrad.addColorStop(1, b.isTrapped ? '#059669' : '#0284c7');
+
+        ctx.fillStyle = bGrad;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = b.isTrapped ? '#00ffcc' : 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
+    });
+
+    if (anyTrapped) {
+      telStatus.textContent = 'Bead Trapped (Harmonic Well)';
+      telStatus.style.color = '#00ffcc';
+      forceReadout.textContent = `Trap Restoring Force: ${(maxTrapF * 0.25).toFixed(2)} pN`;
+    } else {
+      telStatus.textContent = 'Free Brownian Diffusion';
+      telStatus.style.color = '#ffd700';
+      forceReadout.textContent = 'Trap Restoring Force: 0.00 pN';
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of optical trap waist
+  canvas.addEventListener('mousedown', (e) => {
+    isDraggingTrap = true;
+    const rect = canvas.getBoundingClientRect();
+    trapX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    trapY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  });
+
+  window.addEventListener('mouseup', () => { isDraggingTrap = false; });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDraggingTrap) {
+      const rect = canvas.getBoundingClientRect();
+      trapX = (e.clientX - rect.left) * (canvas.width / rect.width);
+      trapY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    }
+  });
+
+  sPower.addEventListener('input', () => {
+    laserPower = parseInt(sPower.value, 10);
+    vPower.textContent = `${laserPower} mW`;
+  });
+
+  sBrown.addEventListener('input', () => {
+    brownianScale = parseFloat(sBrown.value);
+    vBrown.textContent = `${brownianScale.toFixed(1)}x`;
+  });
+
+  document.querySelectorAll('.olt-target-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.olt-target-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(0,255,204,0.2)';
+      btn.style.borderColor = '#00ffcc';
+      btn.style.color = '#00ffcc';
+
+      targetType = btn.dataset.type;
+      initBeads();
+    });
+  });
+
+  btnRecenter.addEventListener('click', () => {
+    trapX = canvas.width / 2;
+    trapY = canvas.height / 2;
+  });
+
+  btnRelease.addEventListener('click', () => {
+    isLaserOn = !isLaserOn;
+    btnRelease.textContent = isLaserOn ? 'Turn Laser Off' : 'Turn Laser On';
+  });
+
+  initBeads();
+  requestAnimationFrame(render);
+})();
+</script>

@@ -1,0 +1,261 @@
+<h2 id="gcc-title" style="margin-top:0;color:var(--accent);">🌌 Galaxy Collision &amp; Tidal Tails</h2>
+
+<form aria-describedby="gcc-desc" onsubmit="event.preventDefault();">
+  <p id="gcc-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Gravitational N-body astrophysical simulation. Watch two disk galaxies collide as differential tidal forces eject long parabolic stellar bridges and tails.
+  </p>
+
+  <!-- Collision Geometry Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="gcc-geom-btn active" data-geom="prograde" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Prograde Grazing (Antennae)</button>
+    <button type="button" class="gcc-geom-btn" data-geom="headon" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Head-On Cartwheel</button>
+    <button type="button" class="gcc-geom-btn" data-geom="retro" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Retrograde Flyby</button>
+    <button type="button" class="gcc-geom-btn" data-geom="merger" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Dynamic Friction Merger</button>
+  </div>
+
+  <!-- Cosmic Canvas -->
+  <div style="background:#010206;border:1px solid rgba(45,212,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="gcc-canvas" width="560" height="250" style="width:100%;height:250px;display:block;background:#000104;border-radius:6px;cursor:crosshair;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>DRAG CORE TO INTERACTIVELY GUIDE FLIGHT PATH</span>
+      <span id="gcc-epoch-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Epoch: T = +45 Myr (Periastron Passage)</span>
+    </div>
+  </div>
+
+  <!-- Parameter Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <!-- Collision Velocity -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Relative Infall Velocity</span>
+        <span id="gcc-val-vel">240 km/s</span>
+      </div>
+      <input type="range" id="gcc-slider-vel" min="80" max="450" value="240" style="width:100%;">
+    </div>
+
+    <!-- Impact Parameter -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Impact Parameter (Pericenter)</span>
+        <span id="gcc-val-dist">35 kpc</span>
+      </div>
+      <input type="range" id="gcc-slider-dist" min="5" max="80" value="35" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="gcc-btn-restart" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">🔄 Restart Infall</button>
+      <button type="button" id="gcc-btn-pause" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">⏸ Pause</button>
+    </div>
+    <span style="font-size:0.72rem;color:var(--muted);">500 Active Star Particles</span>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('gcc-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sVel = document.getElementById('gcc-slider-vel');
+  const sDist = document.getElementById('gcc-slider-dist');
+  const vVel = document.getElementById('gcc-val-vel');
+  const vDist = document.getElementById('gcc-val-dist');
+
+  const epochTag = document.getElementById('gcc-epoch-tag');
+  const btnRestart = document.getElementById('gcc-btn-restart');
+  const btnPause = document.getElementById('gcc-btn-pause');
+
+  let infallVel = 240;
+  let impactDist = 35;
+  let collisionGeom = 'prograde';
+  let isRunning = true;
+  let epochMyr = -120;
+
+  // Galactic Supermassive Cores
+  const G = 1.4;
+  let core1 = { x: 120, y: 150, vx: 1.2, vy: -0.4, mass: 1200, color: '#2dd4ff' };
+  let core2 = { x: 440, y: 100, vx: -1.2, vy: 0.4, mass: 1000, color: '#ffd700' };
+
+  // Stars: [{ x, y, vx, vy, color, originCore }]
+  const stars = [];
+
+  function generateDisk(core, count, dir, starColor) {
+    for (let i = 0; i < count; i++) {
+      const r = Math.sqrt(Math.random()) * 48 + 12;
+      const angle = Math.random() * Math.PI * 2;
+
+      // Circular orbital velocity v = sqrt(G * M / r)
+      const vCirc = Math.sqrt((G * core.mass) / r) * dir;
+
+      stars.push({
+        x: core.x + Math.cos(angle) * r,
+        y: core.y + Math.sin(angle) * r,
+        vx: core.vx - Math.sin(angle) * vCirc,
+        vy: core.vy + Math.cos(angle) * vCirc,
+        color: starColor,
+        coreId: core === core1 ? 1 : 2
+      });
+    }
+  }
+
+  function resetSim() {
+    epochMyr = -150;
+    const vNorm = (infallVel / 200) * 1.3;
+    const offset = impactDist * 1.2;
+
+    if (collisionGeom === 'headon') {
+      core1 = { x: 100, y: 125, vx: vNorm, vy: 0, mass: 1200, color: '#2dd4ff' };
+      core2 = { x: 460, y: 125, vx: -vNorm, vy: 0, mass: 1000, color: '#ffd700' };
+    } else if (collisionGeom === 'retro') {
+      core1 = { x: 110, y: 125 + offset, vx: vNorm, vy: -0.3, mass: 1200, color: '#2dd4ff' };
+      core2 = { x: 450, y: 125 - offset, vx: -vNorm, vy: 0.3, mass: 1000, color: '#ffd700' };
+    } else if (collisionGeom === 'merger') {
+      core1 = { x: 140, y: 125 + offset * 0.7, vx: vNorm * 0.7, vy: -0.4, mass: 1300, color: '#2dd4ff' };
+      core2 = { x: 420, y: 125 - offset * 0.7, vx: -vNorm * 0.7, vy: 0.4, mass: 1100, color: '#ffd700' };
+    } else {
+      // Prograde Grazing
+      core1 = { x: 120, y: 125 + offset, vx: vNorm, vy: -0.4, mass: 1200, color: '#2dd4ff' };
+      core2 = { x: 440, y: 125 - offset, vx: -vNorm, vy: 0.4, mass: 1000, color: '#ffd700' };
+    }
+
+    stars.length = 0;
+    const spin2 = collisionGeom === 'retro' ? -1 : 1;
+    generateDisk(core1, 260, 1, '#60a5fa');
+    generateDisk(core2, 240, spin2, '#fde047');
+  }
+
+  function stepPhysics() {
+    const dt = 0.4;
+
+    // Gravity between cores: softening parameter eps to avoid singularity
+    const eps2 = 300;
+    const dx = core2.x - core1.x;
+    const dy = core2.y - core1.y;
+    const distSq = dx * dx + dy * dy + eps2;
+    const dist = Math.sqrt(distSq);
+    const force = (G * core1.mass * core2.mass) / distSq;
+
+    const fx = (force * dx) / dist;
+    const fy = (force * dy) / dist;
+
+    // Dynamic friction if cores get close
+    let drag = 1.0;
+    if (dist < 50 && collisionGeom === 'merger') {
+      drag = 0.985;
+    }
+
+    core1.vx = (core1.vx + (fx / core1.mass) * dt) * drag;
+    core1.vy = (core1.vy + (fy / core1.mass) * dt) * drag;
+    core2.vx = (core2.vx - (fx / core2.mass) * dt) * drag;
+    core2.vy = (core2.vy - (fy / core2.mass) * dt) * drag;
+
+    core1.x += core1.vx * dt;
+    core1.y += core1.vy * dt;
+    core2.x += core2.vx * dt;
+    core2.y += core2.vy * dt;
+
+    // Gravity acting on stars from both cores (restricted 3-body)
+    const starEps2 = 120;
+    stars.forEach(s => {
+      // From Core 1
+      const dx1 = core1.x - s.x;
+      const dy1 = core1.y - s.y;
+      const d1Sq = dx1 * dx1 + dy1 * dy1 + starEps2;
+      const a1 = (G * core1.mass) / d1Sq;
+      const d1 = Math.sqrt(d1Sq);
+
+      // From Core 2
+      const dx2 = core2.x - s.x;
+      const dy2 = core2.y - s.y;
+      const d2Sq = dx2 * dx2 + dy2 * dy2 + starEps2;
+      const a2 = (G * core2.mass) / d2Sq;
+      const d2 = Math.sqrt(d2Sq);
+
+      s.vx += ((a1 * dx1) / d1 + (a2 * dx2) / d2) * dt;
+      s.vy += ((a1 * dy1) / d1 + (a2 * dy2) / d2) * dt;
+
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+    });
+
+    epochMyr += Math.round(dt * 3.5);
+    epochTag.textContent = `Epoch: T = ${epochMyr >= 0 ? '+' : ''}${epochMyr} Myr (${dist < 45 ? 'Periastron Tidal Shock' : (epochMyr > 0 ? 'Tidal Tails Ejected' : 'Infall Phase')})`;
+  }
+
+  function render() {
+    ctx.fillStyle = 'rgba(0, 1, 4, 0.22)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (isRunning) {
+      stepPhysics();
+    }
+
+    // Render Stars
+    stars.forEach(s => {
+      ctx.fillStyle = s.color;
+      ctx.fillRect(s.x, s.y, 1.4, 1.4);
+    });
+
+    // Render Galactic Cores (Supermassive Central Bulges)
+    [core1, core2].forEach(c => {
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = c.color;
+      ctx.fillStyle = c.color;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    requestAnimationFrame(render);
+  }
+
+  sVel.addEventListener('input', () => {
+    infallVel = parseInt(sVel.value, 10);
+    vVel.textContent = `${infallVel} km/s`;
+    resetSim();
+  });
+
+  sDist.addEventListener('input', () => {
+    impactDist = parseInt(sDist.value, 10);
+    vDist.textContent = `${impactDist} kpc`;
+    resetSim();
+  });
+
+  document.querySelectorAll('.gcc-geom-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gcc-geom-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      collisionGeom = btn.dataset.geom;
+      resetSim();
+    });
+  });
+
+  btnRestart.addEventListener('click', resetSim);
+
+  btnPause.addEventListener('click', () => {
+    isRunning = !isRunning;
+    btnPause.textContent = isRunning ? '⏸ Pause' : '▶ Resume';
+  });
+
+  resetSim();
+  requestAnimationFrame(render);
+})();
+</script>

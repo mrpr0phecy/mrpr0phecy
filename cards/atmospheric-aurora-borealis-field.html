@@ -1,0 +1,269 @@
+<h2 id="asw-title" style="margin-top:0;color:var(--accent);">🌌 Aurora Solar Wind Chamber</h2>
+
+<form aria-describedby="asw-desc" onsubmit="event.preventDefault();">
+  <p id="asw-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Kristian Birkeland's Terrella experiment. Solar wind plasma streams channeled along geomagnetic dipole field lines excite shimmering atmospheric auroral ovals.
+  </p>
+
+  <!-- Geomagnetic Storm Activity Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="asw-storm-btn active" data-kp="3" style="padding:4px 10px;border-radius:4px;background:rgba(0,255,102,0.2);border:1px solid #00ff66;color:#00ff66;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Quiet Auroral Arc (Kp 3)</button>
+    <button type="button" class="asw-storm-btn" data-kp="7" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Geomagnetic Substorm (Kp 7)</button>
+    <button type="button" class="asw-storm-btn" data-kp="9" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Carrington Superstorm (Kp 9+)</button>
+  </div>
+
+  <!-- Terrella Vacuum Chamber Canvas -->
+  <div style="background:#010206;border:1px solid rgba(0,255,102,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="asw-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#000104;border-radius:6px;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>SOLAR WIND FLUX: LEFT TO RIGHT // MAGNETOPAUSE BOW SHOCK</span>
+      <span id="asw-emission-tag" style="color:#00ff66;font-family:monospace;font-weight:bold;">Oxygen 557.7 nm Emerald Green Emission</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Geomagnetic Kp-Index</div>
+      <div id="asw-tel-kp" style="font-size:0.95rem;font-weight:bold;color:#00ff66;font-family:monospace;">Kp = 3.0 (Minor)</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Solar Wind Velocity</div>
+      <div id="asw-tel-wind" style="font-size:0.95rem;font-weight:bold;color:#2dd4ff;font-family:monospace;">450 km/s</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Auroral Oval Latitude</div>
+      <div id="asw-tel-lat" style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">67.5° N/S</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Solar Wind Density</span>
+        <span id="asw-val-density">5.5 protons/cm³</span>
+      </div>
+      <input type="range" id="asw-slider-density" min="1" max="25" value="5" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Interplanetary Magnetic Field (Bz)</span>
+        <span id="asw-val-bz">-4.2 nT (Southward)</span>
+      </div>
+      <input type="range" id="asw-slider-bz" min="-15" max="10" value="-4" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="asw-btn-cme" style="padding:6px 16px;border-radius:6px;background:rgba(255,51,102,0.25);border:1px solid #ff3366;color:#ff3366;font-size:0.75rem;font-weight:bold;cursor:pointer;">💥 Trigger Coronal Mass Ejection</button>
+    <span style="font-size:0.72rem;color:var(--muted);">Birkeland Lorentz Drift Active</span>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('asw-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sDensity = document.getElementById('asw-slider-density');
+  const sBz = document.getElementById('asw-slider-bz');
+  const vDensity = document.getElementById('asw-val-density');
+  const vBz = document.getElementById('asw-val-bz');
+
+  const telKp = document.getElementById('asw-tel-kp');
+  const telWind = document.getElementById('asw-tel-wind');
+  const telLat = document.getElementById('asw-tel-lat');
+  const emissionTag = document.getElementById('asw-emission-tag');
+
+  const btnCme = document.getElementById('asw-btn-cme');
+
+  let kpIndex = 3;
+  let windDensity = 5;
+  let bzSouth = -4;
+
+  // Terrella sphere geometry (centered in vacuum chamber)
+  const earthX = canvas.width * 0.58;
+  const earthY = canvas.height * 0.5;
+  const earthR = 36;
+
+  // Solar wind charged particles streaming from left to right
+  const solarParticles = [];
+  const MAX_WIND = 140;
+
+  function spawnWindParticle() {
+    solarParticles.push({
+      x: 0,
+      y: Math.random() * canvas.height,
+      vx: (kpIndex * 0.6) + 3.2,
+      vy: 0,
+      color: '#ffffff'
+    });
+  }
+
+  function render() {
+    ctx.fillStyle = '#000104';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Draw Bow Shock & Magnetopause boundary
+    const standOffDist = earthX - (earthR * (2.8 - (kpIndex * 0.15)));
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(standOffDist, 0);
+    ctx.bezierCurveTo(standOffDist + 40, earthY - 40, standOffDist + 40, earthY + 40, standOffDist, H);
+    ctx.stroke();
+
+    // Draw Geomagnetic Dipole Field Lines
+    const fieldLines = [-50, -35, -20, 20, 35, 50];
+    ctx.strokeStyle = 'rgba(0, 255, 102, 0.15)';
+    ctx.lineWidth = 1;
+    fieldLines.forEach(dy => {
+      ctx.beginPath();
+      ctx.ellipse(earthX, earthY, Math.abs(dy) * 1.8, Math.abs(dy) * 1.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    // Update and render Solar Wind stream
+    for (let i = solarParticles.length - 1; i >= 0; i--) {
+      const p = solarParticles[i];
+
+      // Deflection by Earth dipole magnetic field
+      const dx = p.x - earthX;
+      const dy = p.y - earthY;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist < earthR * 3.5) {
+        // Lorentz force deflection toward polar cusps
+        const northPoleDist = Math.hypot(p.x - earthX, p.y - (earthY - earthR * 0.8));
+        const southPoleDist = Math.hypot(p.x - earthX, p.y - (earthY + earthR * 0.8));
+
+        if (p.y < earthY) {
+          p.vy -= 0.18 * (kpIndex / 3);
+          p.vx += 0.05;
+        } else {
+          p.vy += 0.18 * (kpIndex / 3);
+          p.vx += 0.05;
+        }
+      }
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      ctx.fillStyle = 'rgba(200, 240, 255, 0.4)';
+      ctx.fillRect(p.x, p.y, 1.4, 1.4);
+
+      if (p.x > W || p.y < 0 || p.y > H) {
+        solarParticles.splice(i, 1);
+      }
+    }
+
+    if (solarParticles.length < MAX_WIND) {
+      spawnWindParticle();
+      if (Math.random() < 0.5) spawnWindParticle();
+    }
+
+    // Render Terrella Earth Sphere (Deep ocean blue globe)
+    const earthGrad = ctx.createRadialGradient(earthX - 10, earthY - 10, 5, earthX, earthY, earthR);
+    earthGrad.addColorStop(0, '#38bdf8');
+    earthGrad.addColorStop(0.5, '#0284c7');
+    earthGrad.addColorStop(1, '#082f49');
+
+    ctx.fillStyle = earthGrad;
+    ctx.beginPath();
+    ctx.arc(earthX, earthY, earthR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Render Shimmering Auroral Ovals around North & South Magnetic Poles
+    // Emerald Green (557.7nm) and Violet/Pink (427.8nm) fringes
+    const ovalWidth = earthR * (0.45 + (kpIndex * 0.04));
+    const ovalH = earthR * 0.18;
+
+    // North Auroral Oval
+    ctx.save();
+    ctx.shadowBlur = 16 + kpIndex * 2;
+    ctx.shadowColor = kpIndex >= 7 ? '#ff0077' : '#00ff66';
+    ctx.strokeStyle = kpIndex >= 7 ? '#ff3388' : '#00ff66';
+    ctx.lineWidth = 2.8;
+
+    ctx.beginPath();
+    ctx.ellipse(earthX, earthY - earthR * 0.72, ovalWidth, ovalH, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // South Auroral Oval
+    ctx.beginPath();
+    ctx.ellipse(earthX, earthY + earthR * 0.72, ovalWidth, ovalH, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    requestAnimationFrame(render);
+  }
+
+  function updateStormUI() {
+    vDensity.textContent = `${windDensity.toFixed(1)} protons/cm³`;
+    vBz.textContent = `${bzSouth.toFixed(1)} nT (Southward)`;
+    telKp.textContent = `Kp = ${kpIndex}.0 (${kpIndex >= 8 ? 'Extreme G5' : (kpIndex >= 6 ? 'Strong G3' : 'Minor G1')})`;
+    telWind.textContent = `${Math.round(350 + kpIndex * 90)} km/s`;
+    const ovalLat = (72 - kpIndex * 2.2).toFixed(1);
+    telLat.textContent = `${ovalLat}° N/S`;
+
+    if (kpIndex >= 8) {
+      emissionTag.textContent = 'Nitrogen 427.8 nm Deep Red & Violet Substorm Curtains';
+      emissionTag.style.color = '#ff3388';
+    } else {
+      emissionTag.textContent = 'Oxygen 557.7 nm Emerald Green Auroral Arc';
+      emissionTag.style.color = '#00ff66';
+    }
+  }
+
+  sDensity.addEventListener('input', () => {
+    windDensity = parseFloat(sDensity.value);
+    updateStormUI();
+  });
+
+  sBz.addEventListener('input', () => {
+    bzSouth = parseFloat(sBz.value);
+    kpIndex = Math.max(1, Math.min(9, Math.round(3 - bzSouth * 0.4)));
+    updateStormUI();
+  });
+
+  document.querySelectorAll('.asw-storm-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.asw-storm-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(0,255,102,0.2)';
+      btn.style.borderColor = '#00ff66';
+      btn.style.color = '#00ffcc';
+
+      kpIndex = parseInt(btn.dataset.kp, 10);
+      bzSouth = -(kpIndex * 1.5);
+      sBz.value = bzSouth;
+      updateStormUI();
+    });
+  });
+
+  btnCme.addEventListener('click', () => {
+    kpIndex = 9;
+    bzSouth = -15;
+    sBz.value = -15;
+    updateStormUI();
+    for (let k = 0; k < 60; k++) spawnWindParticle();
+  });
+
+  updateStormUI();
+  requestAnimationFrame(render);
+})();
+</script>

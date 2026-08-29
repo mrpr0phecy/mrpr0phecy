@@ -1,0 +1,221 @@
+<h2 id="khw-title" style="margin-top:0;color:var(--accent);">☁️ Kelvin-Helmholtz Waves</h2>
+
+<form aria-describedby="khw-desc" onsubmit="event.preventDefault();">
+  <p id="khw-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Atmospheric fluid shear-flow instability. Two fluid layers with differing densities and velocities roll up into breaking ocean-billow cloud vortices.
+  </p>
+
+  <!-- Atmospheric Layer Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="khw-preset-btn active" data-shear="2.2" data-strat="0.8" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Breaking Cloud Billows</button>
+    <button type="button" class="khw-preset-btn" data-shear="3.4" data-strat="0.4" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Jupiter Atmospheric Band</button>
+    <button type="button" class="khw-preset-btn" data-shear="1.2" data-strat="1.6" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Stable Stratified Boundary</button>
+  </div>
+
+  <!-- Flow Field Canvas -->
+  <div style="background:#02050c;border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="khw-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#01040a;border-radius:6px;cursor:crosshair;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG ACROSS SHEAR INTERFACE TO PERTURB BOUNDARY</span>
+      <span id="khw-ri-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Richardson Number Ri = 0.16 &lt; 0.25 (Unstable)</span>
+    </div>
+  </div>
+
+  <!-- Parameter Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <!-- Velocity Shear -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Velocity Shear (ΔU)</span>
+        <span id="khw-val-shear">2.2 m/s</span>
+      </div>
+      <input type="range" id="khw-slider-shear" min="0.5" max="4.0" step="0.1" value="2.2" style="width:100%;">
+    </div>
+
+    <!-- Density Stratification -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Density Stratification (Δρ/ρ)</span>
+        <span id="khw-val-strat">0.80</span>
+      </div>
+      <input type="range" id="khw-slider-strat" min="0.1" max="2.5" step="0.1" value="0.8" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="khw-btn-pulse" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">💨 Inject Dye Streaklines</button>
+    <button type="button" id="khw-btn-reset" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Reset Interface</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('khw-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sShear = document.getElementById('khw-slider-shear');
+  const sStrat = document.getElementById('khw-slider-strat');
+  const vShear = document.getElementById('khw-val-shear');
+  const vStrat = document.getElementById('khw-val-strat');
+
+  const riTag = document.getElementById('khw-ri-tag');
+  const btnPulse = document.getElementById('khw-btn-pulse');
+  const btnReset = document.getElementById('khw-btn-reset');
+
+  let shearU = 2.2;
+  let stratRho = 0.8;
+
+  // Dye particles (1,200 tracer particles tracking fluid vorticity)
+  const PARTICLES = 800;
+  const particles = [];
+
+  function initParticles() {
+    particles.length = 0;
+    const W = canvas.width;
+    const midY = canvas.height / 2;
+
+    for (let i = 0; i < PARTICLES; i++) {
+      const layer = Math.random();
+      const x = Math.random() * W;
+      // Distributed around interface
+      const y = midY + (Math.random() - 0.5) * 70;
+      particles.push({
+        x, y,
+        vx: y < midY ? shearU * 0.8 : -shearU * 0.8,
+        vy: 0,
+        color: y < midY ? '#2dd4ff' : '#ffd700'
+      });
+    }
+  }
+
+  // Interface waveform perturbation
+  let waveTime = 0;
+  const kWave = 0.035; // spatial frequency of billow vortex rolls
+
+  function render() {
+    ctx.fillStyle = 'rgba(1, 4, 10, 0.22)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const midY = H / 2;
+
+    // Calculate Richardson number Ri = g * (drho/dz) / (du/dz)^2
+    const Ri = (stratRho * 1.2) / (shearU * shearU);
+    if (Ri < 0.25) {
+      riTag.textContent = `Richardson Number Ri = ${Ri.toFixed(2)} < 0.25 (Vortex Eruption)`;
+      riTag.style.color = '#00ffcc';
+    } else {
+      riTag.textContent = `Richardson Number Ri = ${Ri.toFixed(2)} ≥ 0.25 (Stratified Stable)`;
+      riTag.style.color = '#ffd700';
+    }
+
+    // Velocity field with analytical Kelvin-Helmholtz vortex rollup:
+    // When Ri < 0.25, billow amplitude grows exponentially
+    const isUnstable = Ri < 0.25;
+    const rollGrowth = isUnstable ? Math.min(42, (0.25 - Ri) * 140) : 4;
+
+    // Simulate dye particles through shear + vortex flow field
+    particles.forEach(p => {
+      // Base shear flow: top layer moves right (+), bottom layer moves left (-)
+      const dy = p.y - midY;
+      const baseVx = -Math.tanh(dy / 25) * shearU * 1.5;
+
+      // Vorticity roll-up field: periodic vortices along x
+      const rollPhase = kWave * p.x - waveTime;
+      const vRollX = -Math.sin(rollPhase) * Math.exp(-Math.abs(dy) / 35) * rollGrowth * 0.05;
+      const vRollY = Math.cos(rollPhase) * Math.exp(-Math.abs(dy) / 35) * rollGrowth * 0.05;
+
+      p.vx = (p.vx + (baseVx + vRollX) * 0.15) * 0.95;
+      p.vy = (p.vy + vRollY * 0.15) * 0.95;
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Periodic horizontal boundary wrap
+      if (p.x < 0) p.x += W;
+      if (p.x > W) p.x -= W;
+
+      // Render tracer
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 1.6, 1.6);
+    });
+
+    // Draw Continuous Interface Wave Line
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 4) {
+      const rollPhase = kWave * x - waveTime;
+      // Overturning billow waveform: y = midY + A * sin(phase) + non-linear skew
+      const waveH = rollGrowth * Math.sin(rollPhase) - (rollGrowth * 0.45) * Math.sin(2 * rollPhase);
+      if (x === 0) ctx.moveTo(x, midY + waveH);
+      else ctx.lineTo(x, midY + waveH);
+    }
+    ctx.stroke();
+
+    waveTime += 0.04 * shearU;
+    requestAnimationFrame(render);
+  }
+
+  // Interactive mouse perturbation
+  canvas.addEventListener('mousemove', (e) => {
+    if (e.buttons === 1) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+      for (let i = 0; i < 20; i++) {
+        particles.push({
+          x: mx + (Math.random() - 0.5) * 20,
+          y: my + (Math.random() - 0.5) * 20,
+          vx: (Math.random() - 0.5) * 2,
+          vy: (Math.random() - 0.5) * 2,
+          color: '#ffffff'
+        });
+        if (particles.length > 1100) particles.shift();
+      }
+    }
+  });
+
+  sShear.addEventListener('input', () => {
+    shearU = parseFloat(sShear.value);
+    vShear.textContent = `${shearU.toFixed(1)} m/s`;
+  });
+
+  sStrat.addEventListener('input', () => {
+    stratRho = parseFloat(sStrat.value);
+    vStrat.textContent = stratRho.toFixed(2);
+  });
+
+  document.querySelectorAll('.khw-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.khw-preset-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      shearU = parseFloat(btn.dataset.shear);
+      stratRho = parseFloat(btn.dataset.strat);
+      sShear.value = shearU;
+      sStrat.value = stratRho;
+      vShear.textContent = `${shearU.toFixed(1)} m/s`;
+      vStrat.textContent = stratRho.toFixed(2);
+      initParticles();
+    });
+  });
+
+  btnPulse.addEventListener('click', initParticles);
+  btnReset.addEventListener('click', initParticles);
+
+  initParticles();
+  requestAnimationFrame(render);
+})();
+</script>

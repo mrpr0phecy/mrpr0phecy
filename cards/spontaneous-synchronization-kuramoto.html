@@ -1,0 +1,248 @@
+<h2 id="kss-title" style="margin-top:0;color:var(--accent);">🔥 Firefly Kuramoto Synchronization</h2>
+
+<form aria-describedby="kss-desc" onsubmit="event.preventDefault();">
+  <p id="kss-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Yoshiki Kuramoto's nonlinear synchronization model. Independent bioluminescent fireflies spontaneously phase-lock into simultaneous collective pulsing.
+  </p>
+
+  <!-- Synchronization Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="kss-sync-btn active" data-k="3.2" data-name="Collective Pulse" style="padding:4px 10px;border-radius:4px;background:rgba(200,255,0,0.2);border:1px solid #c8ff00;color:#c8ff00;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">High Coupling (Synchronized)</button>
+    <button type="button" class="kss-sync-btn" data-k="0.0" data-name="Random Asynchronous" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Zero Coupling (Chaos)</button>
+    <button type="button" class="kss-sync-btn" data-k="1.1" data-name="Critical Phase Transition" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Critical Transition (Kc)</button>
+  </div>
+
+  <!-- Synchrony Swarm Canvas -->
+  <div style="background:#020603;border:1px solid rgba(200,255,0,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="kss-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#010402;border-radius:6px;cursor:pointer;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK SWARM TO LOCALLY PERTURB FIREFLY PHASES</span>
+      <span id="kss-order-tag" style="color:#c8ff00;font-family:monospace;font-weight:bold;">Kuramoto Order Parameter R = 0.96 (Phase Locked)</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Order Parameter (R)</div>
+      <div id="kss-tel-r" style="font-size:0.95rem;font-weight:bold;color:#c8ff00;font-family:monospace;">0.96 (Coherent)</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Coupling Gain (K)</div>
+      <div id="kss-tel-k" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">3.20</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Swarm Population</div>
+      <div style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">N = 75 Oscillators</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Coupling Strength (K)</span>
+        <span id="kss-val-k">3.2</span>
+      </div>
+      <input type="range" id="kss-slider-k" min="0" max="6.0" step="0.1" value="3.2" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Intrinsic Frequency Jitter (σω)</span>
+        <span id="kss-val-jitter">±15%</span>
+      </div>
+      <input type="range" id="kss-slider-jitter" min="5" max="50" value="15" style="width:100%;">
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('kss-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sK = document.getElementById('kss-slider-k');
+  const sJitter = document.getElementById('kss-slider-jitter');
+  const vK = document.getElementById('kss-val-k');
+  const vJitter = document.getElementById('kss-val-jitter');
+
+  const telR = document.getElementById('kss-tel-r');
+  const telK = document.getElementById('kss-tel-k');
+  const orderTag = document.getElementById('kss-order-tag');
+
+  let couplingK = 3.2;
+  let freqJitter = 0.15;
+
+  // Swarm of Fireflies
+  const N = 75;
+  const fireflies = [];
+
+  function initFireflies() {
+    fireflies.length = 0;
+    const W = canvas.width;
+    const H = canvas.height;
+
+    for (let i = 0; i < N; i++) {
+      const baseFreq = 2.4; // rad/sec
+      const jitter = (Math.random() - 0.5) * 2 * (baseFreq * freqJitter);
+      fireflies.push({
+        x: Math.random() * (W - 140) + 20,
+        y: Math.random() * (H - 40) + 20,
+        theta: Math.random() * Math.PI * 2,
+        omega: baseFreq + jitter,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3
+      });
+    }
+  }
+
+  function render() {
+    ctx.fillStyle = '#010402';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const dt = 0.016;
+
+    // Calculate Kuramoto collective complex order parameter:
+    // Z = R * exp(i * psi) = (1/N) * sum(exp(i * theta_j))
+    let sumCos = 0;
+    let sumSin = 0;
+    fireflies.forEach(f => {
+      sumCos += Math.cos(f.theta);
+      sumSin += Math.sin(f.theta);
+    });
+
+    const meanCos = sumCos / N;
+    const meanSin = sumSin / N;
+    const R = Math.hypot(meanCos, meanSin);
+    const meanPsi = Math.atan2(meanSin, meanCos);
+
+    telR.textContent = `${R.toFixed(2)} (${R > 0.8 ? 'Phase Locked' : (R > 0.4 ? 'Partial Synchrony' : 'Incoherent')})`;
+    telK.textContent = couplingK.toFixed(2);
+    orderTag.textContent = `Kuramoto Order Parameter R = ${R.toFixed(2)} (${R > 0.8 ? 'Synchronized Glow' : 'Asynchronous Random Flickering'})`;
+
+    // Numerical integration of Kuramoto ODE:
+    // d(theta_i)/dt = omega_i + K * R * sin(psi - theta_i)
+    fireflies.forEach(f => {
+      const dTheta = f.omega + couplingK * R * Math.sin(meanPsi - f.theta);
+      f.theta = (f.theta + dTheta * dt) % (Math.PI * 2);
+
+      // Firefly wandering motion
+      f.x += f.vx;
+      f.y += f.vy;
+      if (f.x < 20 || f.x > W - 140) f.vx *= -1;
+      if (f.y < 20 || f.y > H - 20) f.vy *= -1;
+
+      // Bioluminescent Flash intensity: sharp flash near theta = 0 / 2pi
+      const flash = Math.pow(Math.max(0, Math.cos(f.theta)), 8);
+
+      // Render Firefly
+      if (flash > 0.05) {
+        ctx.shadowBlur = 14 * flash;
+        ctx.shadowColor = '#c8ff00';
+        ctx.fillStyle = `rgba(200, 255, 0, ${Math.min(1.0, flash * 1.5).toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 3 + flash * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else {
+        // Dim resting insect body
+        ctx.fillStyle = '#1e3012';
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    // Right Side: Kuramoto Phase Circle Dial
+    const dialX = W - 65;
+    const dialY = H / 2;
+    const dialR = 45;
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(dialX, dialY, dialR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Plot oscillator phase dots on circle rim
+    fireflies.forEach(f => {
+      const px = dialX + Math.cos(f.theta) * dialR;
+      const py = dialY + Math.sin(f.theta) * dialR;
+      ctx.fillStyle = '#c8ff00';
+      ctx.fillRect(px - 1.2, py - 1.2, 2.4, 2.4);
+    });
+
+    // Collective order parameter vector R arrow pointing to meanPsi
+    const arrowX = dialX + Math.cos(meanPsi) * (dialR * R);
+    const arrowY = dialY + Math.sin(meanPsi) * (dialR * R);
+
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(dialX, dialY);
+    ctx.lineTo(arrowX, arrowY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#00ffcc';
+    ctx.beginPath();
+    ctx.arc(arrowX, arrowY, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'var(--muted)';
+    ctx.fillText(`R = ${R.toFixed(2)}`, dialX, dialY + dialR + 14);
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive perturbing
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    fireflies.forEach(f => {
+      if (Math.hypot(f.x - mx, f.y - my) < 80) {
+        f.theta = Math.random() * Math.PI * 2;
+      }
+    });
+  });
+
+  sK.addEventListener('input', () => {
+    couplingK = parseFloat(sK.value);
+    vK.textContent = couplingK.toFixed(1);
+  });
+
+  sJitter.addEventListener('input', () => {
+    const j = parseInt(sJitter.value, 10);
+    freqJitter = j / 100;
+    vJitter.textContent = `±${j}%`;
+    initFireflies();
+  });
+
+  document.querySelectorAll('.kss-sync-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.kss-sync-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(200,255,0,0.2)';
+      btn.style.borderColor = '#c8ff00';
+      btn.style.color = '#c8ff00';
+
+      couplingK = parseFloat(btn.dataset.k);
+      sK.value = couplingK;
+      vK.textContent = couplingK.toFixed(1);
+    });
+  });
+
+  initFireflies();
+  requestAnimationFrame(render);
+})();
+</script>

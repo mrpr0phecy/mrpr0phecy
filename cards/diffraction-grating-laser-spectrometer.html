@@ -1,0 +1,305 @@
+<h2 id="hls-title" style="margin-top:0;color:var(--accent);">🌈 Holographic Laser Spectrograph</h2>
+
+<form aria-describedby="hls-desc" onsubmit="event.preventDefault();">
+  <p id="hls-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Optical spectrometer bench. High-density holographic diffraction grating disperses atomic gas emission into discrete quantum spectral fingerprints.
+  </p>
+
+  <!-- Atomic Gas Emission Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="hls-gas-btn active" data-gas="hydrogen" style="padding:4px 10px;border-radius:4px;background:rgba(255,51,102,0.2);border:1px solid #ff3366;color:#ff3366;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Hydrogen (Balmer Lines)</button>
+    <button type="button" class="hls-gas-btn" data-gas="helium" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Helium (Noble Gas)</button>
+    <button type="button" class="hls-gas-btn" data-gas="mercury" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Mercury Vapor (Fluorescent)</button>
+    <button type="button" class="hls-gas-btn" data-gas="sodium" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Sodium (589 nm Doublet)</button>
+  </div>
+
+  <!-- Spectrograph Optical Bench Canvas -->
+  <div style="background:#02050b;border:1px solid rgba(45,212,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="hls-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#010307;border-radius:6px;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>DIFFRACTION FORMULA: d · sin(θ) = m · λ</span>
+      <span id="hls-res-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">Linear Dispersion: 1.2 nm/mm</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Grating Pitch (d)</div>
+      <div id="hls-tel-pitch" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">1,667 nm (600 l/mm)</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Primary Spectral Peak</div>
+      <div id="hls-tel-peak" style="font-size:0.95rem;font-weight:bold;color:#ff3366;font-family:monospace;">H-Alpha: 656.3 nm</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Order (m)</div>
+      <div style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">m = +1 First Order</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Grating Groove Density</span>
+        <span id="hls-val-grooves">600 lines/mm</span>
+      </div>
+      <input type="range" id="hls-slider-grooves" min="300" max="1200" step="100" value="600" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Spectrometer Slit Width</span>
+        <span id="hls-val-slit">25 μm</span>
+      </div>
+      <input type="range" id="hls-slider-slit" min="10" max="80" value="25" style="width:100%;">
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('hls-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sGrooves = document.getElementById('hls-slider-grooves');
+  const sSlit = document.getElementById('hls-slider-slit');
+  const vGrooves = document.getElementById('hls-val-grooves');
+  const vSlit = document.getElementById('hls-val-slit');
+
+  const telPitch = document.getElementById('hls-tel-pitch');
+  const telPeak = document.getElementById('hls-tel-peak');
+
+  let groovesPerMm = 600;
+  let slitWidth = 25;
+  let activeGas = 'hydrogen';
+
+  // Calibrated emission line databases (wavelengths in nanometers)
+  const gasData = {
+    hydrogen: {
+      peakName: 'H-Alpha: 656.3 nm',
+      lines: [
+        { wl: 656.3, intensity: 1.0, color: '#ff2222', name: 'H-α' },
+        { wl: 486.1, intensity: 0.65, color: '#00e5ff', name: 'H-β' },
+        { wl: 434.0, intensity: 0.35, color: '#4455ff', name: 'H-γ' },
+        { wl: 410.2, intensity: 0.18, color: '#8822ff', name: 'H-δ' }
+      ]
+    },
+    helium: {
+      peakName: 'D3 Line: 587.6 nm',
+      lines: [
+        { wl: 706.5, intensity: 0.45, color: '#ff1100', name: '706 nm' },
+        { wl: 667.8, intensity: 0.6, color: '#ff3322', name: '668 nm' },
+        { wl: 587.6, intensity: 1.0, color: '#ffcc00', name: '588 nm' },
+        { wl: 501.6, intensity: 0.5, color: '#00ff77', name: '502 nm' },
+        { wl: 447.1, intensity: 0.55, color: '#2266ff', name: '447 nm' },
+        { wl: 388.9, intensity: 0.25, color: '#7700ee', name: '389 nm' }
+      ]
+    },
+    mercury: {
+      peakName: 'Green Line: 546.1 nm',
+      lines: [
+        { wl: 579.0, intensity: 0.5, color: '#ffdd00', name: '579 nm' },
+        { wl: 577.0, intensity: 0.5, color: '#ffea00', name: '577 nm' },
+        { wl: 546.1, intensity: 1.0, color: '#00ff44', name: '546 nm' },
+        { wl: 435.8, intensity: 0.75, color: '#2244ff', name: '436 nm' },
+        { wl: 404.7, intensity: 0.4, color: '#9911ff', name: '405 nm' }
+      ]
+    },
+    sodium: {
+      peakName: 'D-Doublet: 589.0 nm',
+      lines: [
+        { wl: 589.0, intensity: 1.0, color: '#ffb700', name: 'D1' },
+        { wl: 589.6, intensity: 0.95, color: '#ffa500', name: 'D2' }
+      ]
+    }
+  };
+
+  function render() {
+    ctx.fillStyle = '#010307';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Optical Bench Layout:
+    // Left: Discharge Tube Lamp (x = 35, y = 70)
+    // Middle: Holographic Grating (x = 160, y = 70)
+    // Right: Focal Screen & Linear CCD Sensor (x = 260 to 530, y = 30 to 110)
+    // Bottom: Calibrated Intensity Spectrum Graph (y = 145 to 225)
+
+    const lampX = 35;
+    const lampY = 65;
+    const gratingX = 175;
+    const gratingY = 65;
+
+    // Discharge Tube Lamp
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(lampX - 12, lampY - 25, 24, 50);
+    ctx.strokeStyle = '#475569';
+    ctx.strokeRect(lampX - 12, lampY - 25, 24, 50);
+
+    // Glowing Gas Column
+    const curGas = gasData[activeGas];
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = curGas.lines[0].color;
+    ctx.fillStyle = curGas.lines[0].color;
+    ctx.fillRect(lampX - 3, lampY - 18, 6, 36);
+    ctx.shadowBlur = 0;
+
+    // Collimated multi-spectral light beam towards grating
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(lampX + 12, lampY);
+    ctx.lineTo(gratingX - 4, gratingY);
+    ctx.stroke();
+
+    // Holographic Diffraction Grating Element
+    ctx.fillStyle = 'rgba(45, 212, 255, 0.15)';
+    ctx.fillRect(gratingX - 4, gratingY - 30, 8, 60);
+    ctx.strokeStyle = '#2dd4ff';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(gratingX - 4, gratingY - 30, 8, 60);
+
+    // Grating microscopic lines texture
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 0.8;
+    for (let y = gratingY - 28; y <= gratingY + 28; y += 4) {
+      ctx.beginPath();
+      ctx.moveTo(gratingX - 3, y);
+      ctx.lineTo(gratingX + 3, y);
+      ctx.stroke();
+    }
+
+    // Zero-order undeflected beam (m = 0)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.beginPath();
+    ctx.moveTo(gratingX + 4, gratingY);
+    ctx.lineTo(W - 25, gratingY);
+    ctx.stroke();
+
+    // Diffracted Spectral Rays (m = +1): d * sin(theta) = lambda
+    // d in meters = 1e-3 / groovesPerMm
+    const dMeters = 1e-3 / groovesPerMm;
+
+    // Detector Strip parameters
+    const ccdStartX = 280;
+    const ccdEndX = W - 25;
+    const ccdW = ccdEndX - ccdStartX;
+    const ccdY = 65;
+
+    // Map wavelength (380nm - 720nm) to X position on detector strip
+    function wlToX(wl) {
+      return ccdStartX + ((wl - 380) / (720 - 380)) * ccdW;
+    }
+
+    // Draw dispersed color fan rays from grating to detector strip
+    curGas.lines.forEach(line => {
+      const targetX = wlToX(line.wl);
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(gratingX + 4, gratingY);
+      ctx.lineTo(targetX, ccdY);
+      ctx.stroke();
+
+      // Bright spectral slit spot on CCD strip
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = line.color;
+      ctx.fillStyle = line.color;
+      ctx.fillRect(targetX - 1.5, ccdY - 12, 3, 24);
+      ctx.shadowBlur = 0;
+    });
+
+    // CCD Detector Housing Bezel
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(ccdStartX - 4, ccdY - 14, ccdW + 8, 28);
+
+    // Bottom Half: Calibrated CCD Intensity Spectrum Graph
+    const graphY = 145;
+    const graphH = 75;
+    ctx.fillStyle = '#060b13';
+    ctx.fillRect(ccdStartX, graphY, ccdW, graphH);
+    ctx.strokeStyle = '#1e293b';
+    ctx.strokeRect(ccdStartX, graphY, ccdW, graphH);
+
+    // Spectrum Intensity Baseline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.beginPath();
+    ctx.moveTo(ccdStartX, graphY + graphH);
+    ctx.lineTo(ccdEndX, graphY + graphH);
+    ctx.stroke();
+
+    // Wavelength Grid Labels (400, 500, 600, 700 nm)
+    ctx.font = '8px monospace';
+    ctx.fillStyle = 'var(--muted)';
+    [400, 500, 600, 700].forEach(wl => {
+      const gx = wlToX(wl);
+      ctx.beginPath();
+      ctx.moveTo(gx, graphY);
+      ctx.lineTo(gx, graphY + graphH);
+      ctx.stroke();
+      ctx.fillText(`${wl}nm`, gx - 12, graphY + graphH + 11);
+    });
+
+    // Draw Spectral Emission Peaks
+    curGas.lines.forEach(line => {
+      const px = wlToX(line.wl);
+      const peakH = line.intensity * (graphH - 12);
+      const sigma = (slitWidth / 25) * 2.2;
+
+      ctx.beginPath();
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 2;
+      ctx.moveTo(px - sigma * 3, graphY + graphH);
+
+      for (let x = px - sigma * 3; x <= px + sigma * 3; x += 1) {
+        const yVal = peakH * Math.exp(-Math.pow(x - px, 2) / (2 * sigma * sigma));
+        ctx.lineTo(x, graphY + graphH - yVal);
+      }
+      ctx.stroke();
+
+      // Peak Label
+      ctx.fillStyle = line.color;
+      ctx.fillText(line.name, px - 6, graphY + graphH - peakH - 4);
+    });
+
+    requestAnimationFrame(render);
+  }
+
+  sGrooves.addEventListener('input', () => {
+    groovesPerMm = parseInt(sGrooves.value, 10);
+    vGrooves.textContent = `${groovesPerMm} lines/mm`;
+    const pitchNm = Math.round(1e6 / groovesPerMm);
+    telPitch.textContent = `${pitchNm} nm (${groovesPerMm} l/mm)`;
+  });
+
+  sSlit.addEventListener('input', () => {
+    slitWidth = parseInt(sSlit.value, 10);
+    vSlit.textContent = `${slitWidth} μm`;
+  });
+
+  document.querySelectorAll('.hls-gas-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.hls-gas-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      activeGas = btn.dataset.gas;
+      telPeak.textContent = gasData[activeGas].peakName;
+    });
+  });
+
+  requestAnimationFrame(render);
+})();
+</script>

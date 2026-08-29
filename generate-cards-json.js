@@ -15,6 +15,16 @@ const financeList = ['fire-financial-independence-calc', 'freelance-rate-calcula
 const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
 const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
+  'van-de-graaff-electrostatic-generator',
+  'gravitational-n-body-galaxy-collision',
+  'optomechanical-laser-tweezer',
+  'diffraction-grating-laser-spectrometer',
+  'kelvin-helmholtz-cloud-instability',
+  'magnetic-eddy-current-brake',
+  'spontaneous-synchronization-kuramoto',
+  'atmospheric-aurora-borealis-field',
+  'fiber-optic-total-internal-reflection',
+  'bernoulli-levitating-air-stream',
   'cosmic-ray-cloud-chamber',
   'ferrofluid-spike-sculpture',
   'atmospheric-plasma-globe',

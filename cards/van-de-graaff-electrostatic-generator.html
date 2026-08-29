@@ -1,0 +1,354 @@
+<h2 id="vdg-title" style="margin-top:0;color:var(--accent);">⚡ Van de Graaff Generator</h2>
+
+<form aria-describedby="vdg-desc" onsubmit="event.preventDefault();">
+  <p id="vdg-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Electrostatic museum exhibit. Rubber belt triboelectric charge transport accumulates up to 400 kV on the metal dome, firing high-voltage atmospheric sparks.
+  </p>
+
+  <!-- Voltage & Spark Telemetry -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Dome Potential (V)</div>
+      <div id="vdg-tel-volt" style="font-size:1.1rem;font-weight:bold;color:#00ffcc;font-family:monospace;">280 kV</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Electric Field (E)</div>
+      <div id="vdg-tel-field" style="font-size:1.1rem;font-weight:bold;color:#ffd700;font-family:monospace;">2.4 MV/m</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Air Breakdown</div>
+      <div id="vdg-tel-status" style="font-size:0.85rem;font-weight:bold;color:#00ffcc;line-height:26px;">Charging Dome</div>
+    </div>
+  </div>
+
+  <!-- Interactive Generator Canvas -->
+  <div style="background:#02050b;border:1px solid rgba(0,255,204,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="vdg-canvas" width="560" height="250" style="width:100%;height:250px;display:block;background:#010306;border-radius:6px;cursor:grab;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>CLICK &amp; DRAG GROUND DISCHARGE WAND CLOSER TO TRIGGER SPARKS</span>
+      <span id="vdg-sparks-count" style="color:#ffd700;font-family:monospace;">Sparks Discharged: 0</span>
+    </div>
+  </div>
+
+  <!-- Parameter Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;margin-bottom:12px;">
+    <!-- Motor Belt Speed -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Charging Belt Speed</span>
+        <span id="vdg-val-speed">High (12 m/s)</span>
+      </div>
+      <input type="range" id="vdg-slider-speed" min="1" max="25" value="12" style="width:100%;">
+    </div>
+
+    <!-- Relative Humidity (Leakage) -->
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Ambient Humidity</span>
+        <span id="vdg-val-humid">25% (Dry Air)</span>
+      </div>
+      <input type="range" id="vdg-slider-humid" min="10" max="90" value="25" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="vdg-btn-spark" style="padding:6px 14px;border-radius:6px;background:rgba(0,255,204,0.2);border:1px solid #00ffcc;color:#00ffcc;font-size:0.75rem;font-weight:bold;cursor:pointer;">⚡ Force Max Spark</button>
+      <button type="button" id="vdg-btn-audio" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">🔊 Spark Sound: ON</button>
+    </div>
+    <button type="button" id="vdg-btn-ground" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);font-size:0.75rem;cursor:pointer;">Touch to Ground</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('vdg-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sSpeed = document.getElementById('vdg-slider-speed');
+  const sHumid = document.getElementById('vdg-slider-humid');
+  const vSpeed = document.getElementById('vdg-val-speed');
+  const vHumid = document.getElementById('vdg-val-humid');
+
+  const telVolt = document.getElementById('vdg-tel-volt');
+  const telField = document.getElementById('vdg-tel-field');
+  const telStatus = document.getElementById('vdg-tel-status');
+  const sparksCounter = document.getElementById('vdg-sparks-count');
+
+  const btnSpark = document.getElementById('vdg-btn-spark');
+  const btnAudio = document.getElementById('vdg-btn-audio');
+  const btnGround = document.getElementById('vdg-btn-ground');
+
+  let beltSpeed = 12;
+  let humidity = 0.25;
+  let isSoundOn = true;
+  let sparkCount = 0;
+
+  // Van de Graaff Physical Geometry
+  const domeX = 180;
+  const domeY = 90;
+  const domeRadius = 55;
+
+  let domeVoltage = 150000; // in Volts
+  const maxVoltage = 400000;
+
+  // Ground Wand Sphere
+  let wandX = 380;
+  let wandY = 90;
+  const wandRadius = 24;
+  let isDraggingWand = false;
+
+  // Belt charges
+  const beltCharges = [];
+  let beltPhase = 0;
+
+  // Spark active state
+  let activeSpark = null;
+
+  // Audio Context
+  let audioCtx = null;
+  function playSnap() {
+    if (!isSoundOn) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(2800, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.05);
+
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.055);
+    } catch(e) {}
+  }
+
+  function triggerSpark() {
+    sparkCount++;
+    sparksCounter.textContent = `Sparks Discharged: ${sparkCount}`;
+    playSnap();
+
+    // Create jagged branching electrical arc
+    const startX = domeX + domeRadius;
+    const startY = domeY;
+    const endX = wandX - wandRadius;
+    const endY = wandY;
+
+    activeSpark = {
+      startX, startY, endX, endY,
+      branches: [],
+      life: 1.0
+    };
+
+    domeVoltage *= 0.15; // sudden discharge
+  }
+
+  function render() {
+    ctx.fillStyle = '#010306';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Table / Pedestal base
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(domeX - 45, H - 25, 90, 16);
+    ctx.strokeStyle = '#475569';
+    ctx.strokeRect(domeX - 45, H - 25, 90, 16);
+
+    // Insulating acrylic column supporting dome
+    ctx.fillStyle = 'rgba(100, 200, 255, 0.12)';
+    ctx.fillRect(domeX - 16, domeY + domeRadius - 10, 32, (H - 25) - (domeY + domeRadius - 10));
+    ctx.strokeStyle = 'rgba(100, 200, 255, 0.3)';
+    ctx.strokeRect(domeX - 16, domeY + domeRadius - 10, 32, (H - 25) - (domeY + domeRadius - 10));
+
+    // Moving Rubber Belt inside column
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(domeX - 10, domeY + 15, 20, (H - 30) - (domeY + 15));
+
+    // Upward moving negative charges on belt
+    beltPhase = (beltPhase + beltSpeed * 0.4) % 18;
+    ctx.fillStyle = '#00ffcc';
+    for (let y = H - 35 - beltPhase; y > domeY + 20; y -= 18) {
+      ctx.fillRect(domeX - 7, y, 4, 4);
+    }
+
+    // Charge accumulation physics
+    const chargingCurrent = beltSpeed * 800;
+    const leakage = (domeVoltage * (0.008 + humidity * 0.03));
+    domeVoltage = Math.min(maxVoltage, domeVoltage + chargingCurrent - leakage);
+
+    // Distance to grounded wand
+    const dx = (wandX - wandRadius) - (domeX + domeRadius);
+    const dy = wandY - domeY;
+    const gapDist = Math.max(10, Math.hypot(dx, dy));
+
+    // Electric field in the air gap: E = V / gap
+    // Dielectric breakdown of air is ~3.0 MV/m
+    const eField = (domeVoltage / (gapDist * 0.001)); // V/m
+    const breakdownLimit = 3.0e6 * (1.0 - humidity * 0.25);
+
+    telVolt.textContent = `${Math.round(domeVoltage / 1000)} kV`;
+    telField.textContent = `${(eField / 1e6).toFixed(2)} MV/m`;
+
+    if (eField >= breakdownLimit) {
+      telStatus.textContent = '⚡ DIELECTRIC BREAKDOWN!';
+      telStatus.style.color = '#ff3366';
+      triggerSpark();
+    } else {
+      telStatus.textContent = 'Accumulating Charge';
+      telStatus.style.color = '#00ffcc';
+    }
+
+    // Metallic Ribbons attached to top of dome (standing out due to electrostatic repulsion)
+    const chargeFrac = Math.min(1.0, domeVoltage / 350000);
+    const ribbonAngle = chargeFrac * 0.9;
+
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 1.8;
+    for (let a = -3; a <= 3; a++) {
+      const baseAng = -Math.PI / 2 + (a * 0.22);
+      const outAng = baseAng + (a * ribbonAngle * 0.3);
+      const rX = domeX + Math.cos(baseAng) * domeRadius;
+      const rY = domeY + Math.sin(baseAng) * domeRadius;
+      const tipX = rX + Math.cos(outAng) * 35;
+      const tipY = rY + Math.sin(outAng) * 35;
+
+      ctx.beginPath();
+      ctx.moveTo(rX, rY);
+      ctx.quadraticCurveTo((rX + tipX) / 2, (rY + tipY) / 2 - (chargeFrac * 12), tipX, tipY);
+      ctx.stroke();
+    }
+
+    // Render Polished Metal Dome (Radial Chrome Gradient)
+    const domeGrad = ctx.createRadialGradient(domeX - 18, domeY - 18, 5, domeX, domeY, domeRadius);
+    domeGrad.addColorStop(0, '#ffffff');
+    domeGrad.addColorStop(0.35, '#cbd5e1');
+    domeGrad.addColorStop(0.7, '#64748b');
+    domeGrad.addColorStop(1, '#0f172a');
+
+    ctx.fillStyle = domeGrad;
+    ctx.beginPath();
+    ctx.arc(domeX, domeY, domeRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Render Grounded Wand
+    // Wand handle
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(wandX, wandY);
+    ctx.lineTo(wandX + 80, wandY + 60);
+    ctx.stroke();
+
+    // Wand metallic sphere
+    const wandGrad = ctx.createRadialGradient(wandX - 6, wandY - 6, 2, wandX, wandY, wandRadius);
+    wandGrad.addColorStop(0, '#ffffff');
+    wandGrad.addColorStop(0.4, '#94a3b8');
+    wandGrad.addColorStop(1, '#1e293b');
+
+    ctx.fillStyle = wandGrad;
+    ctx.beginPath();
+    ctx.arc(wandX, wandY, wandRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Render Electric Arc / Spark if active
+    if (activeSpark) {
+      ctx.save();
+      ctx.strokeStyle = '#ffffff';
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = '#00ffcc';
+      ctx.lineWidth = 3.0;
+
+      ctx.beginPath();
+      ctx.moveTo(activeSpark.startX, activeSpark.startY);
+      const segs = 14;
+      let currX = activeSpark.startX;
+      let currY = activeSpark.startY;
+      for (let s = 1; s <= segs; s++) {
+        const targetX = activeSpark.startX + (activeSpark.endX - activeSpark.startX) * (s / segs);
+        const targetY = activeSpark.startY + (activeSpark.endY - activeSpark.startY) * (s / segs);
+        const jitter = (s === segs) ? 0 : (Math.random() - 0.5) * 22;
+        currX = targetX;
+        currY = targetY + jitter;
+        ctx.lineTo(currX, currY);
+      }
+      ctx.stroke();
+
+      // Outer violet glow filament
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.restore();
+      activeSpark.life -= 0.25;
+      if (activeSpark.life <= 0) activeSpark = null;
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of Ground Wand
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    if (Math.hypot(mx - wandX, my - wandY) < wandRadius + 15) {
+      isDraggingWand = true;
+      canvas.style.cursor = 'grabbing';
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDraggingWand = false;
+    canvas.style.cursor = 'grab';
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDraggingWand) {
+      const rect = canvas.getBoundingClientRect();
+      wandX = Math.max(domeX + domeRadius + 20, Math.min(canvas.width - 30, (e.clientX - rect.left) * (canvas.width / rect.width)));
+      wandY = Math.max(40, Math.min(canvas.height - 50, (e.clientY - rect.top) * (canvas.height / rect.height)));
+    }
+  });
+
+  sSpeed.addEventListener('input', () => {
+    beltSpeed = parseInt(sSpeed.value, 10);
+    vSpeed.textContent = `${beltSpeed} m/s`;
+  });
+
+  sHumid.addEventListener('input', () => {
+    const h = parseInt(sHumid.value, 10);
+    humidity = h / 100;
+    vHumid.textContent = `${h}% (${h < 35 ? 'Dry Air' : 'Moist Air'})`;
+  });
+
+  btnSpark.addEventListener('click', () => {
+    domeVoltage = 380000;
+    triggerSpark();
+  });
+
+  btnAudio.addEventListener('click', () => {
+    isSoundOn = !isSoundOn;
+    btnAudio.textContent = isSoundOn ? '🔊 Spark Sound: ON' : '🔈 Spark Sound: OFF';
+  });
+
+  btnGround.addEventListener('click', () => {
+    domeVoltage = 0;
+  });
+
+  requestAnimationFrame(render);
+})();
+</script>

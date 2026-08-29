@@ -1,0 +1,247 @@
+<h2 id="fot-title" style="margin-top:0;color:var(--accent);">✨ Fiber Optic Light Guide Lab</h2>
+
+<form aria-describedby="fot-desc" onsubmit="event.preventDefault();">
+  <p id="fot-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Total internal reflection fiber optics lab. Explore critical angle guidance, acceptance cone numerical aperture (NA), and macro-bending radiation loss.
+  </p>
+
+  <!-- Fiber Mode Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="fot-mode-btn active" data-core="1.48" data-clad="1.45" style="padding:4px 10px;border-radius:4px;background:rgba(45,212,255,0.2);border:1px solid #2dd4ff;color:#2dd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;white-space:nowrap;">Silica Telecom Fiber (NA 0.30)</button>
+    <button type="button" class="fot-mode-btn" data-core="1.59" data-clad="1.42" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Plastic Optical Fiber (High NA)</button>
+    <button type="button" class="fot-mode-btn" data-core="1.33" data-clad="1.00" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;white-space:nowrap;">Water Jet Guide (Colladon 1841)</button>
+  </div>
+
+  <!-- Optical Waveguide Canvas -->
+  <div style="background:#02050b;border:1px solid rgba(45,212,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="fot-canvas" width="560" height="240" style="width:100%;height:240px;display:block;background:#010307;border-radius:6px;cursor:ns-resize;"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--muted);margin-top:6px;padding:0 4px;">
+      <span>DRAG VERTICALLY TO BEND FIBER &amp; OBSERVE BEND LOSS RADIATION</span>
+      <span id="fot-tir-tag" style="color:#00ffcc;font-family:monospace;font-weight:bold;">TIR Active: 100% Guided Confinement</span>
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Critical Angle (θc)</div>
+      <div id="fot-tel-crit" style="font-size:0.95rem;font-weight:bold;color:#ffd700;font-family:monospace;">78.5°</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Numerical Aperture</div>
+      <div id="fot-tel-na" style="font-size:0.95rem;font-weight:bold;color:#00ffcc;font-family:monospace;">NA = 0.297</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.68rem;color:var(--muted);">Transmission Output</div>
+      <div id="fot-tel-loss" style="font-size:0.95rem;font-weight:bold;color:#2dd4ff;">99.2% Throughput</div>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Laser Launch Angle</span>
+        <span id="fot-val-angle">12.0°</span>
+      </div>
+      <input type="range" id="fot-slider-angle" min="2" max="28" step="0.5" value="12" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--muted);margin-bottom:2px;">
+        <span>Macro-Bending Curvature</span>
+        <span id="fot-val-bend">Gentle Arc</span>
+      </div>
+      <input type="range" id="fot-slider-bend" min="-70" max="70" value="0" style="width:100%;">
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const canvas = document.getElementById('fot-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const sAngle = document.getElementById('fot-slider-angle');
+  const sBend = document.getElementById('fot-slider-bend');
+  const vAngle = document.getElementById('fot-val-angle');
+  const vBend = document.getElementById('fot-val-bend');
+
+  const telCrit = document.getElementById('fot-tel-crit');
+  const telNa = document.getElementById('fot-tel-na');
+  const telLoss = document.getElementById('fot-tel-loss');
+  const tirTag = document.getElementById('fot-tir-tag');
+
+  let nCore = 1.48;
+  let nClad = 1.45;
+  let launchDeg = 12.0;
+  let bendOffset = 0;
+
+  function updateOpticalMetrics() {
+    // Critical angle: sin(theta_c) = n_clad / n_core
+    const sinCrit = nClad / nCore;
+    const critDeg = (Math.asin(Math.min(1.0, sinCrit)) * 180 / Math.PI).toFixed(1);
+    telCrit.textContent = `${critDeg}°`;
+
+    // Numerical aperture: NA = sqrt(n_core^2 - n_clad^2)
+    const NA = Math.sqrt(Math.max(0, nCore * nCore - nClad * nClad)).toFixed(3);
+    telNa.textContent = `NA = ${NA}`;
+  }
+
+  function render() {
+    ctx.fillStyle = '#010307';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const startX = 20;
+    const endX = W - 20;
+    const midY = H / 2;
+    const coreThickness = 36;
+    const cladThickness = 14;
+
+    // Draw Curved Fiber Core & Cladding via Bezier Paths
+    const cpX = (startX + endX) / 2;
+    const cpY = midY + bendOffset;
+
+    // Outer Cladding Layer
+    ctx.strokeStyle = 'rgba(100, 200, 255, 0.15)';
+    ctx.lineWidth = coreThickness + cladThickness * 2;
+    ctx.beginPath();
+    ctx.moveTo(startX, midY);
+    ctx.quadraticCurveTo(cpX, cpY, endX, midY);
+    ctx.stroke();
+
+    // Core Layer (High Refractive Index Glass)
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.25)';
+    ctx.lineWidth = coreThickness;
+    ctx.stroke();
+
+    // Core Boundaries (Top & Bottom reflection walls)
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.6)';
+    ctx.lineWidth = 1;
+
+    // Top boundary
+    ctx.beginPath();
+    ctx.moveTo(startX, midY - coreThickness / 2);
+    ctx.quadraticCurveTo(cpX, cpY - coreThickness / 2, endX, midY - coreThickness / 2);
+    ctx.stroke();
+
+    // Bottom boundary
+    ctx.beginPath();
+    ctx.moveTo(startX, midY + coreThickness / 2);
+    ctx.quadraticCurveTo(cpX, cpY + coreThickness / 2, endX, midY + coreThickness / 2);
+    ctx.stroke();
+
+    // Ray Tracing Laser Path through the Core
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#00ffcc';
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2.2;
+
+    const angleRad = (launchDeg * Math.PI / 180);
+    const stepX = (coreThickness / Math.tan(angleRad)) * 0.9;
+
+    let rayX = startX;
+    let rayY = midY;
+    let dirY = 1;
+    let bounces = 0;
+    let leaked = false;
+
+    ctx.beginPath();
+    ctx.moveTo(rayX, rayY);
+
+    while (rayX < endX) {
+      // Local curvature at rayX
+      const t = (rayX - startX) / (endX - startX);
+      const localCenterY = (1 - t) * (1 - t) * midY + 2 * (1 - t) * t * cpY + t * t * midY;
+
+      rayX += stepX;
+      rayY = localCenterY + (dirY * (coreThickness / 2 - 2));
+      ctx.lineTo(rayX, rayY);
+
+      // Check if bend causes ray angle to violate critical angle (macro-bend loss)
+      const bendSeverity = Math.abs(bendOffset) / 70;
+      if (bendSeverity > 0.45 && Math.abs(rayX - cpX) < 80) {
+        leaked = true;
+        // Draw leaked light ray escaping into cladding / air
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255, 100, 150, 0.7)';
+        ctx.beginPath();
+        ctx.moveTo(rayX, rayY);
+        ctx.lineTo(rayX + 45, rayY + (dirY * 55));
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(0, 255, 204, 0.4)'; // diminished transmitted beam
+        ctx.beginPath();
+        ctx.moveTo(rayX, rayY);
+      }
+
+      dirY *= -1;
+      bounces++;
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    if (leaked) {
+      tirTag.textContent = '⚠️ Macro-Bending Radiation Loss Detected!';
+      tirTag.style.color = '#ff3366';
+      telLoss.textContent = '64.8% Throughput (Lossy)';
+      telLoss.style.color = '#ff3366';
+    } else {
+      tirTag.textContent = 'TIR Active: 100% Guided Confinement';
+      tirTag.style.color = '#00ffcc';
+      telLoss.textContent = '99.8% Throughput (Low Loss)';
+      telLoss.style.color = '#00ffcc';
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Interactive dragging of fiber bend
+  let isDragging = false;
+  canvas.addEventListener('mousedown', () => { isDragging = true; });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+  canvas.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      const rect = canvas.getBoundingClientRect();
+      const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+      bendOffset = Math.max(-70, Math.min(70, my - canvas.height / 2));
+      sBend.value = Math.round(bendOffset);
+      vBend.textContent = `${Math.abs(Math.round(bendOffset))} px ${bendOffset < 0 ? 'Up' : 'Down'}`;
+    }
+  });
+
+  sAngle.addEventListener('input', () => {
+    launchDeg = parseFloat(sAngle.value);
+    vAngle.textContent = `${launchDeg.toFixed(1)}°`;
+  });
+
+  sBend.addEventListener('input', () => {
+    bendOffset = parseInt(sBend.value, 10);
+    vBend.textContent = `${Math.abs(bendOffset)} px`;
+  });
+
+  document.querySelectorAll('.fot-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.fot-mode-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(45,212,255,0.2)';
+      btn.style.borderColor = '#2dd4ff';
+      btn.style.color = '#2dd4ff';
+
+      nCore = parseFloat(btn.dataset.core);
+      nClad = parseFloat(btn.dataset.clad);
+      updateOpticalMetrics();
+    });
+  });
+
+  updateOpticalMetrics();
+  requestAnimationFrame(render);
+})();
+</script>
