@@ -4,6 +4,12 @@
 written so that a human or an AI agent handed a GitHub token can be productive
 within about ten minutes and without breaking anything.
 
+**For AI agents:** if you are starting a fresh session and need GitHub access,
+see **[AGENT_ACCESS.md](AGENT_ACCESS.md)** — it contains the self-service
+device-flow auth (`bash scripts/agent-auth.sh`), the sparse-clone recipe and
+the exact sequences for tool work. Use it instead of asking the owner to paste
+a token.
+
 Last substantive update: 2026-08-30.
 
 For anything money-related — what earns, what the real numbers are, and what
@@ -17,7 +23,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 483 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 493 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -41,8 +47,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 483 tools
-│   └── <tool-name>.html    483 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 493 tools
+│   └── <tool-name>.html    493 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -126,7 +132,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 483 cards.** They share one
+2. **Element IDs must be globally unique across all 493 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -148,7 +154,7 @@ node generate-cards-json.js
 
 # 3. Re-apply the category (see the warning below)
 
-# 4. Bump the count in index.html: "Search 483+ free tools" -> 484+
+# 4. Bump the count in index.html: "Search 493+ free tools" -> 484+
 
 # 5. Commit, push, wait ~50s, then verify live:
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
@@ -180,7 +186,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (483 tools)
+### Categories (493 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
@@ -487,7 +493,7 @@ treats them as duplicates competing with each other.
 ### Regenerating the sitemap
 
 `sitemap.xml` lists all 518 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 483 cards:
+tree, so a sparse checkout does not silently drop the 493 cards:
 
 ```python
 import subprocess, datetime
@@ -532,7 +538,7 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`index.html` has no links to cards.** Everything is driven by `cards.json`.
 
-**ID collisions across cards.** All 483 share one DOM. See §3.
+**ID collisions across cards.** All 493 share one DOM. See §3.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -562,7 +568,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 483 cards):
+# Music work (skip images and the 493 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -629,6 +635,11 @@ stylesheet URL and several newline-corrupted JS string literals in
 pages; insecure `http://` OG URLs; a service worker that could never install;
 and a PWA manifest pointing at a 1024px JPEG for its 192px and 512px icons.
 `robots.txt` and `sitemap.xml` did not exist at all before this.
+
+Also this date: added **[AGENT_ACCESS.md](AGENT_ACCESS.md)** (agent
+authentication & bootstrap) and the `scripts/agent-auth.sh` device-flow
+auth helper; refreshed the stale tool counts to the real **493**
+(README, ARCHITECTURE, INCOME).
 
 **Deliberately left alone**
 
