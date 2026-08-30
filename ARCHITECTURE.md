@@ -65,7 +65,7 @@ establish *which* site first.
 ├── donate.html             Wikipedia-style appeal — tools side
 ├── sponsor.html            Sponsorship / advertising enquiries
 ├── mpnews.html             Music news page
-├── opensourcenews.html     Open-source news channel — WORK IN PROGRESS
+├── opensourcenews.html     Open Source News — live global broadcast from open RSS feeds (see §9)
 │
 ├── <12 language pages>     hindi, marathi, bengali, punjabi, chinese, dutch,
 │                           french, japanese, portuguese, russian, spanish, thai
@@ -652,10 +652,26 @@ canonical + `og:url` pointed at `youtubepromo3.html` on the non-www host —
 corrected; four `target="_blank"` links missing `rel=noopener` (bpm-counter,
 chord-finder, christmas-card-maker, probability) — hardened.
 
+**Open Source News rebuild (2026-08-30, owner-requested)** — `opensourcenews.html`
+now carries: a **live headlines rail** (click any story to play it, category
+chips, per-story sources + corroboration count + age, "N stories · M sources"
+status); **viewer transport controls** (PAUSE/RESUME — Space, SKIP — N, Esc
+pauses, all in the top chrome); **live captions** (source + headline bar,
+toggle CC, persisted across reloads); **"READ ORIGINAL" links** to every story's
+source article (links are now captured from all three feed parse paths);
+**category-agnostic main desk** (previously the desk only narrated `world`, so
+science/tech/finance/weather stories never aired); **mute-friendly pacing**
+(cards hold for the full story duration instead of cycling every 800 ms);
+a visually-hidden `<h1>` (the page had none); and `prefers-reduced-motion`
+support, a mobile rail toggle, a `fetchTimeout` fallback for browsers without
+`AbortSignal.timeout`, and a `rail-hidden` auto-dodge during sports/weather/
+finance segments. Validated in headless Chromium against the real RSS feeds:
+124 stories / 35 sources, zero console or page errors.
+
 **Deliberately left alone**
 
-- `opensourcenews.html` — the open-source news channel. The owner plans to
-  improve this separately. **Do not touch it.**
+- (Nothing here now forbids touching `opensourcenews.html`: on 2026-08-30 the
+  owner asked for it to be upgraded. See the build notes below.)
 
 **Open questions for the owner**
 

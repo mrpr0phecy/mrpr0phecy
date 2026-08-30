@@ -60,7 +60,11 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
 
 ## 3. Never-do list (check before every change)
 
-- **`opensourcenews.html`** — owner's WIP. Never touch.
+- **`opensourcenews.html`** — the live news broadcast. Was owner's WIP;
+  upgraded with the 2026-08-30 build (headlines rail, viewers' controls,
+  captions). Touch with care: keep the facade pattern, never add hidden
+  players/autoplay tricks (INCOME.md growth policy), and re-run
+  `bash scripts/verify.sh` before pushing.
 - **`token.html`** — kept deliberately (see INCOME.md). No crypto promotion.
 - **`CNAME`**, `sw.js` (unregistered by design), `guide.txt` (stale),
   `system/`, `substitutions/`, `digitaldetoxcardshtml/`, CV files — leave alone.

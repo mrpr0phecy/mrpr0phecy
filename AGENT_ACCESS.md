@@ -121,8 +121,11 @@ One GitHub Pages site, **two deliberately separate products**:
 **Never mix them**: no music players/banners in the catalogue or cards; no tool
 links on music pages. If a task says "improve the site", ask *which* site.
 
-**Standing rule — do not touch `opensourcenews.html`** (owner is working on it
-separately) and `token.html` (left alone deliberately, see INCOME.md).
+**Standing rules** — `opensourcenews.html` is the owner's live news broadcast:
+improvements are welcome (the 2026-08-30 build added the headlines rail,
+viewer controls and captions) but keep its facade pattern and the INCOME.md
+growth policy, and run `bash scripts/verify.sh` before pushing.
+`token.html` is left alone deliberately (see INCOME.md).
 
 Full detail, rules and traps: **[ARCHITECTURE.md](ARCHITECTURE.md)** · money
 and what earns: **[INCOME.md](INCOME.md)**.
