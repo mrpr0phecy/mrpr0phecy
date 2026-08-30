@@ -6,6 +6,11 @@ This file exists so that any future AI-agent conversation — in *any* tool, on
 *any* machine — can get authorised and become productive in a few minutes,
 without anyone pasting a secret into a chat.
 
+**Before doing anything else, read [AGENTS.md](AGENTS.md)** — it is the
+agent-facing operating manual (what the repo is, what to never touch, exact
+task sequences, and the 100 MB workspace budget). This file covers
+authentication; AGENTS.md covers everything else.
+
 Last verified: 2026-08-30 · Works with: Bash + `curl` + `jq` (preinstalled in
 most agent sandboxes).
 
@@ -93,6 +98,11 @@ git config user.email 5564816+mrpr0phecy@users.noreply.github.com
 > Cone mode does **not** work here — `git sparse-checkout set cards index.html`
 > fails with *"'index.html' is not a directory"*. Use `--no-cone` with
 > leading-slash patterns.
+
+**Workspace budget — hard limit: keep the agent workspace under 100 MB.**
+`images/` (~50 MB) stays off disk; never materialise it just to look. If the
+clone + working files approach the limit, shrink it before continuing
+(`git -C r gc --prune=now -q`, remove caches) and report the size.
 
 Serve locally with `python3 -m http.server 8891` (never open the HTML via
 `file://` — the catalogue's `fetch()` breaks and looks like a CORS bug).

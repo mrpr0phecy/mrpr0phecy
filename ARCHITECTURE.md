@@ -4,11 +4,12 @@
 written so that a human or an AI agent handed a GitHub token can be productive
 within about ten minutes and without breaking anything.
 
-**For AI agents:** if you are starting a fresh session and need GitHub access,
-see **[AGENT_ACCESS.md](AGENT_ACCESS.md)** — it contains the self-service
-device-flow auth (`bash scripts/agent-auth.sh`), the sparse-clone recipe and
-the exact sequences for tool work. Use it instead of asking the owner to paste
-a token.
+**For AI agents:** start with **[AGENTS.md](AGENTS.md)**, the agent-facing
+operating manual (what to never touch, task sequences, workspace budget).
+If you need GitHub access in a fresh session, see
+**[AGENT_ACCESS.md](AGENT_ACCESS.md)** — the self-service device-flow auth
+(`bash scripts/agent-auth.sh`) plus the sparse-clone recipe. Use it instead of
+asking the owner to paste a token.
 
 Last substantive update: 2026-08-30.
 
@@ -591,7 +592,10 @@ python3 -m http.server 8891     # then open http://127.0.0.1:8891/listen.html
 Serve over HTTP rather than opening files directly — `file://` breaks `fetch()`
 of `cards.json` and gives misleading CORS errors.
 
-Worthwhile automated checks before pushing:
+Worthwhile automated checks before pushing — **the easy way is
+`bash scripts/verify.sh`**, which runs the catalogue audit, placeholder, link,
+sitemap, SEO and secret scans below (safe on sparse checkouts; `--live` adds
+production curls). The individual manual checks:
 
 ```bash
 # JS syntax inside a page (extract each <script> and run node --check)
@@ -637,9 +641,16 @@ and a PWA manifest pointing at a 1024px JPEG for its 192px and 512px icons.
 `robots.txt` and `sitemap.xml` did not exist at all before this.
 
 Also this date: added **[AGENT_ACCESS.md](AGENT_ACCESS.md)** (agent
-authentication & bootstrap) and the `scripts/agent-auth.sh` device-flow
-auth helper; refreshed the stale tool counts to the real **493**
-(README, ARCHITECTURE, INCOME).
+authentication & bootstrap), **AGENTS.md** (agent operating manual),
+`scripts/agent-auth.sh`, `scripts/verify.sh` (+ catalogue/SEO scanners) and a
+check-only `.github/workflows/agent-guardrails.yml`; refreshed the stale tool
+counts to the real **493** (README, ARCHITECTURE, INCOME).
+
+Found by the new `scripts/verify.sh` and fixed: `index.html` had **no**
+canonical/OG/Twitter/theme-color meta at all — added; `youtubepromo2.html`
+canonical + `og:url` pointed at `youtubepromo3.html` on the non-www host —
+corrected; four `target="_blank"` links missing `rel=noopener` (bpm-counter,
+chord-finder, christmas-card-maker, probability) — hardened.
 
 **Deliberately left alone**
 
