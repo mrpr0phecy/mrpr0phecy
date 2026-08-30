@@ -51,6 +51,9 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
 - Never `git checkout` the images just to look — verify against the live site
   (`curl -sI https://www.themostusefulsiteintheworld.com/images/...`) instead.
 - No `node_modules/`, no caches, no stray downloads in the workspace.
+- **Never install toolchains/browsers into the workspace.** A single headless
+  browser cache is ~600 MB — it will blow the 100 MB limit. Install into
+  `/tmp` (e.g. `/tmp/pwenv`, `PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers`).
 - Purge before you grow: `bash scripts/workspace-size.sh --purge` (caches +
   `git gc`). Dropping `.git` blobs you don't need (`git reflog expire
   --expire=now --all`) is not usually necessary at depth 1.
