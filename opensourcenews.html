@@ -271,6 +271,8 @@ canvas { display: block; }
 @keyframes srcScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .src-ribbon-track { animation: none; } }
 
+.nc-citation.corrob { color: #39ff14; font-weight: 700; }
+.nc-tag.confirmed { background: #0d7a2e; color: #d8ffe4; box-shadow: 0 0 14px rgba(57,255,20,.35); }
 .studio-overlay {
   position: absolute;
   inset: 0;
@@ -1364,6 +1366,64 @@ let currentProxyIndex = 0;
 let feedCursor = 0;
 const ITEMS_PER_FEED = 4;
 
+// ---- Cross-source corroboration -------------------------------------------
+// With 80 outlets the interesting signal is not any single headline, it is how
+// many independent outlets are carrying the same story. That is the one thing
+// a single newsroom structurally cannot show you, so it is worth computing.
+const STOP = new Set(('the a an and or but of in on at to for from by with as is are was were be been '+
+  'has have had will would could should may might can says said after before over under new news '+
+  'this that these those it its his her their our your they them we you he she i not no more most '+
+  'about into than then out up down off just also very such only which who what when where why how '+
+  // structural words from machine-generated feeds. Without these, every USGS
+  // earthquake matched every other one on format alone.
+  'issued until effective area alert warning advisory watch statement region '+
+  'north south east west northeast northwest southeast southwest miles')
+  .split(' '));
+
+// Feeds whose entries share a rigid template must not corroborate each other.
+const TEMPLATED = /^(USGS|NWS|NOAA|GDACS)/i;
+
+function keyTerms(t) {
+  return new Set(String(t).toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !STOP.has(w)));
+}
+
+function jaccard(a, b) {
+  if (!a.size || !b.size) return 0;
+  let inter = 0;
+  a.forEach(w => { if (b.has(w)) inter++; });
+  return inter / (a.size + b.size - inter);
+}
+
+// Group stories that appear to describe the same event across DIFFERENT
+// outlets, and attach the corroborating source list to each.
+function corroborate(list) {
+  const terms = list.map(s => keyTerms(s.title + ' ' + (s.desc || '').slice(0, 90)));
+  const seen = new Array(list.length).fill(false);
+  list.forEach(s => { s.corrob = null; });
+  for (let i = 0; i < list.length; i++) {
+    if (seen[i]) continue;
+    const group = [i];
+    for (let j = i + 1; j < list.length; j++) {
+      if (seen[j]) continue;
+      if (list[j].src === list[i].src) continue;      // same outlet is not corroboration
+      // Templated machine feeds match on format, not content
+      if (TEMPLATED.test(list[i].src) || TEMPLATED.test(list[j].src)) continue;
+      if (jaccard(terms[i], terms[j]) >= 0.22) { group.push(j); seen[j] = true; }
+    }
+    if (group.length > 1) {
+      const srcs = [...new Set(group.map(k => list[k].src))];
+      if (srcs.length > 1) {
+        group.forEach(k => { list[k].corrob = srcs; });
+      }
+    }
+    seen[i] = true;
+  }
+  return list;
+}
+
 // Round-robin stories across sources so no single outlet runs consecutively.
 function weaveBySource(list) {
   const by = new Map();
@@ -2259,10 +2319,12 @@ async function fetchFeeds() {
     // instead of a blank broadcast until every feed has answered.
     if (allItems.length) {
       const seed = new Set();
-      newsQueue = weaveBySource(allItems.filter(it => {
+      const fresh = allItems.filter(it => {
         const k = it.title.slice(0, 60).toLowerCase();
         if (seed.has(k)) return false; seed.add(k); return true;
-      }).sort((a, b) => b.ts - a.ts));
+      }).sort((a, b) => b.ts - a.ts);
+      corroborate(fresh);
+      newsQueue = weaveBySource(fresh);
       cachedStories = newsQueue.slice();
       saveStore(cachedStories);
       sourceHealth.active = new Set(cachedStories.map(i => i.src)).size;
@@ -2316,6 +2378,11 @@ async function fetchFeeds() {
   // the same outlet together, which reads like a feed dump rather than a
   // bulletin. Round-robin across sources keeps rank order within each source
   // but alternates between them.
+  corroborate(ranked);
+  // A story two or more independent outlets are running is more likely to
+  // matter than one nobody else picked up.
+  ranked.forEach(it => { if (it.corrob) it.priority += Math.min(2, (it.corrob.length - 1) * 0.7); });
+  ranked.sort((a, b) => b.priority - a.priority || b.ts - a.ts);
   newsQueue = weaveBySource(ranked);
   if (seenStoryKeys.size > 500) seenStoryKeys.clear();
   currentStoryIndex = 0;
@@ -2404,9 +2471,21 @@ function getNextStory(cat = 'world') {
 function showCard(item) {
   const tagEl = document.getElementById('ncTag'), cardEl = document.getElementById('newsCard');
   let tag = 'GLOBAL NEWS', tagClass = 'world';
-  if (item.priority >= 4) { tag = 'BREAKING'; tagClass = 'breaking'; } else if (item.priority >= 3) { tag = 'URGENT'; tagClass = 'breaking'; }
+  if (item.priority >= 4) { tag = 'BREAKING'; tagClass = 'breaking'; }
+  else if (item.priority >= 3) { tag = 'URGENT'; tagClass = 'breaking'; }
+  if (item.corrob && item.corrob.length >= 3) { tag = 'CONFIRMED \u00d7' + item.corrob.length; tagClass = 'confirmed'; }
   tagEl.textContent = tag; tagEl.className = `nc-tag ${tagClass}`; cardEl.className = `news-card in ${item.priority >= 3 ? 'breaking' : ''}`;
-  document.getElementById('ncTime').textContent = item.time; document.getElementById('ncCitation').textContent = `Source: ${item.src}`;
+  document.getElementById('ncTime').textContent = item.time;
+  // Corroboration is the point of aggregating 80 outlets: say how many
+  // independent sources are carrying this, not just where we read it.
+  const cite = document.getElementById('ncCitation');
+  if (item.corrob && item.corrob.length > 1) {
+    cite.textContent = `Corroborated by ${item.corrob.length} sources: ${item.corrob.slice(0, 3).join(', ')}`;
+    cite.classList.add('corrob');
+  } else {
+    cite.textContent = `Source: ${item.src}`;
+    cite.classList.remove('corrob');
+  }
   document.getElementById('ncHl').textContent = item.title; document.getElementById('ncBody').textContent = item.desc;
   adjustUISpacing();
 }
