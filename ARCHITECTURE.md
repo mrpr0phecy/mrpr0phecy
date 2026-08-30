@@ -46,6 +46,8 @@ establish *which* site first.
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
+├── radio.html              Continuous player — 47 tracks back to back (YPP watch time)
+├── thisorthat.html         Head-to-head voting game — shareable, builds a top 5
 ├── youtubepromo.html       Videos & Visuals — all 47 animated videos
 ├── youtubepromo1.html      Stream Free — SoundCloud / free-listening angle
 ├── youtubepromo2.html      The Full Story — long-form guide
@@ -270,6 +272,8 @@ query — every page needs its own title, description, keywords and angle.
 | Page | Angle | Targets |
 |---|---|---|
 | `listen.html` | Hub / start here | brand searches, "MrProphecy" |
+| `radio.html` | Continuous play | "listen continuously", background listening |
+| `thisorthat.html` | Interactive game | shares, repeat visits, "rank tracks" |
 | `youtubepromo.html` | Videos & visuals | "animated music video", "In- series" |
 | `youtubepromo1.html` | Free streaming | "stream free", "SoundCloud", "no signup" |
 | `youtubepromo2.html` | Long-form guide | "who is MrProphecy", discovery reading |
@@ -326,6 +330,34 @@ Rules for anything money-related on this site:
   hosted free on GitHub Pages — do not claim donations pay for hosting.
 - Keep the ask on `support.html` and in the nav. Do not scatter donate buttons
   through the tool cards or interrupt playback with them.
+
+### Why radio.html and thisorthat.html exist
+
+**Watch time from embedded YouTube players counts toward YouTube Partner
+Programme eligibility**, provided the video is public. This is confirmed
+behaviour, not a loophole — YouTube counts embeds on external sites the same
+as views on youtube.com.
+
+That makes the site itself a watch-time surface, so two pages are built
+specifically around it:
+
+- **`radio.html`** uses the YouTube IFrame Player API to play all 47 tracks
+  back to back. One click starts a session that can run for hours. It uses
+  `loadVideoById()` on a single player rather than swapping iframes, so
+  playback is continuous and the session is unbroken. `onError` skips
+  unplayable videos automatically so the station never stalls.
+- **`thisorthat.html`** makes watching the *mechanism* of a game: two tracks,
+  play both, vote, repeat twelve times, get a personal top 5 that can be
+  shared. Repeat visits and shares both come free.
+
+Rules if you extend these:
+- Keep the **facade pattern** — no iframe until the visitor clicks. It keeps
+  the page fast and avoids setting third-party cookies on arrival.
+- On `thisorthat.html` the vote button and the video are **separate elements**.
+  They were originally one, which meant clicking the middle of the card did
+  nothing (the video overlay swallowed the click). Do not merge them again.
+- Never auto-play muted in a hidden element to farm watch time. That is
+  invalid traffic, YouTube filters it, and it risks the channel.
 
 ### Growth policy — read before "boosting views"
 

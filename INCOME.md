@@ -71,6 +71,22 @@ here that pays without you selling anything to anyone.
 
 **Do this first. It costs nothing and the site work is already done.**
 
+### The site now generates watch hours itself
+
+Watch time from **embedded** YouTube players counts toward the 4,000-hour
+threshold, as long as the video is public. Two pages are built around that:
+
+- **`radio.html`** — one click plays all 47 tracks back to back via the YouTube
+  IFrame API. A visitor who leaves the tab open generates continuous, genuine
+  watch time. Ten people leaving it on for an hour is ten watch hours.
+- **`thisorthat.html`** — a voting game where watching is how you play. Twelve
+  rounds, two videos each, ending in a shareable personal top 5.
+
+This is legitimate: real people choosing to watch real videos on a real player.
+It is not a bot, not hidden, not muted, not automated. **Do not** be tempted to
+"improve" it with autoplaying hidden players — that is invalid traffic, YouTube
+filters it out, and it puts the channel at risk.
+
 ---
 
 ## Route 2 — Donations
