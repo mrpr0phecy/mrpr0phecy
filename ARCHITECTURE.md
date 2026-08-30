@@ -6,6 +6,9 @@ within about ten minutes and without breaking anything.
 
 Last substantive update: 2026-08-30.
 
+For anything money-related — what earns, what the real numbers are, and what
+was deliberately not built — see **[INCOME.md](INCOME.md)**.
+
 ---
 
 ## 1. What this repository actually is
@@ -49,7 +52,9 @@ establish *which* site first.
 ├── youtubepromo3.html      Sons of South — the crew / UK scene
 ├── luton.html              Luton & Bedfordshire — local SEO + FAQ schema
 ├── music.html              Press kit — bio, discography, booking
-├── support.html            Direct support / PayPal — optional, nothing gated
+├── support.html            Direct support / PayPal — music side
+├── donate.html             Wikipedia-style appeal — tools side
+├── sponsor.html            Sponsorship / advertising enquiries
 ├── mpnews.html             Music news page
 ├── opensourcenews.html     Open-source news channel — WORK IN PROGRESS
 │
@@ -288,6 +293,13 @@ cannot state its unique search intent in one line, it should not be a new page.
   dialog instead of just the channel.
 - Never commit a placeholder video ID. If a real one is unavailable, link to
   the channel or a playlist instead.
+
+### Analytics
+
+Google Analytics `G-G058FVW6Z2` is installed on the 12 pages that matter
+(catalogue homepage, all music pages, both money pages, news). It was
+previously on `music.html` only. Add it to any new public page — without it
+there is no way to price sponsorship or tell what is working.
 
 ### Money and monetisation
 

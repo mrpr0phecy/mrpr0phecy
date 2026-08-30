@@ -23,6 +23,12 @@ traps that have already cost people time.
 
 Start there whether you are a human or an AI agent.
 
+## Money & monetisation
+
+**[INCOME.md](INCOME.md)** — what actually earns, the real audience numbers,
+and what was deliberately not built. Read it before adding anything
+money-related.
+
 ## Quick facts
 
 | | |
