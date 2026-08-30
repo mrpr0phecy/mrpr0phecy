@@ -4,6 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OPEN SOURCE NEWS · GLOBAL LIVE BROADCAST</title>
+<meta name="description" content="Open Source News — a live, automated world news broadcast built entirely from open RSS feeds. Animated anchors, a 3D globe, and headlines from 80+ independent sources worldwide. No corporate agenda, no paywall.">
+<meta name="keywords" content="open source news, independent news, live news broadcast, RSS news aggregator, world news, alternative news, free news channel, automated newsroom">
+<link rel="canonical" href="https://www.themostusefulsiteintheworld.com/opensourcenews.html">
+<meta name="theme-color" content="#05080f">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Open Source News">
+<meta property="og:title" content="Open Source News — Live Global Broadcast from Open Feeds">
+<meta property="og:description" content="A live world news broadcast assembled from 80+ open RSS feeds. Animated anchors, 3D globe, no corporate agenda.">
+<meta property="og:url" content="https://www.themostusefulsiteintheworld.com/opensourcenews.html">
+<meta property="og:image" content="https://www.themostusefulsiteintheworld.com/logo.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Open Source News — Live Global Broadcast">
+<meta name="twitter:description" content="Live world news from 80+ open feeds. Animated anchors, 3D globe, free to watch.">
+<meta name="twitter:image" content="https://www.themostusefulsiteintheworld.com/logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://api.rss2json.com">
+<link rel="preconnect" href="https://threejs.org">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Open Source News","applicationCategory":"NewsApplication","operatingSystem":"Any","url":"https://www.themostusefulsiteintheworld.com/opensourcenews.html","description":"A live, automated world news broadcast built from open RSS feeds.","offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"}}</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -197,7 +216,7 @@ canvas { display: block; }
 
 /* STUDIO PANEL */
 #studioWrap {
-  position: fixed; bottom: 20px; right: 20px;
+  position: fixed; bottom: 104px; right: 20px;
   width: 380px; height: 280px; z-index: 350;
   border: 2px solid rgba(0,184,217,0.6);
   border-radius: 12px;
@@ -973,6 +992,9 @@ canvas { display: block; }
 .source-marker.military { background: var(--secondary2); box-shadow: 0 0 8px var(--secondary2); }
 .source-marker.sport { background: var(--pink); box-shadow: 0 0 8px var(--pink); }
 </style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-G058FVW6Z2"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
+gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
 </head>
 <body>
 
@@ -1059,7 +1081,7 @@ canvas { display: block; }
     <div class="s-eq off"></div><div class="s-eq off"></div><div class="s-eq off"></div><div class="s-eq off"></div><div class="s-eq off"></div>
   </div>
   <div class="open-data-panel" id="openDataPanel">
-    <div class="data-row"><span class="data-label">SOURCES</span><span class="data-value" id="sourceCount">0/12</span></div>
+    <div class="data-row"><span class="data-label">SOURCES</span><span class="data-value" id="sourceCount">connecting…</span></div>
     <div class="data-row"><span class="data-label">UPDATED</span><span class="data-value" id="lastUpdate">--:--</span></div>
     <div class="data-row"><span class="data-label">TOP STORY</span><span class="data-value" id="topStoryTicker">—</span></div>
   </div>
@@ -1141,10 +1163,11 @@ canvas { display: block; }
   <div class="b-fade"></div>
 </div>
 
-<audio id="bgMusic" loop preload="auto">
-  <source src="https://cdn.pixabay.com/audio/2022/03/10/audio_2d3e8a4e5c.mp3" type="audio/mpeg">
-  <source src="https://cdn.pixabay.com/audio/2022/01/20/audio_1c2f7c6a7d.mp3" type="audio/mpeg">
-</audio>
+<!-- Both previous Pixabay stock URLs returned 403 and no bed music ever
+     played. Rather than another stock track that can vanish, the studio bed is
+     now a silent placeholder: the volume control still works, and a real
+     MrProphecy instrumental can be dropped in here as a repo-hosted file. -->
+<audio id="bgMusic" loop preload="none"></audio>
 
 <script>
 // ==================== CONFIGURATION ====================
@@ -1311,8 +1334,59 @@ let sourceHealth = { active: 0, total: CONFIG.FEEDS.length };
 let flightData = [], shipData = [], weatherData = [];
 let sourceMarkers = [];
 
-const PROXY_LIST = ['https://api.allorigins.win/get?url=', 'https://corsproxy.io/?', 'https://api.codetabs.com/v1/proxy?quest='];
+// Proxy chain. Verified 2026-08-30: the previous three (allorigins /get,
+// corsproxy.io keyless, codetabs) all returned 522/403 and the channel showed
+// zero stories. rss2json is the only one reliable across every feed tested, so
+// it leads; the others are fallbacks in case it rate-limits.
+//   kind:'json'  -> rss2json, already-parsed JSON (no XML parsing needed)
+//   kind:'raw'   -> returns the raw RSS/XML body
+//   kind:'wrap'  -> allorigins /get, XML wrapped in {contents:"..."}
+const PROXY_LIST = [
+  { url: 'https://api.rss2json.com/v1/api.json?rss_url=', kind: 'json' },
+  { url: 'https://api.allorigins.win/raw?url=',           kind: 'raw'  },
+  { url: 'https://api.allorigins.win/get?url=',           kind: 'wrap' }
+];
 let currentProxyIndex = 0;
+let feedCursor = 0;
+
+// Session cache. Free proxies rate-limit, so a reload previously meant
+// starting from an empty broadcast. Stories persist for 15 minutes.
+const STORE_KEY = 'osn_stories_v1';
+const STORE_TTL = 15 * 60 * 1000;
+function loadStore() {
+  try {
+    const raw = sessionStorage.getItem(STORE_KEY);
+    if (!raw) return [];
+    const o = JSON.parse(raw);
+    if (!o || (Date.now() - o.t) > STORE_TTL) return [];
+    return Array.isArray(o.items) ? o.items : [];
+  } catch (e) { return []; }
+}
+function saveStore(items) {
+  try { sessionStorage.setItem(STORE_KEY, JSON.stringify({ t: Date.now(), items: items.slice(0, 120) })); }
+  catch (e) {}
+}
+
+// Serialise every proxy request behind a minimum gap. Free proxies 429 on
+// bursts, and a 429 wastes the whole feed, so pacing beats parallelism here.
+let _nextSlot = 0;
+let _cooldownUntil = 0;
+const MIN_GAP = 900;   // ms between proxy hits (rss2json 429s below ~2/s)
+function pacedFetch(url, opts) {
+  // Reserve a time slot rather than chaining whole requests together. Chaining
+  // meant every request waited for the previous one's full timeout, so a first
+  // cycle over 18 feeds never completed.
+  const now = Date.now();
+  const at = Math.max(now, _nextSlot, _cooldownUntil);
+  _nextSlot = at + MIN_GAP;
+  const delay = at - now;
+  return new Promise(resolve => setTimeout(resolve, delay))
+    .then(() => fetch(url, opts))
+    .then(res => {
+      if (res.status === 429) _cooldownUntil = Date.now() + 6000;
+      return res;
+    });
+}
 function getProxy() { return PROXY_LIST[currentProxyIndex]; }
 function rotateProxy() { currentProxyIndex = (currentProxyIndex + 1) % PROXY_LIST.length; }
 
@@ -1589,7 +1663,7 @@ function initGlobe() {
     
     // Night lights
     nightLights = new THREE.Mesh(new THREE.SphereGeometry(25.1, 48, 48), new THREE.MeshBasicMaterial({
-      map: tl.load('https://threejs.org/examples/textures/planets/earth_lights_2048.jpg'),
+      map: tl.load('https://threejs.org/examples/textures/planets/earth_lights_2048.png'),
       transparent: true,
       opacity: 0.3,
       blending: THREE.AdditiveBlending
@@ -1734,7 +1808,7 @@ function createGradientMap(base, highlight = '#ffffff', shadow = '#2a1e0e') {
   const g = ctx.createLinearGradient(0, 0, 256, 0); g.addColorStop(0, shadow); g.addColorStop(0.4, base); g.addColorStop(0.8, base); g.addColorStop(1, highlight);
   ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 1); const t = new THREE.CanvasTexture(c); t.minFilter = THREE.NearestFilter; return t;
 }
-function createSkinMaterial(baseColor) { return new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: createGradientMap(baseColor), shininess: 10 }); }
+function createSkinMaterial(baseColor) { return new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: createGradientMap(baseColor) }); }
 
 function createRustyBucket() {
   const g = new THREE.Group(); g.userData = { talking: false };
@@ -1882,42 +1956,108 @@ async function fetchFeeds() {
   let allItems = [];
   let activeCount = 0;
   
-  // Batch fetch with concurrency limit
-  const batchSize = 5;
-  for (let i = 0; i < CONFIG.FEEDS.length; i += batchSize) {
-    const batch = CONFIG.FEEDS.slice(i, i + batchSize);
+  // Free CORS proxies rate-limit hard (observed 429s at 5-wide over 83 feeds),
+  // so fetch a rotating slice each cycle rather than every feed every time.
+  // Over a few cycles the whole list is still covered, and nothing 429s.
+  const batchSize = 3;
+  const SLICE = 14;
+  const feedList = [];
+  for (let k = 0; k < Math.min(SLICE, CONFIG.FEEDS.length); k++) {
+    feedList.push(CONFIG.FEEDS[(feedCursor + k) % CONFIG.FEEDS.length]);
+  }
+  feedCursor = (feedCursor + SLICE) % CONFIG.FEEDS.length;
+
+  for (let i = 0; i < feedList.length; i += batchSize) {
+    const batch = feedList.slice(i, i + batchSize);
     const batchPromises = batch.map(async (feed) => {
-      try {
-        const p = getProxy(); 
-        const res = await fetch(p + encodeURIComponent(feed.url), { signal: AbortSignal.timeout(8000) });
-        if (!res.ok) return null;
-        activeCount++;
-        const txt = await res.text(); 
-        const data = p.includes('allorigins') ? JSON.parse(txt).contents : txt;
-        const dom = new DOMParser().parseFromString(data, 'text/xml');
-        const items = Array.from(dom.querySelectorAll('item, entry')).slice(0, 2).map(it => {
-          const title = cleanText(it.querySelector('title')?.textContent || '');
-          const desc = cleanText(it.querySelector('description, summary, content')?.textContent || '').substring(0, 200);
-          const pub = it.querySelector('pubDate, published, updated'); let time = hm(), ts = Date.now();
-          if (pub) { try { ts = new Date(pub.textContent).getTime(); time = new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC'; } catch (e) {} }
-          return { title, desc, time, src: feed.src, cat: feed.cat, weight: feed.weight || 0.8, ts, geo: geoFromText(title + desc), region: feed.region };
-        }).filter(it => it.title.length > 10);
-        return items;
-      } catch (e) { 
-        rotateProxy(); // Try next proxy on failure
-        return null; 
+      // Try each proxy in turn for this feed. Previously a single failure
+      // returned null for the whole feed, so one bad proxy silently emptied
+      // the entire broadcast.
+      const mk = (raw, ts) => ({
+        title: raw.title, desc: raw.desc,
+        time: new Date(ts).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' }) + ' UTC',
+        src: feed.src, cat: feed.cat, weight: feed.weight || 0.8, ts,
+        geo: geoFromText(raw.title + raw.desc), region: feed.region
+      });
+
+      for (let attempt = 0; attempt < PROXY_LIST.length; attempt++) {
+        const p = PROXY_LIST[(currentProxyIndex + attempt) % PROXY_LIST.length];
+        try {
+          const res = await pacedFetch(p.url + encodeURIComponent(feed.url), { signal: AbortSignal.timeout(9000) });
+          if (!res.ok) continue;
+          const txt = await res.text();
+          let items = [];
+
+          if (p.kind === 'json') {
+            const j = JSON.parse(txt);
+            if (j.status !== 'ok' || !Array.isArray(j.items)) continue;
+            items = j.items.slice(0, 2).map(it => {
+              const title = cleanText(it.title || '');
+              const desc = cleanText(it.description || it.content || '').substring(0, 200);
+              let ts = Date.now();
+              if (it.pubDate) { const t = new Date(it.pubDate.replace(' ', 'T') + 'Z').getTime(); if (!isNaN(t)) ts = t; }
+              return mk({ title, desc }, ts);
+            });
+          } else {
+            const body = (p.kind === 'wrap') ? (JSON.parse(txt).contents || '') : txt;
+            if (!body || body.indexOf('<') === -1) continue;
+            const dom = new DOMParser().parseFromString(body, 'text/xml');
+            if (dom.querySelector('parsererror')) continue;
+            items = Array.from(dom.querySelectorAll('item, entry')).slice(0, 2).map(it => {
+              const title = cleanText(it.querySelector('title')?.textContent || '');
+              const desc = cleanText(it.querySelector('description, summary, content')?.textContent || '').substring(0, 200);
+              const pub = it.querySelector('pubDate, published, updated');
+              let ts = Date.now();
+              if (pub) { const t = new Date(pub.textContent).getTime(); if (!isNaN(t)) ts = t; }
+              return mk({ title, desc }, ts);
+            });
+          }
+
+          items = items.filter(it => it.title.length > 10);
+          if (!items.length) continue;
+          currentProxyIndex = (currentProxyIndex + attempt) % PROXY_LIST.length; // stick with what worked
+          activeCount++;
+          return items;
+        } catch (e) { /* try the next proxy */ }
       }
+      return null;
     });
     
     const batchResults = await Promise.all(batchPromises);
     batchResults.forEach(result => { if (result) allItems.push(...result); });
+
+    // Render progressively: get something on screen after the first batch
+    // instead of a blank broadcast until every feed has answered.
+    if (allItems.length && !newsQueue.length) {
+      const seed = new Set();
+      newsQueue = allItems.filter(it => {
+        const k = it.title.slice(0, 60).toLowerCase();
+        if (seed.has(k)) return false; seed.add(k); return true;
+      }).sort((a, b) => b.ts - a.ts);
+      cachedStories = newsQueue.slice();
+      saveStore(cachedStories);
+      sourceHealth.active = new Set(cachedStories.map(i => i.src)).size;
+      try { buildTickers(); updateGlobeInfo(); updateOpenDataPanel(); } catch (e) {}
+    }
     
-    // Small delay between batches to avoid rate limiting
-    await new Promise(r => setTimeout(r, 200));
+    // Spacing between batches. 200ms was far too aggressive for free proxies.
+    await new Promise(r => setTimeout(r, 400));
   }
   
-  sourceHealth.active = activeCount;
-  if (allItems.length === 0 && cachedStories.length > 0) { allItems = cachedStories; } else { cachedStories = allItems; }
+  // activeCount only covers the feeds polled this cycle (a rotating slice),
+  // so comparing it to all 83 always looked like a failure. Report the number
+  // of distinct sources actually represented in the live broadcast.
+  sourceHealth.active = new Set(cachedStories.map(i => i.src)).size;
+  sourceHealth.polled = activeCount;
+  // Merge with the previous cycle instead of replacing it. Each cycle only
+  // covers part of the feed list, so replacing would make stories flicker in
+  // and out. De-duplicate on title and keep the most recent 160.
+  if (allItems.length) {
+    const seen = new Set(allItems.map(i => i.title));
+    const merged = allItems.concat(cachedStories.filter(i => !seen.has(i.title)));
+    cachedStories = merged.sort((a, b) => b.ts - a.ts).slice(0, 160);
+  }
+  allItems = cachedStories.slice();
   
   const prioritized = allItems.map(item => {
     let priority = 0; const text = `${item.title} ${item.desc}`.toLowerCase();
@@ -1931,13 +2071,25 @@ async function fetchFeeds() {
     return { ...item, priority };
   });
   
-  const deduped = prioritized.filter(it => { const k = it.title.slice(0, 60).toLowerCase(); if (seenStoryKeys.has(k)) return false; seenStoryKeys.add(k); return true; });
+  // De-duplicate within this cycle only. Previously this used the permanent
+  // seenStoryKeys set, which meant a merged/cached story was dropped on every
+  // subsequent cycle and the queue drained to nothing. seenStoryKeys is still
+  // used to decide what the anchor has already *read out*, which is separate.
+  const cycleSeen = new Set();
+  const deduped = prioritized.filter(it => {
+    const k = it.title.slice(0, 60).toLowerCase();
+    if (cycleSeen.has(k)) return false;
+    cycleSeen.add(k);
+    return true;
+  });
   newsQueue = deduped.sort((a, b) => b.priority - a.priority || b.ts - a.ts);
   if (seenStoryKeys.size > 500) seenStoryKeys.clear();
   currentStoryIndex = 0;
+  saveStore(cachedStories);
   buildTickers();
   updateOpenDataPanel();
   updateGlobeInfo();
+  return newsQueue;
 }
 
 function buildTickers() {
@@ -1952,7 +2104,7 @@ function buildTickers() {
 }
 
 function updateOpenDataPanel() {
-  document.getElementById('sourceCount').textContent = `${sourceHealth.active}/${CONFIG.FEEDS.length}`;
+  document.getElementById('sourceCount').textContent = `${sourceHealth.active} live`;
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   if (newsQueue.length > 0) {
     const top = newsQueue[0];
@@ -2075,8 +2227,17 @@ function startClock() {
   try {
     initGlobe(); initStudio(); animate(); startClock();
     if ('speechSynthesis' in window) initializeVoices();
+    // Warm start from the session cache so the broadcast is never empty.
+    const stored = loadStore();
+    if (stored.length) {
+      cachedStories = stored;
+      newsQueue = stored.slice();
+      sourceHealth.active = new Set(stored.map(i => i.src)).size;
+      try { buildTickers(); updateGlobeInfo(); updateOpenDataPanel(); } catch (e) {}
+    }
+    const firstFeeds = fetchFeeds();               // start fetching immediately
     await new Promise(r => setTimeout(r, 1200)); finishLoading();
-    await fetchFeeds(); setInterval(fetchFeeds, 60000);
+    await firstFeeds; setInterval(fetchFeeds, 75000);
     setInterval(showEduTip, 45000);
     
     // Music with better error handling
@@ -2085,12 +2246,12 @@ function startClock() {
     
     // Try to play music on user interaction
     const playMusic = async () => {
+      // No source configured yet -> don't attempt playback at all.
+      if (!audio.currentSrc && !audio.querySelector('source')) return;
       try {
         await audio.play();
-        console.log('Music started');
       } catch (e) {
-        console.log('Autoplay blocked, waiting for interaction');
-        // Add click listener as fallback
+        // Autoplay blocked: retry on the first user interaction.
         document.body.addEventListener('click', () => {
           audio.play().catch(() => {});
         }, { once: true });
