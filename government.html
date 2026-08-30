@@ -1109,7 +1109,24 @@ function sha256(input){
 
 /* ---- state ---- */
 var state, CUR='p1', simTimer=null, simSeed=7;
-function load(){ try{ var r=localStorage.getItem(GOV_KEY); if(r){ state=JSON.parse(r); return; } }catch(e){} state=seed(); save(); }
+function load(){
+  try{
+    var r=localStorage.getItem(GOV_KEY);
+    if(r){
+      var s=JSON.parse(r);
+      if(s && s.v===2 && s.charter && s.props && s.ledger){
+        var prev='GENESIS', ok=true, i;
+        for(i=0;i<s.ledger.length;i++){
+          var e=s.ledger[i];
+          if(!e || typeof e.t!=='number' || !isFinite(e.t) || sha256(prev+'|'+JSON.stringify([e.t,e.type,e.detail,e.actor]))!==e.hash){ ok=false; break; }
+          prev=e.hash;
+        }
+        if(ok){ state=s; return; }
+      }
+    }
+  }catch(e){}
+  state=seed(); save();
+}
 function save(){ try{ localStorage.setItem(GOV_KEY, JSON.stringify(state)); }catch(e){} }
 function pseudo(rng){ var h=''; if(rng){ for(var i=0;i<4;i++) h+='0123456789ABCDEF'[(rng()*16)|0]; } else { for(var i=0;i<4;i++) h+='0123456789ABCDEF'[(Math.random()*16)|0]; } return 'C-'+h; }
 function uid(){ return 'p'+(Date.now().toString(36))+((Math.random()*1e4)|0).toString(36); }
