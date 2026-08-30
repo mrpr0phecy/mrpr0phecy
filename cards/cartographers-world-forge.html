@@ -1,0 +1,1062 @@
+<!-- cards/cartographers-world-forge.html -->
+<h2 id="cwf-title" style="margin-top:0;color:var(--accent);">🗺️ Cartographer's World Forge</h2>
+
+<p id="cwf-desc" class="small" style="color:var(--text-secondary);margin-bottom:12px;font-size:0.85rem;">
+  Forge an entire fantasy world from a single seed. Tectonic uplift raises mountains, rain shadows carve deserts, rivers find the sea, and civilisations rise where the land is kind. Every kingdom, town and river is named, and the chronicle beneath is written from what actually happened on the map. Click anything to inspect it.
+</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:8px;margin-bottom:10px;">
+  <div>
+    <label for="cwf-seed" style="display:block;font-size:0.7rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">World Seed</label>
+    <input type="text" id="cwf-seed" value="eldermoor" style="width:100%;padding:7px;background:#070f18;border:1px solid rgba(255,255,255,0.15);color:#e2e8f0;border-radius:5px;font-size:0.76rem;font-family:monospace;">
+  </div>
+  <div>
+    <label for="cwf-type" style="display:block;font-size:0.7rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Landform</label>
+    <select id="cwf-type" style="width:100%;padding:7px;background:rgba(20,30,40,0.85);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:5px;font-size:0.76rem;">
+      <option value="continent" selected>Continent</option>
+      <option value="archipelago">Archipelago</option>
+      <option value="pangaea">Pangaea</option>
+      <option value="inland">Inland Sea</option>
+    </select>
+  </div>
+  <div>
+    <label for="cwf-sea" style="display:block;font-size:0.7rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Ocean % <span id="cwf-sea-v" style="color:#00ffcc;">55</span></label>
+    <input type="range" id="cwf-sea" min="20" max="75" value="55" style="width:100%;accent-color:#00c8ff;">
+  </div>
+  <div>
+    <label for="cwf-temp" style="display:block;font-size:0.7rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Climate <span id="cwf-temp-v" style="color:#00ffcc;">Temperate</span></label>
+    <input type="range" id="cwf-temp" min="-4" max="4" value="0" style="width:100%;accent-color:#00c8ff;">
+  </div>
+  <div>
+    <label for="cwf-civ" style="display:block;font-size:0.7rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Civilisation <span id="cwf-civ-v" style="color:#00ffcc;">Settled</span></label>
+    <input type="range" id="cwf-civ" min="0" max="4" value="2" style="width:100%;accent-color:#00c8ff;">
+  </div>
+  <div>
+    <label for="cwf-style" style="display:block;font-size:0.7rem;font-weight:600;margin-bottom:3px;color:#a0aec0;">Map Style</label>
+    <select id="cwf-style" style="width:100%;padding:7px;background:rgba(20,30,40,0.85);border:1px solid rgba(45,212,255,0.3);color:var(--text);border-radius:5px;font-size:0.76rem;">
+      <option value="parchment" selected>Antique Parchment</option>
+      <option value="satellite">Satellite</option>
+      <option value="political">Political</option>
+      <option value="relief">Ink Relief</option>
+    </select>
+  </div>
+</div>
+
+<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+  <button type="button" id="cwf-forge" style="flex:2;min-width:150px;padding:10px;background:linear-gradient(135deg,#00f3ff,#0077ff);border:none;color:#050d18;border-radius:6px;font-weight:800;font-size:0.82rem;cursor:pointer;">⚒ Forge World</button>
+  <button type="button" id="cwf-random" style="flex:1;min-width:100px;padding:10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--text);border-radius:6px;font-weight:600;font-size:0.76rem;cursor:pointer;">🎲 Random Seed</button>
+  <button type="button" id="cwf-labels" style="flex:1;min-width:90px;padding:10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--text);border-radius:6px;font-weight:600;font-size:0.76rem;cursor:pointer;">🏷 Labels</button>
+  <button type="button" id="cwf-save" style="flex:1;min-width:90px;padding:10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--text);border-radius:6px;font-weight:600;font-size:0.76rem;cursor:pointer;">💾 PNG</button>
+</div>
+
+<div style="position:relative;border:1px solid rgba(255,255,255,0.18);border-radius:8px;overflow:hidden;background:#0a1420;margin-bottom:10px;">
+  <canvas id="cwf-canvas" style="width:100%;display:block;cursor:crosshair;image-rendering:auto;"></canvas>
+  <div id="cwf-tip" style="position:absolute;pointer-events:none;display:none;background:rgba(6,14,24,0.95);border:1px solid rgba(45,212,255,0.5);border-radius:5px;padding:6px 9px;font-size:0.68rem;color:#e2e8f0;max-width:230px;line-height:1.45;box-shadow:0 4px 14px rgba(0,0,0,0.5);z-index:5;"></div>
+  <div id="cwf-busy" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(5,13,24,0.82);color:#00ffcc;font-size:0.85rem;font-weight:700;letter-spacing:1px;">FORGING…</div>
+</div>
+
+<div id="cwf-worldname" style="text-align:center;font-size:1.15rem;font-weight:800;color:var(--accent);margin-bottom:2px;">—</div>
+<div id="cwf-tagline" style="text-align:center;font-size:0.74rem;color:var(--text-secondary);margin-bottom:10px;font-style:italic;">Press Forge World to begin</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:7px;margin-bottom:10px;">
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;">Land</div>
+    <div id="cwf-s-land" style="font-size:1rem;font-weight:800;color:#7ec97e;margin-top:2px;">–</div></div>
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;">Peak</div>
+    <div id="cwf-s-peak" style="font-size:1rem;font-weight:800;color:#d8c9a8;margin-top:2px;">–</div></div>
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;">Rivers</div>
+    <div id="cwf-s-riv" style="font-size:1rem;font-weight:800;color:#6bb8ff;margin-top:2px;">–</div></div>
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;">Realms</div>
+    <div id="cwf-s-realm" style="font-size:1rem;font-weight:800;color:#ffd700;margin-top:2px;">–</div></div>
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;">Towns</div>
+    <div id="cwf-s-town" style="font-size:1rem;font-weight:800;color:#ff9b6b;margin-top:2px;">–</div></div>
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px;text-align:center;">
+    <div style="font-size:0.6rem;color:var(--text-secondary);text-transform:uppercase;">Souls</div>
+    <div id="cwf-s-pop" style="font-size:1rem;font-weight:800;color:#e2a0ff;margin-top:2px;">–</div></div>
+</div>
+
+<div id="cwf-inspect" style="background:#070f1a;border:1px solid rgba(45,212,255,0.35);border-radius:6px;padding:10px;font-size:0.75rem;color:var(--text-secondary);line-height:1.55;margin-bottom:10px;min-height:52px;">
+  Click any point on the map to survey the land there.
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;" id="cwf-cols">
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:9px;">
+    <div style="font-size:0.72rem;font-weight:700;color:#ffd700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">⚔ Realms of the World</div>
+    <div id="cwf-realms" style="font-size:0.72rem;color:var(--text-secondary);line-height:1.6;max-height:210px;overflow-y:auto;"></div>
+  </div>
+  <div style="background:#09121d;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:9px;">
+    <div style="font-size:0.72rem;font-weight:700;color:#e2a0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📜 Chronicle of Ages</div>
+    <div id="cwf-history" style="font-size:0.72rem;color:var(--text-secondary);line-height:1.6;max-height:210px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="cwf-legend" style="background:#070f1a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:9px;display:flex;flex-wrap:wrap;gap:7px;font-size:0.65rem;color:var(--text-secondary);"></div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const cv = $('cwf-canvas'), ctx = cv.getContext('2d');
+  const W = 400, H = 260;            // simulation grid
+  const SC = 3;                       // render scale
+  cv.width = W*SC; cv.height = H*SC;
+
+  /* ---------- deterministic RNG (mulberry32 + string hash) ---------- */
+  function hash(str){ let h=1779033703^str.length;
+    for(let i=0;i<str.length;i++){ h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19; }
+    return ()=>{ h=Math.imul(h^h>>>16,2246822507); h=Math.imul(h^h>>>13,3266489909); return (h^=h>>>16)>>>0; };
+  }
+  let rnd = Math.random;
+  function seedRng(s){ const g=hash(s); let a=g();
+    rnd = function(){ a|=0; a=a+0x6D2B79F5|0;
+      let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t;
+      return ((t^t>>>14)>>>0)/4294967296; };
+  }
+  const ri=(a,b)=>Math.floor(rnd()*(b-a+1))+a;
+  const pick=a=>a[Math.floor(rnd()*a.length)];
+
+  /* ---------- value-noise fBm ---------- */
+  function makeNoise(){
+    const P=new Uint8Array(512), p=new Uint8Array(256);
+    for(let i=0;i<256;i++) p[i]=i;
+    for(let i=255;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [p[i],p[j]]=[p[j],p[i]]; }
+    for(let i=0;i<512;i++) P[i]=p[i&255];
+    const fade=t=>t*t*t*(t*(t*6-15)+10);
+    const grad=(h,x,y)=>{ const u=(h&1)?x:-x, v=(h&2)?y:-y; return u+v; };
+    return function(x,y){
+      const X=Math.floor(x)&255, Y=Math.floor(y)&255;
+      x-=Math.floor(x); y-=Math.floor(y);
+      const u=fade(x), v=fade(y);
+      const A=P[X]+Y, B=P[X+1]+Y;
+      const lerp=(a,b,t)=>a+t*(b-a);
+      return lerp(lerp(grad(P[A],x,y),   grad(P[B],x-1,y),   u),
+                  lerp(grad(P[A+1],x,y-1),grad(P[B+1],x-1,y-1),u), v);
+    };
+  }
+  function fbm(n,x,y,oct,lac,gain){
+    let a=1,f=1,s=0,m=0;
+    for(let i=0;i<oct;i++){ s+=a*n(x*f,y*f); m+=a; a*=gain; f*=lac; }
+    return s/m;
+  }
+
+  /* ---------- name generation ---------- */
+  const SYL={
+    on:['ael','bry','cal','dun','el','fen','gal','hal','ith','kor','lum','mor','nar','oth','pel','quor','ran','syl','tor','umb','vel','wyn','yr','zeph','ash','bren','cirr','dor','esk','fael'],
+    mid:['a','e','i','o','u','ae','ei','ia','or','ar','en','il','um','yr','ath','oro','ele','ir'],
+    end:['dor','heim','mar','th','wyn','gard','hold','fell','mere','vale','reach','crest','moor','shade','spire','fen','rock','watch','gate','deep','haven','ford','barrow','cairn','stead','lith','arn','ess','oth','ium']
+  };
+  function nm(min,max){
+    let s=pick(SYL.on);
+    const n=ri(min||1,max||2);
+    for(let i=0;i<n;i++) s+=pick(SYL.mid)+pick(SYL.end);
+    s=s.replace(/(.)\1\1+/g,'$1$1');
+    return s[0].toUpperCase()+s.slice(1).toLowerCase();
+  }
+  const TOWN_PRE=['New','Old','High','Low','North','South','East','West','Great','Little','Far','Stone','Iron','Gold','Silver','Salt','Red','Black','White','Grey'];
+  const TOWN_SUF=['ford','bridge','gate','port','haven','burgh','ton','ham','wick','stead','holm','mouth','crossing','landing','watch','hollow','field','market','row','dale'];
+  function townName(){
+    const r=rnd();
+    if(r<0.34) return pick(TOWN_PRE)+' '+nm(1,1);
+    if(r<0.68) return nm(1,1)+pick(TOWN_SUF);
+    return nm(1,1)+' '+pick(['Cross','Reach','Rest','Watch','End','Keep','Well','Bend','Hollow','Landing']);
+  }
+  const REALM_FORM=['Kingdom of {n}','Duchy of {n}','Free Cities of {n}','{n} Confederation','Empire of {n}','Principality of {n}','Realm of {n}','{n} Dominion','March of {n}','Theocracy of {n}','{n} Hegemony','Barony of {n}'];
+  const RIVER_SUF=['water','run','flow','race','bourne','brook','stream','current','wash','flood'];
+
+  /* ---------- world state ---------- */
+  let world=null, showLabels=true;
+
+  function buildWorld(){
+    const seed=$('cwf-seed').value.trim()||'eldermoor';
+    seedRng(seed);
+    const type=$('cwf-type').value;
+    const seaLv=+$('cwf-sea').value/100;
+    const tempBias=+$('cwf-temp').value;
+    const civLv=+$('cwf-civ').value;
+
+    const n1=makeNoise(), n2=makeNoise(), n3=makeNoise();
+    const N=W*H;
+    const h=new Float32Array(N), temp=new Float32Array(N), rain=new Float32Array(N);
+
+    /* --- tectonic plates: uplift ridges where plates converge --- */
+    const nPlates = type==='archipelago'?ri(9,13) : type==='pangaea'?ri(3,5) : ri(5,8);
+    const plates=[];
+    for(let i=0;i<nPlates;i++) plates.push({
+      x:rnd()*W, y:rnd()*H,
+      vx:(rnd()-0.5)*2, vy:(rnd()-0.5)*2,
+      oceanic: rnd()<(type==='archipelago'?0.62:0.42)
+    });
+    function nearest(x,y){
+      let b=0,bd=1e9,s=0,sd=1e9;
+      for(let i=0;i<plates.length;i++){
+        const dx=x-plates[i].x, dy=y-plates[i].y, d=dx*dx+dy*dy;
+        if(d<bd){ sd=bd; s=b; bd=d; b=i; } else if(d<sd){ sd=d; s=i; }
+      }
+      return [b,s,Math.sqrt(bd),Math.sqrt(sd)];
+    }
+
+    /* --- base elevation --- */
+    const cx=W/2, cy=H/2;
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        const i=y*W+x;
+        let e = fbm(n1,x/78,y/78,6,2.05,0.52)*0.5+0.5;
+        e = e*0.62 + (fbm(n2,x/26,y/26,4,2.1,0.5)*0.5+0.5)*0.24;
+
+        // continental mask
+        const nx=(x-cx)/(W*0.5), ny=(y-cy)/(H*0.5);
+        let d=Math.sqrt(nx*nx*0.92+ny*ny);
+        const warp=fbm(n3,x/95,y/95,3,2,0.55)*0.30
+                 + fbm(n2,x/34+40,y/34+40,4,2.1,0.5)*0.13;
+        d+=warp;
+        let mask;
+        if(type==='pangaea')      mask=1-Math.pow(Math.max(0,d-0.12)/1.05,2.4);
+        else if(type==='archipelago') mask=1-Math.pow(Math.max(0,d)/1.15,1.35);
+        else if(type==='inland')  mask=1-Math.pow(Math.max(0,Math.abs(d-0.62))/0.62,2.0);
+        else                      mask=1-Math.pow(Math.max(0,d-0.02)/1.0,2.0);
+        e*=Math.max(0,Math.min(1,mask));
+
+        // tectonics — sampled on a warped coordinate so plate boundaries are
+        // organic rather than straight Voronoi edges, and the oceanic offset is
+        // blended across the boundary instead of stepping at it.
+        const wx=x+fbm(n3,x/40,y/40,3,2,0.5)*26, wy=y+fbm(n2,x/40+11,y/40+7,3,2,0.5)*26;
+        const [b,s2,db,ds]=nearest(wx,wy);
+        const pb=plates[b], ps=plates[s2];
+        const conv = (pb.vx-ps.vx)*(pb.x-ps.x) + (pb.vy-ps.vy)*(pb.y-ps.y);
+        const ridge = Math.exp(-Math.pow((ds-db)/13,2));      // smooth bump at boundary
+        if(conv<0) e += ridge*0.30*Math.min(1,-conv/40);      // convergent -> mountains
+        else       e -= ridge*0.12*Math.min(1, conv/40);      // divergent -> rift
+        // soft crust type: weight by how deep inside the plate we are
+        const inner = Math.min(1,(ds-db)/22);
+        e -= (pb.oceanic?0.14:0.0)*inner + (pb.oceanic?0.04:0.0);
+        h[i]=Math.max(0,Math.min(1,e));
+      }
+    }
+
+    /* --- thermal erosion smoothing --- */
+    for(let pass=0;pass<3;pass++){
+      const c=Float32Array.from(h);
+      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+        const i=y*W+x;
+        h[i]=(c[i]*4+c[i-1]+c[i+1]+c[i-W]+c[i+W])/8;
+      }
+    }
+
+    // Sea level is taken as a percentile of the actual heightmap rather than a
+    // raw height, so the slider always means "this share of the world is ocean"
+    // regardless of how the noise and tectonics happened to scale.
+    let sea;
+    {
+      // Percentile over cells with any elevation at all: the continental mask
+      // flattens a wide border to exactly 0, which would otherwise swallow the
+      // percentile and make the slider inert.
+      const samp=[];
+      for(let i=0;i<N;i++) if(h[i]>1e-6) samp.push(h[i]);
+      if(samp.length<64){ sea=seaLv; }
+      else{
+        samp.sort((a,b)=>a-b);
+        const zeroFrac=1-samp.length/N;                 // already-ocean share
+        let want=(seaLv-zeroFrac)/Math.max(1e-6,1-zeroFrac);
+        want=Math.max(0,Math.min(0.985,want));
+        sea=samp[Math.floor(want*(samp.length-1))];
+        if(!(sea>0)) sea=1e-5;
+      }
+    }
+    const isLand=i=>h[i]>sea;
+
+    /* --- climate: latitude temperature + orographic rainfall --- */
+    for(let y=0;y<H;y++){
+      const lat=Math.abs(y-cy)/cy;                       // 0 equator -> 1 pole
+      for(let x=0;x<W;x++){
+        const i=y*W+x;
+        // Real-ish Celsius: ~30C at the equator falling to ~-25C at the poles,
+        // then an environmental lapse rate of ~6.5C per 1000m of elevation.
+        let t = 30 - lat*55 + tempBias*4;
+        if(h[i]>sea) t -= ((h[i]-sea)*9000/1000)*6.5;                  // altitude lapse
+        temp[i]=t;
+      }
+    }
+    // Two-directional moisture transport. Prevailing westerlies dominate, but a
+    // weaker easterly return keeps far coasts from drying out. Air also picks up
+    // moisture over warm land (evapotranspiration), so interiors stay habitable
+    // unless a mountain range genuinely blocks them.
+    const rainW=new Float32Array(N), rainE=new Float32Array(N);
+    for(let y=0;y<H;y++){
+      const lat=Math.abs(y-cy)/cy;
+      const cap=100*(1-lat*0.42);                 // poles hold less moisture
+      let moist=cap;
+      for(let x=0;x<W;x++){
+        const i=y*W+x;
+        if(!isLand(i)){ moist=Math.min(cap,moist+9); rainW[i]=moist; continue; }
+        const slope=Math.max(0,h[i]-(x>0?h[i-1]:h[i]))*260;
+        const drop=slope*0.80+0.22;               // gentler baseline loss
+        rainW[i]=moist;
+        moist=Math.max(0,moist-drop);
+        moist=Math.min(cap,moist+(temp[i]>2?0.40:0.10));  // recharge over land
+      }
+      moist=cap*0.72;
+      for(let x=W-1;x>=0;x--){
+        const i=y*W+x;
+        if(!isLand(i)){ moist=Math.min(cap,moist+9); rainE[i]=moist; continue; }
+        const slope=Math.max(0,h[i]-(x<W-1?h[i+1]:h[i]))*260;
+        rainE[i]=moist;
+        moist=Math.max(0,moist-(slope*0.80+0.22));
+        moist=Math.min(cap,moist+(temp[i]>2?0.40:0.10));
+      }
+    }
+    // Blend the two advection passes with a large-scale convective field so that
+    // rainfall forms patches and belts rather than a coastal ring around a dry core.
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const i=y*W+x;
+      const conv=(fbm(n2,x/86+7,y/86+3,5,2.05,0.55)*0.5+0.5);     // 0..1 storm field
+      const lat=Math.abs(y-cy)/cy;
+      const belt=0.78+0.22*Math.cos(lat*Math.PI*1.25);            // mild latitude effect
+      const adv=rainW[i]*0.62+rainE[i]*0.38;
+      rain[i]=Math.max(0,Math.min(100, adv*0.44 + conv*belt*88 ));
+    }
+    // light blur on rainfall
+    { const c=Float32Array.from(rain);
+      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+        const i=y*W+x; rain[i]=(c[i]*3+c[i-1]+c[i+1]+c[i-W]+c[i+W])/7;
+      } }
+
+    /* --- hydrology: fill depressions (priority flood), then route flow --- */
+    const wl=Float32Array.from(h);                 // water level after filling
+    {
+      const INF=1e9, done=new Uint8Array(N);
+      // simple priority queue via binary heap
+      const heap=[]; 
+      const push=(v,i)=>{ heap.push([v,i]); let c=heap.length-1;
+        while(c>0){ const p=(c-1)>>1; if(heap[p][0]<=heap[c][0])break; [heap[p],heap[c]]=[heap[c],heap[p]]; c=p; } };
+      const pop=()=>{ const top=heap[0], last=heap.pop();
+        if(heap.length){ heap[0]=last; let p=0;
+          for(;;){ const l=2*p+1,r=l+1; let m=p;
+            if(l<heap.length&&heap[l][0]<heap[m][0])m=l;
+            if(r<heap.length&&heap[r][0]<heap[m][0])m=r;
+            if(m===p)break; [heap[p],heap[m]]=[heap[m],heap[p]]; p=m; } }
+        return top; };
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        const i=y*W+x;
+        if(x===0||y===0||x===W-1||y===H-1||h[i]<=sea){ wl[i]=h[i]; done[i]=1; push(h[i],i); }
+        else wl[i]=INF;
+      }
+      const dx4=[1,-1,0,0], dy4=[0,0,1,-1];
+      while(heap.length){
+        const [v,i]=pop();
+        const x=i%W, y=(i/W)|0;
+        for(let k=0;k<4;k++){
+          const nx=x+dx4[k], ny=y+dy4[k];
+          if(nx<0||ny<0||nx>=W||ny>=H) continue;
+          const j=ny*W+nx;
+          if(done[j]) continue;
+          wl[j]=Math.max(h[j], v+1e-5);
+          done[j]=1; push(wl[j],j);
+        }
+      }
+    }
+    // flow direction (steepest descent on filled surface) + accumulation
+    const down=new Int32Array(N).fill(-1);
+    const order=new Int32Array(N);
+    for(let i=0;i<N;i++) order[i]=i;
+    // sort cells high->low so accumulation is a single pass
+    const idx=Array.from(order).sort((a,b)=>wl[b]-wl[a]);
+    for(const i of idx){
+      if(h[i]<=sea) continue;
+      const x=i%W, y=(i/W)|0;
+      let best=-1, bv=wl[i];
+      for(let k=0;k<8;k++){
+        const nx=x+[1,-1,0,0,1,1,-1,-1][k], ny=y+[0,0,1,-1,1,-1,1,-1][k];
+        if(nx<0||ny<0||nx>=W||ny>=H) continue;
+        const j=ny*W+nx;
+        if(wl[j]<bv){ bv=wl[j]; best=j; }
+      }
+      down[i]=best;
+    }
+    const flow=new Float32Array(N);
+    for(let i=0;i<N;i++) flow[i]= h[i]>sea ? (0.35+rain[i]/100) : 0;
+    for(const i of idx){
+      const d=down[i];
+      if(d>=0) flow[d]+=flow[i];
+    }
+
+    /* --- trace named rivers from strong headwaters to the sea --- */
+    // Threshold scales with how much land exists: a small archipelago should
+    // still get rivers, a supercontinent shouldn't get thousands.
+    let RIVER_T;
+    {
+      const lf=[];
+      for(let i=0;i<N;i++) if(h[i]>sea) lf.push(flow[i]);
+      if(lf.length<40){ RIVER_T=Infinity; }
+      else { lf.sort((a,b)=>a-b); RIVER_T=Math.max(24,lf[Math.floor(lf.length*0.985)]); }
+    }
+    const rivers=[], isRiver=new Uint8Array(N);
+    {
+      const cand=[];
+      for(let i=0;i<N;i++) if(h[i]>sea && flow[i]>RIVER_T){
+        const d=down[i];
+        if(d<0||flow[d]<=flow[i]) continue;
+        cand.push(i);
+      }
+      // headwaters = river cells whose upstream neighbours are all below threshold
+      const isRiverCell=new Uint8Array(N);
+      for(const i of cand) isRiverCell[i]=1;
+      const heads=[];
+      for(const i of cand){
+        const x=i%W,y=(i/W)|0; let up=0;
+        for(let k=0;k<8;k++){
+          const nx=x+[1,-1,0,0,1,1,-1,-1][k], ny=y+[0,0,1,-1,1,-1,1,-1][k];
+          if(nx<0||ny<0||nx>=W||ny>=H) continue;
+          const j=ny*W+nx;
+          if(down[j]===i && isRiverCell[j]) up++;
+        }
+        if(!up) heads.push(i);
+      }
+      heads.sort((a,b)=>flow[b]-flow[a]);
+      for(const s of heads.slice(0,26)){
+        const path=[]; let c=s, guard=0;
+        while(c>=0 && guard++<4000){
+          path.push(c); isRiver[c]=1;
+          if(h[c]<=sea) break;
+          c=down[c];
+        }
+        if(path.length>16) rivers.push({path, flow:flow[s], name:nm(1,1)+(rnd()<0.5?' '+pick(['River','Water','Run','Flow']):pick(RIVER_SUF))});
+      }
+      rivers.sort((a,b)=>b.path.length-a.path.length);
+      rivers.forEach(r=>{ if(rnd()<0.5) r.name='The '+r.name; });
+    }
+
+    /* --- lakes: filled cells markedly above terrain --- */
+    const isLake=new Uint8Array(N);
+    for(let i=0;i<N;i++) if(h[i]>sea && wl[i]-h[i]>0.004) isLake[i]=1;
+
+    /* --- biomes (Whittaker-ish: temperature x rainfall) --- */
+    const BIOME=[
+      {k:'ocean',   n:'Ocean',            c:[26,58,92]},
+      {k:'shallow', n:'Coastal Shelf',    c:[42,88,128]},
+      {k:'ice',     n:'Ice Sheet',        c:[228,238,246]},
+      {k:'tundra',  n:'Tundra',           c:[150,162,148]},
+      {k:'taiga',   n:'Boreal Forest',    c:[74,106,86]},
+      {k:'forest',  n:'Temperate Forest', c:[74,124,72]},
+      {k:'rain',    n:'Rainforest',       c:[46,102,58]},
+      {k:'grass',   n:'Grassland',        c:[142,158,92]},
+      {k:'savanna', n:'Savanna',          c:[176,166,96]},
+      {k:'steppe',  n:'Steppe',           c:[164,158,118]},
+      {k:'desert',  n:'Desert',           c:[204,182,130]},
+      {k:'alpine',  n:'Alpine',           c:[186,186,190]},
+      {k:'peak',    n:'Snowcapped Peak',  c:[246,248,252]},
+      {k:'marsh',   n:'Wetland',          c:[96,124,96]},
+      {k:'beach',   n:'Coast',            c:[214,200,158]}
+    ];
+    const BI={}; BIOME.forEach((b,i)=>BI[b.k]=i);
+    const biome=new Uint8Array(N);
+    for(let i=0;i<N;i++){
+      if(h[i]<=sea){ biome[i]= h[i]>sea-0.035 ? BI.shallow : BI.ocean; continue; }
+      const t=temp[i], r=rain[i], el=h[i]-sea;
+      if(el>0.30 && t<-3) { biome[i]=BI.peak; continue; }   // snowline needs cold
+      if(el>0.36)         { biome[i]=BI.peak; continue; }
+      if(el>0.23 && t<3)  { biome[i]=BI.alpine; continue; }
+      if(el>0.28)         { biome[i]=BI.alpine; continue; }
+      if(t<-14)   { biome[i]=BI.ice; continue; }
+      if(t<-2)    { biome[i]=BI.tundra; continue; }
+      if(isLake[i]||(r>72&&el<0.03)) { biome[i]=BI.marsh; continue; }
+      if(t<5)     { biome[i]= r>34?BI.taiga:BI.tundra; continue; }
+      if(r<22)    { biome[i]=BI.desert; continue; }
+      if(r<36)    { biome[i]= t>23?BI.savanna:BI.steppe; continue; }
+      if(r<56)    { biome[i]= t>25?BI.savanna:BI.grass; continue; }
+      if(r>74&&t>19){ biome[i]=BI.rain; continue; }
+      biome[i]=BI.forest;
+    }
+    // beaches
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      const i=y*W+x;
+      if(h[i]>sea && h[i]<sea+0.022 && biome[i]!==BI.marsh){
+        if(h[i-1]<=sea||h[i+1]<=sea||h[i-W]<=sea||h[i+W]<=sea) biome[i]=BI.beach;
+      }
+    }
+
+    /* --- habitability --- */
+    const hab=new Float32Array(N);
+    for(let i=0;i<N;i++){
+      if(h[i]<=sea){ hab[i]=0; continue; }
+      const b=biome[i], el=h[i]-sea, t=temp[i], r=rain[i];
+      let s=0.5;
+      if(b===BI.forest||b===BI.grass) s=1.0;
+      else if(b===BI.marsh) s=0.55;
+      else if(b===BI.savanna||b===BI.steppe) s=0.72;
+      else if(b===BI.taiga) s=0.5;
+      else if(b===BI.rain) s=0.55;
+      else if(b===BI.desert) s=0.14;
+      else if(b===BI.tundra) s=0.16;
+      else if(b===BI.alpine) s=0.1;
+      else if(b===BI.ice||b===BI.peak) s=0.02;
+      else if(b===BI.beach) s=0.85;
+      s*=Math.max(0.15,1-el*2.2);
+      if(t<-2||t>36) s*=0.45;
+      if(r<8) s*=0.4;
+      hab[i]=s;
+    }
+    // bonus: fresh water & coast
+    const coastBonus=new Float32Array(N);
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      const i=y*W+x;
+      if(h[i]<=sea) continue;
+      let b=0;
+      if(isRiver[i]||isLake[i]) b+=0.55;
+      if(h[i-1]<=sea||h[i+1]<=sea||h[i-W]<=sea||h[i+W]<=sea) b+=0.45;
+      coastBonus[i]=b;
+    }
+    for(let i=0;i<N;i++) hab[i]=Math.min(1.6,hab[i]*(1+coastBonus[i]));
+
+    /* --- settlements: greedy pick of best sites with spacing --- */
+    const targetTowns=[0,7,16,26,38,52][civLv] ?? 26;
+    const towns=[];
+    if(civLv>0){
+      const cand=[];
+      for(let y=3;y<H-3;y++) for(let x=3;x<W-3;x++){
+        const i=y*W+x;
+        if(hab[i]>0.45) cand.push(i);
+      }
+      cand.sort((a,b)=>hab[b]-hab[a]);
+      const minD=Math.max(9, Math.round(Math.sqrt(W*H/Math.max(1,targetTowns))*0.62));
+      for(const i of cand){
+        if(towns.length>=targetTowns) break;
+        const x=i%W, y=(i/W)|0;
+        let ok=true;
+        for(const t of towns){ const dx=t.x-x, dy=t.y-y; if(dx*dx+dy*dy < minD*minD){ ok=false; break; } }
+        if(!ok) continue;
+        const coastal = (h[i-1]<=sea||h[i+1]<=sea||h[i-W]<=sea||h[i+W]<=sea);
+        const onRiver = isRiver[i]===1;
+        towns.push({i,x,y,coastal,onRiver,hab:hab[i],name:townName()});
+      }
+      // size by habitability + water access
+      towns.forEach(t=>{
+        let p = t.hab*4200 + (t.coastal?2600:0) + (t.onRiver?1800:0) + rnd()*2200;
+        p*= [0.4,0.6,1,1.5,2.1][civLv];
+        t.pop=Math.round(p);
+      });
+      towns.sort((a,b)=>b.pop-a.pop);
+      towns.forEach((t,k)=>{
+        t.rank = k===0?'capital' : k<Math.max(2,towns.length*0.12)?'city' : k<towns.length*0.42?'town':'village';
+        if(t.rank==='capital'||t.rank==='city') t.pop=Math.round(t.pop*1.6);
+      });
+    }
+
+    /* --- realms: flood-fill from capitals over habitable land --- */
+    const realmOf=new Int16Array(N).fill(-1);
+    const realms=[];
+    if(towns.length){
+      const nRealms=Math.max(1,Math.min(9, Math.round(towns.length/ri(4,6))+1));
+      const seeds=[];
+      // seed realms on the largest towns, spread apart
+      for(const t of towns){
+        if(seeds.length>=nRealms) break;
+        let ok=true;
+        for(const s of seeds){ const dx=s.x-t.x,dy=s.y-t.y; if(dx*dx+dy*dy<(W*0.19)**2){ok=false;break;} }
+        if(ok) seeds.push(t);
+      }
+      const PAL=['#c1503f','#3f7fc1','#48a06a','#b98a34','#8a5fc0','#c05f96','#4fa3a3','#9c7a4a','#6f8f3f'];
+      seeds.forEach((s,k)=>{
+        realms.push({
+          id:k, name:pick(REALM_FORM).replace('{n}',nm(1,1)),
+          colour:PAL[k%PAL.length], capital:s, towns:[], area:0, pop:0,
+          ruler:(rnd()<0.5?'Queen ':'King ')+nm(1,1)+' '+pick(['I','II','III','IV','V','VI','VII','IX','XI'])
+        });
+      });
+      // multi-source BFS weighted by habitability (cheap Dijkstra-ish)
+      const cost=new Float32Array(N).fill(Infinity);
+      const hp=[];   // binary min-heap of [cost, cell, realm]
+      const hpush=v=>{ hp.push(v); let c=hp.length-1;
+        while(c>0){ const p=(c-1)>>1; if(hp[p][0]<=hp[c][0])break; [hp[p],hp[c]]=[hp[c],hp[p]]; c=p; } };
+      const hpop=()=>{ const t=hp[0], l=hp.pop();
+        if(hp.length){ hp[0]=l; let p=0;
+          for(;;){ const a=2*p+1,b2=a+1; let m=p;
+            if(a<hp.length&&hp[a][0]<hp[m][0])m=a;
+            if(b2<hp.length&&hp[b2][0]<hp[m][0])m=b2;
+            if(m===p)break; [hp[p],hp[m]]=[hp[m],hp[p]]; p=m; } }
+        return t; };
+      seeds.forEach((s,k)=>{ cost[s.i]=0; realmOf[s.i]=k; hpush([0,s.i,k]); });
+      // Range is expressed in "average steps": a realm can push roughly a third of
+      // the way across the map over good ground, much less through mountains.
+      let relief=0.0001;
+      for(let i=0;i<N;i++) if(h[i]>sea) relief=Math.max(relief,h[i]-sea);
+      const RANGE = W*0.42;
+      const DX8=[1,-1,0,0,1,1,-1,-1], DY8=[0,0,1,-1,1,-1,1,-1];
+      while(hp.length){
+        const [c,i,k]=hpop();
+        if(c>cost[i]+1e-9) continue;
+        const x=i%W, y=(i/W)|0;
+        for(let d=0;d<8;d++){
+          const nx=x+DX8[d], ny=y+DY8[d];
+          if(nx<0||ny<0||nx>=W||ny>=H) continue;
+          const j=ny*W+nx;
+          const diag = d>3 ? 1.414 : 1;
+          let step;
+          if(h[j]<=sea){
+            // shallow coastal water is crossable by boat; deep ocean is not
+            if(h[j] < sea-0.05) continue;
+            step = 3.4;
+          } else {
+            const relEl=Math.max(0,h[j]-sea)/relief;
+            step = 0.8 + (1-Math.min(1,hab[j]/1.2))*1.1 + relEl*relEl*2.2 - (isRiver[j]?0.25:0);
+          }
+          const nc=c+Math.max(0.25,step)*diag;
+          if(nc<cost[j] && nc<RANGE){
+            cost[j]=nc;
+            if(h[j]>sea) realmOf[j]=k;   // only land is territory
+            hpush([nc,j,k]);
+          }
+        }
+      }
+      for(let i=0;i<N;i++) if(realmOf[i]>=0) realms[realmOf[i]].area++;
+      towns.forEach(t=>{ const r=realmOf[t.i]; if(r>=0){ realms[r].towns.push(t); realms[r].pop+=t.pop; } });
+      realms.forEach(r=>{
+        const b={}; let bi=r.capital.i;
+        r.name=r.name;
+        const bio=BIOME[biome[bi]].n;
+        r.seat=r.capital.name;
+        r.trait=pick([
+          'famed for its river trade','built on old ruins','ruled from a mountain fastness',
+          'wealthy from salt and tin','a land of horse-lords','governed by a merchant council',
+          'sworn to an ancient pact','feared for its winter cavalry','rich in orchards and vineyards',
+          'holding the only deep harbour for leagues','divided by a long civil war','keepers of the great library'
+        ]);
+        r.biome=bio;
+      });
+    }
+
+    /* --- chronicle: history derived from the actual map --- */
+    const history=[];
+    if(realms.length){
+      const era=ri(200,900);
+      const big=[...realms].sort((a,b)=>b.area-a.area)[0];
+      const small=[...realms].sort((a,b)=>a.area-b.area)[0];
+      const longR=rivers[0];
+      history.push(`<strong>Year 0.</strong> The first steadings rise at ${towns[towns.length-1]?.name||'the river bend'}, where the land is soft and the water sweet.`);
+      if(longR) history.push(`<strong>Year ${ri(40,120)}.</strong> Boats follow ${longR.name} inland; every settlement along it grows fat on the traffic.`);
+      history.push(`<strong>Year ${ri(150,260)}.</strong> ${big.name} is proclaimed at ${big.seat}, ${big.trait}.`);
+      if(realms.length>1) history.push(`<strong>Year ${ri(280,420)}.</strong> Border stones are set between ${realms[0].name} and ${realms[1].name}. They are moved twice within the decade.`);
+      const desert=towns.find(t=>biome[t.i]===BI.desert), ice=towns.find(t=>biome[t.i]===BI.tundra||biome[t.i]===BI.ice);
+      if(desert) history.push(`<strong>Year ${ri(430,520)}.</strong> ${desert.name} survives three years of drought by digging to the deep water. The wells are still guarded.`);
+      if(ice) history.push(`<strong>Year ${ri(430,540)}.</strong> The long winter closes the passes above ${ice.name}; a third of the herds are lost.`);
+      const port=towns.find(t=>t.coastal&&t.rank!=='village');
+      if(port) history.push(`<strong>Year ${ri(540,640)}.</strong> ${port.name} opens its harbour to foreign hulls, and coin from beyond the map begins to circulate.`);
+      if(realms.length>2) history.push(`<strong>Year ${ri(650,740)}.</strong> ${small.name}, least of the realms, refuses tribute to ${big.name}. The refusal holds.`);
+      const peak=towns.find(t=>h[t.i]-sea>0.16);
+      if(peak) history.push(`<strong>Year ${ri(750,830)}.</strong> Something is found in the high stone above ${peak.name}. The diggings there are not spoken of.`);
+      history.push(`<strong>Year ${era}.</strong> The present age. ${realms.length} realm${realms.length===1?'':'s'} share the land, and the maps are redrawn each generation.`);
+    } else {
+      history.push('<strong>No chronicle.</strong> No people have yet taken root here — only wind, stone and weather.');
+    }
+
+    /* --- world naming --- */
+    const landCount=(()=>{ let c=0; for(let i=0;i<N;i++) if(h[i]>sea)c++; return c; })();
+    const landPct=landCount/N*100;
+    let peakEl=0; for(let i=0;i<N;i++) if(h[i]>peakEl) peakEl=h[i];
+    const totalPop=towns.reduce((s,t)=>s+t.pop,0);
+    const avgT=(()=>{ let s=0,c=0; for(let i=0;i<N;i++) if(h[i]>sea){s+=temp[i];c++;} return c?s/c:0; })();
+    const avgR=(()=>{ let s=0,c=0; for(let i=0;i<N;i++) if(h[i]>sea){s+=rain[i];c++;} return c?s/c:0; })();
+    const worldName = nm(1,2);
+    let tagline;
+    if(landPct<14) tagline='a scattering of islands in a wide green sea';
+    else if(avgT<2) tagline='a cold world of long winters and short harvests';
+    else if(avgR<26) tagline='a parched land where water is counted like coin';
+    else if(avgR>68) tagline='a drowned green world of rain and river';
+    else if(peakEl-sea>0.4) tagline='a realm of high stone and deep valleys';
+    else tagline='a temperate land of forest, field and long roads';
+
+    world={W,H,sea,h,wl,temp,rain,flow,biome,BIOME,BI,isRiver,isLake,rivers,towns,realms,realmOf,hab,
+           landPct,peakEl,totalPop,avgT,avgR,worldName,tagline,history,seed,type,civLv};
+    return world;
+  }
+
+  /* ================= RENDER ================= */
+  function render(){
+    if(!world) return;
+    const {W,H,sea,h,biome,BIOME,BI,isRiver,isLake,rivers,towns,realms,realmOf,flow}=world;
+    const style=$('cwf-style').value;
+    const img=ctx.createImageData(W,H);
+    const D=img.data;
+
+    // hillshade from gradient
+    function shade(i,x,y){
+      if(x<=0||y<=0||x>=W-1||y>=H-1) return 1;
+      const gx=h[i+1]-h[i-1], gy=h[i+W]-h[i-W];
+      return Math.max(0.55,Math.min(1.42, 1 + (-gx*2.6 - gy*2.0)*4.2));
+    }
+
+    const PARCH=[247,237,213];
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const i=y*W+x, p=i*4;
+      let r,g,b;
+      const land=h[i]>sea;
+      const bm=BIOME[biome[i]];
+
+      if(style==='satellite'){
+        [r,g,b]=bm.c;
+        if(land){ const s=shade(i,x,y); r*=s; g*=s; b*=s; }
+        else { const d=(sea-h[i])/sea; r=18+d*-6; g=44+ (1-d)*44; b=78+(1-d)*56; }
+      }
+      else if(style==='parchment'){
+        if(!land){
+          const d=Math.min(1,(sea-h[i])/sea);
+          r=196-d*46; g=206-d*44; b=190-d*30;
+        } else {
+          const el=(h[i]-sea)/(1-sea);
+          r=PARCH[0]-el*58; g=PARCH[1]-el*70; b=PARCH[2]-el*88;
+          const bk=biome[i];
+          if(bk===BI.desert){ r+=6; g-=4; b-=40; }
+          else if(bk===BI.rain){ r-=62; g-=22; b-=58; }
+          else if(bk===BI.forest){ r-=48; g-=14; b-=54; }
+          else if(bk===BI.taiga){ r-=52; g-=24; b-=44; }
+          else if(bk===BI.grass){ r-=22; g-=4; b-=48; }
+          else if(bk===BI.savanna||bk===BI.steppe){ r-=6; g-=8; b-=44; }
+          else if(bk===BI.marsh){ r-=44; g-=20; b-=40; }
+          else if(bk===BI.tundra){ r-=20; g-=14; b-=20; }
+          else if(bk===BI.ice||bk===BI.peak){ r+=8; g+=10; b+=12; }
+          else if(bk===BI.alpine){ r-=8; g-=6; b-=4; }
+          else if(bk===BI.beach){ r+=4; g-=2; b-=30; }
+          const s=shade(i,x,y);
+          r*=(0.62+s*0.40); g*=(0.62+s*0.40); b*=(0.62+s*0.40);
+        }
+      }
+      else if(style==='relief'){
+        if(!land){ r=232;g=236;b=240; }
+        else { const el=(h[i]-sea)/(1-sea); const s=shade(i,x,y);
+          const v=(1-el*0.72)*s*250; r=g=b=Math.max(28,Math.min(252,v)); }
+      }
+      else { // political
+        if(!land){ r=170;g=196;b=214; }
+        else {
+          const rid=realmOf[i];
+          if(rid>=0){
+            const c=realms[rid].colour;
+            r=parseInt(c.slice(1,3),16); g=parseInt(c.slice(3,5),16); b=parseInt(c.slice(5,7),16);
+            const s=shade(i,x,y); r=r*0.55+150*s*0.42; g=g*0.55+150*s*0.42; b=b*0.55+150*s*0.42;
+          } else { const s=shade(i,x,y); r=206*s; g=204*s; b=192*s; }
+        }
+      }
+      if(isLake[i]){
+        if(style==='parchment'){ r=r*0.34+96; g=g*0.34+126; b=b*0.30+150; }
+        else { r=r*0.22+48; g=g*0.26+104; b=b*0.24+156; }
+      }
+      D[p]=Math.max(0,Math.min(255,r)); D[p+1]=Math.max(0,Math.min(255,g)); D[p+2]=Math.max(0,Math.min(255,b)); D[p+3]=255;
+    }
+    // draw at scale
+    const off=document.createElement('canvas'); off.width=W; off.height=H;
+    off.getContext('2d').putImageData(img,0,0);
+    ctx.imageSmoothingEnabled=true;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.drawImage(off,0,0,cv.width,cv.height);
+
+    // parchment grain + vignette
+    if(style==='parchment'){
+      ctx.save(); ctx.globalAlpha=0.055;
+      // seeded so re-rendering the same world is pixel-identical
+      let g=2166136261>>>0;
+      for(let k=0;k<world.seed.length;k++) g=Math.imul(g^world.seed.charCodeAt(k),16777619)>>>0;
+      const grain=()=>{ g^=g<<13; g>>>=0; g^=g>>>17; g^=g<<5; g>>>=0; return g/4294967296; };
+      for(let k=0;k<2600;k++){
+        const x=grain()*cv.width, y=grain()*cv.height;
+        ctx.fillStyle=grain()<0.5?'#6b4f2a':'#3c2c14';
+        ctx.fillRect(x,y,1.6,1.6);
+      }
+      ctx.restore();
+      const vg=ctx.createRadialGradient(cv.width/2,cv.height/2,cv.height*0.24,cv.width/2,cv.height/2,cv.height*0.86);
+      vg.addColorStop(0,'rgba(120,86,40,0)'); vg.addColorStop(1,'rgba(92,64,28,0.34)');
+      ctx.fillStyle=vg; ctx.fillRect(0,0,cv.width,cv.height);
+    }
+
+    /* rivers */
+    const rc = style==='parchment'?'rgba(46,92,132,0.85)' : style==='relief'?'rgba(70,110,150,0.9)' : 'rgba(96,168,240,0.92)';
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle=rc;
+    rivers.forEach(r=>{
+      const pts=r.path;
+      if(pts.length<3) return;
+      // smooth the staircase: average positions over a small window, then
+      // stroke as a curve so rivers read as watercourses, not pixel steps
+      const P=[];
+      for(let k=0;k<pts.length;k++){
+        let sx=0,sy=0,c=0;
+        for(let m=Math.max(0,k-2);m<=Math.min(pts.length-1,k+2);m++){
+          sx+=pts[m]%W; sy+=(pts[m]/W|0); c++;
+        }
+        P.push([(sx/c+0.5)*SC,(sy/c+0.5)*SC]);
+      }
+      // width grows downstream
+      const seg=Math.max(1,Math.floor(P.length/9));
+      for(let k=1;k<P.length;k++){
+        const fw=Math.min(2.9,0.42+Math.log10(1+flow[pts[k]])*0.82);
+        ctx.lineWidth=Math.max(SC*0.30,fw*SC*0.46);
+        ctx.beginPath();
+        ctx.moveTo(P[k-1][0],P[k-1][1]);
+        const mx=(P[k-1][0]+P[k][0])/2, my=(P[k-1][1]+P[k][1])/2;
+        ctx.quadraticCurveTo(P[k-1][0],P[k-1][1],mx,my);
+        ctx.lineTo(P[k][0],P[k][1]);
+        ctx.stroke();
+      }
+      r._pts=P;
+    });
+
+    /* realm borders (political + parchment) */
+    if((style==='political'||style==='parchment') && realms.length){
+      ctx.lineWidth=Math.max(1.2,SC*0.55);
+      ctx.strokeStyle= style==='parchment'?'rgba(96,62,30,0.62)':'rgba(20,28,38,0.72)';
+      ctx.setLineDash(style==='parchment'?[SC*2.2,SC*1.6]:[]);
+      ctx.beginPath();
+      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+        const i=y*W+x; if(h[i]<=sea) continue;
+        const a=realmOf[i];
+        if(a!==realmOf[i+1] && h[i+1]>sea){ ctx.moveTo((x+1)*SC,y*SC); ctx.lineTo((x+1)*SC,(y+1)*SC); }
+        if(a!==realmOf[i+W] && h[i+W]>sea){ ctx.moveTo(x*SC,(y+1)*SC); ctx.lineTo((x+1)*SC,(y+1)*SC); }
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    /* coastline */
+    ctx.strokeStyle= style==='parchment'?'rgba(74,52,26,0.9)':'rgba(12,20,30,0.65)';
+    ctx.lineWidth=Math.max(1,SC*0.42);
+    ctx.beginPath();
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      const i=y*W+x;
+      if(h[i]>sea){
+        if(h[i+1]<=sea){ ctx.moveTo((x+1)*SC,y*SC); ctx.lineTo((x+1)*SC,(y+1)*SC); }
+        if(h[i-1]<=sea){ ctx.moveTo(x*SC,y*SC); ctx.lineTo(x*SC,(y+1)*SC); }
+        if(h[i+W]<=sea){ ctx.moveTo(x*SC,(y+1)*SC); ctx.lineTo((x+1)*SC,(y+1)*SC); }
+        if(h[i-W]<=sea){ ctx.moveTo(x*SC,y*SC); ctx.lineTo((x+1)*SC,y*SC); }
+      }
+    }
+    ctx.stroke();
+
+    /* settlements + labels */
+    if(showLabels){
+      const dark = style==='parchment'||style==='relief';
+      towns.forEach(t=>{
+        const X=(t.x+0.5)*SC, Y=(t.y+0.5)*SC;
+        const big = t.rank==='capital', city=t.rank==='city';
+        const rad = big?SC*1.9 : city?SC*1.4 : SC*0.95;
+        ctx.beginPath();
+        if(big){
+          ctx.fillStyle= dark?'#7a1f14':'#ff4a3d';
+          ctx.strokeStyle= dark?'#2c1206':'#100608'; ctx.lineWidth=SC*0.35;
+          for(let k=0;k<10;k++){ const a=Math.PI*2*k/10-Math.PI/2, rr=k%2?rad*0.46:rad;
+            k?ctx.lineTo(X+Math.cos(a)*rr,Y+Math.sin(a)*rr):ctx.moveTo(X+Math.cos(a)*rr,Y+Math.sin(a)*rr); }
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+        } else {
+          ctx.arc(X,Y,rad,0,7);
+          ctx.fillStyle= city?(dark?'#8a3a12':'#ffa03d') : (dark?'#3b2a16':'#f2e6c8');
+          ctx.fill();
+          ctx.strokeStyle= dark?'rgba(40,24,10,0.9)':'rgba(10,16,24,0.8)'; ctx.lineWidth=SC*0.26; ctx.stroke();
+        }
+        if(big||city||t.rank==='town'){
+          const fs=big?SC*4.1:city?SC*3.4:SC*2.9;
+          ctx.font=`${big?'800':'600'} ${fs}px Georgia,serif`;
+          ctx.textAlign='center'; ctx.textBaseline='bottom';
+          const label=t.name;
+          ctx.lineWidth=SC*1.0; ctx.strokeStyle= dark?'rgba(247,237,213,0.92)':'rgba(4,10,18,0.85)';
+          ctx.strokeText(label,X,Y-rad-SC*0.5);
+          ctx.fillStyle= dark?'#2a1a08':'#fff6e2';
+          ctx.fillText(label,X,Y-rad-SC*0.5);
+        }
+      });
+      // realm names at centroid
+      if(realms.length&&(style==='political'||style==='parchment')){
+        realms.forEach(rm=>{
+          if(rm.area<220) return;
+          // centroid, then snap to the nearest cell actually inside the realm so
+          // labels never float out to sea on crescent-shaped territories
+          let sx=0,sy=0,c=0;
+          for(let i=0;i<W*H;i+=3) if(realmOf[i]===rm.id){ sx+=i%W; sy+=(i/W|0); c++; }
+          if(!c) return;
+          let gx=sx/c, gy=sy/c;
+          if(realmOf[(Math.round(gy)*W+Math.round(gx))|0]!==rm.id){
+            let bd=1e9,bx=gx,by=gy;
+            for(let i=0;i<W*H;i+=2){
+              if(realmOf[i]!==rm.id) continue;
+              const px=i%W, py=(i/W|0), d=(px-gx)*(px-gx)+(py-gy)*(py-gy);
+              if(d<bd){ bd=d; bx=px; by=py; }
+            }
+            gx=bx; gy=by;
+          }
+          const X=Math.max(SC*22,Math.min(cv.width-SC*22,gx*SC)),
+                Y=Math.max(SC*8,Math.min(cv.height-SC*8,gy*SC));
+          ctx.font=`800 ${SC*3.5}px Georgia,serif`;
+          ctx.textAlign='center'; ctx.textBaseline='middle';
+          const nm2=rm.name.toUpperCase();
+          ctx.lineWidth=SC*1.3; ctx.strokeStyle= style==='parchment'?'rgba(247,237,213,0.8)':'rgba(6,12,20,0.7)';
+          ctx.strokeText(nm2,X,Y);
+          ctx.fillStyle= style==='parchment'?'rgba(84,44,16,0.9)':'rgba(255,246,226,0.94)';
+          ctx.fillText(nm2,X,Y);
+        });
+      }
+      // river names along their course
+      ctx.font=`italic 600 ${SC*2.7}px Georgia,serif`;
+      const placed=[];
+      towns.forEach(t=>{ if(t.rank!=='village') placed.push([(t.x+0.5)*SC,(t.y+0.5)*SC,SC*13,SC*4]); });
+      rivers.filter(r=>r.path.length>=52).slice(0,6).forEach(r=>{
+        const P=r._pts; if(!P||P.length<20) return;
+        const k=Math.floor(P.length*0.62);
+        const [X,Y]=P[k], [X2,Y2]=P[Math.min(P.length-1,k+7)];
+        const wpx=ctx.measureText(r.name).width;
+        // skip if this label would sit on top of something already drawn
+        if(placed.some(p=>Math.abs(p[0]-X)<(p[2]+wpx)/2 && Math.abs(p[1]-Y)<p[3]+SC*3)) return;
+        placed.push([X,Y,wpx,SC*4]);
+        let ang=Math.atan2(Y2-Y,X2-X);
+        if(ang>Math.PI/2) ang-=Math.PI; if(ang<-Math.PI/2) ang+=Math.PI;
+        ctx.save(); ctx.translate(X,Y); ctx.rotate(Math.max(-0.75,Math.min(0.75,ang)));
+        ctx.textAlign='center'; ctx.textBaseline='bottom';
+        ctx.lineWidth=SC*1.0; ctx.strokeStyle= style==='parchment'?'rgba(247,237,213,0.9)':'rgba(6,12,20,0.75)';
+        ctx.strokeText(r.name,0,-SC*0.7);
+        ctx.fillStyle= style==='parchment'?'rgba(28,64,100,0.95)':'rgba(150,205,255,0.95)';
+        ctx.fillText(r.name,0,-SC*0.7);
+        ctx.restore();
+      });
+    }
+
+    // compass rose
+    const cxr=cv.width-SC*17, cyr=SC*17, R=SC*9;
+    ctx.save();
+    ctx.strokeStyle= style==='parchment'?'rgba(84,52,20,0.75)':'rgba(230,240,255,0.6)';
+    ctx.fillStyle=ctx.strokeStyle; ctx.lineWidth=SC*0.35;
+    ctx.beginPath(); ctx.arc(cxr,cyr,R,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cxr,cyr-R*1.18); ctx.lineTo(cxr-R*0.3,cyr); ctx.lineTo(cxr,cyr+R*0.42); ctx.lineTo(cxr+R*0.3,cyr); ctx.closePath(); ctx.fill();
+    ctx.font=`700 ${SC*3.4}px Georgia,serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('N',cxr,cyr-R*1.52);
+    ctx.restore();
+  }
+
+  /* ================= PANELS ================= */
+  function updatePanels(){
+    const w=world;
+    $('cwf-worldname').textContent=w.worldName;
+    $('cwf-tagline').textContent=w.tagline+' · seed “'+w.seed+'”';
+    $('cwf-s-land').textContent=w.landPct.toFixed(0)+'%';
+    $('cwf-s-peak').textContent=Math.round((w.peakEl-w.sea)*9000)+'m';
+    $('cwf-s-riv').textContent=w.rivers.length;
+    $('cwf-s-realm').textContent=w.realms.length;
+    $('cwf-s-town').textContent=w.towns.length;
+    $('cwf-s-pop').textContent= w.totalPop>=1e6?(w.totalPop/1e6).toFixed(1)+'M':w.totalPop>=1000?Math.round(w.totalPop/1000)+'k':w.totalPop;
+
+    $('cwf-realms').innerHTML = w.realms.length ? w.realms.map(r=>`
+      <div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="width:10px;height:10px;border-radius:2px;background:${r.colour};flex-shrink:0;"></span>
+          <strong style="color:var(--text);font-size:0.73rem;">${r.name}</strong>
+        </div>
+        <div style="padding-left:16px;font-size:0.68rem;">
+          Seat: ${r.seat} · ${r.ruler}<br>
+          ${r.towns.length} settlement${r.towns.length===1?'':'s'} · ${r.pop>=1000?Math.round(r.pop/1000)+'k':r.pop} souls · ${r.biome}<br>
+          <span style="opacity:0.8;font-style:italic;">${r.trait}</span>
+        </div>
+      </div>`).join('') : '<em style="opacity:0.7;">No realms have risen. Raise the civilisation level.</em>';
+
+    $('cwf-history').innerHTML=w.history.map(x=>`<div style="padding:3px 0;">${x}</div>`).join('');
+
+    const used={};
+    for(let i=0;i<w.W*w.H;i++){ const b=w.biome[i]; used[b]=(used[b]||0)+1; }
+    $('cwf-legend').innerHTML=Object.keys(used)
+      .filter(k=>used[k]>w.W*w.H*0.004)
+      .sort((a,b)=>used[b]-used[a])
+      .map(k=>{ const b=w.BIOME[k];
+        return `<span style="display:inline-flex;align-items:center;gap:4px;">
+          <span style="width:11px;height:11px;border-radius:2px;border:1px solid rgba(0,0,0,0.35);background:rgb(${b.c.join(',')});"></span>${b.n}</span>`;
+      }).join('');
+  }
+
+  /* ================= INTERACTION ================= */
+  function cellFromEvent(e){
+    const r=cv.getBoundingClientRect();
+    const px=(e.clientX-r.left)/r.width, py=(e.clientY-r.top)/r.height;
+    const x=Math.max(0,Math.min(W-1,Math.floor(px*W))), y=Math.max(0,Math.min(H-1,Math.floor(py*H)));
+    return {x,y,i:y*W+x};
+  }
+  function describe(i,x,y){
+    const w=world, land=w.h[i]>w.sea;
+    const bm=w.BIOME[w.biome[i]];
+    const elev=Math.round((w.h[i]-w.sea)*9000);
+    let near=null,nd=1e9;
+    w.towns.forEach(t=>{ const dx=t.x-x,dy=t.y-y,d=dx*dx+dy*dy; if(d<nd){nd=d;near=t;} });
+    const rid=w.realmOf[i];
+    let s='';
+    if(!land){
+      s=`<strong style="color:#6bb8ff;">${bm.n}</strong> · depth ${Math.round((w.sea-w.h[i])*6000)}m`;
+      if(near&&Math.sqrt(nd)<26) s+=`<br>Nearest shore settlement: <strong>${near.name}</strong>.`;
+    } else {
+      s=`<strong style="color:#7ec97e;">${bm.n}</strong> · ${elev>0?elev+'m above sea':'at sea level'}`;
+      s+=` · ${Math.round(w.temp[i])}°C · rainfall ${Math.round(w.rain[i])}`;
+      if(rid>=0) s+=`<br>Within <strong style="color:${w.realms[rid].colour};">${w.realms[rid].name}</strong>, ruled by ${w.realms[rid].ruler}.`;
+      else if(w.realms.length) s+='<br><em>Beyond any realm — unclaimed country.</em>';
+      if(w.isRiver[i]) { const r=w.rivers.find(rv=>rv.path.includes(i)); s+=`<br>On the banks of <strong>${r?r.name:'a river'}</strong>.`; }
+      if(w.isLake[i]) s+='<br>Standing water — a lake or tarn.';
+      if(near){
+        const dist=Math.round(Math.sqrt(nd)*11);
+        s+= dist<6 ? `<br><strong style="color:#ff9b6b;">${near.name}</strong> stands here (${near.rank}, ${near.pop.toLocaleString()} souls${near.coastal?', a port':''}${near.onRiver?', on the river':''}).`
+                   : `<br>${dist} leagues from <strong>${near.name}</strong>.`;
+      }
+      const hb=w.hab[i];
+      s+=`<br><span style="opacity:0.75;">Habitability: ${hb>1?'excellent':hb>0.65?'good':hb>0.35?'marginal':hb>0.12?'harsh':'all but uninhabitable'}.</span>`;
+    }
+    return s;
+  }
+  cv.addEventListener('click',e=>{
+    if(!world) return;
+    const {i,x,y}=cellFromEvent(e);
+    $('cwf-inspect').innerHTML=describe(i,x,y);
+  });
+  cv.addEventListener('mousemove',e=>{
+    if(!world) return;
+    const {i,x,y}=cellFromEvent(e);
+    const t=$('cwf-tip'), r=cv.getBoundingClientRect();
+    let near=null,nd=1e9;
+    world.towns.forEach(s=>{ const dx=s.x-x,dy=s.y-y,d=dx*dx+dy*dy; if(d<nd){nd=d;near=s;} });
+    const bm=world.BIOME[world.biome[i]];
+    let txt=`<strong>${bm.n}</strong>`;
+    if(near&&Math.sqrt(nd)<4) txt=`<strong style="color:#ffb08a;">${near.name}</strong><br>${near.rank} · ${near.pop.toLocaleString()} souls`;
+    else if(world.realmOf[i]>=0) txt+=`<br>${world.realms[world.realmOf[i]].name}`;
+    t.innerHTML=txt; t.style.display='block';
+    t.style.left=Math.min(r.width-238,e.clientX-r.left+14)+'px';
+    t.style.top=Math.max(4,e.clientY-r.top-10)+'px';
+  });
+  cv.addEventListener('mouseleave',()=>{ $('cwf-tip').style.display='none'; });
+
+  /* ================= CONTROLS ================= */
+  const TEMPS=['Frozen','Cold','Cool','Mild','Temperate','Warm','Hot','Scorching','Infernal'];
+  const CIVS=['Wilderness','Sparse','Settled','Populous','Teeming'];
+  function syncLabels(){
+    $('cwf-sea-v').textContent=$('cwf-sea').value;
+    $('cwf-temp-v').textContent=TEMPS[+$('cwf-temp').value+4];
+    $('cwf-civ-v').textContent=CIVS[+$('cwf-civ').value];
+  }
+  ['cwf-sea','cwf-temp','cwf-civ'].forEach(id=>$(id).addEventListener('input',syncLabels));
+
+  function forge(){
+    $('cwf-busy').style.display='flex';
+    setTimeout(()=>{
+      try{ buildWorld(); render(); updatePanels();
+        $('cwf-inspect').innerHTML='Click any point on the map to survey the land there.';
+      } catch(err){ $('cwf-inspect').innerHTML='<span style="color:#ff6b6b;">The forge faltered: '+err.message+'</span>'; }
+      $('cwf-busy').style.display='none';
+    },30);
+  }
+  $('cwf-forge').addEventListener('click',forge);
+  $('cwf-random').addEventListener('click',()=>{
+    const a=['ash','bram','cinder','dusk','ember','frost','glim','hollow','iron','jade','kelp','loam','mist','north','ochre','pale','quill','rune','salt','thorn','umber','vex','wold','yarrow'];
+    $('cwf-seed').value=a[Math.floor(Math.random()*a.length)]+a[Math.floor(Math.random()*a.length)]+Math.floor(Math.random()*900+100);
+    forge();
+  });
+  $('cwf-labels').addEventListener('click',()=>{ showLabels=!showLabels; render(); });
+  $('cwf-style').addEventListener('change',()=>{ if(world) render(); });
+  $('cwf-save').addEventListener('click',()=>{
+    if(!world) return;
+    const a=document.createElement('a');
+    a.download=(world.worldName||'world').toLowerCase()+'-map.png';
+    a.href=cv.toDataURL('image/png'); a.click();
+  });
+  ['cwf-seed'].forEach(id=>$(id).addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); forge(); }}));
+
+  syncLabels();
+  forge();
+})();
+</script>
