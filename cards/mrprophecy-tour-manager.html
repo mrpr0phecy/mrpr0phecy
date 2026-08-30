@@ -1,0 +1,183 @@
+<!-- cards/mrprophecy-tour-manager.html -->
+<h2 id="mptm-title" style="margin-top:0;color:var(--accent);">🗺️ MrProphecy: Tour Manager</h2>
+
+<p id="mptm-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+  Twelve weeks to take MrProphecy from a Luton bedroom to a headline slot. Balance fans, cash and energy. Real tracks play while you decide.
+</p>
+
+<div id="mptm-stage" style="background:linear-gradient(160deg,#0b0f1a,#121b2b);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:18px;">
+  <div id="mptm-idle">
+    <div style="font-weight:900;color:var(--accent);margin-bottom:6px;">TOUR MANAGER</div>
+    <p class="small" style="color:var(--text-secondary);margin-bottom:12px;">Twelve weeks to build MrProphecy from Luton to a headline slot. Choose where the week goes.</p>
+    <button type="button" id="mptm-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#9654; Start tour</button>
+  </div>
+  <div id="mptm-play" style="display:none;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;font-size:0.72rem;text-align:center;">
+      <div style="background:rgba(255,255,255,.05);padding:7px;border-radius:8px;">WEEK<br><b id="mptm-wk" style="color:var(--text);font-size:1rem;">1</b>/12</div>
+      <div style="background:rgba(255,255,255,.05);padding:7px;border-radius:8px;">FANS<br><b id="mptm-fans" style="color:var(--accent);font-size:1rem;">100</b></div>
+      <div style="background:rgba(255,255,255,.05);padding:7px;border-radius:8px;">CASH<br><b id="mptm-cash" style="color:var(--premium);font-size:1rem;">&pound;200</b></div>
+      <div style="background:rgba(255,255,255,.05);padding:7px;border-radius:8px;">ENERGY<br><b id="mptm-en" style="color:var(--success);font-size:1rem;">100</b></div>
+    </div>
+    <div id="mptm-opts" style="display:grid;gap:8px;"></div>
+    <div id="mptm-log" class="small" style="margin-top:12px;color:var(--text-secondary);min-height:34px;line-height:1.5;"></div>
+  </div>
+</div>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+    <button type="button" id="mptm-mute" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#128266; Music on</button>
+    <button type="button" id="mptm-skip" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#9197; Next track</button>
+    <span id="mptm-track" class="small" style="color:var(--text-secondary);font-size:0.75rem;"></span>
+    <a href="https://www.youtube.com/@MrProphecy?sub_confirmation=1" target="_blank" rel="noopener noreferrer" style="margin-left:auto;font-size:0.72rem;color:var(--accent);text-decoration:none;font-weight:700;">Music by MrProphecy &#8599;</a>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---- MrProphecy audio bed -------------------------------------------
+     A hidden YouTube IFrame player. The API script is not even injected
+     until the player first starts, so the card costs nothing until played
+     and no third-party request is made on page load.                   */
+  var mptmTRACKS = [{"id": "pVd1mRhhakk", "n": "Inherent"}, {"id": "h0ye5Voha-E", "n": "Invested"}, {"id": "5QVGlIhtNLE", "n": "Innovate"}, {"id": "8rMB45Ho1N4", "n": "Inhale"}];
+  var mptmyt = null, mptmytReady = false, mptmpending = false, mptmti = 0, mptmmuted = false;
+
+  function mptmbootAudio() {
+    if (mptmyt || document.getElementById('mptm-ytwrap')) return;
+    var w = document.createElement('div');
+    w.id = 'mptm-ytwrap';
+    w.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;overflow:hidden;';
+    var d = document.createElement('div'); d.id = 'mptm-ythost';
+    w.appendChild(d); document.body.appendChild(w);
+
+    function make() {
+      mptmyt = new YT.Player('mptm-ythost', {
+        host: 'https://www.youtube-nocookie.com',
+        width: 1, height: 1,
+        videoId: mptmTRACKS[mptmti].id,
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+        events: {
+          onReady: function (e) {
+            mptmytReady = true;
+            e.target.setVolume(38);
+            if (mptmpending) { mptmpending = false; e.target.playVideo(); }
+            mptmlabel();
+          },
+          onStateChange: function (e) { if (e.data === YT.PlayerState.ENDED) mptmnextTrack(); },
+          onError: function () { mptmnextTrack(); }
+        }
+      });
+    }
+    if (window.YT && window.YT.Player) { make(); return; }
+    var prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function () { if (typeof prev === 'function') prev(); make(); };
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      var sc = document.createElement('script');
+      sc.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(sc);
+    }
+  }
+  function mptmlabel() {
+    var el = document.getElementById('mptm-track');
+    if (el) el.textContent = mptmmuted ? 'muted' : ('\u266a ' + mptmTRACKS[mptmti].n);
+  }
+  function mptmmusicOn() {
+    if (mptmmuted) return;
+    mptmbootAudio();
+    if (mptmytReady && mptmyt) mptmyt.playVideo(); else mptmpending = true;
+  }
+  function mptmmusicOff() {
+    mptmpending = false;
+    if (mptmytReady && mptmyt) try { mptmyt.pauseVideo(); } catch (e) {}
+  }
+  function mptmnextTrack() {
+    mptmti = (mptmti + 1) % mptmTRACKS.length;
+    if (mptmytReady && mptmyt) { mptmyt.loadVideoById(mptmTRACKS[mptmti].id); }
+    mptmlabel();
+  }
+  function mptmtoggleMute() {
+    mptmmuted = !mptmmuted;
+    var b = document.getElementById('mptm-mute');
+    if (b) b.textContent = mptmmuted ? '\ud83d\udd07 Music off' : '\ud83d\udd0a Music on';
+    if (mptmmuted) mptmmusicOff(); else if (mptmrunning) mptmmusicOn();
+    mptmlabel();
+  }
+
+
+  var mptmrunning=false, wk=1, fans=100, cash=200, en=100;
+  var idle=document.getElementById('mptm-idle'), play=document.getElementById('mptm-play');
+  var ACTIONS = [
+    { n:'Play a local gig', d:'Small room, small money, real fans.',
+       f:function(){ var g=18+Math.floor(Math.random()*30); fans+=g; cash+=40; en-=18; return 'Played Luton. +'+g+' fans, +\u00a340.'; } },
+    { n:'Record a new track', d:'Costs energy and cash, pays off later.',
+       f:function(){ cash-=60; en-=22; var g=Math.floor(fans*0.18)+12; fans+=g; return 'New track out. +'+g+' fans, -\u00a360.'; } },
+    { n:'Animate a video', d:'Expensive, but the visuals travel.',
+       f:function(){ cash-=110; en-=30; var g=Math.floor(fans*0.34)+22; fans+=g; return 'Animation dropped. +'+g+' fans, -\u00a3110.'; } },
+    { n:'Rest and write', d:'Recover energy, build ideas.',
+       f:function(){ en=Math.min(100,en+42); var g=Math.floor(Math.random()*9); fans+=g; return 'Rested. +42 energy, +'+g+' fans.'; } },
+    { n:'Day job shift', d:'Boring. Pays the bills.',
+       f:function(){ cash+=140; en-=16; return 'Worked a shift. +\u00a3140.'; } },
+    { n:'Post to socials', d:'Free, unpredictable.',
+       f:function(){ en-=6; var g=Math.floor(Math.random()*fans*0.2); fans+=g; return g>fans*0.1 ? 'A clip took off. +'+g+' fans.' : 'Quiet response. +'+g+' fans.'; } }
+  ];
+  function sync() {
+    document.getElementById('mptm-wk').textContent = wk;
+    document.getElementById('mptm-fans').textContent = fans.toLocaleString();
+    document.getElementById('mptm-cash').textContent = '\u00a3' + cash;
+    var e = document.getElementById('mptm-en');
+    e.textContent = Math.max(0,en);
+    e.style.color = en>60?'var(--success)':en>30?'var(--premium)':'var(--error)';
+  }
+  function render() {
+    var box = document.getElementById('mptm-opts'); box.innerHTML='';
+    ACTIONS.forEach(function(a){
+      var b=document.createElement('button');
+      b.type='button';
+      b.innerHTML = '<b style="color:var(--text);">'+a.n+'</b><br><span style="color:var(--text-secondary);font-size:.76rem;">'+a.d+'</span>';
+      b.style.cssText='text-align:left;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);color:var(--text);padding:10px 13px;border-radius:9px;cursor:pointer;font-size:.86rem;line-height:1.4;';
+      b.addEventListener('click',function(){ turn(a); });
+      box.appendChild(b);
+    });
+  }
+  function turn(a) {
+    if (!mptmrunning) return;
+    if (en < 12 && a.n !== 'Rest and write') {
+      document.getElementById('mptm-log').textContent = 'Too tired. Rest first.'; return;
+    }
+    var msg = a.f();
+    if (cash < 0) { fans = Math.max(0, fans - 40); msg += ' Went overdrawn \u2014 lost 40 fans.'; cash = 0; }
+    en = Math.max(0, en);
+    wk++; sync();
+    document.getElementById('mptm-log').textContent = msg;
+    if (wk > 12) return finish();
+  }
+  function finish() {
+    mptmrunning=false; mptmmusicOff();
+    var verdict = fans>=3000 ? 'HEADLINE SLOT. You built something real.' :
+                  fans>=1500 ? 'Main support. Genuine momentum.' :
+                  fans>=700  ? 'Solid club circuit. Keep going.' :
+                               'Still grinding. That is most artists.';
+    play.style.display='none'; idle.style.display='';
+    idle.innerHTML = '<div style="font-weight:900;color:var(--premium);margin-bottom:6px;">'+fans.toLocaleString()+' FANS</div>' +
+      '<p class="small" style="color:var(--text-secondary);margin-bottom:6px;">'+verdict+'</p>' +
+      '<p class="small" style="color:var(--text-secondary);margin-bottom:12px;">The real MrProphecy did this with 233 videos. <a href="listen.html" style="color:var(--accent);font-weight:700;">Hear them &#8599;</a></p>' +
+      '<button type="button" id="mptm-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#8635; New tour</button>';
+    idle.querySelector('#mptm-start').addEventListener('click', start);
+  }
+  function start() {
+    idle.style.display='none'; play.style.display='';
+    mptmrunning=true; wk=1; fans=100; cash=200; en=100;
+    sync(); render(); document.getElementById('mptm-log').textContent='Twelve weeks. Make them count.';
+    mptmmusicOn();
+  }
+  document.getElementById('mptm-start').addEventListener('click', start);
+
+
+  document.getElementById('mptm-mute').addEventListener('click', mptmtoggleMute);
+  document.getElementById('mptm-skip').addEventListener('click', function () {
+    mptmnextTrack();
+    if (mptmrunning && !mptmmuted) mptmmusicOn();
+  });
+  mptmlabel();
+
+})();
+</script>

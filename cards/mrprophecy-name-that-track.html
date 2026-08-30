@@ -1,0 +1,190 @@
+<!-- cards/mrprophecy-name-that-track.html -->
+<h2 id="mpnt-title" style="margin-top:0;color:var(--accent);">🎧 MrProphecy: Name That Track</h2>
+
+<p id="mpnt-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+  A real MrProphecy track plays from a random point &mdash; pick the title from four options. Ten rounds, no audio until you press start.
+</p>
+
+<div id="mpnt-stage" style="background:linear-gradient(160deg,#0b0f1a,#141e2e);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:18px;min-height:210px;">
+  <div id="mpnt-idle">
+    <div style="font-weight:900;color:var(--accent);margin-bottom:6px;">GUESS THE MRPROPHECY TRACK</div>
+    <p class="small" style="color:var(--text-secondary);margin-bottom:12px;">A random track plays from a random point. Pick the title from four options. Ten rounds.</p>
+    <button type="button" id="mpnt-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#9654; Start quiz</button>
+  </div>
+  <div id="mpnt-play" style="display:none;">
+    <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:10px;">
+      <span>Round <b id="mpnt-round" style="color:var(--text);">1</b>/10</span>
+      <span>Score <b id="mpnt-score" style="color:var(--premium);">0</b></span>
+    </div>
+    <div id="mpnt-wave" style="height:52px;display:flex;align-items:flex-end;gap:3px;margin-bottom:14px;"></div>
+    <div id="mpnt-opts" style="display:grid;gap:8px;"></div>
+    <div id="mpnt-fb" class="small" style="margin-top:10px;min-height:20px;font-weight:700;"></div>
+  </div>
+</div>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+    <button type="button" id="mpnt-mute" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#128266; Music on</button>
+    <button type="button" id="mpnt-skip" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#9197; Next track</button>
+    <span id="mpnt-track" class="small" style="color:var(--text-secondary);font-size:0.75rem;"></span>
+    <a href="https://www.youtube.com/@MrProphecy?sub_confirmation=1" target="_blank" rel="noopener noreferrer" style="margin-left:auto;font-size:0.72rem;color:var(--accent);text-decoration:none;font-weight:700;">Music by MrProphecy &#8599;</a>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---- MrProphecy audio bed -------------------------------------------
+     A hidden YouTube IFrame player. The API script is not even injected
+     until the player first starts, so the card costs nothing until played
+     and no third-party request is made on page load.                   */
+  var mpntTRACKS = [{"id": "qL6X6n6FLuo", "n": "Injection"}, {"id": "NRdy6bZ0uw8", "n": "Invinsible"}, {"id": "XHK3oUuT4eQ", "n": "Infighting"}, {"id": "83tgFoW2IUA", "n": "Incarnation"}, {"id": "AkgRGpmkWLk", "n": "Inside"}, {"id": "pNMuhikcxsY", "n": "Inrush"}, {"id": "IiHLS25VjgM", "n": "Innersoul"}, {"id": "h0ye5Voha-E", "n": "Invested"}, {"id": "5QVGlIhtNLE", "n": "Innovate"}, {"id": "PjWl-ivtOdw", "n": "Incursion"}, {"id": "9wzx-JG0WKk", "n": "Infiltrate"}, {"id": "kZB4_wln9EE", "n": "Incompetence"}];
+  var mpntyt = null, mpntytReady = false, mpntpending = false, mpntti = 0, mpntmuted = false;
+
+  function mpntbootAudio() {
+    if (mpntyt || document.getElementById('mpnt-ytwrap')) return;
+    var w = document.createElement('div');
+    w.id = 'mpnt-ytwrap';
+    w.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;overflow:hidden;';
+    var d = document.createElement('div'); d.id = 'mpnt-ythost';
+    w.appendChild(d); document.body.appendChild(w);
+
+    function make() {
+      mpntyt = new YT.Player('mpnt-ythost', {
+        host: 'https://www.youtube-nocookie.com',
+        width: 1, height: 1,
+        videoId: mpntTRACKS[mpntti].id,
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+        events: {
+          onReady: function (e) {
+            mpntytReady = true;
+            e.target.setVolume(38);
+            if (mpntpending) { mpntpending = false; e.target.playVideo(); }
+            mpntlabel();
+          },
+          onStateChange: function (e) { if (e.data === YT.PlayerState.ENDED) mpntnextTrack(); },
+          onError: function () { mpntnextTrack(); }
+        }
+      });
+    }
+    if (window.YT && window.YT.Player) { make(); return; }
+    var prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function () { if (typeof prev === 'function') prev(); make(); };
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      var sc = document.createElement('script');
+      sc.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(sc);
+    }
+  }
+  function mpntlabel() {
+    var el = document.getElementById('mpnt-track');
+    if (el) el.textContent = mpntmuted ? 'muted' : ('\u266a ' + mpntTRACKS[mpntti].n);
+  }
+  function mpntmusicOn() {
+    if (mpntmuted) return;
+    mpntbootAudio();
+    if (mpntytReady && mpntyt) mpntyt.playVideo(); else mpntpending = true;
+  }
+  function mpntmusicOff() {
+    mpntpending = false;
+    if (mpntytReady && mpntyt) try { mpntyt.pauseVideo(); } catch (e) {}
+  }
+  function mpntnextTrack() {
+    mpntti = (mpntti + 1) % mpntTRACKS.length;
+    if (mpntytReady && mpntyt) { mpntyt.loadVideoById(mpntTRACKS[mpntti].id); }
+    mpntlabel();
+  }
+  function mpnttoggleMute() {
+    mpntmuted = !mpntmuted;
+    var b = document.getElementById('mpnt-mute');
+    if (b) b.textContent = mpntmuted ? '\ud83d\udd07 Music off' : '\ud83d\udd0a Music on';
+    if (mpntmuted) mpntmusicOff(); else if (mpntrunning) mpntmusicOn();
+    mpntlabel();
+  }
+
+
+  var mpntrunning = false, mpntround = 0, mpntscore = 0, mpntanswer = null, mpntlock = false, mpntwf = null;
+  var idle = document.getElementById('mpnt-idle'), play = document.getElementById('mpnt-play');
+
+  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  function wave() {
+    var el = document.getElementById('mpnt-wave'); el.innerHTML = '';
+    for (var i = 0; i < 46; i++) {
+      var b = document.createElement('div');
+      b.style.cssText = 'flex:1;background:linear-gradient(180deg,#2dd4ff,#1a6f8a);border-radius:2px;height:6px;transition:height .12s;';
+      el.appendChild(b);
+    }
+    if (mpntwf) clearInterval(mpntwf);
+    mpntwf = setInterval(function () {
+      if (!mpntrunning) return;
+      for (var i = 0; i < el.children.length; i++) el.children[i].style.height = (6 + Math.random() * 44) + 'px';
+    }, 130);
+  }
+
+  function newRound() {
+    if (mpntround >= 10) return finish();
+    mpntround++; mpntlock = false;
+    document.getElementById('mpnt-round').textContent = mpntround;
+    document.getElementById('mpnt-fb').textContent = '';
+    var pool = shuffle(mpntTRACKS);
+    mpntanswer = pool[0];
+    var opts = shuffle([pool[0], pool[1], pool[2], pool[3]]);
+    var box = document.getElementById('mpnt-opts'); box.innerHTML = '';
+    opts.forEach(function (o) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = o.n;
+      b.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:11px 14px;border-radius:9px;font-weight:700;cursor:pointer;text-align:left;font-size:0.9rem;';
+      b.addEventListener('click', function () { guess(o, b); });
+      box.appendChild(b);
+    });
+    mpntti = mpntTRACKS.indexOf(mpntanswer);
+    if (mpntytReady && mpntyt) {
+      mpntyt.loadVideoById({ videoId: mpntanswer.id, startSeconds: 20 + Math.floor(Math.random() * 70) });
+      if (!mpntmuted) mpntyt.playVideo();
+    } else mpntmusicOn();
+  }
+
+  function guess(o, btn) {
+    if (mpntlock) return; mpntlock = true;
+    var fb = document.getElementById('mpnt-fb');
+    if (o.id === mpntanswer.id) {
+      mpntscore++; btn.style.borderColor = 'var(--success)'; btn.style.background = 'rgba(57,255,20,0.14)';
+      fb.style.color = 'var(--success)'; fb.textContent = 'Correct \u2014 ' + mpntanswer.n;
+    } else {
+      btn.style.borderColor = 'var(--error)'; btn.style.background = 'rgba(255,77,77,0.14)';
+      fb.style.color = 'var(--error)'; fb.textContent = 'It was ' + mpntanswer.n;
+    }
+    document.getElementById('mpnt-score').textContent = mpntscore;
+    setTimeout(newRound, 1500);
+  }
+
+  function finish() {
+    mpntrunning = false; mpntmusicOff();
+    if (mpntwf) clearInterval(mpntwf);
+    play.style.display = 'none'; idle.style.display = '';
+    idle.innerHTML = '<div style="font-weight:900;color:var(--premium);margin-bottom:6px;">' + mpntscore + ' / 10</div>' +
+      '<p class="small" style="color:var(--text-secondary);margin-bottom:12px;">' +
+      (mpntscore >= 8 ? 'Serious listener.' : mpntscore >= 5 ? 'Not bad. Go deeper into the catalogue.' : 'Time to explore the In- series.') + '</p>' +
+      '<button type="button" id="mpnt-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#8635; Play again</button>' +
+      ' <a href="listen.html" style="margin-left:8px;color:var(--accent);font-size:0.85rem;font-weight:700;">Hear them all &#8599;</a>';
+    idle.querySelector('#mpnt-start').addEventListener('click', start);
+  }
+
+  function start() {
+    idle.style.display = 'none'; play.style.display = '';
+    mpntrunning = true; mpntround = 0; mpntscore = 0;
+    document.getElementById('mpnt-score').textContent = '0';
+    wave(); mpntmusicOn(); newRound();
+  }
+  document.getElementById('mpnt-start').addEventListener('click', start);
+
+
+  document.getElementById('mpnt-mute').addEventListener('click', mpnttoggleMute);
+  document.getElementById('mpnt-skip').addEventListener('click', function () {
+    mpntnextTrack();
+    if (mpntrunning && !mpntmuted) mpntmusicOn();
+  });
+  mpntlabel();
+
+})();
+</script>

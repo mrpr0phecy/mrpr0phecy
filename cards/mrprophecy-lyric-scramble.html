@@ -1,0 +1,175 @@
+<!-- cards/mrprophecy-lyric-scramble.html -->
+<h2 id="mpls-title" style="margin-top:0;color:var(--accent);">🔤 MrProphecy: Title Scramble</h2>
+
+<p id="mpls-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+  Unscramble real MrProphecy track titles against a sixty-second clock. Music kicks in on start, not before.
+</p>
+
+<div id="mpls-stage" style="background:linear-gradient(160deg,#0b0f1a,#131d2c);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:18px;min-height:200px;">
+  <div id="mpls-idle">
+    <div style="font-weight:900;color:var(--accent);margin-bottom:6px;">TRACK TITLE SCRAMBLE</div>
+    <p class="small" style="color:var(--text-secondary);margin-bottom:12px;">Unscramble real MrProphecy track titles against the clock. Sixty seconds.</p>
+    <button type="button" id="mpls-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#9654; Start</button>
+  </div>
+  <div id="mpls-play" style="display:none;">
+    <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:12px;">
+      <span>Solved <b id="mpls-n" style="color:var(--premium);">0</b></span>
+      <span>Time <b id="mpls-t" style="color:var(--text);">60</b>s</span>
+    </div>
+    <div id="mpls-word" style="font-size:1.7rem;font-weight:900;letter-spacing:.34em;text-align:center;color:var(--accent);margin:14px 0;word-break:break-all;"></div>
+    <input id="mpls-in" type="text" autocomplete="off" placeholder="Type the title" style="width:100%;padding:11px 13px;background:#070f18;border:1px solid rgba(255,255,255,0.18);border-radius:9px;color:var(--text);font-size:1rem;font-weight:700;">
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button type="button" id="mpls-skip2" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:9px;border-radius:9px;font-weight:700;cursor:pointer;">Skip</button>
+      <button type="button" id="mpls-hint" style="flex:1;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.4);color:var(--premium);padding:9px;border-radius:9px;font-weight:700;cursor:pointer;">Hint</button>
+    </div>
+    <div id="mpls-fb" class="small" style="margin-top:10px;min-height:20px;font-weight:700;"></div>
+  </div>
+</div>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+    <button type="button" id="mpls-mute" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#128266; Music on</button>
+    <button type="button" id="mpls-skip" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#9197; Next track</button>
+    <span id="mpls-track" class="small" style="color:var(--text-secondary);font-size:0.75rem;"></span>
+    <a href="https://www.youtube.com/@MrProphecy?sub_confirmation=1" target="_blank" rel="noopener noreferrer" style="margin-left:auto;font-size:0.72rem;color:var(--accent);text-decoration:none;font-weight:700;">Music by MrProphecy &#8599;</a>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---- MrProphecy audio bed -------------------------------------------
+     A hidden YouTube IFrame player. The API script is not even injected
+     until the player first starts, so the card costs nothing until played
+     and no third-party request is made on page load.                   */
+  var mplsTRACKS = [{"id": "D2O-ZVD5Ctg", "n": "Indigo"}, {"id": "8rMB45Ho1N4", "n": "Inhale"}, {"id": "d1NI6lX6tnk", "n": "Internal"}, {"id": "PyTruK9iTis", "n": "Introvert"}, {"id": "_1UnKjZFcCE", "n": "Incandescent"}];
+  var mplsyt = null, mplsytReady = false, mplspending = false, mplsti = 0, mplsmuted = false;
+
+  function mplsbootAudio() {
+    if (mplsyt || document.getElementById('mpls-ytwrap')) return;
+    var w = document.createElement('div');
+    w.id = 'mpls-ytwrap';
+    w.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;overflow:hidden;';
+    var d = document.createElement('div'); d.id = 'mpls-ythost';
+    w.appendChild(d); document.body.appendChild(w);
+
+    function make() {
+      mplsyt = new YT.Player('mpls-ythost', {
+        host: 'https://www.youtube-nocookie.com',
+        width: 1, height: 1,
+        videoId: mplsTRACKS[mplsti].id,
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+        events: {
+          onReady: function (e) {
+            mplsytReady = true;
+            e.target.setVolume(38);
+            if (mplspending) { mplspending = false; e.target.playVideo(); }
+            mplslabel();
+          },
+          onStateChange: function (e) { if (e.data === YT.PlayerState.ENDED) mplsnextTrack(); },
+          onError: function () { mplsnextTrack(); }
+        }
+      });
+    }
+    if (window.YT && window.YT.Player) { make(); return; }
+    var prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function () { if (typeof prev === 'function') prev(); make(); };
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      var sc = document.createElement('script');
+      sc.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(sc);
+    }
+  }
+  function mplslabel() {
+    var el = document.getElementById('mpls-track');
+    if (el) el.textContent = mplsmuted ? 'muted' : ('\u266a ' + mplsTRACKS[mplsti].n);
+  }
+  function mplsmusicOn() {
+    if (mplsmuted) return;
+    mplsbootAudio();
+    if (mplsytReady && mplsyt) mplsyt.playVideo(); else mplspending = true;
+  }
+  function mplsmusicOff() {
+    mplspending = false;
+    if (mplsytReady && mplsyt) try { mplsyt.pauseVideo(); } catch (e) {}
+  }
+  function mplsnextTrack() {
+    mplsti = (mplsti + 1) % mplsTRACKS.length;
+    if (mplsytReady && mplsyt) { mplsyt.loadVideoById(mplsTRACKS[mplsti].id); }
+    mplslabel();
+  }
+  function mplstoggleMute() {
+    mplsmuted = !mplsmuted;
+    var b = document.getElementById('mpls-mute');
+    if (b) b.textContent = mplsmuted ? '\ud83d\udd07 Music off' : '\ud83d\udd0a Music on';
+    if (mplsmuted) mplsmusicOff(); else if (mplsrunning) mplsmusicOn();
+    mplslabel();
+  }
+
+
+  var mplsrunning = false, cur = null, solved = 0, tleft = 60, timer = null, revealed = 0;
+  var idle = document.getElementById('mpls-idle'), play = document.getElementById('mpls-play');
+  var inp = document.getElementById('mpls-in');
+
+  function scram(w) {
+    var a = w.toUpperCase().split(''), out;
+    do { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random()*(i+1)); var t = a[i]; a[i]=a[j]; a[j]=t; }
+         out = a.join(''); } while (out === w.toUpperCase() && w.length > 2);
+    return out;
+  }
+  function nextWord() {
+    cur = mplsTRACKS[Math.floor(Math.random() * mplsTRACKS.length)];
+    revealed = 0;
+    document.getElementById('mpls-word').textContent = scram(cur.n);
+    inp.value = ''; inp.focus();
+  }
+  function check() {
+    if (!mplsrunning || !cur) return;
+    if (inp.value.trim().toLowerCase() === cur.n.toLowerCase()) {
+      solved++; document.getElementById('mpls-n').textContent = solved;
+      var fb = document.getElementById('mpls-fb');
+      fb.style.color = 'var(--success)'; fb.textContent = 'Correct \u2014 ' + cur.n;
+      setTimeout(function () { fb.textContent = ''; }, 900);
+      nextWord();
+    }
+  }
+  function stop() {
+    mplsrunning = false; clearInterval(timer); mplsmusicOff();
+    play.style.display = 'none'; idle.style.display = '';
+    idle.innerHTML = '<div style="font-weight:900;color:var(--premium);margin-bottom:6px;">' + solved + ' solved</div>' +
+      '<p class="small" style="color:var(--text-secondary);margin-bottom:12px;">' +
+      (solved >= 10 ? 'You know this catalogue.' : solved >= 5 ? 'Solid.' : 'Every title starts with In\u2026 mostly.') + '</p>' +
+      '<button type="button" id="mpls-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#8635; Again</button>';
+    idle.querySelector('#mpls-start').addEventListener('click', start);
+  }
+  function start() {
+    idle.style.display = 'none'; play.style.display = '';
+    mplsrunning = true; solved = 0; tleft = 60;
+    document.getElementById('mpls-n').textContent = '0';
+    document.getElementById('mpls-t').textContent = '60';
+    mplsmusicOn(); nextWord();
+    clearInterval(timer);
+    timer = setInterval(function () {
+      tleft--; document.getElementById('mpls-t').textContent = tleft;
+      if (tleft <= 0) stop();
+    }, 1000);
+  }
+  document.getElementById('mpls-start').addEventListener('click', start);
+  inp.addEventListener('input', check);
+  document.getElementById('mpls-skip2').addEventListener('click', function () { if (mplsrunning) nextWord(); });
+  document.getElementById('mpls-hint').addEventListener('click', function () {
+    if (!mplsrunning || !cur) return;
+    revealed = Math.min(cur.n.length, revealed + 1);
+    inp.value = cur.n.slice(0, revealed);
+    inp.focus(); check();
+  });
+
+
+  document.getElementById('mpls-mute').addEventListener('click', mplstoggleMute);
+  document.getElementById('mpls-skip').addEventListener('click', function () {
+    mplsnextTrack();
+    if (mplsrunning && !mplsmuted) mplsmusicOn();
+  });
+  mplslabel();
+
+})();
+</script>

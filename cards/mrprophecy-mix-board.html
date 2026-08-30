@@ -1,0 +1,181 @@
+<!-- cards/mrprophecy-mix-board.html -->
+<h2 id="mpmb-title" style="margin-top:0;color:var(--accent);">🎛️ MrProphecy: Mix Board Challenge</h2>
+
+<p id="mpmb-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+  Five faders, five rounds, shrinking tolerance. Hit the target mix from the written cue. Real MrProphecy tracks run on the desk.
+</p>
+
+<div id="mpmb-stage" style="background:linear-gradient(160deg,#0b0f1a,#121b2b);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:18px;">
+  <div id="mpmb-idle">
+    <div style="font-weight:900;color:var(--accent);margin-bottom:6px;">MIX BOARD CHALLENGE</div>
+    <p class="small" style="color:var(--text-secondary);margin-bottom:12px;">Match the target mix by ear and eye. Five faders, five rounds, tighter tolerance each time.</p>
+    <button type="button" id="mpmb-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#9654; Open the desk</button>
+  </div>
+  <div id="mpmb-play" style="display:none;">
+    <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:14px;">
+      <span>Round <b id="mpmb-r" style="color:var(--text);">1</b>/5</span>
+      <span>Total <b id="mpmb-sc" style="color:var(--premium);">0</b></span>
+    </div>
+    <div id="mpmb-board" style="display:grid;gap:12px;"></div>
+    <button type="button" id="mpmb-lock" style="width:100%;margin-top:14px;background:var(--accent);color:#04141c;border:0;padding:11px;border-radius:9px;font-weight:800;cursor:pointer;">Lock the mix</button>
+    <div id="mpmb-fb" class="small" style="margin-top:10px;min-height:20px;font-weight:700;"></div>
+  </div>
+</div>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+    <button type="button" id="mpmb-mute" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#128266; Music on</button>
+    <button type="button" id="mpmb-skip" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#9197; Next track</button>
+    <span id="mpmb-track" class="small" style="color:var(--text-secondary);font-size:0.75rem;"></span>
+    <a href="https://www.youtube.com/@MrProphecy?sub_confirmation=1" target="_blank" rel="noopener noreferrer" style="margin-left:auto;font-size:0.72rem;color:var(--accent);text-decoration:none;font-weight:700;">Music by MrProphecy &#8599;</a>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---- MrProphecy audio bed -------------------------------------------
+     A hidden YouTube IFrame player. The API script is not even injected
+     until the player first starts, so the card costs nothing until played
+     and no third-party request is made on page load.                   */
+  var mpmbTRACKS = [{"id": "MUAgPsbgMpQ", "n": "Init"}, {"id": "SX_CbWF2rp4", "n": "Integrate"}, {"id": "_1UnKjZFcCE", "n": "Incandescent"}, {"id": "d1NI6lX6tnk", "n": "Internal"}];
+  var mpmbyt = null, mpmbytReady = false, mpmbpending = false, mpmbti = 0, mpmbmuted = false;
+
+  function mpmbbootAudio() {
+    if (mpmbyt || document.getElementById('mpmb-ytwrap')) return;
+    var w = document.createElement('div');
+    w.id = 'mpmb-ytwrap';
+    w.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;overflow:hidden;';
+    var d = document.createElement('div'); d.id = 'mpmb-ythost';
+    w.appendChild(d); document.body.appendChild(w);
+
+    function make() {
+      mpmbyt = new YT.Player('mpmb-ythost', {
+        host: 'https://www.youtube-nocookie.com',
+        width: 1, height: 1,
+        videoId: mpmbTRACKS[mpmbti].id,
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+        events: {
+          onReady: function (e) {
+            mpmbytReady = true;
+            e.target.setVolume(38);
+            if (mpmbpending) { mpmbpending = false; e.target.playVideo(); }
+            mpmblabel();
+          },
+          onStateChange: function (e) { if (e.data === YT.PlayerState.ENDED) mpmbnextTrack(); },
+          onError: function () { mpmbnextTrack(); }
+        }
+      });
+    }
+    if (window.YT && window.YT.Player) { make(); return; }
+    var prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function () { if (typeof prev === 'function') prev(); make(); };
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      var sc = document.createElement('script');
+      sc.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(sc);
+    }
+  }
+  function mpmblabel() {
+    var el = document.getElementById('mpmb-track');
+    if (el) el.textContent = mpmbmuted ? 'muted' : ('\u266a ' + mpmbTRACKS[mpmbti].n);
+  }
+  function mpmbmusicOn() {
+    if (mpmbmuted) return;
+    mpmbbootAudio();
+    if (mpmbytReady && mpmbyt) mpmbyt.playVideo(); else mpmbpending = true;
+  }
+  function mpmbmusicOff() {
+    mpmbpending = false;
+    if (mpmbytReady && mpmbyt) try { mpmbyt.pauseVideo(); } catch (e) {}
+  }
+  function mpmbnextTrack() {
+    mpmbti = (mpmbti + 1) % mpmbTRACKS.length;
+    if (mpmbytReady && mpmbyt) { mpmbyt.loadVideoById(mpmbTRACKS[mpmbti].id); }
+    mpmblabel();
+  }
+  function mpmbtoggleMute() {
+    mpmbmuted = !mpmbmuted;
+    var b = document.getElementById('mpmb-mute');
+    if (b) b.textContent = mpmbmuted ? '\ud83d\udd07 Music off' : '\ud83d\udd0a Music on';
+    if (mpmbmuted) mpmbmusicOff(); else if (mpmbrunning) mpmbmusicOn();
+    mpmblabel();
+  }
+
+
+  var BANDS=['KICK','BASS','SYNTH','VOX','AIR'];
+  var mpmbrunning=false, target=[], round=0, total=0;
+  var idle=document.getElementById('mpmb-idle'), play=document.getElementById('mpmb-play');
+
+  function build() {
+    var box=document.getElementById('mpmb-board'); box.innerHTML='';
+    BANDS.forEach(function(b,i){
+      var row=document.createElement('div');
+      row.style.cssText='display:grid;grid-template-columns:52px 1fr 42px;gap:10px;align-items:center;';
+      row.innerHTML =
+        '<span style="font-size:.7rem;font-weight:800;color:var(--text-secondary);letter-spacing:.08em;">'+b+'</span>' +
+        '<input type="range" min="0" max="100" value="50" id="mpmb-f'+i+'" style="width:100%;accent-color:#2dd4ff;">' +
+        '<span id="mpmb-v'+i+'" style="font-size:.76rem;color:var(--text);text-align:right;font-variant-numeric:tabular-nums;">50</span>';
+      box.appendChild(row);
+      row.querySelector('input').addEventListener('input',function(e){
+        document.getElementById('mpmb-v'+i).textContent = e.target.value;
+      });
+    });
+  }
+  function newRound() {
+    round++; document.getElementById('mpmb-r').textContent = round;
+    target = BANDS.map(function(){ return 10 + Math.floor(Math.random()*81); });
+    var hint = target.map(function(t,i){
+      var lvl = t<25?'low':t<45?'down':t<60?'mid':t<80?'up':'high';
+      return BANDS[i]+' '+lvl;
+    }).join(' \u00b7 ');
+    document.getElementById('mpmb-fb').style.color='var(--accent)';
+    document.getElementById('mpmb-fb').textContent = 'Target: ' + hint;
+    BANDS.forEach(function(_,i){
+      document.getElementById('mpmb-f'+i).value = 50;
+      document.getElementById('mpmb-v'+i).textContent = '50';
+    });
+  }
+  function lock() {
+    if (!mpmbrunning) return;
+    var tol = 22 - round*2, pts = 0;
+    BANDS.forEach(function(_,i){
+      var v = +document.getElementById('mpmb-f'+i).value;
+      var d = Math.abs(v - target[i]);
+      pts += d <= tol ? Math.round(100 - (d/tol)*40) : Math.max(0, 40 - d);
+    });
+    total += pts;
+    document.getElementById('mpmb-sc').textContent = total;
+    var fb = document.getElementById('mpmb-fb');
+    fb.style.color = pts > 340 ? 'var(--success)' : pts > 200 ? 'var(--premium)' : 'var(--error)';
+    fb.textContent = pts > 340 ? 'Tight mix. +'+pts : pts > 200 ? 'Usable. +'+pts : 'Muddy. +'+pts;
+    if (round >= 5) return setTimeout(finish, 1200);
+    setTimeout(newRound, 1400);
+  }
+  function finish() {
+    mpmbrunning=false; mpmbmusicOff();
+    play.style.display='none'; idle.style.display='';
+    idle.innerHTML = '<div style="font-weight:900;color:var(--premium);margin-bottom:6px;">'+total+' POINTS</div>' +
+      '<p class="small" style="color:var(--text-secondary);margin-bottom:12px;">' +
+      (total>1600?'You could mix this record.':total>1000?'Decent ears.':'Keep listening.') + '</p>' +
+      '<button type="button" id="mpmb-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#8635; Again</button>';
+    idle.querySelector('#mpmb-start').addEventListener('click', start);
+  }
+  function start() {
+    idle.style.display='none'; play.style.display='';
+    mpmbrunning=true; round=0; total=0;
+    document.getElementById('mpmb-sc').textContent='0';
+    build(); mpmbmusicOn(); newRound();
+  }
+  document.getElementById('mpmb-start').addEventListener('click', start);
+  document.getElementById('mpmb-lock').addEventListener('click', lock);
+
+
+  document.getElementById('mpmb-mute').addEventListener('click', mpmbtoggleMute);
+  document.getElementById('mpmb-skip').addEventListener('click', function () {
+    mpmbnextTrack();
+    if (mpmbrunning && !mpmbmuted) mpmbmusicOn();
+  });
+  mpmblabel();
+
+})();
+</script>

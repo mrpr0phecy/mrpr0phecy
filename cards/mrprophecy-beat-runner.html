@@ -1,0 +1,212 @@
+<!-- cards/mrprophecy-beat-runner.html -->
+<h2 id="mpbr-title" style="margin-top:0;color:var(--accent);">🏃 MrProphecy: Beat Runner</h2>
+
+<p id="mpbr-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+  Endless runner starring MrProphecy. Jump the gaps, build speed, and the soundtrack is real MrProphecy tracks &mdash; playback only begins when you hit start.
+</p>
+
+<div style="position:relative;">
+  <canvas id="mpbr-cv" width="640" height="260" style="width:100%;height:auto;display:block;background:linear-gradient(180deg,#0b0f1a,#131c2b);border:1px solid rgba(255,255,255,0.12);border-radius:10px;touch-action:none;"></canvas>
+  <div id="mpbr-overlay" style="position:absolute;inset:0;display:grid;place-items:center;background:rgba(5,8,14,0.78);border-radius:10px;text-align:center;padding:16px;">
+    <div>
+      <div style="font-size:1.15rem;font-weight:900;color:var(--accent);margin-bottom:6px;">MRPROPHECY: BEAT RUNNER</div>
+      <div class="small" style="color:var(--text-secondary);margin-bottom:12px;">Jump the gaps. Space / tap / click. The music starts when you do.</div>
+      <button type="button" id="mpbr-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#9654; Start run</button>
+    </div>
+  </div>
+</div>
+<div style="display:flex;gap:16px;margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">
+  <span>Score <b id="mpbr-score" style="color:var(--text);">0</b></span>
+  <span>Best <b id="mpbr-best" style="color:var(--premium);">0</b></span>
+  <span>Speed <b id="mpbr-spd" style="color:var(--text);">1.0x</b></span>
+</div>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+    <button type="button" id="mpbr-mute" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#128266; Music on</button>
+    <button type="button" id="mpbr-skip" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);padding:6px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;cursor:pointer;">&#9197; Next track</button>
+    <span id="mpbr-track" class="small" style="color:var(--text-secondary);font-size:0.75rem;"></span>
+    <a href="https://www.youtube.com/@MrProphecy?sub_confirmation=1" target="_blank" rel="noopener noreferrer" style="margin-left:auto;font-size:0.72rem;color:var(--accent);text-decoration:none;font-weight:700;">Music by MrProphecy &#8599;</a>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---- MrProphecy audio bed -------------------------------------------
+     A hidden YouTube IFrame player. The API script is not even injected
+     until the player first starts, so the card costs nothing until played
+     and no third-party request is made on page load.                   */
+  var mpbrTRACKS = [{"id": "qL6X6n6FLuo", "n": "Injection"}, {"id": "pNMuhikcxsY", "n": "Inrush"}, {"id": "XHK3oUuT4eQ", "n": "Infighting"}, {"id": "U7OknSZ6iGE", "n": "Invasion"}];
+  var mpbryt = null, mpbrytReady = false, mpbrpending = false, mpbrti = 0, mpbrmuted = false;
+
+  function mpbrbootAudio() {
+    if (mpbryt || document.getElementById('mpbr-ytwrap')) return;
+    var w = document.createElement('div');
+    w.id = 'mpbr-ytwrap';
+    w.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;overflow:hidden;';
+    var d = document.createElement('div'); d.id = 'mpbr-ythost';
+    w.appendChild(d); document.body.appendChild(w);
+
+    function make() {
+      mpbryt = new YT.Player('mpbr-ythost', {
+        host: 'https://www.youtube-nocookie.com',
+        width: 1, height: 1,
+        videoId: mpbrTRACKS[mpbrti].id,
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+        events: {
+          onReady: function (e) {
+            mpbrytReady = true;
+            e.target.setVolume(38);
+            if (mpbrpending) { mpbrpending = false; e.target.playVideo(); }
+            mpbrlabel();
+          },
+          onStateChange: function (e) { if (e.data === YT.PlayerState.ENDED) mpbrnextTrack(); },
+          onError: function () { mpbrnextTrack(); }
+        }
+      });
+    }
+    if (window.YT && window.YT.Player) { make(); return; }
+    var prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function () { if (typeof prev === 'function') prev(); make(); };
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      var sc = document.createElement('script');
+      sc.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(sc);
+    }
+  }
+  function mpbrlabel() {
+    var el = document.getElementById('mpbr-track');
+    if (el) el.textContent = mpbrmuted ? 'muted' : ('\u266a ' + mpbrTRACKS[mpbrti].n);
+  }
+  function mpbrmusicOn() {
+    if (mpbrmuted) return;
+    mpbrbootAudio();
+    if (mpbrytReady && mpbryt) mpbryt.playVideo(); else mpbrpending = true;
+  }
+  function mpbrmusicOff() {
+    mpbrpending = false;
+    if (mpbrytReady && mpbryt) try { mpbryt.pauseVideo(); } catch (e) {}
+  }
+  function mpbrnextTrack() {
+    mpbrti = (mpbrti + 1) % mpbrTRACKS.length;
+    if (mpbrytReady && mpbryt) { mpbryt.loadVideoById(mpbrTRACKS[mpbrti].id); }
+    mpbrlabel();
+  }
+  function mpbrtoggleMute() {
+    mpbrmuted = !mpbrmuted;
+    var b = document.getElementById('mpbr-mute');
+    if (b) b.textContent = mpbrmuted ? '\ud83d\udd07 Music off' : '\ud83d\udd0a Music on';
+    if (mpbrmuted) mpbrmusicOff(); else if (mpbrrunning) mpbrmusicOn();
+    mpbrlabel();
+  }
+
+
+  var mpbrcv = document.getElementById('mpbr-cv'), mpbrcx = mpbrcv.getContext('2d');
+  var mpbrrunning = false, mpbrraf = null;
+  var mpbrbest = 0, mpbrscore = 0, mpbrspd = 1, mpbrt0 = 0;
+  var W = 640, H = 260, GY = 210;
+  var hero, obs, particles;
+
+  function reset() {
+    hero = { x: 70, y: GY, vy: 0, on: true, r: 15 };
+    obs = []; particles = []; mpbrscore = 0; mpbrspd = 1;
+    for (var i = 0; i < 3; i++) obs.push({ x: 380 + i * 260, w: 26 + Math.random() * 22, h: 34 + Math.random() * 40 });
+  }
+  function jump() {
+    if (!mpbrrunning) return;
+    if (hero.on) { hero.vy = -10.4; hero.on = false; }
+  }
+  function burst(x, y, n, col) {
+    for (var i = 0; i < n; i++) particles.push({ x: x, y: y, vx: (Math.random() - .5) * 5, vy: -Math.random() * 4, l: 26, c: col });
+  }
+  function loop(ts) {
+    if (!mpbrrunning) return;
+    if (!mpbrt0) mpbrt0 = ts;
+    var dt = Math.min(2.6, (ts - mpbrt0) / 16.7); mpbrt0 = ts;
+
+    mpbrspd = 1 + Math.min(1.5, mpbrscore / 900);
+    hero.vy += 0.62 * dt; hero.y += hero.vy * dt;
+    if (hero.y >= GY) { hero.y = GY; hero.vy = 0; if (!hero.on) burst(hero.x, GY + 12, 5, '45,212,255'); hero.on = true; }
+
+    for (var i = obs.length - 1; i >= 0; i--) {
+      var o = obs[i]; o.x -= 4.1 * mpbrspd * dt;
+      if (o.x + o.w < -40) {
+        obs.splice(i, 1);
+        obs.push({ x: Math.max(700, (obs.length ? obs[obs.length-1].x : 700) + 210 + Math.random() * 180), w: 26 + Math.random() * 22, h: 34 + Math.random() * 46 });
+      }
+      var hx = hero.x, hy = hero.y;
+      if (hx + hero.r > o.x && hx - hero.r < o.x + o.w && hy + hero.r > GY + 14 - o.h) return over();
+    }
+    mpbrscore += 0.6 * mpbrspd * dt;
+
+    mpbrcx.clearRect(0, 0, W, H);
+    var g = mpbrcx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0b0f1a'); g.addColorStop(1, '#16203a');
+    mpbrcx.fillStyle = g; mpbrcx.fillRect(0, 0, W, H);
+    mpbrcx.globalAlpha = .25; mpbrcx.strokeStyle = '#2dd4ff'; mpbrcx.lineWidth = 1;
+    for (var k = 0; k < 6; k++) { var yy = 40 + k * 30; mpbrcx.beginPath(); mpbrcx.moveTo(0, yy); mpbrcx.lineTo(W, yy); mpbrcx.stroke(); }
+    mpbrcx.globalAlpha = 1;
+
+    mpbrcx.fillStyle = '#0a2233'; mpbrcx.fillRect(0, GY + 14, W, H - GY - 14);
+    mpbrcx.strokeStyle = '#2dd4ff'; mpbrcx.beginPath(); mpbrcx.moveTo(0, GY + 14); mpbrcx.lineTo(W, GY + 14); mpbrcx.stroke();
+
+    mpbrcx.fillStyle = '#ff2e63';
+    obs.forEach(function (o) { mpbrcx.fillRect(o.x, GY + 14 - o.h, o.w, o.h); });
+
+    for (var p = particles.length - 1; p >= 0; p--) {
+      var q = particles[p]; q.x += q.vx; q.y += q.vy; q.vy += .25; q.l--;
+      if (q.l <= 0) { particles.splice(p, 1); continue; }
+      mpbrcx.globalAlpha = q.l / 26; mpbrcx.fillStyle = 'rgba(' + q.c + ',1)';
+      mpbrcx.fillRect(q.x, q.y, 3, 3); mpbrcx.globalAlpha = 1;
+    }
+
+    mpbrcx.save(); mpbrcx.translate(hero.x, hero.y);
+    mpbrcx.fillStyle = '#ffc93c'; mpbrcx.beginPath(); mpbrcx.arc(0, 0, hero.r, 0, 6.284); mpbrcx.fill();
+    mpbrcx.fillStyle = '#12202f'; mpbrcx.fillRect(-hero.r, -hero.r - 5, hero.r * 2, 7);
+    mpbrcx.fillStyle = '#04141c'; mpbrcx.fillRect(-6, -4, 4, 4); mpbrcx.fillRect(3, -4, 4, 4);
+    mpbrcx.restore();
+
+    document.getElementById('mpbr-score').textContent = Math.floor(mpbrscore);
+    document.getElementById('mpbr-spd').textContent = mpbrspd.toFixed(1) + 'x';
+    mpbrraf = requestAnimationFrame(loop);
+  }
+  function over() {
+    mpbrrunning = false;
+    if (mpbrraf) cancelAnimationFrame(mpbrraf);
+    mpbrmusicOff();
+    mpbrbest = Math.max(mpbrbest, Math.floor(mpbrscore));
+    document.getElementById('mpbr-best').textContent = mpbrbest;
+    var ov = document.getElementById('mpbr-overlay');
+    ov.style.display = 'grid';
+    ov.querySelector('div').innerHTML =
+      '<div style="font-size:1.15rem;font-weight:900;color:var(--error);margin-bottom:6px;">WIPEOUT</div>' +
+      '<div class="small" style="color:var(--text-secondary);margin-bottom:12px;">Score ' + Math.floor(mpbrscore) + ' &middot; Best ' + mpbrbest + '</div>' +
+      '<button type="button" id="mpbr-start" style="background:var(--accent);color:#04141c;border:0;padding:11px 26px;border-radius:100px;font-weight:800;cursor:pointer;">&#8635; Run again</button>';
+    ov.querySelector('#mpbr-start').addEventListener('click', start);
+  }
+  function start() {
+    document.getElementById('mpbr-overlay').style.display = 'none';
+    reset(); mpbrrunning = true; mpbrt0 = 0;
+    mpbrmusicOn();
+    mpbrraf = requestAnimationFrame(loop);
+  }
+  document.getElementById('mpbr-start').addEventListener('click', start);
+  mpbrcv.addEventListener('pointerdown', function (e) { e.preventDefault(); jump(); });
+  document.addEventListener('keydown', function (e) {
+    if ((e.code === 'Space' || e.key === ' ') && mpbrrunning) {
+      var r = mpbrcv.getBoundingClientRect();
+      if (r.top < innerHeight && r.bottom > 0) { e.preventDefault(); jump(); }
+    }
+  });
+  reset();
+
+
+  document.getElementById('mpbr-mute').addEventListener('click', mpbrtoggleMute);
+  document.getElementById('mpbr-skip').addEventListener('click', function () {
+    mpbrnextTrack();
+    if (mpbrrunning && !mpbrmuted) mpbrmusicOn();
+  });
+  mpbrlabel();
+
+})();
+</script>

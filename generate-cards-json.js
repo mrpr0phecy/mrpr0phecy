@@ -294,6 +294,9 @@ function getCategory(name) {
   if (animeList.some(s => name.includes(s))) return 'Anime & Otaku Culture';
   if (culinaryList.some(s => name.includes(s))) return 'Culinary & Food Science';
   if (slList.some(s => name.includes(s))) return 'Virtual Worlds & Gaming';
+  // MrProphecy minigames — checked first so they keep their own category
+  // when this script is re-run (it overwrites categories every time).
+  if (name.startsWith('mrprophecy-')) return 'MrProphecy Arcade';
   if (musicList.some(s => name.includes(s))) return 'Music & Audio';
   if (healthList.some(s => name.includes(s))) return 'Health & Fitness';
   if (financeList.some(s => name.includes(s))) return 'Finance & Money';
