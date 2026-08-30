@@ -359,6 +359,39 @@ Rules if you extend these:
 - Never auto-play muted in a hidden element to farm watch time. That is
   invalid traffic, YouTube filters it, and it risks the channel.
 
+### opensourcenews.html
+
+A live world-news broadcast built from open RSS feeds. Self-contained: 3D
+globe, TTS anchors, tickers, no backend.
+
+**Feed list (80 feeds).** Each entry is
+`{ url, src, cat, weight, region, direct? }`. `cat` is one of `world`,
+`science`, `tech`, `finance`, `weather`, `sport`.
+
+**`direct: 1` is the important flag.** 43 of the 80 feeds serve
+`Access-Control-Allow-Origin: *` and were confirmed fetchable straight from a
+browser page. Those bypass the CORS proxy entirely: no shared quota, no third
+party, and the channel keeps working when every proxy is down (verified: 149
+stories from 42 sources with all proxies blocked at the network layer).
+
+**Never mark a feed `direct` from a server-side check alone.** Roughly a third
+of feeds that send `Access-Control-Allow-Origin: *` to curl are still blocked
+in a real browser. Test with `fetch()` from an actual page first.
+
+**Scheduling** is two-phase: direct feeds run 12-wide with no delay, proxied
+feeds rotate 8 per cycle through a paced queue. Per-feed health tracking backs
+a failing feed off 1/4/9…30 minutes so dead URLs cannot consume the budget.
+
+**Corroboration.** Stories are compared by Jaccard similarity (threshold 0.22)
+over significant terms; matches across different outlets are grouped and
+promoted in ranking. Machine-templated feeds (USGS/NWS/NOAA/GDACS) are excluded
+— their entries match each other on format, not content, so every earthquake
+looked like corroboration for every other earthquake.
+
+**Rendering happens on the progressive path**, not at end-of-cycle. Anything
+that must affect what the viewer sees has to run there; end-of-cycle only
+fires once all batches finish.
+
 ### Growth policy — read before "boosting views"
 
 The owner wants more YouTube plays. The agreed approach is **legitimate only**:
