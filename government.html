@@ -1199,27 +1199,26 @@ function seed(){
   p2.args=args;
   var base=Date.now()-86400000*3;
   [[p1,'proposal',180],[p6,'proposal',170],[p2,'proposal',150],[p3,'proposal',120],[p4,'proposal',90],[p5,'proposal',60]].forEach(function(e){
-    st.ledger.push({t:base+e[1]*60000, type:'proposal', detail:'Created: '+e[0].title, actor:e[0].author, hash:''});
+    st.ledger.push({t:base+e[2]*60000, type:'proposal', detail:'Created: '+e[0].title, actor:e[0].author, hash:''});
   });
   args.forEach(function(a,ai){ st.ledger.push({t:base+(50-ai*6)*60000, type:'argument', detail:'Floor: '+a.author+' ('+a.side+') on \u201c'+p2.title+'\u201d', actor:a.author, hash:''}); });
   st.ledger.push({t:base-100000, type:'ballot', detail:'Ballot opened: '+p3.title, actor:'system', hash:''});
   st.ledger.push({t:base-80000, type:'signature', detail:Math.floor(quota*0.84)+'/ '+quota+' signatures \u2014 '+p1.title, actor:'citizens', hash:''});
   st.ledger.push({t:base-60000, type:'vote', detail:'60 votes recorded \u2014 '+p3.title, actor:'citizens', hash:''});
   st.ledger.push({t:base-40000, type:'vote', detail:'120 votes recorded \u2014 '+p5.title, actor:'citizens', hash:''});
-  // chain the seeded ledger
-  var prev='GENESIS';
-  st.ledger.forEach(function(e){
-    e.hash=sha256(prev+'|'+JSON.stringify([e.t,e.type,e.detail,e.actor]));
-    prev=e.hash;
-  });
   // publish p5 honestly at seed time
   p5.stage='decided';
   var t5=tallyOf(p5), win=t5.res.winner, pct=Math.round(t5.res.rounds[t5.res.rounds.length-1].c[win]/t5.votes.length*100);
   p5.ballot.result={ winner:win, pct:pct, turnout:turnoutPctFor(st, t5.votes.length), threshold:st.charter.routine, rounds:t5.res.rounds };
   p5.ballot.hash=mkhash(p5, st.charter);
-  st.ledger.push({t:base-20000, type:'publish', detail:'Decision published: '+p5.title+' \u2014 '+winOr(p5), actor:'system', hash:''});
-  var lp=st.ledger[st.ledger.length-1];
-  lp.hash=sha256(prev+'|'+JSON.stringify([lp.t,lp.type,lp.detail,lp.actor])); prev=lp.hash;
+  st.ledger.push({t:base, type:'publish', detail:'Decision published: '+p5.title+' \u2014 '+winOr(p5), actor:'system', hash:''});
+  // make the seeded log strictly chronological (append order), then chain it
+  var prev='GENESIS';
+  st.ledger.forEach(function(e, i){
+    e.t = base + i*60000;
+    e.hash=sha256(prev+'|'+JSON.stringify([e.t,e.type,e.detail,e.actor]));
+    prev=e.hash;
+  });
   return st;
 }
 function winOr(p){ var tl=tallyOf(p); if(!tl) return '—'; var w=tl.res.winner; return (tl.opts[w]||'FOR')+' \u00b7 '+(tl.res.rounds[tl.res.rounds.length-1].c[w])+' votes'; }
