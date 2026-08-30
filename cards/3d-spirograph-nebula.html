@@ -1,0 +1,374 @@
+<!--
+  🌀 3D Spirograph Nebula — a true 3D spirograph engine.
+  Torus knots, harmonic roses, harmonograph spiros and DNA helices woven in
+  space: perspective projection, additive glow, phosphor trails, hue cycling,
+  echo interference, orbiting starfield, gesture orbit/zoom, PNG export.
+  Pure math in your browser — zero network, zero tracking.
+-->
+<style>
+  .sg3-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .sg3-canvas-box{position:relative;background:#02040a;border:1px solid rgba(45,212,255,.28);
+    border-radius:12px;overflow:hidden;margin:10px 0 14px;box-shadow:0 0 40px rgba(20,60,140,.25) inset}
+  .sg3-canvas-box canvas{display:block;width:100%;height:520px;cursor:grab;touch-action:none}
+  .sg3-canvas-box canvas.dragging{cursor:grabbing}
+  .sg3-hud{position:absolute;left:10px;bottom:8px;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:#7dd3fc;background:rgba(2,6,16,.55);padding:4px 9px;border-radius:6px;pointer-events:none;letter-spacing:.02em}
+  .sg3-hint{position:absolute;right:10px;top:8px;font-size:11px;color:#64748b;background:rgba(2,6,16,.45);
+    padding:4px 9px;border-radius:6px;pointer-events:none}
+  .sg3-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+  .sg3-chip{padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--text,#eef2f8);transition:all .15s}
+  .sg3-chip:hover{border-color:#2dd4ff;color:#2dd4ff}
+  .sg3-chip.on{background:rgba(45,212,255,.16);border-color:#2dd4ff;color:#7de3ff;box-shadow:0 0 12px rgba(45,212,255,.25)}
+  .sg3-ctl{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+  .sg3-slider label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted,#8fa3bf);margin-bottom:3px}
+  .sg3-slider label span{color:#7de3ff;font-family:ui-monospace,monospace}
+  .sg3-slider input[type=range]{width:100%;accent-color:#22d3ee;background:transparent}
+  .sg3-row{display:flex;gap:8px;flex-wrap:wrap}
+  .sg3-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:8px;border:1px solid rgba(45,212,255,.4);
+    background:rgba(45,212,255,.1);color:#c9ecff;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+  .sg3-btn:hover{background:rgba(45,212,255,.22);box-shadow:0 0 14px rgba(45,212,255,.3)}
+  .sg3-btn.primary{background:linear-gradient(135deg,#22d3ee,#818cf8);color:#04121c;border-color:transparent}
+  .sg3-note{font-size:11.5px;color:var(--muted,#8fa3bf);margin-top:10px;line-height:1.5}
+  @media (max-width:640px){ .sg3-canvas-box canvas{height:420px} .sg3-ctl{grid-template-columns:repeat(2,1fr)} .sg3-hint{display:none} }
+</style>
+
+<div class="sg3-wrap">
+  <h2 id="sg3-title" style="margin-top:0;color:var(--accent,#22d3ee)">🌀 3D Spirograph Nebula</h2>
+  <p class="small" style="color:var(--muted,#8fa3bf);margin-bottom:8px">
+    A real 3D spirograph engine: torus knots, harmonic roses and harmonograph spiros
+    woven into space with perspective, additive glow and phosphor trails — plus echo
+    interference, an orbiting starfield, gesture orbit, hue cycling and PNG export.
+    Pure math on your device. Nothing is uploaded or tracked.
+  </p>
+
+  <div class="sg3-chips" id="sg3-presets" role="group" aria-label="Presets"></div>
+
+  <div class="sg3-canvas-box" id="sg3-box">
+    <canvas id="sg3-canvas" aria-label="Interactive 3D spirograph"></canvas>
+    <div class="sg3-hud" id="sg3-hud">…</div>
+    <div class="sg3-hint">drag to orbit · scroll/pinch to zoom</div>
+  </div>
+
+  <div class="sg3-ctl">
+    <div class="sg3-slider"><label>Frequency A <span id="sg3-v-a">7</span></label>
+      <input type="range" id="sg3-sl-a" min="0.5" max="19.5" step="0.5" value="7"></div>
+    <div class="sg3-slider"><label>Frequency B <span id="sg3-v-b">3</span></label>
+      <input type="range" id="sg3-sl-b" min="0.5" max="19.5" step="0.5" value="3"></div>
+    <div class="sg3-slider"><label>Frequency C <span id="sg3-v-c">5</span></label>
+      <input type="range" id="sg3-sl-c" min="0.5" max="19.5" step="0.5" value="5"></div>
+    <div class="sg3-slider"><label>Orbit speed <span id="sg3-v-o">0.40</span></label>
+      <input type="range" id="sg3-sl-o" min="0" max="1.5" step="0.01" value="0.4"></div>
+    <div class="sg3-slider"><label>Zoom <span id="sg3-v-z">1.30</span></label>
+      <input type="range" id="sg3-sl-z" min="0.5" max="2.6" step="0.01" value="1.3"></div>
+    <div class="sg3-slider"><label>Trail length <span id="sg3-v-t">88</span></label>
+      <input type="range" id="sg3-sl-t" min="0" max="1" step="0.01" value="0.88"></div>
+    <div class="sg3-slider"><label>Hue drift <span id="sg3-v-h">1.20</span></label>
+      <input type="range" id="sg3-sl-h" min="0" max="4" step="0.05" value="1.2"></div>
+    <div class="sg3-slider"><label>Palette <span id="sg3-v-p">Aurora</span></label>
+      <input type="range" id="sg3-sl-p" min="0" max="5" step="1" value="0"></div>
+    <div class="sg3-slider"><label>Echoes <span id="sg3-v-e">2</span></label>
+      <input type="range" id="sg3-sl-e" min="0" max="4" step="1" value="2"></div>
+  </div>
+
+  <div class="sg3-row">
+    <button type="button" class="sg3-btn primary" id="sg3-play">⏸ Pause</button>
+    <button type="button" class="sg3-btn" id="sg3-rand">🎲 Surprise me</button>
+    <button type="button" class="sg3-btn" id="sg3-png">💾 Save PNG</button>
+    <button type="button" class="sg3-btn" id="sg3-fs">⛶ Focus mode</button>
+  </div>
+
+  <p class="sg3-note" id="sg3-note">Type <b>spiro</b> · a 7 · b 3 · c 5 · 2 echoes · Aurora palette — every curve is
+    x·y·z generated on the fly from the frequencies above. Open the card directly for a bigger, full-page canvas.</p>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var TAU=Math.PI*2;
+var box=$('sg3-box'), canvas=$('sg3-canvas'), ctx=canvas.getContext('2d');
+var HUD=$('sg3-hud'), note=$('sg3-note');
+
+/* ---------- state ---------- */
+var P={ type:'spiro', a:7, b:3, c:5, ph:0, orbit:0.4, zoom:1.3, trail:0.88,
+        hueSpeed:1.2, palIdx:0, echoes:2 };
+var PAL=[
+ {n:'Aurora', base:165, span:200, sat:100, l1:62, l2:74},
+ {n:'Neon',   base:185, span:140, sat:100, l1:58, l2:72},
+ {n:'Gold',   base:42,  span:24,  sat:95,  l1:56, l2:68},
+ {n:'Emerald',base:150, span:36,  sat:100, l1:52, l2:66},
+ {n:'Magma',  base:6,   span:55,  sat:100, l1:54, l2:70},
+ {n:'Ice',    base:200, span:28,  sat:100, l1:58, l2:78}
+];
+var PRESETS=[
+ {t:'spiro', lbl:'Nebula',   a:7,  b:3,  c:5,  orbit:0.40, zoom:1.30, pal:0, hue:1.2, echo:2},
+ {t:'knot',  lbl:'Torus Knot', a:2, b:5, c:1, orbit:0.30, zoom:1.45, pal:1, hue:1.0, echo:1},
+ {t:'rose',  lbl:'Quantum Rose', a:5, b:2, c:3, orbit:0.22, zoom:1.35, pal:3, hue:0.5, echo:2},
+ {t:'dna',   lbl:'DNA Helix', a:1, b:1, c:2, orbit:0.35, zoom:1.25, pal:4, hue:0.9, echo:1},
+ {t:'gyro',  lbl:'Gyroscope', a:1, b:1, c:1, orbit:0.55, zoom:1.30, pal:1, hue:1.6, echo:2},
+ {t:'spiro', lbl:'Aurora', a:13, b:8, c:3,  orbit:0.12, zoom:1.15, pal:0, hue:2.6, echo:3}
+];
+
+var yaw=0.6, pitch=0.42, zoomP=1.0, hueT=0, tNow=0, running=true, raf=null, lastTs=0;
+var stars=[], i, s;
+for(i=0;i<170;i++){
+  var u=Math.random()*2-1, th=Math.random()*TAU, r=Math.sqrt(1-u*u);
+  stars.push({x:r*Math.cos(th)*3.4, y:r*Math.sin(th)*3.4, z:u*3.4, ph:Math.random()*TAU, tw:0.25+Math.random()*0.45});
+}
+var prev={}, boxResize=null;
+
+/* ---------- projection helpers ---------- */
+var F=3.1;                                    /* perspective focal length */
+function pt(x,y,z,oy,op,zoom){
+  /* yaw then pitch, perspective */
+  var cy=Math.cos(oy), sy=Math.sin(oy), cp=Math.cos(op), sp=Math.sin(op);
+  var x1=x*cy - z*sy, z1=x*sy + z*cy;
+  var y2=y*cp - z1*sp, z2=y*sp + z1*cp;
+  var s=F/(F - z2*0.9);
+  return [x1*s*zoom, y2*s*zoom, z2, s];
+}
+
+/* ---------- curve generator (returns [x,y,z] in unit space) ---------- */
+function curve(t, echo){
+  var ph1=P.ph + echo*(TAU/3), ph2=P.ph*1.7 + echo*(TAU/3);
+  if(P.type==='spiro'){
+    return [ 0.62*Math.cos(P.a*t) + 0.38*Math.cos(P.b*t+ph1),
+             0.62*Math.sin(P.a*t) + 0.38*Math.sin(P.b*t+ph1),
+             0.50*Math.sin(P.c*t+ph2) ];
+  }
+  if(P.type==='rose'){
+    var rr=Math.cos(P.a*t);                /* rose with a petals (a integer via b=1) */
+    return [ rr*Math.cos(P.b*t)*0.95, rr*Math.sin(P.b*t)*0.95, 0.34*Math.sin(P.c*t+ph1) ];
+  }
+  if(P.type==='knot'){
+    var p=P.a, q=P.b, phi=TAU*t, R=0.85, r=0.34, R2=R + r*Math.cos(q*phi);
+    return [ R2*Math.cos(p*phi), R2*Math.sin(p*phi), r*Math.sin(q*phi) ];
+  }
+  if(P.type==='dna'){
+    var ang=TAU*2.2*t, hz=echo%2 ? -1 : 1, rr=0.38+0.05*Math.sin(t*TAU*4);
+    return [ Math.cos(ang+echo*Math.PI)*rr, Math.sin(ang+echo*Math.PI)*rr, (t-0.5)*1.7*hz ];
+  }
+  /* gyro — three orthogonal rings, different echo → different plane */
+  var a3=(t+echo*0.333)%1, R3=[0.62,0.50,0.56][echo%3];
+  if(echo%3===0) return [ Math.cos(a3*TAU)*R3, Math.sin(a3*TAU)*R3, 0.04*Math.cos(a3*TAU*3) ];
+  if(echo%3===1) return [ 0.04*Math.cos(a3*TAU*3), Math.cos(a3*TAU)*R3, Math.sin(a3*TAU)*R3 ];
+  return [ Math.cos(a3*TAU)*R3, 0.04*Math.sin(a3*TAU*3), Math.sin(a3*TAU)*R3 ];
+}
+
+/* ---------- rendering ---------- */
+function resize(){
+  var dpr=Math.min(window.devicePixelRatio||1,2);
+  var w=box.clientWidth, h=canvas.clientHeight;
+  canvas.width=Math.max(50,Math.round(w*dpr));
+  canvas.height=Math.max(50,Math.round(h*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#02040a'; ctx.fillRect(0,0,w,h);
+  prev={};
+}
+function fadeStep(){
+  var fade=Math.pow(1-P.trail,2)*0.55+0.008;
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='rgba(2,4,10,'+fade.toFixed(4)+')';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+function drawFrame(dt, advance){
+  var w=canvas.clientWidth, h=canvas.clientHeight, cx=w/2, cy=h/2;
+  var sc=Math.min(w,h)*0.34;                 /* unit space -> pixels */
+  fadeStep();
+  ctx.globalCompositeOperation='lighter';
+  /* stars (rotate with yaw only, alpha twinkle) */
+  for(var k=0;k<stars.length;k++){
+    var st=stars[k];
+    var x1=st.x*Math.cos(yaw*0.35)-st.z*Math.sin(yaw*0.35), z1=st.x*Math.sin(yaw*0.35)+st.z*Math.cos(yaw*0.35);
+    var s2=F/(F-z1*0.9);
+    var a=st.tw*(0.55+0.45*Math.sin(time*0.9+st.ph));
+    ctx.globalAlpha=Math.max(0,Math.min(0.6,a));
+    ctx.fillStyle='#bcd7ff';
+    var ssc=sc*0.30;
+    ctx.beginPath(); ctx.arc(cx+x1*s2*zoomP*ssc, cy+(st.y*s2)*zoomP*ssc, 1.0, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  var pal=PAL[P.palIdx];
+  var n=44;                                  /* steps per frame */
+  var dT=(TAU/900)*Math.min(dt,0.05)*60*speedFactor();
+  if(advance) tNow += dT;
+  for(var e=0;e<=P.echoes;e++){
+    var eKey=e;
+    var hue=(pal.base + hueT*pal.span%360 + e*(68/P.echoes>40?40:68) + 360)%360;
+    var alpha=[1,0.5,0.32,0.24,0.18][e]||0.15;
+    var lw0=[2.1,1.5,1.2,1.0,0.9][e]||0.8;
+    var pv=prev[eKey];
+    for(var stp=0;stp<n;stp++){
+      var t=tNow - (n-stp)*dT;
+      var c3=curve(t,e);
+      var pr=pt(c3[0],c3[1],c3[2],yaw,pitch,P.zoom*zoomP);
+      var depth=(pr[2]+1.2)/2.4;             /* 0 far → 1 near */
+      ctx.strokeStyle='hsla('+(hue+depth*38)%360+','+pal.sat+'%,'+pal.l1+','+(alpha*(0.35+0.65*depth)).toFixed(3)+')';
+      ctx.lineWidth=Math.max(0.5,lw0*(0.5+depth));
+      ctx.beginPath();
+      if(pv){ ctx.moveTo(pv[0],pv[1]); ctx.lineTo(cx+pr[0]*sc, cy+pr[1]*sc); }
+      ctx.stroke();
+      pv=[cx+pr[0]*sc, cy+pr[1]*sc];
+      if(stp===n-1) prev[eKey]=pv;
+    }
+    /* comet head on the main curve (soft glow, short streak) */
+    if(e===0 && advance){
+      var hc=curve(tNow,0), hp2=pt(hc[0],hc[1],hc[2],yaw,pitch,P.zoom*zoomP);
+      var hx=cx+hp2[0]*sc, hy=cy+hp2[1]*sc;
+      var prev2=prev[0]||[hx,hy];
+      var g=ctx.createRadialGradient(hx,hy,0,hx,hy,10);
+      g.addColorStop(0,'hsla('+hue+',100%,92%,0.95)');
+      g.addColorStop(0.35,'hsla('+hue+',100%,70%,0.45)');
+      g.addColorStop(1,'hsla('+hue+',100%,60%,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(hx,hy,10,0,TAU); ctx.fill();
+      /* short trail behind the head so it reads as a line, not a dot */
+      ctx.strokeStyle='hsla('+hue+',100%,'+pal.l2+'%,0.85)';
+      ctx.lineWidth=Math.max(0.8,lw0*0.8);
+      ctx.beginPath(); ctx.moveTo(prev2[0],prev2[1]); ctx.lineTo(hx,hy); ctx.stroke();
+    }
+  }
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=1;
+}
+function speedFactor(){ return P.orbit<0.05 ? 0.0 : (0.35+P.orbit*1.3); }
+
+var time=0;
+function loop(ts){
+  raf=requestAnimationFrame(loop);
+  if(!running) return;
+  var dt=Math.min(0.06,(ts-lastTs)/1000||0.016); lastTs=ts;
+  time+=dt;
+  hueT=(hueT + P.hueSpeed*dt)%1;
+  yaw += P.orbit*dt*0.55;
+  zoomP = 1 + Math.sin(time*0.35)*0.02;
+  drawFrame(dt,true);
+  HUD.textContent='a '+fmt(P.a)+' · b '+fmt(P.b)+' · c '+fmt(P.c)+' · echo '+P.echoes+' · '+
+    (P.type==='knot'?'knot '+P.a+'/'+P.b:P.type)+' · hue '+Math.round((PAL[P.palIdx].base+hueT*PAL[P.palIdx].span)%360)+'\u00b0';
+}
+function fmt(v){ return (Math.round(v*10)/10).toString().replace(/\.0$/,''); }
+
+/* ---------- UI ---------- */
+var chipNames=['Nebula','Torus Knot','Quantum Rose','DNA Helix','Gyroscope','Aurora'];
+function buildChips(){
+  var h='';
+  PRESETS.forEach(function(p,i){ h+='<button type="button" class="sg3-chip" data-i="'+i+'">'+p.lbl+'</button>'; });
+  $('sg3-presets').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('#sg3-presets .sg3-chip'),function(b){
+    b.addEventListener('click',function(){ applyPreset(+b.getAttribute('data-i')); });
+  });
+}
+function applyPreset(i){
+  var p=PRESETS[i];
+  P.type=p.t; P.a=p.a; P.b=p.b; P.c=p.c; P.orbit=p.orbit; P.zoom=p.zoom;
+  P.palIdx=p.pal; P.hueSpeed=p.hue; P.echoes=p.echo; P.ph=Math.random()*TAU;
+  yaw=Math.random()*TAU; pitch=0.35+Math.random()*0.25;
+  syncSliders(); applyPaletteLabel();
+  Array.prototype.forEach.call(document.querySelectorAll('#sg3-presets .sg3-chip'),function(b,bi){
+    b.classList.toggle('on',bi===i);
+  });
+  note.innerHTML='Type <b>'+p.t+'</b> · '+p.lbl+' — tune the frequencies, orbit the starfield, export the frame.';
+  cls();
+}
+function cls(){ prev={}; }
+function syncSliders(){
+  $('sg3-sl-a').value=P.a; $('sg3-sl-b').value=P.b; $('sg3-sl-c').value=P.c;
+  $('sg3-sl-o').value=P.orbit; $('sg3-sl-z').value=P.zoom; $('sg3-sl-t').value=P.trail;
+  $('sg3-sl-h').value=P.hueSpeed; $('sg3-sl-p').value=P.palIdx; $('sg3-sl-e').value=P.echoes;
+  $('sg3-v-a').textContent=fmt(P.a); $('sg3-v-b').textContent=fmt(P.b); $('sg3-v-c').textContent=fmt(P.c);
+  $('sg3-v-o').textContent=P.orbit.toFixed(2); $('sg3-v-z').textContent=P.zoom.toFixed(2);
+  $('sg3-v-t').textContent=Math.round(P.trail*100); $('sg3-v-h').textContent=P.hueSpeed.toFixed(2);
+  $('sg3-v-e').textContent=P.echoes;
+}
+function applyPaletteLabel(){ $('sg3-v-p').textContent=PAL[P.palIdx].n; }
+function readSliders(){
+  P.a=+$('sg3-sl-a').value; P.b=+$('sg3-sl-b').value; P.c=+$('sg3-sl-c').value;
+  P.orbit=+$('sg3-sl-o').value; P.zoom=+$('sg3-sl-z').value; P.trail=+$('sg3-sl-t').value;
+  P.hueSpeed=+$('sg3-sl-h').value; P.palIdx=+$('sg3-sl-p').value; P.echoes=+$('sg3-sl-e').value;
+  syncSliders(); applyPaletteLabel(); cls();
+}
+['sg3-sl-a','sg3-sl-b','sg3-sl-c','sg3-sl-o','sg3-sl-z','sg3-sl-t','sg3-sl-h','sg3-sl-p','sg3-sl-e']
+ .forEach(function(id){ $(id).addEventListener('input',readSliders); });
+
+$('sg3-play').addEventListener('click',function(){
+  running=!running;
+  $('sg3-play').textContent=running?'⏸ Pause':'▶ Play';
+  if(running){ lastTs=performance.now(); } else { $('sg3-play').blur(); }
+});
+$('sg3-rand').addEventListener('click',function(){
+  applyPreset(Math.floor(Math.random()*PRESETS.length));
+  P.ph=Math.random()*TAU; syncSliders(); cls();
+});
+$('sg3-png').addEventListener('click',function(){
+  try{
+    var a=document.createElement('a');
+    a.download='spirograph-nebula.png';
+    a.href=canvas.toDataURL('image/png');
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ alert('Export needs a canvas-capable browser.'); }
+});
+$('sg3-fs').addEventListener('click',function(){
+  var el=box;
+  if(!document.fullscreenElement){
+    if(el.requestFullscreen){ el.requestFullscreen(); }
+    else if(el.webkitRequestFullscreen){ el.webkitRequestFullscreen(); }
+    else { focusMode(); }
+  } else if(document.exitFullscreen){ document.exitFullscreen(); }
+});
+function focusMode(){
+  var c=canvas;
+  var big=c.style.height==='78vh';
+  c.style.height=big?'':'78vh';
+  $('sg3-fs').textContent=big?'⛶ Focus mode':'⛶ Exit focus';
+  resize();
+}
+if(document.addEventListener){
+  document.addEventListener('fullscreenchange',function(){ resize(); });
+  document.addEventListener('webkitfullscreenchange',function(){ resize(); });
+}
+
+/* ---------- gestures: orbit + pinch-zoom ---------- */
+var pts={}, lastMid=null, lastDist=0;
+canvas.addEventListener('pointerdown',function(e){
+  pts[e.pointerId]={x:e.clientX,y:e.clientY};
+  canvas.classList.add('dragging');
+  if(Object.keys(pts).length===2){ lastDist=dist(); }
+  canvas.setPointerCapture&&canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove',function(e){
+  if(!pts[e.pointerId]) return;
+  var p=pts[e.pointerId], dx=e.clientX-p.x, dy=e.clientY-p.y;
+  pts[e.pointerId]={x:e.clientX,y:e.clientY};
+  if(Object.keys(pts).length===1){
+    yaw+=dx*0.005; pitch=Math.max(-1.4,Math.min(1.4,pitch+dy*0.005));
+  } else if(Object.keys(pts).length===2){
+    var dcur=dist();
+    if(lastDist>0){ P.zoom=Math.max(0.4,Math.min(3.4,P.zoom*(dcur/lastDist))); syncSliders(); }
+    lastDist=dcur;
+  }
+});
+canvas.addEventListener('pointerup',function(e){ delete pts[e.pointerId]; if(!Object.keys(pts).length) canvas.classList.remove('dragging'); });
+canvas.addEventListener('pointercancel',function(e){ delete pts[e.pointerId]; });
+canvas.addEventListener('wheel',function(e){
+  e.preventDefault();
+  P.zoom=Math.max(0.4,Math.min(3.4,P.zoom*(e.deltaY<0?1.06:0.94)));
+  syncSliders();
+},{passive:false});
+function dist(){
+  var k=Object.keys(pts); if(k.length<2) return 0;
+  return Math.hypot(pts[k[0]].x-pts[k[1]].x, pts[k[0]].y-pts[k[1]].y);
+}
+window.addEventListener('pointerup',function(){ lastMid=null; });
+
+/* ---------- boot ---------- */
+buildChips();
+applyPreset(0);
+resize();
+if(window.ResizeObserver){ boxResize=new ResizeObserver(function(){ resize(); }); boxResize.observe(box); }
+else { window.addEventListener('resize',resize); }
+/* warm-up: draw enough of the pattern that the canvas looks alive on load */
+for(i=0;i<820;i++){ tNow+= (TAU/900)*0.85; drawFrame(0.016,false); }
+lastTs=performance.now();
+raf=requestAnimationFrame(loop);
+})();
+</script>
