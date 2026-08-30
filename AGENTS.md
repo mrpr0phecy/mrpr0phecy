@@ -51,9 +51,10 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
 - Never `git checkout` the images just to look — verify against the live site
   (`curl -sI https://www.themostusefulsiteintheworld.com/images/...`) instead.
 - No `node_modules/`, no caches, no stray downloads in the workspace.
-- Purge before you grow: `git -C r gc --prune=now -q` is safe; dropping
-  `.git` blobs you don't need (`git reflog expire --expire=now --all`) is not
-  usually necessary at depth 1.
+- Purge before you grow: `bash scripts/workspace-size.sh --purge` (caches +
+  `git gc`). Dropping `.git` blobs you don't need (`git reflog expire
+  --expire=now --all`) is not usually necessary at depth 1.
+- `bash scripts/workspace-size.sh` reports current usage any time.
 - If the workspace exceeds the budget, **stop and shrink it**; report the
   size in your summary.
 
