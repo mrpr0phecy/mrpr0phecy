@@ -12,6 +12,7 @@ const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html'));
 const musicList = ['audio-tone-frequency-generator', 'audio-bpm-tapper', 'binaural-neuro-tuner', 'bpm-counter', 'capo-calculator', 'carol-karaoke', 'chord-finder', 'chord-progression', 'ear-trainer', 'instrument-care', 'interval-trainer', 'metronome', 'music-quiz', 'music-theory', 'recording-basics', 'rhythm-generator', 'scale-trainer', 'sheet-music', 'song-writer', 'tempo-map', 'transposer', 'tuner', 'youtube-dj'];
 const healthList = ['sleep-circadian-rem-calculator', 'crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'targetheartrate', 'tdee', 'vo2max', 'waisthip', 'waterintake'];
 const financeList = ['fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax'];
+const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'element-hall', 'energy-watt-exchange', 'statistics-illusion-gallery'];
 const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
 const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
@@ -183,7 +184,7 @@ const saasKillerList = [
   'social-proof-testimonial-card-generator'
 ];
 
-const interactiveArtList = [
+const interactiveArtList = ['3d-spirograph-nebula', 
   'pixel-collaborative-infinite-mural',
   'chrono-garden-l-system-botany',
   'harmonic-orbit-gravitational-soundscape',
@@ -300,6 +301,7 @@ function getCategory(name) {
   if (musicList.some(s => name.includes(s))) return 'Music & Audio';
   if (healthList.some(s => name.includes(s))) return 'Health & Fitness';
   if (financeList.some(s => name.includes(s))) return 'Finance & Money';
+  if (museumList.some(s => name.includes(s))) return 'Museum & Collection';
   if (mathList.some(s => name.includes(s))) return 'Mathematics';
   if (scienceList.some(s => name.includes(s))) return 'Science & Engineering';
   if (writingList.some(s => name.includes(s))) return 'Writing & Language';
