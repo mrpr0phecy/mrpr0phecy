@@ -88,7 +88,7 @@ cd r
 # Tool work (everything except the photos):
 git sparse-checkout set --no-cone '/*' '!/images/'
 
-# Music work (omit the 497 cards too):
+# Music work (omit the 500 cards too):
 # git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 git config user.name  mrpr0phecy
@@ -115,7 +115,7 @@ One GitHub Pages site, **two deliberately separate products**:
 
 | Product | Entry point | What it is |
 |---|---|---|
-| **A — The Most Useful Site In The World** | `index.html` | **497** self-contained offline browser tools, indexed by `cards/cards.json` |
+| **A — The Most Useful Site In The World** | `index.html` | **500** self-contained offline browser tools, indexed by `cards/cards.json` |
 | **B — MrProphecy** | `listen.html` | UK hip hop / animated soundscapes from Luton; YouTube + SoundCloud |
 
 **Never mix them**: no music players/banners in the catalogue or cards; no tool
@@ -136,13 +136,13 @@ and what earns: **[INCOME.md](INCOME.md)**.
 
 1. Write `cards/<tool-name>.html` — an **HTML fragment** (no `<!doctype>`,
    `<head>`, `<body>`). All element IDs must carry a short unique per-tool
-   prefix (`xyz-…`) because all 497 cards share one DOM. Wrap all JS in an
+   prefix (`xyz-…`) because all 500 cards share one DOM. Wrap all JS in an
    IIFE. Inline styles + the CSS variables from `index.html` only. No network
    calls. Start from an existing card.
 2. `node generate-cards-json.js` — rebuilds `cards/cards.json`.
    ⚠️ It **overwrites categories** from hardcoded filename lists: add the new
    filename to the right list inside the script, or re-apply the category.
-3. Bump the count in `index.html` (`Search 497` → `Search 498`).
+3. Bump the count in `index.html` (`Search 500` → `Search 501`).
 4. `python3` — regenerate `sitemap.xml` (script in ARCHITECTURE.md §6), built
    from `git ls-files` so sparse checkouts don't drop the cards.
 5. Commit, push, **wait ~50 s**, then verify live (see §6).
@@ -178,7 +178,7 @@ Expect `200` and a card count matching `cards/`. GitHub Pages deploys from
 
 ## 7. Current verified state (2026-08-30)
 
-- Cards: **497**, all indexed (no orphans), all with title+description.
+- Cards: **500**, all indexed (no orphans), all with title+description.
   Categories include the last batch **"MrProphecy Arcade" (10)**.
 - Tool counts in [README.md](README.md)/[ARCHITECTURE.md](ARCHITECTURE.md)/
   [INCOME.md](INCOME.md) were refreshed to 493 on this date.

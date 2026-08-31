@@ -1,0 +1,207 @@
+<!--
+  🧠 The Bayes Workshop — HALL OF CHANCE. Conditional probability you can feel:
+  what a positive test actually means, why switching doors wins 2/3 of the time,
+  and the prosecutor's fallacy. Live: a 10,000-person grid painted by Bayes'
+  theorem, a 300-game Monty Hall simulation, honest numbers throughout.
+-->
+<style>
+  .bh-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .bh-kicker{display:inline-block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;
+    color:#c9a227;border:1px solid rgba(201,162,39,.35);padding:6px 14px;border-radius:2px;margin-bottom:14px}
+  .bh-title{font-family:var(--serif,'Georgia',serif);font-size:1.9rem;margin:0 0 6px;color:#f4ead0;font-weight:400}
+  .bh-lede{color:var(--muted,#9aa6b6);font-size:.92rem;line-height:1.6;margin:0 0 16px;max-width:780px}
+  .bh-lede b{color:#e3c05a;font-weight:600}
+  .bh-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .bh-chip{padding:6px 13px;border-radius:999px;font-size:.74rem;font-weight:600;cursor:pointer;white-space:nowrap;
+    background:rgba(255,255,255,.05);border:1px solid rgba(201,162,39,.3);color:#d8cfae;transition:all .15s}
+  .bh-chip:hover,.bh-chip.on{border-color:#e3c05a;color:#e3c05a;background:rgba(201,162,39,.08)}
+  .bh-box{border:1px solid rgba(201,162,39,.28);border-radius:10px;padding:16px 18px;margin-bottom:18px;
+    background:linear-gradient(180deg,#070a12,#0a0e18)}
+  .bh-box h3{font-family:var(--serif,'Georgia',serif);font-size:1.1rem;color:#f4ead0;font-weight:400;margin:0 0 3px}
+  .bh-say{font-size:.72rem;color:#8fa3bf;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+  .bh-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+  .bh-slider label{display:flex;justify-content:space-between;font-size:.72rem;color:#8fa3bf;margin-bottom:3px}
+  .bh-slider label span{color:#e3c05a;font-family:ui-monospace,monospace}
+  .bh-slider input{width:100%;accent-color:#e3c05a}
+  .bh-verdict{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:10px 0 6px}
+  .bh-post{font-family:ui-monospace,monospace;font-size:1.9rem;color:#e3c05a;font-weight:700}
+  .bh-verdict .cap{font-size:.8rem;color:#b9c0cc;max-width:520px;line-height:1.5}
+  .bh-canvas-box{background:#02040a;border:1px solid rgba(201,162,39,.22);border-radius:8px;padding:8px;margin:10px 0}
+  .bh-canvas-box canvas{display:block;width:100%;height:190px;border-radius:6px}
+  .bh-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.7rem;color:#9aa6b6;margin-top:8px}
+  .bh-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .bh-counts{font-family:ui-monospace,monospace;font-size:.78rem;color:#d8cfae;margin:6px 0 0;line-height:1.7}
+  .bh-rows{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .bh-btn{padding:8px 16px;border-radius:8px;font-size:.84rem;font-weight:600;cursor:pointer;
+    background:rgba(45,212,255,.1);border:1px solid rgba(45,212,255,.4);color:#c9ecff}
+  .bh-btn:hover{background:rgba(45,212,255,.22)}
+  .bh-bar{flex:1;min-width:180px;height:14px;border-radius:7px;background:rgba(255,255,255,.06);overflow:hidden}
+  .bh-bar i{display:block;height:100%;width:0%;border-radius:7px;transition:width .3s ease}
+  .bh-note{font-size:.82rem;color:#c3c9d4;line-height:1.6;border-top:1px solid rgba(201,162,39,.2);padding-top:10px;margin-top:8px}
+  .bh-note b{color:#e3c05a}
+  .bh-src{font-size:.68rem;color:#7c8698;margin-top:12px;line-height:1.5}
+  .bh-dots{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 4px}
+  .bh-dot{width:9px;height:9px;border-radius:2px;background:#2a3140}
+  .bh-dot.hot{background:#e0567a}
+  @media (max-width:640px){ .bh-grid3{grid-template-columns:1fr} .bh-post{font-size:1.5rem} }
+</style>
+
+<div class="bh-wrap">
+  <span class="bh-kicker">Hall of Chance · Catalogue 04</span>
+  <h2 class="bh-title" style="margin-top:0">The Bayes Workshop</h2>
+  <p class="bh-lede">Your doctor says the test is <b>99% accurate</b> and yours is positive. How scared should
+    you be? The answer is not 99% — and once you can <i>see</i> it, you'll never read a headline the same way.
+    Three exhibits below: the test-result machine, the Monty Hall doors, and the prosecutor's fallacy.</p>
+
+  <div class="bh-box">
+    <div class="bh-say">Exhibit A · What does a positive test really mean?</div>
+    <h3>The test-result machine</h3>
+    <div class="bh-chips" id="bh-presets"></div>
+    <div class="bh-grid3">
+      <div class="bh-slider"><label>Prevalence (how common?) <span id="bh-v-pre">1%</span></label>
+        <input type="range" id="bh-sl-pre" min="0.05" max="50" step="0.05" value="1"></div>
+      <div class="bh-slider"><label>Test sensitivity (catches <span id="bh-v-sens">99%</span>)</label>
+        <input type="range" id="bh-sl-sens" min="50" max="100" step="1" value="99"></div>
+      <div class="bh-slider"><label>Specificity (spares <span id="bh-v-spec">99%</span>)</label>
+        <input type="range" id="bh-sl-spec" min="50" max="100" step="1" value="99"></div>
+    </div>
+    <div class="bh-verdict">
+      <span class="bh-post" id="bh-post">50%</span>
+      <span class="cap" id="bh-cap">chance you actually have it, given a positive result — even with a "99% accurate" test. The rarity of the disease eats the accuracy.</span>
+    </div>
+    <div class="bh-canvas-box"><canvas id="bh-canvas" aria-label="Ten thousand people, one dot each"></canvas></div>
+    <div class="bh-counts" id="bh-counts"></div>
+    <div class="bh-legend">
+      <span><i style="background:#e0567a"></i>really ill · test positive (true positive)</span>
+      <span><i style="background:#d98e57"></i>healthy · test positive (false positive)</span>
+      <span><i style="background:#243447"></i>healthy · test negative</span>
+      <span><i style="background:#5db3d6"></i>really ill · test negative (missed)</span>
+    </div>
+  </div>
+
+  <div class="bh-box">
+    <div class="bh-say">Exhibit B · The Monty Hall doors</div>
+    <h3>Switch, or stay? 300 games will tell you</h3>
+    <p class="bh-note" style="border:none;padding:0;margin:0 0 12px">Three doors, one prize. You pick. The host — who <i>knows</i> where the prize is — always opens an empty door you didn't choose. Stay, or switch? Your gut says 50/50. The maths says <b>switch wins 2/3 of the time</b>. Watch it happen.</p>
+    <div class="bh-rows">
+      <button type="button" class="bh-btn" id="bh-monty">Play 300 games (both strategies)</button>
+      <span class="bh-bar"><i id="bh-bar-stay" style="background:#c9a227"></i></span>
+      <span class="bh-bar"><i id="bh-bar-switch" style="background:#2dd4ff"></i></span>
+    </div>
+    <div class="bh-counts" id="bh-monty-out">Stick: — · Switch: —</div>
+    <p class="bh-note"><b>Why.</b> Sticking wins only if your first guess was right — one door in three. Switching wins in the other two cases, every time. The host's reveal isn't information for you; it's a gift to switchers.</p>
+  </div>
+
+  <div class="bh-box">
+    <div class="bh-say">Exhibit C · The prosecutor's fallacy</div>
+    <h3>A 1-in-a-million match is not proof</h3>
+    <p class="bh-note" style="border:none;padding:0;margin:0 0 8px">A forensic test says only one person in a million would match. In a city of ten million, that means <b>about ten people match</b> — and one of them is on trial. Each dot below is a match; the hot one is the defendant.</p>
+    <div class="bh-dots" id="bh-dots"></div>
+    <p class="bh-note">The <b>probability of the evidence given innocence</b> (one in a million) is not the <b>probability of innocence given the evidence</b>. Bayes' theorem is the bridge between the two — and it always asks: how many of *those* are the guilty one? Exhibit A shows the same trap in medicine.</p>
+  </div>
+
+  <p class="bh-src">Numbers are exact arithmetic (Bayes' theorem) on the chosen inputs; presets use commonly cited
+    figures. "Test accuracy" is deliberately split into its two honest halves: sensitivity (catches the ill)
+    and specificity (spares the healthy). All of this is classical probability — no coin is being bent.</p>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var cv=$('bh-canvas'), cx=cv.getContext('2d');
+
+/* ---------- Exhibit A: Bayes ---------- */
+var PRE=0.01, SENS=0.99, SPEC=0.99;
+var PRESETS=[
+ {lbl:'1-in-1,000 rare · 99% test', pre:0.1,   sens:99, spec:99},
+ {lbl:'1-in-100 · 99% test (classic)', pre:1,  sens:99, spec:99},
+ {lbl:'Athlete drug test · 5% users', pre:5,    sens:95, spec:99},
+ {lbl:'Pandemic wave · 10% infected', pre:10,   sens:90, spec:98}
+];
+function pct(x){ return (Math.round(x*1000)/10)+'%'; }
+function bayes(){
+  var post=(SENS*PRE)/(SENS*PRE+(1-SPEC)*(1-PRE));
+  $('bh-post').textContent=pct(post);
+  $('bh-cap').textContent='chance you actually have it, given a positive result — even with a '+pct(SENS).replace('%','')+'%-accurate-sounding test. '+
+    (post<0.2?'The rarity of the condition eats the accuracy positive results need to mean much.':'Here the test result is meaningful: a positive really does point at you. Caveat: it still is not certainty.');
+  drawGrid(PRE,SENS,SPEC);
+}
+function drawGrid(pre,sens,spec){
+  var N=10000, w=cv.clientWidth, h=cv.clientHeight||190;
+  var dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.max(50,Math.round(w*dpr)); cv.height=Math.max(50,Math.round(h*dpr));
+  cx.setTransform(dpr,0,0,dpr,0,0);
+  cx.fillStyle='#02040a'; cx.fillRect(0,0,w,h);
+  var ill=Math.round(pre*N), healthy=N-ill;
+  var tp=Math.round(sens*ill), fn=ill-tp;
+  var fp=Math.round((1-spec)*healthy), tn=healthy-fp;
+  var cols=Math.min(125,Math.floor(w/4.2)), rows=Math.ceil(N/cols);
+  var cw=Math.min(4.2,(w-8)/cols), ch=Math.min(cw,h/rows);
+  var dot=0, order=[], i;
+  for(i=0;i<tp;i++) order.push('#e0567a');
+  for(i=0;i<fp;i++) order.push('#d98e57');
+  for(i=0;i<tn;i++) order.push('#243447');
+  for(i=0;i<fn;i++) order.push('#5db3d6');
+  /* deterministic-ish shuffle */
+  for(i=order.length-1;i>0;i--){ var j=(i*1103515245+12345)%(i+1); var t=order[i]; order[i]=order[j]; order[j]=t; }
+  for(i=0;i<N;i++){
+    var col=i%cols, row=Math.floor(i/cols);
+    cx.fillStyle=order[i];
+    cx.fillRect(4+col*cw, 4+row*ch, Math.max(1,cw-0.5), Math.max(1,ch-0.5));
+  }
+  $('bh-counts').innerHTML='In 10,000 people: <b style="color:#e0567a">'+tp+'</b> really ill, test positive · <b style="color:#d98e57">'+fp+'</b> healthy, test positive · <b style="color:#243447">'+tn+'</b> healthy, test negative · <b style="color:#5db3d6">'+fn+'</b> ill but missed. Your positive landed in one of the first two groups — only '+(tp+fp)+' people in total.';
+}
+function syncSliders(){
+  $('bh-sl-pre').value=PRE*100; $('bh-sl-sens').value=SENS*100; $('bh-sl-spec').value=SPEC*100;
+  $('bh-v-pre').textContent=(PRE*100)+'%'; $('bh-v-sens').textContent=Math.round(SENS*100)+'%'; $('bh-v-spec').textContent=Math.round(SPEC*100)+'%';
+  bayes();
+}
+function buildPresets(){
+  var h='';
+  PRESETS.forEach(function(p,i){ h+='<button type="button" class="bh-chip" data-i="'+i+'">'+p.lbl+'</button>'; });
+  $('bh-presets').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('#bh-presets .bh-chip'),function(b,bi){
+    b.addEventListener('click',function(){
+      var p=PRESETS[bi];
+      PRE=p.pre/100; SENS=p.sens/100; SPEC=p.spec/100;
+      syncSliders();
+      Array.prototype.forEach.call(document.querySelectorAll('#bh-presets .bh-chip'),function(x,xi){ x.classList.toggle('on',xi===bi); });
+    });
+  });
+  $('bh-presets').querySelector('.bh-chip').classList.add('on');
+}
+$('bh-sl-pre').addEventListener('input',function(){ PRE=+this.value/100; syncSliders(); });
+$('bh-sl-sens').addEventListener('input',function(){ SENS=+this.value/100; syncSliders(); });
+$('bh-sl-spec').addEventListener('input',function(){ SPEC=+this.value/100; syncSliders(); });
+
+/* ---------- Exhibit B: Monty Hall ---------- */
+function montyGames(stick,n){
+  var wins=0;
+  for(var g=0;g<n;g++){
+    var car=Math.floor(Math.random()*3), pick=Math.floor(Math.random()*3);
+    /* host always opens an empty door; if switching, the only remaining closed door is the other non-picked */
+    if(stick){ if(pick===car) wins++; }
+    else { if(pick!==car) wins++; }
+  }
+  return wins;
+}
+$('bh-monty').addEventListener('click',function(){
+  var n=300;
+  var stay=montyGames(true,n), sw=montyGames(false,n);
+  $('bh-bar-stay').style.width=(stay/n*100)+'%';
+  $('bh-bar-switch').style.width=(sw/n*100)+'%';
+  $('bh-monty-out').innerHTML='Stick: <b style="color:#c9a227">'+stay+'/'+n+' ('+Math.round(stay/n*100)+'%)</b> &nbsp;·&nbsp; Switch: <b style="color:#2dd4ff">'+sw+'/'+n+' ('+Math.round(sw/n*100)+'%)</b> — theory says 33% and 67%.';
+});
+
+/* ---------- Exhibit C: prosecutor's dots ---------- */
+(function(){
+  var h='';
+  for(var i=0;i<40;i++) h+='<span class="bh-dot'+(i===23?' hot':'')+'"></span>';
+  $('bh-dots').innerHTML=h;
+})();
+
+buildPresets();
+syncSliders();
+})();
+</script>
