@@ -668,6 +668,73 @@ support, a mobile rail toggle, a `fetchTimeout` fallback for browsers without
 finance segments. Validated in headless Chromium against the real RSS feeds:
 124 stories / 35 sources, zero console or page errors.
 
+**Fixed 2026-08-31 (commits `ce0c880`, `bb32e34`)**
+
+- **hreflang cluster repaired.** `listen.html`, `chinese.html`,
+  `japanese.html` and `portuguese.html` declared **zero** alternates while the
+  other nine pages pointed at them. Google requires reciprocity, so the whole
+  cluster was unreliable. All 13 pages now declare an identical set of 14
+  (12 languages + `en` + `x-default`); verified byte-identical across pages.
+- **`theme-color`** added to the 12 language pages + `youtubepromo2.html`
+  (13 pages had none). Every top-level page now has one.
+- **Full SEO blocks** (description, canonical, OG set, Twitter card,
+  `theme-color`, JSON-LD) added to 11 pages that were near-bare:
+  `aiwalker`, `animation`, `beachsimulator`, `birdapp`, `citysimulator`,
+  `clock`, `eternalbeffudlementmachine`, `fightsimulator`, `mpnews`,
+  `slideshowtest`, `tool`. `mpnews.html` also got its missing `<h1>`, closing
+  the open question below.
+- **Visually-hidden `<h1>`** added to the 6 pages that had none.
+- **Structured data**: `index.html` gained `WebSite` + `CollectionPage`/`ItemList`
+  JSON-LD (20 categories, 500 tools); `thisorthat.html` gained `WebApplication`.
+  27 JSON-LD blocks site-wide, all validated as parseable JSON.
+- **og:image normalised to 1200×630.** `logo.png` (1054 KB, 1024×1024) and
+  `icon-512.png` (219 KB, 512×512) were being used as social cards — wrong
+  aspect ratio, so every platform letterboxed them. Replaced with new
+  `og-tools.png` / `og-mp.png` (37 KB, 1200×630) on 14 pages. `logo.png` is
+  now referenced by nothing and can be deleted.
+- **`404.html` added** — the site previously served GitHub's generic page.
+  Branded, self-contained (no external requests), `noindex,follow`, links both
+  products, respects `prefers-reduced-motion`.
+- **Accessibility/perf**: 4 `<img>` tags had no `alt` (now 0 missing across
+  151); `loading="lazy"` added to the 12 language-page hero images.
+- **sitemap.xml** regenerated: 542 → 540 entries. `hokidea.html`,
+  `indexbeta.html` and `404.html` are `noindex` and were removed from it.
+- SEO scan warnings: **134 → 20**. The remainder are on two `noindex` pages
+  (where the tags are pointless) and `token.html` (left alone deliberately).
+
+**Open — needs a decision or a dedicated pass**
+
+- **244 duplicate element IDs across cards** (`check-cards.py` warns, does not
+  fail). Since all 500 cards share one DOM, `getElementById` can bind to the
+  wrong tool. Worst offenders are whole-file collisions:
+  `leanbodymass.html`↔`lease.html` (26 ids), `moving.html`↔`music-theory.html`
+  (~40), `essay-templates.html`↔`essay.html`, `salary.html`↔`salarycompare.html`,
+  `punctuation-guide.html`↔`qr.html`, `science-quiz.html`↔`sequences-series.html`.
+  Looks like cards were copied and their id prefixes never renamed. Mechanical
+  to fix (rename prefix + every JS reference) but it touches working tools, so
+  it deserves its own commit and a headless-browser check.
+- **`indexbeta.html`** — a second homepage-like app ("My Toolbox" UI, no
+  `cards.json` fetch), linked from nowhere, competing with `index.html` for the
+  same query. Now `noindex,follow` + canonical → `/`, and out of the sitemap.
+  Decide whether it ships publicly or goes.
+- **`hokidea.html`** — 145-byte stub that hot-linked `https://webneko.net/n20171213.js`
+  (third-party JS on your domain, no SRI, no CSP). Wrapped in valid HTML with a
+  `<title>` and `noindex`, and removed from the sitemap, but the third-party
+  script is still there. Delete the file, or vendor the script locally.
+- **Four CV files, none linked from any page**: `CV.docx` (12.8 KB),
+  `CV.pdf` (83.8 KB), `cv.pdf` (2393.8 KB), `latestcv.docx` (39.6 KB). On
+  Linux `CV.pdf` and `cv.pdf` are distinct files, which is a footgun. ~2.4 MB of
+  dead weight; confirm before removing.
+- **`viewport-fit=cover` on 1/42 pages, `color-scheme` on 0/42.** Worth adding
+  to the full-bleed dark pages for notched phones and native dark scrollbars,
+  but it changes layout, so it wants visual testing rather than a blind sweep.
+- **`sw.js` is still unregistered** — see the open question below. For a site of
+  500 offline-first tools it is a large caching win (network-first for HTML,
+  cache-first for cards), but it must be rolled out carefully.
+- **8 pages use `i.ytimg.com/vi/<id>/maxresdefault.jpg` as their og:image**
+  (both ids verified live today). Fine while the videos exist; if one is ever
+  deleted the share card silently breaks.
+
 **Deliberately left alone**
 
 - (Nothing here now forbids touching `opensourcenews.html`: on 2026-08-30 the
