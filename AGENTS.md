@@ -16,7 +16,7 @@ deploy):
 
 | | Product | Entry | Don't mix |
 |---|---|---|---|
-| **A** | The Most Useful Site In The World — **494** offline browser tools | `index.html` | Never add music players/banners here |
+| **A** | The Most Useful Site In The World — **497** offline browser tools | `index.html` | Never add music players/banners here |
 | **B** | MrProphecy — UK hip hop & animated soundscapes (Luton) | `listen.html` | Never add tool links here |
 
 Live: `https://www.themostusefulsiteintheworld.com` (CNAME = custom domain,
@@ -90,7 +90,7 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 #  - forms: onsubmit="event.preventDefault();"
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
-# bump count in index.html: "Search 494" -> "Search 495"
+# bump count in index.html: "Search 497" -> "Search 498"
 python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
 PY
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
