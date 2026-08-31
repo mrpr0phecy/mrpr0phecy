@@ -702,10 +702,78 @@ finance segments. Validated in headless Chromium against the real RSS feeds:
 - SEO scan warnings: **134 → 20**. The remainder are on two `noindex` pages
   (where the tags are pointless) and `token.html` (left alone deliberately).
 
+**Fixed 2026-08-31, second pass (commits `f9c252c`, `ea5a028`)**
+
+- **Seven cards were completely dead in production.** Each had a JavaScript
+  syntax error that killed its entire `<script>` block, so the tool rendered but
+  did nothing at all:
+  `qrtool`, `social-preview`, `christmas-card-maker`, `ohms-law`, `onerepmax`,
+  `oscilloscope` (all the same bug — a botched removal of "AFFILIATE FUNCTIONS"
+  left `function xxTrackAffiliate(){});` plus a dangling brace), and
+  `proofreading` (`severityColor = var('--accent')` — CSS syntax in JS).
+  `math-universe-explorer` also had an unquoted `∞` object key, which is not a
+  valid JS identifier. **`node --check` now runs clean across all 473 script
+  blocks in all 500 cards.**
+- **The catalogue was not 500 distinct tools.** Five pairs of card files were
+  byte-identical, and three of them were the wrong tool in the wrong category:
+
+  | File | Listed as | Actually contained |
+  |---|---|---|
+  | `music-theory` | Music & Audio | 🚚 Ultimate Moving Planner |
+  | `lease` | Finance & Money | Lean Body Mass Calculator |
+  | `qr` | Productivity & Lifestyle | 📝 Punctuation Mastery Guide |
+  | `salarycompare` | Finance & Money | duplicate of `salary` |
+  | `essay` | Writing & Language | duplicate of `essay-templates` |
+
+  `sequences-series` was a copy of the Science Quiz Generator sitting in
+  Mathematics (zero maths content), and `logarithms` was a *third* sequences
+  calculator — so the catalogue advertised a logarithms tool it did not have.
+  All seven files were rewritten as genuine new tools: Circle of Fifths
+  Explorer, Lease vs Buy, Barcode Check Digit Validator, Take-Home Pay
+  Breakdown, Argument Mapper, Sequences & Series, and Logarithm Calculator.
+  Four more same-title collisions (`vocab`, `interest`, `unit-converter`,
+  `unitconverter`) got distinct titles. **All 500 titles are now unique.**
+- **Duplicate element IDs: 244 → 5.** 279 colliding ids renamed across 38 cards
+  (prefix + original token, so `cc-voltage` in `cable-length` became
+  `cablelcc-voltage`). Since all cards share one DOM these were live bugs —
+  `getElementById` could bind to the wrong tool. The 5 remaining warnings are
+  template-literal ids (`${item.id}`) that are unique at runtime, not
+  collisions.
+- **`generate-cards-json.js` was losing data on every run.** `cards.json` had
+  been hand-curated, and regenerating silently reverted emoji titles, curated
+  descriptions and the whole "Museum & Collection" category — which the script
+  did not know about even though `check-cards.py` did. Added a `museumList`,
+  hoisted its check above `mathList`/`scienceList` (the substring matcher let
+  `'statistics'` and `'energy'` steal two cards), and moved the curated titles
+  and descriptions into the cards' own `<h2>`/`<p>` so regeneration is now
+  idempotent. `3d-spirograph-nebula` belongs to `interactiveArtList`, not the
+  museum.
+- **Favicon.** Only 3 of 43 pages declared an icon and `/favicon.ico` 404'd, so
+  every page load made a failing request. Generated a real multi-resolution
+  `favicon.ico` (16/32/48) and added the existing inline SVG data URI icon to
+  all 43 pages — zero extra requests.
+- **Dead affiliate link** in `probability.html` pointing at `/affiliates`,
+  which 404s, and which INCOME.md's growth policy excludes anyway. Removed.
+- **24 meta descriptions were 165–477 chars** (Google truncates around 160).
+  All trimmed at sentence boundaries; none are now out of range.
+- **Broken reference** in `mrprophecy-name-that-track.html`: `href="listen.html"`
+  resolved to `/cards/listen.html` (404). Now `../listen.html`.
+- `vocab.html` had **no heading element at all**, so its catalogue title was a
+  filename-derived fallback. Added a proper `<h2>`.
+
+**Verification method used** (worth keeping): `jsdom` installed to `/tmp`, never
+the workspace, driving each card in a minimal shell. That is what caught the
+Lease vs Buy verdict being sign-inverted — totals said buying was £4,595
+cheaper while the headline said "Leasing is cheaper". All 7 new tools now pass
+15 interaction assertions (valid/invalid EAN-13, log₂(1024)=10, arithmetic and
+geometric sums, convergence detection, both lease verdict branches).
+
 **Open — needs a decision or a dedicated pass**
 
-- **244 duplicate element IDs across cards** (`check-cards.py` warns, does not
-  fail). Since all 500 cards share one DOM, `getElementById` can bind to the
+- **17 `<label for=...>` associations point at no element** (they label button
+  groups, e.g. `sub-status`, `tdee-gender`). Screen readers cannot associate
+  them. Low severity; fix is converting the button groups to radio inputs or
+  adding `aria-labelledby`. Since all 500 cards share one DOM, `getElementById` can bind to the
   wrong tool. Worst offenders are whole-file collisions:
   `leanbodymass.html`↔`lease.html` (26 ids), `moving.html`↔`music-theory.html`
   (~40), `essay-templates.html`↔`essay.html`, `salary.html`↔`salarycompare.html`,
