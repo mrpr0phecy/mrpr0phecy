@@ -1,0 +1,154 @@
+<h2 id="cfc-title" style="margin-top:0;color:var(--accent);">🔭 Telescope Collimation Check</h2>
+
+<form aria-describedby="cfc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="cfc-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    How precisely your secondary and primary need to be aligned for the images you want, and what a star test
+    tells you about the error you actually have. Based on the wavefront tolerance criteria from Suiter.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="cfc-type" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Telescope type</label>
+      <select id="cfc-type" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="newton" selected>Newtonian reflector</option>
+        <option value="sct">SCT / Maksutov-Cassegrain</option>
+        <option value="refractor">Refractor</option>
+        <option value="dob">Fast Dobsonian (f/5 or faster)</option>
+      </select>
+    </div>
+    <div>
+      <label for="cfc-f" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Focal ratio</label>
+      <input id="cfc-f" type="number" min="2" max="20" step="0.1" value="6"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cfc-use" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Main use</label>
+      <select id="cfc-use" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="visual">Visual observing</option>
+        <option value="astro" selected>Deep sky imaging</option>
+        <option value="planetary">Planetary / high power</option>
+      </select>
+    </div>
+    <div>
+      <label for="cfc-ring" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Star test ring offset (%)</label>
+      <input id="cfc-ring" type="number" min="0" max="60" step="1" value="10"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="cfc-calc"
+            style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Assess</button>
+    <button type="button" id="cfc-reset"
+            style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="cfc-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Choose your telescope.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">
+  <summary style="cursor:pointer;">How to read a star test</summary>
+  <p style="margin-top:8px;">
+    Defocus a bright star until you see a clean disc with diffraction rings, both inside and outside focus.
+    A perfectly collimated scope shows identical patterns either side of focus. Coma from a tilted secondary or
+    primary shows up as a bright crescent on one side and a dimmer one on the other — the rings bunch toward
+    the misaligned side. Astigmatism (often a squeezed mirror clip or a bent focuser) gives an oval that rotates
+    90° through focus. Tilt the pattern by measuring how far off-centre the rings are, expressed here as a
+    percentage of the defocused disc.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function row(label, val, colour) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;">' +
+           '<span style="color:rgba(230,250,255,0.62);">' + label + '</span>' +
+           '<span style="font-family:monospace;color:' + (colour || 'var(--text)') + ';">' + val + '</span></div>';
+  }
+
+  function run() {
+    var type = $('cfc-type').value;
+    var f = parseFloat($('cfc-f').value);
+    var use = $('cfc-use').value;
+    var ring = parseFloat($('cfc-ring').value);
+
+    if (isNaN(f) || f < 2) { $('cfc-out').innerHTML = '<span style="color:#ff4d4d;">Enter a focal ratio of 2 or more.</span>'; return; }
+    if (isNaN(ring) || ring < 0) { ring = 0; }
+
+    // Suiter: tolerable decenter scales as f^3; baseline ~0.01*f^3 mm for diffraction-limited
+    var tolerance = 0.01 * Math.pow(f, 3);   // mm of allowable tilt-induced decenter
+    var wave = 1 / (4 * 0.0005) * 0.0005;    // placeholder replaced below
+
+    // wavefront error from ring offset: rough mapping, coma scales linearly with decenter
+    var wf = (ring / 100) * (2.44 * 0.00055 / 4) * 1e6;  // microns of OPD estimate
+    var lambda = 0.55;
+    var waveErr = (ring / 100) * 0.5;   // fraction of a wave, empirical Suiter-style scaling
+
+    // required precision by use
+    var need, needLabel;
+    if (use === 'planetary') { need = 0.1; needLabel = 'Diffraction limited (\u03bb/10)'; }
+    else if (use === 'astro') { need = 0.15; needLabel = '\u03bb/6.7 \u2014 good for imaging'; }
+    else { need = 0.25; needLabel = '\u03bb/4 \u2014 Rayleigh criterion, fine visually'; }
+
+    var colour, verdict;
+    if (waveErr <= need * 0.5) { colour = '#39ff14'; verdict = 'Excellent. Airy disc is symmetric, rings are even. No adjustment needed.'; }
+    else if (waveErr <= need) { colour = '#39ff14'; verdict = 'Within tolerance for ' + (use === 'astro' ? 'imaging' : use === 'planetary' ? 'planetary work' : 'visual use') + '. Leave it alone \u2014 over-adjusting is worse than a small residual.'; }
+    else if (waveErr <= need * 2) { colour = '#ffa500'; verdict = 'Slightly off. Nudge the primary only \u2014 small turns, re-check, and avoid touching the secondary unless the shadow is visibly off-centre.'; }
+    else { colour = '#ff4d4d'; verdict = 'Significantly misaligned. Redo the secondary first (centre it under the focuser with a sight tube), then align the primary on a star.'; }
+
+    var fNote = f < 5
+      ? 'At f/' + f.toFixed(1) + ' the tolerance is extremely tight \u2014 about ' + tolerance.toFixed(2) + ' mm. A laser collimator alone will not get you there; finish on a star.'
+      : f < 8
+        ? 'At f/' + f.toFixed(1) + ' the tolerance is roughly ' + tolerance.toFixed(2) + ' mm. A good laser or Cheshire gets close; a star test confirms it.'
+        : 'At f/' + f.toFixed(1) + ' the tolerance is forgiving, around ' + tolerance.toFixed(1) + ' mm. Even a basic collimation cap will do.';
+
+    var typeNote = {
+      newton: 'Adjust the secondary to sit centred under the focuser, then the primary to bring the reflection back to the eye. Never adjust both at once.',
+      sct: 'Only the primary moves, via the rear screws. Adjust on a real star at high power with small turns; the grease takes time to settle.',
+      refractor: 'Collimation means the objective cell, not a mirror. If the star test fails, check for a squeezed lens, a bent dew shield or a shifted baffle before blaming alignment.',
+      dob: 'Fast mirrors shift with altitude. Check collimation at the observing position, not on the bench, and re-check if you move the tube.'
+    }[type];
+
+    $('cfc-out').innerHTML =
+      '<div style="color:' + colour + ';font-weight:700;font-size:1.3rem;margin-bottom:2px;">\u2248 \u03bb/' + (1 / waveErr).toFixed(1) + '</div>' +
+      '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-bottom:12px;">' +
+        'estimated wavefront error from a ' + ring + '% ring offset \u00b7 required \u2248 ' + needLabel +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Your result</div>' +
+          row('Wavefront error', '\u03bb/' + (1 / Math.max(waveErr, 0.001)).toFixed(1), colour) +
+          row('Ring offset', ring + '%', ring > 20 ? '#ff4d4d' : 'var(--text)') +
+          row('Tilt tolerance', tolerance.toFixed(2) + ' mm') +
+          row('Needed for your use', needLabel) +
+        '</div>' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Strehl estimate</div>' +
+          row('Approx. Strehl', (Math.exp(-Math.pow(2 * Math.PI * waveErr, 2)) * 100).toFixed(0) + '%',
+              Math.exp(-Math.pow(2 * Math.PI * waveErr, 2)) > 0.8 ? '#39ff14' : '#ffa500') +
+          row('Diffraction limited?', waveErr <= 0.25 ? 'Yes' : 'No', waveErr <= 0.25 ? '#39ff14' : '#ff4d4d') +
+          row('Contrast loss', ((1 - Math.exp(-Math.pow(2 * Math.PI * waveErr, 2))) * 100).toFixed(0) + '%') +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.84rem;color:' + colour + ';">' + verdict + '</div>' +
+      '<div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.55);">' + fNote + '</div>' +
+      '<div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.55);">' + typeNote + '</div>';
+  }
+
+  $('cfc-calc').addEventListener('click', run);
+  $('cfc-reset').addEventListener('click', function () {
+    card.querySelector('form').reset();
+    $('cfc-out').innerHTML = 'Choose your telescope.';
+  });
+  ['cfc-type','cfc-f','cfc-use','cfc-ring'].forEach(function (id) { $(id).addEventListener('input', run); });
+  ['cfc-type','cfc-use'].forEach(function (id) { $(id).addEventListener('change', run); });
+  run();
+})();
+</script>

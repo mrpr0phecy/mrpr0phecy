@@ -1,0 +1,169 @@
+<h2 id="dsq-title" style="margin-top:0;color:var(--accent);">🌌 Dark Sky Quality Planner</h2>
+
+<form aria-describedby="dsq-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="dsq-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Turn a Sky Quality Meter reading, a Bortle class or a naked-eye limiting magnitude into the others, and
+    see what each sky condition is worth for deep-sky work. Useful for choosing a site before you drive to it.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="dsq-mode" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">You measured</label>
+      <select id="dsq-mode"
+              style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="sqm" selected>SQM reading (mag/arcsec²)</option>
+        <option value="bortle">Bortle class</option>
+        <option value="nelm">Naked-eye limiting mag</option>
+      </select>
+    </div>
+    <div>
+      <label for="dsq-value" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Value</label>
+      <input id="dsq-value" type="number" step="0.1" value="21.5"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="dsq-aperture" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Telescope aperture (mm)</label>
+      <input id="dsq-aperture" type="number" min="10" max="1000" step="1" value="203"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="dsq-calc"
+            style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Convert</button>
+    <button type="button" id="dsq-reset"
+            style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="dsq-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Enter a reading to compare sites.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">
+  <summary style="cursor:pointer;">The scale and the maths</summary>
+  <p style="margin-top:8px;">
+    SQM reads magnitudes per square arcsecond; higher is darker. A pristine zenith sky is about 21.99, a good
+    rural site 21.3–21.7, and a city centre can be under 18. Naked-eye limiting magnitude relates to SQM
+    roughly as NELM ≈ 7.9 − 0.36·(21.99 − SQM)² for dark skies. Sky brightness doubles with every
+    0.75 mag of SQM, so a site one magnitude darker is not slightly better — it is 2.5× darker, and faint
+    nebulosity that is invisible at Bortle 6 becomes obvious at Bortle 3.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var BORTLE = [
+    { c: 1, sqm: 21.99, nelm: 7.8, name: 'Excellent dark-sky site', note: 'The zodiacal light, gegenschein and M33 are naked-eye objects. Jupiter and Venus impair dark adaptation.' },
+    { c: 2, sqm: 21.70, nelm: 7.5, name: 'Typical truly dark site', note: 'The Milky Way casts shadows. M33 is a direct-vision object and the summer Milky Way shows structure.' },
+    { c: 3, sqm: 21.50, nelm: 7.1, name: 'Rural sky', note: 'Some light domes on the horizon. The Milky Way is complex, and globular clusters are naked-eye objects.' },
+    { c: 4, sqm: 21.30, nelm: 6.6, name: 'Rural/suburban transition', note: 'Light domes are obvious over towns. The Milky Way is impressive overhead but washed out near the horizon.' },
+    { c: 5, sqm: 20.50, nelm: 6.1, name: 'Suburban sky', note: 'The Milky Way is faint or invisible at the zenith. Clouds are noticeably brighter than the sky itself.' },
+    { c: 6, sqm: 19.70, nelm: 5.6, name: 'Bright suburban sky', note: 'No trace of the Milky Way. M31 is a modest glimpse and the sky within 35° of the horizon glows greyish white.' },
+    { c: 7, sqm: 18.90, nelm: 5.1, name: 'Suburban/urban transition', note: 'The whole sky has a vague greyish-white cast. M44 and M31 are barely glimpsed.' },
+    { c: 8, sqm: 18.40, nelm: 4.6, name: 'City sky', note: 'You can read a newspaper outdoors. Only the Pleiades and the brightest Messiers are visible.' },
+    { c: 9, sqm: 17.50, nelm: 4.0, name: 'Inner-city sky', note: 'The entire sky glows brightly. Many stars that make up familiar constellations are invisible.' }
+  ];
+
+  function row(label, val, colour) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;">' +
+           '<span style="color:rgba(230,250,255,0.62);">' + label + '</span>' +
+           '<span style="font-family:monospace;color:' + (colour || 'var(--text)') + ';">' + val + '</span></div>';
+  }
+
+  function bortleFromSqm(s) {
+    var best = BORTLE[0];
+    for (var i = 0; i < BORTLE.length; i++) {
+      if (s <= BORTLE[i].sqm + 0.001) { best = BORTLE[i]; }
+      else break;
+    }
+    return best;
+  }
+  function nelmFromSqm(s) {
+    if (s >= 21.4) return 7.9 - 0.36 * Math.pow(21.99 - s, 2);
+    return 2.5 + (s - 17.5) * 1.25;
+  }
+  function sqmFromNelm(n) {
+    if (n >= 6.4) return 21.99 - Math.sqrt(Math.max(0, (7.9 - n) / 0.36));
+    return 17.5 + (n - 2.5) / 1.25;
+  }
+
+  function run() {
+    var mode = $('dsq-mode').value;
+    var v = parseFloat($('dsq-value').value);
+    var d = parseFloat($('dsq-aperture').value) || 203;
+
+    if (isNaN(v)) { $('dsq-out').innerHTML = '<span style="color:#ff4d4d;">Enter a value.</span>'; return; }
+
+    var sqm, nelm;
+    if (mode === 'sqm') {
+      if (v < 16 || v > 22.5) { $('dsq-out').innerHTML = '<span style="color:#ff4d4d;">SQM readings run from about 16 (blazing city) to 22.5 (the darkest possible).</span>'; return; }
+      sqm = v; nelm = nelmFromSqm(sqm);
+    } else if (mode === 'bortle') {
+      var b = Math.max(1, Math.min(9, Math.round(v)));
+      var entry = BORTLE[b - 1];
+      sqm = entry.sqm; nelm = entry.nelm;
+    } else {
+      if (v < 3 || v > 8.2) { $('dsq-out').innerHTML = '<span style="color:#ff4d4d;">A realistic naked-eye limiting magnitude is between about 3 and 8.</span>'; return; }
+      nelm = v; sqm = sqmFromNelm(nelm);
+    }
+
+    var cls = bortleFromSqm(sqm);
+    var ratio = Math.pow(10, (21.99 - sqm) / 2.5);
+    var limit = Math.min(2.7 + 5 * Math.log10(d) + 5 * Math.log10(0.82), nelm + 5 * Math.log10(d / 6.22) * 0.92);
+    var gain = limit - nelm;
+
+    var colour = sqm >= 21.4 ? '#39ff14' : sqm >= 20.4 ? '#2dd4ff' : sqm >= 19.4 ? '#ffa500' : '#ff4d4d';
+
+    $('dsq-out').innerHTML =
+      '<div style="color:' + colour + ';font-weight:700;font-size:1.3rem;margin-bottom:2px;">Bortle ' + cls.c + ' \u2014 ' + cls.name + '</div>' +
+      '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-bottom:14px;">' + cls.note + '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Equivalent readings</div>' +
+          row('SQM', sqm.toFixed(2) + ' mag/arcsec\u00b2') +
+          row('Naked-eye limit', 'mag ' + nelm.toFixed(1)) +
+          row('Bortle class', String(cls.c)) +
+          row('Sky vs pristine', ratio.toFixed(2) + '\u00d7 brighter') +
+        '</div>' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">What it means for you</div>' +
+          row('Your reach (' + d + ' mm)', 'mag ' + limit.toFixed(1), '#39ff14') +
+          row('Gain over naked eye', '+' + gain.toFixed(1) + ' mag') +
+          row('Exposure vs pristine', ratio.toFixed(1) + '\u00d7 longer') +
+          row('Stacks to match pristine', Math.ceil(ratio) + '\u00d7') +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.82rem;color:rgba(230,250,255,0.6);">' +
+        'To reach the same depth here as under a Bortle 1 sky you need about ' + ratio.toFixed(1) +
+        '\u00d7 the total exposure \u2014 roughly ' + Math.ceil(ratio) + ' subs instead of one.' +
+      '</div>';
+  }
+
+  $('dsq-calc').addEventListener('click', run);
+  $('dsq-reset').addEventListener('click', function () {
+    card.querySelector('form').reset();
+    setHint();
+    $('dsq-out').innerHTML = 'Enter a reading to compare sites.';
+  });
+  $('dsq-mode').addEventListener('change', function () { setHint(); run(); });
+  ['dsq-value', 'dsq-aperture'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+  });
+
+  function setHint() {
+    var m = $('dsq-mode').value;
+    var el = $('dsq-value');
+    if (m === 'sqm') { el.value = '21.5'; el.step = '0.1'; el.placeholder = 'e.g. 21.5'; }
+    else if (m === 'bortle') { el.value = '3'; el.step = '1'; el.placeholder = '1–9'; }
+    else { el.value = '6.8'; el.step = '0.1'; el.placeholder = 'e.g. 6.8'; }
+  }
+  setHint();
+  run();
+})();
+</script>

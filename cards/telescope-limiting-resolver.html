@@ -1,0 +1,152 @@
+<h2 id="tlr-title" style="margin-top:0;color:var(--accent);">🌟 Resolution &amp; Limiting Magnitude</h2>
+
+<form aria-describedby="tlr-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="tlr-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    What can your aperture actually split, and how faint can it go? Computes the Dawes and Rayleigh limits,
+    the theoretical limiting magnitude, and the doubles and deep-sky targets that fall within reach.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="tlr-aperture" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Aperture (mm)</label>
+      <input id="tlr-aperture" type="number" min="10" max="2000" step="1" value="203"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="tlr-wavelength" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Wavelength (nm)</label>
+      <input id="tlr-wavelength" type="number" min="300" max="1100" step="5" value="550"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="tlr-sky" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Sky darkness (NELM)</label>
+      <select id="tlr-sky"
+              style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="4.0">4.0 — city centre</option>
+        <option value="5.0">5.0 — inner suburbs</option>
+        <option value="6.0">6.0 — outer suburbs</option>
+        <option value="6.8">6.8 — rural</option>
+        <option value="7.4" selected>7.4 — dark rural</option>
+        <option value="7.8">7.8 — pristine / Bortle 1–2</option>
+      </select>
+    </div>
+    <div>
+      <label for="tlr-transmission" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Transmission (%)</label>
+      <input id="tlr-transmission" type="number" min="30" max="100" step="1" value="82"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="tlr-calc"
+            style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
+    <button type="button" id="tlr-reset"
+            style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="tlr-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Enter an aperture to see what it can resolve.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">
+  <summary style="cursor:pointer;">Formulas used</summary>
+  <p style="margin-top:8px;">
+    Rayleigh criterion: θ = 1.22λ / D, expressed in arcseconds as 138 / D(mm) at 550 nm.
+    Dawes' empirical limit for equal-brightness visual doubles: 116 / D(mm). Limiting magnitude follows the
+    aperture-gain relation m = 2.7 + 5·log₁₀(D) + 5·log₁₀(transmission), reduced toward the naked-eye
+    NELM when the sky is bright. These are theory — atmospheric seeing usually sets the real limit near
+    1″ or worse from the ground.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function row(label, val, colour) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;">' +
+           '<span style="color:rgba(230,250,255,0.62);">' + label + '</span>' +
+           '<span style="font-family:monospace;color:' + (colour || 'var(--text)') + ';">' + val + '</span></div>';
+  }
+
+  function run() {
+    var d = parseFloat($('tlr-aperture').value);
+    var wl = parseFloat($('tlr-wavelength').value) || 550;
+    var nelm = parseFloat($('tlr-sky').value);
+    var trans = (parseFloat($('tlr-transmission').value) || 80) / 100;
+
+    if (!(d > 0)) { $('tlr-out').innerHTML = '<span style="color:#ff4d4d;">Aperture must be positive.</span>'; return; }
+
+    var rayleigh = 1.22 * (wl / 1e9) / (d / 1000) * 206265;   // arcsec
+    var dawes = 116 / d;
+    var seeing = 1.0;
+    var effective = Math.max(rayleigh, dawes, seeing);
+
+    // limiting magnitude: theoretical aperture gain, then pulled toward the sky's NELM
+    var theoretical = 2.7 + 5 * Math.log10(d) + 5 * Math.log10(trans);
+    var limit = Math.min(theoretical, nelm + 5 * Math.log10(d / 6.22) * 0.92);
+
+    var gain = limit - nelm;
+    var lightBucket = Math.pow(d / 7, 2);
+
+    // what that limit buys you
+    var targets = [];
+    if (limit >= 4.0) targets.push('the Double Cluster, M31 and the Orion Nebula');
+    if (limit >= 9.0) targets.push('M81/M82, the Hercules Cluster and the Ring Nebula');
+    if (limit >= 11.0) targets.push('M51 face-on, NGC 7331 and most Messier galaxies');
+    if (limit >= 13.0) targets.push('the Sculptor Galaxy, NGC 253 and many Abell clusters');
+    if (limit >= 15.0) targets.push('faint dwarfs such as NGC 6822 and Pluto at magnitude 14.3');
+    if (limit >= 17.0) targets.push('1 Ceres-like asteroids and quasar 3C 273 at 12.9 with room to spare');
+
+    var dawesSplit = dawes < 1.0
+      ? 'comfortably splits close pairs such as \u03b3 Andromedae (9.6\u2033) and \u03b5 Bootis (2.9\u2033)'
+      : dawes < 2.0
+        ? 'splits classic pairs like \u03b1 Scorpii and \u03b3 Leonis, but not sub-arcsecond doubles'
+        : 'handles wide pairs only \u2014 \u03b2 Cygni and \u03b5 Lyrae\'s wide pair';
+
+    $('tlr-out').innerHTML =
+      '<div style="color:var(--accent);font-weight:700;font-size:1.35rem;margin-bottom:2px;">mag ' + limit.toFixed(1) + '</div>' +
+      '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-bottom:14px;">' +
+        'limiting magnitude \u00b7 ' + gain.toFixed(1) + ' mag deeper than the naked eye here' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Resolution</div>' +
+          row('Dawes limit', dawes.toFixed(2) + '\u2033') +
+          row('Rayleigh criterion', rayleigh.toFixed(2) + '\u2033') +
+          row('Seeing-limited in practice', '~' + effective.toFixed(2) + '\u2033', effective > dawes * 1.5 ? '#ffa500' : '#39ff14') +
+          row('Resolving power vs eye', (7 / d * 100).toFixed(0) + '\u00d7 finer') +
+        '</div>' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Light grasp</div>' +
+          row('Collecting area', (Math.PI * Math.pow(d / 2, 2) / 100).toFixed(1) + ' cm\u00b2') +
+          row('vs dark-adapted eye', lightBucket.toFixed(0) + '\u00d7') +
+          row('Theoretical limit', 'mag ' + theoretical.toFixed(1)) +
+          row('Sky-limited to', 'mag ' + limit.toFixed(1), '#ffa500') +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.84rem;color:rgba(230,250,255,0.8);">' +
+        '<strong style="color:#39ff14;">Within reach:</strong> ' + (targets[targets.length - 1] || 'bright naked-eye objects only') +
+      '</div>' +
+      '<div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.55);">This aperture ' + dawesSplit + '.</div>' +
+      (theoretical - limit > 0.8
+        ? '<div style="margin-top:8px;font-size:0.8rem;color:#ffa500;">Your sky, not your glass, is the limiting factor \u2014 the aperture could reach mag ' +
+          theoretical.toFixed(1) + ' under darker skies.</div>'
+        : '');
+  }
+
+  $('tlr-calc').addEventListener('click', run);
+  $('tlr-reset').addEventListener('click', function () {
+    card.querySelector('form').reset();
+    $('tlr-out').innerHTML = 'Enter an aperture to see what it can resolve.';
+  });
+  ['tlr-aperture', 'tlr-wavelength', 'tlr-sky', 'tlr-transmission'].forEach(function (id) {
+    $(id).addEventListener('change', run);
+    $(id).addEventListener('input', run);
+  });
+  run();
+})();
+</script>

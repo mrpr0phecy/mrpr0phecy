@@ -283,7 +283,21 @@ const aiList = [
   'ai-mcp-protocol-tool-tester'
 ];
 
+const astronomyList = [
+  'telescope-eyepiece-calculator',
+  'telescope-limiting-resolver',
+  'telescope-collimation-check',
+  'deep-sky-exposure-planner',
+  'dark-sky-quality-planner',
+  'airmass-extinction-calculator',
+  'equatorial-coord-finder',
+  'lunar-phase-illuminator',
+  'redshift-distance-calculator',
+  'black-hole-horizon-calculator'
+];
+
 function getCategory(name) {
+  if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
   if (aiList.some(s => name.includes(s))) return 'AI & Autonomous Agents';
   if (dogList.some(s => name.includes(s))) return 'Dogs & Canine Care';
   if (birdingList.some(s => name.includes(s))) return 'Birdwatching & Ornithology';

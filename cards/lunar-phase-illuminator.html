@@ -1,0 +1,150 @@
+<h2 id="lpi-title" style="margin-top:0;color:var(--accent);">🌙 Lunar Phase &amp; Illumination</h2>
+
+<form aria-describedby="lpi-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="lpi-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Phase, illumination fraction, age and a drawn disc for any date and time — plus the next new and full
+    Moons and how much moonlight is washing out the sky. Runs entirely offline.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="lpi-date" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Date</label>
+      <input id="lpi-date" type="date"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="lpi-time" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Time (UTC)</label>
+      <input id="lpi-time" type="time" value="22:00"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div style="display:flex;align-items:flex-end;">
+      <button type="button" id="lpi-now"
+              style="width:100%;padding:10px 14px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.35);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">Use current time</button>
+    </div>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+    <svg id="lpi-disc" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Current lunar phase">
+      <circle cx="60" cy="60" r="54" fill="#1a1a22" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>
+      <path id="lpi-lit" d="" fill="#f2f0e6"/>
+    </svg>
+    <div id="lpi-out" style="flex:1;min-width:220px;font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+      Pick a date to see the phase.
+    </div>
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">
+  <summary style="cursor:pointer;">Method and accuracy</summary>
+  <p style="margin-top:8px;">
+    Uses the mean synodic month of 29.53058867 days from a known new-Moon epoch (2000-01-06 18:14 UTC).
+    Phase age and illumination are good to roughly half a day and a few percent; the Moon's real orbit is
+    eccentric and inclined, so exact new and full Moon times can differ by up to about 14 hours. Times are
+    handled in UTC — convert to your local zone before planning an outing.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var SYNODIC = 29.53058867;
+  var EPOCH = Date.UTC(2000, 0, 6, 18, 14, 0);
+
+  var PHASES = [
+    [0.00, 'New Moon'], [0.03, 'Waxing crescent'], [0.22, 'First quarter'],
+    [0.28, 'Waxing gibbous'], [0.47, 'Full Moon'], [0.53, 'Waning gibbous'],
+    [0.72, 'Last quarter'], [0.78, 'Waning crescent'], [1.01, 'New Moon']
+  ];
+
+  function phaseName(f) {
+    for (var i = 0; i < PHASES.length; i++) if (f < PHASES[i][0]) return PHASES[i][1];
+    return 'New Moon';
+  }
+
+  function ageOf(ms) {
+    var a = ((ms - EPOCH) / 86400000) % SYNODIC;
+    if (a < 0) a += SYNODIC;
+    return a;
+  }
+
+  function row(label, val, colour) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;">' +
+           '<span style="color:rgba(230,250,255,0.62);">' + label + '</span>' +
+           '<span style="font-family:monospace;color:' + (colour || 'var(--text)') + ';">' + val + '</span></div>';
+  }
+
+  function draw(frac, waxing) {
+    // Build the lit region as a path: outer semicircle plus an elliptical terminator
+    var R = 54, cx = 60, cy = 60;
+    var k = 1 - 2 * frac;                 // -1 full .. +1 new
+    var rx = Math.abs(k) * R;
+    var sweepOuter = waxing ? 1 : 0;
+    var sweepInner = (k > 0) === waxing ? sweepOuter : 1 - sweepOuter;
+    var d = 'M ' + cx + ' ' + (cy - R) +
+            ' A ' + R + ' ' + R + ' 0 0 ' + sweepOuter + ' ' + cx + ' ' + (cy + R) +
+            ' A ' + rx.toFixed(2) + ' ' + R + ' 0 0 ' + sweepInner + ' ' + cx + ' ' + (cy - R) + ' Z';
+    $('lpi-lit').setAttribute('d', frac <= 0.001 ? '' : d);
+  }
+
+  function run() {
+    var dv = $('lpi-date').value;
+    var tv = $('lpi-time').value || '00:00';
+    if (!dv) { $('lpi-out').innerHTML = 'Pick a date to see the phase.'; draw(0, true); return; }
+
+    var t = Date.parse(dv + 'T' + tv + ':00Z');
+    if (isNaN(t)) { $('lpi-out').innerHTML = '<span style="color:#ff4d4d;">That date did not parse.</span>'; return; }
+
+    var age = ageOf(t);
+    var frac = age / SYNODIC;
+    var illum = (1 - Math.cos(2 * Math.PI * frac)) / 2 * 100;
+    var waxing = frac < 0.5;
+    var name = phaseName(frac);
+
+    var toNew = waxing ? (SYNODIC - age) : age;
+    var toFull = waxing ? (SYNODIC / 2 - age) : (SYNODIC * 1.5 - age);
+    if (toFull < 0) toFull += SYNODIC;
+
+    // sky impact: rough magnitude penalty from moonlight near full Moon
+    var penalty = illum > 95 ? 'Severe — only the brightest targets survive'
+                : illum > 70 ? 'Heavy — galaxies and faint nebulosity are lost'
+                : illum > 40 ? 'Significant — best spent on the Moon, planets and bright clusters'
+                : illum > 15 ? 'Moderate — dim galaxies fade but bright deep-sky holds'
+                : illum > 3  ? 'Light — a good window for most deep-sky work'
+                             : 'Negligible — dark-sky conditions';
+    var colour = illum > 70 ? '#ff4d4d' : illum > 30 ? '#ffa500' : '#39ff14';
+
+    draw(frac, waxing);
+
+    $('lpi-out').innerHTML =
+      '<div style="color:var(--accent);font-weight:700;font-size:1.25rem;margin-bottom:2px;">' + name + '</div>' +
+      '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-bottom:12px;">' +
+        new Date(t).toUTCString().replace('GMT', 'UTC') +
+      '</div>' +
+      row('Illuminated', illum.toFixed(1) + '%', colour) +
+      row('Moon age', age.toFixed(2) + ' days') +
+      row('Cycle position', (frac * 100).toFixed(1) + '% through') +
+      row('Next new Moon', 'in ' + toNew.toFixed(1) + ' days') +
+      row('Next full Moon', 'in ' + toFull.toFixed(1) + ' days') +
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.83rem;color:' + colour + ';">' +
+        penalty +
+      '</div>';
+  }
+
+  $('lpi-now').addEventListener('click', function () {
+    var n = new Date();
+    $('lpi-date').value = n.toISOString().slice(0, 10);
+    $('lpi-time').value = n.toISOString().slice(11, 16);
+    run();
+  });
+  $('lpi-date').addEventListener('change', run);
+  $('lpi-time').addEventListener('change', run);
+
+  var now = new Date();
+  $('lpi-date').value = now.toISOString().slice(0, 10);
+  run();
+})();
+</script>

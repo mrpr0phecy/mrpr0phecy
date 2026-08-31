@@ -1,0 +1,173 @@
+<h2 id="dsl-title" style="margin-top:0;color:var(--accent);">📸 Deep Sky Exposure Planner</h2>
+
+<form aria-describedby="dsl-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="dsl-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    How long a single subframe needs to be before the target signal clears the read and sky noise, and how many
+    of them you need to stack. Includes the f-ratio squared penalty that makes fast scopes so much more
+    efficient.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="dsl-ap" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Aperture (mm)</label>
+      <input id="dsl-ap" type="number" min="20" step="1" value="150"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="dsl-fl" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Focal length (mm)</label>
+      <input id="dsl-fl" type="number" min="20" step="1" value="750"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="dsl-sky" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Sky (e⁻/px/min)</label>
+      <input id="dsl-sky" type="number" min="0.01" step="0.1" value="8"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="dsl-rn" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Read noise (e⁻)</label>
+      <input id="dsl-rn" type="number" min="0" step="0.1" value="2.0"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="dsl-gain" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Gain (e⁻/ADU)</label>
+      <input id="dsl-gain" type="number" min="0.01" step="0.01" value="1.0"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="dsl-qp" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Target (e⁻/px/min)</label>
+      <input id="dsl-qp" type="number" min="0.01" step="0.01" value="1.2"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="dsl-total" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Session length (h)</label>
+      <input id="dsl-total" type="number" min="0.1" step="0.5" value="4"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="dsl-calc"
+            style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Plan it</button>
+    <button type="button" id="dsl-reset"
+            style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="dsl-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Enter your setup.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">
+  <summary style="cursor:pointer;">Formulas</summary>
+  <p style="margin-top:8px;">
+    Focal ratio f = FL / aperture; sky signal per pixel scales as (aperture / FL)², which is why a fast f/4 scope
+    reaches a given sky level in a quarter of the time of an f/8. The minimum subframe is set by requiring the sky
+    signal to exceed the read noise by a target factor — conventionally 3× the read noise in quadrature, giving
+    tₘᵢₙ ≈ (3·RN)² / sky rate. Stacked signal-to-noise grows as √N, so doubling your total time buys only
+    41% more depth. Dark current and tracking limits are not modelled here.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function row(label, val, colour) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;">' +
+           '<span style="color:rgba(230,250,255,0.62);">' + label + '</span>' +
+           '<span style="font-family:monospace;color:' + (colour || 'var(--text)') + ';">' + val + '</span></div>';
+  }
+  function mins(s) {
+    if (s >= 3600) return (s / 3600).toFixed(1) + ' h';
+    if (s >= 60) return (s / 60).toFixed(1) + ' min';
+    return s.toFixed(0) + ' s';
+  }
+
+  function run() {
+    var ap = parseFloat($('dsl-ap').value);
+    var fl = parseFloat($('dsl-fl').value);
+    var sky = parseFloat($('dsl-sky').value);
+    var rn = parseFloat($('dsl-rn').value);
+    var gain = parseFloat($('dsl-gain').value) || 1;
+    var qp = parseFloat($('dsl-qp').value);
+    var totalH = parseFloat($('dsl-total').value) || 4;
+
+    if ([ap, fl, sky, rn, qp].some(isNaN) || ap <= 0 || fl <= 0) {
+      $('dsl-out').innerHTML = '<span style="color:#ff4d4d;">Aperture, focal length, sky and target rates are all required.</span>';
+      return;
+    }
+    if (sky <= 0 || qp <= 0) {
+      $('dsl-out').innerHTML = '<span style="color:#ff4d4d;">Sky and target rates must be positive.</span>'; return;
+    }
+
+    var fr = fl / ap;
+    var tMin = Math.pow(3 * rn, 2) / sky;                 // seconds for sky to swamp read noise 3x
+    var tSub = Math.max(5, Math.ceil(tMin / 5) * 5);      // round up to 5 s
+    var totalS = totalH * 3600;
+    var nSub = Math.floor(totalS / tSub);
+    if (nSub < 1) {
+      $('dsl-out').innerHTML = '<span style="color:#ff4d4d;">Your session is shorter than one usable subframe. Shorten the subframe or extend the session.</span>';
+      return;
+    }
+
+    var sig = qp * tSub * nSub;
+    var noise = Math.sqrt(sig + sky * tSub * nSub + nSub * rn * rn);
+    var snr = sig / noise;
+    var limitGain = Math.sqrt(nSub) - 1;
+
+    // what an f/4 scope would need for the same sky level
+    var frRef = 4;
+    var speed = Math.pow(fr / frRef, 2);
+
+    var colour, verdict;
+    if (rn <= 1.5 && tSub <= 30) { colour = '#39ff14'; verdict = 'Low read noise \u2014 short subframes work. Dither aggressively and stack.'; }
+    else if (tSub <= 120) { colour = '#39ff14'; verdict = 'Reasonable subframe length for most mounts.'; }
+    else if (tSub <= 300) { colour = '#ffa500'; verdict = 'Long subframes \u2014 check your guiding; you need solid tracking to hold this.'; }
+    else { colour = '#ff4d4d'; verdict = 'Very long subframes needed. Either brighten the sky (light pollution helps here), raise gain, or use a faster optic.'; }
+
+    $('dsl-out').innerHTML =
+      '<div style="color:var(--accent);font-weight:700;font-size:1.3rem;margin-bottom:2px;">' + nSub + ' \u00d7 ' + mins(tSub) + '</div>' +
+      '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-bottom:12px;">' +
+        'f/' + fr.toFixed(1) + ' \u00b7 ' + mins(tSub * nSub) + ' of integration from a ' + totalH + '-hour session' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Optics</div>' +
+          row('Focal ratio', 'f/' + fr.toFixed(2)) +
+          row('Speed vs f/4', speed.toFixed(2) + '\u00d7 slower', speed > 1 ? '#ffa500' : '#39ff14') +
+          row('Signal per pixel', (qp * tSub).toFixed(1) + ' e\u207b') +
+          row('Sky per subframe', (sky * tSub).toFixed(0) + ' e\u207b') +
+          row('Read noise share', (100 * nSub * rn * rn / (noise * noise)).toFixed(1) + '%') +
+        '</div>' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Stacked result</div>' +
+          row('Subframes', String(nSub)) +
+          row('Total signal', sig.toFixed(0) + ' e\u207b') +
+          row('Total noise', noise.toFixed(0) + ' e\u207b') +
+          row('Stacked SNR', snr.toFixed(1), snr > 50 ? '#39ff14' : snr > 20 ? '#ffa500' : '#ff4d4d') +
+          row('Gain from more subs', '+' + (limitGain * 100).toFixed(0) + '% SNR per doubling') +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.84rem;color:' + colour + ';">' + verdict + '</div>' +
+      '<div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.55);">' +
+        'Read noise contributes ' + (100 * nSub * rn * rn / (noise * noise)).toFixed(1) + '% of the total variance. ' +
+        'Keep that under about 5% and further gain increases buy you almost nothing \u2014 put the effort into ' +
+        'integration time and dark skies instead.' +
+      '</div>';
+  }
+
+  $('dsl-calc').addEventListener('click', run);
+  $('dsl-reset').addEventListener('click', function () {
+    card.querySelector('form').reset();
+    $('dsl-out').innerHTML = 'Enter your setup.';
+  });
+  ['dsl-ap','dsl-fl','dsl-sky','dsl-rn','dsl-gain','dsl-qp','dsl-total'].forEach(function (id) { $(id).addEventListener('input', run); });
+  run();
+})();
+</script>

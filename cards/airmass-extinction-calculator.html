@@ -1,0 +1,152 @@
+<h2 id="aec-title" style="margin-top:0;color:var(--accent);">🌫️ Airmass &amp; Extinction Calculator</h2>
+
+<form aria-describedby="aec-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="aec-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    How much of a star's light the atmosphere is stealing at any altitude, in which band, and how long you have
+    before it is not worth imaging. Airmass climbs steeply below about 25°.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="aec-alt" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Altitude (degrees)</label>
+      <input id="aec-alt" type="number" min="-5" max="90" step="0.5" value="30"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="aec-band" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Band</label>
+      <select id="aec-band" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="0.20">V (visual, 550 nm) — 0.20 mag</option>
+        <option value="0.27">B (blue, 440 nm) — 0.27 mag</option>
+        <option value="0.12">R (red, 640 nm) — 0.12 mag</option>
+        <option value="0.09">I (infrared, 800 nm) — 0.09 mag</option>
+        <option value="0.35">U (ultraviolet, 350 nm) — 0.35 mag</option>
+      </select>
+    </div>
+    <div>
+      <label for="aec-site" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Site quality</label>
+      <select id="aec-site" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="0.8">Excellent (high altitude, dry)</option>
+        <option value="1" selected>Typical dark site</option>
+        <option value="1.4">Suburban</option>
+        <option value="2">Humid / sea level / hazy</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="aec-calc"
+            style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
+    <button type="button" id="aec-reset"
+            style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="aec-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Enter an altitude.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">
+  <summary style="cursor:pointer;">Formulas</summary>
+  <p style="margin-top:8px;">
+    Airmass X uses the Kasten–Young form, X = 1 / (sin h + 0.50572(6.07995 + h)⁻¹˙⁶⁳⁶), which stays sensible below
+    10° where the naive 1/sin h blows up. Extinction in magnitudes is k·X, so the flux ratio is 10^(−0.4kX).
+    To recover the same signal-to-noise as at the zenith you need to expose for X² times longer — sky noise
+    dominates, so the penalty is quadratic, not linear. Differential refraction also separates colours near the
+    horizon, which matters for astrometry and for narrowband filters.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var D2R = Math.PI / 180;
+
+  function row(label, val, colour) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;">' +
+           '<span style="color:rgba(230,250,255,0.62);">' + label + '</span>' +
+           '<span style="font-family:monospace;color:' + (colour || 'var(--text)') + ';">' + val + '</span></div>';
+  }
+  function bar(v, colour, max) {
+    var pct = Math.max(0, Math.min(100, (v / max) * 100));
+    return '<div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;margin-top:6px;">' +
+           '<div style="width:' + pct.toFixed(1) + '%;height:100%;background:' + colour + ';border-radius:4px;"></div></div>';
+  }
+
+  function airmass(alt) {
+    if (alt <= -1) return Infinity;
+    var h = Math.max(alt, -1);
+    return 1 / (Math.sin(h * D2R) + 0.50572 * Math.pow(6.07995 + h, -1.6364));
+  }
+
+  function run() {
+    var alt = parseFloat($('aec-alt').value);
+    var k = parseFloat($('aec-band').value);
+    var q = parseFloat($('aec-site').value);
+    if (isNaN(alt)) { $('aec-out').innerHTML = '<span style="color:#ff4d4d;">Enter an altitude.</span>'; return; }
+
+    if (alt <= 0) {
+      $('aec-out').innerHTML =
+        '<div style="color:#ff4d4d;font-weight:600;">Below the horizon</div>' +
+        '<div style="margin-top:6px;color:rgba(230,250,255,0.65);font-size:0.86rem;">' +
+          'At ' + alt.toFixed(1) + '\u00b0 the target is not observable at all. Atmospheric extinction is effectively ' +
+          'infinite \u2014 no photons reach the detector.' +
+        '</div>';
+      return;
+    }
+
+    var X = airmass(alt);
+    var ext = k * X * q;
+    var flux = Math.pow(10, -0.4 * ext);
+    var ratio = X * X;
+    var magLimit = 2.5 * Math.log10(ratio);
+
+    var colour, verdict;
+    if (X < 1.1) { colour = '#39ff14'; verdict = 'Essentially overhead. This is the reference case.'; }
+    else if (X < 1.4) { colour = '#39ff14'; verdict = 'Good. Below 45\u00b0 altitude the penalty is still mild.'; }
+    else if (X < 2) { colour = '#ffa500'; verdict = 'Acceptable, but exposure time is climbing fast.'; }
+    else if (X < 3) { colour = '#ffa500'; verdict = 'Marginal. Refraction and extinction gradients distort the field.'; }
+    else { colour = '#ff4d4d'; verdict = 'Poor. Below about 20\u00b0 the atmosphere is absorbing most of the signal.'; }
+
+    $('aec-out').innerHTML =
+      '<div style="color:var(--accent);font-weight:700;font-size:1.3rem;margin-bottom:2px;">X = ' + X.toFixed(3) + '</div>' +
+      '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-bottom:12px;">' +
+        'airmass at ' + alt.toFixed(1) + '\u00b0 altitude \u00b7 ' + (X * 100 - 100).toFixed(0) + '% more air than at the zenith' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Transmission</div>' +
+          row('Extinction', ext.toFixed(2) + ' mag') +
+          row('Flux reaching you', (flux * 100).toFixed(1) + '%', colour) +
+          row('Magnitudes lost', ext.toFixed(2) + ' mag', colour) +
+          bar(1 - flux, '#ff4d4d', 1) +
+          '<div style="font-size:0.72rem;color:rgba(230,250,255,0.4);margin-top:4px;">light absorbed or scattered</div>' +
+        '</div>' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Imaging penalty</div>' +
+          row('Exposure multiplier', ratio.toFixed(2) + '\u00d7', colour) +
+          row('Extra time vs zenith', ((ratio - 1) * 100).toFixed(0) + '%') +
+          row('Depth lost', magLimit.toFixed(2) + ' mag') +
+          row('Diff. refraction', alt < 25 ? 'significant' : 'minor', alt < 25 ? '#ffa500' : 'var(--text)') +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.84rem;color:' + colour + ';">' + verdict + '</div>' +
+      '<div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.55);">' +
+        'At this altitude a ' + (10 * ratio).toFixed(0) + '-minute subframe gives the same noise as ' +
+        '10 minutes at the zenith would have taken \u2014 so shoot the target near transit and use the low-altitude ' +
+        'hours for calibration frames.' +
+      '</div>';
+  }
+
+  $('aec-calc').addEventListener('click', run);
+  $('aec-reset').addEventListener('click', function () {
+    card.querySelector('form').reset();
+    $('aec-out').innerHTML = 'Enter an altitude.';
+  });
+  ['aec-alt', 'aec-band', 'aec-site'].forEach(function (id) { $(id).addEventListener('change', run); });
+  $('aec-alt').addEventListener('input', run);
+  run();
+})();
+</script>

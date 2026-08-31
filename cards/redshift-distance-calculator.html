@@ -1,0 +1,154 @@
+<h2 id="rsc-title" style="margin-top:0;color:var(--accent);">🔴 Redshift &amp; Cosmic Distance</h2>
+
+<form aria-describedby="rsc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="rsc-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Put in a redshift and get the recession velocity, Hubble distance, light-travel time and the wavelength
+    a known spectral line is shifted to. Distinguishes Doppler motion from cosmological expansion.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="rsc-z" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Redshift z</label>
+      <input id="rsc-z" type="number" step="0.001" value="0.0167"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="rsc-h0" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">H₀ (km/s/Mpc)</label>
+      <input id="rsc-h0" type="number" min="50" max="90" step="0.1" value="70"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="rsc-line" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Reference line (nm)</label>
+      <input id="rsc-line" type="number" min="1" step="0.1" value="656.28"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="rsc-calc"
+            style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
+    <button type="button" id="rsc-reset"
+            style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+    <span style="color:rgba(230,250,255,0.45);font-size:0.78rem;align-self:center;">Presets:</span>
+    <button type="button" class="rsc-preset" data-z="0.0004" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">Andromeda</button>
+    <button type="button" class="rsc-preset" data-z="0.0033" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">M87</button>
+    <button type="button" class="rsc-preset" data-z="0.0167" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">Coma Cluster</button>
+    <button type="button" class="rsc-preset" data-z="1.0" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">z = 1</button>
+    <button type="button" class="rsc-preset" data-z="1100" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">CMB</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="rsc-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Enter a redshift.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">
+  <summary style="cursor:pointer;">What is and is not being modelled</summary>
+  <p style="margin-top:8px;">
+    Special-relativistic recession velocity uses 1 + z = √((1+β)/(1−β)). Observed wavelength is simply
+    λ₀(1+z). The Hubble-law distance cz/H₀ is only meaningful for small z; beyond z ≈ 0.1 it
+    diverges from a proper cosmological calculation, which needs Ωₘ, ΩΛ and an integral over the
+    expansion history. Light-travel time here uses a flat-matter approximation, so treat values above
+    z ≈ 1 as order-of-magnitude only.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var C = 299792.458;      // km/s
+  var LY_PER_MPC = 3.26156e6;
+
+  function row(label, val, colour) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;">' +
+           '<span style="color:rgba(230,250,255,0.62);">' + label + '</span>' +
+           '<span style="font-family:monospace;color:' + (colour || 'var(--text)') + ';">' + val + '</span></div>';
+  }
+
+  function sci(x, dp) {
+    if (!isFinite(x)) return '\u221e';
+    if (x !== 0 && (Math.abs(x) >= 1e6 || Math.abs(x) < 1e-3)) return x.toExponential(dp || 2);
+    return parseFloat(x.toFixed(dp === undefined ? 3 : dp)).toLocaleString('en-GB');
+  }
+
+  function run() {
+    var z = parseFloat($('rsc-z').value);
+    var h0 = parseFloat($('rsc-h0').value) || 70;
+    var line = parseFloat($('rsc-line').value) || 656.28;
+
+    if (isNaN(z) || z < 0) {
+      $('rsc-out').innerHTML = '<span style="color:#ff4d4d;">Redshift must be zero or greater. A negative z is a blueshift \u2014 enter its magnitude and read the velocity as approaching.</span>';
+      return;
+    }
+
+    var beta = (Math.pow(1 + z, 2) - 1) / (Math.pow(1 + z, 2) + 1);
+    var vRel = beta * C;
+    var vClassical = z * C;
+    var observed = line * (1 + z);
+    var hubbleDist = (z * C) / h0;                        // Mpc
+    var ly = hubbleDist * LY_PER_MPC;
+    var lookback = (hubbleDist / C) * 3.26156e6 / 1000;   // rough, in Myr/1000 -> Gyr-ish
+
+    // crude flat-universe light-travel estimate
+    var tL = (2 / (3 * Math.sqrt(0.3))) * (1 - 1 / Math.pow(1 + z, 1.5)) * 13.8;
+
+    var regime, colour;
+    if (z < 0.001) { regime = 'Local Group scale \u2014 peculiar motion dominates; Hubble flow is not yet meaningful.'; colour = '#2dd4ff'; }
+    else if (z < 0.1) { regime = 'Hubble flow regime \u2014 cz/H\u2080 is a sound distance estimate.'; colour = '#39ff14'; }
+    else if (z < 1) { regime = 'Cosmological regime \u2014 special-relativistic velocity, but a proper \u039bCDM integral is needed for a real distance.'; colour = '#ffa500'; }
+    else { regime = 'Deep cosmological \u2014 distances below are indicative only. This is the early universe.'; colour = '#ff4d4d'; }
+
+    var spectral = '';
+    if (observed > 380 && observed <= 750) spectral = 'still visible light';
+    else if (observed > 750 && observed <= 1e6) spectral = 'shifted into the infrared \u2014 beyond visual observing';
+    else if (observed > 1e6) spectral = 'shifted into radio/microwave wavelengths';
+    else spectral = 'shifted into the ultraviolet';
+
+    $('rsc-out').innerHTML =
+      '<div style="color:var(--accent);font-weight:700;font-size:1.3rem;margin-bottom:2px;">' + sci(vRel, 1) + ' km/s</div>' +
+      '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-bottom:12px;">' +
+        (vRel / C * 100).toFixed(2) + '% of the speed of light' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Motion and distance</div>' +
+          row('Relativistic velocity', sci(vRel, 1) + ' km/s') +
+          row('Classical cz', sci(vClassical, 1) + ' km/s') +
+          row('Hubble distance', sci(hubbleDist, 2) + ' Mpc') +
+          row('In light-years', sci(ly, 2)) +
+          row('Light-travel time', '~' + tL.toFixed(2) + ' Gyr', tL > 13.8 ? '#ffa500' : 'var(--text)') +
+        '</div>' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Spectral shift</div>' +
+          row('Rest wavelength', line.toFixed(2) + ' nm') +
+          row('Observed', sci(observed, 2) + ' nm', '#ffa500') +
+          row('Shift', '+' + sci(observed - line, 2) + ' nm') +
+          row('Stretched by', (1 + z).toFixed(4) + '\u00d7') +
+          row('CMB temperature', (2.725 * (1 + z)).toFixed(2) + ' K') +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.84rem;color:' + colour + ';">' + regime + '</div>' +
+      '<div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.55);">The reference line is ' + spectral + '.</div>';
+  }
+
+  $('rsc-calc').addEventListener('click', run);
+  $('rsc-reset').addEventListener('click', function () {
+    card.querySelector('form').reset();
+    $('rsc-out').innerHTML = 'Enter a redshift.';
+  });
+  Array.prototype.forEach.call(card.querySelectorAll('.rsc-preset'), function (b) {
+    b.addEventListener('click', function () {
+      $('rsc-z').value = b.getAttribute('data-z');
+      run();
+    });
+  });
+  ['rsc-z', 'rsc-h0', 'rsc-line'].forEach(function (id) { $(id).addEventListener('input', run); });
+  run();
+})();
+</script>

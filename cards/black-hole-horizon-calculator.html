@@ -1,0 +1,148 @@
+<h2 id="bhx-title" style="margin-top:0;color:var(--accent);">🕳️ Black Hole Horizon Calculator</h2>
+
+<form aria-describedby="bhx-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="bhx-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Event horizon radius, surface gravity, Hawking temperature, evaporation time and the tidal force at the
+    horizon for any mass. Compares stellar and supermassive black holes side by side.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+    <div>
+      <label for="bhx-mass" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Mass (solar masses)</label>
+      <input id="bhx-mass" type="number" min="0.000001" step="any" value="10"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="bhx-height" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Your height (m)</label>
+      <input id="bhx-height" type="number" min="0.5" max="3" step="0.1" value="1.8"
+             style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="bhx-calc"
+            style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
+    <button type="button" id="bhx-reset"
+            style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+    <span style="color:rgba(230,250,255,0.45);font-size:0.78rem;align-self:center;">Presets:</span>
+    <button type="button" class="bhx-p" data-m="0.00000000000000000000007" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">Moon</button>
+    <button type="button" class="bhx-p" data-m="3" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">Stellar (3 M☉)</button>
+    <button type="button" class="bhx-p" data-m="4300000" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">Sgr A*</button>
+    <button type="button" class="bhx-p" data-m="6500000000" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">M87*</button>
+    <button type="button" class="bhx-p" data-m="66000000000" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">TON 618</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="bhx-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Enter a mass.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">
+  <summary style="cursor:pointer;">Formulas</summary>
+  <p style="margin-top:8px;">
+    Schwarzschild radius rₛ = 2GM/c², which is 2.953 km per solar mass. Surface gravity falls as 1/M, so
+    supermassive holes have gentle horizons and stellar ones savage ones. Tidal acceleration across a length
+    L at radius r is 2GM·L/r³. Hawking temperature T = ħc³ / (8πGMkᵇ) ≈ 6.17×10⁻⁸ K per solar
+    mass, and evaporation time scales as M³ — which is why stellar holes outlive the universe by orders of
+    magnitude while tiny ones would have gone already.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var G = 6.67430e-11, C = 2.99792458e8, HBAR = 1.054571817e-34, KB = 1.380649e-23;
+  var MSUN = 1.98847e30, AU = 1.495978707e11;
+
+  function row(label, val, colour) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;">' +
+           '<span style="color:rgba(230,250,255,0.62);">' + label + '</span>' +
+           '<span style="font-family:monospace;color:' + (colour || 'var(--text)') + ';">' + val + '</span></div>';
+  }
+
+  function dist(m) {
+    if (m >= AU) return (m / AU).toFixed(3) + ' AU';
+    if (m >= 1e9) return (m / 1e9).toFixed(2) + ' million km';
+    if (m >= 1000) return (m / 1000).toLocaleString('en-GB', { maximumFractionDigits: 1 }) + ' km';
+    if (m >= 1) return m.toFixed(2) + ' m';
+    if (m >= 0.01) return (m * 100).toFixed(2) + ' cm';
+    if (m >= 1e-6) return (m * 1e6).toFixed(2) + ' \u00b5m';
+    return (m * 1e15).toFixed(2) + ' fm';
+  }
+
+  function time(s) {
+    var y = s / 3.15576e7;
+    if (y >= 1e9) return y.toExponential(2) + ' years';
+    if (y >= 1) return y.toExponential(2) + ' years';
+    if (s >= 1) return s.toFixed(1) + ' s';
+    return s.toExponential(2) + ' s';
+  }
+
+  function run() {
+    var ms = parseFloat($('bhx-mass').value);
+    var h = parseFloat($('bhx-height').value) || 1.8;
+    if (!(ms > 0)) { $('bhx-out').innerHTML = '<span style="color:#ff4d4d;">Mass must be positive.</span>'; return; }
+
+    var M = ms * MSUN;
+    var rs = 2 * G * M / (C * C);
+    var g = Math.pow(C, 4) / (4 * G * M);
+    var tidal = 2 * G * M * h / Math.pow(rs, 3);
+    var th = HBAR * Math.pow(C, 3) / (8 * Math.PI * G * M * KB);
+    var evap = 5120 * Math.PI * Math.pow(G, 2) * Math.pow(M, 3) / (HBAR * Math.pow(C, 4));
+    var area = 4 * Math.PI * rs * rs;
+    var isco = 3 * rs;
+
+    var survival, colour;
+    if (tidal > 1e6) { survival = 'Spaghettified long before the horizon \u2014 tidal forces across your body are ' + tidal.toExponential(1) + ' m/s\u00b2.'; colour = '#ff4d4d'; }
+    else if (tidal > 100) { survival = 'Lethal well outside the horizon. You would be torn apart on approach.'; colour = '#ff4d4d'; }
+    else if (tidal > 9.8) { survival = 'Uncomfortable but survivable at the horizon itself \u2014 stronger than Earth gravity across your height.'; colour = '#ffa500'; }
+    else { survival = 'You would cross the horizon without noticing anything locally. The tides are gentler than standing on Earth.'; colour = '#39ff14'; }
+
+    $('bhx-out').innerHTML =
+      '<div style="color:var(--accent);font-weight:700;font-size:1.3rem;margin-bottom:2px;">' + dist(rs) + '</div>' +
+      '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-bottom:12px;">' +
+        'event horizon radius \u00b7 diameter ' + dist(2 * rs) +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Geometry</div>' +
+          row('Schwarzschild radius', dist(rs)) +
+          row('Photon sphere', dist(1.5 * rs)) +
+          row('ISCO (non-rotating)', dist(isco)) +
+          row('Horizon area', area.toExponential(2) + ' m\u00b2') +
+        '</div>' +
+        '<div>' +
+          '<div style="color:var(--accent);font-weight:600;margin-bottom:4px;">Physics</div>' +
+          row('Surface gravity', g.toExponential(2) + ' m/s\u00b2') +
+          row('Tidal accel over ' + h + ' m', tidal.toExponential(2) + ' m/s\u00b2', tidal > 100 ? '#ff4d4d' : '#39ff14') +
+          row('Hawking temperature', th.toExponential(2) + ' K') +
+          row('Evaporation time', time(evap), evap > 4.35e17 ? 'var(--text)' : '#ffa500') +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.84rem;color:' + colour + ';">' + survival + '</div>' +
+      '<div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.55);">' +
+        (evap > 4.35e17
+          ? 'Older than the current age of the universe (13.8 Gyr) \u2014 it will absorb far more CMB than it radiates.'
+          : 'Shorter than the age of the universe \u2014 a hole this small would already have evaporated.') +
+      '</div>';
+  }
+
+  $('bhx-calc').addEventListener('click', run);
+  $('bhx-reset').addEventListener('click', function () {
+    card.querySelector('form').reset();
+    $('bhx-out').innerHTML = 'Enter a mass.';
+  });
+  Array.prototype.forEach.call(card.querySelectorAll('.bhx-p'), function (b) {
+    b.addEventListener('click', function () { $('bhx-mass').value = b.getAttribute('data-m'); run(); });
+  });
+  ['bhx-mass', 'bhx-height'].forEach(function (id) { $(id).addEventListener('input', run); });
+  run();
+})();
+</script>
