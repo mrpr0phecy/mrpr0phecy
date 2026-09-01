@@ -1,5 +1,5 @@
 // ============================================================================
-//  VIGILANT ACTION CAMERA HUD  v2.1.1  --  Second Life (LSL)
+//  VIGILANT ACTION CAMERA HUD  v2.1.2  --  Second Life (LSL)
 //  A sim-wide action camera: orbits stars with flowing cinematic moves and
 //  cuts to whatever is happening - new arrivals, nearby speech, fast movers,
 //  bursts into action, newly worn items, fast rezzed props (3s close-ups).
@@ -66,6 +66,8 @@ float FOCUS_SMOOTH_TAU      = 0.15;   // focus pursuit time constant (s)
 float WHIP_SMOOTH_TAU       = 0.12;   // fast catch-up right after a cut (s)
 float WHIP_TIME             = 0.9;    // how long the whip lasts (s)
 float SHAKE_AMP             = 0.06;   // handheld shake at full sprint (m)
+float EULER_E               = 2.718281828459045; // e (LSL has no llExp();
+                                      // smoothing uses llPow(EULER_E, x))
 
 // vigilance shaping
 float SCORE_REACH           = 6.0;    // metres of tracking rank that one
@@ -1035,8 +1037,8 @@ update_camera(float dt)
     float tau = POS_SMOOTH_TAU;
     if (elapsed < whip_until)
         tau = WHIP_SMOOTH_TAU;
-    float kp = 1.0 - llExp(-dt / tau);
-    float kf = 1.0 - llExp(-dt / FOCUS_SMOOTH_TAU);
+    float kp = 1.0 - llPow(EULER_E, -dt / tau);
+    float kf = 1.0 - llPow(EULER_E, -dt / FOCUS_SMOOTH_TAU);
     if (!cam_init)
     {
         cam_pos = want_pos;
@@ -1290,7 +1292,7 @@ default
         if (!FLOATING_TEXT)
             llSetText("", <1.0, 1.0, 1.0>, 0.0);
         refresh_perms();
-        llOwnerSay("Vigilant Action Camera v2.1.1 loaded! Touch the HUD for controls - 'On/Off' starts filming.");
+        llOwnerSay("Vigilant Action Camera v2.1.2 loaded! Touch the HUD for controls - 'On/Off' starts filming.");
     }
 
     on_rez(integer start_param)
@@ -1660,7 +1662,8 @@ default
 //  never see attachments. The sensor is ACTIVE-only on purpose (moving props
 //  only, no static clutter). If a packed sim makes the 1s pulse feel heavy,
 //  set SENSOR_INTERVAL to 2.0 - every threshold scales itself.
-//  LSL has no llMin()/llMax(); min_ff() above is the stand-in. Scripted
-//  cameras cannot run in mouselook and are silently overridden while you
-//  hold Alt-cam (free camera) - press Esc to hand the lens back to the HUD.
+//  LSL has no llMin()/llMax()/llExp(); min_ff() and llPow(EULER_E, x) are
+//  the stand-ins. Scripted cameras cannot run in mouselook and are silently
+//  overridden while you hold Alt-cam (free camera) - press Esc to hand the
+//  lens back to the HUD.
 // ============================================================================
