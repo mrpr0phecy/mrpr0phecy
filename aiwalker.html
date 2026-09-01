@@ -95,9 +95,13 @@
             align-items: center; justify-content: center; text-align: center;
             background: var(--bg); padding: 24px; color: var(--bad); font-size: 14px;
         }
+        #controls.min #controlsBody { display: none; }
+        #fold { float: right; padding: 1px 7px; margin: 0; font-size: 11px; line-height: 1.4; }
         @media (max-width: 720px) {
-            #genome, #graphbox { display: none !important; }
-            #controls, #readout { width: 176px; }
+            #graphbox { display: none !important; }
+            #controls, #readout, #genome { width: 168px; font-size: 11px; padding: 9px 10px; }
+            #genome { bottom: auto; top: 150px; }
+            .hint { display: none; }
         }
     </style>
 </head>
@@ -106,7 +110,8 @@
 <div id="stage"></div>
 
 <div id="controls" class="panel">
-    <div class="title">Evolution Arena</div>
+    <div class="title">Evolution Arena<button type="button" id="fold" class="ghost" aria-label="Collapse controls">&ndash;</button></div>
+    <div id="controlsBody">
 
     <label for="objective">Objective</label>
     <select id="objective">
@@ -135,6 +140,7 @@
         Every creature is a graph of nodes and muscles driven by its own neural net.
         Nothing about the body is designed — it is bred.
     </p>
+    </div>
 </div>
 
 <div id="readout" class="panel">
@@ -157,6 +163,15 @@
 <div id="genome" class="panel">
     <div class="title">Champion genome</div>
     <div id="genomeBody"></div>
+    <div id="fameWrap" style="display:none;margin-top:10px;border-top:1px solid rgba(45,212,255,0.18);padding-top:9px;">
+        <div class="title" style="font-size:11px;margin-bottom:6px;">Hall of fame</div>
+        <div id="fameList"></div>
+    </div>
+</div>
+
+<div id="replayBar" class="panel" style="display:none;bottom:14px;left:50%;transform:translateX(-50%);text-align:center;">
+    <div style="color:var(--accent);font-weight:700;font-size:12px;margin-bottom:6px;">Replaying a champion</div>
+    <button type="button" id="replayStop">Back to evolution</button>
 </div>
 
 <div id="fatal"></div>
@@ -451,8 +466,8 @@ var WalkerSim = (function () {
                    ground: function (x) { return x > 0 ? x * 0.36 : 0; } },
         rough:   { combat: false, dur: 16, label: 'distance', unit: 'm',
                    ground: function (x, z) { return 0.30 * Math.sin(x * 0.85) * Math.cos(z * 0.7) + 0.16 * Math.sin(x * 1.9 + 1.3); } },
-        sumo:    { combat: true, ring: 6, ground: function (x, z) { return 0; }, dur: 14, label: 'shoved out', unit: 'm' },
-        bridge:  { combat: true, plank: 16, half: 1.9, dur: 16, label: 'bridge run', unit: 'm',
+        sumo:    { combat: true, ring: 6, rounds: 3, ground: function (x, z) { return 0; }, dur: 14, label: 'shoved out', unit: 'm' },
+        bridge:  { combat: true, plank: 16, half: 1.9, rounds: 3, dur: 16, label: 'bridge run', unit: 'm',
                    ground: function (x, z) {
                        return (Math.abs(z) <= 1.9 && x >= -2 && x <= 16) ? 0 : -40;
                    } }
@@ -501,9 +516,24 @@ var WalkerSim = (function () {
         this.fitness = 0;
         this.startH = 0;
         this.oppOut = 0; this.oppFell = false; this.selfFell = false;
+        // combat runs several rounds so a bout is not decided by who you
+        // happened to be paired with
+        this.cum = 0; this.rounds = 0;
 
         this.reset(world);
     }
+
+    // fresh bout: clears accumulated round scores
+    Creature.prototype.beginBout = function (world) {
+        this.cum = 0; this.rounds = 0;
+        this.reset(world);
+    };
+
+    // next round of the same bout: new position, same running total
+    Creature.prototype.reposition = function (x, z, world) {
+        this.spawnX = x; this.spawnZ = z;
+        this.reset(world);
+    };
 
     Creature.prototype.com = function (out) {
         var mt = 0, x = 0, y = 0, z = 0, i;
@@ -736,13 +766,60 @@ var WalkerSim = (function () {
         return fits[a] >= fits[b] ? pop[a] : pop[b];
     }
 
-    function nextGeneration(genomes, fits, rng, popSize) {
+    // Round-robin pairing (circle method). One fighter stays put and the rest
+    // rotate, which yields n-1 genuinely different matchings -- over n-1 rounds
+    // every fighter meets every other exactly once. Rotating the whole array
+    // instead only produces n/2 matchings and repeats with period 2, so most
+    // fighters would keep meeting the same opponent.
+    function makePairs(n, round) {
+        var out = [];
+        if (n < 2) return out;
+        var i, k;
+        var others = [];
+        for (i = 1; i < n; i++) others.push(i);
+        var span = n - 1;
+        var r = ((round % span) + span) % span;
+        var rot = others.slice(r).concat(others.slice(0, r));
+        out.push([0, rot[0]]);
+        for (k = 1; k < n / 2; k++) out.push([rot[k], rot[span - k]]);
+        return out;
+    }
+
+    function nextGeneration(genomes, fits, rng, popSize, nicheFrac) {
+        if (nicheFrac === undefined) nicheFrac = 0.1;
         var order = genomes.map(function (_, i) { return i; })
             .sort(function (a, b) { return fits[b] - fits[a]; });
 
         var elites = Math.max(2, Math.floor(popSize * 0.15));
-        var next = [], i;
-        for (i = 0; i < elites && i < order.length; i++) next.push(cloneGenome(genomes[order[i]]));
+        var next = [], seen = {}, i, idx;
+        for (i = 0; i < elites && i < order.length; i++) {
+            idx = order[i];
+            next.push(cloneGenome(genomes[idx]));
+            seen[idx] = true;
+        }
+
+        // Niche rescue. Standing niche elitism measured badly -- reserving slots
+        // for one body size per niche cost real fitness (slope 6.7 -> 2.2,
+        // rough 40.8 -> 25.5 over 3 seeds) for only ~0.5 extra body sizes.
+        // Mutation already keeps 3-5 sizes alive on its own, so only intervene
+        // when the population has genuinely collapsed onto one or two shapes.
+        var byNiche = {}, nicheCount = 0;
+        for (i = 0; i < order.length; i++) {
+            var k = genomes[order[i]].nodes.length;
+            if (byNiche[k] === undefined) { byNiche[k] = order[i]; nicheCount++; }
+        }
+        if (nicheCount <= 2 && nicheFrac > 0) {
+            var nicheBudget = Math.min(nicheCount, Math.max(1, Math.floor(popSize * nicheFrac)));
+            var taken = 0;
+            for (i = 0; i < order.length && taken < nicheBudget; i++) {
+                var g = genomes[order[i]];
+                if (byNiche[g.nodes.length] === order[i] && !seen[order[i]]) {
+                    next.push(cloneGenome(g));
+                    seen[order[i]] = true;
+                    taken++;
+                }
+            }
+        }
 
         var guard = 0;
         while (next.length < popSize && guard++ < popSize * 12) {
@@ -761,13 +838,125 @@ var WalkerSim = (function () {
         return next;
     }
 
+    // ---------------------------------------------------------------- bout
+    // One generation of simulation. Lives in the core so the browser and the
+    // headless tests drive exactly the same code path -- a loop duplicated in
+    // both places would silently drift apart.
+    function Bout(genomes, world, spawnFn) {
+        this.world = world;
+        this.spawnFn = spawnFn;
+        this.creatures = [];
+        this.pairs = [];
+        this.oppOf = new Map();
+        this.round = 0;
+        this.time = 0;
+        this.done = false;
+        var i;
+        for (i = 0; i < genomes.length; i++) {
+            var sp = world.combat ? spawnFn(0, 0, genomes.length) : spawnFn(i, -1, genomes.length);
+            var c = new Creature(genomes[i], null, sp[0], sp[1], world);
+            c.id = i;
+            this.creatures.push(c);
+        }
+        if (world.combat) this.pairUp(0);
+    }
+
+    Bout.prototype.side = function (role) {
+        return this.spawnFn(0, role, this.creatures.length);
+    };
+
+    Bout.prototype.pairUp = function (r) {
+        this.round = r;
+        var idx = makePairs(this.creatures.length, r);
+        this.pairs = [];
+        this.oppOf = new Map();
+        var i;
+        for (i = 0; i < idx.length; i++) {
+            var a = this.creatures[idx[i][0]], b = this.creatures[idx[i][1]];
+            this.pairs.push([a, b]);
+            this.oppOf.set(a, b); this.oppOf.set(b, a);
+        }
+        var odd = this.creatures.length % 2 === 1;
+        if (odd) this.oppOf.set(this.creatures[this.creatures.length - 1], null);
+
+        // place every fighter on its own side, always ON the arena
+        for (i = 0; i < this.pairs.length; i++) {
+            var sA = this.side(0), sB = this.side(1);
+            this.pairs[i][0].reposition(sA[0], sA[1], this.world);
+            this.pairs[i][1].reposition(sB[0], sB[1], this.world);
+        }
+        if (odd) {
+            var lone = this.creatures[this.creatures.length - 1], sL = this.side(0);
+            lone.reposition(sL[0], sL[1], this.world);
+        }
+    };
+
+    Bout.prototype.tick = function () {
+        if (this.done) return true;
+        var w = this.world, i;
+        this.time += DT;
+
+        // combat: roll to the next round, bank the score, re-draw pairings
+        if (w.combat && w.rounds > 1) {
+            var roundLen = w.dur / w.rounds;
+            if (this.round < w.rounds - 1 && this.time >= roundLen * (this.round + 1)) {
+                for (i = 0; i < this.creatures.length; i++) {
+                    var c0 = this.creatures[i];
+                    c0.cum += score(c0, w, this.oppOf.get(c0) || null);
+                    c0.rounds++;
+                }
+                this.pairUp(this.round + 1);
+            }
+        }
+
+        if (w.combat) {
+            for (i = 0; i < this.pairs.length; i++) {
+                var a = this.pairs[i][0], b = this.pairs[i][1];
+                a.step(w, b); b.step(w, a);
+            }
+            if (this.creatures.length % 2 === 1) this.creatures[this.creatures.length - 1].step(w, null);
+        } else {
+            for (i = 0; i < this.creatures.length; i++) this.creatures[i].step(w, null);
+        }
+
+        for (i = 0; i < this.creatures.length; i++) {
+            var c = this.creatures[i];
+            if (c.dead) continue;
+            var live = score(c, w, w.combat ? (this.oppOf.get(c) || null) : null);
+            c.fitness = (w.combat && w.rounds > 1)
+                ? (c.cum + live) / Math.max(1, c.rounds + 1)
+                : live;
+        }
+
+        if (this.time >= w.dur) { this.done = true; return true; }
+        var allDead = true;
+        for (i = 0; i < this.creatures.length; i++) {
+            if (!this.creatures[i].dead) { allDead = false; break; }
+        }
+        if (allDead && this.creatures.length) this.done = true;
+        return this.done;
+    };
+
+    Bout.prototype.fitnesses = function () {
+        return this.creatures.map(function (c) { return isFinite(c.fitness) ? c.fitness : 0; });
+    };
+
+    Bout.prototype.best = function () {
+        var bi = 0, i;
+        for (i = 1; i < this.creatures.length; i++) {
+            if (this.creatures[i].fitness > this.creatures[bi].fitness) bi = i;
+        }
+        return bi;
+    };
+
     return {
         MAX_NODES: MAX_NODES, MAX_MUSCLES: MAX_MUSCLES, HIDDEN: HIDDEN,
         N_IN: N_IN, N_OUT: N_OUT, DT: DT,
         RNG: RNG, WORLDS: WORLDS, Creature: Creature,
         randomGenome: randomGenome, cloneGenome: cloneGenome,
         mutate: mutate, crossover: crossover, repair: repair,
-        nextGeneration: nextGeneration, score: score, think: think, clamp: clamp
+        nextGeneration: nextGeneration, score: score, think: think, clamp: clamp,
+        makePairs: makePairs, Bout: Bout
     };
 })();
 </script>
@@ -794,7 +983,7 @@ var WalkerSim = (function () {
     var scene, camera, renderer, groundMesh, markerGroup, ringMesh;
     var bodies = [];              // render state per simulated creature
     var genomes = [], fits = [];
-    var creatures = [], pairs = [];
+    var creatures = [], pairs = [], bout = null;
     var world = null, worldKey = 'walk';
     var rng = new S.RNG(20260901);
 
@@ -836,6 +1025,35 @@ var WalkerSim = (function () {
 
         markerGroup = new THREE.Group();
         scene.add(markerGroup);
+
+        // motion trail for the current leader
+        trailGeo = new THREE.BufferGeometry();
+        trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3).setUsage(THREE.DynamicDrawUsage));
+        trailGeo.setDrawRange(0, 0);
+        trailLine = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({
+            color: 0x2dd4ff, transparent: true, opacity: 0.5
+        }));
+        trailLine.frustumCulled = false;
+        scene.add(trailLine);
+    }
+
+    var TRAIL_N = 150;
+    var trailPos = new Float32Array(TRAIL_N * 3);
+    var trailGeo = null, trailLine = null, trailCount = 0, trailFull = false;
+
+    function resetTrail() {
+        trailCount = 0; trailFull = false;
+        if (trailGeo) { trailGeo.setDrawRange(0, 0); trailGeo.attributes.position.needsUpdate = true; }
+    }
+
+    function pushTrail(x, y, z) {
+        if (!trailGeo) return;
+        if (trailFull) trailPos.copyWithin(0, 3);
+        var o = (trailFull ? TRAIL_N - 1 : trailCount) * 3;
+        trailPos[o] = x; trailPos[o + 1] = y; trailPos[o + 2] = z;
+        if (!trailFull && ++trailCount === TRAIL_N) trailFull = true;
+        trailGeo.attributes.position.needsUpdate = true;
+        trailGeo.setDrawRange(0, trailCount);
     }
 
     // build the terrain mesh that matches the objective
@@ -843,7 +1061,7 @@ var WalkerSim = (function () {
         worldKey = key;
         var spec = S.WORLDS[key];
         world = {
-            key: key, combat: spec.combat, dur: spec.dur, ring: spec.ring,
+            key: key, combat: spec.combat, dur: spec.dur, ring: spec.ring, rounds: spec.rounds || 1,
             plank: spec.plank, half: spec.half,
             ground: spec.ground || function () { return 0; },
             label: spec.label, unit: spec.unit
@@ -923,6 +1141,8 @@ var WalkerSim = (function () {
 
     function buildBodies() {
         clearBodies();
+        leaderIdx = -1;
+        resetTrail();
         for (var i = 0; i < creatures.length; i++) {
             var c = creatures[i];
             var group = new THREE.Group();
@@ -951,7 +1171,28 @@ var WalkerSim = (function () {
     }
 
     var _up = new THREE.Vector3(0, 1, 0), _dir = new THREE.Vector3(), _mid = new THREE.Vector3();
+    var leaderIdx = -1;
+
     function syncBodies() {
+        // highlight the leader so it is findable in a crowd of 24
+        var li = 0, lf = -Infinity, i2;
+        for (i2 = 0; i2 < creatures.length; i2++) {
+            if (creatures[i2].fitness > lf) { lf = creatures[i2].fitness; li = i2; }
+        }
+        if (li !== leaderIdx) {
+            if (bodies[leaderIdx]) {
+                bodies[leaderIdx].nodeMeshes.forEach(function (m) { m.material.emissive.setHex(0x000000); });
+            }
+            leaderIdx = li;
+            if (bodies[leaderIdx]) {
+                bodies[leaderIdx].nodeMeshes.forEach(function (m) { m.material.emissive.setHex(0x14505f); });
+            }
+        }
+        if (running && bodies[leaderIdx] && !creatures[leaderIdx].dead) {
+            var lc = creatures[leaderIdx], lcom = lc.com(lc._com);
+            pushTrail(lcom[0], lcom[1], lcom[2]);
+        }
+
         for (var i = 0; i < bodies.length; i++) {
             var b = bodies[i], c = b.c, j;
             for (j = 0; j < c.n; j++) b.nodeMeshes[j].position.set(c.px[j], c.py[j], c.pz[j]);
@@ -970,69 +1211,41 @@ var WalkerSim = (function () {
     }
 
     // ---------------------------------------------------------------- sim
+    // spawn layout. Solo objectives get a row of lanes; combat gets two sides
+    // that are always ON the arena, or the bout ends before it starts.
+    function spawnFn(i, role, n) {
+        if (role >= 0) {
+            if (worldKey === 'bridge') return role === 0 ? [0.5, -0.7] : [3.5, 0.7];
+            return role === 0 ? [-1.6, -0.9] : [1.6, 0.9];
+        }
+        return [0, (i - (n - 1) / 2) * 3.2];
+    }
+
+    var replaySource = null;
+
     function spawnPopulation() {
-        creatures = [];
-        pairs = [];
-        for (var i = 0; i < popSize; i++) {
-            var sx, sz;
-            if (world.combat) {
-                // combatants must both start ON the arena. On the bridge that
-                // means inside the plank width, facing each other along it.
-                if (worldKey === 'bridge') {
-                    sx = (i % 2 === 0 ? 0.5 : 3.5);
-                    sz = (i % 2 === 0 ? -0.7 : 0.7);
-                } else {
-                    sx = (i % 2 === 0 ? -1.6 : 1.6);
-                    sz = (i % 2 === 0 ? -0.9 : 0.9);
-                }
-            } else {
-                sx = 0;
-                sz = (i - (popSize - 1) / 2) * 3.2;
-            }
-            var g = genomes[i] || S.randomGenome(rng);
-            var c = new S.Creature(g, rng, sx, sz, world);
-            c.id = i;
-            creatures.push(c);
-        }
-        if (world.combat) {
-            for (var k = 0; k + 1 < creatures.length; k += 2) pairs.push([creatures[k], creatures[k + 1]]);
-        }
+        var src = replayMode && replaySource ? replaySource
+                : (genomes.length ? genomes : newGenomes(popSize));
+        bout = new S.Bout(src, world, spawnFn);
+        creatures = bout.creatures;
+        pairs = bout.pairs;
         genomes = creatures.map(function (c) { return c.g; });
         fits = new Array(creatures.length).fill(0);
         buildBodies();
     }
 
+    function newGenomes(n) {
+        var out = [];
+        for (var i = 0; i < n; i++) out.push(S.randomGenome(rng));
+        return out;
+    }
+
     function simTick() {
-        var i;
-        if (world.combat) {
-            for (i = 0; i < pairs.length; i++) {
-                var a = pairs[i][0], b = pairs[i][1];
-                a.step(world, b); b.step(world, a);
-            }
-            // an odd leftover just trains alone
-            if (creatures.length % 2 === 1) creatures[creatures.length - 1].step(world, null);
-        } else {
-            for (i = 0; i < creatures.length; i++) creatures[i].step(world, null);
+        bout.tick();
+        if (bout.done) {
+            if (replayMode) { spawnPopulation(); return; }   // loop the champion
+            endGeneration();
         }
-
-        for (i = 0; i < creatures.length; i++) {
-            var c = creatures[i];
-            if (c.dead) continue;
-            var opp = null;
-            if (world.combat) {
-                for (var p = 0; p < pairs.length; p++) {
-                    if (pairs[p][0] === c) { opp = pairs[p][1]; break; }
-                    if (pairs[p][1] === c) { opp = pairs[p][0]; break; }
-                }
-            }
-            c.fitness = S.score(c, world, opp);
-        }
-
-        var allDead = true;
-        for (i = 0; i < creatures.length; i++) {
-            if (!creatures[i].dead && creatures[i].t < world.dur) { allDead = false; break; }
-        }
-        if (allDead) endGeneration();
     }
 
     function endGeneration() {
@@ -1124,39 +1337,113 @@ var WalkerSim = (function () {
                 '<div class="hint">Body and brain are both inherited. Nothing here was placed by hand.</div>';
         }
 
-        var prog = creatures.length ? Math.min(1, creatures[0].t / world.dur) : 0;
+        var prog = bout ? Math.min(1, bout.time / world.dur) : 0;
         $('progBar').style.width = (prog * 100).toFixed(0) + '%';
         $('progTxt').textContent = (prog * 100).toFixed(0) + '%';
     }
 
     // ---------------------------------------------------------------- persistence
-    function storeKey() { return 'walker.champion.' + worldKey; }
-    function saveChampion() {
-        try {
-            localStorage.setItem(storeKey(), JSON.stringify({
-                gen: gen, fitness: champion.fitness,
-                nodes: champion.nodes.length, muscles: champion.muscles.length,
-                freq: champion.freq, hue: champion.hue,
-                genome: {
-                    nodes: champion.nodes, muscles: champion.muscles, freq: champion.freq, hue: champion.hue,
-                    brain: {
-                        w1: Array.prototype.slice.call(champion.brain.w1),
-                        b1: Array.prototype.slice.call(champion.brain.b1),
-                        w2: Array.prototype.slice.call(champion.brain.w2),
-                        b2: Array.prototype.slice.call(champion.brain.b2)
-                    }
+    // A ranked hall of fame per objective, so you can replay a body that
+    // evolution already found instead of waiting for it to rediscover one.
+    var FAME_MAX = 3;
+    function storeKey() { return 'walker.fame.' + worldKey; }
+
+    function serialise(g, genNo, fit) {
+        return {
+            gen: genNo, fitness: fit,
+            nodes: g.nodes.length, muscles: g.muscles.length, freq: g.freq, hue: g.hue,
+            genome: {
+                nodes: g.nodes, muscles: g.muscles, freq: g.freq, hue: g.hue,
+                brain: {
+                    w1: Array.prototype.slice.call(g.brain.w1),
+                    b1: Array.prototype.slice.call(g.brain.b1),
+                    w2: Array.prototype.slice.call(g.brain.w2),
+                    b2: Array.prototype.slice.call(g.brain.b2)
                 }
-            }));
-        } catch (e) { /* private mode — the arena still works without it */ }
+            }
+        };
     }
-    function loadChampion() {
+
+    function revive(rec) {
+        var g = rec.genome;
+        return {
+            nodes: g.nodes, muscles: g.muscles, freq: g.freq, hue: g.hue,
+            brain: {
+                w1: Float32Array.from(g.brain.w1), b1: Float32Array.from(g.brain.b1),
+                w2: Float32Array.from(g.brain.w2), b2: Float32Array.from(g.brain.b2)
+            }
+        };
+    }
+
+    function loadFame() {
         try {
             var raw = localStorage.getItem(storeKey());
-            if (!raw) return null;
+            if (!raw) return [];
             var d = JSON.parse(raw);
-            if (!d || !d.genome) return null;
-            return d;
-        } catch (e) { return null; }
+            return Array.isArray(d) ? d : (d && d.genome ? [d] : []);
+        } catch (e) { return []; }
+    }
+
+    function saveChampion() {
+        var list = loadFame();
+        // ignore a near-duplicate of something already stored
+        var dupe = list.some(function (r) {
+            return Math.abs(r.fitness - champion.fitness) < 0.01 &&
+                   r.nodes === champion.nodes.length && r.muscles === champion.muscles.length;
+        });
+        if (dupe) { renderFame(list); return; }
+        list.push(serialise(champion, gen, champion.fitness));
+        list.sort(function (a, b) { return b.fitness - a.fitness; });
+        if (list.length > FAME_MAX) list.length = FAME_MAX;
+        try { localStorage.setItem(storeKey(), JSON.stringify(list)); }
+        catch (e) { /* private mode — the arena still works without it */ }
+        renderFame(list);
+    }
+
+    function renderFame(list) {
+        var wrap = $('fameWrap');
+        if (!list || !list.length) { wrap.style.display = 'none'; return; }
+        wrap.style.display = 'block';
+        $('fameList').innerHTML = list.map(function (r, i) {
+            return '<div class="row"><span>#' + (i + 1) + ' gen ' + r.gen +
+                   ' &middot; ' + r.nodes + 'n/' + r.muscles + 'm</span>' +
+                   '<span>' + fmt(r.fitness) + '</span></div>' +
+                   '<button type="button" class="ghost fame-watch" data-i="' + i +
+                   '" style="width:100%;margin:2px 0 6px;padding:5px 8px;">Watch this body</button>';
+        }).join('');
+        Array.prototype.forEach.call(document.querySelectorAll('.fame-watch'), function (b) {
+            b.addEventListener('click', function () { startReplay(list[parseInt(b.dataset.i, 10)]); });
+        });
+    }
+
+    // ---------------------------------------------------------------- replay
+    var replayMode = false;
+
+    function startReplay(rec) {
+        if (!rec) return;
+        var g = revive(rec);
+        S.repair(g);
+        var set = [g];
+        // in a combat arena a champion needs someone to fight
+        if (world.combat) {
+            var list = loadFame();
+            var other = list.filter(function (r) { return r !== rec; })[0];
+            var g2 = other ? revive(other) : S.cloneGenome(g);
+            if (other) S.repair(g2);
+            set.push(g2);
+        }
+        replayMode = true;
+        replaySource = set;
+        $('replayBar').style.display = 'block';
+        spawnPopulation();
+        setRunning(true);
+    }
+
+    function stopReplay() {
+        replayMode = false;
+        replaySource = null;
+        $('replayBar').style.display = 'none';
+        restart();
     }
 
     // ---------------------------------------------------------------- camera
@@ -1239,6 +1526,8 @@ var WalkerSim = (function () {
     }
 
     function restart() {
+        replayMode = false; replaySource = null;
+        $('replayBar').style.display = 'none';
         gen = 1; evals = 0; history = { best: [], avg: [] };
         genomes = []; champion = null;
         var saved = loadChampion();
@@ -1248,6 +1537,7 @@ var WalkerSim = (function () {
         } else {
             $('champ').textContent = '—';
         }
+        renderFame(loadFame());
         spawnPopulation();
         drawGraph();
         updateReadout();
@@ -1256,6 +1546,12 @@ var WalkerSim = (function () {
     $('startBtn').addEventListener('click', function () { setRunning(true); });
     $('pauseBtn').addEventListener('click', function () { setRunning(false); });
     $('resetBtn').addEventListener('click', function () { setRunning(false); restart(); });
+    $('replayStop').addEventListener('click', function () { setRunning(false); stopReplay(); });
+    $('fold').addEventListener('click', function () {
+        var c = $('controls');
+        c.classList.toggle('min');
+        this.textContent = c.classList.contains('min') ? '+' : '\u2013';
+    });
 
     $('objective').addEventListener('change', function () {
         setRunning(false);
