@@ -1,556 +1,1306 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ffd400'/%3E%3Cstop offset='1' stop-color='%23ff9500'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='url(%23g)' stroke-width='5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3C/svg%3E">
-    <title>3D Evolution AI Walker</title>
-    <meta name="description" content="Watch AI walkers evolve in real time in your browser. A genetic algorithm breeds a population of 20 through generations until they learn to walk. Free, no sign-up.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="icon" href="/favicon.ico">
+    <title>Evolution Arena — Evolve 3D Creatures That Walk, Fight and Fall</title>
+    <meta name="description" content="Evolve 3D creatures from scratch with a real genetic algorithm. Bodies of nodes and muscles are bred alongside their neural nets, then tested on walking, jumping, climbing, sumo and bridge combat. Free, offline, no sign-up.">
     <link rel="canonical" href="https://www.themostusefulsiteintheworld.com/aiwalker.html">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="The Most Useful Site in the World">
-    <meta property="og:title" content="3D Evolution AI Walker">
-    <meta property="og:description" content="Watch AI walkers evolve in real time in your browser. A genetic algorithm breeds a population of 20 through generations until they learn to walk. Free, no sign-up.">
+    <meta property="og:title" content="Evolution Arena — Evolve 3D Creatures">
+    <meta property="og:description" content="A genetic algorithm evolves creature bodies and brains together in real 3D physics. Watch them learn to walk, then put them in a sumo ring.">
     <meta property="og:url" content="https://www.themostusefulsiteintheworld.com/aiwalker.html">
     <meta property="og:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="3D Evolution AI Walker">
-    <meta name="twitter:description" content="Watch AI walkers evolve in real time in your browser. A genetic algorithm breeds a population of 20 through generations until they learn to walk. Free, no sign-up.">
+    <meta name="twitter:title" content="Evolution Arena — Evolve 3D Creatures">
+    <meta name="twitter:description" content="Evolve creature bodies and brains together in real 3D physics. Walk, jump, climb, sumo, bridge.">
     <meta name="twitter:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
     <meta name="theme-color" content="#0a0f14">
-    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "3D Evolution AI Walker", "url": "https://www.themostusefulsiteintheworld.com/aiwalker.html", "description": "Watch AI walkers evolve in real time in your browser. A genetic algorithm breeds a population of 20 through generations until they learn to walk. Free, no sign-up.", "applicationCategory": "UtilityApplication", "operatingSystem": "Any", "browserRequirements": "Requires JavaScript", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}}</script>
+    <meta name="color-scheme" content="dark">
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Evolution Arena", "url": "https://www.themostusefulsiteintheworld.com/aiwalker.html", "description": "Evolve 3D creatures with a genetic algorithm. Morphology and neural nets are evolved together under real physics across seven objectives including sumo and bridge combat.", "applicationCategory": "SimulationApplication", "operatingSystem": "Any", "browserRequirements": "Requires JavaScript and WebGL", "featureList": ["Genetic algorithm with elitism and tournament selection", "Evolving morphology: nodes and muscles", "Co-evolved neural net controller", "Seven fitness objectives", "Creature versus creature combat"], "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}}</script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(to bottom, #1e3c72, #2a5298);
-            font-family: 'Courier New', monospace;
-            overflow: hidden;
+        :root {
+            --accent: #2dd4ff;
+            --bg: #0a0f14;
+            --panel: rgba(10, 16, 22, 0.88);
+            --line: rgba(45, 212, 255, 0.22);
+            --text: #e6faff;
+            --dim: rgba(230, 250, 255, 0.6);
+            --good: #39ff14;
+            --warn: #ffa500;
+            --bad: #ff4d4d;
         }
-    #gameContainer {
-        position: relative;
-        width: 100vw;
-        height: 100vh;
-    }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0; height: 100%;
+            background: var(--bg); color: var(--text);
+            font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+            overflow: hidden;
+            -webkit-text-size-adjust: 100%;
+        }
+        h1 {
+            position: absolute; width: 1px; height: 1px; margin: -1px;
+            padding: 0; overflow: hidden; clip: rect(0 0 0 0);
+            white-space: nowrap; border: 0;
+        }
+        #stage { position: fixed; inset: 0; }
+        #stage canvas { display: block; }
 
-    #ui {
-        position: absolute;
-        top: 20px;
-        left: 20px;
-        z-index: 100;
-        color: white;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
-    }
+        .panel {
+            position: absolute; z-index: 10;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px 14px;
+            backdrop-filter: blur(8px);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        #controls { top: 14px; left: 14px; width: 244px; max-width: calc(100vw - 28px); }
+        #readout  { top: 14px; right: 14px; width: 232px; max-width: calc(100vw - 28px); text-align: left; }
+        #genome   { bottom: 14px; left: 14px; width: 244px; max-width: calc(100vw - 28px); display: none; }
+        #graphbox { bottom: 14px; right: 14px; width: 232px; max-width: calc(100vw - 28px); }
 
-    #stats {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        z-index: 100;
-        color: white;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
-        text-align: right;
-    }
+        .title {
+            color: var(--accent); font-weight: 700; font-size: 13px;
+            letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px;
+        }
+        label { display: block; color: var(--dim); margin: 9px 0 4px; font-size: 11px; }
+        select, input[type=range] {
+            width: 100%; background: rgba(0,0,0,0.45); color: var(--text);
+            border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px;
+            font-family: inherit; font-size: 12px;
+        }
+        input[type=range] { padding: 0; height: 22px; accent-color: var(--accent); }
+        button {
+            padding: 9px 12px; margin: 4px 4px 0 0; font-size: 12px; font-family: inherit;
+            background: rgba(45,212,255,0.14); color: var(--accent);
+            border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover:not(:disabled) { background: rgba(45,212,255,0.26); }
+        button:disabled { opacity: 0.35; cursor: not-allowed; }
+        button.ghost { background: rgba(255,255,255,0.05); color: var(--dim); border-color: rgba(255,255,255,0.12); }
 
-    button {
-        padding: 10px 20px;
-        margin: 5px;
-        font-size: 14px;
-        background: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-
-    button:hover { background: #45a049; }
-    button:disabled { background: #666; cursor: not-allowed; }
-</style>
-```
-
+        .row { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+        .row span:last-child { color: var(--accent); font-variant-numeric: tabular-nums; }
+        .hint { color: var(--dim); font-size: 10.5px; margin-top: 9px; line-height: 1.45; }
+        #graph { display: block; width: 100%; height: 62px; margin-top: 6px; }
+        .bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+        .bar > i { display: block; height: 100%; width: 0; background: var(--accent); }
+        #fatal {
+            position: absolute; inset: 0; z-index: 50; display: none;
+            align-items: center; justify-content: center; text-align: center;
+            background: var(--bg); padding: 24px; color: var(--bad); font-size: 14px;
+        }
+        @media (max-width: 720px) {
+            #genome, #graphbox { display: none !important; }
+            #controls, #readout { width: 176px; }
+        }
+    </style>
 </head>
 <body>
-<h1 style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0">3D Evolution AI Walker</h1>
-    <div id="gameContainer">
-        <div id="ui">
-            <button id="startBtn">Start Evolution</button>
-            <button id="pauseBtn" disabled>Pause</button>
-            <button id="resetBtn">Reset</button>
-            <div style="margin-top: 15px;">
-                <div>Time: <span id="time">0</span>s</div>
-                <div>Population: <span id="population">20</span></div>
-                <div>Generation: <span id="generation">1</span></div>
-            </div>
-        </div>
+<h1>Evolution Arena — Evolve 3D Creatures That Walk, Fight and Fall</h1>
+<div id="stage"></div>
 
-```
-    <div id="stats">
-        <div>Best Distance: <span id="bestDistance">0</span>m</div>
-        <div>Pack Average: <span id="packAverage">0</span>m</div>
-        <div>Mutations: <span id="mutations">0</span></div>
+<div id="controls" class="panel">
+    <div class="title">Evolution Arena</div>
+
+    <label for="objective">Objective</label>
+    <select id="objective">
+        <option value="walk" selected>Walk far</option>
+        <option value="jump">Jump high</option>
+        <option value="upright">Stay upright</option>
+        <option value="slope">Climb a slope</option>
+        <option value="rough">Cross rough ground</option>
+        <option value="sumo">Sumo — shove them out</option>
+        <option value="bridge">Bridge — drop them</option>
+    </select>
+
+    <label for="speed">Sim speed <span id="speedVal">6×</span></label>
+    <input type="range" id="speed" min="1" max="40" step="1" value="6">
+
+    <label for="popsize">Population <span id="popVal">24</span></label>
+    <input type="range" id="popsize" min="8" max="40" step="2" value="24">
+
+    <div>
+        <button type="button" id="startBtn">Start</button>
+        <button type="button" id="pauseBtn" disabled>Pause</button>
+        <button type="button" id="resetBtn" class="ghost">Reset</button>
     </div>
+
+    <p class="hint">
+        Every creature is a graph of nodes and muscles driven by its own neural net.
+        Nothing about the body is designed — it is bred.
+    </p>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<div id="readout" class="panel">
+    <div class="title">Generation <span id="gen">1</span></div>
+    <div class="row"><span>Best</span><span id="best">—</span></div>
+    <div class="row"><span>Average</span><span id="avg">—</span></div>
+    <div class="row"><span>Champion</span><span id="champ">—</span></div>
+    <div class="row"><span>Evals</span><span id="evals">0</span></div>
+    <div class="row"><span>Nodes / muscles</span><span id="morph">—</span></div>
+    <div class="row"><span>Brain weights</span><span id="wcount">—</span></div>
+    <div class="row"><span>Progress</span><span id="progTxt">0%</span></div>
+    <div class="bar"><i id="progBar"></i></div>
+</div>
+
+<div id="graphbox" class="panel">
+    <div class="title">Fitness</div>
+    <canvas id="graph" width="420" height="124" role="img" aria-label="Chart of best and average fitness per generation"></canvas>
+</div>
+
+<div id="genome" class="panel">
+    <div class="title">Champion genome</div>
+    <div id="genomeBody"></div>
+</div>
+
+<div id="fatal"></div>
+
 <script>
-    // Global error handler
-    window.onerror = function(msg, url, line) {
-        console.error('Error:', msg, 'at line:', line);
+/* ==========================================================================
+   SIM CORE — pure JavaScript. No DOM, no WebGL, no THREE.
+   Everything here is deterministic given a seed and can be driven headless,
+   which is how the physics and the genetic algorithm are tested.
+   ========================================================================== */
+var WalkerSim = (function () {
+    'use strict';
+
+    // ---- capacities. Fixed so every brain has the same shape.
+    var MAX_NODES = 12, MAX_MUSCLES = 18, HIDDEN = 12;
+    var N_IN = MAX_MUSCLES * 2 + 7 + MAX_NODES + 6;
+    var N_OUT = MAX_MUSCLES;
+
+    var GRAVITY = 12.0;
+    var DT = 1 / 120;
+    var SUB = 2;                 // substeps per physics tick
+
+    // ---------------------------------------------------------------- rng
+    function RNG(seed) {
+        this.s = (seed >>> 0) || 1;
+    }
+    RNG.prototype.next = function () {
+        // xorshift32 — small, fast, reproducible
+        var x = this.s;
+        x ^= x << 13; x >>>= 0;
+        x ^= x >>> 17;
+        x ^= x << 5; x >>>= 0;
+        this.s = x;
+        return x / 4294967296;
+    };
+    RNG.prototype.range = function (a, b) { return a + (b - a) * this.next(); };
+    RNG.prototype.int = function (a, b) { return Math.floor(this.range(a, b + 1)); };
+    RNG.prototype.pick = function (arr) { return arr[this.int(0, arr.length - 1)]; };
+    RNG.prototype.gauss = function () {
+        var u = 0, v = 0;
+        while (u === 0) u = this.next();
+        while (v === 0) v = this.next();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    };
+
+    // ---------------------------------------------------------------- brain
+    function newBrain(rng) {
+        var w1 = new Float32Array(N_IN * HIDDEN), b1 = new Float32Array(HIDDEN);
+        var w2 = new Float32Array(HIDDEN * N_OUT), b2 = new Float32Array(N_OUT);
+        var i;
+        for (i = 0; i < w1.length; i++) w1[i] = rng.gauss() * 0.6;
+        for (i = 0; i < b1.length; i++) b1[i] = rng.gauss() * 0.3;
+        for (i = 0; i < w2.length; i++) w2[i] = rng.gauss() * 0.6;
+        for (i = 0; i < b2.length; i++) b2[i] = 0;
+        return { w1: w1, b1: b1, w2: w2, b2: b2 };
+    }
+
+    var _hid = new Float32Array(HIDDEN), _out = new Float32Array(N_OUT);
+    function think(brain, input) {
+        var h, o, s, i, j;
+        for (h = 0; h < HIDDEN; h++) {
+            s = brain.b1[h];
+            for (i = 0; i < N_IN; i++) {
+                var v = input[i];
+                if (v !== 0) s += v * brain.w1[i * HIDDEN + h];
+            }
+            _hid[h] = Math.tanh(s);
+        }
+        for (o = 0; o < N_OUT; o++) {
+            s = brain.b2[o];
+            for (h = 0; h < HIDDEN; h++) s += _hid[h] * brain.w2[h * N_OUT + o];
+            _out[o] = Math.tanh(s);
+        }
+        return _out;
+    }
+
+    // ---------------------------------------------------------------- genome
+    function randomGenome(rng) {
+        var nNodes = rng.int(4, 7);
+        var nodes = [{ x: 0, y: 0, z: 0, r: rng.range(0.22, 0.34), fr: rng.range(0.4, 1.0) }];
+        var i, parent, a, b;
+
+        for (i = 1; i < nNodes; i++) {
+            parent = rng.int(0, nodes.length - 1);
+            var dir = rng.range(0, Math.PI * 2);
+            var lift = rng.range(-0.35, 0.75);
+            var len = rng.range(0.35, 0.85);
+            nodes.push({
+                x: nodes[parent].x + Math.cos(dir) * len,
+                y: nodes[parent].y + lift * len,
+                z: nodes[parent].z + Math.sin(dir) * len,
+                r: rng.range(0.13, 0.3),
+                fr: rng.range(0.4, 1.0),
+                p: parent
+            });
+        }
+
+        // structural muscles: every node to its parent
+        var muscles = [];
+        for (i = 1; i < nodes.length; i++) {
+            muscles.push({
+                a: nodes[i].p, b: i,
+                k: rng.range(30, 160), amp: rng.range(0.12, 0.55),
+                d: rng.range(0.6, 3.0)
+            });
+        }
+        // a few cross-links give the body rigidity and something to exploit
+        var extra = rng.int(1, 4);
+        for (i = 0; i < extra; i++) {
+            a = rng.int(0, nodes.length - 1); b = rng.int(0, nodes.length - 1);
+            if (a !== b) muscles.push({
+                a: a, b: b,
+                k: rng.range(20, 120), amp: rng.range(0.08, 0.4),
+                d: rng.range(0.6, 2.5)
+            });
+        }
+
+        return repair({
+            nodes: nodes,
+            muscles: muscles.slice(0, MAX_MUSCLES),
+            brain: newBrain(rng),
+            freq: rng.range(1.5, 5.0),
+            hue: rng.next()
+        });
+    }
+
+    // keep a genome legal after any mutation or crossover
+    function repair(g) {
+        var i, m, n = g.nodes.length;
+        if (n < 3) {
+            while (g.nodes.length < 3) {
+                var last = g.nodes[g.nodes.length - 1];
+                g.nodes.push({ x: last.x + 0.4, y: last.y + 0.2, z: last.z, r: 0.2, fr: 0.7 });
+            }
+            n = g.nodes.length;
+        }
+        if (n > MAX_NODES) g.nodes.length = MAX_NODES;
+        n = g.nodes.length;
+
+        for (i = 0; i < n; i++) {
+            var nd = g.nodes[i];
+            nd.r = clamp(nd.r, 0.1, 0.45);
+            nd.fr = clamp(nd.fr, 0.05, 1.5);
+            nd.x = clamp(nd.x, -2.2, 2.2);
+            nd.y = clamp(nd.y, -2.2, 2.6);
+            nd.z = clamp(nd.z, -2.2, 2.2);
+        }
+        // node 0 is the root: pin it at the origin so bodies stay comparable
+        g.nodes[0].x = 0; g.nodes[0].y = 0; g.nodes[0].z = 0;
+
+        var keep = [];
+        for (i = 0; i < g.muscles.length && keep.length < MAX_MUSCLES; i++) {
+            m = g.muscles[i];
+            if (!m) continue;
+            m.a = clamp(Math.round(m.a), 0, n - 1);
+            m.b = clamp(Math.round(m.b), 0, n - 1);
+            if (m.a === m.b) continue;
+            m.k = clamp(m.k, 8, 260);
+            m.amp = clamp(m.amp, 0.02, 0.8);
+            m.d = clamp(m.d, 0.2, 5);
+            keep.push(m);
+        }
+        // a body with no muscles cannot move at all
+        if (keep.length < 2) {
+            keep.push({ a: 0, b: 1, k: 90, amp: 0.3, d: 1.5 });
+            if (n > 2) keep.push({ a: 1, b: 2, k: 90, amp: 0.3, d: 1.5 });
+        }
+        g.muscles = keep;
+        g.freq = clamp(g.freq, 0.4, 9);
+        return g;
+    }
+
+    function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+    function cloneGenome(g) {
+        return {
+            nodes: g.nodes.map(function (n) { return { x: n.x, y: n.y, z: n.z, r: n.r, fr: n.fr, p: n.p }; }),
+            muscles: g.muscles.map(function (m) { return { a: m.a, b: m.b, k: m.k, amp: m.amp, d: m.d }; }),
+            brain: {
+                w1: new Float32Array(g.brain.w1), b1: new Float32Array(g.brain.b1),
+                w2: new Float32Array(g.brain.w2), b2: new Float32Array(g.brain.b2)
+            },
+            freq: g.freq, hue: g.hue
+        };
+    }
+
+    // ---------------------------------------------------------------- mutation
+    function mutate(g, rng, rate) {
+        rate = rate === undefined ? 1 : rate;
+        var i, n = g.nodes.length, m;
+
+        for (i = 0; i < n; i++) {
+            var nd = g.nodes[i];
+            if (rng.next() < 0.45 * rate) { nd.x += rng.gauss() * 0.12; nd.y += rng.gauss() * 0.12; nd.z += rng.gauss() * 0.12; }
+            if (rng.next() < 0.30 * rate) nd.r += rng.gauss() * 0.035;
+            if (rng.next() < 0.20 * rate) nd.fr += rng.gauss() * 0.12;
+        }
+        for (i = 0; i < g.muscles.length; i++) {
+            m = g.muscles[i];
+            if (rng.next() < 0.40 * rate) m.k += rng.gauss() * 18;
+            if (rng.next() < 0.45 * rate) m.amp += rng.gauss() * 0.07;
+            if (rng.next() < 0.30 * rate) m.d += rng.gauss() * 0.35;
+            if (rng.next() < 0.07 * rate) m.a = rng.int(0, n - 1);
+            if (rng.next() < 0.07 * rate) m.b = rng.int(0, n - 1);
+        }
+
+        var roll = rng.next();
+        if (roll < 0.14 * rate && n < MAX_NODES) {
+            // grow a limb off a random existing node
+            var p = rng.int(0, n - 1);
+            var dir = rng.range(0, Math.PI * 2), len = rng.range(0.3, 0.8);
+            g.nodes.push({
+                x: g.nodes[p].x + Math.cos(dir) * len,
+                y: g.nodes[p].y + rng.range(-0.3, 0.7) * len,
+                z: g.nodes[p].z + Math.sin(dir) * len,
+                r: rng.range(0.12, 0.28), fr: rng.range(0.4, 1.0), p: p
+            });
+            g.muscles.push({ a: p, b: g.nodes.length - 1, k: rng.range(30, 150), amp: rng.range(0.15, 0.5), d: rng.range(0.8, 2.5) });
+        } else if (roll < 0.22 * rate && n > 4) {
+            var victim = rng.int(1, n - 1);
+            g.nodes.splice(victim, 1);
+            g.muscles = g.muscles.filter(function (mm) { return mm.a !== victim && mm.b !== victim; })
+                .map(function (mm) {
+                    return { a: mm.a > victim ? mm.a - 1 : mm.a, b: mm.b > victim ? mm.b - 1 : mm.b, k: mm.k, amp: mm.amp, d: mm.d };
+                });
+        } else if (roll < 0.30 * rate && g.muscles.length < MAX_MUSCLES) {
+            var a = rng.int(0, n - 1), b = rng.int(0, n - 1);
+            if (a !== b) g.muscles.push({ a: a, b: b, k: rng.range(20, 130), amp: rng.range(0.1, 0.45), d: rng.range(0.6, 2.5) });
+        } else if (roll < 0.36 * rate && g.muscles.length > 3) {
+            g.muscles.splice(rng.int(0, g.muscles.length - 1), 1);
+        }
+
+        var br = g.brain, w;
+        for (w = 0; w < br.w1.length; w++) if (rng.next() < 0.05 * rate) br.w1[w] = clamp(br.w1[w] + rng.gauss() * 0.35, -4, 4);
+        for (w = 0; w < br.b1.length; w++) if (rng.next() < 0.05 * rate) br.b1[w] = clamp(br.b1[w] + rng.gauss() * 0.2, -3, 3);
+        for (w = 0; w < br.w2.length; w++) if (rng.next() < 0.06 * rate) br.w2[w] = clamp(br.w2[w] + rng.gauss() * 0.35, -4, 4);
+        for (w = 0; w < br.b2.length; w++) if (rng.next() < 0.06 * rate) br.b2[w] = clamp(br.b2[w] + rng.gauss() * 0.2, -3, 3);
+
+        if (rng.next() < 0.35 * rate) g.freq = clamp(g.freq + rng.gauss() * 0.5, 0.4, 9);
+        return repair(g);
+    }
+
+    function crossover(a, b, rng) {
+        var child = cloneGenome(rng.next() < 0.5 ? a : b);
+        var i;
+
+        // brains are always the same shape, so uniform crossover is safe
+        var src = rng.next() < 0.5 ? a.brain : b.brain;
+        for (i = 0; i < child.brain.w1.length; i++) {
+            if (rng.next() < 0.5) child.brain.w1[i] = src.w1[i];
+            else child.brain.w1[i] = (a.brain.w1[i] + b.brain.w1[i]) * 0.5;
+        }
+        for (i = 0; i < child.brain.w2.length; i++) {
+            if (rng.next() < 0.5) child.brain.w2[i] = src.w2[i];
+            else child.brain.w2[i] = (a.brain.w2[i] + b.brain.w2[i]) * 0.5;
+        }
+        for (i = 0; i < child.brain.b1.length; i++) if (rng.next() < 0.5) child.brain.b1[i] = a.brain.b1[i];
+        for (i = 0; i < child.brain.b2.length; i++) if (rng.next() < 0.5) child.brain.b2[i] = a.brain.b2[i];
+
+        // bodies only align when the node counts match; otherwise graft the
+        // fitter parent's body and keep the blended brain
+        if (a.nodes.length === b.nodes.length) {
+            for (i = 1; i < child.nodes.length; i++) {
+                if (rng.next() < 0.5) {
+                    child.nodes[i].x = a.nodes[i].x; child.nodes[i].y = a.nodes[i].y;
+                    child.nodes[i].z = a.nodes[i].z; child.nodes[i].r = a.nodes[i].r;
+                } else {
+                    child.nodes[i].x = b.nodes[i].x; child.nodes[i].y = b.nodes[i].y;
+                    child.nodes[i].z = b.nodes[i].z; child.nodes[i].r = b.nodes[i].r;
+                }
+            }
+        }
+        if (a.muscles.length === b.muscles.length) {
+            for (i = 0; i < child.muscles.length; i++) {
+                if (rng.next() < 0.5) {
+                    child.muscles[i].k = a.muscles[i].k;
+                    child.muscles[i].amp = a.muscles[i].amp;
+                    child.muscles[i].d = a.muscles[i].d;
+                }
+            }
+        }
+        child.freq = (a.freq + b.freq) * 0.5;
+        return repair(child);
+    }
+
+    // ---------------------------------------------------------------- worlds
+    var WORLDS = {
+        walk:    { combat: false, ground: function () { return 0; }, dur: 14, label: 'distance', unit: 'm' },
+        jump:    { combat: false, ground: function () { return 0; }, dur: 10, label: 'height', unit: 'm' },
+        upright: { combat: false, ground: function () { return 0; }, dur: 16, label: 'upright time', unit: 's' },
+        slope:   { combat: false, dur: 16, label: 'climb', unit: 'm',
+                   ground: function (x) { return x > 0 ? x * 0.36 : 0; } },
+        rough:   { combat: false, dur: 16, label: 'distance', unit: 'm',
+                   ground: function (x, z) { return 0.30 * Math.sin(x * 0.85) * Math.cos(z * 0.7) + 0.16 * Math.sin(x * 1.9 + 1.3); } },
+        sumo:    { combat: true, ring: 6, ground: function (x, z) { return 0; }, dur: 14, label: 'shoved out', unit: 'm' },
+        bridge:  { combat: true, plank: 16, half: 1.9, dur: 16, label: 'bridge run', unit: 'm',
+                   ground: function (x, z) {
+                       return (Math.abs(z) <= 1.9 && x >= -2 && x <= 16) ? 0 : -40;
+                   } }
+    };
+
+    // ---------------------------------------------------------------- creature
+    function Creature(genome, rng, spawnX, spawnZ, world) {
+        this.g = genome;
+        this.n = genome.nodes.length;
+        this.m = genome.muscles.length;
+        var i;
+
+        this.mass = new Float32Array(this.n);
+        this.im = new Float32Array(this.n);
+        for (i = 0; i < this.n; i++) {
+            this.mass[i] = 0.45 + Math.pow(genome.nodes[i].r, 3) * 9;
+            this.im[i] = 1 / this.mass[i];
+        }
+
+        // rest lengths are whatever the genome's geometry says
+        this.rest = new Float32Array(this.m);
+        for (i = 0; i < this.m; i++) {
+            var A = genome.nodes[genome.muscles[i].a], B = genome.nodes[genome.muscles[i].b];
+            var d = Math.hypot(B.x - A.x, B.y - A.y, B.z - A.z);
+            this.rest[i] = Math.max(0.12, d);
+        }
+
+        this.px = new Float32Array(this.n); this.py = new Float32Array(this.n); this.pz = new Float32Array(this.n);
+        this.vx = new Float32Array(this.n); this.vy = new Float32Array(this.n); this.vz = new Float32Array(this.n);
+        this.len = new Float32Array(this.m);
+        this.prevLen = new Float32Array(this.m);
+        this.contact = new Uint8Array(this.n);
+        this.input = new Float32Array(N_IN);
+        this.signal = new Float32Array(this.m);
+        this._com = [0, 0, 0, 0];   // reused plain array: double precision, no allocation
+
+        // tallest node at birth is "up", which gives a body-frame orientation
+        this.upRef = 1;
+        for (i = 1; i < this.n; i++) if (genome.nodes[i].y > genome.nodes[this.upRef].y) this.upRef = i;
+        this.upX = 0; this.upY = 1; this.upZ = 0;
+        this.prevUpX = 0; this.prevUpY = 1; this.prevUpZ = 0;
+
+        this.spawnX = spawnX; this.spawnZ = spawnZ;
+        this.t = 0; this.alive = true; this.dead = false;
+        this.best = 0; this.maxH = 0; this.uprightT = 0; this.downT = 0;
+        this.fitness = 0;
+        this.startH = 0;
+        this.oppOut = 0; this.oppFell = false; this.selfFell = false;
+
+        this.reset(world);
+    }
+
+    Creature.prototype.com = function (out) {
+        var mt = 0, x = 0, y = 0, z = 0, i;
+        for (i = 0; i < this.n; i++) {
+            mt += this.mass[i];
+            x += this.px[i] * this.mass[i]; y += this.py[i] * this.mass[i]; z += this.pz[i] * this.mass[i];
+        }
+        out[0] = x / mt; out[1] = y / mt; out[2] = z / mt; out[3] = mt;
+        return out;
+    };
+
+    Creature.prototype.reset = function (world) {
+        var i, lowest = Infinity;
+        for (i = 0; i < this.n; i++) {
+            var gy = world.ground(this.spawnX + this.g.nodes[i].x, this.spawnZ + this.g.nodes[i].z);
+            if (!isFinite(gy) || gy < -20) gy = 0;
+            var yy = gy + this.g.nodes[i].y;
+            if (yy - this.g.nodes[i].r < lowest) lowest = yy - this.g.nodes[i].r;
+        }
+        var lift = 0.05 - lowest;
+        for (i = 0; i < this.n; i++) {
+            var g2 = world.ground(this.spawnX + this.g.nodes[i].x, this.spawnZ + this.g.nodes[i].z);
+            if (!isFinite(g2) || g2 < -20) g2 = 0;
+            this.px[i] = this.spawnX + this.g.nodes[i].x;
+            this.py[i] = g2 + this.g.nodes[i].y + lift;
+            this.pz[i] = this.spawnZ + this.g.nodes[i].z;
+            this.vx[i] = 0; this.vy[i] = 0; this.vz[i] = 0;
+        }
+        this.t = 0; this.alive = true; this.dead = false;
+        this.best = 0; this.maxH = 0; this.uprightT = 0; this.downT = 0;
+        this.fitness = 0; this.oppOut = 0; this.oppFell = false; this.selfFell = false;
+        var c = this.com(this._com);
+        this.startH = c[1];
+        this.bestDist = 0;
+        this.upX = 0; this.upY = 1; this.upZ = 0;
+        this.prevUpX = 0; this.prevUpY = 1; this.prevUpZ = 0;
+    };
+
+    function buildInputs(c, opp, world) {
+        var inp = c.input, i, k = 0;
+        for (i = 0; i < N_IN; i++) inp[i] = 0;
+
+        for (i = 0; i < c.m; i++) {
+            var dev = (c.len[i] - c.rest[i]) / c.rest[i];
+            inp[k++] = clamp(dev, -1.5, 1.5);
+            inp[k++] = clamp((c.len[i] - c.prevLen[i]) * 30, -1.5, 1.5);
+        }
+        k = MAX_MUSCLES * 2;
+
+        var com = c.com(c._com);
+        var mvx = 0, mvy = 0, mvz = 0, mt = com[3];
+        for (i = 0; i < c.n; i++) { mvx += c.vx[i] * c.mass[i]; mvy += c.vy[i] * c.mass[i]; mvz += c.vz[i] * c.mass[i]; }
+        mvx /= mt; mvy /= mt; mvz /= mt;
+
+        inp[k++] = clamp(com[1] - c.startH, -3, 3) * 0.5;
+        inp[k++] = clamp(c.upY, -1, 1);
+        var du = Math.hypot(c.upX - c.prevUpX, c.upY - c.prevUpY, c.upZ - c.prevUpZ);
+        inp[k++] = clamp(du * 25, 0, 1.5);
+        inp[k++] = clamp(mvx, -6, 6) * 0.25;
+        inp[k++] = clamp(mvz, -6, 6) * 0.25;
+        inp[k++] = Math.sin(c.t * c.g.freq * Math.PI * 2);
+        inp[k++] = Math.cos(c.t * c.g.freq * Math.PI * 2);
+        k = MAX_MUSCLES * 2 + 7;
+
+        for (i = 0; i < c.n; i++) inp[k++] = c.contact[i] ? 1 : 0;
+        k = MAX_MUSCLES * 2 + 7 + MAX_NODES;
+
+        if (opp && opp.alive) {
+            var oc = opp.com(opp._com);
+            var dx = oc[0] - com[0], dz = oc[2] - com[2];
+            var dist = Math.max(0.001, Math.hypot(dx, dz));
+            inp[k++] = dx / dist;
+            inp[k++] = dz / dist;
+            inp[k++] = clamp(dist * 0.12, 0, 1.5);
+            inp[k++] = clamp(oc[1] - com[1], -3, 3) * 0.5;
+        }
+        return inp;
+    }
+
+    Creature.prototype.step = function (world, opp) {
+        if (this.dead) return;
+        var h = DT / SUB, s, i;
+        for (s = 0; s < SUB; s++) this.substep(world, opp, h);
+
+        this.t += DT;
+        this.prevLen.set(this.len);
+        this.prevUpX = this.upX; this.prevUpY = this.upY; this.prevUpZ = this.upZ;
+
+        var com = this.com(this._com);
+        var ux = this.px[this.upRef] - com[0], uy = this.py[this.upRef] - com[1], uz = this.pz[this.upRef] - com[2];
+        var ul = Math.hypot(ux, uy, uz) || 1;
+        this.upX = ux / ul; this.upY = uy / ul; this.upZ = uz / ul;
+
+        var moved = Math.hypot(com[0] - this.spawnX, com[2] - this.spawnZ);
+        if (moved > this.bestDist) this.bestDist = moved;
+        var hgt = com[1] - this.startH;
+        if (hgt > this.maxH) this.maxH = hgt;
+        if (this.upY > 0.72) this.uprightT += DT; else this.downT += DT;
+
+        // fallen apart or buried: stop simulating, keep the score
+        if (com[1] < -6 || this.t > world.dur + 2) this.dead = true;
+    };
+
+    Creature.prototype.substep = function (world, opp, h) {
+        var i, g = this.g;
+
+        var out = think(g.brain, buildInputs(this, opp, world));
+        for (i = 0; i < this.m; i++) this.signal[i] = out[i];
+
+        // muscle springs
+        for (i = 0; i < this.m; i++) {
+            var mu = g.muscles[i], a = mu.a, b = mu.b;
+            var dx = this.px[b] - this.px[a], dy = this.py[b] - this.py[a], dz = this.pz[b] - this.pz[a];
+            var len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (len < 1e-6) continue;
+            this.len[i] = len;
+            var nx = dx / len, ny = dy / len, nz = dz / len;
+
+            var target = this.rest[i] * (1 + mu.amp * this.signal[i]);
+            var rvx = this.vx[b] - this.vx[a], rvy = this.vy[b] - this.vy[a], rvz = this.vz[b] - this.vz[a];
+            var rel = rvx * nx + rvy * ny + rvz * nz;
+
+            var f = mu.k * (len - target) + mu.d * rel;
+            f = clamp(f, -400, 400);
+
+            this.vx[a] += f * nx * this.im[a] * h; this.vy[a] += f * ny * this.im[a] * h; this.vz[a] += f * nz * this.im[a] * h;
+            this.vx[b] -= f * nx * this.im[b] * h; this.vy[b] -= f * ny * this.im[b] * h; this.vz[b] -= f * nz * this.im[b] * h;
+        }
+
+        // creature versus creature, node against node. Gated on id because both
+        // fighters run their own substep against each other; without the gate
+        // every contact impulse would be applied twice.
+        if (opp && !opp.dead && (this.id === undefined || opp.id === undefined || this.id < opp.id)) {
+            for (i = 0; i < this.n; i++) {
+                for (var j = 0; j < opp.n; j++) {
+                    var cx = this.px[i] - opp.px[j], cy = this.py[i] - opp.py[j], cz = this.pz[i] - opp.pz[j];
+                    var cd = Math.sqrt(cx * cx + cy * cy + cz * cz);
+                    var minD = g.nodes[i].r + opp.g.nodes[j].r;
+                    if (cd < minD && cd > 1e-6) {
+                        var ux2 = cx / cd, uy2 = cy / cd, uz2 = cz / cd;
+                        var push = (minD - cd) * 260;
+                        this.vx[i] += ux2 * push * this.im[i] * h; this.vy[i] += uy2 * push * this.im[i] * h; this.vz[i] += uz2 * push * this.im[i] * h;
+                        opp.vx[j] -= ux2 * push * opp.im[j] * h; opp.vy[j] -= uy2 * push * opp.im[j] * h; opp.vz[j] -= uz2 * push * opp.im[j] * h;
+                        // shove along the contact too, so bodies actually transfer momentum
+                        var rvo = (this.vx[i] - opp.vx[j]) * ux2 + (this.vy[i] - opp.vy[j]) * uy2 + (this.vz[i] - opp.vz[j]) * uz2;
+                        if (rvo < 0) {
+                            var imp = -rvo * 0.7;
+                            this.vx[i] += ux2 * imp * 0.5; opp.vx[j] -= ux2 * imp * 0.5;
+                            this.vy[i] += uy2 * imp * 0.5; opp.vy[j] -= uy2 * imp * 0.5;
+                            this.vz[i] += uz2 * imp * 0.5; opp.vz[j] -= uz2 * imp * 0.5;
+                        }
+                    }
+                }
+            }
+        }
+
+        // integrate, then resolve the ground
+        for (i = 0; i < this.n; i++) {
+            this.vy[i] -= GRAVITY * h;
+            var drag = 1 - 0.18 * h;
+            this.vx[i] *= drag; this.vy[i] *= drag; this.vz[i] *= drag;
+
+            this.px[i] += this.vx[i] * h;
+            this.py[i] += this.vy[i] * h;
+            this.pz[i] += this.vz[i] * h;
+
+            var r = g.nodes[i].r;
+            var gy = world.ground(this.px[i], this.pz[i]);
+            if (!isFinite(gy)) gy = -40;
+            this.contact[i] = 0;
+            if (this.py[i] - r < gy) {
+                this.py[i] = gy + r;
+                if (this.vy[i] < 0) this.vy[i] = -this.vy[i] * 0.06;
+                var fr = 1 - g.nodes[i].fr * 14 * h;
+                if (fr < 0) fr = 0;
+                this.vx[i] *= fr; this.vz[i] *= fr;
+                this.contact[i] = 1;
+            }
+            // never let a runaway spring launch a node to infinity
+            if (this.vx[i] > 40) this.vx[i] = 40; else if (this.vx[i] < -40) this.vx[i] = -40;
+            if (this.vy[i] > 40) this.vy[i] = 40; else if (this.vy[i] < -40) this.vy[i] = -40;
+            if (this.vz[i] > 40) this.vz[i] = 40; else if (this.vz[i] < -40) this.vz[i] = -40;
+        }
+    };
+
+    // ---------------------------------------------------------------- fitness
+    function score(c, world, opp) {
+        var com = c.com(c._com);
+        var key = world.key;
+        if (key === 'walk' || key === 'rough') return c.bestDist;
+        if (key === 'slope') {
+            var gx = com[0] - c.spawnX;
+            return Math.max(0, gx) + c.maxH * 0.5;
+        }
+        if (key === 'jump') return c.maxH * 10;
+        if (key === 'upright') return c.uprightT - c.downT * 0.15;
+        if (key === 'sumo') {
+            var oc = opp.com(opp._com);
+            var od = Math.hypot(oc[0], oc[2]);
+            var mine = Math.hypot(com[0], com[2]);
+            // a steady outward gradient on the opponent, so pushing is rewarded
+            // from the first contact rather than only at the edge
+            var f = Math.max(0, od - mine) * 0.9 + Math.max(0, od - world.ring) * 4;
+            if (od > world.ring && mine <= world.ring) f += 15;   // shoved them out, stayed in
+            if (mine > world.ring) f -= 20;                       // went out yourself
+            if (com[1] < 0.28 && c.upY < 0.4) f -= 5;             // toppled in the ring
+            return f;
+        }
+        if (key === 'bridge') {
+            var prog = clamp(com[0] - c.spawnX, -4, world.plank);
+            var ff = prog;
+            var iFell = com[1] < -3;
+            if (iFell) ff -= 14;
+            if (opp) {
+                var oc2 = opp.com(opp._com);
+                var oppFell = oc2[1] < -3;
+                // only a clean win counts: they went over and you did not
+                if (oppFell && !iFell) ff += 14;
+                else if (oppFell && iFell) ff += 2;
+                else ff += Math.max(0, (opp.spawnX + 3) - oc2[0]) * 0.5;
+            }
+            return ff;
+        }
+        return 0;
+    }
+
+    // ---------------------------------------------------------------- GA
+    function tournament(pop, fits, rng) {
+        var a = rng.int(0, pop.length - 1), b = rng.int(0, pop.length - 1);
+        return fits[a] >= fits[b] ? pop[a] : pop[b];
+    }
+
+    function nextGeneration(genomes, fits, rng, popSize) {
+        var order = genomes.map(function (_, i) { return i; })
+            .sort(function (a, b) { return fits[b] - fits[a]; });
+
+        var elites = Math.max(2, Math.floor(popSize * 0.15));
+        var next = [], i;
+        for (i = 0; i < elites && i < order.length; i++) next.push(cloneGenome(genomes[order[i]]));
+
+        var guard = 0;
+        while (next.length < popSize && guard++ < popSize * 12) {
+            var p1 = tournament(genomes, fits, rng);
+            var child;
+            if (rng.next() < 0.72) {
+                var p2 = tournament(genomes, fits, rng);
+                child = crossover(p1, p2, rng);
+            } else {
+                child = cloneGenome(p1);
+            }
+            mutate(child, rng, rng.range(0.6, 1.6));
+            next.push(child);
+        }
+        while (next.length < popSize) next.push(randomGenome(rng));
+        return next;
+    }
+
+    return {
+        MAX_NODES: MAX_NODES, MAX_MUSCLES: MAX_MUSCLES, HIDDEN: HIDDEN,
+        N_IN: N_IN, N_OUT: N_OUT, DT: DT,
+        RNG: RNG, WORLDS: WORLDS, Creature: Creature,
+        randomGenome: randomGenome, cloneGenome: cloneGenome,
+        mutate: mutate, crossover: crossover, repair: repair,
+        nextGeneration: nextGeneration, score: score, think: think, clamp: clamp
+    };
+})();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+/* ==========================================================================
+   RENDER + UI
+   ========================================================================== */
+(function () {
+    'use strict';
+
+    if (typeof THREE === 'undefined') {
+        var f = document.getElementById('fatal');
+        f.style.display = 'flex';
+        f.textContent = 'The 3D library could not be loaded. Check your connection and reload.';
+        return;
+    }
+
+    var S = WalkerSim;
+    var stage = document.getElementById('stage');
+
+    var scene, camera, renderer, groundMesh, markerGroup, ringMesh;
+    var bodies = [];              // render state per simulated creature
+    var genomes = [], fits = [];
+    var creatures = [], pairs = [];
+    var world = null, worldKey = 'walk';
+    var rng = new S.RNG(20260901);
+
+    var gen = 1, evals = 0, running = false;
+    var popSize = 24, speed = 6;
+    var history = { best: [], avg: [] };
+    var champion = null, mutations = 0;
+
+    var $ = function (id) { return document.getElementById(id); };
+
+    // ---------------------------------------------------------------- scene
+    function initScene() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x070b0f);
+        scene.fog = new THREE.Fog(0x070b0f, 40, 190);
+
+        camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 600);
+        camera.position.set(-10, 11, 20);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        stage.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0x6688aa, 0.85));
+        var key = new THREE.DirectionalLight(0xdff4ff, 0.95);
+        key.position.set(18, 34, 14);
+        key.castShadow = true;
+        key.shadow.mapSize.width = 1024;
+        key.shadow.mapSize.height = 1024;
+        key.shadow.camera.left = -40; key.shadow.camera.right = 40;
+        key.shadow.camera.top = 40; key.shadow.camera.bottom = -40;
+        scene.add(key);
+        var rim = new THREE.DirectionalLight(0x2dd4ff, 0.45);
+        rim.position.set(-20, 12, -18);
+        scene.add(rim);
+
+        markerGroup = new THREE.Group();
+        scene.add(markerGroup);
+    }
+
+    // build the terrain mesh that matches the objective
+    function buildWorld(key) {
+        worldKey = key;
+        var spec = S.WORLDS[key];
+        world = {
+            key: key, combat: spec.combat, dur: spec.dur, ring: spec.ring,
+            plank: spec.plank, half: spec.half,
+            ground: spec.ground || function () { return 0; },
+            label: spec.label, unit: spec.unit
+        };
+
+        if (groundMesh) { scene.remove(groundMesh); groundMesh.geometry.dispose(); groundMesh.material.dispose(); }
+        while (markerGroup.children.length) {
+            var c = markerGroup.children.pop();
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+        }
+        if (ringMesh) { scene.remove(ringMesh); ringMesh.geometry.dispose(); ringMesh.material.dispose(); ringMesh = null; }
+
+        if (key === 'bridge') {
+            var plankGeo = new THREE.BoxGeometry(spec.plank + 6, 0.6, spec.half * 2);
+            var plankMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
+            groundMesh = new THREE.Mesh(plankGeo, plankMat);
+            groundMesh.position.set(spec.plank / 2 - 1, -0.3, 0);
+            groundMesh.receiveShadow = true;
+            scene.add(groundMesh);
+
+            var postMat = new THREE.MeshLambertMaterial({ color: 0x2dd4ff, emissive: 0x0d3d4d });
+            [-2, spec.plank].forEach(function (x) {
+                var post = new THREE.Mesh(new THREE.BoxGeometry(0.35, 5, 0.35), postMat);
+                post.position.set(x, 2.2, 0);
+                markerGroup.add(post);
+            });
+        } else {
+            var W = key === 'slope' ? 90 : 120, D = key === 'slope' ? 60 : 90;
+            var geo = new THREE.PlaneGeometry(W, D, 72, 48);
+            geo.rotateX(-Math.PI / 2);
+            var pos = geo.attributes.position;
+            for (var i = 0; i < pos.count; i++) {
+                var x = pos.getX(i), z = pos.getZ(i);
+                var y = world.ground(x, z);
+                pos.setY(i, isFinite(y) && y > -20 ? y : -0.4);
+            }
+            geo.computeVertexNormals();
+            var mat = new THREE.MeshLambertMaterial({
+                color: key === 'sumo' ? 0x14323c : 0x143a2a,
+                flatShading: key === 'rough'
+            });
+            groundMesh = new THREE.Mesh(geo, mat);
+            groundMesh.receiveShadow = true;
+            scene.add(groundMesh);
+        }
+
+        if (key === 'sumo') {
+            var ringGeo = new THREE.RingGeometry(spec.ring - 0.35, spec.ring, 96);
+            ringGeo.rotateX(-Math.PI / 2);
+            ringMesh = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff4d4d, side: THREE.DoubleSide }));
+            ringMesh.position.y = 0.04;
+            scene.add(ringMesh);
+        }
+
+        // distance markers so progress is legible
+        var mMat = new THREE.MeshBasicMaterial({ color: 0x2dd4ff, transparent: true, opacity: 0.5 });
+        for (var d = 10; d <= 60; d += 10) {
+            var tick = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 6), mMat);
+            tick.position.set(d, 0.05, -8);
+            markerGroup.add(tick);
+        }
+    }
+
+    // ---------------------------------------------------------------- bodies
+    var sphereGeo = new THREE.SphereGeometry(1, 14, 10);
+    var cylGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
+
+    function clearBodies() {
+        bodies.forEach(function (b) {
+            b.nodeMeshes.forEach(function (m) { b.group.remove(m); m.material.dispose(); });
+            b.muscleMeshes.forEach(function (m) { b.group.remove(m); m.material.dispose(); });
+            scene.remove(b.group);
+        });
+        bodies = [];
+    }
+
+    function buildBodies() {
+        clearBodies();
+        for (var i = 0; i < creatures.length; i++) {
+            var c = creatures[i];
+            var group = new THREE.Group();
+            var col = new THREE.Color().setHSL(c.g.hue, 0.62, 0.58);
+            var nodeMeshes = [], muscleMeshes = [], j;
+
+            for (j = 0; j < c.n; j++) {
+                var nm = new THREE.Mesh(sphereGeo, new THREE.MeshLambertMaterial({ color: col.clone().offsetHSL(0, 0, 0.06).getHex() }));
+                nm.scale.setScalar(c.g.nodes[j].r);
+                nm.castShadow = true;
+                group.add(nm);
+                nodeMeshes.push(nm);
+            }
+            for (j = 0; j < c.m; j++) {
+                var mm = new THREE.Mesh(cylGeo, new THREE.MeshLambertMaterial({
+                    color: col.clone().offsetHSL(0.03, -0.1, -0.12).getHex(),
+                    transparent: true, opacity: 0.86
+                }));
+                mm.castShadow = true;
+                group.add(mm);
+                muscleMeshes.push(mm);
+            }
+            scene.add(group);
+            bodies.push({ group: group, nodeMeshes: nodeMeshes, muscleMeshes: muscleMeshes, c: c });
+        }
+    }
+
+    var _up = new THREE.Vector3(0, 1, 0), _dir = new THREE.Vector3(), _mid = new THREE.Vector3();
+    function syncBodies() {
+        for (var i = 0; i < bodies.length; i++) {
+            var b = bodies[i], c = b.c, j;
+            for (j = 0; j < c.n; j++) b.nodeMeshes[j].position.set(c.px[j], c.py[j], c.pz[j]);
+            for (j = 0; j < c.m; j++) {
+                var mu = c.g.muscles[j], a = mu.a, bb = mu.b;
+                _dir.set(c.px[bb] - c.px[a], c.py[bb] - c.py[a], c.pz[bb] - c.pz[a]);
+                var len = _dir.length() || 0.001;
+                var m = b.muscleMeshes[j];
+                m.position.set((c.px[a] + c.px[bb]) / 2, (c.py[a] + c.py[bb]) / 2, (c.pz[a] + c.pz[bb]) / 2);
+                m.quaternion.setFromUnitVectors(_up, _dir.divideScalar(len));
+                var thick = 0.055 + 0.05 * Math.max(-0.4, Math.min(0.9, c.signal[j] || 0));
+                m.scale.set(thick, len, thick);
+            }
+            b.group.visible = !c.dead || c.t < world.dur + 1;
+        }
+    }
+
+    // ---------------------------------------------------------------- sim
+    function spawnPopulation() {
+        creatures = [];
+        pairs = [];
+        for (var i = 0; i < popSize; i++) {
+            var sx, sz;
+            if (world.combat) {
+                // combatants must both start ON the arena. On the bridge that
+                // means inside the plank width, facing each other along it.
+                if (worldKey === 'bridge') {
+                    sx = (i % 2 === 0 ? 0.5 : 3.5);
+                    sz = (i % 2 === 0 ? -0.7 : 0.7);
+                } else {
+                    sx = (i % 2 === 0 ? -1.6 : 1.6);
+                    sz = (i % 2 === 0 ? -0.9 : 0.9);
+                }
+            } else {
+                sx = 0;
+                sz = (i - (popSize - 1) / 2) * 3.2;
+            }
+            var g = genomes[i] || S.randomGenome(rng);
+            var c = new S.Creature(g, rng, sx, sz, world);
+            c.id = i;
+            creatures.push(c);
+        }
+        if (world.combat) {
+            for (var k = 0; k + 1 < creatures.length; k += 2) pairs.push([creatures[k], creatures[k + 1]]);
+        }
+        genomes = creatures.map(function (c) { return c.g; });
+        fits = new Array(creatures.length).fill(0);
+        buildBodies();
+    }
+
+    function simTick() {
+        var i;
+        if (world.combat) {
+            for (i = 0; i < pairs.length; i++) {
+                var a = pairs[i][0], b = pairs[i][1];
+                a.step(world, b); b.step(world, a);
+            }
+            // an odd leftover just trains alone
+            if (creatures.length % 2 === 1) creatures[creatures.length - 1].step(world, null);
+        } else {
+            for (i = 0; i < creatures.length; i++) creatures[i].step(world, null);
+        }
+
+        for (i = 0; i < creatures.length; i++) {
+            var c = creatures[i];
+            if (c.dead) continue;
+            var opp = null;
+            if (world.combat) {
+                for (var p = 0; p < pairs.length; p++) {
+                    if (pairs[p][0] === c) { opp = pairs[p][1]; break; }
+                    if (pairs[p][1] === c) { opp = pairs[p][0]; break; }
+                }
+            }
+            c.fitness = S.score(c, world, opp);
+        }
+
+        var allDead = true;
+        for (i = 0; i < creatures.length; i++) {
+            if (!creatures[i].dead && creatures[i].t < world.dur) { allDead = false; break; }
+        }
+        if (allDead) endGeneration();
+    }
+
+    function endGeneration() {
+        var i, best = -Infinity, sum = 0, bi = 0;
+        for (i = 0; i < creatures.length; i++) {
+            var f = creatures[i].fitness;
+            if (!isFinite(f)) f = 0;
+            fits[i] = f;
+            if (f > best) { best = f; bi = i; }
+            sum += f;
+        }
+        evals += creatures.length;
+
+        champion = S.cloneGenome(creatures[bi].g);
+        champion.fitness = best;
+        saveChampion();
+
+        history.best.push(best);
+        history.avg.push(sum / creatures.length);
+        if (history.best.length > 160) { history.best.shift(); history.avg.shift(); }
+
+        genomes = S.nextGeneration(genomes, fits, rng, popSize);
+        gen++;
+        spawnPopulation();
+        drawGraph();
+        updateReadout();
+    }
+
+    // ---------------------------------------------------------------- graph
+    var graphCv = $('graph'), gctx = graphCv.getContext('2d');
+    function drawGraph() {
+        var w = graphCv.width, h = graphCv.height;
+        gctx.clearRect(0, 0, w, h);
+        if (history.best.length < 2) {
+            gctx.fillStyle = 'rgba(230,250,255,0.35)';
+            gctx.font = '11px monospace';
+            gctx.fillText('waiting for generation 2…', 8, h / 2);
+            return;
+        }
+        var lo = Infinity, hi = -Infinity, i;
+        for (i = 0; i < history.best.length; i++) {
+            lo = Math.min(lo, history.avg[i]); hi = Math.max(hi, history.best[i]);
+        }
+        if (hi - lo < 1e-6) { hi = lo + 1; }
+        var pad = 6;
+        function X(i) { return pad + (w - pad * 2) * (i / (history.best.length - 1)); }
+        function Y(v) { return h - pad - (h - pad * 2) * ((v - lo) / (hi - lo)); }
+
+        gctx.strokeStyle = 'rgba(255,255,255,0.10)';
+        gctx.beginPath(); gctx.moveTo(pad, Y(0)); gctx.lineTo(w - pad, Y(0)); gctx.stroke();
+
+        function line(arr, colour, width) {
+            gctx.strokeStyle = colour; gctx.lineWidth = width; gctx.beginPath();
+            for (var k = 0; k < arr.length; k++) {
+                var x = X(k), y = Y(Math.max(lo, Math.min(hi, arr[k])));
+                if (k === 0) gctx.moveTo(x, y); else gctx.lineTo(x, y);
+            }
+            gctx.stroke();
+        }
+        line(history.avg, 'rgba(230,250,255,0.35)', 1.5);
+        line(history.best, '#2dd4ff', 2.5);
+    }
+
+    // ---------------------------------------------------------------- readout
+    function fmt(v) {
+        if (!isFinite(v)) return '—';
+        if (Math.abs(v) >= 100) return v.toFixed(0);
+        return v.toFixed(2);
+    }
+    function updateReadout() {
+        $('gen').textContent = gen;
+        $('evals').textContent = evals;
+        var bf = history.best.length ? history.best[history.best.length - 1] : NaN;
+        var af = history.avg.length ? history.avg[history.avg.length - 1] : NaN;
+        $('best').textContent = fmt(bf) + ' ' + (world ? world.unit : '');
+        $('avg').textContent = fmt(af) + ' ' + (world ? world.unit : '');
+        $('champ').textContent = champion ? fmt(champion.fitness) : '—';
+
+        if (champion) {
+            $('morph').textContent = champion.nodes.length + ' / ' + champion.muscles.length;
+            var br = champion.brain;
+            $('wcount').textContent = (br.w1.length + br.w2.length + br.b1.length + br.b2.length).toLocaleString('en-GB');
+            $('genome').style.display = 'block';
+            $('genomeBody').innerHTML =
+                '<div class="row"><span>Nodes</span><span>' + champion.nodes.length + '</span></div>' +
+                '<div class="row"><span>Muscles</span><span>' + champion.muscles.length + '</span></div>' +
+                '<div class="row"><span>Gait freq</span><span>' + champion.freq.toFixed(2) + ' Hz</span></div>' +
+                '<div class="row"><span>Best score</span><span>' + fmt(champion.fitness) + '</span></div>' +
+                '<div class="hint">Body and brain are both inherited. Nothing here was placed by hand.</div>';
+        }
+
+        var prog = creatures.length ? Math.min(1, creatures[0].t / world.dur) : 0;
+        $('progBar').style.width = (prog * 100).toFixed(0) + '%';
+        $('progTxt').textContent = (prog * 100).toFixed(0) + '%';
+    }
+
+    // ---------------------------------------------------------------- persistence
+    function storeKey() { return 'walker.champion.' + worldKey; }
+    function saveChampion() {
+        try {
+            localStorage.setItem(storeKey(), JSON.stringify({
+                gen: gen, fitness: champion.fitness,
+                nodes: champion.nodes.length, muscles: champion.muscles.length,
+                freq: champion.freq, hue: champion.hue,
+                genome: {
+                    nodes: champion.nodes, muscles: champion.muscles, freq: champion.freq, hue: champion.hue,
+                    brain: {
+                        w1: Array.prototype.slice.call(champion.brain.w1),
+                        b1: Array.prototype.slice.call(champion.brain.b1),
+                        w2: Array.prototype.slice.call(champion.brain.w2),
+                        b2: Array.prototype.slice.call(champion.brain.b2)
+                    }
+                }
+            }));
+        } catch (e) { /* private mode — the arena still works without it */ }
+    }
+    function loadChampion() {
+        try {
+            var raw = localStorage.getItem(storeKey());
+            if (!raw) return null;
+            var d = JSON.parse(raw);
+            if (!d || !d.genome) return null;
+            return d;
+        } catch (e) { return null; }
+    }
+
+    // ---------------------------------------------------------------- camera
+    var camYaw = -0.55, camPitch = 0.42, camDist = 30, camTarget = new THREE.Vector3(0, 2, 0);
+    var dragging = false, lastX = 0, lastY = 0;
+
+    function onDown(x, y) { dragging = true; lastX = x; lastY = y; }
+    function onMove(x, y) {
+        if (!dragging) return;
+        camYaw -= (x - lastX) * 0.008;
+        camPitch = S.clamp(camPitch + (y - lastY) * 0.006, 0.05, 1.45);
+        lastX = x; lastY = y;
+    }
+    function onUp() { dragging = false; }
+
+    stage.addEventListener('mousedown', function (e) { onDown(e.clientX, e.clientY); });
+    window.addEventListener('mousemove', function (e) { onMove(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', onUp);
+    stage.addEventListener('touchstart', function (e) {
+        if (e.touches.length === 1) onDown(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    stage.addEventListener('touchmove', function (e) {
+        if (e.touches.length === 1) onMove(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    stage.addEventListener('touchend', onUp);
+    stage.addEventListener('wheel', function (e) {
+        camDist = S.clamp(camDist + e.deltaY * 0.02, 8, 90);
+        e.preventDefault();
+    }, { passive: false });
+
+    function updateCamera() {
+        var tx = 0, ty = 2, tz = 0;
+        if (creatures.length) {
+            var bi = 0, bf = -Infinity;
+            for (var i = 0; i < creatures.length; i++) {
+                if (creatures[i].fitness > bf) { bf = creatures[i].fitness; bi = i; }
+            }
+            var c = creatures[bi], com = c.com(c._com);
+            tx = com[0]; ty = Math.max(1.5, com[1]); tz = com[2];
+        }
+        camTarget.x += (tx - camTarget.x) * 0.06;
+        camTarget.y += (ty - camTarget.y) * 0.06;
+        camTarget.z += (tz - camTarget.z) * 0.06;
+
+        var cp = Math.cos(camPitch);
+        camera.position.set(
+            camTarget.x + Math.sin(camYaw) * cp * camDist,
+            camTarget.y + Math.sin(camPitch) * camDist,
+            camTarget.z + Math.cos(camYaw) * cp * camDist
+        );
+        camera.lookAt(camTarget);
+    }
+
+    // ---------------------------------------------------------------- loop
+    var acc = 0, last = 0;
+    function frame(now) {
+        requestAnimationFrame(frame);
+        var dt = last ? Math.min(0.1, (now - last) / 1000) : 0.016;
+        last = now;
+
+        if (running) {
+            acc += dt * speed;
+            var steps = 0;
+            while (acc >= S.DT && steps < 400) { simTick(); acc -= S.DT; steps++; }
+            if (acc > S.DT * 400) acc = 0;
+            syncBodies();
+            if (steps) updateReadout();
+        } else {
+            syncBodies();
+        }
+        updateCamera();
+        renderer.render(scene, camera);
+    }
+
+    // ---------------------------------------------------------------- controls
+    function setRunning(v) {
+        running = v;
+        $('startBtn').disabled = v;
+        $('pauseBtn').disabled = !v;
+    }
+
+    function restart() {
+        gen = 1; evals = 0; history = { best: [], avg: [] };
+        genomes = []; champion = null;
+        var saved = loadChampion();
+        if (saved) {
+            champion = null;
+            $('champ').textContent = 'gen ' + saved.gen + ': ' + fmt(saved.fitness);
+        } else {
+            $('champ').textContent = '—';
+        }
+        spawnPopulation();
+        drawGraph();
+        updateReadout();
+    }
+
+    $('startBtn').addEventListener('click', function () { setRunning(true); });
+    $('pauseBtn').addEventListener('click', function () { setRunning(false); });
+    $('resetBtn').addEventListener('click', function () { setRunning(false); restart(); });
+
+    $('objective').addEventListener('change', function () {
+        setRunning(false);
+        buildWorld(this.value);
+        restart();
+    });
+    $('speed').addEventListener('input', function () {
+        speed = parseInt(this.value, 10);
+        $('speedVal').textContent = speed + '\u00d7';
+    });
+    $('popsize').addEventListener('input', function () {
+        popSize = parseInt(this.value, 10);
+        $('popVal').textContent = popSize;
+    });
+    $('popsize').addEventListener('change', function () {
+        setRunning(false); restart();
+    });
+
+    window.addEventListener('resize', function () {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.onerror = function (msg) {
+        var el = $('fatal');
+        el.style.display = 'flex';
+        el.textContent = 'Something went wrong: ' + msg;
         return true;
     };
 
-    let scene, camera, renderer;
-    let creatures = [];
-    let isRunning = false;
-    let startTime = 0;
-    let generation = 1;
-    let mutations = 0;
-
-    const POPULATION_SIZE = 15;
-    const ELIMINATION_DISTANCE = 150;
-
-    // Simple Neural Network
-    class Brain {
-        constructor() {
-            this.weights = [];
-            for (let i = 0; i < 20; i++) {
-                this.weights.push((Math.random() - 0.5) * 2);
-            }
-        }
-
-        think(inputs) {
-            let output = 0;
-            for (let i = 0; i < Math.min(inputs.length, this.weights.length); i++) {
-                output += inputs[i] * this.weights[i];
-            }
-            return Math.tanh(output);
-        }
-
-        mutate() {
-            for (let i = 0; i < this.weights.length; i++) {
-                if (Math.random() < 0.1) {
-                    this.weights[i] += (Math.random() - 0.5) * 0.5;
-                    this.weights[i] = Math.max(-2, Math.min(2, this.weights[i]));
-                }
-            }
-            mutations++;
-        }
-
-        crossover(other) {
-            const child = new Brain();
-            for (let i = 0; i < this.weights.length; i++) {
-                child.weights[i] = Math.random() < 0.5 ? this.weights[i] : other.weights[i];
-            }
-            return child;
-        }
-    }
-
-    class Creature {
-        constructor(x = 0, z = 0) {
-            // Basic genetics
-            this.bodySize = 0.8 + Math.random() * 1.2;
-            this.legLength = 1 + Math.random() * 2;
-            this.numLegs = Math.random() < 0.7 ? 2 : 4;
-            this.hasArms = Math.random() < 0.6;
-            this.armLength = this.hasArms ? 0.8 + Math.random() * 1.5 : 0;
-            this.color = new THREE.Color().setHSL(Math.random(), 0.7, 0.6);
-            
-            // Physics
-            this.position = new THREE.Vector3(x, 0, z);
-            this.velocity = new THREE.Vector3(0, 0, 0);
-            this.rotation = 0;
-            this.walkCycle = Math.random() * Math.PI * 2;
-            
-            this.brain = new Brain();
-            this.fitness = 0;
-            this.alive = true;
-            this.age = 0;
-            
-            this.createModel();
-        }
-
-        createModel() {
-            try {
-                this.group = new THREE.Group();
-                
-                // Body
-                const bodyGeo = new THREE.BoxGeometry(this.bodySize, this.bodySize * 1.2, this.bodySize * 0.8);
-                const bodyMat = new THREE.MeshLambertMaterial({ color: this.color.getHex() });
-                this.bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-                this.bodyMesh.position.y = this.bodySize * 0.6;
-                this.bodyMesh.castShadow = true;
-                this.group.add(this.bodyMesh);
-                
-                // Head
-                const headGeo = new THREE.SphereGeometry(this.bodySize * 0.4);
-                const headMat = new THREE.MeshLambertMaterial({ color: this.color.clone().multiplyScalar(1.2).getHex() });
-                this.headMesh = new THREE.Mesh(headGeo, headMat);
-                this.headMesh.position.y = this.bodySize * 1.4;
-                this.headMesh.castShadow = true;
-                this.group.add(this.headMesh);
-                
-                // Legs
-                this.legMeshes = [];
-                const legGeo = new THREE.CylinderGeometry(0.1, 0.1, this.legLength);
-                const legMat = new THREE.MeshLambertMaterial({ color: this.color.clone().multiplyScalar(0.8).getHex() });
-                
-                for (let i = 0; i < this.numLegs; i++) {
-                    const legMesh = new THREE.Mesh(legGeo, legMat);
-                    const angle = (i / this.numLegs) * Math.PI * 2;
-                    legMesh.position.x = Math.sin(angle) * this.bodySize * 0.4;
-                    legMesh.position.z = Math.cos(angle) * this.bodySize * 0.4;
-                    legMesh.position.y = -this.legLength * 0.5;
-                    legMesh.castShadow = true;
-                    this.group.add(legMesh);
-                    this.legMeshes.push(legMesh);
-                }
-                
-                // Arms (if has them)
-                this.armMeshes = [];
-                if (this.hasArms) {
-                    const armGeo = new THREE.CylinderGeometry(0.08, 0.08, this.armLength);
-                    const armMat = new THREE.MeshLambertMaterial({ color: this.color.clone().multiplyScalar(0.9).getHex() });
-                    
-                    for (let i = 0; i < 2; i++) {
-                        const armMesh = new THREE.Mesh(armGeo, armMat);
-                        armMesh.position.x = (i === 0 ? -1 : 1) * this.bodySize * 0.6;
-                        armMesh.position.y = this.bodySize * 0.8;
-                        armMesh.position.z = 0;
-                        armMesh.castShadow = true;
-                        this.group.add(armMesh);
-                        this.armMeshes.push(armMesh);
-                    }
-                }
-                
-                scene.add(this.group);
-            } catch (e) {
-                console.error('Error creating creature model:', e);
-                this.alive = false;
-            }
-        }
-
-        update(dt) {
-            if (!this.alive) return;
-            
-            try {
-                this.age += dt;
-                
-                // Simple inputs
-                const inputs = [
-                    this.velocity.x,
-                    this.velocity.z,
-                    this.velocity.y,
-                    this.position.y,
-                    Math.sin(this.walkCycle),
-                    Math.cos(this.walkCycle)
-                ];
-                
-                // Get brain output
-                const output = this.brain.think(inputs);
-                
-                // Convert to movement
-                const forwardForce = output * 3;
-                const turnForce = this.brain.think([...inputs, output]) * 0.03;
-                
-                // Update walk cycle
-                this.walkCycle += dt * 3;
-                
-                // Apply forces
-                const forward = new THREE.Vector3(Math.sin(this.rotation), 0, Math.cos(this.rotation));
-                this.velocity.add(forward.multiplyScalar(forwardForce * dt));
-                this.rotation += turnForce;
-                
-                // Physics
-                this.velocity.y -= 12 * dt; // Gravity
-                this.position.add(this.velocity.clone().multiplyScalar(dt));
-                
-                // Ground collision
-                if (this.position.y <= 0) {
-                    this.position.y = 0;
-                    this.velocity.y = 0;
-                    this.velocity.multiplyScalar(0.9); // Friction
-                }
-                
-                // Air resistance
-                this.velocity.multiplyScalar(0.99);
-                
-                // Update model
-                this.group.position.copy(this.position);
-                this.group.rotation.y = this.rotation;
-                
-                // Animate legs
-                for (let i = 0; i < this.legMeshes.length; i++) {
-                    this.legMeshes[i].rotation.x = Math.sin(this.walkCycle + i) * 0.5;
-                }
-                
-                // Animate arms
-                for (let i = 0; i < this.armMeshes.length; i++) {
-                    this.armMeshes[i].rotation.x = Math.sin(this.walkCycle * 0.7 + i * Math.PI) * 0.8;
-                }
-                
-                // Update fitness
-                this.fitness = Math.max(this.fitness, this.position.x);
-                
-                // Check if should die
-                if (this.position.y < -20 || this.position.x < -100) {
-                    this.die();
-                }
-            } catch (e) {
-                console.error('Error updating creature:', e);
-                this.die();
-            }
-        }
-
-        die() {
-            this.alive = false;
-            if (this.group) {
-                scene.remove(this.group);
-            }
-        }
-
-        breed(partner) {
-            try {
-                const childX = (this.position.x + partner.position.x) / 2;
-                const childZ = (this.position.z + partner.position.z) / 2 + (Math.random() - 0.5) * 10;
-                
-                const child = new Creature(childX, childZ);
-                
-                // Inherit traits
-                child.bodySize = (this.bodySize + partner.bodySize) / 2 + (Math.random() - 0.5) * 0.3;
-                child.legLength = (this.legLength + partner.legLength) / 2 + (Math.random() - 0.5) * 0.4;
-                child.armLength = (this.armLength + partner.armLength) / 2 + (Math.random() - 0.5) * 0.3;
-                
-                // Clamp values
-                child.bodySize = Math.max(0.3, Math.min(2.5, child.bodySize));
-                child.legLength = Math.max(0.5, Math.min(3, child.legLength));
-                child.armLength = Math.max(0, Math.min(2.5, child.armLength));
-                
-                // Genetic crossover
-                child.brain = this.brain.crossover(partner.brain);
-                child.brain.mutate();
-                
-                // Recreate model
-                child.die();
-                child.createModel();
-                child.alive = true;
-                
-                return child;
-            } catch (e) {
-                console.error('Error breeding:', e);
-                return null;
-            }
-        }
-    }
-
-    function initScene() {
-        try {
-            // Scene
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setClearColor(0x87CEEB);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            
-            document.getElementById('gameContainer').appendChild(renderer.domElement);
-            
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-            scene.add(ambientLight);
-            
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(50, 100, 50);
-            directionalLight.castShadow = true;
-            scene.add(directionalLight);
-            
-            // Ground
-            const groundGeometry = new THREE.PlaneGeometry(5000, 200);
-            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x3a8c3a });
-            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-            ground.rotation.x = -Math.PI / 2;
-            ground.receiveShadow = true;
-            scene.add(ground);
-            
-            // Camera position
-            camera.position.set(0, 20, 30);
-            camera.lookAt(0, 0, 0);
-            
-            console.log('Scene initialized successfully');
-            return true;
-        } catch (e) {
-            console.error('Failed to initialize scene:', e);
-            return false;
-        }
-    }
-
-    function createPopulation() {
-        try {
-            creatures = [];
-            for (let i = 0; i < POPULATION_SIZE; i++) {
-                const z = (i - POPULATION_SIZE/2) * 2;
-                creatures.push(new Creature(0, z));
-            }
-            console.log('Population created:', creatures.length);
-        } catch (e) {
-            console.error('Error creating population:', e);
-        }
-    }
-
-    function updateEvolution() {
-        try {
-            const aliveCreatures = creatures.filter(c => c.alive);
-            
-            // Check for breeding
-            if (aliveCreatures.length >= 2 && Math.random() < 0.02) {
-                aliveCreatures.sort((a, b) => b.fitness - a.fitness);
-                const parent1 = aliveCreatures[0];
-                const parent2 = aliveCreatures[1];
-                
-                const child = parent1.breed(parent2);
-                if (child) {
-                    creatures.push(child);
-                    
-                    // Remove weakest if too many
-                    if (aliveCreatures.length > POPULATION_SIZE) {
-                        const weakest = aliveCreatures[aliveCreatures.length - 1];
-                        weakest.die();
-                        creatures = creatures.filter(c => c !== weakest);
-                    }
-                }
-            }
-            
-            // Check for elimination
-            if (aliveCreatures.length > 0) {
-                const leader = Math.max(...aliveCreatures.map(c => c.fitness));
-                aliveCreatures.forEach(c => {
-                    if (c.fitness < leader - ELIMINATION_DISTANCE) {
-                        c.die();
-                    }
-                });
-            }
-            
-            // Emergency repopulation
-            if (aliveCreatures.length === 0) {
-                createPopulation();
-                generation++;
-            }
-        } catch (e) {
-            console.error('Error in evolution update:', e);
-        }
-    }
-
-    function updateCamera() {
-        try {
-            const aliveCreatures = creatures.filter(c => c.alive);
-            if (aliveCreatures.length > 0) {
-                const leader = aliveCreatures.reduce((best, c) => c.fitness > best.fitness ? c : best);
-                const targetX = leader.position.x + 15;
-                camera.position.x += (targetX - camera.position.x) * 0.02;
-                camera.lookAt(leader.position.x, 0, leader.position.z);
-            }
-        } catch (e) {
-            console.error('Camera update error:', e);
-        }
-    }
-
-    function updateUI() {
-        try {
-            const aliveCreatures = creatures.filter(c => c.alive);
-            const elapsed = isRunning ? (Date.now() - startTime) / 1000 : 0;
-            
-            let bestDistance = 0;
-            let avgDistance = 0;
-            
-            if (aliveCreatures.length > 0) {
-                bestDistance = Math.max(...aliveCreatures.map(c => c.fitness));
-                avgDistance = aliveCreatures.reduce((sum, c) => sum + c.fitness, 0) / aliveCreatures.length;
-            }
-            
-            document.getElementById('time').textContent = Math.floor(elapsed);
-            document.getElementById('population').textContent = aliveCreatures.length;
-            document.getElementById('generation').textContent = generation;
-            document.getElementById('bestDistance').textContent = Math.floor(bestDistance);
-            document.getElementById('packAverage').textContent = Math.floor(avgDistance);
-            document.getElementById('mutations').textContent = mutations;
-        } catch (e) {
-            console.error('UI update error:', e);
-        }
-    }
-
-    function animate() {
-        try {
-            if (isRunning) {
-                const dt = 1/60;
-                creatures.forEach(c => c.update(dt));
-                updateEvolution();
-                updateCamera();
-                updateUI();
-            }
-            
-            renderer.render(scene, camera);
-        } catch (e) {
-            console.error('Animation error:', e);
-        }
-        
-        requestAnimationFrame(animate);
-    }
-
-    // Initialize everything
+    // ---------------------------------------------------------------- boot
     try {
-        if (initScene()) {
-            createPopulation();
-            animate();
-            console.log('Game started successfully');
-        } else {
-            document.getElementById('ui').innerHTML = '<div style="color: red;">Failed to initialize 3D scene</div>';
-        }
+        initScene();
+        buildWorld('walk');
+        spawnPopulation();
+        drawGraph();
+        updateReadout();
+        requestAnimationFrame(frame);
     } catch (e) {
-        console.error('Initialization failed:', e);
-        document.getElementById('ui').innerHTML = '<div style="color: red;">Game failed to start</div>';
+        var el2 = $('fatal');
+        el2.style.display = 'flex';
+        el2.textContent = 'Could not start the arena: ' + e.message;
     }
-
-    // Event listeners
-    document.getElementById('startBtn').addEventListener('click', () => {
-        isRunning = true;
-        startTime = Date.now();
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('pauseBtn').disabled = false;
-    });
-
-    document.getElementById('pauseBtn').addEventListener('click', () => {
-        isRunning = false;
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('pauseBtn').disabled = true;
-    });
-
-    document.getElementById('resetBtn').addEventListener('click', () => {
-        try {
-            isRunning = false;
-            creatures.forEach(c => c.die());
-            creatures = [];
-            generation = 1;
-            mutations = 0;
-            createPopulation();
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('pauseBtn').disabled = true;
-        } catch (e) {
-            console.error('Reset error:', e);
-        }
-    });
-
-    window.addEventListener('resize', () => {
-        try {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        } catch (e) {
-            console.error('Resize error:', e);
-        }
-    });
+})();
 </script>
-
 </body>
 </html>
