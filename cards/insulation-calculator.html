@@ -1,0 +1,90 @@
+<!-- cards/insulation-calculator.html -->
+<h2 id="insul-title" style="margin-top:0;color:var(--accent);">🧊 Insulation Savings Calculator</h2>
+
+<form aria-describedby="insul-desc" onsubmit="event.preventDefault();">
+  <p id="insul-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Estimate how much you could save by insulating your loft, walls, or floor. Based on UK energy prices.
+  </p>
+
+  <div style="margin-bottom:12px;">
+    <label for="insul-area-type" style="display:block;margin-bottom:4px;color:var(--accent);font-size:0.85rem;font-weight:600;">What are you insulating?</label>
+    <select id="insul-area-type" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;font-size:0.95rem;">
+      <option value="loft" selected>Loft / Attic</option>
+      <option value="cavity-wall">Cavity Wall</option>
+      <option value="solid-wall">Solid Wall (internal)</option>
+      <option value="floor">Ground Floor</option>
+    </select>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="insul-area" style="display:block;margin-bottom:4px;color:var(--accent);font-size:0.85rem;font-weight:600;">Area (m²)</label>
+      <input id="insul-area" type="number" min="1" value="50" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;font-size:0.95rem;box-sizing:border-box;">
+    </div>
+    <div>
+      <label for="insul-bill" style="display:block;margin-bottom:4px;color:var(--accent);font-size:0.85rem;font-weight:600;">Annual Gas Bill (£)</label>
+      <input id="insul-bill" type="number" min="100" value="1200" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;font-size:0.95rem;box-sizing:border-box;">
+    </div>
+  </div>
+
+  <div style="margin-bottom:14px;">
+    <label for="insul-existing" style="display:block;margin-bottom:4px;color:var(--accent);font-size:0.85rem;font-weight:600;">Current Insulation</label>
+    <select id="insul-existing" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;font-size:0.95rem;">
+      <option value="none" selected>None</option>
+      <option value="thin">Thin / Old (less than 100mm)</option>
+      <option value="medium">Moderate (100–200mm)</option>
+    </select>
+  </div>
+
+  <button type="button" onclick="insulCalc()" style="width:100%;padding:12px;border-radius:8px;border:none;background:var(--accent);color:#000;font-weight:700;font-size:1rem;cursor:pointer;margin-bottom:16px;">
+    🧊 Calculate Savings
+  </button>
+
+  <div id="insul-result" style="display:none;padding:16px;border-radius:10px;background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.2);">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="text-align:center;padding:12px;border-radius:8px;background:rgba(57,255,20,0.1);">
+        <div style="font-size:0.75rem;color:var(--text-secondary);">Annual Saving</div>
+        <div id="insul-saving" style="font-size:1.5rem;color:#39ff14;font-weight:700;"></div>
+      </div>
+      <div style="text-align:center;padding:12px;border-radius:8px;background:rgba(45,212,255,0.1);">
+        <div style="font-size:0.75rem;color:var(--text-secondary);">Typical Cost</div>
+        <div id="insul-cost" style="font-size:1.5rem;color:var(--accent);font-weight:700;"></div>
+      </div>
+    </div>
+    <div id="insul-payback" style="text-align:center;font-size:1.1rem;color:var(--text);margin-bottom:10px;"></div>
+    <div id="insul-co2" style="text-align:center;font-size:0.9rem;color:#39ff14;margin-bottom:10px;"></div>
+    <div id="insul-spec" style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-bottom:10px;"></div>
+    <div id="insul-tips" style="font-size:0.8rem;color:var(--text-secondary);line-height:1.6;"></div>
+  </div>
+</form>
+
+<script>
+(function(){
+  var insulData={
+    loft:{savingPct:{none:0.25,thin:0.15,medium:0.08},costPerM2:{none:30,thin:25,medium:20},spec:'Recommended: 270mm mineral wool or 200mm rigid PIR board. Current Building Regs require U-value of 0.16 W/m²K.'},
+    'cavity-wall':{savingPct:{none:0.35,thin:0.15,medium:0.05},costPerM2:{none:18,thin:15,medium:12},spec:'Cavity wall insulation is injected into the gap between inner and outer leaves. Requires a minimum 50mm cavity. Not suitable for exposed walls in driving rain areas.'},
+    'solid-wall':{savingPct:{none:0.30,thin:0.15,medium:0.05},costPerM2:{none:80,thin:60,medium:40},spec:'Internal insulation (insulated plasterboard) is cheaper but reduces room size by 50–100mm. External insulation preserves interior space but requires planning permission in conservation areas.'},
+    floor:{savingPct:{none:0.10,thin:0.05,medium:0.02},costPerM2:{none:25,thin:20,medium:15},spec:'Rigid insulation boards between or above joists. Target U-value of 0.25 W/m²K. Suspended timber floors need ventilation maintained — don\'t block air bricks.'}
+  };
+
+  window.insulCalc=function(){
+    var type=document.getElementById('insul-area-type').value;
+    var area=parseFloat(document.getElementById('insul-area').value);
+    var bill=parseFloat(document.getElementById('insul-bill').value);
+    var existing=document.getElementById('insul-existing').value;
+    var d=insulData[type];
+    var savingPct=d.savingPct[existing];
+    var annualSaving=Math.round(bill*savingPct);
+    var installCost=Math.round(area*d.costPerM2[existing]);
+    var paybackYears=(installCost/annualSaving).toFixed(1);
+    var co2=Math.round(annualSaving*0.18);
+    document.getElementById('insul-saving').textContent='£'+annualSaving+'/year';
+    document.getElementById('insul-cost').textContent='£'+installCost.toLocaleString();
+    document.getElementById('insul-payback').innerHTML='⏱️ Payback period: <strong>'+paybackYears+' years</strong>';
+    document.getElementById('insul-co2').innerHTML='🌱 CO₂ saved: <strong>'+co2+' kg/year</strong> — equivalent to driving '+Math.round(co2*2.3)+' fewer miles';
+    document.getElementById('insul-spec').innerHTML='📋 <strong>Specification:</strong><br>'+d.spec;
+    document.getElementById('insul-tips').innerHTML='💡 <strong>Check for grants:</strong> The UK ECO4 scheme and Great British Insulation Scheme may cover some or all costs for eligible households.<br>💡 <strong>Draught-proof first:</strong> Sealing gaps around doors, windows, and loft hatches is cheap and immediately effective.<br>💡 <strong>Don\'t block ventilation:</strong> Insulation must not block eaves vents, air bricks, or extractor fans — moisture needs to escape.';
+    document.getElementById('insul-result').style.display='block';
+  };
+})();
+</script>

@@ -296,7 +296,22 @@ const astronomyList = [
   'black-hole-horizon-calculator'
 ];
 
+const homeDIYList = [
+  'paint-calculator',
+  'wall-anchor-guide',
+  'picture-hanging-guide',
+  'tile-flooring-estimator',
+  'shelf-bracket-calculator',
+  'screw-drill-chart',
+  'room-layout-planner',
+  'concrete-mix-calculator',
+  'wallpaper-estimator',
+  'insulation-calculator',
+  'plumbing-pipe-sizing'
+];
+
 function getCategory(name) {
+  if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
   if (aiList.some(s => name.includes(s))) return 'AI & Autonomous Agents';
   if (dogList.some(s => name.includes(s))) return 'Dogs & Canine Care';
