@@ -307,7 +307,12 @@ const homeDIYList = [
   'concrete-mix-calculator',
   'wallpaper-estimator',
   'insulation-calculator',
-  'plumbing-pipe-sizing'
+  'plumbing-pipe-sizing',
+  'brick-calculator',
+  'decking-calculator',
+  'gravel-calculator',
+  'fence-calculator',
+  'plastering-calculator'
 ];
 
 function getCategory(name) {
