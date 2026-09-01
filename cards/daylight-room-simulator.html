@@ -1,0 +1,296 @@
+<!--
+  ☀️ The Daylight Lab — HALL OF LIGHT. Real-time sun path and daylight
+  simulation for any room. Watch sunlight enter through windows, cast
+  shadows, and illuminate surfaces as the sun moves across the sky.
+  Interactive compass orientation, window size, latitude, and time of year.
+  Calculates daylight factor and lux at the work plane. Zero network.
+-->
+<style>
+  .dl-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .dl-kicker{display:inline-block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;
+    color:#c9a227;border:1px solid rgba(201,162,39,.35);padding:6px 14px;border-radius:2px;margin-bottom:14px}
+  .dl-title{font-family:var(--serif,'Georgia',serif);font-size:1.9rem;margin:0 0 6px;color:#f4ead0;font-weight:400}
+  .dl-lede{color:var(--muted,#9aa6b6);font-size:.92rem;line-height:1.6;margin:0 0 16px;max-width:780px}
+  .dl-lede b{color:#e3c05a;font-weight:600}
+  .dl-box{border:1px solid rgba(201,162,39,.28);border-radius:10px;padding:16px 18px;margin-bottom:18px;
+    background:linear-gradient(180deg,#070a12,#0a0e18)}
+  .dl-say{font-size:.72rem;color:#8fa3bf;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+  .dl-box h3{font-family:var(--serif,'Georgia',serif);font-size:1.12rem;color:#f4ead0;font-weight:400;margin:0 0 10px}
+  .dl-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .dl-chip{padding:7px 13px;border-radius:999px;font-size:.76rem;font-weight:600;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid rgba(201,162,39,.3);color:#d8cfae;transition:all .15s}
+  .dl-chip:hover,.dl-chip.on{border-color:#e3c05a;color:#e3c05a;background:rgba(201,162,39,.08)}
+  .dl-canvas-wrap{position:relative;border-radius:8px;overflow:hidden;margin:12px 0;
+    border:1px solid rgba(201,162,39,.2)}
+  .dl-canvas-wrap canvas{display:block;width:100%;height:auto}
+  .dl-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .dl-slider label{display:flex;justify-content:space-between;font-size:.72rem;color:#8fa3bf;margin-bottom:3px}
+  .dl-slider label span{color:#e3c05a;font-family:ui-monospace,monospace}
+  .dl-slider input[type=range]{width:100%;accent-color:#e3c05a}
+  .dl-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0}
+  .dl-card{background:rgba(255,255,255,.04);border:1px solid rgba(201,162,39,.2);border-radius:8px;padding:10px 12px;text-align:center}
+  .dl-card .k{font-size:.66rem;color:#8fa3bf;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px}
+  .dl-card .v{font-size:1.1rem;color:#f0e6c8;font-weight:600}
+  .dl-note{font-size:.82rem;color:#c3c9d4;line-height:1.6;border-top:1px solid rgba(201,162,39,.2);padding-top:10px;margin-top:12px}
+  .dl-note b{color:#e3c05a}
+  .dl-btn{padding:8px 16px;border-radius:8px;border:1px solid rgba(201,162,39,0.4);
+    background:rgba(201,162,39,0.15);color:#e3c05a;font-weight:600;cursor:pointer;font-size:0.8rem;margin:4px 2px}
+  .dl-btn:hover{background:rgba(201,162,39,0.25)}
+  @media(max-width:640px){.dl-grid2{grid-template-columns:1fr}}
+</style>
+
+<div class="dl-wrap">
+  <span class="dl-kicker">Hall of Light · Catalogue 14</span>
+  <h2 id="dl-title" class="dl-title" style="margin-top:0">☀️ The Daylight Lab</h2>
+  <p class="dl-lede">
+    Watch sunlight enter a room and cast shadows as the sun moves across the sky. See how
+    <b>window orientation</b>, <b>room depth</b>, and <b>time of year</b> affect daylight levels.
+    The sun path diagram shows the sun's arc for your chosen latitude — the foundation of
+    passive solar design.
+  </p>
+
+  <div class="dl-box">
+    <div class="dl-say">Exhibit A · The living room</div>
+    <h3>Sunlight entering through a window</h3>
+    <div class="dl-canvas-wrap"><canvas id="dl-room" width="700" height="350"></canvas></div>
+    <div style="margin:8px 0;">
+      <button class="dl-btn" onclick="dlSetTime(6)">🌅 6am</button>
+      <button class="dl-btn" onclick="dlSetTime(9)">☀️ 9am</button>
+      <button class="dl-btn" onclick="dlSetTime(12)">🌞 Noon</button>
+      <button class="dl-btn" onclick="dlSetTime(15)">☀️ 3pm</button>
+      <button class="dl-btn" onclick="dlSetTime(18)">🌇 6pm</button>
+      <button class="dl-btn" onclick="dlAnimate()">▶️ Animate day</button>
+    </div>
+    <div class="dl-grid2">
+      <div class="dl-slider">
+        <label>Time of day <span id="dl-time-val">12:00</span></label>
+        <input type="range" id="dl-time" min="5" max="21" value="12" step="0.25">
+      </div>
+      <div class="dl-slider">
+        <label>Month <span id="dl-month-val">June</span></label>
+        <input type="range" id="dl-month" min="1" max="12" value="6">
+      </div>
+      <div class="dl-slider">
+        <label>Window wall faces <span id="dl-orient-val">South</span></label>
+        <input type="range" id="dl-orient" min="0" max="3" value="2">
+      </div>
+      <div class="dl-slider">
+        <label>Window width <span id="dl-winw-val">1.5 m</span></label>
+        <input type="range" id="dl-winw" min="0.6" max="3" value="1.5" step="0.1">
+      </div>
+    </div>
+    <div class="dl-cards" id="dl-stats"></div>
+    <div class="dl-note">
+      <b>What you're seeing.</b> A top-down cross-section of a room with a window on one wall.
+      The <b>yellow wedge</b> is direct sunlight entering through the window. The <b>gradient</b>
+      shows how light intensity falls off with distance from the window — this is the
+      <b>daylight factor</b> concept. UK Building Regulations require an average daylight factor
+      of at least 2% in habitable rooms. North-facing rooms get diffuse light only; south-facing
+      rooms get direct sun in winter (low sun) but may overheat in summer (high sun).
+    </div>
+  </div>
+
+  <div class="dl-box">
+    <div class="dl-say">Exhibit B · The sun path</div>
+    <h3>Sun arc across the sky</h3>
+    <div class="dl-canvas-wrap"><canvas id="dl-sunpath" width="700" height="250"></canvas></div>
+    <div class="dl-note">
+      <b>The sun path diagram</b> shows the sun's arc for each month at latitude 52°N (UK average).
+      In <b>June</b>, the sun rises north of east, climbs to 61° altitude, and sets north of west —
+      nearly 17 hours of daylight. In <b>December</b>, it barely reaches 15° altitude and is up for
+      only 8 hours. The <b>golden dot</b> marks the current time position. South-facing windows
+      capture the most winter sun (passive heating) but need shading in summer.
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var dlAnimating=false;
+  var orientations=['East','North','West','South'];
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  window.dlSetTime=function(h){
+    document.getElementById('dl-time').value=h;
+    document.getElementById('dl-time-val').textContent=Math.floor(h)+':'+(h%1*60<10?'0':'')+Math.round(h%1*60);
+  };
+
+  window.dlAnimate=function(){
+    dlAnimating=!dlAnimating;
+  };
+
+  function dlSunPos(hour,month){
+    var lat=52*Math.PI/180;
+    var decl=(23.45*Math.sin(2*Math.PI*(284+month*30)/365))*Math.PI/180;
+    var ha=(hour-12)*15*Math.PI/180;
+    var alt=Math.asin(Math.sin(lat)*Math.sin(decl)+Math.cos(lat)*Math.cos(decl)*Math.cos(ha));
+    var az=Math.atan2(-Math.sin(ha),Math.cos(ha)*Math.sin(lat)-Math.tan(decl)*Math.cos(lat));
+    return{alt:alt,az:az,deg:alt*180/Math.PI,azDeg:az*180/Math.PI};
+  }
+
+  function dlDrawRoom(){
+    var canvas=document.getElementById('dl-room');
+    var ctx=canvas.getContext('2d');
+    var W=canvas.width,H=canvas.height;
+    var hour=parseFloat(document.getElementById('dl-time').value);
+    var month=parseInt(document.getElementById('dl-month').value);
+    var orient=parseInt(document.getElementById('dl-orient').value);
+    var winW=parseFloat(document.getElementById('dl-winw').value);
+    var sun=dlSunPos(hour,month);
+
+    ctx.fillStyle='#070a12';ctx.fillRect(0,0,W,H);
+
+    var roomL=500,roomH=280;
+    var rx=(W-roomL)/2,ry=(H-roomH)/2+10;
+
+    ctx.fillStyle='rgba(255,255,255,0.03)';
+    ctx.fillRect(rx,ry,roomL,roomH);
+    ctx.strokeStyle='rgba(201,162,39,0.5)';ctx.lineWidth=2;
+    ctx.strokeRect(rx,ry,roomL,roomH);
+
+    var winPx=winW/5*roomL;
+    var winStart=rx+(roomL-winPx)/2;
+
+    var isDay=sun.deg>0;
+    var sunIntensity=isDay?Math.sin(sun.alt):0;
+
+    if(isDay){
+      var orientAz=[90,180,270,0][orient];
+      var relAz=sun.azDeg-orientAz;
+      while(relAz>180)relAz-=360;while(relAz<-180)relAz+=360;
+
+      var beamAngle=relAz*Math.PI/180;
+      var beamLen=roomH*1.5;
+      var entryX=winStart+winPx/2;
+      var entryY=ry;
+
+      var exitX=entryX+Math.sin(beamAngle)*beamLen;
+      var exitY=entryY+Math.cos(beamAngle)*beamLen;
+
+      var beamVisible=Math.abs(relAz)<80;
+
+      if(beamVisible){
+        var grad=ctx.createLinearGradient(entryX,entryY,entryX,ry+roomH);
+        grad.addColorStop(0,'rgba(255,220,50,'+sunIntensity*0.4+')');
+        grad.addColorStop(0.5,'rgba(255,180,30,'+sunIntensity*0.15+')');
+        grad.addColorStop(1,'rgba(255,150,10,0)');
+        ctx.fillStyle=grad;
+        ctx.beginPath();
+        ctx.moveTo(winStart,ry);
+        ctx.lineTo(winStart+winPx,ry);
+        var spread=roomH*Math.tan(Math.abs(beamAngle)*0.5+0.1);
+        ctx.lineTo(winStart+winPx+spread,ry+roomH);
+        ctx.lineTo(winStart-spread,ry+roomH);
+        ctx.closePath();ctx.fill();
+
+        ctx.fillStyle='rgba(255,220,50,'+sunIntensity*0.08+')';
+        ctx.fillRect(rx+1,ry+1,roomL-2,roomH-2);
+      }
+
+      var skyGrad=ctx.createLinearGradient(0,0,0,ry);
+      skyGrad.addColorStop(0,'rgba(100,150,255,'+sunIntensity*0.3+')');
+      skyGrad.addColorStop(1,'rgba(255,200,100,'+sunIntensity*0.1+')');
+      ctx.fillStyle=skyGrad;ctx.fillRect(0,0,W,ry);
+    }
+
+    ctx.fillStyle='rgba(201,162,39,0.6)';
+    ctx.fillRect(winStart,ry-3,winPx,6);
+    ctx.fillStyle='#8fa3bf';ctx.font='9px system-ui';ctx.textAlign='center';
+    ctx.fillText('Window ('+winW.toFixed(1)+'m)',winStart+winPx/2,ry-8);
+
+    var luxAtDesk=isDay?sunIntensity*32000*Math.exp(-0.3*1.5):0;
+    var df=luxAtDesk/100;
+    var cards=document.getElementById('dl-stats');
+    cards.innerHTML=
+      '<div class="dl-card"><span class="k">Sun Altitude</span><span class="v" style="color:'+(sun.deg>0?'#e3c05a':'#3b82f6')+'">'+sun.deg.toFixed(1)+'°</span></div>'+
+      '<div class="dl-card"><span class="k">Sun Azimuth</span><span class="v">'+sun.azDeg.toFixed(0)+'°</span></div>'+
+      '<div class="dl-card"><span class="k">Daylight Hours</span><span class="v">'+(isDay?'Yes':'Dark')+'</span></div>'+
+      '<div class="dl-card"><span class="k">Est. Lux at Desk</span><span class="v" style="color:'+(luxAtDesk>300?'#39ff14':'#ffaa00')+'">'+Math.round(luxAtDesk)+' lx</span></div>'+
+      '<div class="dl-card"><span class="k">Daylight Factor</span><span class="v">'+df.toFixed(1)+'%</span></div>';
+  }
+
+  function dlDrawSunpath(){
+    var canvas=document.getElementById('dl-sunpath');
+    var ctx=canvas.getContext('2d');
+    var W=canvas.width,H=canvas.height;
+    var hour=parseFloat(document.getElementById('dl-time').value);
+    var month=parseInt(document.getElementById('dl-month').value);
+
+    ctx.fillStyle='#070a12';ctx.fillRect(0,0,W,H);
+
+    var cx=W/2,cy=H-20;
+    var maxR=H-40;
+
+    ctx.strokeStyle='rgba(201,162,39,0.15)';ctx.lineWidth=1;
+    for(var a=0;a<=80;a+=20){
+      var r=maxR*(1-a/90);
+      ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,0);ctx.stroke();
+      ctx.fillStyle='#8fa3bf';ctx.font='9px system-ui';ctx.textAlign='left';
+      ctx.fillText(a+'°',cx+r+4,cy-4);
+    }
+
+    ctx.strokeStyle='rgba(201,162,39,0.1)';
+    for(var az=-180;az<=180;az+=30){
+      var rad=az*Math.PI/180;
+      ctx.beginPath();ctx.moveTo(cx,cy);
+      ctx.lineTo(cx+Math.sin(rad)*maxR,cy-Math.cos(rad)*maxR);
+      ctx.stroke();
+    }
+
+    var monthColors=['#6688cc','#7799dd','#88aadd','#99bbee','#aaccff','#ffdd44',
+                     '#ffcc33','#ffbb22','#ddaa44','#bb8844','#886655','#6677aa'];
+
+    for(var m=1;m<=12;m++){
+      ctx.strokeStyle=monthColors[m-1];ctx.lineWidth=m===month?3:1.5;ctx.beginPath();
+      var started=false;
+      for(var h=5;h<=21;h+=0.25){
+        var sun=dlSunPos(h,m);
+        if(sun.deg<=0){started=false;continue;}
+        var r=maxR*(1-sun.deg/90);
+        var px=cx+Math.sin(sun.az)*r;
+        var py=cy-Math.cos(sun.az)*r;
+        if(!started){ctx.moveTo(px,py);started=true;}
+        else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+    }
+
+    var curSun=dlSunPos(hour,month);
+    if(curSun.deg>0){
+      var r=maxR*(1-curSun.deg/90);
+      var px=cx+Math.sin(curSun.az)*r;
+      var py=cy-Math.cos(curSun.az)*r;
+      ctx.fillStyle='#ffd700';ctx.beginPath();ctx.arc(px,py,8,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(255,215,0,0.2)';ctx.beginPath();ctx.arc(px,py,16,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ffd700';ctx.font='bold 10px system-ui';ctx.textAlign='center';
+      ctx.fillText(Math.floor(hour)+':'+(hour%1*60<10?'0':'')+Math.round(hour%1*60),px,py-14);
+    }
+
+    ctx.fillStyle='#8fa3bf';ctx.font='10px system-ui';ctx.textAlign='center';
+    ctx.fillText('N',cx,cy+14);
+    ctx.fillText('E',cx+maxR+14,cy-4);
+    ctx.fillText('W',cx-maxR-14,cy-4);
+    ctx.fillText('S',cx,cy-maxR-8);
+  }
+
+  document.getElementById('dl-time').oninput=function(){
+    var v=parseFloat(this.value);
+    document.getElementById('dl-time-val').textContent=Math.floor(v)+':'+(v%1*60<10?'0':'')+Math.round(v%1*60);
+  };
+  document.getElementById('dl-month').oninput=function(){document.getElementById('dl-month-val').textContent=months[this.value-1];};
+  document.getElementById('dl-orient').oninput=function(){document.getElementById('dl-orient-val').textContent=orientations[this.value];};
+  document.getElementById('dl-winw').oninput=function(){document.getElementById('dl-winw-val').textContent=parseFloat(this.value).toFixed(1)+' m';};
+
+  function dlLoop(){
+    if(dlAnimating){
+      var t=parseFloat(document.getElementById('dl-time').value);
+      t+=0.02;if(t>21)t=5;
+      document.getElementById('dl-time').value=t;
+      document.getElementById('dl-time-val').textContent=Math.floor(t)+':'+(t%1*60<10?'0':'')+Math.round(t%1*60);
+    }
+    dlDrawRoom();dlDrawSunpath();
+    requestAnimationFrame(dlLoop);
+  }
+  dlLoop();
+})();
+</script>
