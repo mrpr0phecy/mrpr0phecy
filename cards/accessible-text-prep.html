@@ -1,0 +1,297 @@
+<h2 id="atp-title" style="margin-top:0;color:var(--accent);">♿ Accessible Text Prep</h2>
+
+<form aria-describedby="atp-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="atp-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Paste something you need a specific person to understand &mdash; a letter from a council, instructions for an
+    elderly relative, a form your colleague keeps skipping. This rewrites the presentation and the sentences for
+    that reader, and scores it before and after so you can see whether it actually got easier.
+  </p>
+
+  <label for="atp-audience" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Who is reading it</label>
+  <select id="atp-audience" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;margin-bottom:12px;">
+    <option value="dyslexia">Dyslexic reader — needs clear shape and spacing</option>
+    <option value="vision">Low vision or reading aloud — big and uncluttered</option>
+    <option value="easyread" selected>Easy Read — aphasia, learning disability, or very tired</option>
+    <option value="esl">English is not their first language</option>
+    <option value="anxious">Anxious reader — bad news, needs to be calm and clear</option>
+  </select>
+
+  <label for="atp-in" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">The text</label>
+  <textarea id="atp-in" rows="8" placeholder="Paste the letter, email, instructions or notice here…"
+    style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:15px;line-height:1.6;resize:vertical;"></textarea>
+
+  <button type="button" id="atp-go" style="width:100%;margin-top:12px;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Make it accessible</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="atp-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Nothing is uploaded. All of this runs in your browser.
+  </div>
+</div>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+  <button type="button" id="atp-copy" style="padding:10px 20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.75);cursor:pointer;">Copy the rewritten version</button>
+  <button type="button" id="atp-print" style="padding:10px 20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.75);cursor:pointer;">Print large</button>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">What each mode changes, and why</summary>
+  <p style="margin-top:8px;">
+    <strong>Easy Read</strong> splits every sentence at its conjunctions so there is one idea per line, replaces
+    the common bureaucratic words, and bullets anything that is really a list. This follows the established Easy
+    Read convention of short lines, plain words and generous space.
+  </p>
+  <p>
+    <strong>Dyslexic reader</strong> keeps your words but breaks long lines, avoids justified text (which creates
+    rivers of whitespace), and adds space between paragraphs. <strong>Low vision</strong> strips everything
+    decorative and prints at 18pt with high contrast. <strong>ESL</strong> expands contractions and flags idioms,
+    which are the part of English that does not translate. <strong>Anxious reader</strong> moves the action to the
+    top, because someone who is frightened cannot hold a long preamble.
+  </p>
+  <p>
+    The score is Flesch Reading Ease: higher is easier, 60&ndash;70 is plain English, below 30 is academic or legal.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  var VOWELS = /[aeiouy]+/g;
+  function syllables(word) {
+    var w = word.toLowerCase().replace(/[^a-z]/g, '');
+    if (!w) return 0;
+    if (w.length <= 3) return 1;
+    w = w.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '').replace(/^y/, '');
+    var m = w.match(VOWELS);
+    return m ? m.length : 1;
+  }
+  function tokenize(t) { return t.match(/[A-Za-z][A-Za-z'\-]*/g) || []; }
+  function sentences(t) {
+    var out = t.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+(?=[A-Z0-9"'(\u2018\u201c])/);
+    return out.filter(function (s) { return s.trim().length > 0; });
+  }
+  function flesch(t) {
+    var s = sentences(t), w = tokenize(t);
+    if (!w.length || !s.length) return null;
+    var syl = w.reduce(function (a, x) { return a + syllables(x); }, 0);
+    return Math.max(0, Math.min(100, 206.835 - 1.015 * (w.length / s.length) - 84.6 * (syl / w.length)));
+  }
+  function verdict(f) {
+    if (f === null) return ['—', 'rgba(230,250,255,0.5)'];
+    if (f >= 80) return ['Very easy', '#39ff14'];
+    if (f >= 60) return ['Plain English', '#39ff14'];
+    if (f >= 50) return ['Fairly hard', '#ffa500'];
+    if (f >= 30) return ['Hard', '#ffa500'];
+    return ['Very hard', '#ff4444'];
+  }
+
+  var BUREAU = {
+    'utilise': 'use', 'utilise ': 'use ', 'commence': 'start', 'terminate': 'end',
+    'prior to': 'before', 'subsequent to': 'after', 'in order to': 'to',
+    'regarding': 'about', 'in relation to': 'about', 'with regard to': 'about',
+    'notwithstanding': 'even though', 'aforementioned': 'that', 'herein': 'here',
+    'thereof': 'of it', 'ascertain': 'find out', 'facilitate': 'help',
+    'demonstrate': 'show', 'sufficient': 'enough', 'additional': 'more',
+    'approximately': 'about', 'purchase': 'buy', 'inquire': 'ask',
+    'inform you that': 'tell you that', 'be advised that': 'note that',
+    'at your earliest convenience': 'as soon as you can',
+    'should you require': 'if you need', 'in the event that': 'if',
+    'further to': 'about', 'remittance': 'payment', 'enquiry': 'question',
+    'endeavour': 'try', 'commencement': 'start', 'occupant': 'person living there'
+  };
+  var IDIOMS = ['a piece of cake', 'hit the sack', 'under the weather', 'bite the bullet',
+    'ballpark figure', 'get the ball rolling', 'on the same page', 'touch base',
+    'at the end of the day', 'the long and the short of it', 'raining cats and dogs',
+    'break the ice', 'once in a blue moon', 'cost an arm and a leg'];
+
+  function splitConjunctions(s) {
+    // one idea per line, Easy Read style
+    var parts = s.split(/,\s+(?:and|but|or|so|because|which|while|although)\s+|\s+(?:and|but|or|so)\s+/i);
+    return parts.map(function (p) { return p.trim(); }).filter(function (p) { return p.length > 0; });
+  }
+  function isListItem(s) {
+    return /^([-•*\u2022]|\d+[.)])\s+/.test(s.trim());
+  }
+
+  function transform(text, mode) {
+    var lines = text.split(/\n{2,}/).map(function (p) { return p.trim(); }).filter(Boolean);
+    var out = [];
+
+    lines.forEach(function (para) {
+      var ss = sentences(para).length > 0 ? sentences(para) : [para];
+
+      if (mode === 'easyread' || mode === 'anxious') {
+        var items = [];
+        ss.forEach(function (s) {
+          if (isListItem(s)) { items.push(s.replace(/^([-•*\u2022]|\d+[.)])\s+/, '').trim()); return; }
+          splitConjunctions(s).forEach(function (p) {
+            p = p.replace(/[.]+$/, '').trim();
+            if (p) items.push(p.charAt(0).toUpperCase() + p.slice(1));
+          });
+        });
+        if (mode === 'anxious') {
+          // action first: lines containing an imperative or a date/number go to the top
+          var act = [], rest = [];
+          items.forEach(function (i) {
+            (/^(you (must|need|should|have)|please|call|contact|send|pay|book|reply|return|bring|do not|don't)/i.test(i) || /\b£?\d/.test(i))
+              ? act.push(i) : rest.push(i);
+          });
+          items = act.concat(rest);
+        }
+        items.forEach(function (i) { out.push({ type: 'li', text: i }); });
+        if (mode === 'easyread') out.push({ type: 'gap' });
+      } else {
+        ss.forEach(function (s) {
+          if (mode === 'dyslexia') {
+            // short lines, no justification: wrap at about 55 characters on a word boundary
+            var words = s.split(/\s+/), line = '', wrapped = [];
+            words.forEach(function (w) {
+              if ((line + ' ' + w).trim().length > 55 && line) { wrapped.push(line.trim()); line = w; }
+              else line = (line + ' ' + w).trim();
+            });
+            if (line) wrapped.push(line);
+            wrapped.forEach(function (w, i) {
+              out.push({ type: i === wrapped.length - 1 ? 'p' : 'l', text: w });
+            });
+          } else {
+            out.push({ type: 'p', text: s.trim() });
+          }
+        });
+        if (mode !== 'vision') out.push({ type: 'gap' });
+      }
+    });
+
+    // word-level pass
+    out.forEach(function (o) {
+      if (typeof o.text !== 'string') return;   // 'gap' spacers carry no text
+      var t = o.text;
+      if (mode !== 'vision') {
+        Object.keys(BUREAU).forEach(function (k) {
+          t = t.replace(new RegExp('\\b' + k.replace(/ /g, '\\s+') + '\\b', 'gi'), BUREAU[k]);
+        });
+      }
+      if (mode === 'esl') {
+        t = t.replace(/\b(don't|doesn't|didn't|can't|won't|isn't|aren't|wasn't|weren't|haven't|hasn't|hadn't|wouldn't|shouldn't|couldn't|I'm|you're|we're|they're|it's|that's|there's|let's|I'll|you'll|we'll|they'll|I've|you've|we've|they've)\b/g,
+          function (m) { return EXPAND[m.toLowerCase()] || m; });
+      }
+      o.text = t;
+      o.flags = [];
+      var low = t.toLowerCase();
+      IDIOMS.forEach(function (id) { if (low.indexOf(id) !== -1) o.flags.push('idiom: "' + id + '"'); });
+      tokenize(t).forEach(function (w) {
+        if (w.length >= 11 && (mode === 'easyread' || mode === 'esl')) o.flags.push('long word: ' + w);
+      });
+      if ((mode === 'easyread' || mode === 'esl') && /\b(was|were|been|is|are)\s+\w+(ed|en)\b/i.test(t)) o.flags.push('passive voice');
+    });
+    return out;
+  }
+
+  var EXPAND = {
+    "don't": 'do not', "doesn't": 'does not', "didn't": 'did not', "can't": 'cannot',
+    "won't": 'will not', "isn't": 'is not', "aren't": 'are not', "wasn't": 'was not',
+    "weren't": 'were not', "haven't": 'have not', "hasn't": 'has not', "hadn't": 'had not',
+    "wouldn't": 'would not', "shouldn't": 'should not', "couldn't": 'could not',
+    "i'm": 'I am', "you're": 'you are', "we're": 'we are', "they're": 'they are',
+    "it's": 'it is', "that's": 'that is', "there's": 'there is', "let's": 'let us',
+    "i'll": 'I will', "you'll": 'you will', "we'll": 'we will', "they'll": 'they will',
+    "i've": 'I have', "you've": 'you have', "we've": 'we have', "they've": 'they have'
+  };
+
+  var MODES = {
+    dyslexia: { name: 'Dyslexic reader', size: '17px', lh: '2.0', ls: '0.02em' },
+    vision: { name: 'Low vision', size: '20px', lh: '1.9', ls: '0' },
+    easyread: { name: 'Easy Read', size: '19px', lh: '2.1', ls: '0' },
+    esl: { name: 'English as an additional language', size: '17px', lh: '1.9', ls: '0' },
+    anxious: { name: 'Anxious reader', size: '18px', lh: '2.0', ls: '0' }
+  };
+
+  function run() {
+    var raw = $('atp-in').value;
+    if (!raw.trim()) {
+      $('atp-out').innerHTML = '<div style="color:#ffa500;">Paste some text in first.</div>';
+      return;
+    }
+    var mode = $('atp-audience').value;
+    var before = flesch(raw);
+    var items = transform(raw, mode);
+    var rewritten = items.filter(function (i) { return i.type !== 'gap'; })
+      .map(function (i) { return i.text; }).join(' ');
+    var after = flesch(rewritten);
+    var vb = verdict(before), va = verdict(after);
+    var m = MODES[mode];
+
+    var flagCount = items.reduce(function (a, i) { return a + (i.flags ? i.flags.length : 0); }, 0);
+    var flagList = [];
+    items.forEach(function (i) { (i.flags || []).forEach(function (f) { if (flagList.indexOf(f) === -1) flagList.push(f); }); });
+
+    var html =
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      scoreBox('Before', before, vb) + scoreBox('After', after, va) +
+      '<div style="flex:1;min-width:120px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:var(--accent);">' + sentences(raw).length + ' → ' +
+      items.filter(function (i) { return i.type !== 'gap'; }).length + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;">sentences → lines</div></div></div>';
+
+    html += '<div style="background:#fff;color:#111;border-radius:8px;padding:20px;margin-bottom:12px;' +
+            'font-size:' + m.size + ';line-height:' + m.lh + ';letter-spacing:' + m.ls + ';font-family:Verdana,Geneva,sans-serif;">';
+    items.forEach(function (i) {
+      if (i.type === 'gap') { html += '<div style="height:0.9em;"></div>'; return; }
+      if (i.type === 'li') { html += '<div style="padding-left:1.4em;text-indent:-1.4em;margin-bottom:0.55em;">&bull;&nbsp;&nbsp;' + esc(i.text) + '</div>'; return; }
+      html += '<div' + (i.type === 'l' ? '' : ' style="margin-bottom:0.85em;"') + '>' + esc(i.text) + '</div>';
+    });
+    html += '</div>';
+
+    if (flagList.length) {
+      html += '<div style="padding:10px 12px;background:rgba(255,165,0,0.07);border:1px solid rgba(255,165,0,0.2);border-radius:8px;font-size:0.85rem;">' +
+              '<strong style="color:#ffa500;">' + flagCount + ' thing' + (flagCount === 1 ? '' : 's') + ' a rewrite cannot fix &mdash; check these yourself:</strong><br>' +
+              flagList.slice(0, 8).map(esc).join('<br>') +
+              (flagList.length > 8 ? '<br>…and ' + (flagList.length - 8) + ' more' : '') + '</div>';
+    }
+
+    $('atp-out').innerHTML = html;
+    card.setAttribute('data-plain', rewritten);
+  }
+
+  function scoreBox(label, f, v) {
+    return '<div style="flex:1;min-width:120px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+           '<div style="font-size:1.2rem;font-weight:700;color:' + v[1] + ';">' + (f === null ? '—' : f.toFixed(0)) + '</div>' +
+           '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;">' + label + ' · ' + v[0] + '</div></div>';
+  }
+
+  $('atp-go').addEventListener('click', run);
+
+  $('atp-copy').addEventListener('click', function () {
+    var txt = card.getAttribute('data-plain');
+    if (!txt) { run(); txt = card.getAttribute('data-plain'); }
+    var done = function () { $('atp-copy').textContent = 'Copied'; setTimeout(function () { $('atp-copy').textContent = 'Copy the rewritten version'; }, 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt || '').then(done, done);
+    else done();
+  });
+
+  $('atp-print').addEventListener('click', function () {
+    run();
+    var m = MODES[$('atp-audience').value];
+    var iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    card.appendChild(iframe);
+    var doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Accessible version</title><style>' +
+      'body{font-family:Verdana,Geneva,sans-serif;color:#000;padding:28px;max-width:720px;' +
+      'font-size:' + m.size + ';line-height:' + m.lh + ';} p{margin:0 0 0.8em;}</style></head><body>' +
+      $('atp-out').querySelector('div[style*="background:#fff"]').innerHTML + '</body></html>');
+    doc.close();
+    var go = function () {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(function () { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 1200);
+    };
+    setTimeout(go, 250);
+  });
+})();
+</script>

@@ -1,0 +1,178 @@
+<h2 id="ssc-title" style="margin-top:0;color:var(--accent);">🛡️ Scam Sense Checker</h2>
+
+<form aria-describedby="ssc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="ssc-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Paste a text, email or message and see which warning signs it contains. Everything is analysed on your own
+    device &mdash; the message is never uploaded, which matters because pasting a scam into a website is itself
+    a way of getting scammed.
+  </p>
+
+  <label for="ssc-input" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">The message</label>
+  <textarea id="ssc-input" rows="6" placeholder="Paste the whole message here, including any links and the sender name."
+    style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;margin-bottom:14px;"></textarea>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="ssc-go" style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Check it</button>
+    <button type="button" id="ssc-demo" style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.75);cursor:pointer;">Try an example</button>
+    <button type="button" id="ssc-reset" style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Clear</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="ssc-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Paste a message and press <strong>Check it</strong>.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">What this can and cannot tell you</summary>
+  <p style="margin-top:8px;">
+    It looks for the tactics that scams rely on, not for a specific known scam. A message can score low and still
+    be a scam, and a legitimate message from a delivery firm can score high because it genuinely is urgent. So
+    treat the score as a prompt to slow down, never as a verdict.
+  </p>
+  <p>
+    The single most reliable habit is also the simplest: do not use the contact details in the message. Look up the
+    organisation yourself through a number or website you already trust, and contact them through that. Real
+    banks, HMRC, the police and utility companies are all reachable that way, and none of them will mind you
+    checking.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var RULES = [
+    { w: 3, re: /\b(gift ?card|google play|itunes card|paysafecard|steam card|apple card)\b/i,
+      t: 'Asks for payment in gift cards',
+      x: 'No genuine organisation is ever paid in gift cards. Gift cards are untraceable and cannot be reversed, which is the entire reason scammers want them.' },
+    { w: 3, re: /\b(bitcoin|crypto|usdt|binance|coinbase|wallet address)\b/i,
+      t: 'Asks for cryptocurrency',
+      x: 'Crypto transfers cannot be undone. Legitimate refunds, fines and taxes are never taken this way.' },
+    { w: 3, re: /\b(western union|money ?gram|wire transfer|bank transfer immediately|bacs today)\b/i,
+      t: 'Pushes an irreversible payment method',
+      x: 'These methods are chosen because once the money moves, nobody can get it back for you.' },
+    { w: 3, re: /\b(verification code|one[ -]?time (pass|code)|otp|security code|pin number)\b/i,
+      t: 'Asks for a code or PIN',
+      x: 'A code sent to your phone is the key to your account. No real bank, courier or employer will ever ask you to read one out.' },
+    { w: 3, re: /\b(don'?t tell anyone|keep (this|it) (quiet|to yourself)|between us|do not inform)\b/i,
+      t: 'Asks you to keep it secret',
+      x: 'Secrecy protects the scammer, not you. Anything legitimate survives being checked with a friend.' },
+    { w: 2, re: /\b(act( now| immediately)|urgent(ly)?|immediately|within (the )?(next )?\d+ (minutes|hours)|account will be (closed|suspended)|expires? (today|tonight|in \d+))\b/i,
+      t: 'Creates artificial urgency',
+      x: 'Pressure to act now exists to stop you thinking or checking. Real organisations give you time, in writing.' },
+    { w: 2, re: /\b(HMRC|inland revenue|tax refund|tax rebate|national insurance refund|court summons|warrant|arrest|police)\b/i,
+      t: 'Claims to be government, tax or police',
+      x: 'HMRC does not send refunds by text, and the police do not demand payment to avoid arrest. Both are extremely common impersonations.' },
+    { w: 2, re: /\b(your (account|parcel|package|delivery|order) (has been|is) (suspended|frozen|flagged|on hold|undeliverable))\b/i,
+      t: 'Claims your account or parcel is in trouble',
+      x: 'The standard hook. Go to the company\'s own website or app and look — if there is a real problem, it will be there too.' },
+    { w: 2, re: /\b(refund|compensation|you (have )?(been )?(selected|chosen|won)|prize|lottery|inheritance|unclaimed (funds|money))\b/i,
+      t: 'Offers unexpected money',
+      x: 'Money that arrives out of nowhere nearly always has a fee attached. That fee is the scam.' },
+    { w: 2, re: /\b(click (here|the link)|verify (your|now)|update (your )?(details|payment)|confirm (your )?(identity|payment))\b/i,
+      t: 'Pushes you to click a link',
+      x: 'Hover or long-press the link to read the real address. If you are not sure, do not click — search for the organisation instead.' },
+    { w: 2, re: /(http[s]?:\/\/[^\s]*\d+[^\s]*|http[s]?:\/\/(?!www\.)[a-z0-9-]{20,}|[a-z0-9-]+\.(tk|ml|ga|cf|xyz|top|buzz|click|live|info)\b)/i,
+      t: 'Contains a suspicious-looking link',
+      x: 'Random digits, very long names and cheap top-level domains are common in scam links.' },
+    { w: 1, re: /\b(dear (customer|sir|madam|user|account holder)|valued customer)\b/i,
+      t: 'Generic greeting instead of your name',
+      x: 'A company you actually deal with knows your name. Scammers send the same message to thousands of people.' },
+    { w: 1, re: /\b(kindly|do the needful|revert back|be informed|be advised)\b/i,
+      t: 'Stilted official-sounding phrasing',
+      x: 'Not proof on its own, but mass-produced scam mail tends to lean on this register.' },
+    { w: 1, re: /(.)\1{3,}|\b[A-Z]{6,}\b|!{2,}/,
+      t: 'Shouting, repeated letters or multiple exclamation marks',
+      x: 'Emotional amplification is a pressure tactic.' },
+    { w: 1, re: /\b(fee|charge|admin(istration)? cost|small (payment|fee)|clearance|customs duty)\b/i,
+      t: 'Asks for a small fee first',
+      x: 'The fee is the product. Nothing larger ever follows it.' },
+    { w: 2, re: /\b(romance|my (dear|love|darling)|i (have )?fallen|we (have )?never met|i am (a )?(widow|engineer|doctor|soldier|deployed))\b/i,
+      t: 'Stranger expressing sudden deep affection',
+      x: 'Romance scams build warmth for weeks before money is mentioned. Speed and intensity are the warning.' },
+    { w: 2, re: /\b(remote job|work from home|earn \$?\d{3,}|guaranteed (income|returns)|no experience needed|easy money)\b/i,
+      t: 'Promises easy money for little work',
+      x: 'If the pay does not match the effort, you are the product being sold.' },
+    { w: 1, re: /\b(support|tech ?support|microsoft|apple id|amazon security)\b.*\b(call|ring|phone)\b|\b(call|ring|phone)\b.*\b(support|tech ?support)\b/i,
+      t: 'Tells you to phone a support number',
+      x: 'The number in the message belongs to them. Only ever call a support line you found yourself.' }
+  ];
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function analyse() {
+    var raw = $('ssc-input').value;
+    if (!raw.trim()) { $('ssc-out').innerHTML = '<span style="color:#ffa500;">Paste a message first.</span>'; return; }
+
+    var hits = [], score = 0;
+    for (var i = 0; i < RULES.length; i++) {
+      if (RULES[i].re.test(raw)) { hits.push(RULES[i]); score += RULES[i].w; }
+    }
+
+    var links = (raw.match(/http[s]?:\/\/[^\s<>"']+/gi) || []);
+    var numbers = (raw.match(/(\+?\d[\d\s\-()]{8,}\d)/g) || []);
+
+    var level, colour, verdict;
+    if (score >= 7 || hits.length >= 4) { level = 'Very high risk'; colour = '#ff4d4d'; verdict = 'Treat this as a scam. Do not reply, do not click, and do not send anything.'; }
+    else if (score >= 4) { level = 'High risk'; colour = '#ff4d4d'; verdict = 'Multiple warning signs. Do not act on this message — verify independently first.'; }
+    else if (score >= 2) { level = 'Some warning signs'; colour = '#ffa500'; verdict = 'Not conclusive, but slow down. Check it through a contact route you already trust.'; }
+    else if (hits.length === 1) { level = 'One warning sign'; colour = '#ffa500'; verdict = 'A single flag is weak evidence, but read the message again before doing anything.'; }
+    else { level = 'No obvious tactics found'; colour = '#39ff14'; verdict = 'Nothing typical stands out. That is not a guarantee — if it feels off, it is worth checking.'; }
+
+    var html =
+      '<div style="color:' + colour + ';font-weight:700;font-size:1.3rem;margin-bottom:2px;">' + level + '</div>' +
+      '<div style="color:rgba(230,250,255,0.55);font-size:0.8rem;margin-bottom:12px;">' +
+        hits.length + ' warning sign' + (hits.length === 1 ? '' : 's') + ' found in ' + raw.trim().split(/\s+/).length + ' words' +
+      '</div>' +
+      '<div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;margin-bottom:12px;">' +
+        '<div style="width:' + Math.min(100, score * 10).toFixed(0) + '%;height:100%;background:' + colour + ';border-radius:4px;"></div>' +
+      '</div>' +
+      '<div style="margin-bottom:14px;color:rgba(230,250,255,0.85);">' + esc(verdict) + '</div>';
+
+    if (hits.length) {
+      html += '<div style="color:var(--accent);font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">What it is doing</div>';
+      html += hits.sort(function (a, b) { return b.w - a.w; }).map(function (h) {
+        return '<div style="margin-bottom:10px;padding-left:10px;border-left:2px solid ' + (h.w >= 3 ? '#ff4d4d' : h.w === 2 ? '#ffa500' : 'rgba(255,255,255,0.2)') + ';">' +
+               '<div style="font-weight:600;color:rgba(230,250,255,0.9);">' + esc(h.t) + '</div>' +
+               '<div style="color:rgba(230,250,255,0.62);font-size:0.84rem;">' + esc(h.x) + '</div></div>';
+      }).join('');
+    }
+
+    if (links.length || numbers.length) {
+      html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);color:rgba(230,250,255,0.6);font-size:0.84rem;">' +
+              'Found in the message: ' + links.length + ' link' + (links.length === 1 ? '' : 's') + ', ' +
+              numbers.length + ' phone number' + (numbers.length === 1 ? '' : 's') +
+              '. Use neither of them to get in touch.' +
+              '</div>';
+    }
+
+    html += '<div style="margin-top:12px;padding:10px;background:rgba(45,212,255,0.07);border-radius:8px;border:1px solid rgba(45,212,255,0.18);">' +
+            '<div style="color:var(--accent);font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px;">What to do</div>' +
+            '<ul style="margin:0;padding-left:18px;color:rgba(230,250,255,0.78);font-size:0.85rem;">' +
+            '<li style="margin-bottom:4px;">Do not reply, and do not click or call anything in the message.</li>' +
+            '<li style="margin-bottom:4px;">Look the organisation up separately and contact them through that.</li>' +
+            '<li style="margin-bottom:4px;">If you already sent money or a code, phone your bank on the number on your card straight away and say the word &ldquo;scam&rdquo;.</li>' +
+            '<li>Report it: in the UK forward texts to <strong>7726</strong> (free, spells SPAM) and report to Action Fraud. Elsewhere, report to your national fraud centre and your phone or email provider.</li>' +
+            '</ul></div>';
+
+    $('ssc-out').innerHTML = html;
+  }
+
+  $('ssc-go').addEventListener('click', analyse);
+  $('ssc-reset').addEventListener('click', function () {
+    $('ssc-input').value = '';
+    $('ssc-out').innerHTML = 'Paste a message and press <strong>Check it</strong>.';
+  });
+  $('ssc-demo').addEventListener('click', function () {
+    $('ssc-input').value = 'HMRC: You have a tax refund of £412.88 waiting. Your claim expires in 24 hours. ' +
+      'Verify your identity immediately at http://hmrc-refund-claims247.xyz/verify or your account will be suspended. ' +
+      'Do not tell anyone about this refund as it is a one-off. Kindly provide your sort code and the verification code we will text you.';
+    analyse();
+  });
+})();
+</script>

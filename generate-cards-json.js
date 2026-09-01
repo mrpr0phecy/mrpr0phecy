@@ -170,6 +170,20 @@ const aquariumList = [
   'aquarium-feeding-vacation-planner'
 ];
 
+// Wellbeing & Community — tools for the moments when people are scared, confused or alone
+const wellbeingList = [
+  'difficult-conversation-scripter',
+  'scam-sense-checker',
+  'plain-language-decoder',
+  'apology-builder',
+  'household-emergency-plan',
+  'carer-respite-planner',
+  'grief-companion',
+  'accessible-text-prep',
+  'street-sharing-planner',
+  'grounding-breathing-coach'
+];
+
 const saasKillerList = [
   'meeting-cost-live-ticker',
   'invoice-billing-pdf-generator',
@@ -316,6 +330,7 @@ const homeDIYList = [
 ];
 
 function getCategory(name) {
+  if (wellbeingList.includes(name)) return 'Wellbeing & Community';
   if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
   if (aiList.some(s => name.includes(s))) return 'AI & Autonomous Agents';

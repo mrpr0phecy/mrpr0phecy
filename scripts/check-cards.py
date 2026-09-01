@@ -31,7 +31,7 @@ INDEX_PATH = os.path.join(ROOT, "index.html")
 SITEMAP_PATH = os.path.join(ROOT, "sitemap.xml")
 
 KNOWN_CATEGORIES = {
-    "Astronomy & Space",
+    "Astronomy & Space", "Wellbeing & Community", "Home & DIY",
     "Science & Engineering", "Productivity & Lifestyle", "Writing & Language",
     "Finance & Money", "Mathematics", "Music & Audio", "Health & Fitness",
     "Culinary & Food Science", "SaaS & Business Killers", "Lucid Dreaming & Sleep",

@@ -1,0 +1,140 @@
+<h2 id="sab-title" style="margin-top:0;color:var(--accent);">🤝 Sincere Apology Builder</h2>
+
+<form aria-describedby="sab-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="sab-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Most apologies fail for one of four reasons: they contain &ldquo;but&rdquo;, they apologise for the other
+    person&rsquo;s feelings instead of your behaviour, they explain rather than own it, or they promise nothing.
+    This walks you through the five parts that work and warns you when you drift.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="sab-what" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">1. What you actually did</label>
+      <textarea id="sab-what" rows="2" placeholder="Be specific. 'I said you were overreacting in front of everyone' beats 'I was rude'."
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;"></textarea>
+    </div>
+    <div>
+      <label for="sab-impact" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">2. What it did to them</label>
+      <textarea id="sab-impact" rows="2" placeholder="Their experience, not your intention."
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;"></textarea>
+    </div>
+    <div>
+      <label for="sab-change" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">3. What you will do differently</label>
+      <textarea id="sab-change" rows="2" placeholder="Concrete and checkable. 'I will ask before I speak for you' beats 'I'll try to be better'."
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;"></textarea>
+    </div>
+  </div>
+
+  <div style="margin-bottom:14px;">
+    <label for="sab-amends" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">4. What would make it right (optional)</label>
+    <textarea id="sab-amends" rows="2" placeholder="Only offer what you can actually do."
+      style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;"></textarea>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="sab-go" style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Build the apology</button>
+    <button type="button" id="sab-copy" style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.75);cursor:pointer;">Copy</button>
+    <button type="button" id="sab-reset" style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Clear</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="sab-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Fill in the first three boxes at least.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The part nobody mentions</summary>
+  <p style="margin-top:8px;">
+    An apology is an offer, not a transaction. You do not get to decide when it is accepted, and asking
+    &ldquo;so are we okay?&rdquo; hands the other person a job at the exact moment they are least equipped to do it.
+    Say your piece, then let them respond on their own timeline &mdash; which may be days, or may be never. Doing
+    the thing you said you would change is the rest of the apology.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  // things that quietly convert an apology into a defence
+  var TRAPS = [
+    { re: /\bbut\b/i, t: 'The word &ldquo;but&rdquo;', x: 'Everything before &ldquo;but&rdquo; gets deleted from the listener\'s memory. If you need the explanation, give it on another day.' },
+    { re: /\bif (i |you )?(offended|upset|hurt|bothered|annoyed)\b/i, t: '&ldquo;If I offended you&rdquo;', x: 'This apologises for their reaction and implies they might be too sensitive. Name the act instead.' },
+    { re: /\bsorry you (feel|felt|think|took)\b/i, t: '&ldquo;Sorry you feel that way&rdquo;', x: 'Not an apology at all. It puts the problem back on them.' },
+    { re: /\bi'?m sorry (that )?you\b/i, t: '&ldquo;I am sorry that you&hellip;&rdquo;', x: 'Shifts the subject to them. Start with &ldquo;I&rdquo; followed by what you did.' },
+    { re: /\b(anyone|everybody|everyone|people) (would|could|might) have\b/i, t: '&ldquo;Anyone would have&rdquo;', x: 'Appeals to a crowd to make your behaviour normal. It reads as refusing responsibility.' },
+    { re: /\b(i was|it was) (just )?(a joke|banter|only teasing)\b/i, t: '&ldquo;It was only a joke&rdquo;', x: 'Explains your intent while dismissing their experience. Both can be true; only one is your responsibility.' },
+    { re: /\bunder (a lot of )?(stress|pressure)|\bdepressed\b|\btired\b|\bdrunk\b/i, t: 'Leading with your reason', x: 'Context is worth sharing eventually, but not in the apology. Right now it sounds like the excuse is the point.' },
+    { re: /\btry(ing)? to (be|do) better\b|\bdo (my|better) best\b/i, t: 'A vague promise', x: '&ldquo;I will try&rdquo; cannot be checked and therefore cannot be trusted. Say the specific thing you will do.' }
+  ];
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function build() {
+    var what = $('sab-what').value.trim();
+    var impact = $('sab-impact').value.trim();
+    var change = $('sab-change').value.trim();
+    var amends = $('sab-amends').value.trim();
+
+    if (!what || !impact || !change) {
+      $('sab-out').innerHTML = '<span style="color:#ffa500;">The first three parts are the ones that matter. Fill those in at least.</span>';
+      return;
+    }
+
+    var all = [what, impact, change, amends].join(' ');
+    var traps = TRAPS.filter(function (t) { return t.re.test(all); });
+
+    var draft =
+      'I want to apologise for ' + what.replace(/\.$/, '').toLowerCase() + '. ' +
+      impact.charAt(0).toUpperCase() + impact.slice(1).replace(/\.$/, '') + ', and that was on me. ' +
+      'I am not going to explain it away. ' +
+      'Going forward, ' + change.charAt(0).toLowerCase() + change.slice(1).replace(/\.$/, '') + '.';
+    if (amends) draft += ' If it would help, ' + amends.charAt(0).toLowerCase() + amends.slice(1).replace(/\.$/, '') + '.';
+    draft += ' You do not have to say anything back right now.';
+
+    var html = '';
+    if (traps.length) {
+      html += '<div style="margin-bottom:14px;padding:12px;background:rgba(255,165,0,0.09);border:1px solid rgba(255,165,0,0.3);border-radius:8px;">' +
+              '<div style="color:#ffa500;font-weight:600;margin-bottom:6px;">' + traps.length + ' thing' + (traps.length === 1 ? '' : 's') + ' in here that could undo it</div>';
+      html += traps.map(function (t) {
+        return '<div style="margin-bottom:7px;"><strong style="color:rgba(230,250,255,0.9);">' + t.t + '</strong>' +
+               '<div style="color:rgba(230,250,255,0.65);font-size:0.84rem;">' + t.x + '</div></div>';
+      }).join('');
+      html += '</div>';
+    } else {
+      html += '<div style="margin-bottom:14px;padding:10px 12px;background:rgba(57,255,20,0.07);border:1px solid rgba(57,255,20,0.25);border-radius:8px;color:#39ff14;font-size:0.88rem;">' +
+              'No traps detected. It owns the act, names their experience and commits to something checkable.' +
+              '</div>';
+    }
+
+    html += '<div style="color:var(--accent);font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Your draft</div>' +
+            '<div style="background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.18);border-radius:8px;padding:14px;color:rgba(230,250,255,0.92);line-height:1.8;">' + esc(draft) + '</div>' +
+            '<div class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">' +
+              'Say it out loud once before you send it. If any sentence sounds like you are making your case rather than ' +
+              'admitting something, cut it. Shorter almost always lands better.' +
+            '</div>';
+
+    $('sab-out').innerHTML = html;
+  }
+
+  $('sab-go').addEventListener('click', build);
+  $('sab-reset').addEventListener('click', function () {
+    card.querySelector('form').reset();
+    $('sab-out').innerHTML = 'Fill in the first three boxes at least.';
+  });
+  $('sab-copy').addEventListener('click', function () {
+    var txt = $('sab-out').innerText;
+    var done = function () { $('sab-copy').textContent = 'Copied'; setTimeout(function () { $('sab-copy').textContent = 'Copy'; }, 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, done);
+    else done();
+  });
+  ['sab-what', 'sab-impact', 'sab-change', 'sab-amends'].forEach(function (id) {
+    $(id).addEventListener('input', function () { if ($('sab-what').value.trim()) build(); });
+  });
+})();
+</script>

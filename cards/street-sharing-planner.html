@@ -1,0 +1,262 @@
+<h2 id="ssp-title" style="margin-top:0;color:var(--accent);">🏘️ Street Sharing Planner</h2>
+
+<p class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+  Neighbourly sharing usually fails for two unglamorous reasons: nobody wants to be the one who knocks on a door
+  first, and nobody knows who has what. This builds the sheet and writes the awkward messages for you.
+  Everything stays in your browser &mdash; print the sheet or screenshot it into a group chat.
+</p>
+
+<form aria-describedby="ssp-add" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="ssp-kind" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">I am adding</label>
+      <select id="ssp-kind" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="offer">Something I can give or lend</option>
+        <option value="need">Something I need</option>
+      </select>
+    </div>
+    <div>
+      <label for="ssp-what" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">What</label>
+      <input id="ssp-what" type="text" placeholder="e.g. ladder, lift to the station, someone to feed the cat"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="ssp-who" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Who / which house</label>
+      <input id="ssp-who" type="text" placeholder="e.g. Number 12, or leave it to you"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+  <p id="ssp-add" class="small" style="color:rgba(230,250,255,0.55);margin:0 0 12px;">
+    Tip: start with five offers before a single need. Streets respond much better to generosity than to requests,
+    and once someone has taken something they are far more likely to ask.
+  </p>
+  <button type="button" id="ssp-do" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Add it</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="ssp-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Add a few offers and needs and I will match them, then write the messages you would otherwise never send.
+  </div>
+</div>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+  <button type="button" id="ssp-sheet" style="padding:10px 20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.75);cursor:pointer;">Print the street sheet</button>
+  <button type="button" id="ssp-reset" style="padding:10px 20px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:rgba(230,250,255,0.5);cursor:pointer;">Clear everything</button>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why this works better than a group chat</summary>
+  <p style="margin-top:8px;">
+    A street WhatsApp group goes quiet because asking in public risks being turned down in public. A printed sheet
+    on a noticeboard, or a message sent to one person, has no audience. It also fixes the timing problem: offers
+    written down can be claimed on Tuesday for something needed on Saturday.
+  </p>
+  <p>
+    Two ground rules that keep it going. First, keep it small &mdash; a dozen houses beats a hundred, because people
+    need to recognise each other's names. Second, never let it become a debt ledger. The moment someone keeps
+    score, sharing stops.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var KEY = 'ssp.street.v1';
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function save(l) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch (e) {} }
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+
+  // simple tag taxonomy for matching
+  var TAGS = [
+    { t: 'tools', w: ['ladder', 'drill', 'tools', 'saw', 'mower', 'lawnmower', 'pressure washer', 'trailer', 'wheelbarrow', 'sewing', 'hammer'] },
+    { t: 'transport', w: ['lift', 'drive', 'driving', 'car', 'run', 'station', 'hospital', 'airport', 'collection', 'tip', 'pickup'] },
+    { t: 'food', w: ['meal', 'food', 'cook', 'soup', 'shopping', 'shop', 'bread', 'cake', 'dinner', 'veg', 'garden produce'] },
+    { t: 'care', w: ['cat', 'dog', 'pet', 'feeding', 'water', 'plant', 'plants', 'holiday', 'keys', 'collect', 'post', 'parcel'] },
+    { t: 'children', w: ['school', 'childcare', 'kids', 'children', 'babysit', 'pick up', 'nursery', 'play'] },
+    { t: 'company', w: ['chat', 'company', 'visit', 'call', 'tea', 'walk', 'lonely', 'companion', 'coffee'] },
+    { t: 'skills', w: ['fix', 'repair', 'computer', 'phone', 'wifi', 'internet', 'form', 'letter', 'english', 'translate', 'tax', 'benefit', 'plumb', 'electric'] },
+    { t: 'space', w: ['room', 'spare', 'storage', 'garage', 'driveway', 'parking', 'garden', 'dry', 'freezer'] },
+    { t: 'time', w: ['hour', 'morning', 'evening', 'weekend', 'watch', 'cover', 'shift', 'rotas', 'rotas'] }
+  ];
+  function tagOf(text) {
+    var low = ' ' + text.toLowerCase() + ' ';
+    var found = [];
+    TAGS.forEach(function (g) {
+      g.w.forEach(function (w) { if (low.indexOf(' ' + w) !== -1 && found.indexOf(g.t) === -1) found.push(g.t); });
+    });
+    return found;
+  }
+  function wordsOf(text) {
+    return text.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/)
+      .filter(function (w) { return w.length > 3 && ['someone', 'somebody', 'could', 'would', 'please', 'with', 'that', 'this', 'have', 'from'].indexOf(w) === -1; });
+  }
+  function score(a, b) {
+    var ta = tagOf(a.what), tb = tagOf(b.what);
+    var s = ta.filter(function (t) { return tb.indexOf(t) !== -1; }).length * 2;
+    var wa = wordsOf(a.what), wb = wordsOf(b.what);
+    wa.forEach(function (w) { if (wb.indexOf(w) !== -1) s += 2; });
+    // stem overlap: "feed" / "feeding"
+    wa.forEach(function (w) {
+      var st = w.slice(0, 4);
+      wb.forEach(function (x) { if (x !== w && x.slice(0, 4) === st) s += 1; });
+    });
+    return s;
+  }
+
+  function matches(list) {
+    var offers = list.filter(function (i) { return i.kind === 'offer'; });
+    var needs = list.filter(function (i) { return i.kind === 'need'; });
+    var out = [];
+    needs.forEach(function (n, ni) {
+      var ranked = offers.map(function (o) { return { o: o, s: score(o, n) }; })
+        .filter(function (x) { return x.s > 0; })
+        .sort(function (a, b) { return b.s - a.s; });
+      out.push({ need: n, needIndex: ni, best: ranked.slice(0, 3), any: ranked.length });
+    });
+    return out;
+  }
+
+  function messageFor(m) {
+    var who = m.need.who ? m.need.who : 'you';
+    if (!m.best.length) return null;
+    var o = m.best[0].o;
+    var giver = o.who ? o.who : 'someone on the street';
+    return 'Hi ' + (o.who || 'there') + ', I saw on the street sheet that ' + giver +
+      ' could help with ' + o.what.toLowerCase() + '. I need ' + m.need.what.toLowerCase() +
+      ' — would that be something you could do? Absolutely no pressure either way, and happy to swap something back when you need it.';
+  }
+
+  function render() {
+    var list = load();
+    var el = $('ssp-out');
+    if (!list.length) {
+      el.innerHTML = 'Nothing on the sheet yet. Add an offer or two to start.';
+      return;
+    }
+    var offers = list.filter(function (i) { return i.kind === 'offer'; });
+    var needs = list.filter(function (i) { return i.kind === 'need'; });
+    var ms = matches(list);
+    var matched = ms.filter(function (m) { return m.best.length; });
+    var html = '';
+
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(offers.length, 'offers', '#39ff14') + box(needs.length, 'needs', 'var(--accent)') +
+      box(matched.length, 'matched', matched.length ? '#39ff14' : '#ffa500') +
+      '</div>';
+
+    if (offers.length === 0) {
+      html += '<div style="padding:10px 12px;background:rgba(255,165,0,0.07);border:1px solid rgba(255,165,0,0.2);border-radius:8px;margin-bottom:12px;color:rgba(230,250,255,0.8);font-size:0.85rem;">You have needs but no offers on the sheet. A list of only needs gets ignored — add what you can give, however small.</div>';
+    }
+
+    if (matched.length) {
+      html += '<div style="color:var(--accent);font-weight:700;margin-bottom:6px;">Matches</div>';
+      matched.forEach(function (m) {
+        html += '<div style="padding:12px;background:rgba(57,255,20,0.05);border:1px solid rgba(57,255,20,0.15);border-radius:8px;margin-bottom:10px;">' +
+          '<div style="color:rgba(230,250,255,0.9);"><strong style="color:#39ff14;">' + esc(m.need.what) + '</strong>' +
+          (m.need.who ? ' <span style="color:rgba(230,250,255,0.5);">— ' + esc(m.need.who) + '</span>' : '') + '</div>' +
+          '<div style="color:rgba(230,250,255,0.65);font-size:0.85rem;margin:4px 0 8px;">could be met by: ' +
+          m.best.map(function (b) { return esc(b.o.what) + (b.o.who ? ' (' + esc(b.o.who) + ')' : ''); }).join(' · ') + '</div>';
+        var msg = messageFor(m);
+        if (msg) {
+          html += '<div style="padding:10px;background:rgba(0,0,0,0.35);border-radius:6px;color:rgba(230,250,255,0.8);font-size:0.85rem;line-height:1.6;">' + esc(msg) + '</div>' +
+            '<button type="button" class="ssp-cp" data-m="' + esc(msg) + '" style="margin-top:6px;padding:6px 14px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:0.8rem;">Copy this message</button>';
+        }
+        html += '</div>';
+      });
+    }
+
+    var unmatched = ms.filter(function (m) { return !m.best.length; });
+    if (unmatched.length) {
+      html += '<div style="color:#ffa500;font-weight:700;margin:12px 0 6px;">Still unmatched — worth printing and asking around</div>';
+      unmatched.forEach(function (m) {
+        html += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:rgba(230,250,255,0.8);">' + esc(m.need.what) +
+          (m.need.who ? ' <span style="color:rgba(230,250,255,0.5);">— ' + esc(m.need.who) + '</span>' : '') + '</div>';
+      });
+    }
+
+    html += '<div style="color:rgba(230,250,255,0.5);font-weight:700;margin:14px 0 6px;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">On the sheet</div>';
+    html += list.map(function (it, i) {
+      var c = it.kind === 'offer' ? '#39ff14' : 'var(--accent)';
+      return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+        '<span style="flex:0 0 56px;font-size:0.7rem;text-transform:uppercase;color:' + c + ';">' + it.kind + '</span>' +
+        '<span style="flex:1;color:rgba(230,250,255,0.9);">' + esc(it.what) +
+        (it.who ? ' <span style="color:rgba(230,250,255,0.5);">— ' + esc(it.who) + '</span>' : '') + '</span>' +
+        '<button type="button" class="ssp-del" data-i="' + i + '" aria-label="Remove" style="padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(230,250,255,0.5);cursor:pointer;">&times;</button></div>';
+    }).join('');
+
+    el.innerHTML = html;
+
+    Array.prototype.forEach.call(card.querySelectorAll('.ssp-del'), function (b) {
+      b.addEventListener('click', function () {
+        var l = load(); l.splice(parseInt(b.getAttribute('data-i'), 10), 1); save(l); render();
+      });
+    });
+    Array.prototype.forEach.call(card.querySelectorAll('.ssp-cp'), function (b) {
+      b.addEventListener('click', function () {
+        var t = b.getAttribute('data-m');
+        var done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy this message'; }, 1600); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, done);
+        else done();
+      });
+    });
+  }
+
+  function box(v, l, c) {
+    return '<div style="flex:1;min-width:100px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.3rem;font-weight:700;color:' + c + ';">' + v + '</div>' +
+      '<div style="font-size:0.7rem;color:rgba(230,250,255,0.55);text-transform:uppercase;">' + l + '</div></div>';
+  }
+
+  $('ssp-do').addEventListener('click', function () {
+    var what = $('ssp-what').value.trim();
+    if (!what) { $('ssp-out').innerHTML = '<div style="color:#ffa500;">Say what it is first.</div>'; return; }
+    var l = load();
+    l.push({ kind: $('ssp-kind').value, what: what, who: $('ssp-who').value.trim() });
+    save(l);
+    $('ssp-what').value = ''; $('ssp-who').value = '';
+    render();
+  });
+
+  $('ssp-reset').addEventListener('click', function () {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    render();
+  });
+
+  $('ssp-sheet').addEventListener('click', function () {
+    var list = load();
+    var offers = list.filter(function (i) { return i.kind === 'offer'; });
+    var needs = list.filter(function (i) { return i.kind === 'need'; });
+    var body = '<h1>Our street — who has what, who needs what</h1>' +
+      '<h2>On offer</h2>' + (offers.length
+        ? '<ul>' + offers.map(function (o) { return '<li>' + esc(o.what) + (o.who ? ' — ' + esc(o.who) : '') + '</li>'; }).join('') + '</ul>'
+        : '<p>Add yours!</p>') +
+      '<h2>Looking for</h2>' + (needs.length
+        ? '<ul>' + needs.map(function (o) { return '<li>' + esc(o.what) + (o.who ? ' — ' + esc(o.who) : '') + '</li>'; }).join('') + '</ul>'
+        : '<p>Nothing yet.</p>') +
+      '<p style="margin-top:20px;color:#555;">If you can help with anything above, or want to add something, knock on the door or add it to this sheet. ' +
+      'No keeping score — that is the whole point.</p>';
+
+    var iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    card.appendChild(iframe);
+    var doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Street sheet</title><style>' +
+      'body{font-family:system-ui,sans-serif;color:#111;padding:28px;max-width:700px;line-height:1.6;}' +
+      'h1{font-size:22px;} h2{font-size:16px;margin:20px 0 6px;} li{margin-bottom:4px;}</style></head><body>' +
+      body + '</body></html>');
+    doc.close();
+    var go = function () {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(function () { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 1200);
+    };
+    setTimeout(go, 250);
+  });
+
+  render();
+})();
+</script>

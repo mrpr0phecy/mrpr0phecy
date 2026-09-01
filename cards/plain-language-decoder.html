@@ -1,0 +1,187 @@
+<h2 id="pld-title" style="margin-top:0;color:var(--accent);">📖 Plain Language Decoder</h2>
+
+<form aria-describedby="pld-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="pld-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Paste a letter, contract clause, medical note or official notice and get it back in ordinary English, with
+    the obligations and deadlines pulled out separately. Runs entirely on your device &mdash; nothing is uploaded,
+    which matters when the text contains your personal details.
+  </p>
+
+  <label for="pld-input" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">The text</label>
+  <textarea id="pld-input" rows="8" placeholder="Paste the confusing paragraph here."
+    style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;margin-bottom:14px;"></textarea>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="pld-go" style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Decode it</button>
+    <button type="button" id="pld-demo" style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.75);cursor:pointer;">Try an example</button>
+    <button type="button" id="pld-reset" style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Clear</button>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="pld-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Paste some text and press <strong>Decode it</strong>.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">What this does not do</summary>
+  <p style="margin-top:8px;">
+    This is a reading aid, not legal or medical advice. It cannot know your circumstances, and it will not
+    interpret what a clause means for your particular case. If money, housing, health or your immigration status
+    depends on the document, take the plain-English version to Citizens Advice, a law centre, your GP or a
+    specialist adviser &mdash; it will save them time and get you a better answer faster.
+  </p>
+  <p>
+    Being handed something you cannot read is one of the most common ways people lose rights they actually have.
+    Understanding the words is usually the first step to keeping them.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var SWAPS = [
+    [/\bnotwithstanding\b/gi, 'even though'], [/\bherein(before|after)?\b/gi, 'in this document'],
+    [/\b(the )?aforementioned\b/gi, 'that'], [/\bthereof\b/gi, 'of it'],
+    [/\bhereto\b/gi, 'to this'], [/\bhereunder\b/gi, 'under this'],
+    [/\bpursuant to\b/gi, 'under'], [/\bremits?\b/gi, 'pays'],
+    [/\bforthwith\b/gi, 'at once'], [/\btherein\b/gi, 'in it'],
+    [/\bin respect of\b/gi, 'about'], [/\bwith respect to\b/gi, 'about'],
+    [/\bcommencement\b/gi, 'start'], [/\bterminate the agreement\b/gi, 'end the agreement'],
+    [/\bfailing which\b/gi, 'if you do not'], [/\bshall be required to\b/gi, 'must'],
+    [/\bthe tenant shall\b/gi, 'you must'], [/\bthe landlord may\b/gi, 'they can'],
+    [/\bthereof\b/gi, 'of that'], [/\btherein\b/gi, 'in that'], [/\bwherein\b/gi, 'where'],
+    [/\bpursuant to\b/gi, 'following'], [/\bin accordance with\b/gi, 'following'],
+    [/\bprior to\b/gi, 'before'], [/\bsubsequent(ly)?\b/gi, 'after'],
+    [/\butilise(s|d)?\b/gi, 'use'], [/\bfacilitate\b/gi, 'help'],
+    [/\bcommence\b/gi, 'start'], [/\bterminate\b/gi, 'end'],
+    [/\bascertain\b/gi, 'find out'], [/\bendeavour\b/gi, 'try'],
+    [/\bremuneration\b/gi, 'pay'], [/\bstipulate(s|d)?\b/gi, 'say'],
+    [/\bpro rata\b/gi, 'in proportion'], [/\bin the event that\b/gi, 'if'],
+    [/\bshould you (wish|require|need)\b/gi, 'if you want'],
+    [/\bfor the avoidance of doubt\b/gi, 'to be clear'],
+    [/\bwithout prejudice\b/gi, 'without giving up any rights'],
+    [/\bdeemed to be\b/gi, 'counted as'], [/\bby virtue of\b/gi, 'because of'],
+    [/\bidempotent\b/gi, 'safe to repeat'], [/\bpredicate(s|d)?\b/gi, 'base'],
+    [/\bdifferential diagnosis\b/gi, 'list of possible causes'],
+    [/\bprognosis\b/gi, 'what is likely to happen'], [/\bcomorbidit(y|ies)\b/gi, 'other health conditions'],
+    [/\bcontraindicated\b/gi, 'not safe to use with'], [/\bambulatory\b/gi, 'able to walk'],
+    [/\bpost-?operative\b/gi, 'after the operation'], [/\bidiopathic\b/gi, 'of unknown cause'],
+    [/\bdyspnoea\b/gi, 'breathlessness'], [/\boedema\b/gi, 'swelling'],
+    [/\bstatutory\b/gi, 'required by law'], [/\barrears\b/gi, 'money owed'],
+    [/\bforbearance\b/gi, 'agreeing to wait'], [/\bmitigate\b/gi, 'reduce'],
+    [/\bexpedite\b/gi, 'speed up'], [/\bconsequently\b/gi, 'so'],
+    [/\btherefore\b/gi, 'so'], [/\bhowever\b/gi, 'but'], [/\bfurthermore\b/gi, 'also']
+  ];
+
+  var OBLIGATION = [
+    { re: /\b(must|shall|are required to|is required to|it is (your|the) (duty|responsibility))\b/gi, kind: 'You have to' },
+    { re: /\b(should|ought to|are advised to|are expected to)\b/gi, kind: 'You are expected to' },
+    { re: /\b(may|can|is entitled to|are entitled to|have the right to)\b/gi, kind: 'You are allowed to' },
+    { re: /\b(must not|shall not|are prohibited from|it is an offence)\b/gi, kind: 'You must not' },
+    { re: /\b(within|by|no later than|before the end of|deadline|by close of)\b\s+(\d+[\s\w]*)?(day|days|week|weeks|month|months|hours?|minutes?|date)?/gi, kind: 'There is a time limit' }
+  ];
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function sentences(t) {
+    return t.split(/(?<=[.!?])\s+/).filter(function (s) { return s.trim().length > 0; });
+  }
+
+  function decode() {
+    var raw = $('pld-input').value.trim();
+    if (!raw) { $('pld-out').innerHTML = '<span style="color:#ffa500;">Paste some text first.</span>'; return; }
+
+    var sents = sentences(raw);
+    var words = raw.split(/\s+/).filter(Boolean);
+    var longWords = words.filter(function (w) { return w.replace(/[^a-zA-Z]/g, '').length >= 9; }).length;
+    var avgLen = sents.length ? words.length / sents.length : 0;
+    var longSents = sents.filter(function (s) { return s.split(/\s+/).length > 28; });
+    var passive = (raw.match(/\b(is|are|was|were|be|been|being)\s+\w+(ed|en)\b/gi) || []);
+    var doubles = (raw.match(/\b(not\s+(un|in|im|ir)\w+|no\s+\w+\s+without|cannot\s+fail)\b/gi) || []);
+
+    // readability band
+    var score = 0.39 * avgLen + 11.8 * (longWords / Math.max(1, words.length) * 100) / 100 * 10;
+    var band, colour;
+    if (score < 9) { band = 'Plain — a typical 13-year-old could read this'; colour = '#39ff14'; }
+    else if (score < 13) { band = 'Stiff but readable'; colour = '#39ff14'; }
+    else if (score < 17) { band = 'Hard — needs re-reading'; colour = '#ffa500'; }
+    else { band = 'Very hard — written to be difficult, or never edited'; colour = '#ff4d4d'; }
+
+    // plain rewrite
+    var plain = raw;
+    var swapCount = 0;
+    SWAPS.forEach(function (pair) {
+      var before = plain;
+      plain = plain.replace(pair[0], pair[1]);
+      if (plain !== before) swapCount++;
+    });
+    plain = plain.replace(/\s+/g, ' ').trim();
+    if (!/[.!?]$/.test(plain)) plain += '.';
+
+    // obligations
+    var found = [];
+    OBLIGATION.forEach(function (o) {
+      var m, re = new RegExp(o.re.source, 'gi');
+      while ((m = re.exec(raw)) !== null) {
+        var start = Math.max(0, m.index - 60), end = Math.min(raw.length, m.index + 90);
+        var snippet = (start > 0 ? '…' : '') + raw.slice(start, end).trim() + (end < raw.length ? '…' : '');
+        if (!found.some(function (f) { return f.snippet === snippet; })) found.push({ kind: o.kind, snippet: snippet });
+        if (found.length > 12) break;
+      }
+    });
+
+    var html =
+      '<div style="color:' + colour + ';font-weight:700;font-size:1.2rem;margin-bottom:2px;">' + esc(band) + '</div>' +
+      '<div style="color:rgba(230,250,255,0.55);font-size:0.8rem;margin-bottom:12px;">' +
+        words.length + ' words · ' + sents.length + ' sentences · average ' + avgLen.toFixed(1) + ' words per sentence' +
+      '</div>';
+
+    if (longSents.length || passive.length || doubles.length || swapCount) {
+      html += '<div style="color:var(--accent);font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">What makes it hard</div><ul style="margin:0 0 14px;padding-left:18px;color:rgba(230,250,255,0.72);">';
+      if (longSents.length) html += '<li>' + longSents.length + ' sentence' + (longSents.length === 1 ? '' : 's') + ' over 28 words — the longest is ' + Math.max.apply(null, longSents.map(function (s) { return s.split(/\s+/).length; })) + '.</li>';
+      if (swapCount) html += '<li>' + swapCount + ' formal or technical phrase' + (swapCount === 1 ? '' : 's') + ' swapped for ordinary words below.</li>';
+      if (passive.length) html += '<li>' + passive.length + ' passive construction' + (passive.length === 1 ? '' : 's') + ' — these hide who is actually doing what.</li>';
+      if (doubles.length) html += '<li>' + doubles.length + ' double negative' + (doubles.length === 1 ? '' : 's') + ' — say the opposite in your head and it usually means the reverse of how it sounds.</li>';
+      html += '</ul>';
+    }
+
+    html += '<div style="color:var(--accent);font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">In plain English</div>' +
+            '<div style="background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.18);border-radius:8px;padding:12px;color:rgba(230,250,255,0.9);line-height:1.75;">' + esc(plain) + '</div>';
+
+    if (found.length) {
+      html += '<div style="color:var(--accent);font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;margin:14px 0 6px;">What it asks of you</div>';
+      html += found.map(function (f) {
+        return '<div style="margin-bottom:8px;padding-left:10px;border-left:2px solid ' + (f.kind === 'You must not' ? '#ff4d4d' : f.kind === 'There is a time limit' ? '#ffa500' : 'rgba(45,212,255,0.5)') + ';">' +
+               '<div style="font-weight:600;color:rgba(230,250,255,0.85);font-size:0.85rem;">' + esc(f.kind) + '</div>' +
+               '<div style="color:rgba(230,250,255,0.6);font-size:0.82rem;">' + esc(f.snippet) + '</div></div>';
+      }).join('');
+    }
+
+    html += '<div class="small" style="margin-top:12px;color:rgba(230,250,255,0.5);">' +
+            'A reading aid, not advice. If money, housing or health depends on this document, take this version to ' +
+            'Citizens Advice or a specialist adviser.' +
+            '</div>';
+
+    $('pld-out').innerHTML = html;
+  }
+
+  $('pld-go').addEventListener('click', decode);
+  $('pld-reset').addEventListener('click', function () {
+    $('pld-input').value = '';
+    $('pld-out').innerHTML = 'Paste some text and press <strong>Decode it</strong>.';
+  });
+  $('pld-demo').addEventListener('click', function () {
+    $('pld-input').value = 'Notwithstanding any prior correspondence, the tenant shall be deemed to be in arrears ' +
+      'and is required to remit the outstanding sum in full within 14 days of the date hereof, failing which ' +
+      'proceedings may be commenced pursuant to section 8 of the Housing Act without further notice. ' +
+      'It is not unreasonable for the tenant to seek forbearance, and the landlord may, at its sole discretion, ' +
+      'consider a repayment arrangement prior to the commencement of proceedings.';
+    decode();
+  });
+})();
+</script>
