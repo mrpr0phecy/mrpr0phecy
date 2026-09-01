@@ -122,6 +122,8 @@
         <option value="rough">Cross rough ground</option>
         <option value="sumo">Sumo — shove them out</option>
         <option value="bridge">Bridge — drop them</option>
+        <option value="hill">King of the hill</option>
+        <option value="push">Push the block</option>
     </select>
 
     <label for="speed">Sim speed <span id="speedVal">6×</span></label>
@@ -163,6 +165,9 @@
 <div id="genome" class="panel">
     <div class="title">Champion genome</div>
     <div id="genomeBody"></div>
+    <canvas id="bodymap" width="420" height="280" role="img"
+            aria-label="Diagram of the champion creature's body plan"
+            style="width:100%;height:auto;margin-top:8px;display:block;"></canvas>
     <div id="fameWrap" style="display:none;margin-top:10px;border-top:1px solid rgba(45,212,255,0.18);padding-top:9px;">
         <div class="title" style="font-size:11px;margin-bottom:6px;">Hall of fame</div>
         <div id="fameList"></div>
@@ -470,7 +475,20 @@ var WalkerSim = (function () {
         bridge:  { combat: true, plank: 16, half: 1.9, rounds: 3, dur: 16, label: 'bridge run', unit: 'm',
                    ground: function (x, z) {
                        return (Math.abs(z) <= 1.9 && x >= -2 && x <= 16) ? 0 : -40;
-                   } }
+                   } },
+        // hold the summit against an opponent. The hill is a cone, not a mesa:
+        // a vertical step is a wall no body can re-mount, so once a fighter fell
+        // the score was capped and there was nothing left to evolve.
+        hill:    { combat: true, rounds: 3, dur: 16, label: 'time on top', unit: 's',
+                   ground: function (x, z) {
+                       var r = Math.sqrt(x * x + z * z);
+                       return r >= 6 ? 0 : 1.5 * (1 - r / 6);
+                   },
+                   zone: { x: 0, z: 0, r: 1.6, y: 1.1 } },
+        // Sims-style object manipulation: shove a loose block downfield
+        push:    { combat: false, dur: 18, label: 'block pushed', unit: 'm',
+                   ground: function () { return 0; },
+                   props: [{ x: 2.4, y: 0.9, z: 0, r: 0.55, mass: 3.0 }] }
     };
 
     // ---------------------------------------------------------------- creature
@@ -513,6 +531,7 @@ var WalkerSim = (function () {
         this.spawnX = spawnX; this.spawnZ = spawnZ;
         this.t = 0; this.alive = true; this.dead = false;
         this.best = 0; this.maxH = 0; this.uprightT = 0; this.downT = 0;
+        this.zoneT = 0;
         this.fitness = 0;
         this.startH = 0;
         this.oppOut = 0; this.oppFell = false; this.selfFell = false;
@@ -564,6 +583,7 @@ var WalkerSim = (function () {
         }
         this.t = 0; this.alive = true; this.dead = false;
         this.best = 0; this.maxH = 0; this.uprightT = 0; this.downT = 0;
+        this.zoneT = 0;
         this.fitness = 0; this.oppOut = 0; this.oppFell = false; this.selfFell = false;
         var c = this.com(this._com);
         this.startH = c[1];
@@ -613,10 +633,10 @@ var WalkerSim = (function () {
         return inp;
     }
 
-    Creature.prototype.step = function (world, opp) {
+    Creature.prototype.step = function (world, opp, props) {
         if (this.dead) return;
         var h = DT / SUB, s, i;
-        for (s = 0; s < SUB; s++) this.substep(world, opp, h);
+        for (s = 0; s < SUB; s++) this.substep(world, opp, h, props);
 
         this.t += DT;
         this.prevLen.set(this.len);
@@ -633,11 +653,20 @@ var WalkerSim = (function () {
         if (hgt > this.maxH) this.maxH = hgt;
         if (this.upY > 0.72) this.uprightT += DT; else this.downT += DT;
 
+        // time spent holding a scored zone (king of the hill)
+        if (world.zone) {
+            var zn = world.zone;
+            if (com[1] > zn.y - 0.35 &&
+                Math.abs(com[0] - zn.x) <= zn.r && Math.abs(com[2] - zn.z) <= zn.r) {
+                this.zoneT += DT;
+            }
+        }
+
         // fallen apart or buried: stop simulating, keep the score
         if (com[1] < -6 || this.t > world.dur + 2) this.dead = true;
     };
 
-    Creature.prototype.substep = function (world, opp, h) {
+    Creature.prototype.substep = function (world, opp, h, props) {
         var i, g = this.g;
 
         var out = think(g.brain, buildInputs(this, opp, world));
@@ -690,6 +719,37 @@ var WalkerSim = (function () {
             }
         }
 
+        // creature against loose props, so bodies can push things
+        if (props) {
+            for (i = 0; i < this.n; i++) {
+                for (var q = 0; q < props.length; q++) {
+                    var pr = props[q];
+                    var pdx = this.px[i] - pr.x, pdy = this.py[i] - pr.y, pdz = this.pz[i] - pr.z;
+                    var pd = Math.sqrt(pdx * pdx + pdy * pdy + pdz * pdz);
+                    var pmin = g.nodes[i].r + pr.r;
+                    if (pd < pmin && pd > 1e-6) {
+                        var pnx = pdx / pd, pny = pdy / pd, pnz = pdz / pd;
+                        var pim = 1 / pr.mass;
+                        var ppush = (pmin - pd) * 420;
+                        this.vx[i] += pnx * ppush * this.im[i] * h;
+                        this.vy[i] += pny * ppush * this.im[i] * h;
+                        this.vz[i] += pnz * ppush * this.im[i] * h;
+                        pr.vx -= pnx * ppush * pim * h;
+                        pr.vy -= pny * ppush * pim * h;
+                        pr.vz -= pnz * ppush * pim * h;
+                        // tangential grip, otherwise limbs slide off instead of shoving
+                        var prv = (this.vx[i] - pr.vx) * pnx + (this.vy[i] - pr.vy) * pny + (this.vz[i] - pr.vz) * pnz;
+                        if (prv < 0) {
+                            var pimp = -prv * 0.55 * Math.min(1, g.nodes[i].fr);
+                            this.vx[i] += pnx * pimp * 0.5; pr.vx -= pnx * pimp * 0.5;
+                            this.vy[i] += pny * pimp * 0.5; pr.vy -= pny * pimp * 0.5;
+                            this.vz[i] += pnz * pimp * 0.5; pr.vz -= pnz * pimp * 0.5;
+                        }
+                    }
+                }
+            }
+        }
+
         // integrate, then resolve the ground
         for (i = 0; i < this.n; i++) {
             this.vy[i] -= GRAVITY * h;
@@ -720,9 +780,29 @@ var WalkerSim = (function () {
     };
 
     // ---------------------------------------------------------------- fitness
-    function score(c, world, opp) {
+    function score(c, world, opp, prop) {
         var com = c.com(c._com);
         var key = world.key;
+        if (key === 'push') {
+            return prop ? Math.max(0, prop.x - prop.x0) : 0;
+        }
+        if (key === 'hill') {
+            var hf = c.zoneT * 2.5;
+            // Without a gradient this objective is flat: fighters already spawn
+            // on the summit, so the score is dominated by who happens not to
+            // fall off and there is nothing to climb toward. Reward closing on
+            // the centre and gaining height so there is signal from generation
+            // one, not just after someone accidentally holds the top.
+            var dc = Math.hypot(com[0], com[2]);
+            hf += Math.max(0, 7 - dc) * 0.45;
+            hf += Math.max(0, Math.min(com[1], 1.5)) * 1.2;
+            if (opp) {
+                hf += (c.zoneT - opp.zoneT) * 1.5;
+                var oc3 = opp.com(opp._com);
+                if (oc3[1] < 1.0) hf += 2;          // they fell off the hill
+            }
+            return hf;
+        }
         if (key === 'walk' || key === 'rough') return c.bestDist;
         if (key === 'slope') {
             var gx = com[0] - c.spawnX;
@@ -851,6 +931,8 @@ var WalkerSim = (function () {
         this.round = 0;
         this.time = 0;
         this.done = false;
+        this.props = [];
+        this.propOf = [];
         var i;
         for (i = 0; i < genomes.length; i++) {
             var sp = world.combat ? spawnFn(0, 0, genomes.length) : spawnFn(i, -1, genomes.length);
@@ -859,6 +941,22 @@ var WalkerSim = (function () {
             this.creatures.push(c);
         }
         if (world.combat) this.pairUp(0);
+
+        // every creature gets its own block in its own lane, otherwise only
+        // whoever spawned nearest the middle could ever score
+        if (world.props && world.props.length) {
+            var spec = world.props[0];
+            for (i = 0; i < this.creatures.length; i++) {
+                var cc = this.creatures[i];
+                var pr = {
+                    x: cc.spawnX + spec.x, y: spec.y, z: cc.spawnZ + spec.z,
+                    x0: cc.spawnX + spec.x, z0: cc.spawnZ + spec.z,
+                    vx: 0, vy: 0, vz: 0, r: spec.r, mass: spec.mass
+                };
+                this.props.push(pr);
+                this.propOf.push([pr]);
+            }
+        }
     }
 
     Bout.prototype.side = function (role) {
@@ -902,7 +1000,7 @@ var WalkerSim = (function () {
             if (this.round < w.rounds - 1 && this.time >= roundLen * (this.round + 1)) {
                 for (i = 0; i < this.creatures.length; i++) {
                     var c0 = this.creatures[i];
-                    c0.cum += score(c0, w, this.oppOf.get(c0) || null);
+                    c0.cum += score(c0, w, this.oppOf.get(c0) || null, null);
                     c0.rounds++;
                 }
                 this.pairUp(this.round + 1);
@@ -912,17 +1010,21 @@ var WalkerSim = (function () {
         if (w.combat) {
             for (i = 0; i < this.pairs.length; i++) {
                 var a = this.pairs[i][0], b = this.pairs[i][1];
-                a.step(w, b); b.step(w, a);
+                a.step(w, b, null); b.step(w, a, null);
             }
-            if (this.creatures.length % 2 === 1) this.creatures[this.creatures.length - 1].step(w, null);
+            if (this.creatures.length % 2 === 1) this.creatures[this.creatures.length - 1].step(w, null, null);
         } else {
-            for (i = 0; i < this.creatures.length; i++) this.creatures[i].step(w, null);
+            for (i = 0; i < this.creatures.length; i++) {
+                this.creatures[i].step(w, null, this.propOf.length ? this.propOf[i] : null);
+            }
         }
+        this.stepProps(DT);
 
         for (i = 0; i < this.creatures.length; i++) {
             var c = this.creatures[i];
             if (c.dead) continue;
-            var live = score(c, w, w.combat ? (this.oppOf.get(c) || null) : null);
+            var live = score(c, w, w.combat ? (this.oppOf.get(c) || null) : null,
+                             this.propOf.length ? this.propOf[i][0] : null);
             c.fitness = (w.combat && w.rounds > 1)
                 ? (c.cum + live) / Math.max(1, c.rounds + 1)
                 : live;
@@ -935,6 +1037,28 @@ var WalkerSim = (function () {
         }
         if (allDead && this.creatures.length) this.done = true;
         return this.done;
+    };
+
+    Bout.prototype.stepProps = function (h) {
+        for (var q = 0; q < this.props.length; q++) {
+            var pr = this.props[q];
+            pr.vy -= GRAVITY * h;
+            var drag = 1 - 0.5 * h;
+            pr.vx *= drag; pr.vy *= drag; pr.vz *= drag;
+            pr.x += pr.vx * h; pr.y += pr.vy * h; pr.z += pr.vz * h;
+            var gy = this.world.ground(pr.x, pr.z);
+            if (!isFinite(gy)) gy = -40;
+            if (pr.y - pr.r < gy) {
+                pr.y = gy + pr.r;
+                if (pr.vy < 0) pr.vy = -pr.vy * 0.05;
+                var fr = 1 - 2.2 * h;
+                if (fr < 0) fr = 0;
+                pr.vx *= fr; pr.vz *= fr;
+            }
+            if (pr.vx > 30) pr.vx = 30; else if (pr.vx < -30) pr.vx = -30;
+            if (pr.vy > 30) pr.vy = 30; else if (pr.vy < -30) pr.vy = -30;
+            if (pr.vz > 30) pr.vz = 30; else if (pr.vz < -30) pr.vz = -30;
+        }
     };
 
     Bout.prototype.fitnesses = function () {
@@ -1067,6 +1191,7 @@ var WalkerSim = (function () {
             label: spec.label, unit: spec.unit
         };
 
+        clearProps();
         if (groundMesh) { scene.remove(groundMesh); groundMesh.geometry.dispose(); groundMesh.material.dispose(); }
         while (markerGroup.children.length) {
             var c = markerGroup.children.pop();
@@ -1109,6 +1234,29 @@ var WalkerSim = (function () {
             scene.add(groundMesh);
         }
 
+        if (key === 'hill') {
+            var coneGeo = new THREE.ConeGeometry(6, 1.5, 48, 1, true);
+            var coneMat = new THREE.MeshLambertMaterial({ color: 0x2dd4ff, emissive: 0x0b3a48, side: THREE.DoubleSide });
+            var cone = new THREE.Mesh(coneGeo, coneMat);
+            cone.position.set(0, 0.75, 0);
+            cone.receiveShadow = true;
+            markerGroup.add(cone);
+            var capMat = new THREE.MeshBasicMaterial({ color: 0x39ff14, transparent: true, opacity: 0.5 });
+            var cap = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.6, 40), capMat);
+            cap.rotation.x = -Math.PI / 2;
+            cap.position.y = 1.14;
+            markerGroup.add(cap);
+        }
+
+        if (key === 'push') {
+            var goalMat = new THREE.MeshBasicMaterial({ color: 0x39ff14, transparent: true, opacity: 0.45 });
+            for (var gd = 10; gd <= 30; gd += 10) {
+                var goal = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 8), goalMat);
+                goal.position.set(gd, 0.05, 0);
+                markerGroup.add(goal);
+            }
+        }
+
         if (key === 'sumo') {
             var ringGeo = new THREE.RingGeometry(spec.ring - 0.35, spec.ring, 96);
             ringGeo.rotateX(-Math.PI / 2);
@@ -1129,6 +1277,35 @@ var WalkerSim = (function () {
     // ---------------------------------------------------------------- bodies
     var sphereGeo = new THREE.SphereGeometry(1, 14, 10);
     var cylGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
+    var propMeshes = [];
+
+    function clearProps() {
+        propMeshes.forEach(function (m) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); });
+        propMeshes = [];
+    }
+
+    function buildProps() {
+        clearProps();
+        if (!bout || !bout.props) return;
+        for (var i = 0; i < bout.props.length; i++) {
+            var pr = bout.props[i];
+            var m = new THREE.Mesh(
+                new THREE.BoxGeometry(pr.r * 2, pr.r * 2, pr.r * 2),
+                new THREE.MeshLambertMaterial({ color: 0xffa500, emissive: 0x3a2400 })
+            );
+            m.castShadow = true;
+            scene.add(m);
+            propMeshes.push(m);
+        }
+    }
+
+    function syncProps() {
+        if (!bout || !bout.props) return;
+        for (var i = 0; i < propMeshes.length && i < bout.props.length; i++) {
+            var pr = bout.props[i];
+            propMeshes[i].position.set(pr.x, pr.y, pr.z);
+        }
+    }
 
     function clearBodies() {
         bodies.forEach(function (b) {
@@ -1188,6 +1365,8 @@ var WalkerSim = (function () {
                 bodies[leaderIdx].nodeMeshes.forEach(function (m) { m.material.emissive.setHex(0x14505f); });
             }
         }
+        syncProps();
+
         if (running && bodies[leaderIdx] && !creatures[leaderIdx].dead) {
             var lc = creatures[leaderIdx], lcom = lc.com(lc._com);
             pushTrail(lcom[0], lcom[1], lcom[2]);
@@ -1216,6 +1395,7 @@ var WalkerSim = (function () {
     function spawnFn(i, role, n) {
         if (role >= 0) {
             if (worldKey === 'bridge') return role === 0 ? [0.5, -0.7] : [3.5, 0.7];
+            if (worldKey === 'hill') return role === 0 ? [-3.2, -1.4] : [3.2, 1.4];
             return role === 0 ? [-1.6, -0.9] : [1.6, 0.9];
         }
         return [0, (i - (n - 1) / 2) * 3.2];
@@ -1232,6 +1412,7 @@ var WalkerSim = (function () {
         genomes = creatures.map(function (c) { return c.g; });
         fits = new Array(creatures.length).fill(0);
         buildBodies();
+        buildProps();
     }
 
     function newGenomes(n) {
@@ -1335,11 +1516,76 @@ var WalkerSim = (function () {
                 '<div class="row"><span>Gait freq</span><span>' + champion.freq.toFixed(2) + ' Hz</span></div>' +
                 '<div class="row"><span>Best score</span><span>' + fmt(champion.fitness) + '</span></div>' +
                 '<div class="hint">Body and brain are both inherited. Nothing here was placed by hand.</div>';
+            drawBodyMap();
         }
 
         var prog = bout ? Math.min(1, bout.time / world.dur) : 0;
         $('progBar').style.width = (prog * 100).toFixed(0) + '%';
         $('progTxt').textContent = (prog * 100).toFixed(0) + '%';
+    }
+
+    // ---------------------------------------------------------------- body map
+    // A live side-on projection of the champion's body plan. Node radius and
+    // muscle length are the actual evolved values, so you can watch the shape
+    // change between generations rather than only reading the numbers.
+    var mapCv = $('bodymap'), mctx = mapCv.getContext('2d');
+
+    function drawBodyMap() {
+        var w = mapCv.width, h = mapCv.height;
+        mctx.clearRect(0, 0, w, h);
+        var src = null;
+        if (replayMode && creatures.length) src = creatures[0];
+        else if (champion) src = null;
+        if (!champion && !src) return;
+
+        var g = src ? src.g : champion;
+        var n = g.nodes.length, i;
+
+        // centre and scale to fit
+        var cx = 0, cy = 0, minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+        var px = [], py = [];
+        for (i = 0; i < n; i++) {
+            var x, y;
+            if (src) {
+                var com = src.com(src._com);
+                x = src.px[i] - com[0]; y = src.py[i] - com[1];
+            } else {
+                x = g.nodes[i].x; y = g.nodes[i].y;
+            }
+            px.push(x); py.push(y);
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+        cx = (minX + maxX) / 2; cy = (minY + maxY) / 2;
+        var span = Math.max(maxX - minX, maxY - minY, 0.8);
+        var sc = (Math.min(w, h) * 0.72) / span;
+        function MX(v) { return w / 2 + (v - cx) * sc; }
+        function MY(v) { return h / 2 - (v - cy) * sc; }
+
+        // muscles first, so nodes sit on top
+        for (i = 0; i < g.muscles.length; i++) {
+            var m = g.muscles[i];
+            var tension = src ? (src.signal[i] || 0) : 0;
+            var t = Math.max(-1, Math.min(1, tension));
+            mctx.strokeStyle = t >= 0
+                ? 'rgba(57,255,20,' + (0.35 + 0.5 * t).toFixed(2) + ')'
+                : 'rgba(255,77,77,' + (0.35 + 0.5 * -t).toFixed(2) + ')';
+            mctx.lineWidth = 2 + 3 * Math.abs(t);
+            mctx.beginPath();
+            mctx.moveTo(MX(px[m.a]), MY(py[m.a]));
+            mctx.lineTo(MX(px[m.b]), MY(py[m.b]));
+            mctx.stroke();
+        }
+        for (i = 0; i < n; i++) {
+            var r = Math.max(3, g.nodes[i].r * sc * 0.9);
+            mctx.beginPath();
+            mctx.arc(MX(px[i]), MY(py[i]), r, 0, Math.PI * 2);
+            mctx.fillStyle = i === 0 ? '#2dd4ff' : 'rgba(230,250,255,0.85)';
+            mctx.fill();
+        }
+        mctx.fillStyle = 'rgba(230,250,255,0.45)';
+        mctx.font = '17px monospace';
+        mctx.fillText(n + ' nodes  ' + g.muscles.length + ' muscles', 10, 24);
     }
 
     // ---------------------------------------------------------------- persistence
@@ -1510,7 +1756,7 @@ var WalkerSim = (function () {
             while (acc >= S.DT && steps < 400) { simTick(); acc -= S.DT; steps++; }
             if (acc > S.DT * 400) acc = 0;
             syncBodies();
-            if (steps) updateReadout();
+            if (steps) { updateReadout(); if (replayMode) drawBodyMap(); }
         } else {
             syncBodies();
         }
