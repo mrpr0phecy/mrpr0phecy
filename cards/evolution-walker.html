@@ -370,6 +370,22 @@ class EvolutionWalker {
     this.ground = null;
     this.obstacles = [];
     this.lights = [];
+    // Cinematic camera system
+    this.camAngleIdx = 0;
+    this.camAngleTimer = 0;
+    this.camAngleInterval = 10;
+    this.camYaw = -0.5;
+    this.camPitch = 0.4;
+    this.camDist = 35;
+    this.camTarget = new THREE.Vector3(0, 2, 0);
+    this.CAM_ANGLES = [
+      { yaw: -0.5,  pitch: 0.4,  dist: 35, name: 'Classic follow' },
+      { yaw: -0.15, pitch: 0.2,  dist: 20, name: 'Close chase' },
+      { yaw: -1.2,  pitch: 0.55, dist: 50, name: 'Wide panorama' },
+      { yaw: 0.0,   pitch: 1.2,  dist: 25, name: 'Bird\'s eye' },
+      { yaw: -0.8,  pitch: 0.1,  dist: 15, name: 'Low dramatic' },
+      { yaw: 0.5,   pitch: 0.35, dist: 55, name: 'Side profile' },
+    ];
     this.config = {
       POPULATION_SIZE: 12,
       MUTATION_RATE: 0.15,
@@ -615,7 +631,7 @@ class EvolutionWalker {
       // Update evolution
       this.updateEvolution(speedDt);
       // Update camera
-      this.updateCamera();
+      this.updateCamera(speedDt);
       // Update event visual effects
       this.updateEventVisuals(speedDt);
       // UI update
@@ -967,16 +983,38 @@ class EvolutionWalker {
   }
 
   /* ===== CAMERA ===== */
-  updateCamera() {
+  updateCamera(dt) {
     const alive = this.creatures.filter(c => c.alive);
     if (alive.length === 0) return;
     const leader = alive.reduce((best, c) => c.distance > best.distance ? c : best, alive[0]);
-    const tx = leader.position.x + 20;
-    const ty = Math.max(15, 20 + leader.position.y * 0.2);
-    this.camera.position.x += (tx - this.camera.position.x) * 0.05;
-    this.camera.position.y += (ty - this.camera.position.y) * 0.05;
-    this.camera.position.z = 40;
-    this.camera.lookAt(leader.position.x, leader.position.y + 5, leader.position.z);
+
+    // Cinematic angle cycling
+    this.camAngleTimer += (dt || 0.016);
+    if (this.camAngleTimer >= this.camAngleInterval) {
+      this.camAngleTimer = 0;
+      this.camAngleIdx = (this.camAngleIdx + 1) % this.CAM_ANGLES.length;
+    }
+    const preset = this.CAM_ANGLES[this.camAngleIdx];
+    const lerpSpeed = 0.02;
+    this.camYaw += (preset.yaw - this.camYaw) * lerpSpeed;
+    this.camPitch += (preset.pitch - this.camPitch) * lerpSpeed;
+    this.camDist += (preset.dist - this.camDist) * lerpSpeed;
+
+    // Track leader
+    const tx = leader.position.x;
+    const ty = Math.max(3, leader.position.y + 2);
+    const tz = leader.position.z;
+    this.camTarget.x += (tx - this.camTarget.x) * 0.06;
+    this.camTarget.y += (ty - this.camTarget.y) * 0.06;
+    this.camTarget.z += (tz - this.camTarget.z) * 0.06;
+
+    const cp = Math.cos(this.camPitch);
+    this.camera.position.set(
+      this.camTarget.x + Math.sin(this.camYaw) * cp * this.camDist,
+      this.camTarget.y + Math.sin(this.camPitch) * this.camDist,
+      this.camTarget.z + Math.cos(this.camYaw) * cp * this.camDist
+    );
+    this.camera.lookAt(this.camTarget);
   }
 
   /* ===== UI ===== */
@@ -1299,11 +1337,14 @@ class Creature {
     const inputs = this.getSensorInputs(dt, activeEvent);
     const outputs = this.think(inputs);
 
-    // Apply outputs
+    // Apply outputs — force is gated on walk cycle so creatures must coordinate legs
     const walkSpeed = (2 + this.speedGene * 3) * (activeEvent === 'ice_age' ? 0.5 : 1);
     this.walkCycle += dt * walkSpeed * (0.5 + outputs[0]);
 
-    const forwardForce = outputs[1] * 6;
+    // Forward force oscillates with walk cycle — can't just slide
+    const cycleDrive = Math.abs(Math.sin(this.walkCycle));
+    const groundedBonus = this.grounded ? 1.0 : 0.15; // much less force in air
+    const forwardForce = outputs[1] * 5 * cycleDrive * groundedBonus;
     const turnForce = (outputs[2] - 0.5) * 2;
 
     this.velocity.x += Math.sin(this.rotation) * forwardForce * dt;
@@ -1321,9 +1362,10 @@ class Creature {
     const effectiveGravity = gravity * (activeEvent === 'gravity_surge' ? 2.0 : 1) * (activeEvent === 'space' || walker?.config.TERRAIN_TYPE === 'space' ? 0.3 : 1);
     this.velocity.y -= 9.8 * effectiveGravity * dt;
 
-    // Friction (terrain-dependent)
-    this.velocity.x *= friction;
-    this.velocity.z *= friction;
+    // Friction (terrain-dependent) — stronger when grounded so creatures don't slide
+    const groundFriction = this.grounded ? friction * friction : friction; // squared when on ground
+    this.velocity.x *= groundFriction;
+    this.velocity.z *= groundFriction;
     this.velocity.y *= 0.98;
 
     // Update position

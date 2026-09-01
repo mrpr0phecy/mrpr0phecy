@@ -707,7 +707,7 @@ var WalkerSim = (function () {
             if (this.py[i] - r < gy) {
                 this.py[i] = gy + r;
                 if (this.vy[i] < 0) this.vy[i] = -this.vy[i] * 0.06;
-                var fr = 1 - g.nodes[i].fr * 14 * h;
+                var fr = 1 - g.nodes[i].fr * 38 * h;
                 if (fr < 0) fr = 0;
                 this.vx[i] *= fr; this.vz[i] *= fr;
                 this.contact[i] = 1;
@@ -723,7 +723,7 @@ var WalkerSim = (function () {
     function score(c, world, opp) {
         var com = c.com(c._com);
         var key = world.key;
-        if (key === 'walk' || key === 'rough') return c.bestDist;
+        if (key === 'walk' || key === 'rough') return c.bestDist + c.uprightT * 0.3 - c.downT * 0.15;
         if (key === 'slope') {
             var gx = com[0] - c.spawnX;
             return Math.max(0, gx) + c.maxH * 0.5;
@@ -1449,8 +1449,23 @@ var WalkerSim = (function () {
     // ---------------------------------------------------------------- camera
     var camYaw = -0.55, camPitch = 0.42, camDist = 30, camTarget = new THREE.Vector3(0, 2, 0);
     var dragging = false, lastX = 0, lastY = 0;
+    var userOverride = false, userOverrideTimer = 0;
+    var camAngleIdx = 0, camAngleTimer = 0, camAngleInterval = 12;
+    var camTransition = 0;
 
-    function onDown(x, y) { dragging = true; lastX = x; lastY = y; }
+    // Cinematic camera presets: [yawOffset, pitch, dist, description]
+    var CAM_ANGLES = [
+        { yaw: -0.55, pitch: 0.42, dist: 30, name: 'Classic follow' },
+        { yaw: -0.15, pitch: 0.22, dist: 18, name: 'Close chase' },
+        { yaw: -1.2,  pitch: 0.55, dist: 45, name: 'Wide panorama' },
+        { yaw: 0.0,   pitch: 1.25, dist: 22, name: 'Bird\'s eye' },
+        { yaw: -0.8,  pitch: 0.12, dist: 14, name: 'Low dramatic' },
+        { yaw: 0.4,   pitch: 0.35, dist: 50, name: 'Side profile' },
+        { yaw: -2.0,  pitch: 0.6,  dist: 35, name: 'Rear quarter' },
+        { yaw: -0.3,  pitch: 0.75, dist: 25, name: 'High over-shoulder' },
+    ];
+
+    function onDown(x, y) { dragging = true; lastX = x; lastY = y; userOverride = true; userOverrideTimer = 0; }
     function onMove(x, y) {
         if (!dragging) return;
         camYaw -= (x - lastX) * 0.008;
@@ -1471,10 +1486,34 @@ var WalkerSim = (function () {
     stage.addEventListener('touchend', onUp);
     stage.addEventListener('wheel', function (e) {
         camDist = S.clamp(camDist + e.deltaY * 0.02, 8, 90);
+        userOverride = true; userOverrideTimer = 0;
         e.preventDefault();
     }, { passive: false });
 
-    function updateCamera() {
+    function updateCamera(dt) {
+        // After user stops interacting, wait 8s then resume cinematic cycling
+        if (userOverride) {
+            userOverrideTimer += (dt || 0);
+            if (userOverrideTimer > 8) { userOverride = false; camAngleTimer = 0; }
+        }
+
+        // Cinematic angle cycling
+        if (!userOverride && !dragging) {
+            camAngleTimer += (dt || 0);
+            if (camAngleTimer >= camAngleInterval) {
+                camAngleTimer = 0;
+                camAngleIdx = (camAngleIdx + 1) % CAM_ANGLES.length;
+                camTransition = 0;
+            }
+            // Smoothly interpolate toward the current preset
+            camTransition = Math.min(1, camTransition + (dt || 0) * 0.4);
+            var preset = CAM_ANGLES[camAngleIdx];
+            var t = 1 - Math.pow(1 - camTransition, 3); // ease-out cubic
+            camYaw += (preset.yaw - camYaw) * t * 0.03;
+            camPitch += (preset.pitch - camPitch) * t * 0.03;
+            camDist += (preset.dist - camDist) * t * 0.03;
+        }
+
         var tx = 0, ty = 2, tz = 0;
         if (creatures.length) {
             var bi = 0, bf = -Infinity;
@@ -1514,7 +1553,7 @@ var WalkerSim = (function () {
         } else {
             syncBodies();
         }
-        updateCamera();
+        updateCamera(dt);
         renderer.render(scene, camera);
     }
 
@@ -1530,7 +1569,8 @@ var WalkerSim = (function () {
         $('replayBar').style.display = 'none';
         gen = 1; evals = 0; history = { best: [], avg: [] };
         genomes = []; champion = null;
-        var saved = loadChampion();
+        var fame = loadFame();
+        var saved = fame.length ? fame[0] : null;
         if (saved) {
             champion = null;
             $('champ').textContent = 'gen ' + saved.gen + ': ' + fmt(saved.fitness);
