@@ -1648,4 +1648,3 @@ default
 //  only, no static clutter). If a packed sim makes the 1s pulse feel heavy,
 //  set SENSOR_INTERVAL to 2.0 - every threshold scales itself.
 // ============================================================================
-=====
