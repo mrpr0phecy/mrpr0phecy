@@ -1,0 +1,168 @@
+<!-- cards/room-layout-planner.html -->
+<h2 id="roomlay-title" style="margin-top:0;color:var(--accent);">🛋️ Room Layout Planner</h2>
+
+<form aria-describedby="roomlay-desc" onsubmit="event.preventDefault();">
+  <p id="roomlay-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Drag and drop furniture to plan your room layout. Scale-accurate 2D top-down view.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="roomlay-w" style="display:block;margin-bottom:4px;color:var(--accent);font-size:0.85rem;font-weight:600;">Room Width (m)</label>
+      <input id="roomlay-w" type="number" step="0.1" min="1" value="4" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;font-size:0.95rem;box-sizing:border-box;">
+    </div>
+    <div>
+      <label for="roomlay-l" style="display:block;margin-bottom:4px;color:var(--accent);font-size:0.85rem;font-weight:600;">Room Length (m)</label>
+      <input id="roomlay-l" type="number" step="0.1" min="1" value="5" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;font-size:0.95rem;box-sizing:border-box;">
+    </div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <label style="display:block;margin-bottom:6px;color:var(--accent);font-size:0.85rem;font-weight:600;">Add Furniture (click to place)</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button type="button" onclick="roomlayAdd('sofa')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;">🛋️ Sofa</button>
+      <button type="button" onclick="roomlayAdd('bed')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;">🛏️ Bed</button>
+      <button type="button" onclick="roomlayAdd('table')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;">🪑 Table</button>
+      <button type="button" onclick="roomlayAdd('desk')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;">🖥️ Desk</button>
+      <button type="button" onclick="roomlayAdd('wardrobe')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;">🗄️ Wardrobe</button>
+      <button type="button" onclick="roomlayAdd('chair')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;">💺 Chair</button>
+      <button type="button" onclick="roomlayAdd('tv')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;">📺 TV Unit</button>
+      <button type="button" onclick="roomlayAdd('bookshelf')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;">📚 Bookshelf</button>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button type="button" onclick="roomlayRender()" style="padding:10px 16px;border-radius:8px;border:none;background:var(--accent);color:#000;font-weight:700;cursor:pointer;font-size:0.9rem;">📐 Draw Room</button>
+    <button type="button" onclick="roomlayClear()" style="padding:10px 16px;border-radius:8px;border:1px solid rgba(255,77,77,0.3);background:rgba(255,77,77,0.1);color:#ff4d4d;cursor:pointer;font-size:0.9rem;">🗑️ Clear All</button>
+  </div>
+
+  <div id="roomlay-canvas-wrap" style="overflow:auto;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.02);margin-bottom:12px;">
+    <canvas id="roomlay-canvas" width="500" height="400" style="display:block;"></canvas>
+  </div>
+
+  <div id="roomlay-info" style="font-size:0.8rem;color:var(--text-secondary);text-align:center;"></div>
+</form>
+
+<script>
+(function(){
+  var roomlayItems=[];
+  var roomlayFurniture={
+    sofa:{w:2.0,d:0.85,label:'🛋️ Sofa',color:'rgba(45,212,255,0.3)'},
+    bed:{w:1.4,d:2.0,label:'🛏️ Bed',color:'rgba(157,78,221,0.3)'},
+    table:{w:1.2,d:0.8,label:'🪑 Table',color:'rgba(57,255,20,0.3)'},
+    desk:{w:1.2,d:0.6,label:'🖥️ Desk',color:'rgba(255,215,0,0.3)'},
+    wardrobe:{w:1.2,d:0.6,label:'🗄️ Wardrobe',color:'rgba(255,149,0,0.3)'},
+    chair:{w:0.5,d:0.5,label:'💺 Chair',color:'rgba(255,45,85,0.3)'},
+    tv:{w:1.5,d:0.45,label:'📺 TV Unit',color:'rgba(255,77,77,0.3)'},
+    bookshelf:{w:0.8,d:0.3,label:'📚 Bookshelf',color:'rgba(142,68,173,0.3)'}
+  };
+
+  window.roomlayAdd=function(type){
+    var f=roomlayFurniture[type];
+    roomlayItems.push({type:type,x:0.5,y:0.5,w:f.w,d:f.d,label:f.label,color:f.color});
+    roomlayRender();
+  };
+
+  window.roomlayClear=function(){
+    roomlayItems=[];
+    roomlayRender();
+  };
+
+  window.roomlayRender=function(){
+    var rw=parseFloat(document.getElementById('roomlay-w').value);
+    var rl=parseFloat(document.getElementById('roomlay-l').value);
+    var canvas=document.getElementById('roomlay-canvas');
+    var ctx=canvas.getContext('2d');
+    var pad=30;
+    var availW=canvas.width-pad*2;
+    var availH=canvas.height-pad*2;
+    var scale=Math.min(availW/rw,availH/rl);
+    canvas.width=Math.max(rw*scale+pad*2,400);
+    canvas.height=Math.max(rl*scale+pad*2,300);
+    availW=canvas.width-pad*2;
+    availH=canvas.height-pad*2;
+    scale=Math.min(availW/rw,availH/rl);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='rgba(255,255,255,0.02)';
+    ctx.fillRect(pad,pad,rw*scale,rl*scale);
+    ctx.strokeStyle='rgba(45,212,255,0.4)';
+    ctx.lineWidth=2;
+    ctx.strokeRect(pad,pad,rw*scale,rl*scale);
+    ctx.fillStyle='rgba(230,250,255,0.5)';
+    ctx.font='11px system-ui';
+    ctx.textAlign='center';
+    ctx.fillText(rw+'m',pad+rw*scale/2,pad-8);
+    ctx.save();
+    ctx.translate(pad-8,pad+rl*scale/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText(rl+'m',0,0);
+    ctx.restore();
+    for(var i=0;i<roomlayItems.length;i++){
+      var item=roomlayItems[i];
+      var ix=pad+item.x*scale;
+      var iy=pad+item.y*scale;
+      var iw=item.w*scale;
+      var ih=item.d*scale;
+      ctx.fillStyle=item.color;
+      ctx.fillRect(ix,iy,iw,ih);
+      ctx.strokeStyle='rgba(255,255,255,0.3)';
+      ctx.lineWidth=1;
+      ctx.strokeRect(ix,iy,iw,ih);
+      ctx.fillStyle='rgba(230,250,255,0.9)';
+      ctx.font='10px system-ui';
+      ctx.textAlign='center';
+      ctx.fillText(item.label,ix+iw/2,iy+ih/2+4);
+    }
+    var totalArea=rw*rl;
+    var usedArea=0;
+    for(var j=0;j<roomlayItems.length;j++){usedArea+=roomlayItems[j].w*roomlayItems[j].d;}
+    var pct=Math.round(usedArea/totalArea*100);
+    document.getElementById('roomlay-info').innerHTML='📐 Room: '+totalArea.toFixed(1)+' m² | Furniture: '+usedArea.toFixed(1)+' m² ('+pct+'% used) | '+(pct>60?'<span style="color:#ff4d4d;">Crowded!</span>':pct>40?'<span style="color:#ffd700;">Getting full</span>':'<span style="color:#39ff14;">Spacious</span>');
+  };
+
+  (function(){
+    var canvas=document.getElementById('roomlay-canvas');
+    var dragging=false,dragIdx=-1,offX=0,offY=0;
+    var rw,rl,scale,pad=30;
+    function getScale(){
+      rw=parseFloat(document.getElementById('roomlay-w').value);
+      rl=parseFloat(document.getElementById('roomlay-l').value);
+      var availW=canvas.width-pad*2;
+      var availH=canvas.height-pad*2;
+      scale=Math.min(availW/rw,availH/rl);
+    }
+    canvas.addEventListener('mousedown',function(e){
+      getScale();
+      var rect=canvas.getBoundingClientRect();
+      var mx=(e.clientX-rect.left)*(canvas.width/rect.width);
+      var my=(e.clientY-rect.top)*(canvas.height/rect.height);
+      for(var i=roomlayItems.length-1;i>=0;i--){
+        var item=roomlayItems[i];
+        var ix=pad+item.x*scale;
+        var iy=pad+item.y*scale;
+        var iw=item.w*scale;
+        var ih=item.d*scale;
+        if(mx>=ix&&mx<=ix+iw&&my>=iy&&my<=iy+ih){
+          dragging=true;dragIdx=i;offX=mx-ix;offY=my-iy;
+          canvas.style.cursor='grabbing';
+          break;
+        }
+      }
+    });
+    canvas.addEventListener('mousemove',function(e){
+      if(!dragging)return;
+      getScale();
+      var rect=canvas.getBoundingClientRect();
+      var mx=(e.clientX-rect.left)*(canvas.width/rect.width);
+      var my=(e.clientY-rect.top)*(canvas.height/rect.height);
+      roomlayItems[dragIdx].x=Math.max(0,Math.min(rw-roomlayItems[dragIdx].w,(mx-offX-pad)/scale));
+      roomlayItems[dragIdx].y=Math.max(0,Math.min(rl-roomlayItems[dragIdx].d,(my-offY-pad)/scale));
+      roomlayRender();
+    });
+    canvas.addEventListener('mouseup',function(){dragging=false;dragIdx=-1;canvas.style.cursor='default';});
+    canvas.addEventListener('mouseleave',function(){dragging=false;dragIdx=-1;canvas.style.cursor='default';});
+  })();
+
+  roomlayRender();
+})();
+</script>

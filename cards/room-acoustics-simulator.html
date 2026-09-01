@@ -1,0 +1,239 @@
+<!--
+  🔊 The Echo Chamber — HALL OF SOUND. Room acoustics simulator showing
+  how sound bounces, absorbs, and reverberates in enclosed spaces. Watch
+  wavefronts propagate from a source, reflect off walls, and decay.
+  Interactive room dimensions, wall material absorption, and source position.
+  Sabine reverberation time calculated live. Zero network.
+-->
+<style>
+  .ec-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .ec-kicker{display:inline-block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;
+    color:#c9a227;border:1px solid rgba(201,162,39,.35);padding:6px 14px;border-radius:2px;margin-bottom:14px}
+  .ec-title{font-family:var(--serif,'Georgia',serif);font-size:1.9rem;margin:0 0 6px;color:#f4ead0;font-weight:400}
+  .ec-lede{color:var(--muted,#9aa6b6);font-size:.92rem;line-height:1.6;margin:0 0 16px;max-width:780px}
+  .ec-lede b{color:#e3c05a;font-weight:600}
+  .ec-box{border:1px solid rgba(201,162,39,.28);border-radius:10px;padding:16px 18px;margin-bottom:18px;
+    background:linear-gradient(180deg,#070a12,#0a0e18)}
+  .ec-say{font-size:.72rem;color:#8fa3bf;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+  .ec-box h3{font-family:var(--serif,'Georgia',serif);font-size:1.12rem;color:#f4ead0;font-weight:400;margin:0 0 10px}
+  .ec-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .ec-chip{padding:7px 13px;border-radius:999px;font-size:.76rem;font-weight:600;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid rgba(201,162,39,.3);color:#d8cfae;transition:all .15s}
+  .ec-chip:hover,.ec-chip.on{border-color:#e3c05a;color:#e3c05a;background:rgba(201,162,39,.08)}
+  .ec-canvas-wrap{position:relative;border-radius:8px;overflow:hidden;margin:12px 0;
+    border:1px solid rgba(201,162,39,.2)}
+  .ec-canvas-wrap canvas{display:block;width:100%;height:auto}
+  .ec-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .ec-slider label{display:flex;justify-content:space-between;font-size:.72rem;color:#8fa3bf;margin-bottom:3px}
+  .ec-slider label span{color:#e3c05a;font-family:ui-monospace,monospace}
+  .ec-slider input[type=range]{width:100%;accent-color:#e3c05a}
+  .ec-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+  .ec-card{background:rgba(255,255,255,.04);border:1px solid rgba(201,162,39,.2);border-radius:8px;padding:10px 12px;text-align:center}
+  .ec-card .k{font-size:.66rem;color:#8fa3bf;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px}
+  .ec-card .v{font-size:1.1rem;color:#f0e6c8;font-weight:600}
+  .ec-note{font-size:.82rem;color:#c3c9d4;line-height:1.6;border-top:1px solid rgba(201,162,39,.2);padding-top:10px;margin-top:12px}
+  .ec-note b{color:#e3c05a}
+  .ec-btn{padding:10px 20px;border-radius:8px;border:none;background:rgba(201,162,39,0.2);
+    border:1px solid rgba(201,162,39,0.4);color:#e3c05a;font-weight:700;cursor:pointer;font-size:0.9rem;margin:8px 0}
+  .ec-btn:hover{background:rgba(201,162,39,0.3)}
+  @media(max-width:640px){.ec-grid2{grid-template-columns:1fr}}
+</style>
+
+<div class="ec-wrap">
+  <span class="ec-kicker">Hall of Sound · Catalogue 13</span>
+  <h2 id="ec-title" class="ec-title" style="margin-top:0">🔊 The Echo Chamber</h2>
+  <p class="ec-lede">
+    Watch sound bounce around a room in real time. See <b>wavefronts</b> propagate from a source,
+    reflect off walls, and decay as materials absorb their energy. Adjust room size, wall material,
+    and source position to see how <b>reverberation time</b> changes — the key to why some rooms
+    sound brilliant and others sound like a bathroom.
+  </p>
+
+  <div class="ec-box">
+    <div class="ec-say">Exhibit A · The living room</div>
+    <h3>Sound propagation and reverberation</h3>
+    <div class="ec-chips" id="ec-mats"></div>
+    <div class="ec-canvas-wrap"><canvas id="ec-canvas" width="700" height="400"></canvas></div>
+    <button class="ec-btn" onclick="ecPulse()">💥 Clap!</button>
+    <div class="ec-grid2">
+      <div class="ec-slider">
+        <label>Room width <span id="ec-w-val">5.0 m</span></label>
+        <input type="range" id="ec-w" min="2" max="10" value="5" step="0.5">
+      </div>
+      <div class="ec-slider">
+        <label>Room length <span id="ec-l-val">7.0 m</span></label>
+        <input type="range" id="ec-l" min="2" max="12" value="7" step="0.5">
+      </div>
+      <div class="ec-slider">
+        <label>Source X position <span id="ec-sx-val">40%</span></label>
+        <input type="range" id="ec-sx" min="10" max="90" value="40">
+      </div>
+      <div class="ec-slider">
+        <label>Source Y position <span id="ec-sy-val">50%</span></label>
+        <input type="range" id="ec-sy" min="10" max="90" value="50">
+      </div>
+    </div>
+    <div class="ec-cards" id="ec-stats"></div>
+    <div class="ec-note">
+      <b>What you're seeing.</b> Concentric circles are <b>wavefronts</b> expanding from the sound source
+      at 343 m/s (speed of sound). When they hit a wall, they reflect — the reflected wave is dimmer
+      because the wall <b>absorbed</b> some energy. The <b>Sabine equation</b> calculates reverberation
+      time (RT60): how long it takes for sound to decay by 60 dB. A living room should be 0.4–0.6s;
+      a concert hall 1.5–2.0s; an anechoic chamber nearly 0s.
+    </div>
+  </div>
+
+  <div class="ec-box">
+    <div class="ec-say">Exhibit B · Material absorption</div>
+    <h3>How much sound does each surface absorb?</h3>
+    <div class="ec-canvas-wrap"><canvas id="ec-abs" width="700" height="180"></canvas></div>
+    <div class="ec-note">
+      <b>Sound absorption coefficient</b> (α) ranges from 0 (perfect reflector) to 1 (perfect absorber).
+      Concrete reflects 96% of sound. Carpet absorbs 55%. Acoustic foam absorbs 85%.
+      A room's total absorption is the sum of each surface area × its coefficient.
+      More absorption = shorter reverb = clearer speech but "deader" music.
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var waves=[];
+  var ecMat=0;
+  var materials=[
+    {name:'Hard (concrete)',abs:0.04,color:'#888888'},
+    {name:'Painted plaster',abs:0.10,color:'#ccccaa'},
+    {name:'Wood floor',abs:0.15,color:'#c4883c'},
+    {name:'Carpet + curtains',abs:0.55,color:'#886644'},
+    {name:'Acoustic panels',abs:0.85,color:'#445566'},
+    {name:'Anechoic foam',abs:0.95,color:'#333344'}
+  ];
+
+  function ecInitChips(){
+    var html='';
+    for(var i=0;i<materials.length;i++){
+      html+='<div class="ec-chip'+(i===ecMat?' on':'')+'" data-i="'+i+'">'+materials[i].name+'</div>';
+    }
+    document.getElementById('ec-mats').innerHTML=html;
+    document.getElementById('ec-mats').onclick=function(e){
+      var c=e.target.closest('[data-i]');if(!c)return;
+      ecMat=parseInt(c.dataset.i);ecInitChips();
+    };
+  }
+
+  window.ecPulse=function(){
+    var rw=parseFloat(document.getElementById('ec-w').value);
+    var rl=parseFloat(document.getElementById('ec-l').value);
+    var sx=parseInt(document.getElementById('ec-sx').value)/100;
+    var sy=parseInt(document.getElementById('ec-sy').value)/100;
+    waves.push({x:sx,y:sy,r:0,alpha:1.0,bounces:0});
+  };
+
+  function ecStep(){
+    var rw=parseFloat(document.getElementById('ec-w').value);
+    var rl=parseFloat(document.getElementById('ec-l').value);
+    var abs=materials[ecMat].abs;
+    var speed=0.012;
+    for(var i=waves.length-1;i>=0;i--){
+      var w=waves[i];
+      w.r+=speed;
+      if(w.r>0.15){w.alpha-=abs*0.08+0.005;}
+      if(w.alpha<=0){waves.splice(i,1);}
+    }
+    if(waves.length>60)waves.splice(0,waves.length-60);
+  }
+
+  function ecDraw(){
+    var canvas=document.getElementById('ec-canvas');
+    var ctx=canvas.getContext('2d');
+    var W=canvas.width,H=canvas.height;
+    var rw=parseFloat(document.getElementById('ec-w').value);
+    var rl=parseFloat(document.getElementById('ec-l').value);
+    var sx=parseInt(document.getElementById('ec-sx').value)/100;
+    var sy=parseInt(document.getElementById('ec-sy').value)/100;
+    var abs=materials[ecMat].abs;
+
+    ctx.fillStyle='#070a12';ctx.fillRect(0,0,W,H);
+
+    var pad=30;
+    var roomW=W-pad*2;
+    var roomH=H-pad*2;
+    ctx.strokeStyle='rgba(201,162,39,0.4)';ctx.lineWidth=2;
+    ctx.strokeRect(pad,pad,roomW,roomH);
+
+    ctx.fillStyle=materials[ecMat].color+'33';
+    ctx.fillRect(pad+1,pad+1,roomW-2,roomH-2);
+
+    ctx.fillStyle='#8fa3bf';ctx.font='10px system-ui';ctx.textAlign='center';
+    ctx.fillText(rw+'m',pad+roomW/2,pad-8);
+    ctx.save();ctx.translate(pad-8,pad+roomH/2);ctx.rotate(-Math.PI/2);
+    ctx.fillText(rl+'m',0,0);ctx.restore();
+
+    var srcX=pad+sx*roomW;
+    var srcY=pad+sy*roomH;
+    ctx.fillStyle='#e3c05a';ctx.beginPath();ctx.arc(srcX,srcY,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#e3c05a';ctx.font='9px system-ui';ctx.textAlign='center';
+    ctx.fillText('🔊',srcX,srcY-10);
+
+    for(var i=0;i<waves.length;i++){
+      var w=waves[i];
+      var cx=pad+w.x*roomW;
+      var cy=pad+w.y*roomH;
+      var rPx=w.r*Math.max(roomW,roomH);
+      ctx.strokeStyle='rgba(201,162,39,'+Math.max(0,w.alpha*0.6)+')';
+      ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(cx,cy,rPx,0,Math.PI*2);ctx.stroke();
+    }
+
+    var V=rw*rl*2.5;
+    var S=2*(rw*rl+rw*2.5+rl*2.5);
+    var A=S*abs;
+    var RT60=A>0.001?(0.161*V/A):99;
+    var clarity=RT60<0.5?'Excellent':RT60<1.0?'Good':RT60<2.0?'Moderate':'Echoey';
+
+    var cards=document.getElementById('ec-stats');
+    cards.innerHTML=
+      '<div class="ec-card"><span class="k">Room Volume</span><span class="v">'+V.toFixed(0)+' m³</span></div>'+
+      '<div class="ec-card"><span class="k">Total Surface</span><span class="v">'+S.toFixed(0)+' m²</span></div>'+
+      '<div class="ec-card"><span class="k">Absorption (A)</span><span class="v">'+A.toFixed(1)+' m² Sabins</span></div>'+
+      '<div class="ec-card"><span class="k">RT60 Reverb Time</span><span class="v" style="color:'+(RT60>2?'#ff3b3b':RT60>1?'#ffaa00':'#39ff14')+'">'+RT60.toFixed(2)+' s</span></div>'+
+      '<div class="ec-card"><span class="k">Speech Clarity</span><span class="v">'+clarity+'</span></div>';
+  }
+
+  function ecDrawAbs(){
+    var canvas=document.getElementById('ec-abs');
+    var ctx=canvas.getContext('2d');
+    var W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#070a12';ctx.fillRect(0,0,W,H);
+    var barH=20;var gap=6;var startY=15;
+    for(var i=0;i<materials.length;i++){
+      var y=startY+i*(barH+gap);
+      var w=materials[i].abs*(W-200);
+      var isSel=i===ecMat;
+      ctx.fillStyle=isSel?'rgba(201,162,39,0.3)':'rgba(255,255,255,0.04)';
+      ctx.fillRect(130,y,Math.max(w,2),barH);
+      ctx.fillStyle=isSel?'#e3c05a':'#8fa3bf';
+      ctx.font=(isSel?'bold ':'')+'11px system-ui';ctx.textAlign='right';
+      ctx.fillText(materials[i].name,124,y+barH-5);
+      ctx.textAlign='left';ctx.font='10px ui-monospace,monospace';
+      ctx.fillText('α='+materials[i].abs.toFixed(2),130+Math.max(w,2)+6,y+barH-5);
+    }
+    ctx.fillStyle='#8fa3bf';ctx.font='10px system-ui';ctx.textAlign='center';
+    ctx.fillText('← Reflective                    Absorptive →',W/2,H-6);
+  }
+
+  document.getElementById('ec-w').oninput=function(){document.getElementById('ec-w-val').textContent=parseFloat(this.value).toFixed(1)+' m';};
+  document.getElementById('ec-l').oninput=function(){document.getElementById('ec-l-val').textContent=parseFloat(this.value).toFixed(1)+' m';};
+  document.getElementById('ec-sx').oninput=function(){document.getElementById('ec-sx-val').textContent=this.value+'%';};
+  document.getElementById('ec-sy').oninput=function(){document.getElementById('ec-sy-val').textContent=this.value+'%';};
+
+  ecInitChips();
+  ecPulse();
+
+  function ecLoop(){
+    ecStep();ecDraw();ecDrawAbs();
+    requestAnimationFrame(ecLoop);
+  }
+  ecLoop();
+})();
+</script>
