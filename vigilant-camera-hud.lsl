@@ -1,20 +1,22 @@
 // ============================================================================
-//  VIGILANT ACTION CAMERA - CAMERA  v3.0  --  Second Life (LSL)
+//  VIGILANT ACTION CAMERA - CAMERA  v5.0  --  Second Life (LSL)
 //  SCRIPT 2 OF 2. Owns the lens: camera permission, the flowing orbit,
-//  close-up framing, whip cuts, handheld energy, the touch menu and the
-//  silent command channel. The DIRECTOR script
-//  (vigilant-camera-director.lsl) watches the region and tells this script
-//  what to film.
+//  close-up framing, whip cuts, handheld energy, the touch menu, the silent
+//  command channel - and the CHANNEL SCANNER that relays nearby chat spoken
+//  on other channels. The DIRECTOR script (vigilant-camera-director.lsl)
+//  watches the region, tracks each star's "heat" (new arrivals, bursts,
+//  speech, movement) and tells this script what to film; a hot star makes
+//  this script physically tighten the orbit around them.
 //
 //  USE: put BOTH scripts in the ROOT prim of a HUD attachment and wear it,
 //  then touch the HUD for the menu. Two scripts = two separate 64 KB Mono
 //  budgets, which is what finally cures the Stack-Heap Collision that killed
-//  the single-script versions.
+//  the single-script versions (v2.2, v4.0 and v4.1 all died on boot).
 //  Menu: Next / Back / Freeze / On-Off / Lock Focus / Pan / Action / Random /
-//        Debug / Text / Dir / Reset
+//        Scanner / Debug / Text / Reset
 //  Silent commands on channel -123456: NEXT, BACK, FREEZE, ONOFF, FOCUS,
-//        SCAN, TOGGLE_PAN, NEXT_TARGET, TOGGLE_ACTION, TOGGLE_DEBUG,
-//        TOGGLE_TEXT, TOGGLE_DIR, RESET, STATUS
+//        SCAN, STATUS, CHANNELS, TOGGLE_PAN, TOGGLE_DIR, NEXT_TARGET,
+//        TOGGLE_ACTION, TOGGLE_DEBUG, TOGGLE_TEXT, TOGGLE_SCANNER, RESET
 // ============================================================================
 
 // ---------------------------------------------------------------------------
@@ -41,6 +43,10 @@ float CAMERA_DISTANCE_AMPLITUDE = 1.0; // dolly range (+/-, so 4.0 to 6.0 m)
 float DISTANCE_PERIOD       = 12.0;   // one in/out cycle (seconds)
 float FOCUS_HEIGHT          = 1.2;    // where the spotlight beam lands (chest)
 
+// hone in: how the director's heat report tightens the orbit
+float HEAT_CAP              = 15.0;   // heat treated as "max hot" for dolly
+float HEAT_DOLLY            = 0.35;   // fraction the orbit tightens when hot
+
 // action mode extras
 float LEAD_TIME             = 0.35;   // how far ahead of velocity we focus (s)
 float POS_SMOOTH_TAU        = 0.45;   // camera pursuit time constant (s)
@@ -51,6 +57,19 @@ float SHAKE_AMP             = 0.06;   // handheld shake at full sprint (m)
 float EULER_E               = 2.718281828459045; // e (LSL has no llExp();
                                       // smoothing uses llPow(EULER_E, x))
 
+// channel scanner
+integer SPY_MODE            = TRUE;   // relay chat heard on other channels
+list   SPY_EXTRA            = [665, 666, 667, -666];  // always-on channels
+integer SCAN_CH_MIN         = 1;      // positive block: always listened
+integer SCAN_CH_MAX         = 33;
+integer NEG_SCAN_MIN        = -33;    // negative block: listened through a
+integer NEG_SCAN_MAX        = -1;     // rotating window (LSL caps a script
+integer NEG_BATCH           = 17;     // at 65 simultaneous listens; extras +
+float   SWEEP_DWELL         = 10.0;   // positives + one window + the command
+                                      // and dialog channels stay well under)
+integer CHAN_LOG_CAP        = 12;     // channels tracked in the activity log
+integer CHAN_TTL            = 600;    // log entries expire after (seconds)
+
 // toggles and channels
 integer DEBUG_MODE           = FALSE; // chatter from the control room
 integer FLOATING_TEXT        = FALSE; // spotlight name on the HUD prim
@@ -59,7 +78,7 @@ integer HUD_CHANNEL          = -123456;
 
 // ---------------------------------------------------------------------------
 //  Link messages. The camera script sends 210-214, the director sends
-//  220-224. Each script only ever REACTS to the other's numbers, so a
+//  220-225. Each script only ever REACTS to the other's numbers, so a
 //  message echoing back to its own sender (llMessageLinked does that when
 //  the sender is in the target prims) is harmlessly ignored.
 // ---------------------------------------------------------------------------
@@ -73,6 +92,7 @@ integer MSG_CUT_ZOOM   = 221;   // director -> camera: id = target, str = kind
 integer MSG_ZOOMEND    = 222;   // director -> camera: close-up is over
 integer MSG_CLEAR      = 223;   // director -> camera: release the lens
 integer MSG_FLAG_BACK  = 224;   // director -> camera: "LOCK:0"/"HALT:0"
+integer MSG_HEAT       = 225;   // director -> camera: str = target's heat
 
 // ---------------------------------------------------------------------------
 //  Globals
@@ -85,6 +105,7 @@ integer pending_start = FALSE;    // start as soon as permission arrives
 
 key    target_key  = NULL_KEY;    // who is in the spotlight
 string target_kind = "none";      // "avatar" or "object"
+float  target_heat = 0.0;         // the star's heat (drives the hone-in)
 integer is_zoomed  = FALSE;       // holding a static close-up?
 integer lost_notified = FALSE;    // already told the director it vanished?
 
@@ -103,6 +124,13 @@ vector  cam_pos = ZERO_VECTOR;    // smoothed camera position
 vector  cam_focus = ZERO_VECTOR;  // smoothed focus point
 integer cam_init = FALSE;         // has the camera snapped to its first frame?
 
+list    spy_handles;               // scanner: fixed listen handles
+list    neg_handles;               // scanner: rotating window handles
+integer neg_cursor = 0;            // first channel of the current window
+integer last_sweep = 0;            // unix time of the last window rotation
+list    chan_log_ch;               // channel activity log (parallel lists)
+list    chan_log_ct;
+list    chan_log_tm;
 integer listen_hud = 0;            // listen handles
 integer listen_dialog = 0;
 
@@ -140,6 +168,161 @@ refresh_perms()
         cam_perm = FALSE;
         llRequestPermissions(owner, PERMISSION_CONTROL_CAMERA);
     }
+}
+
+// ---------------------------------------------------------------------------
+//  Channel scanner: relay chat spoken on other channels + activity hunting
+// ---------------------------------------------------------------------------
+// LSL has no "listen to every channel" call - a script must hold one listen
+// per channel (65 listens max per script). So: the extras and the positive
+// block are always on, and the negative block rotates through windows every
+// SWEEP_DWELL seconds. Every channel that produces traffic is logged; first
+// traffic is announced, and the CHANNELS command ranks the busiest channels
+// so you can pin your favourites. Typed /N chat is heard within normal say
+// range (20 m); llRegionSay on a scanned channel is heard region-wide. IMs
+// and group chat can never be heard by any script.
+
+// Open the rotating negative window starting at neg_cursor.
+spy_window()
+{
+    integer i;
+    for (i = 0; i < llGetListLength(neg_handles); i++)
+        llListenRemove(llList2Integer(neg_handles, i));
+    neg_handles = [];
+    integer ch = neg_cursor;
+    integer opened = 0;
+    while (ch <= NEG_SCAN_MAX && opened < NEG_BATCH)
+    {
+        if (llListFindList(SPY_EXTRA, [ch]) == -1)   // never double-listen
+        {
+            neg_handles += [llListen(ch, "", NULL_KEY, "")];
+            opened++;
+        }
+        ch++;
+    }
+}
+
+spy_on()
+{
+    if (llGetListLength(spy_handles) > 0)
+        return;                         // fixed block already up
+    integer i;
+    // the always-on specials
+    for (i = 0; i < llGetListLength(SPY_EXTRA); i++)
+        spy_handles += [llListen(llList2Integer(SPY_EXTRA, i), "", NULL_KEY, "")];
+    // the always-on positive block
+    for (i = SCAN_CH_MIN; i <= SCAN_CH_MAX; i++)
+        spy_handles += [llListen(i, "", NULL_KEY, "")];
+    // the first rotating negative window
+    neg_cursor = NEG_SCAN_MIN;
+    spy_window();
+}
+
+// Rotate the negative window (called from the timer, even while idle).
+spy_rotate()
+{
+    neg_cursor += NEG_BATCH;
+    if (neg_cursor > NEG_SCAN_MAX)
+        neg_cursor = NEG_SCAN_MIN;
+    spy_window();
+}
+
+spy_off()
+{
+    integer i;
+    for (i = 0; i < llGetListLength(spy_handles); i++)
+        llListenRemove(llList2Integer(spy_handles, i));
+    spy_handles = [];
+    for (i = 0; i < llGetListLength(neg_handles); i++)
+        llListenRemove(llList2Integer(neg_handles, i));
+    neg_handles = [];
+    neg_cursor = NEG_SCAN_MIN;
+}
+
+// Timer speed: fast while filming, slow sweep tick while only scanning.
+apply_tick_rate()
+{
+    if (cinematic)
+        llSetTimerEvent(UPDATE_INTERVAL);
+    else if (SPY_MODE)
+        llSetTimerEvent(1.0);
+    else
+        llSetTimerEvent(0.0);
+}
+
+scanner_status()
+{
+    string extras = "";
+    integer ei;
+    for (ei = 0; ei < llGetListLength(SPY_EXTRA); ei++)
+    {
+        if (ei > 0)
+            extras += "/";
+        extras += (string)llList2Integer(SPY_EXTRA, ei);
+    }
+    llOwnerSay("Scanner: " + (string)SCAN_CH_MIN + "-" + (string)SCAN_CH_MAX +
+               " + " + extras + " always on; " + (string)NEG_SCAN_MIN + ".." +
+               (string)NEG_SCAN_MAX + " rotating every " +
+               (string)((integer)SWEEP_DWELL) +
+               "s. Say 'CHANNELS' on -123456 for the activity report.");
+}
+
+// Log one message on a channel; announce channels the first time they go live.
+spy_log(integer channel)
+{
+    integer now = llGetUnixTime();
+    integer li = llListFindList(chan_log_ch, [channel]);
+    if (li != -1)
+    {
+        chan_log_ct = llListReplaceList(chan_log_ct,
+                       [llList2Integer(chan_log_ct, li) + 1], li, li);
+        chan_log_tm = llListReplaceList(chan_log_tm, [now], li, li);
+        return;
+    }
+    // new channel: make room if the log is full (drop the stalest entry)
+    if (llGetListLength(chan_log_ch) >= CHAN_LOG_CAP)
+    {
+        integer n = llGetListLength(chan_log_ch);
+        integer worst = 0;
+        integer i;
+        for (i = 1; i < n; i++)
+        {
+            if (llList2Integer(chan_log_tm, i) < llList2Integer(chan_log_tm, worst))
+                worst = i;
+        }
+        chan_log_ch = llDeleteSubList(chan_log_ch, worst, worst);
+        chan_log_ct = llDeleteSubList(chan_log_ct, worst, worst);
+        chan_log_tm = llDeleteSubList(chan_log_tm, worst, worst);
+    }
+    chan_log_ch += [channel];
+    chan_log_ct += [1];
+    chan_log_tm += [now];
+    llOwnerSay("Channel " + (string)channel + " is active.");
+}
+
+// Report the busiest channels seen recently.
+channel_report()
+{
+    integer n = llGetListLength(chan_log_ch);
+    if (n == 0)
+    {
+        llOwnerSay("No channel activity logged yet.");
+        return;
+    }
+    // sort a [count, channel] copy, busiest first
+    list s = [];
+    integer i;
+    for (i = 0; i < n; i++)
+        s += [llList2Integer(chan_log_ct, i), llList2Integer(chan_log_ch, i)];
+    s = llListSort(s, 2, FALSE);
+    integer top = n;
+    if (top > 8)
+        top = 8;
+    string msg = "Active channels:";
+    for (i = 0; i < top; i++)
+        msg += " ch " + (string)llList2Integer(s, i * 2 + 1) +
+               " (x" + (string)llList2Integer(s, i * 2) + ")";
+    llOwnerSay(msg);
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +407,8 @@ update_camera(float dt)
             radius = radius * (1.0 + min_ff(speed / 8.0, 1.0) * 0.5);
             spin = spin + min_ff(speed / 10.0, 1.0) * 0.03 * pan_direction;
         }
+        // hone in: tighten the orbit while the star is running hot
+        radius = radius * (1.0 - min_ff(target_heat / HEAT_CAP, 1.0) * HEAT_DOLLY);
         if (panning)
         {
             pan_angle += spin * dt;
@@ -274,6 +459,7 @@ cut_target(key k, string kind, integer zoom)
     integer changed_target = (k != target_key);
     target_key = k;
     target_kind = kind;
+    target_heat = 0.0;      // the director's next pulse reports real heat
     is_zoomed = zoom;
     lost_notified = FALSE;
     if (changed_target)
@@ -290,6 +476,7 @@ clear_camera()
 {
     target_key = NULL_KEY;
     target_kind = "none";
+    target_heat = 0.0;
     is_zoomed = FALSE;
     lost_notified = FALSE;
     cam_init = FALSE;
@@ -314,7 +501,7 @@ really_start()
     last_dir_switch = 0.0;
     last_tick = llGetTime();
     cam_init = FALSE;
-    llSetTimerEvent(UPDATE_INTERVAL);
+    apply_tick_rate();
     if (llGetAgentInfo(owner) & AGENT_MOUSELOOK)
         llOwnerSay("Note: scripted cameras cannot drive mouselook - leave mouselook (or press Esc) to hand the lens back to the HUD.");
     llMessageLinked(LINK_SET, MSG_POWER, "1", NULL_KEY);   // wake the director
@@ -336,13 +523,14 @@ stop_cinematic()
 {
     cinematic = FALSE;
     pending_start = FALSE;
-    llSetTimerEvent(0.0);
+    apply_tick_rate();          // keep sweeping channels while idle
     if (cam_perm)
         llClearCameraParams();
     if (FLOATING_TEXT)
         llSetText("", <1.0, 1.0, 1.0>, 0.0);
     target_key = NULL_KEY;
     target_kind = "none";
+    target_heat = 0.0;
     is_zoomed = FALSE;
     lost_notified = FALSE;
     cam_init = FALSE;
@@ -371,27 +559,27 @@ show_dialog()
     string act = "On";
     if (!action_mode)
         act = "Off";
+    string spy = "On";
+    if (!SPY_MODE)
+        spy = "Off";
     string dbg = "Off";
     if (DEBUG_MODE)
         dbg = "On";
     string txt = "Off";
     if (FLOATING_TEXT)
         txt = "On";
-    string dir = "CW";
-    if (pan_direction < 0)
-        dir = "CCW";
     string tname = "(none)";
     if (target_key != NULL_KEY)
         tname = get_name(target_key);
     llDialog(owner,
         "VIGILANT ACTION CAMERA\n" +
         "Status: " + status + "  |  Target: " + tname + "\n" +
-        "Pan: " + pan + "  |  Action: " + act + "  |  Dir: " + dir + "\n" +
+        "Pan: " + pan + "  |  Action: " + act + "  |  Scanner: " + spy + "\n" +
         "Debug: " + dbg + "  |  Text: " + txt,
         ["Next", "Back", freeze,
          "On/Off", focus, "Pan",
-         "Action", "Random", "Debug",
-         "Text", "Dir", "Reset"],
+         "Action", "Random", "Scanner",
+         "Debug", "Text", "Reset"],
         DIALOG_CHANNEL);
 }
 
@@ -412,12 +600,16 @@ status_report()
     string dir = "CW";
     if (pan_direction < 0)
         dir = "CCW";
+    string spy = "off";
+    if (SPY_MODE)
+        spy = "on";
     string lk = "no";
     if (focus_locked)
         lk = "yes";
     llOwnerSay("VIGILANT CAM " + mode +
         " | Target: " + t +
         " | Pan: " + pan + " | Action: " + act + " | Dir: " + dir +
+        " | Scanner: " + spy +
         " | Locked: " + lk +
         " | Mem: " + (string)llGetFreeMemory());
 }
@@ -514,6 +706,21 @@ handle_dialog(string cmd)
         halted = FALSE;
         llMessageLinked(LINK_SET, MSG_CMD, "RANDOM", NULL_KEY);
     }
+    else if (cmd == "Scanner")
+    {
+        SPY_MODE = !SPY_MODE;
+        if (SPY_MODE)
+        {
+            spy_on();
+            scanner_status();
+        }
+        else
+        {
+            spy_off();
+            llOwnerSay("Scanner OFF.");
+        }
+        apply_tick_rate();
+    }
     else if (cmd == "Debug")
     {
         DEBUG_MODE = !DEBUG_MODE;
@@ -541,17 +748,6 @@ handle_dialog(string cmd)
         {
             llOwnerSay("Floating text OFF.");
             llSetText("", <1.0, 1.0, 1.0>, 0.0);
-        }
-    }
-    else if (cmd == "Dir")
-    {
-        pan_direction = -pan_direction;
-        if (DEBUG_MODE)
-        {
-            if (pan_direction > 0)
-                llOwnerSay("Panning clockwise.");
-            else
-                llOwnerSay("Panning anticlockwise.");
         }
     }
     else if (cmd == "Reset")
@@ -637,6 +833,27 @@ handle_hud(string message)
             llOwnerSay("Debug mode OFF: only key messages will show.");
         return;
     }
+    if (message == "CHANNELS")
+    {
+        channel_report();
+        return;
+    }
+    if (message == "TOGGLE_SCANNER")
+    {
+        SPY_MODE = !SPY_MODE;
+        if (SPY_MODE)
+        {
+            spy_on();
+            scanner_status();
+        }
+        else
+        {
+            spy_off();
+            llOwnerSay("Scanner OFF.");
+        }
+        apply_tick_rate();
+        return;
+    }
     if (message == "STATUS")
     {
         status_report();
@@ -665,12 +882,19 @@ default
         if (listen_dialog)
             llListenRemove(listen_dialog);
         listen_dialog = llListen(DIALOG_CHANNEL, "", owner, "");
-        llSetTimerEvent(0.0);
         if (!FLOATING_TEXT)
             llSetText("", <1.0, 1.0, 1.0>, 0.0);
+        spy_off();                  // never stack duplicate listens
+        if (SPY_MODE)
+            spy_on();
+        last_sweep = llGetUnixTime();
+        apply_tick_rate();
         refresh_perms();
-        llOwnerSay("Vigilant Action Camera v3.0 loaded! Free memory: " + (string)llGetFreeMemory() +
+        llOwnerSay("Vigilant Action Camera v5.0 loaded! Free memory: " +
+                   (string)llGetFreeMemory() +
                    " bytes. Touch the HUD for controls - 'On/Off' starts filming.");
+        if (SPY_MODE)
+            scanner_status();
         if (llGetInventoryNumber(INVENTORY_SCRIPT) < 2)
             llOwnerSay("WARNING: the director script (vigilant-camera-director.lsl) should be in this prim too - without it nothing gets filmed!");
     }
@@ -686,11 +910,17 @@ default
         if (listen_dialog)
             llListenRemove(listen_dialog);
         listen_dialog = llListen(DIALOG_CHANNEL, "", owner, "");
+        spy_off();
+        if (SPY_MODE)
+            spy_on();
+        last_sweep = llGetUnixTime();
+        apply_tick_rate();
         // tracking data from a previous life is stale
         if (cinematic)
         {
             target_key = NULL_KEY;
             target_kind = "none";
+            target_heat = 0.0;
             is_zoomed = FALSE;
             lost_notified = FALSE;
             cam_init = FALSE;
@@ -710,9 +940,10 @@ default
             // (the director script powers itself down on its own)
             cinematic = FALSE;
             pending_start = FALSE;
-            llSetTimerEvent(0.0);
+            apply_tick_rate();   // keep the scanner sweeping if it was on
             target_key = NULL_KEY;
             target_kind = "none";
+            target_heat = 0.0;
             is_zoomed = FALSE;
             lost_notified = FALSE;
         }
@@ -787,11 +1018,18 @@ default
                 show_dialog();      // keep the menu up, machinima-style
             return;
         }
+
+        // ---- channel scanner: any other channel we hold a listen on ----
+        if (SPY_MODE)
+        {
+            spy_log(channel);
+            llOwnerSay("[ch " + (string)channel + "] " + name + ": " + message);
+        }
     }
 
     link_message(integer sender_num, integer num, string str, key id)
     {
-        // only director messages (220-224) are handled here; our own
+        // only director messages (220-225) are handled here; our own
         // 210-214 messages echo back to us and are ignored on purpose
         if (num == MSG_CUT_ORBIT)
         {
@@ -816,10 +1054,24 @@ default
             else if (str == "HALT:0")
                 halted = FALSE;
         }
+        else if (num == MSG_HEAT)
+        {
+            if (id == target_key)
+                target_heat = (float)str;
+        }
     }
 
     timer()
     {
+        integer now = llGetUnixTime();
+
+        // ---- channel scanner sweep (runs even while the lens is parked) ----
+        if (SPY_MODE && now - last_sweep >= (integer)SWEEP_DWELL)
+        {
+            last_sweep = now;
+            spy_rotate();
+        }
+
         if (!cinematic)
             return;
 
@@ -856,9 +1108,20 @@ default
 // ============================================================================
 //  NOTES: This is the CAMERA half of a two-script team. The director script
 //  (vigilant-camera-director.lsl) must be in the same prim - it watches the
-//  region, picks the stars and tells this script where to look. They talk
-//  over link messages with disjoint numbers (we send 210-214, handle
-//  220-224) so a message echoing back to its sender is always ignored.
+//  region, tracks each star's heat and tells this script where to look. They
+//  talk over link messages with disjoint numbers (we send 210-214, handle
+//  220-225) so a message echoing back to its sender is always ignored.
+//  Heat: the director reports the star's heat (arrivals +18, bursts +15,
+//  speech +10, movement +8, halving every pulse) and this script tightens
+//  the orbit up to 35% (HEAT_DOLLY) while the star runs hot.
+//  Channel scanner: LSL cannot listen to "every" channel - a script holds
+//  one listen per channel, 65 max. Channels 1-33 and 665/666/667/-666 are
+//  always on; -33..-1 rotates in windows of 17 every 10 s (tune NEG_BATCH /
+//  SWEEP_DWELL). Every channel with traffic is logged and announced the
+//  first time it goes live; say 'CHANNELS' on -123456 for a busiest-channels
+//  report and pin favourites in SPY_EXTRA. Typed /N chat is heard within
+//  normal say range (~20 m); llRegionSay on a scanned channel is heard
+//  region-wide; IMs, group chat and object link messages can never be heard.
 //  Scripted cameras cannot run in mouselook and are silently overridden
 //  while you hold Alt-cam (free camera) - press Esc to hand the lens back
 //  to the HUD. LSL has no llMin()/llMax()/llExp(); min_ff() and

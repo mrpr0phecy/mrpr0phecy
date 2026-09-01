@@ -1,4 +1,13 @@
 // ============================================================================
+//  *** RETIRED - DO NOT USE ***
+//  This single-script edition dies of Stack-Heap Collision at boot (Mono's
+//  64 KB budget cannot hold camera + director + scanner in one script).
+//  Use the two-script v5.0 team instead: vigilant-camera-director.lsl +
+//  vigilant-camera-hud.lsl (both in the ROOT prim of the same HUD - it still
+//  feels like one device). This file is kept for reference only.
+// ============================================================================
+
+// ============================================================================
 //  VIGILANT ACTION CAMERA HUD  v4.1  --  Second Life (LSL)
 //  All-in-one edition. A sim-wide action camera: orbits stars with flowing
 //  cinematic moves and cuts to whatever is happening - new arrivals, nearby

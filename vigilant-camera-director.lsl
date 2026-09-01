@@ -1,18 +1,24 @@
 // ============================================================================
-//  VIGILANT ACTION CAMERA - DIRECTOR  v3.0  --  Second Life (LSL)
+//  VIGILANT ACTION CAMERA - DIRECTOR  v5.0  --  Second Life (LSL)
 //  SCRIPT 1 OF 2. The director watches the whole region and decides what to
 //  film: new arrivals, speech, movers, action bursts, newly worn items and
-//  fast rezzed props. It hands every decision to the CAMERA script
-//  (vigilant-camera-hud.lsl) which flies the lens.
+//  fast rezzed props. Every star carries a HEAT value (new arrivals +18,
+//  action bursts +15, speech +10, movement +8, halving every pulse): hot
+//  stars win the spotlight, stay on the books, and their heat is reported
+//  to the CAMERA script once a second so the lens physically tightens its
+//  orbit around them. The channel scanner and the CHANNELS report live in
+//  the camera script (vigilant-camera-hud.lsl).
 //
 //  USE: put BOTH scripts in the ROOT prim of a HUD attachment and wear it.
 //  Two scripts = two separate 64 KB Mono budgets; that is what finally cures
-//  the Stack-Heap Collision that killed the single-script versions.
+//  the Stack-Heap Collision that killed the single-script versions (v2.2,
+//  v4.0 and v4.1 all died on boot).
 //  This script needs no permissions - the camera script takes camera control.
 //
 //  Silent commands on channel -123456 (the ones this script answers):
 //        SCAN, STATUS, NEXT, BACK, NEXT_TARGET, FREEZE, FOCUS, ONOFF,
-//        TOGGLE_DEBUG, RESET (the motion toggles live in the camera script)
+//        TOGGLE_DEBUG, RESET (the motion toggles, CHANNELS and the scanner
+//        live in the camera script)
 //  All tunables are in the constants block below and every threshold
 //  auto-scales with SENSOR_INTERVAL.
 // ============================================================================
@@ -35,6 +41,16 @@ float MIN_TARGET_DWELL       = 3.0;   // min seconds on a target before an
 float SPEED_INTERRUPT        = 3.0;   // m/s that counts as action (run speed+)
                                       // (teleport-style jumps are caught via
                                       //  distance covered per pulse instead)
+
+// new-activity heat (hone in on fresh action)
+float HEAT_NEW               = 18.0;  // a star just arrived on the region
+float HEAT_BURST             = 15.0;  // just switched into an action anim
+float HEAT_SPEECH            = 10.0;  // spoke within the last 10 s
+float HEAT_MOVE              = 8.0;   // currently a mover / traveller
+float HEAT_DECAY             = 0.5;   // heat halves every pulse
+                                      // (HEAT_CAP / HEAT_DOLLY - how the lens
+                                      //  reacts to heat - live in the camera
+                                      //  script with the orbit constants)
 
 // close-up timing (the framing distances live in the camera script)
 float ZOOM_DURATION          = 3.0;   // static close-up hold (seconds)
@@ -67,7 +83,7 @@ integer PRIORITY_NEW    = 3;   // a brand new arrival (headline news)
 
 // ---------------------------------------------------------------------------
 //  Link messages. The camera script sends 210-214, the director sends
-//  220-224. Each script only ever REACTS to the other's numbers, so a
+//  220-225. Each script only ever REACTS to the other's numbers, so a
 //  message echoing back to its own sender (llMessageLinked does that when
 //  the sender is in the target prims) is harmlessly ignored.
 // ---------------------------------------------------------------------------
@@ -81,6 +97,7 @@ integer MSG_CUT_ZOOM   = 221;   // director -> camera: id = target, str = kind
 integer MSG_ZOOMEND    = 222;   // director -> camera: close-up is over
 integer MSG_CLEAR      = 223;   // director -> camera: release the lens
 integer MSG_FLAG_BACK  = 224;   // director -> camera: "LOCK:0"/"HALT:0"
+integer MSG_HEAT       = 225;   // director -> camera: str = target's heat
 
 // ---------------------------------------------------------------------------
 //  Globals
@@ -93,6 +110,7 @@ list av_keys;                     // tracked stars (parallel lists)
 list av_pos;
 list av_score;
 list av_anim;                     // last known animation state per star
+list av_heat;                     // new-activity heat per tracked star
 list ob_keys;                     // tracked moving objects (parallel lists)
 list ob_pos;
 
@@ -356,7 +374,7 @@ cycle_target(integer dir)
 power_on()
 {
     cinematic = TRUE;
-    av_keys = []; av_pos = []; av_score = []; av_anim = [];
+    av_keys = []; av_pos = []; av_score = []; av_anim = []; av_heat = [];
     ob_keys = []; ob_pos = [];
     last_agents = []; last_pos = [];
     has_scanned = FALSE;
@@ -392,7 +410,7 @@ power_off()
     halted = FALSE;
     last_star_count = -1;
     target_boring = FALSE;
-    av_keys = []; av_pos = []; av_score = []; av_anim = [];
+    av_keys = []; av_pos = []; av_score = []; av_anim = []; av_heat = [];
     ob_keys = []; ob_pos = [];
     last_agents = []; last_pos = [];
     has_scanned = FALSE;
@@ -567,7 +585,7 @@ integer check_outfit(integer idx, integer now)
 }
 
 // ---------------------------------------------------------------------------
-//  The region pulse: roster, scores, interrupts, outfits
+//  The region pulse: roster, scores, heat, interrupts, outfits
 // ---------------------------------------------------------------------------
 
 scan_avatars()
@@ -579,13 +597,14 @@ scan_avatars()
     // previous pulse state (by key, so nothing depends on list order)
     list prev_tracked_keys = av_keys;
     list prev_tracked_anim = av_anim;
+    list prev_tracked_heat = av_heat;
     list prev_agents = last_agents;
     list prev_pos = last_pos;
 
     // distance reference: near the director means near the action
     vector base = llList2Vector(llGetObjectDetails(owner, [OBJECT_POS]), 0);
 
-    // candidates as one strided list: [rank, key, pos, score] per agent
+    // candidates as one strided list: [rank, key, pos, score, speed] per agent
     list cand = [];
     list pos_list = [];      // strided [key, pos] of this pulse's scans
 
@@ -671,7 +690,7 @@ scan_avatars()
                 }
 
                 // tracking rank: action pulls an avatar in from range
-                cand += [llVecDist(pos, base) - min_ff(score, 15.0) * SCORE_REACH, a, pos, score];
+                cand += [llVecDist(pos, base) - min_ff(score, 15.0) * SCORE_REACH, a, pos, score, speed];
                 pos_list += [a, pos];
             }
         }
@@ -685,17 +704,19 @@ scan_avatars()
     av_pos = [];
     av_score = [];
     av_anim = [];
-    cand = llListSort(cand, 4, TRUE);
-    integer ncand = llGetListLength(cand) / 4;
+    av_heat = [];
+    cand = llListSort(cand, 5, TRUE);
+    integer ncand = llGetListLength(cand) / 5;
     integer kept = ncand;
     if (kept > MAX_AVATARS)
         kept = MAX_AVATARS;
     for (i = 0; i < kept; i++)
     {
-        av_keys += [llList2Key(cand, i * 4 + 1)];
-        av_pos += [llList2Vector(cand, i * 4 + 2)];
-        av_score += [llList2Float(cand, i * 4 + 3)];
+        av_keys += [llList2Key(cand, i * 5 + 1)];
+        av_pos += [llList2Vector(cand, i * 5 + 2)];
+        av_score += [llList2Float(cand, i * 5 + 3)];
         av_anim += [""];
+        av_heat += [0.0];
     }
 
     // ---- enrich the cast (only the tracked stars get the expensive calls) ----
@@ -705,6 +726,34 @@ scan_avatars()
         integer info = llGetAgentInfo(a);
         string anim = llGetAnimation(a);
         float score = llList2Float(av_score, i);
+        float hspeed = llList2Float(cand, i * 5 + 4);
+        vector hpos = llList2Vector(cand, i * 5 + 2);
+
+        // ---- heat: carried over, halved, fed by fresh activity ----
+        float heat = 0.0;
+        integer hci = llListFindList(prev_tracked_keys, [a]);
+        if (hci != -1)
+            heat = llList2Float(prev_tracked_heat, hci) * HEAT_DECAY;
+        if (has_scanned && llListFindList(prev_agents, [a]) == -1)
+            heat += HEAT_NEW;            // brand new on the region: hottest
+        if (hspeed >= SPEED_INTERRUPT)
+        {
+            heat += HEAT_MOVE;           // a mover
+        }
+        else
+        {
+            integer hli = llListFindList(prev_pos, [a]);
+            if (hli != -1)
+            {
+                vector hlast = llList2Vector(prev_pos, hli + 1);
+                if (hlast != ZERO_VECTOR && llVecDist(hpos, hlast) >= travel_need)
+                    heat += HEAT_MOVE;   // teleport-ish traveller
+            }
+        }
+        integer hchi = llListFindList(chat_keys, [a]);
+        if (hchi != -1 && now - llList2Integer(chat_time, hchi) <= 10)
+            heat += HEAT_SPEECH;         // spoke recently
+
         if (is_action_anim(anim))
             score += 3.0;
         else if (anim == "Sitting" || anim == "Sitting on Ground")
@@ -719,8 +768,7 @@ scan_avatars()
             score += 1.0;
         if (info & AGENT_AWAY)
             score *= 0.05;     // AFK is not action
-        av_score = llListReplaceList(av_score, [score], i, i);
-        av_anim = llListReplaceList(av_anim, [anim], i, i);
+        score += heat;         // hot stars pull the camera in and hold it
 
         // burst: a tracked star just switched into an action animation
         if (a != target_key && PRIORITY_ACTION > cut_pri)
@@ -735,9 +783,13 @@ scan_avatars()
                     cut_key = a;
                     cut_speed = 999.0;   // bursts outrank plain movers
                     cut_kind = "burst";
+                    heat += HEAT_BURST;
                 }
             }
         }
+        av_score = llListReplaceList(av_score, [score], i, i);
+        av_anim = llListReplaceList(av_anim, [anim], i, i);
+        av_heat = llListReplaceList(av_heat, [heat], i, i);
     }
 
     // ---- is the star resting? (drives the early 8 s rotation) ----
@@ -745,6 +797,12 @@ scan_avatars()
     integer tci = llListFindList(cand, [target_key]);
     if (tci != -1 && llList2Float(cand, tci + 2) < BORING_SCORE)
         target_boring = TRUE;
+
+    // ---- feed the lens: the star's heat, once a pulse (hone-in dolly) ----
+    integer thi = llListFindList(av_keys, [target_key]);
+    if (thi != -1)
+        llMessageLinked(LINK_SET, MSG_HEAT,
+                        (string)llList2Float(av_heat, thi), target_key);
 
     // ---- outfits: the star every pulse, plus a rotating sample ----
     integer n = llGetListLength(av_keys);
@@ -871,11 +929,15 @@ status_report()
     string boring = "active";
     if (target_boring)
         boring = "resting";
+    string ht = "0";
+    integer hti = llListFindList(av_keys, [target_key]);
+    if (hti != -1)
+        ht = (string)llList2Integer(av_heat, hti);
     llOwnerSay("VIGILANT DIRECTOR " + mode +
         " | Scan: " + (string)((integer)SENSOR_INTERVAL) + "s" +
         " | Stars: " + (string)llGetListLength(av_keys) +
         " | Objects: " + (string)llGetListLength(ob_keys) +
-        " | Target: " + t + " (" + boring + ")" +
+        " | Target: " + t + " (" + boring + ", heat " + ht + ")" +
         " | Mem: " + (string)llGetFreeMemory());
 }
 
@@ -898,7 +960,8 @@ default
             listen_chat = 0;
         }
         llSetTimerEvent(0.0);
-        llOwnerSay("Vigilant director online. Free memory: " + (string)llGetFreeMemory() + " bytes.");
+        llOwnerSay("Vigilant director v5.0 online. Free memory: " +
+                   (string)llGetFreeMemory() + " bytes.");
         if (llGetInventoryNumber(INVENTORY_SCRIPT) < 2)
             llOwnerSay("WARNING: the camera script (vigilant-camera-hud.lsl) should be in this prim too - without it nothing gets filmed!");
     }
@@ -915,7 +978,7 @@ default
         if (cinematic)
         {
             clear_target();
-            av_keys = []; av_pos = []; av_score = []; av_anim = [];
+            av_keys = []; av_pos = []; av_score = []; av_anim = []; av_heat = [];
             ob_keys = []; ob_pos = [];
             last_pos = [];
             dedup_keys = []; dedup_time = [];
@@ -950,6 +1013,7 @@ default
             av_pos = [];
             av_score = [];
             av_anim = [];
+            av_heat = [];
             ob_keys = [];
             ob_pos = [];
             last_pos = [];
@@ -968,7 +1032,7 @@ default
     link_message(integer sender_num, integer num, string str, key id)
     {
         // only camera-script messages (210-214) are handled here; our own
-        // 220-224 messages echo back to us and are ignored on purpose
+        // 220-225 messages echo back to us and are ignored on purpose
         if (num == MSG_POWER)
         {
             if (str == "1")
@@ -1271,9 +1335,14 @@ default
 // ============================================================================
 //  NOTES: This is the DIRECTOR half of a two-script team. The camera script
 //  (vigilant-camera-hud.lsl) must be in the same prim - it owns the lens,
-//  the touch menu and camera permission. They talk over link messages with
-//  disjoint numbers (we send 220-224, handle 210-214) so a message echoing
-//  back to its sender is always ignored.
+//  the touch menu, the channel scanner and camera permission. They talk over
+//  link messages with disjoint numbers (we send 220-225, handle 210-214) so
+//  a message echoing back to its sender is always ignored.
+//  Heat: arrivals (+18), action bursts (+15), speech (+10) and movement
+//  (+8) heat a star up; heat halves every pulse, pulls hot stars onto the
+//  books, biases the spotlight rotation toward them, and is reported to the
+//  camera script once a second so the orbit tightens around them (STATUS
+//  shows the current star's heat).
 //  llGetAttachedList() (Dec 2021+ servers) finds worn items - sensors never
 //  see attachments. The sensor is ACTIVE-only on purpose (moving props only,
 //  no static clutter). If a packed sim makes the 1s pulse feel heavy, set
@@ -1281,7 +1350,7 @@ default
 //  LSL has no llMin()/llMax()/llExp(); min_ff() and llPow(EULER_E, x) (in the
 //  camera script) are the stand-ins.
 //  Memory: each script gets its own 64 KB Mono budget, which is why the team
-//  exists - the single-script versions kept dying of Stack-Heap Collision.
-//  If the load-time "Free memory" line ever drops under ~10000, lower
-//  MAX_SCAN_AGENTS / MAX_AVATARS.
+//  exists - the single-script versions (v2.2, v4.0, v4.1) kept dying of
+//  Stack-Heap Collision, including at boot. If the load-time "Free memory"
+//  line ever drops under ~10000, lower MAX_SCAN_AGENTS / MAX_AVATARS.
 // ============================================================================
