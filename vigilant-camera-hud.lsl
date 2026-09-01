@@ -1,5 +1,5 @@
 // ============================================================================
-//  VIGILANT ACTION CAMERA HUD  v2.1.2  --  Second Life (LSL)
+//  VIGILANT ACTION CAMERA HUD  v2.2  --  Second Life (LSL)
 //  A sim-wide action camera: orbits stars with flowing cinematic moves and
 //  cuts to whatever is happening - new arrivals, nearby speech, fast movers,
 //  bursts into action, newly worn items, fast rezzed props (3s close-ups).
@@ -23,11 +23,12 @@ float SENSOR_INTERVAL       = 1.0;    // region scan pulse (seconds).
                                       // Raise to 2.0 in very busy regions if
                                       // you want to spend less script time.
 float UPDATE_INTERVAL       = 0.1;    // camera update tick (seconds)
-integer MAX_SCAN_AGENTS     = 50;     // agents fully scanned per pulse
-                                      // (script-time guard for packed sims)
+integer MAX_SCAN_AGENTS     = 24;     // agents fully scanned per pulse
+                                      // (script-time and memory guard for
+                                      // packed sims)
 float SENSOR_RANGE          = 96.0;   // object sensor radius (96 m is the max)
-integer MAX_AVATARS         = 16;     // stars kept on the books
-integer MAX_OBJECTS         = 32;     // moving objects tracked (sensor cap)
+integer MAX_AVATARS         = 8;      // stars kept on the books
+integer MAX_OBJECTS         = 12;     // moving objects tracked
 
 // the director
 float FOCUS_SWITCH_INTERVAL = 20.0;   // linger on an active star (seconds)
@@ -75,13 +76,14 @@ float SCORE_REACH           = 6.0;    // metres of tracking rank that one
                                       // far-away action onto the books)
 
 // bookkeeping
-integer ATTACH_CHECKS_PER_SCAN = 4;   // outfits diffed per pulse (the star
+integer ATTACH_CHECKS_PER_SCAN = 2;   // outfits diffed per pulse (the star
                                       // is always checked first, on top)
 float NEW_OBJECT_RADIUS      = 12.0;  // "action prop" must be this near a
                                       // star or the director
 float KNOWN_ATTACH_TTL       = 180.0; // remember worn items for (seconds)
+integer KNOWN_ATTACH_CAP     = 48;    // hard cap on remembered worn items
 float DEDUP_TTL              = 12.0;  // don't re-cut to the same thing for (s)
-integer MEMORY_FLOOR         = 6000;  // free bytes before caches are shed
+integer MEMORY_FLOOR         = 15000; // free bytes before caches are shed
 
 // toggles and channels
 integer DEBUG_MODE           = FALSE; // chatter from the control room
@@ -113,7 +115,7 @@ list ob_keys;                     // tracked moving objects (parallel lists)
 list ob_pos;
 
 list last_agents;                 // FULL agent roster from the last pulse
-list last_pos;                    // parallel positions (ZERO = unknown)
+list last_pos;                    // strided [key, pos] of scanned agents
 integer has_scanned = FALSE;      // completed at least one pulse?
 
 list known_att;                   // attachment keys we have already seen
@@ -492,10 +494,11 @@ prune_lists(integer now)
     }
     known_att = k2;
     known_att_time = t2;
-    while (llGetListLength(known_att) > 128)   // hard cap, oldest first
+    integer kn = llGetListLength(known_att);
+    if (kn > KNOWN_ATTACH_CAP)          // hard cap, oldest first, one cut
     {
-        known_att = llDeleteSubList(known_att, 0, 0);
-        known_att_time = llDeleteSubList(known_att_time, 0, 0);
+        known_att = llDeleteSubList(known_att, 0, kn - KNOWN_ATTACH_CAP - 1);
+        known_att_time = llDeleteSubList(known_att_time, 0, kn - KNOWN_ATTACH_CAP - 1);
     }
 
     // recent-cut dedup
@@ -529,10 +532,11 @@ prune_lists(integer now)
     chat_time = t2;
 }
 
-// Shed caches before the 64 KB script budget is threatened.
+// Shed caches before the 64 KB Mono budget is threatened.
 memory_guard()
 {
-    if (llGetFreeMemory() < MEMORY_FLOOR)
+    integer free_mem = llGetFreeMemory();
+    if (free_mem < MEMORY_FLOOR)
     {
         integer half = llGetListLength(known_att) / 2;
         if (half > 0)
@@ -542,9 +546,18 @@ memory_guard()
         }
         if (!mem_warned)
         {
-            llOwnerSay("Low script memory - trimming caches to stay vigilant.");
+            llOwnerSay("Low script memory (" + (string)free_mem +
+                       " bytes free) - trimming caches to stay vigilant.");
             mem_warned = TRUE;
         }
+    }
+    if (free_mem < 9000)
+    {
+        // critical: drop the outfit bookkeeping and chatter too
+        outfit_keys = [];
+        outfit_count = [];
+        chat_keys = [];
+        chat_time = [];
     }
 }
 
@@ -644,13 +657,9 @@ scan_avatars()
     if (!cam_init)
         base = llList2Vector(llGetObjectDetails(owner, [OBJECT_POS]), 0);
 
-    // candidates: one cheap position+velocity lookup per agent
-    list cand_keys = [];
-    list cand_pos = [];
-    list cand_score = [];
-    list cand_rank = [];
-    list roster = [];        // FULL agent roster for the next pulse
-    list roster_pos = [];    // parallel positions (ZERO = not scanned)
+    // candidates as one strided list: [rank, key, pos, score] per agent
+    list cand = [];
+    list pos_list = [];      // strided [key, pos] of this pulse's scans
 
     // best interrupt candidate found this pulse (reason built only if used)
     key cut_key = NULL_KEY;
@@ -668,7 +677,6 @@ scan_avatars()
     for (i = 0; i < na; i++)
     {
         key a = llList2Key(agents, i);
-        roster += [a];
         vector pos = ZERO_VECTOR;
         if (a != owner && scanned < MAX_SCAN_AGENTS)
         {
@@ -709,10 +717,10 @@ scan_avatars()
                         }
                         else
                         {
-                            integer li = llListFindList(prev_agents, [a]);
+                            integer li = llListFindList(prev_pos, [a]);
                             if (li != -1)
                             {
-                                vector lastp = llList2Vector(prev_pos, li);
+                                vector lastp = llList2Vector(prev_pos, li + 1);
                                 if (lastp != ZERO_VECTOR &&
                                     llVecDist(pos, lastp) >= travel_need)
                                     mover = TRUE;
@@ -735,56 +743,34 @@ scan_avatars()
                 }
 
                 // tracking rank: action pulls an avatar in from range
-                cand_keys += [a];
-                cand_pos += [pos];
-                cand_score += [score];
-                cand_rank += [llVecDist(pos, base) - min_ff(score, 15.0) * SCORE_REACH];
+                cand += [llVecDist(pos, base) - min_ff(score, 15.0) * SCORE_REACH, a, pos, score];
+                pos_list += [a, pos];
             }
         }
-        roster_pos += [pos];
     }
-    last_agents = roster;
-    last_pos = roster_pos;
+    last_agents = agents;      // the roster IS the scan result, no copy
+    last_pos = pos_list;
     has_scanned = TRUE;
 
-    // ---- pick the tracked cast: best rank first, sentinel-mark as used ----
+    // ---- pick the tracked cast: one strided sort, best rank first ----
     av_keys = [];
     av_pos = [];
     av_score = [];
     av_anim = [];
-    integer ncand = llGetListLength(cand_keys);
-    integer kept = 0;
-    integer done_sel = FALSE;
-    while (kept < MAX_AVATARS && kept < ncand && !done_sel)
+    cand = llListSort(cand, 4, TRUE);
+    integer ncand = llGetListLength(cand) / 4;
+    integer kept = ncand;
+    if (kept > MAX_AVATARS)
+        kept = MAX_AVATARS;
+    for (i = 0; i < kept; i++)
     {
-        integer best = -1;
-        float bestr = 0.0;
-        integer j;
-        for (j = 0; j < ncand; j++)
-        {
-            float rj = llList2Float(cand_rank, j);
-            if (rj < 99998.0 && (best == -1 || rj < bestr))
-            {
-                bestr = rj;
-                best = j;
-            }
-        }
-        if (best == -1)
-        {
-            done_sel = TRUE;
-        }
-        else
-        {
-            av_keys += [llList2Key(cand_keys, best)];
-            av_pos += [llList2Vector(cand_pos, best)];
-            av_score += [llList2Float(cand_score, best)];
-            av_anim += [""];
-            cand_rank = llListReplaceList(cand_rank, [99999.0], best, best);
-            kept++;
-        }
+        av_keys += [llList2Key(cand, i * 4 + 1)];
+        av_pos += [llList2Vector(cand, i * 4 + 2)];
+        av_score += [llList2Float(cand, i * 4 + 3)];
+        av_anim += [""];
     }
 
-    // ---- enrich the cast (only 16 agents get the expensive calls) ----
+    // ---- enrich the cast (only the tracked stars get the expensive calls) ----
     for (i = 0; i < kept; i++)
     {
         key a = llList2Key(av_keys, i);
@@ -828,8 +814,8 @@ scan_avatars()
 
     // ---- is the star resting? (drives the early 8 s rotation) ----
     target_boring = FALSE;
-    integer tci = llListFindList(cand_keys, [target_key]);
-    if (tci != -1 && llList2Float(cand_score, tci) < BORING_SCORE)
+    integer tci = llListFindList(cand, [target_key]);
+    if (tci != -1 && llList2Float(cand, tci + 2) < BORING_SCORE)
         target_boring = TRUE;
 
     // ---- outfits: the star every pulse, plus a rotating sample ----
@@ -1292,7 +1278,8 @@ default
         if (!FLOATING_TEXT)
             llSetText("", <1.0, 1.0, 1.0>, 0.0);
         refresh_perms();
-        llOwnerSay("Vigilant Action Camera v2.1.2 loaded! Touch the HUD for controls - 'On/Off' starts filming.");
+        llOwnerSay("Vigilant Action Camera v2.2 loaded! Free memory: " + (string)llGetFreeMemory() +
+                   " bytes. Touch the HUD for controls - 'On/Off' starts filming.");
     }
 
     on_rez(integer start_param)
@@ -1666,4 +1653,7 @@ default
 //  the stand-ins. Scripted cameras cannot run in mouselook and are silently
 //  overridden while you hold Alt-cam (free camera) - press Esc to hand the
 //  lens back to the HUD.
+//  Memory: budgets are tuned to fit one 64 KB Mono script. If the load-time
+//  "Free memory" line ever drops under ~10000, lower MAX_SCAN_AGENTS, or ask
+//  for the two-script (director + camera) split - each script gets 64 KB.
 // ============================================================================
