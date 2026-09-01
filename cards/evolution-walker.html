@@ -1,5 +1,5 @@
 <h2>Evolution AI Walker</h2>
-<p class="description">Watch AI creatures evolve to walk better over time! Creatures improve through natural selection.</p>
+<p class="description">Watch AI creatures evolve to walk, survive disasters, find food, and adapt! 10 terrain types, random events, food chains, achievements, and deep genetics. Creatures improve through natural selection.</p>
 
 <form class="tool-form">
   <!-- Control Panel -->
@@ -12,6 +12,7 @@
           <option value="12" selected>12 Creatures (Balanced)</option>
           <option value="16">16 Creatures (Detailed)</option>
           <option value="20">20 Creatures (Advanced)</option>
+          <option value="30">30 Creatures (Overcrowded)</option>
         </select>
       </div>
       
@@ -22,6 +23,12 @@
           <option value="hills">Gentle Hills</option>
           <option value="mountains">Steep Mountains</option>
           <option value="obstacles">With Obstacles</option>
+          <option value="swamp">Swamp (sticky mud)</option>
+          <option value="ice">Ice (slippery)</option>
+          <option value="desert">Desert (sand dunes)</option>
+          <option value="volcanic">Volcanic (lava gaps)</option>
+          <option value="space">Low Gravity Moon</option>
+          <option value="stairs">Infinite Stairs</option>
         </select>
       </div>
     </div>
@@ -29,18 +36,63 @@
     <div class="field">
       <label for="evo-mutation-slider">Mutation Rate</label>
       <div class="slider-group">
-        <input type="range" id="evo-mutation-slider" min="1" max="30" value="15" class="slider" />
+        <input type="range" id="evo-mutation-slider" min="1" max="50" value="15" class="slider" />
         <div class="slider-info">
           <span id="evo-mutation-value">15%</span>
-          <span class="helper">Higher = more diversity</span>
+          <span class="helper">Higher = more diversity &amp; chaos</span>
         </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="evo-events">Random Events</label>
+        <select id="evo-events" class="input">
+          <option value="off">Off</option>
+          <option value="rare" selected>Rare (calm)</option>
+          <option value="moderate">Moderate (chaotic)</option>
+          <option value="extreme">Extreme (mayhem)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="evo-gravity">Gravity</label>
+        <select id="evo-gravity" class="input">
+          <option value="0.3">Moon (0.3×)</option>
+          <option value="0.5">Mars (0.5×)</option>
+          <option value="1.0" selected>Earth (1×)</option>
+          <option value="1.5">Jupiter (1.5×)</option>
+          <option value="2.0">Super Heavy (2×)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="evo-food">Food System</label>
+        <select id="evo-food" class="input">
+          <option value="off">Off (infinite energy)</option>
+          <option value="sparse">Sparse (survival challenge)</option>
+          <option value="moderate" selected>Moderate (balanced)</option>
+          <option value="abundant">Abundant (focus on walking)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="evo-bodytype">Starting Body Type</label>
+        <select id="evo-bodytype" class="input">
+          <option value="random" selected>Random (natural selection decides)</option>
+          <option value="biped">Biped (2 legs)</option>
+          <option value="quadruped">Quadruped (4 legs)</option>
+          <option value="hexapod">Hexapod (6 legs)</option>
+          <option value="snake">Snake (no legs)</option>
+          <option value="spider">Spider (8 legs)</option>
+        </select>
       </div>
     </div>
   </div>
 
   <div class="actions">
-    <button type="button" class="start-btn" onclick="startEvolution()">Start Evolution</button>
-    <button type="button" class="pause-btn" onclick="pauseEvolution()" disabled>Pause</button>
+    <button type="button" class="start-btn" id="evo-start-btn" onclick="startEvolution()">Start Evolution</button>
+    <button type="button" class="pause-btn" id="evo-pause-btn" onclick="pauseEvolution()" disabled>Pause</button>
     <button type="button" class="reset-btn" onclick="resetEvolution()">Reset</button>
   </div>
 </form>
@@ -57,8 +109,6 @@
         <div class="progress-bar" id="evo-progress-bar"></div>
       </div>
     </div>
-    
-    <!-- Canvas will be inserted here -->
   </div>
   
   <!-- Overlay Stats -->
@@ -143,9 +193,25 @@
   <!-- Leaderboard -->
   <div class="leaderboard-section" id="evo-leaderboard">
     <h3 class="section-title">Current Leaders</h3>
-    <div class="leaderboard-list" id="evo-leaderboard-list">
-      <!-- Will be populated by JavaScript -->
-    </div>
+    <div class="leaderboard-list" id="evo-leaderboard-list"></div>
+  </div>
+
+  <!-- Event Log -->
+  <div class="event-log-section" id="evo-event-log-section">
+    <h3 class="section-title">⚡ Event Log</h3>
+    <div class="event-log" id="evo-event-log"></div>
+  </div>
+
+  <!-- Achievements -->
+  <div class="achievements-section" id="evo-achievements-section">
+    <h3 class="section-title">🎖️ Achievements <span id="evo-ach-count" style="font-size:0.7em;color:#9ccbe0;">0/20</span></h3>
+    <div class="achievements-grid" id="evo-achievements-grid"></div>
+  </div>
+
+  <!-- Family Tree -->
+  <div class="family-tree-section" id="evo-family-section">
+    <h3 class="section-title">🌳 Family Tree (Top Lineage)</h3>
+    <div class="family-tree" id="evo-family-tree"></div>
   </div>
 
   <!-- Advanced Controls -->
@@ -160,6 +226,11 @@
       <span class="control-text">Auto-Breed: ON</span>
     </button>
     
+    <button class="control-btn" onclick="triggerEvent()" id="evo-trigger-event">
+      <span class="control-icon">🌋</span>
+      <span class="control-text">Trigger Event</span>
+    </button>
+
     <button class="control-btn" onclick="saveEvolution()" id="evo-save-btn">
       <span class="control-icon">💾</span>
       <span class="control-text">Save State</span>
@@ -174,896 +245,1090 @@
     <div class="info-grid">
       <div class="info-card">
         <h4>Natural Selection</h4>
-        <p>Creatures with better walking ability survive and reproduce.</p>
+        <p>Creatures that walk farther, eat more, and survive events pass their genes to the next generation.</p>
       </div>
       
       <div class="info-card">
         <h4>Neural Networks</h4>
-        <p>Each creature has a brain that controls its movements.</p>
+        <p>Each creature has a brain that controls its leg timing, turning, and jumping based on terrain sensors.</p>
       </div>
       
       <div class="info-card">
         <h4>Genetic Mutation</h4>
-        <p>Random mutations introduce new traits and behaviors.</p>
+        <p>Random mutations introduce new body shapes, leg counts, armor, tails, and behavioral traits.</p>
       </div>
       
       <div class="info-card">
-        <h4>Crossover</h4>
-        <p>Successful traits are combined in offspring.</p>
+        <h4>Environmental Pressure</h4>
+        <p>Meteor showers, floods, predators, and earthquakes force creatures to adapt or perish.</p>
       </div>
     </div>
     
     <div class="info-tips">
       <h4>Tips for Better Evolution</h4>
       <ul>
-        <li>Higher mutation rates increase diversity</li>
-        <li>More creatures = faster evolution</li>
-        <li>Challenging terrain drives adaptation</li>
-        <li>Let it run longer for better results</li>
+        <li>Higher mutation rates increase diversity but may break good designs</li>
+        <li>More creatures = faster evolution but lower FPS</li>
+        <li>Challenging terrain + events drives rapid adaptation</li>
+        <li>Try "extreme" events for the most dramatic evolution</li>
+        <li>Food system forces creatures to balance walking vs eating</li>
+        <li>Click "Trigger Event" to manually unleash chaos</li>
+        <li>Achievements track your most impressive evolutionary runs</li>
       </ul>
     </div>
   </div>
 </details>
 
 <script>
-/* Evolution AI Walker - Enhanced Version */
+/* Evolution AI Walker - Major Enhancement */
+(function() {
+'use strict';
+
+/* ===== ACHIEVEMENT DEFINITIONS ===== */
+const ACHIEVEMENTS = [
+  { id:'first_steps', name:'First Steps', icon:'👶', desc:'A creature walks 10m', check: s => s.bestDist >= 10 },
+  { id:'marathon', name:'Marathon Runner', icon:'🏃', desc:'A creature walks 100m', check: s => s.bestDist >= 100 },
+  { id:'ultra', name:'Ultra Marathon', icon:'🏅', desc:'A creature walks 500m', check: s => s.bestDist >= 500 },
+  { id:'kilometer', name:'Kilometer Club', icon:'🎯', desc:'A creature walks 1000m', check: s => s.bestDist >= 1000 },
+  { id:'gen10', name:'Generation 10', icon:'🔟', desc:'Reach generation 10', check: s => s.gen >= 10 },
+  { id:'gen50', name:'Generation 50', icon:'🧓', desc:'Reach generation 50', check: s => s.gen >= 50 },
+  { id:'gen100', name:'Century', icon:'💯', desc:'Reach generation 100', check: s => s.gen >= 100 },
+  { id:'survivor', name:'Survivor', icon:'🛡️', desc:'5 creatures survive an event', check: s => s.eventSurvivors >= 5 },
+  { id:'extinction', name:'Extinction Event', icon:'💀', desc:'All creatures die in one event', check: s => s.eventSurvivors === 0 && s.eventFired },
+  { id:'bounce_back', name:'Bounce Back', icon:'🔄', desc:'Population recovers from 2 or fewer alive', check: s => s.recoveredFromLow },
+  { id:'speed_demon', name:'Speed Demon', icon:'⚡', desc:'A creature reaches 5m/s', check: s => s.maxSpeed >= 5 },
+  { id:'long_life', name:'Methuselah', icon:'🕰️', desc:'A creature lives 120 seconds', check: s => s.maxAge >= 120 },
+  { id:'big_family', name:'Big Family', icon:'👨‍👩‍👧‍👦', desc:'One creature has 5+ offspring', check: s => s.maxOffspring >= 5 },
+  { id:'food_hunter', name:'Food Hunter', icon:'🍎', desc:'Creatures eat 50 food items total', check: s => s.totalFoodEaten >= 50 },
+  { id:'predator_kill', name:'Predator Prey', icon:'🐺', desc:'A predator eats a creature', check: s => s.predatorKills >= 1 },
+  { id:'meteor_dodge', name:'Meteor Dodger', icon:'☄️', desc:'5 creatures survive a meteor shower', check: s => s.meteorSurvivors >= 5 },
+  { id:'diverse', name:'Diversity', icon:'🌈', desc:'Population has 3+ different body types', check: s => s.bodyTypeDiversity >= 3 },
+  { id:'army', name:'Army of Walkers', icon:'⚔️', desc:'20+ creatures alive at once', check: s => s.aliveCount >= 20 },
+  { id:'ten_minutes', name:'Dedicated', icon:'⏰', desc:'Run for 10 minutes total', check: s => s.totalTime >= 600 },
+  { id:'all_terrains', name:'Explorer', icon:'🗺️', desc:'Try 5 different terrains', check: s => s.terrainsUsed >= 5 },
+];
+
+/* ===== EVENT DEFINITIONS ===== */
+const EVENT_TYPES = [
+  { id:'meteor_shower', name:'☄️ Meteor Shower', desc:'Raining fire! Creatures in the blast zone take damage.', duration: 8, color: '#ff4444' },
+  { id:'food_rain', name:'🍎 Food Rain', desc:'Food everywhere! Extra food spawns across the terrain.', duration: 10, color: '#39ff14' },
+  { id:'earthquake', name:'🌋 Earthquake', desc:'The ground shakes! Creatures are thrown around.', duration: 6, color: '#ff8800' },
+  { id:'flood', name:'🌊 Flood', desc:'Water rises from below! Only tall creatures survive.', duration: 12, color: '#4488ff' },
+  { id:'wind_storm', name:'🌪️ Wind Storm', desc:'Strong winds push creatures sideways!', duration: 8, color: '#aaaaff' },
+  { id:'predator', name:'🐺 Predator', desc:'A predator hunts the slowest creature!', duration: 5, color: '#ff0066' },
+  { id:'ice_age', name:'❄️ Ice Age', desc:'Everything freezes! Creatures move slower.', duration: 15, color: '#aaddff' },
+  { id:'heat_wave', name:'🔥 Heat Wave', desc:'Scorching heat drains energy faster!', duration: 12, color: '#ff6600' },
+  { id:'gravity_surge', name:'⬇️ Gravity Surge', desc:'Gravity doubles temporarily!', duration: 8, color: '#8844ff' },
+  { id:'mutation_burst', name:'🧬 Mutation Burst', desc:'Hyperactive DNA! All breeding produces extra mutations.', duration: 10, color: '#ff44ff' },
+];
+
+/* ===== GLOBAL STATE ===== */
+let walker = null;
+
+/* ===== EVOLUTION WALKER CLASS ===== */
 class EvolutionWalker {
   constructor() {
-    // Core Three.js objects
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-    
-    // Game state
     this.creatures = [];
+    this.foodItems = [];
+    this.eventEffects = [];
     this.isRunning = false;
     this.isInitialized = false;
     this.generation = 1;
     this.mutations = 0;
     this.startTime = 0;
-    
-    // Performance tracking
     this.fps = 0;
     this.frameCount = 0;
     this.lastFpsUpdate = 0;
     this.lastFrameTime = 0;
-    
-    // Statistics
     this.bestFitnessHistory = [];
     this.averageFitnessHistory = [];
     this.allTimeBest = 0;
     this.permanentBonus = 0;
     this.totalTimeSpent = 0;
-    
-    // Configuration
+    this.eventLog = [];
+    this.unlockedAchievements = new Set();
+    this.terrainsUsed = new Set();
+    this.familyTree = {};
+    this.totalFoodEaten = 0;
+    this.predatorKills = 0;
+    this.meteorSurvivors = 0;
+    this.eventSurvivors = 0;
+    this.eventFired = false;
+    this.recoveredFromLow = false;
+    this.wasLowPopulation = false;
+    this.lastEventTime = 0;
+    this.activeEvent = null;
+    this.activeEventTimer = 0;
+    this.foodSpawnTimer = 0;
+    this.predatorMesh = null;
+    this.floodWaterMesh = null;
+    this.windParticles = null;
+    this.meteorMeshes = [];
+    this.ground = null;
+    this.obstacles = [];
+    this.lights = [];
     this.config = {
       POPULATION_SIZE: 12,
       MUTATION_RATE: 0.15,
       SPEED_MULTIPLIER: 1.0,
       AUTO_BREED: true,
-      TERRAIN_TYPE: 'flat'
+      TERRAIN_TYPE: 'flat',
+      EVENT_FREQUENCY: 'rare',
+      GRAVITY: 1.0,
+      FOOD_SYSTEM: 'moderate',
+      BODY_TYPE: 'random'
     };
-    
-    // Three.js objects
-    this.ground = null;
-    this.obstacles = [];
-    this.lights = [];
-    
-    // Bind methods
     this.start = this.start.bind(this);
     this.pause = this.pause.bind(this);
     this.reset = this.reset.bind(this);
     this.animate = this.animate.bind(this);
   }
-  
-  // Initialize the simulation
+
   async initialize() {
     try {
-      // Show loading state
       this.showLoading(true);
-      
-      // Load Three.js if not available
-      if (typeof THREE === 'undefined') {
-        await this.loadThreeJS();
-      }
-      
-      // Create scene
+      if (typeof THREE === 'undefined') await this.loadThreeJS();
       this.scene = new THREE.Scene();
       this.scene.fog = new THREE.Fog(0x0b0f1a, 50, 300);
-      
-      // Setup camera
       this.setupCamera();
-      
-      // Setup renderer
       this.setupRenderer();
-      
-      // Setup lighting
       this.setupLighting();
-      
-      // Create terrain
       this.createTerrain();
-      
-      // Create initial population
       this.createPopulation();
-      
-      // Setup event listeners
       this.setupEventListeners();
-      
-      // Load saved data
       this.loadSavedData();
-      
-      // Mark as initialized
+      this.initAchievements();
       this.isInitialized = true;
-      
-      // Hide loading state
       this.showLoading(false);
-      
-      // Start animation loop
       this.animate();
-      
-      console.log('Evolution Walker initialized successfully');
       return true;
-      
     } catch (error) {
       console.error('Initialization failed:', error);
-      this.showError('Failed to initialize 3D engine');
+      this.showError('Failed to initialize 3D engine: ' + error.message);
       return false;
     }
   }
-  
+
   setupCamera() {
     const container = document.getElementById('evo-canvas-container');
     const aspect = container.clientWidth / container.clientHeight;
-    
     this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
     this.camera.position.set(0, 25, 40);
     this.camera.lookAt(0, 0, 0);
   }
-  
+
   setupRenderer() {
     const container = document.getElementById('evo-canvas-container');
-    
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      powerPreference: "high-performance"
-    });
-    
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    
-    // Add canvas to container
     container.appendChild(this.renderer.domElement);
   }
-  
+
   setupLighting() {
-    // Ambient light
     const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
     this.scene.add(ambientLight);
     this.lights.push(ambientLight);
-    
-    // Directional light (sun)
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(30, 50, 30);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.camera.far = 200;
-    directionalLight.shadow.mapSize.width = 1024;
-    directionalLight.shadow.mapSize.height = 1024;
-    this.scene.add(directionalLight);
-    this.lights.push(directionalLight);
-    
-    // Accent light
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(30, 50, 30);
+    dirLight.castShadow = true;
+    dirLight.shadow.camera.far = 200;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    this.scene.add(dirLight);
+    this.lights.push(dirLight);
     const accentLight = new THREE.PointLight(0x2dd4ff, 0.3, 100);
     accentLight.position.set(0, 20, 0);
     this.scene.add(accentLight);
     this.lights.push(accentLight);
   }
-  
+
   createTerrain() {
-    // Remove old terrain
-    if (this.ground) {
-      this.scene.remove(this.ground);
-    }
-    this.obstacles.forEach(obstacle => this.scene.remove(obstacle));
+    if (this.ground) this.scene.remove(this.ground);
+    this.obstacles.forEach(o => this.scene.remove(o));
     this.obstacles = [];
-    
-    const terrainType = this.config.TERRAIN_TYPE;
-    
-    // Create ground geometry
-    const groundGeometry = new THREE.PlaneGeometry(1000, 200, 50, 20);
-    
-    // Modify geometry based on terrain type
-    const vertices = groundGeometry.attributes.position.array;
-    
-    for (let i = 0; i < vertices.length; i += 3) {
-      const x = vertices[i];
-      const z = vertices[i + 2];
-      
-      switch(terrainType) {
-        case 'hills':
-          vertices[i + 1] = Math.sin(x * 0.02) * Math.cos(z * 0.02) * 5;
-          break;
-        case 'mountains':
-          vertices[i + 1] = Math.sin(x * 0.01) * Math.cos(z * 0.01) * 10;
-          vertices[i + 1] += Math.sin(x * 0.05) * 2;
-          break;
-        case 'obstacles':
-          vertices[i + 1] = 0;
-          // Add obstacles later
-          break;
-        default: // flat
-          vertices[i + 1] = 0;
+    const t = this.config.TERRAIN_TYPE;
+    this.terrainsUsed.add(t);
+    const geo = new THREE.PlaneGeometry(1000, 200, 80, 30);
+    const verts = geo.attributes.position.array;
+    for (let i = 0; i < verts.length; i += 3) {
+      const x = verts[i], z = verts[i + 2];
+      let y = 0;
+      switch(t) {
+        case 'hills': y = Math.sin(x * 0.02) * Math.cos(z * 0.02) * 5; break;
+        case 'mountains': y = Math.sin(x * 0.01) * Math.cos(z * 0.01) * 10 + Math.sin(x * 0.05) * 2; break;
+        case 'swamp': y = Math.sin(x * 0.03) * 0.5 + Math.cos(z * 0.05) * 0.3; break;
+        case 'ice': y = Math.sin(x * 0.015) * 1.5; break;
+        case 'desert': y = Math.sin(x * 0.008) * Math.cos(z * 0.012) * 6 + Math.sin(x * 0.04) * 1.5; break;
+        case 'volcanic': y = Math.abs(Math.sin(x * 0.02)) * 4 + Math.sin(x * 0.06) * 1.5; break;
+        case 'space': y = Math.sin(x * 0.01) * 2 + Math.cos(z * 0.015) * 1.5; break;
+        case 'stairs': y = Math.floor(x / 4) * 1.5; break;
+        default: y = 0;
       }
+      verts[i + 1] = y;
     }
-    
-    groundGeometry.attributes.position.needsUpdate = true;
-    groundGeometry.computeVertexNormals();
-    
-    // Create ground material
-    const groundMaterial = new THREE.MeshLambertMaterial({
-      color: terrainType === 'mountains' ? 0x5a5a5a : 0x2a5c2a,
-      emissive: terrainType === 'mountains' ? 0x2a2a2a : 0x0a2a0a,
-      emissiveIntensity: 0.1
-    });
-    
-    // Create ground mesh
-    this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    geo.attributes.position.needsUpdate = true;
+    geo.computeVertexNormals();
+    const colors = {
+      flat: 0x2a5c2a, hills: 0x3a6c3a, mountains: 0x5a5a5a, obstacles: 0x2a5c2a,
+      swamp: 0x2a4a2a, ice: 0xccddff, desert: 0xc2a645, volcanic: 0x3a2020,
+      space: 0x888888, stairs: 0x666666
+    };
+    const emissives = {
+      flat: 0x0a2a0a, hills: 0x0a2a0a, mountains: 0x2a2a2a, obstacles: 0x0a2a0a,
+      swamp: 0x0a1a0a, ice: 0x445566, desert: 0x3a2a10, volcanic: 0x4a1010,
+      space: 0x222222, stairs: 0x222222
+    };
+    const mat = new THREE.MeshLambertMaterial({ color: colors[t] || 0x2a5c2a, emissive: emissives[t] || 0x0a2a0a, emissiveIntensity: 0.1 });
+    this.ground = new THREE.Mesh(geo, mat);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
-    
-    // Add obstacles if selected
-    if (terrainType === 'obstacles') {
-      for (let i = 0; i < 15; i++) {
-        const height = Math.random() * 4 + 1;
-        const geometry = new THREE.CylinderGeometry(1, 1, height, 8);
-        const material = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
-        const obstacle = new THREE.Mesh(geometry, material);
-        
-        obstacle.position.x = Math.random() * 200 - 100;
-        obstacle.position.z = Math.random() * 100 - 50;
-        obstacle.position.y = height / 2;
-        obstacle.castShadow = true;
-        obstacle.receiveShadow = true;
-        
-        this.scene.add(obstacle);
-        this.obstacles.push(obstacle);
+    // Add obstacles
+    if (t === 'obstacles') {
+      for (let i = 0; i < 20; i++) {
+        const h = Math.random() * 4 + 1;
+        const g = new THREE.CylinderGeometry(1, 1, h, 8);
+        const m = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+        const o = new THREE.Mesh(g, m);
+        o.position.set(Math.random() * 200 - 100, h / 2, Math.random() * 100 - 50);
+        o.castShadow = true;
+        this.scene.add(o);
+        this.obstacles.push(o);
       }
     }
+    // Volcanic lava glow
+    if (t === 'volcanic') {
+      for (let i = 0; i < 8; i++) {
+        const lg = new THREE.CircleGeometry(3 + Math.random() * 4, 16);
+        const lm = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.6 });
+        const lava = new THREE.Mesh(lg, lm);
+        lava.rotation.x = -Math.PI / 2;
+        lava.position.set(Math.random() * 180 - 90, 0.05, Math.random() * 80 - 40);
+        this.scene.add(lava);
+        this.obstacles.push(lava);
+      }
+    }
+    // Update scene fog for terrain
+    const fogColors = {
+      flat: 0x0b0f1a, hills: 0x0b1a0f, mountains: 0x1a1a2a, swamp: 0x0a1a0a,
+      ice: 0x1a2a3a, desert: 0x2a1a0a, volcanic: 0x1a0a0a, space: 0x000011, stairs: 0x0b0f1a
+    };
+    this.scene.fog = new THREE.Fog(fogColors[t] || 0x0b0f1a, 50, 300);
+    this.scene.background = new THREE.Color(fogColors[t] || 0x0b0f1a);
   }
-  
+
   createPopulation() {
-    // Clear existing creatures
-    this.creatures.forEach(creature => creature.dispose());
+    this.creatures.forEach(c => c.dispose());
     this.creatures = [];
-    
-    // Create new creatures
+    this.foodItems.forEach(f => { if (f.mesh) this.scene.remove(f.mesh); });
+    this.foodItems = [];
     for (let i = 0; i < this.config.POPULATION_SIZE; i++) {
       const z = (i - this.config.POPULATION_SIZE / 2) * 3;
-      const creature = new Creature(0, z);
+      const creature = new Creature(0, z, null, null, this.config.BODY_TYPE, this.config.MUTATION_RATE);
       this.creatures.push(creature);
       this.scene.add(creature.group);
+      this.familyTree[creature.id] = { parents: [], offspring: 0, gen: 1 };
     }
   }
-  
+
   start() {
-    if (!this.isInitialized) {
-      this.initialize();
-      return;
-    }
-    
+    if (!this.isInitialized) { this.initialize(); return; }
     this.isRunning = true;
     this.startTime = Date.now();
-    
-    // Update UI
     document.getElementById('evo-start-btn').disabled = true;
     document.getElementById('evo-pause-btn').disabled = false;
     document.querySelector('.stats-overlay').style.display = 'block';
     document.querySelector('.performance-indicator').style.display = 'block';
-    
-    // Update button text
-    const startBtn = document.querySelector('.start-btn');
-    startBtn.innerHTML = 'Evolving...';
-    startBtn.classList.add('active');
+    const btn = document.querySelector('.start-btn');
+    btn.innerHTML = 'Evolving...';
+    btn.classList.add('active');
   }
-  
+
   pause() {
     this.isRunning = false;
-    
-    // Update UI
     document.getElementById('evo-start-btn').disabled = false;
     document.getElementById('evo-pause-btn').disabled = true;
-    
-    const startBtn = document.querySelector('.start-btn');
-    startBtn.innerHTML = 'Resume Evolution';
-    startBtn.classList.remove('active');
+    const btn = document.querySelector('.start-btn');
+    btn.innerHTML = 'Resume Evolution';
+    btn.classList.remove('active');
   }
-  
+
   reset() {
     if (confirm('Reset evolution? This will clear all current creatures.')) {
       this.pause();
-      
-      // Reset state
       this.generation = 1;
       this.mutations = 0;
       this.bestFitnessHistory = [];
       this.averageFitnessHistory = [];
-      
-      // Clear creatures
-      this.creatures.forEach(creature => creature.dispose());
+      this.eventLog = [];
+      this.unlockedAchievements = new Set();
+      this.familyTree = {};
+      this.totalFoodEaten = 0;
+      this.predatorKills = 0;
+      this.meteorSurvivors = 0;
+      this.activeEvent = null;
+      this.activeEventTimer = 0;
+      // Clean up event meshes
+      this.eventEffects.forEach(m => this.scene.remove(m));
+      this.eventEffects = [];
+      if (this.predatorMesh) { this.scene.remove(this.predatorMesh); this.predatorMesh = null; }
+      if (this.floodWaterMesh) { this.scene.remove(this.floodWaterMesh); this.floodWaterMesh = null; }
+      this.meteorMeshes.forEach(m => this.scene.remove(m));
+      this.meteorMeshes = [];
+      this.creatures.forEach(c => c.dispose());
       this.creatures = [];
-      
-      // Create new population
+      this.foodItems.forEach(f => { if (f.mesh) this.scene.remove(f.mesh); });
+      this.foodItems = [];
       this.createPopulation();
-      
-      // Reset camera
       this.camera.position.set(0, 25, 40);
       this.camera.lookAt(0, 0, 0);
-      
-      // Update UI
       this.updateUI();
       this.updateChart();
-      
-      // Hide overlay
+      this.initAchievements();
       document.querySelector('.stats-overlay').style.display = 'none';
       document.querySelector('.leaderboard-section').style.display = 'none';
+      document.getElementById('evo-event-log').innerHTML = '';
     }
   }
-  
+
   animate() {
     requestAnimationFrame(this.animate);
-    
-    // Calculate delta time
     const now = performance.now() / 1000;
     const dt = this.lastFrameTime ? Math.min(now - this.lastFrameTime, 0.1) : 0.016;
     this.lastFrameTime = now;
-    
-    // Update FPS
     this.updateFPS(now, dt);
-    
     if (this.isRunning) {
+      const speedDt = dt * this.config.SPEED_MULTIPLIER;
       // Update creatures
-      this.creatures.forEach(creature => {
-        if (creature.alive) {
-          creature.update(dt * this.config.SPEED_MULTIPLIER);
-        }
-      });
-      
+      this.creatures.forEach(c => { if (c.alive) c.update(speedDt, this.getTerrainFriction(), this.config.GRAVITY, this.activeEvent); });
+      // Update food
+      this.updateFood(speedDt);
+      // Update events
+      this.updateEvents(speedDt);
       // Update evolution
-      this.updateEvolution(dt);
-      
+      this.updateEvolution(speedDt);
       // Update camera
       this.updateCamera();
-      
-      // Update UI periodically
-      if (this.frameCount % 30 === 0) {
-        this.updateUI();
-      }
+      // Update event visual effects
+      this.updateEventVisuals(speedDt);
+      // UI update
+      if (this.frameCount % 30 === 0) this.updateUI();
+      // Check achievements
+      if (this.frameCount % 60 === 0) this.checkAchievements();
     }
-    
-    // Render scene
-    if (this.renderer && this.scene && this.camera) {
-      this.renderer.render(this.scene, this.camera);
-    }
+    if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
   }
-  
-  updateFPS(now, dt) {
+
+  getTerrainFriction() {
+    const t = this.config.TERRAIN_TYPE;
+    if (t === 'swamp') return 0.5;
+    if (t === 'ice') return 0.15;
+    if (t === 'desert') return 0.7;
+    if (t === 'volcanic') return 0.8;
+    if (t === 'space') return 0.3;
+    return 0.95;
+  }
+
+  updateFPS(now) {
     this.frameCount++;
-    
     if (now - this.lastFpsUpdate >= 1) {
       this.fps = Math.round(this.frameCount / (now - this.lastFpsUpdate));
       this.frameCount = 0;
       this.lastFpsUpdate = now;
-      
-      const fpsElement = document.getElementById('evo-fps-counter');
-      if (fpsElement) {
-        fpsElement.textContent = this.fps;
-        
-        // Color code based on FPS
-        if (this.fps < 30) {
-          fpsElement.style.color = '#ff4444';
-        } else if (this.fps < 50) {
-          fpsElement.style.color = '#ffa500';
-        } else {
-          fpsElement.style.color = '#39ff14';
+      const el = document.getElementById('evo-fps-counter');
+      if (el) {
+        el.textContent = this.fps;
+        el.style.color = this.fps < 30 ? '#ff4444' : this.fps < 50 ? '#ffa500' : '#39ff14';
+      }
+    }
+  }
+
+  updateEvolution(dt) {
+    const alive = this.creatures.filter(c => c.alive);
+    this.totalTimeSpent += dt;
+    this.updatePermanentBonus();
+    // Auto-breed
+    if (alive.length >= 2 && this.config.AUTO_BREED && Math.random() < 0.03) this.breedCreatures(alive);
+    // Track low population recovery
+    if (alive.length <= 2) this.wasLowPopulation = true;
+    if (this.wasLowPopulation && alive.length >= 6) { this.recoveredFromLow = true; this.wasLowPopulation = false; }
+    // Update all-time best
+    const currentBest = Math.max(...this.creatures.map(c => c.fitness || 0));
+    if (currentBest > this.allTimeBest) { this.allTimeBest = currentBest; this.saveData(); }
+  }
+
+  breedCreatures(alive) {
+    const sorted = [...alive].sort((a, b) => b.fitness - a.fitness);
+    const parents = sorted.slice(0, Math.min(3, sorted.length));
+    if (parents.length < 2) return;
+    const p1 = parents[0];
+    const p2 = parents[Math.floor(Math.random() * (parents.length - 1)) + 1];
+    const cx = (p1.position.x + p2.position.x) / 2;
+    const cz = (p1.position.z + p2.position.z) / 2 + (Math.random() - 0.5) * 5;
+    const mutRate = this.activeEvent === 'mutation_burst' ? this.config.MUTATION_RATE * 3 : this.config.MUTATION_RATE;
+    const child = new Creature(cx, cz, p1, p2, 'random', mutRate);
+    this.scene.add(child.group);
+    this.creatures.push(child);
+    this.mutations++;
+    this.generation++;
+    // Family tree
+    this.familyTree[child.id] = { parents: [p1.id, p2.id], offspring: 0, gen: Math.max((this.familyTree[p1.id]?.gen||1),(this.familyTree[p2.id]?.gen||1))+1 };
+    if (this.familyTree[p1.id]) this.familyTree[p1.id].offspring++;
+    if (this.familyTree[p2.id]) this.familyTree[p2.id].offspring++;
+    // Cap population
+    const maxPop = this.config.POPULATION_SIZE * 2;
+    if (this.creatures.length > maxPop) {
+      const sortedAll = [...this.creatures].sort((a, b) => a.fitness - b.fitness);
+      const weakest = sortedAll[0];
+      weakest.dispose();
+      this.creatures = this.creatures.filter(c => c !== weakest);
+    }
+  }
+
+  /* ===== FOOD SYSTEM ===== */
+  updateFood(dt) {
+    if (this.config.FOOD_SYSTEM === 'off') return;
+    const spawnRates = { sparse: 0.01, moderate: 0.03, abundant: 0.08 };
+    const rate = spawnRates[this.config.FOOD_SYSTEM] || 0.03;
+    const eventBoost = this.activeEvent === 'food_rain' ? 5 : 1;
+    this.foodSpawnTimer += dt;
+    if (this.foodSpawnTimer > 0.5) {
+      this.foodSpawnTimer = 0;
+      if (Math.random() < rate * eventBoost) this.spawnFood();
+    }
+    // Cap food items
+    while (this.foodItems.length > 50) {
+      const old = this.foodItems.shift();
+      if (old.mesh) this.scene.remove(old.mesh);
+    }
+    // Check creature-food collisions
+    this.creatures.forEach(c => {
+      if (!c.alive) return;
+      for (let i = this.foodItems.length - 1; i >= 0; i--) {
+        const f = this.foodItems[i];
+        const dx = c.position.x - f.x;
+        const dz = c.position.z - f.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < 1.5) {
+          c.energy = Math.min(c.maxEnergy, c.energy + f.value);
+          c.foodEaten++;
+          this.totalFoodEaten++;
+          if (f.mesh) this.scene.remove(f.mesh);
+          this.foodItems.splice(i, 1);
+        }
+      }
+    });
+  }
+
+  spawnFood() {
+    const alive = this.creatures.filter(c => c.alive);
+    if (alive.length === 0) return;
+    // Spawn near creatures
+    const ref = alive[Math.floor(Math.random() * alive.length)];
+    const x = ref.position.x + (Math.random() - 0.5) * 40;
+    const z = (Math.random() - 0.5) * 60;
+    const geo = new THREE.SphereGeometry(0.3, 6, 6);
+    const hue = 0.3 + Math.random() * 0.1;
+    const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color().setHSL(hue, 1, 0.5), emissive: new THREE.Color().setHSL(hue, 1, 0.3), emissiveIntensity: 0.5 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 0.5, z);
+    this.scene.add(mesh);
+    this.foodItems.push({ x, z, mesh, value: 20 + Math.random() * 30, age: 0 });
+  }
+
+  /* ===== EVENT SYSTEM ===== */
+  updateEvents(dt) {
+    if (this.config.EVENT_FREQUENCY === 'off') return;
+    const intervals = { rare: 45, moderate: 25, extreme: 12 };
+    const interval = intervals[this.config.EVENT_FREQUENCY] || 45;
+    // Active event countdown
+    if (this.activeEvent) {
+      this.activeEventTimer -= dt;
+      if (this.activeEventTimer <= 0) this.endEvent();
+    }
+    // Trigger new event
+    this.lastEventTime += dt;
+    if (!this.activeEvent && this.lastEventTime > interval && this.creatures.filter(c => c.alive).length > 0) {
+      if (Math.random() < 0.02 * this.config.SPEED_MULTIPLIER) this.triggerRandomEvent();
+    }
+  }
+
+  triggerRandomEvent() {
+    const evt = EVENT_TYPES[Math.floor(Math.random() * EVENT_TYPES.length)];
+    this.activeEvent = evt.id;
+    this.activeEventTimer = evt.duration;
+    this.lastEventTime = 0;
+    this.eventFired = true;
+    const aliveBefore = this.creatures.filter(c => c.alive).length;
+    this.eventSurvivors = aliveBefore;
+    this.logEvent(evt.name, evt.desc, evt.color);
+    // Apply immediate effects
+    switch (evt.id) {
+      case 'meteor_shower': this.startMeteorShower(); break;
+      case 'earthquake': this.startEarthquake(); break;
+      case 'flood': this.startFlood(); break;
+      case 'predator': this.startPredator(); break;
+      case 'wind_storm': break; // Applied per-frame in creature update
+      case 'ice_age': break;
+      case 'heat_wave': break;
+      case 'gravity_surge': break;
+      case 'mutation_burst': break;
+      case 'food_rain': break; // Handled in food system
+    }
+  }
+
+  endEvent() {
+    const evt = this.activeEvent;
+    const aliveAfter = this.creatures.filter(c => c.alive).length;
+    this.eventSurvivors = aliveAfter;
+    // Clean up visuals
+    this.meteorMeshes.forEach(m => this.scene.remove(m));
+    this.meteorMeshes = [];
+    if (this.predatorMesh) { this.scene.remove(this.predatorMesh); this.predatorMesh = null; }
+    if (this.floodWaterMesh) { this.scene.remove(this.floodWaterMesh); this.floodWaterMesh = null; }
+    this.eventEffects.forEach(m => this.scene.remove(m));
+    this.eventEffects = [];
+    this.activeEvent = null;
+    this.activeEventTimer = 0;
+    if (evt === 'meteor_shower') this.meteorSurvivors = Math.max(this.meteorSurvivors, aliveAfter);
+  }
+
+  startMeteorShower() {
+    // Create meteor visual indicators
+    for (let i = 0; i < 10; i++) {
+      const geo = new THREE.SphereGeometry(0.5, 6, 6);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(Math.random() * 100 - 50, 30 + Math.random() * 20, Math.random() * 60 - 30);
+      mesh.userData = { vy: -15 - Math.random() * 10, targetY: 0 };
+      this.scene.add(mesh);
+      this.meteorMeshes.push(mesh);
+    }
+  }
+
+  startEarthquake() {
+    // Shake effect handled in updateEventVisuals
+  }
+
+  startFlood() {
+    const geo = new THREE.PlaneGeometry(200, 100);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x2244aa, transparent: true, opacity: 0.4 });
+    this.floodWaterMesh = new THREE.Mesh(geo, mat);
+    this.floodWaterMesh.rotation.x = -Math.PI / 2;
+    this.floodWaterMesh.position.y = 0;
+    this.scene.add(this.floodWaterMesh);
+  }
+
+  startPredator() {
+    const geo = new THREE.ConeGeometry(1, 3, 6);
+    const mat = new THREE.MeshLambertMaterial({ color: 0xff0033, emissive: 0x660011, emissiveIntensity: 0.5 });
+    this.predatorMesh = new THREE.Mesh(geo, mat);
+    this.predatorMesh.position.set(-50, 2, 0);
+    this.predatorMesh.rotation.z = Math.PI;
+    this.scene.add(this.predatorMesh);
+  }
+
+  updateEventVisuals(dt) {
+    // Meteors
+    this.meteorMeshes.forEach(m => {
+      m.position.y += m.userData.vy * dt;
+      if (m.position.y <= 0) {
+        // Damage nearby creatures
+        this.creatures.forEach(c => {
+          if (!c.alive) return;
+          const dx = c.position.x - m.position.x;
+          const dz = c.position.z - m.position.z;
+          if (Math.sqrt(dx * dx + dz * dz) < 4) c.energy -= 40;
+        });
+        m.position.y = 30 + Math.random() * 20;
+        m.position.x = Math.random() * 100 - 50;
+        m.position.z = Math.random() * 60 - 30;
+      }
+    });
+    // Flood
+    if (this.floodWaterMesh && this.activeEvent === 'flood') {
+      this.floodWaterMesh.position.y += dt * 0.5;
+      this.creatures.forEach(c => {
+        if (!c.alive) return;
+        if (c.position.y < this.floodWaterMesh.position.y && c.bodySize < 1.0) c.energy -= dt * 15;
+      });
+    }
+    // Predator
+    if (this.predatorMesh && this.activeEvent === 'predator') {
+      const alive = this.creatures.filter(c => c.alive);
+      if (alive.length > 0) {
+        const target = alive.sort((a, b) => a.distance - b.distance)[0]; // Hunt slowest
+        this.predatorMesh.position.x += (target.position.x - this.predatorMesh.position.x) * dt * 2;
+        this.predatorMesh.position.z += (target.position.z - this.predatorMesh.position.z) * dt * 2;
+        this.predatorMesh.position.y = 2 + Math.sin(performance.now() / 200) * 0.5;
+        const dx = this.predatorMesh.position.x - target.position.x;
+        const dz = this.predatorMesh.position.z - target.position.z;
+        if (Math.sqrt(dx * dx + dz * dz) < 2) {
+          target.die();
+          this.predatorKills++;
+          this.logEvent('🐺 Creature Caught!', 'The predator got a slow one!', '#ff0066');
         }
       }
     }
-  }
-  
-  updateEvolution(dt) {
-    // Filter alive creatures
-    const aliveCreatures = this.creatures.filter(c => c.alive);
-    
-    // Update permanent bonus
-    this.totalTimeSpent += dt;
-    this.updatePermanentBonus();
-    
-    // Auto-breed if enabled
-    if (aliveCreatures.length >= 2 && this.config.AUTO_BREED && Math.random() < 0.03) {
-      this.breedCreatures(aliveCreatures);
+    // Earthquake shake
+    if (this.activeEvent === 'earthquake') {
+      this.creatures.forEach(c => {
+        if (!c.alive) return;
+        c.velocity.x += (Math.random() - 0.5) * 10 * dt;
+        c.velocity.z += (Math.random() - 0.5) * 10 * dt;
+        c.velocity.y += Math.random() * 5 * dt;
+      });
     }
-    
-    // Update all-time best
-    const currentBest = Math.max(...this.creatures.map(c => c.fitness || 0));
-    if (currentBest > this.allTimeBest) {
-      this.allTimeBest = currentBest;
-      this.saveData();
+    // Wind storm
+    if (this.activeEvent === 'wind_storm') {
+      this.creatures.forEach(c => {
+        if (!c.alive) return;
+        c.velocity.z += 8 * dt;
+      });
+    }
+    // Gravity surge
+    if (this.activeEvent === 'gravity_surge') {
+      // Handled in creature update via activeEvent check
     }
   }
-  
-  breedCreatures(aliveCreatures) {
-    // Select top performers
-    const sorted = [...aliveCreatures].sort((a, b) => b.fitness - a.fitness);
-    const parents = sorted.slice(0, Math.min(3, sorted.length));
-    
-    if (parents.length >= 2) {
-      const parent1 = parents[0];
-      const parent2 = parents[Math.floor(Math.random() * (parents.length - 1)) + 1];
-      
-      // Create child position
-      const childX = (parent1.position.x + parent2.position.x) / 2;
-      const childZ = (parent1.position.z + parent2.position.z) / 2 + (Math.random() - 0.5) * 5;
-      
-      // Create child creature
-      const child = new Creature(childX, childZ, parent1, parent2);
-      
-      // Add to scene and population
-      this.scene.add(child.group);
-      this.creatures.push(child);
-      
-      // Update stats
-      this.mutations++;
-      this.generation++;
-      
-      // Limit population size
-      const maxPopulation = this.config.POPULATION_SIZE * 1.5;
-      if (this.creatures.length > maxPopulation) {
-        const sortedAll = [...this.creatures].sort((a, b) => a.fitness - b.fitness);
-        const weakest = sortedAll[0];
-        weakest.dispose();
-        this.creatures = this.creatures.filter(c => c !== weakest);
+
+  logEvent(name, desc, color) {
+    const time = Math.floor((Date.now() - this.startTime) / 1000);
+    this.eventLog.unshift({ time, name, desc, color });
+    if (this.eventLog.length > 30) this.eventLog.pop();
+    const logEl = document.getElementById('evo-event-log');
+    if (logEl) {
+      const html = this.eventLog.map(e => `<div style="color:${e.color};margin-bottom:4px;"><b>[${e.time}s]</b> ${e.name}: ${e.desc}</div>`).join('');
+      logEl.innerHTML = html;
+    }
+  }
+
+  /* ===== ACHIEVEMENTS ===== */
+  initAchievements() {
+    const grid = document.getElementById('evo-achievements-grid');
+    if (!grid) return;
+    grid.innerHTML = ACHIEVEMENTS.map(a => `<div class="achievement locked" id="ach-${a.id}" title="${a.desc}"><span class="ach-icon">${a.icon}</span><span class="ach-name">${a.name}</span></div>`).join('');
+  }
+
+  checkAchievements() {
+    const alive = this.creatures.filter(c => c.alive);
+    const bodyTypes = new Set(alive.map(c => c.bodyType));
+    const maxOffspring = Math.max(0, ...Object.values(this.familyTree).map(f => f.offspring));
+    const maxAge = Math.max(0, ...this.creatures.map(c => c.age));
+    const maxSpeed = Math.max(0, ...alive.map(c => Math.sqrt(c.velocity.x*c.velocity.x + c.velocity.z*c.velocity.z)));
+    const stats = {
+      bestDist: this.allTimeBest,
+      gen: this.generation,
+      eventSurvivors: this.eventSurvivors,
+      eventFired: this.eventFired,
+      recoveredFromLow: this.recoveredFromLow,
+      maxSpeed, maxAge, maxOffspring,
+      totalFoodEaten: this.totalFoodEaten,
+      predatorKills: this.predatorKills,
+      meteorSurvivors: this.meteorSurvivors,
+      bodyTypeDiversity: bodyTypes.size,
+      aliveCount: alive.length,
+      totalTime: this.totalTimeSpent,
+      terrainsUsed: this.terrainsUsed.size
+    };
+    ACHIEVEMENTS.forEach(a => {
+      if (!this.unlockedAchievements.has(a.id) && a.check(stats)) {
+        this.unlockedAchievements.add(a.id);
+        const el = document.getElementById('ach-' + a.id);
+        if (el) { el.classList.remove('locked'); el.classList.add('unlocked'); }
+        this.logEvent('🎖️ Achievement!', a.name + ' — ' + a.desc, '#ffcc00');
       }
-    }
+    });
+    const countEl = document.getElementById('evo-ach-count');
+    if (countEl) countEl.textContent = this.unlockedAchievements.size + '/' + ACHIEVEMENTS.length;
   }
-  
+
+  /* ===== FAMILY TREE ===== */
+  updateFamilyTree() {
+    const treeEl = document.getElementById('evo-family-tree');
+    if (!treeEl) return;
+    // Find top lineage
+    const entries = Object.entries(this.familyTree).sort((a, b) => b[1].offspring - a[1].offspring).slice(0, 8);
+    if (entries.length === 0) { treeEl.innerHTML = '<div style="color:#9ccbe0;font-size:12px;">No lineage data yet.</div>'; return; }
+    const html = entries.map(([id, data]) => {
+      const creature = this.creatures.find(c => c.id === id);
+      const alive = creature && creature.alive;
+      const dist = creature ? Math.floor(creature.distance) : '?';
+      return `<div class="family-entry"><span style="color:${alive?'#39ff14':'#ff4d4d'}">●</span> <b>${data.offspring}</b> offspring · Gen ${data.gen} · ${dist}m</div>`;
+    }).join('');
+    treeEl.innerHTML = html;
+  }
+
+  /* ===== CAMERA ===== */
   updateCamera() {
-    const aliveCreatures = this.creatures.filter(c => c.alive);
-    if (aliveCreatures.length === 0) return;
-    
-    // Find leader
-    const leader = aliveCreatures.reduce((best, c) => 
-      c.distance > best.distance ? c : best, aliveCreatures[0]
-    );
-    
-    // Smooth camera follow
-    const targetX = leader.position.x + 20;
-    const targetY = Math.max(15, 20 + leader.position.y * 0.2);
-    const targetZ = 40;
-    
-    this.camera.position.x += (targetX - this.camera.position.x) * 0.05;
-    this.camera.position.y += (targetY - this.camera.position.y) * 0.05;
-    this.camera.position.z = targetZ;
-    
+    const alive = this.creatures.filter(c => c.alive);
+    if (alive.length === 0) return;
+    const leader = alive.reduce((best, c) => c.distance > best.distance ? c : best, alive[0]);
+    const tx = leader.position.x + 20;
+    const ty = Math.max(15, 20 + leader.position.y * 0.2);
+    this.camera.position.x += (tx - this.camera.position.x) * 0.05;
+    this.camera.position.y += (ty - this.camera.position.y) * 0.05;
+    this.camera.position.z = 40;
     this.camera.lookAt(leader.position.x, leader.position.y + 5, leader.position.z);
   }
-  
+
+  /* ===== UI ===== */
   updateUI() {
-    const aliveCreatures = this.creatures.filter(c => c.alive);
-    const aliveCount = aliveCreatures.length;
-    
-    // Calculate distances
-    let bestDistance = 0;
-    let totalDistance = 0;
-    
-    aliveCreatures.forEach(creature => {
-      const distance = creature.distance || 0;
-      totalDistance += distance;
-      if (distance > bestDistance) bestDistance = distance;
-    });
-    
-    const avgDistance = aliveCount > 0 ? totalDistance / aliveCount : 0;
-    
-    // Update history
-    this.bestFitnessHistory.push(bestDistance);
-    this.averageFitnessHistory.push(avgDistance);
-    
-    // Keep history manageable
-    if (this.bestFitnessHistory.length > 100) {
-      this.bestFitnessHistory.shift();
-      this.averageFitnessHistory.shift();
-    }
-    
-    // Update elapsed time
+    const alive = this.creatures.filter(c => c.alive);
+    const aliveCount = alive.length;
+    let bestDist = 0, totalDist = 0;
+    alive.forEach(c => { const d = c.distance || 0; totalDist += d; if (d > bestDist) bestDist = d; });
+    const avgDist = aliveCount > 0 ? totalDist / aliveCount : 0;
+    this.bestFitnessHistory.push(bestDist);
+    this.averageFitnessHistory.push(avgDist);
+    if (this.bestFitnessHistory.length > 100) { this.bestFitnessHistory.shift(); this.averageFitnessHistory.shift(); }
     const elapsed = this.isRunning ? (Date.now() - this.startTime) / 1000 : 0;
-    
-    // Update DOM elements
-    this.updateElement('evo-time', Math.floor(elapsed) + 's');
-    this.updateElement('evo-best-time', `Time: ${Math.floor(elapsed)}s`);
-    this.updateElement('evo-population-count', this.creatures.length);
-    this.updateElement('evo-alive-count', `Alive: ${aliveCount}`);
-    this.updateElement('evo-generation', this.generation);
-    this.updateElement('evo-mutations', `Mutations: ${this.mutations}`);
-    this.updateElement('evo-best-distance', Math.floor(bestDistance) + ' m');
-    this.updateElement('evo-bonus-display', `Bonus: ${this.permanentBonus}%`);
-    
-    // Update overlay
-    this.updateElement('evo-overlay-best', Math.floor(bestDistance) + ' m');
-    this.updateElement('evo-overlay-avg', Math.floor(avgDistance) + ' m');
-    this.updateElement('evo-overlay-gen', this.generation);
-    this.updateElement('evo-overlay-alive', aliveCount);
-    
-    // Update leaderboard
+    this.setText('evo-time', Math.floor(elapsed) + 's');
+    this.setText('evo-best-time', 'Time: ' + Math.floor(elapsed) + 's');
+    this.setText('evo-population-count', this.creatures.length);
+    this.setText('evo-alive-count', 'Alive: ' + aliveCount);
+    this.setText('evo-generation', this.generation);
+    this.setText('evo-mutations', 'Mutations: ' + this.mutations);
+    this.setText('evo-best-distance', Math.floor(bestDist) + ' m');
+    this.setText('evo-bonus-display', 'Bonus: ' + this.permanentBonus + '%');
+    this.setText('evo-overlay-best', Math.floor(bestDist) + ' m');
+    this.setText('evo-overlay-avg', Math.floor(avgDist) + ' m');
+    this.setText('evo-overlay-gen', this.generation);
+    this.setText('evo-overlay-alive', aliveCount);
     if (aliveCount >= 2) {
-      this.updateLeaderboard(aliveCreatures);
+      this.updateLeaderboard(alive);
       document.querySelector('.leaderboard-section').style.display = 'block';
     }
-    
-    // Update chart every 2 seconds
-    if (Date.now() - (this.lastChartUpdate || 0) > 2000) {
-      this.updateChart();
-      this.lastChartUpdate = Date.now();
-    }
+    this.updateFamilyTree();
+    if (Date.now() - (this.lastChartUpdate || 0) > 2000) { this.updateChart(); this.lastChartUpdate = Date.now(); }
   }
-  
-  updateElement(id, value) {
-    const element = document.getElementById(id);
-    if (element) element.textContent = value;
-  }
-  
+
+  setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+
   updateLeaderboard(creatures) {
     const sorted = [...creatures].sort((a, b) => b.fitness - a.fitness).slice(0, 5);
-    const leaderboardHTML = sorted.map((creature, index) => `
-      <div class="leaderboard-item ${index === 0 ? 'leader' : ''}">
-        <span class="leaderboard-rank">${index + 1}</span>
-        <span class="leaderboard-distance">${Math.floor(creature.distance)}m</span>
-        <span class="leaderboard-legs">${creature.numLegs} legs</span>
-        <span class="leaderboard-age">${Math.floor(creature.age)}s</span>
-      </div>
-    `).join('');
-    
-    document.getElementById('evo-leaderboard-list').innerHTML = leaderboardHTML;
+    const html = sorted.map((c, i) => `<div class="leaderboard-item ${i===0?'leader':''}"><span class="leaderboard-rank">${i+1}</span><span class="leaderboard-distance">${Math.floor(c.distance)}m</span><span class="leaderboard-legs">${c.numLegs} legs · ${c.bodyType}</span><span class="leaderboard-age">${Math.floor(c.age)}s</span></div>`).join('');
+    document.getElementById('evo-leaderboard-list').innerHTML = html;
   }
-  
+
   updateChart() {
     const canvas = document.getElementById('evo-performance-chart');
     const ctx = canvas.getContext('2d');
-    
     if (!ctx || this.bestFitnessHistory.length < 2) return;
-    
-    // Set canvas size
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
-    
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
-    
-    // Find data ranges
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
     const allData = [...this.bestFitnessHistory, ...this.averageFitnessHistory];
-    const maxValue = Math.max(...allData) || 1;
-    
-    // Update scale indicator
-    this.updateElement('evo-chart-scale', `Max: ${Math.floor(maxValue)}m`);
-    
-    // Draw grid
-    ctx.strokeStyle = 'rgba(45, 212, 255, 0.1)';
+    const maxVal = Math.max(...allData) || 1;
+    this.setText('evo-chart-scale', 'Max: ' + Math.floor(maxVal) + 'm');
+    ctx.strokeStyle = 'rgba(45,212,255,0.1)';
     ctx.lineWidth = 1;
-    
-    // Vertical grid
-    for (let i = 0; i <= 10; i++) {
-      const x = (i / 10) * width;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-    }
-    
-    // Draw best fitness line
-    if (this.bestFitnessHistory.length >= 2) {
-      ctx.beginPath();
-      ctx.strokeStyle = '#39ff14';
-      ctx.lineWidth = 2;
-      ctx.lineJoin = 'round';
-      
-      this.bestFitnessHistory.forEach((value, index) => {
-        const x = (index / (this.bestFitnessHistory.length - 1)) * width;
-        const y = height - (value / maxValue) * height * 0.8;
-        
-        if (index === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
-    }
-    
-    // Draw average fitness line
-    if (this.averageFitnessHistory.length >= 2) {
-      ctx.beginPath();
-      ctx.strokeStyle = '#2dd4ff';
-      ctx.lineWidth = 1.5;
-      ctx.lineJoin = 'round';
-      
-      this.averageFitnessHistory.forEach((value, index) => {
-        const x = (index / (this.averageFitnessHistory.length - 1)) * width;
-        const y = height - (value / maxValue) * height * 0.8;
-        
-        if (index === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
-    }
+    for (let i = 0; i <= 10; i++) { const x = (i/10)*w; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+    // Best line
+    ctx.beginPath(); ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    this.bestFitnessHistory.forEach((v, i) => { const x = (i/(this.bestFitnessHistory.length-1))*w; const y = h - (v/maxVal)*h*0.8; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.stroke();
+    // Avg line
+    ctx.beginPath(); ctx.strokeStyle = '#2dd4ff'; ctx.lineWidth = 1.5;
+    this.averageFitnessHistory.forEach((v, i) => { const x = (i/(this.averageFitnessHistory.length-1))*w; const y = h - (v/maxVal)*h*0.8; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.stroke();
   }
-  
+
   updatePermanentBonus() {
-    // Gain 1% bonus every 2 minutes of total usage
     const minutes = this.totalTimeSpent / 60;
     const newBonus = Math.min(100, Math.floor(minutes / 2));
-    
     if (newBonus > this.permanentBonus) {
       this.permanentBonus = newBonus;
-      this.updateElement('evo-bonus-display', `Bonus: ${this.permanentBonus}%`);
+      this.setText('evo-bonus-display', 'Bonus: ' + this.permanentBonus + '%');
       this.saveData();
-      
-      // Visual feedback
-      const bonusElement = document.querySelector('.bonus-indicator');
-      if (bonusElement) {
-        bonusElement.style.animation = 'pulse 0.5s ease-in-out';
-        setTimeout(() => bonusElement.style.animation = '', 500);
-      }
     }
   }
-  
+
   loadSavedData() {
     try {
       const saved = localStorage.getItem('evolutionWalkerData');
       if (saved) {
-        const data = JSON.parse(saved);
-        this.permanentBonus = Math.min(data.bonus || 0, 100);
-        this.totalTimeSpent = data.totalTime || 0;
-        this.allTimeBest = data.allTimeBest || 0;
-        
-        if (this.permanentBonus > 0) {
-          this.updateElement('evo-bonus-display', `Bonus: ${this.permanentBonus}%`);
-        }
+        const d = JSON.parse(saved);
+        this.permanentBonus = Math.min(d.bonus || 0, 100);
+        this.totalTimeSpent = d.totalTime || 0;
+        this.allTimeBest = d.allTimeBest || 0;
+        if (this.permanentBonus > 0) this.setText('evo-bonus-display', 'Bonus: ' + this.permanentBonus + '%');
       }
-    } catch (e) {
-      console.warn('Could not load saved data:', e);
-    }
+    } catch (e) { console.warn('Could not load saved data:', e); }
   }
-  
+
   saveData() {
     try {
-      const data = {
-        bonus: this.permanentBonus,
-        totalTime: this.totalTimeSpent,
-        allTimeBest: this.allTimeBest,
-        lastUpdated: Date.now()
-      };
-      localStorage.setItem('evolutionWalkerData', JSON.stringify(data));
-    } catch (e) {
-      console.warn('Could not save data:', e);
-    }
+      localStorage.setItem('evolutionWalkerData', JSON.stringify({ bonus: this.permanentBonus, totalTime: this.totalTimeSpent, allTimeBest: this.allTimeBest, lastUpdated: Date.now() }));
+    } catch (e) { console.warn('Could not save data:', e); }
   }
-  
+
   showLoading(show) {
-    const loadingState = document.getElementById('evo-loading-state');
-    if (loadingState) {
-      loadingState.style.display = show ? 'flex' : 'none';
-    }
-    
+    const el = document.getElementById('evo-loading-state');
+    if (el) el.style.display = show ? 'flex' : 'none';
     if (show) {
-      // Simulate progress
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        const progressBar = document.getElementById('evo-progress-bar');
-        if (progressBar) {
-          progressBar.style.width = progress + '%';
-        }
-        if (progress >= 100) clearInterval(interval);
-      }, 200);
+      let p = 0;
+      const iv = setInterval(() => { p += 10; const bar = document.getElementById('evo-progress-bar'); if (bar) bar.style.width = p + '%'; if (p >= 100) clearInterval(iv); }, 200);
     }
   }
-  
-  showError(message) {
-    const container = document.getElementById('evo-canvas-container');
-    container.innerHTML = `
-      <div class="error-state">
-        <div class="error-icon">❌</div>
-        <h3>Initialization Error</h3>
-        <p>${message}</p>
-        <button onclick="location.reload()" class="retry-btn">Try Again</button>
-      </div>
-    `;
+
+  showError(msg) {
+    document.getElementById('evo-canvas-container').innerHTML = `<div class="error-state"><div class="error-icon">❌</div><h3>Initialization Error</h3><p>${msg}</p><button onclick="location.reload()" class="retry-btn">Try Again</button></div>`;
   }
-  
+
   setupEventListeners() {
-    // Window resize
     window.addEventListener('resize', () => this.handleResize());
-    
-    // Population change
-    document.getElementById('evo-population').addEventListener('change', (e) => {
-      this.config.POPULATION_SIZE = parseInt(e.target.value);
-    });
-    
-    // Terrain change
-    document.getElementById('evo-terrain').addEventListener('change', (e) => {
-      this.config.TERRAIN_TYPE = e.target.value;
-      this.createTerrain();
-    });
-    
-    // Mutation slider
-    const mutationSlider = document.getElementById('evo-mutation-slider');
-    const mutationValue = document.getElementById('evo-mutation-value');
-    
-    mutationSlider.addEventListener('input', (e) => {
-      const value = e.target.value;
-      mutationValue.textContent = value + '%';
-      this.config.MUTATION_RATE = value / 100;
-    });
+    document.getElementById('evo-population').addEventListener('change', e => { this.config.POPULATION_SIZE = parseInt(e.target.value); });
+    document.getElementById('evo-terrain').addEventListener('change', e => { this.config.TERRAIN_TYPE = e.target.value; this.createTerrain(); });
+    document.getElementById('evo-events').addEventListener('change', e => { this.config.EVENT_FREQUENCY = e.target.value; });
+    document.getElementById('evo-gravity').addEventListener('change', e => { this.config.GRAVITY = parseFloat(e.target.value); });
+    document.getElementById('evo-food').addEventListener('change', e => { this.config.FOOD_SYSTEM = e.target.value; });
+    document.getElementById('evo-bodytype').addEventListener('change', e => { this.config.BODY_TYPE = e.target.value; });
+    const slider = document.getElementById('evo-mutation-slider');
+    slider.addEventListener('input', e => { document.getElementById('evo-mutation-value').textContent = e.target.value + '%'; this.config.MUTATION_RATE = e.target.value / 100; });
   }
-  
+
   handleResize() {
-    if (this.renderer && this.camera) {
-      const container = document.getElementById('evo-canvas-container');
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      
-      this.camera.aspect = width / height;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(width, height);
-      
-      // Update chart
-      this.updateChart();
-    }
+    if (!this.renderer || !this.camera) return;
+    const c = document.getElementById('evo-canvas-container');
+    this.camera.aspect = c.clientWidth / c.clientHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(c.clientWidth, c.clientHeight);
+    this.updateChart();
   }
-  
+
   async loadThreeJS() {
     return new Promise((resolve, reject) => {
-      if (typeof THREE !== 'undefined') {
-        resolve();
-        return;
-      }
-      
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
+      if (typeof THREE !== 'undefined') { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
     });
   }
 }
 
-// Creature Class
+/* ===== CREATURE CLASS ===== */
+let creatureIdCounter = 0;
+
 class Creature {
-  constructor(x = 0, z = 0, parent1 = null, parent2 = null) {
-    // Genetics
+  constructor(x, z, parent1, parent2, bodyTypeHint, mutationRate) {
+    x = x || 0; z = z || 0;
+    this.id = 'c' + (++creatureIdCounter);
+    this.mutationRate = mutationRate || 0.15;
+
     if (parent1 && parent2) {
-      // Inherit traits from parents
-      this.bodySize = (parent1.bodySize + parent2.bodySize) / 2;
-      this.legLength = (parent1.legLength + parent2.legLength) / 2;
+      this.bodySize = this.mutate((parent1.bodySize + parent2.bodySize) / 2, 0.1);
+      this.legLength = this.mutate((parent1.legLength + parent2.legLength) / 2, 0.15);
       this.numLegs = Math.random() < 0.5 ? parent1.numLegs : parent2.numLegs;
+      if (Math.random() < this.mutationRate) this.numLegs = Math.max(0, Math.min(8, this.numLegs + (Math.random() < 0.5 ? -1 : 1)));
       this.hasArms = Math.random() < 0.5 ? parent1.hasArms : parent2.hasArms;
+      if (Math.random() < this.mutationRate) this.hasArms = !this.hasArms;
+      this.hasTail = Math.random() < 0.5 ? parent1.hasTail : parent2.hasTail;
+      this.jumpPower = this.mutate((parent1.jumpPower + parent2.jumpPower) / 2, 0.2);
+      this.speedGene = this.mutate((parent1.speedGene + parent2.speedGene) / 2, 0.15);
+      this.stamina = this.mutate((parent1.stamina + parent2.stamina) / 2, 0.1);
+      this.armor = this.mutate((parent1.armor + parent2.armor) / 2, 0.15);
+      this.bodyType = Math.random() < 0.5 ? parent1.bodyType : parent2.bodyType;
+      if (Math.random() < this.mutationRate * 0.5) this.bodyType = ['biped','quadruped','hexapod','snake','spider'][Math.floor(Math.random()*5)];
+      // Neural network weights (inherited + mutated)
+      this.brainWeights = [];
+      for (let i = 0; i < parent1.brainWeights.length; i++) {
+        const w = Math.random() < 0.5 ? parent1.brainWeights[i] : parent2.brainWeights[i];
+        this.brainWeights.push(Math.random() < this.mutationRate ? w + (Math.random()-0.5)*0.5 : w);
+      }
+      // Color inherited
+      const h1 = parent1.colorHSL[0], h2 = parent2.colorHSL[0];
+      const hue = (Math.random() < 0.5 ? h1 : h2) + (Math.random()-0.5)*0.05;
+      this.colorHSL = [hue % 1, 0.7 + Math.random()*0.3, 0.4 + Math.random()*0.2];
     } else {
-      // Random initial traits
       this.bodySize = 0.8 + Math.random() * 0.4;
-      this.legLength = 1.2 + Math.random() * 0.6;
-      this.numLegs = Math.random() < 0.7 ? 2 : 4;
+      this.legLength = 1.0 + Math.random() * 0.8;
       this.hasArms = Math.random() < 0.5;
+      this.hasTail = Math.random() < 0.4;
+      this.jumpPower = 3 + Math.random() * 5;
+      this.speedGene = 0.8 + Math.random() * 0.4;
+      this.stamina = 0.5 + Math.random() * 0.5;
+      this.armor = Math.random() * 0.3;
+      this.colorHSL = [0.55 + Math.random() * 0.25, 0.7 + Math.random()*0.3, 0.4 + Math.random()*0.2];
+      // Body type
+      if (bodyTypeHint && bodyTypeHint !== 'random') {
+        this.bodyType = bodyTypeHint;
+      } else {
+        this.bodyType = ['biped','quadruped','hexapod','snake','spider'][Math.floor(Math.random()*5)];
+      }
+      switch(this.bodyType) {
+        case 'biped': this.numLegs = 2; break;
+        case 'quadruped': this.numLegs = 4; break;
+        case 'hexapod': this.numLegs = 6; break;
+        case 'snake': this.numLegs = 0; break;
+        case 'spider': this.numLegs = 8; break;
+        default: this.numLegs = 2 + Math.floor(Math.random() * 3) * 2;
+      }
+      // Random brain weights (12 inputs -> 6 outputs, simple feedforward)
+      this.brainWeights = [];
+      for (let i = 0; i < 12 * 6 + 6; i++) this.brainWeights.push((Math.random()-0.5)*2);
     }
-    
-    // Color
-    const hue = 0.6 + Math.random() * 0.2;
-    this.color = new THREE.Color().setHSL(hue, 0.8, 0.5);
-    
+
     // Physics
     this.position = new THREE.Vector3(x, this.legLength + 1, z);
     this.velocity = new THREE.Vector3();
-    this.rotation = 0;
+    this.rotation = Math.random() * Math.PI * 2;
     this.walkCycle = Math.random() * Math.PI * 2;
     this.grounded = false;
-    
+
     // Stats
     this.fitness = 0;
     this.distance = 0;
     this.alive = true;
     this.age = 0;
-    this.energy = 100;
-    
-    // Create 3D model
+    this.maxEnergy = 100 + this.stamina * 50;
+    this.energy = this.maxEnergy;
+    this.foodEaten = 0;
+    this.jumpCooldown = 0;
+
     this.createModel();
   }
-  
+
+  mutate(val, range) {
+    if (Math.random() < this.mutationRate) val += (Math.random()-0.5) * range * 2;
+    return val;
+  }
+
   createModel() {
     this.group = new THREE.Group();
     this.group.position.copy(this.position);
-    
-    // Body
-    const bodyGeometry = new THREE.BoxGeometry(this.bodySize, this.bodySize * 1.2, this.bodySize * 0.8);
-    const bodyMaterial = new THREE.MeshLambertMaterial({
-      color: this.color.getHex(),
-      emissive: this.color.clone().multiplyScalar(0.3).getHex(),
-      emissiveIntensity: 0.2
-    });
-    
-    this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    const color = new THREE.Color().setHSL(this.colorHSL[0], this.colorHSL[1], this.colorHSL[2]);
+    const emissiveColor = color.clone().multiplyScalar(0.3);
+
+    // Body shape varies by type
+    let bodyGeo;
+    if (this.bodyType === 'snake') {
+      bodyGeo = new THREE.CylinderGeometry(this.bodySize * 0.3, this.bodySize * 0.2, this.bodySize * 2, 8);
+    } else {
+      bodyGeo = new THREE.BoxGeometry(this.bodySize, this.bodySize * 1.2, this.bodySize * 0.8);
+    }
+    const bodyMat = new THREE.MeshLambertMaterial({ color: color.getHex(), emissive: emissiveColor.getHex(), emissiveIntensity: 0.2 });
+    this.body = new THREE.Mesh(bodyGeo, bodyMat);
     this.body.position.y = this.bodySize * 0.6;
     this.body.castShadow = true;
     this.group.add(this.body);
-    
+
     // Head
-    const headGeometry = new THREE.SphereGeometry(this.bodySize * 0.35, 8, 8);
-    const headMaterial = new THREE.MeshLambertMaterial({
-      color: this.color.clone().multiplyScalar(1.2).getHex()
-    });
-    
-    this.head = new THREE.Mesh(headGeometry, headMaterial);
+    const headSize = this.bodyType === 'spider' ? this.bodySize * 0.25 : this.bodySize * 0.35;
+    const headGeo = new THREE.SphereGeometry(headSize, 8, 8);
+    const headMat = new THREE.MeshLambertMaterial({ color: color.clone().multiplyScalar(1.2).getHex() });
+    this.head = new THREE.Mesh(headGeo, headMat);
     this.head.position.y = this.bodySize * 1.3;
+    this.head.position.x = this.bodySize * 0.3;
     this.head.castShadow = true;
     this.group.add(this.head);
-    
+
+    // Eyes
+    const eyeGeo = new THREE.SphereGeometry(headSize * 0.3, 6, 6);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    [-1, 1].forEach(side => {
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(this.head.position.x + headSize * 0.6, this.head.position.y + headSize * 0.2, side * headSize * 0.5);
+      this.group.add(eye);
+    });
+
     // Legs
     this.legs = [];
-    const legGeometry = new THREE.CylinderGeometry(0.08, 0.08, this.legLength, 6);
-    const legMaterial = new THREE.MeshLambertMaterial({
-      color: this.color.clone().multiplyScalar(0.8).getHex()
-    });
-    
+    const legGeo = new THREE.CylinderGeometry(0.08, 0.06, this.legLength, 6);
+    const legMat = new THREE.MeshLambertMaterial({ color: color.clone().multiplyScalar(0.7).getHex() });
     for (let i = 0; i < this.numLegs; i++) {
       const angle = (i / this.numLegs) * Math.PI * 2;
-      const leg = new THREE.Mesh(legGeometry, legMaterial);
-      
-      leg.position.x = Math.sin(angle) * this.bodySize * 0.4;
-      leg.position.z = Math.cos(angle) * this.bodySize * 0.4;
-      leg.position.y = -this.legLength * 0.5;
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(Math.sin(angle) * this.bodySize * 0.4, -this.legLength * 0.5, Math.cos(angle) * this.bodySize * 0.4);
       leg.castShadow = true;
-      
       this.group.add(leg);
-      this.legs.push({
-        mesh: leg,
-        baseAngle: angle,
-        phase: (i / this.numLegs) * Math.PI * 2
+      this.legs.push({ mesh: leg, baseAngle: angle, phase: (i / this.numLegs) * Math.PI * 2 });
+    }
+
+    // Arms
+    if (this.hasArms && this.bodyType !== 'snake') {
+      const armGeo = new THREE.CylinderGeometry(0.06, 0.05, this.legLength * 0.6, 6);
+      [-1, 1].forEach(side => {
+        const arm = new THREE.Mesh(armGeo, legMat);
+        arm.position.set(0, this.bodySize * 0.3, side * this.bodySize * 0.5);
+        arm.rotation.x = side * 0.5;
+        this.group.add(arm);
       });
     }
+
+    // Tail
+    if (this.hasTail && this.bodyType !== 'snake') {
+      const tailGeo = new THREE.CylinderGeometry(0.06, 0.03, this.bodySize * 0.8, 6);
+      this.tail = new THREE.Mesh(tailGeo, legMat);
+      this.tail.position.set(-this.bodySize * 0.5, this.bodySize * 0.3, 0);
+      this.tail.rotation.z = 0.8;
+      this.group.add(this.tail);
+    }
+
+    // Armor indicator
+    if (this.armor > 0.15) {
+      const armorGeo = new THREE.BoxGeometry(this.bodySize * 1.1, this.bodySize * 0.3, this.bodySize * 0.9);
+      const armorMat = new THREE.MeshLambertMaterial({ color: 0x888888, transparent: true, opacity: this.armor });
+      const armorMesh = new THREE.Mesh(armorGeo, armorMat);
+      armorMesh.position.y = this.bodySize * 1.0;
+      this.group.add(armorMesh);
+    }
   }
-  
-  update(dt) {
+
+  update(dt, friction, gravity, activeEvent) {
     if (!this.alive) return;
-    
     this.age += dt;
-    this.energy -= dt * 0.1;
-    
-    // Simple AI: walk forward with some randomness
-    this.walkCycle += dt * 5;
-    
-    // Move forward
-    const forwardForce = Math.sin(this.walkCycle) * 4;
-    const turnForce = (Math.random() - 0.5) * 0.5;
-    
+
+    // Energy drain
+    let energyDrain = dt * 0.15;
+    if (activeEvent === 'heat_wave') energyDrain *= 2.5;
+    if (activeEvent === 'ice_age') energyDrain *= 0.7;
+    this.energy -= energyDrain;
+
+    // Neural network AI
+    const inputs = this.getSensorInputs(dt, activeEvent);
+    const outputs = this.think(inputs);
+
+    // Apply outputs
+    const walkSpeed = (2 + this.speedGene * 3) * (activeEvent === 'ice_age' ? 0.5 : 1);
+    this.walkCycle += dt * walkSpeed * (0.5 + outputs[0]);
+
+    const forwardForce = outputs[1] * 6;
+    const turnForce = (outputs[2] - 0.5) * 2;
+
     this.velocity.x += Math.sin(this.rotation) * forwardForce * dt;
     this.velocity.z += Math.cos(this.rotation) * forwardForce * dt;
     this.rotation += turnForce * dt;
-    
-    // Apply gravity
-    this.velocity.y -= 9.8 * dt;
-    
-    // Apply damping
-    this.velocity.multiplyScalar(0.95);
-    
+
+    // Jump
+    this.jumpCooldown -= dt;
+    if (outputs[3] > 0.6 && this.grounded && this.jumpCooldown <= 0) {
+      this.velocity.y += this.jumpPower * (activeEvent === 'gravity_surge' ? 0.5 : 1);
+      this.jumpCooldown = 0.8;
+    }
+
+    // Gravity
+    const effectiveGravity = gravity * (activeEvent === 'gravity_surge' ? 2.0 : 1) * (activeEvent === 'space' || walker?.config.TERRAIN_TYPE === 'space' ? 0.3 : 1);
+    this.velocity.y -= 9.8 * effectiveGravity * dt;
+
+    // Friction (terrain-dependent)
+    this.velocity.x *= friction;
+    this.velocity.z *= friction;
+    this.velocity.y *= 0.98;
+
     // Update position
     this.position.add(this.velocity.clone().multiplyScalar(dt));
-    
+
     // Ground collision
     if (this.position.y <= 0) {
       this.position.y = 0;
@@ -1072,111 +1337,147 @@ class Creature {
     } else {
       this.grounded = false;
     }
-    
-    // Update group position
+
+    // Update 3D
     this.group.position.copy(this.position);
     this.group.rotation.y = this.rotation;
-    
+
     // Animate legs
     this.legs.forEach(leg => {
       const phase = this.walkCycle + leg.phase;
       leg.mesh.rotation.x = Math.sin(phase) * 0.8;
       leg.mesh.position.y = -this.legLength * 0.5 + Math.abs(Math.sin(phase)) * 0.2;
     });
-    
-    // Update distance
+
+    // Animate tail
+    if (this.tail) {
+      this.tail.rotation.z = 0.8 + Math.sin(this.walkCycle * 2) * 0.3;
+    }
+
+    // Body bob
+    this.body.position.y = this.bodySize * 0.6 + Math.abs(Math.sin(this.walkCycle)) * 0.1;
+
+    // Distance & fitness
     this.distance = this.position.x;
-    if (this.distance > this.fitness) {
-      this.fitness = this.distance;
-    }
-    
-    // Die if fallen off or out of energy
-    if (this.position.y < -50 || this.energy <= 0) {
-      this.die();
-    }
+    const speedBonus = Math.sqrt(this.velocity.x*this.velocity.x + this.velocity.z*this.velocity.z) * 0.1;
+    this.fitness = this.distance + speedBonus + this.foodEaten * 2;
+
+    // Death conditions
+    if (this.position.y < -50 || this.energy <= 0) this.die();
+
+    // Armor reduces damage from events
+    if (activeEvent === 'meteor_shower') this.energy -= dt * this.armor * 5; // armor helps
   }
-  
+
+  getSensorInputs(dt, activeEvent) {
+    // 12 inputs for the neural network
+    const speed = Math.sqrt(this.velocity.x*this.velocity.x + this.velocity.z*this.velocity.z);
+    return [
+      this.position.y / 10,                    // height
+      this.velocity.x / 5,                      // vx
+      this.velocity.z / 5,                      // vz
+      this.energy / this.maxEnergy,             // energy ratio
+      Math.sin(this.walkCycle),                 // walk cycle sin
+      Math.cos(this.walkCycle),                 // walk cycle cos
+      this.grounded ? 1 : 0,                    // grounded
+      this.distance / 100,                      // distance normalized
+      activeEvent ? 1 : 0,                      // event active
+      speed / 5,                                // speed
+      (this.numLegs || 0) / 8,                  // legs normalized
+      this.bodySize / 1.5                       // body size normalized
+    ];
+  }
+
+  think(inputs) {
+    // Simple 2-layer neural network: 12 -> 6 -> 4 outputs
+    const hidden = [];
+    for (let h = 0; h < 6; h++) {
+      let sum = 0;
+      for (let i = 0; i < 12; i++) {
+        sum += inputs[i] * this.brainWeights[h * 12 + i];
+      }
+      hidden.push(Math.tanh(sum));
+    }
+    const outputs = [];
+    for (let o = 0; o < 4; o++) {
+      let sum = 0;
+      for (let h = 0; h < 6; h++) {
+        sum += hidden[h] * this.brainWeights[72 + o * 6 + h];
+      }
+      outputs.push(1 / (1 + Math.exp(-sum))); // sigmoid
+    }
+    return outputs; // [walkPhase, forward, turn, jump]
+  }
+
   die() {
     this.alive = false;
-  }
-  
-  dispose() {
-    if (this.group && this.group.parent) {
-      this.group.parent.remove(this.group);
+    // Fade out effect
+    if (this.body && this.body.material) {
+      this.body.material.transparent = true;
+      this.body.material.opacity = 0.3;
     }
+  }
+
+  dispose() {
+    if (this.group && this.group.parent) this.group.parent.remove(this.group);
   }
 }
 
-// Global instance
-let evolutionWalker = null;
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-  evolutionWalker = new EvolutionWalker();
-  
-  // Setup mutation slider
-  const mutationSlider = document.getElementById('evo-mutation-slider');
-  const mutationValue = document.getElementById('evo-mutation-value');
-  
-  mutationSlider.addEventListener('input', function() {
-    mutationValue.textContent = this.value + '%';
-  });
-});
-
-// Global functions for button clicks
+/* ===== GLOBAL FUNCTIONS ===== */
 function startEvolution() {
-  if (evolutionWalker) {
-    evolutionWalker.start();
-  }
+  if (!walker) walker = new EvolutionWalker();
+  walker.start();
 }
 
 function pauseEvolution() {
-  if (evolutionWalker) {
-    evolutionWalker.pause();
-  }
+  if (walker) walker.pause();
 }
 
 function resetEvolution() {
-  if (evolutionWalker) {
-    evolutionWalker.reset();
-  }
+  if (walker) walker.reset();
 }
 
 function speedUp() {
-  if (evolutionWalker) {
-    const speeds = [1.0, 2.0, 3.0, 5.0];
-    const currentIndex = speeds.indexOf(evolutionWalker.config.SPEED_MULTIPLIER);
-    const nextIndex = (currentIndex + 1) % speeds.length;
-    
-    evolutionWalker.config.SPEED_MULTIPLIER = speeds[nextIndex];
-    document.getElementById('evo-speed-up').querySelector('.control-text').textContent = 
-      `Speed (${evolutionWalker.config.SPEED_MULTIPLIER}x)`;
-  }
+  if (!walker) return;
+  const speeds = [1, 2, 3, 5, 10];
+  const idx = speeds.indexOf(walker.config.SPEED_MULTIPLIER);
+  walker.config.SPEED_MULTIPLIER = speeds[(idx + 1) % speeds.length];
+  document.getElementById('evo-speed-up').querySelector('.control-text').textContent = 'Speed (' + walker.config.SPEED_MULTIPLIER + 'x)';
 }
 
 function toggleAutoBreed() {
-  if (evolutionWalker) {
-    evolutionWalker.config.AUTO_BREED = !evolutionWalker.config.AUTO_BREED;
-    const text = evolutionWalker.config.AUTO_BREED ? 'ON' : 'OFF';
-    document.getElementById('evo-auto-breed').querySelector('.control-text').textContent = 
-      `Auto-Breed: ${text}`;
-  }
+  if (!walker) return;
+  walker.config.AUTO_BREED = !walker.config.AUTO_BREED;
+  document.getElementById('evo-auto-breed').querySelector('.control-text').textContent = 'Auto-Breed: ' + (walker.config.AUTO_BREED ? 'ON' : 'OFF');
+}
+
+function triggerEvent() {
+  if (!walker || !walker.isRunning) return;
+  walker.triggerRandomEvent();
 }
 
 function saveEvolution() {
-  if (evolutionWalker) {
-    evolutionWalker.saveData();
-    
-    // Visual feedback
-    const saveBtn = document.getElementById('evo-save-btn');
-    saveBtn.classList.add('success');
-    setTimeout(() => saveBtn.classList.remove('success'), 1000);
-  }
+  if (!walker) return;
+  walker.saveData();
+  const btn = document.getElementById('evo-save-btn');
+  btn.classList.add('success');
+  setTimeout(() => btn.classList.remove('success'), 1000);
 }
+
+/* ===== INIT ===== */
+document.addEventListener('DOMContentLoaded', function() {
+  walker = new EvolutionWalker();
+  const slider = document.getElementById('evo-mutation-slider');
+  slider.addEventListener('input', function() {
+    document.getElementById('evo-mutation-value').textContent = this.value + '%';
+  });
+});
+
+})();
 </script>
 
 <style>
-/* Evolution Walker Specific Styles */
+/* Evolution Walker Enhanced Styles */
 .control-panel {
   background: rgba(45, 212, 255, 0.05);
   border-radius: 12px;
@@ -1185,25 +1486,10 @@ function saveEvolution() {
   margin-bottom: 20px;
 }
 
-.slider-group {
-  margin-top: 8px;
-}
+.slider-group { margin-top: 8px; }
+.slider-info { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 0.9em; color: #9ccbe0; }
+#evo-mutation-value { color: #39ff14; font-weight: 600; }
 
-.slider-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 8px;
-  font-size: 0.9em;
-  color: #9ccbe0;
-}
-
-#evo-mutation-value {
-  color: #39ff14;
-  font-weight: 600;
-}
-
-/* Simulation Container */
 .simulation-container {
   position: relative;
   background: #000;
@@ -1214,520 +1500,124 @@ function saveEvolution() {
   margin-bottom: 20px;
 }
 
-#evo-canvas-container {
-  width: 100%;
-  height: 300px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+#evo-canvas-container { width: 100%; height: 300px; position: relative; display: flex; align-items: center; justify-content: center; }
+#evo-canvas-container canvas { display: block; width: 100%; height: 100%; border-radius: 8px; }
+
+.loading-state { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(11,15,26,0.9); backdrop-filter: blur(10px); z-index: 10; }
+.loading-icon { font-size: 48px; margin-bottom: 16px; animation: evo-float 3s ease-in-out infinite; }
+@keyframes evo-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+.loading-state h3 { color: #2dd4ff; margin-bottom: 8px; font-size: 1.2em; }
+.loading-state p { color: #9ccbe0; margin-bottom: 20px; }
+.loading-progress { width: 200px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, #2dd4ff, #39ff14); border-radius: 2px; transition: width 0.3s ease; }
+
+.stats-overlay { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); padding: 12px; border-radius: 8px; border: 1px solid rgba(45,212,255,0.2); display: none; z-index: 5; }
+.stats-grid { display: grid; grid-template-columns: repeat(2, auto); gap: 8px 16px; }
+.stat-item { display: flex; align-items: center; gap: 8px; font-size: 0.85em; }
+.stat-label { color: #9ccbe0; white-space: nowrap; }
+.stat-value { color: #e6faff; font-weight: 600; min-width: 40px; }
+
+.performance-indicator { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(45,212,255,0.2); display: none; z-index: 5; font-size: 0.85em; }
+.fps-label { color: #9ccbe0; margin-right: 6px; }
+.fps-value { color: #39ff14; font-weight: 600; }
+
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.metric-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(45,212,255,0.1); display: flex; align-items: center; gap: 16px; transition: all 0.3s ease; }
+.metric-card:hover { border-color: rgba(45,212,255,0.3); transform: translateY(-2px); }
+.metric-icon { font-size: 2em; }
+.metric-content { flex: 1; }
+.metric-label { font-size: 0.9em; color: #9ccbe0; margin-bottom: 4px; }
+.metric-value { font-size: 1.8em; font-weight: 700; color: #2dd4ff; margin: 4px 0; }
+.metric-card:nth-child(1) .metric-value { color: #39ff14; }
+.metric-card:nth-child(2) .metric-value { color: #2dd4ff; }
+.metric-card:nth-child(3) .metric-value { color: #9d4edd; }
+.metric-card:nth-child(4) .metric-value { color: #ffa500; }
+.metric-sub { font-size: 0.85em; color: #9ccbe0; }
+
+.chart-section { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 24px; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-title { color: #2dd4ff; font-size: 1.1em; margin-bottom: 12px; }
+.chart-scale { font-size: 0.85em; color: #9ccbe0; }
+#evo-performance-chart { width: 100%; height: 120px; background: transparent; display: block; }
+
+.leaderboard-section { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 24px; display: none; }
+.leaderboard-list { max-height: 200px; overflow-y: auto; }
+.leaderboard-item { display: grid; grid-template-columns: 30px 1fr 1fr 1fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); align-items: center; font-size: 0.9em; }
+.leaderboard-item.leader { background: rgba(57,255,20,0.1); border-radius: 6px; padding: 12px; margin: 0 -12px; }
+.leaderboard-rank { color: #2dd4ff; font-weight: 600; text-align: center; }
+.leaderboard-item.leader .leaderboard-rank { color: #ffcc00; }
+.leaderboard-distance { color: #e6faff; font-weight: 600; }
+.leaderboard-legs { color: #9ccbe0; }
+.leaderboard-age { color: #9ccbe0; text-align: right; }
+
+/* Event Log */
+.event-log-section { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,165,0,0.2); margin-bottom: 24px; }
+.event-log { max-height: 150px; overflow-y: auto; font-size: 0.85em; line-height: 1.6; }
+.event-log::-webkit-scrollbar { width: 4px; }
+.event-log::-webkit-scrollbar-thumb { background: rgba(255,165,0,0.3); border-radius: 2px; }
+
+/* Achievements */
+.achievements-section { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,204,0,0.2); margin-bottom: 24px; }
+.achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.achievement { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; font-size: 0.8em; transition: all 0.3s; }
+.achievement.locked { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); opacity: 0.4; }
+.achievement.unlocked { background: rgba(255,204,0,0.1); border: 1px solid rgba(255,204,0,0.3); opacity: 1; animation: evo-glow 1s ease-in-out; }
+@keyframes evo-glow { 0%{box-shadow:0 0 0 rgba(255,204,0,0)} 50%{box-shadow:0 0 15px rgba(255,204,0,0.4)} 100%{box-shadow:0 0 0 rgba(255,204,0,0)} }
+.ach-icon { font-size: 1.2em; }
+.ach-name { color: #e6faff; font-weight: 500; }
+
+/* Family Tree */
+.family-tree-section { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; border: 1px solid rgba(57,255,20,0.15); margin-bottom: 24px; }
+.family-tree { font-size: 0.85em; }
+.family-entry { padding: 4px 0; color: #e6faff; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+.advanced-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.control-btn { background: rgba(45,212,255,0.1); border: 1px solid rgba(45,212,255,0.2); border-radius: 8px; padding: 12px; color: #e6faff; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.9em; }
+.control-btn:hover { background: rgba(45,212,255,0.2); border-color: rgba(45,212,255,0.4); transform: translateY(-2px); }
+.control-btn.success { background: rgba(57,255,20,0.2); border-color: rgba(57,255,20,0.4); }
+.control-icon { font-size: 1.2em; }
+.control-text { font-weight: 500; }
+
+.info-panel { margin-top: 24px; border: 1px solid rgba(45,212,255,0.2); border-radius: 12px; overflow: hidden; }
+.info-panel summary { padding: 16px; background: rgba(45,212,255,0.05); cursor: pointer; font-weight: 500; color: #2dd4ff; list-style: none; position: relative; }
+.info-panel summary::after { content: '▼'; position: absolute; right: 16px; transition: transform 0.3s; font-size: 0.8em; }
+.info-panel[open] summary::after { transform: rotate(180deg); }
+.info-content { padding: 20px; background: rgba(45,212,255,0.02); }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.info-card { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 16px; border: 1px solid rgba(45,212,255,0.1); }
+.info-card h4 { color: #2dd4ff; margin-bottom: 8px; font-size: 1.1em; }
+.info-card p { color: #9ccbe0; font-size: 0.9em; line-height: 1.5; }
+.info-tips { background: rgba(45,212,255,0.05); border-radius: 8px; padding: 20px; border-left: 4px solid #2dd4ff; }
+.info-tips h4 { color: #2dd4ff; margin-bottom: 12px; font-size: 1.1em; }
+.info-tips ul { margin: 0; padding-left: 20px; color: #9ccbe0; }
+.info-tips li { margin-bottom: 8px; line-height: 1.5; }
+
+.start-btn { background: linear-gradient(135deg, #39ff14, #2dd4ff) !important; color: #000 !important; font-weight: 600 !important; }
+.start-btn.active { background: linear-gradient(135deg, #2dd4ff, #0077b5) !important; }
+.pause-btn { background: rgba(255,165,0,0.1) !important; border-color: rgba(255,165,0,0.3) !important; color: #ffa500 !important; }
+.reset-btn { background: rgba(255,77,77,0.1) !important; border-color: rgba(255,77,77,0.3) !important; color: #ff4d4d !important; }
+
+.error-state { text-align: center; padding: 40px 20px; color: #fff; }
+.error-icon { font-size: 48px; margin-bottom: 16px; color: #ff4d4d; }
+.error-state h3 { color: #ff4d4d; margin-bottom: 12px; }
+.error-state p { color: #9ccbe0; margin-bottom: 24px; }
+.retry-btn { padding: 10px 24px; background: #2dd4ff; color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s ease; }
+.retry-btn:hover { background: #39ff14; transform: translateY(-2px); }
 
-#evo-canvas-container canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 8px;
-}
-
-/* Loading State */
-.loading-state {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(11, 15, 26, 0.9);
-  backdrop-filter: blur(10px);
-  z-index: 10;
-}
-
-.loading-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.loading-state h3 {
-  color: #2dd4ff;
-  margin-bottom: 8px;
-  font-size: 1.2em;
-}
-
-.loading-state p {
-  color: #9ccbe0;
-  margin-bottom: 20px;
-}
-
-.loading-progress {
-  width: 200px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #2dd4ff, #39ff14);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-/* Stats Overlay */
-.stats-overlay {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(10px);
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(45, 212, 255, 0.2);
-  display: none;
-  z-index: 5;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: 8px 16px;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85em;
-}
-
-.stat-label {
-  color: #9ccbe0;
-  white-space: nowrap;
-}
-
-.stat-value {
-  color: #e6faff;
-  font-weight: 600;
-  min-width: 40px;
-}
-
-.stat-value:first-of-type {
-  color: #39ff14;
-}
-
-/* Performance Indicator */
-.performance-indicator {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(10px);
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(45, 212, 255, 0.2);
-  display: none;
-  z-index: 5;
-  font-size: 0.85em;
-}
-
-.fps-label {
-  color: #9ccbe0;
-  margin-right: 6px;
-}
-
-.fps-value {
-  color: #39ff14;
-  font-weight: 600;
-}
-
-/* Metrics Grid */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.metric-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid rgba(45, 212, 255, 0.1);
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  transition: all 0.3s ease;
-}
-
-.metric-card:hover {
-  border-color: rgba(45, 212, 255, 0.3);
-  transform: translateY(-2px);
-}
-
-.metric-icon {
-  font-size: 2em;
-}
-
-.metric-content {
-  flex: 1;
-}
-
-.metric-label {
-  font-size: 0.9em;
-  color: #9ccbe0;
-  margin-bottom: 4px;
-}
-
-.metric-value {
-  font-size: 1.8em;
-  font-weight: 700;
-  color: #2dd4ff;
-  margin: 4px 0;
-}
-
-.metric-card:nth-child(1) .metric-value {
-  color: #39ff14;
-}
-
-.metric-card:nth-child(2) .metric-value {
-  color: #2dd4ff;
-}
-
-.metric-card:nth-child(3) .metric-value {
-  color: #9d4edd;
-}
-
-.metric-card:nth-child(4) .metric-value {
-  color: #ffa500;
-}
-
-.metric-sub {
-  font-size: 0.85em;
-  color: #9ccbe0;
-}
-
-/* Chart Section */
-.chart-section {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 24px;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.chart-scale {
-  font-size: 0.85em;
-  color: #9ccbe0;
-}
-
-#evo-performance-chart {
-  width: 100%;
-  height: 120px;
-  background: transparent;
-  display: block;
-}
-
-/* Leaderboard */
-.leaderboard-section {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 24px;
-  display: none;
-}
-
-.leaderboard-list {
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.leaderboard-item {
-  display: grid;
-  grid-template-columns: 30px 1fr 1fr 1fr;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  align-items: center;
-  font-size: 0.9em;
-}
-
-.leaderboard-item.leader {
-  background: rgba(57, 255, 20, 0.1);
-  border-radius: 6px;
-  padding: 12px;
-  margin: 0 -12px;
-}
-
-.leaderboard-rank {
-  color: #2dd4ff;
-  font-weight: 600;
-  text-align: center;
-}
-
-.leaderboard-item.leader .leaderboard-rank {
-  color: #ffcc00;
-}
-
-.leaderboard-distance {
-  color: #e6faff;
-  font-weight: 600;
-}
-
-.leaderboard-legs {
-  color: #9ccbe0;
-}
-
-.leaderboard-age {
-  color: #9ccbe0;
-  text-align: right;
-}
-
-/* Advanced Controls */
-.advanced-controls {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.control-btn {
-  background: rgba(45, 212, 255, 0.1);
-  border: 1px solid rgba(45, 212, 255, 0.2);
-  border-radius: 8px;
-  padding: 12px;
-  color: #e6faff;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 0.9em;
-}
-
-.control-btn:hover {
-  background: rgba(45, 212, 255, 0.2);
-  border-color: rgba(45, 212, 255, 0.4);
-  transform: translateY(-2px);
-}
-
-.control-btn.success {
-  background: rgba(57, 255, 20, 0.2);
-  border-color: rgba(57, 255, 20, 0.4);
-}
-
-.control-icon {
-  font-size: 1.2em;
-}
-
-.control-text {
-  font-weight: 500;
-}
-
-/* Info Panel */
-.info-panel {
-  margin-top: 24px;
-  border: 1px solid rgba(45, 212, 255, 0.2);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.info-panel summary {
-  padding: 16px;
-  background: rgba(45, 212, 255, 0.05);
-  cursor: pointer;
-  font-weight: 500;
-  color: #2dd4ff;
-  list-style: none;
-  position: relative;
-}
-
-.info-panel summary::after {
-  content: '▼';
-  position: absolute;
-  right: 16px;
-  transition: transform 0.3s;
-  font-size: 0.8em;
-}
-
-.info-panel[open] summary::after {
-  transform: rotate(180deg);
-}
-
-.info-content {
-  padding: 20px;
-  background: rgba(45, 212, 255, 0.02);
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.info-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid rgba(45, 212, 255, 0.1);
-}
-
-.info-card h4 {
-  color: #2dd4ff;
-  margin-bottom: 8px;
-  font-size: 1.1em;
-}
-
-.info-card p {
-  color: #9ccbe0;
-  font-size: 0.9em;
-  line-height: 1.5;
-}
-
-.info-tips {
-  background: rgba(45, 212, 255, 0.05);
-  border-radius: 8px;
-  padding: 20px;
-  border-left: 4px solid #2dd4ff;
-}
-
-.info-tips h4 {
-  color: #2dd4ff;
-  margin-bottom: 12px;
-  font-size: 1.1em;
-}
-
-.info-tips ul {
-  margin: 0;
-  padding-left: 20px;
-  color: #9ccbe0;
-}
-
-.info-tips li {
-  margin-bottom: 8px;
-  line-height: 1.5;
-}
-
-/* Buttons */
-.start-btn {
-  background: linear-gradient(135deg, #39ff14, #2dd4ff) !important;
-  color: #000 !important;
-  font-weight: 600 !important;
-}
-
-.start-btn.active {
-  background: linear-gradient(135deg, #2dd4ff, #0077b5) !important;
-}
-
-.pause-btn {
-  background: rgba(255, 165, 0, 0.1) !important;
-  border-color: rgba(255, 165, 0, 0.3) !important;
-  color: #ffa500 !important;
-}
-
-.reset-btn {
-  background: rgba(255, 77, 77, 0.1) !important;
-  border-color: rgba(255, 77, 77, 0.3) !important;
-  color: #ff4d4d !important;
-}
-
-/* Error State */
-.error-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: #fff;
-}
-
-.error-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  color: #ff4d4d;
-}
-
-.error-state h3 {
-  color: #ff4d4d;
-  margin-bottom: 12px;
-}
-
-.error-state p {
-  color: #9ccbe0;
-  margin-bottom: 24px;
-}
-
-.retry-btn {
-  padding: 10px 24px;
-  background: #2dd4ff;
-  color: #000;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.retry-btn:hover {
-  background: #39ff14;
-  transform: translateY(-2px);
-}
-
-/* Responsive */
 @media (max-width: 768px) {
-  .simulation-container {
-    min-height: 250px;
-  }
-  
-  #evo-canvas-container {
-    height: 250px;
-  }
-  
-  .metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .advanced-controls {
-    grid-template-columns: 1fr;
-  }
-  
-  .leaderboard-item {
-    grid-template-columns: 30px 1fr 1fr;
-  }
-  
-  .leaderboard-age {
-    display: none;
-  }
+  .simulation-container { min-height: 250px; }
+  #evo-canvas-container { height: 250px; }
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .advanced-controls { grid-template-columns: 1fr; }
+  .leaderboard-item { grid-template-columns: 30px 1fr 1fr; }
+  .leaderboard-age { display: none; }
+  .achievements-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 }
 
 @media (max-width: 480px) {
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-  
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
+  .metrics-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr; gap: 6px; }
+  .info-grid { grid-template-columns: 1fr; }
+  .achievements-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 }
 </style>
