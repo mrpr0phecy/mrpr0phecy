@@ -132,6 +132,21 @@
     <label for="popsize">Population <span id="popVal">24</span></label>
     <input type="range" id="popsize" min="8" max="40" step="2" value="24">
 
+    <label for="gravity">Gravity <span id="gravVal">1.0×</span></label>
+    <input type="range" id="gravity" min="4" max="30" step="1" value="12">
+
+    <label for="friction">Ground friction <span id="fricVal">Normal</span></label>
+    <input type="range" id="friction" min="1" max="5" step="1" value="3">
+
+    <label for="mutrate">Mutation rate <span id="mutVal">1.0×</span></label>
+    <input type="range" id="mutrate" min="2" max="30" step="1" value="10">
+
+    <label for="airdrag">Air drag <span id="dragVal">Normal</span></label>
+    <input type="range" id="airdrag" min="1" max="5" step="1" value="3">
+
+    <label for="muscleStr">Muscle strength <span id="muscleVal">1.0×</span></label>
+    <input type="range" id="muscleStr" min="3" max="20" step="1" value="10">
+
     <div>
         <button type="button" id="startBtn">Start</button>
         <button type="button" id="pauseBtn" disabled>Pause</button>
@@ -141,6 +156,7 @@
     <p class="hint">
         Every creature is a graph of nodes and muscles driven by its own neural net.
         Nothing about the body is designed — it is bred.
+        Tweak the sliders to change the world they evolve in.
     </p>
     </div>
 </div>
@@ -199,6 +215,15 @@ var WalkerSim = (function () {
     var DT = 1 / 120;
     var SUB = 2;                 // substeps per physics tick
 
+    // ---- tunable physics knobs (modified by UI sliders at runtime)
+    var CFG = {
+        gravityMul: 1.0,        // multiplied into GRAVITY
+        frictionMul: 1.0,       // multiplied into ground friction gene
+        mutationScale: 1.0,     // multiplied into mutation rate
+        dragMul: 1.0,           // multiplied into air drag
+        muscleMul: 1.0          // multiplied into muscle spring constant k
+    };
+
     // ---------------------------------------------------------------- rng
     function RNG(seed) {
         this.s = (seed >>> 0) || 1;
@@ -256,7 +281,7 @@ var WalkerSim = (function () {
     // ---------------------------------------------------------------- genome
     function randomGenome(rng) {
         var nNodes = rng.int(4, 7);
-        var nodes = [{ x: 0, y: 0, z: 0, r: rng.range(0.22, 0.34), fr: rng.range(0.4, 1.0) }];
+        var nodes = [{ x: 0, y: 0, z: 0, r: rng.range(0.22, 0.34), fr: rng.range(0.5, 1.0) }];
         var i, parent, a, b;
 
         for (i = 1; i < nNodes; i++) {
@@ -269,7 +294,7 @@ var WalkerSim = (function () {
                 y: nodes[parent].y + lift * len,
                 z: nodes[parent].z + Math.sin(dir) * len,
                 r: rng.range(0.13, 0.3),
-                fr: rng.range(0.4, 1.0),
+                fr: rng.range(0.5, 1.0),
                 p: parent
             });
         }
@@ -309,7 +334,7 @@ var WalkerSim = (function () {
         if (n < 3) {
             while (g.nodes.length < 3) {
                 var last = g.nodes[g.nodes.length - 1];
-                g.nodes.push({ x: last.x + 0.4, y: last.y + 0.2, z: last.z, r: 0.2, fr: 0.7 });
+                g.nodes.push({ x: last.x + 0.4, y: last.y + 0.2, z: last.z, r: 0.2, fr: 0.8 });
             }
             n = g.nodes.length;
         }
@@ -319,7 +344,7 @@ var WalkerSim = (function () {
         for (i = 0; i < n; i++) {
             var nd = g.nodes[i];
             nd.r = clamp(nd.r, 0.1, 0.45);
-            nd.fr = clamp(nd.fr, 0.05, 1.5);
+            nd.fr = clamp(nd.fr, 0.3, 1.5);
             nd.x = clamp(nd.x, -2.2, 2.2);
             nd.y = clamp(nd.y, -2.2, 2.6);
             nd.z = clamp(nd.z, -2.2, 2.2);
@@ -365,7 +390,7 @@ var WalkerSim = (function () {
 
     // ---------------------------------------------------------------- mutation
     function mutate(g, rng, rate) {
-        rate = rate === undefined ? 1 : rate;
+        rate = (rate === undefined ? 1 : rate) * CFG.mutationScale;
         var i, n = g.nodes.length, m;
 
         for (i = 0; i < n; i++) {
@@ -392,7 +417,7 @@ var WalkerSim = (function () {
                 x: g.nodes[p].x + Math.cos(dir) * len,
                 y: g.nodes[p].y + rng.range(-0.3, 0.7) * len,
                 z: g.nodes[p].z + Math.sin(dir) * len,
-                r: rng.range(0.12, 0.28), fr: rng.range(0.4, 1.0), p: p
+                r: rng.range(0.12, 0.28), fr: rng.range(0.5, 1.0), p: p
             });
             g.muscles.push({ a: p, b: g.nodes.length - 1, k: rng.range(30, 150), amp: rng.range(0.15, 0.5), d: rng.range(0.8, 2.5) });
         } else if (roll < 0.22 * rate && n > 4) {
@@ -685,7 +710,7 @@ var WalkerSim = (function () {
             var rvx = this.vx[b] - this.vx[a], rvy = this.vy[b] - this.vy[a], rvz = this.vz[b] - this.vz[a];
             var rel = rvx * nx + rvy * ny + rvz * nz;
 
-            var f = mu.k * (len - target) + mu.d * rel;
+            var f = mu.k * CFG.muscleMul * (len - target) + mu.d * rel;
             f = clamp(f, -400, 400);
 
             this.vx[a] += f * nx * this.im[a] * h; this.vy[a] += f * ny * this.im[a] * h; this.vz[a] += f * nz * this.im[a] * h;
@@ -752,8 +777,8 @@ var WalkerSim = (function () {
 
         // integrate, then resolve the ground
         for (i = 0; i < this.n; i++) {
-            this.vy[i] -= GRAVITY * h;
-            var drag = 1 - 0.18 * h;
+            this.vy[i] -= GRAVITY * CFG.gravityMul * h;
+            var drag = 1 - 0.18 * CFG.dragMul * h;
             this.vx[i] *= drag; this.vy[i] *= drag; this.vz[i] *= drag;
 
             this.px[i] += this.vx[i] * h;
@@ -767,7 +792,10 @@ var WalkerSim = (function () {
             if (this.py[i] - r < gy) {
                 this.py[i] = gy + r;
                 if (this.vy[i] < 0) this.vy[i] = -this.vy[i] * 0.06;
-                var fr = 1 - g.nodes[i].fr * 38 * h;
+                // velocity-dependent friction: faster = more braking
+                var hSpeed = Math.sqrt(this.vx[i] * this.vx[i] + this.vz[i] * this.vz[i]);
+                var frGene = g.nodes[i].fr * CFG.frictionMul;
+                var fr = 1 - (frGene * 30 + hSpeed * 0.8) * h;
                 if (fr < 0) fr = 0;
                 this.vx[i] *= fr; this.vz[i] *= fr;
                 this.contact[i] = 1;
@@ -1075,7 +1103,8 @@ var WalkerSim = (function () {
         randomGenome: randomGenome, cloneGenome: cloneGenome,
         mutate: mutate, crossover: crossover, repair: repair,
         nextGeneration: nextGeneration, score: score, think: think, clamp: clamp,
-        makePairs: makePairs, Bout: Bout
+        makePairs: makePairs, Bout: Bout,
+        CFG: CFG
     };
 })();
 </script>
@@ -1849,6 +1878,33 @@ var WalkerSim = (function () {
     });
     $('popsize').addEventListener('change', function () {
         setRunning(false); restart();
+    });
+
+    // ---- physics knobs
+    var FRICTION_LABELS = ['Icy', 'Slippery', 'Normal', 'Grippy', 'Sticky'];
+    var DRAG_LABELS = ['None', 'Thin air', 'Normal', 'Thick air', 'Syrup'];
+
+    $('gravity').addEventListener('input', function () {
+        S.CFG.gravityMul = parseInt(this.value, 10) / 12;
+        $('gravVal').textContent = S.CFG.gravityMul.toFixed(1) + '\u00d7';
+    });
+    $('friction').addEventListener('input', function () {
+        var v = parseInt(this.value, 10);
+        S.CFG.frictionMul = [0.2, 0.5, 1.0, 2.0, 4.0][v - 1];
+        $('fricVal').textContent = FRICTION_LABELS[v - 1];
+    });
+    $('mutrate').addEventListener('input', function () {
+        S.CFG.mutationScale = parseInt(this.value, 10) / 10;
+        $('mutVal').textContent = S.CFG.mutationScale.toFixed(1) + '\u00d7';
+    });
+    $('airdrag').addEventListener('input', function () {
+        var v = parseInt(this.value, 10);
+        S.CFG.dragMul = [0.2, 0.5, 1.0, 2.0, 4.0][v - 1];
+        $('dragVal').textContent = DRAG_LABELS[v - 1];
+    });
+    $('muscleStr').addEventListener('input', function () {
+        S.CFG.muscleMul = parseInt(this.value, 10) / 10;
+        $('muscleVal').textContent = S.CFG.muscleMul.toFixed(1) + '\u00d7';
     });
 
     window.addEventListener('resize', function () {
