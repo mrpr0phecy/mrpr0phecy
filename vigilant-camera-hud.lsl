@@ -1,5 +1,5 @@
 // ============================================================================
-//  VIGILANT ACTION CAMERA HUD  v2.1  --  Second Life (LSL)
+//  VIGILANT ACTION CAMERA HUD  v2.1.1  --  Second Life (LSL)
 //  A sim-wide action camera: orbits stars with flowing cinematic moves and
 //  cuts to whatever is happening - new arrivals, nearby speech, fast movers,
 //  bursts into action, newly worn items, fast rezzed props (3s close-ups).
@@ -191,6 +191,15 @@ integer is_action_anim(string a)
             a == "Flying" || a == "FlyingSlow" || a == "Hovering" ||
             a == "Taking Off" || a == "Jumping" || a == "PreJumping" ||
             a == "FallingDown" || a == "Soft Landing");
+}
+
+// Smallest of two floats. (LSL has no llMin()/llMax() - this hand-rolled
+// helper keeps the script compiling on every viewer and server.)
+float min_ff(float a, float b)
+{
+    if (a < b)
+        return a;
+    return b;
 }
 
 // ---------------------------------------------------------------------------
@@ -423,6 +432,8 @@ start_cinematic()
     if (listen_chat)
         llListenRemove(listen_chat);
     listen_chat = llListen(0, "", NULL_KEY, "");   // hear all nearby chatter
+    if (llGetAgentInfo(owner) & AGENT_MOUSELOOK)
+        llOwnerSay("Note: scripted cameras cannot drive mouselook - leave mouselook (or press Esc) to hand the lens back to the HUD.");
     llSetTimerEvent(UPDATE_INTERVAL);
 }
 
@@ -725,7 +736,7 @@ scan_avatars()
                 cand_keys += [a];
                 cand_pos += [pos];
                 cand_score += [score];
-                cand_rank += [llVecDist(pos, base) - llMin(score, 15.0) * SCORE_REACH];
+                cand_rank += [llVecDist(pos, base) - min_ff(score, 15.0) * SCORE_REACH];
             }
         }
         roster_pos += [pos];
@@ -1003,8 +1014,8 @@ update_camera(float dt)
         if (action_mode)
         {
             // pull back and circle faster as the action speeds up
-            radius = radius * (1.0 + llMin(speed / 8.0, 1.0) * 0.5);
-            spin = spin + llMin(speed / 10.0, 1.0) * 0.03 * pan_direction;
+            radius = radius * (1.0 + min_ff(speed / 8.0, 1.0) * 0.5);
+            spin = spin + min_ff(speed / 10.0, 1.0) * 0.03 * pan_direction;
         }
         if (panning)
         {
@@ -1041,7 +1052,7 @@ update_camera(float dt)
     // ---- handheld energy on fast action ----
     if (action_mode && !is_zoomed && speed > 4.0)
     {
-        float amp = llMin(speed / 20.0, 1.0) * SHAKE_AMP;
+        float amp = min_ff(speed / 20.0, 1.0) * SHAKE_AMP;
         cam_pos = cam_pos + <llSin(elapsed * 13.0),
                               llSin(elapsed * 17.0 + 1.3),
                               llSin(elapsed * 11.0 + 2.1)> * amp;
@@ -1279,7 +1290,7 @@ default
         if (!FLOATING_TEXT)
             llSetText("", <1.0, 1.0, 1.0>, 0.0);
         refresh_perms();
-        llOwnerSay("Vigilant Action Camera v2.1 loaded! Touch the HUD for controls - 'On/Off' starts filming.");
+        llOwnerSay("Vigilant Action Camera v2.1.1 loaded! Touch the HUD for controls - 'On/Off' starts filming.");
     }
 
     on_rez(integer start_param)
@@ -1359,6 +1370,8 @@ default
             cam_init = FALSE;
             target_lost = 0;
             target_boring = FALSE;
+            refresh_perms();   // the viewer resets the camera on teleport;
+                               // the 0.1 s loop re-asserts it from here on
         }
     }
 
@@ -1647,4 +1660,7 @@ default
 //  never see attachments. The sensor is ACTIVE-only on purpose (moving props
 //  only, no static clutter). If a packed sim makes the 1s pulse feel heavy,
 //  set SENSOR_INTERVAL to 2.0 - every threshold scales itself.
+//  LSL has no llMin()/llMax(); min_ff() above is the stand-in. Scripted
+//  cameras cannot run in mouselook and are silently overridden while you
+//  hold Alt-cam (free camera) - press Esc to hand the lens back to the HUD.
 // ============================================================================
