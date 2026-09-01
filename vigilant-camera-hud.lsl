@@ -22,6 +22,7 @@
 float SENSOR_INTERVAL       = 1.0;    // region scan pulse (seconds).
                                       // Raise to 2.0 in very busy regions if
                                       // you want to spend less script time.
+float UPDATE_INTERVAL       = 0.1;    // camera update tick (seconds)
 integer MAX_SCAN_AGENTS     = 50;     // agents fully scanned per pulse
                                       // (script-time guard for packed sims)
 float SENSOR_RANGE          = 96.0;   // object sensor radius (96 m is the max)
@@ -141,6 +142,7 @@ float   pan_angle = 0.0;          // current orbit angle
 float   elapsed = 0.0;            // our own smooth-motion clock
 float   last_tick = 0.0;
 float   whip_until = 0.0;         // whip-pan ends at this elapsed time
+float   last_dir_switch = 0.0;    // last automatic CW/CCW direction change
 vector  cam_pos = ZERO_VECTOR;    // smoothed camera position
 vector  cam_focus = ZERO_VECTOR;  // smoothed focus point
 integer cam_init = FALSE;         // has the camera snapped to its first frame?
@@ -414,6 +416,7 @@ start_cinematic()
     attach_cursor = 0;
     elapsed = 0.0;
     whip_until = 0.0;
+    last_dir_switch = 0.0;
     last_tick = llGetTime();
     cam_init = FALSE;
     no_targets_said = FALSE;
@@ -991,6 +994,12 @@ update_camera(float dt)
         float radius = CAMERA_DISTANCE_BASE + CAMERA_DISTANCE_AMPLITUDE * llSin(TWO_PI * elapsed / DISTANCE_PERIOD);
         float height = CAMERA_HEIGHT_BASE + CAMERA_HEIGHT_AMPLITUDE * llSin(TWO_PI * elapsed / HEIGHT_PERIOD);
         float spin = (PAN_SPEED_BASE - PAN_SPEED_AMPLITUDE * (0.5 - 0.5 * llSin(TWO_PI * elapsed / PAN_SPEED_PERIOD))) * pan_direction;
+        // alternate clockwise <-> anticlockwise for variety
+        if (elapsed - last_dir_switch >= PAN_DIRECTION_PERIOD)
+        {
+            pan_direction = -pan_direction;
+            last_dir_switch = elapsed;
+        }
         if (action_mode)
         {
             // pull back and circle faster as the action speeds up
@@ -1639,3 +1648,4 @@ default
 //  only, no static clutter). If a packed sim makes the 1s pulse feel heavy,
 //  set SENSOR_INTERVAL to 2.0 - every threshold scales itself.
 // ============================================================================
+=====
