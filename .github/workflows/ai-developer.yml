@@ -1,0 +1,53 @@
+name: AI Developer
+on:
+  schedule:
+    - cron: '0 6 * * 1,4'
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task type'
+        required: false
+        default: 'auto'
+        type: choice
+        options: [auto, audit, generate, fix]
+      category:
+        description: 'Category focus (empty=auto)'
+        required: false
+        default: ''
+        type: string
+      max_tools:
+        description: 'Max tools to generate'
+        required: false
+        default: '3'
+        type: string
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  ai-develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run AI Developer
+        env:
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'gemini' }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_TASK: ${{ github.event.inputs.task || 'auto' }}
+          AI_CATEGORY: ${{ github.event.inputs.category || '' }}
+          AI_MAX_TOOLS: ${{ github.event.inputs.max_tools || '3' }}
+        run: node scripts/ai-developer.js
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'AI Developer: automated improvements'
+          branch: ai-developer/${{ github.run_id }}
+          delete-branch: true
+          title: 'AI Developer: New tools & improvements'
+          body: |
+            Automated AI Developer run. Review before merging.
+          labels: ai-generated, automated
