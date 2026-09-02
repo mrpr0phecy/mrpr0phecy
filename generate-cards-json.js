@@ -175,9 +175,7 @@ const aquariumList = [
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
 const gapFillMap = {
   'hike-time-planner': 'Science & Engineering',
-  'bike-gear-calculator': 'Science & Engineering',
   'photo-exposure-lab': 'Science & Engineering',
-  'race-pace-predictor': 'Health & Fitness',
   'baby-sleep-planner': 'Health & Fitness',
   'energy-tariff-comparator': 'Finance & Money',
   'unit-price-comparator': 'Finance & Money',
@@ -216,7 +214,31 @@ const sportsList = [
   'archery-score-calculator',
   'formula1-championship-points',
   'round-robin-fixture-generator',
-  'rowing-erg-pace-calculator'
+  'rowing-erg-pace-calculator',
+  // Folded in from other categories (were default/Health/Science):
+  'boxing-fight-decision-predictor',
+  'boxing-judge-criteria-trainer',
+  'boxing-knockdown-count-rules',
+  'boxing-punch-stat-tracker',
+  'boxing-round-by-round-analyzer',
+  'boxing-round-timer-bell',
+  'boxing-scorecard-comparator',
+  'boxing-ten-point-must-scorecard',
+  'boxing-three-judge-simulator',
+  'boxing-weight-class-checker',
+  'premier-league',
+  'bike-gear-calculator',
+  'race-pace-predictor',
+  'chess-elo-rating-calculator',
+  'diving-score-calculator',
+  'bouldering-score-calculator',
+  'gymnastics-score-calculator',
+  'triathlon-race-planner',
+  'netball-scorekeeper',
+  'handball-scorekeeper',
+  'curling-score-calculator',
+  'showjumping-faults-calculator',
+  'weightlifting-sinclair-score'
 ];
 
 const wellbeingList = [

@@ -1,0 +1,100 @@
+<h2 id="elo-title" style="margin-top:0;color:var(--accent);">♟️ Chess Elo Rating Calculator</h2>
+
+<form aria-describedby="elo-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="elo-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    See what a single game does to a rating. Enter both players' ratings and the result, and this gives the expected
+    score, the exact rating change, the new rating, and the performance rating for that game.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="elo-ra" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Player rating</label>
+      <input id="elo-ra" type="number" min="100" max="3000" value="1600" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="elo-rb" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Opponent rating</label>
+      <input id="elo-rb" type="number" min="100" max="3000" value="1500" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="elo-result" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Result</label>
+      <select id="elo-result" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="1" selected>Win (1)</option>
+        <option value="0.5">Draw (&frac12;)</option>
+        <option value="0">Loss (0)</option>
+      </select>
+    </div>
+    <div>
+      <label for="elo-k" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">K-factor</label>
+      <select id="elo-k" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="auto" selected>Auto (by rating)</option>
+        <option value="40">40 &mdash; new player (&lt;30 games)</option>
+        <option value="20">20 &mdash; established, under 2400</option>
+        <option value="10">10 &mdash; 2400+ master</option>
+      </select>
+    </div>
+  </div>
+
+  <button type="button" id="elo-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
+</form>
+
+<div id="elo-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The Elo maths</summary>
+  <p style="margin-top:8px;">
+    Expected score E = 1 &divide; (1 + 10<sup>(Rb&minus;Ra)/400</sup>). New rating = Ra + K &times; (S &minus; E), where S is the actual
+    result (1, &frac12; or 0) and K is the rating-change multiplier. A 400-point gap means the stronger player is expected to
+    score about 10 of every 11 points. Performance rating for a single game is simply the opponent's rating &plusmn;400.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function run() {
+    var ra = parseFloat($('elo-ra').value);
+    var rb = parseFloat($('elo-rb').value);
+    var S = parseFloat($('elo-result').value);
+    var kSel = $('elo-k').value;
+    var out = $('elo-out');
+
+    if (!(ra >= 100) || !(rb >= 100)) { out.innerHTML = '<div style="color:#ffa500;">Enter both ratings (100&ndash;3000).</div>'; return; }
+
+    var E = 1 / (1 + Math.pow(10, (rb - ra) / 400));
+    var K = kSel === 'auto' ? (ra >= 2400 ? 10 : 20) : parseInt(kSel, 10);
+    var delta = K * (S - E);
+    var newRating = Math.round(ra + delta);
+    var perf = rb + 400 * (2 * S - 1);
+
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box((E * 100).toFixed(1) + '%', 'expected score') +
+      box((delta >= 0 ? '+' : '') + delta.toFixed(1), 'rating change') +
+      box(String(newRating), 'new rating') +
+      box((perf >= 0 ? '' : '') + Math.round(perf), 'performance rating') +
+      '</div>';
+
+    html += '<div style="padding:8px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:10px;font-size:0.85rem;">' +
+      'Against ' + rb + ' you were expected to score <strong style="color:var(--accent);">' + (E * 100).toFixed(1) + '%</strong>. ' +
+      (S > E ? 'You overperformed, so the rating ' : S < E ? 'You underperformed, so the rating ' : 'The result matched expectation &mdash; the rating ') +
+      (S > E ? 'rises' : S < E ? 'falls' : 'barely moves') + ' by <strong style="color:' + (delta >= 0 ? '#39ff14' : '#ff4d4d') + ';">' + Math.abs(delta).toFixed(1) + ' points</strong>.</div>';
+
+    html += '<div style="font-size:0.85rem;color:rgba(230,250,255,0.8);">' +
+      'With K=' + K + ', a win against a ' + rb + ' opponent is a performance of roughly ' + (rb + 400) + '. A ' +
+      (S === 0.5 ? 'draw plays at your own rating.' : S === 1 ? 'win always plays about 400 above the opponent.' : 'loss plays about 400 below the opponent.') +
+      '</div>';
+
+    out.innerHTML = html;
+  }
+
+  $('elo-go').addEventListener('click', run);
+  run();
+})();
+</script>

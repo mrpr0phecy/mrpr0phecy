@@ -37,7 +37,7 @@ KNOWN_CATEGORIES = {
     "Culinary & Food Science", "SaaS & Business Killers", "Lucid Dreaming & Sleep",
     "Interactive Art & Living Worlds", "Natural Remedies & Herbs",
     "AI & Autonomous Agents", "Anime & Otaku Culture", "Aquatics & Fishkeeping",
-    "Birdwatching & Ornithology", "Boxing & Fight Scoring", "Dogs & Canine Care",
+    "Birdwatching & Ornithology", "Dogs & Canine Care",
     "Virtual Worlds & Gaming", "MrProphecy Arcade", "Museum & Collection",
     "Sports",
 }

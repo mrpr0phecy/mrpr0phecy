@@ -1,0 +1,86 @@
+<h2 id="hnb-title" style="margin-top:0;color:var(--accent);">🤾 Handball Scorekeeper</h2>
+
+<form aria-describedby="hnb-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="hnb-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Two halves, goals, and the two-minute suspensions that define the game. Tap to score, track each team's
+    suspensions, and keep the running total.
+  </p>
+
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="hnb-half" style="padding:10px 14px;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.3);border-radius:8px;color:#ffd700;cursor:pointer;font-weight:600;">Start 2nd half &rarr;</button>
+    <button type="button" id="hnb-undo" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Undo</button>
+    <button type="button" id="hnb-new" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">New match</button>
+  </div>
+</form>
+
+<div id="hnb-board" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);margin-bottom:12px;">
+  <div id="hnb-score" style="font-size:2rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:4px;">0&ndash;0</div>
+  <div id="hnb-detail" style="text-align:center;font-size:0.85rem;color:rgba(230,250,255,0.6);">1st half</div>
+  <div id="hnb-susp" style="display:flex;gap:10px;justify-content:center;margin-top:8px;font-size:0.8rem;color:rgba(230,250,255,0.7);"></div>
+</div>
+
+<div style="display:flex;gap:10px;">
+  <button type="button" id="hnb-apt" style="flex:1;padding:14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;font-size:1rem;">Team A +1 goal</button>
+  <button type="button" id="hnb-bpt" style="flex:1;padding:14px;background:rgba(157,78,221,0.15);border:1px solid rgba(157,78,221,0.4);border-radius:8px;color:#c58ef0;cursor:pointer;font-weight:700;font-size:1rem;">Team B +1 goal</button>
+</div>
+
+<div style="display:flex;gap:10px;margin-top:10px;">
+  <button type="button" id="hnb-asus" style="flex:1;padding:10px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.25);border-radius:8px;color:#ff4d4d;cursor:pointer;font-weight:600;font-size:0.9rem;">A &mdash; 2-min suspension</button>
+  <button type="button" id="hnb-bsus" style="flex:1;padding:10px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.25);border-radius:8px;color:#ff4d4d;cursor:pointer;font-weight:600;font-size:0.9rem;">B &mdash; 2-min suspension</button>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The basics</summary>
+  <p style="margin-top:8px;">
+    Seven players a side, two 30-minute halves, one point per goal. A two-minute suspension leaves a team a player
+    down &mdash; three suspensions for the same player is a red card. A 7-metre throw is awarded for a clear scoring
+    chance denied by a foul.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function fresh() { return { a: 0, b: 0, half: 1, susA: 0, susB: 0, done: false, history: [] }; }
+  var S = fresh();
+
+  function clone(s) { return { a: s.a, b: s.b, half: s.half, susA: s.susA, susB: s.susB, done: s.done, history: s.history.slice() }; }
+
+  function goal(who) {
+    if (S.done) return;
+    S.history.push(clone(S));
+    if (who === 'A') S.a++; else S.b++;
+    render();
+  }
+  function susp(who) {
+    if (S.done) return;
+    S.history.push(clone(S));
+    if (who === 'A') S.susA++; else S.susB++;
+    render();
+  }
+
+  function render() {
+    $('hnb-score').innerHTML = S.a + '&ndash;' + S.b;
+    $('hnb-detail').textContent = S.done ? 'Full time' : (S.half === 1 ? '1st half' : '2nd half');
+    $('hnb-susp').innerHTML =
+      '<span>Team A: ' + S.susA + ' &times; 2-min</span><span>&middot;</span><span>Team B: ' + S.susB + ' &times; 2-min</span>';
+  }
+
+  $('hnb-apt').addEventListener('click', function () { goal('A'); });
+  $('hnb-bpt').addEventListener('click', function () { goal('B'); });
+  $('hnb-asus').addEventListener('click', function () { susp('A'); });
+  $('hnb-bsus').addEventListener('click', function () { susp('B'); });
+  $('hnb-half').addEventListener('click', function () {
+    if (S.done) return;
+    S.history.push(clone(S));
+    if (S.half >= 2) S.done = true; else S.half = 2;
+    render();
+  });
+  $('hnb-undo').addEventListener('click', function () { if (S.history.length) { S = S.history.pop(); render(); } });
+  $('hnb-new').addEventListener('click', function () { S = fresh(); render(); });
+
+  render();
+})();
+</script>
