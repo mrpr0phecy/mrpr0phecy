@@ -11,8 +11,9 @@ agent-facing operating manual (what the repo is, what to never touch, exact
 task sequences, and the 100 MB workspace budget). This file covers
 authentication; AGENTS.md covers everything else.
 
-Last verified: 2026-08-30 · Works with: Bash + `curl` + `jq` (preinstalled in
-most agent sandboxes).
+Last verified: 2026-09-02 · Works with: Bash + `curl` + `jq` (preinstalled in
+most agent sandboxes). The original 2026-08-30 verification still applies;
+the only change since is the catalogue going 500 → 562 tools.
 
 ---
 
@@ -115,7 +116,7 @@ One GitHub Pages site, **two deliberately separate products**:
 
 | Product | Entry point | What it is |
 |---|---|---|
-| **A — The Most Useful Site In The World** | `index.html` | **500** self-contained offline browser tools, indexed by `cards/cards.json` |
+| **A — The Most Useful Site In The World** | `index.html` | **562** self-contained offline browser tools, indexed by `cards/cards.json` (count updated 2026-09-02 after a coverage audit — see `changelog.html`) |
 | **B — MrProphecy** | `listen.html` | UK hip hop / animated soundscapes from Luton; YouTube + SoundCloud |
 
 **Never mix them**: no music players/banners in the catalogue or cards; no tool
@@ -136,13 +137,13 @@ and what earns: **[INCOME.md](INCOME.md)**.
 
 1. Write `cards/<tool-name>.html` — an **HTML fragment** (no `<!doctype>`,
    `<head>`, `<body>`). All element IDs must carry a short unique per-tool
-   prefix (`xyz-…`) because all 500 cards share one DOM. Wrap all JS in an
+   prefix (`xyz-…`) because all 562 cards share one DOM. Wrap all JS in an
    IIFE. Inline styles + the CSS variables from `index.html` only. No network
    calls. Start from an existing card.
 2. `node generate-cards-json.js` — rebuilds `cards/cards.json`.
    ⚠️ It **overwrites categories** from hardcoded filename lists: add the new
    filename to the right list inside the script, or re-apply the category.
-3. Bump the count in `index.html` (`Search 500` → `Search 501`).
+3. Bump the count in `index.html` (`Search 562+ free tools` → `Search 563+ free tools` — and the hero badge above the search bar).
 4. `python3` — regenerate `sitemap.xml` (script in ARCHITECTURE.md §6), built
    from `git ls-files` so sparse checkouts don't drop the cards.
 5. Commit, push, **wait ~50 s**, then verify live (see §6).
@@ -176,10 +177,11 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 Expect `200` and a card count matching `cards/`. GitHub Pages deploys from
 `main` with 30–60 s latency; a green push is not proof of a live deploy.
 
-## 7. Current verified state (2026-08-30)
+## 7. Current verified state (last reviewed 2026-09-02)
 
-- Cards: **500**, all indexed (no orphans), all with title+description.
-  Categories include the last batch **"MrProphecy Arcade" (10)**.
-- Tool counts in [README.md](README.md)/[ARCHITECTURE.md](ARCHITECTURE.md)/
-  [INCOME.md](INCOME.md) were refreshed to 493 on this date.
+- Cards: **562** (was 500 as of 2026-08-30; +10 from a coverage audit, see
+  `changelog.html`).
+- Tool counts in [README.md](README.md), [AGENTS.md](AGENTS.md),
+  [INCOME.md](INCOME.md) refreshed to 562. The changelog entries in
+  `ARCHITECTURE.md` §10 are historical and are left at their original numbers.
 - `ARCHITECTURE.md` §9 lists deliberate leave-alones and open questions.

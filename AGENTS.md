@@ -3,7 +3,7 @@
 Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-08-30. **ARCHITECTURE.md is authoritative if anything here
+Last updated: 2026-09-02. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
 ---
@@ -16,7 +16,7 @@ deploy):
 
 | | Product | Entry | Don't mix |
 |---|---|---|---|
-| **A** | The Most Useful Site In The World — **500** offline browser tools | `index.html` | Never add music players/banners here |
+| **A** | The Most Useful Site In The World — **562** offline browser tools | `index.html` | Never add music players/banners here |
 | **B** | MrProphecy — UK hip hop & animated soundscapes (Luton) | `listen.html` | Never add tool links here |
 
 Live: `https://www.themostusefulsiteintheworld.com` (CNAME = custom domain,
@@ -90,7 +90,7 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 #  - forms: onsubmit="event.preventDefault();"
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
-# bump count in index.html: "Search 500" -> "Search 501"
+# bump count in index.html: "Search 562+ free tools" -> "Search 563+ free tools" (and the hero badge)
 python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
 PY
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
@@ -134,3 +134,60 @@ live deploy.
 Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.
+
+---
+
+## 8. Visiting agents — handoff log
+
+A short log of recent agent sessions. Append a new entry on each handoff;
+keep the prose concrete, no marketing fluff.
+
+### 2026-09-02 — Marketing & discovery layer (12 commits)
+Agent role: marketing/SEO. Branch: `arena/01a05fea-mrpr0phecy`.
+Outcome: shipped 10 new top-level pages (`popular`, `new`, `use-case`, `tools`,
+`help`, `about`, `press`, `embed`, `changelog`, `sitemap`), 3 long-form blog
+posts (mortgage, BMI, compound interest), an RSS feed, an `llms.txt`, an AI
+policy at `/.well-known/ai.txt`, a `security.txt`, and a computed
+`related.json` for all 562 tools. Sticky top nav + footer discover pills on
+the home page. Per-tool `WebApplication` JSON-LD on the standalone viewer.
+`popular.html` had 11 broken tool slugs that referenced non-existent
+entries — all fixed against `cards/cards.json`.
+- Things to be careful of next session: the per-tool JSON-LD on
+  `tool.html` runs at runtime and rewrites the page's `<title>`, `og:*`,
+  `twitter:*`, `<link rel=canonical>`, and replaces the static
+  `WebApplication` JSON-LD in the head. If you change the head metadata,
+  test the wrapper init flow, not just the static HTML.
+- Open: the translated language pages (`hindi.html`, `marathi.html`, …) are
+  Product-B music pages. The constraints in §3 say "never add tool links to
+  music pages" — so we did not cross-link them to `/popular`, `/use-case`,
+  etc. If you want translated versions of the tool pages themselves, that's
+  a separate decision the owner should make.
+- Open: blog is 3 posts deep. Long-tail target keywords are still open —
+  picked mortgages, BMI, compound interest because they are high-volume
+  English-language queries with honest answers. The next ones I'd write are
+  "how to read a tide table", "what VO2 max actually measures", and "how
+  subnet masks really work" — but only if the next agent has time.
+- Did not do (deliberately): did not wire the marketing agent up to any
+  chat system (Slack/Discord/webhook). The repo has no such integration
+  today; introducing one is a separate decision and needs a webhook URL
+  stored as a GitHub secret.
+
+### 2026-09-02 — +10 tools after a coverage audit
+Agent role: content. Branch: `main` (commit `cee0c8b`).
+Outcome: catalogued every existing title, probed ten subject areas, and
+filled ten genuine coverage gaps (Hike Time Planner, Bike Gear Calculator,
+Photo Exposure Lab, Race Pace Predictor, Baby Sleep Planner, Energy Tariff
+Comparator, Unit Price Comparator, Fluid Type Scale, Fabric Yardage
+Estimator, Car Care Tracker). 552 → 562 tools across 23 categories.
+- Lesson: do the dump-and-search first, don't guess. Three of the ten
+  candidate areas looked covered but were false positives (walking pace was
+  in a steps-to-calories tool, cadence was wing-beat cadence in a bird ID
+  card, aperture/ND filter were astronomy and capacitor tools). Always
+  read the actual title and description before assuming a gap.
+- Lesson: own the unit tests of your own work. The Hike Time Planner
+  initially rendered sunset times in the viewer's timezone, which made
+  Scottish walks look foreign if the user was abroad. Added an explicit
+  clock selector.
+- Open: the index badge (`heroToolCount`) and the discover-pills in the
+  footer are now hardcoded with the current count. If you add tools,
+  remember to bump both.

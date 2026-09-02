@@ -2,7 +2,7 @@
 
 One GitHub Pages site serving two separate products from the same domain:
 
-- **The Most Useful Site In The World** — 500 free, self-contained browser
+- **The Most Useful Site In The World** — 562 free, self-contained browser
   tools. Entry point: [`index.html`](index.html)
 - **MrProphecy** — UK hip hop and animated soundscapes from Luton.
   Entry point: [`listen.html`](listen.html)
@@ -29,13 +29,34 @@ Start there whether you are a human or an AI agent.
 and what was deliberately not built. Read it before adding anything
 money-related.
 
+## Who's here
+
+- **Owner / founder** — `mrpr0phecy` (Russell Head, Luton UK). Final call on
+  anything that touches the two products, monetisation, or `opensourcenews.html`.
+- **AI agents** — see [AGENTS.md](AGENTS.md) for the handoff log of recent
+  agent sessions, and [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution
+  on-ramp (applies to humans and agents alike).
+
+## Recent work
+
+- **Marketing & discovery layer (Sept 2026)** — 10 new top-level pages
+  (`/popular`, `/new`, `/use-case`, `/tools`, `/help`, `/about`, `/press`,
+  `/embed`, `/changelog`, `/sitemap`), 3 long-form blog posts, an RSS feed,
+  `llms.txt`, computed related-tools, explicit AI-crawler allow in
+  `robots.txt`. See [`changelog.html`](changelog.html) for the dated log.
+- **+10 tools (Sept 2026)** — Hike Time Planner, Bike Gear Calculator,
+  Photo Exposure Lab, Race Pace Predictor, Baby Sleep Planner, Energy Tariff
+  Comparator, Unit Price Comparator, Fluid Type Scale, Fabric Yardage
+  Estimator, Car Care Tracker. Total: 562.
+
 ## Quick facts
 
 | | |
 |---|---|
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
-| Tools | 500, indexed by `cards/cards.json` |
+| Tools | 562, indexed by `cards/cards.json` |
+| Categories | 23 |
 | Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
 
 ## Local preview

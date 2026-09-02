@@ -155,7 +155,7 @@ node generate-cards-json.js
 
 # 3. Re-apply the category (see the warning below)
 
-# 4. Bump the count in index.html: "Search 500+ free tools" -> 501+
+# 4. Bump the count in index.html: "Search 562+ free tools" -> 563+ (and the hero badge)
 
 # 5. Commit, push, wait ~50s, then verify live:
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \

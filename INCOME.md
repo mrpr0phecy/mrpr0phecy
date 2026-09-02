@@ -1,6 +1,8 @@
 # INCOME.md — how this site can actually make money
 
-An honest working document. Written 2026-08-30.
+An honest working document. Originally written 2026-08-30; last reviewed
+2026-09-02 (tool count updated 500 → 562 after the catalogue audit; no
+changes to the income strategy).
 
 Read this alongside `ARCHITECTURE.md`. That one explains how the site is built;
 this one explains what earns and what the realistic path looks like.
@@ -37,7 +39,7 @@ Measured 2026-08-30, from public sources:
 | YouTube subscribers | **1,360** | Past the 1,000 YPP threshold |
 | YouTube videos | **233** | Substantial back catalogue |
 | Shorts | **46** | Alternate YPP route exists |
-| Tools on site | **500** | Real, working, original |
+| Tools on site | **562** | Real, working, original |
 | Site analytics | Now on 12 key pages | Was on 1 |
 
 **The single most important fact: you are already past YouTube's hardest
