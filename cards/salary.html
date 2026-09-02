@@ -87,7 +87,7 @@
                 ⚙️ Tax Settings (UK Example)
             </summary>
             <div style="margin-top:12px;padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;">
-                <div style="color:var(--accent);font-weight:500;margin-bottom:12px;">UK Tax Bands 2024/25</div>
+                <div style="color:var(--accent);font-weight:500;margin-bottom:12px;">UK Tax Bands 2026/27</div>
                 
                 <div id="sc-tax-brackets" style="display:flex;flex-direction:column;gap:8px;">
                     <!-- Tax brackets will be generated here -->
@@ -112,10 +112,14 @@
                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
                     <div>
                         <label for="sc-ni" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
-                            National Insurance (%)
+                            National Insurance (%) <span style="opacity:.7;font-size:12px;">— non-UK only</span>
                         </label>
-                        <input id="sc-ni" type="number" min="0" max="20" step="0.1" placeholder="12" value="12" 
+                        <input id="sc-ni" type="number" min="0" max="20" step="0.1" placeholder="8" value="8" 
                                style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;" />
+                        <div style="font-size:11px;opacity:.7;margin-top:4px;">
+                            For the UK this field is ignored: NI is calculated from the
+                            2026/27 bands (0% to £12,570, 8% to £50,270, 2% above).
+                        </div>
                     </div>
                     
                     <div>
@@ -129,11 +133,23 @@
                 
                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-top:12px;">
                     <div>
-                        <label for="sc-student-loan" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
-                            Student Loan (%)
+                        <label for="sc-student-loan-plan" style="display:block;margin-bottom:6px;color:var(--accent);font-size:14px;">
+                            Student Loan Plan (UK)
                         </label>
-                        <input id="sc-student-loan" type="number" min="0" max="15" step="0.1" placeholder="9" value="9" 
-                               style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;" />
+                        <select id="sc-student-loan-plan"
+                                style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:inherit;">
+                            <option value="none" selected>None</option>
+                            <option value="plan1">Plan 1 — 9% over £26,900</option>
+                            <option value="plan2">Plan 2 — 9% over £29,385</option>
+                            <option value="plan4">Plan 4 (Scotland) — 9% over £33,795</option>
+                            <option value="plan5">Plan 5 — 9% over £25,000</option>
+                            <option value="pg">Postgraduate — 6% over £21,000</option>
+                        </select>
+                        <div style="font-size:11px;opacity:.7;margin-top:4px;">
+                            Repayments are a percentage of income <em>above</em> the threshold,
+                            not of your whole salary. 2026/27 thresholds.
+                        </div>
+                        <input id="sc-student-loan" type="hidden" value="0" />
                     </div>
                     
                     <div>
@@ -255,6 +271,55 @@
    - Scoped with sc- prefix (Salary Calculator)
 */
 
+/* UK statutory figures — 2026/27, England/Wales/NI. Scotland differs.
+   The basic rate band is a £37,700 width applied above whatever personal
+   allowance survives the £100k taper, so the 40% start point is not a
+   fixed £50,270 for high earners. scUkTaxBrackets() rebuilds the table
+   per income; the static uk entry below is the un-tapered default used
+   for display when income is under £100,000. */
+const SC_UK_PA = 12570;
+const SC_UK_BASIC_WIDTH = 37700;
+const SC_UK_ADDITIONAL = 125140;
+const SC_UK_NI_PT = 12570;      // primary threshold
+const SC_UK_NI_UEL = 50270;     // upper earnings limit
+
+function scUkTaxBrackets(income) {
+    const taper = Math.max(0, Math.min(SC_UK_PA, Math.floor(Math.max(0, income - 100000) / 2)));
+    const pa = SC_UK_PA - taper;
+    const higherStart = pa + SC_UK_BASIC_WIDTH;
+    return [
+        { min: 0, max: pa, rate: 0, name: 'Personal Allowance' },
+        { min: pa, max: higherStart, rate: 20, name: 'Basic Rate' },
+        { min: higherStart, max: SC_UK_ADDITIONAL, rate: 40, name: 'Higher Rate' },
+        { min: SC_UK_ADDITIONAL, max: Infinity, rate: 45, name: 'Additional Rate' }
+    ];
+}
+
+/* Class 1 employee National Insurance is banded, not a flat percentage of
+   gross. Charging one flat rate on the whole salary (as this tool used to)
+   overstates the deduction badly at low incomes — at £20,000 a flat 12%
+   gives £2,400 against a true £594. */
+function scUkNationalInsurance(gross) {
+    return Math.max(0, Math.min(gross, SC_UK_NI_UEL) - SC_UK_NI_PT) * 0.08
+         + Math.max(0, gross - SC_UK_NI_UEL) * 0.02;
+}
+
+/* Student loan repayments are 9% (6% postgraduate) of income ABOVE the
+   plan threshold — never of the whole salary. 2026/27 thresholds. */
+const SC_STUDENT_PLANS = {
+    none: { threshold: Infinity, rate: 0,    label: 'No student loan' },
+    plan1: { threshold: 26900,   rate: 0.09, label: 'Plan 1' },
+    plan2: { threshold: 29385,   rate: 0.09, label: 'Plan 2' },
+    plan4: { threshold: 33795,   rate: 0.09, label: 'Plan 4 (Scotland)' },
+    plan5: { threshold: 25000,   rate: 0.09, label: 'Plan 5' },
+    pg:    { threshold: 21000,   rate: 0.06, label: 'Postgraduate' }
+};
+
+function scStudentLoan(gross, planKey) {
+    const plan = SC_STUDENT_PLANS[planKey] || SC_STUDENT_PLANS.none;
+    return Math.max(0, gross - plan.threshold) * plan.rate;
+}
+
 // Country-specific tax brackets (simplified examples)
 const scTaxBrackets = {
     uk: [
@@ -370,6 +435,7 @@ function scSaveData() {
         'ni': document.getElementById('sc-ni').value,
         'pension': document.getElementById('sc-pension').value,
         'student-loan': document.getElementById('sc-student-loan').value,
+        'student-loan-plan': document.getElementById('sc-student-loan-plan').value,
         'other-deductions': document.getElementById('sc-other-deductions').value
     };
     
@@ -456,6 +522,7 @@ function scCalculate() {
     const niRate = parseFloat(document.getElementById('sc-ni').value) / 100 || 0;
     const pensionRate = parseFloat(document.getElementById('sc-pension').value) / 100 || 0;
     const studentLoanRate = parseFloat(document.getElementById('sc-student-loan').value) / 100 || 0;
+    const studentLoanPlan = (document.getElementById('sc-student-loan-plan') || {}).value || 'none';
     const otherDeductions = parseFloat(document.getElementById('sc-other-deductions').value) || 0;
     
     if (grossInput <= 0) {
@@ -488,8 +555,11 @@ function scCalculate() {
             grossAnnual = grossInput;
     }
     
-    // Calculate progressive tax based on brackets
-    const brackets = scTaxBrackets[country] || scTaxBrackets.uk;
+    // Calculate progressive tax based on brackets. For the UK the table is
+    // rebuilt per income so the £100k personal-allowance taper is applied.
+    const brackets = country === 'uk'
+        ? scUkTaxBrackets(grossAnnual)
+        : (scTaxBrackets[country] || scTaxBrackets.uk);
     let totalTax = 0;
     let remainingIncome = grossAnnual;
     
@@ -517,10 +587,18 @@ function scCalculate() {
         }
     }
     
-    // Calculate other deductions
-    const nationalInsurance = grossAnnual * niRate;
+    /* Other deductions.
+       National Insurance and student loan are threshold-based in the UK, so
+       for UK users they are computed from the statutory bands rather than as
+       a flat percentage of gross. For other countries the user-entered rate
+       is still applied flat, which is what the field means there. */
+    const nationalInsurance = country === 'uk'
+        ? scUkNationalInsurance(grossAnnual)
+        : grossAnnual * niRate;
     const pension = grossAnnual * pensionRate;
-    const studentLoan = grossAnnual * studentLoanRate;
+    const studentLoan = country === 'uk'
+        ? scStudentLoan(grossAnnual, studentLoanPlan)
+        : grossAnnual * studentLoanRate;
     const totalDeductions = totalTax + nationalInsurance + pension + studentLoan + otherDeductions;
     
     // Calculate net income

@@ -3,7 +3,7 @@
 <form aria-describedby="thp-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
   <p id="thp-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
     Turn an annual salary into what actually lands in your account, broken down by pay period. Uses
-    2024/25-style UK income tax bands, Class 1 National Insurance and a student loan plan of your choice.
+    2026/27 UK income tax bands, Class 1 National Insurance and a student loan plan of your choice.
   </p>
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
@@ -60,9 +60,10 @@
   <summary style="cursor:pointer;">Assumptions and limits</summary>
   <p style="margin-top:8px;">
     Income tax: personal allowance \u00a312,570 tapering by \u00a31 for every \u00a32 above \u00a3100,000; basic rate 20%
-    to \u00a350,270; higher rate 40% to \u00a3125,140; additional rate 45% above. National Insurance: 8% between the
-    \u00a312,570 primary threshold and \u00a350,270, then 2%. Student loan thresholds: Plan 1 \u00a322,015, Plan 2 \u00a327,295,
-    Plan 4 \u00a327,660, Plan 5 \u00a325,000, Postgraduate \u00a321,000, all at 9% (Postgraduate 6%). England/Wales rules only —
+    to \u00a350,270 (a \u00a337,700 band above the allowance, so the 40% starting point falls as the allowance
+    tapers); higher rate 40% to \u00a3125,140; additional rate 45% above. National Insurance: 8% between the
+    \u00a312,570 primary threshold and \u00a350,270, then 2%. Student loan thresholds: Plan 1 \u00a326,900, Plan 2 \u00a329,385,
+    Plan 4 \u00a333,795, Plan 5 \u00a325,000, Postgraduate \u00a321,000, all at 9% (Postgraduate 6%). England/Wales rules only —
     Scottish bands differ. Indicative, not tax advice.
   </p>
 </details>
@@ -72,12 +73,16 @@
   var card = document.currentScript.parentNode;
   var $ = function (id) { return card.querySelector('#' + id); };
 
-  var PA = 12570, BASIC_LIMIT = 50270, HIGHER_LIMIT = 125140, TAPER_START = 100000;
+  /* 2026/27, England/Wales/NI. BASIC_WIDTH is the width of the 20% band
+     (£37,700), which sits on top of whatever allowance survives the taper.
+     Deriving it as (50270 - allowance) is wrong: it makes the basic band
+     grow as the allowance shrinks, understating tax above £100,000. */
+  var PA = 12570, BASIC_WIDTH = 37700, HIGHER_LIMIT = 125140, TAPER_START = 100000;
   var NI_THRESHOLD = 12570, NI_UPPER = 50270;
   var LOANS = {
-    '1':   { threshold: 22015, rate: 0.09 },
-    '2':   { threshold: 27295, rate: 0.09 },
-    '4':   { threshold: 27660, rate: 0.09 },
+    '1':   { threshold: 26900, rate: 0.09 },
+    '2':   { threshold: 29385, rate: 0.09 },
+    '4':   { threshold: 33795, rate: 0.09 },
     '5':   { threshold: 25000, rate: 0.09 },
     'pg':  { threshold: 21000, rate: 0.06 }
   };
@@ -87,11 +92,11 @@
     if (taxable > TAPER_START) {
       allowance = Math.max(0, PA - Math.floor((taxable - TAPER_START) / 2));
     }
-    var tax = 0, rest = Math.max(0, taxable - allowance);
-    var basicBand = BASIC_LIMIT - allowance;
-    if (rest > 0) { tax += Math.min(rest, basicBand) * 0.20; rest -= Math.min(rest, basicBand); }
-    if (rest > 0) { var higher = Math.min(rest, HIGHER_LIMIT - BASIC_LIMIT); tax += higher * 0.40; rest -= higher; }
-    if (rest > 0) { tax += rest * 0.45; }
+    var higherStart = allowance + BASIC_WIDTH;
+    var tax = 0;
+    tax += Math.max(0, Math.min(taxable, higherStart) - allowance) * 0.20;
+    tax += Math.max(0, Math.min(taxable, HIGHER_LIMIT) - higherStart) * 0.40;
+    tax += Math.max(0, taxable - HIGHER_LIMIT) * 0.45;
     return { tax: tax, allowance: allowance };
   }
 

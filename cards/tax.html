@@ -3,7 +3,7 @@
 <form aria-describedby="tax-desc" style="margin-bottom:20px;">
     <p id="tax-desc" class="small" style="margin-bottom:20px;color:rgba(var(--text-rgb, 230,250,255),0.9);">
         Estimate income tax, national insurance, and take-home pay for UK taxpayers.
-        <span style="color:var(--accent);">Based on 2024-25 UK tax bands.</span>
+        <span style="color:var(--accent);">Based on 2026/27 UK rates (England, Wales &amp; NI). Scotland differs.</span>
     </p>
     
     <!-- INCOME SECTION -->
@@ -55,7 +55,7 @@
                 </label>
                 <select id="tax-code" 
                         style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(var(--accent-rgb, 45,212,255),0.2);background:rgba(var(--accent-rgb, 45,212,255),0.05);color:inherit;font-size:14px;">
-                    <option value="1257L" selected>1257L - Standard (2024-25)</option>
+                    <option value="1257L" selected>1257L - Standard (2026/27)</option>
                     <option value="1275L">1275L - Previous Year</option>
                     <option value="BR">BR - Basic Rate (20%)</option>
                     <option value="D0">D0 - Higher Rate (40%)</option>
@@ -174,7 +174,7 @@
 
 <!-- TAX BANDS INFORMATION -->
 <details style="margin-top:20px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;background:rgba(0,0,0,0.15);">
-    <summary style="color:var(--accent);font-weight:600;cursor:pointer;outline:none;user-select:none;">📚 UK Tax Bands 2024-25</summary>
+    <summary style="color:var(--accent);font-weight:600;cursor:pointer;outline:none;user-select:none;">📚 UK Tax Bands 2026/27</summary>
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05);">
         
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
@@ -204,7 +204,7 @@
         </div>
         
         <div style="background:rgba(var(--accent-rgb, 45,212,255),0.05);border-radius:8px;padding:12px;border-left:3px solid var(--accent);">
-            <strong style="color:var(--accent);">National Insurance (2024-25):</strong><br>
+            <strong style="color:var(--accent);">National Insurance — Class 1 employee (2026/27):</strong><br>
             <span style="color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">
                 • £12,570–£50,270: 8%<br>
                 • Over £50,270: 2%<br>
@@ -212,10 +212,27 @@
             </span>
         </div>
         
+        <div style="background:rgba(255,204,0,0.05);border-radius:8px;padding:12px;border-left:3px solid #ffcc00;margin-top:12px;">
+            <strong style="color:#ffcc00;">The £100,000 trap (this calculator models it):</strong><br>
+            <span style="color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">
+                Above £100,000 the personal allowance is withdrawn by £1 for every £2 earned,
+                and is gone entirely at £125,140. Between those two points every extra £100 of
+                salary is taxed at an effective <strong>60%</strong> — 62% once the 2% National
+                Insurance is added. It is the highest marginal rate in the UK system, and it is
+                higher than the 45% additional rate that sits above it.<br>
+                A pension contribution is the usual lever: it reduces adjusted net income, and
+                inside the taper it buys back allowance at roughly twice the headline relief.
+            </span>
+        </div>
+
         <p style="color:rgba(var(--text-rgb, 230,250,255),0.7);font-size:13px;line-height:1.5;margin-top:12px;">
-            <span style="color:#ffcc00;">⚠️ Note:</span> This calculator provides estimates based on standard UK tax rules.
-            Actual tax may vary based on personal circumstances, allowances, and deductions.
-            Consult a qualified accountant for professional advice.
+            <span style="color:#ffcc00;">⚠️ Scope:</span> Estimates only, for England, Wales and
+            Northern Ireland. <strong>Scotland sets its own income tax bands</strong> (six rates,
+            19%–48%) and these figures will be wrong there. Also excluded: student loan
+            repayments, Scottish/Welsh variations, salary sacrifice, benefits in kind, dividend
+            and savings income, Marriage Allowance, and any tax code other than a standard
+            cumulative one. Thresholds shown are frozen until April 2028.
+            Consult a qualified accountant before acting on a number from a web page.
         </p>
     </div>
 </details>
@@ -225,22 +242,55 @@
 /* tax.html - UK Tax Estimator Calculator
    - Prefix: tax
    - Calculates income tax, NI, and take-home pay for UK taxpayers
-   - Based on 2024-25 UK tax bands and rates
+   - Rates: 2026/27 (England, Wales & Northern Ireland). Thresholds frozen
+     to April 2028. Scotland has its own bands and is NOT modelled here.
+
+   Band boundaries below are expressed as EXCLUSIVE lower / INCLUSIVE upper
+   bounds of the taxable slice, so band width is simply (max - min). Do not
+   reintroduce the "+ 1" that used to appear in the width calculation: the
+   old code treated min as 12571 AND added a pound, which made the whole
+   personal allowance taxable and overstated tax on a £20k salary by ~£2,500.
 */
 
-// UK Tax Bands 2024-25
-const TAX_BANDS = [
-    { min: 0, max: 12570, rate: 0.00, name: "Personal Allowance" },
-    { min: 12571, max: 50270, rate: 0.20, name: "Basic Rate" },
-    { min: 50271, max: 125140, rate: 0.40, name: "Higher Rate" },
-    { min: 125141, max: Infinity, rate: 0.45, name: "Additional Rate" }
-];
+// Statutory constants — 2026/27 (rUK)
+const TAX_PERSONAL_ALLOWANCE = 12570;   // frozen since 2021/22
+const TAX_BASIC_RATE_LIMIT   = 37700;   // WIDTH of the 20% band, measured
+                                        // after the allowance — not £50,270.
+const TAX_TAPER_START        = 100000;  // PA withdrawn £1 for every £2 above
+const TAX_ADDITIONAL_LIMIT   = 125140;  // 45% starts here (a fixed figure)
 
-// National Insurance Bands 2024-25
+/* Income tax bands. Built as a function, not a constant table, for two
+   reasons that a flat "£12,571–£50,270 / £50,271–£125,140" table gets wrong:
+   
+   1. The personal allowance is not fixed. Above £100,000 it is withdrawn at
+      £1 for every £2 of income and is gone at £125,140.
+   2. The basic rate band is a WIDTH (£37,700), applied on top of whatever
+      allowance survives. The familiar £50,270 higher-rate threshold is just
+      £12,570 + £37,700 — so as the allowance tapers away, the point at which
+      40% starts falls with it. Hard-coding £50,270 understates tax for
+      anyone earning over £100,000.
+   
+   Together these produce the 60% effective marginal rate between £100,000
+   and £125,140 (62% with National Insurance) — higher than the 45% band
+   above it. */
+function taxBandsFor(income) {
+    const taper = Math.max(0, Math.min(TAX_PERSONAL_ALLOWANCE,
+        Math.floor(Math.max(0, income - TAX_TAPER_START) / 2)));
+    const pa = TAX_PERSONAL_ALLOWANCE - taper;
+    const higherStart = pa + TAX_BASIC_RATE_LIMIT;
+    return [
+        { min: 0,           max: pa,                   rate: 0.00, name: "Personal Allowance" },
+        { min: pa,          max: higherStart,          rate: 0.20, name: "Basic Rate" },
+        { min: higherStart, max: TAX_ADDITIONAL_LIMIT, rate: 0.40, name: "Higher Rate" },
+        { min: TAX_ADDITIONAL_LIMIT, max: Infinity,    rate: 0.45, name: "Additional Rate" }
+    ];
+}
+
+// Class 1 employee National Insurance — 2026/27
 const NI_BANDS = [
-    { min: 0, max: 12570, rate: 0.00, name: "No NI" },
-    { min: 12571, max: 50270, rate: 0.08, name: "Main Rate" },
-    { min: 50271, max: Infinity, rate: 0.02, name: "Reduced Rate" }
+    { min: 0,     max: 12570,    rate: 0.00, name: "Below Primary Threshold" },
+    { min: 12570, max: 50270,    rate: 0.08, name: "Main Rate" },
+    { min: 50270, max: Infinity, rate: 0.02, name: "Above Upper Earnings Limit" }
 ];
 
 // Format currency
@@ -266,18 +316,11 @@ function taxFormatCurrencyDecimal(amount) {
 // Calculate progressive tax
 function taxCalculateProgressive(income, bands) {
     let total = 0;
-    let remaining = income;
-    
-    for (let i = bands.length - 1; i >= 0; i--) {
-        const band = bands[i];
-        if (income > band.min) {
-            const taxableInBand = Math.min(remaining, band.max - band.min + 1);
-            total += taxableInBand * band.rate;
-            remaining -= taxableInBand;
-        }
-        if (remaining <= 0) break;
+    for (const band of bands) {
+        if (income <= band.min) continue;
+        const slice = Math.min(income, band.max) - band.min;
+        if (slice > 0) total += slice * band.rate;
     }
-    
     return Math.round(total);
 }
 
@@ -324,7 +367,7 @@ function taxCalculate(btn = null) {
         const taxableIncome = Math.max(0, grossSalary - pensionAmount);
         
         // Calculate income tax (progressive)
-        const incomeTax = taxCalculateProgressive(taxableIncome, TAX_BANDS);
+        const incomeTax = taxCalculateProgressive(taxableIncome, taxBandsFor(taxableIncome));
         
         // Calculate National Insurance (progressive)
         const nationalInsurance = taxCalculateProgressive(taxableIncome, NI_BANDS);

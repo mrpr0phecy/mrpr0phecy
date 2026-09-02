@@ -29,13 +29,22 @@ Start there whether you are a human or an AI agent.
 and what was deliberately not built. Read it before adding anything
 money-related.
 
+**[FINANCE.md](FINANCE.md)** — the other half: correctness of the 35 money
+tools and the statutory figures behind them, tax obligations on that income,
+and one open compliance risk that needs an owner decision. Read it before
+touching any calculator in `cards/`.
+
+Money tools are guarded by `node scripts/check-finance.js` (52 assertions,
+also run as step 7/8 of `scripts/verify.sh`). Every expected value is derived
+from published HMRC/SLC rules, not from the tools themselves.
+
 ## Quick facts
 
 | | |
 |---|---|
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
-| Tools | 500, indexed by `cards/cards.json` |
+| Tools | 562, indexed by `cards/cards.json` |
 | Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
 
 ## Local preview

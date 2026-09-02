@@ -68,7 +68,16 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
   captions). Touch with care: keep the facade pattern, never add hidden
   players/autoplay tricks (INCOME.md growth policy), and re-run
   `bash scripts/verify.sh` before pushing.
-- **`token.html`** — kept deliberately (see INCOME.md). No crypto promotion.
+- **`token.html`** — kept deliberately, but now flagged as an **open legal
+  risk** (FSMA s21 financial promotion). See FINANCE.md §3. Do not build on
+  it, link it from anywhere new, or promote it. Removal/neutralisation is an
+  owner decision.
+- **Money tools in `cards/`** (35 in Finance & Money) — treat as high-stakes.
+  Run `node scripts/check-finance.js` after any edit; it is step 7/8 of
+  `verify.sh`. Rules in FINANCE.md §1: always label tax year + jurisdiction,
+  never hard-code a derived threshold (£50,270 is derived; £37,700 and
+  £12,570 are real), never a flat % where the statute uses bands, and add a
+  test before fixing a bug. Statutory refresh due every April.
 - **`CNAME`**, `sw.js` (unregistered by design), `guide.txt` (stale),
   `system/`, `substitutions/`, `digitaldetoxcardshtml/`, CV files — leave alone.
 - **Deleting anything** in ARCHITECTURE.md §9 list → ask the owner first.
@@ -131,6 +140,6 @@ live deploy.
 
 ## 7. If unsure
 
-Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
+Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md (income) and FINANCE.md (correctness, tax, risk). Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.
