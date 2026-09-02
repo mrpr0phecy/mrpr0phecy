@@ -1,0 +1,154 @@
+<h2 id="glt-title" style="margin-top:0;color:var(--accent);">🔔 Galton Board & the Bell Curve</h2>
+
+<p id="glt-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Every ball bounces left or right by pure chance &mdash; yet the pile always forms a perfect bell curve. This is the Central
+  Limit Theorem: order emerging from randomness, and the reason so much of nature is normally distributed.
+</p>
+
+<canvas id="glt-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <button type="button" id="glt-run" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Pause</button>
+  <button type="button" id="glt-hundred" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Drop 100</button>
+  <button type="button" id="glt-reset" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Reset</button>
+  <label for="glt-rate" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Drops/frame:
+    <input id="glt-rate" type="number" min="1" max="40" value="4" style="width:70px;padding:7px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+  </label>
+</div>
+
+<div id="glt-out" aria-live="polite" style="font-size:0.9rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;"></div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why this is mind-blowing</summary>
+  <p style="margin-top:8px;">
+    A ball has 50/50 odds at every peg, so landing in a given bin follows a binomial distribution &mdash; many routes lead to the
+    middle, few to the edges. As the number of balls grows, that binomial tends to the bell-shaped normal curve. This is why
+    heights, measurement errors and sums of tiny random effects all cluster around a mean: the Central Limit Theorem is
+    doing the same averaging you see here.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('glt-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var ROWS = 12, bins = ROWS + 1;
+  var counts = new Array(bins).fill(0);
+  var falling = [];   // {row, col}
+  var running = true, total = 0;
+
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  var pegY0 = 40, pegDy = 22, pegDx = 34, baseY = pegY0 + ROWS * pegDy + 10;
+  var binW = W / bins, histTop = H - 30;
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+
+    // pegs
+    ctx.fillStyle = 'rgba(230,250,255,0.35)';
+    for (var r = 0; r < ROWS; r++) {
+      var cols = r + 1;
+      for (var c = 0; c < cols; c++) {
+        var px = W / 2 + (c - cols / 2 + 0.5) * pegDx;
+        var py = pegY0 + r * pegDy;
+        ctx.beginPath(); ctx.arc(px, py, 2.4, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // falling balls
+    ctx.fillStyle = '#2dd4ff';
+    for (var i = 0; i < falling.length; i++) {
+      var b = falling[i];
+      var px = W / 2 + (b.col - b.row / 2) * pegDx;
+      var py = pegY0 + b.row * pegDy;
+      ctx.beginPath(); ctx.arc(px, py, 3.4, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // histogram
+    var max = 0;
+    for (var k = 0; k < bins; k++) if (counts[k] > max) max = counts[k];
+    var hScale = max > 0 ? (histTop - baseY) / max : 1;
+    for (k = 0; k < bins; k++) {
+      var h = counts[k] * hScale;
+      var g = counts[k] / (total || 1);
+      ctx.fillStyle = 'rgba(45,212,255,' + (0.35 + 0.55 * g).toFixed(2) + ')';
+      ctx.fillRect(k * binW + 3, histTop - h, binW - 6, h);
+    }
+
+    // normal overlay
+    if (total > 5) {
+      var mean = bins / 2 - 0.5, sd = Math.sqrt(ROWS / 4);
+      ctx.beginPath();
+      for (var px2 = 0; px2 <= W; px2 += 4) {
+        var bin2 = px2 / binW - 0.5;
+        var z = (bin2 - mean) / sd;
+        var dens = Math.exp(-z * z / 2);
+        var yy = histTop - dens * total * hScale * 0.55;
+        if (px2 === 0) ctx.moveTo(px2, yy); else ctx.lineTo(px2, yy);
+      }
+      ctx.strokeStyle = 'rgba(255,215,0,0.75)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
+    // base line + bin separators
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath(); ctx.moveTo(0, histTop); ctx.lineTo(W, histTop); ctx.stroke();
+
+    $('glt-out').textContent = total + ' balls dropped &middot; bell curve is the Central Limit Theorem: random lefts/rights sum to a normal distribution.';
+  }
+
+  function frame() {
+    if (running) {
+      var rate = parseInt($('glt-rate').value, 10) || 4;
+      for (var s = 0; s < rate; s++) falling.push({ row: 0, col: 0 });
+      // advance existing balls one peg per frame
+      var landed = [];
+      for (var i = falling.length - 1; i >= 0; i--) {
+        var b = falling[i];
+        b.col += Math.random() < 0.5 ? 0 : 1;
+        b.row++;
+        if (b.row > ROWS) {
+          counts[b.col]++; total++;
+          landed.push(i);
+        }
+      }
+      for (var j = 0; j < landed.length; j++) falling.splice(landed[j], 1);
+      draw();
+    }
+    raf(frame);
+  }
+
+  $('glt-run').addEventListener('click', function () {
+    running = !running;
+    this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('glt-hundred').addEventListener('click', function () {
+    for (var i = 0; i < 100; i++) {
+      var col = 0;
+      for (var r = 0; r < ROWS; r++) col += Math.random() < 0.5 ? 0 : 1;
+      counts[col]++; total++;
+    }
+    draw();
+  });
+  $('glt-reset').addEventListener('click', function () {
+    counts = new Array(bins).fill(0); falling = []; total = 0; draw();
+  });
+
+  draw();
+  raf(frame);
+})();
+</script>

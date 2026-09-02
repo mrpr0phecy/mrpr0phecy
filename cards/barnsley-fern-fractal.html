@@ -1,0 +1,85 @@
+<h2 id="frn-title" style="margin-top:0;color:var(--accent);">🌿 Barnsley Fern</h2>
+
+<p id="frn-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Four simple rules, chosen at random, draw a perfect fern. No one programmed a leaf &mdash; the fern is the fixed point of the
+  chaos, and every frond is a tiny copy of the whole.
+</p>
+
+<canvas id="frn-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <button type="button" id="frn-run" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Pause</button>
+  <button type="button" id="frn-reset" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Clear</button>
+  <label for="frn-speed" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Points/frame:
+    <input id="frn-speed" type="range" min="50" max="4000" value="700" style="vertical-align:middle;width:140px;" />
+  </label>
+</div>
+
+<div id="frn-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.7);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;">The fern is self-similar: zoom into any frond and you'd find the same shape again.</div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The four rules</summary>
+  <p style="margin-top:8px;">
+    Start at any point. Each step, roll a die: with probability 1% jump to the stem (rule 1); 85% shrink-and-slide to make
+    the main body (rule 2); 7% each for the left and right fronds (rules 3 &amp; 4). Every rule is a simple affine map &mdash; just
+    multiply and add &mdash; yet the result is a fern with the exact geometry of real leaves. Fractals are nature's compression
+    algorithm.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('frn-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var x = 0, y = 0, running = true, points = 0;
+
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function next() {
+    var p = Math.random();
+    var nx, ny;
+    if (p < 0.01) { nx = 0; ny = 0.16 * y; }
+    else if (p < 0.86) { nx = 0.85 * x + 0.04 * y; ny = -0.04 * x + 0.85 * y + 1.6; }
+    else if (p < 0.93) { nx = 0.2 * x - 0.26 * y; ny = 0.23 * x + 0.22 * y + 1.6; }
+    else { nx = -0.15 * x + 0.28 * y; ny = 0.26 * x + 0.24 * y + 0.44; }
+    x = nx; y = ny;
+    var px = W / 2 + x * 70;
+    var py = H - 10 - y * 36;
+    return [px, py];
+  }
+
+  function frame() {
+    if (running) {
+      var n = parseInt($('frn-speed').value, 10) || 700;
+      for (var i = 0; i < n; i++) {
+        var pt = next();
+        var g = 120 + (points % 8000) / 8000 * 135;
+        ctx.fillStyle = 'rgb(' + Math.floor(g * 0.35) + ',' + Math.floor(g) + ',' + Math.floor(g * 0.55) + ')';
+        ctx.fillRect(pt[0], pt[1], 1, 1);
+        points++;
+      }
+      $('frn-out').textContent = points.toLocaleString('en-GB') + ' points drawn from 4 random rules &middot; every frond is a copy of the whole fern.';
+    }
+    raf(frame);
+  }
+
+  $('frn-run').addEventListener('click', function () {
+    running = !running;
+    this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('frn-reset').addEventListener('click', function () { x = 0; y = 0; points = 0; ctx.clearRect(0, 0, W, H); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H); });
+
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(0, 0, W, H);
+  raf(frame);
+})();
+</script>

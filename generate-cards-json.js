@@ -409,9 +409,23 @@ const homeDIYList = [
   'grout-adhesive-calculator'
 ];
 
+const demosList = [
+  'monte-carlo-pi-estimator',
+  'conways-game-of-life',
+  'mandelbrot-set-explorer',
+  'bifurcation-diagram-logistic-map',
+  'fourier-series-synthesizer',
+  'galton-board-central-limit',
+  'buffons-needle-pi',
+  'lorenz-attractor',
+  'barnsley-fern-fractal',
+  'eulers-identity-rotation'
+];
+
 function getCategory(name) {
   if (gapFillMap[name]) return gapFillMap[name];
   if (sportsList.includes(name)) return 'Sports';
+  if (demosList.includes(name)) return 'Mind-Blowing Demos';
   if (wellbeingList.includes(name)) return 'Wellbeing & Community';
   if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
