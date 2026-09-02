@@ -80,11 +80,12 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
   violations (INCOME.md). Legitimate growth only: metadata, speed, internal
   links, translated pages, honest CTAs.
 - No ads/trackers on Product A pages; no paywalls; no fake urgency.
-- **Never inline a third-party script.** Analytics and live chat load only via
-  `consent.js` (PECR consent gate). New third party ⇒ add it to `consent.js`,
-  to the table in `legal.html` §3, and to LEGAL.md. See LEGAL.md §4.
-- **Never write "no tracking" / "100% private"** while `consent.js` ships —
-  use "no ads, no accounts, no ad tracking".
+- **Never add analytics, chat, ads or any tracking script.** GA and Tawk.to were
+  removed on 2026-09-02; the site sets zero cookies and every page now claims
+  "no cookies, no analytics". Adding a tracker makes 44 pages misleading. See
+  LEGAL.md §4 rule 1.
+- **Support questions go in `help.html`** (searchable FAQ + email), never a
+  chat widget.
 - **Never put a disclaimer inside a card.** Risk notices are category/slug
   driven in `index.html` + `tool.html`; keep the two tables in step.
 - Every new top-level page gets the `legal-bar` footer block and a sitemap entry.
@@ -107,6 +108,10 @@ PY
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
 sleep 50   # Pages deploy latency — then verify live (see §6)
 ```
+
+### Answer a common question
+Add it to `help.html` — a `<details>` block in the right section, plus an entry
+in that page's `FAQPage` JSON-LD. Do not add a chat widget.
 
 ### Edit a Product B page
 Follow `listen.html` (reference implementation). Sitemap/SEO metadata are

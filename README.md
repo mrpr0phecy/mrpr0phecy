@@ -26,9 +26,11 @@ Start there whether you are a human or an AI agent.
 ## Legal
 
 **[LEGAL.md](LEGAL.md)** — the compliance register and the rules that keep the
-site's claims true: consent-gated third-party scripts (`consent.js`), the single
-public [`legal.html`](legal.html) page, and the risk-notice system for health,
-finance, electrical and legal-document tools. Read it before adding any
+site's claims true. The headline rule: **this site runs zero analytics and sets
+zero cookies**, so no tracking, chat or ad script may be added. Support runs
+through [`help.html`](help.html) (searchable FAQ + email); the public legal terms
+live on a single [`legal.html`](legal.html) page; health, finance, electrical and
+legal-document tools carry automatic risk notices. Read it before adding any
 third-party script, disclaimer or claim about privacy.
 
 ## Money & monetisation
@@ -46,6 +48,8 @@ money-related.
 | Tools | 562, indexed by `cards/cards.json` |
 | Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
 | Legal | One page: [`legal.html`](legal.html). Rules: [LEGAL.md](LEGAL.md) |
+| Analytics | **None.** No cookies, no trackers, no chat widget — see LEGAL.md |
+| Support | [`help.html`](help.html) — searchable FAQ + email |
 
 ## Local preview
 

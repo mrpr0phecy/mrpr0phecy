@@ -54,8 +54,7 @@ establish *which* site first.
 │
 ├── legal.html              The ONE public legal page — privacy, cookies, terms,
 │                           tool disclaimers, IP, takedown. Linked from every footer.
-├── consent.js              The ONLY loader for third-party scripts (GA, Tawk.to).
-│                           PECR consent gate — never inline a tracker again.
+├── help.html               Searchable FAQ + email contact (replaced live chat)
 ├── LEGAL.md                Compliance register + rules for contributors
 ├── LICENSE                 MIT for site code; music/art carved out
 │
@@ -314,10 +313,21 @@ cannot state its unique search intent in one line, it should not be a new page.
 
 ### Analytics
 
-Google Analytics `G-G058FVW6Z2` is installed on the 12 pages that matter
-(catalogue homepage, all music pages, both money pages, news). It was
-previously on `music.html` only. Add it to any new public page — without it
-there is no way to price sponsorship or tell what is working.
+**There are none, by design (2026-09-02).** Google Analytics `G-G058FVW6Z2` was
+removed from all 14 pages that carried it, along with the Tawk.to chat widget on
+the 12 translated pages. The site now sets no cookies and measures nothing.
+
+This is a deliberate trade: the site advertises "no tracking / 100% private" on
+its homepage, tool viewer, donation and sponsorship pages, and those claims are
+now literally true rather than contradicted. **Do not re-add analytics to a new
+page.** If traffic data becomes genuinely necessary, it has to be a
+server-side, cookieless setup (e.g. a Cloudflare proxy) that never touches the
+visitor's device, and the claims across the site must be reviewed in the same
+change. See LEGAL.md §4 and §5.
+
+Practical consequence to plan around: sponsorship cannot be priced on
+first-party traffic numbers. Use YouTube Studio and PayPal as the real
+performance signals.
 
 ### Money and monetisation
 
@@ -642,13 +652,15 @@ Four artefacts, referenced everywhere, duplicated nowhere:
 | Artefact | Role |
 |---|---|
 | `legal.html` | The single public legal page. Nine anchored sections; `#cookies`, `#terms`, `#disclaimer` are linked directly from footers and banners. |
-| `consent.js` | The only place Google Analytics (`G-G058FVW6Z2`) or Tawk.to may be loaded. Nothing third-party fires before an explicit Accept; Decline is equally prominent; choice stored in `localStorage` as `tmusitw-consent`. Add the tag as `<script defer src="/consent.js" data-analytics>` (or `data-chat`). |
+| **No third-party scripts** | Google Analytics and Tawk.to were removed outright (2026-09-02). The site sets zero cookies and runs zero analytics, so there is no consent banner and none is needed. Do not add a tracker of any kind — see LEGAL.md §4 rule 1. |
+| `help.html` | Searchable client-side FAQ plus email contact, carrying `FAQPage` JSON-LD. Replaces the Tawk.to widget: a one-person site cannot staff live chat honestly. |
 | Risk notices | Category/slug tables (`RISK_NOTICES`) in `index.html` and `tool.html` inject health/finance/engineering/legal/feed warnings into tool footers. Cards never carry their own disclaimer. |
 | `LICENSE` | MIT for HTML/CSS/JS; music, artwork, photography, CVs and third-party libs explicitly excluded. |
 
-Hard rules (full list in **[LEGAL.md](LEGAL.md)** §4): never inline a
-third-party script; never claim "no tracking" or "100% private" while
-`consent.js` ships; never write a disclaimer inside a card; every new top-level
+Hard rules (full list in **[LEGAL.md](LEGAL.md)** §4): never add an analytics,
+chat, ad or tracking script — the zero-cookie claim is published on all 44 pages
+and on the money pages, so breaking it silently makes those pages misleading;
+never write a disclaimer inside a card; every new top-level
 page gets the `legal-bar` footer and a sitemap entry; tool counts come from
 `ls cards/*.html | wc -l` and must move together across `index.html`,
 `tool.html`, `donate.html`, `sponsor.html` and `404.html`.
@@ -657,11 +669,14 @@ page gets the `legal-bar` footer and a sitemap entry; tool counts come from
 
 **Legal pass** (2026-09-02): analytics and live chat were loading with no
 consent and no privacy policy on pages that simultaneously advertised "no
-tracking" and asked for donations. Fixed by routing all 26 inline snippets
-through `consent.js`, publishing `legal.html`, adding `LICENSE`, adding
-category-driven risk notices to health/finance/electrical/legal tools,
-footer legal links on all 43 top-level pages, and normalising the tool count
-(483/500/562 → 562). Register and open items: **[LEGAL.md](LEGAL.md)**.
+tracking" and asked for donations. Resolved by **removing Google Analytics and
+Tawk.to from the site entirely** — all 26 inline snippets deleted, no
+replacement tracker — so the privacy claims became true and no cookie banner is
+needed. Also published `legal.html` and `help.html` (searchable FAQ + email,
+replacing live chat), added `LICENSE`, added category-driven risk notices to
+health/finance/electrical/legal tools, footer legal links on all 43 top-level
+pages, and normalised the tool count (483/500/562 → 562). The site now sets zero
+cookies. Register and open items: **[LEGAL.md](LEGAL.md)**.
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —
