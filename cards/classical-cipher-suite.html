@@ -1,0 +1,158 @@
+<h2 id="cip-title" style="margin-top:0;color:var(--accent);">🔐 Classical Cipher Suite</h2>
+
+<p id="cip-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Encrypt like the Romans and the Victorians: Caesar shifts, Atbash mirrors, ROT13 and the Vigenère key cipher. Then watch the
+  &ldquo;crack&rdquo; button undo a Caesar cipher in one click &mdash; because letter frequency never lies.
+</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+  <div>
+    <label for="cip-cipher" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Cipher</label>
+    <select id="cip-cipher" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+      <option value="caesar" selected>Caesar (shift)</option>
+      <option value="atbash">Atbash (mirror)</option>
+      <option value="rot13">ROT13 (Caesar 13)</option>
+      <option value="vigenere">Vigenère (key word)</option>
+    </select>
+  </div>
+  <div id="cip-keywrap">
+    <label for="cip-key" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Shift / key</label>
+    <input id="cip-key" type="text" value="3" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+  </div>
+  <div>
+    <label for="cip-mode" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Mode</label>
+    <select id="cip-mode" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+      <option value="encrypt" selected>Encrypt</option>
+      <option value="decrypt">Decrypt</option>
+    </select>
+  </div>
+</div>
+
+<div style="margin-bottom:12px;">
+  <textarea id="cip-input" rows="3" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;">attack the harbour at dawn</textarea>
+</div>
+
+<button type="button" id="cip-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Run cipher</button>
+<button type="button" id="cip-crack" style="width:100%;margin-top:8px;padding:11px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:8px;color:#ffd700;cursor:pointer;font-weight:600;">🔓 Crack a Caesar cipher (frequency analysis)</button>
+
+<div id="cip-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);margin-top:12px;"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">How each one works</summary>
+  <p style="margin-top:8px;">
+    <strong style="color:rgba(230,250,255,0.85);">Caesar</strong> shifts every letter by a fixed amount (Julius Caesar used 3).
+    <strong style="color:rgba(230,250,255,0.85);">Atbash</strong> mirrors the alphabet (A&harr;Z). <strong style="color:rgba(230,250,255,0.85);">ROT13</strong> is a Caesar-13,
+    its own inverse. <strong style="color:rgba(230,250,255,0.85);">Vigenère</strong> shifts each letter by a repeating keyword, which defeated
+    frequency analysis for 300 years &mdash; until Babbage broke it. The crack button only works on Caesar because a fixed shift
+    leaves the letter-frequency fingerprint intact.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var ENG = { a: 8.2, b: 1.5, c: 2.8, d: 4.3, e: 12.7, f: 2.2, g: 2.0, h: 6.1, i: 7.0, j: 0.15, k: 0.77, l: 4.0, m: 2.4, n: 6.7, o: 7.5, p: 1.9, q: 0.095, r: 6.0, s: 6.3, t: 9.1, u: 2.8, v: 0.98, w: 2.4, x: 0.15, y: 2.0, z: 0.074 };
+
+  function shift(ch, k) {
+    var c = ch.toLowerCase();
+    if (c < 'a' || c > 'z') return ch;
+    var base = 'a'.charCodeAt(0);
+    var x = ((ch.toLowerCase().charCodeAt(0) - base + k) % 26 + 26) % 26;
+    var out = String.fromCharCode(base + x);
+    return ch === ch.toUpperCase() ? out.toUpperCase() : out;
+  }
+
+  function transform(text, keyFn) {
+    var out = '';
+    for (var i = 0; i < text.length; i++) out += keyFn(text[i], i);
+    return out;
+  }
+
+  function caesar(text, k, dir) {
+    return transform(text, function (ch) { return shift(ch, dir * k); });
+  }
+  function atbash(text) {
+    return transform(text, function (ch) {
+      var c = ch.toLowerCase();
+      if (c < 'a' || c > 'z') return ch;
+      var x = String.fromCharCode('z'.charCodeAt(0) - (c.charCodeAt(0) - 'a'.charCodeAt(0)));
+      return ch === ch.toUpperCase() ? x.toUpperCase() : x;
+    });
+  }
+  function vigenere(text, key, dir) {
+    var ki = 0;
+    return transform(text, function (ch) {
+      var c = ch.toLowerCase();
+      if (c < 'a' || c > 'z') return ch;
+      var k = key.charCodeAt(ki % key.length) - 'a'.charCodeAt(0);
+      ki++;
+      return shift(ch, dir * k);
+    });
+  }
+
+  function run() {
+    var cipher = $('cip-cipher').value;
+    var keyRaw = $('cip-key').value;
+    var mode = $('cip-mode').value;
+    var text = $('cip-input').value;
+    var dir = mode === 'decrypt' ? -1 : 1;
+    var out = $('cip-out');
+
+    if (!text) { out.textContent = 'Enter some text.'; return; }
+
+    var result;
+    if (cipher === 'caesar') {
+      var k = (parseInt(keyRaw, 10) % 26 + 26) % 26;
+      result = caesar(text, k, dir);
+      out.innerHTML = '<strong style="color:var(--accent);">Caesar</strong> (shift ' + k + ', ' + mode + '):<br><span style="font-size:1.15rem;color:#39ff14;">' + escapeHtml(result) + '</span>';
+    } else if (cipher === 'atbash') {
+      result = atbash(text);
+      out.innerHTML = '<strong style="color:var(--accent);">Atbash</strong> (mirror, its own inverse):<br><span style="font-size:1.15rem;color:#39ff14;">' + escapeHtml(result) + '</span>';
+    } else if (cipher === 'rot13') {
+      result = caesar(text, 13, 1);
+      out.innerHTML = '<strong style="color:var(--accent);">ROT13</strong> (Caesar-13, its own inverse):<br><span style="font-size:1.15rem;color:#39ff14;">' + escapeHtml(result) + '</span>';
+    } else {
+      var key = (keyRaw.toLowerCase().replace(/[^a-z]/g, '') || 'key');
+      result = vigenere(text, key, dir);
+      out.innerHTML = '<strong style="color:var(--accent);">Vigenère</strong> (key &ldquo;' + escapeHtml(key) + '&rdquo;, ' + mode + '):<br><span style="font-size:1.15rem;color:#39ff14;">' + escapeHtml(result) + '</span>';
+    }
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function crack() {
+    var text = $('cip-input').value;
+    var out = $('cip-out');
+    var best = [], bestScore = -1;
+    for (var k = 0; k < 26; k++) {
+      var cand = caesar(text, k, -1);
+      var score = 0;
+      for (var i = 0; i < cand.length; i++) {
+        var c = cand[i].toLowerCase();
+        if (ENG[c]) score += ENG[c];
+      }
+      if (score > bestScore) { bestScore = score; best = [{ shift: k, text: cand, score: score }]; }
+      else if (score === bestScore) best.push({ shift: k, text: cand, score: score });
+    }
+    var top = best.slice(0, 5).map(function (b) {
+      return '<div style="padding:3px 0;font-size:0.85rem;"><b style="color:var(--accent);">shift ' + b.shift + '</b>: ' + escapeHtml(b.text) + '</div>';
+    }).join('');
+    out.innerHTML = '<strong style="color:#ffd700;">🔓 Frequency-analysis candidates</strong> (most likely first):<br>' + top +
+      '<div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.6);">Scored by how closely the letter counts match English (E,T,A,O,I,N…). This works because a Caesar shift preserves the frequency pattern — which is exactly why it\'s insecure.</div>';
+  }
+
+  $('cip-go').addEventListener('click', run);
+  $('cip-crack').addEventListener('click', crack);
+  $('cip-cipher').addEventListener('change', function () {
+    var v = this.value;
+    $('cip-key').value = v === 'vigenere' ? 'lemon' : (v === 'rot13' ? '13' : '3');
+    if (v === 'atbash') $('cip-keywrap').style.opacity = '0.4';
+    else $('cip-keywrap').style.opacity = '1';
+  });
+
+  run();
+})();
+</script>

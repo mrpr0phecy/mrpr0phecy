@@ -1,0 +1,193 @@
+<h2 id="nnp-title" style="margin-top:0;color:var(--accent);">🧠 Neural Network Playground</h2>
+
+<p id="nnp-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Watch a tiny neural network learn XOR &mdash; the task that killed the first wave of neural networks, because a straight line
+  can't separate the points. As it trains, the decision boundary curls into a curve, and the error crashes to zero.
+</p>
+
+<canvas id="nnp-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <button type="button" id="nnp-train" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Pause</button>
+  <button type="button" id="nnp-reset" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Reset weights</button>
+  <label for="nnp-h" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Hidden:
+    <input id="nnp-h" type="range" min="2" max="8" value="4" style="vertical-align:middle;width:100px;" />
+  </label>
+  <label for="nnp-lr" style="font-size:0.85rem;color:rgba(230,250,255,0.7);">Rate:
+    <input id="nnp-lr" type="range" min="0.05" max="2" step="0.05" value="0.8" style="vertical-align:middle;width:110px;" />
+  </label>
+</div>
+
+<div id="nnp-out" aria-live="polite" style="font-size:0.9rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;"></div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why this is mind-blowing</summary>
+  <p style="margin-top:8px;">
+    The four dots are XOR: same inputs &rarr; 0, different inputs &rarr; 1 (blue vs amber). No single straight line can split them,
+    which is why a one-layer network fails. Add a hidden layer and the network composes two straight cuts into a curve.
+    Each training step runs backpropagation &mdash; nudging every weight to shrink the error &mdash; and you're watching gradient
+    descent carve the decision boundary in real time.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('nnp-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var HIDDEN = 4, LR = 0.8;
+  var w1 = [], b1 = [], w2 = [], b2 = [];
+  var training = true, epoch = 0;
+  var errHist = [];
+  var X = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]; // [x1, x2, target]
+
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function sigmoid(z) { return 1 / (1 + Math.exp(-z)); }
+
+  function init() {
+    w1 = []; b1 = []; w2 = []; b2 = [];
+    for (var j = 0; j < HIDDEN; j++) {
+      w1.push([Math.random() * 2 - 1, Math.random() * 2 - 1]);
+      b1.push(Math.random() * 2 - 1);
+    }
+    w2 = []; b2 = [];
+    for (j = 0; j < HIDDEN; j++) w2.push(Math.random() * 2 - 1);
+    b2.push(Math.random() * 2 - 1);
+    epoch = 0; errHist = [];
+  }
+
+  function forward(x1, x2) {
+    var h = [];
+    for (var j = 0; j < HIDDEN; j++) h.push(sigmoid(w1[j][0] * x1 + w1[j][1] * x2 + b1[j]));
+    var z = b2[0];
+    for (j = 0; j < HIDDEN; j++) z += w2[j] * h[j];
+    return { h: h, o: sigmoid(z) };
+  }
+
+  function trainStep() {
+    // full-batch gradient descent over the 4 samples
+    var gW1 = [], gB1 = [], gW2 = [], gB2 = 0;
+    for (var j = 0; j < HIDDEN; j++) { gW1.push([0, 0]); gB1.push(0); gW2.push(0); }
+    var err = 0;
+    for (var s = 0; s < X.length; s++) {
+      var x1 = X[s][0], x2 = X[s][1], t = X[s][2];
+      var f = forward(x1, x2);
+      err += 0.5 * (f.o - t) * (f.o - t);
+      var do_ = (f.o - t) * f.o * (1 - f.o);
+      gB2 += do_;
+      for (j = 0; j < HIDDEN; j++) {
+        gW2[j] += do_ * f.h[j];
+        var dh = do_ * w2[j] * f.h[j] * (1 - f.h[j]);
+        gW1[j][0] += dh * x1;
+        gW1[j][1] += dh * x2;
+        gB1[j] += dh;
+      }
+    }
+    for (j = 0; j < HIDDEN; j++) {
+      w2[j] -= LR * gW2[j] / 4;
+      b1[j] -= LR * gB1[j] / 4;
+      w1[j][0] -= LR * gW1[j][0] / 4;
+      w1[j][1] -= LR * gW1[j][1] / 4;
+    }
+    b2[0] -= LR * gB2 / 4;
+    epoch++;
+    return err / 4;
+  }
+
+  // plot space: x in [-0.2,1.2]
+  function toPx(x) { return 40 + x * (W - 80); }
+  function toPy(y) { return H - 40 - y * (H - 80); }
+
+  function drawHeatmap() {
+    var img = ctx.createImageData ? ctx.createImageData(W, H) : null;
+    if (img) {
+      var data = img.data;
+      for (var py = 0; py < H; py++) {
+        for (var px = 0; px < W; px++) {
+          var x = (px - 40) / (W - 80);
+          var y = (H - 40 - py) / (H - 80);
+          if (x < -0.2 || x > 1.2 || y < -0.2 || y > 1.2) continue;
+          var f = forward(x, y).o;
+          var o = (py * W + px) * 4;
+          // blue-ish for <0.5 (class 0), amber for >0.5 (class 1)
+          var mix = Math.min(1, Math.abs(f - 0.5) * 2.2);
+          var r = 45 + 205 * mix * (f > 0.5 ? 1 : 0.1);
+          var g = 212 - 160 * mix * (f > 0.5 ? 0.4 : 0.1);
+          var b = 255 - 220 * mix * (f > 0.5 ? 1 : 0.05);
+          data[o] = r; data[o + 1] = g; data[o + 2] = b; data[o + 3] = 235;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+  }
+
+  function drawPoints() {
+    for (var s = 0; s < X.length; s++) {
+      var px = toPx(X[s][0]), py = toPy(X[s][1]);
+      ctx.beginPath();
+      ctx.arc(px, py, 9, 0, Math.PI * 2);
+      ctx.fillStyle = X[s][2] === 1 ? '#ffd700' : '#2dd4ff';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.stroke();
+    }
+  }
+
+  function drawError() {
+    var gx = W - 150, gw = 140, gh = 90, gy = 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(gx - 6, gy - 4, gw + 12, gh + 20);
+    ctx.fillStyle = 'rgba(230,250,255,0.6)';
+    ctx.font = '11px monospace';
+    ctx.fillText('error', gx, gy + 6);
+    if (errHist.length > 1) {
+      var max = Math.max.apply(null, errHist.slice(-60));
+      ctx.beginPath();
+      for (var i = 0; i < errHist.length; i++) {
+        var x = gx + i / 59 * gw;
+        var y = gy + 14 + (1 - errHist[i] / max) * gh;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#ff7ab8';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+  }
+
+  function frame() {
+    if (training) {
+      HIDDEN = parseInt($('nnp-h').value, 10) || 4;
+      LR = parseFloat($('nnp-lr').value) || 0.8;
+      for (var k = 0; k < 30; k++) {
+        var e = trainStep();
+        if (epoch % 10 === 0) errHist.push(e);
+        if (errHist.length > 60) errHist.shift();
+      }
+      if (epoch % 3 === 0) {
+        drawHeatmap(); drawPoints(); drawError();
+        var last = errHist[errHist.length - 1];
+        $('nnp-out').textContent = 'Epoch ' + epoch.toLocaleString('en-GB') + ' · error ' + (last === undefined ? '—' : last.toFixed(5)) + ' · ' + HIDDEN + ' hidden neurons. A line can\'t solve XOR — a hidden layer can.';
+      }
+    }
+    raf(frame);
+  }
+
+  $('nnp-train').addEventListener('click', function () { training = !training; this.textContent = training ? 'Pause' : 'Train'; });
+  $('nnp-reset').addEventListener('click', function () { init(); drawHeatmap(); drawPoints(); });
+  $('nnp-h').addEventListener('input', function () { HIDDEN = parseInt(this.value, 10) || 4; init(); });
+
+  init();
+  drawHeatmap();
+  drawPoints();
+  raf(frame);
+})();
+</script>

@@ -422,10 +422,24 @@ const demosList = [
   'eulers-identity-rotation'
 ];
 
+const csList = [
+  'sorting-algorithm-visualizer',
+  'pathfinding-algorithm-visualizer',
+  'towers-of-hanoi',
+  'neural-network-playground',
+  'big-o-complexity-explorer',
+  'cellular-automata-explorer',
+  'huffman-coding-compression',
+  'classical-cipher-suite',
+  'recursion-memoization-explorer',
+  'binary-bits-bitwise-playground'
+];
+
 function getCategory(name) {
   if (gapFillMap[name]) return gapFillMap[name];
   if (sportsList.includes(name)) return 'Sports';
   if (demosList.includes(name)) return 'Mind-Blowing Demos';
+  if (csList.includes(name)) return 'Algorithms & Computer Science';
   if (wellbeingList.includes(name)) return 'Wellbeing & Community';
   if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';

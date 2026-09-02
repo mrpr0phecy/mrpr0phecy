@@ -1,0 +1,208 @@
+<h2 id="pth-title" style="margin-top:0;color:var(--accent);">🗺️ Pathfinding Algorithm Visualizer</h2>
+
+<p id="pth-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Draw walls and watch four search algorithms hunt for the goal: DFS wanders, BFS floods evenly, Dijkstra matches BFS on a
+  uniform grid, and A* heads straight for the target. The visited cells and the final path show you exactly why.
+</p>
+
+<canvas id="pth-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);cursor:crosshair;"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <select id="pth-algo" style="padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+    <option value="bfs" selected>BFS</option>
+    <option value="dfs">DFS</option>
+    <option value="dijkstra">Dijkstra</option>
+    <option value="astar">A*</option>
+  </select>
+  <button type="button" id="pth-run" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">▶ Find path</button>
+  <button type="button" id="pth-maze" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Random maze</button>
+  <button type="button" id="pth-clear" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Clear walls</button>
+  <span style="font-size:0.85rem;color:rgba(230,250,255,0.7);">Draw: <b style="color:#ff7ab8;">drag</b> = wall · <b style="color:#ffd700;">click S/E</b> to move</span>
+</div>
+
+<div id="pth-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.7);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;">Draw walls, then pick an algorithm and press Find path.</div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">What you're seeing</summary>
+  <p style="margin-top:8px;">
+    <strong style="color:rgba(230,250,255,0.85);">BFS</strong> explores in rings &mdash; guaranteed shortest path on unweighted grids.
+    <strong style="color:rgba(230,250,255,0.85);">DFS</strong> plunges down one corridor as far as it can &mdash; fast but its path is usually not
+    the shortest. <strong style="color:rgba(230,250,255,0.85);">Dijkstra</strong> visits cells in order of total cost &mdash; on a uniform grid it looks exactly like
+    BFS because every step costs the same (it's the generalisation that handles weighted edges).
+    <strong style="color:rgba(230,250,255,0.85);">A*</strong> adds a "distance to goal" heuristic, so it steers straight toward the target and visits far fewer cells.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('pth-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+
+  var COLS = 40, ROWS = 25, cell = 16;
+  var W = COLS * cell, H = ROWS * cell;
+  cv.width = W; cv.height = H;
+
+  var walls = new Array(COLS * ROWS).fill(false);
+  var start = 1 * COLS + 1, end = (ROWS - 2) * COLS + (COLS - 2);
+  var visited = [], path = [], vi = 0, pathI = 0, done = false, running = false;
+  var mode = 'wall';
+
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function col(i) { return i % COLS; }
+  function row(i) { return Math.floor(i / COLS); }
+  function neighbors(i) {
+    var c = col(i), r = row(i), out = [];
+    if (c > 0) out.push(i - 1);
+    if (c < COLS - 1) out.push(i + 1);
+    if (r > 0) out.push(i - COLS);
+    if (r < ROWS - 1) out.push(i + COLS);
+    return out;
+  }
+  function manhattan(i, j) { return Math.abs(col(i) - col(j)) + Math.abs(row(i) - row(j)); }
+
+  function solve() {
+    var algo = $('pth-algo').value;
+    var parent = new Array(COLS * ROWS).fill(-1);
+    var order = [];
+    var found = false;
+
+    if (algo === 'bfs' || algo === 'dfs') {
+      var q = [start], seen = new Array(COLS * ROWS).fill(false); seen[start] = true;
+      while (q.length) {
+        var cur = (algo === 'bfs') ? q.shift() : q.pop();
+        order.push(cur);
+        if (cur === end) { found = true; break; }
+        var ns = neighbors(cur);
+        for (var k = 0; k < ns.length; k++) {
+          var n = ns[k];
+          if (!walls[n] && !seen[n]) { seen[n] = true; parent[n] = cur; q.push(n); }
+        }
+      }
+    } else {
+      // Dijkstra / A* : frontier of {i, g, f}
+      var frontier = [{ i: start, g: 0, f: 0 }];
+      var gScore = new Array(COLS * ROWS).fill(Infinity);
+      gScore[start] = 0;
+      while (frontier.length) {
+        var bi = 0;
+        for (var x = 1; x < frontier.length; x++) if (frontier[x].f < frontier[bi].f) bi = x;
+        var node = frontier.splice(bi, 1)[0];
+        var u = node.i;
+        order.push(u);
+        if (u === end) { found = true; break; }
+        var adj = neighbors(u);
+        for (k = 0; k < adj.length; k++) {
+          var v = adj[k];
+          if (walls[v]) continue;
+          var g = node.g + 1;
+          if (g < gScore[v]) {
+            gScore[v] = g; parent[v] = u;
+            var f = g + (algo === 'astar' ? manhattan(v, end) : 0);
+            frontier.push({ i: v, g: g, f: f });
+          }
+        }
+      }
+    }
+
+    var p = [];
+    if (found) { var t = end; while (t !== -1) { p.push(t); if (t === start) break; t = parent[t]; } p.reverse(); }
+    return { order: order, path: p };
+  }
+
+  function run() {
+    var res = solve();
+    visited = res.order; path = res.path;
+    vi = 0; pathI = 0; done = false; running = true;
+    $('pth-out').textContent = $('pth-algo').selectedOptions[0].text + ' visited ' + res.order.length + ' cells' + (res.path.length ? ', found a ' + (res.path.length - 1) + '-step path.' : ' — no path (walls block it).');
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#060a0f';
+    ctx.fillRect(0, 0, W, H);
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    for (var i = 0; i <= COLS; i++) { ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, H); ctx.stroke(); }
+    for (var r = 0; r <= ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r * cell); ctx.lineTo(W, r * cell); ctx.stroke(); }
+    // walls
+    ctx.fillStyle = 'rgba(230,250,255,0.28)';
+    for (i = 0; i < walls.length; i++) if (walls[i]) ctx.fillRect(col(i) * cell + 1, row(i) * cell + 1, cell - 2, cell - 2);
+    // visited
+    for (i = 0; i < vi && i < visited.length; i++) {
+      var v = visited[i];
+      var a = 0.35 + 0.3 * (i / Math.max(1, visited.length));
+      ctx.fillStyle = 'rgba(45,212,255,' + a.toFixed(2) + ')';
+      ctx.fillRect(col(v) * cell + 2, row(v) * cell + 2, cell - 4, cell - 4);
+    }
+    // path
+    if (pathI > 0) {
+      ctx.fillStyle = '#ffd700';
+      for (i = 0; i < pathI && i < path.length; i++) ctx.fillRect(col(path[i]) * cell + 3, row(path[i]) * cell + 3, cell - 6, cell - 6);
+    }
+    // start / end
+    ctx.fillStyle = '#39ff14';
+    ctx.fillRect(col(start) * cell + 2, row(start) * cell + 2, cell - 4, cell - 4);
+    ctx.fillStyle = '#ff4d4d';
+    ctx.fillRect(col(end) * cell + 2, row(end) * cell + 2, cell - 4, cell - 4);
+  }
+
+  function frame() {
+    if (running && !done) {
+      if (vi < visited.length) vi += 3;
+      else if (pathI < path.length) pathI++;
+      if (vi >= visited.length && pathI >= path.length) done = true;
+      draw();
+    }
+    raf(frame);
+  }
+
+  function cellFrom(e) {
+    var rect = cv.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (W / rect.width);
+    var y = (e.clientY - rect.top) * (H / rect.height);
+    var c = Math.floor(x / cell), r = Math.floor(y / cell);
+    if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return -1;
+    return r * COLS + c;
+  }
+
+  cv.addEventListener('mousedown', function (e) {
+    var i = cellFrom(e);
+    if (i < 0) return;
+    if (i === start) mode = 'start';
+    else if (i === end) mode = 'end';
+    else mode = 'wall';
+    apply(i);
+  });
+  cv.addEventListener('mousemove', function (e) { if (e.buttons === 1) apply(cellFrom(e)); });
+  function apply(i) {
+    if (i < 0) return;
+    if (mode === 'start') start = i;
+    else if (mode === 'end') end = i;
+    else walls[i] = true;
+    // stop animation while editing
+    running = false;
+    draw();
+  }
+
+  $('pth-run').addEventListener('click', run);
+  $('pth-maze').addEventListener('click', function () {
+    for (var i = 0; i < walls.length; i++) walls[i] = Math.random() < 0.3 && i !== start && i !== end;
+    visited = []; path = []; running = false;
+    draw();
+  });
+  $('pth-clear').addEventListener('click', function () {
+    walls = new Array(COLS * ROWS).fill(false);
+    visited = []; path = []; running = false;
+    draw();
+  });
+
+  draw();
+  raf(frame);
+})();
+</script>

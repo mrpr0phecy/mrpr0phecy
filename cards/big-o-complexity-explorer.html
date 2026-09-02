@@ -1,0 +1,166 @@
+<h2 id="bgo-title" style="margin-top:0;color:var(--accent);">📈 Big-O Complexity Explorer</h2>
+
+<p id="bgo-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Why does an O(n&sup2;) algorithm feel instant for 10 items but crawl for a million? Watch each complexity class grow, and see
+  how long each would really take at one operation per nanosecond &mdash; the numbers get absurd fast.
+</p>
+
+<canvas id="bgo-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <label for="bgo-n" style="font-size:0.85rem;color:rgba(230,250,255,0.7);">Max n:
+    <input id="bgo-n" type="range" min="10" max="1000" value="200" style="vertical-align:middle;width:130px;" />
+    <span id="bgo-nval" style="color:var(--accent);font-weight:700;">200</span>
+  </label>
+  <label for="bgo-log" style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;cursor:pointer;">
+    <input type="checkbox" id="bgo-log" checked /> Log-scale y-axis
+  </label>
+</div>
+
+<div id="bgo-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.7);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;"></div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">How to read it</summary>
+  <p style="margin-top:8px;">
+    Big-O ignores constants and describes how the work <em>scales</em> with input size n. The chart plots log&#8321;&#8320;(operations)
+    vs n, so a straight line that climbs steeply means exponential growth. The table converts operations to wall-clock time at
+    1 ns each: n! for n=30 already exceeds the age of the universe (~1.4&times;10&#185;&#8304; years) &mdash; which is why "try every
+    permutation" only works for tiny inputs.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('bgo-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var FUNCS = [
+    { name: 'O(1)', color: '#9aa5b1', f: function (n) { return 1; } },
+    { name: 'O(log n)', color: '#2dd4ff', f: function (n) { return Math.log2(n + 1) + 1; } },
+    { name: 'O(n)', color: '#39ff14', f: function (n) { return n; } },
+    { name: 'O(n log n)', color: '#ffd700', f: function (n) { return n * (Math.log2(n + 1) + 1); } },
+    { name: 'O(n²)', color: '#ff9f43', f: function (n) { return n * n; } },
+    { name: 'O(2ⁿ)', color: '#ff4d4d', f: function (n) { return Math.pow(2, Math.min(n, 1022)); } },
+    { name: 'O(n!)', color: '#c58ef0', f: function (n) { var r = 1; for (var i = 2; i <= Math.min(n, 170); i++) r *= i; return r; } }
+  ];
+
+  function fmtTime(ops) {
+    if (!isFinite(ops) || ops <= 0) return '—';
+    var ns = ops; // 1 op = 1 ns
+    if (ns < 1000) return ns.toFixed(0) + ' ns';
+    var us = ns / 1000; if (us < 1000) return us.toFixed(0) + ' µs';
+    var ms = us / 1000; if (ms < 1000) return ms.toFixed(1) + ' ms';
+    var s = ms / 1000; if (s < 60) return s.toFixed(2) + ' s';
+    var m = s / 60; if (m < 60) return m.toFixed(1) + ' min';
+    var hr = m / 60; if (hr < 24) return hr.toFixed(1) + ' hr';
+    var d = hr / 24; if (d < 365) return d.toFixed(1) + ' days';
+    var y = d / 365; if (y < 1e6) return y.toFixed(1) + ' years';
+    return y.toExponential(1) + ' years';
+  }
+
+  function fmtOps(ops) {
+    if (!isFinite(ops)) return '∞';
+    if (ops >= 1e6) return ops.toExponential(1);
+    return Math.round(ops).toLocaleString('en-GB');
+  }
+
+  function draw() {
+    var N = parseInt($('bgo-n').value, 10) || 200;
+    var log = $('bgo-log').checked;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+
+    var padL = 46, padB = 34, top = 12, right = 16;
+    var pw = W - padL - right, ph = H - padB - top;
+
+    // compute y values
+    var ys = FUNCS.map(function (fn) { return fn.f(N); });
+    var maxV = Math.max.apply(null, ys);
+    function yOf(v) {
+      var lv = Math.log10(Math.max(1e-12, v));
+      var lmax = Math.log10(maxV || 1);
+      if (log) return top + ph - (lv / lmax) * ph;
+      return top + ph - (v / maxV) * ph;
+    }
+
+    // axes + ticks (log)
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.beginPath(); ctx.moveTo(padL, top); ctx.lineTo(padL, top + ph); ctx.lineTo(W - right, top + ph); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,0.5)';
+    ctx.font = '11px monospace';
+    if (log) {
+      var ticks = [0, 2, 4, 6, 8, 10, 12, 15];
+      for (var t = 0; t < ticks.length; t++) {
+        var yy = top + ph - (ticks[t] / Math.log10(maxV)) * ph;
+        if (yy < top || yy > top + ph) continue;
+        ctx.fillText('1e' + ticks[t], 4, yy + 4);
+        ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - right, yy); ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      }
+    }
+    // x labels
+    ctx.fillText('n=0', padL, H - 8);
+    ctx.fillText('n=' + N, W - 46, H - 8);
+
+    // curves
+    for (var fi = 0; fi < FUNCS.length; fi++) {
+      ctx.beginPath();
+      var started = false;
+      for (var n = 1; n <= N; n++) {
+        var v = FUNCS[fi].f(n);
+        var x = padL + (n / N) * pw;
+        var y = yOf(v);
+        if (y < top - 2) continue;
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = FUNCS[fi].color;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
+    // legend
+    var lx = padL + 8, ly = top + 10;
+    for (fi = 0; fi < FUNCS.length; fi++) {
+      ctx.fillStyle = FUNCS[fi].color;
+      ctx.fillRect(lx, ly - 8, 10, 10);
+      ctx.fillStyle = 'rgba(230,250,255,0.85)';
+      ctx.fillText(FUNCS[fi].name, lx + 14, ly);
+      lx += 78;
+    }
+  }
+
+  function table() {
+    var ns = [10, 20, 50, 100];
+    var html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;">' +
+      '<thead><tr style="color:var(--accent);text-align:left;border-bottom:1px solid rgba(45,212,255,0.25);">' +
+      '<th style="padding:4px 6px;">n</th>';
+    for (var fi = 0; fi < FUNCS.length; fi++) html += '<th style="padding:4px 6px;">' + FUNCS[fi].name + '</th>';
+    html += '</tr></thead><tbody>';
+    for (var r = 0; r < ns.length; r++) {
+      var n = ns[r];
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:4px 6px;color:rgba(230,250,255,0.85);">' + n + '</td>';
+      for (fi = 0; fi < FUNCS.length; fi++) {
+        var ops = FUNCS[fi].f(n);
+        html += '<td style="padding:4px 6px;">' + fmtOps(ops) + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    html += '<div style="margin-top:8px;font-size:0.82rem;color:rgba(230,250,255,0.7);">At 1 ns per operation: n=30 for O(n!) ≈ ' +
+      fmtTime(FUNCS[6].f(30)) + ' · n=100 for O(2ⁿ) ≈ ' + fmtTime(FUNCS[5].f(100)) + ' · n=10⁶ for O(n²) ≈ ' + fmtTime(1e12) + '.</div>';
+    $('bgo-out').innerHTML = html;
+  }
+
+  $('bgo-n').addEventListener('input', function () { $('bgo-nval').textContent = this.value; draw(); });
+  $('bgo-log').addEventListener('change', draw);
+
+  draw();
+  table();
+})();
+</script>

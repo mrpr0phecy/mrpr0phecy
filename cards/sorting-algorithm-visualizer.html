@@ -1,0 +1,216 @@
+<h2 id="srt-title" style="margin-top:0;color:var(--accent);">📊 Sorting Algorithm Visualizer</h2>
+
+<p id="srt-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Watch six classic sorting algorithms race on the same shuffled data &mdash; see exactly why O(n&sup2;) sorts crawl while merge
+  and quick sort fly. Every comparison and swap is counted live.
+</p>
+
+<canvas id="srt-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <select id="srt-algo" style="padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+    <option value="bubble" selected>Bubble sort</option>
+    <option value="insertion">Insertion sort</option>
+    <option value="selection">Selection sort</option>
+    <option value="merge">Merge sort</option>
+    <option value="quick">Quick sort</option>
+    <option value="heap">Heap sort</option>
+  </select>
+  <button type="button" id="srt-start" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">▶ Start</button>
+  <button type="button" id="srt-pause" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Pause</button>
+  <button type="button" id="srt-shuffle" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Shuffle</button>
+  <label for="srt-n" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Bars:
+    <input id="srt-n" type="range" min="10" max="120" value="60" style="vertical-align:middle;width:110px;" />
+  </label>
+  <label for="srt-speed" style="font-size:0.85rem;color:rgba(230,250,255,0.7);">Speed:
+    <input id="srt-speed" type="range" min="1" max="40" value="6" style="vertical-align:middle;width:110px;" />
+  </label>
+</div>
+
+<div id="srt-out" aria-live="polite" style="font-size:0.9rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;">Pick an algorithm and press Start.</div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">What you're seeing</summary>
+  <p style="margin-top:8px;">
+    Each bar is one value. Bubble/insertion/selection compare neighbours again and again &mdash; O(n&sup2;) &mdash; so their
+    comparison counts explode as the list grows. Merge, quick and heap sort divide and conquer &mdash; O(n log n) &mdash; and
+    finish in a fraction of the work. The gold bars are the two being compared right now; green means that position is final.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('srt-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var N = 60;
+  var arr = [], initial = [], events = [], ei = 0;
+  var running = false, done = false, computed = false;
+  var comparisons = 0, swaps = 0, writes = 0;
+  var hiA = -1, hiB = -1;
+
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function shuffle() {
+    N = parseInt($('srt-n').value, 10) || 60;
+    arr = [];
+    for (var i = 1; i <= N; i++) arr.push(i);
+    for (var j = N - 1; j > 0; j--) {
+      var k = Math.floor(Math.random() * (j + 1));
+      var t = arr[j]; arr[j] = arr[k]; arr[k] = t;
+    }
+    initial = arr.slice();
+    events = []; ei = 0; done = false; computed = false;
+    comparisons = swaps = writes = 0;
+    draw();
+  }
+
+  function rec() {
+    return {
+      less: function (i, j) { comparisons++; events.push({ t: 'cmp', i: i, j: j }); return arr[i] > arr[j]; },
+      lessVal: function (v, j) { comparisons++; events.push({ t: 'cmp', j: j }); return v > arr[j]; },
+      greaterVal: function (j, v) { comparisons++; events.push({ t: 'cmp', j: j }); return arr[j] > v; },
+      cmpIdx: function (i, j) { comparisons++; events.push({ t: 'cmp', i: i, j: j }); },
+      cmpVals: function (k) { comparisons++; events.push({ t: 'cmp', j: k }); },
+      swap: function (i, j) { swaps++; events.push({ t: 'swap', i: i, j: j }); var t = arr[i]; arr[i] = arr[j]; arr[j] = t; },
+      set: function (i, v) { writes++; events.push({ t: 'set', i: i, v: v }); arr[i] = v; },
+      mark: function (i) { events.push({ t: 'mark', i: i }); }
+    };
+  }
+
+  var ALGOS = {
+    bubble: function (r) {
+      for (var i = 0; i < N - 1; i++) {
+        var sw = false;
+        for (var j = 0; j < N - 1 - i; j++) {
+          if (r.less(j, j + 1)) { r.swap(j, j + 1); sw = true; }
+        }
+        r.mark(N - 1 - i);
+        if (!sw) { for (var k = 0; k < N - 1 - i; k++) r.mark(k); break; }
+      }
+    },
+    insertion: function (r) {
+      for (var i = 1; i < N; i++) {
+        var key = arr[i], j = i - 1;
+        while (j >= 0 && r.greaterVal(j, key)) { r.set(j + 1, arr[j]); j--; }
+        r.set(j + 1, key);
+      }
+      for (var m = 0; m < N; m++) r.mark(m);
+    },
+    selection: function (r) {
+      for (var i = 0; i < N - 1; i++) {
+        var mn = i;
+        for (var j = i + 1; j < N; j++) if (r.less(mn, j)) mn = j;
+        if (mn !== i) r.swap(i, mn);
+        r.mark(i);
+      }
+      r.mark(N - 1);
+    },
+    merge: function (r) { mergeSort(0, N, r); },
+    quick: function (r) { qs(0, N - 1, r); },
+    heap: function (r) {
+      for (var i = (N >> 1) - 1; i >= 0; i--) sift(N, i, r);
+      for (var end = N - 1; end > 0; end--) { r.swap(0, end); r.mark(end); sift(end, 0, r); }
+      r.mark(0);
+    }
+  };
+
+  function mergeSort(lo, hi, r) {
+    if (hi - lo <= 1) return;
+    var mid = (lo + hi) >> 1;
+    mergeSort(lo, mid, r); mergeSort(mid, hi, r);
+    var L = arr.slice(lo, mid), R = arr.slice(mid, hi);
+    var i = 0, j = 0, k = lo;
+    while (i < L.length && j < R.length) {
+      r.cmpVals(k);
+      if (L[i] <= R[j]) r.set(k++, L[i++]); else r.set(k++, R[j++]);
+    }
+    while (i < L.length) r.set(k++, L[i++]);
+    while (j < R.length) r.set(k++, R[j++]);
+  }
+  function qs(lo, hi, r) {
+    if (lo >= hi) return;
+    var i = lo;
+    for (var j = lo; j < hi; j++) {
+      r.cmpIdx(j, hi);
+      if (arr[j] <= arr[hi]) { if (i !== j) r.swap(i, j); i++; }
+    }
+    if (i !== hi) r.swap(i, hi);
+    r.mark(i);
+    qs(lo, i - 1, r); qs(i + 1, hi, r);
+  }
+  function sift(n, i, r) {
+    while (true) {
+      var l = 2 * i + 1, rr = 2 * i + 2, big = i;
+      if (l < n) { r.cmpIdx(l, big); if (arr[l] > arr[big]) big = l; }
+      if (rr < n) { r.cmpIdx(rr, big); if (arr[rr] > arr[big]) big = rr; }
+      if (big === i) break;
+      r.swap(i, big);
+      i = big;
+    }
+  }
+
+  function compute() {
+    var algo = $('srt-algo').value;
+    arr = initial.slice();
+    events = []; comparisons = swaps = writes = 0;
+    var r = rec();
+    ALGOS[algo](r);
+    arr = initial.slice();
+    ei = 0; done = false; computed = true;
+    running = true;
+    $('srt-pause').textContent = 'Pause';
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+    var bw = W / N;
+    for (var i = 0; i < N; i++) {
+      var h = (arr[i] / N) * (H - 30);
+      var x = i * bw + 0.5;
+      if (done) ctx.fillStyle = '#39ff14';
+      else if (i === hiA || i === hiB) ctx.fillStyle = '#ffd700';
+      else ctx.fillStyle = '#2dd4ff';
+      ctx.fillRect(x, H - h, Math.max(1, bw - 1), h);
+    }
+    var name = $('srt-algo').selectedOptions ? $('srt-algo').selectedOptions[0].text : '';
+    var out = $('srt-out');
+    if (!computed) out.textContent = 'Pick an algorithm and press Start.';
+    else if (done) out.textContent = name + ' done: ' + N + ' bars · ' + comparisons.toLocaleString('en-GB') + ' comparisons · ' + swaps.toLocaleString('en-GB') + ' swaps · ' + writes.toLocaleString('en-GB') + ' writes.';
+    else out.textContent = name + ' · ' + N + ' bars · ' + comparisons.toLocaleString('en-GB') + ' comparisons · ' + swaps.toLocaleString('en-GB') + ' swaps · ' + writes.toLocaleString('en-GB') + ' writes.';
+  }
+
+  function frame() {
+    if (running && computed && !done) {
+      var sp = parseInt($('srt-speed').value, 10) || 6;
+      for (var s = 0; s < sp && ei < events.length; s++) {
+        var e = events[ei++];
+        if (e.t === 'swap') { var t = arr[e.i]; arr[e.i] = arr[e.j]; arr[e.j] = t; hiA = e.i; hiB = e.j; }
+        else if (e.t === 'set') { arr[e.i] = e.v; hiA = e.i; hiB = -1; }
+        else if (e.t === 'cmp') { hiA = e.i; hiB = e.j; }
+        else if (e.t === 'mark') { hiA = hiB = -1; }
+      }
+      if (ei >= events.length) { done = true; running = false; }
+      draw();
+    }
+    raf(frame);
+  }
+
+  $('srt-start').addEventListener('click', function () { compute(); });
+  $('srt-pause').addEventListener('click', function () { running = !running; this.textContent = running ? 'Pause' : 'Resume'; });
+  $('srt-shuffle').addEventListener('click', function () { running = false; $('srt-pause').textContent = 'Pause'; shuffle(); });
+  $('srt-n').addEventListener('change', function () { running = false; $('srt-pause').textContent = 'Pause'; shuffle(); });
+
+  shuffle();
+  raf(frame);
+})();
+</script>

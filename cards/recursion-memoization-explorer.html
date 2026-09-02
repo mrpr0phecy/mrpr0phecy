@@ -1,0 +1,172 @@
+<h2 id="rec-title" style="margin-top:0;color:var(--accent);">🌳 Recursion & Memoization Explorer</h2>
+
+<p id="rec-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  The same Fibonacci function, two ways: naive recursion recomputes the same subproblems a staggering number of times, while
+  memoization remembers each answer once. Watch the call tree fill with duplicates, and see the gap explode on the chart.
+</p>
+
+<canvas id="rec-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <label for="rec-n" style="font-size:0.85rem;color:rgba(230,250,255,0.7);">Fibonacci n:
+    <input id="rec-n" type="range" min="5" max="40" value="20" style="vertical-align:middle;width:150px;" />
+    <span id="rec-nval" style="color:var(--accent);font-weight:700;">20</span>
+  </label>
+  <label for="rec-tree" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Tree n:
+    <input id="rec-tree" type="range" min="3" max="7" value="5" style="vertical-align:middle;width:110px;" />
+  </label>
+</div>
+
+<div id="rec-out" aria-live="polite" style="font-size:0.9rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;"></div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">What you're seeing</summary>
+  <p style="margin-top:8px;">
+    <strong style="color:rgba(230,250,255,0.85);">Left:</strong> the call tree for fib(tree-n). Every box is one function call &mdash; the same
+    colour means the same subproblem, so identical-coloured boxes are wasted duplicate work. <strong style="color:rgba(230,250,255,0.85);">Right:</strong> a
+    log-scale bar chart of total function calls: naive (red) grows like 2&#8319;, memoized (green) grows linearly. Memoization turns
+    an exponential explosion into a straight line &mdash; the same trick behind dynamic programming.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('rec-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  function fibValue(n) { var a = 0, b = 1; for (var i = 0; i < n; i++) { var t = a + b; a = b; b = t; } return a; }
+  function naiveCalls(n) { // C(0)=C(1)=1, C(n)=C(n-1)+C(n-2)+1
+    var c0 = 1, c1 = 1, c = n <= 1 ? 1 : 0;
+    if (n === 0) return 1;
+    if (n === 1) return 1;
+    for (var i = 2; i <= n; i++) { c = c0 + c1 + 1; c0 = c1; c1 = c; }
+    return c;
+  }
+  function memoCalls(n) { return n + 1; }
+
+  var HUES = [200, 160, 120, 40, 300, 260, 90, 20];
+
+  function drawTree() {
+    var tn = parseInt($('rec-tree').value, 10) || 5;
+    // build tree nodes
+    var root = { k: tn, children: [] };
+    function build(node) {
+      if (node.k <= 1) return;
+      node.children.push({ k: node.k - 1, children: [] });
+      node.children.push({ k: node.k - 2, children: [] });
+      build(node.children[0]);
+      build(node.children[1]);
+    }
+    build(root);
+    // assign x to leaves (in-order), y by depth
+    var leafX = 0;
+    function assign(node, depth) {
+      if (node.k <= 1) { node.x = leafX++; node.y = depth; return; }
+      assign(node.children[0], depth + 1);
+      assign(node.children[1], depth + 1);
+      node.x = (node.children[0].x + node.children[1].x) / 2;
+      node.y = depth;
+    }
+    assign(root, 0);
+    var nLeaves = leafX;
+    var maxDepth = tn;
+    var dx = (W * 0.46) / Math.max(1, nLeaves);
+    var dy = (H - 50) / Math.max(1, maxDepth);
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+
+    var counts = {};
+    function drawNode(node, px, py) {
+      var x = 10 + node.x * dx + dx / 2;
+      var y = 16 + node.y * dy;
+      if (px !== null) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+      }
+      var hue = HUES[node.k % HUES.length];
+      ctx.fillStyle = 'hsl(' + hue + ',70%,45%)';
+      ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('f(' + node.k + ')', x, y + 3);
+      counts[node.k] = (counts[node.k] || 0) + 1;
+      for (var i = 0; i < node.children.length; i++) drawNode(node.children[i], x, y);
+    }
+    drawNode(root, null, null);
+    ctx.textAlign = 'left';
+
+    // counts legend
+    var ks = Object.keys(counts).sort(function (a, b) { return b - a; });
+    ctx.font = '11px monospace';
+    var ly = 16;
+    ctx.fillStyle = 'rgba(230,250,255,0.7)';
+    ctx.fillText('f(k) computed:', W * 0.5, ly);
+    ly += 16;
+    for (var i = 0; i < ks.length; i++) {
+      var k = ks[i];
+      var hue = HUES[k % HUES.length];
+      ctx.fillStyle = 'hsl(' + hue + ',70%,45%)';
+      ctx.fillRect(W * 0.5, ly - 9, 10, 10);
+      ctx.fillStyle = 'rgba(230,250,255,0.7)';
+      ctx.fillText('f(' + k + ') ×' + counts[k], W * 0.5 + 15, ly);
+      ly += 16;
+    }
+  }
+
+  function drawBars() {
+    var N = 20;
+    var gx = W * 0.46, gw = W - gx - 12;
+    var maxLog = Math.log10(naiveCalls(N));
+    function barY(v) { return H - 16 - (Math.log10(Math.max(1, v)) / maxLog) * (H - 40); }
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.beginPath(); ctx.moveTo(gx, H - 16); ctx.lineTo(gx + gw, H - 16); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,0.6)';
+    ctx.font = '11px monospace';
+    ctx.fillText('calls (log)', gx, 14);
+    ctx.fillText('n=' + N, gx + gw - 30, H - 4);
+
+    var bw = gw / N;
+    for (var n = 1; n <= N; n++) {
+      var x = gx + (n - 1) * bw;
+      var hn = H - 16 - barY(naiveCalls(n));
+      ctx.fillStyle = 'rgba(255,77,77,0.7)';
+      ctx.fillRect(x + 1, H - 16 - hn, bw * 0.4, hn);
+      var hm = H - 16 - barY(memoCalls(n));
+      ctx.fillStyle = 'rgba(57,255,20,0.85)';
+      ctx.fillRect(x + 1 + bw * 0.45, H - 16 - hm, bw * 0.4, hm);
+    }
+    ctx.fillStyle = '#ff4d4d'; ctx.fillRect(gx + 8, 28, 10, 10);
+    ctx.fillStyle = 'rgba(230,250,255,0.7)'; ctx.fillText('naive (2ⁿ)', gx + 22, 37);
+    ctx.fillStyle = '#39ff14'; ctx.fillRect(gx + 110, 28, 10, 10);
+    ctx.fillStyle = 'rgba(230,250,255,0.7)'; ctx.fillText('memoized (n)', gx + 124, 37);
+  }
+
+  function readout() {
+    var n = parseInt($('rec-n').value, 10) || 20;
+    var nc = naiveCalls(n), mc = memoCalls(n);
+    var out = $('rec-out');
+    var ratio = nc / mc;
+    var v = fibValue(n);
+    out.innerHTML = 'fib(' + n + ') = <strong style="color:var(--accent);">' + v.toLocaleString('en-GB') + '</strong> · ' +
+      '<span style="color:#ff4d4d;">naive: ' + nc.toLocaleString('en-GB') + ' calls</span> vs ' +
+      '<span style="color:#39ff14;">memoized: ' + mc.toLocaleString('en-GB') + ' calls</span> — ' +
+      (ratio >= 1000 ? 'memoization does ~' + Math.round(ratio).toLocaleString('en-GB') + '× less work.' :
+        'the gap widens with every extra n.');
+  }
+
+  $('rec-n').addEventListener('input', function () { $('rec-nval').textContent = this.value; readout(); });
+  $('rec-tree').addEventListener('input', function () { drawTree(); });
+
+  drawTree();
+  drawBars();
+  readout();
+})();
+</script>
