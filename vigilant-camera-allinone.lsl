@@ -1,16 +1,17 @@
 // ============================================================================
-//  VIGILANT ACTION CAMERA HUD  v6.0  --  Second Life (LSL)
+//  VIGILANT ACTION CAMERA HUD  v6.1  --  Second Life (LSL)
 //  SLIM SINGLE-SCRIPT EDITION. One script, one 64 KB Mono budget. Earlier
 //  single-script builds (v2.2, v4.0, v4.1) died of Stack-Heap Collision, so
 //  this one was rebuilt lean on purpose: same brain, less bulk.
 //
 //  What it does: a sim-wide action camera that orbits stars with flowing
-//  moves and cuts to whatever is happening - new arrivals, nearby speech,
-//  fast movers, people bursting into action. New activity builds HEAT: a hot
-//  star wins the spotlight and the camera physically tightens its orbit
-//  around them until they cool off. Also includes a channel scanner that
-//  relays nearby chat spoken on other channels and reports which channels
-//  are busiest.
+//  moves and snap-zooms to whatever is happening - new arrivals, nearby
+//  speech, fast movers, people bursting into action, and stars who put on
+//  or take off attachments (clothing watcher). New activity builds HEAT:
+//  a hot star wins the spotlight and the camera physically tightens its
+//  orbit around them until they cool off. Also includes a channel scanner
+//  that relays nearby chat spoken on other channels and reports which
+//  channels are busiest.
 //
 //  USE: put this script in the ROOT prim of a HUD attachment and wear it,
 //  then touch the HUD for the menu. Camera permission is granted silently
@@ -21,12 +22,19 @@
 //        STATUS, CHANNELS, NEXT_TARGET, TOGGLE_PAN, TOGGLE_ACTION,
 //        TOGGLE_SCANNER, RESET
 //
-//  What was trimmed to fit one script: close-up snap zooms, whip-pan and
-//  handheld-shake polish, floating text, debug chatter, outfit/prop watch.
-//  The full-fat edition is the v5.0 two-script team
-//  (vigilant-camera-director.lsl + vigilant-camera-hud.lsl).
+//  Clothing watcher limits (Second Life itself, not this script): it sees
+//  prim attachments (collars, shoes, hair, worn outfits) via
+//  llGetAttachedList - no script can see another avatar's system clothing
+//  layers, and HUD attachments are never reported by design. A same-pulse
+//  one-for-one swap can slip by unnoticed.
+//  What was trimmed to fit one script: whip-pan and handheld-shake polish,
+//  floating text, debug chatter, prop spotting. The full-fat edition is the
+//  v5.0 two-script team (vigilant-camera-director.lsl +
+//  vigilant-camera-hud.lsl).
 //  NOTE: scripted cameras cannot run in mouselook and are overridden while
-//  you hold Alt-cam - press Esc to hand the lens back to the HUD.
+//  you hold Alt-cam - press Esc to hand the lens back to the HUD. In
+//  no-script parcels/regions the HUD freezes with every other script - the
+//  viewer's own Alt-click camera still works there.
 // ============================================================================
 
 // ---------------------------------------------------------------------------
@@ -52,9 +60,19 @@ float HEAT_NEW              = 18.0;   // a star just arrived on the region
 float HEAT_BURST            = 15.0;   // just switched into an action anim
 float HEAT_SPEECH           = 10.0;   // spoke within the last 10 s
 float HEAT_MOVE             = 8.0;    // currently a mover / traveller
+float HEAT_OUTFIT           = 12.0;   // put on / took off an attachment
 float HEAT_DECAY            = 0.5;    // heat halves every pulse
 float HEAT_CAP              = 15.0;   // heat treated as "max hot" for dolly
 float HEAT_DOLLY            = 0.35;   // fraction the orbit tightens when hot
+
+// clothing watcher
+integer ATTACH_CHECKS_PER_SCAN = 2;   // extra outfits diffed per pulse (the
+                                      // star is always checked first, on top)
+
+// close-ups
+float ZOOM_DURATION         = 3.0;    // static close-up hold (seconds)
+float ZOOM_DISTANCE         = 2.0;    // face close-up distance (metres)
+float ZOOM_HEIGHT           = 1.7;    // face close-up height (metres)
 
 // orbit choreography
 float PAN_SPEED_BASE        = 0.05;   // max spin (rad per update)
@@ -102,7 +120,7 @@ integer DIALOG_CHANNEL      = -987654;
 integer HUD_CHANNEL         = -123456;
 
 // interrupt priorities (higher wins)
-integer PRIORITY_ACTION     = 1;      // mover, traveller, burst
+integer PRIORITY_ACTION     = 1;      // mover, traveller, burst, outfit
 integer PRIORITY_SPEECH     = 2;      // someone nearby is talking
 integer PRIORITY_NEW        = 3;      // a brand new arrival (headline news)
 
@@ -128,7 +146,13 @@ integer has_scanned = FALSE;      // completed at least one pulse?
 list chat_keys;                   // recent speakers (for scoring bonus)
 list chat_time;
 
+list outfit_keys;                 // per-star attachment counts (parallel)
+list outfit_count;                // a changed count = something put on/off
+integer attach_cursor = 0;        // round-robin outfit-check pointer
+
 key     target_key  = NULL_KEY;    // who is in the spotlight
+integer is_zoomed  = FALSE;        // holding a static close-up?
+integer zoom_until = 0;            // unix time the close-up ends
 integer last_cut   = 0;            // unix time of the last target change
 integer last_sensor = 0;           // unix time of the last region pulse
 integer target_boring = FALSE;     // is the star resting? (early rotation)
@@ -364,13 +388,22 @@ scanner_status()
 // ---------------------------------------------------------------------------
 
 // Put someone in the spotlight (announce only when it changes hands).
-set_target(key k, string reason)
+set_target(key k, string reason, integer zoom)
 {
     if (k == target_key)
         return;
     target_key = k;
     last_cut = llGetUnixTime();
     pan_angle = llFrand(TWO_PI);        // fresh angle for a fresh star
+    if (zoom)
+    {
+        is_zoomed = TRUE;
+        zoom_until = llGetUnixTime() + (integer)(ZOOM_DURATION + 0.5);
+    }
+    else
+    {
+        is_zoomed = FALSE;
+    }
     if (reason != "")
     {
         last_announced = k;
@@ -380,8 +413,9 @@ set_target(key k, string reason)
 }
 
 // May this interrupt steal the spotlight right now?
-//   NEW    : immediately (>= 1 s dwell)
-//   others : after MIN_TARGET_DWELL
+//   NEW    : immediately (>= 1 s dwell), breaks any close-up
+//   SPEECH : after MIN_TARGET_DWELL, may steal a close-up
+//   others : after MIN_TARGET_DWELL, never break a close-up
 integer interrupt_allowed(integer priority)
 {
     if (!cinematic || focus_locked || halted)
@@ -389,6 +423,8 @@ integer interrupt_allowed(integer priority)
     integer dwell = llGetUnixTime() - last_cut;
     if (priority >= PRIORITY_NEW)
         return (dwell >= 1);            // anti-strobe only for headline news
+    if (is_zoomed && priority < PRIORITY_SPEECH)
+        return FALSE;                   // only speech breaks a close-up
     return (dwell >= (integer)MIN_TARGET_DWELL);
 }
 
@@ -405,6 +441,7 @@ handle_no_targets()
     last_announced = NULL_KEY;
     focus_locked = FALSE;
     halted = FALSE;
+    is_zoomed = FALSE;
     if (cam_perm)
         llClearCameraParams();
 }
@@ -470,7 +507,49 @@ cast_target(integer dir)
             idx = (idx + dir + n) % n;
     }
     key k = llList2Key(av_keys, idx);
-    set_target(k, "Spotlight on: " + get_name(k) + "!");
+    set_target(k, "Spotlight on: " + get_name(k) + "!", FALSE);
+}
+
+// ---------------------------------------------------------------------------
+//  Clothing watcher: did this star put something on or take something off?
+// ---------------------------------------------------------------------------
+// llGetAttachedList sees prim attachments (collars, shoes, hair, worn
+// outfits); system clothing layers are invisible to every script, and HUD
+// attachments are never reported by design. The watcher diffs each star's
+// attachment COUNT - a change up or down is an outfit event. (The v3.0/v5.0
+// director edition tracked individual attachment keys instead; the count
+// diff does the same job with a fraction of the memory.)
+check_outfit(integer idx, integer now)
+{
+    key wr = llList2Key(av_keys, idx);
+    list atts = llGetAttachedList(wr);
+    integer m = llGetListLength(atts);
+    if (m == 1 && llList2Key(atts, 0) == NULL_KEY)
+        m = 0;                      // ["NOT ON REGION"]-style result
+    integer oi = llListFindList(outfit_keys, [wr]);
+    if (oi == -1)
+    {
+        outfit_keys += [wr];        // first sighting: learn the baseline
+        outfit_count += [m];
+        return;
+    }
+    integer prev_count = llList2Integer(outfit_count, oi);
+    outfit_count = llListReplaceList(outfit_count, [m], oi, oi);
+    if (prev_count == m)
+        return;
+    // something went on or came off: heat the star up
+    integer wi = llListFindList(av_keys, [wr]);
+    if (wi != -1)
+        av_heat = llListReplaceList(av_heat,
+                     [llList2Float(av_heat, wi) + HEAT_OUTFIT], wi, wi);
+    if (wr == target_key)
+    {
+        is_zoomed = TRUE;           // already in the spotlight: re-zoom them
+        zoom_until = now + (integer)(ZOOM_DURATION + 0.5);
+        return;
+    }
+    if (interrupt_allowed(PRIORITY_ACTION))
+        set_target(wr, get_name(wr) + " changed their outfit!", TRUE);
 }
 
 // ---------------------------------------------------------------------------
@@ -494,12 +573,15 @@ start_cinematic()
     last_agents = []; last_pos = [];
     has_scanned = FALSE;
     chat_keys = []; chat_time = [];
+    outfit_keys = []; outfit_count = [];
+    attach_cursor = 0;
     target_boring = FALSE;
     last_sensor = 0;                 // force an immediate pulse
     elapsed = 0.0;
     last_dir_switch = 0.0;
     last_tick = llGetTime();
     cam_init = FALSE;
+    is_zoomed = FALSE;
     no_targets_said = FALSE;
     if (listen_chat)
         llListenRemove(listen_chat);
@@ -524,11 +606,13 @@ stop_cinematic()
     no_targets_said = FALSE;
     focus_locked = FALSE;
     halted = FALSE;
+    is_zoomed = FALSE;
     target_boring = FALSE;
     av_keys = []; av_pos = []; av_score = []; av_anim = []; av_heat = [];
     last_agents = []; last_pos = [];
     has_scanned = FALSE;
     chat_keys = []; chat_time = [];
+    outfit_keys = []; outfit_count = [];
 }
 
 // ---------------------------------------------------------------------------
@@ -587,11 +671,15 @@ memory_guard()
         }
     }
     if (free_mem < 9000)
-        last_pos = [];    // critical: drop the movement history too
+    {
+        last_pos = [];      // critical: drop the movement history too
+        outfit_keys = [];
+        outfit_count = [];
+    }
 }
 
 // ---------------------------------------------------------------------------
-//  The region pulse: roster, scores, heat, interrupts
+//  The region pulse: roster, scores, heat, interrupts, outfits
 // ---------------------------------------------------------------------------
 
 scan_avatars()
@@ -797,7 +885,31 @@ scan_avatars()
             reason = "Cut to " + nm + " - they burst into action!";
         else
             reason = "Cut to " + nm + " - they're on the move!";
-        set_target(cut_key, reason);
+        set_target(cut_key, reason, TRUE);
+    }
+
+    // ---- clothing watcher: the star every pulse, plus a rotating sample ----
+    integer n = llGetListLength(av_keys);
+    if (n > 0)
+    {
+        integer checks = ATTACH_CHECKS_PER_SCAN;
+        if (checks > n - 1)
+            checks = n - 1;
+        if (ti != -1)
+            check_outfit(ti, now);       // the star's outfit, every pulse
+        integer k = 0;
+        integer used = 0;
+        while (used < checks && k < n)
+        {
+            integer idx = (attach_cursor + k) % n;
+            if (idx != ti)
+            {
+                check_outfit(idx, now);
+                used++;
+            }
+            k++;
+        }
+        attach_cursor = (attach_cursor + k) % n;
     }
 
     // ---- status sanity ----
@@ -805,6 +917,26 @@ scan_avatars()
         handle_no_targets();
     else if (target_key == NULL_KEY && !focus_locked)
         cast_target(0);
+
+    // drop outfit bookkeeping for stars that left the books
+    integer on = llGetListLength(outfit_keys);
+    if (on > 0)
+    {
+        list ok2 = [];
+        list oc2 = [];
+        integer oi;
+        for (oi = 0; oi < on; oi++)
+        {
+            key ak = llList2Key(outfit_keys, oi);
+            if (llListFindList(av_keys, [ak]) != -1)
+            {
+                ok2 += [ak];
+                oc2 += [llList2Integer(outfit_count, oi)];
+            }
+        }
+        outfit_keys = ok2;
+        outfit_count = oc2;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -828,7 +960,7 @@ apply_camera()
 
 update_camera(float dt)
 {
-    list det = llGetObjectDetails(target_key, [OBJECT_POS, OBJECT_VELOCITY]);
+    list det = llGetObjectDetails(target_key, [OBJECT_POS, OBJECT_VELOCITY, OBJECT_ROT]);
     vector tpos = llList2Vector(det, 0);
     if (tpos == ZERO_VECTOR)
     {
@@ -852,44 +984,62 @@ update_camera(float dt)
     }
 
     vector vel = llList2Vector(det, 1);
+    rotation trot = llList2Rot(det, 2);
     float speed = llVecMag(vel);
 
-    // ---- flowing orbit ----
-    float radius = CAMERA_DISTANCE_BASE + CAMERA_DISTANCE_AMPLITUDE * llSin(TWO_PI * elapsed / DISTANCE_PERIOD);
-    float height = CAMERA_HEIGHT_BASE + CAMERA_HEIGHT_AMPLITUDE * llSin(TWO_PI * elapsed / HEIGHT_PERIOD);
-    float spin = (PAN_SPEED_BASE - PAN_SPEED_AMPLITUDE * (0.5 - 0.5 * llSin(TWO_PI * elapsed / PAN_SPEED_PERIOD))) * pan_direction;
-    // alternate clockwise <-> anticlockwise for variety
-    if (elapsed - last_dir_switch >= PAN_DIRECTION_PERIOD)
-    {
-        pan_direction = -pan_direction;
-        last_dir_switch = elapsed;
-    }
-    if (action_mode)
-    {
-        // pull back and circle faster as the action speeds up
-        radius = radius * (1.0 + min_ff(speed / 8.0, 1.0) * 0.5);
-        spin = spin + min_ff(speed / 10.0, 1.0) * 0.03 * pan_direction;
-    }
-    // hone in: tighten the orbit while the star is running hot
-    integer hti = llListFindList(av_keys, [target_key]);
-    if (hti != -1)
-    {
-        float heat = llList2Float(av_heat, hti);
-        radius = radius * (1.0 - min_ff(heat / HEAT_CAP, 1.0) * HEAT_DOLLY);
-    }
-    if (panning)
-    {
-        pan_angle += spin * dt;
-        if (pan_angle >= TWO_PI)
-            pan_angle -= TWO_PI;
-        else if (pan_angle < 0.0)
-            pan_angle += TWO_PI;
-    }
+    vector want_pos;
+    vector want_focus;
 
-    vector want_focus = tpos + <0.0, 0.0, FOCUS_HEIGHT>;
-    if (action_mode)
-        want_focus = want_focus + vel * LEAD_TIME;   // anticipate the action
-    vector want_pos = tpos + <llCos(pan_angle) * radius, llSin(pan_angle) * radius, height>;
+    if (is_zoomed)
+    {
+        // ---- static close-up: in front of the face ----
+        vector f = llRot2Fwd(trot);
+        vector flat = <f.x, f.y, 0.0>;
+        if (llVecMag(flat) < 0.05)
+            flat = <1.0, 0.0, 0.0>;
+        else
+            flat = llVecNorm(flat);
+        want_focus = tpos + <0.0, 0.0, ZOOM_HEIGHT>;
+        want_pos = tpos + flat * ZOOM_DISTANCE + <0.0, 0.0, ZOOM_HEIGHT - 0.15>;
+    }
+    else
+    {
+        // ---- flowing orbit ----
+        float radius = CAMERA_DISTANCE_BASE + CAMERA_DISTANCE_AMPLITUDE * llSin(TWO_PI * elapsed / DISTANCE_PERIOD);
+        float height = CAMERA_HEIGHT_BASE + CAMERA_HEIGHT_AMPLITUDE * llSin(TWO_PI * elapsed / HEIGHT_PERIOD);
+        float spin = (PAN_SPEED_BASE - PAN_SPEED_AMPLITUDE * (0.5 - 0.5 * llSin(TWO_PI * elapsed / PAN_SPEED_PERIOD))) * pan_direction;
+        // alternate clockwise <-> anticlockwise for variety
+        if (elapsed - last_dir_switch >= PAN_DIRECTION_PERIOD)
+        {
+            pan_direction = -pan_direction;
+            last_dir_switch = elapsed;
+        }
+        if (action_mode)
+        {
+            // pull back and circle faster as the action speeds up
+            radius = radius * (1.0 + min_ff(speed / 8.0, 1.0) * 0.5);
+            spin = spin + min_ff(speed / 10.0, 1.0) * 0.03 * pan_direction;
+        }
+        // hone in: tighten the orbit while the star is running hot
+        integer hti = llListFindList(av_keys, [target_key]);
+        if (hti != -1)
+        {
+            float heat = llList2Float(av_heat, hti);
+            radius = radius * (1.0 - min_ff(heat / HEAT_CAP, 1.0) * HEAT_DOLLY);
+        }
+        if (panning)
+        {
+            pan_angle += spin * dt;
+            if (pan_angle >= TWO_PI)
+                pan_angle -= TWO_PI;
+            else if (pan_angle < 0.0)
+                pan_angle += TWO_PI;
+        }
+        want_focus = tpos + <0.0, 0.0, FOCUS_HEIGHT>;
+        if (action_mode)
+            want_focus = want_focus + vel * LEAD_TIME;   // anticipate the action
+        want_pos = tpos + <llCos(pan_angle) * radius, llSin(pan_angle) * radius, height>;
+    }
 
     // ---- smooth pursuit ----
     float kp = 1.0 - llPow(EULER_E, -dt / POS_SMOOTH_TAU);
@@ -1077,7 +1227,7 @@ default
         last_sweep = llGetUnixTime();
         apply_tick_rate();
         refresh_perms();
-        llOwnerSay("Vigilant Action Camera v6.0 loaded! Free memory: " +
+        llOwnerSay("Vigilant Action Camera v6.1 loaded! Free memory: " +
                    (string)llGetFreeMemory() +
                    " bytes. Touch the HUD for controls - 'On/Off' starts filming.");
         if (SPY_MODE)
@@ -1109,8 +1259,10 @@ default
             av_keys = []; av_pos = []; av_score = []; av_anim = []; av_heat = [];
             last_pos = [];
             chat_keys = []; chat_time = [];
+            outfit_keys = []; outfit_count = [];
             last_sensor = 0;
             cam_init = FALSE;
+            is_zoomed = FALSE;
             target_boring = FALSE;
         }
         no_targets_said = FALSE;
@@ -1136,6 +1288,7 @@ default
             }
             target_key = NULL_KEY;
             last_announced = NULL_KEY;
+            is_zoomed = FALSE;
         }
     }
 
@@ -1159,6 +1312,7 @@ default
             last_announced = NULL_KEY;
             no_targets_said = FALSE;
             cam_init = FALSE;
+            is_zoomed = FALSE;
             target_boring = FALSE;
             refresh_perms();   // the viewer resets the camera on teleport;
                                // the 0.1 s loop re-asserts it from here on
@@ -1274,11 +1428,17 @@ default
             {
                 if (RELAY_CHAT)
                     llOwnerSay(name + " says: " + message);
-                set_target(id, "Cut to " + name + " - they're talking!");
+                set_target(id, "Cut to " + name + " - they're talking!", TRUE);
             }
-            else if (id == target_key && RELAY_CHAT)
+            else
             {
-                llOwnerSay(name + " says: " + message);
+                if (RELAY_CHAT)
+                    llOwnerSay(name + " says: " + message);
+                if (id == target_key)
+                {
+                    is_zoomed = TRUE;   // the star is talking: hold the close-up
+                    zoom_until = now + (integer)(ZOOM_DURATION + 0.5);
+                }
             }
             return;
         }
@@ -1335,11 +1495,18 @@ default
             scan_avatars();
         }
 
+        // ---- release the close-up when its time is up ----
+        if (is_zoomed && now >= zoom_until)
+        {
+            is_zoomed = FALSE;
+            last_cut = now;         // linger with the flowing orbit
+        }
+
         // ---- the director's rotation: 20 s on a star, 8 s on a snoozer ----
         integer dwell_need = (integer)FOCUS_SWITCH_INTERVAL;
         if (target_boring)
             dwell_need = (integer)BORING_SWITCH_INTERVAL;
-        if (!focus_locked && !halted &&
+        if (!focus_locked && !halted && !is_zoomed &&
             now - last_cut >= dwell_need &&
             llGetListLength(av_keys) > 0)
         {
@@ -1353,17 +1520,26 @@ default
 }
 
 // ============================================================================
-//  NOTES: v6.0 is the SLIM single-script edition - one script, one 64 KB Mono
+//  NOTES: v6.1 is the SLIM single-script edition - one script, one 64 KB Mono
 //  budget. Earlier single-script builds (v2.2 56.5 KB, v4.0 46.5 KB, v4.1)
 //  all died of Stack-Heap Collision, so this one is rebuilt lean: tighter
 //  functions, fewer strings, a scan pulse that builds one small strided
 //  candidate list instead of stacked copies, and lower default caps
 //  (MAX_SCAN_AGENTS 12, MAX_AVATARS 6 - raise them if the boot "Free memory"
 //  line shows a healthy number).
-//  Heat: arrivals (+18), action bursts (+15), speech (+10) and movement
-//  (+8) heat a star up; heat halves every pulse, pulls hot stars onto the
-//  books, biases the spotlight rotation toward them and tightens the orbit
-//  up to 35% (HEAT_DOLLY). STATUS shows the current star's heat.
+//  Snap zooms: new arrivals, movers, action bursts, speakers and outfit
+//  changes all cut to a 3 s face close-up, then linger on the flowing orbit.
+//  Heat: arrivals (+18), outfit changes (+12), action bursts (+15), speech
+//  (+10) and movement (+8) heat a star up; heat halves every pulse, pulls
+//  hot stars onto the books, biases the spotlight rotation toward them and
+//  tightens the orbit up to 35% (HEAT_DOLLY). STATUS shows the current
+//  star's heat.
+//  Clothing watcher: diffs each tracked star's attachment count via
+//  llGetAttachedList (the star every pulse, plus a rotating sample of two).
+//  It sees prim attachments - collars, shoes, hair, worn outfits. No script
+//  can see another avatar's system clothing layers (shirts, skins), and HUD
+//  attachments are never reported by design. A same-pulse one-for-one
+//  attachment swap can slip by unnoticed.
 //  Channel scanner: LSL cannot listen to "every" channel - a script holds
 //  one listen per channel, 65 max (the camera uses three). Channels 1-33
 //  and 665/666/667/-666 are always on; -33..-1 rotates in windows of 17
@@ -1373,10 +1549,10 @@ default
 //  Typed /N chat is heard within normal say range (~20 m); llRegionSay on a
 //  scanned channel is heard region-wide; IMs, group chat and object link
 //  messages can never be heard by a script.
-//  Trimmed to fit one script: close-up snap zooms, whip-pan / handheld
-//  shake, floating text, debug chatter, outfit/prop watch. Want those back?
-//  The v5.0 two-script team (director + camera, same HUD prim) has all of
-//  them plus a second 64 KB budget to play with.
+//  No-script zones: parcel "no outside scripts" freezes the HUD (wearing
+//  the parcel's group tag can revive it if the parcel allows group
+//  scripts); estate-wide "Disable Scripts" freezes every script for
+//  everyone. Only the viewer's own Alt-click camera works there.
 //  LSL has no llMin()/llMax()/llExp(); min_ff() and llPow(EULER_E, x) are
 //  the stand-ins. Scripted cameras cannot run in mouselook and are silently
 //  overridden while you hold Alt-cam (free camera) - press Esc to hand the
