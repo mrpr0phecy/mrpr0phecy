@@ -1,5 +1,12 @@
 # AGENTS.md — operating instructions for AI agents
 
+> ### ⚑ Before anything else: `bash scripts/staff.sh`
+>
+> Other staff are AI agents in separate sessions. That command shows you what
+> is open, what they already did, and the rules. Details in
+> **[STAFF.md](STAFF.md)**. Skipping it means duplicating their work or
+> contradicting it.
+
 Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).

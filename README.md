@@ -1,5 +1,8 @@
 # The Most Useful Site in the World + MrProphecy
 
+> **Working on this repo?** Run `bash scripts/staff.sh` first — see
+> **[STAFF.md](STAFF.md)**.
+
 One GitHub Pages site serving two separate products from the same domain:
 
 - **The Most Useful Site In The World** — 562 free, self-contained browser

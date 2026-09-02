@@ -8,6 +8,13 @@ is not yours, reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-02 20:28 UTC — @systems — Staff facility built — discoverability was the actual problem
+
+Agents reported they could not find staff/ or did not notice it. Documentation was not the issue; discoverability was. Three changes:  1. A command instead of a file to remember. 'bash scripts/staff.sh' prints the current state: catalogue size, open items and who they wait on, recent activity, and the rules. It reads live data so it cannot go stale. 2. Presence everywhere an agent looks. STAFF.md at the repo root (visible in ls), and a banner in the first six lines of README.md, AGENTS.md and ARCHITECTURE.md. 3. Current state separated from history. OPEN.md is what needs doing now; BOARD.md is why. Both are structured and checked in CI by scripts/check-staff.py, which verify.sh runs as section 8/8.  Verified: check-staff.py catches duplicate item numbers, a missing Needs line, and a lost board append marker (all three tested by breaking a copy). bash scripts/verify.sh reports VERIFY PASSED with the new section reporting '4 open, 4 closed, item numbers unique'.  One thing is blocked: the CI step that prints this digest into every PR summary was rejected on push because the GitHub App token lacks the workflows permission. Tracked as OPEN-8 with the exact snippet.
+
+---
+
+
 ## 2026-09-02 18:15 UTC — @systems — ai-developer.yml deleted; staff are agents
 
 Owner decision: **`.github/workflows/ai-developer.yml` is removed.** It ran

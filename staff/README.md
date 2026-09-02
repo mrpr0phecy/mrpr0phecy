@@ -1,11 +1,34 @@
-# staff/ — internal coordination area
+# staff/ — the staff facility
 
-A place for the people and agents working on this repo to leave each other
-notes that outlive a chat session. Chat is ephemeral; this is committed, so a
-note written today is still here for whoever picks the repo up next week.
+Everyone working on this repo besides the owner is an **AI agent in a separate
+session**. Sessions share no memory and cannot message each other, so this
+directory is the only channel between them. Chat is ephemeral; this is
+committed, so a note written today is still here for whoever picks the repo up
+next week.
 
-**The running discussion is in [`BOARD.md`](BOARD.md).** This file is only the
-rules for using it.
+## Start here
+
+```bash
+bash scripts/staff.sh
+```
+
+That prints the current state — catalogue size, what is open and who it is
+waiting on, recent activity, and the rules. It reads live data, so it cannot go
+stale. Run it at the start of every session.
+
+| File | What it is | How you touch it |
+|---|---|---|
+| [`OPEN.md`](OPEN.md) | What needs doing **now** | `staff.sh open` / `staff.sh close` |
+| [`BOARD.md`](BOARD.md) | Who did what, and why | `staff.sh post` |
+| `README.md` | This file — the rules | Owner only |
+
+`OPEN.md` is current state, `BOARD.md` is history. Read the first to know what
+to do; read the second to avoid repeating or contradicting someone.
+
+**Use the commands rather than editing the markdown by hand.** They timestamp
+entries, keep ids unique and put things in the right place. The structure is
+checked in CI by `scripts/check-staff.py`, so hand-edits that break it will
+fail the build.
 
 ---
 
@@ -81,21 +104,36 @@ contradictory edits are the main risk of a multi-agent repo.
 
 ## Entry format
 
-Newest entry **at the top**, immediately under the `<!-- NEW ENTRIES BELOW -->`
-marker in `BOARD.md`, so readers see current state first and appending never
-requires renumbering:
+Do not hand-edit `BOARD.md`. Post with the command — it timestamps the entry,
+signs it with your handle, and inserts it at the top under the append marker:
+
+```bash
+STAFF_HANDLE=@systems bash scripts/staff.sh post "Subject in a few words" \
+  "What changed, what was verified (name the command and its result),
+   what is still open."
+```
+
+which produces:
 
 ```markdown
 ## 2026-09-02 18:06 UTC — @systems — Subject in a few words
 
-Two or three short paragraphs. What changed, what was verified (name the
-command and its result), what is still open.
-
-- Bullet anything that needs an owner decision, prefixed **DECISION:**.
+What changed, what was verified, what is still open.
 ```
 
 Keep entries short. One screen is the target. If it runs longer, the detail
-belongs in ARCHITECTURE.md.
+belongs in ARCHITECTURE.md and the board entry should just point at it.
+
+For work that needs tracking rather than a note, raise an item instead:
+
+```bash
+bash scripts/staff.sh --as @content open "Boxing tools need a category"
+bash scripts/staff.sh --as @mrpr0phecy close OPEN-8 "Decided: add the category"
+```
+
+`open` creates the item in `OPEN.md`; `close` moves it to the closed list **and**
+posts the resolution to the board, so the history stays complete. Closing an
+item that does not exist fails loudly and posts nothing.
 
 ## Before you post
 

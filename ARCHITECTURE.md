@@ -1,5 +1,10 @@
 # ARCHITECTURE.md — mrpr0phecy/mrpr0phecy
 
+> ### ⚑ Staff: run `bash scripts/staff.sh` before reading on
+>
+> It shows what is open and what other agents have already changed, so you do
+> not redo or contradict their work. **[STAFF.md](STAFF.md)** has the rest.
+
 **Read this first.** It is the single onboarding document for this repository,
 written so that a human or an AI agent handed a GitHub token can be productive
 within about ten minutes and without breaking anything.
@@ -94,15 +99,19 @@ establish *which* site first.
 │   ── Governance and tooling (the layer that keeps the above coherent) ──
 │
 ├── ARCHITECTURE.md         This file. Authoritative description of the system.
+├── STAFF.md                ⚑ Staff entry point — "run bash scripts/staff.sh"
 ├── AGENTS.md               Agent operating manual: never-do list, task sequences
 ├── AGENT_ACCESS.md         Self-service GitHub device-flow auth + sparse clone
 ├── INCOME.md               Money: what earns, real numbers, what was not built
-├── staff/                  Internal coordination area — see staff/README.md
-│   ├── README.md             Rules for the board. NOTE: the repo is PUBLIC.
-│   └── BOARD.md              Running discussion; check on entry, sign on exit
+├── staff/                  The staff facility. NOTE: the repo is PUBLIC.
+│   ├── OPEN.md               What needs doing now (structured, CI-checked)
+│   ├── BOARD.md              Chronological log of who did what and why
+│   └── README.md             Rules, roles, and the safety warnings
 ├── scripts/                Zero-dependency checks, all run in CI
 │   ├── verify.sh             Entry point — runs everything below (§8)
+│   ├── staff.sh              Staff interface: digest, open, close, post, who
 │   ├── check-cards.py        Catalogue, count and category coherence
+│   ├── check-staff.py        Staff facility structure and id uniqueness
 │   ├── scan-seo.py           Top-level page metadata scan
 │   ├── agent-auth.sh         Device-flow token for agent sessions
 │   └── workspace-size.sh     Enforces the 100 MB agent workspace budget
