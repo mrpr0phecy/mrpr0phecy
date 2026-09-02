@@ -1,8 +1,12 @@
 // ============================================================================
-//  VIGILANT ACTION CAMERA HUD  v6.1  --  Second Life (LSL)
+//  VIGILANT ACTION CAMERA HUD  v6.2  --  Second Life (LSL)
 //  SLIM SINGLE-SCRIPT EDITION. One script, one 64 KB Mono budget. Earlier
 //  single-script builds (v2.2, v4.0, v4.1) died of Stack-Heap Collision, so
-//  this one was rebuilt lean on purpose: same brain, less bulk.
+//  this one was rebuilt lean on purpose: same brain, less bulk. v6.2 fixes
+//  the crash that hit when the camera was switched ON: the first scan pulse
+//  now builds smaller lists, frees them early, paces the outfit checks, and
+//  if memory still runs low the HUD downshifts itself (lite mode, then
+//  survival mode) instead of dying.
 //
 //  What it does: a sim-wide action camera that orbits stars with flowing
 //  moves and snap-zooms to whatever is happening - new arrivals, nearby
@@ -42,10 +46,13 @@
 // ---------------------------------------------------------------------------
 float SENSOR_INTERVAL       = 1.0;    // region scan pulse (seconds)
 float UPDATE_INTERVAL       = 0.1;    // camera update tick (seconds)
-integer MAX_SCAN_AGENTS     = 12;     // agents fully scanned per pulse
-integer MAX_AVATARS         = 6;      // stars kept on the books
-                                      // (if the boot "Free memory" line is
-                                      // healthy you can raise both numbers)
+integer MAX_SCAN_AGENTS     = 6;      // agents fully scanned per pulse
+                                      // (auto-drops to 4, then 3, if script
+                                      // memory runs low; raise only if the
+                                      // boot "Free memory" line is healthy)
+integer MAX_AVATARS         = 4;      // stars kept on the books
+                                      // (auto-drops to 3, then 2, under
+                                      // memory pressure)
 
 // the director
 float FOCUS_SWITCH_INTERVAL = 20.0;   // linger on an active star (seconds)
@@ -66,8 +73,10 @@ float HEAT_CAP              = 15.0;   // heat treated as "max hot" for dolly
 float HEAT_DOLLY            = 0.35;   // fraction the orbit tightens when hot
 
 // clothing watcher
-integer ATTACH_CHECKS_PER_SCAN = 2;   // extra outfits diffed per pulse (the
-                                      // star is always checked first, on top)
+integer ATTACH_CHECKS_PER_SCAN = 1;   // extra outfits diffed per pass (the
+                                      // star is always checked first, on top;
+                                      // survival mode drops to star-only)
+integer OUTFIT_PULSE_DIV     = 2;     // outfit diff runs every Nth scan pulse
 
 // close-ups
 float ZOOM_DURATION         = 3.0;    // static close-up hold (seconds)
@@ -113,6 +122,8 @@ integer CHAN_TTL            = 600;    // log entries expire after (seconds)
 
 // bookkeeping
 integer MEMORY_FLOOR        = 15000;  // free bytes before caches are shed
+integer MEMORY_LITE         = 10000;  // free bytes before lite mode
+integer MEMORY_SURVIVAL     = 7500;   // free bytes before survival mode
 
 // toggles and channels
 integer RELAY_CHAT          = TRUE;   // relay the star's chat to you
@@ -149,6 +160,7 @@ list chat_time;
 list outfit_keys;                 // per-star attachment counts (parallel)
 list outfit_count;                // a changed count = something put on/off
 integer attach_cursor = 0;        // round-robin outfit-check pointer
+integer pulse_count = 0;          // scan pulses since boot (paces outfits)
 
 key     target_key  = NULL_KEY;    // who is in the spotlight
 integer is_zoomed  = FALSE;        // holding a static close-up?
@@ -173,7 +185,8 @@ integer cam_init = FALSE;         // has the camera snapped to its first frame?
 
 key     last_announced = NULL_KEY; // dedup for announcements
 integer no_targets_said = FALSE;   // said "no stars" already?
-integer mem_warned = FALSE;        // low-memory warning said once?
+integer mem_tier = 0;              // 0 normal, 1 lite, 2 survival
+                                   // (latched: memory only gets tighter)
 
 list    spy_handles;               // scanner: fixed listen handles
 list    neg_handles;               // scanner: rotating window handles
@@ -518,7 +531,9 @@ cast_target(integer dir)
 // attachments are never reported by design. The watcher diffs each star's
 // attachment COUNT - a change up or down is an outfit event. (The v3.0/v5.0
 // director edition tracked individual attachment keys instead; the count
-// diff does the same job with a fraction of the memory.)
+// diff does the same job with a fraction of the memory. The list it returns
+// is big on modern mesh avatars, so checks are paced - every OUTFIT_PULSE_DIV
+// pulses - and the star is always checked first.)
 check_outfit(integer idx, integer now)
 {
     key wr = llList2Key(av_keys, idx);
@@ -655,26 +670,36 @@ prune_lists(integer now)
     chan_log_tm = lm;
 }
 
-// Shed caches before the 64 KB Mono budget is threatened.
+// Shed caches and downshift caps before the 64 KB Mono budget is threatened.
+// The HUD would rather degrade gracefully than die with a Stack-Heap
+// Collision, so each tier latches in as memory gets tighter (never back
+// out - a crowded sim only gets worse, not better).
 memory_guard()
 {
     integer free_mem = llGetFreeMemory();
     if (free_mem < MEMORY_FLOOR)
     {
-        chat_keys = [];
+        chat_keys = [];          // rebuilt on demand as people speak
         chat_time = [];
-        if (!mem_warned)
-        {
-            llOwnerSay("Low script memory (" + (string)free_mem +
-                       " bytes free) - trimming caches.");
-            mem_warned = TRUE;
-        }
     }
-    if (free_mem < 9000)
+    if (free_mem < MEMORY_LITE && mem_tier < 1)
     {
-        last_pos = [];      // critical: drop the movement history too
-        outfit_keys = [];
-        outfit_count = [];
+        mem_tier = 1;
+        MAX_SCAN_AGENTS = 4;
+        MAX_AVATARS = 3;
+        llOwnerSay("Low script memory (" + (string)free_mem +
+                   " free) - lite mode: scanning 4, tracking 3.");
+    }
+    if (free_mem < MEMORY_SURVIVAL && mem_tier < 2)
+    {
+        mem_tier = 2;
+        MAX_SCAN_AGENTS = 3;
+        MAX_AVATARS = 2;
+        ATTACH_CHECKS_PER_SCAN = 0;
+        last_pos = [];           // movers detected by velocity alone
+        llOwnerSay("Very low script memory (" + (string)free_mem +
+                   " free) - survival mode: scanning 3, tracking 2," +
+                   " outfit watch on the star only.");
     }
 }
 
@@ -685,8 +710,9 @@ memory_guard()
 scan_avatars()
 {
     integer now = llGetUnixTime();
+    pulse_count++;
     prune_lists(now);
-    memory_guard();
+    memory_guard();              // adapt caps BEFORE building any lists
 
     // previous tracked cast (small - at most MAX_AVATARS entries)
     list prev_tracked_keys = av_keys;
@@ -799,7 +825,9 @@ scan_avatars()
         }
     }
     last_agents = agents;      // the roster IS the scan result, no copy
+    agents = [];               // hand the local reference over, then drop it
     last_pos = pos_list;
+    pos_list = [];
     has_scanned = TRUE;
 
     // ---- pick the tracked cast: one strided sort, best rank first ----
@@ -818,8 +846,9 @@ scan_avatars()
         av_pos += [llList2Vector(cand, i * 6 + 2)];
         av_score += [llList2Float(cand, i * 6 + 3)];
         av_anim += [""];
-        av_heat += [0.0];
+        av_heat += [llList2Float(cand, i * 6 + 5)];
     }
+    cand = [];                 // big list freed before the expensive part
 
     // ---- enrich the cast (only the tracked stars get the expensive calls) ----
     for (i = 0; i < kept; i++)
@@ -828,7 +857,7 @@ scan_avatars()
         integer info = llGetAgentInfo(a);
         string anim = llGetAnimation(a);
         float score = llList2Float(av_score, i);
-        float heat = llList2Float(cand, i * 6 + 5);
+        float heat = llList2Float(av_heat, i);
 
         if (is_action_anim(anim))
             score += 3.0;
@@ -888,15 +917,15 @@ scan_avatars()
         set_target(cut_key, reason, TRUE);
     }
 
-    // ---- clothing watcher: the star every pulse, plus a rotating sample ----
+    // ---- clothing watcher: paced, the star checked every pass it runs ----
     integer n = llGetListLength(av_keys);
-    if (n > 0)
+    if (n > 0 && (pulse_count % OUTFIT_PULSE_DIV) == 0)
     {
         integer checks = ATTACH_CHECKS_PER_SCAN;
         if (checks > n - 1)
             checks = n - 1;
         if (ti != -1)
-            check_outfit(ti, now);       // the star's outfit, every pulse
+            check_outfit(ti, now);       // the star's outfit, every pass
         integer k = 0;
         integer used = 0;
         while (used < checks && k < n)
@@ -1227,7 +1256,7 @@ default
         last_sweep = llGetUnixTime();
         apply_tick_rate();
         refresh_perms();
-        llOwnerSay("Vigilant Action Camera v6.1 loaded! Free memory: " +
+        llOwnerSay("Vigilant Action Camera v6.2 loaded! Free memory: " +
                    (string)llGetFreeMemory() +
                    " bytes. Touch the HUD for controls - 'On/Off' starts filming.");
         if (SPY_MODE)
@@ -1520,13 +1549,22 @@ default
 }
 
 // ============================================================================
-//  NOTES: v6.1 is the SLIM single-script edition - one script, one 64 KB Mono
+//  NOTES: v6.2 is the SLIM single-script edition - one script, one 64 KB Mono
 //  budget. Earlier single-script builds (v2.2 56.5 KB, v4.0 46.5 KB, v4.1)
 //  all died of Stack-Heap Collision, so this one is rebuilt lean: tighter
 //  functions, fewer strings, a scan pulse that builds one small strided
-//  candidate list instead of stacked copies, and lower default caps
-//  (MAX_SCAN_AGENTS 12, MAX_AVATARS 6 - raise them if the boot "Free memory"
-//  line shows a healthy number).
+//  candidate list instead of stacked copies, and lower default caps.
+//  v6.2 fixes the crash that hit when the camera was switched ON (the first
+//  scan pulse overflowed the heap): caps are now 6 scanned / 4 stars, the
+//  big candidate list is freed the moment it is consumed, the outfit checks
+//  are paced (every 2nd pulse, star first, one rotating sample), and a
+//  memory guard downshifts the whole HUD instead of letting it die -
+//    below 15000 free: chat caches shed
+//    below 10000 free: lite mode      (scan 4, stars 3)
+//    below  7500 free: survival mode  (scan 3, stars 2, star-only outfits)
+//  Each downgrade says so in chat, so those lines double as diagnostics.
+//  If v6.2 still collides even in survival mode, the single-script road is
+//  exhausted - the v5.0 two-script team is the guaranteed fallback.
 //  Snap zooms: new arrivals, movers, action bursts, speakers and outfit
 //  changes all cut to a 3 s face close-up, then linger on the flowing orbit.
 //  Heat: arrivals (+18), outfit changes (+12), action bursts (+15), speech
@@ -1535,7 +1573,7 @@ default
 //  tightens the orbit up to 35% (HEAT_DOLLY). STATUS shows the current
 //  star's heat.
 //  Clothing watcher: diffs each tracked star's attachment count via
-//  llGetAttachedList (the star every pulse, plus a rotating sample of two).
+//  llGetAttachedList (the star every 2nd pulse, plus a rotating sample).
 //  It sees prim attachments - collars, shoes, hair, worn outfits. No script
 //  can see another avatar's system clothing layers (shirts, skins), and HUD
 //  attachments are never reported by design. A same-pulse one-for-one
