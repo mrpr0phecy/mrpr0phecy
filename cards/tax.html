@@ -3,7 +3,7 @@
 <form aria-describedby="tax-desc" style="margin-bottom:20px;">
     <p id="tax-desc" class="small" style="margin-bottom:20px;color:rgba(var(--text-rgb, 230,250,255),0.9);">
         Estimate income tax, national insurance, and take-home pay for UK taxpayers.
-        <span style="color:var(--accent);">Based on 2026/27 UK rates (England, Wales &amp; NI). Scotland differs.</span>
+        <span style="color:var(--accent);">Based on 2026/27 UK rates. Covers England, Wales, N. Ireland and Scotland.</span>
     </p>
     
     <!-- INCOME SECTION -->
@@ -48,6 +48,18 @@
         <h4 style="color:var(--accent);margin-top:0;margin-bottom:12px;font-size:14px;font-weight:600;">📋 Tax Settings</h4>
         
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <!-- REGION -->
+            <div>
+                <label for="tax-region" style="display:block;margin-bottom:6px;color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">
+                    Where you live
+                </label>
+                <select id="tax-region" onchange="taxCalculate()"
+                        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(var(--accent-rgb, 45,212,255),0.2);background:rgba(var(--accent-rgb, 45,212,255),0.05);color:inherit;font-size:14px;">
+                    <option value="ruk" selected>England, Wales or N. Ireland</option>
+                    <option value="scotland">Scotland (S tax code)</option>
+                </select>
+            </div>
+
             <!-- TAX CODE -->
             <div>
                 <label for="tax-code" style="display:block;margin-bottom:6px;color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">
@@ -225,13 +237,34 @@
             </span>
         </div>
 
+        <div style="background:rgba(157,78,221,0.06);border-radius:8px;padding:12px;border-left:3px solid #9d4edd;margin-top:12px;">
+            <strong style="color:#c77dff;">Scotland — six bands, set at Holyrood (2026/27):</strong><br>
+            <span style="color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">
+                • £12,571–£16,537: 19% starter<br>
+                • £16,538–£29,526: 20% basic<br>
+                • £29,527–£43,662: 21% intermediate<br>
+                • £43,663–£75,000: <strong>42% higher</strong><br>
+                • £75,001–£125,140: 45% advanced<br>
+                • Over £125,140: 48% top<br><br>
+                The crossover is around <strong>£33,500</strong>: below it a Scottish taxpayer pays
+                slightly less than an English one, above it progressively more. The 42% band
+                starting at £43,663 rather than £50,270 is the single biggest driver — that
+                £6,600 slice is taxed at 20% in England and 42% in Scotland, a 50% marginal rate
+                once National Insurance is added. In the £100k taper zone the Scottish effective
+                marginal rate reaches roughly <strong>67.5%</strong> against 60% in England.<br><br>
+                The personal allowance, its taper and National Insurance are all UK-wide and
+                identical either side of the border.
+            </span>
+        </div>
+
         <p style="color:rgba(var(--text-rgb, 230,250,255),0.7);font-size:13px;line-height:1.5;margin-top:12px;">
-            <span style="color:#ffcc00;">⚠️ Scope:</span> Estimates only, for England, Wales and
-            Northern Ireland. <strong>Scotland sets its own income tax bands</strong> (six rates,
-            19%–48%) and these figures will be wrong there. Also excluded: student loan
-            repayments, Scottish/Welsh variations, salary sacrifice, benefits in kind, dividend
-            and savings income, Marriage Allowance, and any tax code other than a standard
-            cumulative one. Thresholds shown are frozen until April 2028.
+            <span style="color:#ffcc00;">⚠️ Scope:</span> Estimates only. Covers salary
+            (non-savings, non-dividend income) for both rUK and Scotland — pick your region
+            above. Wales currently sets its rates equal to England's, so a C code changes
+            nothing. Excluded: student loan repayments, salary sacrifice, benefits in kind,
+            dividend and savings income, Marriage Allowance, and any tax code other than a
+            standard cumulative one. rUK thresholds are frozen until April 2028; Scottish
+            thresholds are reset at each Scottish Budget.
             Consult a qualified accountant before acting on a number from a web page.
         </p>
     </div>
@@ -286,7 +319,53 @@ function taxBandsFor(income) {
     ];
 }
 
-// Class 1 employee National Insurance — 2026/27
+/* Scottish income tax — 2026/27. Set by the Scottish rate resolution, six
+   bands rather than three, and applying to non-savings, non-dividend income
+   (salary, pensions, self-employment profit).
+
+   Bands are defined as slices of TAXABLE income (i.e. above whatever personal
+   allowance survives), which is why they are stored as cumulative widths. The
+   familiar gross figures — £16,537 / £29,526 / £43,662 / £75,000 — are simply
+   these widths plus the standard £12,570 allowance.
+
+   The top-rate threshold is the same £125,140 of taxable income used by the
+   rest of the UK, so both regimes reach it at the same gross income.
+
+   The personal allowance and its £100,000 taper are reserved to Westminster
+   and are identical to rUK. National Insurance is UK-wide and unaffected. */
+const SCOT_BANDS = [
+    { upTo: 3967,   rate: 0.19, name: "Starter Rate" },
+    { upTo: 16956,  rate: 0.20, name: "Scottish Basic Rate" },
+    { upTo: 31092,  rate: 0.21, name: "Intermediate Rate" },
+    { upTo: 62430,  rate: 0.42, name: "Higher Rate" },
+    { upTo: 125140, rate: 0.45, name: "Advanced Rate" },
+    { upTo: Infinity, rate: 0.48, name: "Top Rate" }
+];
+
+function taxScottishBandsFor(income) {
+    const taper = Math.max(0, Math.min(TAX_PERSONAL_ALLOWANCE,
+        Math.floor(Math.max(0, income - TAX_TAPER_START) / 2)));
+    const pa = TAX_PERSONAL_ALLOWANCE - taper;
+    const bands = [{ min: 0, max: pa, rate: 0.00, name: "Personal Allowance" }];
+    let lower = 0;
+    for (const b of SCOT_BANDS) {
+        bands.push({
+            min: pa + lower,
+            max: b.upTo === Infinity ? Infinity : pa + b.upTo,
+            rate: b.rate,
+            name: b.name
+        });
+        lower = b.upTo;
+    }
+    return bands;
+}
+
+/* Pick the right band table for the selected region. */
+function taxBandsForRegion(income, region) {
+    return region === 'scotland' ? taxScottishBandsFor(income) : taxBandsFor(income);
+}
+
+// Class 1 employee National Insurance — 2026/27 (UK-wide, including Scotland)
 const NI_BANDS = [
     { min: 0,     max: 12570,    rate: 0.00, name: "Below Primary Threshold" },
     { min: 12570, max: 50270,    rate: 0.08, name: "Main Rate" },
@@ -367,7 +446,9 @@ function taxCalculate(btn = null) {
         const taxableIncome = Math.max(0, grossSalary - pensionAmount);
         
         // Calculate income tax (progressive)
-        const incomeTax = taxCalculateProgressive(taxableIncome, taxBandsFor(taxableIncome));
+        const regionEl = card.querySelector('#tax-region');
+        const region = regionEl ? regionEl.value : 'ruk';
+        const incomeTax = taxCalculateProgressive(taxableIncome, taxBandsForRegion(taxableIncome, region));
         
         // Calculate National Insurance (progressive)
         const nationalInsurance = taxCalculateProgressive(taxableIncome, NI_BANDS);

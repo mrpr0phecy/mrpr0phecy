@@ -65,6 +65,7 @@ function loadCard(file, startMarker, endMarker) {
   // `const`/`let` at the top level of a vm script do not become properties of
   // the sandbox object, so name them explicitly on the way out.
   const wanted = ['TAX_PERSONAL_ALLOWANCE', 'NI_BANDS', 'taxBandsFor', 'taxCalculateProgressive',
+                  'taxScottishBandsFor', 'taxBandsForRegion', 'SCOT_BANDS',
                   'scUkTaxBrackets', 'scUkNationalInsurance', 'scStudentLoan', 'SC_STUDENT_PLANS'];
   const epilogue = '\n' + wanted
     .map(n => `try { __exports[${JSON.stringify(n)}] = ${n}; } catch (e) {}`)
@@ -148,6 +149,83 @@ try {
 }
 
 /* ------------------------------------------------------------------ *
+ * tax.html — Scottish income tax                                      *
+ * ------------------------------------------------------------------ */
+
+/* Independent reference for Scotland, written from the 2026/27 Scottish rate
+   resolution as GROSS thresholds (the form the published tables use), rather
+   than the cumulative taxable-slice widths the card stores. Deriving it a
+   different way from the implementation is the point. */
+function refScottishTax(income) {
+  const taper = Math.min(12570, Math.max(0, Math.floor(Math.max(0, income - 100000) / 2)));
+  const pa = 12570 - taper;
+  const shift = pa - 12570;   // bands move down with a tapered allowance
+  const edges = [
+    [16537 + shift, 0.19],
+    [29526 + shift, 0.20],
+    [43662 + shift, 0.21],
+    [75000 + shift, 0.42],
+    [125140,        0.45],
+    [Infinity,      0.48]
+  ];
+  let tax = 0, lower = pa;
+  for (const [upper, rate] of edges) {
+    tax += Math.max(0, Math.min(income, upper) - lower) * rate;
+    lower = Math.max(lower, upper);
+  }
+  return tax;
+}
+
+section('tax.html — Scottish income tax (2026/27, six bands)');
+try {
+  const tax = loadCard('tax.html', 'const TAX_PERSONAL_ALLOWANCE', '// Adjust salary with quick buttons');
+  const scot = s => tax.taxCalculateProgressive(s, tax.taxScottishBandsFor(s));
+
+  // Published worked example: a Scottish taxpayer on £50,000 pays £8,982.05.
+  assertNear('£50,000 Scottish income tax (published worked example)', scot(50000), 8982, 1);
+
+  // Band-by-band anchors, computed from the Scottish rate resolution.
+  assertNear('£12,570 (allowance only)', scot(12570), 0);
+  assertNear('£16,537 (top of starter rate)', scot(16537), Math.round(3967 * 0.19));
+  assertNear('£30,000', scot(30000), Math.round(refScottishTax(30000)));
+  assertNear('£43,662 (top of intermediate)', scot(43662), Math.round(refScottishTax(43662)));
+  assertNear('£75,000 (top of higher)', scot(75000), Math.round(refScottishTax(75000)));
+  assertNear('£150,000 (top rate)', scot(150000), Math.round(refScottishTax(150000)));
+
+  // Sweep against the independent reference.
+  let bad = [];
+  for (let s = 0; s <= 200000; s += 97) {
+    if (Math.abs(scot(s) - refScottishTax(s)) > 1) bad.push(s);
+  }
+  if (bad.length === 0) pass('sweep £0–£200,000 matches Scottish reference (2,062 points)');
+  else fail(`Scottish sweep: ${bad.length} mismatches, first at £${bad[0]}`);
+
+  // Structural facts that distinguish Scotland from rUK.
+  const ruk = s => tax.taxCalculateProgressive(s, tax.taxBandsFor(s));
+  if (scot(20000) < ruk(20000)) pass(`£20,000: Scotland £${scot(20000)} < rUK £${ruk(20000)} (19% starter rate)`);
+  else fail(`£20,000: expected Scotland to be cheaper, got ${scot(20000)} vs ${ruk(20000)}`);
+  if (scot(50000) > ruk(50000)) pass(`£50,000: Scotland £${scot(50000)} > rUK £${ruk(50000)} (42% from £43,663)`);
+  else fail(`£50,000: expected Scotland to be dearer, got ${scot(50000)} vs ${ruk(50000)}`);
+
+  // The crossover sits around £33,500 — below it Scotland is cheaper.
+  let crossover = null;
+  for (let s = 12570; s <= 60000; s += 10) {
+    if (scot(s) > ruk(s)) { crossover = s; break; }
+  }
+  if (crossover && crossover > 30000 && crossover < 37000) pass(`crossover point £${crossover.toLocaleString()} (expected ~£33,500)`);
+  else fail(`crossover at £${crossover} — expected between £30,000 and £37,000`);
+
+  // Region dispatch must actually switch tables.
+  assertNear('region dispatch: scotland', tax.taxBandsForRegion(50000, 'scotland')[1].rate, 0.19, 0.001);
+  assertNear('region dispatch: ruk', tax.taxBandsForRegion(50000, 'ruk')[1].rate, 0.20, 0.001);
+
+  // NI is UK-wide: identical either side of the border.
+  assertNear('NI is UK-wide (unchanged by region)', tax.taxCalculateProgressive(50000, tax.NI_BANDS), refEmployeeNI(50000));
+} catch (e) {
+  fail(`could not evaluate Scottish bands — ${e.message}`);
+}
+
+/* ------------------------------------------------------------------ *
  * salary.html — NI banding and student loan thresholds                *
  * ------------------------------------------------------------------ */
 
@@ -206,6 +284,122 @@ try {
   }
 } catch (e) {
   fail(`could not evaluate salarycompare.html — ${e.message}`);
+}
+
+/* ------------------------------------------------------------------ *
+ * compoundinterest.html — growth engine                               *
+ * ------------------------------------------------------------------ */
+
+section('compoundinterest.html — compounding across all frequencies');
+try {
+  const src = fs.readFileSync(path.join(ROOT, 'cards', 'compoundinterest.html'), 'utf8');
+  const start = src.indexOf('function ciCalculateFutureValue');
+  const end = src.indexOf('function ciCalculateInflationAdjusted');
+  if (start === -1 || end === -1) throw new Error('markers not found');
+  const sandbox = { console, Math, Number, Infinity, __exports: {} };
+  vm.createContext(sandbox);
+  vm.runInContext(src.slice(start, end) + '\n__exports.fv = ciCalculateFutureValue;',
+    sandbox, { filename: 'compoundinterest.html' });
+  const fv = sandbox.__exports.fv;
+
+  /* Reference: monthly simulation, contribution at end of month
+     (ordinary annuity), growth factor derived from the stated frequency. */
+  function refFV(principal, annualRate, years, frequency, monthly, increase) {
+    const periodic = annualRate / 100 / frequency;
+    const g = Math.pow(1 + periodic, frequency / 12);
+    let total = principal;
+    for (let y = 1; y <= years; y++) {
+      const amt = monthly * Math.pow(1 + increase / 100, y - 1);
+      for (let m = 0; m < 12; m++) { total = total * g + amt; }
+    }
+    return total;
+  }
+
+  // No-contribution case has a closed form: P(1 + r/n)^(n*t). Any frequency.
+  for (const freq of [1, 2, 4, 12, 52, 365]) {
+    const got = fv(10000, 7, 10, freq, 0, 0).total;
+    const want = 10000 * Math.pow(1 + 0.07 / freq, freq * 10);
+    assertNear(`£10,000 @7% 10y, freq ${freq}, no contributions`, Math.round(got), Math.round(want), 2);
+  }
+
+  // With contributions, across the frequencies that were previously broken.
+  for (const freq of [1, 2, 4, 12, 52]) {
+    const got = fv(10000, 7, 10, freq, 500, 0).total;
+    const want = refFV(10000, 7, 10, freq, 500, 0);
+    assertNear(`£10,000 + £500/mo @7% 10y, freq ${freq}`, Math.round(got), Math.round(want), 2);
+  }
+
+  // Escalating contributions.
+  assertNear('escalating contributions (3%/yr), freq 4',
+    Math.round(fv(10000, 7, 10, 4, 500, 3).total),
+    Math.round(refFV(10000, 7, 10, 4, 500, 3)), 2);
+
+  /* Regression guard for the specific bug: annual compounding with
+     contributions must report interest that reflects the contributions
+     earning a return, not just interest on the opening balance. The old
+     code reported exactly £700 here (7% of £10,000 and nothing else). */
+  const y1 = fv(10000, 7, 1, 1, 500, 0).yearlyData[0];
+  if (y1.interest > 800) pass(`year-1 interest with contributions: £${Math.round(y1.interest)} (old bug reported £700)`);
+  else fail(`year-1 interest £${Math.round(y1.interest)} — contributions appear to earn nothing`);
+
+  // Sanity: money in must never exceed money out at a positive rate.
+  const r = fv(10000, 7, 20, 12, 500, 0);
+  const paidIn = 10000 + 500 * 12 * 20;
+  if (r.total > paidIn) pass(`20-year balance £${Math.round(r.total).toLocaleString()} exceeds £${paidIn.toLocaleString()} paid in`);
+  else fail(`balance £${Math.round(r.total)} does not exceed contributions £${paidIn}`);
+} catch (e) {
+  fail(`could not evaluate compoundinterest.html — ${e.message}`);
+}
+
+/* ------------------------------------------------------------------ *
+ * mortgage.html — amortisation & total cost of ownership              *
+ * ------------------------------------------------------------------ */
+
+section('mortgage.html — amortisation');
+try {
+  const src = fs.readFileSync(path.join(ROOT, 'cards', 'mortgage.html'), 'utf8');
+  const start = src.indexOf('function mcCalculateAmortization');
+  const end = src.indexOf('// Generate amortization schedule');
+  if (start === -1 || end === -1) throw new Error('markers not found');
+  const sandbox = { console, Math, Number, Infinity, __exports: {} };
+  vm.createContext(sandbox);
+  vm.runInContext(src.slice(start, end) + '\n__exports.am = mcCalculateAmortization;',
+    sandbox, { filename: 'mortgage.html' });
+  const am = sandbox.__exports.am;
+
+  // £250,000 over 25 years at 5%: standard annuity formula.
+  const P = 250000, r = 0.05 / 12, n = 300;
+  const instalment = (P * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+  const base = am(P, r, n, 0);
+  assertNear('£250k/25y/5% term (months)', base.payoffMonths, 300, 1);
+  assertNear('£250k/25y/5% total interest', Math.round(base.totalInterest),
+    Math.round(instalment * n - P), 60);
+  // Total paid must equal principal + interest — the old code added the full
+  // nominal instalment in the final month, overstating it.
+  assertNear('total paid reconciles to principal + interest',
+    Math.round(base.totalPayment), Math.round(P + base.totalInterest), 2);
+
+  // Overpaying must shorten the term and cut interest.
+  const over = am(P, r, n, 200);
+  if (over.payoffMonths < base.payoffMonths && over.totalInterest < base.totalInterest) {
+    pass(`£200/mo overpayment: ${base.payoffMonths}→${over.payoffMonths} months, saves £${Math.round(base.totalInterest - over.totalInterest).toLocaleString()}`);
+  } else {
+    fail('overpayment did not reduce term and interest');
+  }
+  assertNear('overpaid total reconciles', Math.round(over.totalPayment),
+    Math.round(P + over.totalInterest), 2);
+
+  // 0% interest: pure principal, exact term.
+  const zero = am(120000, 0, 240, 0);
+  assertNear('0% mortgage interest', Math.round(zero.totalInterest), 0);
+  assertNear('0% mortgage term', zero.payoffMonths, 240, 1);
+
+  // Total cost of ownership must carry tax/insurance for every year, not one.
+  const body = src.slice(src.indexOf('const totalCost'), src.indexOf('const totalCost') + 200);
+  if (/payoffYearsExact|\*\s*years|totalTax/.test(body)) pass('total cost scales tax & insurance over the term');
+  else fail('total cost appears to add only one year of tax/insurance');
+} catch (e) {
+  fail(`could not evaluate mortgage.html — ${e.message}`);
 }
 
 /* ------------------------------------------------------------------ *

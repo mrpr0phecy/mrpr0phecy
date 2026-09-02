@@ -611,8 +611,16 @@ function mcCalculate(btn) {
   const monthlyInsurance = insurance / 12;
   const totalMonthly = monthlyPayment + extra + monthlyTax + monthlyInsurance;
   
-  // Calculate total cost
-  const totalCost = principal + totalInterest + tax + insurance;
+  /* Total cost of ownership over the life of the loan.
+     Property tax and insurance are entered as ANNUAL figures, so they must be
+     multiplied by the number of years actually paid — not added once. Adding a
+     single year understated a 25-year mortgage by 24 years of both (commonly
+     ~£48,000 at the default inputs). Uses the real payoff period, so making
+     extra payments correctly reduces the years of tax and insurance too. */
+  const payoffYearsExact = payoffMonths / 12;
+  const totalTax = tax * payoffYearsExact;
+  const totalInsurance = insurance * payoffYearsExact;
+  const totalCost = principal + totalInterest + totalTax + totalInsurance;
   
   // Format results
   const currency = mcState.currency;
@@ -686,7 +694,10 @@ function mcCalculateAmortization(principal, monthlyRate, months, extra) {
     const principalPayment = Math.min(balance, monthlyPayment + extra - interest);
     
     totalInterest += interest;
-    totalPayment += monthlyPayment + extra;
+    // Bill the actual amount taken this month, not the nominal instalment.
+    // The final month clears only the remaining balance plus its interest, so
+    // adding the full instalment overstates what the borrower really pays.
+    totalPayment += principalPayment + interest;
     balance -= principalPayment;
     actualMonths++;
     

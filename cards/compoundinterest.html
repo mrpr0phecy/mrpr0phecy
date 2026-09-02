@@ -277,36 +277,41 @@ function ciCalculateFutureValue(principal, annualRate, years, frequency, monthly
   const periodicRate = annualRate / 100 / frequency;
   const periods = years * frequency;
   
-  // For regular contributions with compounding
+  /* Month-by-month simulation.
+  
+     The previous version only handled monthly compounding. For the other six
+     frequency options it ran the monthly contribution loop and then threw the
+     result away, overwriting it with
+         total = yearStart * (1 + periodicRate)^frequency + annualContribution
+     which (a) discarded a year of contribution growth, (b) credited the whole
+     year's contributions as a single end-of-year lump that had earned nothing,
+     and (c) reported an interest figure that ignored contributions entirely.
+     At 7% annual compounding on £10,000 with £500/month it reported £700 of
+     interest — exactly the interest on the opening balance alone, as though
+     £6,000 of contributions had never been paid in.
+  
+     Simulating monthly and converting the rate to an equivalent monthly factor
+     handles every frequency with one code path. Contributions are added at the
+     END of each month (ordinary annuity), which is the standard convention and
+     the conservative one. */
+  const monthlyGrowth = frequency === 12
+    ? (1 + periodicRate)
+    : Math.pow(1 + periodicRate, frequency / 12);
+
   for (let year = 1; year <= years; year++) {
     let yearStart = total;
     let contributions = 0;
-    
-    // Calculate contributions for this year (with annual increase)
+
+    // Contributions for this year, uplifted by any annual increase.
     const annualContribution = monthlyContribution * 12 * Math.pow(1 + contributionIncrease / 100, year - 1);
-    
-    // Add contributions monthly with compounding
+    const monthlyAmount = annualContribution / 12;
+
     for (let month = 1; month <= 12; month++) {
-      if (frequency === 12) { // Monthly compounding
-        total *= (1 + periodicRate);
-      }
-      
-      // Add monthly contribution
-      const monthlyAmount = annualContribution / 12;
-      total += monthlyAmount;
+      total *= monthlyGrowth;          // growth on the balance held all month
+      total += monthlyAmount;          // then this month's deposit
       contributions += monthlyAmount;
-      
-      // For other compounding frequencies, adjust accordingly
-      if (frequency !== 12) {
-        // Simplified: contributions added at end of compounding period
-      }
     }
-    
-    // Apply compounding for other frequencies
-    if (frequency !== 12) {
-      total = yearStart * Math.pow(1 + periodicRate, frequency) + annualContribution;
-    }
-    
+
     const interest = total - yearStart - contributions;
     
     yearlyData.push({
@@ -316,16 +321,6 @@ function ciCalculateFutureValue(principal, annualRate, years, frequency, monthly
       interest: interest,
       yearStart: yearStart
     });
-  }
-  
-  // For continuous compounding
-  if (frequency === 'continuous') {
-    const e = Math.E;
-    total = principal * Math.pow(e, annualRate / 100 * years);
-    // Add contributions approximation for continuous
-    if (monthlyContribution > 0) {
-      total += monthlyContribution * 12 * years; // Simplified
-    }
   }
   
   return { total, yearlyData };
@@ -376,13 +371,23 @@ function ciCalculate() {
     const goal = parseFloat(document.querySelector('#ci-goal').value) || 100000;
     const contributionIncrease = parseFloat(document.querySelector('#ci-contribution-increase').value) || 3;
     
-    // Convert frequency to number for calculations (except 'continuous')
-    const freqNum = frequency === 'continuous' ? 12 : parseInt(frequency);
+    /* Continuous compounding was previously mapped to 12 (monthly), which
+       silently gave the wrong answer for that option. Map it instead to the
+       equivalent effective annual rate: a rate r compounded continuously
+       grows by e^r a year, so an annually-compounded rate of (e^r - 1)
+       produces identical results through the same simulation path. */
+    let freqNum, effectiveAnnualRate = annualRate;
+    if (frequency === 'continuous') {
+      freqNum = 1;
+      effectiveAnnualRate = (Math.exp(annualRate / 100) - 1) * 100;
+    } else {
+      freqNum = parseInt(frequency);
+    }
     
     // Calculate future value
     const result = ciCalculateFutureValue(
       principal, 
-      annualRate, 
+      effectiveAnnualRate, 
       years, 
       freqNum,
       monthlyContribution,
