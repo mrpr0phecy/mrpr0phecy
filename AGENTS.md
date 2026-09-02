@@ -5,6 +5,12 @@ Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
 Anything touching privacy, claims, disclaimers or third-party scripts:
 [LEGAL.md](LEGAL.md) is binding.
+
+**You are not the only agent on this repo.** Several work in parallel on
+`arena/*` branches. Before editing anything shared, go to
+**[staffroom/](staffroom/)** — read [`BOARD.md`](staffroom/BOARD.md), post a
+note in `staffroom/notes/<your-branch-id>.md`, and obey
+[`DECISIONS.md`](staffroom/DECISIONS.md).
 Last updated: 2026-08-30. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
@@ -28,6 +34,10 @@ never delete it). Design systems: **A = cyan terminal** (`--accent:#2dd4ff`),
 ## 1. First ten minutes (fresh session)
 
 ```bash
+# 0. Check who else is working here, and on what.
+python3 staffroom/scan.py --mine      # what am I about to collide with?
+#    Then write staffroom/notes/<your-branch-id>.md before you start.
+
 # 1. Authenticate — prints a URL + one-time code for the owner to approve.
 bash scripts/agent-auth.sh            # token -> ~/.github_token (chmod 600)
 
@@ -80,12 +90,13 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
   violations (INCOME.md). Legitimate growth only: metadata, speed, internal
   links, translated pages, honest CTAs.
 - No ads/trackers on Product A pages; no paywalls; no fake urgency.
-- **Never add analytics, chat, ads or any tracking script.** GA and Tawk.to were
-  removed on 2026-09-02; the site sets zero cookies and every page now claims
-  "no cookies, no analytics". Adding a tracker makes 44 pages misleading. See
-  LEGAL.md §4 rule 1.
-- **Support questions go in `help.html`** (searchable FAQ + email), never a
-  chat widget.
+- **Never claim "no tracking" / "no cookies" / "100% private".** Google
+  Analytics runs sitewide (owner's decision, 2026-09-02) — those claims would
+  be false, and they sit on pages that ask for money. Say "no ads, no accounts,
+  no sign-ups" instead. See staffroom D-002.
+- **GA loads from `analytics.js` only.** One `<script defer src="/analytics.js">`
+  per page; never paste an inline `gtag` snippet.
+- **Support questions go in `help.html`** (searchable FAQ + email).
 - **Never put a disclaimer inside a card.** Risk notices are category/slug
   driven in `index.html` + `tool.html`; keep the two tables in step.
 - Every new top-level page gets the `legal-bar` footer block and a sitemap entry.
@@ -148,6 +159,7 @@ live deploy.
 ## 7. If unsure
 
 Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md.
-Legal, privacy, claims and disclaimers → LEGAL.md. Owner:
+Legal, privacy, claims and disclaimers → LEGAL.md.
+Something that affects other agents → [staffroom/DISCUSSION.md](staffroom/DISCUSSION.md). Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.

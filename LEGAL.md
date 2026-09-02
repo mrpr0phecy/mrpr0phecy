@@ -19,7 +19,8 @@ Audit date: **2 September 2026**. Reviewer: legal pass over the whole repo.
 | Concern | Single source of truth | Never do instead |
 |---|---|---|
 | Privacy, cookies, terms, disclaimers, IP, takedown | `legal.html` (one page, nine anchored sections) | A second privacy page, or per-page terms |
-| Third-party scripts | **None permitted.** No analytics, no chat, no ads | Adding any tracker, "just one pixel" included |
+| Analytics | `analytics.js` — the only GA loader | Inline `gtag` snippets in a page |
+| Cross-agent coordination | [`staffroom/`](staffroom/) | Editing a shared file without checking the board |
 | Support / questions | `help.html` (searchable FAQ + email) | A third-party chat widget |
 | Per-tool risk warnings | `RISK_NOTICES` tables in `index.html` + `tool.html` | Hand-written disclaimers inside a card |
 | Code licence and asset carve-outs | `LICENSE` | Per-file licence headers |
@@ -27,12 +28,16 @@ Audit date: **2 September 2026**. Reviewer: legal pass over the whole repo.
 
 Four artefacts. Everything else references them.
 
-**Position as of 2 September 2026: this site runs zero analytics and sets zero
-cookies.** Google Analytics and Tawk.to were removed outright rather than
-consent-gated, on the owner's decision. That is why there is no cookie banner
-and why the unqualified "no tracking / 100% private" claims are once again
-literally true. `consent.js` existed briefly and has been deleted — if you find
-a reference to it, remove it.
+**Position as of 2 September 2026 (final): Google Analytics runs sitewide and
+the privacy claims have been removed.** The owner's priority is reach — GA is
+needed to know which tools are used and to price sponsorship honestly. So the
+contradiction was resolved in the other direction: keep the analytics, delete
+the "no tracking / 100% private / no cookies" claims wherever they appeared.
+
+GA loads from **`analytics.js`** and nowhere else, with `anonymize_ip` on and
+both Google Signals and ad personalisation off. `legal.html` §3 discloses it in
+full with working opt-out instructions. Tawk.to stays removed (replaced by
+`help.html`). No consent banner currently ships — see the open item in §5.
 
 ---
 
@@ -55,11 +60,17 @@ a reference to it, remove it.
 
 ## 3. What was implemented
 
-**Third-party removal** — all 26 inline Google Analytics and Tawk.to snippets
-were deleted, then the interim `consent.js` gate was deleted too. No analytics,
-chat, ad or tracking script of any kind now exists on the domain. PECR reg. 6
-simply does not bite: there is no non-essential storage to consent to, so the
-site needs no cookie banner at all.
+**Analytics consolidated** — the 26 scattered inline GA/Tawk snippets were
+replaced by a single `analytics.js` loaded by all 45 top-level pages. The
+measurement ID exists in exactly one file, so changing property, adding a
+consent gate or removing analytics is a one-file edit rather than a 45-file
+sweep. Tawk.to was retired in favour of `help.html`.
+
+**Claims removed to match** — every "no tracking", "no cookies", "no analytics"
+and "100% private" claim was stripped from the site, because GA makes them
+false. Replacements that remain accurate: "no ads", "no accounts", "no
+sign-ups", "no paywalls", "runs in your browser", "your inputs never leave your
+device".
 
 **`help.html`** — the replacement for live chat. A searchable, client-side FAQ
 (19 answers across using the tools, privacy, music, money and legal) with an
@@ -98,16 +109,14 @@ including the donation and sponsorship pages.
 
 ## 4. Rules for anyone editing this repo
 
-1. **No analytics, chat, ad or tracking script may be added to this site.**
-   Not Google Analytics, not a "privacy-friendly" alternative, not a single
-   pixel. The zero-cookie position is now a published claim on every page and a
-   selling point on the donation and sponsorship pages — breaking it silently
-   turns a true statement into a misleading one. If analytics genuinely become
-   necessary, the claims in §3 of this file, the footers on all 44 pages,
-   `legal.html` §2–3 and `help.html` must all change **in the same commit**, and
-   a cookie banner must return.
-2. **Never weaken the claims either.** "No cookies, no analytics, no tracking"
-   is accurate today. Keep it that way by keeping the site clean.
+1. **Never write "no tracking", "no cookies", "no analytics" or "100%
+   private".** Google Analytics runs sitewide, so these are false — and they
+   previously sat on the donation and sponsorship pages, which turns a wording
+   slip into a consumer-protection problem. Accurate alternatives: "no ads",
+   "no accounts", "no sign-ups", "no paywalls", "runs in your browser".
+2. **Analytics loads from `analytics.js` only.** One tag per page. Never inline
+   a `gtag` snippet — the whole point is a single place to change or remove it.
+   Any *new* third party needs a row in `legal.html` §3 and a note here.
 2b. **Support goes through `help.html`.** Add new answers there rather than
    bolting on a chat widget.
 3. **Never put a disclaimer inside a card.** Add the slug or category to
@@ -152,16 +161,18 @@ These need a human decision — they are outside what a code change can settle.
 - **Sponsorship contracts.** `sponsor.html` sells placements up to £1,000. Use a
   short written agreement covering deliverable, duration, refund and the right
   to refuse content, rather than an email thread.
-- **You now have no traffic data at all.** This was the deliberate trade for a
-  clean privacy position, but be aware of the consequences: you cannot tell
-  which of the 562 tools are used, you cannot price sponsorship on real numbers,
-  and you cannot tell whether a change helped. Two ways to recover some signal
-  without breaking the promise: (a) GitHub Pages does not expose logs, but a
-  Cloudflare proxy in front of the domain would give server-side, cookieless
-  aggregate counts that never touch the visitor's device — this remains
-  compatible with every claim on the site; (b) treat YouTube Studio and PayPal
-  as your real metrics, since they measure the things that actually earn.
-  Recommend revisiting if sponsorship becomes a serious revenue line.
+- **No consent banner currently ships.** Strictly, UK PECR reg. 6 wants prior
+  consent before GA's non-essential storage. The current position — full
+  disclosure in `legal.html` §3, working opt-out instructions, IP anonymisation,
+  ad personalisation off — is a defensible middle ground for a one-person site,
+  and the ICO's practical focus is ad-tech rather than aggregate stats. It is
+  not, however, the maximally safe position. A banner would cost 20–50% of
+  measured traffic, which is the opposite of why GA was reinstated. Revisit if
+  UK/EU becomes the dominant audience or sponsorship contracts start depending
+  on the numbers. Tracked as staffroom DISCUSSION #4.
+- **Six of seven agent branches still ship the old contradiction** (analytics
+  plus "no tracking" claims). Run `python3 staffroom/scan.py` to see the current
+  state; each branch must strip the claims before merging.
 - **Music rights.** If any recording contains an uncleared sample or a
   collaborator with an unwritten split, resolve it before pushing the catalogue
   commercially.

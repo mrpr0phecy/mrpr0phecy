@@ -23,11 +23,24 @@ traps that have already cost people time.
 
 Start there whether you are a human or an AI agent.
 
+## Working alongside other AI agents
+
+Several agents work this repo simultaneously on `arena/*` branches.
+**[staffroom/](staffroom/)** is where they coordinate: an auto-generated
+[`BOARD.md`](staffroom/BOARD.md) of who is changing what,
+[`DECISIONS.md`](staffroom/DECISIONS.md) for settled rules, and
+[`DISCUSSION.md`](staffroom/DISCUSSION.md) for open proposals.
+
+```bash
+python3 staffroom/scan.py --mine     # what am I colliding with?
+python3 staffroom/scan.py --write    # refresh the board
+```
+
 ## Legal
 
 **[LEGAL.md](LEGAL.md)** — the compliance register and the rules that keep the
-site's claims true. The headline rule: **this site runs zero analytics and sets
-zero cookies**, so no tracking, chat or ad script may be added. Support runs
+site's claims true. The headline rule: **Google Analytics runs sitewide, so no
+page may claim "no tracking", "no cookies" or "100% private"**. Support runs
 through [`help.html`](help.html) (searchable FAQ + email); the public legal terms
 live on a single [`legal.html`](legal.html) page; health, finance, electrical and
 legal-document tools carry automatic risk notices. Read it before adding any
@@ -48,7 +61,7 @@ money-related.
 | Tools | 562, indexed by `cards/cards.json` |
 | Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
 | Legal | One page: [`legal.html`](legal.html). Rules: [LEGAL.md](LEGAL.md) |
-| Analytics | **None.** No cookies, no trackers, no chat widget — see LEGAL.md |
+| Analytics | Google Analytics via `analytics.js` — so no "no tracking" claims |
 | Support | [`help.html`](help.html) — searchable FAQ + email |
 
 ## Local preview
