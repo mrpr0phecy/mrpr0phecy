@@ -430,36 +430,52 @@ section('money tools — stale statutory figures');
   else fail(`stale tax-year labels — ${stale.join(' | ')}`);
 }
 
-section('truthfulness — privacy claims match reality');
+section('truthfulness — privacy claims (staffroom D-002)');
 {
-  /* A page must not claim "no tracking" while loading an analytics script.
-     This was a real defect: index.html, donate.html and sponsor.html each
-     claimed it while running GA4. sponsor.html additionally SELLS that promise
-     to advertisers, which makes it a commercial representation, not just copy.
+  /* BINDING: staffroom/DECISIONS.md D-002 — "Analytics is disclosed, never
+     denied". Google Analytics runs sitewide, so the CLAIMS come out rather
+     than the analytics.
 
-     The rule enforced here: an unqualified "no tracking" claim is only allowed
-     on a page with no analytics. Pages that do run analytics must qualify the
-     claim (e.g. "no tracking in any tool", "no third-party tracking"). */
-  const ANALYTICS = /googletagmanager|gtag\(|plausible\.io|www\.google-analytics\.com/;
-  /* An unqualified claim is "no tracking" with nothing narrowing it to the
-     tools. Accept any qualifier that scopes the claim ("in any tool", "of any
-     kind" when the subject is the tools, "pixels", "third-party"), since those
-     statements are true. Deliberately permissive about HOW the scope is
-     written, because the goal is truthfulness, not one house phrasing. */
-  const UNQUALIFIED =
-    /no tracking(?!\s+(?:in any tool|in the tools|of any kind|pixels|scripts))(?!\s*(?:of|in)\b)/i;
+     My earlier version of this check allowed a scoped claim ("no tracking in
+     any tool") on pages that ran GA. That was too weak for two reasons:
+       1. It missed "100% Private" in the index.html hero badge entirely, and
+          the three unqualified claims on tool.html.
+       2. The legal branch loads analytics.js on all 45 top-level pages, not
+          the 3 I measured, so "no tracking in any tool" would become
+          misleading the moment that merges.
+     D-002 names the banned phrases outright, which is the more robust rule:
+     no scoping, no judgement call, nothing to get wrong. Enforce that instead.
 
-  const pages = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
-  const liars = [];
-  for (const f of pages) {
+     Claims that remain TRUE and are explicitly approved by D-002: "no ads",
+     "no accounts", "no sign-ups", "no paywalls", "runs in your browser",
+     "your inputs never leave your device". The 562 cards make zero network
+     calls, so in-browser processing claims are fine and are not matched here. */
+  const BANNED = [
+    [/\bno tracking\b/i, 'no tracking'],
+    [/\bno trackers\b/i, 'no trackers'],
+    [/\bno analytics\b/i, 'no analytics'],
+    [/\bno cookies\b/i, 'no cookies'],
+    // "100% private" is banned as a blanket claim, but is legitimate when
+    // scoped to in-browser processing of the user's own input.
+    [/100%\s*private(?!\s+(?:in-browser|in browser))/i, '100% private'],
+  ];
+
+  const offenders = [];
+  for (const f of fs.readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
     const txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
-    if (ANALYTICS.test(txt) && UNQUALIFIED.test(txt)) liars.push(f);
+    for (const [re, name] of BANNED) {
+      if (re.test(txt)) offenders.push(`${f} ("${name}")`);
+    }
   }
-  if (liars.length) {
-    fail(`page(s) claim "no tracking" while loading analytics: ${liars.join(', ')}`);
+  if (offenders.length) {
+    fail(`D-002 violation — privacy claim denied instead of disclosed: ${offenders.join(', ')}`);
   } else {
-    pass('no page makes an unqualified "no tracking" claim while running analytics');
+    pass('no page denies analytics (staffroom D-002)');
   }
+
+  /* Whatever the top-level pages do, the 562 tool cards must stay clean:
+     that is what makes the surviving "runs in your browser" claim true. */
+  const ANALYTICS = /googletagmanager|gtag\(|plausible\.io|www\.google-analytics\.com|analytics\.js/;
 
   /* The tool cards are the load-bearing part of the promise: whatever the
      index pages do, the 562 tools themselves must stay clean. */
@@ -545,7 +561,7 @@ section('sponsorship — the 5% rule');
     const txt = fs.readFileSync(sp, 'utf8');
     const promises = [
       [/No third-party scripts/i, 'no third-party scripts'],
-      [/No tracking pixels/i, 'no tracking pixels'],
+      [/No pixels or beacons of yours/i, 'no advertiser pixels or beacons'],
       [/Always labelled/i, 'always labelled Sponsored'],
     ];
     for (const [re, name] of promises) {
