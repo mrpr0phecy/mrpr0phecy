@@ -2,7 +2,7 @@
 
 One GitHub Pages site serving two separate products from the same domain:
 
-- **The Most Useful Site In The World** — 500 free, self-contained browser
+- **The Most Useful Site In The World** — 562 free, self-contained browser
   tools. Entry point: [`index.html`](index.html)
 - **MrProphecy** — UK hip hop and animated soundscapes from Luton.
   Entry point: [`listen.html`](listen.html)
@@ -23,6 +23,14 @@ traps that have already cost people time.
 
 Start there whether you are a human or an AI agent.
 
+## Legal
+
+**[LEGAL.md](LEGAL.md)** — the compliance register and the rules that keep the
+site's claims true: consent-gated third-party scripts (`consent.js`), the single
+public [`legal.html`](legal.html) page, and the risk-notice system for health,
+finance, electrical and legal-document tools. Read it before adding any
+third-party script, disclaimer or claim about privacy.
+
 ## Money & monetisation
 
 **[INCOME.md](INCOME.md)** — what actually earns, the real audience numbers,
@@ -35,8 +43,9 @@ money-related.
 |---|---|
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
-| Tools | 500, indexed by `cards/cards.json` |
+| Tools | 562, indexed by `cards/cards.json` |
 | Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
+| Legal | One page: [`legal.html`](legal.html). Rules: [LEGAL.md](LEGAL.md) |
 
 ## Local preview
 

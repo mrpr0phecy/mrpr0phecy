@@ -52,6 +52,13 @@ establish *which* site first.
 │   └── <tool-name>.html    562 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
+├── legal.html              The ONE public legal page — privacy, cookies, terms,
+│                           tool disclaimers, IP, takedown. Linked from every footer.
+├── consent.js              The ONLY loader for third-party scripts (GA, Tawk.to).
+│                           PECR consent gate — never inline a tracker again.
+├── LEGAL.md                Compliance register + rules for contributors
+├── LICENSE                 MIT for site code; music/art carved out
+│
 ├── listen.html             Product B: music hub — the main entry point
 ├── radio.html              Continuous player — 47 tracks back to back (YPP watch time)
 ├── thisorthat.html         Head-to-head voting game — shareable, builds a top 5
@@ -628,7 +635,33 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 ---
 
+## 8b. Legal system (added 2026-09-02)
+
+Four artefacts, referenced everywhere, duplicated nowhere:
+
+| Artefact | Role |
+|---|---|
+| `legal.html` | The single public legal page. Nine anchored sections; `#cookies`, `#terms`, `#disclaimer` are linked directly from footers and banners. |
+| `consent.js` | The only place Google Analytics (`G-G058FVW6Z2`) or Tawk.to may be loaded. Nothing third-party fires before an explicit Accept; Decline is equally prominent; choice stored in `localStorage` as `tmusitw-consent`. Add the tag as `<script defer src="/consent.js" data-analytics>` (or `data-chat`). |
+| Risk notices | Category/slug tables (`RISK_NOTICES`) in `index.html` and `tool.html` inject health/finance/engineering/legal/feed warnings into tool footers. Cards never carry their own disclaimer. |
+| `LICENSE` | MIT for HTML/CSS/JS; music, artwork, photography, CVs and third-party libs explicitly excluded. |
+
+Hard rules (full list in **[LEGAL.md](LEGAL.md)** §4): never inline a
+third-party script; never claim "no tracking" or "100% private" while
+`consent.js` ships; never write a disclaimer inside a card; every new top-level
+page gets the `legal-bar` footer and a sitemap entry; tool counts come from
+`ls cards/*.html | wc -l` and must move together across `index.html`,
+`tool.html`, `donate.html`, `sponsor.html` and `404.html`.
+
 ## 9. Current state and known work
+
+**Legal pass** (2026-09-02): analytics and live chat were loading with no
+consent and no privacy policy on pages that simultaneously advertised "no
+tracking" and asked for donations. Fixed by routing all 26 inline snippets
+through `consent.js`, publishing `legal.html`, adding `LICENSE`, adding
+category-driven risk notices to health/finance/electrical/legal tools,
+footer legal links on all 43 top-level pages, and normalising the tool count
+(483/500/562 → 562). Register and open items: **[LEGAL.md](LEGAL.md)**.
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —
