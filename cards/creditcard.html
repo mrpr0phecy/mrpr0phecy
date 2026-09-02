@@ -458,27 +458,29 @@ function ccCalculatePayoff(balance, annualRate, payment) {
         };
     }
     
-    // Calculate using amortization formula
+    /* In the final month the balance is usually smaller than the regular
+       payment. The previous version still deducted the full payment and then
+       "corrected" by subtracting the shortfall from accrued INTEREST, which
+       silently understated the true cost of the debt (£1,369 rather than
+       £1,385 on £3,000 at 21.9% paying £100/month). Interest that has accrued
+       cannot be undone by paying less; the correct fix is to take a smaller
+       final payment. A debt tool must never understate what debt costs. */
+    let totalPaid = 0;
     while (remainingBalance > 0.01 && months < maxMonths) {
         const interest = remainingBalance * monthlyRate;
         totalInterest += interest;
-        
-        // Apply payment after interest
-        remainingBalance = remainingBalance + interest - payment;
-        
-        // Ensure we don't overpay
-        if (remainingBalance < 0) {
-            totalInterest -= (remainingBalance * -1); // Adjust interest for overpayment
-            remainingBalance = 0;
-        }
-        
+
+        const thisPayment = Math.min(payment, remainingBalance + interest);
+        remainingBalance = remainingBalance + interest - thisPayment;
+        totalPaid += thisPayment;
+
         months++;
     }
     
     return {
         months: months,
         totalInterest: totalInterest,
-        totalPayment: balance + totalInterest,
+        totalPayment: totalPaid,
         error: null
     };
 }

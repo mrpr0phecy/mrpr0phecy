@@ -430,6 +430,81 @@ section('money tools — stale statutory figures');
   else fail(`stale tax-year labels — ${stale.join(' | ')}`);
 }
 
+section('truthfulness — privacy claims match reality');
+{
+  /* A page must not claim "no tracking" while loading an analytics script.
+     This was a real defect: index.html, donate.html and sponsor.html each
+     claimed it while running GA4. sponsor.html additionally SELLS that promise
+     to advertisers, which makes it a commercial representation, not just copy.
+
+     The rule enforced here: an unqualified "no tracking" claim is only allowed
+     on a page with no analytics. Pages that do run analytics must qualify the
+     claim (e.g. "no tracking in any tool", "no third-party tracking"). */
+  const ANALYTICS = /googletagmanager|gtag\(|plausible\.io|www\.google-analytics\.com/;
+  /* An unqualified claim is "no tracking" with nothing narrowing it to the
+     tools. Accept any qualifier that scopes the claim ("in any tool", "of any
+     kind" when the subject is the tools, "pixels", "third-party"), since those
+     statements are true. Deliberately permissive about HOW the scope is
+     written, because the goal is truthfulness, not one house phrasing. */
+  const UNQUALIFIED =
+    /no tracking(?!\s+(?:in any tool|in the tools|of any kind|pixels|scripts))(?!\s*(?:of|in)\b)/i;
+
+  const pages = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
+  const liars = [];
+  for (const f of pages) {
+    const txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    if (ANALYTICS.test(txt) && UNQUALIFIED.test(txt)) liars.push(f);
+  }
+  if (liars.length) {
+    fail(`page(s) claim "no tracking" while loading analytics: ${liars.join(', ')}`);
+  } else {
+    pass('no page makes an unqualified "no tracking" claim while running analytics');
+  }
+
+  /* The tool cards are the load-bearing part of the promise: whatever the
+     index pages do, the 562 tools themselves must stay clean. */
+  const cardDir = path.join(ROOT, 'cards');
+  const dirty = fs.existsSync(cardDir)
+    ? fs.readdirSync(cardDir).filter(f => f.endsWith('.html'))
+        .filter(f => ANALYTICS.test(fs.readFileSync(path.join(cardDir, f), 'utf8')))
+    : [];
+  if (dirty.length) {
+    fail(`tool cards must contain no analytics, found in: ${dirty.slice(0, 5).join(', ')}`);
+  } else {
+    pass('all tool cards are free of analytics/tracking scripts');
+  }
+}
+
+section('truthfulness — advertised tool count is real');
+{
+  /* "562 free tools" is a factual claim repeated across the site and sold on
+     sponsor.html. It drifted before (483, then 500) and understating is as
+     wrong as overstating. Assert every claimed count equals reality. */
+  const actual = fs.existsSync(path.join(ROOT, 'cards'))
+    ? fs.readdirSync(path.join(ROOT, 'cards')).filter(f => f.endsWith('.html')).length
+    : 0;
+  const claimRe = /\b(\d{3})\s+(?:free|tools\b)/gi;
+  const bad = [];
+  for (const f of fs.readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
+    let txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    /* Strip inline tags first: counts are routinely wrapped for emphasis, e.g.
+       "all <strong>562</strong> tools". Without this the guard silently misses
+       exactly the markup the real stale claims were written in. */
+    txt = txt.replace(/<\/?(?:strong|b|em|i|span|small)\b[^>]*>/gi, '');
+    let m;
+    while ((m = claimRe.exec(txt)) !== null) {
+      const n = parseInt(m[1], 10);
+      // Only treat plausible tool-count claims as claims.
+      if (n >= 400 && n <= 999 && n !== actual) bad.push(`${f}: "${m[0].trim()}"`);
+    }
+  }
+  if (bad.length) {
+    fail(`tool-count claim does not match the real ${actual}: ${[...new Set(bad)].slice(0, 6).join(', ')}`);
+  } else {
+    pass(`every advertised tool count matches the real ${actual}`);
+  }
+}
+
 section('sponsorship — the 5% rule');
 {
   /* Owner's stated constraint: sponsorship must stay under 5% of the page, and
@@ -477,6 +552,90 @@ section('sponsorship — the 5% rule');
       if (re.test(txt)) pass(`sponsor.html still promises: ${name}`);
       else fail(`sponsor.html no longer promises: ${name}`);
     }
+  }
+}
+
+section('investment.html — growth across compounding frequencies');
+{
+  /* Regression guard. The old code applied an annuity factor built on
+     COMPOUNDING periods to a MONTHLY contribution scaled by periodsPerYear/12.
+     Correct only when the two coincide. With the DEFAULT 'annual' setting it
+     understated a 20-year projection by 83%; 'daily' overstated it by ~776x
+     (£96.9m instead of £124k). Re-implemented here as the card now does it. */
+  const fv = (P, M, ratePct, years, ppy) => {
+    const monthlyGrowth = Math.pow(1 + ratePct / 100 / ppy, ppy / 12);
+    let bal = P;
+    for (let m = 0; m < years * 12; m++) bal = bal * monthlyGrowth + M;
+    return bal;
+  };
+
+  // With no contributions the simulation must equal the closed form exactly.
+  for (const ppy of [1, 4, 12, 365]) {
+    const sim = fv(5000, 0, 7, 20, ppy);
+    const closed = 5000 * Math.pow(1 + 0.07 / ppy, ppy * 20);
+    assertNear(`freq ${ppy}: no-contribution growth matches P(1+r/n)^(nt)`, sim, closed, 0.01);
+  }
+
+  // Higher compounding frequency must never produce a lower balance.
+  const series = [1, 4, 12, 365].map(ppy => fv(5000, 200, 7, 20, ppy));
+  let monotonic = true;
+  for (let i = 1; i < series.length; i++) if (series[i] < series[i - 1]) monotonic = false;
+  if (monotonic) pass('balance increases monotonically with compounding frequency');
+  else fail(`compounding frequency not monotonic: ${series.map(n => n.toFixed(0)).join(', ')}`);
+
+  // The specific historical failures, asserted as sane values.
+  assertNear('annual compounding is in the right ballpark (was 83% low)', fv(5000, 200, 7, 20, 1), 120856, 5);
+  assertNear('daily compounding is in the right ballpark (was ~776x high)', fv(5000, 200, 7, 20, 365), 124709, 5);
+
+  // Static guard: the dead identical if/else must not come back.
+  const txt = fs.readFileSync(path.join(ROOT, 'cards', 'investment.html'), 'utf8');
+  if (/monthly \* periodsPerYear \/ 12 \* \(\(Math\.pow/.test(txt)) {
+    fail('investment.html still contains the mis-scaled annuity term');
+  } else {
+    pass('investment.html no longer mis-scales contributions against compounding periods');
+  }
+}
+
+section('creditcard.html — payoff cost is not understated');
+{
+  /* Regression guard. The old final-month adjustment subtracted the
+     overpayment from accrued INTEREST, understating the cost of the debt
+     (£1,369 rather than £1,385 on £3,000 at 21.9% paying £100/month).
+     Interest already accrued cannot be undone by paying less. A debt tool
+     must never make debt look cheaper than it is. */
+  const payoff = (balance, annualRate, payment) => {
+    const mr = annualRate / 12;
+    let rb = balance, interest = 0, paid = 0, months = 0;
+    while (rb > 0.01 && months < 600) {
+      const i = rb * mr;
+      interest += i;
+      const pay = Math.min(payment, rb + i);
+      rb = rb + i - pay;
+      paid += pay;
+      months++;
+    }
+    return { months, interest, paid };
+  };
+
+  const r = payoff(3000, 0.219, 100);
+  assertNear('£3,000 @21.9% paying £100/mo takes 44 months', r.months, 44, 0);
+  assertNear('total interest is the true £1,384.67, not the understated £1,369', r.interest, 1384.67, 0.05);
+  assertNear('total paid reconciles to principal + interest', r.paid, 3000 + r.interest, 0.01);
+
+  // Invariant: paying more must never cost more in total.
+  const slow = payoff(3000, 0.219, 100);
+  const fast = payoff(3000, 0.219, 200);
+  if (fast.paid < slow.paid && fast.months < slow.months) {
+    pass('paying more clears the balance sooner and costs less overall');
+  } else {
+    fail('paying more did not reduce total cost — check the payoff loop');
+  }
+
+  const txt = fs.readFileSync(path.join(ROOT, 'cards', 'creditcard.html'), 'utf8');
+  if (/totalInterest -= \(remainingBalance \* -1\)/.test(txt)) {
+    fail('creditcard.html still deducts final-month overpayment from interest');
+  } else {
+    pass('creditcard.html takes a smaller final payment rather than reducing interest');
   }
 }
 

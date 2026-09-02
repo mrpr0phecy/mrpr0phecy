@@ -65,6 +65,41 @@ Also in pass 2, two honesty problems rather than arithmetic ones:
   no selector, on a UK site. Now has a currency toggle defaulting to GBP,
   explicitly display-only with no conversion implied.
 
+### Pass 3 — verifying claims, not just arithmetic (2026-09-02)
+
+A sweep of all 27 finance tools plus every factual claim the site makes.
+
+| # | File | Defect | Impact |
+|---|---|---|---|
+| 9 | `investment.html` | Annuity factor built on **compounding** periods applied to a **monthly** contribution. Correct only when the two coincide. The two branches of the `if/else` were byte-identical dead code | **The default setting was `annual`, so the tool was wrong out of the box — understating a 20-year projection by 83%. `daily` overstated by ~776×: £96.9m instead of £124k** |
+| 10 | `creditcard.html` | Final-month overpayment was subtracted from accrued **interest** | Understated the cost of debt (£1,369 vs the true £1,385). Wrong direction for a debt tool to err |
+
+Verified sound, no changes needed: `loan.html` (textbook annuity), `interest.html`
+(correct simple/compound/continuous), `savings.html` (exact ordinary annuity),
+`retirement.html` (annuity-due, consistently applied).
+
+### Untrue claims found and corrected
+
+Arithmetic being right is only half of "works as promised". The claims were
+audited too.
+
+- **"No tracking" while running Google Analytics.** `index.html`, `donate.html`
+  and `sponsor.html` each claimed it while loading GA4. On `sponsor.html` this
+  was worse than sloppy copy — the no-tracking promise is *sold to advertisers*,
+  making it a commercial representation. Claims are now scoped to what is
+  actually true: **the 562 tool cards contain zero tracking of any kind**, which
+  is the part that matters and is genuinely verifiable; the three index pages
+  disclose GA plainly. `donate.html` states it outright rather than burying it.
+- **Stale tool counts.** Six places still advertised "500 free tools" against a
+  real 562 (`404.html` ×2, `README.md`, `index.html`, `tool.html` ×3).
+  Understating is as much a false claim as overstating.
+
+**The cheap fix worth revisiting:** Cloudflare Web Analytics is free and
+cookieless. Swapping GA for it would make an unqualified "no tracking" claim
+true again at zero cost, and remove the only remaining asterisk on the site's
+privacy positioning. Not done now — deliberately deferred as it is a change to
+live infrastructure, not a correction.
+
 ### Scotland — the largest coverage gap, now closed
 
 The tools previously handled only England, Wales and Northern Ireland. Scottish
@@ -109,7 +144,7 @@ tax calculator can tell someone. `tax.html` now models it and explains it.
 
 ### The guard against regression
 
-`scripts/check-finance.js` — **94 assertions**, wired into `scripts/verify.sh`
+`scripts/check-finance.js` — **110 assertions**, wired into `scripts/verify.sh`
 as step 7/8, so it runs on every pre-push check.
 
 Its design principle: **every expected value is computed from an independent
@@ -123,9 +158,12 @@ miss.
 node scripts/check-finance.js     # or: bash scripts/verify.sh
 ```
 
-It also enforces the sponsorship 5% rule (one labelled slot per page, and the
-public house-rule promises on `sponsor.html` still being present) plus three
-standing rules: no stale tax-year labels in user-facing
+It also enforces **truthfulness of published claims** — no page may make an
+unqualified "no tracking" claim while loading analytics, no tool card may
+contain a tracking script, and every advertised tool count must equal the real
+number of cards on disk — plus the sponsorship 5% rule (one labelled slot per
+page, and the public house-rule promises on `sponsor.html` still being present)
+and three standing rules: no stale tax-year labels in user-facing
 copy, an advice caveat on every tool that outputs a financial decision, and no
 placebo controls (a guard added after the debtpayoff finding).
 
@@ -409,8 +447,9 @@ Not done, deliberately, with reasons.
 |---|---|
 | **`token.html` decision** | Owner's call — see § 3. The one genuinely urgent item. |
 | **Check YouTube watch hours** | Only visible to the account owner, and there is a 1 Feb 2027 deadline. See `INCOME.md`. |
-| Audit the remaining finance tools | Now swept: the tax engines, `mortgage.html`, `compoundinterest.html`, `debtpayoff.html`, `retirement.html` (found correct — annuity-due, consistently applied) and the FIRE planner. Still unswept: `investment.html`, `loan.html`, `creditcard.html`, `inflation.html`, `roi.html`, `networth.html` and the ~20 smaller ones. |
+| Audit the remaining finance tools | **Complete.** All 27 finance tools swept across three passes; ten defects found and fixed. `investment.html` and `creditcard.html` were the last two. |
 | `networth.html` and `roi.html` currency | Both hard-code `$` like the FIRE planner did. Lower stakes (no statutory content) but the same UK-site mismatch. |
+| Swap GA for cookieless analytics | Cloudflare Web Analytics is free and needs no cookies. Would make an unqualified "no tracking" claim true again and remove the last asterisk on the privacy positioning. Zero cost; deferred only because it touches live infrastructure. |
 | Ko-fi / Stripe migration | Not worth the effort at current donation volume. Revisit at ~50 donations/month — see the platform fee table in INCOME.md. |
 | A dedicated licensing page | Highest-value new build per `INCOME.md` Route 4. |
 

@@ -402,21 +402,24 @@ function calculateInvestment() {
   const annualRate = parseFloat(document.querySelector('#inv-rate').value) || 0;
   const years = parseInt(document.querySelector('#inv-years').value) || 0;
   
-  // Convert annual rate to periodic rate based on compounding frequency
+  /* Contributions are monthly, but compounding frequency is user-selectable,
+     so the two cadences have to be reconciled. The previous version applied an
+     annuity factor built on COMPOUNDING periods to a MONTHLY contribution,
+     scaled by periodsPerYear/12. That is only correct when the two coincide
+     (monthly), and it failed catastrophically otherwise: with the default
+     'annual' setting it understated a 20-year projection by 83%, and 'daily'
+     overstated it by a factor of ~776 (£96.9m instead of £124k). The two
+     branches of the old if/else were also byte-identical dead code.
+
+     Fixed by simulating month by month and converting the periodic rate to an
+     equivalent monthly growth factor, which is exact for every frequency. */
   const periodsPerYear = igCompoundingPeriods[igCompounding];
   const periodicRate = annualRate / 100 / periodsPerYear;
-  const totalPeriods = years * periodsPerYear;
-  
-  // Calculate future value with different compounding formulas
-  let futureValue;
-  
-  if (igCompounding === 'daily') {
-    // Use continuous compounding approximation for daily
-    futureValue = principal * Math.pow(1 + periodicRate, totalPeriods) + 
-                 monthly * periodsPerYear / 12 * ((Math.pow(1 + periodicRate, totalPeriods) - 1) / periodicRate);
-  } else {
-    futureValue = principal * Math.pow(1 + periodicRate, totalPeriods) + 
-                 monthly * periodsPerYear / 12 * ((Math.pow(1 + periodicRate, totalPeriods) - 1) / periodicRate);
+  const monthlyGrowth = Math.pow(1 + periodicRate, periodsPerYear / 12);
+
+  let futureValue = principal;
+  for (let m = 0; m < years * 12; m++) {
+    futureValue = futureValue * monthlyGrowth + monthly; // ordinary annuity
   }
   
   // Calculate totals
