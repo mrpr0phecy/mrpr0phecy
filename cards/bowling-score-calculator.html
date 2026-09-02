@@ -1,0 +1,122 @@
+<h2 id="bwl-title" style="margin-top:0;color:var(--accent);">🎳 Ten-Pin Bowling Score Calculator</h2>
+
+<form aria-describedby="bwl-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="bwl-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Enter the pinfall for each roll and this scores the game for you &mdash; strikes and spares with the bonuses, and the
+    tenth frame's extra balls, all handled automatically.
+  </p>
+</form>
+
+<div id="bwl-rows" style="margin-bottom:14px;"></div>
+
+<div id="bwl-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">How scoring works</summary>
+  <p style="margin-top:8px;">
+    A strike (10 on the first roll) is worth 10 plus your next two rolls. A spare (10 across two rolls) is worth 10 plus
+    your next roll. The tenth frame lets you roll up to three times so the bonuses can be added &mdash; two extra balls
+    after a strike, one after a spare. A perfect game is 12 strikes for 300.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function render() {
+    var box = $('bwl-rows');
+    var html = '<div style="display:grid;grid-template-columns:64px 52px 52px 52px 70px;gap:6px;align-items:center;margin-bottom:6px;font-size:0.7rem;color:rgba(230,250,255,0.5);text-transform:uppercase;letter-spacing:0.04em;">' +
+      '<span>Frame</span><span>Roll 1</span><span>Roll 2</span><span>Roll 3</span><span>Total</span></div>';
+    for (var i = 0; i < 10; i++) {
+      html += '<div style="display:grid;grid-template-columns:64px 52px 52px 52px 70px;gap:6px;align-items:center;margin-bottom:5px;">' +
+        '<span style="font-size:0.85rem;color:var(--accent);font-weight:700;">' + (i + 1) + (i === 9 ? ' (last)' : '') + '</span>' +
+        '<input data-f="' + i + '" data-r="0" type="number" min="0" max="10" value="' + (i < 2 ? 10 : i < 4 ? 5 : 4) + '" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />' +
+        '<input data-f="' + i + '" data-r="1" type="number" min="0" max="10" value="' + (i < 2 ? 0 : i < 4 ? 5 : 3) + '" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />' +
+        '<input data-f="' + i + '" data-r="2" type="number" min="0" max="10" value="' + (i === 9 ? 4 : 0) + '"' + (i === 9 ? '' : ' disabled') + ' style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;' + (i === 9 ? '' : 'opacity:0.35;') + '" />' +
+        '<span data-tot="' + i + '" style="font-size:0.9rem;color:var(--accent);text-align:center;font-weight:700;">&ndash;</span>' +
+        '</div>';
+    }
+    box.innerHTML = html;
+    box.addEventListener('input', compute);
+    compute();
+  }
+
+  function compute() {
+    var box = $('bwl-rows');
+    var inputs = box.querySelectorAll('input[data-f]');
+    // gather per-frame rolls
+    var frames = [];
+    for (var i = 0; i < 10; i++) {
+      var r = [0, 0, 0];
+      for (var k = 0; k < inputs.length; k++) {
+        var f = parseInt(inputs[k].getAttribute('data-f'), 10);
+        var rn = parseInt(inputs[k].getAttribute('data-r'), 10);
+        if (f === i) r[rn] = parseInt(inputs[k].value, 10) || 0;
+      }
+      frames.push(r);
+    }
+    // build flat roll list (no fake zeros)
+    var rolls = [];
+    for (i = 0; i < 9; i++) {
+      var r1 = Math.min(10, frames[i][0]);
+      rolls.push(r1);
+      if (r1 < 10) {
+        var r2 = Math.min(10 - r1, frames[i][1]);
+        rolls.push(r2);
+      }
+    }
+    var t1 = Math.min(10, frames[9][0]);
+    rolls.push(t1);
+    if (t1 === 10) {
+      rolls.push(Math.min(10, frames[9][1]));
+      rolls.push(Math.min(10, frames[9][2]));
+    } else {
+      var t2 = Math.min(10 - t1, frames[9][1]);
+      rolls.push(t2);
+      if (t1 + t2 === 10) rolls.push(Math.min(10, frames[9][2]));
+    }
+
+    // score with lookahead
+    var idx = 0, total = 0;
+    var tots = [];
+    for (i = 0; i < 10; i++) {
+      var contrib;
+      if (i < 9) {
+        var a = rolls[idx];
+        if (a === 10) {
+          contrib = 10 + (rolls[idx + 1] || 0) + (rolls[idx + 2] || 0);
+          idx += 1;
+        } else {
+          var b = rolls[idx + 1] || 0;
+          contrib = (a + b === 10) ? 10 + (rolls[idx + 2] || 0) : a + b;
+          idx += 2;
+        }
+      } else {
+        contrib = (rolls[idx] || 0) + (rolls[idx + 1] || 0) + (rolls[idx + 2] || 0);
+      }
+      total += contrib;
+      tots.push(total);
+    }
+
+    var cells = box.querySelectorAll('[data-tot]');
+    for (i = 0; i < cells.length; i++) cells[i].textContent = total === 0 ? '\u2013' : tots[i];
+
+    var out = $('bwl-out');
+    var strikeCount = 0, spareCount = 0;
+    for (i = 0; i < 9; i++) { if (frames[i][0] === 10) strikeCount++; else if (frames[i][0] + frames[i][1] === 10) spareCount++; }
+    out.innerHTML =
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
+      '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:1.4rem;font-weight:700;color:var(--accent);">' + total + '</div><div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;">final score</div></div>' +
+      '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:1.1rem;font-weight:700;color:rgba(230,250,255,0.85);">' + strikeCount + ' / ' + spareCount + '</div><div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;">strikes / spares</div></div>' +
+      '</div>' +
+      '<div style="font-size:0.85rem;color:rgba(230,250,255,0.8);">' +
+      (total === 300 ? 'A perfect game &mdash; 300!' : total >= 200 ? 'A very strong game.' : total >= 150 ? 'A solid, competitive game.' : total >= 100 ? 'A respectable score.' : 'Warming up &mdash; watch the spares.') +
+      (strikeCount === 10 && total < 300 ? ' Ten strikes &mdash; just the tenth frame to finish.' : '') +
+      '</div>';
+  }
+
+  render();
+})();
+</script>

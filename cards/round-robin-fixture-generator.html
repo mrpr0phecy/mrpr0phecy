@@ -1,0 +1,141 @@
+<h2 id="rrb-title" style="margin-top:0;color:var(--accent);">📅 Round-Robin Fixture Generator</h2>
+
+<form aria-describedby="rrb-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="rrb-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Generate a full league schedule where every team plays every other team &mdash; once, or twice home and away.
+    The circle method guarantees no team plays twice in a round, and odd numbers get a bye.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="rrb-count" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Number of teams</label>
+      <input id="rrb-count" type="number" min="2" max="30" value="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="rrb-mode" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Format</label>
+      <select id="rrb-mode" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="single" selected>Single round-robin</option>
+        <option value="double">Double (home &amp; away)</option>
+      </select>
+    </div>
+  </div>
+
+  <div>
+    <label for="rrb-names" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Team names (optional, one per line)</label>
+    <textarea id="rrb-names" rows="4" placeholder="Arsenal&#10;Chelsea&#10;Liverpool&#10;Man City&#10;Tottenham&#10;Newcastle&#10;Aston Villa&#10;Brighton" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;"></textarea>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:12px;">
+    <button type="button" id="rrb-go" style="flex:1;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Generate fixtures</button>
+    <button type="button" id="rrb-copy" style="padding:12px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Copy text</button>
+  </div>
+</form>
+
+<div id="rrb-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);overflow-x:auto;"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">How the circle method works</summary>
+  <p style="margin-top:8px;">
+    One team is fixed and the rest rotate around it each round, so every team meets every other exactly once. With an
+    odd number of teams, a &ldquo;bye&rdquo; fills the empty slot and the team drawn against it rests. A double round-robin runs
+    the same schedule twice, swapping home and away in the second half.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var lastText = '';
+
+  function generate() {
+    var count = parseInt($('rrb-count').value, 10) || 8;
+    count = Math.max(2, Math.min(30, count));
+    var mode = $('rrb-mode').value;
+    var names = ($('rrb-names').value || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    var out = $('rrb-out');
+
+    var label = function (i) {
+      if (i === 'BYE') return 'Bye';
+      return names[i - 1] || ('Team ' + i);
+    };
+
+    // circle method with 1-based team numbers, BYE = 0 if odd
+    var n = count;
+    var useBye = (n % 2 === 1);
+    var slots = [];
+    for (var t = 1; t <= n; t++) slots.push(t);
+    if (useBye) slots.push('BYE');
+    var m = slots.length;         // even (== n if even, n+1 if odd)
+    var numRounds = m - 1;
+
+    var rounds = [];
+    var arr = slots.slice();
+    for (var r = 0; r < numRounds; r++) {
+      var pairs = [];
+      for (var i = 0; i < m / 2; i++) {
+        var a = arr[i], b = arr[m - 1 - i];
+        // alternate home/away by round to be fair
+        if (r % 2 === 0) pairs.push([a, b]); else pairs.push([b, a]);
+      }
+      rounds.push(pairs);
+      // rotate: keep arr[0], move last to position 1
+      var last = arr.pop();
+      arr.splice(1, 0, last);
+    }
+
+    // double round robin: second half with venues swapped
+    if (mode === 'double') {
+      var base = rounds.slice();
+      for (var d = 0; d < base.length; d++) {
+        var swapped = [];
+        for (var p = 0; p < base[d].length; p++) swapped.push([base[d][p][1], base[d][p][0]]);
+        rounds.push(swapped);
+      }
+    }
+
+    // render
+    var html = '<div style="color:rgba(230,250,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;">' +
+      count + ' teams &middot; ' + (mode === 'double' ? 'double' : 'single') + ' round-robin &middot; ' + rounds.length + ' rounds &middot; ' +
+      (rounds.length * Math.floor(m / 2)) + ' fixtures' + (useBye ? ' (including byes)' : '') + '</div>';
+
+    var text = '';
+    for (var rr = 0; rr < rounds.length; rr++) {
+      html += '<div style="margin-bottom:10px;">' +
+        '<div style="font-size:0.8rem;color:var(--accent);font-weight:700;margin-bottom:4px;">Round ' + (rr + 1) + '</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+      text += 'Round ' + (rr + 1) + ': ';
+      for (var q = 0; q < rounds[rr].length; q++) {
+        var home = rounds[rr][q][0], away = rounds[rr][q][1];
+        var isBye = home === 'BYE' || away === 'BYE';
+        var fixture = label(home) + ' v ' + label(away);
+        text += fixture + '; ';
+        html += '<div style="padding:6px 10px;background:' + (isBye ? 'rgba(255,215,0,0.05)' : 'rgba(255,255,255,0.04)') +
+          ';border:1px solid ' + (isBye ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.08)') + ';border-radius:6px;font-size:0.8rem;' +
+          (isBye ? 'color:#ffd700;' : 'color:rgba(230,250,255,0.85);') + '">' + fixture + '</div>';
+      }
+      html += '</div></div>';
+      text += '\n';
+    }
+    lastText = text;
+    out.innerHTML = html;
+  }
+
+  $('rrb-go').addEventListener('click', generate);
+  $('rrb-copy').addEventListener('click', function () {
+    if (!lastText) generate();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lastText);
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = lastText;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  });
+
+  generate();
+})();
+</script>

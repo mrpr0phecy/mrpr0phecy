@@ -206,7 +206,17 @@ const sportsList = [
   'baseball-stats-calculator',
   'betting-odds-each-way-calculator',
   'athletics-decathlon-points-calculator',
-  'motorsport-lap-time-stint-calculator'
+  'motorsport-lap-time-stint-calculator',
+  'bowling-score-calculator',
+  'badminton-scorekeeper',
+  'volleyball-score-sheet',
+  'ice-hockey-goalie-stats',
+  'powerlifting-dots-wilks-score',
+  'table-tennis-scorekeeper',
+  'archery-score-calculator',
+  'formula1-championship-points',
+  'round-robin-fixture-generator',
+  'rowing-erg-pace-calculator'
 ];
 
 const wellbeingList = [
