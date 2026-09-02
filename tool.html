@@ -439,9 +439,22 @@
                 `;
             }
 
-            // Render Related Tools
+            // Render Related Tools — prefer the precomputed relatedness map
             if (allCards.length > 0 && currentMeta) {
-                const related = allCards.filter(c => c.category === category && c.name !== currentMeta.name).slice(0, 3);
+                let related = [];
+                try {
+                    const r = await fetch('related.json');
+                    if (r.ok) {
+                        const map = await r.json();
+                        const names = map[currentMeta.name] || [];
+                        related = names.map(n => allCards.find(c => c.name === n)).filter(Boolean);
+                    }
+                } catch (e) {}
+                // Fallback: same-category
+                if (related.length === 0) {
+                    related = allCards.filter(c => c.category === category && c.name !== currentMeta.name).slice(0, 5);
+                }
+                related = related.slice(0, 5);
                 if (related.length > 0) {
                     const grid = document.getElementById('relatedGrid');
                     grid.innerHTML = related.map(c => `
