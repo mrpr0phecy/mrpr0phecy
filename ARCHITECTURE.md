@@ -56,7 +56,7 @@ establish *which* site first.
 │                           tool disclaimers, IP, takedown. Linked from every footer.
 ├── help.html               Searchable FAQ + email contact (replaced live chat)
 ├── analytics.js            The ONLY Google Analytics loader (all 45 pages)
-├── staffroom/              Cross-agent coordination — board, decisions, notes
+├── staff/                  Cross-agent coordination — board, branch map, decisions
 ├── LEGAL.md                Compliance register + rules for contributors
 ├── LICENSE                 MIT for site code; music/art carved out
 │
@@ -659,7 +659,7 @@ Four artefacts, referenced everywhere, duplicated nowhere:
 | Artefact | Role |
 |---|---|
 | `legal.html` | The single public legal page. Nine anchored sections; `#cookies`, `#terms`, `#disclaimer` are linked directly from footers and banners. |
-| `analytics.js` | The only Google Analytics loader, on all 45 top-level pages. Because GA ships, **no page may claim "no tracking", "no cookies" or "100% private"** — see LEGAL.md §4 rule 1 and staffroom D-002. |
+| `analytics.js` | The only Google Analytics loader, on all 45 top-level pages. Because GA ships, **no page may claim "no tracking", "no cookies" or "100% private"** — see LEGAL.md §4 rule 1 and staff/DECISIONS.md D-002. |
 | `help.html` | Searchable client-side FAQ plus email contact, carrying `FAQPage` JSON-LD. Replaces the Tawk.to widget: a one-person site cannot staff live chat honestly. |
 | Risk notices | Category/slug tables (`RISK_NOTICES`) in `index.html` and `tool.html` inject health/finance/engineering/legal/feed warnings into tool footers. Cards never carry their own disclaimer. |
 | `LICENSE` | MIT for HTML/CSS/JS; music, artwork, photography, CVs and third-party libs explicitly excluded. |
@@ -672,26 +672,27 @@ page gets the `legal-bar` footer and a sitemap entry; tool counts come from
 `ls cards/*.html | wc -l` and must move together across `index.html`,
 `tool.html`, `donate.html`, `sponsor.html` and `404.html`.
 
-## 8c. The staffroom — working alongside other agents
+## 8c. The staff — working alongside other agents
 
 Several AI agents work this repo in parallel on `arena/*` branches that never
-see each other. **[staffroom/](staffroom/)** is where that gets reconciled.
+see each other. **[staff/](staff/)** is where that gets reconciled.
 
 | File | Role |
 |---|---|
-| `staffroom/BOARD.md` | **Auto-generated.** Every `arena/*` branch, what it changed, which files are contested, and claim drift between branches. Never hand-edit. |
-| `staffroom/scan.py` | Generates the board from real branch diffs. `--mine` shows just your collisions, `--write` refreshes the board. |
-| `staffroom/DECISIONS.md` | Settled, binding rules with the evidence behind them. |
-| `staffroom/DISCUSSION.md` | Open proposals; append your position, don't rewrite others'. |
-| `staffroom/notes/` | One note per agent: intent, files claimed, what you're deliberately not touching. |
+| `staff/BRANCHES.md` | **Auto-generated.** Every `arena/*` branch, what it changed, which files are contested, and claim drift between branches. Never hand-edit. |
+| `staff/scan.py` | Generates the board from real branch diffs. `--mine` shows just your collisions, `--write` refreshes the board. |
+| `staff/DECISIONS.md` | Settled, binding rules with the evidence behind them. |
+| `staff/BOARD.md` | The hand-written conversation: handover notes, decisions needed, disagreements. Newest entry at the top. |
+| `staff/README.md` | Rules: role handles (`@systems`, `@content`, `@music`, `@seo`, `@legal`), what must never be posted in a public repo, entry format. |
 
-The board is generated rather than written because self-reported status decays
-— notes go stale, agents forget to post. Where a note and the board disagree,
-**the board wins**.
+`BRANCHES.md` is generated rather than written because self-reported status
+decays — a "working on index.html" note outlives the work by weeks. For *what
+changed*, believe `BRANCHES.md`; for *why*, believe `BOARD.md`. Sign board
+entries with a **role handle**, never a model or session name.
 
 ```bash
-python3 staffroom/scan.py --mine     # before you touch a shared file
-python3 staffroom/scan.py --write    # refresh the board
+python3 staff/scan.py --mine     # before you touch a shared file
+python3 staff/scan.py --write    # refresh the board
 ```
 
 ## 9. Current state and known work
@@ -708,7 +709,7 @@ category-driven risk notices to health/finance/electrical/legal tools, footer
 legal links on all 43 top-level pages, and normalised the tool count
 (483/500/562 → 562). Register and open items: **[LEGAL.md](LEGAL.md)**.
 
-**Staffroom** (2026-09-02): added **[staffroom/](staffroom/)** so parallel
+**Staffroom** (2026-09-02): added **[staff/](staff/)** so parallel
 agents stop colliding. First scan found 12 contested files (`index.html` edited
 by 6 branches), two branches publishing tool counts contradicting their own
 disk, a duplicate `help.html`, and a scheduled workflow calling a script that

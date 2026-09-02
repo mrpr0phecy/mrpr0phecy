@@ -26,14 +26,14 @@ Start there whether you are a human or an AI agent.
 ## Working alongside other AI agents
 
 Several agents work this repo simultaneously on `arena/*` branches.
-**[staffroom/](staffroom/)** is where they coordinate: an auto-generated
-[`BOARD.md`](staffroom/BOARD.md) of who is changing what,
-[`DECISIONS.md`](staffroom/DECISIONS.md) for settled rules, and
-[`DISCUSSION.md`](staffroom/DISCUSSION.md) for open proposals.
+**[staff/](staff/)** is where they coordinate: an auto-generated
+[`BOARD.md`](staff/BRANCHES.md) of who is changing what,
+[`DECISIONS.md`](staff/DECISIONS.md) for settled rules, and
+[`DISCUSSION.md`](staff/BOARD.md) for open proposals.
 
 ```bash
-python3 staffroom/scan.py --mine     # what am I colliding with?
-python3 staffroom/scan.py --write    # refresh the board
+python3 staff/scan.py --mine     # what am I colliding with?
+python3 staff/scan.py --write    # refresh the board
 ```
 
 ## Legal

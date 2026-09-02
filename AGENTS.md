@@ -8,9 +8,9 @@ Anything touching privacy, claims, disclaimers or third-party scripts:
 
 **You are not the only agent on this repo.** Several work in parallel on
 `arena/*` branches. Before editing anything shared, go to
-**[staffroom/](staffroom/)** — read [`BOARD.md`](staffroom/BOARD.md), post a
-note in `staffroom/notes/<your-branch-id>.md`, and obey
-[`DECISIONS.md`](staffroom/DECISIONS.md).
+**[staff/](staff/)** — read [`BOARD.md`](staff/BRANCHES.md), post a
+note in `staff/notes/<your-branch-id>.md`, and obey
+[`DECISIONS.md`](staff/DECISIONS.md).
 Last updated: 2026-08-30. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
@@ -35,8 +35,8 @@ never delete it). Design systems: **A = cyan terminal** (`--accent:#2dd4ff`),
 
 ```bash
 # 0. Check who else is working here, and on what.
-python3 staffroom/scan.py --mine      # what am I about to collide with?
-#    Then write staffroom/notes/<your-branch-id>.md before you start.
+python3 staff/scan.py --mine      # what am I about to collide with?
+#    Then write staff/notes/<your-branch-id>.md before you start.
 
 # 1. Authenticate — prints a URL + one-time code for the owner to approve.
 bash scripts/agent-auth.sh            # token -> ~/.github_token (chmod 600)
@@ -93,7 +93,7 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
 - **Never claim "no tracking" / "no cookies" / "100% private".** Google
   Analytics runs sitewide (owner's decision, 2026-09-02) — those claims would
   be false, and they sit on pages that ask for money. Say "no ads, no accounts,
-  no sign-ups" instead. See staffroom D-002.
+  no sign-ups" instead. See staff/DECISIONS.md D-002.
 - **GA loads from `analytics.js` only.** One `<script defer src="/analytics.js">`
   per page; never paste an inline `gtag` snippet.
 - **Support questions go in `help.html`** (searchable FAQ + email).
@@ -160,6 +160,6 @@ live deploy.
 
 Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md.
 Legal, privacy, claims and disclaimers → LEGAL.md.
-Something that affects other agents → [staffroom/DISCUSSION.md](staffroom/DISCUSSION.md). Owner:
+Something that affects other agents → [staff/BOARD.md](staff/BOARD.md). Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.

@@ -20,7 +20,7 @@ Audit date: **2 September 2026**. Reviewer: legal pass over the whole repo.
 |---|---|---|
 | Privacy, cookies, terms, disclaimers, IP, takedown | `legal.html` (one page, nine anchored sections) | A second privacy page, or per-page terms |
 | Analytics | `analytics.js` — the only GA loader | Inline `gtag` snippets in a page |
-| Cross-agent coordination | [`staffroom/`](staffroom/) | Editing a shared file without checking the board |
+| Cross-agent coordination | [`staff/`](staff/) | Editing a shared file without checking the board |
 | Support / questions | `help.html` (searchable FAQ + email) | A third-party chat widget |
 | Per-tool risk warnings | `RISK_NOTICES` tables in `index.html` + `tool.html` | Hand-written disclaimers inside a card |
 | Code licence and asset carve-outs | `LICENSE` | Per-file licence headers |
@@ -169,9 +169,9 @@ These need a human decision — they are outside what a code change can settle.
   not, however, the maximally safe position. A banner would cost 20–50% of
   measured traffic, which is the opposite of why GA was reinstated. Revisit if
   UK/EU becomes the dominant audience or sponsorship contracts start depending
-  on the numbers. Tracked as staffroom DISCUSSION #4.
+  on the numbers. Tracked as staff DISCUSSION #4.
 - **Six of seven agent branches still ship the old contradiction** (analytics
-  plus "no tracking" claims). Run `python3 staffroom/scan.py` to see the current
+  plus "no tracking" claims). Run `python3 staff/scan.py` to see the current
   state; each branch must strip the claims before merging.
 - **Music rights.** If any recording contains an uncleared sample or a
   collaborator with an unwritten split, resolve it before pushing the catalogue
