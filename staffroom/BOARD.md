@@ -18,7 +18,7 @@ believe this table.
 | `01a05fea` | — | Update changelog and sitemap with blog posts | 2026-09-02 | 28 | 562 |
 | `01a0602b` | — | Refine hub design systems, fix mobile card overflow | 2026-09-02 | 9 | 562 |
 | `01a0605e` | — | Fix stale tool counts and bring meta descriptions in | 2026-09-02 | 8 | 562 |
-| `01a0622c` | finance / monetisation | truth: make every published claim accurate, fix two  | 2026-09-02 | 21 | 562 |
+| `01a0622c` | finance / monetisation | staffroom: join the board, comply with D-002, raise  | 2026-09-02 | 31 | 562 |
 | `01a062bc` | legal / compliance | Refresh staffroom board | 2026-09-02 | 59 | 562 |
 
 ## ⚠️ Contested files
@@ -54,7 +54,7 @@ branch merges last silently overwrites the others' published facts.
 | `01a05fea` | 562 | 562 | 4 | 4 ⚠️ |
 | `01a0602b` | 562 | 562 | 3 | 3 ⚠️ |
 | `01a0605e` | 562 | 562 | 3 | 3 ⚠️ |
-| `01a0622c` | 562 | 562 | 3 | 3 ⚠️ |
+| `01a0622c` | 562 | 562 | 3 | 0 |
 | `01a062bc` | 562 | 562 | 4 | 0 |
 
 ⚠️ in the last column = that branch ships analytics **and** claims it
