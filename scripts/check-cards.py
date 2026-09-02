@@ -7,15 +7,25 @@ Failures (exit 1 if any):
   * a card that is NOT a fragment (contains <!doctype|html|head|body) — breaks
     the catalogue shell layout
   * category missing/empty
+  * a card linking a root-level file without "../" — 404s when the card is
+    opened directly at /cards/<name>.html
   * index.html "Search <N>" claim != number of cards
+  * a category with no filter pill in index.html, or a pill matching no card
+  * index.html JSON-LD ItemList / numberOfItems disagreeing with cards.json
+  * a stated tool count in README/AGENTS/AGENT_ACCESS/INCOME/ARCHITECTURE that
+    disagrees with cards.json
   * sitemap.xml missing any card path
 
 Warnings (never fail):
   * duplicate element IDs across cards (cards share one DOM)
-  * JSON entries whose category isn't in the known category set
+
+cards/cards.json is the single source of truth for both the tool count and the
+category list. Nothing here hardcodes either — the copies in index.html and in
+the prose docs are checked *against* it instead.
 
 Works on a sparse checkout (only reads cards/, cards/cards.json, index.html,
-sitemap.xml — all of which are in the sparse set). Zero dependencies.
+sitemap.xml and the root *.md docs — all of which are in the sparse set).
+Zero dependencies.
 """
 from __future__ import annotations
 import json
@@ -30,16 +40,23 @@ JSON_PATH = os.path.join(CARDS, "cards.json")
 INDEX_PATH = os.path.join(ROOT, "index.html")
 SITEMAP_PATH = os.path.join(ROOT, "sitemap.xml")
 
-KNOWN_CATEGORIES = {
-    "Astronomy & Space", "Wellbeing & Community", "Home & DIY",
-    "Science & Engineering", "Productivity & Lifestyle", "Writing & Language",
-    "Finance & Money", "Mathematics", "Music & Audio", "Health & Fitness",
-    "Culinary & Food Science", "SaaS & Business Killers", "Lucid Dreaming & Sleep",
-    "Interactive Art & Living Worlds", "Natural Remedies & Herbs",
-    "AI & Autonomous Agents", "Anime & Otaku Culture", "Aquatics & Fishkeeping",
-    "Birdwatching & Ornithology", "Boxing & Fight Scoring", "Dogs & Canine Care",
-    "Virtual Worlds & Gaming", "MrProphecy Arcade", "Museum & Collection",
-}
+# Prose documents that state the tool count by hand. Every one of these drifted
+# to a stale number when the catalogue grew past 500, so the count is now
+# checked against cards.json instead of trusted. (file, regex with one group)
+DOC_COUNTS = [
+    ("README.md", r"([\d,]+) free, self-contained browser"),
+    ("README.md", r"\| Tools \| ([\d,]+), indexed by"),
+    ("AGENTS.md", r"\*\*([\d,]+)\*\* offline browser tools"),
+    ("AGENT_ACCESS.md", r"\| \*\*([\d,]+)\*\* self-contained offline browser tools"),
+    ("AGENT_ACCESS.md", r"- Cards: \*\*([\d,]+)\*\*"),
+    ("INCOME.md", r"\| Tools on site \| \*\*([\d,]+)\*\*"),
+    ("ARCHITECTURE.md", r"### Categories \(([\d,]+) tools\)"),
+]
+
+# Categories are deliberately NOT hardcoded in this script. They used to be,
+# and the copy drifted: the list carried a "Boxing & Fight Scoring" category
+# that generate-cards-json.js could never emit. cards/cards.json is the truth;
+# section 7 cross-checks it against the hand-maintained list in index.html.
 
 fails: list[str] = []
 warns: list[str] = []
@@ -82,12 +99,6 @@ no_cat = [e.get("file") for e in index if not (e.get("category") or "").strip()]
 if no_cat:
     fails.append(f"{len(no_cat)} cards missing a category: {', '.join(no_cat[:6])}")
 
-unknown_cats = sorted({e["category"] for e in index
-                       if e.get("category") not in KNOWN_CATEGORIES})
-if unknown_cats:
-    warns.append(f"categories not in known set (script list may need updating): "
-                 f"{', '.join(unknown_cats)}")
-
 # ---------------------------------------------------------------- 3. fragments
 # Cards are fragments. Full-document tags inside <script> template literals
 # (print/export report generators) are legitimate — strip scripts + comments
@@ -108,8 +119,18 @@ for f in sorted(on_disk):
                      f"— cards must be fragments")
 
 # ---------------------------------------------------------------- 4. ID scope
+# Every card is injected into one shared DOM, so an id used by two cards can
+# bind getElementById() to the wrong tool.
+#
+# Do NOT strip <script> blocks here: ids inside them are real ids at runtime,
+# because cards build their own markup from JS template literals. What must be
+# skipped is the template *placeholder* itself — id="${g.id}" is not an id, it
+# is an expression that resolves to a per-item id. Scanning those literally
+# made every generator loop look like a collision (54 of them site-wide) and
+# buried the real signal.
 id_re = re.compile(r'id=["\']([^"\']+)["\']', re.I)
 seen: dict[str, str] = {}
+template_ids = 0
 for f in sorted(on_disk):
     try:
         with open(os.path.join(CARDS, f), encoding="utf-8", errors="replace") as fh:
@@ -118,12 +139,38 @@ for f in sorted(on_disk):
         continue
     for m in id_re.finditer(text):
         iid = m.group(1)
+        if "${" in iid:          # JS template interpolation, resolved at runtime
+            template_ids += 1
+            continue
         if iid in seen and seen[iid] != f:
             warns.append(f"duplicate id '{iid}' in {seen[iid]} and {f}")
         else:
             seen.setdefault(iid, f)
 
-# ---------------------------------------------------------------- 5. counts
+# ---------------------------------------------------------------- 5. card links
+# Cards are served two ways: injected into index.html at the site root, and
+# opened directly at /cards/<name>.html (they are all in sitemap.xml). Only the
+# "../" form works in both — a bare href="listen.html" is /listen.html when
+# injected but /cards/listen.html when opened directly, which 404s.
+# This bit cards/mrprophecy-tour-manager.html in production after the same bug
+# was already documented and fixed elsewhere (ARCHITECTURE.md §9).
+link_re = re.compile(r"""(?:href|src)=["']([^"']+\.(?:html|png|jpg|jpeg|gif|svg|webp|ico|json|css|js))["']""", re.I)
+for f in sorted(on_disk):
+    try:
+        with open(os.path.join(CARDS, f), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        continue
+    for m in link_re.finditer(text):
+        ref = m.group(1)
+        if ref.startswith(("http", "//", "data:", "../", "/", "${")):
+            continue
+        if not os.path.exists(os.path.join(CARDS, ref)) and \
+           os.path.exists(os.path.join(ROOT, ref)):
+            fails.append(f"{f}: {ref} resolves to /cards/{ref} (404) when the card "
+                         f"is opened directly — use ../{ref}")
+
+# ---------------------------------------------------------------- 6. counts
 count_claim = None
 if os.path.exists(INDEX_PATH):
     with open(INDEX_PATH, encoding="utf-8", errors="replace") as f:
@@ -135,10 +182,12 @@ elif count_claim != len(index):
     fails.append(f"index.html claims '{count_claim}' tools but cards.json has "
                  f"{len(index)} — bump the count when adding tools")
 
-# ---------------------------------------------------------------- 6. sitemap
+# ---------------------------------------------------------------- 7. sitemap
+sitemap_locs = None
 if os.path.exists(SITEMAP_PATH):
     with open(SITEMAP_PATH, encoding="utf-8", errors="replace") as f:
         sitemap = f.read()
+    sitemap_locs = len(re.findall(r"<loc>", sitemap))
     missing_sitemap = [f for f in sorted(on_disk)
                        if os.path.join("cards", f) not in sitemap]
     if missing_sitemap:
@@ -146,6 +195,74 @@ if os.path.exists(SITEMAP_PATH):
                      f"(first: {missing_sitemap[0]})")
 else:
     warns.append("sitemap.xml missing (regenerate per ARCHITECTURE.md §6)")
+
+# The repository map states the sitemap size by hand; it had drifted to 518
+# while the file held 602 URLs.
+if sitemap_locs is not None:
+    path = os.path.join(ROOT, "ARCHITECTURE.md")
+    if os.path.exists(path):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            m = re.search(r"sitemap\.xml\s+All (\d+) URLs", f.read())
+        if not m:
+            warns.append("ARCHITECTURE.md sitemap-size claim not found "
+                         "(reworded? update this check)")
+        elif int(m.group(1)) != sitemap_locs:
+            fails.append(f"ARCHITECTURE.md says the sitemap has {m.group(1)} URLs "
+                         f"but it has {sitemap_locs}")
+
+# ---------------------------------------------------------------- 8. categories
+# cards.json is the generated truth. index.html hardcodes a filter pill per
+# category plus a JSON-LD ItemList, and neither is generated — so a new
+# category silently produces tools that no filter can reach.
+real_cats = sorted({e.get("category", "") for e in index})
+index_text = ""
+if os.path.exists(INDEX_PATH):
+    with open(INDEX_PATH, encoding="utf-8", errors="replace") as f:
+        index_text = f.read()
+
+pills = sorted(set(re.findall(r'class="cat-pill[^"]*"[^>]*data-category="([^"]+)"',
+                              index_text)) |
+               set(re.findall(r'data-category="([^"]+)"[^>]*class="cat-pill', index_text)))
+pills = [p for p in pills if p != "all"]
+if pills:
+    no_pill = [c for c in real_cats if c not in pills]
+    dead_pill = [p for p in pills if p not in real_cats]
+    if no_pill:
+        fails.append(f"{len(no_pill)} categories have no filter pill in index.html "
+                     f"(tools unreachable by filter): {', '.join(no_pill)}")
+    if dead_pill:
+        fails.append(f"{len(dead_pill)} filter pills match no card: "
+                     f"{', '.join(dead_pill)}")
+else:
+    warns.append("could not read category pills from index.html")
+
+ld = re.search(r'"@type":\s*"ItemList".*?"itemListElement":\s*\[(.*?)\]\s*}',
+               index_text, re.S)
+if ld:
+    ld_cats = re.findall(r'"name":\s*"([^"]+)"', ld.group(1))
+    if sorted(ld_cats) != real_cats:
+        fails.append(f"index.html JSON-LD ItemList ({len(ld_cats)} categories) does "
+                     f"not match cards.json ({len(real_cats)})")
+    m = re.search(r'"numberOfItems":\s*(\d+)', index_text)
+    if m and int(m.group(1)) != len(index):
+        fails.append(f"index.html JSON-LD numberOfItems is {m.group(1)} but "
+                     f"cards.json has {len(index)}")
+
+# ---------------------------------------------------------------- 9. doc counts
+# One number, stated in seven places across four documents. All of them had
+# drifted to 500 while the catalogue was at 562.
+for doc, pat in DOC_COUNTS:
+    path = os.path.join(ROOT, doc)
+    if not os.path.exists(path):
+        continue
+    with open(path, encoding="utf-8", errors="replace") as f:
+        m = re.search(pat, f.read())
+    if not m:
+        warns.append(f"{doc}: count claim not found by check-cards.py "
+                     f"(reworded? update DOC_COUNTS)")
+    elif int(m.group(1).replace(",", "")) != len(index):
+        fails.append(f"{doc} says {m.group(1)} tools but cards.json has "
+                     f"{len(index)} — docs and catalogue have drifted")
 
 # ---------------------------------------------------------------- report
 cats = Counter(e.get("category") for e in index)

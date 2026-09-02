@@ -3,7 +3,9 @@
 Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-08-30. **ARCHITECTURE.md is authoritative if anything here
+Coordination between sessions and staff: **[staff/BOARD.md](staff/BOARD.md)** —
+check it at the start of a session and leave a handover note at the end.
+Last updated: 2026-09-02. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
 ---
@@ -16,7 +18,7 @@ deploy):
 
 | | Product | Entry | Don't mix |
 |---|---|---|---|
-| **A** | The Most Useful Site In The World — **500** offline browser tools | `index.html` | Never add music players/banners here |
+| **A** | The Most Useful Site In The World — **562** offline browser tools | `index.html` | Never add music players/banners here |
 | **B** | MrProphecy — UK hip hop & animated soundscapes (Luton) | `listen.html` | Never add tool links here |
 
 Live: `https://www.themostusefulsiteintheworld.com` (CNAME = custom domain,
@@ -40,7 +42,8 @@ git config user.email 5564816+mrpr0phecy@users.noreply.github.com
 
 # 3. Read the rules that matter before editing anything:
 #    ARCHITECTURE.md §3 (cards), §6 (SEO), §7 (traps), §9 (do-not-touch).
-bash scripts/verify.sh               # pre-push guardrails (works sparse)
+cat staff/BOARD.md                 # open items + handover notes from other staff
+bash scripts/verify.sh             # pre-push guardrails (works sparse)
 ```
 
 ## 2. Workspace budget — hard limit
@@ -90,7 +93,8 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 #  - forms: onsubmit="event.preventDefault();"
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
-# bump count in index.html: "Search 500" -> "Search 501"
+# bump "Search <N>" in index.html to the NEW card total (ls cards/*.html | wc -l);
+# check-cards.py fails the build if it disagrees with cards.json
 python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
 PY
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
@@ -134,3 +138,9 @@ live deploy.
 Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.
+
+If the owner is not reachable, record the question on
+**[staff/BOARD.md](staff/BOARD.md)** with the options and trade-offs rather than
+guessing — the next session picks it up from there. Remember the repo is
+**public**, so nothing sensitive goes on the board (see
+[staff/README.md](staff/README.md)).
