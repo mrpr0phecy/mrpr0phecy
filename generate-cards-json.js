@@ -196,7 +196,17 @@ const sportsList = [
   'swimming-pace-calculator',
   'tennis-live-scorer',
   'basketball-efficiency-calculator',
-  'youth-team-rotation-planner'
+  'youth-team-rotation-planner',
+  'cricket-net-run-rate-calculator',
+  'snooker-scorer-and-snookers',
+  'darts-average-and-leg-tracker',
+  'golf-stableford-scorecard-calculator',
+  'rugby-points-score-builder',
+  'running-cadence-stride-calculator',
+  'baseball-stats-calculator',
+  'betting-odds-each-way-calculator',
+  'athletics-decathlon-points-calculator',
+  'motorsport-lap-time-stint-calculator'
 ];
 
 const wellbeingList = [

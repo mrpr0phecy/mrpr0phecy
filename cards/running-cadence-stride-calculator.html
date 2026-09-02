@@ -1,0 +1,111 @@
+<h2 id="cad-title" style="margin-top:0;color:var(--accent);">🏃 Running Cadence &amp; Stride Length</h2>
+
+<form aria-describedby="cad-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="cad-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Cadence, pace and stride length are locked together &mdash; fix any two and the third is forced. Fill in the two you
+    know and this computes the rest, plus your steps per kilometre and total steps for a distance.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px;">
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1;"><label for="cad-pm" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Pace min</label><input id="cad-pm" type="number" min="0" value="6" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+      <div style="flex:1;"><label for="cad-ps" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Pace sec</label><input id="cad-ps" type="number" min="0" max="59" value="0" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+    </div>
+    <div>
+      <label for="cad-cadence" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Cadence (steps/min)</label>
+      <input id="cad-cadence" type="number" min="60" max="260" value="170" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cad-stride" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Stride length (m)</label>
+      <input id="cad-stride" type="number" min="0.3" step="0.01" value="1.08" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cad-dist" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Distance (km)</label>
+      <input id="cad-dist" type="number" min="0.1" step="0.1" value="5" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <button type="button" id="cad-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
+</form>
+
+<div id="cad-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The relationship &amp; what to aim for</summary>
+  <p style="margin-top:8px;">
+    Speed = cadence &times; stride length, so at a fixed pace the two trade off. Most coaches nudge runners toward a higher
+    cadence (around 170&ndash;180 steps/min) with a shorter, quicker stride &mdash; it tends to reduce overstriding and the
+    braking force that comes with it.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function run() {
+    var pm = parseInt($('cad-pm').value, 10) || 0;
+    var ps = parseInt($('cad-ps').value, 10) || 0;
+    var cadence = parseFloat($('cad-cadence').value);
+    var stride = parseFloat($('cad-stride').value);
+    var dist = parseFloat($('cad-dist').value) || 5;
+    var out = $('cad-out');
+
+    var paceSec = (pm * 60 + ps) || 0;      // sec per km, 0 if both empty
+    var havePace = paceSec > 0;
+    var haveCad = cadence > 0;
+    var haveStride = stride > 0;
+
+    if (!haveCad && !haveStride) { out.innerHTML = '<div style="color:#ffa500;">Fill in cadence and/or stride length.</div>'; return; }
+    if (havePace && haveCad && haveStride) { haveStride = false; } // compute stride from pace+cadence
+
+    var speed, notes = '';
+    if (!havePace) {
+      // pace from stride & cadence
+      speed = stride * cadence / 60;        // m/s
+      paceSec = 1000 / speed;
+      notes = 'pace worked out from stride &times; cadence';
+    } else if (!haveCad) {
+      // cadence from pace & stride
+      speed = 1000 / paceSec;
+      cadence = speed / stride * 60;
+      notes = 'cadence worked out from pace & stride';
+    } else {
+      // stride from pace & cadence
+      speed = 1000 / paceSec;
+      stride = speed * 60 / cadence;
+      notes = 'stride worked out from pace & cadence';
+    }
+
+    var stepsPerKm = 1000 / stride;
+    var totalSteps = Math.round(stepsPerKm * dist);
+
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(pm + ':' + (ps < 10 ? '0' : '') + ps + ' /km', 'pace') +
+      box(Math.round(cadence) + ' spm', 'cadence') +
+      box(stride.toFixed(2) + ' m', 'stride length') +
+      box(Math.round(stepsPerKm), 'steps per km') +
+      box(totalSteps.toLocaleString ? totalSteps.toLocaleString('en-GB') : String(totalSteps), 'steps for ' + dist + ' km') +
+      '</div>';
+    html += '<div style="font-size:0.85rem;color:rgba(230,250,255,0.8);">' + notes + ' &mdash; at this cadence and stride you are moving at ' +
+      (speed * 3.6).toFixed(1) + ' km/h (' + (speed * 60 / 1609.344 * 60).toFixed(1) + ' min/mile pace).</div>';
+    html += '<div style="margin-top:10px;padding:8px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;font-size:0.85rem;">' +
+      'Cadence of <strong style="color:var(--accent);">' + Math.round(cadence) + ' spm</strong> is ' +
+      (cadence < 160 ? 'on the low side &mdash; long, bounding strides. Most runners gain efficiency by lifting cadence toward 170&ndash;180.'
+        : cadence <= 185 ? 'right in the 170&ndash;180 sweet spot most coaches recommend.'
+          : 'high &mdash; short, quick turnover. Fine for speedwork, hard to sustain at marathon pace.') +
+      '</div>';
+    out.innerHTML = html;
+  }
+
+  $('cad-go').addEventListener('click', run);
+  run();
+})();
+</script>

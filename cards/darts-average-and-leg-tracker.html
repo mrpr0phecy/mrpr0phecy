@@ -1,0 +1,127 @@
+<h2 id="dav-title" style="margin-top:0;color:var(--accent);">🎯 Darts 501 Average &amp; Leg Tracker</h2>
+
+<form aria-describedby="dav-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="dav-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Log each visit of three darts and watch your three-dart average climb. Handles the bust rules for you &mdash; scoring
+    more than you have left, or leaving yourself on 1 &mdash; and tracks legs won across a session.
+  </p>
+
+  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
+    <div>
+      <label for="dav-start" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Start on</label>
+      <input id="dav-start" type="number" min="101" value="501" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div style="display:flex;gap:6px;">
+      <div style="width:70px;"><label for="dav-d1" style="display:block;margin-bottom:6px;color:var(--accent);font-size:13px;">Dart 1</label><input id="dav-d1" type="number" min="0" max="60" value="60" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+      <div style="width:70px;"><label for="dav-d2" style="display:block;margin-bottom:6px;color:var(--accent);font-size:13px;">Dart 2</label><input id="dav-d2" type="number" min="0" max="60" value="60" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+      <div style="width:70px;"><label for="dav-d3" style="display:block;margin-bottom:6px;color:var(--accent);font-size:13px;">Dart 3</label><input id="dav-d3" type="number" min="0" max="60" value="57" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+    </div>
+    <button type="button" id="dav-visit" style="padding:11px 16px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Record visit</button>
+    <button type="button" id="dav-undo" style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Undo</button>
+    <button type="button" id="dav-reset" style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Reset all</button>
+  </div>
+</form>
+
+<div id="dav-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);margin-bottom:12px;"></div>
+
+<div id="dav-log" style="font-size:0.75rem;color:rgba(230,250,255,0.45);max-height:180px;overflow-y:auto;"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Averages explained</summary>
+  <p style="margin-top:8px;">
+    Three-dart average = points scored &divide; darts thrown &times; 3 &mdash; the standard measure (the pros sit above 90, a
+    good pub player around 60). Points per dart is the same total over every dart thrown. In proper 501 you must
+    finish on a double or the bull; this tracker counts a leg when you reach exactly zero, so keep the double in mind.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var state = { start: 501, remaining: 501, darts: 0, scored: 0, legs: 0, visits: 0, busts: 0 };
+  var history = []; // stack of {remaining, darts, scored, legs, visits, busts}
+  var logLines = [];
+
+  function push() {
+    history.push({ remaining: state.remaining, darts: state.darts, scored: state.scored, legs: state.legs, visits: state.visits, busts: state.busts });
+  }
+
+  function avg3() { return state.darts > 0 ? state.scored / state.darts * 3 : 0; }
+  function ppd() { return state.darts > 0 ? state.scored / state.darts : 0; }
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function render() {
+    var out = $('dav-out');
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(String(state.remaining), 'remaining') +
+      box(avg3().toFixed(2), 'three-dart average') +
+      box(ppd().toFixed(2), 'points per dart') +
+      box(String(state.legs), 'legs won') +
+      box(String(state.darts), 'darts thrown') +
+      '</div>';
+    if (state.busts) {
+      html += '<div style="font-size:0.8rem;color:#ffa500;margin-bottom:8px;">' + state.busts + ' bust visit' + (state.busts === 1 ? '' : 's') + ' so far &mdash; those darts count in the average.</div>';
+    }
+    out.innerHTML = html;
+    var log = $('dav-log');
+    log.innerHTML = logLines.length ? 'Recent: ' + logLines.slice(-8).join(' &middot; ') : '';
+  }
+
+  function record() {
+    var d1 = parseInt($('dav-d1').value, 10) || 0;
+    var d2 = parseInt($('dav-d2').value, 10) || 0;
+    var d3 = parseInt($('dav-d3').value, 10) || 0;
+    var sum = d1 + d2 + d3;
+    push();
+    state.darts += 3;
+    state.visits++;
+    var rem = state.remaining;
+
+    if (sum > rem || (rem - sum) === 1) {
+      state.busts++;
+      logLines.push('bust (' + sum + ' on ' + rem + ')');
+      render();
+      return;
+    }
+    state.scored += sum;
+    state.remaining = rem - sum;
+    if (state.remaining === 0) {
+      state.legs++;
+      logLines.push('leg won in ' + state.darts + ' darts');
+      state.remaining = state.start;
+    } else {
+      logLines.push(sum + ' -> ' + state.remaining);
+    }
+    render();
+  }
+
+  function undo() {
+    if (!history.length) return;
+    state = history.pop();
+    state.start = parseInt($('dav-start').value, 10) || 501;
+    logLines.pop();
+    render();
+  }
+
+  function reset() {
+    state = { start: parseInt($('dav-start').value, 10) || 501, remaining: parseInt($('dav-start').value, 10) || 501, darts: 0, scored: 0, legs: 0, visits: 0, busts: 0 };
+    history = [];
+    logLines = [];
+    render();
+  }
+
+  $('dav-visit').addEventListener('click', record);
+  $('dav-undo').addEventListener('click', undo);
+  $('dav-reset').addEventListener('click', reset);
+  $('dav-start').addEventListener('change', reset);
+
+  render();
+})();
+</script>

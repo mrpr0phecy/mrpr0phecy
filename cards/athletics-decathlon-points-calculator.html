@@ -1,0 +1,126 @@
+<h2 id="dec-title" style="margin-top:0;color:var(--accent);">🥇 Athletics Decathlon &amp; Heptathlon Points</h2>
+
+<form aria-describedby="dec-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="dec-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    The official World Athletics scoring tables: type a performance in any event and get its points, then watch the
+    total build toward a world-class score. Times in seconds (or m:ss), jumps in centimetres, throws in metres.
+  </p>
+
+  <div style="margin-bottom:14px;">
+    <label for="dec-mode" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Event list</label>
+    <select id="dec-mode" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+      <option value="dec" selected>Men's decathlon (10 events)</option>
+      <option value="hep">Women's heptathlon (7 events)</option>
+    </select>
+  </div>
+
+  <div id="dec-rows" style="margin-bottom:14px;"></div>
+
+  <div id="dec-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+  <details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+    <summary style="cursor:pointer;">The scoring formula</summary>
+    <p style="margin-top:8px;">
+      Points = floor( A &times; (B &minus; P)<sup>C</sup> ) for running events (lower time is better) and
+      floor( A &times; (P &minus; B)<sup>C</sup> ) for jumps and throws (further is better), using the official 2001
+      World Athletics constants for each event. A 9,000-point decathlon or a 7,000-point heptathlon is world class.
+    </p>
+  </details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var DEC = [
+    { n: '100 m', unit: 's', a: 25.4347, b: 18, c: 1.81, lower: true, d: '10.55' },
+    { n: 'Long jump', unit: 'cm', a: 0.14354, b: 220, c: 1.4, lower: false, d: '760' },
+    { n: 'Shot put', unit: 'm', a: 51.39, b: 1.5, c: 1.05, lower: false, d: '15.5' },
+    { n: 'High jump', unit: 'cm', a: 0.8465, b: 75, c: 1.42, lower: false, d: '205' },
+    { n: '400 m', unit: 's', a: 1.53775, b: 82, c: 1.81, lower: true, d: '48.5' },
+    { n: '110 m hurdles', unit: 's', a: 5.74352, b: 28.5, c: 1.92, lower: true, d: '14.2' },
+    { n: 'Discus', unit: 'm', a: 12.91, b: 4, c: 1.1, lower: false, d: '46' },
+    { n: 'Pole vault', unit: 'cm', a: 0.2797, b: 100, c: 1.35, lower: false, d: '500' },
+    { n: 'Javelin', unit: 'm', a: 10.14, b: 7, c: 1.08, lower: false, d: '65' },
+    { n: '1500 m', unit: 's', a: 0.03768, b: 480, c: 1.85, lower: true, d: '272' }
+  ];
+
+  var HEP = [
+    { n: '100 m hurdles', unit: 's', a: 9.23076, b: 26.7, c: 1.835, lower: true, d: '13.6' },
+    { n: 'High jump', unit: 'cm', a: 1.84523, b: 75, c: 1.348, lower: false, d: '180' },
+    { n: 'Shot put', unit: 'm', a: 56.0211, b: 1.5, c: 1.05, lower: false, d: '14' },
+    { n: '200 m', unit: 's', a: 4.99087, b: 42.5, c: 1.81, lower: true, d: '24.2' },
+    { n: 'Long jump', unit: 'cm', a: 0.188807, b: 210, c: 1.41, lower: false, d: '630' },
+    { n: 'Javelin', unit: 'm', a: 15.9803, b: 3.8, c: 1.04, lower: false, d: '45' },
+    { n: '800 m', unit: 's', a: 0.11193, b: 254, c: 1.88, lower: true, d: '135' }
+  ];
+
+  function parseTime(v) {
+    v = String(v).trim();
+    if (v.indexOf(':') > -1) {
+      var p = v.split(':');
+      return parseInt(p[0], 10) * 60 + parseFloat(p[1]);
+    }
+    return parseFloat(v);
+  }
+
+  function pts(ev, val) {
+    if (!(val > 0)) return 0;
+    if (ev.lower) {
+      if (val >= ev.b) return 0;
+      return Math.floor(ev.a * Math.pow(ev.b - val, ev.c));
+    }
+    if (val <= ev.b) return 0;
+    return Math.floor(ev.a * Math.pow(val - ev.b, ev.c));
+  }
+
+  function render() {
+    var mode = $('dec-mode').value;
+    var list = mode === 'dec' ? DEC : HEP;
+    var box = $('dec-rows');
+    var html = '<div style="display:grid;grid-template-columns:1fr 110px 80px;gap:8px;align-items:center;margin-bottom:6px;font-size:0.7rem;color:rgba(230,250,255,0.5);text-transform:uppercase;letter-spacing:0.04em;">' +
+      '<span>Event</span><span>Performance</span><span>Points</span></div>';
+    for (var i = 0; i < list.length; i++) {
+      html += '<div style="display:grid;grid-template-columns:1fr 110px 80px;gap:8px;align-items:center;margin-bottom:5px;">' +
+        '<span style="font-size:0.85rem;color:rgba(230,250,255,0.9);">' + list[i].n + ' <span style="color:rgba(230,250,255,0.45);font-size:0.7rem;">(' + list[i].unit + ')</span></span>' +
+        '<input data-i="' + i + '" type="text" inputmode="decimal" value="' + list[i].d + '" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />' +
+        '<span data-p="' + i + '" style="font-size:0.9rem;color:var(--accent);text-align:center;font-weight:700;">&ndash;</span>' +
+        '</div>';
+    }
+    box.innerHTML = html;
+    recompute();
+  }
+
+  function recompute() {
+    var mode = $('dec-mode').value;
+    var list = mode === 'dec' ? DEC : HEP;
+    var box = $('dec-rows');
+    var ins = box.querySelectorAll('input');
+    var cells = box.querySelectorAll('[data-p]');
+    var total = 0;
+    for (var i = 0; i < list.length; i++) {
+      var val = parseTime(ins[i].value);
+      var p = pts(list[i], val);
+      total += p;
+      cells[i].textContent = p;
+    }
+    var target = mode === 'dec' ? 9000 : 7000;
+    var out = $('dec-out');
+    out.innerHTML =
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
+      '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:1.3rem;font-weight:700;color:var(--accent);">' + total + '</div><div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;">total points</div></div>' +
+      '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:1.1rem;font-weight:700;color:rgba(230,250,255,0.85);">' + (target - total) + '</div><div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;">off world-class ' + target + '</div></div>' +
+      '</div>' +
+      '<div style="font-size:0.85rem;color:rgba(230,250,255,0.8);">' + total + ' points is ' +
+      (mode === 'dec'
+        ? (total >= 8500 ? 'a world-class decathlon total.' : total >= 8000 ? 'Olympic-final territory.' : total >= 7000 ? 'a strong national-level score.' : total >= 6000 ? 'a solid club decathlete.' : 'an early-stage combined-events score.')
+        : (total >= 6500 ? 'a world-class heptathlon total.' : total >= 6000 ? 'Olympic-final territory.' : total >= 5500 ? 'a strong national-level score.' : total >= 4500 ? 'a solid club heptathlete.' : 'an early-stage combined-events score.')) +
+      '</div>';
+  }
+
+  $('dec-rows').addEventListener('input', recompute);
+  $('dec-mode').addEventListener('change', render);
+
+  render();
+})();
+</script>

@@ -1,0 +1,114 @@
+<h2 id="rug-title" style="margin-top:0;color:var(--accent);">🏉 Rugby Points Score Builder</h2>
+
+<form aria-describedby="rug-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="rug-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Try 5, conversion 2, penalty 3, drop goal 3. Add up a score, or work backwards: give a points gap and this lists
+    every combination of tries, conversions, penalties and drop goals that closes it &mdash; fewest scores first.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;">
+    <div><label for="rug-tries" style="display:block;margin-bottom:5px;color:var(--accent);font-size:13px;">Tries (5)</label><input id="rug-tries" type="number" min="0" value="2" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+    <div><label for="rug-conv" style="display:block;margin-bottom:5px;color:var(--accent);font-size:13px;">Conversions (2)</label><input id="rug-conv" type="number" min="0" value="2" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+    <div><label for="rug-pen" style="display:block;margin-bottom:5px;color:var(--accent);font-size:13px;">Penalties (3)</label><input id="rug-pen" type="number" min="0" value="1" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+    <div><label for="rug-drop" style="display:block;margin-bottom:5px;color:var(--accent);font-size:13px;">Drop goals (3)</label><input id="rug-drop" type="number" min="0" value="0" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+  </div>
+
+  <div>
+    <label for="rug-target" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Or &mdash; points gap to close (for the &ldquo;what do we need?&rdquo; list)</label>
+    <input id="rug-target" type="number" min="1" value="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+  </div>
+
+  <button type="button" id="rug-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;margin-top:12px;">Calculate</button>
+</form>
+
+<div id="rug-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Notes</summary>
+  <p style="margin-top:8px;">
+    Point values are the union code standard. Conversions are capped at the number of tries &mdash; you cannot kick a
+    conversion without a try. The combination list is ordered by the fewest scoring plays needed, then by tries first,
+    because tries are the highest-value way to close a gap quickly.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function combos(target) {
+    var list = [];
+    for (var t = 0; t * 5 <= target + 5 && t <= 30; t++) {
+      for (var c = 0; c <= t; c++) {
+        var rem = target - (t * 5 + c * 2);
+        if (rem < 0) continue;
+        for (var p = 0; p * 3 <= rem && p <= 40; p++) {
+          var rem2 = rem - p * 3;
+          if (rem2 < 0) continue;
+          if (rem2 % 3 !== 0) continue;
+          var d = rem2 / 3;
+          if (d <= 40) {
+            list.push({ t: t, c: c, p: p, d: d, plays: t + c + p + d, pts: t * 5 + c * 2 + p * 3 + d * 3 });
+          }
+        }
+      }
+    }
+    list.sort(function (a, b) { return a.plays - b.plays || b.t - a.t || a.pts - b.pts; });
+    return list;
+  }
+
+  function label(c) {
+    var parts = [];
+    if (c.t) parts.push(c.t + ' try' + (c.t === 1 ? '' : 's'));
+    if (c.c) parts.push(c.c + ' conv');
+    if (c.p) parts.push(c.p + ' pen');
+    if (c.d) parts.push(c.d + ' DG');
+    return parts.join(' + ');
+  }
+
+  function run() {
+    var tries = parseInt($('rug-tries').value, 10) || 0;
+    var conv = parseInt($('rug-conv').value, 10) || 0;
+    var pen = parseInt($('rug-pen').value, 10) || 0;
+    var drop = parseInt($('rug-drop').value, 10) || 0;
+    var target = parseInt($('rug-target').value, 10) || 0;
+    var out = $('rug-out');
+
+    var total = tries * 5 + conv * 2 + pen * 3 + drop * 3;
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(String(total), 'total points') +
+      box(String(tries), 'tries') +
+      box(String(pen + drop), 'kicks at goal') +
+      '</div>';
+
+    if (target > 0) {
+      var c = combos(target);
+      html += '<div style="color:rgba(230,250,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin:14px 0 6px;">Ways to close a ' + target + '-point gap (fewest scores first)</div>';
+      if (!c.length) {
+        html += '<div style="color:#ffa500;">No combination reaches ' + target + ' exactly &mdash; overshoot with a penalty or a try.</div>';
+      } else {
+        var chips = '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+        for (var i = 0; i < c.length && i < 24; i++) {
+          chips += '<div style="padding:6px 11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:0.8rem;">' +
+            '<strong style="color:var(--accent);">' + c[i].pts + '</strong> &middot; ' + label(c[i]) + '</div>';
+        }
+        chips += '</div>';
+        html += chips;
+        if (c.length > 24) html += '<div style="color:rgba(230,250,255,0.5);font-size:0.8rem;margin-top:6px;">&hellip;and ' + (c.length - 24) + ' more combinations.</div>';
+      }
+    }
+
+    out.innerHTML = html;
+  }
+
+  $('rug-go').addEventListener('click', run);
+  run();
+})();
+</script>
