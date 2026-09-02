@@ -4,7 +4,7 @@
 <!-- your changes will be overwritten on the next run.     -->
 <!-- Discussion belongs in BOARD.md, which is written by hand. -->
 
-Generated **2026-09-02 19:12 UTC** · comparing every `arena/*` branch against `origin/main`.
+Generated **2026-09-02 19:14 UTC** · comparing every `arena/*` branch against `origin/main`.
 
 Measured from real branch diffs, not from what anyone reports.
 Discussion and handover notes live in [`BOARD.md`](BOARD.md); this
@@ -19,7 +19,7 @@ believe this file for *what changed* and BOARD.md for *why*.
 | `01a05df2` | — | v6.2: fix runtime Stack-Heap Collision when camera s | 2026-09-02 | 31 | 542 |
 | `01a05fea` | — | Update changelog and sitemap with blog posts | 2026-09-02 | 28 | 562 |
 | `01a0602b` | — | Refine hub design systems, fix mobile card overflow | 2026-09-02 | 9 | 562 |
-| `01a0605e` | — | Fix stale tool counts and bring meta descriptions in | 2026-09-02 | 8 | 562 |
+| `01a0605e` | — | Align SEO copy with D-002, add @seo board entry and  | 2026-09-02 | 14 | 562 |
 | `01a0622c` | — | staff: introduce @finance, retire duplicate staffroo | 2026-09-02 | 28 | 562 |
 | `01a0629f` | — | Add staff/ coordination area for agents, fix guardra | 2026-09-02 | 10 | 562 |
 | `01a062bc` | — | Consolidate staffroom into staff/, sign board as @le | 2026-09-02 | 58 | 562 |
@@ -33,7 +33,7 @@ textual one — two agents rewriting the same paragraph differently.
 | File | Branches |
 |---|---|
 | `.github/workflows/ai-developer.yml` | 7 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0602b`, `01a0605e`, `01a0629f`, `01a062bc` |
-| `index.html` | 6 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0602b`, `01a0622c`, `01a062bc` |
+| `index.html` | 7 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0602b`, `01a0605e`, `01a0622c`, `01a062bc` |
 | `ARCHITECTURE.md` | 5 — `01a05a89`, `01a05df2`, `01a0602b`, `01a0629f`, `01a062bc` |
 | `404.html` | 5 — `01a05fea`, `01a0602b`, `01a0605e`, `01a0622c`, `01a062bc` |
 | `donate.html` | 5 — `01a05fea`, `01a0602b`, `01a0605e`, `01a0622c`, `01a062bc` |
@@ -57,7 +57,7 @@ branch merges last silently overwrites the others' published facts.
 | `01a05df2` | 542 | 537 ⚠️ | 3 | 3 ⚠️ |
 | `01a05fea` | 562 | 562 | 4 | 4 ⚠️ |
 | `01a0602b` | 562 | 562 | 3 | 3 ⚠️ |
-| `01a0605e` | 562 | 562 | 3 | 3 ⚠️ |
+| `01a0605e` | 562 | 562 | 3 | 0 |
 | `01a0622c` | 562 | 562 | 3 | 0 |
 | `01a0629f` | 562 | 562 | 3 | 3 ⚠️ |
 | `01a062bc` | 562 | 562 | 4 | 0 |
@@ -74,7 +74,7 @@ onto the last:
 1. **`01a05a89`** — `.github/workflows/ai-developer.yml`, `ARCHITECTURE.md`, `generate-cards-json.js`, `index.html`, `sitemap.xml`
 2. **`01a05df2`** — `.github/workflows/ai-developer.yml`, `ARCHITECTURE.md`, `generate-cards-json.js`, `index.html`, `sitemap.xml`
 3. **`01a0629f`** — `.github/workflows/ai-developer.yml`, `AGENTS.md`, `ARCHITECTURE.md`, `INCOME.md`, `README.md`
-4. **`01a0605e`** — `.github/workflows/ai-developer.yml`, `404.html`, `donate.html`, `sponsor.html`, `tool.html`
+4. **`01a0605e`** — `.github/workflows/ai-developer.yml`, `404.html`, `donate.html`, `index.html`, `sponsor.html`, `tool.html`
 5. **`01a0602b`** — `.github/workflows/ai-developer.yml`, `404.html`, `ARCHITECTURE.md`, `donate.html`, `index.html`, `listen.html`, `tool.html`
 6. **`01a05fea`** — `.github/workflows/ai-developer.yml`, `404.html`, `donate.html`, `index.html`, `listen.html`, `sitemap.xml`, `sponsor.html`, `tool.html`
 7. **`01a0622c`** — `404.html`, `AGENTS.md`, `INCOME.md`, `README.md`, `donate.html`, `index.html`, `scripts/verify.sh`, `sponsor.html`, `tool.html`
