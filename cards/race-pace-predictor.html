@@ -1,0 +1,217 @@
+<h2 id="rpp-title" style="margin-top:0;color:var(--accent);">🏃 Race Pace Predictor &amp; Training Paces</h2>
+
+<form aria-describedby="rpp-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="rpp-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Enter one recent race you actually ran, honestly, and this predicts the rest, gives you the pace to hold
+    per kilometre or mile, and turns it into the five training paces you actually need. Predictions are only as
+    good as the race you put in &mdash; a parkrun you walked part of will predict a marathon you cannot run.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="rpp-dist" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Distance you ran</label>
+      <select id="rpp-dist" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="1.5">1500 m</option>
+        <option value="1.609">Mile</option>
+        <option value="3">3 km</option>
+        <option value="5" selected>5 km</option>
+        <option value="10">10 km</option>
+        <option value="15">15 km</option>
+        <option value="21.0975">Half marathon</option>
+        <option value="42.195">Marathon</option>
+      </select>
+    </div>
+    <div>
+      <label id="rpp-time" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Your time</label>
+      <span id="rpp-timewrap" aria-labelledby="rpp-time">
+      <div style="display:flex;gap:6px;">
+        <input id="rpp-hh" type="number" min="0" max="23" step="1" value="0" aria-label="Hours" placeholder="h"
+          style="width:33%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+        <input id="rpp-mm" type="number" min="0" max="59" step="1" value="26" aria-label="Minutes" placeholder="min"
+          style="width:33%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+        <input id="rpp-ss" type="number" min="0" max="59" step="1" value="0" aria-label="Seconds" placeholder="sec"
+          style="width:34%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      </span>
+    </div>
+    <div>
+      <label for="rpp-target" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Race you are training for</label>
+      <select id="rpp-target" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="5">5 km</option>
+        <option value="10" selected>10 km</option>
+        <option value="21.0975">Half marathon</option>
+        <option value="42.195">Marathon</option>
+        <option value="50">50 km ultra</option>
+        <option value="89.39">Comrades / 90 km</option>
+      </select>
+    </div>
+  </div>
+
+  <button type="button" id="rpp-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Predict my times</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="rpp-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Uses Riegel's formula, T&#8322; = T&#8321; &times; (D&#8322;/D&#8321;)<sup>1.06</sup>, fitted to world-class
+    performances across distances and still the standard for predicting one race from another.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">When to trust this, and when not to</summary>
+  <p style="margin-top:8px;">
+    Riegel's exponent of 1.06 was fitted to records from 200 m to the marathon. It works well over one or two
+    steps of distance. Predicting a marathon from a 5 km time stretches it a long way, and the usual failure is
+    that it is too optimistic &mdash; endurance does not scale as neatly as speed. Treat anything more than about
+    four times your input distance as an upper bound on your ability, not a target.
+  </p>
+  <p>
+    Training paces are derived from the predictions, roughly on Daniels' model: easy running at about 1.3 times
+    your 10 km pace, threshold at half-marathon to 15 km pace, intervals at 5 km pace, repetitions faster still.
+    The single biggest mistake in amateur training is running the easy days too hard, which is exactly why the
+    easy pace here will feel embarrassingly slow.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function fmt(sec) {
+    if (!isFinite(sec) || sec <= 0) return '—';
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.round(sec % 60);
+    if (s === 60) { s = 0; m++; }
+    if (m === 60) { m = 0; h++; }
+    return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function pace(secPerKm, unit) {
+    var t = unit === 'mi' ? secPerKm / 0.621371 : secPerKm;
+    var m = Math.floor(t / 60), s = Math.round(t % 60);
+    if (s === 60) { s = 0; m++; }
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function run() {
+    var d1 = parseFloat($('rpp-dist').value);
+    var sec = (parseInt($('rpp-hh').value, 10) || 0) * 3600
+            + (parseInt($('rpp-mm').value, 10) || 0) * 60
+            + (parseInt($('rpp-ss').value, 10) || 0);
+    var target = parseFloat($('rpp-target').value);
+
+    if (sec <= 0) {
+      $('rpp-out').innerHTML = '<div style="color:#ffa500;">Enter the time you ran.</div>';
+      return;
+    }
+    var secPerKm1 = sec / d1;
+    if (secPerKm1 < 90) {
+      $('rpp-out').innerHTML = '<div style="color:#ffa500;">That is under 5:24/km sustained &mdash; check the time or the distance.</div>';
+      return;
+    }
+
+    var RACES = [
+      { k: 1.5, n: '1500 m' }, { k: 5, n: '5 km' }, { k: 10, n: '10 km' },
+      { k: 21.0975, n: 'Half marathon' }, { k: 42.195, n: 'Marathon' }, { k: 50, n: '50 km' }
+    ];
+
+    function predict(d2) { return sec * Math.pow(d2 / d1, 1.06); }
+
+    var html = '';
+
+    // confidence in the target prediction
+    var ratio = Math.max(target, d1) / Math.min(target, d1);
+    var confTxt, confCol;
+    if (ratio <= 2.2) { confTxt = 'Reliable — a short extrapolation.'; confCol = '#39ff14'; }
+    else if (ratio <= 5) { confTxt = 'Reasonable — one or two steps of distance.'; confCol = '#39ff14'; }
+    else if (ratio <= 10) { confTxt = 'Treat as an upper bound, not a target.'; confCol = '#ffa500'; }
+    else { confTxt = 'A very long extrapolation. Endurance does not scale this far.'; confCol = '#ff4444'; }
+
+    var tTarget = predict(target);
+    var paceTarget = tTarget / target;
+
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(fmt(tTarget), 'predicted ' + targetLabel(target)) +
+      box(pace(paceTarget, 'km') + '/km', 'pace to hold') +
+      box(pace(paceTarget, 'mi') + '/mi', 'pace per mile') +
+      '</div>';
+    html += '<div style="padding:8px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;font-size:0.85rem;color:' + confCol + ';">' + confTxt + '</div>';
+
+    // prediction table
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;">' +
+      '<thead><tr style="color:var(--accent);text-align:left;border-bottom:1px solid rgba(45,212,255,0.25);">' +
+      '<th style="padding:6px 8px;">Distance</th><th style="padding:6px 8px;">Predicted</th>' +
+      '<th style="padding:6px 8px;">/km</th><th style="padding:6px 8px;">/mile</th></tr></thead><tbody>';
+    RACES.forEach(function (r) {
+      var t = predict(r.k);
+      var isInput = Math.abs(r.k - d1) < 0.01;
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);' + (isInput ? 'background:rgba(45,212,255,0.08);' : '') + '">' +
+        '<td style="padding:5px 8px;">' + r.n + (isInput ? ' <span style="color:var(--accent);font-size:0.75rem;">← your race</span>' : '') + '</td>' +
+        '<td style="padding:5px 8px;color:var(--accent);">' + fmt(t) + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.8);">' + pace(t / r.k, 'km') + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.7);">' + pace(t / r.k, 'mi') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+
+    // splits for the target race
+    html += '<div style="color:rgba(230,250,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin:14px 0 6px;">Split times for ' + targetLabel(target) + '</div>';
+    var splits = target >= 42 ? [5, 10, 15, 20, 21.0975, 25, 30, 35, 40, 42.195]
+               : target >= 21 ? [5, 10, 15, 20, 21.0975]
+               : target >= 10 ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+               : [1, 2, 3, 4, 5];
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    splits.forEach(function (km) {
+      if (km > target + 0.01) return;
+      html += '<div style="padding:6px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:0.8rem;">' +
+        '<strong style="color:var(--accent);">' + (Math.round(km * 100) / 100) + 'k</strong> ' + fmt(paceTarget * km) + '</div>';
+    });
+    html += '</div>';
+
+    // training paces, derived from the 10 km equivalent
+    var t10 = predict(10), p10 = t10 / 10;
+    var t5 = predict(5), p5 = t5 / 5;
+    var tHM = predict(21.0975), pHM = tHM / 21.0975;
+    var tM = predict(42.195), pM = tM / 42.195;
+    var p3 = predict(3) / 3;
+    var tp = [
+      ['Easy / recovery', p10 * 1.30, 'p10 * 1.30', 'Conversational. If you cannot talk in sentences, slow down.'],
+      ['Long run', p10 * 1.20, 'p10 * 1.20', 'Steady, on tired legs. Most of your week should be here or slower.'],
+      ['Marathon pace', pM, 'predicted marathon', 'Only needed if you are actually racing a marathon.'],
+      ['Threshold', (pHM + p10) / 2, 'between HM and 10k', 'Comfortably hard — about an hour race effort. 20–40 min sessions.'],
+      ['Interval (5k effort)', p5, 'predicted 5k', '3–5 min reps with equal recovery. The hardest useful session.'],
+      ['Repetition', p3 * 0.97, 'faster than 3k pace', 'Short and sharp, 200–400 m, full recovery. For form and speed.']
+    ];
+    html += '<div style="color:rgba(230,250,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin:14px 0 6px;">Your five training paces</div>';
+    tp.forEach(function (r) {
+      html += '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+        '<div style="display:flex;gap:10px;align-items:baseline;">' +
+        '<span style="flex:1;color:rgba(230,250,255,0.9);font-weight:600;">' + r[0] + '</span>' +
+        '<span style="color:var(--accent);font-weight:600;">' + pace(r[1], 'km') + '/km</span>' +
+        '<span style="color:rgba(230,250,255,0.6);font-size:0.8rem;width:80px;text-align:right;">' + pace(r[1], 'mi') + '/mi</span></div>' +
+        '<div style="color:rgba(230,250,255,0.55);font-size:0.8rem;margin-top:2px;">' + r[3] + '</div></div>';
+    });
+
+    // negative split plan for the target
+    html += '<div style="margin-top:14px;padding:10px 12px;background:rgba(57,255,20,0.06);border:1px solid rgba(57,255,20,0.15);border-radius:8px;font-size:0.85rem;color:rgba(230,250,255,0.8);">' +
+      '<strong style="color:#39ff14;">Negative split plan:</strong> run the first half at ' + pace(paceTarget * 1.02, 'km') +
+      '/km and the second at ' + pace(paceTarget * 0.98, 'km') + '/km. Same finish time, far less likely to fall apart. ' +
+      'Nearly every distance record is run this way, and almost no amateur does it.</div>';
+
+    $('rpp-out').innerHTML = html;
+  }
+
+  function targetLabel(d) {
+    if (Math.abs(d - 21.0975) < 0.01) return 'half marathon';
+    if (Math.abs(d - 42.195) < 0.01) return 'marathon';
+    if (d >= 50) return d + ' km';
+    return d + ' km';
+  }
+  function box(v, l) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:var(--accent);">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  $('rpp-go').addEventListener('click', run);
+  run();
+})();
+</script>

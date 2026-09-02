@@ -171,6 +171,21 @@ const aquariumList = [
 ];
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
+// Ten tools added to fill genuine gaps found by auditing the existing 552-card
+// catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
+const gapFillMap = {
+  'hike-time-planner': 'Science & Engineering',
+  'bike-gear-calculator': 'Science & Engineering',
+  'photo-exposure-lab': 'Science & Engineering',
+  'race-pace-predictor': 'Health & Fitness',
+  'baby-sleep-planner': 'Health & Fitness',
+  'energy-tariff-comparator': 'Finance & Money',
+  'unit-price-comparator': 'Finance & Money',
+  'fluid-type-scale': 'Productivity & Lifestyle',
+  'fabric-yardage-estimator': 'Productivity & Lifestyle',
+  'car-care-tracker': 'Home & DIY'
+};
+
 const wellbeingList = [
   'difficult-conversation-scripter',
   'scam-sense-checker',
@@ -330,6 +345,7 @@ const homeDIYList = [
 ];
 
 function getCategory(name) {
+  if (gapFillMap[name]) return gapFillMap[name];
   if (wellbeingList.includes(name)) return 'Wellbeing & Community';
   if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';

@@ -1,0 +1,212 @@
+<h2 id="bsp-title" style="margin-top:0;color:var(--accent);">🍼 Baby Sleep &amp; Feeding Day Planner</h2>
+
+<form aria-describedby="bsp-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="bsp-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Babies run on <em>wake windows</em> &mdash; how long they can stay awake before they need to sleep again. It
+    changes fast in the first year and getting it wrong by half an hour is usually the difference between a nap
+    and a meltdown. Put in their age and what time they woke up, and this lays out a plausible shape for the day.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="bsp-age" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Age</label>
+      <select id="bsp-age" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="0.25">0–1 month</option>
+        <option value="1.5">1–2 months</option>
+        <option value="2.5">2–3 months</option>
+        <option value="3.5" selected>3–4 months</option>
+        <option value="4.5">4–6 months</option>
+        <option value="7">6–8 months</option>
+        <option value="9">8–10 months</option>
+        <option value="11">10–14 months</option>
+        <option value="15">14–18 months</option>
+        <option value="21">18–24 months</option>
+        <option value="30">2–3 years</option>
+      </select>
+    </div>
+    <div>
+      <label for="bsp-wake" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Woke up at</label>
+      <input id="bsp-wake" type="time" value="07:00"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="bsp-bed" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Aiming for bed at</label>
+      <input id="bsp-bed" type="time" value="19:00"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="bsp-weight" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Weight (kg), optional</label>
+      <input id="bsp-weight" type="number" min="2" max="20" step="0.1" placeholder="6.5"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <button type="button" id="bsp-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Lay out the day</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="bsp-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Every baby is different and this is a shape, not a schedule. Use it as a rough frame and follow your baby.
+  </div>
+</div>
+
+<details style="margin-top:14px;">
+  <summary style="cursor:pointer;color:var(--accent);font-weight:600;">Feeding amounts by age (reference)</summary>
+  <div id="bsp-feed" style="margin-top:8px;"></div>
+</details>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Please read this bit</summary>
+  <p style="margin-top:8px;">
+    This is general information gathered from widely published parenting guidance, not medical advice, and it will
+    not match every baby. Always put your baby on their back to sleep, in their own cot or Moses basket in the
+    room with you for the first six months, with nothing loose in the cot. Follow your health visitor or GP over
+    anything here &mdash; they know your baby and you do not need to justify disagreeing with a website.
+  </p>
+  <p>
+    In the UK the NHS Birth to Five app and the Start for Life site cover feeding and sleep, and you can call
+    111 any time if you are worried. If you are struggling, saying so to your health visitor is not a failure.
+    Newborn feeding amounts here follow the usual NHS guidance of roughly 150 ml per kg per day, which varies a
+    great deal between babies.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  /* months -> [min wake window, max wake window, nap count, total nap hours] */
+  var WINDOWS = [
+    { to: 1,   lo: 45,  hi: 60,  naps: 5, napH: 7.0, label: 'Newborn', note: 'Wake windows barely exist yet. Feed, sleep, repeat, and do not chase a routine.' },
+    { to: 2,   lo: 60,  hi: 75,  naps: 4, napH: 6.0, label: '6–8 weeks', note: 'The first hints of a pattern appear, usually an easier stretch in the morning.' },
+    { to: 3,   lo: 75,  hi: 90,  naps: 4, napH: 5.0, label: '2–3 months', note: 'Watch for the first sleepy cues around an hour and a quarter after waking.' },
+    { to: 4,   lo: 90,  hi: 120, naps: 4, napH: 4.5, label: '3–4 months', note: 'The famous "regression" is really the brain reorganising sleep. It passes.' },
+    { to: 6,   lo: 105, hi: 150, naps: 3, napH: 3.5, label: '4–6 months', note: 'Three naps settle in: two longer ones and a short late-afternoon catnap.' },
+    { to: 8,   lo: 135, hi: 180, naps: 3, napH: 3.0, label: '6–8 months', note: 'The third nap starts to resist. Stretch the last window before it.' },
+    { to: 10,  lo: 150, hi: 210, naps: 2, napH: 2.5, label: '8–10 months', note: 'Two naps, morning and afternoon, with a long window before bed.' },
+    { to: 14,  lo: 180, hi: 240, naps: 2, napH: 2.2, label: '10–14 months', note: 'Most drop to one nap somewhere in this window, often abruptly.' },
+    { to: 18,  lo: 270, hi: 330, naps: 1, napH: 2.0, label: '14–18 months', note: 'One nap after lunch, usually 12:30–2:30.' },
+    { to: 24,  lo: 300, hi: 360, naps: 1, napH: 1.8, label: '18–24 months', note: 'One nap, and an earlier bedtime on the days they skip it.' },
+    { to: 36,  lo: 360, hi: 420, naps: 1, napH: 1.5, label: '2–3 years', note: 'Some drop the nap entirely here. Move bedtime earlier on those days.' }
+  ];
+
+  var FEED = [
+    ['0–1 week', 'Colostrum first, then 30–60 ml, 8–12 times a day', 'On demand, often hourly'],
+    ['1–4 weeks', '60–90 ml per feed, 8–10 feeds', 'Every 2–3 hours'],
+    ['1–2 months', '90–120 ml per feed, 7–8 feeds', 'Every 3 hours'],
+    ['3–4 months', '120–180 ml per feed, 6 feeds', 'Every 3–4 hours'],
+    ['5–6 months', '150–210 ml per feed, 5 feeds', 'Every 4 hours; solids can begin around 6 months'],
+    ['7–9 months', '180–240 ml per feed, 4–5 feeds', 'Three meals of solids alongside'],
+    ['10–12 months', '180–240 ml per feed, 3–4 feeds', 'Three meals plus a snack'],
+    ['12+ months', 'About 350–500 ml of milk a day', 'Full-fat cow\'s milk is fine from one year']
+  ];
+
+  function hhmm(mins) {
+    mins = Math.round(mins);
+    var h = Math.floor(mins / 60) % 24, m = mins % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+  function dur(mins) {
+    var h = Math.floor(mins / 60), m = Math.round(mins % 60);
+    return (h ? h + 'h ' : '') + m + 'm';
+  }
+
+  function plan() {
+    var ageM = parseFloat($('bsp-age').value);
+    var w = $('bsp-wake').value || '07:00';
+    var b = $('bsp-bed').value || '19:00';
+    var start = (parseInt(w.slice(0, 2), 10) || 7) * 60 + (parseInt(w.slice(3, 5), 10) || 0);
+    var bedTarget = (parseInt(b.slice(0, 2), 10) || 19) * 60 + (parseInt(b.slice(3, 5), 10) || 0);
+    var weight = parseFloat($('bsp-weight').value);
+
+    var band = WINDOWS.filter(function (x) { return ageM < x.to || x.to >= 36; })[0] || WINDOWS[WINDOWS.length - 1];
+
+    // the first window of the day is always the shortest, the last before bed the longest
+    function windowFor(i, total) {
+      if (total <= 1) return band.lo;
+      var f = i / (total);               // 0 -> lo, 1 -> hi
+      return Math.round(band.lo + (band.hi - band.lo) * f);
+    }
+    function napLen(i, total) {
+      if (total === 1) return band.napH * 60;
+      if (i === total - 1) return 35;              // last nap is a catnap
+      if (i === 0) return Math.min(90, band.napH * 60 / total * 1.25);
+      return band.napH * 60 / total;
+    }
+
+    var rows = [];
+    var t = start;
+    rows.push({ time: t, kind: 'wake', text: 'Up, feed, daylight — open the curtains hard' });
+    for (var i = 0; i < band.naps; i++) {
+      t += windowFor(i, band.naps);
+      var nl = napLen(i, band.naps);
+      rows.push({ time: t, kind: 'nap', text: 'Nap ' + (i + 1) + ' — put down awake if you can, about ' + dur(nl) });
+      t += nl;
+      rows.push({ time: t, kind: 'wake', text: 'Up from nap ' + (i + 1) + ', feed' });
+    }
+    var bedAt = t + windowFor(band.naps, band.naps);
+    rows.push({ time: bedAt, kind: 'bed', text: 'Bedtime — wind-down starts about 30 minutes before' });
+
+    var drift = bedAt - bedTarget;
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(dur(band.lo) + '–' + dur(band.hi), 'wake window') +
+      box(band.naps + '', band.naps === 1 ? 'nap a day' : 'naps a day') +
+      box(dur(band.napH * 60), 'daytime sleep') +
+      box(hhmm(bedAt), 'bedtime falls at') +
+      '</div>';
+
+    html += '<div style="padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;font-size:0.85rem;color:rgba(230,250,255,0.85);">' +
+      '<strong style="color:var(--accent);">' + band.label + '.</strong> ' + band.note + '</div>';
+
+    if (Math.abs(drift) > 20) {
+      html += '<div style="padding:10px 12px;background:rgba(255,165,0,0.07);border:1px solid rgba(255,165,0,0.2);border-radius:8px;margin-bottom:12px;font-size:0.85rem;color:rgba(230,250,255,0.85);">' +
+        (drift > 0
+          ? 'This lands <strong>' + dur(drift) + ' later</strong> than the ' + hhmm(bedTarget) + ' bedtime you want. Trim the last nap by about ' + Math.round(drift) + ' minutes, or bring the first wake-up earlier.'
+          : 'This lands <strong>' + dur(-drift) + ' earlier</strong> than your ' + hhmm(bedTarget) + ' target. There is room to stretch the windows, or add a short late nap.') +
+        '</div>';
+    }
+
+    html += '<div style="border-left:2px solid rgba(45,212,255,0.3);margin-left:8px;padding-left:14px;">';
+    rows.forEach(function (r) {
+      var col = r.kind === 'nap' ? '#39ff14' : r.kind === 'bed' ? '#ffa500' : 'var(--accent)';
+      html += '<div style="position:relative;padding:7px 0;">' +
+        '<span style="position:absolute;left:-21px;top:12px;width:9px;height:9px;border-radius:50%;background:' + col + ';"></span>' +
+        '<div style="display:flex;gap:10px;align-items:baseline;">' +
+        '<span style="flex:0 0 52px;color:' + col + ';font-weight:700;font-family:monospace;">' + hhmm(r.time) + '</span>' +
+        '<span style="flex:1;color:rgba(230,250,255,0.85);font-size:0.88rem;">' + r.text + '</span></div></div>';
+    });
+    html += '</div>';
+
+    if (weight > 0 && ageM <= 6) {
+      var perDay = weight * 150;
+      html += '<div style="margin-top:14px;padding:10px 12px;background:rgba(57,255,20,0.06);border:1px solid rgba(57,255,20,0.15);border-radius:8px;font-size:0.85rem;color:rgba(230,250,255,0.8);">' +
+        'At ' + weight + ' kg the usual guide of 150 ml/kg gives roughly <strong>' + Math.round(perDay) + ' ml a day</strong>, ' +
+        'which over ' + (ageM < 2 ? 8 : 6) + ' feeds is about <strong>' + Math.round(perDay / (ageM < 2 ? 8 : 6)) + ' ml per feed</strong>. ' +
+        'Breastfed babies vary far more than this and it is not worth measuring.</div>';
+    }
+
+    $('bsp-out').innerHTML = html;
+  }
+
+  function box(v, l) {
+    return '<div style="flex:1;min-width:100px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.15rem;font-weight:700;color:var(--accent);">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  $('bsp-feed').innerHTML =
+    '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">' +
+    '<thead><tr style="color:var(--accent);text-align:left;border-bottom:1px solid rgba(45,212,255,0.25);">' +
+    '<th style="padding:6px 8px;">Age</th><th style="padding:6px 8px;">Amount per feed</th><th style="padding:6px 8px;">Frequency</th></tr></thead><tbody>' +
+    FEED.map(function (r) {
+      return '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+        '<td style="padding:5px 8px;color:var(--accent);white-space:nowrap;">' + r[0] + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.85);">' + r[1] + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.7);">' + r[2] + '</td></tr>';
+    }).join('') + '</tbody></table>';
+
+  $('bsp-go').addEventListener('click', plan);
+  plan();
+})();
+</script>

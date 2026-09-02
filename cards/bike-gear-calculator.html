@@ -1,0 +1,204 @@
+<h2 id="bgc-title" style="margin-top:0;color:var(--accent);">🚴 Bike Gear, Cadence &amp; Speed Calculator</h2>
+
+<form aria-describedby="bgc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="bgc-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Works out what every gear on your bike actually does &mdash; how far one pedal turn takes you, what speed
+    you will be doing at a given cadence, and which gears are duplicates you never need. The thing most riders
+    discover is that their lowest gear is not nearly as low as they think.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="bgc-rings" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Chainrings (teeth)</label>
+      <input id="bgc-rings" type="text" value="50, 34" placeholder="50, 34"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="bgc-cassette" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Cassette (teeth)</label>
+      <input id="bgc-cassette" type="text" value="11, 12, 14, 16, 18, 21, 24, 28" placeholder="11, 12, 14..."
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="bgc-wheel" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Wheel &amp; tyre</label>
+      <select id="bgc-wheel" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="26">26&Prime; MTB (559)</option>
+        <option value="27">27&Prime; (630)</option>
+        <option value="27.5">27.5&Prime; MTB (584)</option>
+        <option value="28">700c × 23mm road (2100 mm roll-out)</option>
+        <option value="28.2" selected>700c × 25mm road (2130 mm)</option>
+        <option value="28.6">700c × 32mm (2170 mm)</option>
+        <option value="29">29&Prime; MTB (622)</option>
+        <option value="20">20&Prime; folding (406)</option>
+      </select>
+    </div>
+    <div>
+      <label for="bgc-crank" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Crank length (mm)</label>
+      <input id="bgc-crank" type="number" min="140" max="185" step="2.5" value="172.5"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="bgc-cadence" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Cadence (rpm)</label>
+      <input id="bgc-cadence" type="number" min="20" max="200" step="1" value="90"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="bgc-grademax" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Steepest hill (%)</label>
+      <input id="bgc-grademax" type="number" min="0" max="40" step="0.5" value="10"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <button type="button" id="bgc-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Work out my gears</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="bgc-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Gear inches = (chainring &divide; cog) &times; wheel diameter. It is the diameter of the wheel a penny-farthing
+    would need to match your gear &mdash; still the clearest way to compare one bike with another.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Reading the numbers</summary>
+  <p style="margin-top:8px;">
+    <strong>Gear inches</strong> is the old measure, and still the easiest to compare across bikes.
+    <strong>Development</strong> is how many metres one turn of the cranks moves you, which is what your legs
+    actually feel. <strong>Gain ratio</strong> divides the wheel radius by the crank length: below about 2.0 a
+    gear is easy enough to climb almost anything on, above 4.0 it is a big gear for fast flat riding.
+  </p>
+  <p>
+    Two gears within about 3% of each other are effectively the same gear &mdash; you shift between them and
+    nothing happens. Most double chainring setups have several of these, and knowing which ones means you stop
+    hunting for a gear that does not exist.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function parseList(str) {
+    return String(str).split(/[,;\s]+/).map(function (x) { return parseInt(x, 10); })
+      .filter(function (n) { return n > 0 && n < 200; });
+  }
+  function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+
+  function calc() {
+    var rings = parseList($('bgc-rings').value);
+    var cogs = parseList($('bgc-cassette').value);
+    var wheelIn = parseFloat($('bgc-wheel').value) || 28;
+    var crank = parseFloat($('bgc-crank').value) || 172.5;
+    var cadence = Math.max(1, parseFloat($('bgc-cadence').value) || 90);
+    var grade = Math.max(0, parseFloat($('bgc-grademax').value) || 0);
+
+    if (!rings.length || !cogs.length) {
+      $('bgc-out').innerHTML = '<div style="color:#ffa500;">Enter at least one chainring and one cog.</div>';
+      return;
+    }
+    rings.sort(function (a, b) { return b - a; });
+    cogs.sort(function (a, b) { return a - b; });
+
+    var rows = [];
+    rings.forEach(function (r) {
+      cogs.forEach(function (c) {
+        var gi = (r / c) * wheelIn;
+        var dev = gi * 0.0254 * Math.PI;                 // metres per crank revolution
+        rows.push({
+          ring: r, cog: c, gi: gi, dev: dev,
+          kph: dev * cadence * 60 / 1000,
+          gain: (wheelIn * 25.4 / 2) / crank,
+          ratio: r / c
+        });
+      });
+    });
+
+    // find duplicates: within 3% of each other
+    var byGi = rows.slice().sort(function (a, b) { return a.gi - b.gi; });
+    var dupGroups = [];
+    for (var i = 1; i < byGi.length; i++) {
+      if ((byGi[i].gi - byGi[i - 1].gi) / byGi[i - 1].gi < 0.03) {
+        var last = dupGroups[dupGroups.length - 1];
+        if (last && last.indexOf(byGi[i - 1]) !== -1) last.push(byGi[i]);
+        else dupGroups.push([byGi[i - 1], byGi[i]]);
+      }
+    }
+    var isDup = {};
+    dupGroups.forEach(function (g) { g.forEach(function (g2) { isDup[g2.ring + 'x' + g2.cog] = true; }); });
+
+    var lowest = byGi[0], highest = byGi[byGi.length - 1];
+    var range = ((highest.gi - lowest.gi) / lowest.gi * 100);
+
+    /* How steep can you climb? On the lowest gear, at a sustainable cadence,
+       compare the force you can apply with the force gravity needs. */
+    var climbHtml = '';
+    if (grade > 0) {
+      // wheel torque per pedal force = crank length; at the wheel, force = torque / wheel radius
+      var climbable = [];
+      [50, 60, 70, 80].forEach(function (watts) {
+        // at 70 rpm in the lowest gear, speed in m/s
+        var v = lowest.dev * 70 / 60;
+        // total rider+bike mass assumed 85 kg; gravity component along slope
+        var mass = 85;
+        var slope = grade / 100;
+        var fGrav = mass * 9.81 * slope / Math.sqrt(1 + slope * slope);
+        var fRoll = mass * 9.81 * 0.005;               // rolling resistance
+        var fDrag = 0.5 * 1.2 * 0.4 * v * v;           // air drag, ~0.4 m^2 CdA
+        var fNeed = fGrav + fRoll + fDrag;
+        var fAvail = watts / Math.max(v, 0.1);
+        climbable.push({ w: watts, ok: fAvail >= fNeed, v: v });
+      });
+      var best = null;
+      climbable.forEach(function (c) { if (!best && c.ok) best = c; });
+      climbHtml = '<div style="margin-top:12px;padding:10px 12px;background:rgba(255,165,0,0.07);border:1px solid rgba(255,165,0,0.2);border-radius:8px;">' +
+        '<div style="color:#ffa500;font-weight:600;font-size:0.85rem;margin-bottom:4px;">Your lowest gear on a ' + grade + '% hill</div>' +
+        '<div style="color:rgba(230,250,255,0.8);font-size:0.85rem;">At 70 rpm in ' + lowest.ring + '&times;' + lowest.cog +
+        ' you would be doing <strong>' + (lowest.dev * 70 / 60 * 3.6).toFixed(1) + ' km/h</strong>. ' +
+        (best ? 'Sustainable if you can hold about <strong>' + best.w + ' W</strong> or more.'
+              : 'You would need well over 80 W sustained &mdash; this gearing is too high for that gradient. A larger cassette would fix it.') +
+        ' Assumes 85 kg all-in.</div></div>';
+    }
+
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(lowest.gi.toFixed(1) + '″', 'lowest gear') +
+      box(highest.gi.toFixed(1) + '″', 'highest gear') +
+      box(range.toFixed(0) + '%', 'total range') +
+      box(dupGroups.length + '', 'duplicate pairs') +
+      '</div>';
+
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;">' +
+      '<thead><tr style="color:var(--accent);text-align:left;border-bottom:1px solid rgba(45,212,255,0.25);">' +
+      '<th style="padding:6px 8px;">Gear</th><th style="padding:6px 8px;">Ratio</th>' +
+      '<th style="padding:6px 8px;">Gear inches</th><th style="padding:6px 8px;">Metres/rev</th>' +
+      '<th style="padding:6px 8px;">km/h @ ' + cadence + ' rpm</th><th style="padding:6px 8px;">Gain</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      var dup = isDup[r.ring + 'x' + r.cog];
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);' + (dup ? 'opacity:0.5;' : '') + '">' +
+        '<td style="padding:5px 8px;">' + r.ring + '&times;' + r.cog + (dup ? ' <span style="color:#ffa500;font-size:0.75rem;">≈ dup</span>' : '') + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.7);">' + r.ratio.toFixed(2) + '</td>' +
+        '<td style="padding:5px 8px;color:var(--accent);">' + r.gi.toFixed(1) + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.85);">' + r.dev.toFixed(2) + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.85);">' + r.kph.toFixed(1) + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.7);">' + r.gain.toFixed(2) + '</td></tr>';
+    });
+    html += '</tbody></table></div>' + climbHtml;
+
+    html += '<div style="margin-top:12px;color:rgba(230,250,255,0.7);font-size:0.85rem;">' +
+      'Cadence needed for 30 km/h: <strong style="color:var(--accent);">' +
+      Math.round(30 * 1000 / 60 / lowest.dev * 1) + '</strong> rpm in your lowest gear, <strong style="color:var(--accent);">' +
+      Math.round(30 * 1000 / 60 / highest.dev) + '</strong> rpm in your highest (which is why you change gear instead).' +
+      '</div>';
+
+    $('bgc-out').innerHTML = html;
+  }
+
+  function box(v, l) {
+    return '<div style="flex:1;min-width:100px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:var(--accent);">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;">' + l + '</div></div>';
+  }
+
+  $('bgc-go').addEventListener('click', calc);
+  calc();
+})();
+</script>

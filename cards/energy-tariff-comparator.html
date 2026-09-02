@@ -1,0 +1,196 @@
+<h2 id="etc-title" style="margin-top:0;color:var(--accent);">⚡ Energy Tariff Comparator</h2>
+
+<form aria-describedby="etc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="etc-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Suppliers advertise the unit rate because it is the flattering number, but the standing charge is paid every
+    single day whether you use anything or not. This compares the real annual cost &mdash; and, more usefully,
+    tells you the exact usage at which the ranking flips.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="etc-kwh" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Annual electricity (kWh)</label>
+      <input id="etc-kwh" type="number" min="0" step="100" value="2700"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      <div style="margin-top:6px;">
+        <select id="etc-est" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);color:rgba(230,250,255,0.7);font-size:13px;">
+          <option value="">Or estimate from bedrooms…</option>
+          <option value="1800">1 bed flat — ~1,800 kWh</option>
+          <option value="2700">2–3 bed house — ~2,700 kWh</option>
+          <option value="4100">4+ bed, electric heating — ~4,100 kWh</option>
+          <option value="3900">Has an EV charging at home — ~3,900 kWh</option>
+          <option value="7500">Heat pump, all-electric — ~7,500 kWh</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label for="etc-gas" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Annual gas (kWh)</label>
+      <input id="etc-gas" type="number" min="0" step="100" value="11500"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      <div style="margin-top:6px;">
+        <select id="etc-gasest" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);color:rgba(230,250,255,0.7);font-size:13px;">
+          <option value="">Or estimate…</option>
+          <option value="7500">1 bed flat — ~7,500 kWh</option>
+          <option value="11500">2–3 bed house — ~11,500 kWh</option>
+          <option value="17000">4+ bed, gas heating — ~17,000 kWh</option>
+          <option value="0">No gas (all electric)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div style="color:var(--accent);font-weight:600;font-size:0.9rem;margin-bottom:8px;">Tariffs to compare</div>
+  <div style="overflow-x:auto;margin-bottom:14px;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+      <thead><tr style="color:rgba(230,250,255,0.6);text-align:left;">
+        <th style="padding:6px 6px;font-weight:500;">Fuel / name</th>
+        <th style="padding:6px 6px;font-weight:500;">Unit (p/kWh)</th>
+        <th style="padding:6px 6px;font-weight:500;">Standing (p/day)</th>
+      </tr></thead>
+      <tbody id="etc-rows"></tbody>
+    </table>
+  </div>
+
+  <button type="button" id="etc-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Compare</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="etc-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Add a couple of tariffs you are actually being offered, including your current one, and see what they really cost.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why the standing charge changes everything</summary>
+  <p style="margin-top:8px;">
+    A tariff with a low unit rate and a high standing charge rewards heavy users. A tariff with a high unit rate
+    and a low standing charge rewards light users &mdash; and for someone in a small flat who is out all day, or
+    who has solar and imports very little, the difference can be over £100 a year. The crossover point is
+    (standing&#8322; &minus; standing&#8321;) &times; 365 &divide; (unit&#8321; &minus; unit&#8322;), and this
+    calculates it for you.
+  </p>
+  <p>
+    Read your meter rather than trusting an estimate, and read it on the same day you switch so the closing
+    bill is accurate. Figures here exclude any exit fees, direct-debit discounts or smart-meter rewards, which
+    you should add yourself.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var FUELS = ['Electricity', 'Gas'];
+  var DEFAULTS = {
+    Electricity: [{ n: 'Current deal', u: 24.5, s: 60.0 }, { n: 'Tariff B', u: 22.0, s: 75.0 }],
+    Gas:         [{ n: 'Current deal', u: 6.2,  s: 31.0 }, { n: 'Tariff B', u: 5.9,  s: 33.0 }]
+  };
+
+  function buildRows() {
+    var html = '';
+    FUELS.forEach(function (f) {
+      DEFAULTS[f].forEach(function (d, i) {
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+          '<td style="padding:5px 6px;color:rgba(230,250,255,0.75);white-space:nowrap;">' +
+          (i === 0 ? '<strong style="color:var(--accent);">' + f + '</strong> · ' : '&nbsp;&nbsp;&nbsp;&nbsp;· ') + '</td>' +
+          '<td style="padding:5px 6px;"><input type="text" data-fuel="' + f + '" data-i="' + i + '" data-k="n" value="' + d.n + '" ' +
+          'style="width:100%;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.25);color:var(--text);font-size:13px;" /></td>' +
+          '<td style="padding:5px 6px;"><input type="number" step="0.1" data-fuel="' + f + '" data-i="' + i + '" data-k="u" value="' + d.u + '" ' +
+          'style="width:100%;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.25);color:var(--text);font-size:13px;" /></td>' +
+          '<td style="padding:5px 6px;"><input type="number" step="0.1" data-fuel="' + f + '" data-i="' + i + '" data-k="s" value="' + d.s + '" ' +
+          'style="width:100%;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.25);color:var(--text);font-size:13px;" /></td>' +
+          '</tr>';
+      });
+    });
+    $('etc-rows').innerHTML = html;
+  }
+  buildRows();
+
+  function readTariffs(fuel) {
+    return Array.prototype.map.call(card.querySelectorAll('input[data-fuel="' + fuel + '"]'), function (el) {
+      return { i: parseInt(el.getAttribute('data-i'), 10), k: el.getAttribute('data-k'), v: el.value };
+    }).reduce(function (acc, r) {
+      acc[r.i] = acc[r.i] || {};
+      acc[r.i][r.k] = r.v;
+      return acc;
+    }, []).filter(function (t) { return t && t.u !== undefined && t.u !== ''; })
+      .map(function (t) {
+        return { n: (t.n || 'Tariff').trim(), u: parseFloat(t.u) || 0, s: parseFloat(t.s) || 0 };
+      });
+  }
+
+  function cost(t, kwh) { return (kwh * t.u / 100) + (t.s * 365 / 100); }
+  function money(v) { return '£' + v.toFixed(v < 100 ? 2 : 0); }
+
+  function compare() {
+    var eKwh = parseFloat($('etc-kwh').value) || 0;
+    var gKwh = parseFloat($('etc-gas').value) || 0;
+    if (eKwh <= 0 && gKwh <= 0) {
+      $('etc-out').innerHTML = '<div style="color:#ffa500;">Enter how much you use, or pick an estimate.</div>';
+      return;
+    }
+
+    var html = '';
+    [['Electricity', eKwh], ['Gas', gKwh]].forEach(function (pair) {
+      var fuel = pair[0], kwh = pair[1];
+      if (kwh <= 0) return;
+      var list = readTariffs(fuel).map(function (t) {
+        t.annual = cost(t, kwh);
+        t.unitPart = kwh * t.u / 100;
+        t.standPart = t.s * 365 / 100;
+        return t;
+      }).sort(function (a, b) { return a.annual - b.annual; });
+      if (!list.length) return;
+
+      html += '<div style="color:var(--accent);font-weight:700;font-size:1rem;margin:' + (html ? '16px' : '0') + ' 0 8px;">' +
+        fuel + ' — ' + kwh.toLocaleString() + ' kWh a year</div>';
+
+      list.forEach(function (t, idx) {
+        var saving = t.annual - list[0].annual;
+        html += '<div style="padding:10px 12px;border-radius:8px;margin-bottom:8px;' +
+          (idx === 0 ? 'background:rgba(57,255,20,0.07);border:1px solid rgba(57,255,20,0.2);'
+                     : 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);') + '">' +
+          '<div style="display:flex;gap:10px;align-items:baseline;margin-bottom:4px;">' +
+          '<span style="flex:1;color:rgba(230,250,255,0.9);font-weight:600;">' + t.n.replace(/[<>&]/g, '') +
+          (idx === 0 ? ' <span style="color:#39ff14;font-size:0.75rem;">CHEAPEST</span>' : '') + '</span>' +
+          '<span style="color:var(--accent);font-weight:700;font-size:1.05rem;">' + money(t.annual) + '/yr</span></div>' +
+          '<div style="display:flex;gap:14px;font-size:0.8rem;color:rgba(230,250,255,0.6);flex-wrap:wrap;">' +
+          '<span>' + t.u + 'p/kWh → ' + money(t.unitPart) + '</span>' +
+          '<span>' + t.s + 'p/day standing → <strong style="color:rgba(230,250,255,0.85);">' + money(t.standPart) + '</strong></span>' +
+          (idx > 0 ? '<span style="color:#ffa500;">+' + money(saving) + ' a year</span>' : '') +
+          '</div></div>';
+      });
+
+      // crossover between the cheapest and the dearest
+      if (list.length >= 2) {
+        var a = list[0], b = list[list.length - 1];
+        var du = a.u - b.u;
+        if (Math.abs(du) > 0.001) {
+          var x = (b.s - a.s) * 365 / du;
+          if (x > 0 && isFinite(x)) {
+            html += '<div style="padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.18);border-radius:8px;font-size:0.85rem;color:rgba(230,250,255,0.85);margin-bottom:8px;">' +
+              '<strong style="color:var(--accent);">The crossover:</strong> ' + b.n.replace(/[<>&]/g, '') + ' becomes cheaper than ' +
+              a.n.replace(/[<>&]/g, '') + ' above <strong>' + Math.round(x).toLocaleString() + ' kWh</strong> a year' +
+              ' (' + (x / 365).toFixed(1) + ' kWh a day). You use ' + kwh.toLocaleString() + ', so ' +
+              (kwh > x ? 'the ranking would flip if your usage stayed here &mdash; check which side of it you are on.'
+                       : 'the cheaper tariff stays cheaper at your usage.') +
+              '</div>';
+          }
+        } else {
+          html += '<div style="padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.18);border-radius:8px;font-size:0.85rem;color:rgba(230,250,255,0.85);margin-bottom:8px;">' +
+            'Both have the same unit rate, so the lower standing charge wins at every level of usage &mdash; ' +
+            '<strong>' + a.n.replace(/[<>&]/g, '') + '</strong>.</div>';
+        }
+      }
+    });
+
+    $('etc-out').innerHTML = html;
+  }
+
+  $('etc-est').addEventListener('change', function () { if (this.value) $('etc-kwh').value = this.value; });
+  $('etc-gasest').addEventListener('change', function () { if (this.value !== '') $('etc-gas').value = this.value; });
+  $('etc-go').addEventListener('click', compare);
+  compare();
+})();
+</script>
