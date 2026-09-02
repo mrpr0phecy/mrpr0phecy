@@ -1,0 +1,153 @@
+<h2 id="swm-title" style="margin-top:0;color:var(--accent);">🏊 Swimming Pace &amp; CSS Calculator</h2>
+
+<form aria-describedby="swm-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="swm-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Turn a swim time into pace per 100&nbsp;m, per length and full splits, then &mdash; if you have a 200&nbsp;m and a
+    400&nbsp;m test time &mdash; get your Critical Swim Speed and the training zones built around it.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="swm-pool" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Pool length</label>
+      <select id="swm-pool" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="25" selected>25 m</option>
+        <option value="50">50 m</option>
+        <option value="33.333">33&frac13; yd</option>
+      </select>
+    </div>
+    <div>
+      <label for="swm-dist" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Distance (m)</label>
+      <input id="swm-dist" type="number" min="25" value="1500" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1;">
+        <label for="swm-mm" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Minutes</label>
+        <input id="swm-mm" type="number" min="0" value="31" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div style="flex:1;">
+        <label for="swm-ss" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Seconds</label>
+        <input id="swm-ss" type="number" min="0" step="0.1" value="0" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+    </div>
+  </div>
+
+  <details style="margin-bottom:14px;">
+    <summary style="cursor:pointer;color:rgba(230,250,255,0.7);font-size:0.85rem;">Optional &mdash; Critical Swim Speed (CSS) from test times</summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:12px;">
+      <div>
+        <label for="swm-t200m" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">200 m test (min)</label>
+        <input id="swm-t200m" type="number" min="0" step="0.1" value="4.2" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div>
+        <label for="swm-t200s" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">200 m test (sec)</label>
+        <input id="swm-t200s" type="number" min="0" step="0.1" value="0" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div>
+        <label for="swm-t400m" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">400 m test (min)</label>
+        <input id="swm-t400m" type="number" min="0" step="0.1" value="9.0" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div>
+        <label for="swm-t400s" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">400 m test (sec)</label>
+        <input id="swm-t400s" type="number" min="0" step="0.1" value="0" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+    </div>
+  </details>
+
+  <button type="button" id="swm-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate pace</button>
+</form>
+
+<div id="swm-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">How CSS and the zones are derived</summary>
+  <p style="margin-top:8px;">
+    Critical Swim Speed is the slope of a distance-versus-time line through your 200&nbsp;m and 400&nbsp;m tests:
+    CSS = (400 &minus; 200) &divide; (T400 &minus; T200). It is a strong predictor of sustainable aerobic pace. The zones are
+    percentages of that CSS pace (75% recovery, 85% easy, 90% steady, 95&ndash;100% threshold, 105% VO&#8322;, 115% sprint).
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function fmt(sec) {
+    if (!isFinite(sec) || sec <= 0) return '\u2014';
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s.toFixed(s < 10 && Math.abs(s - Math.round(s)) > 0.001 ? 1 : 0).replace('.0', '');
+  }
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function run() {
+    var pool = parseFloat($('swm-pool').value);
+    var dist = parseFloat($('swm-dist').value);
+    var mm = parseInt($('swm-mm').value, 10) || 0;
+    var ss = parseFloat($('swm-ss').value) || 0;
+    var t200 = (parseFloat($('swm-t200m').value) || 0) * 60 + (parseFloat($('swm-t200s').value) || 0);
+    var t400 = (parseFloat($('swm-t400m').value) || 0) * 60 + (parseFloat($('swm-t400s').value) || 0);
+    var out = $('swm-out');
+
+    if (!(dist >= 25)) { out.innerHTML = '<div style="color:#ffa500;">Enter a distance of at least 25 m.</div>'; return; }
+    var total = mm * 60 + ss;
+    if (!(total > 0)) { out.innerHTML = '<div style="color:#ffa500;">Enter a time for the swim.</div>'; return; }
+
+    var pace100 = total / (dist / 100);
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(fmt(total), 'total time') +
+      box(fmt(pace100) + ' /100m', 'pace per 100 m') +
+      box(fmt(pace100 * 50 / 100) + ' /50m', 'pace per 50 m') +
+      box(fmt(pace100 * pool / 100) + ' /len', 'pace per length') +
+      '</div>';
+
+    // splits
+    var lengths = Math.round(dist / pool);
+    var splitHtml = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;">' +
+      '<thead><tr style="color:var(--accent);text-align:left;border-bottom:1px solid rgba(45,212,255,0.25);">' +
+      '<th style="padding:6px 8px;">Length</th><th style="padding:6px 8px;">Distance</th><th style="padding:6px 8px;">Split time</th><th style="padding:6px 8px;">Cumulative</th></tr></thead><tbody>';
+    var step = total / lengths;
+    for (var i = 1; i <= lengths && i <= 40; i++) {
+      splitHtml += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+        '<td style="padding:5px 8px;color:var(--accent);">' + i + '</td>' +
+        '<td style="padding:5px 8px;">' + (i * pool).toFixed(0) + ' m</td>' +
+        '<td style="padding:5px 8px;">' + fmt(step) + '</td>' +
+        '<td style="padding:5px 8px;color:rgba(230,250,255,0.8);">' + fmt(step * i) + '</td></tr>';
+    }
+    splitHtml += '</tbody></table></div>';
+    html += splitHtml;
+
+    // CSS section
+    if (t200 > 0 && t400 > 0 && t400 > t200) {
+      var css = (400 - 200) / (t400 - t200); // m/s
+      var css100 = 100 / css;
+      html += '<div style="color:rgba(230,250,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 6px;">Critical swim speed &amp; training zones</div>';
+      html += '<div style="padding:8px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:10px;font-size:0.85rem;">' +
+        'CSS = <strong style="color:var(--accent);">' + fmt(css100) + ' /100 m</strong> (from your 200 m and 400 m tests).</div>';
+      var zones = [
+        ['Recovery', 0.75, '#39ff14'],
+        ['Easy / endurance', 0.85, '#2dd4ff'],
+        ['Steady', 0.90, '#2dd4ff'],
+        ['Threshold', 0.975, '#ffd700'],
+        ['VO\u2082 max', 1.05, '#ff9500'],
+        ['Sprint', 1.15, '#ff4d4d']
+      ];
+      for (var z = 0; z < zones.length; z++) {
+        var zpace = css100 / zones[z][1];
+        html += '<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;gap:10px;">' +
+          '<span style="color:rgba(230,250,255,0.85);">' + zones[z][0] + ' <span style="color:rgba(230,250,255,0.5);font-size:0.75rem;">(' + Math.round(zones[z][1] * 100) + '%)</span></span>' +
+          '<span style="color:' + zones[z][2] + ';font-weight:600;">' + fmt(zpace) + ' /100 m</span></div>';
+      }
+    }
+
+    out.innerHTML = html;
+  }
+
+  $('swm-go').addEventListener('click', run);
+  run();
+})();
+</script>

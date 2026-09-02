@@ -1,0 +1,190 @@
+<h2 id="tbg-title" style="margin-top:0;color:var(--accent);">🏆 Tournament Bracket Generator</h2>
+
+<form aria-describedby="tbg-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="tbg-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Knock out a single-elimination draw in seconds. Pick how many teams, name them if you like, and get a
+    seeded bracket with the right number of byes, in a form you can read or copy out.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="tbg-count" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Number of teams</label>
+      <input id="tbg-count" type="number" min="2" max="128" value="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="tbg-seed" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Draw type</label>
+      <select id="tbg-seed" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="std" selected>Seeded (1 v 8, 2 v 7&hellip;)</option>
+        <option value="rand">Random draw</option>
+      </select>
+    </div>
+  </div>
+
+  <div>
+    <label for="tbg-names" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Team names (optional, one per line)</label>
+    <textarea id="tbg-names" rows="4" placeholder="Arsenal&#10;Chelsea&#10;Liverpool&#10;Man City" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;"></textarea>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:12px;">
+    <button type="button" id="tbg-go" style="flex:1;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Generate bracket</button>
+    <button type="button" id="tbg-copy" style="padding:12px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Copy text</button>
+  </div>
+</form>
+
+<div id="tbg-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);overflow-x:auto;"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Seeding &amp; byes</summary>
+  <p style="margin-top:8px;">
+    The bracket is padded to the next power of two, so entries past your team count become byes that advance without
+    playing. Seeded draws pair the top seed with the bottom seed in round one (1 v 8, 2 v 7&hellip;) so the best two teams
+    can only meet in the final. A random draw ignores seeding and shuffles everyone.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var lastText = '';
+
+  function seedOrder(n) {
+    var order = [1, 2];
+    while (order.length < n) {
+      var m = order.length;
+      var next = [];
+      for (var i = 0; i < m; i++) {
+        next.push(order[i]);
+        next.push(2 * m + 1 - order[i]);
+      }
+      order = next;
+    }
+    return order;
+  }
+
+  function nextPow2(n) {
+    var p = 1;
+    while (p < n) p *= 2;
+    return p;
+  }
+
+  function generate() {
+    var count = parseInt($('tbg-count').value, 10) || 8;
+    count = Math.max(2, Math.min(128, count));
+    var seeded = $('tbg-seed').value === 'std';
+    var names = ($('tbg-names').value || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    var size = nextPow2(count);
+    var out = $('tbg-out');
+
+    // build team list for seeds 1..size (byes beyond count)
+    var entrants = [];
+    for (var i = 1; i <= size; i++) {
+      if (i <= count) {
+        entrants.push(names[i - 1] || ('Team ' + i));
+      } else {
+        entrants.push('BYE');
+      }
+    }
+    // order entrants into bracket slots
+    var slots;
+    if (seeded) {
+      var order = seedOrder(size);
+      slots = order.map(function (seed) { return entrants[seed - 1]; });
+    } else {
+      slots = entrants.slice();
+      // shuffle (Fisher-Yates)
+      for (var s = slots.length - 1; s > 0; s--) {
+        var j = Math.floor(Math.random() * (s + 1));
+        var tmp = slots[s]; slots[s] = slots[j]; slots[j] = tmp;
+      }
+    }
+
+    // build rounds
+    var rounds = [];
+    var current = slots.slice();
+    var r = 1;
+    var text = 'Round ' + r + '\n';
+    while (current.length >= 2) {
+      var matches = [];
+      var next = [];
+      var line = '';
+      for (var m = 0; m < current.length; m += 2) {
+        var a = current[m], b = current[m + 1];
+        matches.push([a, b]);
+        if (a === 'BYE' && b === 'BYE') next.push('BYE');
+        else if (a === 'BYE') next.push(b);
+        else if (b === 'BYE') next.push(a);
+        else next.push(a + ' / ' + b);
+        line += (a === 'BYE' ? '(bye)' : a) + '  vs  ' + (b === 'BYE' ? '(bye)' : b) + '   |   ';
+      }
+      rounds.push(matches);
+      text += 'Round ' + r + ': ' + line.replace(/\s+\|\s+$/, '') + '\n';
+      if (current.length === 2) break;
+      current = next;
+      r++;
+    }
+    // final is a single entry
+    var finalist = current;
+    if (finalist.length === 1) {
+      text += 'Champion: ' + finalist[0] + '\n';
+    }
+
+    lastText = text;
+
+    // render
+    var html = '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:nowrap;">';
+    var labels = ['Round of ' + size, 'Quarter-finals', 'Semi-finals', 'Final'];
+    if (size === 2) labels = ['Final'];
+    else if (size === 4) labels = ['Semi-finals', 'Final'];
+    else if (size === 8) labels = ['Quarter-finals', 'Semi-finals', 'Final'];
+    else if (size === 16) labels = ['Round of 16', 'Quarter-finals', 'Semi-finals', 'Final'];
+    else if (size === 32) labels = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final'];
+    else if (size === 64) labels = ['Round of 64', 'Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final'];
+    else if (size === 128) labels = ['Round of 128', 'Round of 64', 'Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final'];
+    else labels = ['First round', 'Semi-finals', 'Final'];
+
+    var byes = size - count;
+    html += '<div style="color:rgba(230,250,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;flex:0 0 100%;">' +
+      count + ' teams &middot; ' + (seeded ? 'seeded draw' : 'random draw') + (byes > 0 ? ' &middot; ' + byes + ' bye' + (byes === 1 ? '' : 's') : '') + '</div>';
+
+    for (var ri = 0; ri < rounds.length; ri++) {
+      html += '<div style="min-width:130px;flex:1;">' +
+        '<div style="font-size:0.7rem;color:rgba(230,250,255,0.5);text-transform:uppercase;margin-bottom:6px;">' + (labels[ri] || ('Round ' + (ri + 1))) + '</div>';
+      for (var mi = 0; mi < rounds[ri].length; mi++) {
+        var pa = rounds[ri][mi][0], pb = rounds[ri][mi][1];
+        var isBye = pa === 'BYE' || pb === 'BYE';
+        html += '<div style="padding:6px 8px;margin-bottom:6px;background:' + (isBye ? 'rgba(255,215,0,0.05)' : 'rgba(255,255,255,0.03)') +
+          ';border:1px solid ' + (isBye ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.08)') + ';border-radius:6px;font-size:0.8rem;">' +
+          '<div style="color:' + (pa === 'BYE' ? '#ffd700' : 'rgba(230,250,255,0.9)') + ';">' + (pa === 'BYE' ? 'Bye' : pa) + '</div>' +
+          '<div style="color:' + (pb === 'BYE' ? '#ffd700' : 'rgba(230,250,255,0.9)') + ';">' + (pb === 'BYE' ? 'Bye' : pb) + '</div>' +
+          '</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+
+    html += '<div style="margin-top:14px;padding:10px 12px;background:rgba(57,255,20,0.06);border:1px solid rgba(57,255,20,0.15);border-radius:8px;font-size:0.85rem;">' +
+      '<strong style="color:#39ff14;">' + (finalist.length === 1 ? finalist[0] : 'Champion') + '</strong>' +
+      ' &mdash; use &ldquo;Copy text&rdquo; to paste the full draw into a chat or document.</div>';
+
+    out.innerHTML = html;
+  }
+
+  $('tbg-go').addEventListener('click', generate);
+  $('tbg-copy').addEventListener('click', function () {
+    if (!lastText) generate();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lastText);
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = lastText;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  });
+
+  generate();
+})();
+</script>

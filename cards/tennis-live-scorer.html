@@ -1,0 +1,172 @@
+<h2 id="ten-title" style="margin-top:0;color:var(--accent);">🎾 Tennis Match Scorer</h2>
+
+<form aria-describedby="ten-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="ten-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Score a match point by point with the correct rules handled for you: deuce and advantage, sets to six with a
+    two-game lead, a seven-point tiebreak at six-all, and best-of-three or best-of-five matches.
+  </p>
+
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+    <div>
+      <label for="ten-best" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Match format</label>
+      <select id="ten-best" style="padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="3" selected>Best of 3 sets</option>
+        <option value="5">Best of 5 sets</option>
+      </select>
+    </div>
+    <button type="button" id="ten-newmatch" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">New match</button>
+    <button type="button" id="ten-undo" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">&#8617; Undo</button>
+  </div>
+</form>
+
+<div id="ten-board" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);margin-bottom:12px;">
+  <div id="ten-score" style="font-size:1.6rem;font-weight:800;color:var(--text);text-align:center;margin-bottom:8px;">0&ndash;0</div>
+  <div id="ten-detail" style="text-align:center;font-size:0.85rem;color:rgba(230,250,255,0.6);">Best of 3 &middot; first set &middot; game 0&ndash;0</div>
+  <div id="ten-sets" style="display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap;"></div>
+</div>
+
+<div style="display:flex;gap:10px;">
+  <button type="button" id="ten-apt" style="flex:1;padding:14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;font-size:1rem;">Player A +1 point</button>
+  <button type="button" id="ten-bpt" style="flex:1;padding:14px;background:rgba(157,78,221,0.15);border:1px solid rgba(157,78,221,0.4);border-radius:8px;color:#c58ef0;cursor:pointer;font-weight:700;font-size:1rem;">Player B +1 point</button>
+</div>
+
+<div id="ten-log" style="margin-top:12px;font-size:0.75rem;color:rgba(230,250,255,0.45);min-height:1em;"></div>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var PTS = ['0', '15', '30', '40'];
+
+  function freshState(best) {
+    return {
+      best: best,
+      setsA: 0, setsB: 0,
+      gA: 0, gB: 0,
+      pA: 0, pB: 0,
+      tiebreak: false,
+      done: false,
+      winner: null,
+      history: []
+    };
+  }
+  var S = freshState(3);
+
+  function clone(s) {
+    return {
+      best: s.best, setsA: s.setsA, setsB: s.setsB, gA: s.gA, gB: s.gB,
+      pA: s.pA, pB: s.pB, tiebreak: s.tiebreak, done: s.done, winner: s.winner,
+      history: s.history.slice()
+    };
+  }
+
+  function pointStr() {
+    if (S.tiebreak) return S.pA + '&ndash;' + S.pB;
+    if (S.pA >= 3 && S.pB >= 3) {
+      if (S.pA === S.pB) return 'Deuce';
+      return S.pA > S.pB ? 'Adv A' : 'Adv B';
+    }
+    return PTS[S.pA] + '&ndash;' + PTS[S.pB];
+  }
+
+  function setWon(a, b) {
+    return (a >= 6 && a - b >= 2);
+  }
+
+  function addPoint(who) {
+    if (S.done) return;
+    S.history.push(clone(S));
+
+    if (S.tiebreak) {
+      if (who === 'A') S.pA++; else S.pB++;
+      if ((S.pA >= 7 || S.pB >= 7) && Math.abs(S.pA - S.pB) >= 2) {
+        if (S.pA > S.pB) S.gA++; else S.gB++;
+        finishSet();
+      }
+      render();
+      return;
+    }
+
+    if (who === 'A') S.pA++; else S.pB++;
+    // game
+    if (S.pA >= 4 && S.pA - S.pB >= 2) { S.gA++; S.pA = 0; S.pB = 0; finishSet(); render(); return; }
+    if (S.pB >= 4 && S.pB - S.pA >= 2) { S.gB++; S.pA = 0; S.pB = 0; finishSet(); render(); return; }
+    render();
+  }
+
+  function finishSet() {
+    if (setWon(S.gA, S.gB)) {
+      if (S.gA > S.gB) S.setsA++; else S.setsB++;
+      var need = Math.ceil(S.best / 2);
+      if (S.setsA >= need || S.setsB >= need) {
+        S.done = true;
+        S.winner = S.setsA > S.setsB ? 'A' : 'B';
+        return;
+      }
+      S.gA = 0; S.gB = 0; S.pA = 0; S.pB = 0; S.tiebreak = false;
+    } else if (S.gA === 6 && S.gB === 6) {
+      S.tiebreak = true; S.pA = 0; S.pB = 0;
+    }
+  }
+
+  function setLabel(n) {
+    var i = S.setsA + S.setsB;
+    return i === 0 ? 'first set' : i === 1 ? 'second set' : i === 2 ? 'third set' : i === 3 ? 'fourth set' : 'fifth set';
+  }
+
+  function render() {
+    var score = $('ten-score');
+    var detail = $('ten-detail');
+    var setsEl = $('ten-sets');
+    var log = $('ten-log');
+
+    if (S.done) {
+      score.innerHTML = 'Player ' + S.winner + ' wins ' + S.setsA + '&ndash;' + S.setsB;
+      detail.textContent = 'Match complete &mdash; best of ' + S.best + '.';
+    } else {
+      score.innerHTML = (S.setsA + '&ndash;' + S.setsB) + ' <span style="font-size:0.7em;color:rgba(230,250,255,0.55);">sets</span>';
+      detail.textContent = 'Best of ' + S.best + ' &middot; ' + setLabel() + ' &middot; ' +
+        (S.tiebreak ? 'tiebreak ' + S.pA + '&ndash;' + S.pB : 'game ' + S.gA + '&ndash;' + S.gB + ' &middot; ' + pointStr());
+    }
+
+    // set score chips
+    var chips = '';
+    var played = S.setsA + S.setsB;
+    for (var i = 0; i < played; i++) {
+      chips += '<span style="padding:3px 9px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;font-size:0.8rem;color:rgba(230,250,255,0.85);">set ' + (i + 1) + '</span>';
+    }
+    setsEl.innerHTML = chips || '<span style="font-size:0.8rem;color:rgba(230,250,255,0.4);">no sets completed yet</span>';
+
+    // last action log
+    var h = S.history;
+    if (h.length) {
+      var last = h[h.length - 1];
+      log.textContent = 'last point: Player ' + (last.pA !== S.pA || last.pB !== S.pB ? '' : '');
+    }
+    if (h.length) {
+      var lastS = h[h.length - 1];
+      if (lastS.setsA !== S.setsA || lastS.setsB !== S.setsB) log.textContent = 'Game &middot; set won.';
+      else if (lastS.gA !== S.gA || lastS.gB !== S.gB) log.textContent = 'Game won.';
+      else log.textContent = 'Point added.';
+    }
+  }
+
+  function undo() {
+    if (!S.history.length) return;
+    S = S.history.pop();
+    render();
+  }
+
+  function newMatch() {
+    S = freshState(parseInt($('ten-best').value, 10));
+    render();
+  }
+
+  $('ten-apt').addEventListener('click', function () { addPoint('A'); });
+  $('ten-bpt').addEventListener('click', function () { addPoint('B'); });
+  $('ten-undo').addEventListener('click', undo);
+  $('ten-newmatch').addEventListener('click', newMatch);
+
+  render();
+})();
+</script>

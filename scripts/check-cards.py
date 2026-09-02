@@ -39,6 +39,7 @@ KNOWN_CATEGORIES = {
     "AI & Autonomous Agents", "Anime & Otaku Culture", "Aquatics & Fishkeeping",
     "Birdwatching & Ornithology", "Boxing & Fight Scoring", "Dogs & Canine Care",
     "Virtual Worlds & Gaming", "MrProphecy Arcade", "Museum & Collection",
+    "Sports",
 }
 
 fails: list[str] = []

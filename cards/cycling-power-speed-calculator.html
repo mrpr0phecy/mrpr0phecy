@@ -1,0 +1,164 @@
+<h2 id="cyc-title" style="margin-top:0;color:var(--accent);">🚴 Cycling Power &amp; Speed Calculator</h2>
+
+<form aria-describedby="cyc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="cyc-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    How many watts to hold 40&nbsp;km/h up a 4% climb? Or what speed does your FTP actually buy you?
+    This models the three forces a rider fights &mdash; rolling resistance, air drag and gravity &mdash; and splits your
+    power between them, in either direction.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="cyc-mode" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Calculate</label>
+      <select id="cyc-mode" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="speed" selected>Power needed for a speed</option>
+        <option value="power">Speed from a power</option>
+      </select>
+    </div>
+    <div>
+      <label for="cyc-speed" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Speed (km/h)</label>
+      <input id="cyc-speed" type="number" min="0" value="32" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cyc-watts" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Power (watts)</label>
+      <input id="cyc-watts" type="number" min="0" value="220" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cyc-mass" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Rider + bike (kg)</label>
+      <input id="cyc-mass" type="number" min="30" value="80" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cyc-grade" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Gradient (%)</label>
+      <input id="cyc-grade" type="number" min="-25" max="25" value="0" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cyc-wind" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Headwind (km/h)</label>
+      <input id="cyc-wind" type="number" min="-30" max="50" value="0" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cyc-cda" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">CdA (m&sup2;)</label>
+      <input id="cyc-cda" type="number" min="0.1" step="0.01" value="0.32" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="cyc-crr" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Rolling resistance (Crr)</label>
+      <input id="cyc-crr" type="number" min="0.001" step="0.001" value="0.005" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <button type="button" id="cyc-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
+</form>
+
+<div id="cyc-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics &amp; the approximations</summary>
+  <p style="margin-top:8px;">
+    Rolling power = Crr &times; mass &times; g &times; v. Air power = &frac12; &times; &rho; &times; CdA &times; v&sup3; (with headwind added to v).
+    Gravity power = mass &times; g &times; v &times; sin(arctan(grade)). A 2% drivetrain loss is added on top. This is a clean-air,
+    steady-state model: it ignores acceleration, drafting, corners and road surface, so treat the answer as the
+    sustained power a solo rider needs, not an exact watts-per-pedal-stroke.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var G = 9.81, RHO = 1.225, EFF = 0.98;
+
+  function forces(v, mass, grade, wind, cda, crr) {
+    // v, wind in m/s; returns {roll, aero, grav} in watts (before drivetrain loss)
+    var slope = grade / 100;
+    var sinTheta = slope / Math.sqrt(1 + slope * slope);
+    var va = v + wind;
+    var roll = crr * mass * G * v;
+    var aero = 0.5 * RHO * cda * va * va * Math.abs(va);
+    var grav = mass * G * v * sinTheta;
+    return { roll: roll, aero: aero, grav: grav };
+  }
+
+  function totalPower(v, mass, grade, wind, cda, crr) {
+    var f = forces(v, mass, grade, wind, cda, crr);
+    return (f.roll + Math.max(0, f.aero) + f.grav) / EFF;
+  }
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.2rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function bar(label, watts, total, col) {
+    var pct = total > 0 ? Math.max(0, Math.min(100, watts / total * 100)) : 0;
+    return '<div style="margin-bottom:8px;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:3px;">' +
+      '<span style="color:rgba(230,250,255,0.85);">' + label + '</span>' +
+      '<span style="color:' + col + ';font-weight:600;">' + Math.round(watts) + ' W (' + pct.toFixed(0) + '%)</span></div>' +
+      '<div style="height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">' +
+      '<div style="height:100%;width:' + pct + '%;background:' + col + ';border-radius:4px;"></div></div></div>';
+  }
+
+  function run() {
+    var mode = $('cyc-mode').value;
+    var speed = parseFloat($('cyc-speed').value);
+    var watts = parseFloat($('cyc-watts').value);
+    var mass = parseFloat($('cyc-mass').value);
+    var grade = parseFloat($('cyc-grade').value);
+    var wind = parseFloat($('cyc-wind').value);
+    var cda = parseFloat($('cyc-cda').value);
+    var crr = parseFloat($('cyc-crr').value);
+    var out = $('cyc-out');
+
+    if (!(mass >= 30) || !(cda >= 0.1) || !(crr >= 0.001)) {
+      out.innerHTML = '<div style="color:#ffa500;">Check mass, CdA and Crr &mdash; they are outside sensible ranges.</div>';
+      return;
+    }
+    wind = wind / 3.6; // km/h -> m/s
+
+    var html = '';
+    if (mode === 'speed') {
+      if (!(speed > 0)) { out.innerHTML = '<div style="color:#ffa500;">Enter a speed above 0 km/h.</div>'; return; }
+      var v = speed / 3.6;
+      var f = forces(v, mass, grade, wind, cda, crr);
+      var P = totalPower(v, mass, grade, wind, cda, crr);
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+        box(Math.round(P) + ' W', 'total power needed') +
+        box((P / mass).toFixed(2) + ' W/kg', 'power to weight') +
+        '</div>';
+      html += bar('Air drag', Math.max(0, f.aero), P, '#2dd4ff');
+      html += bar('Rolling resistance', f.roll, P, '#39ff14');
+      html += bar('Gravity (climbing)', f.grav, P, '#ffd700');
+      html += '<div style="padding:8px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-top:12px;font-size:0.85rem;">' +
+        (grade > 0 ? 'On this gradient gravity takes over &mdash; that is why climbing is a watts-per-kilo game.'
+          : grade < 0 ? 'Descending: gravity is doing the work for you.' : 'On the flat, the air is your main opponent &mdash; aero position is worth more than any component.') +
+        '</div>';
+    } else {
+      if (!(watts > 0)) { out.innerHTML = '<div style="color:#ffa500;">Enter a power above 0 W.</div>'; return; }
+      // bisection solve for speed
+      var lo = 0, hi = 120 / 3.6, vmid;
+      for (var i = 0; i < 60; i++) {
+        vmid = (lo + hi) / 2;
+        if (totalPower(vmid, mass, grade, wind, cda, crr) < watts) lo = vmid; else hi = vmid;
+      }
+      var spd = vmid * 3.6;
+      var f2 = forces(vmid, mass, grade, wind, cda, crr);
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+        box(spd.toFixed(1) + ' km/h', 'speed for ' + Math.round(watts) + ' W') +
+        box((watts / mass).toFixed(2) + ' W/kg', 'your power to weight') +
+        '</div>';
+      html += bar('Air drag', Math.max(0, f2.aero), watts, '#2dd4ff');
+      html += bar('Rolling resistance', f2.roll, watts, '#39ff14');
+      html += bar('Gravity (climbing)', f2.grav, watts, '#ffd700');
+      var wkg = watts / mass;
+      var band = wkg >= 5.5 ? 'world-class level of sustained power.' : wkg >= 4 ? 'strong club-racer territory.'
+        : wkg >= 3 ? 'solid recreational rider.' : wkg >= 2 ? 'a good foundation to build on.' : 'a beginner base.';
+      html += '<div style="padding:8px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-top:12px;font-size:0.85rem;">' +
+        (watts / mass).toFixed(2) + ' W/kg is ' + band + '</div>';
+    }
+    out.innerHTML = html;
+  }
+
+  $('cyc-go').addEventListener('click', run);
+  run();
+})();
+</script>

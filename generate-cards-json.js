@@ -186,6 +186,19 @@ const gapFillMap = {
   'car-care-tracker': 'Home & DIY'
 };
 
+const sportsList = [
+  'cricket-chase-calculator',
+  'football-points-needed',
+  'tournament-bracket-generator',
+  'golf-whs-handicap-calculator',
+  'darts-checkout-calculator',
+  'cycling-power-speed-calculator',
+  'swimming-pace-calculator',
+  'tennis-live-scorer',
+  'basketball-efficiency-calculator',
+  'youth-team-rotation-planner'
+];
+
 const wellbeingList = [
   'difficult-conversation-scripter',
   'scam-sense-checker',
@@ -346,6 +359,7 @@ const homeDIYList = [
 
 function getCategory(name) {
   if (gapFillMap[name]) return gapFillMap[name];
+  if (sportsList.includes(name)) return 'Sports';
   if (wellbeingList.includes(name)) return 'Wellbeing & Community';
   if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
