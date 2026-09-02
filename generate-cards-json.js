@@ -396,7 +396,17 @@ const homeDIYList = [
   'decking-calculator',
   'gravel-calculator',
   'fence-calculator',
-  'plastering-calculator'
+  'plastering-calculator',
+  'stud-framing-calculator',
+  'board-foot-lumber-calculator',
+  'stair-stringer-calculator',
+  'roof-pitch-rafter-calculator',
+  'drywall-calculator',
+  'room-btu-hvac-calculator',
+  'miter-bevel-angle-calculator',
+  'laminate-flooring-calculator',
+  'deck-joist-span-calculator',
+  'grout-adhesive-calculator'
 ];
 
 function getCategory(name) {

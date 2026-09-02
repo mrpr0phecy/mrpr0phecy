@@ -1,0 +1,105 @@
+<h2 id="sfr-title" style="margin-top:0;color:var(--accent);">🧱 Stud & Wall Framing Calculator</h2>
+
+<form aria-describedby="sfr-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="sfr-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Frame a wall the way a carpenter would: enter the wall length, stud spacing, openings and corners, and get the
+    stud count, plate lumber and headers to order.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="sfr-len" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Wall length (feet)</label>
+      <input id="sfr-len" type="number" min="0" value="12" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="sfr-in" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">…plus inches</label>
+      <input id="sfr-in" type="number" min="0" max="11" value="0" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="sfr-spacing" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Stud spacing</label>
+      <select id="sfr-spacing" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="16" selected>16" on centre</option>
+        <option value="24">24" on centre</option>
+      </select>
+    </div>
+    <div>
+      <label for="sfr-oc" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Door / window openings</label>
+      <input id="sfr-oc" type="number" min="0" value="1" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="sfr-cn" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Wall corners</label>
+      <input id="sfr-cn" type="number" min="0" value="1" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <button type="button" id="sfr-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate framing</button>
+</form>
+
+<div id="sfr-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">How the count works</summary>
+  <p style="margin-top:8px;">
+    Start with one stud every 16" or 24" plus one extra for the far end, then add two studs per opening (king + trimmer)
+    and two per corner for a three-stud corner. Plates are the horizontal 2&times;4s &mdash; a single bottom plate and a
+    doubled top plate (three runs of the wall length). Headers are the lintels over each opening.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.25rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.62rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function run() {
+    var lenFt = parseFloat($('sfr-len').value) || 0;
+    var lenIn = parseInt($('sfr-in').value, 10) || 0;
+    var spacing = parseInt($('sfr-spacing').value, 10) || 16;
+    var openings = parseInt($('sfr-oc').value, 10) || 0;
+    var corners = parseInt($('sfr-cn').value, 10) || 0;
+    var out = $('sfr-out');
+
+    if (lenFt <= 0 && lenIn <= 0) {
+      out.innerHTML = '<div style="color:#ffa500;">Enter a wall length.</div>';
+      return;
+    }
+
+    var totalIn = lenFt * 12 + lenIn;
+    var studs = Math.ceil(totalIn / spacing) + 1 + openings * 2 + corners * 2;
+    var plateRuns = 3; // bottom + double top
+    var plateFt = lenFt + lenIn / 12;
+    var headers = openings;
+
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(String(studs), 'studs needed') +
+      box((plateFt * plateRuns).toFixed(1) + ' ft', 'plate lumber') +
+      box(String(headers), 'headers') +
+      '</div>';
+
+    var rows = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;">' +
+      '<thead><tr style="color:var(--accent);text-align:left;border-bottom:1px solid rgba(45,212,255,0.25);">' +
+      '<th style="padding:6px 8px;">Material</th><th style="padding:6px 8px;">Quantity</th></tr></thead><tbody>' +
+      '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:5px 8px;">2&times;4 studs @ ' + spacing + '" OC</td><td style="padding:5px 8px;color:var(--accent);font-weight:600;">' + studs + '</td></tr>' +
+      '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:5px 8px;">2&times;4 bottom + double top plate</td><td style="padding:5px 8px;color:var(--accent);font-weight:600;">' + (plateFt * plateRuns).toFixed(1) + ' ft (' + plateRuns + ' runs of ' + plateFt.toFixed(1) + ' ft)</td></tr>' +
+      '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:5px 8px;">Headers / lintels</td><td style="padding:5px 8px;color:var(--accent);font-weight:600;">' + headers + '</td></tr>' +
+      '<tr><td style="padding:5px 8px;">Cripple &amp; corner blocking (allowance)</td><td style="padding:5px 8px;color:var(--accent);font-weight:600;">' + (openings * 2 + corners) + ' studs</td></tr>' +
+      '</tbody></table></div>';
+    html += rows;
+
+    html += '<div style="margin-top:10px;padding:8px 12px;background:rgba(57,255,20,0.06);border:1px solid rgba(57,255,20,0.15);border-radius:8px;font-size:0.85rem;">' +
+      'A ' + lenFt + "'" + (lenIn ? ' ' + lenIn + '"' : '') + ' wall at ' + spacing + '" centres: one stud every ' + spacing +
+      '" plus end, opening and corner extras. Add ~10% for waste and straight-picking.</div>';
+
+    out.innerHTML = html;
+  }
+
+  $('sfr-go').addEventListener('click', run);
+  run();
+})();
+</script>
