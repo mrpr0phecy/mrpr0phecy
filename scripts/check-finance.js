@@ -430,6 +430,28 @@ section('money tools — stale statutory figures');
   else fail(`stale tax-year labels — ${stale.join(' | ')}`);
 }
 
+section('money tools — no placebo controls');
+{
+  /* A control that changes a caption but not the arithmetic is worse than no
+     control: it implies the tool models something it does not. debtpayoff.html
+     shipped "Snowball" and "Avalanche" buttons that produced identical numbers
+     on a single-balance calculator, where those multi-debt ordering strategies
+     cannot apply at all. Guard against reintroduction. */
+  const p = path.join(ROOT, 'cards', 'debtpayoff.html');
+  if (fs.existsSync(p)) {
+    const txt = fs.readFileSync(p, 'utf8');
+    const hasButton = /dpSetStrategy\((['"])(snowball|avalanche)\1\)/.test(txt);
+    const modelsIt = /sortedDebts|debts\.sort|byRate|byBalance/.test(txt);
+    if (hasButton && !modelsIt) {
+      fail('debtpayoff.html offers snowball/avalanche controls without modelling multiple debts');
+    } else if (/Snowball vs Avalanche/i.test(txt)) {
+      pass('debtpayoff.html explains snowball/avalanche instead of faking them');
+    } else {
+      pass('debtpayoff.html has no unmodelled strategy controls');
+    }
+  }
+}
+
 section('money tools — advice disclaimer present');
 {
   // Anything that outputs a monetary decision needs to say it is not advice.
