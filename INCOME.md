@@ -164,9 +164,37 @@ Three practical conclusions:
    breaches PayPal's terms for anything business-related and risks the account
    being frozen — losing the whole rail to save 30p.
 3. **Ko-fi or Buy Me a Coffee are worth pricing up** if donation volume ever
-   becomes non-trivial. Ko-fi takes 0% on donations (you still pay the
-   underlying processor). Not worth the migration effort at zero donations —
+   becomes non-trivial. Not worth the migration effort at zero donations —
    worth it at fifty a month.
+
+| Platform | Platform fee | Processor fee | Note |
+|---|---|---|---|
+| PayPal.me (current) | — | ~2.9% + 30p | The 30p floor is what hurts small tips |
+| **Ko-fi** (free plan) | **0%** on one-off | ~3% | No approval, set up in minutes |
+| Buy Me a Coffee | 5% | ~3% | More recognisable brand |
+| **GitHub Sponsors** | **0%** | **0%** (GitHub absorbs it) | Only sensible if the tools go open-source |
+| Liberapay | 0% | ~2–3% | Recurring only, EU-based |
+| Patreon | 5–12% | ~3–5% | Wrong shape — needs gated perks you've said you won't build |
+
+### The uncomfortable truth about individual donations
+
+Developers who have actually run this experiment are consistent, and it is
+worth internalising before optimising the donate page any further:
+
+- A well-known open-source Android app with **~2 million users** earns roughly
+  **$20,000/year** across all sources — a few hundred dollars a month to the
+  individual maintainer.
+- Most sustainably-funded free projects earn the majority of their money from
+  **corporate sponsorship, not individual donations.**
+
+The reason is the budget-category point above: a company approves a sponsorship
+from its *marketing* budget, whereas an individual donates from disposable
+income and a company would have to donate from an *altruism* budget that mostly
+doesn't exist. **That is why Route 3 outranks Route 2 despite needing a human.**
+
+Concretely: at a 0.05% conversion and a £7 average net donation, 10,000
+visitors produces roughly **£35**. One £250 sponsor is worth more than 70,000
+visitors' worth of donations. Do not spend another weekend on the donate page.
 
 ---
 
@@ -191,9 +219,19 @@ Sponsorship is priced off a CPM against *your* traffic, not off vibes:
 monthly price ≈ (monthly pageviews ÷ 1,000) × CPM
 ```
 
-For a small, untracked, highly-intent niche site, a defensible CPM is **£5–£25**
-— higher than a display-ad CPM because there is one sponsor per page, no
-competition for attention, and stated intent. So:
+**A warning about the CPM figures you will find online.** Almost all published
+"sponsorship CPM" tables — the ones quoting $25–$120 — are for **newsletters**,
+and are priced per 1,000 *subscribers or opens*. A newsletter subscriber is a
+permission-based, repeat, identifiable relationship. A pageview is a stranger
+who may never return. **They are not the same unit and the rates are not
+transferable.** Quoting a newsletter CPM against pageviews is the single
+easiest way to price yourself out of a deal and look like you don't know the
+market.
+
+For a static site placement priced per 1,000 pageviews, a defensible range is
+**£5–£25**. That is well above a programmatic display CPM (£1–£3) and the
+premium is genuinely earned: one sponsor per page, no competing units, no ad
+blindness, and stated intent rather than inferred demographics.
 
 | Monthly pageviews on the sponsored pages | Defensible monthly ask |
 |---|---|
@@ -201,11 +239,19 @@ competition for attention, and stated intent. So:
 | 10,000 | £50–£250 |
 | 50,000 | £250–£1,250 |
 
-Two rules that protect the relationship:
+Four rules that protect the relationship:
 - **Quote a trial month first.** A sponsor who sees real numbers and renews is
   worth more than one who feels oversold and churns.
 - **Never quote sitewide traffic for a single-tool placement.** If they are on
   the freelance rate calculator, quote that page's traffic.
+- **Expect the first offer to be low.** Brands routinely open 30–40% below
+  their actual budget. A calm "that's below what the traffic supports, here are
+  the numbers" is normal negotiation, not rudeness.
+- **Sell to a marketing budget, not an altruism budget.** This is the single
+  most useful insight from developers who have actually done this: companies
+  approve "advertising spend" far more readily than "supporting a nice free
+  tool". Same money, different internal category, dramatically different
+  conversion. Frame every pitch as reach, not as charity.
 
 The existing £1,000 custom-tool offer on `index.html` was rewritten: it
 previously promised placement "forever", "lifetime" support, an analytics

@@ -28,8 +28,10 @@ That asymmetry is why the money tools get a test suite and the others do not.
 
 ### What was found and fixed (2026-09-02)
 
-Four defects, all of them producing confidently-wrong numbers with no
-indication anything was amiss.
+Eight defects across two passes, all producing confidently-wrong numbers with
+no indication anything was amiss.
+
+**Pass 1 — the tax engines:**
 
 | # | File | Defect | Impact |
 |---|---|---|---|
@@ -40,6 +42,53 @@ indication anything was amiss.
 
 Defect 1 is the serious one. It was the site's headline tax tool, it was
 labelled "2024-25", and it was wrong for every single user at every income.
+
+**Pass 2 — the growth and debt engines:**
+
+| # | File | Defect | Impact |
+|---|---|---|---|
+| 5 | `compoundinterest.html` | **Six of seven compounding frequencies were broken.** Only monthly worked; every other option ran the contribution loop then discarded it, overwriting with `yearStart*(1+r)^freq + annualContribution` | £10,000 at 7% annual with £500/month reported **£700** of interest — precisely the interest on the opening balance, as though £6,000 of contributions had never been paid in |
+| 6 | `compoundinterest.html` | "Continuous" compounding silently mapped to monthly; the dedicated branch was unreachable dead code | Continuous gave monthly's answer |
+| 7 | `mortgage.html` | Total cost of ownership added **one** year of property tax and insurance to a 25-year mortgage | Understated total cost by ~£48,000 at default inputs |
+| 8 | `mortgage.html` | Amortisation billed the full nominal instalment in the final month rather than the amount actually taken | Total paid did not reconcile to principal + interest |
+
+Also in pass 2, two honesty problems rather than arithmetic ones:
+
+- **`debtpayoff.html` had placebo controls.** "Snowball" and "Avalanche"
+  buttons changed a caption and produced byte-identical results. Both are
+  multi-debt *ordering* strategies and cannot apply to a single-balance
+  calculator at all. A control that implies a capability the tool lacks is
+  worse than no control. Replaced with an explanation of when each wins —
+  including the part most sources omit, that the gap is usually tens of pounds
+  and the payment size matters far more than the ordering.
+- **`fire-financial-independence-calc.html` was hard-coded to US dollars** with
+  no selector, on a UK site. Now has a currency toggle defaulting to GBP,
+  explicitly display-only with no conversion implied.
+
+### Scotland — the largest coverage gap, now closed
+
+The tools previously handled only England, Wales and Northern Ireland. Scottish
+taxpayers are roughly 8% of the UK, and the divergence is not cosmetic:
+
+- Six bands (19%–48%) against three.
+- The **42% higher rate starts at £43,663**, not £50,270. That £6,600 slice is
+  taxed at 20% in rUK and 42% in Scotland — a **50% marginal rate** with NI.
+- In the £100k taper zone the Scottish effective marginal rate reaches roughly
+  **67.5%**, against 60% in rUK.
+- Below about **£33,500** a Scottish taxpayer pays slightly *less*, thanks to
+  the 19% starter rate. Above it, progressively more.
+
+`tax.html` now models all six bands behind a region selector. Three independent
+confirmations that the implementation is right:
+
+1. £50,000 → **£8,982**, matching the published worked example to the pound.
+2. The crossover point *falls out of* the implementation at **£33,550**,
+   against the ~£33,500 cited in the literature — not a figure that was coded in.
+3. A Scottish taxpayer on £75,000 pays **£2,050** more than an English one,
+   matching the published comparison.
+
+The personal allowance, its taper and National Insurance are reserved to
+Westminster, so both regimes deliberately share that code.
 
 ### The subtlety that caused defect 4 — worth understanding
 
@@ -60,7 +109,7 @@ tax calculator can tell someone. `tax.html` now models it and explains it.
 
 ### The guard against regression
 
-`scripts/check-finance.js` — **52 assertions**, wired into `scripts/verify.sh`
+`scripts/check-finance.js` — **89 assertions**, wired into `scripts/verify.sh`
 as step 7/8, so it runs on every pre-push check.
 
 Its design principle: **every expected value is computed from an independent
@@ -74,8 +123,21 @@ miss.
 node scripts/check-finance.js     # or: bash scripts/verify.sh
 ```
 
-It also enforces two standing rules: no stale tax-year labels in user-facing
-copy, and an advice caveat on every tool that outputs a financial decision.
+It also enforces three standing rules: no stale tax-year labels in user-facing
+copy, an advice caveat on every tool that outputs a financial decision, and no
+placebo controls (a guard added after the debtpayoff finding).
+
+Where a closed-form answer exists, the test uses it rather than a
+reimplementation — compound growth with no contributions must equal
+P(1 + r/n)^(nt) exactly, for every frequency. Where one does not, it uses a
+reference derived a *different way* from the implementation: the Scottish check
+is written from gross thresholds because the card stores cumulative taxable
+widths, so a shared misconception cannot hide in both.
+
+It also asserts invariants that must hold regardless of inputs — total paid
+reconciles to principal + interest, overpaying always shortens the term, a
+positive return always beats money paid in. Invariants catch bugs that anchor
+values miss, because they hold across the whole input space.
 
 **A worked warning from building this suite:** the first version of the test
 disagreed with the fixed code at £125,140 — and the *test* was right and the
@@ -85,15 +147,20 @@ code disagree, do not assume the code is wrong; go to the source.
 
 ### Standing rules for money tools
 
-1. **State the tax year and the jurisdiction.** "2026/27, England/Wales/NI.
-   Scotland differs." Scotland has six bands from 19% to 48%; presenting rUK
-   figures to a Scottish user unlabelled is simply wrong.
+1. **State the tax year and the jurisdiction.** Presenting rUK figures to a
+   Scottish user unlabelled is simply wrong. `tax.html` now models both; any
+   tool that does not must say which one it means.
 2. **Never hard-code a threshold that is derived.** £50,270 is derived. £37,700
    and £12,570 are the real constants.
 3. **Thresholds, not flat percentages.** NI, student loans and the taper are
    all banded. A flat percentage of gross is always wrong.
 4. **Every money tool carries a caveat** explaining what it does *not* model.
 5. **Add a test before fixing a bug**, so the sweep proves the fix.
+6. **No placebo controls.** If a button cannot change the arithmetic, it must
+   not appear as though it does. Explain the concept instead.
+7. **Derive the test differently from the code.** A reference implementation
+   that mirrors the implementation's structure will reproduce its mistakes.
+   Prefer a closed form, an invariant, or a published worked example.
 
 ### Annual maintenance — every April
 
@@ -301,9 +368,9 @@ Not done, deliberately, with reasons.
 |---|---|
 | **`token.html` decision** | Owner's call — see § 3. The one genuinely urgent item. |
 | **Check YouTube watch hours** | Only visible to the account owner, and there is a 1 Feb 2027 deadline. See `INCOME.md`. |
-| Audit the remaining 30 finance tools | The four highest-traffic and highest-stakes were fixed first. `mortgage.html`, `retirement.html`, `debtpayoff.html` and `investment.html` now carry caveats but their internal maths has not been swept the way the tax tools were. |
-| Scottish income tax bands | Currently out of scope and *labelled* as such, which is honest. Adding them would make the tools correct for ~8% more of the UK. |
-| Ko-fi / Stripe migration | Not worth the effort at current donation volume. Revisit at ~50 donations/month. |
+| Audit the remaining finance tools | Now swept: the tax engines, `mortgage.html`, `compoundinterest.html`, `debtpayoff.html`, `retirement.html` (found correct — annuity-due, consistently applied) and the FIRE planner. Still unswept: `investment.html`, `loan.html`, `creditcard.html`, `inflation.html`, `roi.html`, `networth.html` and the ~20 smaller ones. |
+| `networth.html` and `roi.html` currency | Both hard-code `$` like the FIRE planner did. Lower stakes (no statutory content) but the same UK-site mismatch. |
+| Ko-fi / Stripe migration | Not worth the effort at current donation volume. Revisit at ~50 donations/month — see the platform fee table in INCOME.md. |
 | A dedicated licensing page | Highest-value new build per `INCOME.md` Route 4. |
 
 ---
@@ -325,5 +392,28 @@ Not done, deliberately, with reasons.
 | CGT annual exempt amount | £3,000 |
 | Dividend allowance | £500 |
 
-**Scotland has its own income tax bands (six rates, 19%–48%) and is not
-modelled anywhere on this site.** National Insurance is UK-wide.
+**Scottish income tax 2026/27** (non-savings, non-dividend income). Rates are
+unchanged from 2025/26, but the starter and basic thresholds widened 7.4%:
+
+| Band | Rate | Gross income |
+|---|---|---|
+| Starter | 19% | £12,571 – £16,537 |
+| Basic | 20% | £16,538 – £29,526 |
+| Intermediate | 21% | £29,527 – £43,662 |
+| Higher | **42%** | £43,663 – £75,000 |
+| Advanced | 45% | £75,001 – £125,140 |
+| Top | 48% | above £125,140 |
+
+Modelled in `tax.html` via the region selector. **Not yet** in `salary.html` or
+`salarycompare.html`, which remain rUK-only and say so.
+
+Three traps worth remembering:
+- The personal allowance, its £100k taper and **National Insurance are reserved
+  to Westminster** — identical in both regimes. Do not "Scottish-ify" them.
+- For the Personal Savings Allowance and most statutory "higher rate taxpayer"
+  tests, the **UK £50,270 threshold still applies**, not the Scottish £43,663.
+  Only Gift Aid and Marriage Allowance use the Scottish threshold.
+- Scottish thresholds are reset at each Scottish Budget, so they need checking
+  every year — unlike the rUK thresholds, frozen to April 2028.
+
+**Wales** sets its rates equal to England's, so a `C` tax code changes nothing.
