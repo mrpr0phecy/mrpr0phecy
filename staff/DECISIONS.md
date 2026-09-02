@@ -1,10 +1,15 @@
 # ✅ DECISIONS
 
 Settled questions. **Binding on every agent**, including future sessions of
-the agent that wrote them.
+the agent that wrote them. Proposed by staff; the owner (`@mrpr0phecy`) has
+the final call and can overturn any of them.
+
+Discussion happens on [`BOARD.md`](BOARD.md). This file is only the settled
+outcomes, kept separate so a decision does not scroll off the bottom of a
+conversation log.
 
 If you think one is wrong, don't silently revert it — reopen it in
-[`DISCUSSION.md`](DISCUSSION.md) with evidence and let it be re-decided. A
+[`BOARD.md`](BOARD.md) with evidence and let it be re-decided. A
 decision that gets quietly undone comes back as the same bug three weeks later.
 
 Format: what was decided, why, what it means in practice, who owns it.
@@ -13,7 +18,7 @@ Format: what was decided, why, what it means in practice, who owns it.
 
 ## D-001 — Published numbers must be derived, never typed
 
-**Decided:** 2026-09-02 · **Owner:** legal (`01a062bc`) · **Status:** binding
+**Decided:** 2026-09-02 · **Owner:** @legal · **Status:** binding
 
 **Context.** The tool count appeared as 483 on `donate.html`, `sponsor.html`
 and `404.html`, 500 on `tool.html` and in the docs, and 562 in `index.html` —
@@ -28,7 +33,7 @@ change that publishes it. For the catalogue that is
 **In practice.** Changing the card count means updating `index.html` (hero
 badge, search placeholder, both JSON-LD blocks), `tool.html`, `donate.html`,
 `sponsor.html` and `404.html` **together**. `scripts/check-cards.py` verifies
-the catalogue; `staffroom/scan.py` shows cross-branch drift.
+the catalogue; `staff/scan.py` shows cross-branch drift.
 
 **Applies to:** tool counts, audience/subscriber figures, revenue claims,
 "X people used this", sponsorship reach.
@@ -37,7 +42,7 @@ the catalogue; `staffroom/scan.py` shows cross-branch drift.
 
 ## D-002 — Analytics is disclosed, never denied
 
-**Decided:** 2026-09-02 · **Owner:** legal (`01a062bc`) · **Status:** binding
+**Decided:** 2026-09-02 · **Owner:** @legal · **Status:** binding
 **Supersedes:** an earlier position (same day) of removing analytics entirely
 
 **Context.** Google Analytics (`G-G058FVW6Z2`) shipped on 14 pages and
@@ -68,13 +73,13 @@ problem (CPRs/ASA), not a style preference.
 
 **Open:** no consent banner currently ships. Under UK PECR reg. 6 a banner is
 the safer position, and `legal.html` invites visitors to request one. Revisit
-if the audience becomes materially UK/EU — see DISCUSSION #4.
+if the audience becomes materially UK/EU — see the board.
 
 ---
 
 ## D-003 — Disclaimers live in the risk-notice tables, never inside cards
 
-**Decided:** 2026-09-02 · **Owner:** legal (`01a062bc`) · **Status:** binding
+**Decided:** 2026-09-02 · **Owner:** @legal · **Status:** binding
 
 **Context.** The catalogue includes BMI, calorie and child-growth tools,
 mortgage/loan/tax calculators, breaker- and cable-sizing tools, and a GDPR
@@ -93,40 +98,40 @@ inside the card. Cards stay pure fragments.
 
 ## D-004 — One `help.html`, one `legal.html`
 
-**Decided:** 2026-09-02 · **Owner:** legal (`01a062bc`) · **Status:** binding
+**Decided:** 2026-09-02 · **Owner:** @legal · **Status:** binding
 
-**Context.** Branch `01a062bc` and branch `01a05fea` independently created a
+**Context.** Two branches (`01a062bc` and `01a05fea`) independently created a
 `help.html` FAQ on the same day, at the same URL, without knowing about each
-other. `01a05fea`'s version is longer and has better site-mechanics answers
-(Toolbox, keyboard shortcuts, sharing, offline). `01a062bc`'s covers privacy,
-money, music, legal and takedown, and has a working client-side search.
-**`01a05fea`'s version states "none of them use analytics" on a page that
+other. One is longer with better site-mechanics answers (Toolbox, keyboard
+shortcuts, sharing, offline); the other covers privacy, money, music, legal
+and takedown, and has a working client-side search.
+**One version states "none of them use analytics" on a page that
 loads Google Analytics** — a D-002 violation.
 
 **Decision.** These merge into one file rather than one overwriting the other.
-Take `01a05fea`'s site-mechanics answers and `01a062bc`'s privacy/legal/money
-answers plus the search box. Whoever merges second does the combining, keeps
+Keep the site-mechanics answers from one and the privacy/legal/money answers
+plus the search box from the other. Whoever merges second does the combining, keeps
 the `FAQPage` JSON-LD in sync with the visible text, and fixes the analytics
 claim per D-002.
 
 **General rule this establishes.** Before creating a new **top-level page**,
-run `python3 staffroom/scan.py` and check no one else has taken the filename.
+run `python3 staff/scan.py` and check no one else has taken the filename.
 Cheap to check, expensive to discover after both are written.
 
 ---
 
-## D-005 — The staffroom board is generated, not written
+## D-005 — The branch map is generated, not written
 
-**Decided:** 2026-09-02 · **Owner:** legal (`01a062bc`) · **Status:** binding
+**Decided:** 2026-09-02 · **Owner:** @legal · **Status:** binding
 
 **Context.** Coordination systems built on self-reported status decay: notes
 go stale, agents forget to post, and a "currently working on X" line outlives
 the work by weeks.
 
-**Decision.** `BOARD.md` is produced by `staffroom/scan.py` from real branch
-diffs and is never hand-edited. Agent notes in `notes/` add intent and
-reasoning — the *why* — which a diff can't show. **Where the two disagree,
-the board wins.**
+**Decision.** `staff/BRANCHES.md` is produced by `staff/scan.py` from real
+branch diffs and is never hand-edited. `staff/BOARD.md` is the hand-written
+half: intent, handover and reasoning, which a diff cannot show. **For *what
+changed*, believe BRANCHES.md; for *why*, believe BOARD.md.**
 
-**In practice.** Run `python3 staffroom/scan.py --mine` before you push. It
+**In practice.** Run `python3 staff/scan.py --mine` before you push. It
 takes seconds and tells you exactly whose work you're about to collide with.
