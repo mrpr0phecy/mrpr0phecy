@@ -12,6 +12,106 @@ income described here, and the open compliance risk on `token.html`. Read both.
 
 ---
 
+## The strategy, as stated (2026-09-02)
+
+The owner's position, which everything below is now organised around:
+
+> Profitable **without charging the end user**. The appeal of being educational
+> and informative is the selling point. Hope that the music becomes popular
+> enough that YouTube and SoundCloud pay a stream of money. Look for heartfelt
+> donations over the long term. Open to sponsorship, **as long as it is less
+> than 5% of the page**.
+
+This is a coherent and defensible model. It is *not* the same thing as a free
+model, and the distinction matters: it is a **free-to-user, paid-by-third-party
+model**, which is a real business shape with real precedents. Three of the four
+pillars are sound. One of them needs correcting before it can be planned around.
+
+### The 5% rule is the best constraint here, and it should be written down
+
+Capping sponsorship at under 5% of the page is a genuinely good instinct and it
+happens to align with what actually converts. A single labelled line under a
+tool, on a page with no other advertising, is worth **far more per impression**
+than the same line on a page carrying six ad units — because it holds a monopoly
+on commercial attention. The scarcity *is* the product.
+
+The commercial risk of the 5% rule is not that it earns too little. It is that
+it gets quietly eroded — one extra placement at a time, each individually
+defensible — until the thing that made it valuable is gone. So it is now a
+machine-checked rule rather than an intention: see "The 5% rule, enforced" below.
+
+### The correction: streaming will not become the stream of money
+
+This is the one assumption that needs adjusting, and it is better to know now
+than after two years of waiting for it.
+
+At 2026 rates, **SoundCloud pays $2.50–$4.00 per 1,000 plays** and **Spotify
+$3–$5**. YouTube Music is the lowest of the majors at $0.002–$0.004 per stream.
+Those are gross, before any distributor cut. What that means concretely:
+
+| To earn | You need, on SoundCloud |
+|---|---|
+| £50/month | ~20,000 plays/month |
+| £500/month | ~200,000 plays/month |
+| £2,000/month (part-time wage) | ~800,000 plays/month |
+
+800,000 plays a month is not a "popular independent artist" number. It is a
+charting number. And the trend is against the long tail, not with it: Spotify's
+1,000-stream-per-track-per-year minimum **demonetised an estimated 86% of the
+catalogue on the platform** and moved roughly $40m a year from the long tail up
+to artists above the threshold. A track with 800 plays a year now earns exactly
+£0 where it used to earn a few pounds.
+
+**This is not an argument for making less music.** It is an argument for not
+putting the weight of the plan on the per-stream rate, because the per-stream
+rate is the single worst-paying way a piece of music can earn. The same catalogue
+earns far more through the routes below. Keep making music — just don't wait on
+streaming to be what pays for it.
+
+### The gap: no distributor means the best-paying route is switched off
+
+The music is currently on **YouTube and SoundCloud only**. There is no
+distributor in the picture, and that has a consequence that is easy to miss:
+
+**There is no Content ID registration.** Content ID is YouTube's audio
+fingerprinting system. It scans every video uploaded to YouTube against your
+catalogue, and when someone else's video uses your music, the ad revenue on
+*their* video routes to *you*. It pays roughly **$1–$3 per 1,000 views** on
+claimed content, it works on videos you had nothing to do with, and it keeps
+paying for years without further effort.
+
+For a catalogue of 233 uploads and 47 animated videos, this is the closest thing
+to the "stream of money" being hoped for — and it is currently switched off. It
+cannot be registered directly; it comes through a licensed distributor. Entry
+costs are now trivial (roughly $1 per single, or a low annual fee), and several
+distributors take 0% commission on Content ID revenue.
+
+Distribution also puts the catalogue on Apple Music at **$0.007–$0.010 per
+stream — two to three times SoundCloud's rate** — and on Tidal at $0.012–$0.015.
+Same music, same effort, several times the rate.
+
+This is the highest-value unrealised item in this document. It is a one-off
+afternoon of admin against a permanent, genuinely passive revenue line.
+
+### What the four pillars are actually worth
+
+Ranked by realistic annual contribution, not by appeal:
+
+| Pillar | Verdict |
+|---|---|
+| **Content ID + distribution** | Not yet started. Best effort-to-return ratio available. Genuinely passive once set up. |
+| **YouTube ad revenue (YPP)** | Strongest existing asset — already past the 1,000-subscriber wall. **Deadline 1 Feb 2027.** |
+| **Sponsorship at <5%** | Realistic and repeatable. Needs a human to answer emails. Scales with traffic. |
+| **Sync licensing** | Best £/hour of anything here. One placement can beat a year of streams. |
+| **Donations** | Real but small. Worth keeping warm; not worth optimising further. |
+| **Per-stream royalties** | Will not carry the plan at any plausible audience size. Treat as a bonus. |
+
+The honest summary: **the music is far more valuable as licensable and
+claimable content than as streamed content.** The catalogue is the asset. Streams
+are the worst way to monetise it; Content ID and sync are the best.
+
+---
+
 ## The honest headline
 
 **Nothing here is passive.** Every income route below needs either an audience
@@ -195,6 +295,46 @@ doesn't exist. **That is why Route 3 outranks Route 2 despite needing a human.**
 Concretely: at a 0.05% conversion and a £7 average net donation, 10,000
 visitors produces roughly **£35**. One £250 sponsor is worth more than 70,000
 visitors' worth of donations. Do not spend another weekend on the donate page.
+
+### Heartfelt and long-term is a different mechanism from tipping
+
+The stated hope is for *heartfelt donations over the long term*, and that is
+worth separating from one-off tips, because the two behave differently.
+
+A tip is a reaction to a single moment — a tool that saved someone twenty
+minutes. It is small, it does not repeat, and the 30p PayPal floor eats a
+painful share of it. The £35-per-10,000-visitors maths above is tipping maths,
+and it is why optimising the donate page further is not worth the weekend.
+
+A heartfelt long-term supporter is reacting to something else entirely: a
+*relationship with the work over time*. What reliably produces those, based on
+how comparable projects actually behave:
+
+1. **Longevity that is visible.** Someone who has used the tools for two years
+   gives differently from someone who arrived this morning. Nothing needs
+   building for this — it accrues, as long as the work keeps existing.
+2. **A named human, not a brand.** `support.html` already gets this right.
+   "Independent · Unsigned" and "there's no label and no team" is exactly the
+   frame that makes a person want to chip in.
+3. **Knowing where the money went.** Not a public ledger — just the occasional
+   concrete line. "This paid the hosting for the year" converts better than any
+   button design, because it makes the support feel *received*.
+4. **Never being asked hard.** Counter-intuitive but consistent: the projects
+   that ask most aggressively convert worst on this specific kind of donation.
+   The current pages ask gently and put the free actions first. Keep that.
+
+The one structural change worth making eventually is a **recurring** option —
+not a membership with perks, which would violate the no-gating principle, but a
+plain "£2/month if you want to" for the people who already want to. Recurring
+support is where the "long term" part actually lives; a tip jar can only ever
+capture a moment. Ko-fi supports this at 0% platform fee on the free plan.
+
+**What not to do, given the stated positioning:** do not add perks, early
+access, supporter-only tracks, or a private feed. `support.html` already
+explicitly promises none of that, and the promise is more valuable than the
+marginal conversion. It is also the thing that makes the donations heartfelt
+rather than transactional — people are supporting the principle, and the
+principle is that nothing is held back.
 
 ---
 
@@ -406,11 +546,22 @@ Ranked by return per hour of effort, not by size of prize:
 
 1. **Check YouTube watch hours today.** Free, five minutes, and there is a
    hard deadline of 1 Feb 2027 behind it.
-2. **Join PPL.** Free. You are a performer who owns his masters and is not
+2. **Get the catalogue on a distributor and into Content ID.** An afternoon and
+   roughly the price of a coffee. This is the single biggest unrealised item in
+   this document: it switches on the only genuinely passive music revenue line
+   available (~$1–$3 per 1,000 views on *other people's* videos that use your
+   music), and simultaneously puts the catalogue on Apple Music at 2–3× the
+   SoundCloud rate. Currently switched off entirely.
+3. **Join PPL.** Free. You are a performer who owns his masters and is not
    collecting neighbouring rights.
-3. **Prepare stems, instrumentals and clean versions for your ten best
+4. **Prepare stems, instrumentals and clean versions for your ten best
    tracks.** A weekend. It is the difference between being pitchable and not.
-4. **Register works with PRS/MCPS** (£200 total) once there is any broadcast or
+5. **Register works with PRS/MCPS** (£200 total) once there is any broadcast or
    sync activity to collect on.
-5. **Resolve the `token.html` question** (see `FINANCE.md`). This one is not
+6. **Resolve the `token.html` question** (see `FINANCE.md`). This one is not
    about earning — it is about not losing everything else.
+
+Note what is *not* on this list: growing streams. Streams are the output of
+doing the above well, not an input you can push on directly — and at $2.50–$4
+per 1,000 they are the worst-paying use of the catalogue even when they go
+well. Make the music; monetise it through the routes that actually pay.

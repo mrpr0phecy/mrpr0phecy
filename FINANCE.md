@@ -109,7 +109,7 @@ tax calculator can tell someone. `tax.html` now models it and explains it.
 
 ### The guard against regression
 
-`scripts/check-finance.js` — **89 assertions**, wired into `scripts/verify.sh`
+`scripts/check-finance.js` — **94 assertions**, wired into `scripts/verify.sh`
 as step 7/8, so it runs on every pre-push check.
 
 Its design principle: **every expected value is computed from an independent
@@ -123,7 +123,9 @@ miss.
 node scripts/check-finance.js     # or: bash scripts/verify.sh
 ```
 
-It also enforces three standing rules: no stale tax-year labels in user-facing
+It also enforces the sponsorship 5% rule (one labelled slot per page, and the
+public house-rule promises on `sponsor.html` still being present) plus three
+standing rules: no stale tax-year labels in user-facing
 copy, an advice caveat on every tool that outputs a financial decision, and no
 placebo controls (a guard added after the debtpayoff finding).
 
@@ -205,6 +207,45 @@ in connection with a trade — supporting a site you run and continue to publish
 — HMRC will generally treat it as trading income. Treat PayPal donations as
 taxable receipts and count them toward the £1,000. If donations ever become
 substantial, take real advice rather than relying on a repo file.
+
+### US withholding tax — the 30% trap on streaming and Content ID
+
+This becomes relevant the moment the catalogue goes onto a distributor, so it
+is worth knowing **before** rather than after.
+
+YouTube, most distributors and the US streaming platforms are US payers. Under
+US law they must withhold tax on royalties paid to a non-US person. The default
+rate, if you have filed nothing, is **30% of gross US-source royalties** —
+deducted at source, before the money ever reaches you.
+
+The UK–US double taxation treaty reduces that rate on copyright royalties to
+**0%** for a UK resident. But the reduction is **not automatic**. You have to
+claim it by filing a **Form W-8BEN** with each payer, which is:
+
+- free,
+- done online inside YouTube AdSense and inside every distributor's dashboard,
+- about ten minutes,
+- and requires your UK **National Insurance number or UTR** as the foreign tax
+  identifying number.
+
+A W-8BEN lasts three calendar years plus the year signed, then must be renewed.
+**If it lapses, withholding silently reverts to 30%** — and the money is
+genuinely gone, not merely delayed, because reclaiming overwithheld US tax means
+filing a US return. Diarise the renewal.
+
+Note this applies **per payer**. Filing one with YouTube does nothing for a
+distributor, and vice versa. Every new platform needs its own.
+
+Two related points:
+- Only the **US-source share** is affected — roughly, royalties arising from US
+  listeners. A withheld amount on a small US audience may look trivial and still
+  be worth ten minutes to eliminate permanently.
+- Where foreign tax *is* correctly withheld, UK **Foreign Tax Credit Relief** can
+  offset it against the UK tax on the same income, so it is not usually taxed
+  twice. But relief against nothing is worth nothing: if you are below the
+  £1,000 trading allowance and pay no UK tax on it, there is no UK liability to
+  credit the withheld US tax against. At small volumes the W-8BEN is not a
+  timing improvement — it is the whole difference.
 
 ### Sync licensing income
 

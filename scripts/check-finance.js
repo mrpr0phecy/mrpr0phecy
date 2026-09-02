@@ -430,6 +430,56 @@ section('money tools — stale statutory figures');
   else fail(`stale tax-year labels — ${stale.join(' | ')}`);
 }
 
+section('sponsorship — the 5% rule');
+{
+  /* Owner's stated constraint: sponsorship must stay under 5% of the page, and
+     there is exactly one placement per page. The commercial danger is not that
+     this earns too little - it is that it erodes one individually-defensible
+     placement at a time until the scarcity that made it valuable is gone.
+     A single sponsor on an otherwise clean page is worth more per impression
+     than several on a cluttered one, so this guard protects revenue as much as
+     it protects the reader. Encoded here so erosion has to be deliberate. */
+  const SPONSOR_MARK = /<!--\s*SPONSOR-SLOT\s*-->/g;
+  const cardFiles = fs.existsSync(path.join(ROOT, 'cards'))
+    ? fs.readdirSync(path.join(ROOT, 'cards')).filter(f => f.endsWith('.html'))
+    : [];
+  let multi = [];
+  let unlabelled = [];
+  for (const f of cardFiles) {
+    const txt = fs.readFileSync(path.join(ROOT, 'cards', f), 'utf8');
+    const slots = (txt.match(SPONSOR_MARK) || []).length;
+    if (slots > 1) multi.push(`${f} (${slots})`);
+    if (slots === 1 && !/Sponsored/.test(txt)) unlabelled.push(f);
+  }
+  if (multi.length) {
+    fail(`more than one sponsor slot on: ${multi.join(', ')} — the 5% rule allows one per page`);
+  } else {
+    pass('no page carries more than one sponsor slot');
+  }
+  if (unlabelled.length) {
+    fail(`sponsor slot not labelled "Sponsored" on: ${unlabelled.join(', ')}`);
+  } else {
+    pass('every sponsor slot is labelled "Sponsored"');
+  }
+
+  /* The house rules on sponsor.html are a public promise. Breaking them is a
+     trust failure and, for a site whose whole pitch is "no tracking", also
+     removes the reason a sponsor is paying a premium in the first place. */
+  const sp = path.join(ROOT, 'sponsor.html');
+  if (fs.existsSync(sp)) {
+    const txt = fs.readFileSync(sp, 'utf8');
+    const promises = [
+      [/No third-party scripts/i, 'no third-party scripts'],
+      [/No tracking pixels/i, 'no tracking pixels'],
+      [/Always labelled/i, 'always labelled Sponsored'],
+    ];
+    for (const [re, name] of promises) {
+      if (re.test(txt)) pass(`sponsor.html still promises: ${name}`);
+      else fail(`sponsor.html no longer promises: ${name}`);
+    }
+  }
+}
+
 section('money tools — no placebo controls');
 {
   /* A control that changes a caption but not the arithmetic is worse than no
