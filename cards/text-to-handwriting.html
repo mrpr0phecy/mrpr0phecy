@@ -1,0 +1,134 @@
+<h2>✍️ Text to Handwriting</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Convert typed text into realistic handwriting. Choose styles, sizes, and colors. Download as image.</p>
+
+<div id="th-app" style="max-width:700px;margin:0 auto;">
+  <div style="margin-bottom:12px;">
+    <textarea id="th-input" style="width:100%;height:100px;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;box-sizing:border-box;" placeholder="Type your text here...">The quick brown fox jumps over the lazy dog. This text will be converted to handwriting style.</textarea>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#2dd4ff;font-size:11px;">Font Style</label>
+      <select id="th-font" style="width:100%;padding:6px;border-radius:4px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;">
+        <option value="'Segoe Script','Comic Sans MS',cursive">Cursive</option>
+        <option value="'Courier New',monospace">Neat Print</option>
+        <option value="'Georgia',serif">Formal</option>
+        <option value="'Brush Script MT',cursive">Brush</option>
+      </select>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#39ff14;font-size:11px;">Size: <span id="th-size-val">18</span>px</label>
+      <input id="th-size" type="range" min="12" max="32" value="18" style="width:100%;accent-color:#39ff14;" />
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#ffa500;font-size:11px;">Ink Color</label>
+      <select id="th-color" style="width:100%;padding:6px;border-radius:4px;border:1px solid rgba(255,165,0,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;">
+        <option value="#1a1a2e">Blue Ink</option>
+        <option value="#0a0a0a">Black Ink</option>
+        <option value="#8b0000">Red Ink</option>
+        <option value="#006400">Green Ink</option>
+      </select>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#c060f0;font-size:11px;">Paper</label>
+      <select id="th-paper" style="width:100%;padding:6px;border-radius:4px;border:1px solid rgba(192,96,240,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;">
+        <option value="lined">Lined</option>
+        <option value="blank">Blank</option>
+        <option value="grid">Grid</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="window._thRender()" style="flex:1;padding:10px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">✍️ Render</button>
+    <button onclick="window._thDownload()" style="padding:10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:8px;color:#2dd4ff;cursor:pointer;">⬇ Download</button>
+  </div>
+
+  <div id="th-preview" style="border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);"></div>
+</div>
+
+<script>
+(function(){
+  function render(){
+    var text=document.getElementById('th-input').value;
+    var font=document.getElementById('th-font').value;
+    var size=parseInt(document.getElementById('th-size').value);
+    var color=document.getElementById('th-color').value;
+    var paper=document.getElementById('th-paper').value;
+    document.getElementById('th-size-val').textContent=size;
+    var canvas=document.createElement('canvas');
+    var ctx=canvas.getContext('2d');
+    var padding=40;
+    var lineHeight=size*1.8;
+    var maxWidth=650;
+    canvas.width=maxWidth+padding*2;
+    // Calculate height
+    ctx.font=size+'px '+font;
+    var lines=[];var currentLine='';
+    text.split('\n').forEach(function(para){
+      if(!para){lines.push('');return;}
+      para.split(' ').forEach(function(word){
+        var test=currentLine?(currentLine+' '+word):word;
+        if(ctx.measureText(test).width>maxWidth){lines.push(currentLine);currentLine=word;}
+        else currentLine=test;
+      });
+      if(currentLine){lines.push(currentLine);currentLine='';}
+    });
+    canvas.height=Math.max(200,lines.length*lineHeight+padding*2);
+    // Paper background
+    ctx.fillStyle='#fffff8';ctx.fillRect(0,0,canvas.width,canvas.height);
+    // Paper pattern
+    if(paper==='lined'){
+      ctx.strokeStyle='rgba(180,200,220,0.3)';ctx.lineWidth=0.5;
+      for(var y=padding+lineHeight;y<canvas.height-padding;y+=lineHeight){
+        ctx.beginPath();ctx.moveTo(padding,y);ctx.lineTo(canvas.width-padding,y);ctx.stroke();
+      }
+      // Red margin line
+      ctx.strokeStyle='rgba(255,100,100,0.2)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(padding+30,0);ctx.lineTo(padding+30,canvas.height);ctx.stroke();
+    }else if(paper==='grid'){
+      ctx.strokeStyle='rgba(180,200,220,0.15)';ctx.lineWidth=0.5;
+      for(var x=padding;x<canvas.width-padding;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
+      for(var y=padding;y<canvas.height-padding;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+    }
+    // Text with slight randomization for handwriting effect
+    ctx.fillStyle=color;
+    ctx.font=size+'px '+font;
+    ctx.textBaseline='top';
+    lines.forEach(function(line,i){
+      var y=padding+i*lineHeight;
+      var x=padding+(paper==='lined'?35:0);
+      // Slight rotation for each character
+      for(var j=0;j<line.length;j++){
+        var ch=line[j];
+        ctx.save();
+        var charX=x+ctx.measureText(line.substring(0,j)).width;
+        var charY=y+(Math.random()-0.5)*2;
+        ctx.translate(charX,charY);
+        ctx.rotate((Math.random()-0.5)*0.03);
+        ctx.fillText(ch,0,0);
+        ctx.restore();
+      }
+    });
+    document.getElementById('th-preview').innerHTML='';
+    document.getElementById('th-preview').appendChild(canvas);
+    canvas.style.width='100%';
+    canvas.style.height='auto';
+  }
+  function download(){
+    var canvas=document.querySelector('#th-preview canvas');
+    if(!canvas){render();canvas=document.querySelector('#th-preview canvas');}
+    if(!canvas)return;
+    var a=document.createElement('a');
+    a.download='handwriting.png';
+    a.href=canvas.toDataURL('image/png');
+    a.click();
+  }
+  window._thRender=render;window._thDownload=download;
+  ['th-font','th-size','th-color','th-paper'].forEach(function(id){
+    document.getElementById(id).addEventListener('change',render);
+    document.getElementById(id).addEventListener('input',render);
+  });
+  render();
+})();
+</script>

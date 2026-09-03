@@ -1,0 +1,148 @@
+<h2>🧮 Truth Table Generator</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Generate truth tables for logical expressions. Supports AND, OR, NOT, XOR, IMPLIES, and IFF operators.</p>
+
+<div id="tt-app" style="max-width:600px;margin:0 auto;">
+  <div style="margin-bottom:12px;">
+    <label style="display:block;margin-bottom:6px;color:#2dd4ff;font-size:13px;">Logical Expression</label>
+    <div style="display:flex;gap:8px;">
+      <input id="tt-expr" type="text" value="(P AND Q) OR (NOT P)" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-family:monospace;font-size:14px;" placeholder="e.g. (P AND Q) OR NOT R" />
+      <button onclick="window._ttGenerate()" style="padding:10px 18px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">Generate</button>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+    <button onclick="window._ttInsert('AND')" style="padding:6px 12px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.2);border-radius:4px;color:#2dd4ff;cursor:pointer;font-size:12px;">AND</button>
+    <button onclick="window._ttInsert('OR')" style="padding:6px 12px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.2);border-radius:4px;color:#39ff14;cursor:pointer;font-size:12px;">OR</button>
+    <button onclick="window._ttInsert('NOT')" style="padding:6px 12px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.2);border-radius:4px;color:#ffa500;cursor:pointer;font-size:12px;">NOT</button>
+    <button onclick="window._ttInsert('XOR')" style="padding:6px 12px;background:rgba(192,96,240,0.1);border:1px solid rgba(192,96,240,0.2);border-radius:4px;color:#c060f0;cursor:pointer;font-size:12px;">XOR</button>
+    <button onclick="window._ttInsert('IMPLIES')" style="padding:6px 12px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.2);border-radius:4px;color:#ff4d4d;cursor:pointer;font-size:12px;">IMPLIES</button>
+    <button onclick="window._ttInsert('IFF')" style="padding:6px 12px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.2);border-radius:4px;color:#ffd700;cursor:pointer;font-size:12px;">IFF</button>
+    <button onclick="window._ttInsert('(')" style="padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:rgba(230,250,255,0.6);cursor:pointer;font-size:12px;">(</button>
+    <button onclick="window._ttInsert(')')" style="padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:rgba(230,250,255,0.6);cursor:pointer;font-size:12px;">)</button>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <div style="font-size:12px;color:rgba(230,250,255,0.5);margin-bottom:8px;">Quick Examples</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button onclick="document.getElementById('tt-expr').value='P AND Q';window._ttGenerate();" style="padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:rgba(230,250,255,0.5);cursor:pointer;font-size:11px;">P AND Q</button>
+      <button onclick="document.getElementById('tt-expr').value='P OR Q';window._ttGenerate();" style="padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:rgba(230,250,255,0.5);cursor:pointer;font-size:11px;">P OR Q</button>
+      <button onclick="document.getElementById('tt-expr').value='NOT P';window._ttGenerate();" style="padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:rgba(230,250,255,0.5);cursor:pointer;font-size:11px;">NOT P</button>
+      <button onclick="document.getElementById('tt-expr').value='P IMPLIES Q';window._ttGenerate();" style="padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:rgba(230,250,255,0.5);cursor:pointer;font-size:11px;">P IMPLIES Q</button>
+      <button onclick="document.getElementById('tt-expr').value='(P AND Q) OR (NOT R)';window._ttGenerate();" style="padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:rgba(230,250,255,0.5);cursor:pointer;font-size:11px;">(P AND Q) OR (NOT R)</button>
+    </div>
+  </div>
+
+  <div id="tt-result" style="overflow-x:auto;"></div>
+  <div id="tt-info" style="margin-top:8px;font-size:12px;color:rgba(230,250,255,0.4);"></div>
+</div>
+
+<script>
+(function(){
+  function tokenize(expr){
+    var tokens=[];var i=0;
+    while(i<expr.length){
+      if(expr[i]===' '){i++;continue;}
+      if(expr[i]==='('){tokens.push('(');i++;continue;}
+      if(expr[i]===')'){tokens.push(')');i++;continue;}
+      var word='';
+      while(i<expr.length&&/[A-Za-z]/.test(expr[i])){word+=expr[i];i++;}
+      if(word){
+        var upper=word.toUpperCase();
+        if(upper==='AND')tokens.push('AND');
+        else if(upper==='OR')tokens.push('OR');
+        else if(upper==='NOT')tokens.push('NOT');
+        else if(upper==='XOR')tokens.push('XOR');
+        else if(upper==='IMPLIES'||upper==='IMP')tokens.push('IMPLIES');
+        else if(upper==='IFF')tokens.push('IFF');
+        else if(upper==='TRUE')tokens.push('TRUE');
+        else if(upper==='FALSE')tokens.push('FALSE');
+        else tokens.push(upper);
+      }else{i++;}
+    }
+    return tokens;
+  }
+  function getVars(tokens){
+    var vars=[];
+    tokens.forEach(function(t){
+      if(['AND','OR','NOT','XOR','IMPLIES','IFF','(',')','TRUE','FALSE'].indexOf(t)<0&&vars.indexOf(t)<0)vars.push(t);
+    });
+    return vars.sort();
+  }
+  function evalExpr(tokens,vals){
+    var pos=0;
+    function parseExpr(){return parseIff();}
+    function parseIff(){
+      var left=parseImplies();
+      while(pos<tokens.length&&tokens[pos]==='IFF'){pos++;var right=parseImplies();left=(left===right);}
+      return left;
+    }
+    function parseImplies(){
+      var left=parseOr();
+      while(pos<tokens.length&&tokens[pos]==='IMPLIES'){pos++;var right=parseOr();left=(!left||right);}
+      return left;
+    }
+    function parseOr(){
+      var left=parseXor();
+      while(pos<tokens.length&&tokens[pos]==='OR'){pos++;var right=parseXor();left=(left||right);}
+      return left;
+    }
+    function parseXor(){
+      var left=parseAnd();
+      while(pos<tokens.length&&tokens[pos]==='XOR'){pos++;var right=parseAnd();left=(left!==right);}
+      return left;
+    }
+    function parseAnd(){
+      var left=parseNot();
+      while(pos<tokens.length&&tokens[pos]==='AND'){pos++;var right=parseNot();left=(left&&right);}
+      return left;
+    }
+    function parseNot(){
+      if(pos<tokens.length&&tokens[pos]==='NOT'){pos++;return !parseNot();}
+      return parseAtom();
+    }
+    function parseAtom(){
+      if(tokens[pos]==='('){pos++;var v=parseExpr();pos++;return v;}
+      if(tokens[pos]==='TRUE'){pos++;return true;}
+      if(tokens[pos]==='FALSE'){pos++;return false;}
+      var v=vals[tokens[pos]];pos++;return v;
+    }
+    pos=0;return parseExpr();
+  }
+  function generate(){
+    var expr=document.getElementById('tt-expr').value;
+    var tokens=tokenize(expr);
+    var vars=getVars(tokens);
+    if(!vars.length){document.getElementById('tt-result').innerHTML='<div style="color:#ff4d4d;">No variables found. Use letters like P, Q, R.</div>';return;}
+    if(vars.length>8){document.getElementById('tt-result').innerHTML='<div style="color:#ff4d4d;">Too many variables (max 8). Found: '+vars.length+'</div>';return;}
+    var rows=Math.pow(2,vars.length);
+    var html='<table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:13px;">';
+    html+='<tr style="background:rgba(45,212,255,0.1);">';
+    vars.forEach(function(v){html+='<th style="padding:8px;border:1px solid rgba(45,212,255,0.2);color:#2dd4ff;">'+v+'</th>';});
+    html+='<th style="padding:8px;border:1px solid rgba(57,255,20,0.2);color:#39ff14;">Result</th></tr>';
+    var trueCount=0;
+    for(var i=0;i<rows;i++){
+      var vals={};
+      vars.forEach(function(v,j){vals[v]=!!(i&(1<<(vars.length-1-j)));});
+      var result=evalExpr(tokens.slice(),vals);
+      if(result)trueCount++;
+      html+='<tr style="background:'+(result?'rgba(57,255,20,0.05)':'rgba(255,77,77,0.03)')+';">';
+      vars.forEach(function(v){html+='<td style="padding:6px 8px;border:1px solid rgba(255,255,255,0.05);text-align:center;color:'+(vals[v]?'#39ff14':'#ff4d4d')+';">'+(vals[v]?'T':'F')+'</td>';});
+      html+='<td style="padding:6px 8px;border:1px solid rgba(255,255,255,0.05);text-align:center;font-weight:700;color:'+(result?'#39ff14':'#ff4d4d')+';">'+(result?'T':'F')+'</td></tr>';
+    }
+    html+='</table>';
+    document.getElementById('tt-result').innerHTML=html;
+    var type=trueCount===rows?'Tautology (always true)':trueCount===0?'Contradiction (always false)':'Contingency ('+trueCount+'/'+rows+' true)';
+    document.getElementById('tt-info').innerHTML='Variables: '+vars.join(', ')+' · '+rows+' rows · <b>'+type+'</b>';
+  }
+  function insert(op){
+    var el=document.getElementById('tt-expr');
+    var pos=el.selectionStart;
+    var val=el.value;
+    el.value=val.slice(0,pos)+' '+op+' '+val.slice(pos);
+    el.focus();el.selectionStart=el.selectionEnd=pos+op.length+2;
+  }
+  window._ttGenerate=generate;window._ttInsert=insert;
+  document.getElementById('tt-expr').addEventListener('keydown',function(e){if(e.key==='Enter')generate();});
+  generate();
+})();
+</script>

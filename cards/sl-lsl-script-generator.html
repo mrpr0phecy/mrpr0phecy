@@ -1,0 +1,424 @@
+<div id="sl-lsl-gen" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a0d,#0d1b2a);border:1px solid #2a5a3a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#40f080">📜 LSL Script Generator</h2>
+    <p style="margin:0 0 20px;color:#80b090;font-size:0.95em">Generate ready-to-use Linden Scripting Language scripts — security, teleport, dance, auto-response, and more</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+          <button class="sl-lsl-btn" data-type="security" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#1a3a20;color:#40f080;cursor:pointer;font-size:0.82em">🛡️ Security Orb</button>
+          <button class="sl-lsl-btn" data-type="teleport" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">🌀 Teleport Pad</button>
+          <button class="sl-lsl-btn" data-type="dance" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">💃 Dance Ball</button>
+          <button class="sl-lsl-btn" data-type="autorespond" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">💬 Auto-Responder</button>
+          <button class="sl-lsl-btn" data-type="door" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">🚪 Door Script</button>
+          <button class="sl-lsl-btn" data-type="sit" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">🪑 Sittable Object</button>
+          <button class="sl-lsl-btn" data-type="particles" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">✨ Particle Effect</button>
+          <button class="sl-lsl-btn" data-type="timer" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">⏰ Timer/Alarm</button>
+          <button class="sl-lsl-btn" data-type="touch" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">👆 Touch Menu</button>
+          <button class="sl-lsl-btn" data-type="sensor" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">📡 Sensor Scanner</button>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:0.82em;color:#80b090;display:block;margin-bottom:4px">Range (meters): <span id="sl-lsl-range-val">20</span></label>
+          <input id="sl-lsl-range" type="range" min="5" max="96" step="1" value="20" style="width:100%">
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:0.82em;color:#80b090;display:block;margin-bottom:4px">Owner Name (optional):</label>
+          <input id="sl-lsl-owner" type="text" placeholder="YourName Resident" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid #2a5a3a;background:#0a1a0d;color:#e0d0c0;font-size:0.9em;box-sizing:border-box">
+        </div>
+        <button id="sl-lsl-copy" style="padding:8px 18px;border-radius:8px;border:1px solid #40f080;background:#1a4a28;color:#40f080;cursor:pointer;font-size:0.9em;width:100%">📋 Copy to Clipboard</button>
+      </div>
+      <div style="flex:1;min-width:300px">
+        <pre id="sl-lsl-code" style="background:#0a0f0a;border:1px solid #1a3a20;border-radius:10px;padding:14px;font-size:0.78em;line-height:1.5;overflow:auto;max-height:420px;color:#80d0a0;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;margin:0">// Select a script type above...</pre>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const rangeEl=document.getElementById('sl-lsl-range'),rangeVal=document.getElementById('sl-lsl-range-val');
+  const ownerEl=document.getElementById('sl-lsl-owner'),codeEl=document.getElementById('sl-lsl-code');
+  const copyBtn=document.getElementById('sl-lsl-copy');
+  rangeEl.oninput=function(){rangeVal.textContent=this.value};
+  const scripts={
+    security:`// Security Orb - ejects unlisted visitors
+integer RANGE = {RANGE};
+list allowed = ["{OWNER}"]; // add names here
+
+default
+{
+    state_entry()
+    {
+        llSensorRepeat("", NULL_KEY, AGENT, RANGE, PI, 2.0);
+    }
+
+    sensor(integer n)
+    {
+        integer i;
+        for (i = 0; i < n; i++)
+        {
+            string name = llDetectedName(i);
+            key id = llDetectedKey(i);
+            if (llListFindList(allowed, [name]) == -1)
+            {
+                llInstantMessage(id, "You have 10 seconds to leave this area.");
+                llSleep(10);
+                // Re-check if still present
+                if (llVecDist(llGetPos(), llList2Vector(llGetObjectDetails(id, [OBJECT_POS]), 0)) < RANGE)
+                {
+                    llEjectFromLand(id);
+                    llInstantMessage(id, "You have been ejected.");
+                }
+            }
+        }
+    }
+}`,
+    teleport:`// Teleport Pad - touch to teleport to destination
+vector DESTINATION = <128, 128, 2000>; // change to your target coords
+string DEST_NAME = "Sky Platform";
+
+default
+{
+    state_entry()
+    {
+        llSetText("Touch to teleport to\\n" + DEST_NAME, <0.2, 1, 0.5>, 1.0);
+        llSetPrimitiveParams([PRIM_COLOR, ALL_SIDES, <0.1, 0.3, 0.2>, 0.8]);
+    }
+
+    touch_start(integer n)
+    {
+        key id = llDetectedKey(0);
+        llInstantMessage(id, "Teleporting to " + DEST_NAME + "...");
+        llSleep(1);
+        llTeleportAgent(id, "", DESTINATION, <0,0,0>);
+    }
+}`,
+    dance:`// Dance Ball - plays animations on touch
+list dances = ["dance1", "dance2", "dance3", "dance4"];
+integer current = -1;
+key dancer;
+
+default
+{
+    state_entry()
+    {
+        llSetText("Touch to Dance!", <1, 0.8, 0.2>, 1.0);
+    }
+
+    touch_start(integer n)
+    {
+        key id = llDetectedKey(0);
+        if (dancer == id)
+        {
+            // Stop dancing
+            integer i;
+            for (i = 0; i < llGetListLength(dances); i++)
+                llStopAnimation(llList2String(dances, i));
+            current = -1;
+            dancer = NULL_KEY;
+            llSetText("Touch to Dance!", <1, 0.8, 0.2>, 1.0);
+        }
+        else
+        {
+            dancer = id;
+            current = 0;
+            llRequestPermissions(dancer, PERMISSION_TRIGGER_ANIMATION);
+        }
+    }
+
+    run_time_permissions(integer perm)
+    {
+        if (perm & PERMISSION_TRIGGER_ANIMATION)
+        {
+            llStartAnimation(llList2String(dances, current));
+            llSetTimerEvent(5.0);
+        }
+    }
+
+    timer()
+    {
+        if (dancer != NULL_KEY)
+        {
+            llStopAnimation(llList2String(dances, current));
+            current = (current + 1) % llGetListLength(dances);
+            llStartAnimation(llList2String(dances, current));
+        }
+    }
+}`,
+    autorespond:`// Auto-Responder - replies to IMs automatically
+string MESSAGE = "Thanks for your message! I'm currently away. I'll respond when I'm back online. :)";
+float COOLDOWN = 60.0; // seconds between replies to same person
+list recentlyReplied;
+list replyTimes;
+
+default
+{
+    state_entry()
+    {
+        llListen(0, "", NULL_KEY, "");
+    }
+
+    listen(integer channel, string name, key id, string msg)
+    {
+        // Only respond to direct messages (whisper/whisper range)
+        if (llGetOwnerKey(id) != llGetOwner())
+        {
+            integer idx = llListFindList(recentlyReplied, [id]);
+            if (idx == -1 || (llGetTime() - llList2Float(replyTimes, idx)) > COOLDOWN)
+            {
+                llInstantMessage(llGetOwnerKey(id), MESSAGE);
+                if (idx == -1)
+                {
+                    recentlyReplied += [id];
+                    replyTimes += [llGetTime()];
+                }
+                else
+                    replyTimes = llListReplaceList(replyTimes, [llGetTime()], idx, idx);
+            }
+        }
+    }
+}`,
+    door:`// Door Script - rotates open/closed on touch
+integer isOpen = FALSE;
+float ROTATION = 90.0; // degrees to open
+
+default
+{
+    state_entry()
+    {
+        llSetText("Touch to open", <0.8, 0.8, 1.0>, 1.0);
+    }
+
+    touch_start(integer n)
+    {
+        rotation rot;
+        if (!isOpen)
+        {
+            rot = llEuler2Rot(<0, 0, ROTATION> * DEG_TO_RAD);
+            llSetText("Touch to close", <1, 0.8, 0.6>, 1.0);
+        }
+        else
+        {
+            rot = llEuler2Rot(<0, 0, -ROTATION> * DEG_TO_RAD);
+            llSetText("Touch to open", <0.8, 0.8, 1.0>, 1.0);
+        }
+        llSetPrimitiveParams([PRIM_ROT_LOCAL, llGetLocalRot() * rot]);
+        isOpen = !isOpen;
+    }
+}`,
+    sit:`// Sittable Object - adds sit target with animation
+string SIT_ANIM = "sit"; // change to your animation name
+vector SIT_OFFSET = <0, 0, 0.5>;
+rotation SIT_ROT = <0, 0, 0, 1>;
+
+default
+{
+    state_entry()
+    {
+        llSitTarget(SIT_OFFSET, SIT_ROT);
+        llSetText("Right-click > Sit", <0.6, 0.8, 1.0>, 1.0);
+    }
+
+    changed(integer change)
+    {
+        if (change & CHANGED_LINK)
+        {
+            key av = llAvatarOnSitTarget();
+            if (av != NULL_KEY)
+            {
+                llRequestPermissions(av, PERMISSION_TRIGGER_ANIMATION);
+                llSetText("", <0,0,0>, 0);
+            }
+            else
+            {
+                llSetText("Right-click > Sit", <0.6, 0.8, 1.0>, 1.0);
+            }
+        }
+    }
+
+    run_time_permissions(integer perm)
+    {
+        if (perm & PERMISSION_TRIGGER_ANIMATION)
+        {
+            llStartAnimation(SIT_ANIM);
+        }
+    }
+}`,
+    particles:`// Particle Effect - sparkles on touch
+integer isOn = FALSE;
+
+startParticles()
+{
+    llParticleSystem([
+        PSYS_SRC_PATTERN, PSYS_SRC_PATTERN_EXPLODE,
+        PSYS_SRC_BURST_RATE, 0.05,
+        PSYS_SRC_BURST_PART_COUNT, 20,
+        PSYS_SRC_BURST_RADIUS, 0.5,
+        PSYS_SRC_BURST_SPEED_MIN, 0.5,
+        PSYS_SRC_BURST_SPEED_MAX, 2.0,
+        PSYS_PART_START_COLOR, <1, 0.8, 0.2>,
+        PSYS_PART_END_COLOR, <1, 0.2, 0.5>,
+        PSYS_PART_START_ALPHA, 1.0,
+        PSYS_PART_END_ALPHA, 0.0,
+        PSYS_PART_START_SCALE, <0.1, 0.1, 0>,
+        PSYS_PART_END_SCALE, <0.02, 0.02, 0>,
+        PSYS_PART_MAX_AGE, 2.0,
+        PSYS_SRC_ACCEL, <0, 0, 0.5>,
+        PSYS_SRC_TEXTURE, "",
+        PSYS_PART_FLAGS,
+            PSYS_PART_EMISSIVE_MASK |
+            PSYS_PART_INTERP_COLOR_MASK |
+            PSYS_PART_INTERP_SCALE_MASK
+    ]);
+}
+
+default
+{
+    state_entry()
+    {
+        llSetText("Touch for sparkles ✨", <1, 0.8, 0.4>, 1.0);
+    }
+
+    touch_start(integer n)
+    {
+        if (!isOn)
+        {
+            startParticles();
+            llSetText("Sparkles ON", <1, 0.9, 0.3>, 1.0);
+        }
+        else
+        {
+            llParticleSystem([]);
+            llSetText("Touch for sparkles ✨", <1, 0.8, 0.4>, 1.0);
+        }
+        isOn = !isOn;
+    }
+}`,
+    timer:`// Timer / Alarm - counts down and alerts
+integer minutes = 5;
+integer seconds = 0;
+integer running = FALSE;
+
+default
+{
+    state_entry()
+    {
+        llSetText("Touch to set timer\\n" + (string)minutes + ":00", <1, 0.8, 0.3>, 1.0);
+    }
+
+    touch_start(integer n)
+    {
+        if (!running)
+        {
+            running = TRUE;
+            llSetTimerEvent(1.0);
+            llOwnerSay("Timer started: " + (string)minutes + " minutes");
+        }
+        else
+        {
+            running = FALSE;
+            llSetTimerEvent(0);
+            seconds = 0;
+            llSetText("Touch to set timer\\n" + (string)minutes + ":00", <1, 0.8, 0.3>, 1.0);
+            llOwnerSay("Timer cancelled.");
+        }
+    }
+
+    timer()
+    {
+        seconds--;
+        if (seconds < 0)
+        {
+            seconds = 59;
+            minutes--;
+        }
+        if (minutes < 0)
+        {
+            // Alarm!
+            llSetTimerEvent(0);
+            running = FALSE;
+            llPlaySound("alarm", 1.0);
+            llSetText("⏰ TIME'S UP! ⏰", <1, 0.2, 0.2>, 1.0);
+            llOwnerSay("⏰ Timer finished!");
+            minutes = 5;
+            seconds = 0;
+            return;
+        }
+        string sec = (string)seconds;
+        if (seconds < 10) sec = "0" + sec;
+        llSetText((string)minutes + ":" + sec, <1, 0.8, 0.3>, 1.0);
+    }
+}`,
+    touch:`// Touch Menu - multi-button dialog menu
+list MENU_BUTTONS = ["Option A", "Option B", "Option C", "Dance", "Stop", "Close"];
+string MENU_TITLE = "Choose an action:";
+
+default
+{
+    state_entry()
+    {
+        llSetText("Touch for Menu", <0.5, 0.8, 1.0>, 1.0);
+    }
+
+    touch_start(integer n)
+    {
+        key id = llDetectedKey(0);
+        llDialog(id, MENU_TITLE, MENU_BUTTONS, 999);
+    }
+
+    listen(integer channel, string name, key id, string msg)
+    {
+        if (channel == 999)
+        {
+            if (msg == "Option A") llOwnerSay("You selected Option A!");
+            else if (msg == "Option B") llOwnerSay("You selected Option B!");
+            else if (msg == "Option C") llOwnerSay("You selected Option C!");
+            else if (msg == "Dance") llStartAnimation("dance1");
+            else if (msg == "Stop") llStopAnimation("dance1");
+            else if (msg == "Close") return;
+        }
+    }
+}`,
+    sensor:`// Sensor Scanner - detects and reports nearby avatars
+integer RANGE = {RANGE};
+
+default
+{
+    state_entry()
+    {
+        llSensorRepeat("", NULL_KEY, AGENT, RANGE, PI, 3.0);
+        llSetText("Scanning " + (string)RANGE + "m...", <0.3, 0.8, 1.0>, 1.0);
+    }
+
+    sensor(integer n)
+    {
+        string msg = "=== Nearby Avatars (" + (string)n + ") ===\\n";
+        integer i;
+        for (i = 0; i < n; i++)
+        {
+            string name = llDetectedName(i);
+            float dist = llVecDist(llGetPos(), llDetectedPos(i));
+            msg += name + " - " + llGetSubString((string)dist, 0, 3) + "m\\n";
+        }
+        llSetText(msg, <0.3, 0.8, 1.0>, 1.0);
+        llOwnerSay(msg);
+    }
+
+    no_sensor()
+    {
+        llSetText("No one within " + (string)RANGE + "m", <0.5, 0.5, 0.5>, 1.0);
+    }
+}`
+  };
+  function generate(type){
+    let code=scripts[type]||'// Unknown script type';
+    code=code.replace(/\{RANGE\}/g,rangeEl.value);
+    code=code.replace(/\{OWNER\}/g,ownerEl.value||'OwnerName');
+    codeEl.textContent=code;
+    document.querySelectorAll('.sl-lsl-btn').forEach(b=>{b.style.background=b.dataset.type===type?'#1a4a28':'#0d2818'});
+  }
+  document.querySelectorAll('.sl-lsl-btn').forEach(b=>{b.onclick=function(){generate(this.dataset.type)}});
+  copyBtn.onclick=function(){
+    navigator.clipboard.writeText(codeEl.textContent).then(function(){copyBtn.textContent='✅ Copied!';setTimeout(function(){copyBtn.textContent='📋 Copy to Clipboard'},1500)});
+  };
+  generate('security');
+})();
+</script>

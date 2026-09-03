@@ -1,0 +1,95 @@
+<div id="linux-log" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a08,#0d1b2a);border:1px solid #2a4a2a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#60c040">📋 Log Analyzer & Command Generator</h2>
+    <p style="margin:0 0 20px;color:#80a070;font-size:0.95em">Paste log output to get instant analysis, or generate commands to search, filter, and monitor logs</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="margin-bottom:10px">
+          <label style="font-size:0.82em;color:#80a070;display:block;margin-bottom:4px">Paste log output (or leave empty for command generator):</label>
+          <textarea id="ll-log" style="width:100%;padding:10px;border-radius:6px;border:1px solid #2a4a2a;background:#0a0a08;color:#e0d0c0;font-family:monospace;font-size:0.82em;height:140px;resize:vertical;box-sizing:border-box" placeholder="Sep  1 10:23:45 server sshd[1234]: Failed password for root from 192.168.1.100
+Sep  1 10:23:46 server sshd[1234]: Failed password for root from 192.168.1.100
+Sep  1 10:24:01 server nginx: 502 Bad Gateway"></textarea>
+        </div>
+        <div id="ll-analysis" style="margin-bottom:12px"></div>
+        <div style="font-size:0.82em;color:#80a070;margin-bottom:6px">Quick commands:</div>
+        <div id="ll-cmds" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+        <div id="ll-output" style="font-family:monospace;font-size:0.82em;background:#060a04;padding:10px;border-radius:6px;border:1px solid #1a3a1a;max-height:200px;overflow-y:auto;white-space:pre-wrap;color:#a0d080"></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a3a1a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#60c040">Common Log Locations</b><br>
+          <table style="width:100%;font-size:0.82em;border-collapse:collapse;margin-top:6px">
+            <tr style="border-bottom:1px solid #1a2a1a"><td style="padding:2px 4px;color:#60c040;font-family:monospace">/var/log/syslog</td><td style="padding:2px 4px;color:#80a070">System messages (Debian)</td></tr>
+            <tr style="border-bottom:1px solid #1a2a1a"><td style="padding:2px 4px;color:#60c040;font-family:monospace">/var/log/messages</td><td style="padding:2px 4px;color:#80a070">System messages (RHEL)</td></tr>
+            <tr style="border-bottom:1px solid #1a2a1a"><td style="padding:2px 4px;color:#60c040;font-family:monospace">/var/log/auth.log</td><td style="padding:2px 4px;color:#80a070">Authentication logs</td></tr>
+            <tr style="border-bottom:1px solid #1a2a1a"><td style="padding:2px 4px;color:#60c040;font-family:monospace">/var/log/kern.log</td><td style="padding:2px 4px;color:#80a070">Kernel logs</td></tr>
+            <tr style="border-bottom:1px solid #1a2a1a"><td style="padding:2px 4px;color:#60c040;font-family:monospace">/var/log/nginx/</td><td style="padding:2px 4px;color:#80a070">Nginx access/error</td></tr>
+            <tr><td style="padding:2px 4px;color:#60c040;font-family:monospace">/var/log/apache2/</td><td style="padding:2px 4px;color:#80a070">Apache access/error</td></tr>
+          </table>
+          <br><b style="color:#60c040">journalctl Quick Ref</b><br>
+          <code style="font-size:0.78em;color:#a0d080;background:#060a04;padding:2px 6px;border-radius:4px">journalctl -u nginx -f</code> — follow unit<br>
+          <code style="font-size:0.78em;color:#a0d080;background:#060a04;padding:2px 6px;border-radius:4px">journalctl --since "1h ago"</code> — last hour<br>
+          <code style="font-size:0.78em;color:#a0d080;background:#060a04;padding:2px 6px;border-radius:4px">journalctl -p err</code> — errors only<br>
+          <code style="font-size:0.78em;color:#a0d080;background:#060a04;padding:2px 6px;border-radius:4px">journalctl -b -1</code> — previous boot<br><br>
+          <b style="color:#60c040">Log Rotation</b><br>
+          Config: <code style="font-size:0.78em;color:#a0d080">/etc/logrotate.conf</code><br>
+          Force: <code style="font-size:0.78em;color:#a0d080">logrotate -f /etc/logrotate.d/nginx</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const logEl=document.getElementById('ll-log'),analysisEl=document.getElementById('ll-analysis');
+  const cmdsEl=document.getElementById('ll-cmds'),outputEl=document.getElementById('ll-output');
+  const quickCmds=[
+    {label:'🔍 tail -f syslog',cmd:'tail -f /var/log/syslog'},
+    {label:'❌ grep errors',cmd:'grep -i "error\\|fail\\|critical" /var/log/syslog | tail -20'},
+    {label:'🔐 auth failures',cmd:'grep "Failed password" /var/log/auth.log | tail -20'},
+    {label:'🌐 nginx 5xx',cmd:'grep " 5[0-9][0-9] " /var/log/nginx/access.log | tail -20'},
+    {label:'📊 top IPs',cmd:'awk "{print \\$1}" /var/log/nginx/access.log | sort | uniq -c | sort -rn | head -10'},
+    {label:'⏰ last hour',cmd:'journalctl --since "1 hour ago" --no-pager'},
+    {label:'💾 disk errors',cmd:'dmesg | grep -i "error\\|fail\\|I/O" | tail -20'},
+    {label:'🔄 OOM killer',cmd:'dmesg | grep -i "oom\\|out of memory" | tail -10'}
+  ];
+  let cmdHtml='';
+  quickCmds.forEach(c=>{
+    cmdHtml+='<button onclick="window._llRun(\''+c.cmd.replace(/'/g,"\\'")+'\')" style="padding:4px 10px;border-radius:6px;border:1px solid #2a4a2a;background:#0a1a08;color:#60c040;cursor:pointer;font-size:0.78em">'+c.label+'</button>';
+  });
+  cmdsEl.innerHTML=cmdHtml;
+  function analyze(){
+    const text=logEl.value.trim();
+    if(!text){analysisEl.innerHTML='';return}
+    const lines=text.split('\n');
+    const errors=lines.filter(l=>/error|fail|critical|panic|fatal/i.test(l));
+    const warns=lines.filter(l=>/warn|warning/i.test(l));
+    const ips=[...new Set(text.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g)||[])];
+    const codes=[...new Set(text.match(/\b[1-5]\d{2}\b/g)||[])];
+    let html='<div style="background:#0d1b2a;border:1px solid #1a3a1a;border-radius:8px;padding:12px;font-size:0.88em">';
+    html+='<div style="display:flex;gap:16px;flex-wrap:wrap">';
+    html+='<div>📊 Lines: <b>'+lines.length+'</b></div>';
+    html+='<div style="color:#f04040">❌ Errors: <b>'+errors.length+'</b></div>';
+    html+='<div style="color:#f0c040">⚠️ Warnings: <b>'+warns.length+'</b></div>';
+    html+='<div>🌐 IPs: <b>'+ips.length+'</b></div>';
+    html+='<div>📡 Status codes: <b>'+codes.join(', ')+'</b></div>';
+    html+='</div>';
+    if(errors.length>0){
+      html+='<div style="margin-top:8px;font-size:0.82em;color:#f08080"><b>Top errors:</b><br>';
+      const errCounts={};errors.forEach(e=>{const k=e.substring(0,80);errCounts[k]=(errCounts[k]||0)+1});
+      Object.entries(errCounts).sort((a,b)=>b[1]-a[1]).slice(0,5).forEach(([k,v])=>{html+=v+'× '+k+'<br>'});
+      html+='</div>';
+    }
+    if(ips.length>0){
+      html+='<div style="margin-top:6px;font-size:0.82em;color:#80a070"><b>IPs found:</b> '+ips.slice(0,10).join(', ')+'</div>';
+    }
+    html+='</div>';
+    analysisEl.innerHTML=html;
+  }
+  logEl.oninput=analyze;
+  window._llRun=function(cmd){
+    outputEl.textContent='$ '+cmd+'\n\n# (Command would run on your server)\n# Copy and paste into your terminal:\n\n'+cmd;
+  };
+  analyze();
+})();
+</script>

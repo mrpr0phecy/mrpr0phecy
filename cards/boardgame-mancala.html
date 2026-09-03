@@ -1,0 +1,133 @@
+<h2>🪨 Mancala</h2>
+<p class="description">Ancient strategy game — sow seeds around the board, capture your opponent's stones. Free turn if your last seed lands in your store.</p>
+<div id="mc-app" style="max-width:520px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+// Board: [0]=AI store, [1-6]=AI pits, [7-12]=Your pits, [13]=Your store
+var B=[],over=false,msg='Your turn — click a pit',scores={you:0,ai:0};
+
+function init(){
+  B=[0,4,4,4,4,4,4,4,4,4,4,4,4,0];
+  over=false;msg='Your turn — click a pit';render();
+}
+
+function move(pit){
+  if(over||pit<7||pit>12||B[pit]===0)return;
+  var seeds=B[pit];B[pit]=0;
+  var pos=pit;
+  while(seeds>0){
+    pos=(pos+1)%14;
+    if(pos===0&&pit>=7)continue; // Skip AI store
+    if(pos===13&&pit<7)continue; // Skip your store (shouldn't happen)
+    B[pos]++;seeds--;
+  }
+  // Capture
+  if(pos>=7&&pos<=12&&B[pos]===1){
+    var opp=12-(pos-7);
+    if(B[opp]>0){
+      B[13]+=B[opp]+1;B[pos]=0;B[opp]=0;
+    }
+  }
+  // Free turn if landed in store
+  if(pos===13){msg='Free turn! Go again';render();return;}
+  // Check if game over
+  if(checkEnd())return;
+  msg='AI thinking...';render();
+  setTimeout(aiPlay,600);
+}
+
+function aiPlay(){
+  var moves=[];for(var i=1;i<=6;i++)if(B[i]>0)moves.push(i);
+  if(!moves.length){checkEnd();return;}
+  // Simple AI: prefer moves that land in store
+  var best=null,bestScore=-1;
+  moves.forEach(function(m){
+    var score=B[m]; // Base: more seeds = better
+    var end=(m+B[m])%14;
+    if(end===0)score+=10; // Lands in store
+    if(score>bestScore){bestScore=score;best=m;}
+  });
+  var seeds=B[best];B[best]=0;var pos=best;
+  while(seeds>0){
+    pos=(pos+1)%14;
+    if(pos===13)continue;
+    B[pos]++;seeds--;
+  }
+  if(pos>=1&&pos<=6&&B[pos]===1){
+    var opp=12-(pos-1);
+    if(B[opp]>0){B[0]+=B[opp]+1;B[pos]=0;B[opp]=0;}
+  }
+  if(pos===0){msg='AI gets a free turn...';render();setTimeout(aiPlay,600);return;}
+  if(checkEnd())return;
+  msg='Your turn';render();
+}
+
+function checkEnd(){
+  var myEmpty=true,aiEmpty=true;
+  for(var i=7;i<=12;i++)if(B[i]>0)myEmpty=false;
+  for(var i=1;i<=6;i++)if(B[i]>0)aiEmpty=false;
+  if(myEmpty||aiEmpty){
+    over=true;
+    for(var i=1;i<=6;i++){B[0]+=B[i];B[i]=0;}
+    for(var i=7;i<=12;i++){B[13]+=B[i];B[i]=0;}
+    if(B[13]>B[0]){scores.you++;msg='🎉 You win! '+B[13]+'-'+B[0];}
+    else if(B[0]>B[13]){scores.ai++;msg='🤖 AI wins! '+B[0]+'-'+B[13];}
+    else{msg='🤝 Draw! '+B[13]+'-'+B[0];}
+    render();return true;
+  }
+  return false;
+}
+
+function render(){
+  var app=document.getElementById('mc-app');
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 12px;background:rgba(0,0,0,0.3);border-radius:8px;">'+
+    '<div style="font-size:13px;color:#39ff14;">You: <b>'+B[13]+'</b></div>'+
+    '<div style="font-size:14px;color:#2dd4ff;font-weight:700;">'+msg+'</div>'+
+    '<div style="font-size:13px;color:#ff4444;">AI: <b>'+B[0]+'</b></div>'+
+  '</div>';
+
+  h+='<div style="background:linear-gradient(135deg,#3a2a0a,#2a1a0a);border-radius:16px;padding:16px;border:2px solid #c0a040;box-shadow:0 0 20px rgba(192,160,64,0.15);">';
+  h+='<div style="display:flex;align-items:center;gap:8px;">';
+
+  // AI store (left)
+  h+='<div style="width:60px;min-height:120px;background:radial-gradient(ellipse,#2a1a0a,#1a0a00);border:2px solid #c0a040;border-radius:30px;display:flex;align-items:center;justify-content:center;flex-direction:column;">'+
+    '<span style="font-size:24px;color:#c0a040;font-weight:700;">'+B[0]+'</span>'+
+    '<span style="font-size:10px;color:rgba(192,160,64,0.5);">AI</span></div>';
+
+  // Pits
+  h+='<div style="flex:1;display:flex;flex-direction:column;gap:8px;">';
+  // AI pits (top, right to left)
+  h+='<div style="display:flex;gap:6px;justify-content:center;">';
+  for(var i=6;i>=1;i--){
+    h+='<div style="width:48px;height:48px;background:radial-gradient(circle,#4a3a1a,#2a1a0a);border:2px solid #c0a040;border-radius:50%;display:flex;align-items:center;justify-content:center;">'+
+      '<span style="font-size:16px;color:#c0a040;font-weight:600;">'+B[i]+'</span></div>';
+  }
+  h+='</div>';
+  // Your pits (bottom, left to right)
+  h+='<div style="display:flex;gap:6px;justify-content:center;">';
+  for(var i=7;i<=12;i++){
+    var canMove=!over&&B[i]>0&&msg.indexOf('AI')<0;
+    h+='<div onclick="window._mcMove('+i+')" style="width:48px;height:48px;background:radial-gradient(circle,#5a4a2a,#3a2a0a);border:2px solid '+(canMove?'#39ff14':'#c0a040')+';border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:'+(canMove?'pointer':'default')+';transition:all 0.15s;">'+
+      '<span style="font-size:16px;color:#c0a040;font-weight:600;">'+B[i]+'</span></div>';
+  }
+  h+='</div>';
+  h+='</div>';
+
+  // Your store (right)
+  h+='<div style="width:60px;min-height:120px;background:radial-gradient(ellipse,#2a1a0a,#1a0a00);border:2px solid #39ff14;border-radius:30px;display:flex;align-items:center;justify-content:center;flex-direction:column;">'+
+    '<span style="font-size:24px;color:#39ff14;font-weight:700;">'+B[13]+'</span>'+
+    '<span style="font-size:10px;color:rgba(57,255,20,0.5);">You</span></div>';
+
+  h+='</div></div>';
+
+  h+='<div style="text-align:center;margin-top:10px;">'+
+    '<button onclick="window._mcInit()" style="padding:8px 20px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:8px;cursor:pointer;font-weight:600;">New Game</button></div>';
+
+  app.innerHTML=h;
+}
+
+window._mcMove=move;window._mcInit=init;
+init();
+})();
+</script>

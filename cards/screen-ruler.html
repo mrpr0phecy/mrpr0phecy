@@ -1,0 +1,128 @@
+<h2>📏 Screen Ruler & Pixel Measure</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Measure pixels on your screen. Drag rulers, measure distances, and get precise pixel coordinates.</p>
+
+<div id="sr-app" style="max-width:700px;margin:0 auto;">
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="window._srToggleH()" style="padding:8px 16px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:#2dd4ff;cursor:pointer;font-size:13px;">📏 Horizontal Ruler</button>
+    <button onclick="window._srToggleV()" style="padding:8px 16px;background:rgba(57,255,20,0.15);border:1px solid rgba(57,255,20,0.3);border-radius:6px;color:#39ff14;cursor:pointer;font-size:13px;">📐 Vertical Ruler</button>
+    <button onclick="window._srMeasure()" style="padding:8px 16px;background:rgba(255,165,0,0.15);border:1px solid rgba(255,165,0,0.3);border-radius:6px;color:#ffa500;cursor:pointer;font-size:13px;">📐 Measure Mode</button>
+    <button onclick="window._srReset()" style="padding:8px 16px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:6px;color:#ff4d4d;cursor:pointer;font-size:13px;">Reset</button>
+  </div>
+
+  <div id="sr-workspace" style="position:relative;width:100%;height:400px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:10px;overflow:hidden;cursor:crosshair;">
+    <div id="sr-h-ruler" style="display:none;position:absolute;top:0;left:0;right:0;height:30px;background:rgba(45,212,255,0.1);border-bottom:1px solid rgba(45,212,255,0.3);z-index:10;"></div>
+    <div id="sr-v-ruler" style="display:none;position:absolute;top:0;left:0;bottom:0;width:30px;background:rgba(57,255,20,0.1);border-right:1px solid rgba(57,255,20,0.3);z-index:10;"></div>
+    <div id="sr-crosshair-h" style="display:none;position:absolute;top:0;bottom:0;width:1px;background:rgba(255,77,77,0.5);pointer-events:none;z-index:5;"></div>
+    <div id="sr-crosshair-v" style="display:none;position:absolute;left:0;right:0;height:1px;background:rgba(255,77,77,0.5);pointer-events:none;z-index:5;"></div>
+    <div id="sr-measure-line" style="display:none;position:absolute;height:2px;background:#ffa500;transform-origin:0 50%;pointer-events:none;z-index:6;"></div>
+    <div id="sr-coords" style="position:absolute;bottom:8px;right:8px;font-size:12px;color:rgba(230,250,255,0.5);font-family:monospace;background:rgba(0,0,0,0.5);padding:4px 8px;border-radius:4px;"></div>
+    <div id="sr-measure-label" style="display:none;position:absolute;font-size:12px;color:#ffa500;font-family:monospace;background:rgba(0,0,0,0.7);padding:2px 6px;border-radius:3px;pointer-events:none;z-index:7;"></div>
+  </div>
+
+  <div id="sr-info" style="margin-top:8px;font-size:12px;color:rgba(230,250,255,0.4);text-align:center;"></div>
+</div>
+
+<script>
+(function(){
+  var hRuler=false,vRuler=false,measureMode=false;
+  var measureStart=null;
+  var workspace=document.getElementById('sr-workspace');
+  function toggleH(){
+    hRuler=!hRuler;
+    document.getElementById('sr-h-ruler').style.display=hRuler?'block':'none';
+    drawRulerTicks();
+  }
+  function toggleV(){
+    vRuler=!vRuler;
+    document.getElementById('sr-v-ruler').style.display=vRuler?'block':'none';
+    drawRulerTicks();
+  }
+  function drawRulerTicks(){
+    var hRulerEl=document.getElementById('sr-h-ruler');
+    var vRulerEl=document.getElementById('sr-v-ruler');
+    hRulerEl.innerHTML='';vRulerEl.innerHTML='';
+    if(hRuler){
+      for(var i=0;i<workspace.offsetWidth;i+=10){
+        var h=i%50===0?20:i%10===0?10:5;
+        var tick=document.createElement('div');
+        tick.style.cssText='position:absolute;left:'+i+'px;top:0;width:1px;height:'+h+'px;background:rgba(45,212,255,0.4);';
+        hRulerEl.appendChild(tick);
+        if(i%50===0){
+          var label=document.createElement('div');
+          label.style.cssText='position:absolute;left:'+i+'px;top:20px;font-size:9px;color:rgba(45,212,255,0.5);transform:translateX(-50%);';
+          label.textContent=i;
+          hRulerEl.appendChild(label);
+        }
+      }
+    }
+    if(vRuler){
+      for(var i=0;i<workspace.offsetHeight;i+=10){
+        var w=i%50===0?20:i%10===0?10:5;
+        var tick=document.createElement('div');
+        tick.style.cssText='position:absolute;top:'+i+'px;left:0;height:1px;width:'+w+'px;background:rgba(57,255,20,0.4);';
+        vRulerEl.appendChild(tick);
+        if(i%50===0){
+          var label=document.createElement('div');
+          label.style.cssText='position:absolute;top:'+i+'px;left:20px;font-size:9px;color:rgba(57,255,20,0.5);transform:translateY(-50%);';
+          label.textContent=i;
+          vRulerEl.appendChild(label);
+        }
+      }
+    }
+  }
+  function measure(){
+    measureMode=!measureMode;
+    measureStart=null;
+    document.getElementById('sr-measure-line').style.display='none';
+    document.getElementById('sr-measure-label').style.display='none';
+    workspace.style.cursor=measureMode?'crosshair':'crosshair';
+  }
+  function reset(){
+    hRuler=false;vRuler=false;measureMode=false;measureStart=null;
+    document.getElementById('sr-h-ruler').style.display='none';
+    document.getElementById('sr-v-ruler').style.display='none';
+    document.getElementById('sr-measure-line').style.display='none';
+    document.getElementById('sr-measure-label').style.display='none';
+    document.getElementById('sr-crosshair-h').style.display='none';
+    document.getElementById('sr-crosshair-v').style.display='none';
+  }
+  workspace.addEventListener('mousemove',function(e){
+    var rect=workspace.getBoundingClientRect();
+    var x=Math.round(e.clientX-rect.left);
+    var y=Math.round(e.clientY-rect.top);
+    document.getElementById('sr-coords').textContent='x: '+x+' y: '+y;
+    document.getElementById('sr-crosshair-h').style.display='block';
+    document.getElementById('sr-crosshair-v').style.display='block';
+    document.getElementById('sr-crosshair-h').style.left=x+'px';
+    document.getElementById('sr-crosshair-v').style.top=y+'px';
+    if(measureMode&&measureStart){
+      var dx=x-measureStart.x;
+      var dy=y-measureStart.y;
+      var dist=Math.round(Math.sqrt(dx*dx+dy*dy));
+      var angle=Math.atan2(dy,dx)*180/Math.PI;
+      var line=document.getElementById('sr-measure-line');
+      line.style.display='block';
+      line.style.left=measureStart.x+'px';
+      line.style.top=measureStart.y+'px';
+      line.style.width=dist+'px';
+      line.style.transform='rotate('+angle+'deg)';
+      var label=document.getElementById('sr-measure-label');
+      label.style.display='block';
+      label.style.left=((measureStart.x+x)/2)+'px';
+      label.style.top=((measureStart.y+y)/2-20)+'px';
+      label.textContent=dist+'px';
+    }
+  });
+  workspace.addEventListener('mousedown',function(e){
+    if(!measureMode)return;
+    var rect=workspace.getBoundingClientRect();
+    measureStart={x:Math.round(e.clientX-rect.left),y:Math.round(e.clientY-rect.top)};
+  });
+  workspace.addEventListener('mouseleave',function(){
+    document.getElementById('sr-crosshair-h').style.display='none';
+    document.getElementById('sr-crosshair-v').style.display='none';
+  });
+  window._srToggleH=toggleH;window._srToggleV=toggleV;window._srMeasure=measure;window._srReset=reset;
+  document.getElementById('sr-info').textContent='Move mouse to see coordinates. Enable rulers or measure mode to start measuring.';
+})();
+</script>

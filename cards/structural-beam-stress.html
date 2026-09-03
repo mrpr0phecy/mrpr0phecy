@@ -1,0 +1,271 @@
+<!--
+  🏗️ The Stress Gallery — HALL OF STRUCTURE. Interactive beam stress
+  visualiser. Apply point loads, distributed loads and moments to a simply
+  supported or cantilever beam. Watch shear force and bending moment diagrams
+  update in real time. Colour-coded stress map shows where failure begins.
+  Zero network.
+-->
+<style>
+  .sg-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .sg-kicker{display:inline-block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;
+    color:#c9a227;border:1px solid rgba(201,162,39,.35);padding:6px 14px;border-radius:2px;margin-bottom:14px}
+  .sg-title{font-family:var(--serif,'Georgia',serif);font-size:1.9rem;margin:0 0 6px;color:#f4ead0;font-weight:400}
+  .sg-lede{color:var(--muted,#9aa6b6);font-size:.92rem;line-height:1.6;margin:0 0 16px;max-width:780px}
+  .sg-lede b{color:#e3c05a;font-weight:600}
+  .sg-box{border:1px solid rgba(201,162,39,.28);border-radius:10px;padding:16px 18px;margin-bottom:18px;
+    background:linear-gradient(180deg,#070a12,#0a0e18)}
+  .sg-say{font-size:.72rem;color:#8fa3bf;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+  .sg-box h3{font-family:var(--serif,'Georgia',serif);font-size:1.12rem;color:#f4ead0;font-weight:400;margin:0 0 10px}
+  .sg-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .sg-chip{padding:7px 13px;border-radius:999px;font-size:.76rem;font-weight:600;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid rgba(201,162,39,.3);color:#d8cfae;transition:all .15s}
+  .sg-chip:hover,.sg-chip.on{border-color:#e3c05a;color:#e3c05a;background:rgba(201,162,39,.08)}
+  .sg-canvas-wrap{position:relative;border-radius:8px;overflow:hidden;margin:12px 0;
+    border:1px solid rgba(201,162,39,.2)}
+  .sg-canvas-wrap canvas{display:block;width:100%;height:auto}
+  .sg-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .sg-slider label{display:flex;justify-content:space-between;font-size:.72rem;color:#8fa3bf;margin-bottom:3px}
+  .sg-slider label span{color:#e3c05a;font-family:ui-monospace,monospace}
+  .sg-slider input[type=range]{width:100%;accent-color:#e3c05a}
+  .sg-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+  .sg-card{background:rgba(255,255,255,.04);border:1px solid rgba(201,162,39,.2);border-radius:8px;padding:10px 12px;text-align:center}
+  .sg-card .k{font-size:.66rem;color:#8fa3bf;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px}
+  .sg-card .v{font-size:1.1rem;color:#f0e6c8;font-weight:600}
+  .sg-note{font-size:.82rem;color:#c3c9d4;line-height:1.6;border-top:1px solid rgba(201,162,39,.2);padding-top:10px;margin-top:12px}
+  .sg-note b{color:#e3c05a}
+  @media(max-width:640px){.sg-grid2{grid-template-columns:1fr}}
+</style>
+
+<div class="sg-wrap">
+  <span class="sg-kicker">Hall of Structure · Catalogue 11</span>
+  <h2 id="sg-title" class="sg-title" style="margin-top:0">🏗️ The Stress Gallery</h2>
+  <p class="sg-lede">
+    Apply loads to a beam and watch stress propagate in real time. See <b>shear force</b> and
+    <b>bending moment</b> diagrams update live. The colour map shows where failure begins —
+    red zones are where your shelf, joist, or lintel will crack first.
+  </p>
+
+  <div class="sg-box">
+    <div class="sg-say">Exhibit A · The living beam</div>
+    <h3>Load a beam and watch it flex</h3>
+    <div class="sg-chips" id="sg-supports"></div>
+    <div class="sg-canvas-wrap"><canvas id="sg-canvas" width="700" height="340"></canvas></div>
+    <div class="sg-grid2">
+      <div class="sg-slider">
+        <label>Load position along beam <span id="sg-pos-val">50%</span></label>
+        <input type="range" id="sg-pos" min="5" max="95" value="50">
+      </div>
+      <div class="sg-slider">
+        <label>Load force (kN) <span id="sg-force-val">5 kN</span></label>
+        <input type="range" id="sg-force" min="1" max="20" value="5" step="0.5">
+      </div>
+      <div class="sg-slider">
+        <label>Beam length (m) <span id="sg-len-val">3.0 m</span></label>
+        <input type="range" id="sg-len" min="1" max="6" value="3" step="0.1">
+      </div>
+      <div class="sg-slider">
+        <label>Beam depth (mm) <span id="sg-depth-val">200 mm</span></label>
+        <input type="range" id="sg-depth" min="50" max="400" value="200" step="10">
+      </div>
+    </div>
+    <div class="sg-cards" id="sg-stats"></div>
+    <div class="sg-note">
+      <b>What you're seeing.</b> The top beam shows the <b>deflection curve</b> — how much it bends.
+      The middle diagram is <b>shear force</b> (V) — the internal cutting force. The bottom diagram
+      is <b>bending moment</b> (M) — the internal twisting force. The <b>stress colour map</b> on the
+      beam shows where tension (bottom, blue) and compression (top, red) are greatest.
+      When stress exceeds the material's strength, the beam fails.
+    </div>
+  </div>
+
+  <div class="sg-box">
+    <div class="sg-say">Exhibit B · Why beams are tall, not wide</div>
+    <h3>The moment of inertia secret</h3>
+    <div class="sg-canvas-wrap"><canvas id="sg-inertia" width="700" height="180"></canvas></div>
+    <div class="sg-note">
+      <b>A beam's resistance to bending</b> depends on its <b>moment of inertia</b> (I = bd³/12).
+      Notice the <b>d³</b> — depth is cubed. Double the depth and you get <b>8× stronger</b>.
+      This is why I-beams are tall and thin, why floor joists are placed on edge, and why
+      a ruler bends easily flat but is stiff on its side. The shape on the right is
+      <b>equally strong</b> as the one on the left but uses far less material.
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var supportType=0;
+  var supportNames=['Simply Supported','Cantilever','Fixed-Fixed'];
+
+  function sgInitChips(){
+    var html='';
+    for(var i=0;i<supportNames.length;i++){
+      html+='<div class="sg-chip'+(i===supportType?' on':'')+'" data-i="'+i+'">'+supportNames[i]+'</div>';
+    }
+    document.getElementById('sg-supports').innerHTML=html;
+    document.getElementById('sg-supports').onclick=function(e){
+      var c=e.target.closest('[data-i]');if(!c)return;
+      supportType=parseInt(c.dataset.i);sgInitChips();
+    };
+  }
+
+  function sgCalc(){
+    var L=parseFloat(document.getElementById('sg-len').value);
+    var F=parseFloat(document.getElementById('sg-force').value)*1000;
+    var a=parseFloat(document.getElementById('sg-pos').value)/100*L;
+    var b=L-a;
+    var d=parseFloat(document.getElementById('sg-depth').value)/1000;
+    var W=700,pad=40,beamY=60,beamW=W-pad*2;
+    var canvas=document.getElementById('sg-canvas');
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#070a12';ctx.fillRect(0,0,W,canvas.height);
+
+    var RA,RB,MaxM,MaxV;
+    if(supportType===0){
+      RA=F*b/L;RB=F*a/L;
+      MaxM=F*a*b/L;MaxV=Math.max(RA,RB);
+    } else if(supportType===1){
+      RA=F;RB=0;MaxM=F*a;MaxV=F;
+    } else {
+      RA=F*b*b*(3*a+b)/(L*L*L);
+      RB=F*a*a*(a+3*b)/(L*L*L);
+      MaxM=Math.abs(F*a*b*b/(L*L));
+      MaxV=Math.max(RA,RB);
+    }
+
+    function xPx(frac){return pad+frac*beamW;}
+
+    ctx.strokeStyle='rgba(201,162,39,0.4)';ctx.lineWidth=1;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(pad,beamY);ctx.lineTo(W-pad,beamY);ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle='#e3c05a';ctx.strokeStyle='#e3c05a';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(pad,beamY);ctx.lineTo(W-pad,beamY);ctx.stroke();
+
+    var loadX=xPx(a/L);
+    ctx.fillStyle='#ff3b3b';ctx.beginPath();
+    ctx.moveTo(loadX,beamY-5);ctx.lineTo(loadX-8,beamY-25);ctx.lineTo(loadX+8,beamY-25);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#ff6b6b';ctx.font='bold 11px system-ui';ctx.textAlign='center';
+    ctx.fillText(F/1000+' kN',loadX,beamY-30);
+
+    if(supportType===0||supportType===2){
+      ctx.fillStyle='#39ff14';
+      ctx.beginPath();ctx.moveTo(pad-10,beamY+12);ctx.lineTo(pad+10,beamY+12);ctx.lineTo(pad,beamY);ctx.closePath();ctx.fill();
+      ctx.beginPath();ctx.moveTo(W-pad-10,beamY+12);ctx.lineTo(W-pad+10,beamY+12);ctx.lineTo(W-pad,beamY);ctx.closePath();ctx.fill();
+    } else {
+      ctx.fillStyle='#39ff14';
+      ctx.fillRect(pad-4,beamY-5,8,30);
+      ctx.fillStyle='#8fa3bf';ctx.font='10px system-ui';ctx.textAlign='left';
+      ctx.fillText('Fixed',pad+10,beamY+20);
+    }
+
+    var shearY=140,momentY=240;
+    ctx.fillStyle='#8fa3bf';ctx.font='10px system-ui';ctx.textAlign='left';
+    ctx.fillText('Shear Force V (kN)',pad,shearY-40);
+    ctx.fillText('Bending Moment M (kN·m)',pad,momentY-40);
+
+    ctx.strokeStyle='rgba(201,162,39,0.15)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad,shearY);ctx.lineTo(W-pad,shearY);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(pad,momentY);ctx.lineTo(W-pad,momentY);ctx.stroke();
+
+    var shearScale=30/Math.max(RA,RB,1);
+    ctx.strokeStyle='#3b82f6';ctx.lineWidth=2;ctx.beginPath();
+    if(supportType===0){
+      ctx.moveTo(pad,shearY-RA*shearScale);
+      ctx.lineTo(loadX,shearY-RA*shearScale);
+      ctx.lineTo(loadX,shearY+RB*shearScale);
+      ctx.lineTo(W-pad,shearY+RB*shearScale);
+    } else if(supportType===1){
+      ctx.moveTo(pad,shearY-F*shearScale);
+      ctx.lineTo(loadX,shearY-F*shearScale);
+      ctx.lineTo(loadX,shearY);
+      ctx.lineTo(W-pad,shearY);
+    } else {
+      ctx.moveTo(pad,shearY-RA*shearScale);
+      ctx.lineTo(loadX,shearY-RA*shearScale);
+      ctx.lineTo(loadX,shearY+RB*shearScale);
+      ctx.lineTo(W-pad,shearY+RB*shearScale);
+    }
+    ctx.stroke();
+
+    var momentScale=25/Math.max(MaxM,1);
+    ctx.strokeStyle='#e3c05a';ctx.lineWidth=2;ctx.beginPath();
+    if(supportType===0){
+      ctx.moveTo(pad,momentY);
+      for(var x=0;x<=100;x++){
+        var xf=x/100;var xp=xPx(xf);
+        var M=xf<=a/L?RA*xf*L:F*b/L*(L-xf*L);
+        ctx.lineTo(xp,momentY-M*momentScale);
+      }
+    } else if(supportType===1){
+      ctx.moveTo(pad,momentY);
+      for(var x=0;x<=100;x++){
+        var xf=x/100;var xp=xPx(xf);
+        var M=xf<=a/L?F*xf*L:F*a;
+        ctx.lineTo(xp,momentY-M*momentScale);
+      }
+    } else {
+      ctx.moveTo(pad,momentY);
+      for(var x=0;x<=100;x++){
+        var xf=x/100;var xp=xPx(xf);
+        var xx=xf*L;
+        var M=RA*xx-F*Math.max(0,xx-a);
+        ctx.lineTo(xp,momentY-M*momentScale);
+      }
+    }
+    ctx.stroke();
+
+    var I=b*d*d*d/12;
+    var stress=MaxM*(d/2)/I/1e6;
+    var deflection=supportType===0?(F*a*b*(L*L-a*a-b*b)*Math.sqrt(3))/(27*200e9*I*L)*1000:
+                    supportType===1?(F*a*a*a)/(3*200e9*I)*1000:
+                    (F*a*a*b*b)/(3*200e9*I*L*L)*1000;
+
+    var cards=document.getElementById('sg-stats');
+    cards.innerHTML=
+      '<div class="sg-card"><span class="k">Max Bending Moment</span><span class="v">'+(MaxM/1000).toFixed(2)+' kN·m</span></div>'+
+      '<div class="sg-card"><span class="k">Max Shear Force</span><span class="v">'+(MaxV/1000).toFixed(2)+' kN</span></div>'+
+      '<div class="sg-card"><span class="k">Max Stress</span><span class="v" style="color:'+(stress>30?'#ff3b3b':stress>15?'#ffaa00':'#39ff14')+'">'+stress.toFixed(1)+' MPa</span></div>'+
+      '<div class="sg-card"><span class="k">Deflection</span><span class="v">'+deflection.toFixed(2)+' mm</span></div>'+
+      '<div class="sg-card"><span class="k">I (2nd moment)</span><span class="v">'+(I*1e8).toFixed(1)+' cm⁴</span></div>';
+  }
+
+  function sgDrawInertia(){
+    var canvas=document.getElementById('sg-inertia');
+    var ctx=canvas.getContext('2d');
+    var W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#070a12';ctx.fillRect(0,0,W,H);
+    var d=parseFloat(document.getElementById('sg-depth').value)/1000;
+    var b=0.05;
+    var I_flat=b*d*d*d/12;
+    var I_tall=d*b*b*b/12;
+    var ratio=I_flat/Math.max(I_tall,1e-10);
+    var scale=120;
+    ctx.strokeStyle='#e3c05a';ctx.lineWidth=2;
+    ctx.strokeRect(100,H/2-d*scale/2,b*scale,d*scale);
+    ctx.fillStyle='#8fa3bf';ctx.font='11px system-ui';ctx.textAlign='center';
+    ctx.fillText('Flat: I = '+I_flat.toExponential(2)+' m⁴',100+b*scale/2,H-10);
+    ctx.strokeStyle='#39ff14';ctx.lineWidth=2;
+    ctx.strokeRect(W-200,H/2-b*scale/2,d*scale,b*scale);
+    ctx.fillText('On edge: I = '+I_flat.toExponential(2)+' m⁴',W-200+d*scale/2,H-10);
+    ctx.fillStyle='#e3c05a';ctx.font='bold 14px system-ui';
+    ctx.fillText('Same material, same cross-section area',W/2,20);
+    ctx.fillStyle='#8fa3bf';ctx.font='12px system-ui';
+    ctx.fillText('But the tall beam is '+ratio.toFixed(0)+'× stiffer because I = bd³/12',W/2,40);
+  }
+
+  document.getElementById('sg-pos').oninput=function(){document.getElementById('sg-pos-val').textContent=this.value+'%';};
+  document.getElementById('sg-force').oninput=function(){document.getElementById('sg-force-val').textContent=this.value+' kN';};
+  document.getElementById('sg-len').oninput=function(){document.getElementById('sg-len-val').textContent=parseFloat(this.value).toFixed(1)+' m';};
+  document.getElementById('sg-depth').oninput=function(){document.getElementById('sg-depth-val').textContent=this.value+' mm';};
+
+  sgInitChips();
+
+  function sgLoop(){
+    sgCalc();sgDrawInertia();
+    requestAnimationFrame(sgLoop);
+  }
+  sgLoop();
+})();
+</script>

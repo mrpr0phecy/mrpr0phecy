@@ -1,0 +1,117 @@
+<div id="rope-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#1a1408,#0d1b2a);border:1px solid #4a3a1a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#e0a020">🪢 Rope Physics</h2>
+    <p style="margin:0 0 20px;color:#b0a070;font-size:0.95em">Drag, swing, and wrap a realistic rope with verlet integration — pin ends, cut segments, add weights</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="rp-canvas" width="480" height="440" style="width:100%;border-radius:12px;background:#0a0a08;cursor:pointer"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="rp-pin" style="padding:6px 12px;border-radius:8px;border:1px solid #4a3a1a;background:#2a1a08;color:#e0a020;cursor:pointer;font-size:0.82em">📌 Pin/Unpin</button>
+          <button id="rp-cut" style="padding:6px 12px;border-radius:8px;border:1px solid #4a3a1a;background:#2a1a08;color:#e0a020;cursor:pointer;font-size:0.82em">✂️ Cut Mode</button>
+          <button id="rp-weight" style="padding:6px 12px;border-radius:8px;border:1px solid #4a3a1a;background:#2a1a08;color:#e0a020;cursor:pointer;font-size:0.82em">⚖️ Add Weight</button>
+          <button id="rp-reset" style="padding:6px 12px;border-radius:8px;border:1px solid #4a3a1a;background:#2a1a08;color:#e0a020;cursor:pointer;font-size:0.82em">🔄 Reset</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #2a2a1a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#e0a020">How it works</b><br>
+          The rope is a chain of point masses connected by distance constraints, solved with verlet integration. Gravity, damping, and collision keep it feeling physical and responsive.<br><br>
+          <b style="color:#e0a020">Controls</b><br>
+          • <b>Drag</b> any point to pull the rope<br>
+          • <b>Pin/Unpin</b> — click a point to fix it in place<br>
+          • <b>Cut</b> mode — click to sever the rope<br>
+          • <b>Weight</b> — click a point to add mass
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('rp-canvas'),ctx=c.getContext('2d');
+  const pinBtn=document.getElementById('rp-pin'),cutBtn=document.getElementById('rp-cut');
+  const weightBtn=document.getElementById('rp-weight'),resetBtn=document.getElementById('rp-reset');
+  let W=c.width,H=c.height,points=[],constraints=[],mode='drag',dragging=-1;
+  function initRope(){
+    points=[];constraints=[];
+    const n=30,startX=W*0.2,startY=80;
+    for(let i=0;i<n;i++){
+      points.push({x:startX+i*10,y:startY,ox:startX+i*10,oy:startY,pinned:i===0||i===n-1,mass:1});
+    }
+    for(let i=0;i<n-1;i++){
+      constraints.push({a:i,b:i+1,len:12});
+    }
+  }
+  initRope();
+  pinBtn.onclick=function(){mode=mode==='pin'?'drag':'pin';pinBtn.style.background=mode==='pin'?'#4a3a1a':'#2a1a08'};
+  cutBtn.onclick=function(){mode=mode==='cut'?'drag':'cut';cutBtn.style.background=mode==='cut'?'#4a3a1a':'#2a1a08'};
+  weightBtn.onclick=function(){mode=mode==='weight'?'drag':'weight';weightBtn.style.background=mode==='weight'?'#4a3a1a':'#2a1a08'};
+  resetBtn.onclick=initRope;
+  function getPos(e){const rect=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-rect.left)*W/rect.width,y:(t.clientY-rect.top)*H/rect.height}}
+  function findPoint(p,bestD){
+    bestD=bestD||25;let best=-1;
+    points.forEach((pt,i)=>{const d=Math.sqrt((pt.x-p.x)**2+(pt.y-p.y)**2);if(d<bestD){bestD=d;best=i}});
+    return best;
+  }
+  c.onmousedown=c.ontouchstart=function(e){
+    e.preventDefault();const p=getPos(e);
+    if(mode==='pin'){const i=findPoint(p);if(i>=0)points[i].pinned=!points[i].pinned;return}
+    if(mode==='cut'){
+      constraints=constraints.filter(cn=>{
+        const a=points[cn.a],b=points[cn.b];
+        const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+        return Math.sqrt((mx-p.x)**2+(my-p.y)**2)>20;
+      });
+      return;
+    }
+    if(mode==='weight'){const i=findPoint(p);if(i>=0)points[i].mass=Math.min(5,points[i].mass+1);return}
+    dragging=findPoint(p);
+  };
+  c.onmousemove=c.ontouchmove=function(e){e.preventDefault();if(dragging>=0&&!points[dragging].pinned){const p=getPos(e);points[dragging].x=p.x;points[dragging].y=p.y;points[dragging].ox=p.x;points[dragging].oy=p.y}};
+  c.onmouseup=c.ontouchend=function(){dragging=-1};
+  function step(){
+    points.forEach(p=>{
+      if(p.pinned||p===points[dragging])return;
+      const vx=(p.x-p.ox)*0.99,vy=(p.y-p.oy)*0.99;
+      p.ox=p.x;p.oy=p.y;
+      p.x+=vx;p.y+=vy+0.15*p.mass;
+      if(p.y>H-5){p.y=H-5;p.oy=p.y+vy*0.3}
+      if(p.x<5){p.x=5;p.ox=p.x}
+      if(p.x>W-5){p.x=W-5;p.ox=p.x}
+      if(p.y<5){p.y=5;p.oy=p.y}
+    });
+    for(let iter=0;iter<5;iter++){
+      constraints.forEach(cn=>{
+        const a=points[cn.a],b=points[cn.b];
+        const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||0.01;
+        const diff=(d-cn.len)/d*0.5;
+        const ox=dx*diff,oy=dy*diff;
+        const totalMass=a.mass+b.mass;
+        if(!a.pinned&&dragging!==cn.a){a.x+=ox*b.mass/totalMass;a.y+=oy*b.mass/totalMass}
+        if(!b.pinned&&dragging!==cn.b){b.x-=ox*a.mass/totalMass;b.y-=oy*a.mass/totalMass}
+      });
+    }
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0a0a08';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='#1a1a18';ctx.lineWidth=1;
+    for(let y=0;y<H;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    constraints.forEach(cn=>{
+      const a=points[cn.a],b=points[cn.b];
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle='#a08020';ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
+    });
+    points.forEach((p,i)=>{
+      const r=3+p.mass;
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
+      if(p.pinned){ctx.fillStyle='#f04040';ctx.fill();ctx.strokeStyle='#ff6060';ctx.lineWidth=2;ctx.stroke()}
+      else{ctx.fillStyle=`hsl(${40+p.mass*10},80%,60%)`;ctx.fill()}
+    });
+    ctx.fillStyle='#e0a020';ctx.font='11px system-ui';ctx.textAlign='left';
+    ctx.fillText(`Mode: ${mode} · Points: ${points.length} · Links: ${constraints.length}`,8,H-8);
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

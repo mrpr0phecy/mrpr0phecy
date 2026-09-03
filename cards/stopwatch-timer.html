@@ -1,0 +1,103 @@
+<h2>⏱️ Stopwatch & Lap Timer</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Precision stopwatch with lap tracking. Record split times, compare laps, and export your data.</p>
+
+<div id="sw-app" style="max-width:500px;margin:0 auto;">
+  <div style="text-align:center;padding:24px;background:rgba(0,0,0,0.3);border:1px solid rgba(45,212,255,0.15);border-radius:12px;margin-bottom:16px;">
+    <div id="sw-display" style="font-size:3.5em;font-weight:700;color:#2dd4ff;font-family:monospace;letter-spacing:2px;">00:00:00.000</div>
+    <div id="sw-ms" style="font-size:1.2em;color:rgba(45,212,255,0.5);font-family:monospace;"></div>
+  </div>
+
+  <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;">
+    <button id="sw-start" onclick="window._swToggle()" style="padding:12px 32px;background:rgba(57,255,20,0.15);border:1px solid rgba(57,255,20,0.4);border-radius:10px;color:#39ff14;cursor:pointer;font-weight:700;font-size:16px;min-width:100px;">▶ Start</button>
+    <button id="sw-lap" onclick="window._swLap()" style="padding:12px 24px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.3);border-radius:10px;color:#ffa500;cursor:pointer;font-weight:600;font-size:14px;opacity:0.5;" disabled>Lap</button>
+    <button onclick="window._swReset()" style="padding:12px 24px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:10px;color:#ff4d4d;cursor:pointer;font-weight:600;font-size:14px;">Reset</button>
+  </div>
+
+  <div id="sw-laps" style="max-height:250px;overflow-y:auto;"></div>
+</div>
+
+<script>
+(function(){
+  var running=false,start=0,elapsed=0,raf=null,laps=[],lastLap=0;
+  function fmt(ms){
+    var h=Math.floor(ms/3600000);
+    var m=Math.floor((ms%3600000)/60000);
+    var s=Math.floor((ms%60000)/1000);
+    var ml=ms%1000;
+    return (h<10?'0':'')+h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+'.'+ml.toString().padStart(3,'0');
+  }
+  function update(){
+    if(!running)return;
+    var now=performance.now();
+    var total=elapsed+(now-start);
+    document.getElementById('sw-display').textContent=fmt(Math.floor(total));
+    raf=requestAnimationFrame(update);
+  }
+  function toggle(){
+    if(running){
+      running=false;
+      elapsed+=performance.now()-start;
+      cancelAnimationFrame(raf);
+      document.getElementById('sw-start').textContent='▶ Start';
+      document.getElementById('sw-start').style.background='rgba(57,255,20,0.15)';
+      document.getElementById('sw-start').style.borderColor='rgba(57,255,20,0.4)';
+      document.getElementById('sw-start').style.color='#39ff14';
+      document.getElementById('sw-lap').disabled=true;
+      document.getElementById('sw-lap').style.opacity='0.5';
+    }else{
+      running=true;
+      start=performance.now();
+      raf=requestAnimationFrame(update);
+      document.getElementById('sw-start').textContent='⏸ Pause';
+      document.getElementById('sw-start').style.background='rgba(255,165,0,0.15)';
+      document.getElementById('sw-start').style.borderColor='rgba(255,165,0,0.4)';
+      document.getElementById('sw-start').style.color='#ffa500';
+      document.getElementById('sw-lap').disabled=false;
+      document.getElementById('sw-lap').style.opacity='1';
+    }
+  }
+  function lap(){
+    if(!running)return;
+    var total=elapsed+(performance.now()-start);
+    var lapTime=total-lastLap;
+    lastLap=total;
+    laps.push({num:laps.length+1,total:total,lap:lapTime});
+    renderLaps();
+  }
+  function renderLaps(){
+    var h='';
+    if(!laps.length){document.getElementById('sw-laps').innerHTML='';return;}
+    var fastest=Infinity,slowest=0,fastIdx=0,slowIdx=0;
+    laps.forEach(function(l,i){if(l.lap<fastest){fastest=l.lap;fastIdx=i;}if(l.lap>slowest){slowest=l.lap;slowIdx=i;}});
+    for(var i=laps.length-1;i>=0;i--){
+      var l=laps[i];
+      var col='#2dd4ff';
+      if(laps.length>1){if(i===fastIdx)col='#39ff14';if(i===slowIdx)col='#ff4d4d';}
+      h+='<div style="display:flex;justify-content:space-between;padding:8px 12px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px;">'+
+        '<span style="color:rgba(230,250,255,0.5);font-size:13px;">Lap '+l.num+'</span>'+
+        '<span style="color:'+col+';font-family:monospace;font-size:14px;font-weight:600;">'+fmt(Math.floor(l.lap))+'</span>'+
+        '<span style="color:rgba(230,250,255,0.4);font-family:monospace;font-size:13px;">'+fmt(Math.floor(l.total))+'</span>'+
+      '</div>';
+    }
+    document.getElementById('sw-laps').innerHTML=h;
+  }
+  function reset(){
+    running=false;cancelAnimationFrame(raf);elapsed=0;start=0;lastLap=0;laps=[];
+    document.getElementById('sw-display').textContent='00:00:00.000';
+    document.getElementById('sw-start').textContent='▶ Start';
+    document.getElementById('sw-start').style.background='rgba(57,255,20,0.15)';
+    document.getElementById('sw-start').style.borderColor='rgba(57,255,20,0.4)';
+    document.getElementById('sw-start').style.color='#39ff14';
+    document.getElementById('sw-lap').disabled=true;
+    document.getElementById('sw-lap').style.opacity='0.5';
+    renderLaps();
+  }
+  window._swToggle=toggle;window._swLap=lap;window._swReset=reset;
+  // Keyboard shortcuts
+  document.addEventListener('keydown',function(e){
+    if(e.code==='Space'){e.preventDefault();toggle();}
+    if(e.code==='KeyL')lap();
+    if(e.code==='KeyR')reset();
+  });
+})();
+</script>

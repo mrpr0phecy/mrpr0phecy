@@ -11,8 +11,11 @@ const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html'));
 
 const musicList = ['audio-tone-frequency-generator', 'audio-bpm-tapper', 'binaural-neuro-tuner', 'bpm-counter', 'capo-calculator', 'carol-karaoke', 'chord-finder', 'chord-progression', 'ear-trainer', 'instrument-care', 'interval-trainer', 'metronome', 'music-quiz', 'music-theory', 'recording-basics', 'rhythm-generator', 'scale-trainer', 'sheet-music', 'song-writer', 'tempo-map', 'transposer', 'tuner', 'youtube-dj'];
 const healthList = ['sleep-circadian-rem-calculator', 'crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'targetheartrate', 'tdee', 'vo2max', 'waisthip', 'waterintake'];
-const financeList = ['fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax'];
-const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'element-hall', 'energy-watt-exchange', 'statistics-illusion-gallery'];
+const financeList = ['fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax', 'bank-dispute-letter', 'bank-fos-complaint', 'bank-fee-calculator', 'bank-sar-request', 'bank-section75-claim', 'bank-complaint-tracker', 'bank-interest-reclaim', 'bank-switching-calculator', 'bank-credit-score-dispute', 'bank-small-claims'];
+const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'element-hall', 'energy-watt-exchange', 'statistics-illusion-gallery', 'thermal-wall-simulator', 'structural-beam-stress', 'pipe-flow-simulator', 'room-acoustics-simulator', 'daylight-room-simulator', 'moisture-capillary-simulator'];
+const boardGameList = ['boardgame-chess', 'boardgame-connect-four', 'boardgame-othello', 'boardgame-yahtzee', 'boardgame-mancala', 'boardgame-snakes-ladders', 'boardgame-nine-mens-morris', 'boardgame-checkers', 'boardgame-ludo', 'boardgame-dominoes', 'boardgame-backgammon'];
+const realityList = ['reality-scale-of-reality', 'reality-spacetime-curvature', 'reality-universe-timeline', 'reality-quantum-world', 'reality-emergence', 'reality-entropy-arrow-of-time', 'reality-fundamental-constants', 'reality-dimensions', 'reality-what-is-consciousness', 'reality-observer-effect', 'reality-why-something-rather-than-nothing'];
+const therapyList = ['therapy-inner-critic-reframe', 'therapy-past-self-gratitude', 'therapy-values-time-gap', 'therapy-body-scan-dialogue', 'therapy-third-person-narrator', 'therapy-worry-sorter', 'therapy-emotional-inheritance', 'therapy-uncertainty-tolerance', 'therapy-grief-of-invisible-losses', 'therapy-identity-shedding', 'therapy-micro-acts-of-defiance'];
 const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
 const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
@@ -101,6 +104,40 @@ const scienceList = [
   'energy',
   'environmental-science',
   'evolution-walker',
+  'evolution-arena-3d',
+  'desktop-toy-lava-lamp',
+  'desktop-toy-sand-hourglass',
+  'desktop-toy-bubble-wrap',
+  'desktop-toy-slinky',
+  'desktop-toy-marble-run',
+  'desktop-toy-dominoes',
+  'desktop-toy-bouncy-balls',
+  'desktop-toy-rope-physics',
+  'desktop-toy-catapult',
+  'desktop-toy-fidget-spinner',
+  'desktop-toy-drinking-bird',
+  'desktop-toy-wave-machine',
+  'sl-lsl-script-generator',
+  'sl-land-tier-calculator',
+  'sl-linden-dollar-converter',
+  'sl-texture-cost-calculator',
+  'sl-avatar-height-calculator',
+  'sl-prim-budget-planner',
+  'sl-time-converter',
+  'sl-group-slot-calculator',
+  'sl-outfit-planner',
+  'sl-mesh-upload-cost',
+  'sl-teleport-planner',
+  'linux-command-cheatsheet',
+  'linux-regex-tester',
+  'linux-cron-builder',
+  'linux-chmod-calculator',
+  'linux-ssh-generator',
+  'linux-disk-analyzer',
+  'linux-signal-reference',
+  'linux-bash-builder',
+  'linux-log-analyzer',
+  'linux-systemd-generator',
   'experiment-ideas',
   'genetics',
   'geography',
@@ -296,7 +333,41 @@ const astronomyList = [
   'black-hole-horizon-calculator'
 ];
 
+const educationList = [
+  'edu-periodic-table',
+  'edu-solar-system',
+  'edu-constellation-map',
+  'edu-dna-translator',
+  'edu-rock-identifier',
+  'edu-timeline-builder',
+  'edu-math-3d',
+  'edu-anatomy',
+  'edu-country-data',
+  'edu-music-theory'
+];
+
+const homeDIYList = [
+  'paint-calculator',
+  'wall-anchor-guide',
+  'picture-hanging-guide',
+  'tile-flooring-estimator',
+  'shelf-bracket-calculator',
+  'screw-drill-chart',
+  'room-layout-planner',
+  'concrete-mix-calculator',
+  'wallpaper-estimator',
+  'insulation-calculator',
+  'plumbing-pipe-sizing',
+  'brick-calculator',
+  'decking-calculator',
+  'gravel-calculator',
+  'fence-calculator',
+  'plastering-calculator'
+];
+
 function getCategory(name) {
+  if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
+  if (educationList.some(s => name.includes(s))) return 'Education & Learning';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
   if (aiList.some(s => name.includes(s))) return 'AI & Autonomous Agents';
   if (dogList.some(s => name.includes(s))) return 'Dogs & Canine Care';
@@ -316,6 +387,9 @@ function getCategory(name) {
   if (healthList.some(s => name.includes(s))) return 'Health & Fitness';
   if (financeList.some(s => name.includes(s))) return 'Finance & Money';
   if (museumList.some(s => name.includes(s))) return 'Museum & Collection';
+  if (boardGameList.some(s => name.includes(s))) return 'Board Games';
+  if (realityList.some(s => name.includes(s))) return 'Nature of Reality';
+  if (therapyList.some(s => name.includes(s))) return 'Therapy & Self-Knowledge';
   if (mathList.some(s => name.includes(s))) return 'Mathematics';
   if (scienceList.some(s => name.includes(s))) return 'Science & Engineering';
   if (writingList.some(s => name.includes(s))) return 'Writing & Language';
@@ -359,8 +433,9 @@ const manifest = files.map(file => {
     title = base.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
 
-  // Extract description
-  const pMatch = html.match(/<p[^>]*class=["'][^"']*(?:desc|description|small)["'][^>]*>([\s\S]*?)<\/p>/i) ||
+  // Extract description — try <div class="description"> first, then <p> tags
+  const pMatch = html.match(/<div[^>]*class=["'][^"']*(?:desc|description)["'][^>]*>([\s\S]*?)<\/div>/i) ||
+                 html.match(/<p[^>]*class=["'][^"']*(?:desc|description|small)["'][^>]*>([\s\S]*?)<\/p>/i) ||
                  html.match(/<p[^>]*>([\s\S]*?)<\/p>/i) ||
                  html.match(/<div[^>]*style=["'][^"']*rgba\(230,\s*250,\s*255[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
   let description = '';

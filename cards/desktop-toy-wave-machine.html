@@ -1,0 +1,91 @@
+<div id="wave-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a0a2a,#1a0a1a);border:1px solid #3a2a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#c060f0">〰️ Wave Machine</h2>
+    <p style="margin:0 0 20px;color:#9080b0;font-size:0.95em">A chain of coupled pendulums — drag to create waves, watch interference patterns, and explore resonance</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="wm-canvas" width="480" height="400" style="width:100%;border-radius:12px;background:#08080a;cursor:pointer"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="wm-pulse" style="padding:6px 12px;border-radius:8px;border:1px solid #3a2a5a;background:#1a0a2a;color:#c060f0;cursor:pointer;font-size:0.82em">💥 Pulse</button>
+          <button id="wm-sine" style="padding:6px 12px;border-radius:8px;border:1px solid #3a2a5a;background:#1a0a2a;color:#c060f0;cursor:pointer;font-size:0.82em">🌊 Sine Wave</button>
+          <button id="wm-reset" style="padding:6px 12px;border-radius:8px;border:1px solid #3a2a5a;background:#1a0a2a;color:#c060f0;cursor:pointer;font-size:0.82em">🔄 Reset</button>
+          <label style="font-size:0.82em;color:#9080b0">Coupling <input id="wm-coupling" type="range" min="0.01" max="0.3" step="0.01" value="0.1" style="width:80px;vertical-align:middle"></label>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #2a1a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#c060f0">How it works</b><br>
+          Each ball is a pendulum connected to its neighbors by springs. Energy transfers between neighbors creating traveling waves, standing waves, and interference patterns depending on coupling strength.<br><br>
+          <b style="color:#c060f0">Controls</b><br>
+          • <b>Drag</b> any ball to displace it<br>
+          • <b>Pulse</b> — hit the first ball<br>
+          • <b>Sine Wave</b> — oscillate the left end<br>
+          • <b>Coupling</b> — spring strength between balls<br>
+          • <b>Reset</b> — return all to rest
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('wm-canvas'),ctx=c.getContext('2d');
+  const pulseBtn=document.getElementById('wm-pulse'),sineBtn=document.getElementById('wm-sine');
+  const resetBtn=document.getElementById('wm-reset'),couplingEl=document.getElementById('wm-coupling');
+  let W=c.width,H=c.height,nodes=[],dragging=-1,sineMode=false,sineT=0;
+  const n=40,restY=H*0.4,spacing=W/(n+1);
+  for(let i=0;i<n;i++){
+    nodes.push({y:restY,vy:0,pinned:i===0});
+  }
+  pulseBtn.onclick=function(){nodes[1].vy=-15};
+  sineBtn.onclick=function(){sineMode=!sineMode;sineT=0;sineBtn.style.background=sineMode?'#3a2a5a':'#1a0a2a'};
+  resetBtn.onclick=function(){nodes.forEach(nd=>{nd.y=restY;nd.vy=0});sineMode=false;sineBtn.style.background='#1a0a2a'};
+  function getPos(e){const rect=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-rect.left)*W/rect.width,y:(t.clientY-rect.top)*H/rect.height}}
+  c.onmousedown=c.ontouchstart=function(e){e.preventDefault();const p=getPos(e);let best=-1,bestD=30;nodes.forEach((nd,i)=>{const nx=spacing*(i+1),d=Math.abs(nx-p.x)+Math.abs(nd.y-p.y);if(d<bestD){bestD=d;best=i}});dragging=best};
+  c.onmousemove=c.ontouchmove=function(e){e.preventDefault();if(dragging>0){const p=getPos(e);nodes[dragging].y=Math.max(50,Math.min(H-50,p.y));nodes[dragging].vy=0}};
+  c.onmouseup=c.ontouchend=function(){dragging=-1};
+  function step(){
+    const k=parseFloat(couplingEl.value),damp=0.997;
+    if(sineMode){sineT+=0.1;nodes[0].y=restY+Math.sin(sineT)*60}
+    nodes.forEach((nd,i)=>{
+      if(nd.pinned||i===dragging)return;
+      const dy=restY-nd.y;
+      nd.vy+=dy*0.005;
+      if(i>0){nd.vy+=(nodes[i-1].y-nd.y)*k}
+      if(i<n-1){nd.vy+=(nodes[i+1].y-nd.y)*k}
+      nd.vy*=damp;
+      nd.y+=nd.vy;
+      nd.y=Math.max(30,Math.min(H-30,nd.y));
+    });
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#08080a';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='#1a1a2a';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,restY);ctx.lineTo(W,restY);ctx.stroke();
+    ctx.strokeStyle='#2a1a4a';ctx.lineWidth=1;
+    for(let i=0;i<n-1;i++){
+      const x1=spacing*(i+1),x2=spacing*(i+2);
+      ctx.beginPath();ctx.moveTo(x1,nodes[i].y);ctx.lineTo(x2,nodes[i+1].y);ctx.stroke();
+    }
+    nodes.forEach((nd,i)=>{
+      const nx=spacing*(i+1);
+      const displacement=Math.abs(nd.y-restY);
+      const hue=280+displacement*2;
+      const light=50+displacement*0.5;
+      const r=5+displacement*0.05;
+      const grd=ctx.createRadialGradient(nx-1,nd.y-1,0,nx,nd.y,r);
+      grd.addColorStop(0,`hsl(${hue},80%,${light+20}%)`);grd.addColorStop(1,`hsl(${hue},60%,${light-10}%)`);
+      ctx.beginPath();ctx.arc(nx,nd.y,r,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    });
+    ctx.beginPath();ctx.moveTo(0,30);ctx.lineTo(W,30);
+    ctx.strokeStyle='#3a2a5a';ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle='#3a2a5a';
+    for(let i=0;i<n;i++){ctx.fillRect(spacing*(i+1)-1,30,2,nodes[i].y-30)}
+    ctx.fillStyle='#c060f0';ctx.font='11px system-ui';ctx.textAlign='left';
+    ctx.fillText(`Nodes: ${n} · Coupling: ${parseFloat(couplingEl.value).toFixed(2)}${sineMode?' · Sine driving':''}`,8,H-8);
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

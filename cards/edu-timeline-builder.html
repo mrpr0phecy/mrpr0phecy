@@ -1,0 +1,115 @@
+<div id="edu-timeline" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a0a2a,#1a0a0d);border:1px solid #3a3a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#8080f0">📜 Historical Timeline Builder</h2>
+    <p style="margin:0 0 20px;color:#9090b0;font-size:0.95em">Create beautiful visual timelines — add events, see them plotted chronologically with color-coded categories</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input id="tl-year" type="number" placeholder="Year" style="width:80px;padding:7px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a2a;color:#e0d0c0;font-size:0.88em">
+          <input id="tl-event" type="text" placeholder="Event description" style="flex:2;padding:7px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a2a;color:#e0d0c0;font-size:0.88em">
+          <select id="tl-cat" style="flex:0.8;padding:7px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a2a;color:#e0d0c0;font-size:0.85em">
+            <option value="war">⚔️ War</option><option value="science">🔬 Science</option>
+            <option value="culture">🎨 Culture</option><option value="politics">🏛️ Politics</option>
+            <option value="tech">💡 Technology</option><option value="other">📌 Other</option>
+          </select>
+          <button id="tl-add" style="padding:7px 12px;border-radius:6px;border:1px solid #8080f0;background:#1a1a3a;color:#8080f0;cursor:pointer;font-size:0.88em">+</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          <button onclick="window._tlPreset('ww2')" style="padding:4px 10px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a2a;color:#8080f0;cursor:pointer;font-size:0.78em">WWII</button>
+          <button onclick="window._tlPreset('space')" style="padding:4px 10px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a2a;color:#8080f0;cursor:pointer;font-size:0.78em">Space Race</button>
+          <button onclick="window._tlPreset('tech')" style="padding:4px 10px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a2a;color:#8080f0;cursor:pointer;font-size:0.78em">Tech History</button>
+          <button onclick="window._tlClear()" style="padding:4px 10px;border-radius:6px;border:1px solid #5a3a3a;background:#0a0a2a;color:#a06060;cursor:pointer;font-size:0.78em">Clear</button>
+        </div>
+        <div id="tl-canvas" style="position:relative;min-height:300px;max-height:400px;overflow-y:auto;background:#06060a;border-radius:8px;padding:16px"></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #2a2a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#8080f0">Categories</b><br>
+          <div style="font-size:0.85em;color:#9090b0">
+            ⚔️ <span style="color:#f04040">War</span> — conflicts, battles, treaties<br>
+            🔬 <span style="color:#40c040">Science</span> — discoveries, theories<br>
+            🎨 <span style="color:#f0a040">Culture</span> — art, music, literature<br>
+            🏛️ <span style="color:#4080f0">Politics</span> — leaders, revolutions<br>
+            💡 <span style="color:#c060f0">Technology</span> — inventions, innovations<br>
+          </div>
+          <br><b style="color:#8080f0">Tips</b><br>
+          • Use negative years for BCE (e.g., -44 = 44 BCE)<br>
+          • Events auto-sort chronologically<br>
+          • Click presets to load example timelines<br>
+          • Great for history essays and presentations
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const yearEl=document.getElementById('tl-year'),eventEl=document.getElementById('tl-event');
+  const catEl=document.getElementById('tl-cat'),addBtn=document.getElementById('tl-add');
+  const canvasEl=document.getElementById('tl-canvas');
+  const catColors={war:'#f04040',science:'#40c040',culture:'#f0a040',politics:'#4080f0',tech:'#c060f0',other:'#808080'};
+  const catIcons={war:'⚔️',science:'🔬',culture:'🎨',politics:'🏛️',tech:'💡',other:'📌'};
+  let events=[];
+  addBtn.onclick=function(){
+    const year=parseInt(yearEl.value),event=eventEl.value.trim(),cat=catEl.value;
+    if(!event||isNaN(year))return;
+    events.push({year,event,cat,id:Date.now()});yearEl.value='';eventEl.value='';render();
+  };
+  function remove(id){events=events.filter(e=>e.id!==id);render()}
+  function render(){
+    if(!events.length){canvasEl.innerHTML='<div style="text-align:center;padding:40px;color:#4040a0">Add events above or load a preset</div>';return}
+    const sorted=[...events].sort((a,b)=>a.year-b.year);
+    const minYear=sorted[0].year,maxYear=sorted[sorted.length-1].year;
+    const range=Math.max(maxYear-minYear,1);
+    let html='<div style="position:relative;padding-left:30px">';
+    // Timeline line
+    html+='<div style="position:absolute;left:14px;top:0;bottom:0;width:2px;background:#2a2a4a"></div>';
+    sorted.forEach((e,i)=>{
+      const pct=((e.year-minYear)/range)*100;
+      const col=catColors[e.cat]||'#808080';
+      const icon=catIcons[e.cat]||'📌';
+      const yearStr=e.year<0?Math.abs(e.year)+' BCE':e.year;
+      html+='<div style="position:relative;margin-bottom:16px;padding-left:20px">'+
+        '<div style="position:absolute;left:-22px;top:4px;width:12px;height:12px;border-radius:50%;background:'+col+';border:2px solid '+col+'40"></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
+          '<div><span style="font-weight:bold;color:'+col+';font-size:0.9em">'+yearStr+'</span> '+
+          '<span style="font-size:0.88em;color:#e0d0c0">'+e.event+'</span></div>'+
+          '<button onclick="window._tlRemove('+e.id+')" style="background:none;border:none;color:#604040;cursor:pointer;font-size:0.8em">✕</button>'+
+        '</div></div>';
+    });
+    html+='</div>';
+    canvasEl.innerHTML=html;
+  }
+  window._tlRemove=remove;
+  window._tlClear=function(){events=[];render()};
+  window._tlPreset=function(type){
+    events=[];
+    if(type==='ww2'){
+      events=[{year:1933,event:'Hitler becomes Chancellor of Germany',cat:'politics'},{year:1935,event:'Nuremberg Laws enacted',cat:'politics'},
+        {year:1936,event:'Spanish Civil War begins',cat:'war'},{year:1938,event:'Anschluss — Germany annexes Austria',cat:'war'},
+        {year:1939,event:'Germany invades Poland — WWII begins',cat:'war'},{year:1940,event:'Battle of Britain',cat:'war'},
+        {year:1941,event:'Pearl Harbor — US enters WWII',cat:'war'},{year:1942,event:'Battle of Stalingrad begins',cat:'war'},
+        {year:1943,event:'Allies invade Italy',cat:'war'},{year:1944,event:'D-Day — Allied invasion of Normandy',cat:'war'},
+        {year:1945,event:'VE Day — Germany surrenders',cat:'war'},{year:1945,event:'Atomic bombs dropped on Japan',cat:'war'},
+        {year:1945,event:'United Nations founded',cat:'politics'}];
+    }else if(type==='space'){
+      events=[{year:1957,event:'Sputnik 1 — first satellite',cat:'tech'},{year:1961,event:'Yuri Gagarin — first human in space',cat:'science'},
+        {year:1962,event:'John Glenn orbits Earth',cat:'science'},{year:1963,event:'Valentina Tereshkova — first woman in space',cat:'science'},
+        {year:1965,event:'Alexei Leonov — first spacewalk',cat:'science'},{year:1969,event:'Apollo 11 — Moon landing',cat:'science'},
+        {year:1971,event:'First space station (Salyut 1)',cat:'tech'},{year:1981,event:'First Space Shuttle launch',cat:'tech'},
+        {year:1990,event:'Hubble Space Telescope launched',cat:'tech'},{year:1998,event:'ISS construction begins',cat:'tech'},
+        {year:2004,event:'Spirit & Opportunity Mars rovers',cat:'science'},{year:2020,event:'SpaceX Crew Dragon — commercial spaceflight',cat:'tech'},
+        {year:2021,event:'James Webb Space Telescope launched',cat:'tech'}];
+    }else{
+      events=[{year:1969,event:'ARPANET — precursor to Internet',cat:'tech'},{year:1971,event:'First email sent',cat:'tech'},
+        {year:1983,event:'Internet protocol (TCP/IP) adopted',cat:'tech'},{year:1989,event:'World Wide Web invented (Tim Berners-Lee)',cat:'tech'},
+        {year:1993,event:'Mosaic — first web browser',cat:'tech'},{year:1998,event:'Google founded',cat:'tech'},
+        {year:2001,event:'Wikipedia launched',cat:'tech'},{year:2004,event:'Facebook launched',cat:'tech'},
+        {year:2007,event:'iPhone released',cat:'tech'},{year:2008,event:'Bitcoin whitepaper published',cat:'tech'},
+        {year:2010,event:'Instagram launched',cat:'tech'},{year:2022,event:'ChatGPT released',cat:'tech'}];
+    }
+    events=events.map((e,i)=>({...e,id:Date.now()+i}));render();
+  };
+  render();
+})();
+</script>

@@ -1,0 +1,132 @@
+<!-- cards/adulting-score.html -->
+<h2 id="adultscore-title" style="margin-top:0;color:var(--accent);">🏠 Adulting Score Calculator</h2>
+
+<form aria-describedby="adultscore-desc" onsubmit="event.preventDefault();">
+  <p id="adultscore-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    How well are you <em>really</em> adulting? Take this brutally honest assessment and find out.
+  </p>
+
+  <div id="adultscore-quiz" style="margin-bottom:16px;"></div>
+
+  <div style="display:flex;gap:8px;margin-bottom:16px;">
+    <button type="button" onclick="adultscorePrev()" id="adultscore-prev" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-weight:600;display:none;">← Previous</button>
+    <button type="button" onclick="adultscoreNext()" id="adultscore-next" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--accent);color:#000;cursor:pointer;font-weight:600;">Next →</button>
+  </div>
+
+  <div id="adultscore-progress" style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-bottom:16px;overflow:hidden;">
+    <div id="adultscore-bar" style="height:100%;background:var(--accent);border-radius:2px;width:10%;transition:width 0.3s;"></div>
+  </div>
+
+  <div id="adultscore-result" style="display:none;padding:20px;border-radius:10px;background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.2);text-align:center;">
+    <div id="adultscore-grade" style="font-size:2rem;margin-bottom:8px;"></div>
+    <div id="adultscore-score" style="font-size:1.2rem;color:var(--accent);font-weight:700;margin-bottom:12px;"></div>
+    <div id="adultscore-breakdown" style="font-size:0.85rem;color:var(--text);line-height:1.8;text-align:left;margin-bottom:12px;"></div>
+    <div id="adultscore-verdict" style="font-size:0.95rem;color:var(--text-secondary);font-style:italic;"></div>
+  </div>
+</form>
+
+<script>
+(function(){
+  var adultscoreQ = [
+    { q: 'When did you last eat a vegetable that wasn\'t on a pizza?', opts: ['Today (a real vegetable)','This week','...this month?','Does ketchup count?','What\'s a vegetable?'], pts: [5,4,2,1,0] },
+    { q: 'How many plants have you killed in the last year?', opts: ['None — they\'re all thriving','1-2 (RIP)','3-5 (I should be stopped)','6+ (plant cemetery)','I don\'t own plants. I know my limits.'], pts: [5,3,1,0,4] },
+    { q: 'Your laundry situation right now:', opts: ['All clean, folded, AND put away','Clean but living in the dryer','There\'s a "chair pile"','I\'m sniffing to decide what\'s clean','I bought new clothes instead of washing'], pts: [5,4,3,1,0] },
+    { q: 'How often do you check your bank balance?', opts: ['Daily — I have a spreadsheet','Weekly — responsible vibes','Monthly — when the statement comes','When the card gets declined','What bank balance?'], pts: [5,4,3,1,0] },
+    { q: 'Your sleep schedule is:', opts: ['Consistent — same time every night','Mostly regular with occasional chaos','A beautiful disaster','Sleep schedule? I sleep when I\'m unconscious','I operate on a 30-hour day cycle'], pts: [5,4,2,1,0] },
+    { q: 'When something breaks in your home, you:', opts: ['Fix it immediately with my toolkit','YouTube it and give it a go','Put a sticky note on it and "come back later"','Rearrange the room so you can\'t see it','Accept that this is how things are now'], pts: [5,4,2,1,0] },
+    { q: 'Your fridge contains:', opts: ['Organised food with labels and dates','Food — some of it fresh','Condiments and a mysterious Tupperware','A single lime and questionable milk','The light works. That\'s about it.'], pts: [5,4,2,1,0] },
+    { q: 'How many unread emails do you have?', opts: ['Zero — inbox zero baby','Under 50','50-500','500-5000','The number has commas in it'], pts: [5,4,2,1,0] },
+    { q: 'Your approach to doctor/dentist appointments:', opts: ['Regular checkups, booked in advance','I go when I remember','I go when something hurts','I go when something REALLY hurts','I WebMD everything and accept my fate'], pts: [5,4,2,1,0] },
+    { q: 'When someone asks "what do you do for fun?":', opts: ['I have hobbies and I do them regularly','I say "hiking" but I mean walking to the shop','I panic and say "lots of things"','Netflix. Just Netflix.','I stare at the wall and call it meditation'], pts: [5,3,2,1,0] }
+  ];
+
+  var adultscoreCurrent = 0;
+  var adultscoreAnswers = new Array(adultscoreQ.length).fill(-1);
+
+  function adultscoreRender() {
+    var q = adultscoreQ[adultscoreCurrent];
+    var html = '<div style="margin-bottom:12px;"><span style="color:var(--accent);font-weight:600;">Q' + (adultscoreCurrent+1) + '/' + adultscoreQ.length + '</span></div>';
+    html += '<h4 style="color:var(--text);margin-bottom:14px;font-size:1rem;">' + q.q + '</h4>';
+    html += '<div style="display:grid;gap:8px;">';
+    for (var i = 0; i < q.opts.length; i++) {
+      var sel = adultscoreAnswers[adultscoreCurrent] === i;
+      var bg = sel ? 'rgba(45,212,255,0.2)' : 'rgba(255,255,255,0.03)';
+      var border = sel ? 'rgba(45,212,255,0.5)' : 'rgba(255,255,255,0.1)';
+      var color = sel ? 'var(--accent)' : 'var(--text)';
+      html += '<button type="button" onclick="adultscoreSelect(' + i + ')" style="padding:12px;border-radius:8px;border:1px solid ' + border + ';background:' + bg + ';color:' + color + ';cursor:pointer;text-align:left;font-size:0.9rem;">' + q.opts[i] + '</button>';
+    }
+    html += '</div>';
+    document.getElementById('adultscore-quiz').innerHTML = html;
+
+    document.getElementById('adultscore-prev').style.display = adultscoreCurrent > 0 ? 'block' : 'none';
+    document.getElementById('adultscore-next').textContent = adultscoreCurrent === adultscoreQ.length - 1 ? '📊 Calculate Score' : 'Next →';
+    document.getElementById('adultscore-bar').style.width = ((adultscoreCurrent + 1) / adultscoreQ.length * 100) + '%';
+  }
+
+  window.adultscoreSelect = function(i) {
+    adultscoreAnswers[adultscoreCurrent] = i;
+    adultscoreRender();
+  };
+
+  window.adultscoreNext = function() {
+    if (adultscoreAnswers[adultscoreCurrent] === -1) return;
+    if (adultscoreCurrent < adultscoreQ.length - 1) {
+      adultscoreCurrent++;
+      adultscoreRender();
+    } else {
+      adultscoreShowResult();
+    }
+  };
+
+  window.adultscorePrev = function() {
+    if (adultscoreCurrent > 0) { adultscoreCurrent--; adultscoreRender(); }
+  };
+
+  function adultscoreShowResult() {
+    var total = 0, max = 0;
+    for (var i = 0; i < adultscoreQ.length; i++) {
+      total += adultscoreQ[i].pts[adultscoreAnswers[i]];
+      max += 5;
+    }
+    var pct = Math.round(total / max * 100);
+
+    var grade, emoji;
+    if (pct >= 90) { grade = 'A+ Certified Adult'; emoji = '🏆'; }
+    else if (pct >= 75) { grade = 'B+ Functioning Adult'; emoji = '👏'; }
+    else if (pct >= 60) { grade = 'C Average Adult-ish'; emoji = '🤷'; }
+    else if (pct >= 40) { grade = 'D Adulting in Progress'; emoji = '😬'; }
+    else if (pct >= 20) { grade = 'F Aspiring Adult'; emoji = '💀'; }
+    else { grade = 'X Not An Adult'; emoji = '🔥'; }
+
+    var breakdown = '';
+    for (var j = 0; j < adultscoreQ.length; j++) {
+      var pts = adultscoreQ[j].pts[adultscoreAnswers[j]];
+      var icon = pts >= 4 ? '✅' : pts >= 2 ? '⚠️' : '❌';
+      breakdown += icon + ' Q' + (j+1) + ': ' + pts + '/5<br>';
+    }
+
+    var verdicts = {
+      'A+': 'You\'re the friend everyone calls when they need help with their taxes. You probably have a spice rack. Respect.',
+      'B+': 'You\'re doing great! You have your life mostly together. The "mostly" is doing a lot of heavy lifting.',
+      'C': 'You\'re an adult on paper. In practice, you\'re three kids in a trenchcoat pretending. And honestly? You\'re pulling it off.',
+      'D': 'You\'re adulting the way a cat walks on a leash — technically doing it, but with visible distress. Hang in there.',
+      'F': 'You\'re not adulting, you\'re surviving. And that\'s valid. Barely, but valid.',
+      'X': 'Your life is a group project where nobody showed up. But hey, at least you took this quiz. That\'s a start.'
+    };
+
+    var vKey = grade.charAt(0) === 'X' ? 'X' : grade.charAt(0) + grade.charAt(1);
+
+    document.getElementById('adultscore-grade').textContent = emoji;
+    document.getElementById('adultscore-score').textContent = grade + ' — ' + pct + '%';
+    document.getElementById('adultscore-breakdown').innerHTML = breakdown;
+    document.getElementById('adultscore-verdict').textContent = verdicts[vKey] || verdicts['C'];
+    document.getElementById('adultscore-result').style.display = 'block';
+    document.getElementById('adultscore-quiz').style.display = 'none';
+    document.getElementById('adultscore-prev').style.display = 'none';
+    document.getElementById('adultscore-next').style.display = 'none';
+    document.getElementById('adultscore-progress').style.display = 'none';
+  }
+
+  adultscoreRender();
+})();
+</script>

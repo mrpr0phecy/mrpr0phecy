@@ -1,0 +1,134 @@
+<h2>🎨 Color Picker & Converter</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Pick colors visually and convert between HEX, RGB, HSL, and HSV formats. Generate palettes and copy values instantly.</p>
+
+<div id="cp-app" style="max-width:600px;margin:0 auto;">
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+    <div style="flex:1;min-width:200px;">
+      <div id="cp-preview" style="width:100%;height:120px;border-radius:10px;border:2px solid rgba(45,212,255,0.3);margin-bottom:10px;transition:background 0.2s;"></div>
+      <input id="cp-native" type="color" value="#2dd4ff" style="width:100%;height:40px;border:none;border-radius:6px;cursor:pointer;background:transparent;" />
+    </div>
+    <div style="flex:1;min-width:200px;">
+      <div style="display:grid;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:40px;font-size:12px;color:#2dd4ff;">HEX</span>
+          <input id="cp-hex" type="text" value="#2dd4ff" style="flex:1;padding:6px;border-radius:4px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-family:monospace;font-size:13px;" />
+          <button onclick="window._cpCopy('hex')" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.2);border-radius:4px;color:#2dd4ff;cursor:pointer;font-size:11px;">📋</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:40px;font-size:12px;color:#39ff14;">RGB</span>
+          <input id="cp-rgb" type="text" value="rgb(45, 212, 255)" style="flex:1;padding:6px;border-radius:4px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-family:monospace;font-size:13px;" />
+          <button onclick="window._cpCopy('rgb')" style="padding:4px 8px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.2);border-radius:4px;color:#39ff14;cursor:pointer;font-size:11px;">📋</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:40px;font-size:12px;color:#ffa500;">HSL</span>
+          <input id="cp-hsl" type="text" value="hsl(193, 100%, 59%)" style="flex:1;padding:6px;border-radius:4px;border:1px solid rgba(255,165,0,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-family:monospace;font-size:13px;" />
+          <button onclick="window._cpCopy('hsl')" style="padding:4px 8px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.2);border-radius:4px;color:#ffa500;cursor:pointer;font-size:11px;">📋</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:40px;font-size:12px;color:#c060f0;">HSV</span>
+          <input id="cp-hsv" type="text" value="hsv(193, 82%, 100%)" style="flex:1;padding:6px;border-radius:4px;border:1px solid rgba(192,96,240,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-family:monospace;font-size:13px;" />
+          <button onclick="window._cpCopy('hsv')" style="padding:4px 8px;background:rgba(192,96,240,0.1);border:1px solid rgba(192,96,240,0.2);border-radius:4px;color:#c060f0;cursor:pointer;font-size:11px;">📋</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <div style="font-size:12px;color:rgba(230,250,255,0.5);margin-bottom:8px;">Generated Palette (complementary + analogous)</div>
+    <div id="cp-palette" style="display:flex;gap:4px;border-radius:8px;overflow:hidden;"></div>
+  </div>
+
+  <div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:6px;font-size:12px;color:rgba(230,250,255,0.4);">
+    <b>Tip:</b> Click any palette swatch to select it. Use the native color picker for precise selection, or type values directly.
+  </div>
+</div>
+
+<script>
+(function(){
+  var nativeEl=document.getElementById('cp-native');
+  function hexToRgb(hex){
+    hex=hex.replace('#','');
+    if(hex.length===3)hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    var r=parseInt(hex.substr(0,2),16),g=parseInt(hex.substr(2,2),16),b=parseInt(hex.substr(4,2),16);
+    return{r:r,g:g,b:b};
+  }
+  function rgbToHex(r,g,b){return '#'+[r,g,b].map(function(x){return x.toString(16).padStart(2,'0');}).join('');}
+  function rgbToHsl(r,g,b){
+    r/=255;g/=255;b/=255;
+    var max=Math.max(r,g,b),min=Math.min(r,g,b),h,s,l=(max+min)/2;
+    if(max===min){h=s=0;}else{
+      var d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);
+      switch(max){case r:h=((g-b)/d+(g<b?6:0))/6;break;case g:h=((b-r)/d+2)/6;break;case b:h=((r-g)/d+4)/6;break;}
+    }
+    return{h:Math.round(h*360),s:Math.round(s*100),l:Math.round(l*100)};
+  }
+  function rgbToHsv(r,g,b){
+    r/=255;g/=255;b/=255;
+    var max=Math.max(r,g,b),min=Math.min(r,g,b),h,s,v=max;
+    var d=max-min;s=max===0?0:d/max;
+    if(max===min){h=0;}else{
+      switch(max){case r:h=((g-b)/d+(g<b?6:0))/6;break;case g:h=((b-r)/d+2)/6;break;case b:h=((r-g)/d+4)/6;break;}
+    }
+    return{h:Math.round(h*360),s:Math.round(s*100),v:Math.round(v*100)};
+  }
+  function hslToRgb(h,s,l){
+    h/=360;s/=100;l/=100;
+    var r,g,b;
+    if(s===0){r=g=b=l;}else{
+      function hue2rgb(p,q,t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;}
+      var q=l<0.5?l*(1+s):l+s-l*s;var p=2*l-q;
+      r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);
+    }
+    return{r:Math.round(r*255),g:Math.round(g*255),b:Math.round(b*255)};
+  }
+  function update(hex){
+    document.getElementById('cp-preview').style.background=hex;
+    nativeEl.value=hex;
+    var rgb=hexToRgb(hex);
+    var hsl=rgbToHsl(rgb.r,rgb.g,rgb.b);
+    var hsv=rgbToHsv(rgb.r,rgb.g,rgb.b);
+    document.getElementById('cp-hex').value=hex;
+    document.getElementById('cp-rgb').value='rgb('+rgb.r+', '+rgb.g+', '+rgb.b+')';
+    document.getElementById('cp-hsl').value='hsl('+hsl.h+', '+hsl.s+'%, '+hsl.l+'%)';
+    document.getElementById('cp-hsv').value='hsv('+hsv.h+', '+hsv.s+'%, '+hsv.v+'%)';
+    // Generate palette
+    var colors=[hex];
+    // Complementary
+    var comp=hslToRgb((hsl.h+180)%360,hsl.s,hsl.l);
+    colors.push(rgbToHex(comp.r,comp.g,comp.b));
+    // Analogous
+    var a1=hslToRgb((hsl.h+30)%360,hsl.s,hsl.l);
+    colors.push(rgbToHex(a1.r,a1.g,a1.b));
+    var a2=hslToRgb((hsl.h+330)%360,hsl.s,hsl.l);
+    colors.push(rgbToHex(a2.r,a2.g,a2.b));
+    // Triadic
+    var tri=hslToRgb((hsl.h+120)%360,hsl.s,hsl.l);
+    colors.push(rgbToHex(tri.r,tri.g,tri.b));
+    var tri2=hslToRgb((hsl.h+240)%360,hsl.s,hsl.l);
+    colors.push(rgbToHex(tri2.r,tri2.g,tri2.b));
+    // Lighter/darker
+    var lighter=hslToRgb(hsl.h,hsl.s,Math.min(95,hsl.l+20));
+    colors.push(rgbToHex(lighter.r,lighter.g,lighter.b));
+    var darker=hslToRgb(hsl.h,hsl.s,Math.max(5,hsl.l-20));
+    colors.push(rgbToHex(darker.r,darker.g,darker.b));
+    var palHtml='';
+    colors.forEach(function(c){
+      palHtml+='<div onclick="window._cpSelect(\''+c+'\')" style="flex:1;height:40px;background:'+c+';cursor:pointer;transition:transform 0.1s;" title="'+c+'"></div>';
+    });
+    document.getElementById('cp-palette').innerHTML=palHtml;
+  }
+  function copy(fmt){
+    var el=document.getElementById('cp-'+fmt);
+    if(navigator.clipboard)navigator.clipboard.writeText(el.value);
+  }
+  function select(hex){update(hex);}
+  nativeEl.addEventListener('input',function(){update(nativeEl.value);});
+  document.getElementById('cp-hex').addEventListener('change',function(){
+    var v=document.getElementById('cp-hex').value.trim();
+    if(v.charAt(0)!=='#')v='#'+v;
+    if(/^#[0-9a-fA-F]{3,6}$/.test(v))update(v);
+  });
+  window._cpCopy=copy;window._cpSelect=select;
+  update('#2dd4ff');
+})();
+</script>

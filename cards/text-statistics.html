@@ -1,0 +1,107 @@
+<h2>📊 Text Statistics Analyzer</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Comprehensive text analysis: word count, character count, sentence count, reading time, readability score, and more.</p>
+
+<div id="tx-app" style="max-width:600px;margin:0 auto;">
+  <div style="margin-bottom:12px;">
+    <textarea id="tx-input" style="width:100%;height:150px;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;box-sizing:border-box;" placeholder="Paste your text here for analysis...">The quick brown fox jumps over the lazy dog. This is a sample text for analysis. It contains multiple sentences with varying lengths. Some sentences are short. Others are considerably longer and contain more complex vocabulary and structure.</textarea>
+  </div>
+
+  <div id="tx-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div id="tx-readability" style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;"></div>
+    <div id="tx-sentence-stats" style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;"></div>
+  </div>
+
+  <div id="tx-word-freq" style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;"></div>
+</div>
+
+<script>
+(function(){
+  function analyze(){
+    var text=document.getElementById('tx-input').value;
+    if(!text.trim()){
+      document.getElementById('tx-stats').innerHTML='';
+      document.getElementById('tx-readability').innerHTML='';
+      document.getElementById('tx-sentence-stats').innerHTML='';
+      document.getElementById('tx-word-freq').innerHTML='';
+      return;
+    }
+    var words=text.match(/[a-zA-Z]+(?:'[a-zA-Z]+)?/g)||[];
+    var sentences=text.split(/[.!?]+/).filter(function(s){return s.trim().length>0;});
+    var chars=text.length;
+    var charsNoSpace=text.replace(/\s/g,'').length;
+    var paragraphs=text.split(/\n\s*\n/).filter(function(p){return p.trim().length>0;}).length||1;
+    var syllables=0;
+    words.forEach(function(w){syllables+=countSyllables(w);});
+    var avgWordLen=words.length?Math.round(words.reduce(function(s,w){return s+w.length;},0)/words.length*10)/10:0;
+    var avgSentLen=sentences.length?Math.round(words.length/sentences.length*10)/10:0;
+    var readingTime=Math.ceil(words.length/200);
+    var speakingTime=Math.ceil(words.length/150);
+    // Flesch Reading Ease
+    var flesch=words.length&&sentences.length?206.835-1.015*(words.length/sentences.length)-84.6*(syllables/words.length):0;
+    flesch=Math.max(0,Math.min(100,Math.round(flesch)));
+    var readingLevel;
+    if(flesch>=90)readingLevel='Very Easy';
+    else if(flesch>=80)readingLevel='Easy';
+    else if(flesch>=70)readingLevel='Fairly Easy';
+    else if(flesch>=60)readingLevel='Standard';
+    else if(flesch>=50)readingLevel='Fairly Difficult';
+    else if(flesch>=30)readingLevel='Difficult';
+    else readingLevel='Very Difficult';
+    // Stats
+    document.getElementById('tx-stats').innerHTML=
+      '<div style="padding:10px;background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.2);border-radius:6px;text-align:center;"><div style="font-size:1.5em;font-weight:700;color:#2dd4ff;">'+words.length+'</div><div style="font-size:11px;color:rgba(230,250,255,0.5);">Words</div></div>'+
+      '<div style="padding:10px;background:rgba(57,255,20,0.05);border:1px solid rgba(57,255,20,0.2);border-radius:6px;text-align:center;"><div style="font-size:1.5em;font-weight:700;color:#39ff14;">'+chars+'</div><div style="font-size:11px;color:rgba(230,250,255,0.5);">Characters</div></div>'+
+      '<div style="padding:10px;background:rgba(255,165,0,0.05);border:1px solid rgba(255,165,0,0.2);border-radius:6px;text-align:center;"><div style="font-size:1.5em;font-weight:700;color:#ffa500;">'+sentences.length+'</div><div style="font-size:11px;color:rgba(230,250,255,0.5);">Sentences</div></div>'+
+      '<div style="padding:10px;background:rgba(192,96,240,0.05);border:1px solid rgba(192,96,240,0.2);border-radius:6px;text-align:center;"><div style="font-size:1.5em;font-weight:700;color:#c060f0;">'+paragraphs+'</div><div style="font-size:11px;color:rgba(230,250,255,0.5);">Paragraphs</div></div>';
+    // Readability
+    var fleschColor=flesch>=60?'#39ff14':flesch>=30?'#ffa500':'#ff4d4d';
+    document.getElementById('tx-readability').innerHTML=
+      '<div style="font-size:13px;color:#2dd4ff;font-weight:600;margin-bottom:8px;">Readability</div>'+
+      '<div style="text-align:center;"><div style="font-size:2em;font-weight:700;color:'+fleschColor+';">'+flesch+'</div><div style="font-size:12px;color:rgba(230,250,255,0.5);">Flesch Score</div>'+
+      '<div style="font-size:14px;color:'+fleschColor+';margin-top:4px;">'+readingLevel+'</div></div>'+
+      '<div style="font-size:11px;color:rgba(230,250,255,0.4);margin-top:8px;">Reading: ~'+readingTime+' min · Speaking: ~'+speakingTime+' min</div>';
+    // Sentence stats
+    var sentLens=sentences.map(function(s){return s.trim().split(/\s+/).length;});
+    var minSent=Math.min.apply(null,sentLens);
+    var maxSent=Math.max.apply(null,sentLens);
+    document.getElementById('tx-sentence-stats').innerHTML=
+      '<div style="font-size:13px;color:#39ff14;font-weight:600;margin-bottom:8px;">Sentence Analysis</div>'+
+      '<div style="font-size:12px;line-height:1.8;color:rgba(230,250,255,0.7);">'+
+        '<div>Avg words/sentence: <b>'+avgSentLen+'</b></div>'+
+        '<div>Shortest sentence: <b>'+minSent+'</b> words</div>'+
+        '<div>Longest sentence: <b>'+maxSent+'</b> words</div>'+
+        '<div>Avg word length: <b>'+avgWordLen+'</b> chars</div>'+
+        '<div>Total syllables: <b>'+syllables+'</b></div>'+
+      '</div>';
+    // Top words
+    var freq={};
+    words.forEach(function(w){w=w.toLowerCase();freq[w]=(freq[w]||0)+1;});
+    var sorted=Object.entries(freq).sort(function(a,b){return b[1]-a[1];}).slice(0,10);
+    var maxFreq=sorted.length?sorted[0][1]:1;
+    var freqHtml='<div style="font-size:13px;color:#ffa500;font-weight:600;margin-bottom:8px;">Top Words</div>';
+    sorted.forEach(function(item){
+      var pct=(item[1]/maxFreq)*100;
+      freqHtml+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">'+
+        '<div style="width:60px;font-size:12px;color:rgba(230,250,255,0.7);text-align:right;">'+item[0]+'</div>'+
+        '<div style="flex:1;height:14px;background:rgba(0,0,0,0.2);border-radius:3px;overflow:hidden;">'+
+          '<div style="height:100%;width:'+pct+'%;background:rgba(255,165,0,0.4);border-radius:3px;"></div>'+
+        '</div>'+
+        '<div style="width:20px;font-size:11px;color:rgba(230,250,255,0.5);">'+item[1]+'</div>'+
+      '</div>';
+    });
+    document.getElementById('tx-word-freq').innerHTML=freqHtml;
+  }
+  function countSyllables(word){
+    word=word.toLowerCase();
+    if(word.length<=3)return 1;
+    word=word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/,'');
+    word=word.replace(/^y/,'');
+    var m=word.match(/[aeiouy]{1,2}/g);
+    return m?m.length:1;
+  }
+  document.getElementById('tx-input').addEventListener('input',analyze);
+  analyze();
+})();
+</script>

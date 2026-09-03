@@ -1,0 +1,79 @@
+<h2>🕳️ Spacetime Curvature</h2>
+<p class="description">See how mass warps the fabric of spacetime. Drag the mass slider to watch gravity bend space, slow time, and curve the paths of light.</p>
+<div id="stc-app" style="max-width:500px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var mass=50,canvas,ctx,W=460,H=360;
+function init(){
+  var h='<canvas id="stc-cv" width="'+W+'" height="'+H+'" style="display:block;margin:0 auto;border-radius:8px;background:#0a0a1a;"></canvas>';
+  h+='<div style="margin-top:12px;"><label style="color:#9ccbe0;font-size:12px;">Mass: <span id="stc-mv">'+mass+'%</span></label><input type="range" id="stc-ms" min="0" max="100" value="'+mass+'" style="width:100%;accent-color:#8844ff;"></div>';
+  h+='<div id="stc-info" style="margin-top:12px;font-size:13px;line-height:1.7;color:#e6faff;background:rgba(255,255,255,0.05);border-radius:8px;padding:12px;border:1px solid rgba(136,68,255,0.2);"></div>';
+  document.getElementById('stc-app').innerHTML=h;
+  canvas=document.getElementById('stc-cv');ctx=canvas.getContext('2d');
+  document.getElementById('stc-ms').addEventListener('input',function(e){mass=parseInt(e.target.value);document.getElementById('stc-mv').textContent=mass+'%';draw();});
+  draw();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  var cx=W/2,cy=H/2,depth=mass*0.015;
+  // grid lines showing curvature
+  ctx.strokeStyle='rgba(136,68,255,0.3)';ctx.lineWidth=1;
+  for(var i=-8;i<=8;i++){
+    ctx.beginPath();
+    for(var x=0;x<=W;x+=4){
+      var dx=(x-cx)/cx,dy=i/8;
+      var r=Math.sqrt(dx*dx+dy*dy);
+      var bend=depth/(r*r+0.3)*dx;
+      var y=cy+dy*H*0.4+bend*H*0.15;
+      x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  for(var i=-8;i<=8;i++){
+    ctx.beginPath();
+    for(var y=0;y<=H;y+=4){
+      var dx=i/8,dy=(y-cy)/cy;
+      var r=Math.sqrt(dx*dx+dy*dy);
+      var bend=depth/(r*r+0.3)*dy;
+      var x=cx+dx*W*0.4+bend*W*0.15;
+      y===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  // central mass
+  var grad=ctx.createRadialGradient(cx,cy,0,cx,cy,20+mass*0.3);
+  grad.addColorStop(0,'#ffffff');grad.addColorStop(0.3,'#8844ff');grad.addColorStop(1,'transparent');
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(cx,cy,20+mass*0.3,0,Math.PI*2);ctx.fill();
+  // orbiting particle
+  var t=Date.now()/1000;
+  var orbitR=80+mass*0.5;
+  var speed=1/(1+mass*0.03); // time dilation
+  var angle=t*speed;
+  var px=cx+Math.cos(angle)*orbitR;
+  var py=cy+Math.sin(angle)*orbitR*0.6; // perspective
+  // curved path
+  ctx.strokeStyle='rgba(57,255,20,0.4)';ctx.lineWidth=1.5;ctx.beginPath();
+  for(var a=0;a<=Math.PI*2;a+=0.05){
+    var ox=cx+Math.cos(a)*orbitR;
+    var oy=cy+Math.sin(a)*orbitR*0.6;
+    var r2=Math.sqrt(Math.pow((ox-cx)/cx,2)+Math.pow((oy-cy)/cy,2));
+    var bend2=depth/(r2*r2+0.3)*((oy-cy)/cy);
+    a===0?ctx.moveTo(ox,oy+bend2*8):ctx.lineTo(ox,oy+bend2*8);
+  }
+  ctx.stroke();
+  // particle
+  ctx.fillStyle='#39ff14';ctx.beginPath();ctx.arc(px,py,5,0,Math.PI*2);ctx.fill();
+  // info
+  var timeDil=(1+mass*0.05).toFixed(2);
+  var escapeV=Math.sqrt(mass*0.02).toFixed(2);
+  var info='<b>Time dilation:</b> Time passes '+timeDil+'× slower near the mass (relative to far away).';
+  info+='<br><b>Escape velocity:</b> '+escapeV+'c'+(parseFloat(escapeV)>1?' — this is a BLACK HOLE!':'');
+  info+='<br><b>Spacetime curvature:</b> '+(mass<20?'Mild — like Earth':mass<60?'Strong — like a neutron star':'Extreme — light itself bends')+'.';
+  info+='<br><br><i>Einstein\'s insight: gravity is not a force pulling you down. The ground is accelerating up into you through curved spacetime.</i>';
+  document.getElementById('stc-info').innerHTML=info;
+}
+init();
+setInterval(draw,50);
+})();
+</script>

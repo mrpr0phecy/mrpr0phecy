@@ -1,0 +1,77 @@
+<div id="bank-tracker" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a2a,#0d1b2a);border:1px solid #2a4a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#40c0e0">📅 Bank Complaint Deadline Tracker</h2>
+    <p style="margin:0 0 20px;color:#80a0b0;font-size:0.95em">Track your complaint deadlines — never miss a bank's response window, FOS deadline, or court limitation period</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input id="bt-name" type="text" placeholder="Complaint name" style="flex:2;padding:8px;border-radius:6px;border:1px solid #2a4a5a;background:#0a1a2a;color:#e0d0c0;font-size:0.9em">
+          <input id="bt-date" type="date" style="flex:1;padding:8px;border-radius:6px;border:1px solid #2a4a5a;background:#0a1a2a;color:#e0d0c0;font-size:0.9em">
+          <button id="bt-add" style="padding:8px 14px;border-radius:6px;border:1px solid #40c0e0;background:#0a2a3a;color:#40c0e0;cursor:pointer;font-size:0.9em">+ Add</button>
+        </div>
+        <div id="bt-list" style="max-height:350px;overflow-y:auto;margin-bottom:12px"></div>
+        <div id="bt-deadlines" style="background:#0d1b2a;border:1px solid #1a3a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.8"></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a3a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#40c0e0">Key Deadlines</b><br>
+          <table style="width:100%;font-size:0.82em;border-collapse:collapse;margin-top:8px">
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:3px 6px;color:#40c0e0">Bank response</td><td style="padding:3px 6px;color:#80a0b0">8 weeks from complaint</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:3px 6px;color:#40c0e0">FOS complaint</td><td style="padding:3px 6px;color:#80a0b0">6 months after bank reply</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:3px 6px;color:#40c0e0">Section 75 claim</td><td style="padding:3px 6px;color:#80a0b0">6 years from purchase</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:3px 6px;color:#40c0e0">Chargeback</td><td style="padding:3px 6px;color:#80a0b0">120 days from transaction</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:3px 6px;color:#40c0e0">Small claims court</td><td style="padding:3px 6px;color:#80a0b0">6 years from incident</td></tr>
+            <tr><td style="padding:3px 6px;color:#40c0e0">FOS final response</td><td style="padding:3px 6px;color:#80a0b0">~6–12 months typical</td></tr>
+          </table>
+          <br><b style="color:#40c0e0">What to Track</b><br>
+          • Date complaint was made<br>
+          • Bank's complaint reference number<br>
+          • Date bank's response is due (8 weeks)<br>
+          • Date to escalate to FOS (6 months)<br>
+          • All correspondence saved<br>
+          • Evidence collected
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const nameEl=document.getElementById('bt-name'),dateEl=document.getElementById('bt-date');
+  const addBtn=document.getElementById('bt-add'),listEl=document.getElementById('bt-list');
+  const deadlinesEl=document.getElementById('bt-deadlines');
+  let complaints=[];
+  addBtn.onclick=function(){
+    const name=nameEl.value.trim(),date=dateEl.value;if(!name||!date)return;
+    complaints.push({name,date,id:Date.now()});nameEl.value='';render();
+  };
+  function remove(id){complaints=complaints.filter(c=>c.id!==id);render()}
+  function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r}
+  function fmt(d){return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
+  function daysLeft(d){return Math.ceil((d-new Date())/(1000*60*60*24))}
+  function render(){
+    let listHtml='',dlHtml='';
+    complaints.forEach(c=>{
+      const filed=new Date(c.date);
+      const bankDue=addDays(filed,56);
+      const fosDeadline=addDays(bankDue,182);
+      const s75Limit=addDays(filed,365*6);
+      const bl=daysLeft(bankDue),fl=daysLeft(fosDeadline);
+      const status=bl>0?'⏳ Waiting':'⏰ Overdue';
+      const statusColor=bl>0?(bl<7?'#f0c040':'#40c040'):'#f04040';
+      listHtml+='<div style="padding:8px 12px;margin-bottom:6px;background:#0a1a2a;border-radius:6px;border-left:3px solid '+statusColor+'">'+
+        '<div style="display:flex;justify-content:space-between"><span style="font-weight:bold">'+c.name+'</span>'+
+        '<button onclick="window._btRemove('+c.id+')" style="background:none;border:none;color:#f04040;cursor:pointer">✕</button></div>'+
+        '<div style="font-size:0.82em;color:#80a0b0">Filed: '+fmt(filed)+' · '+status+' ('+Math.abs(bl)+' days)</div></div>';
+      dlHtml+='<div style="margin-bottom:10px;padding:8px;background:#0a1520;border-radius:6px">';
+      dlHtml+='<div style="font-weight:bold;color:#40c0e0;margin-bottom:4px">'+c.name+'</div>';
+      dlHtml+='<div>📋 Bank response due: <b style="color:'+(bl>0?'#40c040':'#f04040')+'">'+fmt(bankDue)+' ('+bl+' days)</b></div>';
+      dlHtml+='<div>⚖️ FOS deadline: <b style="color:'+(fl>0?'#40c040':'#f04040')+'">'+fmt(fosDeadline)+' ('+fl+' days)</b></div>';
+      dlHtml+='<div>📜 Section 75 limit: <b>'+fmt(s75Limit)+'</b></div></div>';
+    });
+    listEl.innerHTML=listHtml||'<div style="text-align:center;padding:16px;color:#4060a0">Add complaints above to track deadlines</div>';
+    deadlinesEl.innerHTML=dlHtml||'<div style="color:#4060a0">Deadlines will appear here</div>';
+  }
+  window._btRemove=remove;render();
+})();
+</script>

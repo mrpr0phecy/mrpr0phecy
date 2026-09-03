@@ -1,0 +1,101 @@
+<div id="youth-study" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a08,#0d1b2a);border:1px solid #2a5a20;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#40d040">📚 Study Timer (Pomodoro)</h2>
+    <p style="margin:0 0 20px;color:#80a070;font-size:0.95em">Focus timer with study/break cycles, session tracking, and motivational quotes — ace your exams</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px;text-align:center">
+        <div id="st-timer" style="font-size:4em;font-weight:bold;color:#40d040;font-family:monospace;margin:20px 0;letter-spacing:4px">25:00</div>
+        <div id="st-status" style="font-size:1.1em;color:#80a070;margin-bottom:16px">Ready to study</div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px">
+          <button id="st-start" style="padding:10px 24px;border-radius:8px;border:1px solid #40d040;background:#0a2a08;color:#40d040;cursor:pointer;font-size:1em;font-weight:bold">▶ Start</button>
+          <button id="st-pause" style="padding:10px 24px;border-radius:8px;border:1px solid #2a5a20;background:#0a1a08;color:#80a070;cursor:pointer;font-size:1em" disabled>⏸ Pause</button>
+          <button id="st-reset" style="padding:10px 24px;border-radius:8px;border:1px solid #2a5a20;background:#0a1a08;color:#80a070;cursor:pointer;font-size:1em">↺ Reset</button>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px">
+          <div><label style="font-size:0.78em;color:#80a070">Study (min)</label><input id="st-work" type="number" value="25" min="1" max="120" style="width:60px;padding:6px;border-radius:6px;border:1px solid #2a5a20;background:#0a0a08;color:#e0d0c0;font-size:0.9em;text-align:center"></div>
+          <div><label style="font-size:0.78em;color:#80a070">Break (min)</label><input id="st-break" type="number" value="5" min="1" max="60" style="width:60px;padding:6px;border-radius:6px;border:1px solid #2a5a20;background:#0a0a08;color:#e0d0c0;font-size:0.9em;text-align:center"></div>
+          <div><label style="font-size:0.78em;color:#80a070">Long break</label><input id="st-long" type="number" value="15" min="1" max="60" style="width:60px;padding:6px;border-radius:6px;border:1px solid #2a5a20;background:#0a0a08;color:#e0d0c0;font-size:0.9em;text-align:center"></div>
+        </div>
+        <div id="st-sessions" style="font-size:0.88em;color:#80a070;margin-bottom:10px">Sessions: 0</div>
+        <div id="st-quote" style="font-size:0.85em;color:#608050;font-style:italic;padding:10px;background:#060a04;border-radius:8px"></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a3a1a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#40d040">Pomodoro Technique</b><br>
+          1. Study for <b>25 minutes</b> (one pomodoro)<br>
+          2. Take a <b>5 minute break</b><br>
+          3. After 4 pomodoros, take a <b>15-30 min break</b><br>
+          4. Repeat!<br><br>
+          <b style="color:#40d040">Study Tips</b><br>
+          • Put your phone on DND<br>
+          • One task at a time<br>
+          • Write down distractions for later<br>
+          • Reward yourself after each session<br>
+          • Stay hydrated 💧<br><br>
+          <b style="color:#40d040">Keyboard Shortcuts</b><br>
+          <code style="font-size:0.82em;color:#a0d080;background:#060a04;padding:2px 6px;border-radius:4px">Space</code> Start/Pause<br>
+          <code style="font-size:0.82em;color:#a0d080;background:#060a04;padding:2px 6px;border-radius:4px">R</code> Reset
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const timerEl=document.getElementById('st-timer'),statusEl=document.getElementById('st-status');
+  const startBtn=document.getElementById('st-start'),pauseBtn=document.getElementById('st-pause'),resetBtn=document.getElementById('st-reset');
+  const workEl=document.getElementById('st-work'),breakEl=document.getElementById('st-break'),longEl=document.getElementById('st-long');
+  const sessionsEl=document.getElementById('st-sessions'),quoteEl=document.getElementById('st-quote');
+  const quotes=["The secret of getting ahead is getting started. — Mark Twain","You don't have to be great to start, but you have to start to be great. — Zig Ziglar","Education is the most powerful weapon you can use to change the world. — Nelson Mandela","The expert in anything was once a beginner. — Helen Hayes","Success is the sum of small efforts repeated daily.","Study hard what interests you in the most undisciplined way. — Richard Feynman","The beautiful thing about learning is nobody can take it away from you.","Don't let what you cannot do interfere with what you can do.","It always seems impossible until it's done.","Your future is created by what you do today, not tomorrow."];
+  let running=false,paused=false,isBreak=false,timeLeft=25*60,sessions=0,interval=null;
+  function fmt(s){const m=Math.floor(s/60),sec=s%60;return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')}
+  function updateTimer(){timerEl.textContent=fmt(timeLeft)}
+  function showQuote(){quoteEl.textContent=quotes[Math.floor(Math.random()*quotes.length)]}
+  function start(){
+    if(paused){paused=false;running=true;pauseBtn.disabled=false;startBtn.disabled=true;statusEl.textContent=isBreak?'☕ Break time!':'📖 Studying...';tick();return}
+    running=true;isBreak=false;timeLeft=parseInt(workEl.value)*60;
+    startBtn.disabled=true;pauseBtn.disabled=false;
+    statusEl.textContent='📖 Studying...';timerEl.style.color='#40d040';
+    updateTimer();tick();
+  }
+  function tick(){
+    if(interval)clearInterval(interval);
+    interval=setInterval(function(){
+      if(!running||paused)return;
+      timeLeft--;
+      updateTimer();
+      if(timeLeft<=0){
+        clearInterval(interval);running=false;
+        if(!isBreak){
+          sessions++;sessionsEl.textContent='Sessions: '+sessions;
+          const isLong=sessions%4===0;
+          timeLeft=(isLong?parseInt(longEl.value):parseInt(breakEl.value))*60;
+          isBreak=true;timerEl.style.color='#f0c040';
+          statusEl.textContent=isLong?'🌴 Long break!':'☕ Break time!';
+          try{new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGllcw==').play()}catch(e){}
+        }else{
+          timeLeft=parseInt(workEl.value)*60;isBreak=false;
+          timerEl.style.color='#40d040';statusEl.textContent='📖 Back to studying!';
+          showQuote();
+        }
+        startBtn.disabled=false;pauseBtn.disabled=true;
+        updateTimer();
+      }
+    },1000);
+  }
+  function pause(){paused=true;statusEl.textContent='⏸ Paused';startBtn.disabled=false}
+  function reset(){
+    clearInterval(interval);running=false;paused=false;isBreak=false;
+    timeLeft=parseInt(workEl.value)*60;timerEl.style.color='#40d040';
+    statusEl.textContent='Ready to study';startBtn.disabled=false;pauseBtn.disabled=true;
+    updateTimer();
+  }
+  startBtn.onclick=start;pauseBtn.onclick=pause;resetBtn.onclick=reset;
+  document.addEventListener('keydown',function(e){
+    if(e.target.tagName==='INPUT')return;
+    if(e.code==='Space'){e.preventDefault();running&&!paused?pause():start()}
+    if(e.code==='KeyR')reset();
+  });
+  showQuote();updateTimer();
+})();
+</script>

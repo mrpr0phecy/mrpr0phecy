@@ -1,0 +1,103 @@
+<div id="drinking-bird-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a2a,#0d1828);border:1px solid #2a4a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#40c0e0">🐦 Drinking Bird</h2>
+    <p style="margin:0 0 20px;color:#80a0b0;font-size:0.95em">The classic heat-engine desk toy — a bird that perpetually dips its beak into water using thermodynamics</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="db-canvas" width="400" height="440" style="width:100%;border-radius:12px;background:#080a10;cursor:pointer"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="db-start" style="padding:6px 14px;border-radius:8px;border:1px solid #2a4a5a;background:#0d1828;color:#40c0e0;cursor:pointer;font-size:0.85em">▶️ Start</button>
+          <button id="db-wet" style="padding:6px 14px;border-radius:8px;border:1px solid #2a4a5a;background:#0d1828;color:#40c0e0;cursor:pointer;font-size:0.85em">💧 Wet Head</button>
+          <button id="db-heat" style="padding:6px 14px;border-radius:8px;border:1px solid #2a4a5a;background:#0d1828;color:#40c0e0;cursor:pointer;font-size:0.85em">🔥 Heat Lamp</button>
+          <label style="font-size:0.82em;color:#80a0b0">Temp <input id="db-temp" type="range" min="15" max="45" step="1" value="25" style="width:80px;vertical-align:middle"></label>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a3a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#40c0e0">How it works</b><br>
+          Evaporative cooling on the wet head creates a temperature difference between the head and bottom bulb. This causes the methylene chloride vapor inside to condense, making the bird tip forward. When the beak dips in water, the head gets wet again, and the cycle repeats.<br><br>
+          <b style="color:#40c0e0">Controls</b><br>
+          • <b>Start</b> — begin the oscillation<br>
+          • <b>Wet Head</b> — manually wet the head<br>
+          • <b>Heat Lamp</b> — increase evaporation rate<br>
+          • <b>Temp</b> — ambient temperature
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('db-canvas'),ctx=c.getContext('2d');
+  const startBtn=document.getElementById('db-start'),wetBtn=document.getElementById('db-wet');
+  const heatBtn=document.getElementById('db-heat'),tempEl=document.getElementById('db-temp');
+  let W=c.width,H=c.height,angle=0,omega=0,headWet=0.8,heatLamp=false,running=false,dips=0;
+  const pivotX=W/2,pivotY=H*0.45,bodyLen=120;
+  startBtn.onclick=function(){running=true;headWet=0.8;omega=0.02};
+  wetBtn.onclick=function(){headWet=Math.min(1,headWet+0.5)};
+  heatBtn.onclick=function(){heatLamp=!heatLamp;heatBtn.style.background=heatLamp?'#2a4a5a':'#0d1828'};
+  c.onclick=function(){if(!running){running=true;headWet=0.8;omega=0.02}};
+  function step(){
+    if(!running)return;
+    const temp=parseFloat(tempEl.value);
+    const evapRate=(temp-15)/30*0.002*(heatLamp?2.5:1);
+    headWet=Math.max(0,headWet-evapRate);
+    const headY=pivotY-Math.cos(angle)*bodyLen;
+    const dipping=headY>H*0.7;
+    if(dipping&&headWet<0.9){
+      headWet=Math.min(1,headWet+0.08);
+      if(headWet>0.85&&omega<0){dips++}
+    }
+    const tempDiff=headWet*0.6;
+    const torque=-Math.sin(angle)*0.001+tempDiff*0.003*(angle>0?-1:1);
+    omega+=torque;
+    omega*=0.998;
+    if(headWet<0.1)omega*=0.99;
+    angle+=omega;
+    if(angle>0.8){angle=0.8;omega=-Math.abs(omega)*0.3}
+    if(angle<-0.8){angle=-0.8;omega=Math.abs(omega)*0.3}
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#080a10';ctx.fillRect(0,0,W,H);
+    if(heatLamp){
+      const grd=ctx.createRadialGradient(W/2,H-20,10,W/2,H-20,150);
+      grd.addColorStop(0,'rgba(255,120,40,0.15)');grd.addColorStop(1,'rgba(255,80,20,0)');
+      ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
+    }
+    ctx.fillStyle='#1a2a3a';ctx.fillRect(W/2-40,H-20,80,20);
+    ctx.fillStyle='#2a3a4a';ctx.fillRect(W/2-30,H-25,60,8);
+    const waterLevel=H-15;
+    ctx.fillStyle='rgba(64,192,224,0.3)';ctx.fillRect(W/2-35,waterLevel,70,15);
+    ctx.save();ctx.translate(pivotX,pivotY);ctx.rotate(angle);
+    ctx.fillStyle='#2a3a4a';ctx.fillRect(-4,-8,8,8);
+    ctx.fillStyle='#1a2a3a';ctx.fillRect(-3,0,6,bodyLen);
+    const headX=0,headY=-bodyLen;
+    const headGrd=ctx.createRadialGradient(headX,headY-15,3,headX,headY-10,22);
+    headGrd.addColorStop(0,headWet>0.3?'#4080a0':'#c04040');headGrd.addColorStop(1,headWet>0.3?'#204060':'#802020');
+    ctx.beginPath();ctx.arc(headX,headY-10,20,0,Math.PI*2);ctx.fillStyle=headGrd;ctx.fill();
+    ctx.strokeStyle='#3a5a6a';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle='#f0e0a0';ctx.beginPath();ctx.ellipse(headX+15,headY-8,8,4,0.3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#1a1a2a';ctx.beginPath();ctx.arc(headX+8,headY-14,3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#c04040';ctx.fillRect(-8,bodyLen-10,16,20);
+    ctx.fillStyle='#a03030';ctx.beginPath();ctx.ellipse(0,bodyLen+10,10,6,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    if(headWet>0.3){
+      for(let i=0;i<3;i++){
+        const dropY=pivotY-Math.cos(angle)*bodyLen+20+i*8;
+        const dropX=pivotX+Math.sin(angle)*bodyLen*0.1+i*3;
+        ctx.fillStyle=`rgba(64,192,224,${0.3-i*0.08})`;
+        ctx.beginPath();ctx.arc(dropX,dropY,2,0,Math.PI*2);ctx.fill();
+      }
+    }
+    ctx.fillStyle='#40c0e0';ctx.font='11px system-ui';ctx.textAlign='center';
+    ctx.fillText(`Head wet: ${Math.floor(headWet*100)}% · Dips: ${dips} · ${running?'Running':'Stopped'}`,W/2,H-8);
+    if(heatLamp){
+      ctx.fillStyle='#ff8040';ctx.font='10px system-ui';
+      ctx.fillText('🔥 Heat lamp ON',W/2,H-35);
+    }
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

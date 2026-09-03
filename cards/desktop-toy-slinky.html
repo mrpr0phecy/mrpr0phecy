@@ -1,0 +1,122 @@
+<div id="slinky-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#1a0a2a,#0d1b2a);border:1px solid #3a2a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#a080f0">Slinky Physics</h2>
+    <p style="margin:0 0 20px;color:#9080b0;font-size:0.95em">Watch a spring slinky walk downstairs with realistic coil physics — grab it, stretch it, let it go</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="sl-canvas" width="480" height="500" style="width:100%;border-radius:12px;background:#0a0814;cursor:grab"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="sl-drop" style="padding:6px 14px;border-radius:8px;border:1px solid #3a2a5a;background:#1a0a2a;color:#a080f0;cursor:pointer;font-size:0.85em">⬇️ Drop Slinky</button>
+          <button id="sl-stairs" style="padding:6px 14px;border-radius:8px;border:1px solid #3a2a5a;background:#1a0a2a;color:#a080f0;cursor:pointer;font-size:0.85em">🪜 Toggle Stairs</button>
+          <label style="font-size:0.82em;color:#9080b0">Coils <input id="sl-coils" type="range" min="8" max="30" step="1" value="18" style="width:80px;vertical-align:middle"></label>
+          <label style="font-size:0.82em;color:#9080b0">Stiffness <input id="sl-stiff" type="range" min="0.1" max="1" step="0.05" value="0.4" style="width:80px;vertical-align:middle"></label>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #2a1a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#a080f0">How it works</b><br>
+          Each coil is a point mass connected by spring forces. Gravity pulls down, springs pull neighbors together. The result: the bottom of the slinky stays still while the top collapses, then the whole thing walks down.<br><br>
+          <b style="color:#a080f0">Controls</b><br>
+          • <b>Drag</b> any coil to pull the slinky<br>
+          • <b>Drop</b> — release from current position<br>
+          • <b>Stairs</b> — add/remove staircase<br>
+          • <b>Coils</b> — number of spring segments<br>
+          • <b>Stiffness</b> — spring constant
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('sl-canvas'),ctx=c.getContext('2d');
+  const dropBtn=document.getElementById('sl-drop'),stairsBtn=document.getElementById('sl-stairs');
+  const coilsEl=document.getElementById('sl-coils'),stiffEl=document.getElementById('sl-stiff');
+  let W=c.width,H=c.height,nodes=[],stairs=true,dragging=-1,dragX=0,dragY=0;
+  const stairH=35,stairW=80;
+  function initNodes(){
+    nodes=[];
+    const n=parseInt(coilsEl.value);
+    for(let i=0;i<n;i++){
+      nodes.push({x:W/2,y:80+i*12,vx:0,vy:0,pinned:i===0});
+    }
+  }
+  initNodes();
+  coilsEl.onchange=initNodes;
+  dropBtn.onclick=function(){nodes.forEach((n,i)=>{if(i===0)n.pinned=false})};
+  stairsBtn.onclick=function(){stairs=!stairs};
+  function getPos(e){const rect=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-rect.left)*W/rect.width,y:(t.clientY-rect.top)*H/rect.height}}
+  c.onmousedown=c.ontouchstart=function(e){e.preventDefault();const p=getPos(e);let best=-1,bestD=30;nodes.forEach((n,i)=>{const d=Math.sqrt((n.x-p.x)**2+(n.y-p.y)**2);if(d<bestD){bestD=d;best=i}});if(best>=0){dragging=best;dragX=p.x;dragY=p.y;c.style.cursor='grabbing'}};
+  c.onmousemove=c.ontouchmove=function(e){e.preventDefault();if(dragging>=0){const p=getPos(e);dragX=p.x;dragY=p.y}};
+  c.onmouseup=c.ontouchend=function(){dragging=-1;c.style.cursor='grab'};
+  function stairY(x){
+    if(!stairs)return H-20;
+    const sx=x/stairW|0;
+    return H-100+sx*stairH;
+  }
+  function step(){
+    const k=parseFloat(stiffEl.value)*0.3,damp=0.97,restLen=14;
+    nodes.forEach((n,i)=>{
+      if(i===dragging){n.x+=(dragX-n.x)*0.3;n.y+=(dragY-n.y)*0.3;n.vx=0;n.vy=0;return}
+      if(n.pinned)return;
+      n.vy+=0.25;
+      if(i>0){
+        const prev=nodes[i-1],dx=prev.x-n.x,dy=prev.y-n.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        const force=(d-restLen)*k;
+        n.vx+=dx/d*force;n.vy+=dy/d*force;
+      }
+      if(i<nodes.length-1){
+        const next=nodes[i+1],dx=next.x-n.x,dy=next.y-n.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        const force=(d-restLen)*k;
+        n.vx+=dx/d*force;n.vy+=dy/d*force;
+      }
+      n.vx*=damp;n.vy*=damp;
+      n.x+=n.vx;n.y+=n.vy;
+      const floor=stairY(n.x);
+      if(n.y>floor){n.y=floor;n.vy=-n.vy*0.2;n.vx*=0.8}
+      if(n.x<10){n.x=10;n.vx=Math.abs(n.vx)*0.3}
+      if(n.x>W-10){n.x=W-10;n.vx=-Math.abs(n.vx)*0.3}
+      if(n.y<5){n.y=5;n.vy=Math.abs(n.vy)*0.3}
+    });
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0a0814';ctx.fillRect(0,0,W,H);
+    if(stairs){
+      ctx.fillStyle='#1a1828';
+      for(let i=0;i<Math.ceil(W/stairW)+1;i++){
+        ctx.fillRect(i*stairW,H-100+i*stairH,stairW,100);
+      }
+      ctx.strokeStyle='#2a2848';ctx.lineWidth=1;
+      for(let i=0;i<Math.ceil(W/stairW)+1;i++){
+        ctx.strokeRect(i*stairW,H-100+i*stairH,stairW,100);
+      }
+    }else{
+      ctx.fillStyle='#1a1828';ctx.fillRect(0,H-20,W,20);
+    }
+    ctx.strokeStyle='#7060c0';ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.beginPath();
+    nodes.forEach((n,i)=>{
+      const prev=i>0?nodes[i-1]:null;
+      if(prev){
+        const mx=(prev.x+n.x)/2,my=(prev.y+n.y)/2;
+        const perpX=-(n.y-prev.y)*0.15,perpY=(n.x-prev.x)*0.15;
+        const side=i%2===0?1:-1;
+        ctx.quadraticCurveTo(prev.x+perpX*side,prev.y+perpY*side,mx,my);
+      }
+    });
+    ctx.stroke();
+    nodes.forEach((n,i)=>{
+      const grd=ctx.createRadialGradient(n.x-1,n.y-1,0,n.x,n.y,5);
+      grd.addColorStop(0,'#b0a0f0');grd.addColorStop(1,'#5040a0');
+      ctx.beginPath();ctx.arc(n.x,n.y,4,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    });
+    if(dragging>=0){
+      ctx.beginPath();ctx.arc(nodes[dragging].x,nodes[dragging].y,10,0,Math.PI*2);
+      ctx.strokeStyle='rgba(160,128,240,0.5)';ctx.lineWidth=2;ctx.stroke();
+    }
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

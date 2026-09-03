@@ -1,0 +1,126 @@
+<div id="edu-solar" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a0a14,#0d0d1a);border:1px solid #2a2a4a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#f0c040">🪐 Solar System Explorer</h2>
+    <p style="margin:0 0 20px;color:#a0a0c0;font-size:0.95em">Animated orrery of our solar system — watch planets orbit in real time, click for detailed facts</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="ss-canvas" width="500" height="500" style="width:100%;border-radius:12px;background:#06060a;cursor:pointer"></canvas>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button id="ss-play" style="padding:6px 14px;border-radius:6px;border:1px solid #f0c040;background:#1a1a08;color:#f0c040;cursor:pointer;font-size:0.82em">⏸ Pause</button>
+          <label style="font-size:0.82em;color:#a0a0c0">Speed <input id="ss-speed" type="range" min="0.1" max="5" step="0.1" value="1" style="width:80px;vertical-align:middle"></label>
+          <label style="font-size:0.82em;color:#a0a0c0"><input id="ss-labels" type="checkbox" checked style="accent-color:#f0c040"> Labels</label>
+        </div>
+        <div id="ss-info" style="margin-top:10px;background:#0d0d1a;border:1px solid #1a1a3a;border-radius:8px;padding:12px;font-size:0.88em;line-height:1.6;min-height:80px"></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d0d1a;border:1px solid #1a1a3a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#f0c040">Planet Facts</b><br>
+          <div style="font-size:0.82em;color:#a0a0c0;margin-top:6px">
+            <div>☀️ <b>Sun</b> — 99.86% of solar system mass</div>
+            <div>☿ <b>Mercury</b> — 88 days to orbit</div>
+            <div>♀ <b>Venus</b> — hottest planet (462°C)</div>
+            <div>🌍 <b>Earth</b> — only known life</div>
+            <div>♂ <b>Mars</b> — tallest volcano (Olympus Mons)</div>
+            <div>♃ <b>Jupiter</b> — Great Red Spot storm</div>
+            <div>♄ <b>Saturn</b> — density less than water</div>
+            <div>♅ <b>Uranus</b> — rotates on its side</div>
+            <div>♆ <b>Neptune</b> — strongest winds (2,100 km/h)</div>
+          </div>
+          <br><b style="color:#f0c040">Scale</b><br>
+          <div style="font-size:0.82em;color:#a0a0c0">
+            Distances are logarithmic for visibility. Real ratios would make inner planets invisible next to Jupiter.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('ss-canvas'),ctx=c.getContext('2d');
+  const playBtn=document.getElementById('ss-play'),speedEl=document.getElementById('ss-speed');
+  const labelsEl=document.getElementById('ss-labels'),infoEl=document.getElementById('ss-info');
+  let W=c.width,H=c.height,cx=W/2,cy=H/2,playing=true,t=0;
+  const planets=[
+    {name:'Mercury',dist:38,period:0.24,size:3,color:'#b0a090',facts:'Closest to Sun. No atmosphere. Temperature swings from -180°C to 430°C. 88 Earth days to orbit.'},
+    {name:'Venus',dist:56,period:0.62,size:5,color:'#e0c060',facts:'Hottest planet (462°C) due to greenhouse effect. Rotates backwards. A day longer than a year.'},
+    {name:'Earth',dist:75,period:1.0,size:5.5,color:'#4080f0',facts:'Only known planet with life. 71% water. Has one moon. Tilted 23.5° giving us seasons.'},
+    {name:'Mars',dist:95,period:1.88,size:4,color:'#c06040',facts:'The Red Planet. Has the tallest volcano (Olympus Mons, 21km) and deepest canyon (Valles Marineris).'},
+    {name:'Jupiter',dist:140,period:11.86,size:16,color:'#d0a060',facts:'Largest planet. Great Red Spot is a storm larger than Earth. 79+ moons. Could fit 1,300 Earths inside.'},
+    {name:'Saturn',dist:180,period:29.46,size:13,color:'#e0d080',facts:'Famous rings made of ice and rock. Density less than water — it would float! 82+ moons.'},
+    {name:'Uranus',dist:215,period:84.01,size:9,color:'#80d0e0',facts:'Rotates on its side (98° tilt). Ice giant. 27 moons. Discovered in 1781 by William Herschel.'},
+    {name:'Neptune',dist:245,period:164.8,size:8.5,color:'#4060f0',facts:'Farthest planet. Strongest winds in solar system (2,100 km/h). 14 moons. Discovered by math, not sight.'}
+  ];
+  let selected=null;
+  playBtn.onclick=function(){playing=!playing;playBtn.textContent=playing?'⏸ Pause':'▶ Play'};
+  c.onclick=function(e){
+    const rect=c.getBoundingClientRect(),mx=(e.clientX-rect.left)*W/rect.width,my=(e.clientY-rect.top)*H/rect.height;
+    let best=null,bestD=20;
+    planets.forEach(p=>{
+      const angle=t/p.period*Math.PI*2;
+      const px=cx+Math.cos(angle)*p.dist*(W/500);
+      const py=cy+Math.sin(angle)*p.dist*(H/500)*0.6;
+      const d=Math.sqrt((mx-px)**2+(my-py)**2);
+      if(d<bestD){bestD=d;best=p}
+    });
+    selected=best;
+    if(best)infoEl.innerHTML='<div style="color:'+best.color+';font-weight:bold;font-size:1.1em">'+best.name+'</div><div>'+best.facts+'</div>';
+    else infoEl.innerHTML='<div style="color:#606080">Click a planet for details</div>';
+  };
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // Stars
+    for(let i=0;i<80;i++){
+      const sx=(Math.sin(i*127.1+i*311.7)*0.5+0.5)*W;
+      const sy=(Math.sin(i*269.5+i*183.3)*0.5+0.5)*H;
+      const brightness=0.2+Math.sin(t*2+i)*0.15;
+      ctx.fillStyle='rgba(255,255,255,'+brightness+')';
+      ctx.fillRect(sx,sy,1.5,1.5);
+    }
+    // Sun
+    const sunGrd=ctx.createRadialGradient(cx,cy,0,cx,cy,22);
+    sunGrd.addColorStop(0,'#fff8e0');sunGrd.addColorStop(0.5,'#f0c040');sunGrd.addColorStop(1,'#c08020');
+    ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.fillStyle=sunGrd;ctx.fill();
+    // Sun glow
+    const glowGrd=ctx.createRadialGradient(cx,cy,18,cx,cy,50);
+    glowGrd.addColorStop(0,'rgba(240,192,64,0.2)');glowGrd.addColorStop(1,'rgba(240,192,64,0)');
+    ctx.fillStyle=glowGrd;ctx.beginPath();ctx.arc(cx,cy,50,0,Math.PI*2);ctx.fill();
+    // Orbits and planets
+    planets.forEach(p=>{
+      const angle=t/p.period*Math.PI*2;
+      const px=cx+Math.cos(angle)*p.dist*(W/500);
+      const py=cy+Math.sin(angle)*p.dist*(H/500)*0.6;
+      // Orbit
+      ctx.beginPath();ctx.ellipse(cx,cy,p.dist*(W/500),p.dist*(H/500)*0.6,0,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;ctx.stroke();
+      // Planet
+      const grd=ctx.createRadialGradient(px-1,py-1,0,px,py,p.size);
+      grd.addColorStop(0,'#fff');grd.addColorStop(0.3,p.color);grd.addColorStop(1,p.color+'60');
+      ctx.beginPath();ctx.arc(px,py,p.size,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+      // Saturn rings
+      if(p.name==='Saturn'){
+        ctx.beginPath();ctx.ellipse(px,py,p.size*2,p.size*0.5,0.3,0,Math.PI*2);
+        ctx.strokeStyle='rgba(224,208,128,0.4)';ctx.lineWidth=2;ctx.stroke();
+      }
+      // Label
+      if(labelsEl.checked){
+        ctx.fillStyle='rgba(255,255,255,0.6)';ctx.font='10px system-ui';ctx.textAlign='center';
+        ctx.fillText(p.name,px,py-p.size-4);
+      }
+      // Selection highlight
+      if(selected===p){
+        ctx.beginPath();ctx.arc(px,py,p.size+4,0,Math.PI*2);
+        ctx.strokeStyle='#f0c040';ctx.lineWidth=2;ctx.stroke();
+      }
+    });
+    ctx.fillStyle='#f0c040';ctx.font='10px system-ui';ctx.textAlign='center';
+    ctx.fillText('☀️ Sun',cx,cy+30);
+  }
+  function loop(){
+    if(playing)t+=parseFloat(speedEl.value)*0.003;
+    draw();requestAnimationFrame(loop);
+  }
+  infoEl.innerHTML='<div style="color:#606080">Click a planet for details</div>';
+  loop();
+})();
+</script>

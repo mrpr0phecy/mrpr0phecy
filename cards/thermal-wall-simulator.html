@@ -1,0 +1,225 @@
+<!--
+  🧱 The Thermal Wall — HALL OF HEAT. Real-time heat flow through building
+  materials. Watch temperature propagate through brick, insulation, glass and
+  wood as a thermal wave. Interactive sliders for inside/outside temperature,
+  material selection, and wall thickness. Fourier's law made visible.
+  Zero network.
+-->
+<style>
+  .tw-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .tw-kicker{display:inline-block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;
+    color:#c9a227;border:1px solid rgba(201,162,39,.35);padding:6px 14px;border-radius:2px;margin-bottom:14px}
+  .tw-title{font-family:var(--serif,'Georgia',serif);font-size:1.9rem;margin:0 0 6px;color:#f4ead0;font-weight:400}
+  .tw-lede{color:var(--muted,#9aa6b6);font-size:.92rem;line-height:1.6;margin:0 0 16px;max-width:780px}
+  .tw-lede b{color:#e3c05a;font-weight:600}
+  .tw-box{border:1px solid rgba(201,162,39,.28);border-radius:10px;padding:16px 18px;margin-bottom:18px;
+    background:linear-gradient(180deg,#070a12,#0a0e18)}
+  .tw-say{font-size:.72rem;color:#8fa3bf;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+  .tw-box h3{font-family:var(--serif,'Georgia',serif);font-size:1.12rem;color:#f4ead0;font-weight:400;margin:0 0 10px}
+  .tw-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .tw-chip{padding:7px 13px;border-radius:999px;font-size:.76rem;font-weight:600;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid rgba(201,162,39,.3);color:#d8cfae;transition:all .15s}
+  .tw-chip:hover,.tw-chip.on{border-color:#e3c05a;color:#e3c05a;background:rgba(201,162,39,.08)}
+  .tw-canvas-wrap{position:relative;border-radius:8px;overflow:hidden;margin:12px 0;
+    border:1px solid rgba(201,162,39,.2)}
+  .tw-canvas-wrap canvas{display:block;width:100%;height:auto}
+  .tw-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .tw-slider label{display:flex;justify-content:space-between;font-size:.72rem;color:#8fa3bf;margin-bottom:3px}
+  .tw-slider label span{color:#e3c05a;font-family:ui-monospace,monospace}
+  .tw-slider input[type=range]{width:100%;accent-color:#e3c05a}
+  .tw-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:12px 0}
+  .tw-card{background:rgba(255,255,255,.04);border:1px solid rgba(201,162,39,.2);border-radius:8px;padding:10px 12px;text-align:center}
+  .tw-card .k{font-size:.66rem;color:#8fa3bf;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px}
+  .tw-card .v{font-size:1.1rem;color:#f0e6c8;font-weight:600}
+  .tw-note{font-size:.82rem;color:#c3c9d4;line-height:1.6;border-top:1px solid rgba(201,162,39,.2);padding-top:10px;margin-top:12px}
+  .tw-note b{color:#e3c05a}
+  .tw-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:.72rem;color:#8fa3bf}
+  .tw-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:middle;margin-right:4px}
+  @media(max-width:640px){.tw-grid2{grid-template-columns:1fr}}
+</style>
+
+<div class="tw-wrap">
+  <span class="tw-kicker">Hall of Heat · Catalogue 10</span>
+  <h2 id="tw-title" class="tw-title" style="margin-top:0">🧱 The Thermal Wall</h2>
+  <p class="tw-lede">
+    Watch heat flow through building materials in real time. A thermal wave propagates from a warm room
+    through brick, insulation, glass or wood — <b>Fourier's law</b> made visible. See why a 100mm air gap
+    is not insulation, and why 270mm of mineral wool changes everything.
+  </p>
+
+  <div class="tw-box">
+    <div class="tw-say">Exhibit A · The living wall</div>
+    <h3>Heat flow through your wall</h3>
+    <div class="tw-chips" id="tw-mats"></div>
+    <div class="tw-canvas-wrap"><canvas id="tw-canvas" width="700" height="280"></canvas></div>
+    <div class="tw-legend">
+      <span><i style="background:#ff3b3b"></i> Hot (inside)</span>
+      <span><i style="background:#ffaa00"></i> Warm</span>
+      <span><i style="background:#33cc66"></i> Mild</span>
+      <span><i style="background:#3399ff"></i> Cool</span>
+      <span><i style="background:#1a1aff"></i> Cold (outside)</span>
+    </div>
+    <div class="tw-grid2">
+      <div class="tw-slider">
+        <label>Inside temperature <span id="tw-tin-val">21°C</span></label>
+        <input type="range" id="tw-tin" min="15" max="30" value="21" step="0.5">
+      </div>
+      <div class="tw-slider">
+        <label>Outside temperature <span id="tw-tout-val">5°C</span></label>
+        <input type="range" id="tw-tout" min="-10" max="20" value="5" step="0.5">
+      </div>
+    </div>
+    <div class="tw-cards" id="tw-stats"></div>
+    <div class="tw-note">
+      <b>What you're seeing.</b> Each column of pixels is a thin slice of wall. Heat diffuses from left (warm room)
+      to right (cold outside) at a rate determined by the material's <b>thermal conductivity</b> (W/m·K).
+      Low conductivity = heat barely gets through = good insulation. The colour map shows temperature:
+      red is warm, blue is cold. Watch how <b>insulation</b> creates a sharp temperature cliff, while
+      <b>glass</b> lets heat pour straight through.
+    </div>
+  </div>
+
+  <div class="tw-box">
+    <div class="tw-say">Exhibit B · Material comparison</div>
+    <h3>Why materials matter</h3>
+    <div class="tw-canvas-wrap"><canvas id="tw-bar" width="700" height="200"></canvas></div>
+    <div class="tw-note">
+      <b>Thermal conductivity</b> (W/m·K) measures how easily heat passes through a material.
+      Copper is 400 — it's basically a heat highway. Brick is 0.6 — slow but steady.
+      Mineral wool is 0.035 — heat barely gets through. That's a <b>10,000× difference</b>
+      between copper and insulation. Your wall is a carefully chosen stack of these barriers.
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var mats=[
+    {name:'Brick',k:0.60,color:'#b5651d',desc:'Standard UK brick. Moderate conductor — needs insulation.'},
+    {name:'Insulation',k:0.035,color:'#e8d5a3',desc:'Mineral wool. 17× better than brick. This is what saves your bills.'},
+    {name:'Glass',k:1.00,color:'#88ccee',desc:'Single glazing. Heat flies through. Double glazing adds an air gap (k≈0.025).'},
+    {name:'Wood',k:0.13,color:'#c4883c',desc:'Softwood. Natural insulator — 5× better than brick.'},
+    {name:'Concrete',k:1.40,color:'#888888',desc:'Dense concrete. Worse than brick. Solid walls need serious insulation.'},
+    {name:'Aerogel',k:0.013,color:'#ddeeff',desc:'Space-age insulation. 2.7× better than mineral wool. Used on Mars rovers.'}
+  ];
+  var selMat=0;
+  var N=350;
+  var temp=new Float64Array(N);
+  var tempNew=new Float64Array(N);
+
+  function twInitChips(){
+    var html='';
+    for(var i=0;i<mats.length;i++){
+      html+='<div class="tw-chip'+(i===selMat?' on':'')+'" data-i="'+i+'">'+mats[i].name+'</div>';
+    }
+    document.getElementById('tw-mats').innerHTML=html;
+    document.getElementById('tw-mats').onclick=function(e){
+      var chip=e.target.closest('[data-i]');
+      if(!chip)return;
+      selMat=parseInt(chip.dataset.i);
+      twInitChips();
+      twReset();
+    };
+  }
+
+  function twReset(){
+    var tin=parseFloat(document.getElementById('tw-tin').value);
+    var tout=parseFloat(document.getElementById('tw-tout').value);
+    for(var i=0;i<N;i++){
+      var frac=i/N;
+      temp[i]=tin+(tout-tin)*frac;
+    }
+  }
+
+  function tempColor(t,tin,tout){
+    var range=tin-tout;
+    if(range===0)return 'rgb(100,200,100)';
+    var norm=(t-tout)/range;
+    norm=Math.max(0,Math.min(1,norm));
+    var r,g,b;
+    if(norm>0.75){var f=(norm-0.75)/0.25;r=255;g=Math.round(59*(1-f)+170*f);b=Math.round(59*(1-f));}
+    else if(norm>0.5){var f2=(norm-0.5)/0.25;r=Math.round(51+204*f2);g=Math.round(204+34*f2);b=Math.round(102-102*f2);}
+    else if(norm>0.25){var f3=(norm-0.25)/0.25;r=Math.round(51*(1-f3)+51*f3);g=Math.round(153+51*f3);b=Math.round(255-153*f3);}
+    else{var f4=norm/0.25;r=Math.round(26+25*f4);g=Math.round(26+127*f4);b=Math.round(255-99*f4);}
+    return 'rgb('+r+','+g+','+b+')';
+  }
+
+  function twStep(){
+    var tin=parseFloat(document.getElementById('tw-tin').value);
+    var tout=parseFloat(document.getElementById('tw-tout').value);
+    var k=mats[selMat].k;
+    var alpha=k*0.4;
+    temp[0]=tin;temp[N-1]=tout;
+    for(var i=1;i<N-1;i++){
+      tempNew[i]=temp[i]+alpha*(temp[i-1]-2*temp[i]+temp[i+1]);
+    }
+    for(var j=1;j<N-1;j++)temp[j]=tempNew[j];
+  }
+
+  function twDraw(){
+    var canvas=document.getElementById('tw-canvas');
+    var ctx=canvas.getContext('2d');
+    var W=canvas.width,H=canvas.height;
+    var tin=parseFloat(document.getElementById('tw-tin').value);
+    var tout=parseFloat(document.getElementById('tw-tout').value);
+    ctx.fillStyle='#070a12';ctx.fillRect(0,0,W,H);
+    var cellW=W/N;
+    for(var i=0;i<N;i++){
+      ctx.fillStyle=tempColor(temp[i],tin,tout);
+      ctx.fillRect(i*cellW,0,cellW+1,H);
+    }
+    ctx.fillStyle='rgba(255,255,255,0.7)';ctx.font='bold 12px system-ui';ctx.textAlign='left';
+    ctx.fillText('🏠 Inside: '+tin+'°C',10,20);
+    ctx.textAlign='right';
+    ctx.fillText('❄️ Outside: '+tout+'°C',W-10,20);
+    ctx.textAlign='center';
+    ctx.fillText(mats[selMat].name+' wall (k='+mats[selMat].k+' W/m·K)',W/2,H-10);
+    var heatLoss=(k*(tin-tout))/0.25;
+    var cards=document.getElementById('tw-stats');
+    cards.innerHTML=
+      '<div class="tw-card"><span class="k">Heat Loss Rate</span><span class="v">'+heatLoss.toFixed(0)+' W/m²</span></div>'+
+      '<div class="tw-card"><span class="k">Conductivity</span><span class="v">'+mats[selMat].k+' W/m·K</span></div>'+
+      '<div class="tw-card"><span class="k">ΔT Across Wall</span><span class="v">'+(tin-tout).toFixed(1)+'°C</span></div>'+
+      '<div class="tw-card"><span class="k">Annual Cost*</span><span class="v">£'+(heatLoss*12*0.034*5/1000*100).toFixed(0)+'</span></div>';
+  }
+
+  function twDrawBars(){
+    var canvas=document.getElementById('tw-bar');
+    var ctx=canvas.getContext('2d');
+    var W=canvas.width,H=canvas.height;
+    ctx.fillStyle='#070a12';ctx.fillRect(0,0,W,H);
+    var maxK=1.5;
+    var barH=22;var gap=6;var startY=15;
+    for(var i=0;i<mats.length;i++){
+      var y=startY+i*(barH+gap);
+      var w=(mats[i].k/maxK)*(W-160);
+      var isSelected=i===selMat;
+      ctx.fillStyle=isSelected?'rgba(201,162,39,0.3)':'rgba(255,255,255,0.04)';
+      ctx.fillRect(100,y,Math.max(w,2),barH);
+      ctx.fillStyle=isSelected?'#e3c05a':'#8fa3bf';
+      ctx.font=(isSelected?'bold ':'')+'11px system-ui';ctx.textAlign='right';
+      ctx.fillText(mats[i].name,94,y+barH-5);
+      ctx.textAlign='left';ctx.font='10px ui-monospace,monospace';
+      ctx.fillText(mats[i].k+' W/m·K',100+Math.max(w,2)+6,y+barH-5);
+    }
+    ctx.fillStyle='#8fa3bf';ctx.font='10px system-ui';ctx.textAlign='center';
+    ctx.fillText('← Better insulator                    Worse insulator →',W/2,H-6);
+  }
+
+  document.getElementById('tw-tin').oninput=function(){
+    document.getElementById('tw-tin-val').textContent=this.value+'°C';
+  };
+  document.getElementById('tw-tout').oninput=function(){
+    document.getElementById('tw-tout-val').textContent=this.value+'°C';
+  };
+
+  twInitChips();twReset();
+
+  function twLoop(){
+    for(var s=0;s<8;s++)twStep();
+    twDraw();twDrawBars();
+    requestAnimationFrame(twLoop);
+  }
+  twLoop();
+})();
+</script>

@@ -1,0 +1,183 @@
+<h2>🔐 JWT Decoder & Inspector</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Decode and inspect JSON Web Tokens. View header, payload, and signature. Check expiration, validate claims, and understand your tokens.</p>
+
+<textarea id="jwtDecInput" style="width:100%;height:80px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;color:var(--text);font-family:'SF Mono',monospace;font-size:13px;resize:vertical;outline:none;margin-bottom:12px;" placeholder="Paste a JWT token here (eyJhbGciOi..."></textarea>
+
+<div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+  <button id="jwtDecDecode" style="padding:8px 20px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);border-radius:6px;cursor:pointer;font-weight:600;">Decode</button>
+  <button id="jwtDecSample" style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text);border-radius:6px;cursor:pointer;">Sample JWT</button>
+  <button id="jwtDecClear" style="padding:8px 16px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);color:#ff4d4d;border-radius:6px;cursor:pointer;">Clear</button>
+</div>
+
+<div id="jwtDecResult" style="display:none;">
+  <!-- Algorithm & Status -->
+  <div id="jwtDecStatus" style="padding:12px;border-radius:8px;margin-bottom:12px;font-size:14px;"></div>
+  
+  <!-- Three panels -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <!-- Header -->
+    <div style="flex:1;min-width:200px;">
+      <div style="color:var(--accent);font-weight:600;margin-bottom:6px;font-size:13px;">📋 Header</div>
+      <div id="jwtDecHeader" style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;font-family:'SF Mono',monospace;font-size:12px;min-height:80px;white-space:pre-wrap;word-break:break-all;"></div>
+    </div>
+    
+    <!-- Payload -->
+    <div style="flex:2;min-width:280px;">
+      <div style="color:#39ff14;font-weight:600;margin-bottom:6px;font-size:13px;">📦 Payload</div>
+      <div id="jwtDecPayload" style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;font-family:'SF Mono',monospace;font-size:12px;min-height:80px;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;"></div>
+    </div>
+    
+    <!-- Signature -->
+    <div style="flex:1;min-width:200px;">
+      <div style="color:#ffc832;font-weight:600;margin-bottom:6px;font-size:13px;">🔑 Signature</div>
+      <div id="jwtDecSig" style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;font-family:'SF Mono',monospace;font-size:12px;min-height:80px;word-break:break-all;"></div>
+    </div>
+  </div>
+  
+  <!-- Claims Analysis -->
+  <div style="margin-top:12px;">
+    <div style="color:#a03cdc;font-weight:600;margin-bottom:6px;font-size:13px;">🔍 Claims Analysis</div>
+    <div id="jwtDecClaims" style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;font-size:13px;line-height:1.8;"></div>
+  </div>
+</div>
+
+<div style="margin-top:14px;padding:14px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.05);border-radius:8px;font-size:13px;line-height:1.7;color:rgba(230,250,255,0.7);">
+  <b style="color:var(--accent);">What is a JWT?</b><br>
+  A JSON Web Token is a compact, URL-safe means of representing claims between two parties. It has three parts separated by dots: <b>header</b> (algorithm), <b>payload</b> (claims), and <b>signature</b> (verification). Common in authentication and authorization.<br><br>
+  <b style="color:var(--accent);">Common Claims</b><br>
+  <b>iss</b> — Issuer • <b>sub</b> — Subject • <b>aud</b> — Audience • <b>exp</b> — Expiration • <b>nbf</b> — Not Before • <b>iat</b> — Issued At • <b>jti</b> — JWT ID
+</div>
+
+<script>
+(function(){
+'use strict';
+var inp=document.getElementById('jwtDecInput');
+var result=document.getElementById('jwtDecResult');
+
+function b64urlDecode(str){
+  str=str.replace(/-/g,'+').replace(/_/g,'/');
+  while(str.length%4)str+='=';
+  try{return decodeURIComponent(atob(str).split('').map(function(c){return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join(''));}catch(e){return atob(str);}
+}
+
+function formatJson(obj){
+  return JSON.stringify(obj,null,2);
+}
+
+function highlightJson(json){
+  return json
+    .replace(/"([^"]+)":/g,'<span style="color:var(--accent)">"$1"</span>:')
+    .replace(/: "([^"]*)"/g,': <span style="color:#39ff14">"$1"</span>')
+    .replace(/: (\d+\.?\d*)/g,': <span style="color:#ffc832">$1</span>')
+    .replace(/: (true|false)/g,': <span style="color:#a03cdc">$1</span>')
+    .replace(/: (null)/g,': <span style="color:#ff4d4d">$1</span>');
+}
+
+function decodeJwt(){
+  var token=inp.value.trim();
+  if(!token)return;
+  
+  var parts=token.split('.');
+  if(parts.length!==3){
+    document.getElementById('jwtDecStatus').innerHTML='<span style="color:#ff4d4d">❌ Invalid JWT — expected 3 parts separated by dots, found '+parts.length+'</span>';
+    result.style.display='block';
+    return;
+  }
+  
+  try{
+    var header=JSON.parse(b64urlDecode(parts[0]));
+    var payload=JSON.parse(b64urlDecode(parts[1]));
+    
+    // Header
+    document.getElementById('jwtDecHeader').innerHTML=highlightJson(formatJson(header));
+    
+    // Payload
+    document.getElementById('jwtDecPayload').innerHTML=highlightJson(formatJson(payload));
+    
+    // Signature
+    document.getElementById('jwtDecSig').innerHTML='<span style="color:rgba(230,250,255,0.5)">'+parts[2]+'</span>\n\n<span style="color:rgba(230,250,255,0.4);font-size:11px;">Note: Signature verification requires the secret key. This decoder shows the raw signature only.</span>';
+    
+    // Status
+    var alg=header.alg||'Unknown';
+    var now=Math.floor(Date.now()/1000);
+    var statusHtml='<span style="color:var(--accent)">Algorithm: <b>'+alg+'</b></span>';
+    
+    if(payload.exp){
+      if(payload.exp<now){
+        statusHtml+=' • <span style="color:#ff4d4d">⏰ EXPIRED</span> (expired '+timeAgo(payload.exp)+')';
+      } else {
+        statusHtml+=' • <span style="color:#39ff14">✅ Valid</span> (expires in '+timeUntil(payload.exp)+')';
+      }
+    } else {
+      statusHtml+=' • <span style="color:#ffc832">⚠️ No expiration set</span>';
+    }
+    
+    document.getElementById('jwtDecStatus').innerHTML=statusHtml;
+    
+    // Claims analysis
+    var claims='';
+    var claimNames={iss:'Issuer',sub:'Subject',aud:'Audience',exp:'Expiration',nbf:'Not Before',iat:'Issued At',jti:'JWT ID'};
+    
+    Object.keys(claimNames).forEach(function(key){
+      if(payload[key]!==undefined){
+        var val=payload[key];
+        if(key==='exp'||key==='nbf'||key==='iat'){
+          val=new Date(val*1000).toISOString()+' ('+val+')';
+        }
+        claims+='<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)"><b style="color:var(--accent)">'+claimNames[key]+'</b> ('+key+'): <span style="color:rgba(230,250,255,0.8)">'+val+'</span></div>';
+      }
+    });
+    
+    // Custom claims
+    var standard=['iss','sub','aud','exp','nbf','iat','jti'];
+    var custom=Object.keys(payload).filter(function(k){return standard.indexOf(k)===-1;});
+    if(custom.length>0){
+      claims+='<div style="margin-top:8px;color:#ffc832;font-weight:600">Custom Claims:</div>';
+      custom.forEach(function(key){
+        claims+='<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)"><b>'+key+'</b>: <span style="color:rgba(230,250,255,0.8)">'+JSON.stringify(payload[key])+'</span></div>';
+      });
+    }
+    
+    document.getElementById('jwtDecClaims').innerHTML=claims||'<span style="color:rgba(230,250,255,0.5)">No standard claims found</span>';
+    
+    result.style.display='block';
+  }catch(e){
+    document.getElementById('jwtDecStatus').innerHTML='<span style="color:#ff4d4d">❌ Failed to decode: '+e.message+'</span>';
+    result.style.display='block';
+  }
+}
+
+function timeAgo(ts){
+  var diff=Math.floor(Date.now()/1000)-ts;
+  if(diff<60)return diff+'s ago';
+  if(diff<3600)return Math.floor(diff/60)+'m ago';
+  if(diff<86400)return Math.floor(diff/3600)+'h ago';
+  return Math.floor(diff/86400)+'d ago';
+}
+
+function timeUntil(ts){
+  var diff=ts-Math.floor(Date.now()/1000);
+  if(diff<0)return 'expired';
+  if(diff<60)return diff+'s';
+  if(diff<3600)return Math.floor(diff/60)+'m '+diff%60+'s';
+  if(diff<86400)return Math.floor(diff/3600)+'h '+Math.floor((diff%3600)/60)+'m';
+  return Math.floor(diff/86400)+'d '+Math.floor((diff%86400)/3600)+'h';
+}
+
+document.getElementById('jwtDecDecode').addEventListener('click',decodeJwt);
+inp.addEventListener('input',function(){if(inp.value.trim())decodeJwt();});
+
+document.getElementById('jwtDecSample').addEventListener('click',function(){
+  // A sample JWT (not a real secret, just for demo)
+  var header={alg:'RS256',typ:'JWT',kid:'abc123'};
+  var payload={iss:'https://auth.example.com',sub:'user_12345',aud:'myapp',exp:Math.floor(Date.now()/1000)+3600,nbf:Math.floor(Date.now()/1000)-60,iat:Math.floor(Date.now()/1000)-120,jti:'tok_abc123',email:'user@example.com',roles:['admin','editor'],org:'acme-corp'};
+  function b64url(obj){return btoa(JSON.stringify(obj)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+  inp.value=b64url(header)+'.'+b64url(payload)+'.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+  decodeJwt();
+});
+
+document.getElementById('jwtDecClear').addEventListener('click',function(){
+  inp.value='';result.style.display='none';
+});
+})();
+</script>

@@ -1,0 +1,92 @@
+<h2>🎲 Yahtzee</h2>
+<p class="description">Roll five dice up to three times per turn. Score in 13 categories. Get the highest total!</p>
+<div id="yaht-app" style="max-width:480px;margin:0 auto;"></script>
+<script>
+(function(){
+'use strict';
+var dice=[0,0,0,0,0],held=[false,false,false,false,false],rolls=0,turn=0;
+var scores={},used={},gameOver=false,msg='Roll the dice!';
+function init(){
+  dice=[0,0,0,0,0];held=[false,false,false,false,false];rolls=0;turn=0;
+  scores={};used={};gameOver=false;msg='Roll the dice!';
+  var cats=['ones','twos','threes','fours','fives','sixes','threeKind','fourKind','fullHouse','smStraight','lgStraight','yahtzee','chance'];
+  for(var i=0;i<cats.length;i++){scores[cats[i]]=0;used[cats[i]]=false;}
+  render();
+}
+function roll(){
+  if(gameOver||rolls>=3)return;
+  for(var i=0;i<5;i++)if(!held[i])dice[i]=Math.floor(Math.random()*6)+1;
+  rolls++;msg='Roll '+rolls+'/3 — hold dice and score';render();
+}
+function toggleHold(i){if(rolls===0||gameOver)return;held[i]=!held[i];render();}
+function countDice(){var c={1:0,2:0,3:0,4:0,5:0,6:0};for(var i=0;i<5;i++)c[dice[i]]++;return c;}
+function scoreCat(cat){
+  var c=countDice(),s=0;
+  if(cat==='ones')s=c[1]*1;
+  if(cat==='twos')s=c[2]*2;
+  if(cat==='threes')s=c[3]*3;
+  if(cat==='fours')s=c[4]*4;
+  if(cat==='fives')s=c[5]*5;
+  if(cat==='sixes')s=c[6]*6;
+  if(cat==='threeKind'){var ok=false;for(var k in c)if(c[k]>=3)ok=true;s=ok?dice.reduce(function(a,b){return a+b;},0):0;}
+  if(cat==='fourKind'){var ok=false;for(var k in c)if(c[k]>=4)ok=true;s=ok?dice.reduce(function(a,b){return a+b;},0):0;}
+  if(cat==='fullHouse'){var p2=false,p3=false;for(var k in c){if(c[k]===2)p2=true;if(c[k]===3)p3=true;}s=(p2&&p3)?25:0;}
+  if(cat==='smStraight'){
+    var v=[];for(var k in c)if(c[k])v.push(parseInt(k));
+    var str=false;
+    if(v.indexOf(1)>=0&&v.indexOf(2)>=0&&v.indexOf(3)>=0&&v.indexOf(4)>=0)str=true;
+    if(v.indexOf(2)>=0&&v.indexOf(3)>=0&&v.indexOf(4)>=0&&v.indexOf(5)>=0)str=true;
+    if(v.indexOf(3)>=0&&v.indexOf(4)>=0&&v.indexOf(5)>=0&&v.indexOf(6)>=0)str=true;
+    s=str?30:0;
+  }
+  if(cat==='lgStraight'){
+    var v=[];for(var k in c)if(c[k])v.push(parseInt(k));
+    s=(v.length===5&&v[4]-v[0]===4)?40:0;
+  }
+  if(cat==='yahtzee'){var ok=false;for(var k in c)if(c[k]===5)ok=true;s=ok?50:0;}
+  if(cat==='chance')s=dice.reduce(function(a,b){return a+b;},0);
+  return s;
+}
+function score(cat){
+  if(gameOver||used[cat]||rolls===0)return;
+  scores[cat]=scoreCat(cat);used[cat]=true;turn++;
+  if(turn>=13){gameOver=true;msg='Game over! Total: '+total();}else{msg='Roll the dice!';}
+  rolls=0;held=[false,false,false,false,false];dice=[0,0,0,0,0];render();
+}
+function total(){var s=0;for(var k in scores)s+=scores[k];return s;}
+function render(){
+  var cats=[
+    {k:'ones',l:'Ones'},{k:'twos',l:'Twos'},{k:'threes',l:'Threes'},{k:'fours',l:'Fours'},{k:'fives',l:'Fives'},{k:'sixes',l:'Sixes'},
+    {k:'threeKind',l:'3 of Kind'},{k:'fourKind',l:'4 of Kind'},{k:'fullHouse',l:'Full House'},{k:'smStraight',l:'Sm Straight'},{k:'lgStraight',l:'Lg Straight'},{k:'yahtzee',l:'YAHTZEE'},{k:'chance',l:'Chance'}
+  ];
+  var h='<div style="text-align:center;margin-bottom:8px;font-size:14px;color:#2dd4ff;font-weight:700;">'+msg+'</div>';
+  // dice
+  h+='<div style="display:flex;justify-content:center;gap:10px;margin-bottom:12px;">';
+  for(var i=0;i<5;i++){
+    var bg=held[i]?'#2dd4ff':'#1a2a3a';
+    var fc=held[i]?'#000':'#e6faff';
+    h+='<div onclick="window._yahtHold('+i+')" style="width:52px;height:52px;background:'+bg+';color:'+fc+';border:2px solid #2dd4ff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;cursor:pointer;">'+(dice[i]||'?')+'</div>';
+  }
+  h+='</div>';
+  h+='<div style="text-align:center;margin-bottom:12px;"><button onclick="window._yahtRoll()" style="padding:8px 24px;background:'+(rolls<3?'linear-gradient(135deg,#39ff14,#2dd4ff)':'#333')+';color:'+(rolls<3?'#000':'#666')+';border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:14px;">'+(rolls===0?'🎲 Roll':'🎲 Re-roll ('+rolls+'/3)')+'</button></div>';
+  // scorecard
+  h+='<div style="display:grid;grid-template-columns:1fr auto auto;gap:2px;font-size:12px;">';
+  h+='<div style="color:#2dd4ff;font-weight:700;">Category</div><div style="color:#2dd4ff;font-weight:700;text-align:center;width:50px;">Score</div><div style="color:#2dd4ff;font-weight:700;text-align:center;width:50px;">Get</div>';
+  for(var i=0;i<cats.length;i++){
+    var c=cats[i];
+    var canScore=rolls>0&&!used[c.k];
+    var preview=canScore?scoreCat(c.k):'';
+    var bg=used[c.k]?'rgba(45,212,255,0.1)':'transparent';
+    h+='<div style="padding:3px 6px;background:'+bg+';color:'+(used[c.k]?'#2dd4ff':'#e6faff')+';">'+c.l+'</div>';
+    h+='<div style="padding:3px 6px;text-align:center;width:50px;color:'+(used[c.k]?'#39ff14':'#666')+';">'+(used[c.k]?scores[c.k]:'-')+'</div>';
+    h+='<div onclick="window._yahtScore(\''+c.k+'\')" style="padding:3px 6px;text-align:center;width:50px;cursor:'+(canScore?'pointer':'default')+';color:'+(canScore?'#ffa500':'#333')+';background:'+(canScore?'rgba(255,165,0,0.1)':'transparent')+';border-radius:4px;">'+(canScore?preview:'')+'</div>';
+  }
+  h+='</div>';
+  h+='<div style="text-align:center;margin-top:12px;font-size:18px;color:#39ff14;font-weight:700;">Total: '+total()+'</div>';
+  h+='<div style="text-align:center;margin-top:8px;"><button onclick="window._yahtInit()" style="padding:6px 16px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-weight:600;">New Game</button></div>';
+  document.getElementById('yaht-app').innerHTML=h;
+}
+window._yahtRoll=roll;window._yahtHold=toggleHold;window._yahtScore=score;window._yahtInit=init;
+init();
+})();
+</script>

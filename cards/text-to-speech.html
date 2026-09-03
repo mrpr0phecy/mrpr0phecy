@@ -1,0 +1,101 @@
+<h2>🔊 Text to Speech</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Convert text to speech using your browser's built-in voice synthesis. Choose voices, adjust speed and pitch.</p>
+
+<div id="ts-app" style="max-width:600px;margin:0 auto;">
+  <div style="margin-bottom:12px;">
+    <textarea id="ts-input" style="width:100%;height:120px;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;box-sizing:border-box;" placeholder="Type or paste text to speak...">Hello! This is a text to speech demo. You can change the voice, speed, and pitch using the controls below.</textarea>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#2dd4ff;font-size:12px;">Voice</label>
+      <select id="ts-voice" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></select>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#39ff14;font-size:12px;">Language Filter</label>
+      <select id="ts-lang" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;">
+        <option value="">All languages</option>
+        <option value="en" selected>English</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="it">Italian</option>
+        <option value="pt">Portuguese</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="zh">Chinese</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#ffa500;font-size:12px;">Speed: <span id="ts-speed-val">1.0</span>x</label>
+      <input id="ts-speed" type="range" min="0.5" max="2" step="0.1" value="1" style="width:100%;accent-color:#ffa500;" />
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#c060f0;font-size:12px;">Pitch: <span id="ts-pitch-val">1.0</span></label>
+      <input id="ts-pitch" type="range" min="0.5" max="2" step="0.1" value="1" style="width:100%;accent-color:#c060f0;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="window._tsSpeak()" style="flex:1;padding:12px;background:rgba(57,255,20,0.15);border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:700;font-size:16px;">▶ Speak</button>
+    <button onclick="window._tsPause()" style="padding:12px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.3);border-radius:8px;color:#ffa500;cursor:pointer;font-size:14px;">⏸ Pause</button>
+    <button onclick="window._tsStop()" style="padding:12px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:8px;color:#ff4d4d;cursor:pointer;font-size:14px;">⏹ Stop</button>
+  </div>
+
+  <div id="ts-status" style="text-align:center;font-size:13px;color:rgba(230,250,255,0.5);"></div>
+
+  <div style="margin-top:12px;padding:10px;background:rgba(0,0,0,0.2);border-radius:6px;font-size:12px;color:rgba(230,250,255,0.4);">
+    <b>Tip:</b> Voice availability depends on your browser and operating system. Chrome and Edge have the most voices.
+  </div>
+</div>
+
+<script>
+(function(){
+  var synth=window.speechSynthesis;
+  var voices=[];
+  function loadVoices(){
+    voices=synth.getVoices();
+    filterVoices();
+  }
+  function filterVoices(){
+    var lang=document.getElementById('ts-lang').value;
+    var filtered=lang?voices.filter(function(v){return v.lang.indexOf(lang)>=0;}):voices;
+    var sel=document.getElementById('ts-voice');
+    sel.innerHTML='';
+    filtered.forEach(function(v,i){
+      var opt=document.createElement('option');
+      opt.value=i;
+      opt.textContent=v.name+(v.lang?' ('+v.lang+')':'');
+      sel.appendChild(opt);
+    });
+    document.getElementById('ts-status').textContent=filtered.length+' voice'+(filtered.length!==1?'s':'')+' available';
+  }
+  function speak(){
+    synth.cancel();
+    var text=document.getElementById('ts-input').value;
+    if(!text){document.getElementById('ts-status').textContent='Enter some text first';return;}
+    var utter=new SpeechSynthesisUtterance(text);
+    var voiceIdx=parseInt(document.getElementById('ts-voice').value);
+    var lang=document.getElementById('ts-lang').value;
+    var filtered=lang?voices.filter(function(v){return v.lang.indexOf(lang)>=0;}):voices;
+    if(filtered[voiceIdx])utter.voice=filtered[voiceIdx];
+    utter.rate=parseFloat(document.getElementById('ts-speed').value);
+    utter.pitch=parseFloat(document.getElementById('ts-pitch').value);
+    utter.onstart=function(){document.getElementById('ts-status').textContent='🔊 Speaking...';};
+    utter.onend=function(){document.getElementById('ts-status').textContent='✅ Finished';};
+    utter.onerror=function(e){document.getElementById('ts-status').textContent='❌ Error: '+e.error;};
+    synth.speak(utter);
+  }
+  function pause(){synth.pause();document.getElementById('ts-status').textContent='⏸ Paused';}
+  function stop(){synth.cancel();document.getElementById('ts-status').textContent='⏹ Stopped';}
+  window._tsSpeak=speak;window._tsPause=pause;window._tsStop=stop;
+  document.getElementById('ts-speed').addEventListener('input',function(){document.getElementById('ts-speed-val').textContent=this.value;});
+  document.getElementById('ts-pitch').addEventListener('input',function(){document.getElementById('ts-pitch-val').textContent=this.value;});
+  document.getElementById('ts-lang').addEventListener('change',filterVoices);
+  if(synth.onvoiceschanged!==undefined)synth.onvoiceschanged=loadVoices;
+  loadVoices();
+})();
+</script>

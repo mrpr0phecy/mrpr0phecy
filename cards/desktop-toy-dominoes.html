@@ -1,0 +1,117 @@
+<div id="domino-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#1a0a08,#0d1b2a);border:1px solid #5a2a20;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#f06040">🀄 Domino Chain Reaction</h2>
+    <p style="margin:0 0 20px;color:#b08070;font-size:0.95em">Place dominoes in a line, tap the first one, and watch the satisfying chain reaction cascade</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="dm-canvas" width="480" height="440" style="width:100%;border-radius:12px;background:#0a0808;cursor:crosshair"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="dm-place" style="padding:6px 12px;border-radius:8px;border:1px solid #5a2a20;background:#3a1a08;color:#f06040;cursor:pointer;font-size:0.82em">📍 Place Mode</button>
+          <button id="dm-push" style="padding:6px 12px;border-radius:8px;border:1px solid #5a2a20;background:#2a1008;color:#f06040;cursor:pointer;font-size:0.82em">👆 Push Mode</button>
+          <button id="dm-spiral" style="padding:6px 12px;border-radius:8px;border:1px solid #5a2a20;background:#2a1008;color:#f06040;cursor:pointer;font-size:0.82em">🌀 Spiral</button>
+          <button id="dm-clear" style="padding:6px 12px;border-radius:8px;border:1px solid #5a2a20;background:#2a1008;color:#f06040;cursor:pointer;font-size:0.82em">🗑️ Clear</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #3a1a1a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#f06040">How it works</b><br>
+          Each domino is a rigid body with rotation physics. When one falls into the next, it transfers momentum through contact forces. Dominoes can create surprising patterns and chain splits.<br><br>
+          <b style="color:#f06040">Controls</b><br>
+          • <b>Place</b> mode — click to place dominoes<br>
+          • <b>Push</b> mode — click a domino to push it<br>
+          • <b>Spiral</b> — auto-place a spiral pattern<br>
+          • <b>Clear</b> — remove all dominoes
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('dm-canvas'),ctx=c.getContext('2d');
+  const placeBtn=document.getElementById('dm-place'),pushBtn=document.getElementById('dm-push');
+  const spiralBtn=document.getElementById('dm-spiral'),clearBtn=document.getElementById('dm-clear');
+  let W=c.width,H=c.height,mode='place',dominoes=[];
+  const DW=8,DH=30;
+  placeBtn.onclick=function(){mode='place';placeBtn.style.background='#3a1a08';pushBtn.style.background='#2a1008'};
+  pushBtn.onclick=function(){mode='push';pushBtn.style.background='#3a1a08';placeBtn.style.background='#2a1008'};
+  clearBtn.onclick=function(){dominoes=[]};
+  spiralBtn.onclick=function(){
+    dominoes=[];
+    const cx=W/2,cy=H/2;
+    for(let i=0;i<120;i++){
+      const angle=i*0.15,r=20+i*1.8;
+      const x=cx+Math.cos(angle)*r,y=cy+Math.sin(angle)*r;
+      const facing=angle+Math.PI/2;
+      dominoes.push({x,y,angle:facing,omega:0,fallen:false,w:DW,h:DH,color:`hsl(${(i*3)%60+10},70%,${50+i%20}%)`});
+    }
+  };
+  function getPos(e){const rect=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-rect.left)*W/rect.width,y:(t.clientY-rect.top)*H/rect.height}}
+  c.onmousedown=c.ontouchstart=function(e){
+    e.preventDefault();const p=getPos(e);
+    if(mode==='place'){
+      const last=dominoes.length?dominoes[dominoes.length-1]:null;
+      let angle=last?last.angle:0;
+      if(last){const dx=p.x-last.x,dy=p.y-last.y;if(Math.sqrt(dx*dx+dy*dy)>5)angle=Math.atan2(dy,dx)}
+      dominoes.push({x:p.x,y:p.y,angle,omega:0,fallen:false,w:DW,h:DH,color:`hsl(${Math.random()*40+10},70%,55%)`});
+    }else{
+      let best=null,bestD=40;
+      dominoes.forEach(d=>{const dx=d.x-p.x,dy=d.y-p.y,dist=Math.sqrt(dx*dx+dy*dy);if(dist<bestD){bestD=dist;best=d}});
+      if(best){best.omega+=(Math.random()>0.5?1:-1)*0.15}
+    }
+  };
+  function step(){
+    dominoes.forEach(d=>{
+      if(Math.abs(d.omega)>0.001||Math.abs(d.angle%Math.PI-Math.PI/2)>0.1){
+        d.omega+=Math.sin(d.angle)*0.002;
+        d.omega*=0.995;
+        d.angle+=d.omega;
+        if(Math.abs(d.omega)>0.02)d.fallen=true;
+      }
+      if(d.angle>Math.PI*2)d.angle-=Math.PI*2;
+      if(d.angle<-Math.PI*2)d.angle+=Math.PI*2;
+    });
+    for(let i=0;i<dominoes.length;i++){
+      const a=dominoes[i];
+      if(Math.abs(a.omega)<0.01)continue;
+      for(let j=0;j<dominoes.length;j++){
+        if(i===j)continue;
+        const b=dominoes[j];
+        const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<DH*1.1&&dist>2){
+          const contactAngle=Math.atan2(dy,dx);
+          const diff=contactAngle-a.angle;
+          if(Math.abs(diff)<0.8&&Math.abs(a.omega)>0.02){
+            b.omega+=a.omega*0.6*(1-dist/(DH*1.1));
+          }
+        }
+      }
+    }
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0a0808';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='#1a1818';ctx.lineWidth=1;
+    for(let x=0;x<W;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+    for(let y=0;y<H;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    dominoes.forEach(d=>{
+      ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.angle);
+      const grd=ctx.createLinearGradient(-d.w/2,0,d.w/2,0);
+      grd.addColorStop(0,d.color);grd.addColorStop(0.5,'#fff');grd.addColorStop(1,d.color);
+      ctx.fillStyle=grd;
+      ctx.beginPath();
+      ctx.roundRect(-d.w/2,-d.h/2,d.w,d.h,2);
+      ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;ctx.stroke();
+      ctx.fillStyle='rgba(255,255,255,0.3)';
+      ctx.fillRect(-d.w/2+1,-d.h/2+1,d.w-2,d.h*0.15);
+      ctx.restore();
+    });
+    ctx.fillStyle='#f06040';ctx.font='11px system-ui';ctx.textAlign='left';
+    const fallen=dominoes.filter(d=>d.fallen).length;
+    ctx.fillText(`Mode: ${mode} · Dominoes: ${dominoes.length} · Fallen: ${fallen}`,8,H-8);
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

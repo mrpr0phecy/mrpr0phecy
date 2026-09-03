@@ -1,0 +1,110 @@
+<h2>⚛️ The Quantum World</h2>
+<p class="description">Explore wave-particle duality, superposition, and the measurement problem. Fire particles through slits and watch reality behave impossibly.</p>
+<div id="qw-app" style="max-width:520px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var canvas,ctx,W=480,H=340,particles=[],mode='wave',slitMode='double',measuring=false;
+function init(){
+  particles=[];mode='wave';
+  var h='<canvas id="qw-cv" width="'+W+'" height="'+H+'" style="display:block;margin:0 auto;border-radius:8px;background:#0a0a1a;"></canvas>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;justify-content:center;">';
+  h+='<button onclick="window._qwMode(\'wave\')" id="qw-wave" style="padding:6px 12px;background:rgba(45,212,255,0.2);color:#2dd4ff;border:1px solid #2dd4ff;border-radius:6px;cursor:pointer;font-size:12px;">🌊 Wave Mode</button>';
+  h+='<button onclick="window._qwMode(\'particle\')" id="qw-particle" style="padding:6px 12px;background:rgba(45,212,255,0.05);color:#9ccbe0;border:1px solid rgba(45,212,255,0.2);border-radius:6px;cursor:pointer;font-size:12px;">⚛️ Particle Mode</button>';
+  h+='<button onclick="window._qwSlit()" id="qw-slit" style="padding:6px 12px;background:rgba(45,212,255,0.05);color:#9ccbe0;border:1px solid rgba(45,212,255,0.2);border-radius:6px;cursor:pointer;font-size:12px;">Single Slit</button>';
+  h+='<button onclick="window._qwMeasure()" id="qw-measure" style="padding:6px 12px;background:rgba(255,165,0,0.05);color:#9ccbe0;border:1px solid rgba(255,165,0,0.2);border-radius:6px;cursor:pointer;font-size:12px;">👁️ Measure</button>';
+  h+='<button onclick="window._qwFire()" style="padding:6px 16px;background:linear-gradient(135deg,#39ff14,#2dd4ff);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;">Fire!</button>';
+  h+='</div>';
+  h+='<div id="qw-info" style="margin-top:12px;font-size:13px;line-height:1.7;color:#e6faff;background:rgba(255,255,255,0.05);border-radius:8px;padding:12px;border:1px solid rgba(45,212,255,0.2);"></div>';
+  document.getElementById('qw-app').innerHTML=h;
+  canvas=document.getElementById('qw-cv');ctx=canvas.getContext('2d');
+  draw();updateInfo();
+}
+function fire(){
+  if(mode==='particle'){
+    for(var i=0;i<30;i++){
+      var y=H/2+(Math.random()-0.5)*20;
+      particles.push({x:10,y:y,vx:3+Math.random(),vy:0,phase:Math.random()*Math.PI*2,alive:true,measured:measuring});
+    }
+  }else{
+    for(var i=0;i<50;i++){
+      var y=H/2+(Math.random()-0.5)*20;
+      particles.push({x:10,y:y,vx:2+Math.random()*2,vy:0,phase:Math.random()*Math.PI*2,alive:true,measured:false});
+    }
+  }
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // barrier
+  var slitY1=H*0.3,slitY2=H*0.5,slitH=25;
+  ctx.fillStyle='#2a2a4a';
+  if(slitMode==='double'){
+    ctx.fillRect(W*0.4,0,6,slitY1-slitH/2);
+    ctx.fillRect(W*0.4,slitY1+slitH/2,6,slitY2-slitH/2-slitY1-slitH/2);
+    ctx.fillRect(W*0.4,slitY2+slitH/2,6,H-slitY2-slitH/2);
+  }else{
+    ctx.fillRect(W*0.4,0,6,H*0.4);
+    ctx.fillRect(W*0.4,H*0.6,6,H*0.4);
+  }
+  // detection screen
+  ctx.fillStyle='rgba(45,212,255,0.1)';ctx.fillRect(W*0.85,0,4,H);
+  // update & draw particles
+  for(var i=0;i<particles.length;i++){
+    var p=particles[i];if(!p.alive)continue;
+    p.x+=p.vx;p.y+=p.vy;
+    // pass through slit
+    if(Math.abs(p.x-W*0.4)<4){
+      var throughSlit=false;
+      if(slitMode==='double'){
+        if(Math.abs(p.y-slitY1)<slitH/2||Math.abs(p.y-slitY2)<slitH/2)throughSlit=true;
+      }else{
+        if(Math.abs(p.y-H*0.5)<H*0.1)throughSlit=true;
+      }
+      if(!throughSlit){p.alive=false;continue;}
+      if(p.measured){
+        // particle mode: straight through
+        p.vy=(Math.random()-0.5)*0.5;
+      }else{
+        // wave mode: diffract
+        p.vy=(Math.random()-0.5)*3;
+      }
+    }
+    if(p.x>W*0.85){
+      // hit screen — draw dot
+      var hue=p.measured?30:200;
+      ctx.fillStyle='hsl('+hue+',100%,60%)';
+      ctx.fillRect(W*0.85,p.y-1,4,2);
+      p.alive=false;continue;
+    }
+    // draw particle
+    if(mode==='wave'&&!p.measured){
+      ctx.strokeStyle='rgba(45,212,255,0.15)';ctx.lineWidth=1;
+      var r=10+Math.sin(p.phase+p.x*0.1)*8;
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.fillStyle=p.measured?'#ffa500':'#2dd4ff';
+    ctx.beginPath();ctx.arc(p.x,p.y,2,0,Math.PI*2);ctx.fill();
+  }
+  // clean dead
+  particles=particles.filter(function(p){return p.alive;});
+  requestAnimationFrame(draw);
+}
+function updateInfo(){
+  var info='';
+  if(mode==='wave'&&!measuring){
+    info='<b>Wave mode:</b> Particles pass through both slits simultaneously as probability waves. They <i>interfere with themselves</i>, creating an interference pattern on the screen. This is not a metaphor — each particle genuinely exists in multiple places at once until detected.';
+  }else if(mode==='wave'&&measuring){
+    info='<b>Wave mode + Measurement:</b> You are watching the slits. The act of observation collapses the wave function. Each particle chooses ONE slit. The interference pattern <i>disappears</i>. Reality changes because you looked at it.';
+  }else if(mode==='particle'){
+    info='<b>Particle mode:</b> Each particle goes through one slit or the other — like tiny bullets. No interference. This is what you would expect intuitively. But quantum mechanics says this only happens when you measure.';
+  }
+  info+='<br><br><i>The universe does not have definite properties until measured. This is not a limitation of our instruments — it is how reality works.</i>';
+  document.getElementById('qw-info').innerHTML=info;
+}
+window._qwFire=fire;
+window._qwMode=function(m){mode=m;measuring=false;updateInfo();};
+window._qwSlit=function(){slitMode=slitMode==='double'?'single':'double';};
+window._qwMeasure=function(){measuring=!measuring;updateInfo();};
+init();
+})();
+</script>

@@ -1,0 +1,109 @@
+<h2>🖼️ Text to Image Generator</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Create images from text. Choose fonts, colors, backgrounds, and sizes. Perfect for social media posts and headers.</p>
+
+<div id="ti-app" style="max-width:600px;margin:0 auto;">
+  <div style="margin-bottom:12px;">
+    <textarea id="ti-text" style="width:100%;height:80px;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;box-sizing:border-box;" placeholder="Enter your text...">Hello World!</textarea>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#2dd4ff;font-size:11px;">Font Size: <span id="ti-size-val">48</span>px</label>
+      <input id="ti-size" type="range" min="16" max="120" value="48" style="width:100%;accent-color:#2dd4ff;" />
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#39ff14;font-size:11px;">Text Color</label>
+      <input id="ti-color" type="color" value="#ffffff" style="width:100%;height:30px;border:none;border-radius:4px;cursor:pointer;" />
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#ffa500;font-size:11px;">Background</label>
+      <input id="ti-bg" type="color" value="#0a0f14" style="width:100%;height:30px;border:none;border-radius:4px;cursor:pointer;" />
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#c060f0;font-size:11px;">Font</label>
+      <select id="ti-font" style="width:100%;padding:6px;border-radius:4px;border:1px solid rgba(192,96,240,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;">
+        <option value="Arial">Arial</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Courier New">Courier</option>
+        <option value="Verdana">Verdana</option>
+        <option value="Impact">Impact</option>
+        <option value="Comic Sans MS">Comic Sans</option>
+      </select>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#ff4d4d;font-size:11px;">Width: <span id="ti-w-val">600</span>px</label>
+      <input id="ti-width" type="range" min="200" max="1200" value="600" style="width:100%;accent-color:#ff4d4d;" />
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#ffd700;font-size:11px;">Height: <span id="ti-h-val">300</span>px</label>
+      <input id="ti-height" type="range" min="100" max="800" value="300" style="width:100%;accent-color:#ffd700;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="window._tiGenerate()" style="flex:1;padding:10px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">🖼️ Generate</button>
+    <button onclick="window._tiDownload()" style="padding:10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:8px;color:#2dd4ff;cursor:pointer;">⬇ Download PNG</button>
+  </div>
+
+  <div id="ti-preview" style="border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);text-align:center;"></div>
+</div>
+
+<script>
+(function(){
+  function generate(){
+    var text=document.getElementById('ti-text').value;
+    var size=parseInt(document.getElementById('ti-size').value);
+    var color=document.getElementById('ti-color').value;
+    var bg=document.getElementById('ti-bg').value;
+    var font=document.getElementById('ti-font').value;
+    var w=parseInt(document.getElementById('ti-width').value);
+    var h=parseInt(document.getElementById('ti-height').value);
+    document.getElementById('ti-size-val').textContent=size;
+    document.getElementById('ti-w-val').textContent=w;
+    document.getElementById('ti-h-val').textContent=h;
+    var canvas=document.createElement('canvas');
+    canvas.width=w;canvas.height=h;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+    ctx.fillStyle=color;
+    ctx.font='bold '+size+'px '+font;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    // Word wrap
+    var lines=[];var currentLine='';
+    var words=text.split(' ');
+    words.forEach(function(word){
+      var test=currentLine?(currentLine+' '+word):word;
+      if(ctx.measureText(test).width>w-40){lines.push(currentLine);currentLine=word;}
+      else currentLine=test;
+    });
+    if(currentLine)lines.push(currentLine);
+    var lineHeight=size*1.3;
+    var startY=h/2-(lines.length-1)*lineHeight/2;
+    lines.forEach(function(line,i){
+      ctx.fillText(line,w/2,startY+i*lineHeight);
+    });
+    document.getElementById('ti-preview').innerHTML='';
+    document.getElementById('ti-preview').appendChild(canvas);
+    canvas.style.width='100%';
+    canvas.style.height='auto';
+  }
+  function download(){
+    var canvas=document.querySelector('#ti-preview canvas');
+    if(!canvas){generate();canvas=document.querySelector('#ti-preview canvas');}
+    if(!canvas)return;
+    var a=document.createElement('a');
+    a.download='text-image.png';
+    a.href=canvas.toDataURL('image/png');
+    a.click();
+  }
+  window._tiGenerate=generate;window._tiDownload=download;
+  ['ti-size','ti-color','ti-bg','ti-font','ti-width','ti-height'].forEach(function(id){
+    document.getElementById(id).addEventListener('input',generate);
+    document.getElementById(id).addEventListener('change',generate);
+  });
+  generate();
+})();
+</script>
