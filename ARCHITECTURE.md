@@ -115,7 +115,9 @@ establish *which* site first.
 │   ├── check-staff.py        Staff facility structure and id uniqueness
 │   ├── scan-seo.py           Top-level page metadata scan
 │   ├── agent-auth.sh         Device-flow token for agent sessions
-│   └── workspace-size.sh     Enforces the 100 MB agent workspace budget
+│   ├── workspace-size.sh     Enforces the 100 MB agent workspace budget
+│   └── tests/                Node-only tests that drive the REAL index.html
+│                             source with stubs — no browser needed (§10)
 └── .github/workflows/
     └── agent-guardrails.yml  Runs verify.sh on every push and PR — the only
                               workflow in the repo. (`ai-developer.yml` was

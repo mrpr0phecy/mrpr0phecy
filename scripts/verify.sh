@@ -15,6 +15,7 @@
 #   7. git state              — uncommitted changes reported (not failed)
 #   8. staff facility         — staff/OPEN.md parses, item numbers unique
 #   9. card JavaScript        — no syntax errors that would kill a card
+#  10. loader tests           — scripts/tests/*.test.js against real index.html
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -26,25 +27,25 @@ ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
 note() { printf '  \033[33mNOTE\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAILS=$((FAILS+1)); }
 
-section "1/9 catalogue consistency (check-cards.py)"
+section "1/10 catalogue consistency (check-cards.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-cards.py; then ok "catalogue coherent"; else fail "catalogue incoherent"; fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "2/9 placeholder IDs in *.html"
+section "2/10 placeholder IDs in *.html"
 # Hard placeholders anywhere; YOUR_ only inside URLs/attributes (demo text
 # like 'YOUR_SYSTEM_PROMPT' in the prompt-injection lab is legitimate content).
 PH="dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|(src|href)=['\"][^'\"]*YOUR_"
 HITS=$(grep -rlE "$PH" --include='*.html' . 2>/dev/null || true)
 if [ -n "$HITS" ]; then fail "placeholder IDs found: $(echo "$HITS" | tr '\n' ' ')"; else ok "none"; fi
 
-section "3/9 target=_blank links without rel=noopener"
+section "3/10 target=_blank links without rel=noopener"
 BAD=$(grep -rn --include='*.html' -E '<a [^>]*target="_blank"' . 2>/dev/null | grep -v 'noopener' || true)
 if [ -n "$BAD" ]; then fail "$(echo "$BAD" | head -5)"; else ok "all covered"; fi
 
-section "4/9 sitemap.xml"
+section "4/10 sitemap.xml"
 if python3 - <<'PY' 2>/dev/null
 import xml.etree.ElementTree as E
 root = E.parse('sitemap.xml').getroot()
@@ -54,10 +55,10 @@ PY
 then ok "parses, entries: $(python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))")"
 else fail "missing or empty"; fi
 
-section "5/9 top-level SEO scan (scan-seo.py)"
+section "5/10 top-level SEO scan (scan-seo.py)"
 if python3 scripts/scan-seo.py; then ok "no missing <title>"; else fail "see warnings above"; fi
 
-section "6/9 sensitive strings in tracked files"
+section "6/10 sensitive strings in tracked files"
 # Patterns are assembled at runtime so this script does not match itself.
 P1="gh""o_"; P2="gh""p_"; P3="github""_pat_"; P4="gh""s_"
 if grep -rnE "$P1|$P2|$P3|$P4" --exclude-dir=.git . 2>/dev/null | grep -v '^Binary' | head -5 | grep -q .; then
@@ -66,7 +67,7 @@ else
   ok "none"
 fi
 
-section "7/9 git state"
+section "7/10 git state"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   note "uncommitted changes present — commit before pushing"; NOTES=$((NOTES+1))
 else
@@ -86,7 +87,7 @@ except Exception: print('ERR')" 2>/dev/null || echo ERR)
   [ "$LIVE_N" = "ERR" ] && fail "could not read live card count" || ok "live card count: $LIVE_N"
 fi
 
-section "8/9 staff facility (staff/OPEN.md)"
+section "8/10 staff facility (staff/OPEN.md)"
 if [ -f staff/OPEN.md ]; then
   STAFF_OUT=$(python3 scripts/check-staff.py 2>&1) \
     && ok "$STAFF_OUT" || fail "$STAFF_OUT"
@@ -94,7 +95,7 @@ else
   note "staff/OPEN.md missing — facility not installed"; NOTES=$((NOTES+1))
 fi
 
-section "9/9 card JavaScript syntax (check-card-js.py)"
+section "9/10 card JavaScript syntax (check-card-js.py)"
 if command -v node >/dev/null 2>&1; then
   # Incremental by default: only cards changed vs HEAD, so a local run stays fast.
   if python3 scripts/check-card-js.py; then ok "no dead cards"; else
@@ -102,6 +103,22 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   note "node not available — card JS check skipped"; NOTES=$((NOTES+1))
+fi
+
+section "10/10 index.html loader tests (scripts/tests)"
+if command -v node >/dev/null 2>&1; then
+  TEST_FAILS=0
+  for t in scripts/tests/*.test.js; do
+    [ -e "$t" ] || continue
+    if OUT=$(node "$t" 2>&1); then
+      ok "$(basename "$t"): $(echo "$OUT" | grep -c '  ok ') assertions"
+    else
+      fail "$(basename "$t"): $(echo "$OUT" | grep -E 'AssertionError|Error:' | head -1)"
+      TEST_FAILS=$((TEST_FAILS+1))
+    fi
+  done
+else
+  note "node not available — loader tests skipped"; NOTES=$((NOTES+1))
 fi
 
 printf '\n'
