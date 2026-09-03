@@ -8,22 +8,22 @@
 
 ## Tagline (60 characters max — this is the most important line)
 
-**Primary:** `562 free browser tools. No accounts, no ads, no tracking.`
+**Primary:** `562 free browser tools. No accounts, no display ads. Open source.`
 
 **Alternates:**
-- `562 free browser tools. No accounts, no ads, no tracking. Ever.`
+- `562 free browser tools. No accounts, no display ads. Open source.`
 - `562 free, private, browser-side tools. Open source.`
 - `The most useful site in the world. 562 tools. Free.`
 
 ## Short description (260 characters max)
 
-> A non-commercial catalogue of 562 free, browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, colour contrast checker, invoice generator, and 550+ more. No accounts, no ads, no tracking. Open source. One person, built in two years, in Luton, UK.
+> A non-commercial catalogue of 562 free, browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, colour contrast checker, invoice generator, and 550+ more. No accounts, no display ads. Open source. One person, built in two years, in Luton, UK.
 
 ## Long description
 
 > **The Most Useful Site in the World** is a non-commercial project I\'ve been building for two years.
 >
-> The whole site is 562 free, browser-side tools. Every one of them runs in your browser, with no account, no email, no tracking, no ads, no upsell.
+> The whole site is 562 free, browser-side tools. Every one of them runs in your browser, with no account, no email, no display ads, no upsell.
 >
 > The catalogue includes:
 > - **Finance:** mortgage, compound interest, debt payoff, salary, lease vs buy, stamp duty, affordability, investment, unit-price comparator, credit card
@@ -35,7 +35,7 @@
 > - **Astronomy:** eyepiece calculator, lunar phase, star chart, telescope collimation
 > - **And 500+ more**
 >
-> **The thing I am most proud of:** the **no-tracking part**. Open DevTools → Network → reload any page. There is one request. The page itself. No analytics, no third-party scripts, no fonts from Google, no CDN.
+> **The thing I am most proud of:** the **no-display-ads part**. View source on any page. You will not find an ad slot, an ad network script, a sponsored-content block, or a retargeting pixel. The whole markup is the tool and its text. (I do run Google Analytics for measurement — that's how I know which guides convert — but Analytics does not place ads.)
 >
 > **The thing I am least proud of:** the homepage. I have been told it\'s "a wall of 562 emoji". It is. I am working on it.
 >
@@ -93,9 +93,9 @@ Just me. Single maker launch.
 
 > Author here. A few things I should have put in the main post:
 >
-> - The site is **non-commercial.** There is no business model. There is no analytics, no email list, no newsletter, no upsell. The donate link has been live for 9 months; total donations received: £34.50.
+> - The site is **non-commercial.** There is no business model. There is no display ad inventory, no email list, no newsletter, no upsell, no pop-up. The donate link has been live for 9 months; total donations received: £34.50. (I do run Google Analytics for measurement; that's the only third-party script in the whole site.)
 > - The number **562 is honest.** There are 562 separate tool pages and a `cards.json` file with all 562 entries. The count is exposed at the top of `/tools.html`.
-> - The **no-tracking claim is verifiable.** Open DevTools → Network → reload any page. You will see one request. The page itself. No other origins.
+> - The **no-display-ads claim is verifiable.** View source on any page. You will not find an ad slot, an ads.txt file, an ad network script, or a sponsored-content block. The whole markup is the tool and its text.
 > - The site is **open source.** https://github.com/mrpr0phecy/mrpr0phecy. The repo is 47 MB total, including screenshots for the help docs.
 > - I am **one person**, based in Luton, UK. I work on this in the evenings and weekends.
 > - The thing I am most proud of is the **"How mortgages really work" guide** at https://www.themostusefulsiteintheworld.com/guides/mortgage.html. The bank\'s calculator never tells you the total interest. The guide walks through it.

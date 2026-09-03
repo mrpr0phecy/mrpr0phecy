@@ -31,8 +31,8 @@
 > - `tool.html?card=<name>` — a shim that reads the URL and injects the tool
 > - A build script that runs on my laptop before I push and regenerates the sitemap, RSS, llms.txt, related.json, and the home page from the JSON
 >
-> **The no-tracking part:**
-> I made a deliberate choice to ship no analytics, no third-party scripts, no CDN, no fonts from Google. Open DevTools → Network → reload any page. There is one request. The page itself. The only JavaScript on the page is the tool\'s own.
+> **The no-display-ads part:**
+> I made a deliberate choice to ship no ad networks, no retargeting pixels, no sponsored-content blocks, no upsell modals. View source on any page and you will not find an ad slot — because the markup is the page, and the page is the tool. (I do run Google Analytics for measurement; that\'s the only third-party script in the whole site. Analytics does not place ads.)
 >
 > **Open source:**
 > The repo is at https://github.com/mrpr0phecy/mrpr0phecy. The contribution guide is in `CONTRIBUTING.md`. The issue templates are pre-filled for tool requests, bug reports, and content/SEO feedback. About 30 outside contributors in 2 years.

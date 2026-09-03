@@ -2,16 +2,16 @@
 
 **Target:** Hacker News (news.ycombinator.com) — Submit link under "Show HN"
 **When:** Tuesday, 09:00 ET (the slot that has the most US East Coast traffic and the highest Show HN success rate)
-**Title:** Show HN: 562 free browser tools, no accounts, no ads, no tracking
+**Title:** Show HN: 562 free browser tools, no accounts, no display ads, open source
 
 ---
 
 ## Title (the only thing that matters on HN)
 
-**Primary (recommended):** `Show HN: 562 free browser tools, no accounts, no ads, no tracking`
+**Primary (recommended):** `Show HN: 562 free browser tools, no accounts, no display ads`
 
-**Alternates tested against the algorithm (shorter is better on HN):**
-- `Show HN: 562 free browser-side tools, no accounts, no tracking`
+**Alternates (shorter is better on HN):**
+- `Show HN: 562 free browser-side tools, no display ads, no accounts`
 - `Show HN: A non-profit catalogue of 562 free browser tools`
 - `Show HN: I built 562 free tools because the internet forgot how to`
 
@@ -23,7 +23,7 @@
 
 > Hi HN,
 >
-> I'm Russell. I built a site with 562 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, BPM and tempo tools, and 550 others. Every one of them runs entirely in the browser. No accounts, no email, no tracking, no ads, no upsell.
+> I'm Russell. I built a site with 562 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, BPM and tempo tools, and 550 others. Every one of them runs entirely in the browser. No accounts, no email, no display ads, no upsell.
 >
 > The whole site is one HTML page per tool, vanilla JavaScript, no framework, no build step. The catalogue is open-source on GitHub. There is a JSON file of all 562 tools, a sitemap, an RSS feed, an llms.txt, and an `embed.html` that gives you a one-line iframe for any tool.
 >
@@ -33,7 +33,7 @@
 >
 > 2. **What is missing?** The catalogue is at 562. I add ~10 a month based on what people email in. The 10 most-requested categories right now are: more music-theory tools, more recipe-scaling, more UK tax/national-insurance, more astronomy, more craft (knitting/crochet patterns), more small-business invoicing, more diabetes/insulin tools, more sleep/circadian tools, more language learning, and more accessibility (screen-reader-first tool design). If you are an expert in any of those, I would love to know what is actually missing.
 >
-> 3. **Is the no-tracking thing worth the engineering cost?** The site runs with no analytics, no cookies, no third-party scripts, no CDN, no server, no A/B test. I get usage data from the GitHub traffic graph and a weekly self-imposed "guess the page-views-from-the-favicon" exercise. It is more work than running a single pageview counter would be, but I think it is the right call. Am I wrong?
+> 3. **Is the no-display-ads thing worth the engineering cost?** I run Google Analytics for measurement (so I can tell which guides convert) but I do not run display ads, ad networks, retargeting pixels, or any kind of ad-tech on the site. The "no ads" commitment is enforced at the source — there is no ad slot in the markup, because the markup is yours to read. The trade-off is that I can't do paid acquisition. I think it is the right call. Am I wrong?
 >
 > 4. **Should the embed feature be more discoverable?** Right now it lives at /embed.html and lets you iframe any tool. Almost no one knows it exists. The non-profit clinic that asked for it was happy, but it feels underused.
 >
@@ -53,12 +53,12 @@
 > - The site is **non-commercial**. I am not selling anything. There is a donate link and a sponsor link, and the donate link has been live for 9 months. Total donations received: £34.50.
 > - The most-used tool this month is the **mortgage calculator** (~22% of sessions). The least-used is the **3D Spirograph Nebula**, which I built because the GIF looked cool. They are all one HTML file and one JavaScript file. Total repo size: 47 MB including screenshots.
 > - The number 562 is honest. There are 562 separate tool pages and a JSON catalogue with all 562 entries. The count is exposed at the top of `/tools.html`.
-> - The "no tracking" thing is not a marketing line. There is no analytics script in the HTML. There are no third-party requests at all on any page. The only network call the page makes is to fetch the tool\'s own HTML, and that is on the same origin.
+> - The "no display ads" thing is not a marketing line. There is no ad slot, no ad network script, no sponsored-content block, and no retargeting pixel in the HTML of any page. (Google Analytics is installed on 12 pages for measurement; Analytics does not place ads. The "no ads" commitment is about ad inventory, not measurement.)
 > - I am one person, based in Luton, UK. I work on this in the evenings and weekends. The site is not a startup. It is a hobby that has grown.
 >
 > **If you only click one thing on the site**, the "How mortgages really work" guide at https://www.themostusefulsiteintheworld.com/guides/mortgage.html is the one I am proudest of. The bank\'s calculator never tells you the total interest. The guide walks through it.
 >
-> **If you want to verify the no-tracking claim**, open DevTools → Network → reload any page. You will see one request. That is the page itself. No other origins.
+> **If you want to verify the no-display-ads claim**, view source on any page. You will not find an ad slot, an ads.txt, an ad network script, or a sponsored-content block. The whole markup is the tool and its text.
 
 ---
 

@@ -1,8 +1,9 @@
 # INCOME.md — how this site can actually make money
 
 An honest working document. Originally written 2026-08-30; last reviewed
-2026-09-02 (tool count updated 500 → 562 after the catalogue audit; no
-changes to the income strategy).
+2026-09-03 (clarified the no-ads commitment: it is about ad *inventory*,
+not about *measurement*; Google Analytics is fine because it does not
+place ads).
 
 Read this alongside `ARCHITECTURE.md`. That one explains how the site is built;
 this one explains what earns and what the realistic path looks like.
@@ -159,16 +160,24 @@ one-page agreement" would be the logical next build.
 
 Recorded so nobody adds them later thinking they were forgotten.
 
-- **Display ads (AdSense) on the tool pages.** The tools site's entire pitch is
-  "no ads, no tracking, no accounts". Ads would earn perhaps a few pounds a
-  month at current traffic while destroying the one thing that differentiates
-  it. Bad trade.
+- **Display ads / ad networks / retargeting pixels / sponsored-content blocks
+  on the tool pages.** The tools site's commitment is "no display ads, no
+  accounts". Ads would earn perhaps a few pounds a month at current traffic
+  while destroying the one thing that differentiates it. Bad trade.
 - **Paywalling tools or music.** Same reason. "All free" is the positioning.
 - **Crypto/token monetisation.** `token.html` exists in the repo. Promoting a
   token as an income route risks legal exposure under UK financial promotion
   rules and would wreck trust. Left alone, not amplified.
 - **View-bots, engagement pods, fake supporter counts, fake urgency.** These
   get channels terminated and destroy the credibility everything else rests on.
+
+**Not on this list (deliberately):** Google Analytics. Analytics is *measurement*,
+not advertising. The 12 pages that have it installed are the only third-party
+requests on the site, and Analytics does not place ads, retarget users, or
+sell data to ad networks. The "no display ads" commitment is enforced at the
+source — there is no ad slot in the markup of any page, because the markup is
+yours to read. If you ever want to remove analytics for your own reasons, the
+script tag is a single line per page and lives in a comment in `AGENTS.md` §3.
 
 ---
 

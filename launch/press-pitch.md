@@ -6,7 +6,7 @@
 
 **Subject line (the only thing that matters):**
 
-> One person in Luton built 562 free browser tools. No ads, no tracking, no accounts.
+> One person in Luton built 562 free browser tools. No display ads, no accounts.
 
 (That is a tested subject line. The 4 specifics — *one person*, *Luton*, *562*, *no ads* — are all the things journalists look for. The local town is the hook. The specific number is the hook. The "no X" framing is the news angle.)
 
@@ -16,7 +16,7 @@
 
 > Hi [name],
 >
-> I\'m Russell Head, a developer in Luton, UK. For the last two years, in the evenings and weekends, I\'ve been building a non-commercial site with 562 free browser-side tools. The catalogue includes a mortgage calculator, a BMI calculator, a compound interest calculator, a password generator, a BPM tapper, a JSON formatter, and 550+ more. The whole thing runs in the browser, with no accounts, no ads, no tracking, no upsell, no pop-up, no newsletter.
+> I\'m Russell Head, a developer in Luton, UK. For the last two years, in the evenings and weekends, I\'ve been building a non-commercial site with 562 free browser-side tools. The catalogue includes a mortgage calculator, a BMI calculator, a compound interest calculator, a password generator, a BPM tapper, a JSON formatter, and 550+ more. The whole thing runs in the browser, with no accounts, no display ads, no upsell, no pop-up, no newsletter.
 >
 > The reason I\'m writing is that I just added 12 long-form "definitive guides" to the site — math-honest walkthroughs of the topics the tools cover. The guide on mortgages is the one I\'m proudest of. It walks through the standard repayment formula, the three things the bank\'s calculator never shows you, and the honest way to use the numbers. The first AI citations of the guides started showing up in Perplexity two weeks after launch.
 >
@@ -30,7 +30,7 @@
 
 > - 562 free browser-side tools, all in vanilla JavaScript
 > - 1 person, 2 years, evenings and weekends, in Luton, UK
-> - Non-commercial: no ads, no tracking, no accounts, no upsell
+> - Non-commercial: no display ads, no accounts, no upsell
 > - 12 long-form "definitive guides" on the topics the tools calculate
 > - Open source, one JSON file drives the whole site, 47 MB repo, £8/month hosting
 
@@ -42,7 +42,7 @@
 
 **For The Pragmatic Engineer / dev-tools press:** the *architecture* angle. "562 tools, vanilla JS, no build step, 47 MB repo, JSON-driven everything." That is the engineering story.
 
-**For Hacker Noon / dev-culture press:** the *open-web* angle. "A site that explicitly ships no analytics, no third-party scripts, no CDN, in 2026. Here\'s why." That is the culture story.
+**For Hacker Noon / dev-culture press:** the *open-web* angle. "A site that explicitly ships no ad networks, no retargeting pixels, no pop-ups, in 2026. Here\'s why." That is the culture story. (Yes, there is Google Analytics for measurement; Analytics does not place ads. The "no ads" claim is about ad inventory, not measurement.)
 
 **For education press (TES, EdSurge, etc.):** the *teaching* angle. "A site that\'s free for schools, with embeddable widgets, no account required, and a Year 9 maths teacher used it to teach compound interest for the first time." That is the education story.
 

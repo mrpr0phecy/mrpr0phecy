@@ -58,7 +58,7 @@ The full sequence, in order, with the work and the dependencies. **You cannot co
 - [ ] Write the launch blog post (the one that says "we just launched the marketing site"; the post is internal-facing but is also a signal to AI engines that the site has been *recently* updated)
 - [ ] Schedule 5-10 genuine community comments on HN/Reddit in the *target subreddits* in the 3 weeks before launch. Don\'t promote; just be a useful participant. This is the "warm up the audience" step.
 - [ ] Identify the 3-5 "first-hour supporters" — friends or colleagues who will comment, upvote, and engage in the first hour of the launch. Brief them: "comment with something substantive about the site, not just a generic +1."
-- [ ] If you\'re going to run a small paid campaign (you said you wouldn\'t; the no-ads/no-tracking commitment is in AGENTS.md), this is the week to do it. Skip if you\'re honouring the no-paid-ads commitment.
+- [ ] If you\'re going to run a small paid campaign (you said you wouldn\'t; the no-display-ads commitment is in AGENTS.md), this is the week to do it. Skip if you\'re honouring the no-paid-ads commitment.
 
 **Time:** ~6 hours
 

@@ -77,7 +77,10 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
 - No view-bots, hidden players, autoplay tricks, engagement pods — ToS
   violations (INCOME.md). Legitimate growth only: metadata, speed, internal
   links, translated pages, honest CTAs.
-- No ads/trackers on Product A pages; no paywalls; no fake urgency.
+- No display ads / no ad networks / no retargeting pixels / no sponsored-content
+  blocks on Product A pages. Google Analytics is fine — it is measurement, not
+  ads. The "no ads" commitment is about ad inventory, not measurement. No
+  paywalls; no fake urgency.
 - Never invent YouTube IDs — use the verified table in ARCHITECTURE.md §4.
 
 ## 4. Common tasks — exact sequences

@@ -12,7 +12,7 @@
 
 ## r/SideProject (primary)
 
-**Title:** I built 562 free browser-side tools in 2 years. No accounts, no tracking, no ads. Here\'s what I learned.
+**Title:** I built 562 free browser-side tools in 2 years. No accounts, no display ads, no upsell. Here\'s what I learned.
 
 **Body:**
 
@@ -23,7 +23,7 @@
 >
 > **What it is:** 562 browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep planner, colour contrast checker, invoice generator. 550+ more.
 >
-> **The thing I am most proud of:** the no-tracking part. Open DevTools → Network → reload any page. There is one request. The page itself. No analytics, no third-party scripts, no fonts from Google, no CDN. The only JavaScript is the tool\'s own.
+> **The thing I am most proud of:** the no-display-ads part. View source on any page. You will not find an ad slot, an ad network script, a sponsored-content block, or a retargeting pixel. The whole markup is the page, and the page is the tool. (I do run Google Analytics for measurement; that's the only third-party script in the whole site, and Analytics does not place ads.)
 >
 > **The thing I am least proud of:** the homepage. I have been told it\'s "a wall of 562 emoji". It is. I am working on it.
 >
@@ -31,7 +31,7 @@
 >
 > 1. **Most users want 10% of the tools.** The mortgage calculator, BMI, password generator, compound interest, and BPM tapper get about 60% of the traffic. The other 552 tools are there because I enjoy building them, not because anyone needs them. That is fine.
 >
-> 2. **The "no tracking" thing is more work than I expected.** I can\'t tell you which page is most popular, I can\'t A/B test headlines, I can\'t see where users drop off. I have to make all decisions based on what people tell me directly via the help form.
+> 2. **The "no display ads" thing is more work than I expected.** I can\'t do paid acquisition, can\'t run retargeting, can\'t monetise the existing audience with a banner network. I make marketing decisions based on Google Analytics (which is measurement, not ads), GitHub traffic, and what people tell me directly via the help form.
 >
 > 3. **Embeds are the under-rated feature.** The /embed.html page lets you iframe any tool in one line. A non-profit health clinic embedded the BMI calculator on their resources page. A primary school embedded the times-tables tool. Neither of them would have found the site without the embed feature.
 >
@@ -113,7 +113,7 @@
 >
 > 1. **The JSON-driven everything.** Adding a new tool is a 3-step process: write the HTML, add an entry to `cards.json`, run the build script. The build script does the sitemap, the RSS, the category pages, the home page, the embed page, and the related-tool suggestions. One JSON entry → 9 pages on the live site.
 >
-> 2. **The no-tracking part.** I made a deliberate choice to ship no analytics, no third-party scripts, no CDN, no fonts from Google. This is more work than running a single pageview counter. The trade-off: the only network request on any page is the page itself.
+> 2. **The no-display-ads part.** I made a deliberate choice to ship no ad networks, no retargeting pixels, no sponsored-content blocks. This caps the addressable audience — I can't do paid acquisition — but it also means the site stays the kind of place that loads instantly and is genuinely the page it claims to be. The "no ads" is enforced at the source: there is no ad slot in the markup.
 >
 > 3. **The embed feature.** The `/embed.html` page takes a tool name, generates a one-line iframe snippet, and lets the user copy it. About 30% of the traffic now comes from embeds. A non-profit health clinic has the BMI calculator on their resources page.
 >
@@ -138,11 +138,11 @@
 
 ## r/InternetIsBeautiful
 
-**Title:** 562 free browser-side tools, no accounts, no ads, no tracking. The whole thing is one HTML file per tool.
+**Title:** 562 free browser-side tools, no accounts, no display ads. The whole thing is one HTML file per tool.
 
 **Body:**
 
-> I built a site with 562 free browser-side tools. The whole thing runs in your browser. No accounts, no email, no tracking, no ads, no upsell, no pop-up, no newsletter, no lead form.
+> I built a site with 562 free browser-side tools. The whole thing runs in your browser. No accounts, no email, no display ads, no upsell, no pop-up, no newsletter, no lead form.
 >
 > The site: https://www.themostusefulsiteintheworld.com
 >

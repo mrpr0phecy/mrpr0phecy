@@ -14,7 +14,7 @@
 >
 > Mortgage calculator. BMI. Compound interest. Password generator. BPM tapper. JSON formatter. Eyepiece calculator. Invoice generator. Sleep cycle planner. Colour contrast checker.
 >
-> 550+ more. All free. All in the browser. No accounts, no ads, no tracking.
+> 550+ more. All free. All in the browser. No accounts, no display ads, no upsell.
 >
 > Here\'s how ↓
 >
@@ -33,11 +33,11 @@
 
 > **3/8**
 >
-> The most-interesting engineering decision was the no-tracking part.
+> The most-interesting engineering decision was the no-display-ads part.
 >
-> Open DevTools → Network → reload any page on the site. You will see one request. The page itself. No analytics, no fonts from Google, no CDN, no third-party scripts.
+> View source on any page on the site. You will not find an ad slot, an ad network script, a sponsored-content block, or a retargeting pixel. The whole markup is the page, and the page is the tool.
 >
-> This is more work than running a pageview counter would be. I think it\'s the right call.
+> This caps the addressable audience (I can\'t do paid acquisition). I think it\'s the right call. (The one third-party script in the whole site is Google Analytics, which is measurement, not ads.)
 
 > **4/8**
 >
@@ -87,7 +87,7 @@
 
 ## Tweaks for Bluesky
 
-Bluesky\'s character limit is the same as X (300), so the thread works as-is. The tone is already technical and link-friendly. One change: Bluesky audiences skew more toward open-source and indie-web, so lead with the "no tracking" or the "open source" tweet if you want to pick a different tweet #1.
+Bluesky\'s character limit is the same as X (300), so the thread works as-is. The tone is already technical and link-friendly. One change: Bluesky audiences skew more toward open-source and indie-web, so lead with the "no display ads" or the "open source" tweet if you want to pick a different tweet #1.
 
 ## Tweaks for Mastodon
 
