@@ -32,7 +32,7 @@
 > - A build script that runs on my laptop before I push and regenerates the sitemap, RSS, llms.txt, related.json, and the home page from the JSON
 >
 > **The no-display-ads part:**
-> I made a deliberate choice to ship no ad networks, no retargeting pixels, no sponsored-content blocks, no upsell modals. View source on any page and you will not find an ad slot — because the markup is the page, and the page is the tool. (I do run Google Analytics for measurement; that\'s the only third-party script in the whole site. Analytics does not place ads.)
+> I made a deliberate choice to ship no ad networks, no retargeting pixels, no sponsored-content blocks, no upsell modals. View source on any page and you will not find an ad slot — because the markup is the page, and the page is the tool. (The third-party scripts on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None of them are advertising.)
 >
 > **Open source:**
 > The repo is at https://github.com/mrpr0phecy/mrpr0phecy. The contribution guide is in `CONTRIBUTING.md`. The issue templates are pre-filled for tool requests, bug reports, and content/SEO feedback. About 30 outside contributors in 2 years.

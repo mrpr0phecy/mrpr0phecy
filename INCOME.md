@@ -172,7 +172,7 @@ Recorded so nobody adds them later thinking they were forgotten.
   get channels terminated and destroy the credibility everything else rests on.
 
 **Not on this list (deliberately):** Google Analytics. Analytics is *measurement*,
-not advertising. The 12 pages that have it installed are the only third-party
+not advertising. The standalone pages that have it installed are the only third-party
 requests on the site, and Analytics does not place ads, retarget users, or
 sell data to ad networks. The "no display ads" commitment is enforced at the
 source — there is no ad slot in the markup of any page, because the markup is
@@ -184,8 +184,11 @@ script tag is a single line per page and lives in a comment in `AGENTS.md` §3.
 ## Measurement — the thing that was missing
 
 Google Analytics (`G-G058FVW6Z2`) was previously installed on **one** page
-(`music.html`). It is now on the 12 pages that matter: the catalogue homepage,
-all music pages, both money pages and the news page.
+(`music.html`). It was then extended to 12 pages, and is now on **every
+standalone HTML page** (all 100 full pages) so that any page the user visits
+contributes a pageview to the measurement set. The 562 tool cards are HTML
+fragments loaded into the page they sit on, so they inherit measurement from
+their host page.
 
 Without this, none of the above can be optimised — you cannot price sponsorship,
 cannot tell which page converts, and cannot tell whether anything is working.

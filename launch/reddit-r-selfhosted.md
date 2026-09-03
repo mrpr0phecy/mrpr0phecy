@@ -23,7 +23,7 @@
 >
 > **What it is:** 562 browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep planner, colour contrast checker, invoice generator. 550+ more.
 >
-> **The thing I am most proud of:** the no-display-ads part. View source on any page. You will not find an ad slot, an ad network script, a sponsored-content block, or a retargeting pixel. The whole markup is the page, and the page is the tool. (I do run Google Analytics for measurement; that's the only third-party script in the whole site, and Analytics does not place ads.)
+> **The thing I am most proud of:** the no-display-ads part. View source on any page. You will not find an ad slot, an ad network script, a sponsored-content block, or a retargeting pixel. The whole markup is the page, and the page is the tool. (The only third-party scripts anywhere on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None of them are advertising.)
 >
 > **The thing I am least proud of:** the homepage. I have been told it\'s "a wall of 562 emoji". It is. I am working on it.
 >

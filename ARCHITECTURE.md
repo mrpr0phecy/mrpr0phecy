@@ -307,7 +307,7 @@ cannot state its unique search intent in one line, it should not be a new page.
 
 ### Analytics
 
-Google Analytics `G-G058FVW6Z2` is installed on the 12 pages that matter
+Google Analytics `G-G058FVW6Z2` is installed on every standalone HTML page (all 100 full pages; the 562 tool cards are HTML fragments that inherit measurement from their host page)
 (catalogue homepage, all music pages, both money pages, news). It was
 previously on `music.html` only. Add it to any new public page — without it
 there is no way to price sponsorship or tell what is working.

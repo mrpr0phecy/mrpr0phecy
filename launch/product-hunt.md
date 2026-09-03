@@ -93,7 +93,7 @@ Just me. Single maker launch.
 
 > Author here. A few things I should have put in the main post:
 >
-> - The site is **non-commercial.** There is no business model. There is no display ad inventory, no email list, no newsletter, no upsell, no pop-up. The donate link has been live for 9 months; total donations received: £34.50. (I do run Google Analytics for measurement; that's the only third-party script in the whole site.)
+> - The site is **non-commercial.** There is no business model. There is no display ad inventory, no email list, no newsletter, no upsell, no pop-up. The donate link has been live for 9 months; total donations received: £34.50. (The third-party scripts on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None are advertising.)
 > - The number **562 is honest.** There are 562 separate tool pages and a `cards.json` file with all 562 entries. The count is exposed at the top of `/tools.html`.
 > - The **no-display-ads claim is verifiable.** View source on any page. You will not find an ad slot, an ads.txt file, an ad network script, or a sponsored-content block. The whole markup is the tool and its text.
 > - The site is **open source.** https://github.com/mrpr0phecy/mrpr0phecy. The repo is 47 MB total, including screenshots for the help docs.

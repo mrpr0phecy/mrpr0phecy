@@ -37,7 +37,7 @@
 >
 > View source on any page on the site. You will not find an ad slot, an ad network script, a sponsored-content block, or a retargeting pixel. The whole markup is the page, and the page is the tool.
 >
-> This caps the addressable audience (I can\'t do paid acquisition). I think it\'s the right call. (The one third-party script in the whole site is Google Analytics, which is measurement, not ads.)
+> This caps the addressable audience (I can\'t do paid acquisition). I think it\'s the right call. (The third-party scripts on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None are advertising.)
 
 > **4/8**
 >
