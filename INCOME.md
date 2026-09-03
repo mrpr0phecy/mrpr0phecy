@@ -6,7 +6,15 @@ full financial review.
 Read this alongside `ARCHITECTURE.md`. That one explains how the site is built;
 this one explains what earns and what the realistic path looks like.
 
-**Related:** `FINANCE.md` covers the other half of the job — the correctness of
+**Related:** **⚠️ Superseded in part.** `STRATEGY.md` (2026-09-03) reworks the *tools* side of
+this document. The analysis below of streaming rates, Content ID, YPP, sync
+licensing and donations stands unchanged and is still the reference for the
+music catalogue. But its treatment of **sponsorship as the primary tools revenue
+line is superseded**: sponsorship depends on a brand emailing us, and the tools
+are now monetised directly through embed licensing (`embed.html`). Read
+`STRATEGY.md` first for the tools; read this for the music.
+
+`FINANCE.md` covers the other half of the job — the correctness of
 the money *tools*, the statutory figures they depend on, tax obligations on the
 income described here, and the open compliance risk on `token.html`. Read both.
 

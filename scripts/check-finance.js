@@ -521,6 +521,62 @@ section('truthfulness — advertised tool count is real');
   }
 }
 
+section('embed licensing — the paid product must stay honest');
+{
+  /* embed.html is the first revenue line that does not depend on a sponsor
+     replying to an email, so it is worth protecting from drift. Three things
+     have to stay true or the offer becomes a lie we are charging for. */
+  const embedPath = path.join(ROOT, 'embed.html');
+  if (!fs.existsSync(embedPath)) {
+    fail('embed.html is missing — the licensing offer has been removed');
+  } else {
+    // Strip inline tags so "£<strong>299</strong>" still matches (see the
+    // D-001 guard for the same trap).
+    const e = fs.readFileSync(embedPath, 'utf8')
+      .replace(/<\/?(?:strong|b|em|i|span|small)\b[^>]*>/gi, '');
+
+    // 1. Prices must be present and internally ordered. A category tier priced
+    //    below a single tool, or above full white-label, is an obvious error
+    //    that would still quietly ship.
+    const tiers = ['99', '299', '899'].map(n => new RegExp('£' + n + '\\b').test(e));
+    if (tiers.every(Boolean)) {
+      pass('embed.html publishes all three licence prices (£99 / £299 / £899)');
+    } else {
+      fail('embed.html is missing one of the published licence prices — £99, £299, £899');
+    }
+
+    // 2. The free tier must remain genuinely free and credited. This is the
+    //    acquisition channel; if it silently gains a fee or loses the credit
+    //    requirement, the whole funnel logic breaks.
+    if (/free/i.test(e) && /credit/i.test(e)) {
+      pass('embed.html still offers a free credited tier');
+    } else {
+      fail('embed.html no longer describes a free tier with a credit line');
+    }
+
+    // 3. We charge for maintained correctness, so we must not also claim to be
+    //    advice. That is a regulated line (FCA) and the disclaimer is load-bearing.
+    if (/not financial advice/i.test(e)) {
+      pass('embed.html carries the not-financial-advice disclaimer');
+    } else {
+      fail('embed.html sells calculators without a not-financial-advice disclaimer');
+    }
+  }
+
+  // 4. The embed code handed out must carry attribution. This single line is
+  //    the entire price of the free tier - without it we are giving 562 tools
+  //    away for nothing and getting no backlink in return.
+  const toolTxt = fs.readFileSync(path.join(ROOT, 'tool.html'), 'utf8');
+  if (/embedCode/.test(toolTxt)) {
+    const seg = toolTxt.slice(toolTxt.indexOf('const embedCode'), toolTxt.indexOf('const embedCode') + 1200);
+    if (/themostusefulsiteintheworld|window\.location\.origin/.test(seg) && /<a /.test(seg)) {
+      pass('the generated embed code includes a credit link back to the site');
+    } else {
+      fail('the generated embed code no longer includes a credit link — the free tier gives the tools away for nothing');
+    }
+  }
+}
+
 section('affiliate links — disclosed, and confined to their own page');
 {
   /* An affiliate link is a marketing communication under the CAP Code whether

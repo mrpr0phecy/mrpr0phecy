@@ -235,7 +235,13 @@
             opacity: 1;
             transform: translateY(0);
         }
-    </style>
+    
+/* --- embed mode: iframed into a third-party page --- */
+html.is-embed .top-nav,
+html.is-embed .page-footer { display: none !important; }
+html.is-embed .main-wrapper { padding-top: 12px !important; }
+html.is-embed body { background: transparent !important; }
+</style>
 </head>
 <body>
 <h1 style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0">Tool Viewer</h1>
@@ -300,6 +306,16 @@
         async function init() {
             const params = new URLSearchParams(window.location.search);
             const cardName = params.get('card') || params.get('t') || 'bmi';
+
+            /* Embed mode. When a tool is iframed into someone else's page, our
+               nav, footer and tip button are noise at best and a hijack at
+               worst - the host site's visitor did not come to us. Strip the
+               chrome so the embed is just the tool. The credit line lives in
+               the host page's HTML (see the Embed button), not in here, so it
+               cannot be removed by restyling the iframe. */
+            if (params.get('embed') === '1') {
+                document.documentElement.classList.add('is-embed');
+            }
 
             let allCards = [];
             let currentMeta = null;
@@ -433,9 +449,24 @@
 
             // Embed button
             document.getElementById('embedBtn').onclick = () => {
-                const embedCode = `<iframe src="${window.location.origin}/tool.html?card=${encodeURIComponent(cardName)}" width="100%" height="450" style="border:none;border-radius:12px;" title="${title}"></iframe>`;
+                /* Free embed carries a visible credit line with a followed link
+                   back to the tool. That backlink is the price of the free tier:
+                   it is what turns every embed into an acquisition channel
+                   instead of a silent giveaway. Removing it requires a licence
+                   (see embed.html) - that is the paid product. */
+                const toolUrl = `${window.location.origin}/tool.html?card=${encodeURIComponent(cardName)}`;
+                const embedCode =
+`<!-- ${title} - free to embed with credit. Licence to remove credit: ${window.location.origin}/embed.html -->
+<div style="max-width:100%">
+  <iframe src="${toolUrl}&embed=1" width="100%" height="450" loading="lazy"
+    style="border:none;border-radius:12px" title="${title}"></iframe>
+  <p style="font:400 12px/1.5 system-ui,sans-serif;margin:6px 0 0;text-align:right">
+    <a href="${toolUrl}" target="_blank" rel="noopener">${title}</a>
+    by <a href="${window.location.origin}/" target="_blank" rel="noopener">The Most Useful Site in the World</a>
+  </p>
+</div>`;
                 navigator.clipboard.writeText(embedCode).then(() => {
-                    showToast('Embed code copied to clipboard!');
+                    showToast('Embed code copied — free to use with the credit line kept.');
                 }).catch(() => {
                     prompt('Copy embed code:', embedCode);
                 });
