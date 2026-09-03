@@ -178,7 +178,8 @@ Expect `200` and a card count matching `cards/`. GitHub Pages deploys from
 
 ## 7. Current verified state (2026-08-30)
 
-- Cards: **644**, all indexed (no orphans), all with title+description.
+- Cards: **644**, all indexed (no orphans), all with title+description
+  (counts re-derived per `staff/DECISIONS.md` D-001).
   Categories include the last batch **"MrProphecy Arcade" (10)**.
 - Tool counts in [README.md](README.md)/[ARCHITECTURE.md](ARCHITECTURE.md)/
   [INCOME.md](INCOME.md) were refreshed to 493 on this date.

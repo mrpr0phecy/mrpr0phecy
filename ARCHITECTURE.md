@@ -538,7 +538,7 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 518 pages. Build it from git rather than the working
+`sitemap.xml` lists all 684 pages. Build it from git rather than the working
 tree, so a sparse checkout does not silently drop the 644 cards:
 
 ```python
