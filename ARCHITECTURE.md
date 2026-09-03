@@ -111,6 +111,7 @@ establish *which* site first.
 │   ├── verify.sh             Entry point — runs everything below (§8)
 │   ├── staff.sh              Staff interface: digest, open, close, post, who
 │   ├── check-cards.py        Catalogue, count and category coherence
+│   ├── check-card-js.py      Card JS syntax — a bad block kills the whole tool
 │   ├── check-staff.py        Staff facility structure and id uniqueness
 │   ├── scan-seo.py           Top-level page metadata scan
 │   ├── agent-auth.sh         Device-flow token for agent sessions

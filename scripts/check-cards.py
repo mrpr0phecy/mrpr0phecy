@@ -108,6 +108,21 @@ def _fragment_scan(text: str):
     stripped = re.sub(r"(?is)<!--.*?-->", "", stripped)
     return re.search(r"(?is)<!doctype\b|<html\b|<head\b|<body\b", stripped)
 
+
+# A card that renders nothing but a heading is a broken promise: it is listed in
+# the catalogue with a description, indexed in the sitemap, and shows the user
+# an empty box. cards/vocab.html shipped like this for months (92 bytes, one
+# <h2>). Every real card has at least one control; the next-smallest card is
+# ~3.5 KB, so this cannot false-positive on a legitimately simple tool.
+INTERACTIVE_RE = re.compile(
+    r"(?is)<(input|button|select|textarea|canvas|svg|form|output|details)\b")
+
+# Known-empty cards awaiting an owner decision (staff/OPEN.md OPEN-9). Removing
+# one deletes a catalogued, sitemap-listed URL, so it is not @systems' call.
+# These warn instead of failing so the build is not blocked for everyone;
+# any NEW empty card still fails.
+KNOWN_EMPTY_CARDS = {"vocab.html"}
+
 for f in sorted(on_disk):
     try:
         with open(os.path.join(CARDS, f), encoding="utf-8", errors="replace") as fh:
@@ -117,6 +132,14 @@ for f in sorted(on_disk):
     if _fragment_scan(text):
         fails.append(f"{f}: contains a full-document tag (<!doctype/html/head/body) "
                      f"— cards must be fragments")
+    if not INTERACTIVE_RE.search(text):
+        msg = (f"{f}: has no interactive element ({len(text)} bytes) — it is "
+               f"catalogued as a tool but renders nothing")
+        if f in KNOWN_EMPTY_CARDS:
+            warns.append(msg + " [known, tracked as staff OPEN-9]")
+        else:
+            fails.append(msg + ". Build it or remove it from cards.json and "
+                               "the sitemap.")
 
 # ---------------------------------------------------------------- 4. ID scope
 # Every card is injected into one shared DOM, so an id used by two cards can

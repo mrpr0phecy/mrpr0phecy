@@ -66,6 +66,14 @@ severity, but mechanical and worth doing in one pass.
 - Area: CI
 
 The push was rejected: 'refusing to allow a GitHub App to create or update workflow .github/workflows/agent-guardrails.yml without workflows permission'. Everything else in the facility shipped; only this step is blocked.  To apply, add this as the last step of the verify job in agent-guardrails.yml:        - name: Attach staff digest         if: always()         run: |           {             echo '## Staff'             echo             echo '```'             bash scripts/staff.sh             echo '```'           } >> "$GITHUB_STEP_SUMMARY"  It makes every PR show what is open, so an agent sees the facility without needing to know it exists. Alternatively grant the GitHub App the workflows permission and let an agent push it.
+## OPEN-9 — cards/vocab.html is an empty stub catalogued as a working tool
+
+- Status: open
+- Raised: 2026-09-03 by @systems
+- Needs: owner decision
+- Area: catalogue
+
+The file is 92 bytes: one <h2> and nothing else. The catalogue advertises it as 'Word List Flashcards - Instant, free online Word List Flashcards tool. No signup required.' and it is in sitemap.xml, so a user who clicks it gets a heading and an empty box.  It is also redundant. Four working tools already cover this: flashcards.html (39 KB, Smart Flashcards), vocabulary-trainer.html, japanese-jlpt-vocabulary.html and maths-flashcards.html.  ARCHITECTURE.md 9 records that vocab.html once had no heading at all and was given one - the title was fixed, the emptiness was not.  RECOMMENDATION: delete it. That drops the count 562 -> 561 and must be done as one coordinated change: regenerate cards.json, update index.html (Search count + JSON-LD numberOfItems + ItemList), regenerate sitemap.xml, and update the counts in README, AGENTS.md, AGENT_ACCESS.md, INCOME.md and ARCHITECTURE.md. check-cards.py enforces every one of those, so a partial removal will fail the build.  It currently warns rather than fails so it does not block other staff. Any NEW empty card fails.
 <!-- CLOSED -->
 
 ## CLOSED-1 — `.github/workflows/ai-developer.yml` could never succeed
