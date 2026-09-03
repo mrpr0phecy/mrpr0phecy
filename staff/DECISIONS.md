@@ -140,3 +140,25 @@ tools that pass the full quality bar (AGENTS.md §5), and **every deleted card
 is restored**. General rule: **deleting or replacing an existing tool always
 requires owner sign-off first** — no agent, including @manager, retires the
 owner's product.
+
+---
+
+## D-009 — Cards must not silently send user input off-device
+
+**Decided:** 2026-09-03 · **Owner:** @manager ruling (owner may overrule) · **Status:** binding
+
+A card audit on 2026-09-03 found **~27 cards making network calls**, in three classes:
+
+| Class | Definition | Examples | Rule |
+|---|---|---|---|
+| **A — input egress** | Anything the user types/encodes is sent to a third party | ~~wifi-qr-generator (fixed 2026-09-03: vendored generator)~~, qrtool (labelled, proper fix queued OPEN-1a), languages (labelled) | **Labelled loudly in-card immediately; re-engineered to local processing at the next opportunity.** Until fixed, the card must carry a visible warning at the point of input. |
+| **B — CDN code** | Loads libraries (chart.js, three.js) from CDNs | budget, evolution-walker | Documented exception; breaks offline purity but sends no user data. Replace with vendored code when touched for other reasons. |
+| **C — live-data tools** | Fetching public data IS the tool's function | currency, plant-encyclopedia, premier-league, censorship-monitor, photo viewers, sl-events | Legitimate; the tool must fail gracefully offline and not claim to work offline. |
+
+**New cards: zero network calls** (existing AGENTS.md law — now enforced by audit, not just convention).
+
+**Claims rule (extends D-002):** a site-wide claim must be true for every tool, or scoped ("*your inputs never leave your device — except tools marked with a ⚠ warning*"). Site copy must not state absolutes that Class A/C tools break.
+
+**Audit command** (run before any catalogue PR):
+`grep -rlE "fetch\(|XMLHttpRequest|new Image|\.src *= *['\"\`]https?" cards/*.html`
+then classify hits into A/B/C.
