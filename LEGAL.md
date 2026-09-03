@@ -54,6 +54,9 @@ full with working opt-out instructions. Tawk.to stays removed (replaced by
 | 7 | Donations solicited via PayPal with no refund position, no "this is a gift, not a purchase" statement, no charity-status clarification. | **Medium** — consumer-law and PayPal-ToS exposure. | Fixed |
 | 8 | `sonicfansite.html` uses SEGA marks and characters; `government.html` presents political content. Disclaimers were partial and buried. | **Medium** — trade mark; implied endorsement. | Fixed (`legal.html` §8, footer on every page) |
 | 9 | No takedown route published; contact address appeared only on `sponsor.html`. | **Medium** — no safe-harbour-style process, slow complaint handling. | Fixed |
+| 11 | **`cards/wifi-qr-generator.html` transmitted users' Wi-Fi passwords to a third party.** It built the QR by putting `WIFI:...;P:<password>;;` into a URL query string and requesting it from `api.qrserver.com` — on every keystroke, in plaintext, logged in that provider's access logs — while the page displayed "🔒 100% private: runs entirely in your browser". | **Critical** — false privacy claim inducing disclosure of a credential the user would never have knowingly shared. | Fixed |
+| 12 | Two pages (`beachsimulator.html`, `indexbeta.html`) carried `<base target="_blank">`, applying `target=_blank` to every link with no `rel=noopener`, exposing `window.opener` to any linked page. | **Medium** — reverse tabnabbing. | Fixed |
+| 13 | ~14 tools transmit user input to third-party APIs (translation, dictionary, plant, currency, Second Life, sports) with no indication to the user. | **Medium** — undisclosed processing. | Fixed |
 | 10 | ~40 live third-party feeds (BBC, Reuters, AP, NYT and others) reproduced on news pages. | **Low–Medium** — headline/snippet reuse. Ongoing: display headline + link only, never full article text. | Documented |
 
 ---
@@ -89,8 +92,21 @@ Cookies, Terms, Disclaimer, Cookie choice, plus a one-line copyright and
 "estimates, not professional advice" reminder.
 
 **Risk notices** — category- and slug-driven warnings rendered into the card
-footer in `index.html` and above the tool in `tool.html`. Five classes:
-`medical`, `finance`, `engineering`, `legal`, `feed`. No card contains its own
+footer in `index.html` and above the tool in `tool.html`. Classes: `medical`,
+`finance`, `engineering`, `legal`, `feed`, `network` and the combined
+`finance+network`. `network` covers the ~14 tools that send what you type to a
+third-party API; it is an **explicit slug list**, not a pattern, because a
+false negative there means undisclosed transmission of user data.
+
+**Wi-Fi QR generator rebuilt** — the tool now encodes QR codes entirely
+on-device using a vendored, MIT-licensed copy of `qrcode-generator` (inlined
+into the card, since cards are self-contained fragments and a CDN request would
+reintroduce a third party). Verified by encode/decode round-trip against the
+independent `jsQR` decoder — the algorithm phone cameras use — across QR
+versions 3-6 including UTF-8 SSIDs, open networks and 40-character passwords. A
+hand-written encoder was attempted first and **rejected**: it could not be
+proven bit-correct against a reference at every version, and an unscannable or
+subtly wrong QR for Wi-Fi credentials is not an acceptable failure mode. No card contains its own
 disclaimer text, so the wording changes in two places and propagates to every
 affected tool.
 
@@ -122,6 +138,11 @@ including the donation and sponsorship pages.
 3. **Never put a disclaimer inside a card.** Add the slug or category to
    `RISK_NOTICES` mapping in `index.html` and `tool.html` — keep the two in
    step.
+3b. **A tool that sends user input off-device must say so.** Add its slug to
+   the `network` list in both files. Check with:
+   `grep -lE "fetch\(|XMLHttpRequest|\.src *= *['\"\`]https?://" cards/*.html`
+   A tool that transmits data while claiming to be private is the single
+   worst defect this site can ship — see finding 11.
 4. **New tool in a regulated area** (health, money, electrical, legal
    documents)? Confirm it matches a risk class before shipping. If it fits none,
    add one rather than shipping bare.

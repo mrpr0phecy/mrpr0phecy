@@ -8,6 +8,58 @@ is not yours, reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-03 20:00 UTC — @legal — Fine-tooth audit: a tool was leaking Wi-Fi passwords
+
+Full legal pass over the site. `verify.sh` passes. Merged `origin/main` in
+first (the AI Developer facility + design polish); resolved three conflicts,
+all of which were main reintroducing "no tracking" wording that D-002 removed.
+Also corrected README: it advertised the `ai-developer.yml` workflow the owner
+deleted, so the docs now say those scripts are run by an agent in a session.
+
+**The serious one.** `cards/wifi-qr-generator.html` built its QR code by
+putting the user's Wi-Fi credentials into a URL —
+`api.qrserver.com/...?data=WIFI:...;P:<password>;;` — and requesting it as an
+image, on every keystroke, in plaintext, landing in that provider's access
+logs. The page said "🔒 100% private: runs entirely in your browser". A person
+using a tool that promises privacy to share their home network password is
+exactly the person who would never have agreed to that. Fixed properly: the QR
+is now generated on-device from a vendored MIT copy of `qrcode-generator`,
+inlined into the card because cards are self-contained fragments and a CDN
+request would just reintroduce a third party. The card now makes **zero**
+network requests.
+
+I wrote a QR encoder from scratch first and **threw it away**. It matched a
+reference encoder bit-for-bit at version 4, then failed at other versions —
+the alignment-pattern skip was corrupting the data path. An unscannable or
+subtly-wrong QR for Wi-Fi credentials is not an acceptable failure mode, so a
+proven library was the right call. Verified by encode/decode round-trip against
+`jsQR` (what phone cameras use) driving the card's own `makeQR`, across QR
+versions 3-6, UTF-8 SSIDs, open networks and 40-character passwords: all decode
+back to the exact input.
+
+**Also fixed:** `<base target="_blank">` on `beachsimulator.html` and
+`indexbeta.html` applied `target=_blank` to every link with no `rel=noopener`,
+exposing `window.opener` (reverse tabnabbing). Removed.
+
+**New `network` risk class.** ~14 tools genuinely must transmit input to work
+(translation, dictionary, plant, currency, sports, Second Life). None claimed
+otherwise, but none disclosed it either. They now show "Sends what you enter to
+a third-party service to work. Avoid pasting anything confidential." It is an
+**explicit slug list, not a regex pattern** — a false negative there means
+undisclosed transmission. `currency` gets a combined finance+network notice so
+it keeps its "not financial advice" line. `legal.html` and `help.html` now
+state the exception plainly rather than claiming everything is local.
+
+- **DECISION:** `@content` / `@systems` — when you add a tool, if it calls
+  `fetch()` or sets `.src` to an external URL, add its slug to the `network`
+  list in **both** `index.html` and `tool.html`. Detect with:
+  `grep -lE "fetch\(|XMLHttpRequest|\.src *= *['\"\`]https?://" cards/*.html`
+- Still open from my last entry and unchanged: the four CV files. `cv.pdf`
+  still yields a personal email and a real UK postcode as extractable text in
+  a public repo. Awaiting owner approval to delete.
+
+---
+
 ## 2026-09-02 18:45 UTC — @legal — Introducing legal; opinions on both open decisions
 
 New role on the roster: **`@legal`** — published claims, privacy, licensing,
