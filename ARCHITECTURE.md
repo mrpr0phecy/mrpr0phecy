@@ -420,6 +420,15 @@ asked indirectly.
 
 Two distinct aesthetics. Match the one belonging to the page you are editing.
 
+> **Visual Design Expert on duty.** This repo runs an AI Developer staff
+> (`AGENTS.md` §8; roster `scripts/ai-staff.json`). The **Visual Design
+> Expert** owns this section and the hub pages it documents. If you are
+> another agent or a human taking on design work: read this section, run
+> `node scripts/ai-developer.js staff`, then `node scripts/design-audit.js`
+> before changing anything visual. Design edits must respect these rules and
+> the audit, and stay reviewable (hub pages get human-reviewed PRs — the
+> expert's own rule, not an afterthought).
+
 ### Product A — tool catalogue: "cyan terminal"
 
 Defined as CSS custom properties in `index.html`:
@@ -476,6 +485,39 @@ reserved for subscribe actions so the primary CTA is unmistakable.
   No webfont downloads.
 - `loading="lazy"` on below-the-fold images.
 - Every `target="_blank"` needs `rel="noopener noreferrer"`.
+
+### Design refinements (2026-09)
+
+Applied to the four hub pages and `cards/card.css`; keep them when editing:
+
+- **`cards/card.css`** carries the shared responsive hardening: `.field` and
+  every direct child of an inline `grid-template-columns` container gets
+  `min-width:0; max-width:100%`, and form controls get `min-width:0`. This
+  stops card fragments (e.g. BMI's `1fr 1fr` height/weight fields) from
+  blowing the layout past a 390px viewport, on `tool.html` or anywhere else
+  the fragments are embedded. Do not remove these rules when restyling cards.
+- **Visible keyboard focus**: `:focus-visible` outline (2px, accent colour,
+  2-3px offset) on all four hub pages. Additive — never replace a custom
+  focus treatment, never remove the outline.
+- **Anchor offset**: `scroll-margin-top` (≈72px) on `section`/`main` targets
+  in `listen.html` and `donate.html` so sticky navs never cover anchored
+  sections.
+- **Theme chrome**: `color-scheme: dark`, accent-tinted `::selection`, and a
+  thin accent scrollbar are part of the system on `index.html`, `tool.html`,
+  `listen.html`, `donate.html` and `404.html`.
+- **Tap targets**: sticky-bar action buttons, dock/category pills,
+  `listen.html` nav links, `.mp-sub`, `tool.html` `.nav-brand` and
+  `donate.html` topbar links are all ≥40px. Keep new interactive chrome at or
+  above 40px (card widgets additionally get a 44px boost on touch devices via
+  `setupMobileOptimizations`).
+- **`tool.html`**: `.tool-card-box` and its injected container are
+  `min-width:0; max-width:100%` — the second half of the card-overflow fix.
+- **Hero**: `.futuristic-badge` text is `rgba(230,250,255,.85)` on a
+  `rgba(0,243,255,.08)` tint; `.main-search-bar` is 52px tall with a
+  full-height search button; `.futuristic-subtitle` uses `text-wrap:pretty`.
+- **Decorative extras live in classes, not inline styles**: empty-search
+  state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
+  are class-based so the design tokens stay in one place.
 
 ---
 
