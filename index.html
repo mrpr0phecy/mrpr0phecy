@@ -3152,6 +3152,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     let allCards = [];
     let loadedCards = new Set();
     let loadingCards = new Set();
+    let cardRetryCount = new Map();   // automatic retries per card after a failed fetch
     let cardCache = new Map();
     let observer = null;
     let isSearching = false;
@@ -4029,10 +4030,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 loadInitialCards();
                 initIntersectionObserver();
                 
-                // Periodic stuck-card recovery — catches cards the observer missed
-                setInterval(() => {
-                    if (!isSearching) scrollFallbackLoader();
-                }, 3000);
+                // Periodic stuck-card recovery — catches cards the observer missed.
+                // Not gated on isSearching: the loader skips hidden cards itself,
+                // and gating it was what left filtered results stuck on "Loading".
+                setInterval(() => { scrollFallbackLoader(); }, 3000);
             }, 300);
             
         } catch (error) {
@@ -4121,15 +4122,30 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             
             renderCardContent(card, cardName, html);
             loadedCards.add(cardName);
+            cardRetryCount.delete(cardName);
             
         } catch (error) {
+            // Transient failures are common during a fast scroll, when several
+            // fetches are in flight at once. Retry twice before showing the
+            // error UI, so one hiccup does not leave a permanently broken card.
+            const attempt = cardRetryCount.get(cardName) || 0;
+            if (attempt < 2) {
+                cardRetryCount.set(cardName, attempt + 1);
+                card.classList.remove('loading-fallback');   // allow re-entry
+                loadingCards.delete(cardName);
+                await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+                loadCard(card, cardName);
+                return;
+            }
             console.error(`Failed to load card ${cardName}:`, error);
             showCardError(card, cardName, error);
-            // Do NOT add to loadedCards — allow retry via observer or scroll
         } finally {
             loadingCards.delete(cardName);
-            
-            if (observer) {
+
+            // Only stop observing once the card really is loaded. Unobserving
+            // on failure (as this used to) removed the one automatic retry
+            // path, contradicting the comment above it.
+            if (observer && loadedCards.has(cardName)) {
                 observer.unobserve(card);
             }
         }
@@ -4416,10 +4432,15 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         
         observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                if (entry.isIntersecting && !isSearching) {
+                // NOTE: deliberately not gated on isSearching. Gating it meant
+                // that selecting any category or typing any query froze every
+                // loader, so matches past the first 12 showed "Loading..."
+                // forever. Hidden cards never intersect, so they are skipped
+                // naturally; processLoadQueue caps concurrency.
+                if (entry.isIntersecting) {
                     const card = entry.target;
                     const cardName = card.dataset.name;
-                    
+
                     if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
                         loadCard(card, cardName);
                     }
@@ -4427,8 +4448,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             });
         }, {
             root: null,
-            rootMargin: '400px',
-            threshold: 0.1
+            // 400px was too tight for 562 tall cards: a fast scroll outran the
+            // margin and cards arrived in view before they were even requested.
+            rootMargin: '1200px 0px',
+            threshold: 0.01
         });
         
         document.querySelectorAll('.card:not(.loaded)').forEach(card => {
@@ -4440,41 +4463,66 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     // Backup for IntersectionObserver — catches cards that the observer missed
     // (browser resource limits with 250+ observed elements can cause missed callbacks)
     let scrollLoadTimeout = null;
-    let scrollLoadActive = false;
+    let lastScrollLoadRun = 0;
+    const SCROLL_LOAD_INTERVAL = 200;   // ms between fallback passes while scrolling
     
     function scrollFallbackLoader() {
-        if (scrollLoadActive || isSearching) return;
-        scrollLoadActive = true;
-        
         const viewportTop = window.scrollY - 300;
         const viewportBottom = window.scrollY + window.innerHeight + 300;
-        
+
         const unloadedCards = document.querySelectorAll('.card:not(.loaded):not(.loading-fallback)');
-        let loaded = 0;
-        
+        const inView = [];
+
         for (let i = 0; i < unloadedCards.length; i++) {
-            if (loaded >= 6) break;
             const card = unloadedCards[i];
+            // Filtered-out cards are display:none; their rect is all zeroes,
+            // which would otherwise match the viewport test and load hidden tools.
+            if (card.style.display === 'none' || card.offsetParent === null) continue;
+
             const rect = card.getBoundingClientRect();
             const cardTop = rect.top + window.scrollY;
             const cardBottom = cardTop + rect.height;
-            
+
             if (cardBottom >= viewportTop && cardTop <= viewportBottom) {
                 const cardName = card.dataset.name;
                 if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                    card.classList.add('loading-fallback');
-                    loadCard(card, cardName);
-                    loaded++;
+                    // Distance from the viewport centre, so a fast scroll fills
+                    // in nearest-first instead of in DOM order.
+                    const centre = (cardTop + cardBottom) / 2;
+                    const target = window.scrollY + window.innerHeight / 2;
+                    inView.push({ card, cardName, dist: Math.abs(centre - target) });
                 }
             }
         }
-        
-        scrollLoadActive = false;
+
+        // No per-call cap: MAX_CONCURRENT_LOADS + the queue already throttle the
+        // network. Capping at 6 meant a fast scroll past ~40 cards took ~20s to
+        // recover, six per 3-second tick.
+        inView.sort((a, b) => a.dist - b.dist);
+        inView.forEach(({ card, cardName }) => {
+            card.classList.add('loading-fallback');
+            loadCard(card, cardName);
+        });
     }
-    
+
     function onScrollLazyLoad() {
-        if (scrollLoadTimeout) clearTimeout(scrollLoadTimeout);
-        scrollLoadTimeout = setTimeout(scrollFallbackLoader, 150);
+        // Throttle with a trailing call, not a debounce. A debounce that keeps
+        // resetting means the loader never runs during continuous scrolling,
+        // which is exactly when cards get missed.
+        const now = Date.now();
+        const remaining = SCROLL_LOAD_INTERVAL - (now - lastScrollLoadRun);
+
+        if (remaining <= 0) {
+            lastScrollLoadRun = now;
+            if (scrollLoadTimeout) { clearTimeout(scrollLoadTimeout); scrollLoadTimeout = null; }
+            scrollFallbackLoader();
+        } else if (!scrollLoadTimeout) {
+            scrollLoadTimeout = setTimeout(() => {
+                scrollLoadTimeout = null;
+                lastScrollLoadRun = Date.now();
+                scrollFallbackLoader();
+            }, remaining);
+        }
     }
     
     // ===== EVENT HANDLERS =====
