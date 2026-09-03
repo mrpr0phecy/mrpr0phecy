@@ -82,7 +82,7 @@ establish *which* site first.
 ├── manifest.json           PWA manifest
 ├── sw.js                   Service worker — present but NOT registered (§7)
 ├── robots.txt              Allows all, points at the sitemap
-├── sitemap.xml             All 518 pages, generated (§6)
+├── sitemap.xml             All 602 pages, generated (§6)
 ├── icon-192.png, icon-512.png, icon-maskable-512.png
 ├── logo.png, mrprophecypic.jpg, backgroundpic.jpg
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
@@ -187,10 +187,24 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (562 tools)
+### Categories (562 tools — refreshed 2026-09-02 from `cards/cards.json`)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
+| 123 | Science & Engineering | | 11 | Lucid Dreaming & Sleep |
+| 109 | Productivity & Lifestyle | | 10 | Wellbeing & Community |
+| 47 | Writing & Language | | 10 | Natural Remedies & Herbs |
+| 35 | Finance & Money | | 10 | AI & Autonomous Agents |
+| 28 | Mathematics | | 10 | Astronomy & Space |
+| 23 | Music & Audio | | 10 | Anime & Otaku Culture |
+| 23 | Health & Fitness | | 10 | Aquatics & Fishkeeping |
+| 17 | Home & DIY | | 10 | Birdwatching & Ornithology |
+| 15 | Culinary & Food Science | | 10 | Dogs & Canine Care |
+| 12 | Museum & Collection | | 10 | MrProphecy Arcade |
+| 11 | Interactive Art & Living Worlds | | 7 | Virtual Worlds & Gaming |
+| 11 | SaaS & Business Killers | | | |
+
+---|---|---|---|---|
 | 120 | Science & Engineering | | 11 | SaaS & Business Killers |
 | 86 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
 | 47 | Writing & Language | | 11 | Interactive Art & Living Worlds |
@@ -535,7 +549,7 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 518 pages. Build it from git rather than the working
+`sitemap.xml` lists all 602 pages. Build it from git rather than the working
 tree, so a sparse checkout does not silently drop the 562 cards:
 
 ```python

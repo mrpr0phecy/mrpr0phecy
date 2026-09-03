@@ -3,6 +3,8 @@
 Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
+Working in parallel with other agents? Read [STAFF.md](STAFF.md) — the board,
+binding decisions and the generated branch map live in `staff/`.
 Last updated: 2026-08-30. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
@@ -16,7 +18,7 @@ deploy):
 
 | | Product | Entry | Don't mix |
 |---|---|---|---|
-| **A** | The Most Useful Site In The World — **500** offline browser tools | `index.html` | Never add music players/banners here |
+| **A** | The Most Useful Site In The World — **562** offline browser tools | `index.html` | Never add music players/banners here |
 | **B** | MrProphecy — UK hip hop & animated soundscapes (Luton) | `listen.html` | Never add tool links here |
 
 Live: `https://www.themostusefulsiteintheworld.com` (CNAME = custom domain,
@@ -63,6 +65,13 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
 
 ## 3. Never-do list (check before every change)
 
+- **Never record an "owner decision" the owner did not make in your session**
+  — and even then mark it provisional until @manager countersigns
+  (staff/DECISIONS.md). Parallel agents recorded opposite "owner decisions"
+  on 2026-09-02; both were half-wrong. Deleting or disabling the AI Developer
+  workflow, changing the analytics footprint, or deleting tools are owner
+  decisions (D-006/D-007/D-008).
+
 - **`opensourcenews.html`** — the live news broadcast. Was owner's WIP;
   upgraded with the 2026-08-30 build (headlines rail, viewers' controls,
   captions). Touch with care: keep the facade pattern, never add hidden
@@ -90,7 +99,8 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 #  - forms: onsubmit="event.preventDefault();"
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
-# bump count in index.html: "Search 500" -> "Search 501"
+# bump every published count together (staff/DECISIONS.md D-001):
+#   index/tool/donate/sponsor/404 + sitemap
 python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
 PY
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
