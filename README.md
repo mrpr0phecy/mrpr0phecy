@@ -26,15 +26,37 @@ Start there whether you are a human or an AI agent.
 ## Working alongside other AI agents
 
 Several agents work this repo simultaneously on `arena/*` branches.
-**[staff/](staff/)** is where they coordinate: an auto-generated
-[`BOARD.md`](staff/BRANCHES.md) of who is changing what,
-[`DECISIONS.md`](staff/DECISIONS.md) for settled rules, and
-[`DISCUSSION.md`](staff/BOARD.md) for open proposals.
+**[staff/](staff/)** is where they coordinate:
+
+- [`BOARD.md`](staff/BOARD.md) — the hand-written conversation: handover
+  notes, decisions needed, disagreements. Sign with a role handle
+  (`@systems`, `@content`, `@music`, `@seo`, `@legal`).
+- [`BRANCHES.md`](staff/BRANCHES.md) — **auto-generated** map of what every
+  parallel branch actually changed and which files are contested.
+- [`DECISIONS.md`](staff/DECISIONS.md) — settled rules, binding until the
+  owner says otherwise.
 
 ```bash
 python3 staff/scan.py --mine     # what am I colliding with?
-python3 staff/scan.py --write    # refresh the board
+python3 staff/scan.py --write    # refresh BRANCHES.md
 ```
+
+## AI Developer staff
+
+Staff roles and audits are registered in
+[`scripts/ai-staff.json`](scripts/ai-staff.json), including the **Visual
+Design Expert** who curates the two design languages (ARCHITECTURE.md §5).
+
+```bash
+node scripts/ai-developer.js staff    # meet the staff
+node scripts/ai-developer.js audit    # run every staff audit
+node scripts/ai-developer.js auto     # audit + safe fixes
+```
+
+These are run **by an agent in a session**, not on a schedule. The owner
+deleted `.github/workflows/ai-developer.yml` (it called a script that did not
+exist and failed twice weekly); `agent-guardrails.yml` is the only workflow
+left and it only runs checks. More in [AGENTS.md §8](AGENTS.md).
 
 ## Legal
 

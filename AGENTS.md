@@ -163,3 +163,42 @@ Legal, privacy, claims and disclaimers → LEGAL.md.
 Something that affects other agents → [staff/BOARD.md](staff/BOARD.md). Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.
+
+## 8. AI Developer staff & the Visual Design Expert
+
+`.github/workflows/ai-developer.yml` runs **Mon & Thu 06:00 UTC** (or on
+demand: Actions → AI Developer → *Run workflow*). Its brain is
+`scripts/ai-developer.js`; the staff roster lives in
+`scripts/ai-staff.json`; reports and generated drafts go to `ai-developer/`
+(gitignored, never committed). Modes: `auto | audit | generate | fix`,
+optional `category` focus (a staff id/tag such as `visual-design`, or a
+tool-category for generation) and `max_tools`. Requires the `AI_API_KEY`
+repository secret for generation; without it the run audits + fixes only.
+
+Facility rule: **an edit must pass the staff audits before it is proposed.**
+Deterministic fixes (tool-count claims in `index.html`/`404.html`) may be
+applied directly and re-verified with `bash scripts/verify.sh`; anything else
+(including generated card drafts) lands in `ai-developer/` for a human to
+review and promote — never auto-committed into `cards/`.
+
+**Meet the staff** (`node scripts/ai-developer.js staff`):
+
+- 🎨 **Visual Design Expert** — guardianship of the two design languages:
+  Product A *cyan terminal* (`index.html`, `tool.html`, `404.html`,
+  `donate.html`, `cards/card.css`) and Product B *neon night`
+  (`listen.html`). Audit-first, token-respecting, measurable (contrast AA,
+  390px overflow, ≥40px touch targets, focus visibility, reduced motion).
+  Runs `node scripts/design-audit.js` (zero-dependency static subset for
+  CI); a full browser-based audit checks live geometry and contrast.
+  Fix scope: count sync and guard-rule presence only — every aesthetic
+  decision is documented in ARCHITECTURE.md §5 and human-reviewed.
+- 🗂 **Catalogue Auditor & Generator** — `cards/`, `cards.json`, sitemap
+  coherence (`python3 scripts/check-cards.py`), fragment-only enforcement,
+  and draft generation.
+- 🔍 **SEO & Metadata Scanner** — every top-level page's title/description/
+  canonical/OG/twitter/theme-color and hreflang drift
+  (`python3 scripts/scan-seo.py`); advisory only.
+
+If you are an agent taking on design work here: introduce yourself with
+`node scripts/ai-developer.js staff` (or read `scripts/ai-staff.json`),
+then read ARCHITECTURE.md §5 and run the audits before touching anything.
