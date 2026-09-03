@@ -521,6 +521,56 @@ section('truthfulness — advertised tool count is real');
   }
 }
 
+section('affiliate links — disclosed, and confined to their own page');
+{
+  /* An affiliate link is a marketing communication under the CAP Code whether
+     or not anyone paid for it (ASA, May 2026: earning commission is enough).
+     Two things therefore have to stay true, and neither survives on trust:
+
+       1. Any page carrying an affiliate link must be labelled as an ad ABOVE
+          the link. A disclosure in a footer, a policy page, or below the fold
+          does not meet the standard.
+       2. No tool card may EVER contain one. The 562 tools being genuinely
+          ad-free is what makes the surviving "no ads" claims true, and it is
+          the thing sponsors are actually buying at a premium CPM. One
+          affiliate link inside a calculator would quietly falsify both. */
+  /* Match outbound commission links only. A `ref=` on our OWN domain is a
+     self-referencing demo string (qr-code-reader-scanner.html has one) and is
+     not an affiliate link - excluding it keeps the check honest rather than
+     noisy, and a guard people learn to ignore is worse than no guard. */
+  const AFFILIATE = new RegExp(
+    'freecash\\.com/r/' +
+    '|https?://(?!(?:www\\.)?themostusefulsiteintheworld\\.com)[^"\'\\s]*[?&](?:ref|aff|affiliate|partner|tag)=' +
+    '|rel="[^"]*\\bsponsored\\b',
+    'i');
+
+  const cardDir = path.join(ROOT, 'cards');
+  const dirtyCards = fs.existsSync(cardDir)
+    ? fs.readdirSync(cardDir).filter(f => f.endsWith('.html'))
+        .filter(f => AFFILIATE.test(fs.readFileSync(path.join(cardDir, f), 'utf8')))
+    : [];
+  if (dirtyCards.length) {
+    fail(`affiliate link found inside tool card(s): ${dirtyCards.slice(0, 5).join(', ')} — tools must stay ad-free`);
+  } else {
+    pass('no tool card contains an affiliate link');
+  }
+
+  for (const f of fs.readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
+    const txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    if (!AFFILIATE.test(txt)) continue;
+    const linkAt = txt.search(AFFILIATE);
+    // The label must appear in the document before the first affiliate link.
+    const labelAt = txt.search(/affiliate link|marked as an ad|class="adlabel"/i);
+    if (labelAt === -1) {
+      fail(`${f} carries an affiliate link with no disclosure`);
+    } else if (labelAt > linkAt) {
+      fail(`${f} discloses its affiliate link only AFTER the link — must be before`);
+    } else {
+      pass(`${f} discloses its affiliate link above the link itself`);
+    }
+  }
+}
+
 section('sponsorship — the 5% rule');
 {
   /* Owner's stated constraint: sponsorship must stay under 5% of the page, and
