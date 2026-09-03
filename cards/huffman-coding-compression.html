@@ -1,0 +1,155 @@
+<h2 id="huf-title" style="margin-top:0;color:var(--accent);">🗜️ Huffman Coding: How Compression Works</h2>
+
+<p id="huf-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Type any text and watch it get smaller: common letters get short codes, rare ones get long codes, and the result is the
+  exact same idea behind ZIP, PNG and MP3. The tree is the codebook, drawn for you.
+</p>
+
+<div style="margin-bottom:12px;">
+  <textarea id="huf-input" rows="3" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;">the quick brown fox jumps over the lazy dog and the dog barks back at the fox</textarea>
+</div>
+
+<canvas id="huf-cv" style="width:100%;height:auto;aspect-ratio:640/300;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="margin-top:12px;">
+  <div id="huf-out" aria-live="polite" style="font-size:0.9rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;"></div>
+</div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why this works</summary>
+  <p style="margin-top:8px;">
+    ASCII gives every character 8 bits whether it appears once or a hundred times. Huffman instead builds a tree where the most
+    frequent symbol sits closest to the root (shortest code), and no code is a prefix of another &mdash; so the bit stream can be
+    read back unambiguously. The saving shown is the theoretical floor for this kind of symbol code.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('huf-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+  var W = 640, H = 300;
+  cv.width = W; cv.height = H;
+
+  function build(text) {
+    // frequency
+    var freq = {};
+    for (var i = 0; i < text.length; i++) freq[text[i]] = (freq[text[i]] || 0) + 1;
+    var symbols = Object.keys(freq);
+    if (!symbols.length) return null;
+    if (symbols.length === 1) {
+      return { tree: { ch: symbols[0], freq: freq[symbols[0]], left: null, right: null }, codes: {}, freq: freq };
+    }
+    // priority queue of nodes
+    var q = symbols.map(function (ch) { return { ch: ch, freq: freq[ch], left: null, right: null }; });
+    while (q.length > 1) {
+      q.sort(function (a, b) { return a.freq - b.freq; });
+      var a = q.shift(), b = q.shift();
+      q.push({ ch: null, freq: a.freq + b.freq, left: a, right: b });
+    }
+    var tree = q[0];
+    var codes = {};
+    (function walk(node, prefix) {
+      if (!node.left && !node.right) { codes[node.ch] = prefix || '0'; return; }
+      walk(node.left, prefix + '0');
+      walk(node.right, prefix + '1');
+    })(tree, '');
+    return { tree: tree, codes: codes, freq: freq };
+  }
+
+  function layout(node, x, depth, leaves) {
+    // assign x positions to leaves in order
+    if (!node.left && !node.right) { node.x = leaves.x; leaves.x += 1; node.depth = depth; return; }
+    layout(node.left, x, depth + 1, leaves);
+    layout(node.right, x, depth + 1, leaves);
+    node.x = (node.left.x + node.right.x) / 2;
+    node.depth = depth;
+  }
+
+  function drawTree(node, maxDepth) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+    var leaves = { x: 0 };
+    layout(node, 0, 0, leaves);
+    var nLeaves = leaves.x;
+    var dx = (W - 20) / Math.max(1, nLeaves);
+    var dy = (H - 40) / Math.max(1, maxDepth || 1);
+
+    function pos(n) {
+      return { x: 10 + n.x * dx + dx / 2, y: 20 + n.depth * dy };
+    }
+    function drawNode(n, prefix, side) {
+      var p = pos(n);
+      if (n.ch !== null) {
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(n.ch === ' ' ? '␣' : n.ch, p.x, p.y + 4);
+      } else {
+        ctx.fillStyle = '#2dd4ff';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.textAlign = 'left';
+      if (n.left) {
+        var lp = pos(n.left);
+        ctx.strokeStyle = 'rgba(45,212,255,0.35)';
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(lp.x, lp.y); ctx.stroke();
+        ctx.fillStyle = 'rgba(230,250,255,0.55)';
+        ctx.font = '10px monospace';
+        ctx.fillText('0', (p.x + lp.x) / 2 - 6, (p.y + lp.y) / 2);
+        drawNode(n.left, prefix + '0', 0);
+      }
+      if (n.right) {
+        var rp = pos(n.right);
+        ctx.strokeStyle = 'rgba(197,142,240,0.35)';
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(rp.x, rp.y); ctx.stroke();
+        ctx.fillStyle = 'rgba(230,250,255,0.55)';
+        ctx.fillText('1', (p.x + rp.x) / 2 + 2, (p.y + rp.y) / 2);
+        drawNode(n.right, prefix + '1', 1);
+      }
+    }
+    drawNode(node, '', -1);
+  }
+
+  function run() {
+    var text = $('huf-input').value;
+    var res = build(text);
+    var out = $('huf-out');
+    if (!res) { out.textContent = 'Type some text above.'; return; }
+    var codes = res.codes;
+    var freq = res.freq;
+    // depths
+    var maxDepth = 0;
+    (function d(node, dep) { if (!node) return; maxDepth = Math.max(maxDepth, dep); d(node.left, dep + 1); d(node.right, dep + 1); })(res.tree, 0);
+
+    drawTree(res.tree, maxDepth);
+
+    var originalBits = text.length * 8;
+    var compressedBits = 0;
+    for (var i = 0; i < text.length; i++) compressedBits += codes[text[i]].length;
+    var pct = 100 * compressedBits / originalBits;
+
+    // top codes table
+    var syms = Object.keys(freq).sort(function (a, b) { return freq[b] - freq[a]; });
+    var rows = syms.slice(0, 12).map(function (ch) {
+      return '<span style="display:inline-block;margin:0 10px 6px 0;padding:3px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:5px;font-size:0.82rem;">' +
+        (ch === ' ' ? '␣' : ch) + ' <b style="color:var(--accent);">' + codes[ch] + '</b> ×' + freq[ch] + '</span>';
+    }).join('');
+
+    out.innerHTML =
+      '<strong style="color:var(--accent);">' + originalBits.toLocaleString('en-GB') + ' bits</strong> → <strong style="color:#39ff14;">' +
+      compressedBits.toLocaleString('en-GB') + ' bits</strong> (' + pct.toFixed(1) + '% of original) · ' +
+      syms.length + ' distinct symbol' + (syms.length === 1 ? '' : 's') + '<br><br>' + rows +
+      '<br><span style="color:rgba(230,250,255,0.6);font-size:0.82rem;">Tree: leaves are symbols (gold), branches are 0/1 choices. Short paths = short codes.</span>';
+  }
+
+  $('huf-input').addEventListener('input', run);
+  run();
+})();
+</script>

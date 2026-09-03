@@ -1,0 +1,146 @@
+<h2 id="dco-title" style="margin-top:0;color:var(--accent);">🎯 Darts Checkout Calculator</h2>
+
+<form aria-describedby="dco-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="dco-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Stood at the oche wondering how to finish? Type the score you have left and get the standard
+    two- or three-dart checkout. Includes the full 2&ndash;170 checkout chart and a practice mode that
+    hides the answer until you have worked it out yourself.
+  </p>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+    <div style="flex:1;min-width:180px;">
+      <label for="dco-score" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Score remaining</label>
+      <input id="dco-score" type="number" min="2" max="170" step="1" value="100"
+        style="width:100%;padding:11px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:15px;" />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button type="button" id="dco-go" style="padding:11px 16px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Show checkout</button>
+      <button type="button" id="dco-random" style="padding:11px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">🎲 Practice</button>
+    </div>
+  </div>
+</form>
+
+<div id="dco-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);min-height:90px;">
+  <div style="font-size:0.9rem;color:rgba(230,250,255,0.5);">Enter a score or pick one from the chart below.</div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Full checkout chart (tap any score)</summary>
+  <div id="dco-chart" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;"></div>
+</details>
+
+<details class="small" style="margin-top:8px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">What the scores mean</summary>
+  <p style="margin-top:8px;">
+    <strong style="color:rgba(230,250,255,0.8);">T20</strong> = treble 20 (60),
+    <strong style="color:rgba(230,250,255,0.8);">D16</strong> = double 16 (32),
+    <strong style="color:rgba(230,250,255,0.8);">Bull</strong> = the bullseye (50),
+    <strong style="color:rgba(230,250,255,0.8);">25</strong> = the outer bull. A checkout must finish on a double or the bull.
+    A handful of numbers &mdash; 159, 162, 163, 165, 166, 168, 169 &mdash; cannot be finished in three darts; they are the
+    &ldquo;bogey&rdquo; numbers every player avoids leaving.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var TABLE = ('2=D1;3=1,D1;4=D2;5=1,D2;6=D3;7=3,D2;8=D4;9=1,D4;10=D5;11=3,D4;12=D6;13=5,D4;14=D7;15=7,D4;16=D8;17=1,D8;18=D9;19=3,D8;20=D10;21=5,D8;22=D11;23=7,D8;24=D12;25=9,D8;26=D13;27=11,D8;28=D14;29=13,D8;30=D15;31=15,D8;32=D16;33=17,D8;34=D17;35=19,D8;36=D18;37=5,D16;38=D19;39=7,D16;40=D20;'
+    + '41=9,D16;42=10,D16;43=11,D16;44=12,D16;45=13,D16;46=6,D20;47=15,D16;48=16,D16;49=17,D16;50=18,D16;'
+    + '51=19,D16;52=20,D16;53=13,D20;54=14,D20;55=15,D20;56=16,D20;57=17,D20;58=18,D20;59=19,D20;60=20,D20;'
+    + '61=25,D18;62=T10,D16;63=T13,D12;64=T16,D8;65=25,D20;66=T10,D18;67=T17,D8;68=T20,D4;69=T19,D6;70=T10,D20;'
+    + '71=T13,D16;72=T16,D12;73=T19,D8;74=T14,D16;75=T17,D12;76=T20,D8;77=T19,D10;78=T18,D12;79=T19,D11;80=T20,D10;'
+    + '81=T19,D12;82=T14,D20;83=T17,D16;84=T20,D12;85=T15,D20;86=T18,D16;87=T17,D18;88=T16,D20;89=T19,D16;90=T18,D18;'
+    + '91=T17,D20;92=T20,D16;93=T19,D18;94=T18,D20;95=T19,D19;96=T20,D18;97=T19,D20;98=T20,D19;99=T19,10,D16;100=T20,D20;'
+    + '101=T17,Bull;102=T20,10,D16;103=T19,6,D20;104=T18,Bull;105=T20,13,D16;106=T20,6,D20;107=T19,Bull;108=T20,16,D16;109=T20,17,D16;110=T20,Bull;'
+    + '111=T20,19,D16;112=T20,20,D16;113=T20,13,D20;114=T20,14,D20;115=T20,15,D20;116=T20,16,D20;117=T20,17,D20;118=T20,18,D20;119=T20,19,D20;120=T20,20,D20;'
+    + '121=T20,T11,D14;122=T18,T18,D7;123=T19,T16,D9;124=T20,T16,D8;125=25,T20,D20;126=T19,T19,D6;127=T20,T17,D8;128=T18,T18,D10;129=T19,T16,D12;130=T20,T20,D5;'
+    + '131=T20,T13,D16;132=25,T19,Bull;133=T20,T19,D8;134=T20,T14,D16;135=25,T20,Bull;136=T20,T20,D8;137=T20,T19,D10;138=T20,T18,D12;139=T19,T18,D14;140=T20,T20,D10;'
+    + '141=T20,T19,D12;142=T20,T18,D14;143=T20,T17,D16;144=T20,T20,D12;145=T20,T15,D20;146=T20,T18,D16;147=T20,T17,D18;148=T20,T16,D20;149=T20,T19,D16;150=T20,T18,D18;'
+    + '151=T20,T17,D20;152=T20,T20,D16;153=T20,T19,D18;154=T20,T18,D20;155=T20,T19,D19;156=T20,T20,D18;157=T20,T19,D20;158=T20,T20,D19;160=T20,T20,D20;'
+    + '161=T20,T17,Bull;164=T20,T18,Bull;167=T20,T19,Bull;170=T20,T20,Bull').split(';');
+
+  var routes = {};
+  var i, kv;
+  for (i = 0; i < TABLE.length; i++) {
+    kv = TABLE[i].split('=');
+    routes[parseInt(kv[0], 10)] = kv[1];
+  }
+
+  var BOGUS = { 159: 1, 162: 1, 163: 1, 165: 1, 166: 1, 168: 1, 169: 1 };
+
+  function dartChip(tok) {
+    var cls = 'rgba(45,212,255,0.1)';
+    var col = '#7de3ff';
+    if (tok === 'Bull') { cls = 'rgba(255,215,0,0.16)'; col = '#ffd700'; }
+    else if (tok.charAt(0) === 'D') { cls = 'rgba(57,255,20,0.14)'; col = '#39ff14'; }
+    return '<span style="display:inline-block;padding:6px 12px;margin:0 5px 0 0;background:' + cls +
+      ';border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:' + col +
+      ';font-weight:700;font-size:1rem;">' + tok + '</span>';
+  }
+
+  function show(n, hideAnswer) {
+    n = Math.round(n);
+    var out = $('dco-out');
+    if (n < 2 || n > 170) {
+      out.innerHTML = '<div style="color:#ffa500;">Pick a score between 2 and 170.</div>';
+      return;
+    }
+    if (hideAnswer) {
+      out.innerHTML = '<div style="font-size:1.5rem;font-weight:800;color:var(--accent);margin-bottom:8px;">' + n + ' left</div>' +
+        '<div style="font-size:0.9rem;color:rgba(230,250,255,0.6);">Work out your route, then press <strong style="color:var(--accent);">Reveal</strong>.</div>' +
+        '<button type="button" id="dco-reveal" style="margin-top:10px;padding:9px 16px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Reveal</button>';
+      $('dco-reveal').addEventListener('click', function () { show(n, false); });
+      return;
+    }
+    if (BOGUS[n]) {
+      out.innerHTML = '<div style="font-size:1.5rem;font-weight:800;color:#ff4d4d;margin-bottom:6px;">' + n + ' left</div>' +
+        '<div style="font-size:0.9rem;color:rgba(230,250,255,0.7);">No three-dart finish exists. Split it sensibly and leave yourself a clean two-dart out next visit.</div>';
+      return;
+    }
+    var route = routes[n];
+    var darts = route.split(',');
+    var html = '<div style="font-size:1.5rem;font-weight:800;color:var(--accent);margin-bottom:10px;">' + n + ' left</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;align-items:center;">';
+    for (i = 0; i < darts.length; i++) html += dartChip(darts[i]);
+    html += '</div>';
+    html += '<div style="margin-top:12px;font-size:0.85rem;color:rgba(230,250,255,0.6);">' +
+      (darts.length === 1 ? 'One dart.' : (darts.length === 2 ? 'Two darts.' : 'Three darts.')) +
+      ' Aim ' + darts.join(' then ') + '.</div>';
+    out.innerHTML = html;
+  }
+
+  function buildChart() {
+    var box = $('dco-chart');
+    var html = '';
+    for (var n = 2; n <= 170; n++) {
+      var label = n;
+      var title = routes[n] ? (n + ' \u2192 ' + routes[n]) : (n + ' \u2192 no finish');
+      var style = 'padding:5px 9px;border-radius:6px;font-size:0.78rem;cursor:pointer;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:rgba(230,250,255,0.75);';
+      if (!routes[n]) style += 'color:rgba(255,255,255,0.3);text-decoration:line-through;';
+      html += '<button type="button" data-n="' + n + '" title="' + title + '" style="' + style + '">' + label + '</button>';
+    }
+    box.innerHTML = html;
+    var btns = box.querySelectorAll('button');
+    for (i = 0; i < btns.length; i++) {
+      btns[i].addEventListener('click', function () {
+        var val = parseInt(this.getAttribute('data-n'), 10);
+        $('dco-score').value = val;
+        show(val, false);
+      });
+    }
+  }
+
+  $('dco-go').addEventListener('click', function () { show(parseInt($('dco-score').value, 10), false); });
+  $('dco-score').addEventListener('keydown', function (e) { if (e.key === 'Enter') show(parseInt(this.value, 10), false); });
+  $('dco-random').addEventListener('click', function () {
+    var n = Math.floor(Math.random() * 168) + 2;
+    $('dco-score').value = n;
+    show(n, true);
+  });
+
+  buildChart();
+  show(100, false);
+})();
+</script>

@@ -1,0 +1,96 @@
+<h2 id="mnd-title" style="margin-top:0;color:var(--accent);">🌀 Mandelbrot Set Explorer</h2>
+
+<p id="mnd-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  One line &mdash; z &rarr; z&sup2; + c &mdash; repeated over and over produces infinite, self-similar complexity. Click anywhere
+  to zoom in forever.
+</p>
+
+<canvas id="mnd-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);cursor:zoom-in;"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <button type="button" id="mnd-reset" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Reset zoom</button>
+  <button type="button" id="mnd-out" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Zoom out</button>
+  <label for="mnd-iter" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Iterations:
+    <input id="mnd-iter" type="range" min="40" max="600" value="150" style="vertical-align:middle;width:140px;" />
+  </label>
+  <span id="mnd-label" style="font-size:0.85rem;color:rgba(230,250,255,0.7);"></span>
+</div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why this is mind-blowing</summary>
+  <p style="margin-top:8px;">
+    Take any point c on the plane. Start z at 0 and keep doing z = z&sup2; + c. If z flies off to infinity, c is outside the set;
+    if it stays trapped forever, c is inside. The boundary is infinitely detailed: zoom in a trillion times and you keep
+    finding new shapes, baby copies of the whole set, and spirals. Two multiplications per step, and this emerges.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('mnd-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var cx = -0.5, cy = 0, span = 3.0; // span = real-axis width
+  var img = ctx.createImageData ? ctx.createImageData(W, H) : null;
+
+  function palette(t) {
+    // t in [0,1) -> cyan→magenta→amber gradient
+    var r = Math.floor(9 + 240 * Math.sin(0.2 * t * 6.2832 + 4.5));
+    var g = Math.floor(120 + 120 * Math.sin(0.4 * t * 6.2832));
+    var b = Math.floor(180 + 75 * Math.sin(0.3 * t * 6.2832 + 2));
+    r = r < 0 ? 0 : r > 255 ? 255 : r;
+    g = g < 0 ? 0 : g > 255 ? 255 : g;
+    b = b < 0 ? 0 : b > 255 ? 255 : b;
+    return [r, g, b];
+  }
+
+  function render() {
+    var maxIter = parseInt($('mnd-iter').value, 10) || 150;
+    var step = span / W;
+    var data = img.data;
+    for (var py = 0; py < H; py++) {
+      var y0 = cy + (py - H / 2) * step;
+      for (var px = 0; px < W; px++) {
+        var x0 = cx + (px - W / 2) * step;
+        var zx = 0, zy = 0, i = 0;
+        while (zx * zx + zy * zy <= 4 && i < maxIter) {
+          var nx = zx * zx - zy * zy + x0;
+          zy = 2 * zx * zy + y0;
+          zx = nx; i++;
+        }
+        var o = (py * W + px) * 4;
+        if (i >= maxIter) { data[o] = 8; data[o + 1] = 14; data[o + 2] = 24; data[o + 3] = 255; }
+        else {
+          var t = (i / maxIter) * 3 % 1;
+          var col = palette(t);
+          data[o] = col[0]; data[o + 1] = col[1]; data[o + 2] = col[2]; data[o + 3] = 255;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    $('mnd-label').textContent = 'span ' + span.toExponential(2) + ' &middot; click to zoom';
+  }
+
+  cv.addEventListener('click', function (e) {
+    var rect = cv.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (W / rect.width);
+    var y = (e.clientY - rect.top) * (H / rect.height);
+    cx = cx + (x - W / 2) * (span / W);
+    cy = cy + (y - H / 2) * (span / W);
+    span /= 2.2;
+    render();
+  });
+
+  $('mnd-reset').addEventListener('click', function () { cx = -0.5; cy = 0; span = 3.0; render(); });
+  $('mnd-out').addEventListener('click', function () { span *= 2.2; render(); });
+  $('mnd-iter').addEventListener('input', render);
+
+  render();
+})();
+</script>

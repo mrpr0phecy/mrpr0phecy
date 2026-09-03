@@ -1,0 +1,142 @@
+<h2 id="gol-title" style="margin-top:0;color:var(--accent);">🧬 Conway's Game of Life</h2>
+
+<p id="gol-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Three tiny rules, no designer, and yet gliders, blinkers and whole ecosystems appear. Click cells to seed life, then
+  watch a universe build itself from nothing.
+</p>
+
+<canvas id="gol-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);cursor:crosshair;"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <button type="button" id="gol-run" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Pause</button>
+  <button type="button" id="gol-step" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Step</button>
+  <button type="button" id="gol-glider" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Glider</button>
+  <button type="button" id="gol-random" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Random</button>
+  <button type="button" id="gol-clear" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Clear</button>
+  <label for="gol-speed" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Speed:
+    <input id="gol-speed" type="range" min="1" max="20" value="6" style="vertical-align:middle;width:120px;" />
+  </label>
+</div>
+
+<div id="gol-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.7);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;">Click or drag on the grid to seed cells, then press Run.</div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The three rules</summary>
+  <p style="margin-top:8px;">
+    Each cell is alive or dead. Next generation: a live cell with 2 or 3 neighbours survives; a live cell with any other
+    count dies; a dead cell with exactly 3 neighbours becomes alive. That's the whole rulebook &mdash; and it's a Turing-complete
+    machine: the glider you can place travels forever, and patterns can compute anything.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('gol-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+
+  var COLS = 64, ROWS = 40;
+  var W = 640, H = 400, cell = 10;
+  cv.width = W; cv.height = H;
+
+  var grid = [], running = true, gen = 0, tick = 0;
+  for (var i = 0; i < ROWS; i++) { grid.push(new Array(COLS).fill(0)); }
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function idx(c, r) { return r * COLS + c; }
+  function neighbours(c, r) {
+    var n = 0;
+    for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      var cc = c + dc, rr = r + dr;
+      if (cc >= 0 && cc < COLS && rr >= 0 && rr < ROWS && grid[rr][cc]) n++;
+    }
+    return n;
+  }
+
+  function nextGen() {
+    var nxt = [];
+    for (var r = 0; r < ROWS; r++) {
+      var row = [];
+      for (var c = 0; c < COLS; c++) {
+        var n = neighbours(c, r);
+        row.push(grid[r][c] ? (n === 2 || n === 3 ? 1 : 0) : (n === 3 ? 1 : 0));
+      }
+      nxt.push(row);
+    }
+    grid = nxt; gen++;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) {
+      if (grid[r][c]) {
+        ctx.fillStyle = 'rgba(45,212,255,0.9)';
+        ctx.fillRect(c * cell + 1, r * cell + 1, cell - 2, cell - 2);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fillRect(c * cell + 1, r * cell + 1, cell - 2, cell - 2);
+      }
+    }
+    $('gol-out').textContent = 'Generation ' + gen + ' &middot; ' + aliveCount() + ' live cells. Seed with clicks &mdash; gliders travel diagonally forever.';
+  }
+
+  function aliveCount() {
+    var n = 0;
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) n += grid[r][c];
+    return n;
+  }
+
+  function frame() {
+    if (running) {
+      tick++;
+      var speed = parseInt($('gol-speed').value, 10) || 6;
+      if (tick % (21 - speed) === 0) nextGen();
+      draw();
+    }
+    raf(frame);
+  }
+
+  function cellFromEvent(e) {
+    var rect = cv.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (W / rect.width);
+    var y = (e.clientY - rect.top) * (H / rect.height);
+    var c = Math.floor(x / cell), r = Math.floor(y / cell);
+    if (c >= 0 && c < COLS && r >= 0 && r < ROWS) grid[r][c] = 1;
+    draw();
+  }
+
+  cv.addEventListener('mousedown', cellFromEvent);
+  cv.addEventListener('mousemove', function (e) { if (e.buttons === 1) cellFromEvent(e); });
+
+  $('gol-run').addEventListener('click', function () {
+    running = !running;
+    this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('gol-step').addEventListener('click', function () { nextGen(); draw(); });
+  $('gol-glider').addEventListener('click', function () {
+    var cells = [[1, 0], [2, 1], [0, 2], [1, 2], [2, 2]];
+    for (var i = 0; i < cells.length; i++) grid[cells[i][1]][cells[i][0]] = 1;
+    draw();
+  });
+  $('gol-random').addEventListener('click', function () {
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) grid[r][c] = Math.random() < 0.22 ? 1 : 0;
+    draw();
+  });
+  $('gol-clear').addEventListener('click', function () {
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) grid[r][c] = 0;
+    gen = 0; draw();
+  });
+
+  // seed a couple of gliders
+  grid[5][5] = 1; grid[6][6] = 1; grid[4][7] = 1; grid[5][7] = 1; grid[6][7] = 1;
+  draw();
+  raf(frame);
+})();
+</script>

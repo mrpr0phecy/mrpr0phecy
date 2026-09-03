@@ -1,0 +1,114 @@
+<h2 id="btu-title" style="margin-top:0;color:var(--accent);">🌡️ Room BTU & HVAC Sizing Calculator</h2>
+
+<form aria-describedby="btu-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="btu-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Estimate the heating and cooling load for a room: area, ceiling height, insulation, sun exposure, occupancy and
+    climate all move the number of BTUs you need.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="btu-area" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Room area (sq ft)</label>
+      <input id="btu-area" type="number" min="1" value="240" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="btu-h" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Ceiling height (ft)</label>
+      <input id="btu-h" type="number" min="6" max="20" value="9" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="btu-ins" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Insulation</label>
+      <select id="btu-ins" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="1.2">Poor / draughty</option>
+        <option value="1" selected>Average</option>
+        <option value="0.85">Good / well sealed</option>
+      </select>
+    </div>
+    <div>
+      <label for="btu-sun" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Sun exposure</label>
+      <select id="btu-sun" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="0.9">Shaded</option>
+        <option value="1" selected>Average</option>
+        <option value="1.1">Heavily sunlit</option>
+      </select>
+    </div>
+    <div>
+      <label for="btu-cli" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Climate (heating)</label>
+      <select id="btu-cli" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="1.2">Cold</option>
+        <option value="1" selected>Mild / UK</option>
+        <option value="0.7">Warm</option>
+      </select>
+    </div>
+    <div>
+      <label for="btu-occ" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">People (beyond 2)</label>
+      <input id="btu-occ" type="number" min="0" value="1" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <button type="button" id="btu-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Estimate BTUs</button>
+</form>
+
+<div id="btu-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Rules of thumb used</summary>
+  <p style="margin-top:8px;">
+    Cooling starts at about 25 BTU/hr per ft&sup2; and heating at about 35 BTU/hr per ft&sup2; for a UK/mild climate, then
+    scaled for ceiling height, insulation, sun and occupancy (add ~600 BTU/hr per extra person). 12,000 BTU/hr = 1 ton
+    of cooling. This is a planning estimate &mdash; a proper Manual-J / room-by-room survey is needed before installing kit.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.25rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.62rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function run() {
+    var area = parseFloat($('btu-area').value) || 0;
+    var h = parseFloat($('btu-h').value) || 8;
+    var ins = parseFloat($('btu-ins').value);
+    var sun = parseFloat($('btu-sun').value);
+    var cli = parseFloat($('btu-cli').value);
+    var occ = parseInt($('btu-occ').value, 10) || 0;
+    var out = $('btu-out');
+
+    if (area <= 0) {
+      out.innerHTML = '<div style="color:#ffa500;">Enter the room area.</div>';
+      return;
+    }
+
+    var heightF = h / 8; // 8 ft = baseline
+    var cool = area * 25 * heightF * ins * sun + occ * 600;
+    var heat = area * 35 * heightF * ins * cli + occ * 600;
+
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(Math.round(heat).toLocaleString('en-GB') + ' BTU', 'heating load') +
+      box(Math.round(cool).toLocaleString('en-GB') + ' BTU', 'cooling load') +
+      box((cool / 12000).toFixed(2) + ' tons', 'cooling tonnage') +
+      box((heat / 3412).toFixed(2) + ' kW', 'heating power') +
+      '</div>';
+
+    html += '<div style="font-size:0.85rem;color:rgba(230,250,255,0.8);">' +
+      'For a ' + area.toFixed(0) + ' ft\u00b2 room with a ' + h + ' ft ceiling you need roughly ' +
+      '<strong style="color:var(--accent);">' + Math.round(heat).toLocaleString('en-GB') + ' BTU/hr of heating</strong> and ' +
+      '<strong style="color:var(--accent);">' + Math.round(cool).toLocaleString('en-GB') + ' BTU/hr of cooling</strong>.</div>';
+
+    html += '<div style="margin-top:10px;padding:8px 12px;background:rgba(57,255,20,0.06);border:1px solid rgba(57,255,20,0.15);border-radius:8px;font-size:0.85rem;">' +
+      'Radiator sizing: at ~170 BTU/hr per ft\u00b2 of radiator, order about <strong style="color:#39ff14;">' +
+      Math.max(1, Math.round(heat / 170)) + ' ft\u00b2 of radiator surface</strong>. For cooling, a ' +
+      (cool / 12000 < 1 ? 'split unit' : Math.ceil(cool / 12000) + '-ton unit') + ' is the right ballpark.</div>';
+
+    out.innerHTML = html;
+  }
+
+  $('btu-go').addEventListener('click', run);
+  run();
+})();
+</script>

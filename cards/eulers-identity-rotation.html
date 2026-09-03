@@ -1,0 +1,157 @@
+<h2 id="eul-title" style="margin-top:0;color:var(--accent);">⚡ Euler's Identity: e^{i&pi;} = &minus;1</h2>
+
+<p id="eul-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  The "most beautiful equation" in one picture: e<sup>i&theta;</sup> is just a point rotating around a circle. Wind &theta; up to &pi; and
+  you've spun exactly half a turn &mdash; to &minus;1. e<sup>i&pi;</sup> + 1 = 0.
+</p>
+
+<canvas id="eul-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <button type="button" id="eul-play" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Pause</button>
+  <button type="button" id="eul-pi" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Wind to &pi;</button>
+  <button type="button" id="eul-zero" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">&theta; = 0</button>
+  <label for="eul-th" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">&theta;:
+    <input id="eul-th" type="range" min="0" max="360" value="0" style="vertical-align:middle;width:180px;" />
+  </label>
+</div>
+
+<div id="eul-out" aria-live="polite" style="font-size:0.95rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;"></div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why this is mind-blowing</summary>
+  <p style="margin-top:8px;">
+    Multiplying by i rotates by 90&deg;. Euler's key insight: e<sup>i&theta;</sup> = cos&theta; + i&middot;sin&theta; &mdash; a point one unit from the
+    origin at angle &theta;. As &theta; sweeps 0 &rarr; &pi; the point traces the top half of the circle and lands on (&minus;1, 0). So
+    e<sup>i&pi;</sup> = &minus;1, and e<sup>i&pi;</sup> + 1 = 0 ties the five most important numbers in maths &mdash; 0, 1, e, i and &pi; &mdash; into one line.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('eul-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var cx = 190, cy = 180, R = 150;
+  var th = 0, running = true;
+
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+
+    // axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.beginPath(); ctx.moveTo(cx - R - 30, cy); ctx.lineTo(cx + R + 30, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - R - 30); ctx.lineTo(cx, cy + R + 30); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,0.5)';
+    ctx.font = '12px monospace';
+    ctx.fillText('Re', cx + R + 16, cy + 4);
+    ctx.fillText('Im', cx + 4, cy - R - 16);
+
+    // unit circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(45,212,255,0.4)';
+    ctx.stroke();
+
+    var t = th * Math.PI / 180;
+    var px = cx + R * Math.cos(t);
+    var py = cy - R * Math.sin(t);
+
+    // swept arc
+    ctx.beginPath();
+    ctx.arc(cx, cy, 34, -t, 0);
+    ctx.strokeStyle = 'rgba(255,215,0,0.5)';
+    ctx.stroke();
+
+    // radius vector
+    ctx.beginPath();
+    ctx.moveTo(cx, cy); ctx.lineTo(px, py);
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.lineWidth = 1;
+
+    // projections (cos = real, sin = imaginary)
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, cy);
+    ctx.strokeStyle = 'rgba(197,142,240,0.6)'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(cx, py);
+    ctx.strokeStyle = 'rgba(57,255,20,0.6)'; ctx.stroke();
+    ctx.setLineDash([]);
+
+    // point
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffd700';
+    ctx.fill();
+
+    // right panel: real (cos) and imaginary (sin) vs theta
+    var gx = cx + R + 90, gW = W - gx - 16, mid = cy;
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.beginPath(); ctx.moveTo(gx, mid); ctx.lineTo(gx + gW, mid); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,0.5)';
+    ctx.fillText('\u03b8 = ' + th.toFixed(0) + '\u00b0', gx, H - 16);
+
+    // cos curve
+    ctx.beginPath();
+    for (var px2 = 0; px2 <= gW; px2 += 2) {
+      var a = px2 / gW * 2 * Math.PI;
+      var yy = mid - Math.cos(a) * R * 0.7;
+      if (px2 === 0) ctx.moveTo(gx + px2, yy); else ctx.lineTo(gx + px2, yy);
+    }
+    ctx.strokeStyle = 'rgba(197,142,240,0.8)'; ctx.stroke();
+    // sin curve
+    ctx.beginPath();
+    for (px2 = 0; px2 <= gW; px2 += 2) {
+      a = px2 / gW * 2 * Math.PI;
+      yy = mid - Math.sin(a) * R * 0.7;
+      if (px2 === 0) ctx.moveTo(gx + px2, yy); else ctx.lineTo(gx + px2, yy);
+    }
+    ctx.strokeStyle = 'rgba(57,255,20,0.8)'; ctx.stroke();
+    // current markers
+    var mpx = gx + (th % 360) / 360 * gW;
+    ctx.beginPath(); ctx.arc(mpx, mid - Math.cos(t) * R * 0.7, 3, 0, Math.PI * 2); ctx.fillStyle = '#c58ef0'; ctx.fill();
+    ctx.beginPath(); ctx.arc(mpx, mid - Math.sin(t) * R * 0.7, 3, 0, Math.PI * 2); ctx.fillStyle = '#39ff14'; ctx.fill();
+
+    var cosv = Math.cos(t), sinv = Math.sin(t);
+    var msg = 'e<sup>i&middot;' + th.toFixed(0) + '\u00b0</sup> = cos&theta; + i&middot;sin&theta; = ' +
+      (cosv >= 0 ? '' : '\u2212') + Math.abs(cosv).toFixed(3) + ' ' + (sinv >= 0 ? '+' : '\u2212') + ' i&middot;' + Math.abs(sinv).toFixed(3);
+    if (Math.abs(th - 180) < 1) {
+      msg += ' &nbsp;&rarr;&nbsp; <strong style="color:#ffd700;">e<sup>i&pi;</sup> = \u22121 &nbsp;\u2234&nbsp; e<sup>i&pi;</sup> + 1 = 0</strong>';
+    }
+    $('eul-out').innerHTML = msg;
+  }
+
+  function frame() {
+    if (running) {
+      th += 0.6;
+      $('eul-th').value = Math.round(th % 360);
+    }
+    draw();
+    raf(frame);
+  }
+
+  $('eul-play').addEventListener('click', function () {
+    running = !running;
+    this.textContent = running ? 'Pause' : 'Play';
+  });
+  $('eul-pi').addEventListener('click', function () { running = false; $('eul-play').textContent = 'Play'; th = 180; $('eul-th').value = 180; draw(); });
+  $('eul-zero').addEventListener('click', function () { running = false; $('eul-play').textContent = 'Play'; th = 0; $('eul-th').value = 0; draw(); });
+  $('eul-th').addEventListener('input', function () { th = parseInt(this.value, 10) || 0; if (running) { running = false; $('eul-play').textContent = 'Play'; } draw(); });
+
+  draw();
+  raf(frame);
+})();
+</script>

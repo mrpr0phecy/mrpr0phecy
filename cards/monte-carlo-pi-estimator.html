@@ -1,0 +1,96 @@
+<h2 id="mpi-title" style="margin-top:0;color:var(--accent);">🎯 Monte Carlo π Estimator</h2>
+
+<p id="mpi-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Watch &pi; emerge from pure chance: random points rain on a square with a circle inside, and the ratio that lands
+  in the circle is exactly &pi;/4. No formula &mdash; just probability converging on a universal constant.
+</p>
+
+<canvas id="mpi-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <button type="button" id="mpi-pause" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Pause</button>
+  <button type="button" id="mpi-reset" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Reset</button>
+  <label for="mpi-ppf" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Points/frame:
+    <input id="mpi-ppf" type="number" min="1" max="5000" value="300" style="width:90px;padding:7px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+  </label>
+</div>
+
+<div id="mpi-out" aria-live="polite" style="font-size:0.95rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;"></div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why this is mind-blowing</summary>
+  <p style="margin-top:8px;">
+    The area of the circle is &pi;r&sup2; and the square around it is (2r)&sup2;, so the circle covers &pi;/4 of the square. If points
+    fall <em>uniformly at random</em>, the fraction inside the circle tends to &pi;/4 &mdash; so 4 &times; that fraction tends to &pi;.
+    You're measuring &pi; without ever using a circle formula, just the law of large numbers.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('mpi-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var inside = 0, total = 0, running = true;
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function field() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(45,212,255,0.35)';
+    ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, H / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,215,0,0.6)';
+    ctx.stroke();
+  }
+
+  function add(n) {
+    for (var i = 0; i < n; i++) {
+      var x = Math.random(), y = Math.random();
+      var dx = x - 0.5, dy = y - 0.5;
+      var ins = dx * dx + dy * dy <= 0.25;
+      total++; if (ins) inside++;
+      ctx.fillStyle = ins ? 'rgba(45,212,255,0.55)' : 'rgba(230,250,255,0.16)';
+      ctx.fillRect(x * W, y * H, 1.6, 1.6);
+    }
+    readout();
+  }
+
+  function readout() {
+    var out = $('mpi-out');
+    if (!total) { out.innerHTML = 'Dropping points&hellip;'; return; }
+    var est = 4 * inside / total;
+    var err = Math.abs(est - Math.PI);
+    out.innerHTML = 'Estimate &pi; &asymp; <strong style="color:var(--accent);">' + est.toFixed(6) + '</strong> &nbsp;&middot;&nbsp; ' +
+      'true &pi; = ' + Math.PI.toFixed(6) + ' &nbsp;&middot;&nbsp; error ' + err.toExponential(2) + ' &nbsp;&middot;&nbsp; ' +
+      total.toLocaleString('en-GB') + ' points';
+  }
+
+  function frame() {
+    if (!running) return;
+    var n = parseInt($('mpi-ppf').value, 10) || 300;
+    add(n);
+    raf(frame);
+  }
+
+  $('mpi-pause').addEventListener('click', function () {
+    running = !running;
+    this.textContent = running ? 'Pause' : 'Resume';
+    if (running) raf(frame);
+  });
+  $('mpi-reset').addEventListener('click', function () { inside = 0; total = 0; field(); readout(); });
+
+  field();
+  add(400);
+  raf(frame);
+})();
+</script>

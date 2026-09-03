@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 562 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 644 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 562 tools
-│   └── <tool-name>.html    562 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 644 tools
+│   └── <tool-name>.html    644 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -82,7 +82,7 @@ establish *which* site first.
 ├── manifest.json           PWA manifest
 ├── sw.js                   Service worker — present but NOT registered (§7)
 ├── robots.txt              Allows all, points at the sitemap
-├── sitemap.xml             All 602 pages, generated (§6)
+├── sitemap.xml             All 518 pages, generated (§6)
 ├── icon-192.png, icon-512.png, icon-maskable-512.png
 ├── logo.png, mrprophecypic.jpg, backgroundpic.jpg
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 562 cards.** They share one
+2. **Element IDs must be globally unique across all 644 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -187,35 +187,24 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (562 tools — refreshed 2026-09-02 from `cards/cards.json`)
+### Categories (644 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 123 | Science & Engineering | | 11 | Lucid Dreaming & Sleep |
-| 109 | Productivity & Lifestyle | | 10 | Wellbeing & Community |
-| 47 | Writing & Language | | 10 | Natural Remedies & Herbs |
-| 35 | Finance & Money | | 10 | AI & Autonomous Agents |
+| 122 | Science & Engineering | | 11 | SaaS & Business Killers |
+| 110 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
+| 47 | Writing & Language | | 10 | Wellbeing & Community |
+| 35 | Finance & Money | | 10 | Natural Remedies & Herbs |
+| 53 | Sports | | 10 | AI & Autonomous Agents |
 | 28 | Mathematics | | 10 | Astronomy & Space |
 | 23 | Music & Audio | | 10 | Anime & Otaku Culture |
-| 23 | Health & Fitness | | 10 | Aquatics & Fishkeeping |
-| 17 | Home & DIY | | 10 | Birdwatching & Ornithology |
+| 22 | Health & Fitness | | 10 | Aquatics & Fishkeeping |
+| 27 | Home & DIY | | 10 | Birdwatching & Ornithology |
 | 15 | Culinary & Food Science | | 10 | Dogs & Canine Care |
 | 12 | Museum & Collection | | 10 | MrProphecy Arcade |
 | 11 | Interactive Art & Living Worlds | | 7 | Virtual Worlds & Gaming |
-| 11 | SaaS & Business Killers | | | |
-
----|---|---|---|---|
-| 120 | Science & Engineering | | 11 | SaaS & Business Killers |
-| 86 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
-| 47 | Writing & Language | | 11 | Interactive Art & Living Worlds |
-| 33 | Finance & Money | | 10 | Natural Remedies & Herbs |
-| 28 | Mathematics | | 10 | AI & Autonomous Agents |
-| 23 | Music & Audio | | 10 | Anime & Otaku Culture |
-| 21 | Health & Fitness | | 10 | Aquatics & Fishkeeping |
-| 15 | Culinary & Food Science | | 10 | Birdwatching & Ornithology |
-| | | | 10 | Boxing & Fight Scoring |
-| | | | 10 | Dogs & Canine Care |
-| | | | 7 | Virtual Worlds & Gaming |
+| 10 | Mind-Blowing Demos | | | |
+| 10 | Algorithms & Computer Science | | | |
 
 ---
 
@@ -549,8 +538,8 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 602 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 562 cards:
+`sitemap.xml` lists all 684 pages. Build it from git rather than the working
+tree, so a sparse checkout does not silently drop the 644 cards:
 
 ```python
 import subprocess, datetime
@@ -595,7 +584,7 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`index.html` has no links to cards.** Everything is driven by `cards.json`.
 
-**ID collisions across cards.** All 562 share one DOM. See §3.
+**ID collisions across cards.** All 644 share one DOM. See §3.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -625,7 +614,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 562 cards):
+# Music work (skip images and the 644 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -685,6 +674,64 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 ---
 
 ## 9. Current state and known work
+
+**Added 2026-09-02** — a **Sports** category with 53 tools across four batches of
+ten. New tools cover cricket (chase + net run rate), football points-needed,
+tournament brackets, golf (WHS handicap + Stableford), darts (checkout + 501
+average), cycling power/speed, swimming pace/CSS, tennis scorer, basketball
+efficiency, youth team rotation, snooker snookers-required, rugby score builder,
+running cadence, baseball stats, betting each-way, athletics decathlon/
+heptathlon, motorsport (lap time + F1 points), bowling, badminton, volleyball,
+ice hockey goalie, powerlifting DOTS/Wilks, table tennis, archery, round-robin
+fixtures, rowing erg pace, chess Elo, diving, bouldering, gymnastics, triathlon,
+netball, handball, curling, showjumping and weightlifting Sinclair. Thirteen
+existing tools were reclassified into Sports (the ten boxing cards,
+`premier-league`, `bike-gear-calculator` and `race-pace-predictor`).
+`sportsList` in `generate-cards-json.js`; `Sports` in `check-cards.py`; tool
+count is now **602** (updated across README, ARCHITECTURE, INCOME, AGENTS,
+AGENT_ACCESS, index.html, 404.html, tool.html).
+
+**Added 2026-09-02** — ten new **Home & DIY** tools: stud framing, board-foot
+lumber, stair stringer, roof pitch & rafter, drywall, room BTU/HVAC sizing, miter
+& bevel angles, laminate flooring, deck joist span and grout & tile adhesive.
+Added to `homeDIYList` in `generate-cards-json.js`; tool count is now **612**
+(updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS, index.html,
+404.html, tool.html).
+
+**Added 2026-09-02** — a new **Mind-Blowing Demos** category with 10 interactive
+demonstrations: Monte Carlo π estimation, Conway's Game of Life, Mandelbrot set
+explorer, logistic-map bifurcation, Fourier series synthesis, Galton board
+(central limit theorem), Buffon's needle, Lorenz attractor, Barnsley fern and
+Euler's identity. Added to `demosList` in `generate-cards-json.js`; tool count is
+now **622** (updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS,
+index.html, 404.html, tool.html).
+
+**Added 2026-09-02** — a new **Algorithms & Computer Science** category with 10
+interactive tools: sorting algorithm visualizer, pathfinding visualizer (BFS/DFS/
+Dijkstra/A*), Towers of Hanoi, a neural-network playground that learns XOR, a
+Big-O complexity explorer, elementary cellular automata (rules 30/90/110/184),
+Huffman coding, a classical cipher suite, recursion & memoization explorer and a
+binary/bitwise playground. Added to `csList` in `generate-cards-json.js`; tool
+count is now **632** (updated across README, ARCHITECTURE, INCOME, AGENTS,
+AGENT_ACCESS, index.html, 404.html, tool.html).
+
+**Added 2026-09-03** — two more tools: a **laundry care & stain solver**
+(fabric-based wash settings, a 12-stain step-by-step treatment guide and a
+care-label symbol decoder) and the **Go Outsideometer** (a tongue-in-cheek
+cabin-fever gauge with a go-outside prescription). Both join Productivity &
+Lifestyle; tool count is now **634** (updated across README, ARCHITECTURE,
+INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html, tool.html).
+
+**Added 2026-09-03** — ten more quirky-but-useful tools, all in Productivity &
+Lifestyle: a **Memento Mori life ticker** (your life as a grid of weeks plus
+“how many more summers/books/roasts” conversions), a **cost-per-use “should I
+buy it”** decider, a **price-in-work-hours** converter (“that coffee = 22 minutes
+of your life”), a **Thing Namer** (band/pet/D&D/startup/WiFi/boat/pub-quiz names),
+a **houseplant matchmaker**, a **flat-pack confidence meter**, a **3am worry
+sorter**, an **emoji-meaning decoder**, a **caffeine half-life bedtime check** and
+a **coat-or-no-coat weather** advisor. Tool count is now **644** (updated across
+README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html,
+tool.html).
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —
@@ -829,7 +876,7 @@ geometric sums, convergence detection, both lease verdict branches).
 - **17 `<label for=...>` associations point at no element** (they label button
   groups, e.g. `sub-status`, `tdee-gender`). Screen readers cannot associate
   them. Low severity; fix is converting the button groups to radio inputs or
-  adding `aria-labelledby`. Since all 500 cards share one DOM, `getElementById` can bind to the
+  adding `aria-labelledby`. Since all 644 cards share one DOM, `getElementById` can bind to the
   wrong tool. Worst offenders are whole-file collisions:
   `leanbodymass.html`↔`lease.html` (26 ids), `moving.html`↔`music-theory.html`
   (~40), `essay-templates.html`↔`essay.html`, `salary.html`↔`salarycompare.html`,
@@ -853,7 +900,7 @@ geometric sums, convergence detection, both lease verdict branches).
   to the full-bleed dark pages for notched phones and native dark scrollbars,
   but it changes layout, so it wants visual testing rather than a blind sweep.
 - **`sw.js` is still unregistered** — see the open question below. For a site of
-  500 offline-first tools it is a large caching win (network-first for HTML,
+  644 offline-first tools it is a large caching win (network-first for HTML,
   cache-first for cards), but it must be rolled out carefully.
 - **8 pages use `i.ytimg.com/vi/<id>/maxresdefault.jpg` as their og:image**
   (both ids verified live today). Fine while the videos exist; if one is ever

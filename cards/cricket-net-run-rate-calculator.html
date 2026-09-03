@@ -1,0 +1,152 @@
+<h2 id="nrr-title" style="margin-top:0;color:var(--accent);">🏏 Cricket Net Run Rate Calculator</h2>
+
+<form aria-describedby="nrr-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="nrr-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    The tie-breaker that decides tournaments. Add each match's runs and overs for and against, and this works out
+    your aggregate Net Run Rate &mdash; applying the rule that a team bowled out is counted as facing its full overs.
+  </p>
+
+  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
+    <div style="flex:1;min-width:160px;">
+      <label for="nrr-quota" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Overs per innings</label>
+      <select id="nrr-quota" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="20">20 (T20)</option>
+        <option value="50" selected>50 (ODI)</option>
+        <option value="40">40</option>
+        <option value="10">10 (T10)</option>
+      </select>
+    </div>
+    <button type="button" id="nrr-add" style="padding:11px 16px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">+ Add match</button>
+  </div>
+</form>
+
+<div id="nrr-rows" style="margin-bottom:14px;"></div>
+
+<div id="nrr-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">How NRR is worked out</summary>
+  <p style="margin-top:8px;">
+    Net Run Rate = (total runs scored &divide; total overs faced) &minus; (total runs conceded &divide; total overs bowled).
+    Overs faced excludes rain-shortened overs, but if a side is all out they are deemed to have faced the full
+    quota &mdash; tick &ldquo;all out&rdquo; and the full overs are used for that innings. Balls are the extra deliveries after
+    the completed overs (0&ndash;5).
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var matches = [];
+
+  function quota() { return parseInt($('nrr-quota').value, 10) || 50; }
+
+  function balls(ov, b, allOut) {
+    var q = quota();
+    var n = (ov * 6) + b;
+    if (allOut) n = q * 6;
+    return n;
+  }
+
+  function render() {
+    var box = $('nrr-rows');
+    var html = '<div style="display:grid;grid-template-columns:44px 1fr 1fr 1fr 1fr 1fr 44px;gap:6px;align-items:center;margin-bottom:6px;font-size:0.7rem;color:rgba(230,250,255,0.5);text-transform:uppercase;letter-spacing:0.04em;">' +
+      '<span>#</span><span>For runs</span><span>For overs</span><span>Balls</span><span>Vs runs</span><span>Vs overs / balls</span><span></span></div>';
+    if (!matches.length) {
+      html += '<div style="color:rgba(230,250,255,0.5);font-size:0.85rem;padding:8px 0;">No matches yet &mdash; press &ldquo;+ Add match&rdquo;.</div>';
+      box.innerHTML = html;
+      return;
+    }
+    for (var i = 0; i < matches.length; i++) {
+      var m = matches[i];
+      html += '<div style="display:grid;grid-template-columns:44px 1fr 1fr 1fr 1fr 1fr 44px;gap:6px;align-items:center;margin-bottom:6px;">' +
+        '<span style="font-size:0.85rem;color:var(--accent);font-weight:700;">' + (i + 1) + '</span>' +
+        inp(i, 'forRuns', m.forRuns, 'runs') +
+        inp(i, 'forOv', m.forOv, 'ov') +
+        inp(i, 'forBalls', m.forBalls, 'b') +
+        inp(i, 'vsRuns', m.vsRuns, 'runs') +
+        '<span style="display:flex;gap:4px;">' + inp(i, 'vsOv', m.vsOv, 'ov') + inp(i, 'vsBalls', m.vsBalls, 'b') + '</span>' +
+        '<button type="button" data-remove="' + i + '" style="padding:8px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.25);border-radius:6px;color:#ff4d4d;cursor:pointer;">&times;</button>' +
+        '</div>';
+      html += '<div style="display:grid;grid-template-columns:44px 1fr 1fr 1fr 1fr 1fr 44px;gap:6px;align-items:center;margin-bottom:8px;font-size:0.7rem;">' +
+        '<span></span><label style="color:rgba(230,250,255,0.5);"><input type="checkbox" data-field="forAllOut" data-index="' + i + '"' + (m.forAllOut ? ' checked' : '') + ' /> all out</label>' +
+        '<span></span><span></span>' +
+        '<label style="color:rgba(230,250,255,0.5);"><input type="checkbox" data-field="vsAllOut" data-index="' + i + '"' + (m.vsAllOut ? ' checked' : '') + ' /> all out</label>' +
+        '<span></span><span></span></div>';
+    }
+    box.innerHTML = html;
+    compute();
+  }
+
+  function inp(i, field, val, hint) {
+    return '<input type="number" min="0" step="1" data-index="' + i + '" data-field="' + field + '" value="' + val + '" placeholder="' + hint + '" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />';
+  }
+
+  function compute() {
+    var out = $('nrr-out');
+    if (!matches.length) { out.innerHTML = '<div style="color:rgba(230,250,255,0.5);">Add matches to see the run rate.</div>'; return; }
+    var runsFor = 0, ballsFor = 0, runsVs = 0, ballsVs = 0;
+    for (var i = 0; i < matches.length; i++) {
+      var m = matches[i];
+      runsFor += m.forRuns; ballsFor += balls(m.forOv, m.forBalls, m.forAllOut);
+      runsVs += m.vsRuns; ballsVs += balls(m.vsOv, m.vsBalls, m.vsAllOut);
+    }
+    var rrf = ballsFor > 0 ? runsFor / (ballsFor / 6) : 0;
+    var rrv = ballsVs > 0 ? runsVs / (ballsVs / 6) : 0;
+    var nrr = rrf - rrv;
+
+    function ov(n) { return Math.floor(n / 6) + '.' + (n % 6); }
+    function box2(v, l, col) {
+      return '<div style="flex:1;min-width:110px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+        '<div style="font-size:1.2rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+        '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+    }
+
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box2(nrr.toFixed(3), 'net run rate') +
+      box2(rrf.toFixed(2), 'for: run rate') +
+      box2(rrv.toFixed(2), 'against: run rate') +
+      '</div>';
+    html += '<div style="font-size:0.85rem;color:rgba(230,250,255,0.8);">' +
+      'Scored <strong style="color:var(--accent);">' + runsFor + '</strong> in ' + ov(ballsFor) + ' overs; conceded ' +
+      '<strong style="color:var(--accent);">' + runsVs + '</strong> in ' + ov(ballsVs) + ' overs.' +
+      '</div>';
+    html += '<div style="margin-top:8px;padding:8px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;font-size:0.85rem;">' +
+      'A NRR of <strong style="color:' + (nrr >= 0 ? '#39ff14' : '#ff4d4d') + ';">' + (nrr >= 0 ? '+' : '') + nrr.toFixed(3) + '</strong> means every over you gain ' +
+      Math.abs(nrr).toFixed(3) + ' runs ' + (nrr >= 0 ? 'on your opponents' : 'behind your opponents') + ' across the tournament.' +
+      '</div>';
+    out.innerHTML = html;
+  }
+
+  function bind() {
+    $('nrr-rows').addEventListener('input', function (e) {
+      var t = e.target;
+      var idx = t.getAttribute('data-index');
+      var f = t.getAttribute('data-field');
+      if (idx === null || !f) return;
+      idx = parseInt(idx, 10);
+      if (f === 'forAllOut' || f === 'vsAllOut') matches[idx][f] = t.checked;
+      else matches[idx][f] = parseInt(t.value, 10) || 0;
+      compute();
+    });
+    $('nrr-rows').addEventListener('click', function (e) {
+      var t = e.target;
+      if (t.getAttribute('data-remove') !== null) {
+        matches.splice(parseInt(t.getAttribute('data-remove'), 10), 1);
+        render();
+      }
+    });
+  }
+
+  $('nrr-add').addEventListener('click', function () {
+    matches.push({ forRuns: 0, forOv: 0, forBalls: 0, forAllOut: false, vsRuns: 0, vsOv: 0, vsBalls: 0, vsAllOut: false });
+    render();
+  });
+
+  bind();
+  matches.push({ forRuns: 280, forOv: 50, forBalls: 0, forAllOut: false, vsRuns: 220, vsOv: 45, vsBalls: 2, vsAllOut: false });
+  matches.push({ forRuns: 190, forOv: 50, forBalls: 0, forAllOut: true, vsRuns: 195, vsOv: 48, vsBalls: 0, vsAllOut: false });
+  render();
+})();
+</script>

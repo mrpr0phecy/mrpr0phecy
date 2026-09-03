@@ -1,0 +1,149 @@
+<h2 id="han-title" style="margin-top:0;color:var(--accent);">🗼 Towers of Hanoi</h2>
+
+<p id="han-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  Move the stack from peg A to peg C, never putting a bigger disk on a smaller one. The catch: the optimal solution is
+  2&#8319; &minus; 1 moves, so 8 disks means 255 moves &mdash; recursion made visible. Solve it yourself, or watch the algorithm do it.
+</p>
+
+<canvas id="han-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);cursor:pointer;"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <button type="button" id="han-solve" style="padding:10px 14px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">▶ Auto-solve</button>
+  <button type="button" id="han-step" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Step</button>
+  <button type="button" id="han-reset" style="padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Reset</button>
+  <label for="han-n" style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-left:4px;">Disks:
+    <input id="han-n" type="range" min="3" max="8" value="4" style="vertical-align:middle;width:120px;" />
+    <span id="han-nval" style="color:var(--accent);font-weight:700;">4</span>
+  </label>
+</div>
+
+<div id="han-out" aria-live="polite" style="font-size:0.9rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;">Click a peg to lift its top disk, then click a peg to drop it. Rules enforced.</div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The recursion inside</summary>
+  <p style="margin-top:8px;">
+    To move n disks from A to C: move the top n&minus;1 disks from A to B (using C), move the biggest disk A&rarr;C, then move the
+    n&minus;1 disks B&rarr;C. That self-reference is exactly what recursion is. The move count doubles each disk, which is why
+    legend says the world ends at 64 disks: 2&#8310;&#8308;&minus;1 &asymp; 1.8&times;10&#185;&#8313; moves.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('han-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+  var W = 640, H = 400;
+  cv.width = W; cv.height = H;
+
+  var n = 4;
+  var pegs = [[], [], []];  // arrays of disk sizes (big at bottom)
+  var lifted = -1;          // peg index holding a lifted disk
+  var moves = [], mi = 0;
+  var auto = false;
+  var solvePlan = [];
+
+  var PEGX = [160, 320, 480];
+  var COLORS = ['#2dd4ff', '#c58ef0', '#39ff14', '#ffd700', '#ff7ab8', '#ff9f43', '#7ef9ff', '#b39ddb'];
+
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function reset() {
+    pegs = [[], [], []];
+    for (var i = n; i >= 1; i--) pegs[0].push(i);
+    moves = []; mi = 0; lifted = -1; auto = false;
+    solvePlan = [];
+    buildPlan(n, 0, 2, 1);
+    draw();
+  }
+
+  function buildPlan(k, from, to, via) {
+    if (k === 0) return;
+    buildPlan(k - 1, from, via, to);
+    solvePlan.push([from, to]);
+    buildPlan(k - 1, via, to, from);
+  }
+
+  function legal(from, to) {
+    if (from === to || pegs[from].length === 0) return false;
+    if (pegs[to].length === 0) return true;
+    return pegs[from][pegs[from].length - 1] < pegs[to][pegs[to].length - 1];
+  }
+
+  function doMove(from, to) {
+    if (!legal(from, to)) return false;
+    pegs[to].push(pegs[from].pop());
+    moves.push([from, to]);
+    mi = moves.length;
+    return true;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+    var baseY = H - 40;
+    // pegs
+    for (var p = 0; p < 3; p++) {
+      var x = PEGX[p];
+      ctx.strokeStyle = p === lifted ? '#ffd700' : 'rgba(230,250,255,0.5)';
+      ctx.lineWidth = p === lifted ? 4 : 3;
+      ctx.beginPath(); ctx.moveTo(x, baseY); ctx.lineTo(x, 60); ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.fillStyle = 'rgba(230,250,255,0.6)';
+      ctx.fillRect(x - 70, baseY, 140, 6);
+      ctx.font = '13px monospace';
+      ctx.fillText(String.fromCharCode(65 + p), x - 4, baseY + 20);
+      // disks
+      var stack = pegs[p];
+      for (var d = 0; d < stack.length; d++) {
+        var size = stack[d];
+        var w = 20 + size * 16;
+        var y = baseY - (d + 1) * 16 + 6;
+        ctx.fillStyle = COLORS[size - 1 % 8];
+        ctx.fillRect(x - w / 2, y, w, 14);
+      }
+    }
+    $('han-out').textContent = 'Moves: ' + mi + ' · optimal for ' + n + ' disks: ' + (solvePlan.length) + ' (2^' + n + ' − 1). ' +
+      (mi === solvePlan.length && solvePlan.length ? 'Solved optimally!' : 'Click a peg to lift/drop, or auto-solve.');
+  }
+
+  function frame() {
+    if (auto && mi < solvePlan.length) {
+      var mv = solvePlan[mi];
+      if (legal(mv[0], mv[1])) { doMove(mv[0], mv[1]); }
+      else { auto = false; }
+    }
+    if (auto && mi >= solvePlan.length) auto = false;
+    draw();
+    raf(frame);
+  }
+
+  cv.addEventListener('click', function (e) {
+    var rect = cv.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (W / rect.width);
+    var p = -1;
+    for (var i = 0; i < 3; i++) if (Math.abs(x - PEGX[i]) < 80) { p = i; break; }
+    if (p < 0) return;
+    if (lifted === -1) {
+      if (pegs[p].length) lifted = p;
+    } else {
+      if (doMove(lifted, p)) { /* ok */ }
+      lifted = -1;
+    }
+    draw();
+  });
+
+  $('han-solve').addEventListener('click', function () { auto = !auto; this.textContent = auto ? '⏸ Pause' : '▶ Auto-solve'; });
+  $('han-step').addEventListener('click', function () { auto = false; $('han-solve').textContent = '▶ Auto-solve'; if (mi < solvePlan.length) { var mv = solvePlan[mi]; doMove(mv[0], mv[1]); draw(); } });
+  $('han-reset').addEventListener('click', reset);
+  $('han-n').addEventListener('input', function () { n = parseInt(this.value, 10) || 4; $('han-nval').textContent = n; auto = false; $('han-solve').textContent = '▶ Auto-solve'; reset(); });
+
+  reset();
+  raf(frame);
+})();
+</script>

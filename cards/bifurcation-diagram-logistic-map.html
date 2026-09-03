@@ -1,0 +1,132 @@
+<h2 id="bif-title" style="margin-top:0;color:var(--accent);">🦋 Bifurcation: Order to Chaos</h2>
+
+<p id="bif-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  One equation, one knob. The logistic map x &rarr; r&middot;x&middot;(1&minus;x) doubles its rhythm again and again, then dissolves into
+  chaos &mdash; and the same pattern of period-doubling appears across all of nature. Drag the r slider.
+</p>
+
+<canvas id="bif-cv" style="width:100%;height:auto;aspect-ratio:640/400;display:block;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.35);"></canvas>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;">
+  <label for="bif-r" style="font-size:0.9rem;color:rgba(230,250,255,0.8);">r = <span id="bif-rval" style="color:var(--accent);font-weight:700;">3.5</span></label>
+  <input id="bif-r" type="range" min="2.8" max="4" step="0.001" value="3.5" style="flex:1;min-width:180px;" />
+</div>
+
+<div id="bif-out" aria-live="polite" style="font-size:0.9rem;color:rgba(230,250,255,0.85);padding:10px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;"></div>
+
+<details class="small" style="margin-top:4px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The road to chaos</summary>
+  <p style="margin-top:8px;">
+    Below r = 3 the population settles on one steady value. Just past 3 it starts bouncing between two values, then four,
+    then eight &mdash; each doubling coming twice as fast. At r &asymp; 3.57 it tips into chaos: no pattern repeats, yet tiny windows
+    of order reappear inside the chaos. The bifurcation diagram (bottom half) plots every long-term value against r, and
+    that perfect branching tree is why ecologists, economists and physicists all study this one map.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var cv = $('bif-cv');
+  var ctx = cv.getContext ? cv.getContext('2d') : null;
+  if (!ctx) return;
+
+  var W = 640, H = 400, topH = 170;
+  cv.width = W; cv.height = H;
+
+  var r = 3.5;
+  var series = [];        // time series for current r
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? window.requestAnimationFrame.bind(window)
+    : function (cb) { return setTimeout(function () { cb(Date.now()); }, 16); };
+
+  function drawBifurcation() {
+    // static diagram in bottom region (y from topH to H)
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, topH, W, H - topH);
+    ctx.fillStyle = 'rgba(45,212,255,0.85)';
+    for (var i = 0; i < 900; i++) {
+      var rr = 2.8 + (4 - 2.8) * i / 900;
+      var x = 0.5;
+      for (var k = 0; k < 300; k++) x = rr * x * (1 - x);
+      for (k = 0; k < 160; k++) {
+        x = rr * x * (1 - x);
+        var px = (rr - 2.8) / 1.2 * W;
+        var py = topH + (1 - x) * (H - topH - 10) + 5;
+        ctx.fillRect(px, py, 1, 1);
+      }
+    }
+    ctx.fillStyle = 'rgba(255,215,0,0.9)';
+    var mx = (r - 2.8) / 1.2 * W;
+    ctx.fillRect(mx, topH, 1, H - topH);
+  }
+
+  function drawSeries() {
+    // top panel: time series of x_n
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, W, topH);
+    ctx.strokeStyle = 'rgba(230,250,255,0.15)';
+    ctx.beginPath();
+    ctx.moveTo(0, topH / 2); ctx.lineTo(W, topH / 2); ctx.stroke();
+    if (series.length < 2) return;
+    ctx.beginPath();
+    for (var i = 0; i < series.length; i++) {
+      var px = (i / (series.length - 1)) * W;
+      var py = (1 - series[i]) * (topH - 16) + 8;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = '#2dd4ff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  function periodEstimate() {
+    if (series.length < 60) return 'warming up…';
+    var seen = {};
+    for (var i = series.length - 60; i < series.length; i++) {
+      seen[series[i].toFixed(3)] = true;
+    }
+    var k = 0;
+    for (var key in seen) if (seen.hasOwnProperty(key)) k++;
+    if (k === 1) return 'Period 1 — steady point';
+    if (k === 2) return 'Period 2 — it flips between two values';
+    if (k <= 4) return 'Period ' + k + ' — doubling again';
+    if (k <= 8) return 'Period ' + k;
+    if (k <= 16) return 'Higher period ' + k;
+    return 'Chaos — no pattern repeats';
+  }
+
+  function readout() {
+    $('bif-out').innerHTML =
+      'At r = <strong style="color:var(--accent);">' + r.toFixed(3) + '</strong>: <strong>' + periodEstimate() + '</strong>. ' +
+      (r < 3 ? 'The population settles on one number.' :
+       r < 3.449 ? 'One value has split into two — the first period doubling.' :
+       r < 3.57 ? 'The period keeps doubling, faster each time.' :
+       'Deterministic chaos: the same equation, the same start, yet it never repeats.') +
+      ' <span style="color:rgba(230,250,255,0.55);">(Top: time series for this r. Bottom: every long-term value for every r.)</span>';
+  }
+
+  function frame() {
+    var x = 0.5;
+    series = [];
+    for (var i = 0; i < 400; i++) {
+      x = r * x * (1 - x);
+      if (i >= 200) series.push(x);
+    }
+    drawSeries();
+    readout();
+  }
+
+  $('bif-r').addEventListener('input', function () {
+    r = parseFloat(this.value) || 3.5;
+    $('bif-rval').textContent = r.toFixed(3);
+    frame();
+    // redraw the gold marker without redoing the whole diagram
+    drawBifurcation();
+  });
+
+  drawBifurcation();
+  frame();
+})();
+</script>

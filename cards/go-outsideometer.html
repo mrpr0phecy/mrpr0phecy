@@ -1,0 +1,139 @@
+<h2 id="goo-title" style="margin-top:0;color:var(--accent);">🌤️ Go Outsideometer</h2>
+
+<p id="goo-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+  A scientifically unserious instrument that measures how long it has been since you touched grass. Answer honestly,
+  and it will tell you exactly how urgently you need to go outside &mdash; then give you an excuse to actually do it.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:16px;">
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:4px;">
+      <span>📱 Screen time today</span><span id="goo-screenv" style="color:var(--accent);font-weight:700;">4 hrs</span>
+    </div>
+    <input id="goo-screen" type="range" min="0" max="16" value="4" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:4px;">
+      <span>🗓️ Days since you last properly went outside</span><span id="goo-daysv" style="color:var(--accent);font-weight:700;">1 day</span>
+    </div>
+    <input id="goo-days" type="range" min="0" max="30" value="1" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:4px;">
+      <span>☀️ Hours since you last saw actual daylight</span><span id="goo-sunv" style="color:var(--accent);font-weight:700;">3 hrs</span>
+    </div>
+    <input id="goo-sun" type="range" min="0" max="48" value="3" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:4px;">
+      <span>🍽️ Meals eaten at your desk this week</span><span id="goo-mealsv" style="color:var(--accent);font-weight:700;">5</span>
+    </div>
+    <input id="goo-meals" type="range" min="0" max="21" value="5" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:4px;">
+      <span>🙅 Plans cancelled this month to stay in</span><span id="goo-cancelv" style="color:var(--accent);font-weight:700;">1</span>
+    </div>
+    <input id="goo-cancel" type="range" min="0" max="10" value="1" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+</div>
+
+<div id="goo-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,0.05);text-align:center;"></div>
+
+<button type="button" id="goo-excuse" style="width:100%;margin-top:12px;padding:12px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">🎲 Give me an excuse to go outside</button>
+<div id="goo-excuseout" style="margin-top:10px;font-size:0.9rem;color:#39ff14;text-align:center;min-height:1.2em;"></div>
+
+<details class="small" style="margin-top:16px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Methodology (very serious)</summary>
+  <p style="margin-top:8px;">
+    This instrument applies the peer-reviewed principle that humans are, technically, a type of plant that walks around
+    and needs sunlight. Readings are calibrated against the benchmark of &ldquo;a golden retriever on a good day&rdquo;. Accuracy not
+    guaranteed; going outside is nonetheless recommended.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var VERDICTS = [
+    { max: 20, emoji: '🌞', label: 'Peak photosynthesis', blurb: 'You basically live outside. Your vitamin-D levels are a flex, and golden retrievers ask you for tips. Carry on, outdoor human.', col: '#39ff14' },
+    { max: 40, emoji: '😎', label: 'Healthy balance', blurb: 'You know the sky exists and you visit it regularly. The Outsideometer salutes you. Nothing to see here — except you, occasionally, outdoors.', col: '#7ef9ff' },
+    { max: 60, emoji: '🪴', label: 'Suspiciously pale', blurb: 'The sun has not filed a missing-person report yet, but it is considering it. You are developing a light houseplant energy. A short walk is now medically advisable.', col: '#ffd700' },
+    { max: 80, emoji: '🦥', label: 'Legally a houseplant', blurb: 'Your natural habitat is now a chair. Grass remembers you fondly from a distance. Step outside before you fully photosynthesise into the sofa.', col: '#ff9f43' },
+    { max: 101, emoji: '🚨', label: 'GO OUTSIDE. NOW.', blurb: 'You have forgotten what grass feels like. The Wi-Fi will survive without you for twenty minutes. Close this tab, put on shoes, and go outside. This is not a drill.', col: '#ff4d4d' }
+  ];
+
+  function verdictFor(score) {
+    for (var i = 0; i < VERDICTS.length; i++) if (score <= VERDICTS[i].max) return VERDICTS[i];
+    return VERDICTS[VERDICTS.length - 1];
+  }
+
+  function compute() {
+    var screen = parseInt($('goo-screen').value, 10) || 0;
+    var days = parseInt($('goo-days').value, 10) || 0;
+    var sun = parseInt($('goo-sun').value, 10) || 0;
+    var meals = parseInt($('goo-meals').value, 10) || 0;
+    var cancels = parseInt($('goo-cancel').value, 10) || 0;
+
+    $('goo-screenv').textContent = screen + (screen === 1 ? ' hr' : ' hrs');
+    $('goo-daysv').textContent = days + (days === 1 ? ' day' : ' days');
+    $('goo-sunv').textContent = sun + (sun === 1 ? ' hr' : ' hrs');
+    $('goo-mealsv').textContent = meals;
+    $('goo-cancelv').textContent = cancels;
+
+    var score = Math.round(screen / 16 * 30 + days / 30 * 30 + sun / 48 * 20 + meals / 21 * 10 + cancels / 10 * 10);
+    var v = verdictFor(score);
+
+    // prescriptions based on which dial is pegged
+    var rx = [];
+    if (screen >= 8) rx.push('📱 ' + screen + ' hours of screen today — your screen has seen more of you than the sky has. Ten-minute walk, phone left at home.');
+    if (days >= 5) rx.push('🗓️ It has been ' + days + ' days. I checked: the outside is still there.');
+    if (sun >= 12) rx.push('☀️ ' + sun + ' hours without daylight — you are now nocturnal. Five minutes of morning sun resets your body clock.');
+    if (meals >= 10) rx.push('🍽️ ' + meals + ' desk-meals this week — your desk is now a dining table. Eat one meal near a window, or outside.');
+    if (cancels >= 3) rx.push('🙅 ' + cancels + ' plans cancelled — say yes to one small one this week, even if it\u2019s just a walk.');
+    if (!rx.length) rx.push('🌿 Honestly? You\u2019re doing fine. Go outside anyway \u2014 it\u2019s nice out there.');
+
+    var html = '<div style="font-size:3.4rem;line-height:1;">' + v.emoji + '</div>';
+    html += '<div style="font-size:1.5rem;font-weight:800;color:' + v.col + ';margin-top:8px;">' + v.label + '</div>';
+    html += '<div style="font-size:0.95rem;color:rgba(230,250,255,0.85);margin-top:8px;max-width:460px;margin-left:auto;margin-right:auto;">' + v.blurb + '</div>';
+
+    // gauge
+    var grad = 'linear-gradient(90deg,#39ff14,#ffd700 45%,#ff4d4d)';
+    html += '<div style="position:relative;height:14px;border-radius:999px;background:' + grad + ';margin:18px auto 6px;max-width:460px;overflow:hidden;">' +
+      '<div style="position:absolute;right:0;top:0;bottom:0;width:' + (100 - score) + '%;background:rgba(0,0,0,0.45);"></div></div>';
+    html += '<div style="font-size:0.8rem;color:rgba(230,250,255,0.6);">Go-Outside Index: <strong style="color:' + v.col + ';">' + score + '/100</strong></div>';
+
+    html += '<div style="text-align:left;margin-top:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px 14px;font-size:0.85rem;line-height:1.7;color:rgba(230,250,255,0.8);">';
+    html += '<div style="color:var(--accent);font-weight:600;margin-bottom:6px;">🧾 Your prescription</div>';
+    for (var i = 0; i < rx.length; i++) html += '<div style="margin:3px 0;">' + rx[i] + '</div>';
+    html += '</div>';
+
+    $('goo-out').innerHTML = html;
+  }
+
+  var EXCUSES = [
+    '🌿 Go touch grass. It\u2019s a real place \u2014 I\u2019ve verified.',
+    '🪟 The \u201cOutside\u201d update just dropped: patch notes include fresh air, birdsong, and zero loading screens.',
+    '🚶 Walk until your legs feel like they\u2019ve been somewhere.',
+    '☀️ Sunlight is free vitamin D, and it has no subscription.',
+    '🌌 Go look at the sky and remember it\u2019s not a wallpaper.',
+    '🔄 One lap of the block. If you still feel like a houseplant afterwards, you may return.',
+    '🐦 Go hear a bird. A real one. Not a notification.',
+    '🌧️ Even if it\u2019s raining \u2014 wet grass counts, and it smells great.',
+    '🧭 Walk without a destination. Let your feet do the navigating.',
+    '🛝 Go somewhere with a bench, sit on it, and do absolutely nothing for ten minutes.'
+  ];
+
+  $('goo-excuse').addEventListener('click', function () {
+    $('goo-excuseout').textContent = EXCUSES[Math.floor(Math.random() * EXCUSES.length)];
+  });
+
+  ['goo-screen', 'goo-days', 'goo-sun', 'goo-meals', 'goo-cancel'].forEach(function (id) {
+    $(id).addEventListener('input', compute);
+  });
+
+  compute();
+})();
+</script>

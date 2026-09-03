@@ -1,0 +1,121 @@
+<h2 id="dots-title" style="margin-top:0;color:var(--accent);">🏋️ Powerlifting DOTS &amp; Wilks Score</h2>
+
+<form aria-describedby="dots-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="dots-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Compare lifters across weight classes. Enter a bodyweight and total (or the three lifts) and get both the modern
+    DOTS score and the classic Wilks score, so a 60&nbsp;kg lifter and a 120&nbsp;kg lifter can be ranked on one scale.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="dots-sex" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Category</label>
+      <select id="dots-sex" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="m" selected>Male</option>
+        <option value="f">Female</option>
+      </select>
+    </div>
+    <div>
+      <label for="dots-bw" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Bodyweight (kg)</label>
+      <input id="dots-bw" type="number" min="30" max="220" step="0.1" value="83" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="dots-total" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Total (kg)</label>
+      <input id="dots-total" type="number" min="0" step="2.5" value="600" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+
+  <details style="margin-bottom:14px;">
+    <summary style="cursor:pointer;color:rgba(230,250,255,0.7);font-size:0.85rem;">Or enter the three lifts separately</summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:12px;">
+      <div><label for="dots-sq" style="display:block;margin-bottom:5px;color:var(--accent);font-size:13px;">Squat (kg)</label><input id="dots-sq" type="number" min="0" step="2.5" value="220" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+      <div><label for="dots-bp" style="display:block;margin-bottom:5px;color:var(--accent);font-size:13px;">Bench (kg)</label><input id="dots-bp" type="number" min="0" step="2.5" value="150" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+      <div><label for="dots-dl" style="display:block;margin-bottom:5px;color:var(--accent);font-size:13px;">Deadlift (kg)</label><input id="dots-dl" type="number" min="0" step="2.5" value="230" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" /></div>
+    </div>
+  </details>
+
+  <button type="button" id="dots-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate scores</button>
+</form>
+
+<div id="dots-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The formulas &amp; what a good score is</summary>
+  <p style="margin-top:8px;">
+    Both scores = total &times; 500 &divide; a bodyweight polynomial, with separate coefficients for men and women.
+    DOTS is the modern IPF standard (a fourth-degree polynomial); Wilks is the classic (fifth-degree). Rough guide:
+    500+ is world-class, 450+ elite, 400+ advanced, 350+ strong intermediate, 300+ a solid base.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  // DOTS (4th degree): denominator = a + b x + c x^2 + d x^3 + e x^4
+  var DOTS_M = { a: -307.75076, b: 24.0900756, c: -0.1918759221, d: 0.0007391293, e: -0.000001093 };
+  var DOTS_F = { a: -57.96288, b: 13.6175032, c: -0.1126655495, d: 0.0005158568, e: -0.0000010706 };
+  // Wilks (5th degree): denominator = a + b x + c x^2 + d x^3 + e x^4 + f x^5
+  var WILKS_M = { a: -216.0475144, b: 16.2606339, c: -0.002388645, d: -0.00113732, e: 7.01863E-06, f: -1.291E-08 };
+  var WILKS_F = { a: 594.31747775582, b: -27.23842536447, c: 0.82112226871, d: -0.00930733913, e: 4.731582E-05, f: -9.054E-08 };
+
+  function poly(x, c, deg) {
+    // evaluate c.a + c.b*x + c.c*x^2 + ... up to deg
+    var s = c.a, xp = 1;
+    var keys = ['b', 'c', 'd', 'e', 'f'];
+    for (var i = 0; i < deg; i++) { xp *= x; s += c[keys[i]] * xp; }
+    return s;
+  }
+
+  function box(v, l, col) {
+    return '<div style="flex:1;min-width:120px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.3rem;font-weight:700;color:' + (col || 'var(--accent)') + ';">' + v + '</div>' +
+      '<div style="font-size:0.65rem;color:rgba(230,250,255,0.55);text-transform:uppercase;line-height:1.3;">' + l + '</div></div>';
+  }
+
+  function run() {
+    var male = $('dots-sex').value === 'm';
+    var bw = parseFloat($('dots-bw').value);
+    var total = parseFloat($('dots-total').value);
+    var sq = parseFloat($('dots-sq').value) || 0, bp = parseFloat($('dots-bp').value) || 0, dl = parseFloat($('dots-dl').value) || 0;
+    var out = $('dots-out');
+
+    if (!(bw >= 30)) { out.innerHTML = '<div style="color:#ffa500;">Enter a bodyweight of at least 30 kg.</div>'; return; }
+    if (!(total > 0)) total = sq + bp + dl;
+    if (!(total > 0)) { out.innerHTML = '<div style="color:#ffa500;">Enter a total or the three lifts.</div>'; return; }
+
+    var dotsC = male ? DOTS_M : DOTS_F;
+    var wilksC = male ? WILKS_M : WILKS_F;
+    var dotsDen = poly(bw, dotsC, 4);
+    var wilksDen = poly(bw, wilksC, 5);
+    var dots = total * 500 / dotsDen;
+    var wilks = total * 500 / wilksDen;
+
+    function classify(score) {
+      if (score >= 500) return ['world-class', '#39ff14'];
+      if (score >= 450) return ['elite', '#39ff14'];
+      if (score >= 400) return ['advanced', '#7de3ff'];
+      if (score >= 350) return ['strong intermediate', '#ffd700'];
+      if (score >= 300) return ['solid base', '#ffa500'];
+      return ['early days', 'rgba(230,250,255,0.7)'];
+    }
+    var dcls = classify(dots), wcls = classify(wilks);
+
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      box(dots.toFixed(2), 'DOTS score') +
+      box(wilks.toFixed(2), 'Wilks score') +
+      box((dots / total).toFixed(3) + ' / ' + (wilks / total).toFixed(3), 'dots / wilks coefficient') +
+      '</div>';
+    html += '<div style="padding:8px 12px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:10px;font-size:0.85rem;">' +
+      'At ' + bw + ' kg with a ' + total + ' kg total, your DOTS is <strong style="color:' + dcls[1] + ';">' + dots.toFixed(2) + '</strong> (' + dcls[0] + ') ' +
+      'and your Wilks is <strong style="color:' + wcls[1] + ';">' + wilks.toFixed(2) + '</strong> (' + wcls[0] + ').</div>';
+    html += '<div style="font-size:0.85rem;color:rgba(230,250,255,0.8);">' +
+      'A 500 DOTS is roughly the level of a national champion in the lighter classes; world records sit around 600.' +
+      '</div>';
+    out.innerHTML = html;
+  }
+
+  $('dots-go').addEventListener('click', run);
+  run();
+})();
+</script>

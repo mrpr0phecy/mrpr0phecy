@@ -175,9 +175,7 @@ const aquariumList = [
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
 const gapFillMap = {
   'hike-time-planner': 'Science & Engineering',
-  'bike-gear-calculator': 'Science & Engineering',
   'photo-exposure-lab': 'Science & Engineering',
-  'race-pace-predictor': 'Health & Fitness',
   'baby-sleep-planner': 'Health & Fitness',
   'energy-tariff-comparator': 'Finance & Money',
   'unit-price-comparator': 'Finance & Money',
@@ -185,6 +183,63 @@ const gapFillMap = {
   'fabric-yardage-estimator': 'Productivity & Lifestyle',
   'car-care-tracker': 'Home & DIY'
 };
+
+const sportsList = [
+  'cricket-chase-calculator',
+  'football-points-needed',
+  'tournament-bracket-generator',
+  'golf-whs-handicap-calculator',
+  'darts-checkout-calculator',
+  'cycling-power-speed-calculator',
+  'swimming-pace-calculator',
+  'tennis-live-scorer',
+  'basketball-efficiency-calculator',
+  'youth-team-rotation-planner',
+  'cricket-net-run-rate-calculator',
+  'snooker-scorer-and-snookers',
+  'darts-average-and-leg-tracker',
+  'golf-stableford-scorecard-calculator',
+  'rugby-points-score-builder',
+  'running-cadence-stride-calculator',
+  'baseball-stats-calculator',
+  'betting-odds-each-way-calculator',
+  'athletics-decathlon-points-calculator',
+  'motorsport-lap-time-stint-calculator',
+  'bowling-score-calculator',
+  'badminton-scorekeeper',
+  'volleyball-score-sheet',
+  'ice-hockey-goalie-stats',
+  'powerlifting-dots-wilks-score',
+  'table-tennis-scorekeeper',
+  'archery-score-calculator',
+  'formula1-championship-points',
+  'round-robin-fixture-generator',
+  'rowing-erg-pace-calculator',
+  // Folded in from other categories (were default/Health/Science):
+  'boxing-fight-decision-predictor',
+  'boxing-judge-criteria-trainer',
+  'boxing-knockdown-count-rules',
+  'boxing-punch-stat-tracker',
+  'boxing-round-by-round-analyzer',
+  'boxing-round-timer-bell',
+  'boxing-scorecard-comparator',
+  'boxing-ten-point-must-scorecard',
+  'boxing-three-judge-simulator',
+  'boxing-weight-class-checker',
+  'premier-league',
+  'bike-gear-calculator',
+  'race-pace-predictor',
+  'chess-elo-rating-calculator',
+  'diving-score-calculator',
+  'bouldering-score-calculator',
+  'gymnastics-score-calculator',
+  'triathlon-race-planner',
+  'netball-scorekeeper',
+  'handball-scorekeeper',
+  'curling-score-calculator',
+  'showjumping-faults-calculator',
+  'weightlifting-sinclair-score'
+];
 
 const wellbeingList = [
   'difficult-conversation-scripter',
@@ -341,11 +396,50 @@ const homeDIYList = [
   'decking-calculator',
   'gravel-calculator',
   'fence-calculator',
-  'plastering-calculator'
+  'plastering-calculator',
+  'stud-framing-calculator',
+  'board-foot-lumber-calculator',
+  'stair-stringer-calculator',
+  'roof-pitch-rafter-calculator',
+  'drywall-calculator',
+  'room-btu-hvac-calculator',
+  'miter-bevel-angle-calculator',
+  'laminate-flooring-calculator',
+  'deck-joist-span-calculator',
+  'grout-adhesive-calculator'
+];
+
+const demosList = [
+  'monte-carlo-pi-estimator',
+  'conways-game-of-life',
+  'mandelbrot-set-explorer',
+  'bifurcation-diagram-logistic-map',
+  'fourier-series-synthesizer',
+  'galton-board-central-limit',
+  'buffons-needle-pi',
+  'lorenz-attractor',
+  'barnsley-fern-fractal',
+  'eulers-identity-rotation'
+];
+
+const csList = [
+  'sorting-algorithm-visualizer',
+  'pathfinding-algorithm-visualizer',
+  'towers-of-hanoi',
+  'neural-network-playground',
+  'big-o-complexity-explorer',
+  'cellular-automata-explorer',
+  'huffman-coding-compression',
+  'classical-cipher-suite',
+  'recursion-memoization-explorer',
+  'binary-bits-bitwise-playground'
 ];
 
 function getCategory(name) {
   if (gapFillMap[name]) return gapFillMap[name];
+  if (sportsList.includes(name)) return 'Sports';
+  if (demosList.includes(name)) return 'Mind-Blowing Demos';
+  if (csList.includes(name)) return 'Algorithms & Computer Science';
   if (wellbeingList.includes(name)) return 'Wellbeing & Community';
   if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
