@@ -1,0 +1,143 @@
+<h2 id="caf-title" style="margin-top:0;color:var(--accent);">☕ Will You Sleep Tonight? (Caffeine Check)</h2>
+
+<p id="caf-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+  Caffeine has a half-life of roughly five hours, which is why the 4pm espresso is still in your system at midnight. Log what you drank and when, and find out how much will still be circulating at bedtime.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+  <div>
+    <label for="caf-drink" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">☕ What you had</label>
+    <select id="caf-drink" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.95rem;">
+      <option value="80">Coffee (mug) — 80 mg</option>
+      <option value="65">Espresso (shot) — 65 mg</option>
+      <option value="160">Energy drink (can) — 160 mg</option>
+      <option value="35">Cola (can) — 35 mg</option>
+      <option value="40">Tea (cup) — 40 mg</option>
+      <option value="20">Green tea — 20 mg</option>
+    </select>
+  </div>
+  <div>
+    <label for="caf-count" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">🔢 How many</label>
+    <input id="caf-count" type="number" min="1" max="20" value="2" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:1rem;" />
+  </div>
+  <div>
+    <label for="caf-time" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">🕒 Time of last one</label>
+    <input id="caf-time" type="time" value="16:00" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:1rem;" />
+  </div>
+  <div>
+    <label for="caf-bed" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">🛏️ Bedtime</label>
+    <input id="caf-bed" type="time" value="23:00" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:1rem;" />
+  </div>
+</div>
+
+<div style="margin-bottom:16px;">
+  <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">
+    <span>🧬 Your caffeine half-life</span><span id="caf-halflifev" style="color:var(--accent);font-weight:700;">5 hrs</span>
+  </div>
+  <input id="caf-halflife" type="range" min="3" max="7" step="0.5" value="5" style="width:100%;accent-color:#2dd4ff;" />
+</div>
+
+<div id="caf-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,0.05);text-align:center;"></div>
+
+<canvas id="caf-canvas" width="728" height="140" style="width:100%;height:auto;border-radius:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.05);display:block;margin-top:16px;"></canvas>
+
+<details class="small" style="margin-top:16px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Methodology (caffeine decay)</summary>
+  <p style="margin-top:8px;">
+    Caffeine is eliminated roughly exponentially, with a half-life of 3&ndash;7 hours depending on the person. This tool models
+    that decay from your last drink to bedtime: remaining = dose &times; 0.5^(hours &divide; half-life). Typical doses per serving are
+    approximations. About 100 mg still circulating at bedtime is enough to notice.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); }
+
+  function toMin(t) { var p = t.split(':'); return parseInt(p[0], 10) * 60 + parseInt(p[1], 10); }
+
+  function compute() {
+    var perDrink = parseInt($('caf-drink').value, 10) || 0;
+    var count = Math.max(1, parseInt($('caf-count').value, 10) || 1);
+    var half = parseFloat($('caf-halflife').value) || 5;
+    var t0 = toMin($('caf-time').value || '0:00');
+    var tBed = toMin($('caf-bed').value || '0:00');
+    $('caf-halflifev').textContent = half + (half === 1 ? ' hr' : ' hrs');
+
+    var dose = perDrink * count;
+    // hours between last drink and bedtime (handle overnight)
+    var hours = (tBed - t0) / 60;
+    if (hours < 0) hours += 24;
+    var remaining = dose * Math.pow(0.5, hours / half);
+
+    var cups = remaining / 80;
+
+    var verdict, col, blurb;
+    if (remaining < 25) { verdict = '😴 You\u2019ll sleep fine'; col = '#39ff14'; blurb = 'Barely ' + Math.round(remaining) + ' mg left by bedtime — well under the "keeps you up" threshold. Sweet dreams.'; }
+    else if (remaining < 50) { verdict = '🙂 Probably fine'; col = '#7ef9ff'; blurb = 'About ' + Math.round(remaining) + ' mg still circulating. Most people sleep through this. A few won\u2019t. You\u2019ll find out which one you are.'; }
+    else if (remaining < 100) { verdict = '😬 Borderline'; col = '#ffd700'; blurb = 'Roughly ' + Math.round(remaining) + ' mg at bedtime — about ' + cups.toFixed(1).replace(/\.0$/, '') + ' espresso\u2019s worth. You might lie awake wondering why you\u2019re awake. That\u2019s why.'; }
+    else if (remaining < 200) { verdict = '🦉 You\u2019re basically nocturnal now'; col = '#ff9f43'; blurb = Math.round(remaining) + ' mg onboard at bedtime. That\u2019s a whole extra coffee\u2019s worth of "hello 1am, nice to see you again". Maybe read a book.'; }
+    else { verdict = '🚨 Caffeine: still clocked in'; col = '#ff4d4d'; blurb = Math.round(remaining) + ' mg will still be working the night shift in your bloodstream. Consider this your formal warning. Tomorrow, cut off at lunchtime.'; }
+
+    var html = '<div style="font-size:2rem;font-weight:800;color:' + col + ';">' + Math.round(remaining) + ' mg</div>';
+    html += '<div style="font-size:0.9rem;color:rgba(230,250,255,0.7);">still in your system at bedtime (&asymp; ' + cups.toFixed(1).replace(/\.0$/, '') + ' cups of coffee)</div>';
+    html += '<div style="font-size:1.1rem;font-weight:800;color:' + col + ';margin-top:12px;">' + verdict + '</div>';
+    html += '<div style="font-size:0.95rem;color:rgba(230,250,255,0.85);margin-top:8px;max-width:460px;margin-left:auto;margin-right:auto;">' + blurb + '</div>';
+    html += '<div style="font-size:0.8rem;color:rgba(230,250,255,0.55);margin-top:12px;">' + dose + ' mg total &middot; ' + hours.toFixed(1) + ' hrs until bed &middot; half-life ' + half + ' hrs</div>';
+    $('caf-out').innerHTML = html;
+
+    drawCurve(dose, half, hours);
+  }
+
+  function drawCurve(dose, half, span) {
+    var c = $('caf-canvas');
+    var ctx = c.getContext('2d');
+    var W = 728, H = 140, pad = 30;
+    ctx.clearRect(0, 0, W, H);
+    var maxT = Math.max(span, 8);
+    function x(t) { return pad + (t / maxT) * (W - pad * 2); }
+    function y(mg) { return H - pad - (mg / dose) * (H - pad * 2); }
+
+    // grid + axis
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillStyle = 'rgba(230,250,255,0.5)';
+    ctx.font = '10px sans-serif';
+    for (var t = 0; t <= maxT; t += 2) {
+      ctx.beginPath(); ctx.moveTo(x(t), pad); ctx.lineTo(x(t), H - pad); ctx.stroke();
+      ctx.fillText(t + 'h', x(t) - 4, H - pad + 12);
+    }
+    ctx.fillText(dose + ' mg', 2, pad - 6);
+
+    // curve
+    ctx.strokeStyle = '#2dd4ff';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    var steps = 100;
+    for (var i = 0; i <= steps; i++) {
+      var t = (i / steps) * maxT;
+      var mg = dose * Math.pow(0.5, t / half);
+      if (i === 0) ctx.moveTo(x(t), y(mg)); else ctx.lineTo(x(t), y(mg));
+    }
+    ctx.stroke();
+
+    // bedtime marker
+    if (span <= maxT) {
+      var rem = dose * Math.pow(0.5, span / half);
+      ctx.strokeStyle = 'rgba(255,77,77,0.7)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(x(span), pad); ctx.lineTo(x(span), H - pad); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ff4d4d';
+      ctx.beginPath(); ctx.arc(x(span), y(rem), 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillText('bedtime', x(span) - 18, y(rem) - 8);
+    }
+  }
+
+  ['caf-drink', 'caf-count', 'caf-time', 'caf-bed', 'caf-halflife'].forEach(function (id) {
+    $(id).addEventListener('input', compute);
+    $(id).addEventListener('change', compute);
+  });
+  compute();
+})();
+</script>

@@ -1,0 +1,105 @@
+<h2 id="mmt-title" style="margin-top:0;color:var(--accent);">⏳ Memento Mori Life Ticker</h2>
+
+<p id="mmt-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+  Your life, visualised as a grid of weeks — then converted into how many summers, books and Sunday roasts you have left. Not to scare you. To make the next one count.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+  <div>
+    <label for="mmt-age" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">🎂 Your age</label>
+    <input id="mmt-age" type="number" min="1" max="110" value="30" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:1rem;" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">
+      <span>🪦 Life expectancy</span><span id="mmt-expectv" style="color:var(--accent);font-weight:700;">80 yrs</span>
+    </div>
+    <input id="mmt-expect" type="range" min="60" max="100" value="80" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+</div>
+
+<canvas id="mmt-canvas" width="728" height="184" style="width:100%;height:auto;border-radius:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.05);display:block;margin-bottom:16px;"></canvas>
+
+<div id="mmt-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,0.05);"></div>
+
+<details class="small" style="margin-top:16px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Methodology (gentle)</summary>
+  <p style="margin-top:8px;">
+    One square = one week, 52 squares = one year. Filled squares are already spent; empty ones are still on the board.
+    The &ldquo;how many more&rdquo; list is just arithmetic &mdash; the point is that big numbers become small when you count
+    them in experiences, which is exactly why this tool exists. No data leaves your browser.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function compute() {
+    var age = Math.max(0, Math.min(110, parseInt($('mmt-age').value, 10) || 0));
+    var expectancy = parseInt($('mmt-expect').value, 10) || 80;
+    $('mmt-expectv').textContent = expectancy + ' yrs';
+
+    var lived = age * 52;
+    var total = expectancy * 52;
+    var left = Math.max(0, total - lived);
+    var yearsLeft = Math.max(0, expectancy - age);
+    var pct = total > 0 ? (lived / total) * 100 : 0;
+
+    // draw the weeks grid
+    var c = $('mmt-canvas');
+    var ctx = c.getContext('2d');
+    var W = 728, cell = 7, gap = 3, cols = 52, rows = Math.ceil(total / 52);
+    var x0 = 10, y0 = 10;
+    ctx.clearRect(0, 0, W, c.height);
+    c.height = y0 * 2 + rows * (cell + gap);
+    ctx.clearRect(0, 0, W, c.height);
+    for (var i = 0; i < total; i++) {
+      var r = Math.floor(i / cols), col = i % cols;
+      var x = x0 + col * (cell + gap), y = y0 + r * (cell + gap);
+      ctx.fillStyle = i < lived ? 'rgba(45,212,255,0.9)' : 'rgba(255,255,255,0.08)';
+      ctx.beginPath();
+      ctx.arc(x + cell / 2, y + cell / 2, cell / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // "how many more" conversions — quirky but real
+    var conversions = [
+      { label: '🌞 summers', per: 1 },
+      { label: '🎄 Christmases', per: 1 },
+      { label: '🎂 birthdays', per: 1 },
+      { label: '📚 books read', per: 12 },
+      { label: '🍕 Friday pizzas', per: 52 },
+      { label: '💇 haircuts', per: 6 },
+      { label: '🌊 beach days', per: 3 },
+      { label: '⚽ World Cups', per: 0.25 },
+      { label: '🗳️ general elections', per: 0.2 }
+    ];
+
+    var lines = '';
+    for (var i = 0; i < conversions.length; i++) {
+      var n = Math.round(yearsLeft * conversions[i].per);
+      lines += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.9rem;">' +
+        '<span style="color:rgba(230,250,255,0.75);">' + conversions[i].label + '</span>' +
+        '<span style="color:var(--accent);font-weight:700;">' + n.toLocaleString() + '</span></div>';
+    }
+
+    var tone;
+    if (yearsLeft >= 50) tone = 'The board is gloriously full. Go spend it on purpose.';
+    else if (yearsLeft >= 25) tone = 'Still a very respectable pile of weeks. Make the empty squares better than the filled ones.';
+    else if (yearsLeft >= 10) tone = 'Fewer squares than you\u2019d like \u2014 which makes each one worth more. No more \u201clater\u201d.';
+    else tone = 'A short but real runway. Spend it on people and things that matter. Start this week.';
+
+    var html = '<div style="font-size:2rem;font-weight:800;color:#7ef9ff;">' + left.toLocaleString() + ' <span style="font-size:1rem;color:rgba(230,250,255,0.6);">weeks left</span></div>';
+    html += '<div style="font-size:0.9rem;color:rgba(230,250,255,0.7);margin-top:4px;">' + lived.toLocaleString() + ' lived &middot; ' + pct.toFixed(1) + '% of the board used</div>';
+    html += '<div style="text-align:left;margin-top:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px 14px;">';
+    html += '<div style="color:var(--accent);font-weight:600;margin-bottom:8px;">🧾 What\u2019s actually left (at your pace)</div>' + lines + '</div>';
+    html += '<div style="margin-top:14px;font-size:0.9rem;color:rgba(230,250,255,0.85);">' + tone + '</div>';
+    $('mmt-out').innerHTML = html;
+  }
+
+  $('mmt-age').addEventListener('input', compute);
+  $('mmt-expect').addEventListener('input', compute);
+  compute();
+})();
+</script>

@@ -1,0 +1,115 @@
+<h2 id="wth-title" style="margin-top:0;color:var(--accent);">🧥 Coat, Hoodie, or Regret?</h2>
+
+<p id="wth-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+  The daily sartorial gamble, solved. Dial in the temperature, wind and rain, tell it how long you'll be out, and it will tell you what to wear — with the correct level of weather-based sass.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">
+      <span>🌡️ Temperature</span><span id="wth-tempv" style="color:var(--accent);font-weight:700;">12°C</span>
+    </div>
+    <input id="wth-temp" type="range" min="-5" max="30" value="12" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">
+      <span>💨 Wind</span><span id="wth-windv" style="color:var(--accent);font-weight:700;">calm</span>
+    </div>
+    <input id="wth-wind" type="range" min="0" max="50" value="8" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+  <div>
+    <label for="wth-rain" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">🌧️ Rain situation</label>
+    <select id="wth-rain" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.95rem;">
+      <option value="none" selected>Dry</option>
+      <option value="drizzle">Light drizzle</option>
+      <option value="rain">Proper rain</option>
+      <option value="storm">Rain + wind (horizontal water)</option>
+    </select>
+  </div>
+  <div>
+    <label for="wth-out" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">🚶 How long you'll be out</label>
+    <select id="wth-out" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.95rem;">
+      <option value="short" selected>5 minutes (bin run)</option>
+      <option value="walk">A walk (30 min)</option>
+      <option value="long">Hours (commute / hike)</option>
+    </select>
+  </div>
+</div>
+
+<div style="margin-bottom:16px;">
+  <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">
+    <span>🇬🇧 How "it'll be fine" is your optimism?</span><span id="wth-optv" style="color:var(--accent);font-weight:700;">3/5</span>
+  </div>
+  <input id="wth-opt" type="range" min="1" max="5" value="3" style="width:100%;accent-color:#2dd4ff;" />
+</div>
+
+<div id="wth-result" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,0.05);text-align:center;"></div>
+
+<details class="small" style="margin-top:16px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Methodology (feels-like science)</summary>
+  <p style="margin-top:8px;">
+    "Feels like" uses a simple wind-chill approximation so a 12&deg;C day with a stiff breeze dresses like a 7&deg;C day.
+    Recommendations also account for duration and rain, because the correct coat for a two-minute bin run is a braver statement
+    than the correct coat for a three-hour hike. Optimism is included as a correction factor with a straight face.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); }
+
+  function windLabel(kmh) {
+    if (kmh < 5) return 'calm';
+    if (kmh < 20) return 'breezy';
+    if (kmh < 38) return 'windy';
+    return 'gale';
+  }
+
+  function compute() {
+    var temp = parseInt($('wth-temp').value, 10) || 0;
+    var wind = parseInt($('wth-wind').value, 10) || 0;
+    var rain = $('wth-rain').value;
+    var dur = $('wth-out').value;
+    var opt = parseInt($('wth-opt').value, 10) || 3;
+
+    $('wth-tempv').textContent = temp + '\u00b0C';
+    $('wth-windv').textContent = windLabel(wind);
+    $('wth-optv').textContent = opt + '/5';
+
+    // rough wind chill
+    var feels = temp;
+    if (temp < 10 && wind >= 5) feels = Math.round(13.12 + 0.6215 * temp - 11.37 * Math.pow(wind, 0.16) + 0.3965 * temp * Math.pow(wind, 0.16));
+
+    var outfit, acc, verdict, col;
+    var wet = rain !== 'none';
+    var long = dur === 'long';
+    var short = dur === 'short';
+
+    if (feels >= 22 && !wet) { outfit = '👕 T-shirt weather'; acc = 'Sunglasses optional. You\u2019ve won the weather lottery.'; col = '#39ff14'; verdict = 'Properly nice out. Enjoy it before the clouds notice.'; }
+    else if (feels >= 15) { outfit = '👕 T-shirt + light layer'; acc = long ? 'A light jacket folded in the bag, just in case.' : 'You\u2019re fine as is.'; col = '#39ff14'; verdict = wet ? 'Nice temperature, shame about the sky. Layer up light, carry a brolly.' : 'Light layers. The kind of day where a cardigan is a power move.'; }
+    else if (feels >= 8) { outfit = '🧥 A proper coat or thick hoodie'; acc = wet ? 'And an umbrella. And a sense of resignation.' : 'Zip it up, you\u2019ll thank yourself.'; col = '#ffd700'; verdict = 'Hoodie-and-hope territory. The coat is the correct call, the hoodie is the brave one.'; }
+    else if (feels >= 0) { outfit = '🧥 Coat + scarf territory'; acc = wet ? 'Waterproof one. Wet cold is the villain of weather.' : 'Scarf and maybe gloves for the hands-in-pockets crowd.'; col = '#ff9f43'; verdict = 'Coat. No further questions. Your hoodie is not equipped for this.'; }
+    else { outfit = '🧊 Full winter armour'; acc = 'Coat, scarf, gloves, hat. Layers like an onion.'; col = '#ff4d4d'; verdict = 'It\u2019s genuinely cold. Dress like you\u2019re surviving, not strolling.'; }
+
+    if (short && feels >= 5 && !wet) { verdict = 'It\u2019s a 5-minute bin run — your bravest hoodie will do. The neighbours will not judge your life choices in that time.'; }
+    if (opt >= 4 && feels < 8 && !wet) { verdict = 'Your optimism is inspiring. You\u2019ll still want the coat. Optimism does not have sleeves.'; }
+    if (opt <= 2 && feels >= 15) { verdict = 'Even by your cautious standards, this is mild. A light layer is enough. You may unbunch your shoulders.'; }
+    if (rain === 'storm') { acc = 'Waterproof everything. This is horizontal-rain weather and no amount of optimism helps.'; }
+
+    var html = '<div style="font-size:2.2rem;font-weight:800;color:' + col + ';">' + outfit + '</div>';
+    html += '<div style="font-size:1rem;color:rgba(230,250,255,0.85);margin-top:8px;max-width:440px;margin-left:auto;margin-right:auto;">' + verdict + '</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:16px;">';
+    html += '<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;"><div style="font-size:0.75rem;color:rgba(230,250,255,0.6);">feels like</div><div style="font-size:1.15rem;font-weight:700;color:var(--accent);">' + feels + '\u00b0C</div></div>';
+    html += '<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;"><div style="font-size:0.75rem;color:rgba(230,250,255,0.6);">accessories</div><div style="font-size:0.95rem;font-weight:700;color:var(--accent);max-width:220px;">' + acc + '</div></div>';
+    html += '</div>';
+    $('wth-result').innerHTML = html;
+  }
+
+  ['wth-temp', 'wth-wind', 'wth-rain', 'wth-out', 'wth-opt'].forEach(function (id) {
+    $(id).addEventListener('input', compute);
+    $(id).addEventListener('change', compute);
+  });
+  compute();
+})();
+</script>

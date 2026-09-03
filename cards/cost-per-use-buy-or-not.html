@@ -1,0 +1,97 @@
+<h2 id="cpu-title" style="margin-top:0;color:var(--accent);">🛒 Cost-Per-Use: Should You Buy It?</h2>
+
+<p id="cpu-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+  The antidote to impulse buying. Feed it a price and honest usage guesses, and it tells you whether that thing is a bargain, a luxury, or a future eBay listing.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+  <div>
+    <label for="cpu-price" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">💷 Price (£)</label>
+    <input id="cpu-price" type="number" min="0" step="0.01" value="80" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:1rem;" />
+  </div>
+  <div>
+    <label for="cpu-years" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">📅 Years you'll keep it</label>
+    <input id="cpu-years" type="number" min="0" step="0.5" value="3" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:1rem;" />
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;">
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">
+      <span>🔁 Uses per year</span><span id="cpu-usesv" style="color:var(--accent);font-weight:700;">52</span>
+    </div>
+    <input id="cpu-uses" type="range" min="1" max="365" value="52" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">
+      <span>⏱️ Hours per use</span><span id="cpu-hoursv" style="color:var(--accent);font-weight:700;">1 hr</span>
+    </div>
+    <input id="cpu-hours" type="range" min="0.1" max="8" step="0.1" value="1" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">
+      <span>✨ Joy factor</span><span id="cpu-joyv" style="color:var(--accent);font-weight:700;">3/5</span>
+    </div>
+    <input id="cpu-joy" type="range" min="1" max="5" value="3" style="width:100%;accent-color:#2dd4ff;" />
+  </div>
+</div>
+
+<div id="cpu-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,0.05);text-align:center;"></div>
+
+<details class="small" style="margin-top:16px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Methodology (the maths of regret)</summary>
+  <p style="margin-top:8px;">
+    Cost-per-use = price &divide; total uses over the keeping period. Cost-per-hour-of-joy divides again by hours per use and
+    weights by the joy factor, because a £300 guitar you play daily beats a £30 gadget you touch once. All estimates, no judgement
+    &mdash; except the tiny bit of judgement at the end.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  function compute() {
+    var price = Math.max(0, parseFloat($('cpu-price').value) || 0);
+    var years = Math.max(0, parseFloat($('cpu-years').value) || 0);
+    var uses = parseInt($('cpu-uses').value, 10) || 0;
+    var hours = parseFloat($('cpu-hours').value) || 0;
+    var joy = parseInt($('cpu-joy').value, 10) || 3;
+
+    $('cpu-usesv').textContent = uses + (uses === 1 ? ' use' : ' uses');
+    $('cpu-hoursv').textContent = hours + (hours === 1 ? ' hr' : ' hrs');
+    $('cpu-joyv').textContent = joy + '/5';
+
+    var totalUses = uses * years;
+    var cpe = totalUses > 0 ? price / totalUses : 0;
+    var perYear = years > 0 ? price / years : price;
+    var joyHours = totalUses * hours;
+    var cphj = joyHours > 0 ? price / joyHours : 0;
+    var joyCpe = cphj * (5 / joy);
+
+    var verdict, col, blurb;
+    if (price === 0) { verdict = 'It\u2019s free'; col = '#39ff14'; blurb = 'The best possible price. The only cost is the drawer space it will occupy when you stop using it.'; }
+    else if (cpe < 0.1) { verdict = 'Buy once, cry once'; col = '#39ff14'; blurb = 'At ' + cpe.toFixed(2).replace(/^0/, '0') + 'p a use this is a workhorse. Cheaper than a bus fare. Buy it and stop thinking about it.'; }
+    else if (cpe < 0.5) { verdict = 'Genuinely worth it'; col = '#7ef9ff'; blurb = 'Solid value \u2014 roughly ' + (cpe * 100).toFixed(0) + 'p every time you touch it. If you\u2019ll really use it that often, it earns its shelf space.'; }
+    else if (cpe < 2) { verdict = 'Borderline \u2014 rent or borrow first'; col = '#ffd700'; blurb = 'Not outrageous, but you\u2019re paying real money per use. Ask a friend to lend you theirs. If you still want it after a month, come back.'; }
+    else if (cpe < 5) { verdict = 'Luxury territory'; col = '#ff9f43'; blurb = 'You\u2019re paying pounds, not pennies, every use. Fine if it genuinely sparks joy \u2014 just be honest that it\u2019s a treat, not a tool.'; }
+    else { verdict = 'Step away from the basket'; col = '#ff4d4d'; blurb = 'This will be a future eBay listing. You\u2019ll use it twice, love it for a week, then it becomes a very expensive paperweight. Rent it instead.'; }
+
+    var html = '<div style="font-size:1.5rem;font-weight:800;color:' + col + ';">' + verdict + '</div>';
+    html += '<div style="font-size:0.95rem;color:rgba(230,250,255,0.85);margin-top:8px;max-width:460px;margin-left:auto;margin-right:auto;">' + blurb + '</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:16px;">';
+    html += '<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;min-width:120px;"><div style="font-size:0.75rem;color:rgba(230,250,255,0.6);">cost per use</div><div style="font-size:1.15rem;font-weight:700;color:var(--accent);">' + (cpe < 1 ? cpe.toFixed(2) + 'p' : '\u00a3' + cpe.toFixed(2)) + '</div></div>';
+    html += '<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;min-width:120px;"><div style="font-size:0.75rem;color:rgba(230,250,255,0.6);">cost per year</div><div style="font-size:1.15rem;font-weight:700;color:var(--accent);">\u00a3' + perYear.toFixed(2) + '</div></div>';
+    html += '<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;min-width:120px;"><div style="font-size:0.75rem;color:rgba(230,250,255,0.6);">per hour of joy</div><div style="font-size:1.15rem;font-weight:700;color:var(--accent);">' + (joyCpe < 1 ? joyCpe.toFixed(2) + 'p' : '\u00a3' + joyCpe.toFixed(2)) + '</div></div>';
+    html += '</div>';
+    html += '<div style="font-size:0.8rem;color:rgba(230,250,255,0.55);margin-top:12px;">' + uses.toLocaleString() + ' uses/yr \u00d7 ' + years + ' yrs = ' + Math.round(totalUses).toLocaleString() + ' total uses (' + Math.round(joyHours).toLocaleString() + ' hrs of joy)</div>';
+    $('cpu-out').innerHTML = html;
+  }
+
+  ['cpu-price', 'cpu-years', 'cpu-uses', 'cpu-hours', 'cpu-joy'].forEach(function (id) {
+    $(id).addEventListener('input', compute);
+  });
+  compute();
+})();
+</script>
