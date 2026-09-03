@@ -173,6 +173,19 @@ document.querySelectorAll('.portal').forEach(portal => {
   });
 });
 
+// ===== SAFE MATH EVALUATOR (no eval!) =====
+function safeMathEval(expr) {
+  // Whitelist: only allow numbers, operators, parentheses, Math functions, and known constants
+  const sanitized = expr
+    .replace(/Math\.(PI|E|sqrt|sin|cos|tan|log10|log|abs|pow|cbrt|floor|ceil|round|random|PI)/g, '§$1§')
+    .replace(/[0-9+\-*/().%\s§]/g, '')
+    .replace(/§/g, '');
+  // If anything remains, it's not a safe math expression
+  if (sanitized.length > 0) throw new Error('Unsafe expression');
+  // Use Function constructor with only Math in scope
+  return new Function('Math', 'return (' + expr + ')')(Math);
+}
+
 // ===== ADVANCED CALCULATION ENGINE =====
 function calculate(expression) {
   try {
@@ -181,7 +194,7 @@ function calculate(expression) {
       .replace(/×/g, '*')
       .replace(/÷/g, '/')
       .replace(/π/g, 'Math.PI')
-      .replace(/e/g, 'Math.E')
+      .replace(/e(?![a-z])/g, 'Math.E')
       .replace(/√\(/g, 'Math.sqrt(')
       .replace(/√/g, 'Math.sqrt')
       .replace(/\^/g, '**')
@@ -200,8 +213,8 @@ function calculate(expression) {
       }
     }
     
-    // Calculate
-    const result = eval(expr);
+    // Calculate safely (no eval!)
+    const result = safeMathEval(expr);
     
     // Generate proof
     generateProof(expression, result);
@@ -462,7 +475,7 @@ function drawFunction(equation, ctx, canvas) {
       
       let y;
       try {
-        y = eval(expr);
+        y = safeMathEval(expr);
       } catch {
         y = 0;
       }
@@ -558,9 +571,12 @@ function quantumMode() {
   const input = document.getElementById('equationInput').textContent;
   const insightsList = document.getElementById('insightsList');
   
+  let baseVal = 0;
+  try { baseVal = safeMathEval(input.replace(/×/g,'*').replace(/÷/g,'/').replace(/π/g,'Math.PI')); } catch(e) {}
+  
   insightsList.innerHTML = `
     <div class="insight">⚛️ Quantum superposition of results:</div>
-    <div class="insight">• |ψ⟩ = 0.5|${eval(input)}⟩ + 0.5|${eval(input)+1}⟩ + 0.5|${eval(input)-1}⟩</div>
+    <div class="insight">• |ψ⟩ = 0.5|${baseVal}⟩ + 0.5|${baseVal+1}⟩ + 0.5|${baseVal-1}⟩</div>
     <div class="insight">• All answers exist until observed</div>
     <div class="insight">• Mathematical truth is probabilistic</div>
     <div class="insight">• Collapse the wavefunction by clicking =</div>
