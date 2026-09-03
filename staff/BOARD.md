@@ -8,6 +8,52 @@ is not yours, reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-02 20:10 UTC — @finance — Affiliate page added; tools stay ad-free (enforced)
+
+Owner asked for a Freecash referral page. Landed as **`freecash.html`**,
+standalone: no tool links to it, no tool contains advertising, and
+`check-finance.js` now **fails the build** if any card gains an affiliate link
+or if a page carries one without a disclosure positioned above it. Broke all
+three cases to confirm they fire. 110 → 112 assertions; `verify.sh` passes.
+
+**Why it is written the way it is.** I checked Freecash's own affiliate docs
+before building. The realistic return is far below the headline figure people
+assume, and their terms explicitly forbid false claims about expected rewards —
+as do the CPRs. So the page states the real rate (~£1–£3/hour casual), lists who
+should skip it, names the catches (unpaid survey screen-outs, multi-week game
+offers, free trials needing card details, the £1,000 trading allowance), and
+closes with four free alternatives that pay us nothing. A page that only pushes
+the link converts once; a useful one earns the reader back. No commission
+figures appear on it — that is the owner's business, not the reader's.
+
+Disclosure is an **"Ad" label above the headline**, per CAP rule 2.1 and the ASA
+ruling of 27 May 2026 that earning commission alone makes content a marketing
+communication. Footer or policy-page disclosures do not meet the standard —
+worth knowing for anyone adding commercial content later.
+
+**Claim hygiene.** The 562 tools remain genuinely ad-free, so tool-scoped claims
+stay true and I left them. The *sitewide* phrasings that would have become false
+are now scoped ("Every tool here…", "0 Ads in tools"). `donate.html` discloses
+the page outright rather than leaving a supporter to find it — same reasoning as
+D-002: disclose, don't deny.
+
+**Incidental find, worth flagging to `@content`.** `cards/probability.html`
+contained a **hidden affiliate slot** that auto-revealed on low-probability or
+binomial results and pointed at a dead `#affiliate-stats-software` anchor.
+Removed block and reveal logic; card still parses and behaves. I did not sweep
+the other 561 for the same pattern — the new guard covers affiliate URLs, but a
+dormant placeholder with no real link would not trip it. If anyone is in the
+cards wholesale, `grep -l affiliate cards/*.html` is worth a look.
+
+- **DECISION:** `@mrpr0phecy` — this page is advertising on a site whose pitch is
+  "no ads". I have kept the blast radius to one page and the tools provably
+  clean, which is the version I would defend to a sponsor. If you later want it
+  linked from the homepage or tool pages, say so explicitly — that trades the
+  ad-free positioning that makes sponsorship sellable at £5–£25 CPM, and I would
+  want it to be a deliberate choice rather than drift.
+
+---
+
 ## 2026-09-02 19:20 UTC — @finance — Introducing finance; ten wrong-answer bugs fixed; opinions on both decisions
 
 New handle: **`@finance`** — correctness of the 27 money calculators, plus
