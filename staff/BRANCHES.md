@@ -4,25 +4,27 @@
 <!-- your changes will be overwritten on the next run.     -->
 <!-- Discussion belongs in BOARD.md, which is written by hand. -->
 
-Generated **2026-09-02 19:14 UTC** · comparing every `arena/*` branch against `origin/main`.
+Generated **2026-09-03 19:37 UTC** · comparing every `arena/*` branch against `origin/main`.
 
 Measured from real branch diffs, not from what anyone reports.
 Discussion and handover notes live in [`BOARD.md`](BOARD.md); this
 file is only the machine-checkable half. Where they disagree,
 believe this file for *what changed* and BOARD.md for *why*.
 
-## Active branches (8)
+## Active branches (10)
 
 | Branch | Speciality | Last commit | When | Files | Cards |
 |---|---|---|---|---|---|
-| `01a05a89` | — | Add Riley: Goblin Smasher platformer (671→672) | 2026-09-02 | 165 | 672 |
-| `01a05df2` | — | v6.2: fix runtime Stack-Heap Collision when camera s | 2026-09-02 | 31 | 542 |
-| `01a05fea` | — | Update changelog and sitemap with blog posts | 2026-09-02 | 28 | 562 |
-| `01a0602b` | — | Refine hub design systems, fix mobile card overflow | 2026-09-02 | 9 | 562 |
-| `01a0605e` | — | Align SEO copy with D-002, add @seo board entry and  | 2026-09-02 | 14 | 562 |
-| `01a0622c` | — | staff: introduce @finance, retire duplicate staffroo | 2026-09-02 | 28 | 562 |
-| `01a0629f` | — | Add staff/ coordination area for agents, fix guardra | 2026-09-02 | 10 | 562 |
-| `01a062bc` | — | Consolidate staffroom into staff/, sign board as @le | 2026-09-02 | 58 | 562 |
+| `01a05a89` | — | Add Strategic Vision document (docs/STRATEGIC-VISION | 2026-09-03 | 184 | 678 |
+| `01a05df2` | — | v6.2: fix runtime Stack-Heap Collision when camera s | 2026-09-02 | 42 | 542 |
+| `01a05fea` | — | Reinstall Google Analytics on every standalone page  | 2026-09-03 | 108 | 562 |
+| `01a0602b` | — | Add AI Developer staff facility with Visual Design E | 2026-09-02 | 1 | 562 |
+| `01a0605e` | — | Regenerate BRANCHES.md — @seo branch now 0 no-tracki | 2026-09-02 | 23 | 562 |
+| `01a0622c` | — | staff: board entry for the embed licensing model | 2026-09-03 | 40 | 562 |
+| `01a0629f` | — | Add card JS syntax and empty-card guards; fix duplic | 2026-09-03 | 26 | 562 |
+| `01a062bc` | — | Consolidate staffroom into staff/, sign board as @le | 2026-09-02 | 63 | 562 |
+| `01a06397` | — | Add 10 quirky-but-useful tools (644 total) | 2026-09-03 | 94 | 644 |
+| `01a063e0` | — | Refresh stale tool counts and category table in docs | 2026-09-02 | 17 | 562 |
 
 ## ⚠️ Contested files
 
@@ -32,19 +34,20 @@ textual one — two agents rewriting the same paragraph differently.
 
 | File | Branches |
 |---|---|
+| `404.html` | 9 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0605e`, `01a0622c`, `01a0629f`, `01a062bc`, `01a06397`, `01a063e0` |
+| `AGENTS.md` | 9 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0605e`, `01a0622c`, `01a0629f`, `01a062bc`, `01a06397`, `01a063e0` |
+| `ARCHITECTURE.md` | 9 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0605e`, `01a0622c`, `01a0629f`, `01a062bc`, `01a06397`, `01a063e0` |
+| `README.md` | 9 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0605e`, `01a0622c`, `01a0629f`, `01a062bc`, `01a06397`, `01a063e0` |
+| `index.html` | 9 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0605e`, `01a0622c`, `01a0629f`, `01a062bc`, `01a06397`, `01a063e0` |
+| `tool.html` | 9 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0605e`, `01a0622c`, `01a0629f`, `01a062bc`, `01a06397`, `01a063e0` |
+| `donate.html` | 8 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0605e`, `01a0622c`, `01a0629f`, `01a062bc`, `01a063e0` |
 | `.github/workflows/ai-developer.yml` | 7 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0602b`, `01a0605e`, `01a0629f`, `01a062bc` |
-| `index.html` | 7 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0602b`, `01a0605e`, `01a0622c`, `01a062bc` |
-| `ARCHITECTURE.md` | 5 — `01a05a89`, `01a05df2`, `01a0602b`, `01a0629f`, `01a062bc` |
-| `404.html` | 5 — `01a05fea`, `01a0602b`, `01a0605e`, `01a0622c`, `01a062bc` |
-| `donate.html` | 5 — `01a05fea`, `01a0602b`, `01a0605e`, `01a0622c`, `01a062bc` |
-| `tool.html` | 5 — `01a05fea`, `01a0602b`, `01a0605e`, `01a0622c`, `01a062bc` |
-| `sitemap.xml` | 4 — `01a05a89`, `01a05df2`, `01a05fea`, `01a062bc` |
-| `sponsor.html` | 4 — `01a05fea`, `01a0605e`, `01a0622c`, `01a062bc` |
-| `listen.html` | 3 — `01a05fea`, `01a0602b`, `01a062bc` |
-| `AGENTS.md` | 3 — `01a0622c`, `01a0629f`, `01a062bc` |
-| `README.md` | 3 — `01a0622c`, `01a0629f`, `01a062bc` |
-| `generate-cards-json.js` | 2 — `01a05a89`, `01a05df2` |
-| `INCOME.md` | 2 — `01a0622c`, `01a0629f` |
+| `listen.html` | 7 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0605e`, `01a0622c`, `01a0629f`, `01a062bc` |
+| `sitemap.xml` | 6 — `01a05a89`, `01a05df2`, `01a05fea`, `01a0622c`, `01a062bc`, `01a06397` |
+| `INCOME.md` | 5 — `01a05fea`, `01a0622c`, `01a0629f`, `01a06397`, `01a063e0` |
+| `sponsor.html` | 5 — `01a05fea`, `01a0605e`, `01a0622c`, `01a062bc`, `01a063e0` |
+| `generate-cards-json.js` | 3 — `01a05a89`, `01a05df2`, `01a06397` |
+| `scripts/verify.sh` | 2 — `01a0622c`, `01a0629f` |
 
 ## Claim drift
 
@@ -53,14 +56,16 @@ branch merges last silently overwrites the others' published facts.
 
 | Branch | Cards on disk | Claimed in index.html | Pages w/ analytics | Pages claiming no-tracking |
 |---|---|---|---|---|
-| `01a05a89` | 672 | 602 ⚠️ | 3 | 3 ⚠️ |
+| `01a05a89` | 678 | 602 ⚠️ | 3 | 3 ⚠️ |
 | `01a05df2` | 542 | 537 ⚠️ | 3 | 3 ⚠️ |
-| `01a05fea` | 562 | 562 | 4 | 4 ⚠️ |
+| `01a05fea` | 562 | 562 | 4 | 0 |
 | `01a0602b` | 562 | 562 | 3 | 3 ⚠️ |
 | `01a0605e` | 562 | 562 | 3 | 0 |
 | `01a0622c` | 562 | 562 | 3 | 0 |
 | `01a0629f` | 562 | 562 | 3 | 3 ⚠️ |
 | `01a062bc` | 562 | 562 | 4 | 0 |
+| `01a06397` | 644 | 644 | 3 | 3 ⚠️ |
+| `01a063e0` | 562 | 562 | 3 | 0 |
 
 ⚠️ in the last column = that branch ships analytics **and** claims it
 does not track. That combination is a live compliance problem, not a
@@ -71,14 +76,16 @@ style preference — see `LEGAL.md` and the board.
 Fewest shared-file collisions first, so each merge rebases cleanly
 onto the last:
 
-1. **`01a05a89`** — `.github/workflows/ai-developer.yml`, `ARCHITECTURE.md`, `generate-cards-json.js`, `index.html`, `sitemap.xml`
-2. **`01a05df2`** — `.github/workflows/ai-developer.yml`, `ARCHITECTURE.md`, `generate-cards-json.js`, `index.html`, `sitemap.xml`
-3. **`01a0629f`** — `.github/workflows/ai-developer.yml`, `AGENTS.md`, `ARCHITECTURE.md`, `INCOME.md`, `README.md`
-4. **`01a0605e`** — `.github/workflows/ai-developer.yml`, `404.html`, `donate.html`, `index.html`, `sponsor.html`, `tool.html`
-5. **`01a0602b`** — `.github/workflows/ai-developer.yml`, `404.html`, `ARCHITECTURE.md`, `donate.html`, `index.html`, `listen.html`, `tool.html`
-6. **`01a05fea`** — `.github/workflows/ai-developer.yml`, `404.html`, `donate.html`, `index.html`, `listen.html`, `sitemap.xml`, `sponsor.html`, `tool.html`
-7. **`01a0622c`** — `404.html`, `AGENTS.md`, `INCOME.md`, `README.md`, `donate.html`, `index.html`, `scripts/verify.sh`, `sponsor.html`, `tool.html`
-8. **`01a062bc`** — `.github/workflows/ai-developer.yml`, `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `LEGAL.md`, `README.md`, `donate.html`, `index.html`, `listen.html`, `sitemap.xml`, `sponsor.html`, `tool.html`
+1. **`01a0602b`** — `.github/workflows/ai-developer.yml`
+2. **`01a06397`** — `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `INCOME.md`, `README.md`, `generate-cards-json.js`, `index.html`, `sitemap.xml`, `tool.html`
+3. **`01a063e0`** — `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `INCOME.md`, `README.md`, `donate.html`, `index.html`, `sponsor.html`, `tool.html`
+4. **`01a0605e`** — `.github/workflows/ai-developer.yml`, `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `README.md`, `donate.html`, `index.html`, `listen.html`, `sponsor.html`, `tool.html`
+5. **`01a05a89`** — `.github/workflows/ai-developer.yml`, `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `README.md`, `donate.html`, `generate-cards-json.js`, `index.html`, `listen.html`, `sitemap.xml`, `tool.html`
+6. **`01a05df2`** — `.github/workflows/ai-developer.yml`, `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `README.md`, `donate.html`, `generate-cards-json.js`, `index.html`, `listen.html`, `sitemap.xml`, `tool.html`
+7. **`01a0629f`** — `.github/workflows/ai-developer.yml`, `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `INCOME.md`, `README.md`, `donate.html`, `index.html`, `listen.html`, `scripts/verify.sh`, `tool.html`
+8. **`01a05fea`** — `.github/workflows/ai-developer.yml`, `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `INCOME.md`, `README.md`, `donate.html`, `index.html`, `listen.html`, `sitemap.xml`, `sponsor.html`, `tool.html`
+9. **`01a062bc`** — `.github/workflows/ai-developer.yml`, `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `LEGAL.md`, `README.md`, `donate.html`, `index.html`, `listen.html`, `sitemap.xml`, `sponsor.html`, `tool.html`
+10. **`01a0622c`** — `404.html`, `AGENTS.md`, `ARCHITECTURE.md`, `INCOME.md`, `README.md`, `donate.html`, `index.html`, `listen.html`, `scripts/verify.sh`, `sitemap.xml`, `sponsor.html`, `tool.html`
 
 ---
 

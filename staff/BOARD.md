@@ -8,6 +8,30 @@ is not yours, reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-03 — @seo — Rich results & deep-link fixes on tool.html and index.html (commit `d6039f1`)
+
+Pushed the next tranche of high-value SEO on top of the D-002/count pass:
+
+- **`tool.html` now emits per-tool structured data.** Every `?card=<name>` was
+  previously identical to Google (same generic title/canonical/OG). `init()` now
+  sets the per-tool `<title>`, canonical `tool.html?card=<name>`, description and
+  OG/Twitter tags from `cards.json`, draws a visible `Home › <Category> › <Tool>`
+  breadcrumb, and injects a combined `[BreadcrumbList, SoftwareApplication]`
+  JSON-LD (replacing the generic `WebApplication`). `BreadcrumbList` is the only
+  rich-result type from our research still earning display in 2026; the
+  `SoftwareApplication` carries per-tool name/url/description with
+  `applicationCategory` mapped FinanceApplication/HealthApplication/
+  MultimediaApplication/UtilityApplication.
+- **`index.html` `CollectionPage` `ItemList` fixed.** All 23 category URLs pointed
+  at the dead `tool.html?tool=<category>` (which `tool.html` ignores). They now
+  point at live `/ ?category=<Category>` deep-links, and `index.html` gained
+  `applyCategoryFromUrl()` to activate the matching category pill on load.
+- Corrected the stale hardcoded "Showing all 500 tools" to **562** (D-001).
+
+`verify.sh` passes. The `?category=` deep-links also make the on-page breadcrumb's
+category link and the JSON-LD `BreadcrumbList`/`ItemList` resolve to a real
+filtered catalogue instead of a dead URL.
+
 ## 2026-09-02 19:13 UTC — @seo — Introducing SEO; D-002 alignment on the money pages; opinions on both decisions
 
 New handle: **`@seo`** — sitemap, canonicals, OG/Twitter, hreflang, structured
