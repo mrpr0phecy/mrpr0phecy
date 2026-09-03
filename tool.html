@@ -281,6 +281,12 @@
             <div class="related-title">More Related Tools</div>
             <div class="related-grid" id="relatedGrid"></div>
         </section>
+
+        <section id="relatedGuidesSection" style="display: none; margin-top: 32px; padding: 22px 24px; background: linear-gradient(135deg, rgba(45,212,255,0.06), rgba(57,255,20,0.04)); border: 1px solid rgba(45,212,255,0.2); border-radius: 14px;">
+          <h2 style="font-size: 1.15rem; font-weight: 800; color: #fff; margin: 0 0 4px;">📖 Want the math written out?</h2>
+          <p style="font-size: 0.92rem; color: rgba(230,250,255,0.78); margin: 0 0 14px;">The site hosts 12 long-form, math-honest definitive guides on the topics the tools calculate. Each one is the kind of structured, original, well-cited content that AI engines preferentially cite.</p>
+          <div id="relatedGuidesGrid" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+        </section>
     </main>
 
     <footer class="page-footer">
@@ -365,6 +371,34 @@
                 // Parse and inject
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
+
+                // Pull out any JSON-LD blocks (SoftwareApplication, HowTo, FAQPage, Article)
+                // that the tool body exposes. Promote them to <head> so search engines
+                // and AI engines see them. They are removed from the body to avoid
+                // running inline JSON that contains the field "script" the DOM would
+                // also try to execute.
+                const ldScripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+                const promotedSchemas = [];
+                for (const s of ldScripts) {
+                    try {
+                        const data = JSON.parse(s.textContent);
+                        // Promote only structured-data types; skip anything else
+                        const t = data && data['@type'];
+                        if (['SoftwareApplication', 'HowTo', 'FAQPage', 'Article', 'WebApplication', 'BreadcrumbList', 'Question', 'Answer', 'HowToStep'].includes(t) ||
+                            (Array.isArray(t) && t.some(x => ['SoftwareApplication', 'HowTo', 'FAQPage', 'Article', 'WebApplication', 'BreadcrumbList'].includes(x)))) {
+                            promotedSchemas.push(data);
+                        }
+                    } catch (err) {
+                        console.warn('JSON-LD parse failed for', cardName, err);
+                    }
+                    s.remove();
+                }
+                for (const data of promotedSchemas) {
+                    const s = document.createElement('script');
+                    s.type = 'application/ld+json';
+                    s.textContent = JSON.stringify(data);
+                    document.head.appendChild(s);
+                }
 
                 const scripts = Array.from(doc.querySelectorAll('script'));
                 scripts.forEach(s => s.remove());
@@ -466,6 +500,59 @@
                     document.getElementById('relatedSection').style.display = 'block';
                 }
             }
+
+            // Related guides: a small curated list of the 12 definitive guides,
+            // surfaced on every tool page. The most relevant ones come first
+            // for each category; everyone else gets a "read the full guide hub"
+            // link. Highest-ROI in-site cross-link we have.
+            const TOOL_TO_GUIDE = {
+                'mortgage': ['mortgage', 'compound-interest'],
+                'compoundinterest': ['compound-interest', 'mortgage'],
+                'bmi': ['bmi', 'wellbeing'],
+                'compound-interest': ['compound-interest'],
+                'password': ['passwords'],
+                'invoice-billing-pdf-generator': ['writing'],
+                'audio-bpm-tapper': ['music'],
+                'json-beautifier-validator': ['json', 'regex'],
+                'color-contrast-wcag-simulator': ['color'],
+                'regex-tester-explainer': ['regex', 'json'],
+                'cooking-unit-converter': ['writing'],
+                'cooking-unit-conversion-calculator': ['writing'],
+                'telescope-eyepiece-calculator': ['astronomy'],
+                'box-breathing-coach': ['wellbeing'],
+                'cover-letter-builder': ['writing'],
+            };
+            const slug = (currentMeta && currentMeta.name) || cardName;
+            const directGuides = TOOL_TO_GUIDE[slug] || [];
+            const ALL_GUIDES = [
+                { slug: 'mortgage', title: 'How mortgages really work' },
+                { slug: 'bmi', title: 'What BMI actually measures' },
+                { slug: 'compound-interest', title: 'Why compound growth is magic' },
+                { slug: 'passwords', title: 'How to choose a strong password' },
+                { slug: 'json', title: 'JSON for people who hate JSON' },
+                { slug: 'regex', title: 'Regular expressions without the pain' },
+                { slug: 'color', title: 'How to pick a colour palette' },
+                { slug: 'image', title: 'Image file formats explained' },
+                { slug: 'music', title: 'BPM, tempo, time signature' },
+                { slug: 'astronomy', title: 'How to read a star chart' },
+                { slug: 'writing', title: 'Cover letters, resumes, emails' },
+                { slug: 'wellbeing', title: 'Breathe, ground, calm down' },
+            ];
+            const ordered = [];
+            for (const g of ALL_GUIDES) {
+                if (directGuides.includes(g.slug)) ordered.push({ ...g, direct: true });
+            }
+            for (const g of ALL_GUIDES) {
+                if (!directGuides.includes(g.slug)) ordered.push({ ...g, direct: false });
+            }
+            const top = ordered.slice(0, 4);
+            const grid = document.getElementById('relatedGuidesGrid');
+            grid.innerHTML = top.map(g => `
+                <a href="guides/${g.slug}.html" style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:100px; background:${g.direct ? 'rgba(45,212,255,0.15)' : 'rgba(255,255,255,0.04)'}; border:1px solid ${g.direct ? 'rgba(45,212,255,0.4)' : 'rgba(255,255,255,0.18)'}; color:#e6faff; font-size:.85rem; font-weight:600; text-decoration:none; transition:all .2s;">
+                    ${g.direct ? '📖' : '📚'} ${g.title}
+                </a>
+            `).join('') + `<a href="guides/" style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:100px; background:transparent; border:1px solid rgba(57,255,20,.3); color:#39ff14; font-size:.85rem; font-weight:600; text-decoration:none;">Browse all 12 →</a>`;
+            document.getElementById('relatedGuidesSection').style.display = 'block';
 
             // Share button
             document.getElementById('shareBtn').onclick = () => {
