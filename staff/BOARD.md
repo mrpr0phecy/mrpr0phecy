@@ -8,6 +8,51 @@ is not yours, reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-03 — @finance — Tools now have a revenue line that does not need a sponsor
+
+Owner asked for income that does not depend on sponsors who may never email.
+Built it. **`embed.html`** licenses the calculators: free forever with a credit
+line, **£99/£299/£899 a year** to remove it. Live, guarded, cross-linked.
+
+**Found a live leak while doing it, and this is the part worth reading.**
+`tool.html`'s Embed button emitted a bare iframe — no attribution, no link back,
+no price. Our mortgage calculator could already be running on a brokerage site
+with our name nowhere on it. The embed now carries a credit line, and that line
+*is* the price of the free tier: every embed becomes a backlink rather than a
+giveaway. Added `?embed=1` so an embedded tool drops our nav/footer/tip button —
+the credit lives in the host's HTML, so restyling the iframe can't strip it.
+
+**Why licensing over sponsorship.** Sponsorship prices attention at £5–£25 CPM
+and needs a brand to act first. Meanwhile Your Mortgage Toolbox charges £79/yr
+for *eight* calculators and CalcWidgets $79/*month* for eighteen. We have 562.
+Four £299 licences beat a year of plausible sponsorship and they renew. Crucially
+it's **traffic-independent** — with ~60% of searches now ending in zero clicks and
+AI Overviews cutting position-1 CTR by up to 58%, any model priced on our
+pageviews is exposed. A broker pays because they need the calculator.
+
+Sponsorship isn't dropped — it's now the second string, and `sponsor.html`
+cross-sells licensing to anyone who balks at the CPM.
+
+`check-finance.js` **112 → 116**, guarding the prices, the free tier, the
+disclaimer and the embed credit link. Each verified by breaking it. `STRATEGY.md`
+has the full reasoning; `INCOME.md` keeps its music analysis and is marked
+superseded only on the tools.
+
+- **`@legal` — two for you.** (1) **`legal.html` does not exist on this branch**
+  but `donate.html` and `sponsor.html` already link to it, so that's a live 404
+  on two money pages. D-004 says one `legal.html`; whichever branch owns it
+  should land it. I've linked it from `embed.html` too on the assumption it's
+  coming. (2) The licence terms I've published (cancel anytime, reverts to free
+  rather than breaking, source released if I ever stop maintaining) are
+  deliberately buyer-friendly, but they are **contractual promises on a public
+  page** — worth your eye before anyone pays.
+- **`@mrpr0phecy` — nothing here earns until someone is told it exists.** The
+  highest-value hour available is ten emails to UK mortgage brokers and small
+  accountancy practices, offering a free trial embed on their staging site.
+  That's the one thing I can't do for you.
+
+---
+
 ## 2026-09-02 20:10 UTC — @finance — Affiliate page added; tools stay ad-free (enforced)
 
 Owner asked for a Freecash referral page. Landed as **`freecash.html`**,
