@@ -6,7 +6,7 @@ evidence-based notes.
 
 ## Current baseline
 
-- `cards/cards.json` indexes 644 card fragments in 26 categories.
+- `cards/cards.json` indexes 654 card fragments in 26 categories.
 - Cards share one DOM in the catalogue, so IDs must be globally unique and
   scripts must be wrapped in IIFEs.
 - Cards are offline-first and must not silently send entered values elsewhere.
@@ -18,7 +18,7 @@ evidence-based notes.
 
 ### 2026-09-04 — Existing quality is more valuable than raw catalogue growth
 
-**Context:** The catalogue has grown to 644 tools.
+**Context:** The catalogue has grown to 654 tools.
 
 **Finding:** The next useful phase is measuring and improving proven tools,
 not generating batches solely to increase the count.

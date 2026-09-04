@@ -255,6 +255,16 @@ const wellbeingList = [
 ];
 
 const saasKillerList = [
+  'invoice-late-fee-calculator',
+  'cash-runway-planner',
+  'rental-yield-deal-analyser',
+  'saas-churn-revenue-impact',
+  'employee-true-cost-calculator',
+  'shift-labour-cost-planner',
+  'wholesale-pricing-margin-calculator',
+  'project-profitability-estimator',
+  'retainer-capacity-planner',
+  'inventory-reorder-point-planner',
   'meeting-cost-live-ticker',
   'invoice-billing-pdf-generator',
   'nda-contract-service-agreement-builder',
