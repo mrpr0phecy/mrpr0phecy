@@ -1,0 +1,183 @@
+<h2 id="pft-title" style="margin-top:0;color:var(--accent);">🧮 Prime Factorisation Trainer</h2>
+
+<form aria-describedby="pft-desc" onsubmit="event.preventDefault();">
+  <p id="pft-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Break any number into its prime factors with a full working ladder, learn the divisibility rules, then practise finding the next prime factor yourself. Primes are the building blocks of every whole number — this tool shows you why. Runs on your device.
+  </p>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Factor a number (2 – 2000)</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <input type="number" id="pft-n" min="2" max="2000" value="360" style="flex:1;min-width:130px;padding:9px 12px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;">
+      <button type="button" id="pft-go" style="padding:10px 22px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">Factor it</button>
+    </div>
+    <div id="pft-out" style="margin-top:14px;"></div>
+  </div>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Practice — divide step by step</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <button type="button" id="pft-new" style="padding:9px 16px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">🎲 New number</button>
+      <span style="font-size:1.1rem;font-weight:900;color:#ffd700;" id="pft-challenge">—</span>
+      <span style="font-size:0.8rem;color:var(--muted);">Find the next prime factor: </span>
+      <input type="number" id="pft-pf" min="2" max="2000" style="width:90px;padding:9px 12px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;text-align:center;">
+      <button type="button" id="pft-pfcheck" style="padding:9px 16px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">Check</button>
+      <button type="button" id="pft-solve" style="padding:9px 16px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">Show solution</button>
+    </div>
+    <div id="pft-practice" style="font-size:0.85rem;color:var(--muted);line-height:1.7;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:14px;">
+    <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Divisibility rules</div>
+      <div style="font-size:0.8rem;color:var(--muted);line-height:1.8;">
+        • <strong>2</strong> — last digit is even (0,2,4,6,8)<br>
+        • <strong>3</strong> — digit sum is divisible by 3 (360 → 3+6+0=9)<br>
+        • <strong>5</strong> — last digit is 0 or 5<br>
+        • <strong>7</strong> — double the last digit, subtract from the rest, repeat<br>
+        • <strong>11</strong> — alternating sum of digits is 0 or a multiple of 11<br>
+        • <strong>prime</strong> — a number whose only factors are 1 and itself
+      </div>
+    </div>
+    <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Why it matters</div>
+      <div id="pft-notes" style="font-size:0.8rem;color:var(--muted);line-height:1.8;">• The <strong>fundamental theorem of arithmetic</strong>: every whole number &gt; 1 has one unique prime factorisation.<br>• Factorising is how we find <strong>HCF and LCM</strong> — track the highest/lowest powers shared.<br>• <strong>Cryptography</strong> relies on it: multiplying two large primes is easy, unpicking the product is extremely hard.</div>
+    </div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Primes under 200</div>
+    <div id="pft-primes" style="font-size:0.8rem;color:var(--muted);line-height:1.8;"></div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>Note:</strong> the ladder uses the smallest prime factor at each step — that produces the unique prime factorisation. 1 is neither prime nor composite.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var nInput = el('pft-n'), go = el('pft-go'), out = el('pft-out'),
+      newBtn = el('pft-new'), pf = el('pft-pf'), pfcheck = el('pft-pfcheck'), solve = el('pft-solve'),
+      challenge = el('pft-challenge'), practice = el('pft-practice'), primesBox = el('pft-primes');
+
+  var SUP = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+  function sup(n) { return String(n).split('').map(function (d) { return SUP[d]; }).join(''); }
+
+  function isPrime(n) {
+    if (n < 2) return false;
+    if (n < 4) return true;
+    if (n % 2 === 0) return false;
+    for (var i = 3; i * i <= n; i += 2) if (n % i === 0) return false;
+    return true;
+  }
+
+  function smallestPrimeFactor(n) {
+    if (n % 2 === 0) return 2;
+    for (var i = 3; i * i <= n; i += 2) if (n % i === 0) return i;
+    return n;
+  }
+
+  function line(txt, cls) {
+    var d = document.createElement('div');
+    if (cls) d.style.color = cls;
+    d.textContent = txt;
+    return d;
+  }
+
+  function factorDisplay(n) {
+    var m = n, counts = {};
+    var ladder = [];
+    while (m > 1) {
+      var p = smallestPrimeFactor(m);
+      counts[p] = (counts[p] || 0) + 1;
+      ladder.push(m + ' ÷ ' + p + ' = ' + (m / p));
+      m = m / p;
+    }
+    var parts = Object.keys(counts).map(function (k) {
+      return counts[k] === 1 ? k : k + sup(counts[k]);
+    });
+    var divisors = Object.keys(counts).reduce(function (acc, k) { return acc * (counts[k] + 1); }, 1);
+    return { ladder: ladder, factors: parts.join(' × '), divisors: divisors };
+  }
+
+  go.addEventListener('click', function () {
+    var n = parseInt(nInput.value, 10);
+    out.textContent = '';
+    if (isNaN(n) || n < 2 || n > 2000) {
+      out.appendChild(line('Enter a whole number from 2 to 2000.', '#ffb3b3'));
+      return;
+    }
+    if (isPrime(n)) {
+      out.appendChild(line(n + ' is prime — its only factors are 1 and ' + n + '.', '#00ffcc'));
+      return;
+    }
+    var f = factorDisplay(n);
+    out.appendChild(line('Ladder: ' + f.ladder.join('  →  '), ''));
+    out.appendChild(line('Prime factorisation: ' + n + ' = ' + f.factors, '#00ffcc'));
+    out.appendChild(line('Check: multiplying the factors back together gives ' + n + '.', ''));
+    out.appendChild(line('It has ' + f.divisors + ' divisors in total (including 1 and itself).', ''));
+  });
+
+  function newChallenge() {
+    var options = [];
+    for (var n = 12; n <= 999; n++) if (!isPrime(n)) options.push(n);
+    var pick = options[Math.floor(Math.random() * options.length)];
+    practice.dataset.original = String(pick);
+    practice.dataset.remaining = String(pick);
+    practice.dataset.steps = '';
+    challenge.textContent = String(pick);
+    practice.textContent = 'Divide ' + pick + ' by its smallest prime factor first. Step-by-step progress will appear here.';
+  }
+
+  pfcheck.addEventListener('click', function () {
+    var p = parseInt(pf.value, 10);
+    var rem = parseInt(practice.dataset.remaining || '0', 10);
+    if (!rem || !practice.dataset.original) { practice.textContent = ''; practice.appendChild(line('Press “New number” to start a challenge.', '#ffb3b3')); return; }
+    if (isNaN(p) || p < 2) { practice.appendChild(line('Enter a whole number ≥ 2.', '#ffb3b3')); return; }
+    if (p > rem) { practice.appendChild(line(p + ' is bigger than the remaining ' + rem + '.', '#ffb3b3')); return; }
+    if (!isPrime(p)) {
+      var spf = smallestPrimeFactor(p);
+      practice.appendChild(line(p + ' is not prime — it factorises as ' + spf + ' × ' + (p / spf) + '. Enter a prime factor (like ' + spf + ').', '#ffb3b3'));
+      return;
+    }
+    if (rem % p !== 0) {
+      var hint = p === 2 ? '2 divides only even numbers.' : p === 3 ? '3 divides a number if its digits sum to a multiple of 3.' : p === 5 ? '5 divides numbers ending in 0 or 5.' : p + ' does not divide ' + rem + '. Check with the divisibility rules.';
+      practice.appendChild(line(p + ' is prime but does not divide ' + rem + '. ' + hint, '#ffb3b3'));
+      return;
+    }
+    var next = rem / p;
+    var steps = (practice.dataset.steps || '');
+    steps += (steps ? ' → ' : '') + rem + ' ÷ ' + p + ' = ' + next;
+    practice.dataset.steps = steps;
+    practice.dataset.remaining = String(next);
+    practice.appendChild(line('✓ ' + rem + ' ÷ ' + p + ' = ' + next, '#00ffcc'));
+    if (next === 1) {
+      practice.appendChild(line('🏆 Complete! ' + practice.dataset.original + ' = ' + steps + ' → prime factorisation: ' + factorDisplay(parseInt(practice.dataset.original, 10)).factors, '#ffd700'));
+    } else if (isPrime(next)) {
+      practice.appendChild(line('🏆 The remaining ' + next + ' is prime — you are done! ' + practice.dataset.original + ' = ' + steps + ' → ' + factorDisplay(parseInt(practice.dataset.original, 10)).factors, '#ffd700'));
+    }
+    pf.value = '';
+  });
+
+  solve.addEventListener('click', function () {
+    var n = parseInt(practice.dataset.original || nInput.value, 10);
+    if (isNaN(n) || n < 2) return;
+    if (isPrime(n)) { practice.appendChild(line(n + ' is prime — nothing to factor.', '#00ffcc')); return; }
+    practice.appendChild(line('Solution: ' + factorDisplay(n).ladder.join('  →  ') + '  ⇒  ' + n + ' = ' + factorDisplay(n).factors, '#00ffcc'));
+  });
+
+  newBtn.addEventListener('click', newChallenge);
+
+  // Sieve up to 200, rendered with DOM nodes.
+  var limit = 200, sieve = [], i, j;
+  for (i = 0; i <= limit; i++) sieve.push(true);
+  sieve[0] = sieve[1] = false;
+  for (i = 2; i * i <= limit; i++) if (sieve[i]) for (j = i * i; j <= limit; j += i) sieve[j] = false;
+  var primes = [];
+  for (i = 2; i <= limit; i++) if (sieve[i]) primes.push(i);
+  primesBox.textContent = primes.join(', ');
+})();
+</script>
