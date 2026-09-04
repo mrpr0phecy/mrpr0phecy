@@ -4195,7 +4195,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 return;
             }
             
-            // Create card placeholders
+            // Build placeholders off-DOM, then attach once. Appending 650+ cards
+            // individually caused repeated layout work and visible stalls in
+            // desktop Chromium/Linux browsers.
+            const cardFragment = document.createDocumentFragment();
             cardFiles.forEach((cardName, index) => {
                 const meta = cardsMetaMap.get(cardName);
                 const displayName = meta && meta.title ? meta.title : cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -4236,24 +4239,19 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                     <!-- Footer will be added dynamically -->
                 `;
                 
-                dashboard.appendChild(card);
-                
-                // Initialize rating display with delay
-                setTimeout(() => {
-                    updateCardRatingDisplay(card, cardName);
-                }, 100);
+                cardFragment.appendChild(card);
+                updateCardRatingDisplay(card, cardName);
             });
-            
-            // Load initial cards
-            setTimeout(() => {
+            dashboard.appendChild(cardFragment);
+
+            // Let the browser paint the catalogue shell before fetching and
+            // executing tool fragments. Scroll events provide recovery, so do
+            // not repeatedly scan all 650+ cards on a timer.
+            requestAnimationFrame(() => {
                 loadInitialCards();
                 initIntersectionObserver();
-                
-                // Periodic stuck-card recovery — catches cards the observer missed
-                setInterval(() => {
-                    if (!isSearching) scrollFallbackLoader();
-                }, 3000);
-            }, 300);
+                scrollFallbackLoader();
+            });
             
         } catch (error) {
             console.error('Error loading card list:', error);
@@ -4633,6 +4631,14 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     
     function initIntersectionObserver() {
         if (observer) observer.disconnect();
+
+        // Older/lightweight Linux browsers may not implement this API. The
+        // existing scroll loader is a complete fallback, not just recovery.
+        if (!('IntersectionObserver' in window)) {
+            window.addEventListener('scroll', onScrollLazyLoad, { passive: true });
+            scrollFallbackLoader();
+            return;
+        }
         
         observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
