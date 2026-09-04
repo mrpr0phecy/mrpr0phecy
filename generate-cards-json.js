@@ -11,10 +11,10 @@ const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html'));
 
 const musicList = ['audio-tone-frequency-generator', 'audio-bpm-tapper', 'binaural-neuro-tuner', 'bpm-counter', 'capo-calculator', 'carol-karaoke', 'chord-finder', 'chord-progression', 'ear-trainer', 'instrument-care', 'interval-trainer', 'metronome', 'music-quiz', 'music-theory', 'recording-basics', 'rhythm-generator', 'scale-trainer', 'sheet-music', 'song-writer', 'tempo-map', 'transposer', 'tuner', 'youtube-dj'];
 const healthList = ['sleep-circadian-rem-calculator', 'crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'targetheartrate', 'tdee', 'vo2max', 'waisthip', 'waterintake'];
-const financeList = ['redundancy-notice-calculator', 'fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax'];
-const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'element-hall', 'energy-watt-exchange', 'statistics-illusion-gallery', 'thermal-wall-simulator', 'structural-beam-stress', 'pipe-flow-simulator', 'room-acoustics-simulator', 'daylight-room-simulator', 'moisture-capillary-simulator'];
+const financeList = ['redundancy-notice-calculator', 'fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax', 'ir35-comparator', 'tenancy-deposit-calculator', 'mortgage-overpayment-calculator', 'small-claims-lba-generator', 'car-ownership-cost-calculator', 'tip-calculator'];
+const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'element-hall', 'energy-watt-exchange', 'statistics-illusion-gallery', 'thermal-wall-simulator', 'structural-beam-stress', 'pipe-flow-simulator', 'room-acoustics-simulator', 'daylight-room-simulator', 'moisture-capillary-simulator', 'ancient-egypt-quiz', 'british-monarchs-quiz'];
 const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
-const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry', 'times-tables-drill-trainer', 'prime-factorisation-trainer', 'roman-numeral-converter', 'order-of-operations-bodmas-trainer', 'long-division-trainer', 'make-change-trainer', 'clock-reading-trainer', 'coordinates-trainer', 'mean-median-mode-trainer', 'sudoku-trainer', 'rounding-estimation-trainer'];
+const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry', 'times-tables-drill-trainer', 'prime-factorisation-trainer', 'roman-numeral-converter', 'order-of-operations-bodmas-trainer', 'long-division-trainer', 'make-change-trainer', 'clock-reading-trainer', 'coordinates-trainer', 'mean-median-mode-trainer', 'sudoku-trainer', 'rounding-estimation-trainer', 'pythagoras-calculator', 'factors-multiples-trainer', 'percentage-change-calculator', 'quadratic-solver', 'venn-diagram-visualiser', 'compass-bearings-trainer', 'grid-reference-trainer'];
 const scienceList = [
   'van-de-graaff-electrostatic-generator',
   'gravitational-n-body-galaxy-collision',
@@ -138,13 +138,22 @@ const scienceList = [
   'unit-converter',
   'unitconverter',
   'voltage-drop',
-  'wire-gauge'
+  'wire-gauge',
+  'uk-counties-quiz',
+  'country-flags-quiz'
 ];
 const writingList = [
   'markdown-to-html-printer',
   'llm-prompt-token-counter',
   'regex-replace-string-transform',
-  'spanish-verb-master', 'french-pronunciation-verbs', 'chinese-tones-pinyin', 'german-cases-gender', 'korean-hangul-trainer', 'multilingual-phrase-matrix', 'japanese-kana-trainer', 'japanese-romaji-converter', 'japanese-numbers-counters', 'japanese-particles-master', 'japanese-jlpt-vocabulary', 'japanese-verb-conjugator', 'japanese-keigo-politeness', 'regex-tester-explainer', 'markdown-live-editor', 'morse-code-translator', 'cognitive-bias-detector', 'business-writing', 'citation', 'cover-letter', 'creative-writing', 'email-templates', 'essay-templates', 'essay', 'grammar-proof', 'kanji-helper', 'languages', 'literature-analysis', 'literature', 'meme-translation', 'plagiarism-check', 'proofreading', 'public-speaking', 'punctuation-guide', 'readability-score', 'readingtime', 'resume', 'seo-helper', 'seo-writing', 'spelling-check', 'summary-generator', 'translation-helper', 'vocab', 'vocabulary-trainer', 'nato-phonetic-alphabet-trainer', 'braille-alphabet-trainer', 'typing-speed-test', 'irregular-verbs-trainer', 'speed-reading-trainer', 'parts-of-speech-trainer'];
+  'spanish-verb-master', 'french-pronunciation-verbs', 'chinese-tones-pinyin', 'german-cases-gender', 'korean-hangul-trainer', 'multilingual-phrase-matrix', 'japanese-kana-trainer', 'japanese-romaji-converter', 'japanese-numbers-counters', 'japanese-particles-master', 'japanese-jlpt-vocabulary', 'japanese-verb-conjugator', 'japanese-keigo-politeness', 'regex-tester-explainer', 'markdown-live-editor', 'morse-code-translator', 'cognitive-bias-detector', 'business-writing', 'citation', 'cover-letter', 'creative-writing', 'email-templates', 'essay-templates', 'essay', 'grammar-proof', 'kanji-helper', 'languages', 'literature-analysis', 'literature', 'meme-translation', 'plagiarism-check', 'proofreading', 'public-speaking', 'punctuation-guide', 'readability-score', 'readingtime', 'resume', 'seo-helper', 'seo-writing', 'spelling-check', 'summary-generator', 'translation-helper', 'vocab', 'vocabulary-trainer', 'nato-phonetic-alphabet-trainer', 'braille-alphabet-trainer', 'typing-speed-test', 'irregular-verbs-trainer', 'speed-reading-trainer', 'parts-of-speech-trainer',
+  'common-english-mistakes-trainer',
+  'tongue-twister-trainer',
+  'synonym-finder',
+  'anagram-solver',
+  'rhyme-finder',
+  'scrabble-word-score'
+];
 
 const animeList = [
   'anime-binge-watch-calculator',
@@ -412,7 +421,8 @@ const homeDIYList = [
   'miter-bevel-angle-calculator',
   'laminate-flooring-calculator',
   'deck-joist-span-calculator',
-  'grout-adhesive-calculator'
+  'grout-adhesive-calculator',
+  'damp-diagnostic'
 ];
 
 const demosList = [
@@ -438,9 +448,7 @@ const csList = [
   'huffman-coding-compression',
   'classical-cipher-suite',
   'recursion-memoization-explorer',
-  'binary-bits-bitwise-playground'
-];
-
+  'binary-bits-bitwise-playground', 'password-strength-checker'];
 function getCategory(name) {
   if (gapFillMap[name]) return gapFillMap[name];
   if (sportsList.includes(name)) return 'Sports';
