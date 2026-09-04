@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""check-egress.py — enforce D-009 (cards must not silently send input off-device).
+"""check-egress.py — cards must not silently send user input off-device.
 
-Classifies every card that touches the network:
+Cards are meant to run entirely in the browser. This classifies every card
+that touches the network, so egress can never be added quietly:
 
   A  input egress   — user input is sent to a third party. Must carry a
                       visible in-card warning until re-engineered locally.
@@ -20,7 +21,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARDS = os.path.join(ROOT, "cards")
 
-# slug -> class, per staff/DECISIONS.md D-009.
+# slug -> class. Adding a card here is a deliberate, reviewed exception.
 KNOWN = {
     "ai-mcp-protocol-tool-tester": "A",   # user-supplied endpoint, by design
     "cat-photo-viewer": "C",
@@ -78,7 +79,7 @@ for name in sorted(os.listdir(CARDS)):
         continue
     cls = KNOWN.get(slug)
     if cls is None:
-        fails.append(f"{name}: makes network calls but is not classified in D-009 "
+        fails.append(f"{name}: makes network calls but is not classified below "
                      f"(make it local, or classify it with the owner)")
         continue
     report[cls].append(slug)
@@ -94,4 +95,4 @@ for f in fails:
 if fails:
     print(f"EGRESS FAILED ({len(fails)} problem(s)).")
     sys.exit(1)
-print("EGRESS OK (D-009 respected).")
+print("EGRESS OK — no card leaks user input.")

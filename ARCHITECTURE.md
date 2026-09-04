@@ -42,7 +42,7 @@ establish *which* site first.
 - **Deploy latency:** roughly 30–60 seconds after a push. Always verify live
   with `curl` rather than assuming.
 
-### The governing principle — D-010
+### The governing principle
 
 > **If a rule matters, make it fail the build.** A constraint that lives only
 > in prose will be broken, usually within a fortnight, usually by someone who
@@ -57,8 +57,10 @@ file disagree, **the check is right and this file is the bug**; fix the file.
 Two facts are **generated and must never be hand-edited**: the tool count
 (`scripts/sync-counts.py`, derived from `ls cards/`) and `sitemap.xml`
 (`scripts/build-sitemap.py`, derived from `git ls-files`). Both once drifted
-badly precisely because they were maintained by hand — see
-[`staff/DECISIONS.md` D-010](staff/DECISIONS.md) for the full post-mortem.
+badly precisely because they were maintained by hand.
+
+Owner decisions and the traps you cannot infer from the code live in
+[CONSTRAINTS.md](CONSTRAINTS.md) — short, and the one file to read first.
 
 ---
 
@@ -443,14 +445,11 @@ asked indirectly.
 
 Two distinct aesthetics. Match the one belonging to the page you are editing.
 
-> **Visual Design Expert on duty.** This repo runs an AI Developer staff
-> (`AGENTS.md` §8; roster `scripts/ai-staff.json`). The **Visual Design
-> Expert** owns this section and the hub pages it documents. If you are
-> another agent or a human taking on design work: read this section, run
-> `node scripts/ai-developer.js staff`, then `node scripts/design-audit.js`
-> before changing anything visual. Design edits must respect these rules and
-> the audit, and stay reviewable (hub pages get human-reviewed PRs — the
-> expert's own rule, not an afterthought).
+> **Before changing anything visual**, run `node scripts/design-audit.js`.
+> It checks this section's rules mechanically: design tokens, contrast,
+> 360–390px overflow, ≥40px touch targets, visible focus and reduced motion.
+> Refine within the established tokens rather than restyling for its own
+> sake, and keep hub-page changes reviewable.
 
 ### Product A — tool catalogue: "cyan terminal"
 
@@ -678,7 +677,7 @@ production curls after a deploy). Green locally means green in CI.
 | 4 | sitemap parses | inline |
 | 5 | top-level SEO metadata | `scan-seo.py` |
 | 6 | accessibility (labels, alt, noopener) | `check-a11y.py` |
-| 7 | network egress classification (D-009) | `check-egress.py` |
+| 7 | network egress classification | `check-egress.py` |
 | 8 | tool-count claims match the catalogue | `sync-counts.py --check` |
 | 9 | sitemap matches tracked indexable pages | `build-sitemap.py --check` |
 | 10 | secret scan | inline |
