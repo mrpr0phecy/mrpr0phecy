@@ -35,10 +35,30 @@ establish *which* site first.
 
 - **Live:** <https://www.themostusefulsiteintheworld.com>
 - **Hosting:** GitHub Pages, served straight from `main`. There is no build
-  step, no bundler, no CI, no framework. What is committed is what is served.
+  step, no bundler, no framework. What is committed is what is served.
+  There *is* CI, but it only ever **checks** — it never transforms what
+  ships (`.github/workflows/agent-guardrails.yml`).
 - **Custom domain:** the `CNAME` file. Deleting it breaks the domain.
 - **Deploy latency:** roughly 30–60 seconds after a push. Always verify live
   with `curl` rather than assuming.
+
+### The governing principle — D-010
+
+> **If a rule matters, make it fail the build.** A constraint that lives only
+> in prose will be broken, usually within a fortnight, usually by someone who
+> read it and meant well.
+
+This document is long, and you will not remember all of it. You are not
+expected to. Everything load-bearing is enforced by `bash scripts/verify.sh`
+(11 checks, also run in CI) — so the reliable way to work here is *make the
+change, run verify, believe it over this document*. Where a check and this
+file disagree, **the check is right and this file is the bug**; fix the file.
+
+Two facts are **generated and must never be hand-edited**: the tool count
+(`scripts/sync-counts.py`, derived from `ls cards/`) and `sitemap.xml`
+(`scripts/build-sitemap.py`, derived from `git ls-files`). Both once drifted
+badly precisely because they were maintained by hand — see
+[`staff/DECISIONS.md` D-010](staff/DECISIONS.md) for the full post-mortem.
 
 ---
 
@@ -150,16 +170,19 @@ Hard rules, learned from breakages:
 # 1. Write the fragment
 vim cards/my-tool.html
 
-# 2. Regenerate the index
+# 2. Add the filename to the right category list in generate-cards-json.js,
+#    then regenerate the index (see the warning below — do this in this order)
 node generate-cards-json.js
 
-# 3. Re-apply the category (see the warning below)
+# 3. Sync every tool-count claim on the site. Never edit a count by hand.
+python3 scripts/sync-counts.py
 
-# 4. Bump the count in index.html: "Search 500+ free tools" -> 501+
+# 4. Regenerate the sitemap (§6) and check everything
+python3 scripts/build-sitemap.py
+bash scripts/verify.sh
 
 # 5. Commit, push, wait ~50s, then verify live:
-curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
-  | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
+bash scripts/verify.sh --live
 ```
 
 > **Warning — `generate-cards-json.js` overwrites categories.**
@@ -538,31 +561,22 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 684 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 644 cards:
-
-```python
-import subprocess, datetime
-base  = "https://www.themostusefulsiteintheworld.com"
-today = datetime.date.today().isoformat()
-files = subprocess.run(['git','ls-files'], capture_output=True, text=True).stdout.split()
-html  = [f for f in files if f.endswith('.html')]
-prio  = {"listen.html":("1.0","weekly"), "music.html":("0.9","weekly"),
-         "index.html":("0.9","daily"),   "youtubepromo2.html":("0.7","monthly")}
-urls  = [(p,*prio[p]) for p in prio if p in html]
-urls += [(f, "0.4" if f.startswith("cards/") else "0.5", "monthly")
-         for f in sorted(html) if f not in prio]
-body = "\n".join(
-    f'  <url><loc>{base}/{u.replace(" ","%20")}</loc><lastmod>{today}</lastmod>'
-    f'<changefreq>{c}</changefreq><priority>{p}</priority></url>'
-    for u, p, c in urls)
-open('sitemap.xml','w').write(
-    '<?xml version="1.0" encoding="UTF-8"?>\n'
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    + body + '\n</urlset>\n')
+```bash
+python3 scripts/build-sitemap.py           # rewrite sitemap.xml
+python3 scripts/build-sitemap.py --check   # CI: fail if it is out of date
 ```
 
-Note the `%20` escaping: some filenames in `images/` contain spaces.
+It builds from `git ls-files`, not the working tree, so a sparse checkout
+cannot silently drop the 644 cards. It escapes spaces in filenames (several
+live in `images/`), and it **excludes any page carrying a `noindex` robots
+meta** by reading the file rather than consulting a hardcoded list.
+
+> This used to be a Python snippet pasted out of this document. It had no
+> noindex filter, so following the documented procedure re-added `404.html`,
+> `hokidea.html` and `indexbeta.html` to the sitemap every time. Executable
+> beats copy-pasteable: a script can be tested, a snippet in a document
+> cannot.
+
 
 ---
 
@@ -580,11 +594,26 @@ because `addAll()` is atomic — a single 404 aborts the whole install and the
 worker never activates. The previous version had four 404s in its precache list
 and could never have installed. Bump `CACHE_NAME` on any change.
 
-**`generate-cards-json.js` overwrites categories.** See §3.
+**`generate-cards-json.js` overwrites categories.** See §3. Add your slug to
+the right list *inside the script* before running it, not afterwards.
+
+**Never hand-edit a tool count or `sitemap.xml`.** Both are generated
+(`scripts/sync-counts.py`, `scripts/build-sitemap.py`) and `verify.sh` steps
+8–9 fail on drift. A `git diff` touching a count by hand is a red flag: the
+count appears 49 times across 10 files and you will miss some — everyone did.
+
+**Never interpolate untrusted input into `innerHTML`.** `tool.html` shipped a
+reflected XSS via `?card=` because the slug went into a template literal in
+the error path. URL params, `error.message` and `cards.json` strings go in via
+`textContent` or DOM APIs.
 
 **`index.html` has no links to cards.** Everything is driven by `cards.json`.
 
-**ID collisions across cards.** All 644 share one DOM. See §3.
+**ID collisions across cards.** All 644 share one DOM. See §3. Element ids are
+checked by `check-cards.py`; note that **top-level JS names collide too** —
+126 of them (`showError`, `updateStats`, `STORAGE_KEY`…) are declared at
+top level in more than one card. They only bite when two colliding cards are
+open together. IIFE-wrap anything you touch.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -637,23 +666,45 @@ python3 -m http.server 8891     # then open http://127.0.0.1:8891/listen.html
 Serve over HTTP rather than opening files directly — `file://` breaks `fetch()`
 of `cards.json` and gives misleading CORS errors.
 
-Worthwhile automated checks before pushing — **the easy way is
-`bash scripts/verify.sh`**, which runs the catalogue audit, placeholder, link,
-sitemap, SEO and secret scans below (safe on sparse checkouts; `--live` adds
-production curls). The individual manual checks:
+**Before pushing, run `bash scripts/verify.sh`.** It is the whole gate — 11
+checks, the same set CI runs, safe on sparse checkouts (`--live` adds
+production curls after a deploy). Green locally means green in CI.
+
+| # | Check | Script |
+|---|---|---|
+| 1 | catalogue coherence (cards ↔ cards.json ↔ sitemap) | `check-cards.py` |
+| 2 | placeholder IDs (`dQw4w9WgXcQ`, `VIDEO_ID`, …) | inline |
+| 3 | `target=_blank` without `rel=noopener` | inline |
+| 4 | sitemap parses | inline |
+| 5 | top-level SEO metadata | `scan-seo.py` |
+| 6 | accessibility (labels, alt, noopener) | `check-a11y.py` |
+| 7 | network egress classification (D-009) | `check-egress.py` |
+| 8 | tool-count claims match the catalogue | `sync-counts.py --check` |
+| 9 | sitemap matches tracked indexable pages | `build-sitemap.py --check` |
+| 10 | secret scan | inline |
+| 11 | git state | inline |
+
+Steps 8 and 9 **fix themselves** — drop `--check`:
 
 ```bash
-# JS syntax inside a page (extract each <script> and run node --check)
-node --check extracted.js
+python3 scripts/sync-counts.py      # repairs every stale count claim
+python3 scripts/build-sitemap.py    # rewrites sitemap.xml
+```
 
-# Placeholders that must never ship
-grep -rlE 'dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|YOUR_' --include=*.html .
+One gap `verify.sh` does not cover: syntax errors inside card JavaScript.
+Worth running whenever you touch a card's `<script>` — extract every inline
+script and `node --check` it. A one-liner version:
 
-# target=_blank missing rel=noopener
-grep -oE '<a [^>]*target="_blank"[^>]*>' page.html | grep -v noopener
-
-# Validate the sitemap parses
-python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))"
+```bash
+python3 -c "
+import re, glob, os
+os.makedirs('/tmp/js', exist_ok=True)
+for f in glob.glob('cards/*.html'):
+    src = open(f, encoding='utf-8', errors='ignore').read()
+    js = chr(10).join(re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', src, re.S))
+    if js.strip(): open('/tmp/js/' + os.path.basename(f) + '.js', 'w').write(js)
+"
+for f in /tmp/js/*.js; do node --check "$f" || echo "SYNTAX FAIL: $f"; done
 ```
 
 Headless browser checks (Playwright) are worth it for anything interactive:

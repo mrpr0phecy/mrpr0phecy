@@ -9,6 +9,64 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-04 — @systems — D-010 adopted: rules are now checks. Verify is 11 steps. OPEN-1a, OPEN-4, OPEN-10 closed
+
+Owner mandate this session: *"rewrite the rules for the good of the site."* I took
+that as licence to attack the **mechanism** by which our rules keep failing, not to
+restyle the prose.
+
+**The finding.** Every recurring failure here has one shape: a correct rule, in prose,
+that someone was expected to remember. Counts drifted across nine values because the
+"bump it everywhere" ritual was documented six times and performed correctly zero times.
+Cards leaked user input for weeks under a "zero network calls" law. The sitemap
+procedure in §6 was a copy-paste snippet **with a bug** — anyone following the docs
+re-added the three noindex pages. Prose does not execute. Recorded as **D-010**.
+
+**What changed (all wired into `verify.sh` + CI):**
+
+| New | Does |
+|---|---|
+| `scripts/sync-counts.py` | Tool count derived from `ls cards/`. Rewrites all **49 claims across 10 files**. Freezes ARCHITECTURE §9 so the changelog can't be falsified. |
+| `scripts/build-sitemap.py` | Sitemap from `git ls-files` (sparse-safe), excludes `noindex` by reading files, not a rot-prone list. Reproduces current sitemap byte-for-byte. |
+| `scripts/check-a11y.py` | label/for targets, img alt, rel=noopener. |
+| `scripts/check-egress.py` | D-009 made executable — unclassified egress **fails the build**. |
+
+Verify went 7 → 11 checks. I tested the guardrails by injecting drift: they caught
+29 stale claims in 7 files plus an unindexed card, and `sync-counts.py` repaired all
+29 in one command. **OPEN-10 is now obsolete** — docs counts can't go stale.
+
+**Also fixed, unprompted, because they were live defects:**
+- **Reflected XSS in `tool.html`** — `?card=` interpolated into `innerHTML`. A crafted
+  link to our domain ran arbitrary script. Slug now validated; error + related-tools
+  built with DOM APIs. Please don't reintroduce `innerHTML` there.
+- **OPEN-1a closed** — `qrtool` was Class A egress (Wi-Fi passwords, vCards → qrserver).
+  Vendored the same MIT encoder `wifi-qr-generator` uses; single/batch/SVG all local.
+  Its SVG export was a *placeholder that wrote the words "QR Code"* — now real vector.
+- **OPEN-4 closed** — 17 dead `<label for=…>` → `role="group" aria-labelledby`.
+- `index.html` ran a 3s `setInterval` forever, forcing layout on all 644 cards for the
+  whole session. Now backs off on hidden tab and self-clears.
+- `token.html` said "250+ tools" in five places incl. `<title>`.
+
+**Two audits were lying to us** and I fixed the audits, not the code: `design-audit.js`
+hardcoded a warning that donate.html says "483" (it says 644), and `check-cards.py`
+reported 5 "duplicate ids" that were template literals. Per D-010 a broken check is a
+bug of equal severity — fix it, no sign-off needed, never route around it.
+
+**For the next agent:** run `bash scripts/verify.sh` *before* you touch anything to get
+a baseline. Never hand-edit a count or `sitemap.xml` — both are generated; `git diff`
+on them is a red flag. If you add a rule to a doc, ship the check with it or it will
+not survive the month.
+
+**Still owner-only, untouched:** the OPEN-1 catalogue triage (136 tools needs judgement),
+sw.js enable-or-delete, language-page consolidation, LICENSE, ship-or-delete calls.
+Two I'd flag for a decision: the **126 top-level JS name collisions** across cards
+(`showError`, `updateStats` — latent, only bite when two colliding cards load together;
+fixing means IIFE-wrapping many cards, a big mechanical diff I won't land unasked), and
+**token.html now advertises 644 tools** — if the token perks were scoped to a subset,
+that number should be scoped instead.
+
+---
+
 ## 2026-09-03 — @manager — Coherence pass: PR #9 merged (644 tools), two security fixes shipped, network policy D-009, branch dispositions
 
 **Merged today:** PR #8 (manager pass) and **PR #9 — 82 new tools, catalogue now 644**. PR #9

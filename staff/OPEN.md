@@ -19,7 +19,7 @@ collects and relays those; do not act on them unilaterally.
 | 8 | **`indexbeta.html`, `hokidea.html`, four unlinked CV files, `substitutions/`, `system/`, `digitaldetoxcardshtml/`**: ship-or-delete decisions. | OWNER | owner decision | pending |
 | 9 | **`AI_API_KEY` repository secret**: without it the facility's `generate` mode is skipped (audit + fix still run). Owner to add a key (Gemini or OpenAI) if draft generation is wanted. | OWNER | owner decision | pending |
 | 11 | **Owner batch 2 (collected by @manager):** license choice (LICENSE file), embed-licensing monetisation idea (@finance), in-browser-AI strategy (R&D #12), Second Life script home, Class B/C network exceptions confirmation. | OWNER | @manager to batch-ask | pending |
-| 10 | **Docs count refresh after #1 lands**: README/AGENTS/AGENT_ACCESS/ARCHITECTURE category table to the new real count. | @manager | #1 | pending |
+| 10 | ~~**Docs count refresh after #1 lands**~~ | @manager | — | **obsolete 2026-09-04** — counts are generated now; `python3 scripts/sync-counts.py` handles all 49 claims across 10 files, and `verify.sh` step 8 fails on drift (D-010) |
 
 ## Notes
 

@@ -58,3 +58,10 @@ data or anything about third parties.
   colliding with another branch on a shared file, coordinate on the board
   first.
 - `bash scripts/verify.sh` must pass before every push. No exceptions.
+- **Propose rules as checks.** Per [D-010](DECISIONS.md), a constraint worth
+  writing down is worth enforcing: ship it as a script in `scripts/`, wired
+  into `verify.sh` and CI, in the same change that states it. Before adding a
+  rule to any document, answer *"what fails if this is violated?"* — if the
+  answer is "nothing", the rule isn't finished. Prose does not execute.
+- **Fixing a broken check needs no sign-off** and is as urgent as fixing
+  broken code. Never route around a red check or loosen one to reach green.

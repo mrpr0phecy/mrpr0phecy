@@ -8,6 +8,45 @@ disagrees with it.**
 
 ---
 
+## The one rule that generates the rest
+
+> **If a rule matters, make it fail the build. If it can't fail the build,
+> it will be broken — usually within a fortnight, usually by someone who read
+> the rule and meant well.**
+
+This repo has the receipts. "Bump the count in every file" was written down
+six times in ARCHITECTURE.md §9 and performed correctly zero times: the site
+simultaneously advertised 250, 483, 500, 562, 602, 612, 622, 632 and 634 <!-- historical-count -->
+tools, including on the two pages that ask for money. "Cards make zero network calls"
+was law from day one; an audit found 27 cards calling out, one of them posting
+your Wi-Fi password to a third party underneath the words *100% private*.
+"Regenerate the sitemap with this snippet" shipped a snippet with a bug in it.
+
+None of those were discipline failures. They were **design** failures: the
+rule lived in prose, and prose does not run. So when you are tempted to fix a
+recurring problem by writing a firmer sentence in a document — don't. Write a
+check. Every guardrail in `scripts/` exists because a sentence wasn't enough.
+
+Corollaries, in priority order when they conflict:
+
+1. **Derive, don't duplicate.** A fact stored in two places is already wrong;
+   you just don't know which copy yet. The tool count is derived from
+   `ls cards/`. The sitemap is derived from `git ls-files`. Never hand-edit
+   either.
+2. **The check owns the rule.** When a guardrail and a document disagree, the
+   guardrail wins and the document is the bug. Fix the document.
+3. **Narrow the check until it is silent.** A scanner that cries wolf gets
+   ignored, and then it protects nothing. `scan-seo.py` emitted 26 warnings
+   demanding social metadata on `noindex` pages; the four real problems were
+   invisible in the noise. Warnings must mean something. Zero-warning is the
+   only tolerable resting state.
+4. **Never make history lie.** Guardrails rewrite *claims*, never the
+   changelog. A sentence like "the catalogue was not 500 distinct <!-- historical-count -->
+   tools" is true about the past, so `sync-counts.py` freezes everything from
+   ARCHITECTURE.md §9 onward. Elsewhere, mark a deliberate historical figure
+   with a `<!-- historical-count -->` comment on the same line and the
+   checker will leave it alone. Use it only for genuine narrative.
+
 ## 0. What this repo is
 
 One GitHub Pages site, **two deliberately separate products**, served from
@@ -38,9 +77,9 @@ git sparse-checkout set --no-cone '/*' '!/images/'
 git config user.name  mrpr0phecy
 git config user.email 5564816+mrpr0phecy@users.noreply.github.com
 
-# 3. Read the rules that matter before editing anything:
-#    ARCHITECTURE.md §3 (cards), §6 (SEO), §7 (traps), §9 (do-not-touch).
-bash scripts/verify.sh               # pre-push guardrails (works sparse)
+# 3. Establish the baseline BEFORE you touch anything. If this is already
+#    red, that is someone else's breakage — say so, don't silently inherit it.
+bash scripts/verify.sh
 ```
 
 ## 2. Workspace budget — hard limit
@@ -55,19 +94,15 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
   browser cache is ~600 MB — it will blow the 100 MB limit. Install into
   `/tmp` (e.g. `/tmp/pwenv`, `PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers`).
 - Purge before you grow: `bash scripts/workspace-size.sh --purge` (caches +
-  `git gc`). Dropping `.git` blobs you don't need (`git reflog expire
-  --expire=now --all`) is not usually necessary at depth 1.
+  `git gc`).
 - `bash scripts/workspace-size.sh` reports current usage any time.
 - If the workspace exceeds the budget, **stop and shrink it**; report the
   size in your summary.
 
 ## 3. Never-do list (check before every change)
 
-- **`opensourcenews.html`** — the live news broadcast. Was owner's WIP;
-  upgraded with the 2026-08-30 build (headlines rail, viewers' controls,
-  captions). Touch with care: keep the facade pattern, never add hidden
-  players/autoplay tricks (INCOME.md growth policy), and re-run
-  `bash scripts/verify.sh` before pushing.
+- **`opensourcenews.html`** — the live news broadcast. Keep the facade
+  pattern, never add hidden players/autoplay tricks (INCOME.md growth policy).
 - **`token.html`** — kept deliberately (see INCOME.md). No crypto promotion.
 - **`CNAME`**, `sw.js` (unregistered by design), `guide.txt` (stale),
   `system/`, `substitutions/`, `digitaldetoxcardshtml/`, CV files — leave alone.
@@ -79,6 +114,8 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
   links, translated pages, honest CTAs.
 - No ads/trackers on Product A pages; no paywalls; no fake urgency.
 - Never invent YouTube IDs — use the verified table in ARCHITECTURE.md §4.
+- **Never hand-edit a tool count or `sitemap.xml`.** Both are generated.
+  Editing them by hand is how every drift incident started.
 
 ## 4. Common tasks — exact sequences
 
@@ -88,13 +125,15 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 #  - IDs: global per-tool prefix `xyz-` on EVERY element (all cards share one DOM)
 #  - IIFE-wrapped JS, inline styles + index.html CSS vars only, zero network calls
 #  - forms: onsubmit="event.preventDefault();"
-node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
-                                #   hardcoded list in the script first
-# bump count in index.html: "Search 500" -> "Search 501"
-python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
-PY
+
+# ⚠ Add the slug to the right category list in generate-cards-json.js FIRST —
+#   the script overwrites the category field on every run (ARCHITECTURE.md §3).
+node generate-cards-json.js
+python3 scripts/sync-counts.py      # every count claim, everywhere. Not by hand.
+python3 scripts/build-sitemap.py    # from git, noindex pages excluded
+
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
-sleep 50   # Pages deploy latency — then verify live (see §6)
+sleep 50 && bash scripts/verify.sh --live   # Pages is not instant
 ```
 
 ### Edit a Product B page
@@ -106,11 +145,21 @@ cluster, edit **all 13 pages** or Google treats them as duplicates.
 Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 `curl -sI` against the live site before "fixing" anything.
 
+### A guardrail is failing and you think it's wrong
+Sometimes it is — `design-audit.js` spent weeks asserting donate.html said
+"483" when it said 644. Fix the check, in the same commit, and say so. What
+you must **never** do is route around a red check, loosen it to green without
+understanding it, or add an exception for your own file. If a check is wrong,
+that is a bug of equal severity to the one it was meant to catch.
+
 ## 5. Quality bar (all of these have bitten this repo)
 
 - Unique element IDs across *all* cards (one shared DOM); fragments only.
 - `target="_blank"` ⇒ `rel="noopener noreferrer"`; `loading="lazy"` below fold;
   `prefers-reduced-motion` respected; mobile-first (360 px); keyboard reachable.
+- **Never interpolate untrusted input into `innerHTML`.** URL parameters,
+  `error.message`, and anything out of `cards.json` go in via `textContent`
+  or DOM APIs. `tool.html` shipped a reflected XSS through `?card=` this way.
 - Canonical + OG URLs: `https://` **and** `www.` host — never plain `http://`.
 - No placeholders ship: `VIDEO_ID`, `PLAYLIST_ID`, `dQw4w9WgXcQ`, `YOUR_`.
 - Filenames contain spaces and en-dashes — quote paths, URL-encode in markup.
@@ -118,30 +167,45 @@ Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 
 ## 6. Verify and deploy
 
+`bash scripts/verify.sh` is the gate: **11 checks, and it must be green before
+every push.** It is the same script CI runs, so a local pass means a green CI.
+
+| # | Check | Script |
+|---|---|---|
+| 1 | catalogue coherence | `check-cards.py` |
+| 2 | placeholder IDs | inline |
+| 3 | `target=_blank` / noopener | inline |
+| 4 | sitemap parses | inline |
+| 5 | top-level SEO | `scan-seo.py` |
+| 6 | accessibility | `check-a11y.py` |
+| 7 | network egress (D-009) | `check-egress.py` |
+| 8 | tool-count claims | `sync-counts.py --check` |
+| 9 | sitemap freshness | `build-sitemap.py --check` |
+| 10 | secret scan | inline |
+| 11 | git state | inline |
+
+Two of these fix themselves — drop `--check`:
+
 ```bash
-bash scripts/verify.sh             # cards, placeholders, sitemap, SEO, a11y, egress
-sleep 50                           # Pages is NOT instant
-curl -s -o /dev/null -w '%{http_code}\n' https://www.themostusefulsiteintheworld.com/listen.html
-curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
-  | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
+python3 scripts/sync-counts.py      # repairs every stale count claim
+python3 scripts/build-sitemap.py    # rewrites sitemap.xml
 ```
 
-Expect `200` and a count matching `cards/`. A green push is not proof of a
-live deploy.
-
-Standalone checks (all also run inside `verify.sh` and in CI):
-
-```bash
-python3 scripts/check-a11y.py     # label/for targets, img alt, rel=noopener
-python3 scripts/check-egress.py   # D-009 network classification (A/B/C)
-node    scripts/design-audit.js   # design tokens, guards, count claims
-```
+After pushing, `bash scripts/verify.sh --live` confirms production actually
+served the change. **A green push is not proof of a live deploy.**
 
 ## 7. If unsure
 
 Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.
+
+Ask when the answer changes what the site *is* — its scope, its promises, its
+money, its data. Decide for yourself when the answer only changes whether the
+site is correct: bugs, security holes, broken links, stale numbers, failing
+checks. Nobody needs to be consulted about whether an XSS should be fixed. The
+owner's time is the scarcest resource here; spend it on judgement, not on
+permission.
 
 ## 8. AI Developer staff & the Visual Design Expert
 
@@ -150,27 +214,25 @@ demand: Actions → AI Developer → *Run workflow*). Its brain is
 `scripts/ai-developer.js`; the staff roster lives in
 `scripts/ai-staff.json`; reports and generated drafts go to `ai-developer/`
 (gitignored, never committed). Modes: `auto | audit | generate | fix`,
-optional `category` focus (a staff id/tag such as `visual-design`, or a
-tool-category for generation) and `max_tools`. Requires the `AI_API_KEY`
+optional `category` focus and `max_tools`. Requires the `AI_API_KEY`
 repository secret for generation; without it the run audits + fixes only.
 
 Facility rule: **an edit must pass the staff audits before it is proposed.**
-Deterministic fixes (tool-count claims in `index.html`/`404.html`) may be
-applied directly and re-verified with `bash scripts/verify.sh`; anything else
-(including generated card drafts) lands in `ai-developer/` for a human to
-review and promote — never auto-committed into `cards/`.
+Deterministic, generated fixes (count sync, sitemap) may be applied directly
+and re-verified with `bash scripts/verify.sh`; anything else — including
+generated card drafts — lands in `ai-developer/` for a human to review and
+promote, never auto-committed into `cards/`.
 
 **Meet the staff** (`node scripts/ai-developer.js staff`):
 
 - 🎨 **Visual Design Expert** — guardianship of the two design languages:
   Product A *cyan terminal* (`index.html`, `tool.html`, `404.html`,
-  `donate.html`, `cards/card.css`) and Product B *neon night`
+  `donate.html`, `cards/card.css`) and Product B *neon night*
   (`listen.html`). Audit-first, token-respecting, measurable (contrast AA,
   390px overflow, ≥40px touch targets, focus visibility, reduced motion).
-  Runs `node scripts/design-audit.js` (zero-dependency static subset for
-  CI); a full browser-based audit checks live geometry and contrast.
-  Fix scope: count sync and guard-rule presence only — every aesthetic
-  decision is documented in ARCHITECTURE.md §5 and human-reviewed.
+  Runs `node scripts/design-audit.js`. Fix scope: guard-rule presence only —
+  every aesthetic decision is documented in ARCHITECTURE.md §5 and
+  human-reviewed.
 - 🗂 **Catalogue Auditor & Generator** — `cards/`, `cards.json`, sitemap
   coherence (`python3 scripts/check-cards.py`), fragment-only enforcement,
   and draft generation.

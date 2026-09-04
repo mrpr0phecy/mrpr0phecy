@@ -52,18 +52,34 @@ money-related.
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
 | Tools | 644, indexed by `cards/cards.json` |
-| Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
+| Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, then `python3 scripts/sync-counts.py` |
 
 ## Checks before you push
 
+`bash scripts/verify.sh` is the gate — 11 checks, green before every push.
+CI (`.github/workflows/agent-guardrails.yml`) runs the same ones.
+
+Two things are **generated, never hand-edited** — the tool count and the
+sitemap. Both repair themselves:
+
 ```bash
-bash scripts/verify.sh            # runs everything below plus catalogue + SEO
-python3 scripts/check-a11y.py     # labels, alt text, rel="noopener"
-python3 scripts/check-egress.py   # D-009: no card sends your input off-device
-node    scripts/design-audit.js   # design tokens, guards, tool-count claims
+python3 scripts/sync-counts.py     # syncs all 49 count claims across 10 files
+python3 scripts/build-sitemap.py   # rebuilds sitemap.xml from git
 ```
 
-The same checks run in CI (`.github/workflows/agent-guardrails.yml`).
+Individual scanners, if you want to run one on its own:
+
+```bash
+python3 scripts/check-a11y.py     # labels, alt text, rel="noopener"
+python3 scripts/check-egress.py   # D-009: no card sends your input off-device
+python3 scripts/scan-seo.py       # titles, canonicals, OG/twitter metadata
+node    scripts/design-audit.js   # design tokens and guard rules
+```
+
+> **Why so much automation for a static site?** Because every rule here that
+> lived only in a document got broken — the tool count once shipped as nine
+> different numbers at the same time. See
+> [D-010](staff/DECISIONS.md) for the full reasoning.
 
 ## Local preview
 
