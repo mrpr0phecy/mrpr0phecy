@@ -1,0 +1,165 @@
+<h2 id="srd-title" style="margin-top:0;color:var(--accent);">⚡ Speed Reading Trainer</h2>
+
+<form aria-describedby="srd-desc" onsubmit="event.preventDefault();">
+  <p id="srd-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Measure your words-per-minute, then train with guided pacing where your eye is told where to look. Includes recall questions and live WPM tracking. Nothing is stored online.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:14px;">
+    <div>
+      <label for="srd-wpm" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Target WPM:</label>
+      <select id="srd-wpm" style="width:100%;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:inherit;font-size:0.85rem;">
+        <option value="200">200 (steady)</option>
+        <option value="300">300 (quick)</option>
+        <option value="400" selected>400 (fast)</option>
+        <option value="600">600 (elite)</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:flex-end;">
+      <button type="button" id="srd-start" style="width:100%;padding:10px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">▶ Start session</button>
+    </div>
+    <div style="display:flex;align-items:flex-end;">
+      <button type="button" id="srd-reason" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">❓ Recall test</button>
+    </div>
+  </div>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div id="srd-stage" style="font-size:1rem;line-height:2;color:#e6faff;min-height:120px;font-family:ui-serif,Georgia,serif;"></div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap;">
+      <div id="srd-meter" style="flex:1;min-width:180px;height:8px;background:rgba(0,0,0,0.35);border-radius:5px;overflow:hidden;">
+        <div id="srd-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#00ffcc,#00bbff);transition:width 60ms linear;"></div>
+      </div>
+      <span id="srd-pos" style="font-size:0.8rem;color:var(--muted);white-space:nowrap;">0 / 0 words</span>
+      <span id="srd-wpm-live" style="font-size:0.8rem;color:var(--muted);white-space:nowrap;">0 WPM</span>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" id="srd-pause" style="padding:8px 16px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">⏸ Pause</button>
+      <button type="button" id="srd-restart" style="padding:8px 16px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">↻ Same text</button>
+    </div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div id="srd-quiz" style="font-size:0.95rem;color:var(--muted);line-height:1.8;"></div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">The method</div>
+    <div style="font-size:0.8rem;color:var(--muted);line-height:1.8;">
+      Slow, average readers sub-vocalise and regress (look back). Training fixes two things at once: <strong>pacing</strong> — a fixed word-per-minute cadence so you can’t dawdle — and <strong>anchoring</strong> — the marker line keeps your eye moving forward. Do 3 passes: first read normally, then at pace, then read at pace again and take the recall test. Your reading rate should climb while recall stays around 70–80%.
+    </div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>Fair test:</strong> the timer covers the whole session from Start to finish — pause counts against you but the clock stops the moment the final word shows.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var wpmSel = el('srd-wpm'), startBtn = el('srd-start'), reasonBtn = el('srd-reason'),
+      stage = el('srd-stage'), bar = el('srd-bar'), pos = el('srd-pos'), wpmLive = el('srd-wpm-live'),
+      pause = el('srd-pause'), restart = el('srd-restart'), quizBox = el('srd-quiz');
+
+  var TEXTS = [
+    'The bicycle changed the world twice. First it gave ordinary people affordable personal transport, long before cars were common. Then, a century later, it became a symbol of sustainable travel and healthy living. A bicycle is a surprisingly efficient machine. A human on a bike is the most efficient form of transport every created, moving a kilogram of body mass further per joule than any other animal or machine. Cities that invest in cycle lanes see health benefits, quieter streets and lower emissions. The key design features have barely changed since the safety bicycle appeared in the 1880s two matching wheels, a chain drive and a saddle between them. Yet materials, gearing and tyres keep improving. What makes cycling special is not the machine but the combination of exercise, fresh air and freedom. A journey by bike is slower than by car but every minute of it contributes to fitness. In dense cities, door-to-door times are often comparable once parking is counted. That is why so many planners now treat cycling as mainstream transport rather than a hobby. Learning to ride is a skill we rarely forget. With practice, balance becomes automatic and the rider can think about traffic, scenery or conversation instead of staying upright. For children it brings independence; for adults it brings a second chance at exercise. Whether you ride to work, to school or purely for pleasure, the humble bicycle rewards patience with speed, freedom with fitness.',
+    'Paper was a revolutionary technology, yet medieval scribes complained about it. Parchment took months to produce from animal skins, while paper could be made in days from rags. Scribes saw paper as cheap, fragile and unworthy of important books. Libraries initially refused to store it. Politics, not practicality, decided the outcome. For centuries only Muslims in Iberia and parts of Italy used paper in Europe. When the printing press arrived, demand for writing surfaces exploded. Paper was the only material that could be produced fast enough. The scribes vanished because the economics changed. Their craft was still valued, but their monopoly on writing had ended. Reading changed too. Commonplace books, pamphlets and newsletters could be printed cheaply. The speed of information exchange accelerated steadily. Today we take paper entirely for granted, but the lesson remains. Adoption is rarely about whether a material is better in every way. It is about whether the current system can absorb it. Parchment suited a world where books were copied slowly, one at a time. Paper suited a world where books were being manufactured. Every new medium makes the previous one look nostalgic. Yet the old media rarely disappear completely. Parchment still appears in ceremonial documents. The skills of the scribe survive in calligraphy. We still write on paper for many purposes, even as screens take over most reading. Understanding how paper replaced parchment helps us see how digital technology is changing books today.',
+    'Sleep is not the absence of activity, it is the active state of repair and memory. During deep sleep the brain consolidates what you learned during the day. Studies show that students who sleep after revising remember more the next morning than those who revise late and sleep little. Memory is stored in stages. First the hippocampus holds a fresh experience, then during sleep it replays the experience, gradually transferring it to the neocortex for long-term storage. Without enough sleep the transfer is incomplete, which is why tired learners seem to forget overnight. Sleep also clears metabolic waste from the brain. The glymphatic system flushes fluids through the spaces between neurons, carrying away protein that may build up over the years. This cleaning process is several times more active during sleep than during wakefulness. Total sleep need changes with age. Newborns sleep about sixteen hours, teenagers around nine or ten, and most adults seven to nine. The idea that you can train yourself to need five hours is not supported by evidence. Both timing and consistency matter. A stable bedtime strengthens the circadian rhythm that tells the body when to rest. Weekend lie-ins of several hours can disrupt that rhythm, producing the feeling of Monday fatigue. Napping is also a form of training. A short nap improves alertness and learning, while a long nap can make you groggy. For most people the best strategy is a regular sleep window, a dark quiet room, and no screens in the last hour. Sleep is the cheapest cognitive enhancer available, and it is free.'
+  ];
+
+  var session = { words: [], wpm: 400, running: false, paused: false, index: 0, t0: 0, timer: null, done: false };
+
+  function tick() {
+    var elapsed = (Date.now() - session.t0) / 1000;
+    var per = 60 / session.wpm;
+    var idx = Math.floor(elapsed / per);
+    if (idx >= session.words.length) { finish(); return; }
+    session.index = idx;
+    var shown = session.words.slice(0, idx + 1).join(' ');
+    stage.textContent = shown;
+    stage.style.color = '#e6faff';
+    bar.style.width = (idx / session.words.length * 100) + '%';
+    pos.textContent = (idx + 1) + ' / ' + session.words.length + ' words';
+    wpmLive.textContent = Math.round((idx + 1) / (elapsed / 60)) + ' WPM';
+    // highlight the current word by re-rendering with a marker
+    var words = session.words;
+    var cur = words[idx];
+    var before = words.slice(0, idx).join(' ');
+    var after = words.slice(idx + 1).join(' ');
+    stage.textContent = '';
+    if (before) stage.appendChild(document.createTextNode(before + ' '));
+    var mark = document.createElement('span');
+    mark.textContent = cur;
+    mark.style.cssText = 'background:rgba(0,255,204,0.18);color:#00ffcc;padding:0 3px;border-radius:3px;';
+    stage.appendChild(mark);
+    if (after) stage.appendChild(document.createTextNode(' ' + after));
+  }
+
+  function finish() {
+    clearInterval(session.timer);
+    session.timer = null;
+    session.done = true;
+    session.running = false;
+    stage.textContent = session.words.join(' ');
+    bar.style.width = '100%';
+    pos.textContent = session.words.length + ' / ' + session.words.length + ' words';
+    var elapsed = (Date.now() - session.t0) / 1000;
+    wpmLive.textContent = Math.round(session.words.length / (elapsed / 60)) + ' WPM';
+  }
+
+  function start() {
+    var t = TEXTS[Math.floor(Math.random() * TEXTS.length)];
+    session.words = t.replace(/\s+/g, ' ').split(' ');
+    session.wpm = parseInt(wpmSel.value, 10) || 400;
+    session.index = 0;
+    session.done = false;
+    session.paused = false;
+    session.t0 = Date.now();
+    session.running = true;
+    if (session.timer) clearInterval(session.timer);
+    session.timer = setInterval(tick, 40);
+    tick();
+    quizBox.textContent = '';
+    pause.textContent = '⏸ Pause';
+  }
+
+  startBtn.addEventListener('click', start);
+
+  pause.addEventListener('click', function () {
+    if (session.paused) {
+      session.paused = false;
+      session.t0 = Date.now() - (session.index + 1) * (60 / session.wpm) * 1000;
+      session.timer = setInterval(tick, 40);
+      pause.textContent = '⏸ Pause';
+    } else {
+      session.paused = true;
+      clearInterval(session.timer);
+      pause.textContent = '▶ Resume';
+    }
+  });
+
+  restart.addEventListener('click', start);
+
+  var DECOYS = ['zebra', 'quicksilver', 'pneumonia', 'kaleidoscope', 'trampoline', 'avalanche', 'mesmerise', 'cranberry', 'labyrinth', 'velvet', 'cathedral', 'sediment', 'horizon', 'marmalade', 'tornado', 'compass', 'rivet', 'chandelier', 'drizzle', 'mosquito', 'prologue', 'harbour', 'saffron', 'pulley', 'cricket', 'wardrobe', 'stampede', 'lantern', 'freckle', 'telescope'];
+
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  reasonBtn.addEventListener('click', function () {
+    if (!session.words.length) {
+      quizBox.textContent = 'Start a session first — the recall test works on the text you just read.';
+      return;
+    }
+    var text = session.words.join(' ').toLowerCase();
+    var opts = shuffle(DECOYS.slice()).filter(function (w) { return text.indexOf(w) === -1; }).slice(0, 3);
+    quizBox.textContent = 'Recall: which of these words was NOT in the passage you read? ' +
+      opts.join(' · ') + ' — Answer: ' + opts[0] + '. If you identified it instantly, you were reading for meaning rather than just sight-reading.';
+  });
+})();
+</script>
