@@ -1,0 +1,100 @@
+<h2 id="mo-title" style="margin-top:0;color:var(--accent);">🏦 Mortgage Overpayment Calculator</h2>
+
+<form aria-describedby="mo-desc" onsubmit="event.preventDefault();">
+  <p id="mo-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    See how overpaying cuts your mortgage term and total interest. Add a monthly overpayment, a lump sum, or both, and compare against paying the normal schedule. Full amortisation worked out on your device.
+  </p>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Your mortgage</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:12px;">
+      <div><label for="mo-balance" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px;">Balance (£):</label>
+        <input type="number" id="mo-balance" value="250000" min="1000" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;"></div>
+      <div><label for="mo-rate" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px;">Interest rate (%):</label>
+        <input type="number" id="mo-rate" value="4.5" min="0" step="0.05" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;"></div>
+      <div><label for="mo-term" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px;">Remaining term (years):</label>
+        <input type="number" id="mo-term" value="25" min="1" max="40" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;"></div>
+      <div><label for="mo-over" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px;">Monthly overpayment (£):</label>
+        <input type="number" id="mo-over" value="200" min="0" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;"></div>
+      <div><label for="mo-lump" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px;">One-off lump sum (£):</label>
+        <input type="number" id="mo-lump" value="0" min="0" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;"></div>
+    </div>
+    <button type="button" id="mo-go" style="padding:10px 22px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">Calculate</button>
+  </div>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;" id="mo-results"></div>
+    <div id="mo-note" style="font-size:0.82rem;color:var(--muted);line-height:1.8;margin-top:12px;"></div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>Fixed-rate catch:</strong> many deals allow up to 10% of the balance per year without an early-repayment charge (ERC), typically 1–5% of the overpaid amount above that. Keep at least a 6-month payment buffer if your rate isn't fixed.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var go = el('mo-go'), results = el('mo-results'), note = el('mo-note');
+
+  function num(id) { var v = parseFloat(el(id).value); return isNaN(v) ? 0 : v; }
+  function gbp(n) { return '£' + Math.round(n).toLocaleString('en-GB'); }
+
+  function run() {
+    var balance = num('mo-balance'), rate = num('mo-rate') / 100, years = num('mo-term');
+    var over = num('mo-over'), lump = num('mo-lump');
+    results.textContent = ''; note.textContent = '';
+    if (balance <= 0 || rate <= 0 || years <= 0) { note.textContent = 'Enter a positive balance, rate and term.'; return; }
+    var n = Math.round(years * 12);
+    var r = rate / 12;
+    var payment = balance * r / (1 - Math.pow(1 + r, -n));
+
+    function simulate(extraMonthly, extraLump, capMonths) {
+      var bal = balance - Math.min(extraLump, balance);
+      var months = 0, interest = 0, totalPaid = 0;
+      while (bal > 0 && months < (capMonths || 1200)) {
+        var i = bal * r;
+        interest += i;
+        var pay = payment + extraMonthly;
+        if (pay > bal + i) pay = bal + i;
+        totalPaid += pay;
+        bal = bal + i - pay;
+        months++;
+        if (moneyIsDone(bal)) break;
+      }
+      return { months: months, interest: interest, totalPaid: totalPaid, remaining: Math.max(0, bal) };
+    }
+    function moneyIsDone(b) { return b < 0.01; }
+
+    var base = simulate(0, 0, 1200 * 2);
+    var withOver = simulate(over, lump, 1200 * 2);
+    var saved = base.interest - withOver.interest;
+    var monthsSaved = Math.max(0, base.months - withOver.months);
+    var yr = Math.floor(monthsSaved / 12), mo = monthsSaved % 12;
+
+    function card(title, val, sub) {
+      var d = document.createElement('div');
+      d.style.cssText = 'background:rgba(0,0,0,0.25);border-radius:10px;padding:14px;';
+      var t = document.createElement('div'); t.textContent = title;
+      t.style.cssText = 'font-size:0.75rem;font-weight:700;color:var(--accent);margin-bottom:6px;';
+      var c = document.createElement('div'); c.textContent = val;
+      c.style.cssText = 'font-size:1.35rem;font-weight:900;color:#00ffcc;';
+      var s = document.createElement('div'); s.textContent = sub;
+      s.style.cssText = 'font-size:0.78rem;color:var(--muted);margin-top:6px;';
+      d.appendChild(t); d.appendChild(c); d.appendChild(s);
+      results.appendChild(d);
+    }
+    var payStr = gbp(payment);
+    card('Normal monthly payment', payStr + '/mo', 'total interest ' + gbp(base.interest) + ' over ' + base.months + ' months');
+    card('With your extra', gbp(payment + over) + '/mo', 'lump sum ' + gbp(lump) + ' instantly applied');
+    card('Interest saved', gbp(saved), 'you keep this instead of handing it to the lender');
+    card('Term shortened', (yr ? yr + 'y ' : '') + mo + 'm', 'cleared in ' + withOver.months + ' months vs ' + base.months);
+
+    note.textContent = 'Check: ' + base.months + '-month schedule vs ' + withOver.months + ' months — overpayments first eat the lump sum, then shrink the balance every month, so the compounding interest you avoid is the real win. (ERC check: total overpayments per year above ~10% of the original balance may incur a charge on fixed deals.)';
+  }
+
+  go.addEventListener('click', run);
+  run();
+})();
+</script>

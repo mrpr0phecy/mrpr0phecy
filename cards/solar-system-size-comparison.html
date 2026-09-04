@@ -1,0 +1,157 @@
+<h2 id="sss-title" style="margin-top:0;color:var(--accent);">🪐 Solar System Size Comparator</h2>
+
+<form aria-describedby="sss-about" onsubmit="event.preventDefault();">
+  <p id="sss-about" class="small" style="color:var(--muted);margin-bottom:14px;">
+    See the planets side by side to true relative scale, compare them by distance, day length, gravity or moons — and find out what you'd weigh on each. All the figures are built in; nothing is fetched or sent.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px;">
+    <div>
+      <label for="sss-weight" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Your weight on Earth (kg):</label>
+      <input type="number" id="sss-weight" value="70" min="1" max="500" step="1" style="width:100%;padding:8px 12px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.9rem;">
+    </div>
+    <div>
+      <label for="sss-compare" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Compare by:</label>
+      <select id="sss-compare" style="width:100%;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:inherit;font-size:0.85rem;">
+        <option value="radius" selected>Radius</option>
+        <option value="dist">Distance from Sun</option>
+        <option value="day">Day length</option>
+        <option value="year">Year length</option>
+        <option value="gravity">Gravity</option>
+        <option value="moons">Known moons</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:10px;">Scale comparison <span id="sss-metric" style="font-weight:400;color:var(--muted);"></span></div>
+    <div id="sss-bars"></div>
+  </div>
+
+  <div id="sss-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px;"></div>
+
+  <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">The Sun — for scale</div>
+    <div style="font-size:0.8rem;color:var(--muted);line-height:1.8;">
+      Radius ≈ 695,700 km — <strong>about 109 Earths across</strong>. It holds 99.86% of the Solar System's mass. If the Sun were the size of a football, Earth would be a peppercorn about 30 m away.
+    </div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>Figures:</strong> radii, distances and rotation periods are well-established; “average” temperatures are approximations; moon counts are the latest published totals and change as new moons are confirmed (Saturn leapt from 146 to 274 in 2025). Diameters and distances are to scale relative to each other, not to the visible page break.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var weightInput = el('sss-weight'), compare = el('sss-compare'), metric = el('sss-metric'),
+      bars = el('sss-bars'), cardsEl = el('sss-cards');
+
+  var PLANETS = [
+    { name:'Mercury', radius:2439, mass:0.055, gravity:0.38, day:1407.6, year:88, dist:57.9, moons:0, temp:167,
+      fact:'Smallest planet — a year lasts just 88 days, but a single day lasts 59 Earth days.' },
+    { name:'Venus', radius:6052, mass:0.815, gravity:0.91, day:5832.5, year:224.7, dist:108.2, moons:0, temp:464,
+      fact:'The hottest planet — its thick carbon-dioxide atmosphere traps heat. It spins backwards.' },
+    { name:'Earth', radius:6371, mass:1, gravity:1, day:23.9, year:365.25, dist:149.6, moons:1, temp:15,
+      fact:'The only world known to harbour life.' },
+    { name:'Mars', radius:3390, mass:0.107, gravity:0.38, day:24.6, year:687, dist:227.9, moons:2, temp:-63,
+      fact:'Home to Olympus Mons, the tallest volcano in the Solar System.' },
+    { name:'Jupiter', radius:69911, mass:317.8, gravity:2.53, day:9.9, year:4333, dist:778.5, moons:95, temp:-110,
+      fact:'Twice as massive as all the other planets combined — it could swallow 1,300 Earths.' },
+    { name:'Saturn', radius:58232, mass:95.2, gravity:1.07, day:10.7, year:10759, dist:1434, moons:274, temp:-140,
+      fact:'Its rings are mostly water ice, and it is the least dense planet — it would float in water.' },
+    { name:'Uranus', radius:25362, mass:14.5, gravity:0.89, day:17.2, year:30687, dist:2871, moons:28, temp:-195,
+      fact:'Rolls on its side — its axis is tilted about 98°.' },
+    { name:'Neptune', radius:24622, mass:17.1, gravity:1.14, day:16.1, year:60190, dist:4495, moons:16, temp:-200,
+      fact:'Winds here exceed 2,000 km/h — the fastest in the Solar System.' },
+    { name:'Pluto', radius:1188, mass:0.0022, gravity:0.06, day:153.3, year:90560, dist:5906, moons:5, temp:-225,
+      fact:'A dwarf planet with a huge heart-shaped nitrogen glacier.' }
+  ];
+
+  var LABELS = {
+    radius: ['km', function (p) { return Math.round(p.radius).toLocaleString('en-GB') + ' km'; }],
+    dist: ['million km from the Sun', function (p) { return p.dist.toLocaleString('en-GB') + ' million km'; }],
+    day: ['hours per rotation', function (p) { return p.day.toLocaleString('en-GB') + ' hours'; }],
+    year: ['Earth days per orbit', function (p) { return Math.round(p.year).toLocaleString('en-GB') + ' days'; }],
+    gravity: ['× Earth gravity', function (p) { return p.gravity.toFixed(2) + ' × Earth'; }],
+    moons: ['known moons', function (p) { return p.moons + ' known'; }]
+  };
+
+  function fmt(n) {
+    return (Math.round(n * 10) / 10).toLocaleString('en-GB');
+  }
+
+  function buildCards() {
+    cardsEl.textContent = '';
+    PLANETS.forEach(function (p) {
+      var card = document.createElement('div');
+      card.style.cssText = 'background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:14px;text-align:center;';
+      var name = document.createElement('div');
+      name.textContent = p.name;
+      name.style.cssText = 'font-size:1rem;font-weight:800;color:#e6faff;';
+      var ball = document.createElement('div');
+      var d = 2 * Math.sqrt(p.radius / 6371) * 14;
+      ball.style.cssText = 'width:' + Math.max(8, d) + 'px;height:' + Math.max(8, d) + 'px;border-radius:50%;margin:10px auto;background:linear-gradient(135deg,#2dd4ff,#0b3b57);box-shadow:0 0 12px rgba(45,212,255,0.4);';
+      var row = function (k, v) {
+        var d2 = document.createElement('div');
+        d2.style.fontSize = '0.72rem';
+        d2.style.color = 'var(--muted)';
+        d2.textContent = k + ': ' + v;
+        return d2;
+      };
+      card.appendChild(name);
+      card.appendChild(ball);
+      card.appendChild(row('Diameter', Math.round(p.radius * 2).toLocaleString('en-GB') + ' km'));
+      card.appendChild(row('Mass', p.mass.toLocaleString('en-GB') + '× Earth'));
+      card.appendChild(row('Gravity', p.gravity.toFixed(2) + ' g'));
+      card.appendChild(row('Day', fmt(p.day) + ' hours'));
+      card.appendChild(row('Year', Math.round(p.year).toLocaleString('en-GB') + ' days'));
+      card.appendChild(row('Sun distance', p.dist.toLocaleString('en-GB') + 'm km'));
+      card.appendChild(row('Moons (known)', String(p.moons)));
+      var wt = document.createElement('div');
+      wt.style.cssText = 'font-size:0.85rem;font-weight:800;color:#00ffcc;margin-top:8px;';
+      wt.textContent = 'Your weight: ' + fmt((parseFloat(weightInput.value) || 0) * p.gravity) + ' kg';
+      card.appendChild(wt);
+      var fact = document.createElement('div');
+      fact.textContent = p.fact;
+      fact.style.cssText = 'font-size:0.72rem;color:var(--muted);margin-top:6px;line-height:1.5;';
+      card.appendChild(fact);
+      cardsEl.appendChild(card);
+    });
+  }
+
+  function buildBars() {
+    var key = compare.value;
+    var l = LABELS[key];
+    metric.textContent = '— ' + l[0];
+    bars.textContent = '';
+    var max = 0;
+    PLANETS.forEach(function (p) { if (p[key] > max) max = p[key]; });
+    PLANETS.forEach(function (p) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:grid;grid-template-columns:90px 1fr 130px;gap:10px;align-items:center;margin-bottom:6px;';
+      var name = document.createElement('div');
+      name.textContent = p.name;
+      name.style.fontSize = '0.8rem';
+      var track = document.createElement('div');
+      track.style.cssText = 'background:rgba(255,255,255,0.05);border-radius:6px;height:14px;overflow:hidden;';
+      var fill = document.createElement('div');
+      fill.style.cssText = 'height:100%;border-radius:6px;background:linear-gradient(90deg,#2dd4ff,#00ffcc);';
+      fill.style.width = Math.max(1, (p[key] / max) * 100) + '%';
+      track.appendChild(fill);
+      var val = document.createElement('div');
+      val.textContent = l[1](p);
+      val.style.cssText = 'font-size:0.72rem;color:var(--muted);text-align:right;';
+      row.appendChild(name); row.appendChild(track); row.appendChild(val);
+      bars.appendChild(row);
+    });
+  }
+
+  weightInput.addEventListener('input', buildCards);
+  compare.addEventListener('change', buildBars);
+  buildCards();
+  buildBars();
+})();
+</script>

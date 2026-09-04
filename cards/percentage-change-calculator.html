@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Percentage Change Calculator</title>
+<meta name="description" content="Work out the percentage increase or decrease between two numbers, with reverse percentage and a price-change example.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:680px;margin:0 auto}
+  h2{margin-top:0;color:#c792ea}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(199,146,234,0.07);border:1px solid rgba(199,146,234,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+  label{display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px}
+  input{width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;box-sizing:border-box}
+  button{padding:10px 18px;border-radius:8px;border:0;background:#c792ea;color:#16181d;font-weight:700;cursor:pointer;font-size:1rem}
+  button:hover{filter:brightness(1.1)}
+  .big{font-size:1.7rem;font-weight:800;color:#c792ea;margin:6px 0}
+  .up{color:#63d3a6}.down{color:#e06a6a}
+  .stat{font-size:0.9rem;color:#9aa3af;margin-top:4px}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+  .err{color:#e06a6a}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="pct-title">📊 Percentage Change Calculator</h2>
+  <p id="pct-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Work out the percentage increase or decrease between two numbers, plus reverse percentages and a worked price-change example.</p>
+
+  <div class="card">
+    <div class="grid">
+      <div><label for="pct-from">From / old value</label><input type="number" id="pct-from" value="50" step="any"></div>
+      <div><label for="pct-to">To / new value</label><input type="number" id="pct-to" value="65" step="any"></div>
+    </div>
+    <button id="pct-go">Calculate change</button>
+    <div id="pct-out" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card">
+    <strong>Reverse percentage</strong> <span style="color:var(--muted);font-size:0.85rem;">— find the original amount before a % change</span>
+    <div class="grid">
+      <div><label for="pct-now">Result after change</label><input type="number" id="pct-now" value="117" step="any"></div>
+      <div><label for="pct-percent">Change applied (%)</label><input type="number" id="pct-percent" value="30" step="any"></div>
+    </div>
+    <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="radio" name="pct-dir" id="pct-updir" checked> increase</label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="radio" name="pct-dir" id="pct-downdir"> decrease</label>
+    </div>
+    <button id="pct-rev">Find original</button>
+    <div id="pct-revout" style="margin-top:10px;"></div>
+  </div>
+
+  <p class="small"><strong>Formula:</strong> change % = (new − old) ÷ old × 100. For a reverse percentage, divide by the multiplier: original = result ÷ (1 ± p/100). A change from 25 to 30 is a <strong>20% increase</strong> — and from 30 back to 25 it's a <strong>16.7% decrease</strong>, because the base differs.</p>
+
+<script>
+(function () {
+  'use strict';
+  var fromIn = document.getElementById('pct-from'),
+      toIn = document.getElementById('pct-to'),
+      go = document.getElementById('pct-go'),
+      out = document.getElementById('pct-out'),
+      nowIn = document.getElementById('pct-now'),
+      pctIn = document.getElementById('pct-percent'),
+      upDir = document.getElementById('pct-updir'),
+      downDir = document.getElementById('pct-downdir'),
+      rev = document.getElementById('pct-rev'),
+      revout = document.getElementById('pct-revout');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function num(v, dp) {
+    var n = Number(v);
+    var r = n.toFixed(dp === undefined ? 2 : dp);
+    return r.replace(/\.?0+$/, '');
+  }
+  function money(v) { return '£' + num(v, 2); }
+
+  function calc() {
+    var from = parseFloat(fromIn.value), to = parseFloat(toIn.value);
+    if (!(isFinite(from) && from !== 0)) { out.innerHTML = '<span class="err">The old value must be a non-zero number.</span>'; return; }
+    if (!isFinite(to)) { out.innerHTML = '<span class="err">Enter a new value.</span>'; return; }
+    var diff = to - from;
+    var pct = diff / from * 100;
+    var absPct = Math.abs(pct);
+    var cls = pct >= 0 ? 'up' : 'down';
+    var word = pct >= 0 ? 'increase' : 'decrease';
+    out.innerHTML =
+      '<div class="big ' + cls + '">' + (pct >= 0 ? '+' : '−') + num(absPct) + '% ' + word + '</div>' +
+      '<div class="stat">Change: ' + (diff >= 0 ? '+' : '−') + num(Math.abs(diff)) + '</div>' +
+      '<div class="stat">Multiplier: ×' + num(1 + pct / 100) + '</div>' +
+      '<div class="stat" style="margin-top:8px;">The old value (' + num(from) + ') is the base — it is treated as 100%.</div>' +
+      '<div class="stat">If the change had gone the other way, the % would differ because the base flips.</div>';
+    if (pct === 0) out.innerHTML = '<div class="big">0% change</div><div class="stat">The two values are identical.</div>';
+  }
+
+  function reverse() {
+    var now = parseFloat(nowIn.value), p = parseFloat(pctIn.value);
+    if (!(isFinite(now) && now > 0)) { revout.innerHTML = '<span class="err">The result must be a positive number.</span>'; return; }
+    if (!(isFinite(p) && p > 0 && p < 1000)) { revout.innerHTML = '<span class="err">Enter a percentage between 0 and 1000.</span>'; return; }
+    var isUp = upDir.checked;
+    var multiplier = isUp ? 1 + p / 100 : 1 - p / 100;
+    if (multiplier <= 0) { revout.innerHTML = '<span class="err">A decrease of 100% or more can\'t be reversed.</span>'; return; }
+    var original = now / multiplier;
+    revout.innerHTML =
+      '<div class="big">' + num(original) + '</div>' +
+      '<div class="stat">' + now + ' is the result of ' + (isUp ? 'an increase' : 'a decrease') + ' of ' + p + '% → divide by ' + num(multiplier) + '.</div>' +
+      '<div class="stat">Check: ' + num(original) + ' ' + (isUp ? '+' : '−') + ' ' + p + '% = ' + num(original * multiplier) + '.</div>';
+  }
+
+  go.addEventListener('click', calc);
+  rev.addEventListener('click', reverse);
+  calc();
+  reverse();
+})();
+</script>
+</body>
+</html>

@@ -119,6 +119,10 @@ for f in sorted(on_disk):
         continue
     for m in id_re.finditer(text):
         iid = m.group(1)
+        # Ids built at runtime (`id="${row.id}"`) are per-instance, not real
+        # collisions — reporting them buries the genuine duplicates.
+        if "${" in iid or "'+" in iid or '"+' in iid:
+            continue
         if iid in seen and seen[iid] != f:
             warns.append(f"duplicate id '{iid}' in {seen[iid]} and {f}")
         else:

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pythagoras Calculator</title>
+<meta name="description" content="Find the missing side of a right-angled triangle with the Pythagorean theorem — plus area, perimeter and angles.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:680px;margin:0 auto}
+  h2{margin-top:0;color:#f0b429}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+  label{display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px}
+  input{width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;box-sizing:border-box}
+  button{padding:10px 18px;border-radius:8px;border:0;background:#f0b429;color:#16181d;font-weight:700;cursor:pointer;font-size:1rem}
+  button:hover{filter:brightness(1.1)}
+  .box{background:rgba(240,180,41,0.08);border:1px solid rgba(240,180,41,0.3);border-radius:10px;padding:14px;margin-top:14px}
+  .err{background:rgba(230,80,80,0.1);border-color:rgba(230,80,80,0.4)}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .stat{flex:1;min-width:110px}
+  .stat b{display:block;font-size:1.15rem;color:#f0b429}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+  svg{margin-top:12px;background:rgba(0,0,0,0.25);border-radius:8px;display:block;max-width:100%}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="pyt-title">📐 Pythagoras Calculator</h2>
+  <p id="pyt-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Find the missing side of a right-angled triangle with the Pythagorean theorem — plus the area, perimeter and both acute angles.</p>
+
+  <p class="desc">Enter <strong>any two</strong> sides of a right-angled triangle. Leave the third blank and press Solve. <code>c</code> is always the hypotenuse (the side opposite the right angle).</p>
+
+  <div class="grid">
+    <div><label for="pyt-a">Side a</label><input type="number" id="pyt-a" value="3" min="0" step="any" placeholder="e.g. 3"></div>
+    <div><label for="pyt-b">Side b</label><input type="number" id="pyt-b" value="4" min="0" step="any" placeholder="e.g. 4"></div>
+    <div><label for="pyt-c">Hypotenuse c</label><input type="number" id="pyt-c" value="" min="0" step="any" placeholder="leave blank to solve"></div>
+  </div>
+
+  <button id="pyt-go">Solve triangle</button>
+
+  <div id="pyt-results" style="display:none;"><div id="pyt-out" class="box"></div></div>
+
+  <svg id="pyt-svg" width="320" height="190" viewBox="0 0 320 190" aria-hidden="true" style="display:none;">
+    <g id="pyt-tri">
+      <path id="pyt-hyp" d="" fill="rgba(240,180,41,0.12)" stroke="#f0b429" stroke-width="2"/>
+      <line id="pyt-legA" stroke="#7ec8ff" stroke-width="2"/>
+      <line id="pyt-legB" stroke="#7ec8ff" stroke-width="2"/>
+      <rect id="pyt-sq" x="0" y="0" width="11" height="11" fill="rgba(126,200,255,0.9)" transform=""/>
+      <text id="pyt-labA" x="0" y="0" fill="#7ec8ff" font-size="14" font-weight="700"></text>
+      <text id="pyt-labB" x="0" y="0" fill="#7ec8ff" font-size="14" font-weight="700"></text>
+    </g>
+  </svg>
+
+  <p id="pyt-note" class="small">Pythagoras' theorem: <code>a² + b² = c²</code>. Only works for right-angled triangles. Values are rounded to 2 decimal places.</p>
+
+<script>
+(function () {
+  'use strict';
+  var aIn = document.getElementById('pyt-a'),
+      bIn = document.getElementById('pyt-b'),
+      cIn = document.getElementById('pyt-c'),
+      go = document.getElementById('pyt-go'),
+      results = document.getElementById('pyt-results'),
+      out = document.getElementById('pyt-out'),
+      svg = document.getElementById('pyt-svg'),
+      tri = document.getElementById('pyt-tri'),
+      hypPath = document.getElementById('pyt-hyp'),
+      legA = document.getElementById('pyt-legA'),
+      legB = document.getElementById('pyt-legB'),
+      labA = document.getElementById('pyt-labA'),
+      labB = document.getElementById('pyt-labB');
+
+  function r2(n) { return Math.round(n * 100) / 100; }
+  function fmt(n) {
+    var r = r2(n);
+    return (Math.round(r) === r) ? String(Math.round(r)) : r.toFixed(2).replace(/\.?0+$/, '');
+  }
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  function show(msg, isErr) {
+    results.style.display = 'block';
+    svg.style.display = 'none';
+    out.className = 'box' + (isErr ? ' err' : '');
+    out.innerHTML = '<strong>' + (isErr ? '⚠ ' : '✓ ') + esc(msg) + '</strong>';
+  }
+
+  function draw(a, b, c) {
+    // scale so the largest leg fits ~240px
+    var max = Math.max(a, b, c), s = 220 / max;
+    var ah = a * s, bh = b * s;
+    var x1 = 20, y1 = 160;                 // right angle corner
+    var x2 = 20 + bh, y2 = 160;            // end of leg b (horizontal)
+    var x3 = 20, y3 = 160 - ah;            // end of leg a (vertical)
+    hypPath.setAttribute('d', 'M' + x1 + ',' + y1 + ' L' + x2 + ',' + y2 + ' L' + x3 + ',' + y3 + ' Z');
+    legA.setAttribute('x1', x1); legA.setAttribute('y1', y1);
+    legA.setAttribute('x2', x3); legA.setAttribute('y2', y3);
+    legB.setAttribute('x1', x1); legB.setAttribute('y1', y1);
+    legB.setAttribute('x2', x2); legB.setAttribute('y2', y2);
+    // right-angle marker (bottom-left)
+    var sq = document.getElementById('pyt-sq');
+    if (sq) sq.setAttribute('transform', 'translate(' + x1 + ',' + (y1 - 11) + ')');
+    labA.textContent = 'a = ' + fmt(a);
+    labA.setAttribute('x', x1 + 6);
+    labA.setAttribute('y', (y1 + y3) / 2);
+    labB.textContent = 'b = ' + fmt(b);
+    labB.setAttribute('x', (x1 + x2) / 2 - 22);
+    labB.setAttribute('y', y1 - 8);
+    svg.style.display = 'block';
+  }
+
+  function solve() {
+    var a = parseFloat(aIn.value), b = parseFloat(bIn.value), cRaw = cIn.value.trim();
+    var c = parseFloat(cRaw);
+    var filled = [isFinite(a) && aIn.value.trim() !== '', isFinite(b) && bIn.value.trim() !== '', cRaw !== '' && isFinite(c)].filter(Boolean).length;
+
+    if (filled < 2) { show('Enter at least two of the three sides (leave the unknown one blank).', true); return; }
+    if (filled === 3) {
+      // check they form a right triangle
+      var sides = [a, b, c].sort(function (x, y) { return x - y; });
+      if (sides.some(function (x) { return !(x > 0); })) { show('All sides must be positive numbers.', true); return; }
+      var ok = Math.abs(sides[0] * sides[0] + sides[1] * sides[1] - sides[2] * sides[2]) < 1e-6;
+      if (!ok) {
+        show('Those three sides do NOT form a right-angled triangle: ' + fmt(sides[0]) + '² + ' + fmt(sides[1]) + '² = ' + fmt(sides[0] * sides[0] + sides[1] * sides[1]) + ', but ' + fmt(sides[2]) + '² = ' + fmt(sides[2] * sides[2]) + '.', true);
+        return;
+      }
+      show('✓ Right triangle confirmed — Pythagorean check passes (' + fmt(sides[0]) + ', ' + fmt(sides[1]) + ', ' + fmt(sides[2]) + ').');
+      return;
+    }
+
+    if (aIn.value.trim() !== '' && !(a > 0)) { show('Side a must be a positive number.', true); return; }
+    if (bIn.value.trim() !== '' && !(b > 0)) { show('Side b must be a positive number.', true); return; }
+    if (cRaw !== '' && !(c > 0)) { show('Hypotenuse c must be a positive number.', true); return; }
+
+    var unknown = '', val = 0;
+    if (cRaw === '') {
+      unknown = 'c'; val = Math.sqrt(a * a + b * b);
+    } else if (aIn.value.trim() === '') {
+      unknown = 'a'; val = Math.sqrt(Math.max(0, c * c - b * b));
+    } else {
+      unknown = 'b'; val = Math.sqrt(Math.max(0, c * c - a * a));
+    }
+    if (unknown !== 'c') {
+      var knownLeg = unknown === 'b' ? a : b;
+      if (c <= knownLeg) {
+        show('The hypotenuse (c) must be the longest side. Right now c = ' + fmt(c) + ' is not longer than the known leg ' + fmt(knownLeg) + '.', true);
+        return;
+      }
+    }
+    var A = Math.max(a, 0.000001), B = Math.max(b, 0.000001), C = Math.max(val, 0.000001);
+    var area = (A * B) / 2;
+    var perim = A + B + C;
+    var angleA = Math.atan2(A, B) * 180 / Math.PI;
+    var angleB = 90 - angleA;
+
+    results.style.display = 'block';
+    out.className = 'box';
+    out.innerHTML =
+      '<div class="row">' +
+        '<div class="stat"><b>' + fmt(val) + '</b>missing side ' + esc(unknown.toUpperCase()) + '</div>' +
+        '<div class="stat"><b>' + fmt(area) + '</b>area (u²)</div>' +
+        '<div class="stat"><b>' + fmt(perim) + '</b>perimeter (u)</div>' +
+        '<div class="stat"><b>' + fmt(angleA) + '° / ' + fmt(angleB) + '°</b>acute angles</div>' +
+      '</div>';
+    var rem = '';
+    if (cRaw === '') { rem = 'c = √(' + fmt(A) + '² + ' + fmt(B) + '²) = √' + fmt(A * A + B * B) + ' = ' + fmt(val); }
+    else if (aIn.value.trim() === '') { rem = 'a = √(' + fmt(C) + '² − ' + fmt(B) + '²) = √' + fmt(Math.max(0, C * C - B * B)) + ' = ' + fmt(val); }
+    else { rem = 'b = √(' + fmt(C) + '² − ' + fmt(A) + '²) = √' + fmt(Math.max(0, C * C - A * A)) + ' = ' + fmt(val); }
+    out.innerHTML += '<p id="pyt-steps" style="margin:10px 0 0;font-size:0.85rem;color:var(--muted);">' + rem + '</p>';
+    draw(A, B, C);
+  }
+
+  go.addEventListener('click', solve);
+  var inputs = [aIn, bIn, cIn];
+  inputs.forEach(function (el) {
+    el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); solve(); } });
+  });
+  solve();
+})();
+</script>
+</body>
+</html>

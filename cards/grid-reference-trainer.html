@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Reference Trainer (OS)</title>
+<meta name="description" content="Learn four- and six-figure Ordnance Survey grid references with a visual grid — eastings first, northings second.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:720px;margin:0 auto}
+  h2{margin-top:0;color:#8af0c4}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(138,240,196,0.07);border:1px solid rgba(138,240,196,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input{width:100%;max-width:200px;padding:9px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:1rem;box-sizing:border-box}
+  button{padding:9px 16px;border-radius:8px;border:0;background:#8af0c4;color:#16181d;font-weight:700;cursor:pointer;font-size:0.95rem;margin-right:8px}
+  button:hover{filter:brightness(1.1)}
+  button.flat{background:transparent;border:1px solid rgba(255,255,255,0.3);color:inherit}
+  .gridbox{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px}
+  .gwrap{position:relative}
+  svg{background:rgba(0,0,0,0.25);border-radius:8px;display:block}
+  .q{margin-top:8px;font-size:1.05rem;font-weight:600}
+  .fb{margin-top:8px;font-size:0.95rem}
+  .ok{color:#63d3a6}.no{color:#e06a6a}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;color:#9aa3af;font-size:0.88rem;margin-top:10px;align-items:center}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="grt-title">🧭 Grid Reference Trainer (OS)</h2>
+  <p id="grt-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Learn four- and six-figure Ordnance Survey grid references on a visual grid — remember: eastings (across) first, northings (up) second.</p>
+
+  <div class="card">
+    <div id="grt-mode1">
+      <div class="q" id="grt-q"></div>
+      <div id="grt-grid"></div>
+      <div class="row" style="margin-top:10px;">
+        <label for="grt-ans" style="font-size:0.8rem;font-weight:600;">Your reference:</label>
+        <input type="text" id="grt-ans" maxlength="6" placeholder="e.g. 2437" autocomplete="off">
+        <button id="grt-check">Check</button>
+      </div>
+    </div>
+    <div id="grt-fb" class="fb"></div>
+    <div class="meta">
+      <span id="grt-score">Score 0/0</span>
+      <button id="grt-next">Next question</button>
+    </div>
+    <div id="grt-custom" style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.1);padding-top:10px;">
+      <strong style="font-size:0.9rem;">Reverse mode</strong> <span class="small" style="display:inline;">— place a point at a given reference</span>
+      <div class="row" style="margin-top:6px;">
+        <label for="grt-rev" style="font-size:0.8rem;font-weight:600;">Reference:</label>
+        <input type="text" id="grt-rev" maxlength="6" placeholder="e.g. 4362" autocomplete="off">
+        <button id="grt-place">Place point</button>
+        <button id="grt-clear" class="flat">Clear</button>
+      </div>
+      <div id="grt-revfb" style="font-size:0.85rem;color:var(--muted);margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <p class="small"><strong>How grid references work:</strong> a 4-figure reference (e.g. <code>2437</code>) names one 1km square: 24 = eastings (read across, left to right), 37 = northings (read up, bottom to top). A 6-figure reference (e.g. <code>243375</code>) divides that square into tenths — 24<strong>3</strong> is 3/10 of the way across, 37<strong>5</strong> is 5/10 of the way up. Always say eastings before northings: "along the corridor, up the stairs".</p>
+
+<script>
+(function () {
+  'use strict';
+  var qEl = document.getElementById('grt-q'),
+      gridEl = document.getElementById('grt-grid'),
+      ansIn = document.getElementById('grt-ans'),
+      checkBtn = document.getElementById('grt-check'),
+      fb = document.getElementById('grt-fb'),
+      scoreEl = document.getElementById('grt-score'),
+      nextBtn = document.getElementById('grt-next'),
+      revIn = document.getElementById('grt-rev'),
+      placeBtn = document.getElementById('grt-place'),
+      clearBtn = document.getElementById('grt-clear'),
+      revfb = document.getElementById('grt-revfb');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  var state = { e: 24, n: 37, tenths: false, x: 3, y: 5, correct: 0, answered: 0 };
+  var S = 280, CELL = 70; // svg size, cell size
+
+  function drawGrid(mark4, point) {
+    var e = state.e, n = state.n, tenths = state.tenths, x = state.x, y = state.y;
+    var h = '<svg width="' + S + '" height="' + S + '" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="Grid reference diagram">';
+    // labels
+    h += '<text x="4" y="' + (S - 8) + '" fill="#9aa3af" font-size="11">E' + e + '</text>';
+    h += '<text x="' + (CELL + 8) + '" y="' + (S - 8) + '" fill="#9aa3af" font-size="11">E' + (e + 1) + '</text>';
+    h += '<text x="' + (2 * CELL + 8) + '" y="' + (S - 8) + '" fill="#9aa3af" font-size="11">E' + (e + 2) + '</text>';
+    h += '<text x="' + (3 * CELL + 8) + '" y="' + (S - 8) + '" fill="#9aa3af" font-size="11">E' + (e + 3) + '</text>';
+    h += '<text x="46" y="14" fill="#9aa3af" font-size="11">N' + (n + 3) + '</text>';
+    h += '<text x="46" y="' + (CELL + 14) + '" fill="#9aa3af" font-size="11">N' + (n + 2) + '</text>';
+    h += '<text x="46" y="' + (2 * CELL + 14) + '" fill="#9aa3af" font-size="11">N' + (n + 1) + '</text>';
+    h += '<text x="46" y="' + (3 * CELL + 14) + '" fill="#9aa3af" font-size="11">N' + n + '</text>';
+    // frame
+    h += '<rect x="20" y="30" width="' + (S - 20) + '" height="' + (S - 30) + '" fill="rgba(138,240,196,0.03)" stroke="#8af0c4" stroke-width="1.5"/>';
+    // verticals at 20+CELL*i
+    for (var i = 1; i < 3; i++) h += '<line x1="' + (20 + CELL * i) + '" y1="30" x2="' + (20 + CELL * i) + '" y2="' + S + '" stroke="rgba(138,240,196,0.4)" stroke-width="1"/>';
+    // horizontals
+    for (var j = 1; j <= 2; j++) h += '<line x1="20" y1="' + (30 + CELL * j + 9) + '" x2="' + S + '" y2="' + (30 + CELL * j + 9) + '" stroke="rgba(138,240,196,0.4)" stroke-width="1"/>';
+    var cx = 20 + (x / 10) * (CELL ), cy = 30 + CELL + (y / 10) * (CELL - 0);
+    // highlight 4-fig square
+    if (mark4) h += '<rect x="20" y="' + (30 + CELL + 9) + '" width="' + (CELL + 0) + '" height="' + (CELL - 0) + '" fill="rgba(138,240,196,0.25)" stroke="#8af0c4" stroke-width="2"/>';
+    // point
+    if (point) {
+      h += '<circle cx="' + cx + '" cy="' + cy + '" r="7" fill="#ffd166" stroke="#16181d" stroke-width="1.5"/>';
+      h += '<text x="' + (cx + 10) + '" y="' + (cy - 6) + '" fill="#ffd166" font-size="12" font-weight="700">×</text>';
+    }
+    // tenth ticks when six-figure mode
+    if (tenths || point) {
+      for (var k = 0; k <= 10; k++) {
+        var tx = 20 + (k / 10) * CELL, ty = 30 + CELL + (k / 10) * CELL + 9;
+        h += '<line x1="' + tx + '" y1="' + (30 + CELL + 9) + '" x2="' + tx + '" y2="' + (30 + CELL + 9 + 3) + '" stroke="#ffd166" stroke-width="0.7"/>';
+        h += '<line x1="20" y1="' + ty + '" x2="' + (20 + 3) + '" y2="' + ty + '" stroke="#ffd166" stroke-width="0.7"/>';
+      }
+      // inner grid of the highlighted cell
+      for (var m = 1; m < 10; m++) {
+        h += '<line x1="' + (20 + m / 10 * CELL) + '" y1="' + (30 + CELL + 9) + '" x2="' + (20 + m / 10 * CELL) + '" y2="' + (30 + 2 * CELL + 9) + '" stroke="rgba(255,209,102,0.25)" stroke-width="0.5"/>';
+        h += '<line x1="20" y1="' + (30 + CELL + 9 + m / 10 * CELL) + '" x2="' + (20 + CELL) + '" y2="' + (30 + CELL + 9 + m / 10 * CELL) + '" stroke="rgba(255,209,102,0.25)" stroke-width="0.5"/>';
+      }
+    }
+    h += '</svg>';
+    gridEl.innerHTML = h;
+  }
+
+  function newQ() {
+    state.e = 10 + Math.floor(Math.random() * 80);
+    state.n = 10 + Math.floor(Math.random() * 80);
+    state.tenths = Math.random() < 0.5;
+    state.x = Math.floor(Math.random() * 10);
+    state.y = Math.floor(Math.random() * 10);
+    state.correct = 0; state.answered = 0;
+    var e = state.e, n = state.n, x = state.x, y = state.y;
+    if (state.tenths) {
+      qEl.textContent = 'The × marks a point inside the highlighted 1km square. Give the SIX-figure grid reference (eastings then northings). The easting line is ' + e + ', the northing line is ' + n + '.';
+      ansIn.placeholder = 'e.g. ' + e + x + n + y;
+    } else {
+      qEl.textContent = 'Which 1km square is shaded? Give the FOUR-figure grid reference (eastings then northings). The lines are labelled E' + e + '–E' + (e + 3) + ' and N' + n + '–N' + (n + 3) + '.';
+      ansIn.placeholder = 'e.g. ' + e + Math.floor(n);
+    }
+    fb.innerHTML = '';
+    scoreEl.textContent = 'Score 0/0';
+    drawGrid(true, state.tenths);
+  }
+
+  function check() {
+    var raw = ansIn.value.trim().toLowerCase().replace(/\s/g, '');
+    if (!/^\d+$/.test(raw) || raw.length < 4 || raw.length > 6) { fb.innerHTML = '<span class="no">Enter a 4- or 6-digit reference.</span>'; return; }
+    var e = state.e, n = state.n, x = state.x, y = state.y;
+    var target6 = String(e) + x + String(n) + y;
+    var target4 = String(e) + String(n);
+    var good;
+    if (raw.length === 6) good = raw === target6;
+    else good = raw === target4;
+    state.answered++;
+    if (good) state.correct++;
+    fb.innerHTML = good
+      ? '<span class="ok">✓ Correct! ' + (raw.length === 6 ? 'Six-figure: ' + target6 : 'Four-figure: ' + target4) + '</span>'
+      : '<span class="no">✗ The ' + (raw.length === 6 ? 'six' : 'four') + '-figure reference was ' + (raw.length === 6 ? target6 : target4) + ' — eastings first, then northings.</span>';
+    scoreEl.textContent = 'Score ' + state.correct + '/' + state.answered;
+  }
+
+  function place() {
+    var raw = revIn.value.trim().toLowerCase().replace(/\s/g, '');
+    if (!/^\d{4,6}$/.test(raw)) { revfb.textContent = 'Enter a 4- or 6-digit reference (digits only).'; return; }
+    var half = Math.floor(raw.length / 2);
+    var e = parseInt(raw.slice(0, 2), 10);
+    var n = parseInt(raw.slice(half, half + 2), 10);
+    if (!(isFinite(e) && isFinite(n) && e >= 0 && e <= 99 && n >= 0 && n <= 99)) { revfb.textContent = 'Reference out of range (00–99 for each part).'; return; }
+    state.e = e; state.n = n; state.tenths = raw.length === 6;
+    state.x = raw.length === 6 ? parseInt(raw[2], 10) : 5;
+    state.y = raw.length === 6 ? parseInt(raw[half + 2], 10) : 5;
+    if (!(state.x >= 0 && state.x <= 9)) state.x = 5;
+    if (!(state.y >= 0 && state.y <= 9)) state.y = 5;
+    drawGrid(false, true);
+    revfb.textContent = 'Placed the point at ' + raw + ' — the easting is read first, then the northing.';
+  }
+
+  function clear() {
+    revIn.value = '';
+    revfb.textContent = '';
+    drawGrid(true, state.tenths);
+  }
+
+  checkBtn.addEventListener('click', check);
+  nextBtn.addEventListener('click', newQ);
+  placeBtn.addEventListener('click', place);
+  clearBtn.addEventListener('click', clear);
+  ansIn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); check(); } });
+  revIn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); place(); } });
+  newQ();
+})();
+</script>
+</body>
+</html>

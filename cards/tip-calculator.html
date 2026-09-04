@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tip Calculator</title>
+<meta name="description" content="Split a bill and tip fairly — choose a percentage or custom tip, split between friends and see per-person totals.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:700px;margin:0 auto}
+  h2{margin-top:0;color:#ffd166}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(255,209,102,0.07);border:1px solid rgba(255,209,102,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+  label{display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px}
+  input,select{width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;box-sizing:border-box}
+  button{padding:10px 18px;border-radius:8px;border:0;background:#ffd166;color:#16181d;font-weight:700;cursor:pointer;font-size:1rem}
+  button:hover{filter:brightness(1.1)}
+  button.flat{background:transparent;border:1px solid rgba(255,255,255,0.3);color:inherit}
+  .quick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .q{ padding:7px 14px;border-radius:999px;border:1px solid rgba(255,209,102,0.4);background:transparent;color:#ffd166;cursor:pointer;font-size:0.9rem}
+  .q.active{background:#ffd166;color:#16181d;font-weight:700}
+  .big{font-size:1.7rem;font-weight:800;color:#ffd166;margin:8px 0}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px}
+  .stat{background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px}
+  .stat b{display:block;font-size:1rem;color:#ffd166}
+  .stat span{font-size:0.78rem;color:#9aa3af}
+  .err{color:#e06a6a}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="tip-title">🧾 Tip Calculator</h2>
+  <p id="tip-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Split a bill and tip fairly — choose a percentage or a custom tip, share between friends, and see per-person totals.</p>
+
+  <div class="card">
+    <div class="grid">
+      <div><label for="tip-bill">Bill amount (£)</label><input type="number" id="tip-bill" value="68.50" min="0" step="0.01"></div>
+      <div><label for="tip-ppl">Number of people</label><input type="number" id="tip-ppl" value="4" min="1" max="50"></div>
+      <div><label for="tip-pct">Tip %</label><input type="number" id="tip-pct" value="10" min="0" max="100" step="0.5"></div>
+    </div>
+    <div class="quick">
+      <button class="q" id="tip-q0" data-p="0">0%</button>
+      <button class="q" id="tip-q5" data-p="5">5%</button>
+      <button class="q" id="tip-q10" data-p="10">10%</button>
+      <button class="q" id="tip-q125" data-p="12.5">12.5%</button>
+      <button class="q" id="tip-q15" data-p="15">15%</button>
+      <button class="q" id="tip-q18" data-p="18">18%</button>
+      <button class="q" id="tip-q20" data-p="20">20%</button>
+    </div>
+    <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="tip-go">Calculate</button>
+      <button id="tip-round" class="flat">Round up to whole £</button>
+    </div>
+    <div id="tip-out" style="margin-top:10px;"></div>
+  </div>
+
+  <p class="small"><strong>Custom tip:</strong> enter a % (e.g. 12.5) or type a fixed amount in the Tip box in the form of <code>£5</code> or <code>5</code>. Tips in the UK are discretionary — many restaurants add a 10–12.5% service charge, so check the bill first. Round-up helps when you're paying in cash.</p>
+
+<script>
+(function () {
+  'use strict';
+  var billIn = document.getElementById('tip-bill'),
+      pplIn = document.getElementById('tip-ppl'),
+      pctIn = document.getElementById('tip-pct'),
+      go = document.getElementById('tip-go'),
+      roundBtn = document.getElementById('tip-round'),
+      out = document.getElementById('tip-out');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function money(v) { return '£' + (Math.round(v * 100) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function money2(v) { return '£' + (Math.round(v * 100) / 100).toFixed(2).replace(/\.00$/, ''); }
+
+  function parseTip(raw) {
+    var v = String(raw).trim().replace(/^£/, '');
+    if (v === '') return NaN;
+    if (/%$/.test(v)) return parseFloat(v.slice(0, -1));
+    return parseFloat(v);
+  }
+
+  function calc() {
+    var bill = parseFloat(billIn.value);
+    var ppl = Math.floor(Number(pplIn.value));
+    var tipVal = parseTip(pctIn.value);
+    if (!(isFinite(bill) && bill >= 0)) { out.innerHTML = '<span class="err">Enter a valid bill amount.</span>'; return; }
+    if (!(ppl >= 1 && ppl <= 50)) { out.innerHTML = '<span class="err">Number of people must be 1–50.</span>'; return; }
+    if (!(isFinite(tipVal) && tipVal >= 0)) { out.innerHTML = '<span class="err">Enter a tip as a % (e.g. 12.5) or an amount (e.g. 5).</span>'; return; }
+
+    var isPct = /%$/.test(String(pctIn.value).trim()) || /^\d+(\.\d+)?$/.test(String(pctIn.value).trim());
+    var tipAmount = isPct ? bill * tipVal / 100 : tipVal;
+    var total = bill + tipAmount;
+    var perPerson = total / ppl;
+
+    var html =
+      '<div class="big">' + money2(tipAmount) + ' tip</div>' +
+      '<div class="stats">' +
+      '<div class="stat"><b>' + money(total) + '</b><span>total with tip</span></div>' +
+      '<div class="stat"><b>' + money(perPerson) + '</b><span>each of ' + ppl + '</span></div>' +
+      '<div class="stat"><b>' + money(bill) + '</b><span>bill (' + (isPct ? tipVal + '% service or tip' : 'custom tip') + ')</span></div>' +
+      '</div>';
+    out.innerHTML = html;
+    return { tipAmount: tipAmount, total: total, perPerson: perPerson };
+  }
+
+  function roundUp() {
+    var bill = parseFloat(billIn.value);
+    var ppl = Math.floor(Number(pplIn.value));
+    if (!(isFinite(bill) && bill >= 0) || !(ppl >= 1)) { out.innerHTML = '<span class="err">Enter a valid bill and people count first.</span>'; return; }
+    var per = bill / ppl;
+    var rounded = Math.ceil(per);
+    var totalR = rounded * ppl;
+    out.innerHTML =
+      '<div class="big">' + money2(totalR) + ' total</div>' +
+      '<div class="stats">' +
+      '<div class="stat"><b>' + money(rounded) + '</b><span>each pays (rounded up)</span></div>' +
+      '<div class="stat"><b>' + money(rounded - per) + '</b><span>extra each vs exact</span></div>' +
+      '<div class="stat"><b>' + money(totalR - bill) + '</b><span>tip left</span></div>' +
+      '</div>';
+  }
+
+  go.addEventListener('click', calc);
+  roundBtn.addEventListener('click', roundUp);
+  var quick = [
+    ['tip-q0', '0'], ['tip-q5', '5'], ['tip-q10', '10'], ['tip-q125', '12.5'],
+    ['tip-q15', '15'], ['tip-q18', '18'], ['tip-q20', '20']
+  ];
+  quick.forEach(function (pair) {
+    var b = document.getElementById(pair[0]);
+    b.addEventListener('click', function () {
+      pctIn.value = pair[1];
+      quick.forEach(function (x) { document.getElementById(x[0]).className = 'q'; });
+      b.className = 'q active';
+      calc();
+    });
+  });
+  calc();
+})();
+</script>
+</body>
+</html>

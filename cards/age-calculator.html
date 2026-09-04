@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Age Calculator</title>
+<meta name="description" content="Your exact age in years, months and days — plus days lived, next birthday countdown and life milestones.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:700px;margin:0 auto}
+  h2{margin-top:0;color:#8be9fd}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(139,233,253,0.07);border:1px solid rgba(139,233,253,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+  label{display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px}
+  input{width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;box-sizing:border-box}
+  button{padding:10px 18px;border-radius:8px;border:0;background:#8be9fd;color:#16181d;font-weight:700;cursor:pointer;font-size:1rem}
+  button:hover{filter:brightness(1.1)}
+  .big{font-size:1.9rem;font-weight:800;color:#8be9fd;margin:8px 0}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+  .stat{background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px}
+  .stat b{display:block;font-size:1.15rem;color:#8be9fd}
+  .stat span{font-size:0.78rem;color:#9aa3af}
+  .err{color:#e06a6a}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="age-title">🎂 Age Calculator</h2>
+  <p id="age-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Your exact age in years, months and days — plus total days lived, next birthday countdown and 10,000-day milestones.</p>
+
+  <div class="card">
+    <div class="grid">
+      <div><label for="age-dob">Date of birth</label><input type="date" id="age-dob"></div>
+      <div><label for="age-asof">Age at date (default: today)</label><input type="date" id="age-asof"></div>
+    </div>
+    <button id="age-go">Calculate</button>
+    <div id="age-out" style="margin-top:10px;"></div>
+  </div>
+
+  <p class="small"><strong>Note:</strong> ages are calculated in whole calendar terms — for example someone born on 7 March 2000 is exactly 26 years, 5 months and 28 days old on 4 September 2026. Leap days are handled automatically.</p>
+
+<script>
+(function () {
+  'use strict';
+  var dobIn = document.getElementById('age-dob'),
+      asofIn = document.getElementById('age-asof'),
+      go = document.getElementById('age-go'),
+      out = document.getElementById('age-out');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  function setDefault() {
+    var t = new Date();
+    asofIn.value = t.toISOString().slice(0, 10);
+    dobIn.value = '2000-03-07';
+  }
+
+  function parseDate(s) {
+    if (!s) return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return null;
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (d.getFullYear() !== Number(m[1]) || d.getMonth() !== Number(m[2]) - 1 || d.getDate() !== Number(m[3])) return null;
+    return d;
+  }
+
+  function calc() {
+    var dob = parseDate(dobIn.value);
+    var asof = parseDate(asofIn.value);
+    if (!dob) { out.innerHTML = '<span class="err">Enter a valid date of birth.</span>'; return; }
+    if (!asof) { out.innerHTML = '<span class="err">Enter a valid "age at" date.</span>'; return; }
+    if (dob > asof) { out.innerHTML = '<span class="err">Birth date can\'t be after the "age at" date.</span>'; return; }
+
+    // exact calendar age
+    var y = asof.getFullYear() - dob.getFullYear();
+    var m = asof.getMonth() - dob.getMonth();
+    var d = asof.getDate() - dob.getDate();
+    if (d < 0) {
+      // borrow days from previous month
+      var prevMonth = new Date(asof.getFullYear(), asof.getMonth(), 0).getDate();
+      d += prevMonth;
+      m--;
+    }
+    if (m < 0) { m += 12; y--; }
+
+    var daysLived = Math.floor((asof - dob) / 86400000);
+    var weeksLived = Math.floor(daysLived / 7);
+    var totalMonths = y * 12 + m;
+
+    // next birthday (Date overflow handles Feb 29 → Mar 1 in non-leap years)
+    var nextB = new Date(asof.getFullYear(), dob.getMonth(), dob.getDate());
+    if (nextB <= asof) nextB = new Date(asof.getFullYear() + 1, dob.getMonth(), dob.getDate());
+    var daysToBday = Math.round((nextB - asof) / 86400000);
+    var nextAge = nextB.getFullYear() - dob.getFullYear() - ((nextB.getMonth() < dob.getMonth() || (nextB.getMonth() === dob.getMonth() && nextB.getDate() < dob.getDate())) ? 1 : 0);
+
+    // 10,000-day milestones nearby
+    var milestone = Math.floor(daysLived / 10000) * 10000 + 10000;
+    var msDays = milestone - daysLived;
+    var fromDob = new Date(dob.getTime() + milestone * 86400000);
+
+    out.innerHTML =
+      '<div class="big">' + y + ' years, ' + m + ' months, ' + d + ' days</div>' +
+      '<div class="stats">' +
+      '<div class="stat"><b>' + daysLived.toLocaleString() + '</b><span>days lived</span></div>' +
+      '<div class="stat"><b>' + weeksLived.toLocaleString() + '</b><span>weeks lived</span></div>' +
+      '<div class="stat"><b>' + totalMonths.toLocaleString() + '</b><span>months lived</span></div>' +
+      '<div class="stat"><b>' + y + '</b><span>years old</span></div>' +
+      '</div>' +
+      '<div class="stats">' +
+      '<div class="stat"><b>' + daysToBday + ' days</b><span>until your next birthday (age ' + nextAge + ')</span></div>' +
+      '<div class="stat"><b>day ' + milestone.toLocaleString() + '</b><span>next 10k-day milestone — ' + fromDob.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' (' + msDays + ' days away)</span></div>' +
+      '</div>';
+  }
+
+  go.addEventListener('click', calc);
+  setDefault();
+  calc();
+})();
+</script>
+</body>
+</html>

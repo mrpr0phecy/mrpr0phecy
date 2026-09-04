@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dice and Coin Roller</title>
+<meta name="description" content="Roll virtual dice (d4–d100), flip coins and pick random numbers or names — with totals, history and dice rolls.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:720px;margin:0 auto}
+  h2{margin-top:0;color:#7ee8a2}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(126,232,162,0.07);border:1px solid rgba(126,232,162,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  button{padding:9px 14px;border-radius:8px;border:0;background:#7ee8a2;color:#16181d;font-weight:700;cursor:pointer;font-size:0.9rem;margin:3px 4px 3px 0}
+  button:hover{filter:brightness(1.1)}
+  button.flat{background:transparent;border:1px solid rgba(255,255,255,0.3);color:inherit}
+  .dice{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .die{width:58px;height:58px;background:#f5f5f0;color:#16181d;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;box-shadow:0 3px 0 #bbb}
+  .pile{color:#9aa3af;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px 12px;min-height:22px;font-size:0.92rem;margin:8px 0}
+  .total{font-size:1.5rem;font-weight:800;color:#7ee8a2}
+  .hist{font-size:0.82rem;color:#9aa3af;line-height:1.8;max-height:120px;overflow-y:auto}
+  input{width:70px;padding:7px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;margin-right:6px}
+  input.name{width:200px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+  .big{font-size:1.6rem;font-weight:800;color:#7ee8a2;margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="dcr-title">🎲 Dice &amp; Coin Roller</h2>
+  <p id="dcr-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Roll virtual dice from d4 to d100, flip coins, pick random numbers or names — with totals, history and rolls.</p>
+
+  <div class="card">
+    <strong>Dice</strong>
+    <div class="row">
+      <label for="dcr-count" style="font-size:0.8rem;font-weight:600;">Number:</label>
+      <input type="number" id="dcr-count" value="2" min="1" max="12">
+      <button id="dcr-d6">Roll d6</button>
+      <button id="dcr-d4" class="flat">d4</button>
+      <button id="dcr-d8" class="flat">d8</button>
+      <button id="dcr-d10" class="flat">d10</button>
+      <button id="dcr-d12" class="flat">d12</button>
+      <button id="dcr-d20" class="flat">d20</button>
+      <button id="dcr-d100" class="flat">d100</button>
+    </div>
+    <div class="dice" id="dcr-dice"></div>
+    <div class="total" id="dcr-total"></div>
+    <div class="pile" id="dcr-pile"></div>
+  </div>
+
+  <div class="card">
+    <strong>Coin flip</strong> <span class="small" style="display:inline;">— lots of coins at once, or one at a time</span>
+    <div class="row">
+      <button id="dcr-flip">Flip 1</button>
+      <button id="dcr-flip5" class="flat">Flip 5</button>
+      <button id="dcr-flip10" class="flat">Flip 10</button>
+    </div>
+    <div class="pile" id="dcr-coins"></div>
+    <div class="hist" id="dcr-coinhist"></div>
+  </div>
+
+  <div class="card">
+    <strong>Random number</strong>
+    <div class="row">
+      <label for="dcr-min" style="font-size:0.8rem;font-weight:600;">Min</label>
+      <input type="number" id="dcr-min" value="1">
+      <label for="dcr-max" style="font-size:0.8rem;font-weight:600;">Max</label>
+      <input type="number" id="dcr-max" value="100">
+      <button id="dcr-num">Pick</button>
+    </div>
+    <div class="big" id="dcr-numout"></div>
+  </div>
+
+  <div class="card">
+    <strong>Random name picker</strong>
+    <div class="row">
+      <input type="text" id="dcr-names" class="name" value="Alice, Bob, Charlie, Diana" placeholder="names, comma separated">
+      <button id="dcr-name">Pick one</button>
+      <button id="dcr-shuffle" class="flat">Shuffle order</button>
+    </div>
+    <div class="big" id="dcr-nameout"></div>
+    <div class="hist" id="dcr-nameorder"></div>
+  </div>
+
+  <p class="small"><strong>Fairness:</strong> results come from the browser's <code>Math.random()</code> — good enough for games and quick decisions, but not for serious gambling. Each die is independent and equally likely to show any face.</p>
+
+<script>
+(function () {
+  'use strict';
+  var countIn = document.getElementById('dcr-count'),
+      diceEl = document.getElementById('dcr-dice'),
+      totalEl = document.getElementById('dcr-total'),
+      pileEl = document.getElementById('dcr-pile'),
+      coinsEl = document.getElementById('dcr-coins'),
+      coinHistEl = document.getElementById('dcr-coinhist'),
+      minIn = document.getElementById('dcr-min'),
+      maxIn = document.getElementById('dcr-max'),
+      numOut = document.getElementById('dcr-numout'),
+      namesIn = document.getElementById('dcr-names'),
+      nameOut = document.getElementById('dcr-nameout'),
+      nameOrderEl = document.getElementById('dcr-nameorder');
+
+  function rint(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+
+  var history = [];
+
+  function roll(sides) {
+    var count = Math.max(1, Math.min(12, Math.floor(Number(countIn.value) || 1)));
+    var results = [], i;
+    for (i = 0; i < count; i++) results.push(rint(1, sides));
+    diceEl.innerHTML = '';
+    results.forEach(function (v) {
+      var d = document.createElement('div');
+      d.className = 'die';
+      d.textContent = String(v);
+      diceEl.appendChild(d);
+    });
+    var sum = results.reduce(function (a, b) { return a + b; }, 0);
+    totalEl.textContent = count > 1 ? 'Total: ' + sum + ' (average ' + (sum / count).toFixed(1) + ')' : '';
+    history.unshift(count + 'd' + sides + ' = ' + results.join(', '));
+    if (history.length > 8) history.pop();
+    pileEl.textContent = 'History: ' + history.join('  ·  ');
+  }
+
+  function flip(n) {
+    var coins = [], h = 0, i;
+    for (i = 0; i < n; i++) { var c = Math.random() < 0.5 ? 'H' : 'T'; coins.push(c); if (c === 'H') h++; }
+    coinsEl.textContent = coins.join('  ') + '  →  ' + h + ' heads, ' + (n - h) + ' tails';
+    var big = coins.length >= 5 ? '<strong>' + coins.join(' ') + '</strong> — ' + h + 'H / ' + (n - h) + 'T' : '';
+    coinHistEl.textContent = big;
+  }
+
+  function pickNum() {
+    var mn = Math.floor(Number(minIn.value)), mx = Math.floor(Number(maxIn.value));
+    if (!(isFinite(mn) && isFinite(mx)) || mn > mx) { numOut.textContent = 'Check your min/max.'; return; }
+    numOut.textContent = rint(mn, mx) + '  (' + mn + '–' + mx + ')';
+  }
+
+  function parseNames() {
+    return namesIn.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function pickName() {
+    var ns = parseNames();
+    if (!ns.length) { nameOut.textContent = 'Enter at least one name.'; nameOrderEl.textContent = ''; return; }
+    var winner = ns[rint(0, ns.length - 1)];
+    nameOut.textContent = '🎉 ' + winner;
+  }
+
+  function shuffleNames() {
+    var ns = parseNames();
+    for (var i = ns.length - 1; i > 0; i--) { var j = rint(0, i); var t = ns[i]; ns[i] = ns[j]; ns[j] = t; }
+    nameOut.textContent = '';
+    nameOrderEl.textContent = 'New order: ' + ns.join(' → ');
+  }
+
+  document.getElementById('dcr-d6').addEventListener('click', function () { roll(6); });
+  document.getElementById('dcr-d4').addEventListener('click', function () { roll(4); });
+  document.getElementById('dcr-d8').addEventListener('click', function () { roll(8); });
+  document.getElementById('dcr-d10').addEventListener('click', function () { roll(10); });
+  document.getElementById('dcr-d12').addEventListener('click', function () { roll(12); });
+  document.getElementById('dcr-d20').addEventListener('click', function () { roll(20); });
+  document.getElementById('dcr-d100').addEventListener('click', function () { roll(100); });
+  document.getElementById('dcr-flip').addEventListener('click', function () { flip(1); });
+  document.getElementById('dcr-flip5').addEventListener('click', function () { flip(5); });
+  document.getElementById('dcr-flip10').addEventListener('click', function () { flip(10); });
+  document.getElementById('dcr-num').addEventListener('click', pickNum);
+  document.getElementById('dcr-name').addEventListener('click', pickName);
+  document.getElementById('dcr-shuffle').addEventListener('click', shuffleNames);
+  roll(6);
+  pickNum();
+})();
+</script>
+</body>
+</html>

@@ -23,21 +23,18 @@ traps that have already cost people time.
 
 Start there whether you are a human or an AI agent.
 
-## AI Developer staff
+## Scheduled checker
 
-The repo runs an automated AI Developer facility
-([`.github/workflows/ai-developer.yml`](.github/workflows/ai-developer.yml),
-Mon & Thu 06:00 UTC or on-demand via *Actions → Run workflow*). Its staff —
-including the **Visual Design Expert** who curates the two design languages
-(ARCHITECTURE.md §5) — is registered in [`scripts/ai-staff.json`](scripts/ai-staff.json).
+[`.github/workflows/ai-developer.yml`](.github/workflows/ai-developer.yml)
+runs Mon & Thu 06:00 UTC (or on demand via *Actions → Run workflow*). It runs
+the audits defined in [`scripts/ai-audits.json`](scripts/ai-audits.json),
+applies only deterministic fixes, and opens a PR — it never commits to `main`.
 
 ```bash
-node scripts/ai-developer.js staff    # meet the staff
-node scripts/ai-developer.js audit    # run every staff audit
-node scripts/ai-developer.js auto     # audit + safe fixes (+ generation when AI_API_KEY is set)
+node scripts/ai-developer.js audits   # list the configured audits
+node scripts/ai-developer.js audit    # run them
+node scripts/ai-developer.js auto     # audit + safe fixes (+ drafts if AI_API_KEY is set)
 ```
-
-More in [AGENTS.md §8](AGENTS.md).
 
 ## Money & monetisation
 
@@ -52,7 +49,34 @@ money-related.
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
 | Tools | 644, indexed by `cards/cards.json` |
-| Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
+| Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, then `python3 scripts/sync-counts.py` |
+
+## Checks before you push
+
+`bash scripts/verify.sh` is the gate — 11 checks, green before every push.
+CI (`.github/workflows/agent-guardrails.yml`) runs the same ones.
+
+Two things are **generated, never hand-edited** — the tool count and the
+sitemap. Both repair themselves:
+
+```bash
+python3 scripts/sync-counts.py     # syncs all 49 count claims across 10 files
+python3 scripts/build-sitemap.py   # rebuilds sitemap.xml from git
+```
+
+Individual scanners, if you want to run one on its own:
+
+```bash
+python3 scripts/check-a11y.py     # labels, alt text, rel="noopener"
+python3 scripts/check-egress.py   # no card sends your input off-device
+python3 scripts/scan-seo.py       # titles, canonicals, OG/twitter metadata
+node    scripts/design-audit.js   # design tokens and guard rules
+```
+
+> **Why so much automation for a static site?** Because every rule here that
+> lived only in a document got broken — the tool count once shipped as nine
+> different numbers at the same time. <!-- historical-count --> Rules that
+> can fail the build are the ones that hold. See [AGENTS.md](AGENTS.md).
 
 ## Local preview
 

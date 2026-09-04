@@ -1,175 +1,150 @@
-# AGENTS.md — operating instructions for AI agents
+# AGENTS.md — how to work on this repo
 
-Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
-[README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
-Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-08-30. **ARCHITECTURE.md is authoritative if anything here
-disagrees with it.**
+You are probably here for one session, with no memory of the last one and no
+way to talk to anyone else working in parallel. This file is written for that.
+
+The goal is a **useful site**, not a well-documented process. Three things to
+internalise, then go:
+
+1. **`bash scripts/verify.sh` is the contract.** Green means ship it. It is
+   the same thing CI runs, so you don't need permission or a second opinion.
+2. **[CONSTRAINTS.md](CONSTRAINTS.md) is the only thing you must read first.**
+   It is short, and it holds the handful of facts you genuinely cannot work
+   out from the code — owner decisions and invisible traps.
+3. **Git and GitHub are the record.** `git log`, `gh pr list`, `gh issue list`
+   already show who did what. Don't write status reports, board posts,
+   handovers or decision logs into the repo. That was tried; it produced more
+   process than site.
+
+Everything else — [ARCHITECTURE.md](ARCHITECTURE.md) for how the site is
+built, [README.md](README.md) to get running, [INCOME.md](INCOME.md) for
+money — is reference. Read the part you need when you need it.
 
 ---
 
-## 0. What this repo is
+## Just do the work
 
-One GitHub Pages site, **two deliberately separate products**, served from
-`main` with no build step (what is committed is what is served, 30–60 s
-deploy):
+You have a short window. Spend it on the site.
 
-| | Product | Entry | Don't mix |
-|---|---|---|---|
-| **A** | The Most Useful Site In The World — **644** offline browser tools | `index.html` | Never add music players/banners here |
-| **B** | MrProphecy — UK hip hop & animated soundscapes (Luton) | `listen.html` | Never add tool links here |
+**Decide for yourself** anything that only affects whether the site is
+*correct*: bugs, security holes, dead links, stale numbers, failing checks,
+accessibility, performance, a tool that doesn't work. You don't need to ask,
+claim a task, or announce it. Fix it, verify, push, and say what you did.
 
-Live: `https://www.themostusefulsiteintheworld.com` (CNAME = custom domain,
-never delete it). Design systems: **A = cyan terminal** (`--accent:#2dd4ff`),
-**B = neon night** (`--hot:#ff2e63`). Match the page you edit.
+**Ask the owner** only when the answer changes what the site *is* — its
+scope, its promises, its money, its data, or anything in CONSTRAINTS.md.
+Those are genuinely not yours to call. Everything else is.
 
-## 1. First ten minutes (fresh session)
+**Finish things.** One real improvement, verified and pushed, beats five
+half-migrations and a plan. If you find more than you can finish, do the
+most valuable part properly and put the rest in your closing summary — the
+owner reads that.
+
+**Leave the campsite better.** If a check is wrong, fix the check. If a
+document lies, fix the document. If a rule has no teeth, give it teeth or
+delete it. You do not need sign-off to repair the tooling you're standing on.
+
+## The one engineering rule
+
+> **If a rule matters, make it fail the build.** A constraint that lives only
+> in prose gets broken — usually within a fortnight, usually by someone who
+> read it and meant well.
+
+This is the lesson the repo paid for. "Bump the tool count everywhere" was
+documented six times and performed correctly zero times: the site once
+advertised nine different counts at once, <!-- historical-count --> including
+on the pages asking for money. "Cards never call the network" was law from day
+one, and 27 cards were calling out — one posting Wi-Fi passwords to a third
+party under the words *100% private*.
+
+So: **derive, don't duplicate.** The tool count comes from `ls cards/`; the
+sitemap comes from `git ls-files`. Both are generated. Where a check and a
+document disagree, the check wins and the document is the bug.
+
+And **keep the checks silent.** A scanner that cries wolf gets ignored and
+protects nothing — `scan-seo.py` once hid four real defects behind 26 spurious
+warnings. Zero-warning is the only acceptable resting state.
+
+## Setup
 
 ```bash
-# 1. Authenticate — prints a URL + one-time code for the owner to approve.
-bash scripts/agent-auth.sh            # token -> ~/.github_token (chmod 600)
-
-# 2. Clone sparse. The repo is ~125 MB with images; the budget is small.
+# Sparse clone — the repo is ~125 MB with images; keep the workspace <100 MB.
 git clone --depth 1 --filter=blob:none --sparse \
-    https://github.com/mrpr0phecy/mrpr0phecy.git r
-cd r
-git sparse-checkout set --no-cone '/*' '!/images/'
-#   (--no-cone is required; cone mode fails here. images/ stays off disk.)
+    https://github.com/mrpr0phecy/mrpr0phecy.git r && cd r
+git sparse-checkout set --no-cone '/*' '!/images/'   # --no-cone is required
 git config user.name  mrpr0phecy
 git config user.email 5564816+mrpr0phecy@users.noreply.github.com
 
-# 3. Read the rules that matter before editing anything:
-#    ARCHITECTURE.md §3 (cards), §6 (SEO), §7 (traps), §9 (do-not-touch).
-bash scripts/verify.sh               # pre-push guardrails (works sparse)
+bash scripts/verify.sh    # baseline BEFORE you touch anything
 ```
 
-## 2. Workspace budget — hard limit
+If that baseline is already red, it is someone else's breakage — say so in
+your summary rather than silently inheriting it. Need GitHub auth? See
+[AGENT_ACCESS.md](AGENT_ACCESS.md). Workspace getting fat?
+`bash scripts/workspace-size.sh --purge`. Never install browsers or
+toolchains into the workspace — put them in `/tmp`.
 
-Keep the agent's workspace **under 100 MB, always**. Practical rules:
+## The gate
 
-- Use the sparse clone above. `images/` (~50 MB) must stay off disk.
-- Never `git checkout` the images just to look — verify against the live site
-  (`curl -sI https://www.themostusefulsiteintheworld.com/images/...`) instead.
-- No `node_modules/`, no caches, no stray downloads in the workspace.
-- **Never install toolchains/browsers into the workspace.** A single headless
-  browser cache is ~600 MB — it will blow the 100 MB limit. Install into
-  `/tmp` (e.g. `/tmp/pwenv`, `PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers`).
-- Purge before you grow: `bash scripts/workspace-size.sh --purge` (caches +
-  `git gc`). Dropping `.git` blobs you don't need (`git reflog expire
-  --expire=now --all`) is not usually necessary at depth 1.
-- `bash scripts/workspace-size.sh` reports current usage any time.
-- If the workspace exceeds the budget, **stop and shrink it**; report the
-  size in your summary.
+`bash scripts/verify.sh` — 11 checks, must be green before every push.
 
-## 3. Never-do list (check before every change)
+| # | Check | Script |
+|---|---|---|
+| 1 | catalogue coherence | `check-cards.py` |
+| 2 | placeholder IDs | inline |
+| 3 | `target=_blank` / noopener | inline |
+| 4 | sitemap parses | inline |
+| 5 | top-level SEO | `scan-seo.py` |
+| 6 | accessibility | `check-a11y.py` |
+| 7 | network egress | `check-egress.py` |
+| 8 | tool-count claims | `sync-counts.py --check` |
+| 9 | sitemap freshness | `build-sitemap.py --check` |
+| 10 | secret scan | inline |
+| 11 | git state | inline |
 
-- **`opensourcenews.html`** — the live news broadcast. Was owner's WIP;
-  upgraded with the 2026-08-30 build (headlines rail, viewers' controls,
-  captions). Touch with care: keep the facade pattern, never add hidden
-  players/autoplay tricks (INCOME.md growth policy), and re-run
-  `bash scripts/verify.sh` before pushing.
-- **`token.html`** — kept deliberately (see INCOME.md). No crypto promotion.
-- **`CNAME`**, `sw.js` (unregistered by design), `guide.txt` (stale),
-  `system/`, `substitutions/`, `digitaldetoxcardshtml/`, CV files — leave alone.
-- **Deleting anything** in ARCHITECTURE.md §9 list → ask the owner first.
-- Do not "fix" the `o`/`0` handle mismatch (YouTube `@MrProphecy`, SoundCloud
-  & Instagram with a zero). Not a typo.
-- No view-bots, hidden players, autoplay tricks, engagement pods — ToS
-  violations (INCOME.md). Legitimate growth only: metadata, speed, internal
-  links, translated pages, honest CTAs.
-- No ads/trackers on Product A pages; no paywalls; no fake urgency.
-- Never invent YouTube IDs — use the verified table in ARCHITECTURE.md §4.
+Two fix themselves — drop `--check`:
 
-## 4. Common tasks — exact sequences
-
-### Add a tool (Product A)
 ```bash
-cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/body
-#  - IDs: global per-tool prefix `xyz-` on EVERY element (all cards share one DOM)
-#  - IIFE-wrapped JS, inline styles + index.html CSS vars only, zero network calls
-#  - forms: onsubmit="event.preventDefault();"
-node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
-                                #   hardcoded list in the script first
-# bump count in index.html: "Search 500" -> "Search 501"
-python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
-PY
-bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
-sleep 50   # Pages deploy latency — then verify live (see §6)
+python3 scripts/sync-counts.py      # repairs every stale count claim
+python3 scripts/build-sitemap.py    # rewrites sitemap.xml
 ```
 
-### Edit a Product B page
-Follow `listen.html` (reference implementation). Sitemap/SEO metadata are
-required; music pages carry `MusicGroup` JSON-LD. If you touch the hreflang
+After pushing, `bash scripts/verify.sh --live` confirms production actually
+served it. Pages takes 30–60s. **A green push is not proof of a live deploy.**
+
+Never route around a red check or loosen one to reach green without
+understanding it. If the check is wrong, fixing it *is* the work.
+
+## Adding a tool
+
+```bash
+cp cards/<similar>.html cards/<slug>.html   # fragment: no doctype/html/body
+#  - prefix EVERY id with your slug — all 694 cards share one DOM
+#  - IIFE-wrapped JS, inline styles + index.html CSS vars, zero network calls
+#  - forms: onsubmit="event.preventDefault();"
+
+# Add the slug to the right category list in generate-cards-json.js FIRST —
+# the script overwrites the category field on every run.
+node generate-cards-json.js
+python3 scripts/sync-counts.py      # never edit a count by hand
+python3 scripts/build-sitemap.py
+
+bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
+```
+
+Quality bar, all learned the hard way: unique ids; `target="_blank"` ⇒
+`rel="noopener noreferrer"`; `prefers-reduced-motion` respected; mobile-first
+(360px); keyboard reachable; **never interpolate untrusted input into
+`innerHTML`**; canonical/OG URLs `https://` **and** `www.`; no placeholders
+(`VIDEO_ID`, `dQw4w9WgXcQ`, `YOUR_`); quote paths with spaces and en-dashes.
+
+For Product B (music), follow `listen.html`. If you touch the hreflang
 cluster, edit **all 13 pages** or Google treats them as duplicates.
 
-### "Image is broken"
-Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
-`curl -sI` against the live site before "fixing" anything.
+## The scheduled checker
 
-## 5. Quality bar (all of these have bitten this repo)
-
-- Unique element IDs across *all* cards (one shared DOM); fragments only.
-- `target="_blank"` ⇒ `rel="noopener noreferrer"`; `loading="lazy"` below fold;
-  `prefers-reduced-motion` respected; mobile-first (360 px); keyboard reachable.
-- Canonical + OG URLs: `https://` **and** `www.` host — never plain `http://`.
-- No placeholders ship: `VIDEO_ID`, `PLAYLIST_ID`, `dQw4w9WgXcQ`, `YOUR_`.
-- Filenames contain spaces and en-dashes — quote paths, URL-encode in markup.
-- Commit messages: one line, imperative ("Add ..."), no secrets in any commit.
-
-## 6. Verify and deploy
-
-```bash
-bash scripts/verify.sh             # cards index, placeholders, noopener, sitemap, SEO
-sleep 50                           # Pages is NOT instant
-curl -s -o /dev/null -w '%{http_code}\n' https://www.themostusefulsiteintheworld.com/listen.html
-curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
-  | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
-```
-
-Expect `200` and a count matching `cards/`. A green push is not proof of a
-live deploy.
-
-## 7. If unsure
-
-Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
-**mrpr0phecy** — ask before deleting, restructuring, or anything touching
-opensourcenews.html, monetisation or YouTube channel behaviour.
-
-## 8. AI Developer staff & the Visual Design Expert
-
-`.github/workflows/ai-developer.yml` runs **Mon & Thu 06:00 UTC** (or on
-demand: Actions → AI Developer → *Run workflow*). Its brain is
-`scripts/ai-developer.js`; the staff roster lives in
-`scripts/ai-staff.json`; reports and generated drafts go to `ai-developer/`
-(gitignored, never committed). Modes: `auto | audit | generate | fix`,
-optional `category` focus (a staff id/tag such as `visual-design`, or a
-tool-category for generation) and `max_tools`. Requires the `AI_API_KEY`
-repository secret for generation; without it the run audits + fixes only.
-
-Facility rule: **an edit must pass the staff audits before it is proposed.**
-Deterministic fixes (tool-count claims in `index.html`/`404.html`) may be
-applied directly and re-verified with `bash scripts/verify.sh`; anything else
-(including generated card drafts) lands in `ai-developer/` for a human to
-review and promote — never auto-committed into `cards/`.
-
-**Meet the staff** (`node scripts/ai-developer.js staff`):
-
-- 🎨 **Visual Design Expert** — guardianship of the two design languages:
-  Product A *cyan terminal* (`index.html`, `tool.html`, `404.html`,
-  `donate.html`, `cards/card.css`) and Product B *neon night`
-  (`listen.html`). Audit-first, token-respecting, measurable (contrast AA,
-  390px overflow, ≥40px touch targets, focus visibility, reduced motion).
-  Runs `node scripts/design-audit.js` (zero-dependency static subset for
-  CI); a full browser-based audit checks live geometry and contrast.
-  Fix scope: count sync and guard-rule presence only — every aesthetic
-  decision is documented in ARCHITECTURE.md §5 and human-reviewed.
-- 🗂 **Catalogue Auditor & Generator** — `cards/`, `cards.json`, sitemap
-  coherence (`python3 scripts/check-cards.py`), fragment-only enforcement,
-  and draft generation.
-- 🔍 **SEO & Metadata Scanner** — every top-level page's title/description/
-  canonical/OG/twitter/theme-color and hreflang drift
-  (`python3 scripts/scan-seo.py`); advisory only.
-
-If you are an agent taking on design work here: introduce yourself with
-`node scripts/ai-developer.js staff` (or read `scripts/ai-staff.json`),
-then read ARCHITECTURE.md §5 and run the audits before touching anything.
+`.github/workflows/ai-developer.yml` runs Mon & Thu 06:00 UTC (or on demand)
+via `scripts/ai-developer.js`, using the audit definitions in
+`scripts/ai-audits.json`. `node scripts/ai-developer.js audits` lists them.
+It applies only deterministic fixes; drafts land in gitignored
+`ai-developer/` for a human to promote. Nothing auto-commits into `cards/`.

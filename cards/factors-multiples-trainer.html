@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factors and Multiples Trainer</title>
+<meta name="description" content="List the factors and multiples of any number, then practise finding HCF, LCM and factor/multiple questions.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:720px;margin:0 auto}
+  h2{margin-top:0;color:#63d3a6}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(99,211,166,0.07);border:1px solid rgba(99,211,166,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type=number]{width:130px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem}
+  button{padding:9px 16px;border-radius:8px;border:0;background:#63d3a6;color:#16181d;font-weight:700;cursor:pointer;font-size:0.95rem}
+  button:hover{filter:brightness(1.1)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{background:rgba(99,211,166,0.15);border:1px solid rgba(99,211,166,0.35);padding:3px 9px;border-radius:999px;font-size:0.82rem}
+  .answer{color:#63d3a6}
+  .opts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .opt{padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.25);cursor:pointer;font-size:0.95rem}
+  .opt:hover{border-color:#63d3a6}
+  .opt.right{border-color:#63d3a6;background:rgba(99,211,166,0.2)}
+  .opt.wrong{border-color:#e06a6a;background:rgba(224,106,106,0.2)}
+  .fb{margin-top:10px;font-size:0.92rem}
+  .ok{color:#63d3a6}.no{color:#e06a6a}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="fct-title">🔢 Factors &amp; Multiples Trainer</h2>
+  <p id="fct-desc" class="small" style="color:var(--muted);margin-bottom:14px;">List the factors and multiples of any number, then practise finding the highest common factor, lowest common multiple and factor/multiple facts.</p>
+
+  <div class="card">
+    <div class="row">
+      <label for="fct-n">Number:</label>
+      <input type="number" id="fct-n" value="60" min="1" max="99999">
+      <button id="fct-go">Show factors &amp; multiples</button>
+    </div>
+    <div id="fct-out"></div>
+  </div>
+
+  <div class="card">
+    <strong>Practice round</strong> <span style="color:var(--muted);font-size:0.85rem;">— 8 questions, mixed types</span>
+    <div id="fct-q" style="margin-top:8px;font-size:1.05rem;"></div>
+    <div class="opts" id="fct-opts"></div>
+    <div id="fct-fb" class="fb"></div>
+    <div class="row" style="margin-top:10px;">
+      <button id="fct-next">Next question</button>
+      <button id="fct-reset" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:inherit;">Restart round</button>
+      <span id="fct-score" style="color:var(--muted);font-size:0.9rem;">Score 0/0</span>
+    </div>
+    <div id="fct-answers" style="display:none;margin-top:10px;font-size:0.88rem;color:var(--muted);"></div>
+  </div>
+
+  <p class="small"><strong>Quick rules:</strong> a <em>factor</em> divides a number exactly; a <em>multiple</em> is the number times a whole number. The <em>HCF</em> is the largest common factor and the <em>LCM</em> is the smallest common multiple (LCM × HCF = the product of the two numbers).</p>
+
+<script>
+(function () {
+  'use strict';
+  var nIn = document.getElementById('fct-n'),
+      go = document.getElementById('fct-go'),
+      out = document.getElementById('fct-out'),
+      qEl = document.getElementById('fct-q'),
+      optsEl = document.getElementById('fct-opts'),
+      fb = document.getElementById('fct-fb'),
+      nextBtn = document.getElementById('fct-next'),
+      resetBtn = document.getElementById('fct-reset'),
+      scoreEl = document.getElementById('fct-score'),
+      answersEl = document.getElementById('fct-answers');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  function gcd(a, b) { while (b) { var t = a % b; a = b; b = t; } return a; }
+  function lcm(a, b) { return a / gcd(a, b) * b; }
+
+  function factors(n) {
+    var f = [], i;
+    for (i = 1; i * i <= n; i++) {
+      if (n % i === 0) { f.push(i); if (i !== n / i) f.push(n / i); }
+    }
+    return f.sort(function (x, y) { return x - y; });
+  }
+
+  function primeFactorise(n) {
+    var x = n, parts = [], p = 2;
+    if (n < 2) return [];
+    while (p * p <= x) {
+      while (x % p === 0) { parts.push(p); x /= p; }
+      p++;
+    }
+    if (x > 1) parts.push(x);
+    return parts;
+  }
+
+  function showFactors() {
+    var n = Math.floor(Number(nIn.value));
+    if (!(n >= 1 && n <= 99999)) { out.innerHTML = '<span class="no">Enter a whole number from 1 to 99,999.</span>'; return; }
+    var f = factors(n);
+    var pf = primeFactorise(n);
+    var html = '<div style="margin-top:8px;"><strong class="answer">' + f.length + ' factor' + (f.length === 1 ? '' : 's') + ':</strong></div>';
+    html += '<div class="chips">' + f.map(function (x) { return '<span class="chip">' + x + '</span>'; }).join('') + '</div>';
+    html += '<div style="margin-top:10px;font-size:0.88rem;">Prime factorisation: <span class="answer">' + esc(pf.join(' × ') || '1') + '</span></div>';
+    html += '<div style="font-size:0.88rem;color:var(--muted);">First 8 multiples: <span class="answer">' + Array.apply(null, { length: 8 }).map(function (_, i) { return (i + 1) * n; }).join(', ') + '</span></div>';
+    if (f.length === 2) html += '<div style="font-size:0.85rem;color:var(--muted);margin-top:6px;">Only factors are 1 and itself — ' + n + ' is prime!</div>';
+    out.innerHTML = html;
+  }
+
+  // ----- practice round -----
+  var state = { list: [], i: 0, correct: 0, answered: 0, locked: false };
+  var TYPES = ['factors', 'hcf', 'lcm', 'is-factor', 'is-multiple'];
+
+  function randint(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function makeQ() {
+    var type = pick(TYPES);
+    if (type === 'factors') {
+      var ns = [12, 18, 20, 24, 28, 30, 32, 36, 40, 42, 48, 54, 60, 72, 84, 96];
+      var n = pick(ns);
+      var list = factors(n);
+      var valid = list.filter(function (x) { return x !== 1 && x !== n; });
+      var answer = String(pick(valid));
+      var wrongs = [];
+      while (wrongs.length < 4) {
+        var w = randint(2, 40);
+        if (list.indexOf(w) === -1 && wrongs.indexOf(w) === -1) wrongs.push(w);
+      }
+      return { text: 'Which one is a factor of ' + n + '?', opts: shuffle([answer].concat(wrongs.map(String))), ans: answer };
+    }
+    if (type === 'hcf') {
+      var a = randint(6, 40), b = a + randint(1, 8);
+      var g = gcd(a, b);
+      var w1 = g + randint(1, 5), w2 = g - randint(1, 5);
+      if (w2 < 1) w2 = g + 6;
+      return { text: 'What is the HCF of ' + a + ' and ' + b + '?', opts: shuffle([g, w1, w2, g + randint(6, 9)]).map(String), ans: String(g) };
+    }
+    if (type === 'lcm') {
+      var x = randint(2, 7), y = x + randint(1, 6);
+      var L = lcm(x, y);
+      var decoys = [x * y + 1, L + x, L - x].map(String);
+      while (decoys.indexOf(String(L)) !== -1) decoys[0] = String(L + 2);
+      return { text: 'What is the LCM of ' + x + ' and ' + y + '?', opts: shuffle([String(L)].concat(decoys)), ans: String(L) };
+    }
+    if (type === 'is-factor') {
+      var base = pick([36, 48, 60, 72, 84, 96, 120]);
+      var yes = pick(factors(base).filter(function (x) { return x > 1 && x < base; }));
+      var d = Math.random() < 0.5 ? yes : pick([5, 7, 9, 11, 13, 16, 22, 25, 30].filter(function (x) { return base % x !== 0; }));
+      return { text: 'Is ' + d + ' a factor of ' + base + '?', opts: ['Yes', 'No'], ans: base % d === 0 ? 'Yes' : 'No' };
+    }
+    var m = pick([4, 5, 6, 7, 8, 9, 11, 12, 13, 15]);
+    var k = randint(2, 12);
+    var multiple = m * k;
+    var maybe = m * (k + 1) + 1;
+    var askYes = Math.random() < 0.5;
+    if (askYes) return { text: 'Is ' + multiple + ' a multiple of ' + m + '?', opts: ['Yes', 'No'], ans: 'Yes' };
+    return { text: 'Is ' + maybe + ' a multiple of ' + m + '?', opts: ['Yes', 'No'], ans: 'No' };
+  }
+
+  function renderOpts(q) {
+    optsEl.innerHTML = '';
+    var answered = false;
+    q.opts.forEach(function (o) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'opt';
+      b.textContent = o;
+      b.addEventListener('click', function () {
+        if (answered) return;
+        answered = true;
+        state.answered++;
+        var correct = o === q.ans;
+        if (correct) { state.correct++; b.className = 'opt right'; q.gotRight = true; }
+        else {
+          b.className = 'opt wrong'; q.gotRight = false;
+          optsEl.children.forEach(function (c) { if (c.textContent === q.ans) c.className = 'opt right'; });
+        }
+        fb.innerHTML = correct
+          ? '<span class="ok">✓ Correct!</span>' + (q.explain ? ' <span style="color:var(--muted);font-size:0.85rem;">' + esc(q.explain) + '</span>' : '')
+          : '<span class="no">✗ Not quite — the answer is ' + esc(q.ans) + '.</span>';
+        scoreEl.textContent = 'Score ' + state.correct + '/' + state.answered;
+        if (state.answered === 8) {
+          var right = state.list.filter(function (x) { return x.gotRight; }).length;
+          qEl.textContent = 'Round finished! Score ' + right + ' / 8.';
+        }
+      });
+      optsEl.appendChild(b);
+    });
+  }
+
+  function nextQ() {
+    if (state.i >= 8) {
+      var right = state.list.filter(function (x) { return x.gotRight; }).length;
+      qEl.textContent = 'Round finished! Score ' + right + ' / 8.';
+      optsEl.innerHTML = '';
+      fb.innerHTML = '';
+      var bad = state.list.filter(function (q) { return !q.gotRight; });
+      if (bad.length) {
+        answersEl.style.display = 'block';
+        answersEl.innerHTML = '<strong>Review:</strong><br>' + bad.map(function (q) { return '• ' + esc(q.text) + ' → ' + esc(q.ans); }).join('<br>');
+      } else {
+        answersEl.style.display = 'none';
+      }
+      nextBtn.textContent = 'New round';
+      return;
+    }
+    nextBtn.textContent = 'Next question';
+    var q = makeQ();
+    q.gotRight = false;
+    state.list.push(q);
+    qEl.textContent = (state.i + 1) + '. ' + q.text;
+    fb.innerHTML = '';
+    renderOpts(q);
+    state.i++;
+  }
+
+  resetBtn.addEventListener('click', function () {
+    state = { list: [], i: 0, correct: 0, answered: 0 };
+    scoreEl.textContent = 'Score 0/0';
+    answersEl.style.display = 'none';
+    nextQ();
+  });
+
+  nextBtn.addEventListener('click', nextQ);
+  go.addEventListener('click', showFactors);
+  showFactors();
+  nextQ();
+})();
+</script>
+</body>
+</html>

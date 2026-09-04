@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tongue Twister Trainer</title>
+<meta name="description" content="Slow, medium and fast rounds of classic tongue twisters with timing — see how many you can nail in 30 seconds.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:700px;margin:0 auto}
+  h2{margin-top:0;color:#7db5f5}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(125,181,245,0.07);border:1px solid rgba(125,181,245,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  button{padding:9px 16px;border-radius:8px;border:0;background:#7db5f5;color:#16181d;font-weight:700;cursor:pointer;font-size:0.95rem;margin-right:8px}
+  button:hover{filter:brightness(1.1)}
+  button.flat{background:transparent;border:1px solid rgba(255,255,255,0.3);color:inherit}
+  .twist{font-size:1.25rem;font-weight:600;line-height:1.7;margin:12px 0;padding:12px;background:rgba(0,0,0,0.25);border-radius:10px}
+  .big{font-size:1.4rem;font-weight:800;color:#7db5f5}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;color:#9aa3af;font-size:0.9rem;margin-top:10px;align-items:center}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="tt-title">🎤 Tongue Twister Trainer</h2>
+  <p id="tt-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Practise classic tongue twisters at your own pace, then beat the clock: read as many as you can in 30 seconds.</p>
+
+  <div class="card">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:0.9rem;color:var(--muted);">Speed:</span>
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="radio" name="tt-speed" id="tt-slow" checked> Slow (practice)</label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="radio" name="tt-speed" id="tt-fast"> Fast (timed)</label>
+    </div>
+    <div id="tt-panel" style="margin-top:10px;">
+      <div id="tt-twist" class="twist"></div>
+      <button id="tt-next">Next twist</button>
+      <button id="tt-shuffle" class="flat">Shuffle deck</button>
+      <span id="tt-count" style="color:var(--muted);font-size:0.88rem;"></span>
+    </div>
+    <div class="meta">
+      <span id="tt-timer" style="display:none;font-weight:700;"></span>
+      <span id="tt-done" style="display:none;"></span>
+      <button id="tt-start" style="display:none;">Start 30s challenge</button>
+    </div>
+  </div>
+
+  <p class="small"><strong>How to play:</strong> in Fast mode, press <strong>Next twist</strong> the moment you finish a twister — the timer stops when you hit 30 seconds, so aim for the highest completed count. Speak clearly; speed without clarity doesn't count!</p>
+
+<script>
+(function () {
+  'use strict';
+  var twistEl = document.getElementById('tt-twist'),
+      nextBtn = document.getElementById('tt-next'),
+      shuffleBtn = document.getElementById('tt-shuffle'),
+      countEl = document.getElementById('tt-count'),
+      timerEl = document.getElementById('tt-timer'),
+      doneEl = document.getElementById('tt-done'),
+      startBtn = document.getElementById('tt-start'),
+      slow = document.getElementById('tt-slow'),
+      fast = document.getElementById('tt-fast'),
+      panel = document.getElementById('tt-panel');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  var TWISTS = [
+    'She sells seashells by the seashore.',
+    'Peter Piper picked a peck of pickled peppers.',
+    'How much wood would a woodchuck chuck if a woodchuck could chuck wood?',
+    'Red lorry, yellow lorry, red lorry, yellow lorry.',
+    'The sixth sick sheikh\'s sixth sheep\'s sick.',
+    'Unique New York, unique New York, unique New York.',
+    'I scream, you scream, we all scream for ice cream.',
+    'Fuzzy Wuzzy was a bear. Fuzzy Wuzzy had no hair.',
+    'Betty Botter bought some butter, but she said the butter\'s bitter.',
+    'A proper copper coffee pot.',
+    'Six slippery snails slid slowly seaward.',
+    'Which wristwatches are Swiss wristwatches?',
+    'The thirty-three thieves thought that they thrilled the throne throughout Thursday.',
+    'Irish wristwatch, Swiss wristwatch, Irish wristwatch, Swiss wristwatch.',
+    'Brisk brave brigadiers brandished broad bright blades.',
+    'The great Greek grape growers grow great Greek grapes.',
+    'Rory the warrior and Roger the worrier were reared wrongly in a rural brewery.',
+    'Silly Sally swiftly shooed seven silly sheep.',
+    'Near an arctic squirrel, thirty-three thirsty threesomes thrive.',
+    'To sit in solemn silence in a dull, dark dock in a pestilential prison with a life-long lock.'
+  ];
+
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  var deck = shuffle(TWISTS.slice());
+  var i = 0, done = 0, timer = null, startAt = 0;
+
+  function show() {
+    twistEl.textContent = deck[i];
+    countEl.textContent = 'Twister ' + (i + 1) + ' of ' + deck.length + ' · completed: ' + done;
+  }
+
+  function beginTimer() {
+    if (timer) return;
+    startAt = Date.now();
+    timerEl.style.display = '';
+    timerEl.textContent = '0.0s · 0 completed';
+    timer = setInterval(function () {
+      var elapsed = (Date.now() - startAt) / 1000;
+      if (elapsed >= 30) {
+        clearInterval(timer); timer = null;
+        timerEl.style.display = 'none';
+        doneEl.style.display = '';
+        doneEl.textContent = '⏱ Time! You completed ' + done + ' twisters in 30 seconds. Press Next twist to start a fresh 30-second challenge.';
+        done = 0;
+        return;
+      }
+      timerEl.textContent = elapsed.toFixed(1) + 's · ' + done + ' completed';
+    }, 100);
+  }
+
+  nextBtn.addEventListener('click', function () {
+    done++;
+    i = (i + 1) % deck.length;
+    if (fast.checked) { doneEl.style.display = 'none'; }
+    show();
+    if (fast.checked) beginTimer();
+  });
+
+  shuffleBtn.addEventListener('click', function () {
+    deck = shuffle(TWISTS.slice()); i = 0; done = 0;
+    show();
+  });
+
+  startBtn.addEventListener('click', beginTimer);
+
+  slow.addEventListener('change', function () {
+    if (slow.checked) {
+      if (timer) { clearInterval(timer); timer = null; }
+      timerEl.style.display = 'none';
+      doneEl.style.display = 'none';
+      startBtn.style.display = 'none';
+    }
+  });
+
+  fast.addEventListener('change', function () {
+    if (fast.checked) {
+      doneEl.style.display = 'none';
+      startBtn.style.display = '';
+      beginTimer();
+    }
+  });
+
+  show();
+})();
+</script>
+</body>
+</html>

@@ -9,15 +9,15 @@
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="The Most Useful Site in the World">
     <meta property="og:title" content="Tool Viewer | The Most Useful Site in the World">
-    <meta property="og:description" content="Opens any of the 644 free tools from The Most Useful Site in the World in a single focused view, with share and embed options. No sign-ups, no ads.">
+    <meta property="og:description" content="Opens any of the 694 free tools from The Most Useful Site in the World in a single focused view, with share and embed options. No sign-ups, no ads.">
     <meta property="og:url" content="https://www.themostusefulsiteintheworld.com/tool.html">
     <meta property="og:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Tool Viewer | The Most Useful Site in the World">
-    <meta name="twitter:description" content="Opens any of the 644 free tools from The Most Useful Site in the World in a single focused view, with share and embed options. No sign-ups, no ads.">
+    <meta name="twitter:description" content="Opens any of the 694 free tools from The Most Useful Site in the World in a single focused view, with share and embed options. No sign-ups, no ads.">
     <meta name="twitter:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
     <meta name="theme-color" content="#0a0f14">
-    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "Tool Viewer | The Most Useful Site in the World", "url": "https://www.themostusefulsiteintheworld.com/tool.html", "description": "Opens any of the 644 free tools from The Most Useful Site in the World in a single focused view, with share and embed options. No sign-ups, no ads.", "applicationCategory": "UtilitiesApplication", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}}</script>
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "Tool Viewer | The Most Useful Site in the World", "url": "https://www.themostusefulsiteintheworld.com/tool.html", "description": "Opens any of the 694 free tools from The Most Useful Site in the World in a single focused view, with share and embed options. No sign-ups, no ads.", "applicationCategory": "UtilitiesApplication", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}}</script>
     <meta name="description" content="Free online tool from The Most Useful Site in the World. No sign-ups, no friction.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -384,7 +384,11 @@
 
         async function init() {
             const params = new URLSearchParams(window.location.search);
-            const cardName = params.get('card') || params.get('t') || 'bmi';
+            // The slug comes from the URL. Restrict it to the shape real card
+            // filenames take so it can never be used to reach another path or
+            // to inject markup into the error/embed output below.
+            const rawName = params.get('card') || params.get('t') || 'bmi';
+            const cardName = /^[a-z0-9][a-z0-9-]{0,79}$/i.test(rawName) ? rawName : 'bmi';
 
             let allCards = [];
             let currentMeta = null;
@@ -455,13 +459,22 @@
                 } catch (e) {}
 
             } catch (err) {
-                document.getElementById('toolContainer').innerHTML = `
-                    <div style="text-align:center;padding:40px;color:#ff4d4d;">
-                        <h3>Failed to load tool (${cardName})</h3>
-                        <p style="color:rgba(230,250,255,0.7);">${err.message}</p>
-                        <a href="index.html" class="nav-btn" style="margin-top:16px;">Return to Dashboard</a>
-                    </div>
-                `;
+                // Built with DOM APIs, never innerHTML — err.message and the
+                // slug both originate outside our control.
+                const errBox = document.createElement('div');
+                errBox.style.cssText = 'text-align:center;padding:40px;color:#ff4d4d;';
+                const errH = document.createElement('h3');
+                errH.textContent = `Failed to load tool (${cardName})`;
+                const errP = document.createElement('p');
+                errP.style.color = 'rgba(230,250,255,0.7)';
+                errP.textContent = err.message;
+                const errA = document.createElement('a');
+                errA.href = 'index.html';
+                errA.className = 'nav-btn';
+                errA.style.marginTop = '16px';
+                errA.textContent = 'Return to Dashboard';
+                errBox.append(errH, errP, errA);
+                document.getElementById('toolContainer').replaceChildren(errBox);
             }
 
             // Contextual Resource & Monetization Box
@@ -484,7 +497,7 @@
                 `;
             } else {
                 resTitle.textContent = '⚡ Enjoying this free tool?';
-                resDesc.textContent = 'Over 250+ free utilities built without paywalls, trackers, or subscriptions. A small tip fuels the next batch of tools.';
+                resDesc.textContent = 'Over 694 free utilities built without paywalls, trackers, or subscriptions. A small tip fuels the next batch of tools.';
                 resBtns.innerHTML = `
                     <a href="https://paypal.me/russellhead/3GBP" target="_blank" rel="noopener" class="nav-btn" style="background:rgba(255,215,0,0.15);border-color:#ffd700;color:#ffd700;">☕ Tip £5 on PayPal</a>
                     <a href="music.html" class="nav-btn">🎧 Stream Music</a>
@@ -496,12 +509,19 @@
                 const related = allCards.filter(c => c.category === category && c.name !== currentMeta.name).slice(0, 3);
                 if (related.length > 0) {
                     const grid = document.getElementById('relatedGrid');
-                    grid.innerHTML = related.map(c => `
-                        <a href="tool.html?card=${encodeURIComponent(c.name)}" class="related-card">
-                            <div class="related-card-title">${c.title}</div>
-                            <div class="related-card-desc">${c.description || 'Quick, free online calculator.'}</div>
-                        </a>
-                    `).join('');
+                    grid.replaceChildren(...related.map(c => {
+                        const a = document.createElement('a');
+                        a.href = `tool.html?card=${encodeURIComponent(c.name)}`;
+                        a.className = 'related-card';
+                        const t = document.createElement('div');
+                        t.className = 'related-card-title';
+                        t.textContent = c.title;
+                        const d = document.createElement('div');
+                        d.className = 'related-card-desc';
+                        d.textContent = c.description || 'Quick, free online calculator.';
+                        a.append(t, d);
+                        return a;
+                    }));
                     document.getElementById('relatedSection').style.display = 'block';
                 }
             }
@@ -518,7 +538,7 @@
 
             // Embed button
             document.getElementById('embedBtn').onclick = () => {
-                const embedCode = `<iframe src="${window.location.origin}/tool.html?card=${encodeURIComponent(cardName)}" width="100%" height="450" style="border:none;border-radius:12px;" title="${title}"></iframe>`;
+                const embedCode = `<iframe src="${window.location.origin}/tool.html?card=${encodeURIComponent(cardName)}" width="100%" height="450" style="border:none;border-radius:12px;" title="${String(title).replace(/"/g, '&quot;')}"></iframe>`;
                 navigator.clipboard.writeText(embedCode).then(() => {
                     showToast('Embed code copied to clipboard!');
                 }).catch(() => {

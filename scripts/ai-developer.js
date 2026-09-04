@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 /**
- * ai-developer.js — orchestrator for the AI Developer facility.
+ * ai-developer.js — scheduled checker for .github/workflows/ai-developer.yml.
  *
- * The brain behind .github/workflows/ai-developer.yml. Dispatches work to the
- * facility's staff (see scripts/ai-staff.json), runs their audits, applies
- * only safe deterministic fixes, and (with a provider key) drafts new tool
- * cards. It never commits: the workflow's create-pull-request step turns
- * whatever it changed into a reviewable PR.
+ * Runs the audits defined in scripts/ai-audits.json, applies only safe
+ * deterministic fixes, and (with a provider key) drafts new tool cards. It
+ * never commits: the workflow's create-pull-request step turns whatever it
+ * changed into a reviewable PR.
  *
  * Modes (env AI_TASK or first CLI arg; default 'auto'):
- *   staff     print the roster and this help
- *   audit     run every staff member's audit (filter: AI_CATEGORY)
+ *   audits    list the configured audits and this help
+ *   audit     run every configured audit (filter: AI_CATEGORY)
  *   fix       audit, then apply safe deterministic fixes (tool-count sync);
  *             re-verify with bash scripts/verify.sh
  *   generate  ask the LLM provider for tool-card draft(s) -> ai-developer/drafts/
@@ -21,7 +20,7 @@
  *   AI_PROVIDER   gemini (default) | openai
  *   AI_API_KEY    provider key (repository secret). Absent -> generation skipped.
  *   AI_TASK       auto | audit | generate | fix
- *   AI_CATEGORY   staff domain (visual-design/catalogue/seo/design/ui/...) or a
+ *   AI_CATEGORY   audit domain (visual-design/catalogue/seo/design/ui/...) or a
  *                 tool-category focus for generation (finance, science, ...).
  *   AI_MAX_TOOLS  max draft cards per run (default 3)
  *
@@ -29,7 +28,7 @@
  *   - Writes are limited to deterministic count-sync in index.html/404.html
  *     and new files under ai-developer/drafts/ (gitignored).
  *   - Any edit path ends with `bash scripts/verify.sh`; failures are reported.
- *   - Without AI_API_KEY the facility audits and fixes only — no generation.
+ *   - Without AI_API_KEY it audits and fixes only — no generation.
  * Zero dependencies; Node 18+ (CI: Node 22).
  */
 'use strict';
@@ -39,7 +38,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const STAFF = path.join(ROOT, 'scripts', 'ai-staff.json');
+const AUDITS = path.join(ROOT, 'scripts', 'ai-audits.json');
 const DRAFT_DIR = path.join(ROOT, 'ai-developer', 'drafts');
 const REPORT_DIR = path.join(ROOT, 'ai-developer', 'reports');
 
@@ -49,15 +48,16 @@ const MAX_TOOLS = Math.max(0, parseInt(process.env.AI_MAX_TOOLS || '3', 10) || 0
 const API_KEY = (process.env.AI_API_KEY || '').trim();
 const PROVIDER = (process.env.AI_PROVIDER || 'gemini').toLowerCase();
 
-// ────────────────────────────── staff ──────────────────────────────
-function loadStaff() {
-  const staff = JSON.parse(fs.readFileSync(STAFF, 'utf8'));
-  return staff;
+// ───────────────────────────── config ─────────────────────────────
+function loadAudits() {
+  const cfg = JSON.parse(fs.readFileSync(AUDITS, 'utf8'));
+  cfg.members = cfg.audits;   // internal alias
+  return cfg;
 }
 
 function memberMatches(member, filter) {
   if (!filter) return true;
-  const tags = [member.id, member.role, ...(member.tags || [])].map(t => t.toLowerCase());
+  const tags = [member.id, member.domain, ...(member.tags || [])].map(t => t.toLowerCase());
   return tags.some(t => t.includes(filter) || filter.includes(t));
 }
 
@@ -73,49 +73,48 @@ function log(prefix, text) {
 
 function banner(t) { console.log(`\n── ${t}`); }
 
-// ──────────────────────────── staff task ────────────────────────────
+// ──────────────────────────── audits task ───────────────────────────
 function staffTask() {
-  const facility = loadStaff();
-  banner(`AI Developer staff — ${facility.facility}`);
-  console.log(`  workflow:   ${facility.workflow}`);
-  console.log(`  schedule:   ${facility.schedule}`);
-  console.log(`  rule:       ${facility.rule}`);
-  for (const m of facility.members) {
-    console.log(`\n  • ${m.role} [${m.id}]`);
-    console.log(`    ${m.profile}`);
-    console.log(`    owns: ${m.owns.join(', ')}`);
-    console.log(`    audit: ${m.auditCmd.join(' ')}`);
-    console.log(`    fix scope: ${m.fixScope.join('; ')}`);
+  const cfg = loadAudits();
+  banner('Configured audits');
+  console.log(`  workflow:   ${cfg.workflow}`);
+  console.log(`  schedule:   ${cfg.schedule}`);
+  console.log(`  rule:       ${cfg.rule}`);
+  for (const m of cfg.audits) {
+    console.log(`\n  • ${m.domain} [${m.id}]`);
+    console.log(`    covers: ${m.owns.join(', ')}`);
+    console.log(`    audit:  ${m.auditCmd.join(' ')}`);
+    console.log(`    fixes:  ${m.fixScope.join('; ')}`);
   }
-  console.log('\nUsage: node scripts/ai-developer.js [staff|audit|fix|generate|auto]');
+  console.log('\nUsage: node scripts/ai-developer.js [audits|audit|fix|generate|auto]');
   console.log('Env:   AI_TASK, AI_CATEGORY, AI_MAX_TOOLS, AI_API_KEY, AI_PROVIDER');
   return 0;
 }
 
 // ──────────────────────────── audit task ────────────────────────────
 function auditTask() {
-  const facility = loadStaff();
+  const facility = loadAudits();
   banner(`Audit (task=${TASK}${CATEGORY ? `, focus=${CATEGORY}` : ''})`);
   let failures = 0;
   const active = facility.members.filter(m => memberMatches(m, CATEGORY));
   if (active.length === 0) {
-    console.log(`No staff member matched '${CATEGORY}' — running full roster.`);
+    console.log(`No audit matched '${CATEGORY}' — running all of them.`);
     active.push(...facility.members);
   }
   for (const m of active) {
-    banner(`${m.role} — ${m.auditCmd.join(' ')}`);
+    banner(`${m.domain} — ${m.auditCmd.join(' ')}`);
     const r = run(m.auditCmd[0], m.auditCmd.slice(1));
     log('', r.out);
     if (r.err) log('stderr', r.err);
     if (r.code !== 0) {
       failures += 1;
-      console.log(`  ✗ ${m.role} audit exited ${r.code}`);
+      console.log(`  ✗ ${m.domain} audit exited ${r.code}`);
     } else {
-      console.log(`  ✓ ${m.role} audit passed`);
+      console.log(`  ✓ ${m.domain} audit passed`);
     }
   }
   banner('Audit summary');
-  console.log(failures === 0 ? 'All staff audits passed.' : `${failures} staff audit(s) reported failures.`);
+  console.log(failures === 0 ? 'All audits passed.' : `${failures} audit(s) reported failures.`);
   return failures === 0 ? 0 : 1;
 }
 
@@ -145,7 +144,7 @@ function syncCounts() {
 }
 
 function fixTask() {
-  const facility = loadStaff();
+  const facility = loadAudits();
   banner(`Fix (task=${TASK}) — deterministic fixes only`);
   const edits = syncCounts();
   if (edits.length === 0) {
@@ -298,13 +297,13 @@ async function autoTask() {
   let code = 0;
   try {
     switch (TASK) {
-      case 'staff': code = staffTask(); break;
+      case 'audits': case 'staff': code = staffTask(); break;
       case 'audit': code = auditTask(); break;
       case 'fix': code = fixTask(); break;
       case 'generate': code = await generateTask(); break;
       case 'auto': code = await autoTask(); break;
       default:
-        console.error(`Unknown task '${TASK}' — use staff|audit|fix|generate|auto`);
+        console.error(`Unknown task '${TASK}' — use audits|audit|fix|generate|auto`);
         code = 1;
     }
   } catch (e) {
