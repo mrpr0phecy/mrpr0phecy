@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quadratic Equation Solver</title>
+<meta name="description" content="Solve ax² + bx + c = 0 using the quadratic formula — real or complex roots, with each step shown.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:680px;margin:0 auto}
+  h2{margin-top:0;color:#ff9e64}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(255,158,100,0.07);border:1px solid rgba(255,158,100,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}
+  label{display:block;font-size:0.75rem;font-weight:600;margin-bottom:4px}
+  input{width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;box-sizing:border-box}
+  button{padding:10px 18px;border-radius:8px;border:0;background:#ff9e64;color:#16181d;font-weight:700;cursor:pointer;font-size:1rem}
+  button:hover{filter:brightness(1.1)}
+  .roots{font-size:1.2rem;font-weight:700;margin-top:8px}
+  .steps{font-size:0.85rem;color:#9aa3af;line-height:1.9;margin-top:8px}
+  .err{color:#e06a6a}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+  .tag{display:inline-block;background:rgba(255,158,100,0.15);border:1px solid rgba(255,158,100,0.35);border-radius:999px;padding:2px 10px;font-size:0.8rem;margin-left:8px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="qdr-title">🧮 Quadratic Equation Solver</h2>
+  <p id="qdr-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Solve ax² + bx + c = 0 with the quadratic formula — real or complex roots, with every step shown.</p>
+
+  <div class="card">
+    <div class="grid">
+      <div><label for="qdr-a">a (x²)</label><input type="number" id="qdr-a" value="1" step="any"></div>
+      <div><label for="qdr-b">b (x)</label><input type="number" id="qdr-b" value="-3" step="any"></div>
+      <div><label for="qdr-c">c (constant)</label><input type="number" id="qdr-c" value="2" step="any"></div>
+    </div>
+    <button id="qdr-go">Solve</button>
+    <div id="qdr-out" style="margin-top:10px;"></div>
+  </div>
+
+  <p class="small"><strong>Formula:</strong> x = (−b ± √(b² − 4ac)) ÷ 2a. The discriminant <code>b² − 4ac</code> tells you what to expect: positive → two real roots; zero → one repeated root; negative → two complex roots. The roots are shown rounded to 4 decimal places.</p>
+
+<script>
+(function () {
+  'use strict';
+  var aIn = document.getElementById('qdr-a'),
+      bIn = document.getElementById('qdr-b'),
+      cIn = document.getElementById('qdr-c'),
+      go = document.getElementById('qdr-go'),
+      out = document.getElementById('qdr-out');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function num(v, dp) {
+    var r = Number(v).toFixed(dp === undefined ? 4 : dp);
+    return r.replace(/\.?0+$/, '');
+  }
+  function sign(n) { return n < 0 ? '−' : '+'; }
+  function signed(n, dp) { var s = num(Math.abs(n), dp); return (n < 0 ? '−' : '+') + s; }
+
+  function solve() {
+    var a = parseFloat(aIn.value), b = parseFloat(bIn.value), c = parseFloat(cIn.value);
+    if (!(isFinite(a) && a !== 0)) { out.innerHTML = '<span class="err">a cannot be 0 — that would make it a linear equation.</span>'; return; }
+    if (!(isFinite(b) && isFinite(c))) { out.innerHTML = '<span class="err">Enter numbers for b and c.</span>'; return; }
+    var disc = b * b - 4 * a * c;
+    var denom = 2 * a;
+    var html = '';
+    var tag = '';
+    if (disc > 0) {
+      var sq = Math.sqrt(disc);
+      var x1 = (-b + sq) / denom, x2 = (-b - sq) / denom;
+      tag = '<span class="tag">two real roots (discriminant &gt; 0)</span>';
+      html =
+        '<div class="roots">x₁ = ' + num(x1) + '&nbsp;&nbsp;·&nbsp;&nbsp;x₂ = ' + num(x2) + '</div>' +
+        '<div class="steps"></div>';
+    } else if (disc === 0) {
+      var x = -b / denom;
+      tag = '<span class="tag">one repeated root (discriminant = 0)</span>';
+      html = '<div class="roots">x = ' + num(x) + ' (double root)</div>';
+    } else {
+      var real = -b / denom;
+      var imag = Math.sqrt(-disc) / denom;
+      var imagDisp = num(Math.abs(imag));
+      tag = '<span class="tag">two complex roots (discriminant &lt; 0)</span>';
+      html =
+        '<div class="roots">x₁ = ' + num(real) + (imag < 0 ? ' − ' : ' + ') + imagDisp + 'i&nbsp;&nbsp;·&nbsp;&nbsp;x₂ = ' + num(real) + (imag < 0 ? ' + ' : ' − ') + imagDisp + 'i</div>';
+    }
+    var steps =
+      '<div class="steps">' +
+      'Discriminant: b² − 4ac = (' + num(b, 2) + ')² − 4·' + num(a, 2) + '·' + num(c, 2) + ' = ' + num(disc, 2) + '<br>' +
+      'x = (−b ± √' + num(disc, 2) + ') ÷ (2·' + num(a, 2) + ') = (−' + num(b, 2) + ' ± ' + (disc >= 0 ? '√' + num(disc, 2) : '√' + num(-disc, 2) + 'i') + ') ÷ ' + num(denom, 2) +
+      '</div>';
+    out.innerHTML = tag + html + steps;
+  }
+
+  go.addEventListener('click', solve);
+  solve();
+})();
+</script>
+</body>
+</html>
