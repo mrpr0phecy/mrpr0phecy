@@ -1,0 +1,234 @@
+<h2 id="cfq-title" style="margin-top:0;color:var(--accent);">🚩 Country Flags Quiz</h2>
+
+<form aria-describedby="cfq-desc" onsubmit="event.preventDefault();">
+  <p id="cfq-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Guess the country from its flag, or pick the right flag for a named country — with three difficulty pools, ten questions per round and colour-based clues. All drawn locally, nothing sent anywhere.
+  </p>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:12px;">
+      <div>
+        <label for="cfq-diff" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Difficulty:</label>
+        <select id="cfq-diff" style="width:100%;padding:8px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:inherit;font-size:0.85rem;">
+          <option value="easy" selected>Easy — most recognisable</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard — tricky flags</option>
+        </select>
+      </div>
+      <div>
+        <label for="cfq-dir" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Direction:</label>
+        <select id="cfq-dir" style="width:100%;padding:8px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:inherit;font-size:0.85rem;">
+          <option value="flag" selected>Flag → country</option>
+          <option value="country">Country → flag</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button type="button" id="cfq-start" style="width:100%;padding:10px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">▶ Start round</button>
+      </div>
+    </div>
+    <div id="cfq-round" style="display:none;">
+      <div id="cfq-q" style="font-size:1.1rem;font-weight:900;color:#e6faff;margin-bottom:12px;"></div>
+      <div id="cfq-flagbox" style="width:120px;height:80px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);margin-bottom:14px;background:#0a0f1c;display:grid;"></div>
+      <div id="cfq-opts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;"></div>
+      <div id="cfq-fb" style="font-size:0.9rem;font-weight:700;color:var(--muted);"></div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <button type="button" id="cfq-next" style="display:none;padding:10px 18px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">Next →</button>
+        <button type="button" id="cfq-reveal" style="padding:10px 18px;border-radius:8px;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.35);color:#ffe9a3;font-weight:700;cursor:pointer;">💡 Colour hint</button>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:0.8rem;color:var(--muted);">Score: <span id="cfq-score" style="color:#00ffcc;">0/10</span></div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>Flags are tiny grids of colours,</strong> not photos — every flag here is drawn with a few CSS stripes, a cross, a star or a circle. Zoom in: the pattern is the clue.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var diff = el('cfq-diff'), dir = el('cfq-dir'), start = el('cfq-start'),
+      roundEl = el('cfq-round'), q = el('cfq-q'), box = el('cfq-flagbox'),
+      opts = el('cfq-opts'), fb = el('cfq-fb'), next = el('cfq-next'), reveal = el('cfq-reveal'), scoreEl = el('cfq-score');
+
+  var FLAGS = {
+    'France': { c: ['#0055A4','#FFFFFF','#EF4135'], dir: 'v', note: 'blue-white-red vertical tricolour' },
+    'Germany': { c: ['#000000','#DD0000','#FFCE00'], dir: 'h', note: 'black-red-gold horizontal' },
+    'Italy': { c: ['#009246','#FFFFFF','#CE2B37'], dir: 'v', note: 'green-white-red vertical' },
+    'Belgium': { c: ['#000000','#FDDA24','#EF3340'], dir: 'v', note: 'black-yellow-red vertical' },
+    'Netherlands': { c: ['#AE1C28','#FFFFFF','#21468B'], dir: 'h', note: 'red-white-blue horizontal' },
+    'Ireland': { c: ['#169B62','#FFFFFF','#FF883E'], dir: 'v', note: 'green-white-orange vertical' },
+    'Austria': { c: ['#ED2939','#FFFFFF','#ED2939'], dir: 'h', note: 'red-white-red — an old one' },
+    'Poland': { c: ['#FFFFFF','#DC143C'], dir: 'h', note: 'white over red' },
+    'Japan': { c: ['#FFFFFF','#BC002D'], dir: 'circle', note: 'white with a red sun' },
+    'Brazil': { c: ['#009C3B','#FFDF00','#002776'], dir: 'diamond', note: 'green with a yellow diamond' },
+    'United States': { c: ['#B22234','#FFFFFF','#3C3B6E'], dir: 'us', note: 'red-white stripes + blue canton' },
+    'United Kingdom': { c: ['#012169','#FFFFFF','#C8102E'], dir: 'uk', note: 'the Union Jack — crosses' },
+    'Canada': { c: ['#FFFFFF','#D80621','#D80621'], dir: 'canada', note: 'a red maple leaf' },
+    'Australia': { c: ['#00247D','#FFFFFF','#E4002B'], dir: 'ukstar', note: 'Blue Ensign + stars' },
+    'Switzerland': { c: ['#FF0000','#FFFFFF'], dir: 'swiss', note: 'a red square with a white cross' },
+    'Sweden': { c: ['#006AA7','#FECC02'], dir: 'nordic', note: 'blue with a yellow Nordic cross' },
+    'Norway': { c: ['#BA0C2F','#FFFFFF','#00205B'], dir: 'nordic2', note: 'red with a blue-and-white cross' },
+    'Denmark': { c: ['#C8102E','#FFFFFF'], dir: 'nordic', note: 'the Dannebrog — oldest cross flag' },
+    'Finland': { c: ['#FFFFFF','#002F6C'], dir: 'nordic', note: 'white with a blue cross' },
+    'Greece': { c: ['#0D5EAF','#FFFFFF'], dir: 'greece', note: 'blue and white stripes + canton cross' },
+    'Spain': { c: ['#AA151B','#F1BF00','#AA151B'], dir: 'spain', note: 'red-yellow-red with an emblem' },
+    'Portugal': { c: ['#046A38','#DA291C','#FFE900'], dir: 'portugal', note: 'green and red halves' },
+    'China': { c: ['#DE2910','#FFDE00'], dir: 'china', note: 'red with five yellow stars' },
+    'India': { c: ['#FF9933','#FFFFFF','#138808'], dir: 'india', note: 'saffron-white-green with a wheel' },
+    'South Africa': { c: ['#E03C31','#FFFFFF','#007749','#FFB612','#001489'], dir: 'sa', note: 'the Y-shaped flag' },
+    'Turkey': { c: ['#E30A17','#FFFFFF'], dir: 'crescent', note: 'red with white star & crescent' },
+    'Egypt': { c: ['#CE1126','#FFFFFF','#000000'], dir: 'h', note: 'red-white-black with the Eagle' },
+    'Russia': { c: ['#FFFFFF','#0039A6','#D52B1E'], dir: 'h', note: 'white-blue-red' },
+    'Ukraine': { c: ['#005BBB','#FFD500'], dir: 'h', note: 'blue over yellow' },
+    'Mexico': { c: ['#006847','#FFFFFF','#CE1126'], dir: 'mexico', note: 'green-white-red with an eagle' },
+    'Argentina': { c: ['#74ACDF','#FFFFFF','#F6B40E'], dir: 'sun', note: 'blue-white-blue with a sun' },
+    'South Korea': { c: ['#FFFFFF','#CD2E3A','#0047A0'], dir: 'korea', note: 'white with a red-blue taeguk' },
+    'Nigeria': { c: ['#008751','#FFFFFF','#008751'], dir: 'v', note: 'green-white-green vertical' },
+    'Kenya': { c: ['#000000','#FFFFFF','#BB0000','#006600'], dir: 'kenya', note: 'black-red-green with white fimbriation' },
+    'New Zealand': { c: ['#00247D','#FFFFFF','#CC142B'], dir: 'ukstar', note: 'Blue Ensign with red stars' },
+    'Iceland': { c: ['#02529C','#FFFFFF','#DC1E35'], dir: 'nordic2', note: 'blue with a red-white cross' },
+    'Czech Republic': { c: ['#FFFFFF','#D7141A','#11457E'], dir: 'czech', note: 'white-red with a blue triangle' },
+    'Croatia': { c: ['#FF0000','#FFFFFF','#171796'], dir: 'croatia', note: 'red-white-blue with a checkerboard' },
+    'Israel': { c: ['#FFFFFF','#0038B8'], dir: 'israel', note: 'white with blue stripes and a Star of David' },
+    'Lebanon': { c: ['#EE161F','#FFFFFF','#EE161F'], dir: 'cedar', note: 'red-white-red with a cedar' }
+  };
+  var DIFF = {
+    easy: ['France','Germany','Italy','Japan','Brazil','United States','United Kingdom','Canada','China','India','Russia','Ukraine','Mexico','Switzerland','South Korea'],
+    medium: ['Belgium','Netherlands','Ireland','Austria','Poland','Australia','Sweden','Norway','Denmark','Finland','Greece','Spain','Turkey','Egypt','Argentina','Israel','New Zealand','Czech Republic','South Africa','Portugal'],
+    hard: ['Croatia','Iceland','Kenya','Nigeria','Lebanon','Israel','Czech Republic','Croatia']
+  };
+  DIFF.hard = DIFF.hard.concat(Array.prototype.slice.call(DIFF.easy).filter(function (n) { return DIFF.hard.indexOf(n) === -1; }));
+  DIFF.medium = DIFF.medium.concat(Array.prototype.slice.call(DIFF.easy).filter(function (n) { return DIFF.medium.indexOf(n) === -1; }));
+
+  var round = { list: [], i: 0, correct: 0 };
+
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function stripes(name, style) {
+    var f = FLAGS[name];
+    var colors = f.c;
+    if (style === 'h') {
+      box.style.gridTemplateColumns = 'none';
+      box.style.gridTemplateRows = 'repeat(' + colors.length + ', 1fr)';
+      colors.forEach(function (c) { var d = document.createElement('div'); d.style.background = c; box.appendChild(d); });
+    } else if (style === 'v') {
+      box.style.gridTemplateColumns = 'repeat(' + colors.length + ', 1fr)';
+      box.style.gridTemplateRows = 'none';
+      colors.forEach(function (c) { var d = document.createElement('div'); d.style.background = c; box.appendChild(d); });
+    } else {
+      box.style.gridTemplateColumns = 'none'; box.style.gridTemplateRows = 'none';
+      box.style.display = 'block';
+      var d = document.createElement('div');
+      d.style.cssText = 'width:100%;height:100%;position:relative;background:' + colors[0] + ';';
+      var big = document.createElement('div');
+      if (style === 'circle') { big.style.cssText = 'position:absolute;left:50%;top:50%;width:42%;height:52%;background:' + colors[1] + ';border-radius:50%;transform:translate(-50%,-50%);'; }
+      else if (style === 'swiss') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:' + colors[0] + ';'; var a1 = document.createElement('div'); a1.style.cssText = 'position:absolute;left:42%;top:20%;width:16%;height:60%;background:#fff;'; var a2 = document.createElement('div'); a2.style.cssText = 'position:absolute;left:20%;top:42%;width:60%;height:16%;background:#fff;'; big.appendChild(a1); big.appendChild(a2); }
+      else if (style === 'nordic') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:' + colors[0] + ';'; var c1 = document.createElement('div'); c1.style.cssText = 'position:absolute;left:30%;top:0;width:16%;height:100%;background:' + colors[1] + ';'; var c2 = document.createElement('div'); c2.style.cssText = 'position:absolute;left:0;top:38%;width:100%;height:24%;background:' + colors[1] + ';'; big.appendChild(c1); big.appendChild(c2); }
+      else if (style === 'nordic2') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:' + colors[0] + ';'; var c1 = document.createElement('div'); c1.style.cssText = 'position:absolute;left:30%;top:0;width:18%;height:100%;background:' + colors[2] + ';'; var c1b = document.createElement('div'); c1b.style.cssText = 'position:absolute;left:36%;top:0;width:6%;height:100%;background:' + colors[1] + ';'; var c2 = document.createElement('div'); c2.style.cssText = 'position:absolute;left:0;top:38%;width:100%;height:24%;background:' + colors[2] + ';'; var c2b = document.createElement('div'); c2b.style.cssText = 'position:absolute;left:0;top:44%;width:100%;height:8%;background:' + colors[1] + ';'; big.appendChild(c1); big.appendChild(c1b); big.appendChild(c2); big.appendChild(c2b); }
+      else if (style === 'us') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:repeating-linear-gradient(#B22234 0 7.7%, #FFFFFF 7.7% 15.4%);'; var canton = document.createElement('div'); canton.style.cssText = 'position:absolute;left:0;top:0;width:40%;height:46%;background:#3C3B6E;'; big.appendChild(canton); }
+      else if (style === 'uk') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:#012169;'; var d1 = document.createElement('div'); d1.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(45deg,transparent 44%,#fff 44% 56%,transparent 56%),linear-gradient(-45deg,transparent 44%,#fff 44% 56%,transparent 56%);'; var d2 = document.createElement('div'); d2.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(45deg,transparent 47%,#C8102E 47% 53%,transparent 53%),linear-gradient(-45deg,transparent 47%,#C8102E 47% 53%,transparent 53%);'; var d3 = document.createElement('div'); d3.style.cssText = 'position:absolute;left:44%;top:0;width:12%;height:100%;background:#fff;'; var d4 = document.createElement('div'); d4.style.cssText = 'position:absolute;left:0;top:38%;width:100%;height:24%;background:#fff;'; var d5 = document.createElement('div'); d5.style.cssText = 'position:absolute;left:46.5%;top:0;width:7%;height:100%;background:#C8102E;'; var d6 = document.createElement('div'); d6.style.cssText = 'position:absolute;left:0;top:42.5%;width:100%;height:15%;background:#C8102E;'; big.appendChild(d1); big.appendChild(d2); big.appendChild(d3); big.appendChild(d4); big.appendChild(d5); big.appendChild(d6); }
+      else if (style === 'canada') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:#fff;'; var l = document.createElement('div'); l.style.cssText = 'position:absolute;left:0;top:0;width:24%;height:100%;background:#D80621;'; var r = document.createElement('div'); r.style.cssText = 'position:absolute;right:0;top:0;width:24%;height:100%;background:#D80621;'; var leaf = document.createElement('div'); leaf.style.cssText = 'position:absolute;left:35%;top:18%;width:30%;height:64%;background:#D80621;clip-path:polygon(50% 0,61% 21%,86% 18%,74% 38%,94% 48%,72% 60%,82% 86%,50% 70%,18% 86%,28% 60%,6% 48%,26% 38%,14% 18%,39% 21%);'; big.appendChild(l); big.appendChild(r); big.appendChild(leaf); }
+      else if (style === 'ukstar') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:' + colors[0] + ';'; var c1 = document.createElement('div'); c1.style.cssText = 'position:absolute;left:30%;top:0;width:16%;height:100%;background:' + colors[1] + ';'; var c2 = document.createElement('div'); c2.style.cssText = 'position:absolute;left:0;top:38%;width:100%;height:24%;background:' + colors[1] + ';'; var st = document.createElement('div'); st.style.cssText = 'position:absolute;right:4%;top:4%;width:18%;height:18%;background:' + colors[2] + ';border-radius:50%;clip-path:polygon(50% 0,58% 38%,100% 50%,58% 62%,50% 100%,42% 62%,0 50%,42% 38%);'; big.appendChild(c1); big.appendChild(c2); big.appendChild(st); }
+      else if (style === 'sun') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:' + colors[0] + ';'; var m = document.createElement('div'); m.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(#fff 0 33%,#74ACDF 33%);'; var s = document.createElement('div'); s.style.cssText = 'position:absolute;left:44%;top:37%;width:12%;height:26%;background:#F6B40E;border-radius:50%;'; big.appendChild(m); big.appendChild(s); }
+      else if (style === 'mexico') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(90deg,#006847 0 33%,#fff 33% 66%,#CE1126 66%);'; var e = document.createElement('div'); e.style.cssText = 'position:absolute;left:43%;top:35%;width:14%;height:30%;background:#8C6A1E;clip-path:polygon(50% 0,65% 15%,85% 12%,72% 35%,90% 60%,55% 55%,50% 100%,45% 55%,10% 60%,28% 35%,15% 12%,35% 15%);'; big.appendChild(e); }
+      else if (style === 'usa') {}
+      else if (style === 'diamond') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:' + colors[0] + ';'; var d = document.createElement('div'); d.style.cssText = 'position:absolute;left:27%;top:27%;width:46%;height:46%;background:' + colors[1] + ';transform:rotate(45deg);'; var c = document.createElement('div'); c.style.cssText = 'position:absolute;left:45%;top:45%;width:10%;height:10%;background:' + colors[2] + ';border-radius:50%;'; big.appendChild(d); big.appendChild(c); }
+      else if (style === 'china') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:' + colors[0] + ';'; var s1 = document.createElement('div'); s1.style.cssText = 'position:absolute;left:12%;top:12%;width:20%;height:20%;background:' + colors[1] + ';clip-path:polygon(50% 0,61% 38%,100% 50%,61% 62%,50% 100%,39% 62%,0 50%,39% 38%);'; big.appendChild(s1); }
+      else if (style === 'india') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(#FF9933 0 33%,#fff 33% 66%,#138808 66%);'; var w = document.createElement('div'); w.style.cssText = 'position:absolute;left:45%;top:38%;width:10%;height:24%;border:2px solid #000080;border-radius:50%;'; big.appendChild(w); }
+      else if (style === 'cen') {}
+      else if (style === 'sa') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(180deg,#E03C31 0 25%,#fff 25% 50%,#007749 50% 75%,#fff 75% 87.5%,#001489 87.5%);'; }
+      else if (style === 'crescent') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:' + colors[0] + ';'; var c = document.createElement('div'); c.style.cssText = 'position:absolute;left:36%;top:30%;width:28%;height:40%;background:' + colors[1] + ';border-radius:50%;'; var c2 = document.createElement('div'); c2.style.cssText = 'position:absolute;left:42%;top:26%;width:16%;height:48%;background:' + colors[0] + ';border-radius:50%;'; big.appendChild(c); big.appendChild(c2); }
+      else if (style === 'israel') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:#fff;'; var t = document.createElement('div'); t.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:24%;background:' + colors[1] + ';'; var b = document.createElement('div'); b.style.cssText = 'position:absolute;left:0;top:76%;width:100%;height:24%;background:' + colors[1] + ';'; var st = document.createElement('div'); st.style.cssText = 'position:absolute;left:44%;top:37%;width:12%;height:26%;background:' + colors[1] + ';clip-path:polygon(50% 0,58% 38%,100% 50%,58% 62%,50% 100%,42% 62%,0 50%,42% 38%);'; big.appendChild(t); big.appendChild(b); big.appendChild(st); }
+      else if (style === 'cedar') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(#EE161F 0 25%,#fff 25% 75%,#EE161F 75%);'; var c = document.createElement('div'); c.style.cssText = 'position:absolute;left:46%;top:32%;width:8%;height:36%;background:#006B3F;'; big.appendChild(c); }
+      else if (style === 'greece') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:repeating-linear-gradient(#0D5EAF 0 12.5%,#fff 12.5% 25%);'; var cb = document.createElement('div'); cb.style.cssText = 'position:absolute;left:0;top:0;width:38%;height:50%;background:#0D5EAF;'; var w1 = document.createElement('div'); w1.style.cssText = 'position:absolute;left:15%;top:0;width:8%;height:50%;background:#fff;'; var w2 = document.createElement('div'); w2.style.cssText = 'position:absolute;left:0;top:20%;width:38%;height:10%;background:#fff;'; big.appendChild(cb); big.appendChild(w1); big.appendChild(w2); }
+      else if (style === 'spain') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(#AA151B 0 25%,#F1BF00 25% 75%,#AA151B 75%);'; var e = document.createElement('div'); e.style.cssText = 'position:absolute;left:40%;top:33%;width:20%;height:34%;background:#AA151B;clip-path:polygon(30% 100%,30% 40%,50% 20%,70% 40%,70% 100%,50% 80%);'; big.appendChild(e); }
+      else if (style === 'portugal') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(90deg,#046A38 0 40%,#DA291C 40%);'; }
+      else if (style === 'czech') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(#fff 0 50%,#D7141A 50%);'; var t = document.createElement('div'); t.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;border-left:44% solid #11457E;border-top:40px solid transparent;border-bottom:40px solid transparent;'; big.appendChild(t); }
+      else if (style === 'croatia') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(#FF0000 0 33%,#fff 33% 66%,#171796 66%);'; var s = document.createElement('div'); s.style.cssText = 'position:absolute;left:44%;top:34%;width:12%;height:32%;background:#FF0000;clip-path:polygon(50% 0,61% 38%,100% 50%,61% 62%,50% 100%,39% 62%,0 50%,39% 38%);'; big.appendChild(s); }
+      else if (style === 'korea') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:#fff;'; var y = document.createElement('div'); y.style.cssText = 'position:absolute;left:36%;top:34%;width:28%;height:32%;border-radius:50%;background:#CD2E3A;'; var y2 = document.createElement('div'); y2.style.cssText = 'position:absolute;left:36%;top:34%;width:28%;height:16%;border-radius:50% 50% 0 0;background:#0047A0;transform:rotate(180deg);'; big.appendChild(y); big.appendChild(y2); }
+      else if (style === 'kenya') { big.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(#000 0 25%,#fff 25% 33%,#BB0000 33% 66%,#fff 66% 75%,#006600 75%);'; }
+      else if (style === 'nordic') {}
+      if (style === 'goldstar') {}
+      box.appendChild(big);
+    }
+  }
+
+  function showQ() {
+    var item = round.list[round.i];
+    q.textContent = dir.value === 'flag' ? 'Which country flies this flag?' : 'Which flag belongs to: ' + item + '?';
+    fb.textContent = '';
+    opts.textContent = '';
+    box.textContent = '';
+    next.style.display = 'none';
+    if (dir.value === 'flag') stripes(item, FLAGS[item].dir);
+    else {
+      var shown = [item].concat(shuffle(Object.keys(FLAGS).slice()).filter(function (n) { return n !== item; }).slice(0, 3));
+      shown.forEach(function (n) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-country', n);
+        b.style.cssText = 'width:70px;height:46px;border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);background:transparent;cursor:pointer;display:grid;';
+        b.style.gridTemplateColumns = 'repeat(3,1fr)';
+        b.style.gridTemplateRows = 'none';
+        var f = FLAGS[n];
+        ['#a','#b','#c'].forEach(function (k, idx) {
+          var d = document.createElement('div');
+          d.style.background = f.c[idx % f.c.length];
+          b.appendChild(d);
+        });
+        b.addEventListener('click', function () { answer(n); });
+        opts.appendChild(b);
+      });
+    }
+  }
+
+  function answer(got) {
+    var item = round.list[round.i];
+    var right = got === item;
+    if (right) {
+      round.correct++;
+      fb.style.color = '#00ffcc';
+      fb.textContent = '✓ Correct — ' + item + '. (' + FLAGS[item].note + ')';
+    } else {
+      fb.style.color = '#ffb3b3';
+      fb.textContent = '✗ It was ' + item + ' — ' + FLAGS[item].note + '.';
+    }
+    scoreEl.textContent = String(round.correct) + '/10';
+    next.style.display = '';
+  }
+
+  next.addEventListener('click', function () {
+    round.i++;
+    if (round.i >= round.list.length) {
+      fb.style.color = '#e6faff';
+      fb.textContent = '🏁 Round complete: ' + round.correct + '/10. Start a new round!';
+      q.textContent = 'Round finished.';
+      next.style.display = 'none';
+    } else showQ();
+  });
+
+  reveal.addEventListener('click', function () {
+    var item = round.list[round.i];
+    fb.style.color = '#ffe9a3';
+    fb.textContent = '💡 ' + FLAGS[item].note + '.';
+  });
+
+  start.addEventListener('click', function () {
+    round.list = shuffle(DIFF[diff.value].slice()).slice(0, 10);
+    round.i = 0; round.correct = 0;
+    scoreEl.textContent = '0/10';
+    roundEl.style.display = 'block';
+    showQ();
+  });
+
+  start.click();
+})();
+</script>
