@@ -2,7 +2,7 @@
 /**
  * design-audit.js — the Visual Design Expert's static design audit.
  *
- * AI Developer staff tool (see scripts/ai-staff.json, AGENTS.md §8).
+ * Run by the scheduled checker (scripts/ai-audits.json) and by verify.sh.
  * Zero dependencies; runs on Node 18+ (CI uses Node 22) or anywhere with a
  * plain checkout. This is the CI-safe, static subset of the expert's audit:
  * design-token coherence, accessibility guards, tap-target sizing, count
