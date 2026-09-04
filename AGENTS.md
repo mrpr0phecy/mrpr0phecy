@@ -135,41 +135,25 @@ Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.
 
-## 8. AI Developer staff & the Visual Design Expert
+## 8. How work is organised
 
-`.github/workflows/ai-developer.yml` runs **Mon & Thu 06:00 UTC** (or on
-demand: Actions → AI Developer → *Run workflow*). Its brain is
-`scripts/ai-developer.js`; the staff roster lives in
-`scripts/ai-staff.json`; reports and generated drafts go to `ai-developer/`
-(gitignored, never committed). Modes: `auto | audit | generate | fix`,
-optional `category` focus (a staff id/tag such as `visual-design`, or a
-tool-category for generation) and `max_tools`. Requires the `AI_API_KEY`
-repository secret for generation; without it the run audits + fixes only.
+Use one focused development conversation at a time. Read `ROADMAP.md`, choose
+one bounded task, inspect the current branch, then finish, verify, commit and
+push that task before opening another conversation. There are no persistent
+staff roles, shared staff board, AI-provider credentials or automated content
+generation.
 
-Facility rule: **an edit must pass the staff audits before it is proposed.**
-Deterministic fixes (tool-count claims in `index.html`/`404.html`) may be
-applied directly and re-verified with `bash scripts/verify.sh`; anything else
-(including generated card drafts) lands in `ai-developer/` for a human to
-review and promote — never auto-committed into `cards/`.
+The useful parts of the former setup remain as deterministic quality tools:
 
-**Meet the staff** (`node scripts/ai-developer.js staff`):
+```bash
+node scripts/design-audit.js --strict
+python3 scripts/check-cards.py
+python3 scripts/scan-seo.py
+bash scripts/verify.sh
+```
 
-- 🎨 **Visual Design Expert** — guardianship of the two design languages:
-  Product A *cyan terminal* (`index.html`, `tool.html`, `404.html`,
-  `donate.html`, `cards/card.css`) and Product B *neon night`
-  (`listen.html`). Audit-first, token-respecting, measurable (contrast AA,
-  390px overflow, ≥40px touch targets, focus visibility, reduced motion).
-  Runs `node scripts/design-audit.js` (zero-dependency static subset for
-  CI); a full browser-based audit checks live geometry and contrast.
-  Fix scope: count sync and guard-rule presence only — every aesthetic
-  decision is documented in ARCHITECTURE.md §5 and human-reviewed.
-- 🗂 **Catalogue Auditor & Generator** — `cards/`, `cards.json`, sitemap
-  coherence (`python3 scripts/check-cards.py`), fragment-only enforcement,
-  and draft generation.
-- 🔍 **SEO & Metadata Scanner** — every top-level page's title/description/
-  canonical/OG/twitter/theme-color and hreflang drift
-  (`python3 scripts/scan-seo.py`); advisory only.
-
-If you are an agent taking on design work here: introduce yourself with
-`node scripts/ai-developer.js staff` (or read `scripts/ai-staff.json`),
-then read ARCHITECTURE.md §5 and run the audits before touching anything.
+Design work must still follow `ARCHITECTURE.md` §5. Product rules and future
+work are recorded in `ROADMAP.md`; architectural facts belong in
+`ARCHITECTURE.md`. Reusable findings may be appended to the topic collections
+in `notes/` using `notes/README.md`—they are not roles, file ownership claims
+or coordination boards. Do not create role-based coordination files.

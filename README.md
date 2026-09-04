@@ -23,21 +23,20 @@ traps that have already cost people time.
 
 Start there whether you are a human or an AI agent.
 
-## AI Developer staff
+## Development workflow
 
-The repo runs an automated AI Developer facility
-([`.github/workflows/ai-developer.yml`](.github/workflows/ai-developer.yml),
-Mon & Thu 06:00 UTC or on-demand via *Actions → Run workflow*). Its staff —
-including the **Visual Design Expert** who curates the two design languages
-(ARCHITECTURE.md §5) — is registered in [`scripts/ai-staff.json`](scripts/ai-staff.json).
+Work is done in focused, short-lived development conversations rather than by
+persistent AI staff roles. Start with [`ROADMAP.md`](ROADMAP.md), make one
+reviewable change, and run the credential-free local checks before pushing:
 
 ```bash
-node scripts/ai-developer.js staff    # meet the staff
-node scripts/ai-developer.js audit    # run every staff audit
-node scripts/ai-developer.js auto     # audit + safe fixes (+ generation when AI_API_KEY is set)
+bash scripts/verify.sh
 ```
 
-More in [AGENTS.md §8](AGENTS.md).
+The same deterministic checks run on pull requests in GitHub Actions. They do
+not require an AI provider key. Durable findings can be added to the
+[topic-based project notes](notes/README.md); these are shared knowledge
+collections, not staff roles or coordination boards.
 
 ## Money & monetisation
 
