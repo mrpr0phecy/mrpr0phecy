@@ -70,8 +70,8 @@ Owner decisions and the traps you cannot infer from the code live in
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 688 tools
-│   └── <tool-name>.html    688 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 689 tools
+│   └── <tool-name>.html    689 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -155,7 +155,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 688 cards.** They share one
+2. **Element IDs must be globally unique across all 689 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -212,7 +212,7 @@ bash scripts/verify.sh --live
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (688 tools)
+### Categories (689 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
@@ -566,7 +566,7 @@ python3 scripts/build-sitemap.py --check   # CI: fail if it is out of date
 ```
 
 It builds from `git ls-files`, not the working tree, so a sparse checkout
-cannot silently drop the 688 cards. It escapes spaces in filenames (several
+cannot silently drop the 689 cards. It escapes spaces in filenames (several
 live in `images/`), and it **excludes any page carrying a `noindex` robots
 meta** by reading the file rather than consulting a hardcoded list.
 
@@ -642,7 +642,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 688 cards):
+# Music work (skip images and the 689 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):

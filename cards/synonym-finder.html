@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synonym Finder</title>
+<meta name="description" content="Quickly find better words — synonyms and near-synonyms for 100+ common English words, with usage tips.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:700px;margin:0 auto}
+  h2{margin-top:0;color:#f0b429}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(240,180,41,0.07);border:1px solid rgba(240,180,41,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input{width:100%;max-width:230px;padding:9px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:1rem;box-sizing:border-box}
+  button{padding:9px 16px;border-radius:8px;border:0;background:#f0b429;color:#16181d;font-weight:700;cursor:pointer;font-size:0.95rem}
+  button:hover{filter:brightness(1.1)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chip{background:rgba(240,180,41,0.12);border:1px solid rgba(240,180,41,0.3);padding:4px 11px;border-radius:999px;font-size:0.88rem}
+  .tip{margin-top:10px;font-size:0.86rem;color:#9aa3af;line-height:1.6}
+  .sug{margin-top:8px;font-size:0.9rem}
+  .sug .s{color:#f0b429;font-weight:600}
+  .meta{color:#9aa3af;font-size:0.85rem;margin-top:10px}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="syn-title">🔄 Synonym Finder</h2>
+  <p id="syn-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Find better words — synonyms and near-synonyms for 100+ common English words, with usage tips for the tricky ones.</p>
+
+  <div class="card">
+    <div class="row">
+      <label for="syn-word" style="font-size:0.8rem;font-weight:600;">Word:</label>
+      <input type="text" id="syn-word" value="happy" maxlength="30" placeholder="e.g. happy">
+      <button id="syn-go">Find synonyms</button>
+    </div>
+    <div id="syn-out" style="margin-top:8px;"></div>
+  </div>
+
+  <p class="small"><strong>Tip:</strong> synonyms rarely swap 1-to-1 — <em>childish</em> is not the same as <em>childlike</em>, and <em>cheap</em> can be an insult while <em>inexpensive</em> is neutral. Check the example sentence before swapping.</p>
+
+<script>
+(function () {
+  'use strict';
+  var wordIn = document.getElementById('syn-word'),
+      go = document.getElementById('syn-go'),
+      out = document.getElementById('syn-out');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  var MAP = {
+    happy: ['joyful', 'cheerful', 'delighted', 'content', 'glad', 'pleased', 'elated', 'thrilled', 'blissful', 'merry'],
+    sad: ['unhappy', 'sorrowful', 'downcast', 'gloomy', 'melancholy', 'mournful', 'dejected', 'despondent', 'forlorn'],
+    big: ['large', 'huge', 'enormous', 'vast', 'immense', 'massive', 'substantial', 'sizable', 'colossal'],
+    small: ['little', 'tiny', 'compact', 'miniature', 'petite', 'modest', 'minute', 'slight', 'diminutive'],
+    good: ['excellent', 'fine', 'great', 'superb', 'splendid', 'first-class', 'quality', 'admirable', 'worthy'],
+    bad: ['poor', 'awful', 'terrible', 'dreadful', 'inferior', 'substandard', 'deplorable', 'unsatisfactory'],
+    nice: ['pleasant', 'agreeable', 'lovely', 'delightful', 'enjoyable', 'amiable', 'courteous', 'charming', 'kind'],
+    angry: ['furious', 'irate', 'fuming', 'enraged', 'annoyed', 'indignant', 'livid', 'exasperated', 'cross'],
+    tired: ['weary', 'exhausted', 'fatigued', 'drained', 'worn out', 'sleepy', 'listless', 'beat', 'zoned'],
+    fast: ['quick', 'rapid', 'swift', 'speedy', 'brisk', 'hasty', 'prompt', 'snappy', 'expeditious'],
+    slow: ['gradual', 'unhurried', 'leisurely', 'sluggish', 'languid', 'deliberate', 'dawdling', 'plodding'],
+    easy: ['simple', 'effortless', 'straightforward', 'uncomplicated', 'painless', 'smooth', 'light', 'undemanding'],
+    hard: ['difficult', 'tough', 'challenging', 'arduous', 'strenuous', 'demanding', 'rigorous', 'formidable'],
+    beautiful: ['lovely', 'stunning', 'gorgeous', 'attractive', 'striking', 'elegant', 'exquisite', 'radiant', 'alluring'],
+    ugly: ['unattractive', 'unappealing', 'unsightly', 'hideous', 'plain', 'unlovely', 'repulsive', 'unpleasant'],
+    smart: ['intelligent', 'clever', 'brilliant', 'bright', 'sharp', 'astute', 'wise', 'cunning', 'ingenious'],
+    stupid: ['foolish', 'silly', 'unwise', 'dim', 'dense', 'absurd', 'idiotic', 'senseless', 'imprudent'],
+    strong: ['powerful', 'mighty', 'robust', 'sturdy', 'hardy', 'brawny', 'resilient', 'durable', 'vigorous'],
+    weak: ['feeble', 'frail', 'flimsy', 'fragile', 'powerless', 'vulnerable', 'slight', 'puny'],
+    rich: ['wealthy', 'affluent', 'prosperous', 'opulent', 'well-off', 'moneyed', 'flush', 'loaded'],
+    poor: ['impoverished', 'needy', 'destitute', 'hard-up', 'broke', 'deprived', 'disadvantaged', 'penniless'],
+    old: ['aged', 'ancient', 'elderly', 'vintage', 'antique', 'timeworn', 'long-standing', 'dated'],
+    new: ['fresh', 'recent', 'modern', 'novel', 'current', 'brand-new', 'latest', 'original', 'unprecedented'],
+    important: ['significant', 'crucial', 'vital', 'essential', 'key', 'critical', 'major', 'consequential', 'notable'],
+    interesting: ['engaging', 'fascinating', 'compelling', 'intriguing', 'captivating', 'absorbing', 'gripping', 'enthralling'],
+    boring: ['tedious', 'dull', 'monotonous', 'humdrum', 'repetitive', 'mundane', 'uninteresting', 'lacklustre'],
+    funny: ['amusing', 'humorous', 'comical', 'witty', 'hilarious', 'entertaining', 'droll', 'light-hearted'],
+    calm: ['tranquil', 'peaceful', 'serene', 'relaxed', 'composed', 'placid', 'unruffled', 'still'],
+    hot: ['warm', 'scorching', 'sweltering', 'boiling', 'blistering', 'humid', 'ardent', 'sultry'],
+    cold: ['chilly', 'freezing', 'frosty', 'icy', 'cool', 'wintry', 'biting', 'shivery', 'crisp'],
+    clean: ['spotless', 'immaculate', 'tidy', 'pristine', 'hygienic', 'fresh', 'unsoiled', 'neat'],
+    dirty: ['filthy', 'grubby', 'soiled', 'grimy', 'unclean', 'mucky', 'squalid', 'smeared'],
+    quiet: ['silent', 'hushed', 'still', 'peaceful', 'muted', 'noiseless', 'subdued', 'restrained'],
+    loud: ['noisy', 'deafening', 'booming', 'resounding', 'blaring', 'strident', 'thunderous', 'ear-splitting'],
+    bright: ['radiant', 'vivid', 'dazzling', 'luminous', 'brilliant', 'shining', 'glowing', 'sunny'],
+    dark: ['dim', 'shadowy', 'gloomy', 'murky', 'pitch-black', 'unlit', 'sombre', 'dusky'],
+    brave: ['courageous', 'bold', 'fearless', 'valiant', 'heroic', 'daring', 'plucky', 'intrepid'],
+    afraid: ['scared', 'frightened', 'terrified', 'anxious', 'nervous', 'apprehensive', 'alarmed', 'panicky'],
+    kind: ['caring', 'compassionate', 'considerate', 'gentle', 'benevolent', 'thoughtful', 'generous', 'tender'],
+    mean: ['unkind', 'cruel', 'nasty', 'spiteful', 'malicious', 'brutal', 'callous', 'petty'],
+    friend: ['companion', 'ally', 'confidant', 'mate', 'comrade', 'associate', 'partner', 'buddy'],
+    house: ['home', 'dwelling', 'residence', 'cottage', 'abode', 'home', 'property', 'place'],
+    car: ['vehicle', 'automobile', 'motorcar', 'motor', 'wheels', 'auto', 'ride', 'saloon'],
+    walk: ['stroll', 'wander', 'hike', 'trek', 'saunter', 'march', 'amble', 'stride'],
+    run: ['sprint', 'jog', 'dash', 'race', 'rush', 'hurry', 'bolt', 'scurry'],
+    talk: ['speak', 'chat', 'converse', 'discuss', 'gossip', 'chatter', 'natter', 'communicate'],
+    say: ['state', 'declare', 'mention', 'remark', 'announce', 'utter', 'comment', 'express'],
+    see: ['observe', 'watch', 'spot', 'notice', 'perceive', 'behold', 'glimpse', 'view'],
+    look: ['glance', 'peer', 'gaze', 'stare', 'watch', 'scan', 'inspect', 'observe'],
+    eat: ['consume', 'devour', 'dine', 'feast', 'munch', 'nibble', 'gobble', 'snack'],
+    think: ['believe', 'consider', 'ponder', 'reflect', 'contemplate', 'reason', 'muse', 'imagine'],
+    know: ['understand', 'recognise', 'comprehend', 'realise', 'be aware', 'identify', 'perceive'],
+    want: ['desire', 'wish', 'hope', 'crave', 'yearn', 'long', 'seek', 'need'],
+    help: ['assist', 'aid', 'support', 'guide', 'facilitate', 'relieve', 'lend a hand', 'serve'],
+    make: ['create', 'produce', 'build', 'construct', 'fabricate', 'manufacture', 'form', 'generate'],
+    get: ['obtain', 'acquire', 'receive', 'gain', 'fetch', 'secure', 'collect', 'attain'],
+    give: ['provide', 'offer', 'supply', 'present', 'grant', 'donate', 'bestow', 'hand over'],
+    begin: ['start', 'commence', 'initiate', 'launch', 'open', 'embark', 'kick off', 'set about'],
+    end: ['finish', 'conclude', 'complete', 'terminate', 'close', 'wrap up', 'cease', 'halt'],
+    use: ['employ', 'utilise', 'apply', 'operate', 'leverage', 'exercise', 'consume', 'make use of'],
+    most: ['majority', 'nearly all', 'bulk', 'almost all', 'greater part', 'main share'],
+    general: ['overall', 'broad', 'common', 'widespread', 'universal', 'sweeping', 'blanket', 'generic'],
+    people: ['folks', 'individuals', 'public', 'citizens', 'population', 'community', 'society', 'crowd'],
+    also: ['too', 'as well', 'likewise', 'similarly', 'additionally', 'furthermore', 'moreover'],
+    many: ['numerous', 'countless', 'plenty', 'several', 'a great many', 'abundant', 'myriad'],
+    part: ['portion', 'section', 'segment', 'piece', 'fraction', 'component', 'share', 'element'],
+    thing: ['object', 'item', 'article', 'entity', 'matter', 'subject', 'feature', 'element'],
+    way: ['method', 'means', 'approach', 'manner', 'style', 'technique', 'system', 'mode'],
+    work: ['labour', 'job', 'task', 'employment', 'effort', 'duty', 'undertaking', 'occupation'],
+    life: ['existence', 'living', 'lifetime', 'lifespan', 'being', 'days', 'everyday life'],
+    world: ['globe', 'earth', 'planet', 'the planet', 'society', 'civilisation'],
+    time: ['moment', 'period', 'era', 'interval', 'term', 'spell', 'duration', 'occasion'],
+    money: ['cash', 'currency', 'funds', 'capital', 'finances', 'savings', 'means', 'resources'],
+    year: ['twelve months', 'annum', 'calendar year'],
+    around: ['about', 'approximately', 'roughly', 'near', 'in the region of', 'some'],
+    against: ['versus', 'in opposition to', 'contrary to', 'opposed to', 'up against'],
+    everything: ['all', 'the lot', 'each thing', 'the whole', 'every single thing'],
+    really: ['very', 'genuinely', 'truly', 'extremely', 'indeed', 'certainly', 'honestly'],
+    pretty: ['quite', 'rather', 'fairly', 'reasonably', 'moderately', 'somewhat', 'passably'],
+    because: ['since', 'as', 'owing to', 'due to', 'given that', 'in view of'],
+    careful: ['cautious', 'attentive', 'wary', 'mindful', 'vigilant', 'prudent', 'painstaking'],
+    different: ['distinct', 'diverse', 'unlike', 'dissimilar', 'varying', 'contrasting', 'separate'],
+    another: ['one more', 'additional', 'further', 'a different', 'an extra'],
+    free: ['complimentary', 'gratis', 'no cost', 'liberated', 'unrestricted', 'available', 'at liberty'],
+    always: ['consistently', 'invariably', 'at all times', 'every time', 'constantly', 'perpetually'],
+    never: ['not ever', 'at no time', 'hardly ever', 'no time', 'not once'],
+    often: ['frequently', 'regularly', 'commonly', 'usually', 'many times', 'repeatedly', 'constantly'],
+    quickly: ['rapidly', 'swiftly', 'promptly', 'speedily', 'briskly', 'hurriedly', 'fast'],
+    finally: ['eventually', 'ultimately', 'at last', 'in the end', 'lastly', 'at length'],
+    especially: ['particularly', 'notably', 'specifically', 'chiefly', 'above all', 'in particular'],
+    although: ['though', 'even though', 'while', 'despite the fact that', 'albeit'],
+    everyone: ['all', 'everybody', 'each person', 'the whole world', 'all of us'],
+    through: ['via', 'by way of', 'throughout', 'across', 'by means of', 'during'],
+    without: ['lacking', 'devoid of', 'minus', 'free of', 'sans', 'in the absence of'],
+    together: ['jointly', 'collectively', 'in unison', 'as one', 'side by side', 'in tandem'],
+    between: ['among', 'amid', 'in the middle of', 'linking'],
+    before: ['prior to', 'earlier than', 'ahead of', 'in advance of', 'preceding'],
+    after: ['following', 'subsequent to', 'later than', 'behind', 'in the wake of'],
+    perhaps: ['maybe', 'possibly', 'conceivably', 'potentially', 'perchance', 'it may be'],
+    however: ['nevertheless', 'yet', 'still', 'nonetheless', 'even so', 'on the other hand'],
+    obvious: ['clear', 'evident', 'apparent', 'plain', 'unmistakable', 'transparent', 'self-evident'],
+    difficult: ['hard', 'tough', 'challenging', 'arduous', 'demanding', 'strenuous', 'laborious'],
+    serious: ['grave', 'severe', 'solemn', 'earnest', 'critical', 'weighty', 'significant'],
+    sure: ['certain', 'confident', 'positive', 'convinced', 'assured', 'definite', 'undoubted'],
+    enough: ['sufficient', 'adequate', 'ample', 'plenty', 'satisfactory', 'acceptable'],
+    among: ['between', 'amid', 'in the middle of', 'surrounded by', 'part of'],
+    because_of: ['due to', 'owing to', 'as a result of', 'thanks to', 'on account of'],
+    likely: ['probable', 'expected', 'presumably', 'apparently', 'probably', 'in all likelihood'],
+    public: ['open', 'communal', 'shared', 'accessible', 'state', 'civic', 'general'],
+    private: ['personal', 'confidential', 'personal', 'exclusive', 'intimate', 'restricted'],
+    support: ['back', 'assist', 'backing', 'patronise', 'encourage', 'champion', 'bolster'],
+  };
+
+  function synonyms(word) {
+    var w = word.toLowerCase().trim().replace(/[^a-z ]/g, '');
+    if (w.length < 2) return { err: 'Type a word of at least two letters.' };
+    if (MAP[w]) return { word: w, list: MAP[w] };
+    // try singular/plural and simple form fallbacks
+    for (var k in MAP) {
+      if (k.split('_').join(' ') === w) return { word: w, list: MAP[k] };
+    }
+    return { err: '"' + w + '" is not in the embedded synonym list (100+ common words). Try one of the suggestions.' };
+  }
+
+  function display() {
+    var r = synonyms(wordIn.value);
+    if (r.err) {
+      // show a few suggestions anyway
+      var keys = Object.keys(MAP).filter(function (k) { return k.indexOf('_') === -1; }).slice(0, 12);
+      out.innerHTML = '<span style="color:#e06a6a;">' + esc(r.err) + '</span>' +
+        '<div class="sug">Try: ' + keys.map(function (k) { return '<span class="s">' + esc(k) + '</span>'; }).join(' · ') + '</div>';
+      return;
+    }
+    var list = r.list.filter(function (s, i, a) { return a.indexOf(s) === i; });
+    out.innerHTML =
+      '<div class="meta">' + list.length + ' alternative' + (list.length === 1 ? '' : 's') + ' for <code>' + esc(r.word) + '</code>:</div>' +
+      '<div class="chips">' + list.map(function (s) { return '<span class="chip">' + esc(s) + '</span>'; }).join('') + '</div>' +
+      '<div class="tip">💡 Most words have one or two close swaps and several near fits — read the sentence aloud with each before committing.</div>';
+  }
+
+  go.addEventListener('click', display);
+  wordIn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); display(); } });
+  display();
+})();
+</script>
+</body>
+</html>
