@@ -119,7 +119,7 @@ understanding it. If the check is wrong, fixing it *is* the work.
 
 ```bash
 cp cards/<similar>.html cards/<slug>.html   # fragment: no doctype/html/body
-#  - prefix EVERY id with your slug — all 671 cards share one DOM
+#  - prefix EVERY id with your slug — all 672 cards share one DOM
 #  - IIFE-wrapped JS, inline styles + index.html CSS vars, zero network calls
 #  - forms: onsubmit="event.preventDefault();"
 
