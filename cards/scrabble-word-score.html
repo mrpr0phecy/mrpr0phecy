@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scrabble Word Score</title>
+<meta name="description" content="Score any word with classic Scrabble letter values, plus blank tiles, premium squares and what to do with a rack.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:700px;margin:0 auto}
+  h2{margin-top:0;color:#c3a6f9}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(195,166,249,0.07);border:1px solid rgba(195,166,249,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input{width:100%;max-width:250px;padding:9px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:1rem;box-sizing:border-box;text-transform:lowercase}
+  input.small{max-width:110px}
+  button{padding:9px 16px;border-radius:8px;border:0;background:#c3a6f9;color:#16181d;font-weight:700;cursor:pointer;font-size:0.95rem}
+  button:hover{filter:brightness(1.1)}
+  .score{font-size:2rem;font-weight:800;color:#c3a6f9;margin:8px 0}
+  .letters{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+  .tile{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:#efe6d5;color:#16181d;border-radius:5px;font-weight:700;font-size:1rem;position:relative}
+  .tile b{position:absolute;bottom:1px;right:2px;font-size:0.55rem;color:#666}
+  .box{background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:12px;margin-top:10px;font-size:0.9rem;line-height:1.7}
+  .err{color:#e06a6a}
+  code{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:4px;font-size:0.85em}
+  .muted{color:#9aa3af}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="scr-title">🅰️ Scrabble Word Score</h2>
+  <p id="scr-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Score any word with classic Scrabble letter values, including blank tiles, premium squares and the bonus for using all seven.</p>
+
+  <div class="card">
+    <div class="row">
+      <label for="scrword" style="font-size:0.8rem;font-weight:600;">Word:</label>
+      <input type="text" id="scrword" value="quizzes" maxlength="15" placeholder="e.g. quizzes">
+      <button id="scrgo">Score it</button>
+    </div>
+    <div id="scrsplit" style="display:none;"><div class="letters" id="scrtiles"></div></div>
+    <div id="scrout"></div>
+  </div>
+
+  <div class="card">
+    <strong>Board mode</strong> <span class="muted" style="font-size:0.85rem;">— add premium squares that apply when you play this word</span>
+    <div class="row" style="margin-top:8px;">
+      <div><label for="scrdouble" style="font-size:0.75rem;font-weight:600;">Double-word squares</label><input type="number" id="scrdouble" class="small" value="0" min="0" max="3"></div>
+      <div><label for="scrtriple" style="font-size:0.75rem;font-weight:600;">Triple-word squares</label><input type="number" id="scrtriple" class="small" value="0" min="0" max="3"></div>
+      <div style="padding-top:14px;"><button id="scrboard" class="flat" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:inherit;">Add premiums</button></div>
+    </div>
+    <div id="scrboardout" class="muted" style="font-size:0.85rem;margin-top:6px;"></div>
+  </div>
+
+  <p class="small"><strong>Tile values (standard):</strong> A E I O U L N S T R = 1 · D G = 2 · B C M P = 3 · F H V W Y = 4 · K = 5 · J X = 8 · Q Z = 10. A blank tile scores 0 — use <code>?</code> in the word to test one. Playing all seven tiles adds a 50-point bonus.</p>
+
+<script>
+(function () {
+  'use strict';
+  var wordIn = document.getElementById('scrword'),
+      go = document.getElementById('scrgo'),
+      out = document.getElementById('scrout'),
+      tilesEl = document.getElementById('scrtiles'),
+      splitEl = document.getElementById('scrsplit'),
+      dIn = document.getElementById('scrdouble'),
+      tIn = document.getElementById('scrtriple'),
+      boardBtn = document.getElementById('scrboard'),
+      boardOut = document.getElementById('scrboardout');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  var VALUES = { a:1, e:1, i:1, o:1, u:1, l:1, n:1, s:1, t:1, r:1, d:2, g:2, b:3, c:3, m:3, p:3, f:4, h:4, v:4, w:4, y:4, k:5, j:8, x:8, q:10, z:10 };
+
+  var last = { word: '', base: 0, blanks: 0 };
+
+  function score() {
+    var raw = wordIn.value.toLowerCase().replace(/\s/g, '');
+    if (raw.length < 1) { out.innerHTML = '<span class="err">Type a word first.</span>'; splitEl.style.display = 'none'; last = { word: '', base: 0, blanks: 0 }; return; }
+    if (raw.length > 15) { out.innerHTML = '<span class="err">Scrabble has a maximum rack of 7 tiles — keep it to 15 characters max for display purposes; use ? for blanks.</span>'; splitEl.style.display = 'none'; return; }
+    var blanks = (raw.match(/\?/g) || []).length;
+    var letters = raw.split('');
+    if (letters.some(function (c) { return !/[a-z?]/.test(c); })) {
+      out.innerHTML = '<span class="err">Only letters and ? (blank) are allowed.</span>'; splitEl.style.display = 'none'; return;
+    }
+    var base = letters.reduce(function (s, c) { return s + (c === '?' ? 0 : (VALUES[c] || 0)); }, 0);
+    var bonus = letters.length === 7 ? 50 : 0;
+    last = { word: raw, base: base, blanks: blanks, bonus: bonus, len: letters.length };
+
+    // tiles
+    tilesEl.innerHTML = '';
+    letters.forEach(function (c) {
+      var t = document.createElement('div');
+      t.className = 'tile';
+      t.textContent = c === '?' ? '·' : c;
+      var b = document.createElement('b');
+      b.textContent = String(VALUES[c] || 0);
+      t.appendChild(b);
+      tilesEl.appendChild(t);
+    });
+    splitEl.style.display = 'block';
+
+    var html = '<div class="score">' + base + ' points' + (bonus ? ' <span class="muted" style="font-size:1rem;">(+' + bonus + ' bingo!)</span>' : '') + '</div>';
+    html += '<div class="box">' + letters.map(function (c) { return c === '?' ? '<code>?</code> = 0 (blank)' : '<code>' + esc(c) + '</code> = ' + (VALUES[c] || 0); }).join(' · ') + '</div>';
+    if (letters.length === 7) html += '<div class="box muted">🎉 Bingo! Using all seven tiles adds 50 points — already included above.</div>';
+    else html += '<div class="box muted">Play 7 letters to earn the 50-point bingo bonus.</div>';
+    out.innerHTML = html;
+  }
+
+  function board() {
+    if (!last.word) { boardOut.textContent = 'Score a word first.'; return; }
+    var d = Math.max(0, Math.min(9, Math.floor(Number(dIn.value) || 0)));
+    var t = Math.max(0, Math.min(9, Math.floor(Number(tIn.value) || 0)));
+    var total = last.base + (last.bonus || 0);
+    total *= Math.pow(2, d) * Math.pow(3, t);
+    boardOut.innerHTML = '<code>' + esc(last.word) + '</code> = ' + last.base + (last.bonus ? ' + ' + last.bonus + ' bonus' : '') + ' × 2<' + d + ' × 3<' + t + ' = <strong style="color:var(--accent,inherit);">' + total + ' points</strong>';
+  }
+
+  go.addEventListener('click', score);
+  boardBtn.addEventListener('click', board);
+  wordIn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); score(); } });
+  score();
+})();
+</script>
+</body>
+</html>
