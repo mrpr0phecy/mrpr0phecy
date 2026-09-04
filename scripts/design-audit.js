@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * design-audit.js — the Visual Design Expert's static design audit.
+ * design-audit.js — static design-system and accessibility audit.
  *
- * AI Developer staff tool (see scripts/ai-staff.json, AGENTS.md §8).
+ * A deterministic repository quality check (see ARCHITECTURE.md §5).
  * Zero dependencies; runs on Node 18+ (CI uses Node 22) or anywhere with a
  * plain checkout. This is the CI-safe, static subset of the expert's audit:
  * design-token coherence, accessibility guards, tap-target sizing, count
@@ -88,7 +88,7 @@ function ruleHas(css, selRe, needles) {
 
 const N = cardCount();
 if (!JSON_OUT) {
-  console.log('Visual Design Expert · static design audit');
+  console.log('Static design-system audit');
   console.log(`repo root: ${ROOT}`);
   console.log(`cards indexed: ${N === null ? 'UNREADABLE cards/cards.json' : N}`);
 }
@@ -145,7 +145,7 @@ check('guard color-scheme', /color-scheme:\s*dark/.test(s));
 check('guard :focus-visible', /:focus-visible\s*\{/.test(s));
 check('guard reduced-motion', s.includes('@media(prefers-reduced-motion:reduce)'));
 check('topbar links >= 40px', ruleHas(s, /\.topbar a\s*\{/, ['min-height:40px']));
-warn('donate count is stale (483)', 'says 483, catalogue is ' + N + ' — money page, fix only with owner consent');
+check(`donate page claims ${N} tools`, s.includes(`${N} free browser tools`) && s.includes(`<b>${N}</b>`) && s.includes(`All ${N} tools`), 'published catalogue count must match cards.json');
 
 banner('Product A · cards/card.css (shared fragment hardening)');
 s = read('cards/card.css');
@@ -174,7 +174,7 @@ check('subscribe button >= 40px', /\.mp-sub\{[^}]*min-height:40px/.test(s));
 // ─────────────────────────────── summary ─────────────────────────────
 if (JSON_OUT) {
   const summary = {
-    audit: 'design-audit (Visual Design Expert · static subset)',
+    audit: 'design-audit (static design-system checks)',
     cards: N,
     pass: 0, fail: counts.fail, warn: counts.warn,
     ok: counts.fail === 0,
@@ -185,7 +185,7 @@ if (JSON_OUT) {
   if (counts.fail === 0) {
     console.log('Design audit clean — hub pages honour the shared design rules.');
   } else {
-    console.log('Design audit FAILED — fix before proposing changes (facility rule).');
+    console.log('Design audit FAILED — fix before pushing changes.');
   }
 }
 

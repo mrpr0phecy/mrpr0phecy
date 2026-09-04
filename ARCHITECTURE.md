@@ -420,14 +420,10 @@ asked indirectly.
 
 Two distinct aesthetics. Match the one belonging to the page you are editing.
 
-> **Visual Design Expert on duty.** This repo runs an AI Developer staff
-> (`AGENTS.md` §8; roster `scripts/ai-staff.json`). The **Visual Design
-> Expert** owns this section and the hub pages it documents. If you are
-> another agent or a human taking on design work: read this section, run
-> `node scripts/ai-developer.js staff`, then `node scripts/design-audit.js`
-> before changing anything visual. Design edits must respect these rules and
-> the audit, and stay reviewable (hub pages get human-reviewed PRs — the
-> expert's own rule, not an afterthought).
+> **Before changing visual design:** read this section and run
+> `node scripts/design-audit.js --strict`. The audit preserves the useful,
+> measurable standards from the retired staff experiment without requiring a
+> role, AI provider or persistent credentials. Keep design edits reviewable.
 
 ### Product A — tool catalogue: "cyan terminal"
 
