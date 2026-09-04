@@ -151,7 +151,7 @@ A card audit on 2026-09-03 found **~27 cards making network calls**, in three cl
 
 | Class | Definition | Examples | Rule |
 |---|---|---|---|
-| **A — input egress** | Anything the user types/encodes is sent to a third party | ~~wifi-qr-generator (fixed 2026-09-03: vendored generator)~~, qrtool (labelled, proper fix queued OPEN-1a), languages (labelled) | **Labelled loudly in-card immediately; re-engineered to local processing at the next opportunity.** Until fixed, the card must carry a visible warning at the point of input. |
+| **A — input egress** | Anything the user types/encodes is sent to a third party | ~~wifi-qr-generator (fixed 2026-09-03: vendored generator)~~, ~~qrtool (fixed 2026-09-04: vendored generator, OPEN-1a closed)~~, languages (labelled) | **Labelled loudly in-card immediately; re-engineered to local processing at the next opportunity.** Until fixed, the card must carry a visible warning at the point of input. |
 | **B — CDN code** | Loads libraries (chart.js, three.js) from CDNs | budget, evolution-walker | Documented exception; breaks offline purity but sends no user data. Replace with vendored code when touched for other reasons. |
 | **C — live-data tools** | Fetching public data IS the tool's function | currency, plant-encyclopedia, premier-league, censorship-monitor, photo viewers, sl-events | Legitimate; the tool must fail gracefully offline and not claim to work offline. |
 
@@ -162,3 +162,9 @@ A card audit on 2026-09-03 found **~27 cards making network calls**, in three cl
 **Audit command** (run before any catalogue PR):
 `grep -rlE "fetch\(|XMLHttpRequest|new Image|\.src *= *['\"\`]https?" cards/*.html`
 then classify hits into A/B/C.
+
+**Enforcement (2026-09-04):** the classification above is now executable —
+`python3 scripts/check-egress.py` (wired into `scripts/verify.sh` step 7 and
+CI) reads the same A/B/C table. A card that touches the network and is not
+listed there **fails the build**, so egress can no longer be added quietly.
+A Class A card with no visible in-card warning also fails.

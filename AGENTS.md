@@ -3,7 +3,7 @@
 Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-08-30. **ARCHITECTURE.md is authoritative if anything here
+Last updated: 2026-09-04. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
 ---
@@ -119,7 +119,7 @@ Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 ## 6. Verify and deploy
 
 ```bash
-bash scripts/verify.sh             # cards index, placeholders, noopener, sitemap, SEO
+bash scripts/verify.sh             # cards, placeholders, sitemap, SEO, a11y, egress
 sleep 50                           # Pages is NOT instant
 curl -s -o /dev/null -w '%{http_code}\n' https://www.themostusefulsiteintheworld.com/listen.html
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
@@ -128,6 +128,14 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 Expect `200` and a count matching `cards/`. A green push is not proof of a
 live deploy.
+
+Standalone checks (all also run inside `verify.sh` and in CI):
+
+```bash
+python3 scripts/check-a11y.py     # label/for targets, img alt, rel=noopener
+python3 scripts/check-egress.py   # D-009 network classification (A/B/C)
+node    scripts/design-audit.js   # design tokens, guards, count claims
+```
 
 ## 7. If unsure
 

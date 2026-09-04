@@ -4249,9 +4249,18 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 loadInitialCards();
                 initIntersectionObserver();
                 
-                // Periodic stuck-card recovery — catches cards the observer missed
-                setInterval(() => {
-                    if (!isSearching) scrollFallbackLoader();
+                // Periodic stuck-card recovery — catches cards the observer
+                // missed. This walks every card and reads geometry, so it is
+                // skipped while the tab is hidden and stops entirely once
+                // nothing is left unloaded (it used to run forever, forcing a
+                // layout of all 644 cards every 3s for the whole session).
+                const recovery = setInterval(() => {
+                    if (document.hidden || isSearching) return;
+                    if (!document.querySelector('.card:not(.loaded)')) {
+                        clearInterval(recovery);
+                        return;
+                    }
+                    scrollFallbackLoader();
                 }, 3000);
             }, 300);
             
@@ -4262,7 +4271,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--error);">
                     <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
                     <h3 style="color:var(--error);margin-bottom:8px;">Failed to load cards</h3>
-                    <p style="margin-bottom:16px;">${error.message}</p>
+                    <p style="margin-bottom:16px;">${String(error.message).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p>
                     <button onclick="location.reload()" style="padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;">Retry</button>
                 </div>
             `;

@@ -11,8 +11,10 @@
 #   3. target=_blank links    — must carry rel="noopener ..."
 #   4. sitemap.xml             — parses and is non-empty
 #   5. top-level SEO scan     — scripts/scan-seo.py
-#   6. secret scan            — no obvious GitHub tokens in tracked files
-#   7. git state              — uncommitted changes reported (not failed)
+#   6. accessibility          — scripts/check-a11y.py (labels, alt, noopener)
+#   7. network egress (D-009) — scripts/check-egress.py
+#   8. secret scan            — no obvious GitHub tokens in tracked files
+#   9. git state              — uncommitted changes reported (not failed)
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -24,25 +26,25 @@ ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
 note() { printf '  \033[33mNOTE\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAILS=$((FAILS+1)); }
 
-section "1/7 catalogue consistency (check-cards.py)"
+section "1/9 catalogue consistency (check-cards.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-cards.py; then ok "catalogue coherent"; else fail "catalogue incoherent"; fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "2/7 placeholder IDs in *.html"
+section "2/9 placeholder IDs in *.html"
 # Hard placeholders anywhere; YOUR_ only inside URLs/attributes (demo text
 # like 'YOUR_SYSTEM_PROMPT' in the prompt-injection lab is legitimate content).
 PH="dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|(src|href)=['\"][^'\"]*YOUR_"
 HITS=$(grep -rlE "$PH" --include='*.html' . 2>/dev/null || true)
 if [ -n "$HITS" ]; then fail "placeholder IDs found: $(echo "$HITS" | tr '\n' ' ')"; else ok "none"; fi
 
-section "3/7 target=_blank links without rel=noopener"
+section "3/9 target=_blank links without rel=noopener"
 BAD=$(grep -rn --include='*.html' -E '<a [^>]*target="_blank"' . 2>/dev/null | grep -v 'noopener' || true)
 if [ -n "$BAD" ]; then fail "$(echo "$BAD" | head -5)"; else ok "all covered"; fi
 
-section "4/7 sitemap.xml"
+section "4/9 sitemap.xml"
 if python3 - <<'PY' 2>/dev/null
 import xml.etree.ElementTree as E
 root = E.parse('sitemap.xml').getroot()
@@ -52,10 +54,16 @@ PY
 then ok "parses, entries: $(python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))")"
 else fail "missing or empty"; fi
 
-section "5/7 top-level SEO scan (scan-seo.py)"
+section "5/9 top-level SEO scan (scan-seo.py)"
 if python3 scripts/scan-seo.py; then ok "no missing <title>"; else fail "see warnings above"; fi
 
-section "6/7 sensitive strings in tracked files"
+section "6/9 accessibility (check-a11y.py)"
+if python3 scripts/check-a11y.py; then ok "labels, alt text and rel=noopener clean"; else fail "accessibility problems above"; fi
+
+section "7/9 network egress — D-009 (check-egress.py)"
+if python3 scripts/check-egress.py; then ok "no unclassified egress"; else fail "see D-009 violations above"; fi
+
+section "8/9 sensitive strings in tracked files"
 # Patterns are assembled at runtime so this script does not match itself.
 P1="gh""o_"; P2="gh""p_"; P3="github""_pat_"; P4="gh""s_"
 if grep -rnE "$P1|$P2|$P3|$P4" --exclude-dir=.git . 2>/dev/null | grep -v '^Binary' | head -5 | grep -q .; then
@@ -64,7 +72,7 @@ else
   ok "none"
 fi
 
-section "7/7 git state"
+section "9/9 git state"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   note "uncommitted changes present — commit before pushing"; NOTES=$((NOTES+1))
 else
