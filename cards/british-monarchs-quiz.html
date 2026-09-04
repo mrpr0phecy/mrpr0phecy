@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>British Monarchs Quiz</title>
+<meta name="description" content="Name the kings and queens of England, Scotland and the UK — from 1066 to today — in ten-question rounds.">
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:#16181d;color:#e6e8eb;line-height:1.6}
+  .wrap{max-width:700px;margin:0 auto}
+  h2{margin-top:0;color:#e8c547}
+  .small{color:#9aa3af;font-size:0.8rem;margin-top:14px}
+  .desc{color:#9aa3af;margin-bottom:16px}
+  .card{background:rgba(232,197,71,0.07);border:1px solid rgba(232,197,71,0.25);border-radius:10px;padding:14px;margin-bottom:14px}
+  button{padding:9px 16px;border-radius:8px;border:0;background:#e8c547;color:#16181d;font-weight:700;cursor:pointer;font-size:0.95rem;margin-right:8px}
+  button:hover{filter:brightness(1.1)}
+  button.flat{background:transparent;border:1px solid rgba(255,255,255,0.3);color:inherit}
+  .opts{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .opt{padding:9px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.25);cursor:pointer;font-size:0.95rem;text-align:left}
+  .opt:hover{border-color:#e8c547}
+  .opt.right{border-color:#63d3a6;background:rgba(99,211,166,0.2)}
+  .opt.wrong{border-color:#e06a6a;background:rgba(224,106,106,0.2)}
+  .fb{margin-top:10px;font-size:0.92rem}
+  .ok{color:#63d3a6}.no{color:#e06a6a}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;color:#9aa3af;font-size:0.88rem;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 id="bmq-title">👑 British Monarchs Quiz</h2>
+  <p id="bmq-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Name the kings and queens of England, Scotland and the UK from 1066 to today — ten questions per round with streaks.</p>
+
+  <div class="card">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:0.9rem;color:var(--muted);">Pool:</span>
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="radio" name="bmq-pool" id="bmq-eng" checked> England (1066–)</label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;"><input type="radio" name="bmq-pool" id="bmq-uk"> UK (1707–)</label>
+    </div>
+    <div style="margin-top:10px;"><button id="bmq-start">Start round</button></div>
+    <div id="bmq-round" style="display:none;">
+      <div id="bmq-q" style="margin-top:10px;font-size:1.05rem;"></div>
+      <div class="opts" id="bmq-opts"></div>
+      <div id="bmq-fb" class="fb"></div>
+      <div class="meta">
+        <span id="bmq-score">Score 0/0</span>
+        <span id="bmq-streak">Streak 0</span>
+        <button id="bmq-next">Next question</button>
+        <button id="bmq-show" class="flat">Skip &amp; reveal</button>
+      </div>
+    </div>
+    <div id="bmq-end" style="display:none;margin-top:10px;">
+      <div id="bmq-final" style="font-size:1.05rem;"></div>
+      <div id="bmq-review" style="margin-top:8px;font-size:0.86rem;color:var(--muted);"></div>
+      <div style="margin-top:10px;"><button id="bmq-again">Play again</button></div>
+    </div>
+  </div>
+
+  <p class="small"><strong>Did you know?</strong> Elizabeth II reigned 70 years and 214 days — the longest-serving monarch in British history. Queen Victoria was second at 63 years. Henry VIII had six wives, and Edward VIII gave up the throne after less than a year to marry Wallis Simpson.</p>
+
+<script>
+(function () {
+  'use strict';
+  var startBtn = document.getElementById('bmq-start'),
+      roundEl = document.getElementById('bmq-round'),
+      endEl = document.getElementById('bmq-end'),
+      qEl = document.getElementById('bmq-q'),
+      optsEl = document.getElementById('bmq-opts'),
+      fb = document.getElementById('bmq-fb'),
+      scoreEl = document.getElementById('bmq-score'),
+      streakEl = document.getElementById('bmq-streak'),
+      nextBtn = document.getElementById('bmq-next'),
+      showBtn = document.getElementById('bmq-show'),
+      finalEl = document.getElementById('bmq-final'),
+      reviewEl = document.getElementById('bmq-review'),
+      againBtn = document.getElementById('bmq-again'),
+      eng = document.getElementById('bmq-eng'),
+      uk = document.getElementById('bmq-uk');
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  var DATA = [
+    { q: 'Who was the first Norman king of England?', a: 'William I (the Conqueror)', w: ['Harold II', 'Edward the Confessor', 'Henry I'] },
+    { q: 'Which king had six wives?', a: 'Henry VIII', w: ['Edward VI', 'Charles II', 'George IV'] },
+    { q: 'Who reigned for almost 64 years and gave her name to an era?', a: 'Victoria', w: ['Elizabeth I', 'Anne', 'Mary II'] , uk: true },
+    { q: 'Which queen defeated the Spanish Armada in 1588?', a: 'Elizabeth I', w: ['Mary I', 'Victoria', 'Anne'] },
+    { q: 'Who was the only king executed after a civil war?', a: 'Charles I', w: ['Charles II', 'James II', 'Richard III'] },
+    { q: 'Which king signed the Magna Carta in 1215?', a: 'John', w: ['Henry III', 'Edward I', 'Richard I'] },
+    { q: 'Who came to the throne in 1952 and reigned 70 years?', a: 'Elizabeth II', w: ['George VI', 'Edward VIII', 'Victoria'] , uk: true },
+    { q: 'Which king abdicated in 1936 to marry Wallis Simpson?', a: 'Edward VIII', w: ['George V', 'George VI', 'Edward VII'] , uk: true },
+    { q: 'Who became the first monarch of Great Britain in 1707?', a: 'Anne', w: ['George I', 'William III', 'James II'] , uk: true },
+    { q: 'Which king lost the American colonies in the 1770s–80s?', a: 'George III', w: ['George II', 'George IV', 'William IV'] , uk: true },
+    { q: 'Which king won the Battle of Hastings in 1066?', a: 'William I (the Conqueror)', w: ['Harold Godwinson', 'Edward the Confessor', 'Canute'] },
+    { q: 'Who was the last Tudor monarch?', a: 'Elizabeth I', w: ['Mary I', 'Henry VIII', 'Edward VI'] },
+    { q: 'Who became king in 2022?', a: 'Charles III', w: ['William V', 'George VII', 'Edward IX'] , uk: true },
+    { q: 'Which queen ruled England for just nine days?', a: 'Jane Grey', w: ['Mary I', 'Mary II', 'Anne'] },
+    { q: 'Who restored the monarchy in 1660 after the Civil War?', a: 'Charles II', w: ['Charles I', 'James II', 'William III'] },
+    { q: 'Which king had the nickname "Lionheart"?', a: 'Richard I', w: ['Richard II', 'Edward I', 'Henry II'] },
+    { q: 'Who was the first Hanoverian king in 1714?', a: 'George I', w: ['George II', 'William III', 'James I'] , uk: true },
+    { q: 'Which king famously broke with the Pope in the 1530s?', a: 'Henry VIII', w: ['Henry VII', 'Edward VI', 'James I'] },
+    { q: 'Which monarch ruled both England and Scotland as one crown from 1603?', a: 'James I', w: ['Charles I', 'William III', 'Henry VII'] },
+    { q: 'Who was the only monarch to have reigned three separate times (king, queen, king)?', a: 'None — this is a trick', w: ['Mary I', 'Henry VI', 'Edward IV'] },
+    { q: 'Which king was defeated at the Battle of Bosworth in 1485?', a: 'Richard III', w: ['Henry VI', 'Edward V', 'Edward IV'] },
+    { q: 'Who succeeded Queen Victoria?', a: 'Edward VII', w: ['George V', 'Edward VIII', 'George VI'] , uk: true },
+    { q: 'Which king was overthrown in the Glorious Revolution of 1688?', a: 'James II', w: ['Charles II', 'William III', 'George II'] },
+    { q: 'Which queen married Prince Albert in 1840?', a: 'Victoria', w: ['Elizabeth I', 'Mary II', 'Anne'], uk: true },
+    { q: 'Which king reigned through the Second World War?', a: 'George VI', w: ['George V', 'Edward VIII', 'George II'], uk: true },
+    { q: 'Which king was known for extravagant spending and the Brighton Pavilion?', a: 'George IV', w: ['George III', 'William IV', 'Edward VII'], uk: true },
+    { q: 'Which king signed the Reform Act of 1832 and was known as the "Sailor King"?', a: 'William IV', w: ['George IV', 'George III', 'Edward VII'], uk: true },
+    { q: 'Which queen reigned from 1837 to 1901 and was Empress of India?', a: 'Victoria', w: ['Mary I', 'Elizabeth I', 'Anne'], uk: true }
+  ];
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  var state = { list: [], i: 0, correct: 0, streak: 0, best: 0 };
+
+  function start() {
+    var pool = uk.checked ? DATA.filter(function (d) { return d.uk; }) : DATA;
+    state = { list: shuffle(pool.slice(0, 10)), i: 0, correct: 0, streak: 0, best: 0 };
+    roundEl.style.display = 'block';
+    endEl.style.display = 'none';
+    scoreEl.textContent = 'Score 0/0';
+    streakEl.textContent = 'Streak 0';
+    showQ();
+  }
+
+  function showQ() {
+    var q = state.list[state.i];
+    qEl.textContent = (state.i + 1) + '. ' + q.q;
+    fb.innerHTML = '';
+    optsEl.innerHTML = '';
+    shuffle([q.a].concat(q.w)).forEach(function (o) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'opt'; b.textContent = o;
+      b.addEventListener('click', function () { answer(o, q); });
+      optsEl.appendChild(b);
+    });
+  }
+
+  function answer(choice, q) {
+    var correct = choice === q.a;
+    state.i++;
+    if (correct) { state.correct++; state.streak++; if (state.streak > state.best) state.best = state.streak; }
+    else state.streak = 0;
+    scoreEl.textContent = 'Score ' + state.correct + '/' + state.i;
+    streakEl.textContent = 'Streak ' + state.streak;
+    fb.innerHTML = correct
+      ? '<span class="ok">✓ Correct!</span>'
+      : '<span class="no">✗ ' + esc(q.a) + '.</span>';
+    optsEl.children.forEach(function (c) { c.className = c.textContent === q.a ? 'opt right' : 'opt wrong'; });
+    showBtn.style.display = 'none';
+    nextBtn.style.display = state.i >= 10 ? 'none' : '';
+    if (state.i >= 10) finish();
+  }
+
+  function reveal() {
+    var q = state.list[state.i];
+    state.i++;
+    state.streak = 0;
+    fb.innerHTML = '<span class="no">Revealed: ' + esc(q.a) + '.</span>';
+    optsEl.children.forEach(function (c) { if (c.textContent === q.a) c.className = 'opt right'; });
+    scoreEl.textContent = 'Score ' + state.correct + '/' + state.i;
+    streakEl.textContent = 'Streak 0';
+    if (state.i >= 10) finish();
+  }
+
+  function finish() {
+    finalEl.textContent = 'Round finished! ' + state.correct + ' out of 10 correct (best streak ' + state.best + ').';
+    reviewEl.innerHTML = state.list.map(function (q, idx) { return (idx + 1) + '. ' + esc(q.q) + ' ← ' + esc(q.a); }).join('<br>');
+    endEl.style.display = 'block';
+  }
+
+  startBtn.addEventListener('click', start);
+  againBtn.addEventListener('click', start);
+  nextBtn.addEventListener('click', function () { if (state.i < state.list.length) showQ(); showBtn.style.display = ''; });
+  showBtn.addEventListener('click', reveal);
+})();
+</script>
+</body>
+</html>
