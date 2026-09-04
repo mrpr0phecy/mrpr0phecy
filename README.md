@@ -54,6 +54,17 @@ money-related.
 | Tools | 644, indexed by `cards/cards.json` |
 | Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
 
+## Checks before you push
+
+```bash
+bash scripts/verify.sh            # runs everything below plus catalogue + SEO
+python3 scripts/check-a11y.py     # labels, alt text, rel="noopener"
+python3 scripts/check-egress.py   # D-009: no card sends your input off-device
+node    scripts/design-audit.js   # design tokens, guards, tool-count claims
+```
+
+The same checks run in CI (`.github/workflows/agent-guardrails.yml`).
+
 ## Local preview
 
 ```bash

@@ -35,11 +35,17 @@ for f in pages:
         fails.append(f"{tag}: no <title>")
         continue
 
+    # Pages that tell robots not to index them do not need social/canonical
+    # metadata — warning about it is noise that hides the real problems.
+    noindex = bool(re.search(r"(?is)<meta[^>]*name=[\"']robots[\"'][^>]*content=[\"'][^\"']*noindex", t))
+    if noindex:
+        print(f"  note: {tag}: noindex — social/canonical checks skipped")
+
     if not re.search(r"(?is)<html[^>]*\blang\s*=", t):
         warns.append(f"{tag}: <html> missing lang attribute")
-    if not re.search(r"(?is)<meta[^>]*name=[\"']description[\"']", t):
+    if not re.search(r"(?is)<meta[^>]*name=[\"']description[\"']", t) and not noindex:
         warns.append(f"{tag}: no meta description")
-    if not re.search(r"(?is)<meta[^>]*name=[\"']twitter:card[\"']", t):
+    if not re.search(r"(?is)<meta[^>]*name=[\"']twitter:card[\"']", t) and not noindex:
         warns.append(f"{tag}: no twitter:card")
     if not re.search(r"(?is)<meta[^>]*name=[\"']theme-color[\"']", t):
         warns.append(f"{tag}: no theme-color")
@@ -51,7 +57,8 @@ for f in pages:
     ):
         m = re.search(pat, t)
         if not m:
-            warns.append(f"{tag}: no {label}")
+            if not noindex:
+                warns.append(f"{tag}: no {label}")
         elif not re.match(r"^https://www\.", m.group(1)):
             warns.append(f"{tag}: {label} is {m.group(1)} — must be https://www.")
 
@@ -61,7 +68,7 @@ for f in pages:
         (r"(?is)<meta[^>]*property=[\"']og:image[\"']", "og:image"),
         (r"(?is)<meta[^>]*property=[\"']og:type[\"']", "og:type"),
     ):
-        if not re.search(pat, t):
+        if not re.search(pat, t) and not noindex:
             warns.append(f"{tag}: no {label}")
 
     if re.search(r"(?is)(?:content|href)=[\"']http://", t):

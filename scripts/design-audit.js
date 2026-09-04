@@ -145,7 +145,14 @@ check('guard color-scheme', /color-scheme:\s*dark/.test(s));
 check('guard :focus-visible', /:focus-visible\s*\{/.test(s));
 check('guard reduced-motion', s.includes('@media(prefers-reduced-motion:reduce)'));
 check('topbar links >= 40px', ruleHas(s, /\.topbar a\s*\{/, ['min-height:40px']));
-warn('donate count is stale (483)', 'says 483, catalogue is ' + N + ' — money page, fix only with owner consent');
+// Money page: the tool count must match the catalogue, not a frozen number.
+const donateCounts = [...new Set((s.match(/\b\d{3,4}(?=\s*(?:free|\+?\s*free)?[^<]{0,24}tools?\b)/gi) || []))];
+const donateStale = donateCounts.filter(c => c !== String(N));
+if (donateStale.length) {
+  warn('donate count is stale', 'says ' + donateStale.join('/') + ', catalogue is ' + N + ' — money page, fix only with owner consent');
+} else {
+  check(`count claims match catalogue (${N})`, true);
+}
 
 banner('Product A · cards/card.css (shared fragment hardening)');
 s = read('cards/card.css');

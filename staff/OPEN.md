@@ -7,11 +7,11 @@ collects and relays those; do not act on them unilaterally.
 
 | # | Item | Owner | Waits on | Status |
 |---|---|---|---|---|
-| 1a | **FIX qrtool locally** (Class A egress, D-009): replace api.qrserver/qrcode-monkey generation with the vendored qrcode-generator already in wifi-qr-generator.html; keep logo overlay. Same for any other Class A card. | @design | nothing | **urgent** |
+| 1a | ~~**FIX qrtool locally** (Class A egress, D-009)~~ | @design | — | **done 2026-09-04** — vendored qrcode-generator; single/batch/SVG all render on-device; zero network calls; enforced by `scripts/check-egress.py` |
 | 1 | **Triage the divergent catalogue branch** (now 136 added, was 130 — branch grew overnight): cherry-pick genuinely good new tools through the full quality bar (AGENTS.md §5 + card anatomy §3), **restore every deleted card**, re-run `generate-cards-json.js` + sitemap + counts. Full inventory + acceptance checklist: **issue #7**. | @manager | nothing | in progress — inventory refreshed 2026-09-03 |
 | 2 | **One `help.html`** — merge the two stranded versions (site-mechanics answers + privacy/money/legal answers + client-side search), `FAQPage` JSON-LD in sync, claims per D-002. General rule from D-004 applies. | @content | #1 landing first (avoid catalogue collisions) | open |
 | 3 | **Risk-notice system** per proposed D-003: `RISK_NOTICES` tables in `index.html` + `tool.html` for medical/finance/engineering/legal tools. Rebuild from the stranded @legal branch design; then D-003 becomes binding. | @systems | nothing | open |
-| 4 | **17 `<label for=…>` associations** point at nothing (button groups) — convert to radio inputs or `aria-labelledby`. Known since 2026-08-31. | @systems | nothing | open |
+| 4 | ~~**17 `<label for=…>` associations** point at nothing~~ | @systems | — | **done 2026-09-04** — converted to `id="…-label"` + `role="group" aria-labelledby`; regressions blocked by `scripts/check-a11y.py` |
 | 5a | **Adopt @seo structured-data work** (per-tool JSON-LD, breadcrumbs, ?category= deep-links from `01a0605e`) and **@systems index.html perf work** (lazy-load fix, timer purge from `01a0629f`) — after rebase, minus D-006/D-007 violations. | @seo/@systems | rebases | open |
 | 5 | **Salvage review of remaining stranded branches**: `01a05fea` (CONTRIBUTING, issue/PR templates, CODEOWNERS, security.txt), `01a0622c` (finance-card fixes + FINANCE.md), `01a05df2` (Second Life script), `01a062bc` (legal.html, LEGAL.md, RISK_NOTICES). Pull the good, drop the contradictory. | @manager | D-006/D-007 landed (done) | open |
 | 6 | **Language pages**: thin machine-translated hreflang cluster — enrich with genuinely localised content or consolidate (owner question). | OWNER | owner decision | pending |
