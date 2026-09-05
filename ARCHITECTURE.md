@@ -530,6 +530,20 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   `#top`, `/` + `Ctrl/Cmd+K` focus the search, `#backToTop` appears after
   600px of scroll, and the empty-search state offers popular-search
   suggestion chips (`.suggestion-chip`).
+- **Smart sticky bar**: `#stickyCommandBar` reveals when scrolling *up* past
+  200px and tucks away when scrolling down, with a thin scroll-progress bar
+  (`#stickyProgressBar`) along its bottom edge. Keep this behaviour when
+  editing the scroll handler in `setupStickyCommandBar`.
+- **Live search suggestions**: the main search has a keyboard-navigable
+  dropdown (`#searchSuggest`, `.suggest-item` rows, `↑↓` + `Enter` + `Esc`)
+  ranked from `cards/cards.json` (title → slug → category → description).
+  Selecting a row filters the grid; the `↗` cell opens the standalone tool.
+  Keep the engine (`getSuggestions` / `updateSuggestions` /
+  `selectSuggestion`) in step with `performSearch` so both stay in sync.
+- **Card skeletons**: unloaded cards render `.card-skeleton` shimmer bars
+  (`.sk`, `.sk-line`, `.sk-block`) instead of the old "Loading…" text; the
+  shimmer is disabled under `prefers-reduced-motion`. Don't reintroduce
+  pulsing emoji placeholders.
 
 ---
 
