@@ -435,7 +435,16 @@ const csList = [
   'binary-bits-bitwise-playground'
 ];
 
+// 2026-09 additions — explicit slug -> category map. Checked FIRST in
+// getCategory() so re-running this script can never silently lose these
+// categories (see ARCHITECTURE.md §3, "generate-cards-json.js overwrites
+// categories"). Add new tools here, exact filename slug, no .html.
+const newToolsMap = {
+  'uuid-ulid-generator': 'Algorithms & Computer Science',
+};
+
 function getCategory(name) {
+  if (newToolsMap[name]) return newToolsMap[name];
   if (gapFillMap[name]) return gapFillMap[name];
   if (sportsList.includes(name)) return 'Sports';
   if (demosList.includes(name)) return 'Mind-Blowing Demos';
