@@ -174,6 +174,7 @@ const aquariumList = [
 // Ten tools added to fill genuine gaps found by auditing the existing 552-card
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
 const gapFillMap = {
+  'image-compressor-resizer-offline': 'Productivity & Lifestyle',
   'text-to-speech-reader-voices': 'Writing & Language',
   'overtime-pay-hourly-wage-calculator': 'Finance & Money',
   'screen-ruler-pixel-measure': 'Productivity & Lifestyle',
