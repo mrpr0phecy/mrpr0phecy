@@ -1,0 +1,357 @@
+<h2 id="geodesic-area-parcel-calculator-title" style="margin-top:0;color:var(--accent);">📐 Geodesic Area &amp; Parcel Calculator</h2>
+
+<form aria-describedby="geodesic-area-parcel-calculator-desc" onsubmit="event.preventDefault();">
+  <p id="geodesic-area-parcel-calculator-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Type or click out a boundary and get its <em>true</em> area on the curved Earth using the spherical-excess formula — the same maths GIS packages use — alongside the flat-map answer so you can see exactly how much error the curvature adds. Works for a garden, a farm, a drone survey or a whole US state.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="gapc-preset" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Load a boundary</label>
+      <select id="gapc-preset" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+    <div>
+      <label for="gapc-unit" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Headline unit</label>
+      <select id="gapc-unit" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;">
+        <option value="auto">Automatic</option>
+        <option value="m2">Square metres</option>
+        <option value="ha">Hectares</option>
+        <option value="ac">Acres</option>
+        <option value="km2">Square kilometres</option>
+        <option value="mi2">Square miles</option>
+      </select>
+    </div>
+  </div>
+
+  <label for="gapc-coords" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">
+    Boundary vertices — one “latitude, longitude” per line, in order around the edge
+  </label>
+  <textarea id="gapc-coords" rows="7" spellcheck="false"
+            style="width:100%;padding:10px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:ui-monospace,monospace;font-size:0.82rem;line-height:1.5;resize:vertical;"></textarea>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;">
+    <button type="button" id="gapc-undo" style="min-height:40px;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:inherit;cursor:pointer;font-size:0.82rem;">Remove last point</button>
+    <button type="button" id="gapc-clear" style="min-height:40px;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,107,107,.35);background:rgba(255,107,107,.1);color:#ff6b6b;cursor:pointer;font-size:0.82rem;">Clear</button>
+    <span style="align-self:center;font-size:0.72rem;color:var(--text-secondary);">Tip: click inside the plot to drop a new vertex.</span>
+  </div>
+
+  <div id="gapc-stats" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="gapc-canvas" width="820" height="400" role="img"
+          aria-label="Plot of the boundary polygon with numbered vertices"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:12px;cursor:crosshair;touch-action:manipulation;"></canvas>
+
+  <div id="gapc-compare" style="margin-bottom:12px;"></div>
+  <div id="gapc-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var canvas = document.getElementById('gapc-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var taEl = document.getElementById('gapc-coords');
+  var presetEl = document.getElementById('gapc-preset');
+  var unitEl = document.getElementById('gapc-unit');
+
+  var D2R = Math.PI / 180;
+  var R = 6371007.2;   // authalic radius of the WGS84 ellipsoid, in metres
+
+  function rect(s, n, w, e) {
+    return [[n, w], [n, e], [s, e], [s, w]].map(function (p) { return p[0].toFixed(4) + ', ' + p[1].toFixed(4); }).join('\n');
+  }
+
+  var PRESETS = [
+    ['Colorado, USA (a true rectangle on the globe)', rect(37, 41, -109.045, -102.041), 'Published land area 269,601 km² — a strict test of the maths.'],
+    ['Wyoming, USA', rect(41, 45, -111.056, -104.052), 'Published 253,335 km².'],
+    ['One hectare: 100 m × 100 m at the equator', '0.000000, 0.000000\n0.000000, 0.000898\n-0.000898, 0.000898\n-0.000898, 0.000000', 'Should come out at almost exactly 1.000 ha.'],
+    ['Central Park, New York', '40.8003, -73.9580\n40.7968, -73.9497\n40.7644, -73.9730\n40.7681, -73.9819', 'Published 3.41 km² / 843 acres.'],
+    ['One degree square at the equator', rect(0, 1, 0, 1), 'A 1° × 1° box is 12,308 km² here — compare it with the same box at 51°N.'],
+    ['One degree square at 51°N', rect(51, 52, 0, 1), 'The same 1° × 1° box shrinks to about 7,700 km² this far north. No flat map shows that.'],
+    ['A ten-acre field in Herefordshire', '51.971812, -2.710000\n51.971812, -2.707067\n51.970000, -2.707067\n51.970000, -2.710000', 'A square of pasture near the Welsh border: 201 m on a side.'],
+    ['Isle of Wight bounding box', '50.7659, -1.5900\n50.7659, -1.0700\n50.5750, -1.0700\n50.5750, -1.5900', 'The box, not the coastline — the island itself is 380 km².'],
+    ['A suburban garden, 18 m × 9 m', '51.878700, -0.420000\n51.878700, -0.419869\n51.878538, -0.419869\n51.878538, -0.420000', 'About 162 m², close to the UK average garden.']
+  ];
+  PRESETS.forEach(function (p, i) { presetEl.add(new Option(p[0], String(i))); });
+
+  function parseCoords(text) {
+    var out = [];
+    text.split(/\r?\n/).forEach(function (line) {
+      var t = line.trim();
+      if (!t) return;
+      var m = t.match(/(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)/);
+      if (!m) return;
+      var la = parseFloat(m[1]), lo = parseFloat(m[2]);
+      if (!isFinite(la) || !isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return;
+      out.push({ lat: la, lon: lo });
+    });
+    return out;
+  }
+
+  // Spherical-excess area, the standard GIS formulation. Longitudes are
+  // unwrapped first so a boundary crossing the antimeridian still works.
+  function sphericalArea(pts) {
+    if (pts.length < 3) return 0;
+    var lons = [pts[0].lon], i, d;
+    for (i = 1; i < pts.length; i++) {
+      d = pts[i].lon - pts[i - 1].lon;
+      while (d > 180) d -= 360;
+      while (d < -180) d += 360;
+      lons.push(lons[i - 1] + d);
+    }
+    var total = 0;
+    for (i = 0; i < pts.length; i++) {
+      var j = (i + 1) % pts.length, dl;
+      if (j === 0) {
+        dl = pts[0].lon - pts[pts.length - 1].lon;
+        while (dl > 180) dl -= 360;
+        while (dl < -180) dl += 360;
+      } else {
+        dl = lons[j] - lons[i];
+      }
+      total += dl * D2R * (2 + Math.sin(pts[i].lat * D2R) + Math.sin(pts[j].lat * D2R));
+    }
+    return Math.abs(total * R * R / 2);
+  }
+
+  // Flat-map answer: treat degrees as a plane scaled by cos(mean latitude)
+  function planarArea(pts) {
+    if (pts.length < 3) return 0;
+    var meanLat = pts.reduce(function (s, p) { return s + p.lat; }, 0) / pts.length;
+    var kx = 111319.49 * Math.cos(meanLat * D2R), ky = 111319.49;
+    var sum = 0;
+    for (var i = 0; i < pts.length; i++) {
+      var j = (i + 1) % pts.length;
+      sum += (pts[i].lon * kx) * (pts[j].lat * ky) - (pts[j].lon * kx) * (pts[i].lat * ky);
+    }
+    return Math.abs(sum / 2);
+  }
+
+  function haversine(a, b) {
+    var p1 = a.lat * D2R, p2 = b.lat * D2R, dp = p2 - p1, dl = (b.lon - a.lon) * D2R;
+    var x = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
+
+  function perimeter(pts) {
+    var p = 0;
+    for (var i = 0; i < pts.length; i++) p += haversine(pts[i], pts[(i + 1) % pts.length]);
+    return p;
+  }
+
+  function fmt(n, dp) {
+    return n.toLocaleString(undefined, { minimumFractionDigits: dp === undefined ? 0 : dp, maximumFractionDigits: dp === undefined ? 0 : dp });
+  }
+
+  function headline(m2) {
+    var mode = unitEl.value;
+    if (mode === 'auto') {
+      if (m2 < 10000) mode = 'm2';
+      else if (m2 < 1e6) mode = 'ha';
+      else mode = 'km2';
+    }
+    if (mode === 'm2') return fmt(m2, m2 < 100 ? 1 : 0) + ' m²';
+    if (mode === 'ha') return fmt(m2 / 10000, 3) + ' ha';
+    if (mode === 'ac') return fmt(m2 / 4046.8564224, 3) + ' acres';
+    if (mode === 'km2') return fmt(m2 / 1e6, m2 / 1e6 < 100 ? 3 : 0) + ' km²';
+    return fmt(m2 / 2589988.110336, 3) + ' sq mi';
+  }
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.02rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  var YARDSTICKS = [
+    ['a tennis court', 260.87],
+    ['a doubles badminton court', 81.74],
+    ['an average UK garden', 162],
+    ['a football pitch', 7140],
+    ['a hectare', 10000],
+    ['an acre', 4046.86],
+    ['Trafalgar Square', 12000],
+    ['the Vatican', 490000],
+    ['Central Park', 3410000],
+    ['Heathrow Airport', 12270000],
+    ['Manhattan', 59100000],
+    ['the Isle of Wight', 380000000],
+    ['Greater London', 1572000000],
+    ['Wales', 20779000000],
+    ['Belgium', 30528000000]
+  ];
+
+  var view = null;
+
+  function draw(pts) {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
+    if (!pts.length) {
+      ctx.fillStyle = 'rgba(230,250,255,.4)';
+      ctx.font = '13px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Add at least three vertices, or click here to start drawing', w / 2, h / 2);
+      ctx.textAlign = 'left';
+      view = null;
+      return;
+    }
+    var lats = pts.map(function (p) { return p.lat; }), lons = pts.map(function (p) { return p.lon; });
+    var minLa = Math.min.apply(null, lats), maxLa = Math.max.apply(null, lats);
+    var minLo = Math.min.apply(null, lons), maxLo = Math.max.apply(null, lons);
+    var midLa = (minLa + maxLa) / 2;
+    var kx = Math.cos(midLa * D2R) || 1e-6;
+    var spanX = Math.max((maxLo - minLo) * kx, 1e-6), spanY = Math.max(maxLa - minLa, 1e-6);
+    var pad = 46;
+    var scale = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY);
+    view = { minLo: minLo, maxLa: maxLa, kx: kx, scale: scale, pad: pad, midLa: midLa,
+             offX: (w - spanX * scale) / 2, offY: (h - spanY * scale) / 2 };
+
+    function px(p) {
+      return {
+        x: view.offX + (p.lon - minLo) * kx * scale,
+        y: view.offY + (maxLa - p.lat) * scale
+      };
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,.07)'; ctx.lineWidth = 1;
+    for (var gx = 0; gx <= 10; gx++) {
+      var X = (w / 10) * gx;
+      ctx.beginPath(); ctx.moveTo(X, 0); ctx.lineTo(X, h); ctx.stroke();
+    }
+    for (var gy = 0; gy <= 6; gy++) {
+      var Y = (h / 6) * gy;
+      ctx.beginPath(); ctx.moveTo(0, Y); ctx.lineTo(w, Y); ctx.stroke();
+    }
+
+    if (pts.length >= 3) {
+      ctx.beginPath();
+      pts.forEach(function (p, i) { var q = px(p); if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y); });
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(45,212,255,.16)'; ctx.fill();
+      ctx.strokeStyle = '#2dd4ff'; ctx.lineWidth = 2.2; ctx.stroke();
+    } else if (pts.length === 2) {
+      var a = px(pts[0]), b = px(pts[1]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = '#2dd4ff'; ctx.lineWidth = 2.2; ctx.stroke();
+    }
+
+    pts.forEach(function (p, i) {
+      var q = px(p);
+      ctx.beginPath(); ctx.arc(q.x, q.y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = i === 0 ? '#39ff14' : '#ffd700'; ctx.fill();
+      ctx.fillStyle = 'rgba(230,250,255,.85)';
+      ctx.font = '10px Inter, system-ui, sans-serif';
+      ctx.fillText(String(i + 1), q.x + 7, q.y - 6);
+    });
+
+    // scale bar
+    var metresPerPx = 111319.49 / scale;
+    var target = (w - pad * 2) / 4 * metresPerPx;
+    var nice = Math.pow(10, Math.floor(Math.log(target) / Math.LN10));
+    [1, 2, 5, 10].some(function (m) { if (nice * m >= target) { nice = nice * m; return true; } return false; });
+    var barPx = nice / metresPerPx;
+    ctx.strokeStyle = 'rgba(230,250,255,.75)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(16, h - 20); ctx.lineTo(16 + barPx, h - 20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(16, h - 25); ctx.lineTo(16, h - 15); ctx.moveTo(16 + barPx, h - 25); ctx.lineTo(16 + barPx, h - 15); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,.75)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText(nice >= 1000 ? (nice / 1000) + ' km' : nice + ' m', 20 + barPx, h - 16);
+  }
+
+  function update() {
+    var pts = parseCoords(taEl.value);
+    draw(pts);
+    if (pts.length < 3) {
+      document.getElementById('gapc-stats').innerHTML =
+        stat('AREA', '—', 'needs at least three vertices');
+      document.getElementById('gapc-compare').innerHTML = '';
+      return;
+    }
+    var sph = sphericalArea(pts), pl = planarArea(pts), per = perimeter(pts);
+    var err = pl > 0 ? (pl - sph) / sph * 100 : 0;
+    var compact = 4 * Math.PI * sph / (per * per);
+
+    // spherical centroid
+    var x = 0, y = 0, z = 0;
+    pts.forEach(function (p) {
+      var la = p.lat * D2R, lo = p.lon * D2R;
+      x += Math.cos(la) * Math.cos(lo); y += Math.cos(la) * Math.sin(lo); z += Math.sin(la);
+    });
+    x /= pts.length; y /= pts.length; z /= pts.length;
+    var cLat = Math.atan2(z, Math.sqrt(x * x + y * y)) / D2R, cLon = Math.atan2(y, x) / D2R;
+
+    var maxDiag = 0;
+    for (var i = 0; i < pts.length; i++) {
+      for (var j = i + 1; j < pts.length; j++) maxDiag = Math.max(maxDiag, haversine(pts[i], pts[j]));
+    }
+
+    document.getElementById('gapc-stats').innerHTML =
+      stat('TRUE AREA ON THE GLOBE', headline(sph), fmt(sph / 10000, 3) + ' ha · ' + fmt(sph / 4046.8564224, 2) + ' acres', '#39ff14') +
+      stat('FLAT-MAP AREA', headline(pl), (err >= 0 ? 'overstates by ' : 'understates by ') + Math.abs(err).toFixed(err < 0.01 ? 4 : 3) + '%', '#ff9f43') +
+      stat('PERIMETER', per >= 1000 ? (per / 1000).toFixed(3) + ' km' : per.toFixed(1) + ' m',
+           'fencing at £22/m: £' + fmt(per * 22)) +
+      stat('VERTICES', String(pts.length), 'longest diagonal ' + (maxDiag >= 1000 ? (maxDiag / 1000).toFixed(2) + ' km' : maxDiag.toFixed(1) + ' m')) +
+      stat('CENTROID', cLat.toFixed(5) + ', ' + cLon.toFixed(5), 'average of the vertices on the sphere', '#9d4edd') +
+      stat('COMPACTNESS', compact.toFixed(3), compact > 0.9 ? 'nearly circular' : compact > 0.6 ? 'chunky, efficient shape' : compact > 0.3 ? 'elongated' : 'very straggly', '#ffd700');
+
+    var rows = YARDSTICKS.map(function (yv) {
+      var ratio = sph / yv[1];
+      if (ratio < 0.02 || ratio > 5000) return null;
+      return '<tr><td style="padding:4px 8px;color:var(--text-secondary);">' + yv[0] + '</td>' +
+        '<td style="padding:4px 8px;text-align:right;color:var(--accent);font-family:monospace;">' +
+        (ratio >= 100 ? fmt(ratio) : ratio.toFixed(2)) + '×</td></tr>';
+    }).filter(Boolean).slice(0, 8).join('');
+    document.getElementById('gapc-compare').innerHTML = rows
+      ? '<div style="background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px;">' +
+        '<div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:4px;letter-spacing:.05em;">THIS AREA IS ROUGHLY</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:0.78rem;"><tbody>' + rows + '</tbody></table></div>'
+      : '';
+
+    var pIdx = parseInt(presetEl.value, 10);
+    var note = PRESETS[pIdx] ? PRESETS[pIdx][2] : '';
+    document.getElementById('gapc-notes').innerHTML =
+      '<strong style="color:var(--accent);">How the two numbers differ.</strong> The flat answer treats latitude and longitude as if they were graph paper, so it works fine for a garden and drifts badly for anything continental — here the gap is ' +
+      Math.abs(err).toFixed(err < 0.01 ? 4 : 3) + '%, or ' + fmt(Math.abs(pl - sph) / 10000, 3) + ' hectares. The true figure comes from the spherical-excess formula on a sphere of the Earth\u2019s authalic radius (6,371.007 km), which is what mapping software reports as “geodesic area”.' +
+      (note ? '<div style="margin-top:6px;color:#ffd700;">' + note + '</div>' : '') +
+      '<div style="margin-top:6px;font-size:0.72rem;">Straight edges here are great-circle arcs, not straight lines on a printed map. For legal land measurement the difference between the sphere and the WGS84 ellipsoid is under 0.5% anywhere on Earth, but a registered surveyor is still the person to ask.</div>';
+  }
+
+  canvas.addEventListener('click', function (ev) {
+    if (!view) {
+      // seed a first point near Luton so an empty plot is still clickable
+      taEl.value = '51.878700, -0.420000';
+      update();
+      return;
+    }
+    var r = canvas.getBoundingClientRect();
+    var cx = (ev.clientX - r.left) * (canvas.width / r.width);
+    var cy = (ev.clientY - r.top) * (canvas.height / r.height);
+    var lat = view.maxLa - (cy - view.offY) / view.scale;
+    var lon = view.minLo + (cx - view.offX) / (view.kx * view.scale);
+    if (!isFinite(lat) || !isFinite(lon)) return;
+    taEl.value = taEl.value.replace(/\s*$/, '') + '\n' + lat.toFixed(6) + ', ' + lon.toFixed(6);
+    update();
+  });
+
+  document.getElementById('gapc-undo').addEventListener('click', function () {
+    var lines = taEl.value.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    lines.pop();
+    taEl.value = lines.join('\n');
+    update();
+  });
+  document.getElementById('gapc-clear').addEventListener('click', function () {
+    taEl.value = '';
+    update();
+  });
+  presetEl.addEventListener('change', function () {
+    var p = PRESETS[parseInt(presetEl.value, 10)];
+    if (p) { taEl.value = p[1]; update(); }
+  });
+  taEl.addEventListener('input', update);
+
+  taEl.value = PRESETS[0][1];
+  update();
+})();
+</script>
