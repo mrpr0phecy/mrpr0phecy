@@ -168,7 +168,7 @@
     return out;
   }
 
-  function draw(curve, threshold, wantAbove, hwT, lwT, wins, hwH, lwH) {
+  function draw(curve, threshold, wantAbove, wins, hwH, lwH) {
     var w = canvas.width, h = canvas.height;
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
@@ -225,10 +225,21 @@
     ctx.font = '600 11px Inter, system-ui, sans-serif';
     ctx.fillText((wantAbove ? 'need ' : 'must stay under ') + threshold.toFixed(2) + ' m', padL + 6, Y(threshold) - 6);
 
-    ctx.fillStyle = 'rgba(230,250,255,.75)';
+    // label every turn of the tide the curve actually contains, so an
+    // overnight pair still lands on the right peaks
     ctx.font = '11px Inter, system-ui, sans-serif';
-    ctx.fillText('HW', X(hwT) - 8, Y(hwH) - 8);
-    ctx.fillText('LW', X(lwT) - 8, Y(lwH) + 16);
+    ctx.textAlign = 'center';
+    for (var e = 6; e < 1434; e += 2) {
+      var prev = curve(e - 6), here = curve(e), nxt = curve(e + 6);
+      if (here > prev && here >= nxt) {
+        ctx.fillStyle = 'rgba(230,250,255,.8)';
+        ctx.fillText('HW ' + fmt(e) + '  ' + here.toFixed(1) + ' m', X(e), Y(here) - 8);
+      } else if (here < prev && here <= nxt) {
+        ctx.fillStyle = 'rgba(230,250,255,.6)';
+        ctx.fillText('LW ' + fmt(e) + '  ' + here.toFixed(1) + ' m', X(e), Y(here) + 16);
+      }
+    }
+    ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(57,255,20,.85)';
     ctx.fillText('green = your window', padL + 6, padT + 14);
   }
@@ -296,7 +307,7 @@
       stat('YOUR LIMIT', threshold.toFixed(2) + ' m',
            cross ? 'tide must stay below this' : 'tide must be above this', '#9d4edd');
 
-    draw(curve, threshold, !cross, hwT, lwT, wins, hwH, lwH);
+    draw(curve, threshold, !cross, wins, hwH, lwH);
 
     var tw = twelfths(hwT, hwH, lwT, lwH);
     var offset = hwT - lwT;
