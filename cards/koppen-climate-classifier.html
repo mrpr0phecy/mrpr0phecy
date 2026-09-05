@@ -1,0 +1,411 @@
+<h2 id="koppen-climate-classifier-title" style="margin-top:0;color:var(--accent);">🌦️ Köppen Climate Classifier</h2>
+
+<form aria-describedby="koppen-climate-classifier-desc" onsubmit="event.preventDefault();">
+  <p id="koppen-climate-classifier-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Type in twelve monthly temperatures and rainfall totals and this runs the full Köppen–Geiger decision tree on them — the same classification used on every climate map — showing not just the code (Cfb, BWh, Dfc…) but every threshold it tested, a climograph, and which cities on Earth share your result.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="kpc-preset" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Load approximate normals</label>
+      <select id="kpc-preset" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+    <div>
+      <label for="kpc-hemi" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Hemisphere (sets which months are "summer")</label>
+      <select id="kpc-hemi" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;">
+        <option value="N" selected>Northern — summer is Apr–Sep</option>
+        <option value="S">Southern — summer is Oct–Mar</option>
+      </select>
+    </div>
+    <div>
+      <label for="kpc-cold" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">C/D boundary convention</label>
+      <select id="kpc-cold" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;">
+        <option value="0" selected>0 °C (modern, Peel 2007)</option>
+        <option value="-3">−3 °C (original Köppen)</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto;margin-bottom:12px;">
+    <table style="border-collapse:collapse;min-width:520px;width:100%;font-size:0.8rem;">
+      <thead>
+        <tr style="color:var(--accent);">
+          <th style="text-align:left;padding:4px 6px;">Month</th>
+          <th style="text-align:left;padding:4px 6px;">Mean temp (°C)</th>
+          <th style="text-align:left;padding:4px 6px;">Precipitation (mm)</th>
+          <th style="text-align:left;padding:4px 6px;">Season</th>
+        </tr>
+      </thead>
+      <tbody id="kpc-rows"></tbody>
+    </table>
+  </div>
+
+  <div id="kpc-result" role="status" aria-live="polite" style="background:rgba(0,0,0,.35);border:1px solid rgba(45,212,255,.3);border-radius:12px;padding:16px;margin-bottom:12px;"></div>
+
+  <canvas id="kpc-chart" width="820" height="300" role="img"
+          aria-label="Climograph: monthly temperature line and precipitation bars"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.2);border-radius:12px;display:block;margin-bottom:12px;"></canvas>
+
+  <details style="background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.85rem;font-weight:600;">How the decision tree got there</summary>
+    <div id="kpc-trace" style="margin-top:10px;font-size:0.78rem;color:var(--text-secondary);line-height:1.7;"></div>
+  </details>
+</form>
+
+<script>
+(function () {
+  var rowsEl = document.getElementById('kpc-rows');
+  var chart = document.getElementById('kpc-chart');
+  if (!rowsEl || !chart || !chart.getContext) return;
+  var ctx = chart.getContext('2d');
+  var presetEl = document.getElementById('kpc-preset');
+  var hemiEl = document.getElementById('kpc-hemi');
+  var coldEl = document.getElementById('kpc-cold');
+
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Approximate long-term monthly normals (temperature °C, precipitation mm).
+  // Rounded from published climate normals — edit any cell to use your own data.
+  var PRESETS = [
+    ['London, UK', 'N',
+      [5.6,5.8,7.6,9.9,13.3,16.4,18.7,18.5,15.7,12.1,8.4,5.9],
+      [58,41,42,44,49,45,45,50,49,69,59,55]],
+    ['Luton, England', 'N',
+      [4.7,4.9,6.9,9.3,12.6,15.6,17.9,17.6,14.9,11.3,7.5,5.0],
+      [52,39,41,44,48,52,50,55,52,64,58,54]],
+    ['Reykjavík, Iceland', 'N',
+      [0.6,1.0,1.4,3.4,6.8,9.7,11.4,11.1,8.5,5.0,2.4,0.9],
+      [76,72,82,58,44,50,52,62,67,86,73,79]],
+    ['Rome, Italy', 'N',
+      [8.1,8.8,11.2,13.9,18.4,22.6,25.4,25.6,21.6,17.4,12.5,9.1],
+      [67,73,58,81,53,34,19,33,68,113,115,97]],
+    ['Cairo, Egypt', 'N',
+      [14.0,15.2,17.8,21.9,25.5,27.7,28.4,28.3,26.5,23.7,19.5,15.4],
+      [5,4,4,1,0,0,0,0,0,1,3,6]],
+    ['Singapore', 'N',
+      [26.6,27.2,27.6,28.0,28.4,28.3,27.9,27.8,27.7,27.5,27.0,26.6],
+      [234,112,170,155,171,136,156,175,170,194,257,318]],
+    ['Moscow, Russia', 'N',
+      [-6.5,-6.7,-1.0,6.7,13.2,17.0,19.2,17.0,11.3,5.6,-0.8,-4.4],
+      [52,41,39,37,55,80,85,82,68,71,55,52]],
+    ['Yakutsk, Siberia', 'N',
+      [-38.6,-33.6,-20.2,-4.8,7.5,16.1,19.5,15.3,6.1,-7.8,-27.9,-37.3],
+      [8,7,8,15,27,37,47,42,30,24,16,11]],
+    ['Phoenix, USA', 'N',
+      [13.0,14.9,17.6,21.7,26.7,32.0,34.7,34.0,30.7,24.1,17.2,12.7],
+      [21,21,25,7,3,1,26,26,17,17,17,25]],
+    ['Delhi, India', 'N',
+      [14.3,17.2,22.6,28.9,32.6,33.6,31.2,30.2,29.4,26.0,20.4,15.4],
+      [21,22,16,12,31,80,211,247,132,17,5,10]],
+    ['Nairobi, Kenya', 'S',
+      [19.6,20.4,20.5,19.8,18.6,17.2,16.3,17.0,18.5,19.6,19.0,19.1],
+      [55,55,90,220,160,45,15,20,30,60,150,105]],
+    ['Sydney, Australia', 'S',
+      [23.6,23.5,22.1,19.5,16.3,13.8,12.9,14.2,16.9,19.1,21.0,22.7],
+      [102,118,129,127,120,132,98,81,69,77,84,78]],
+    ['Santiago, Chile', 'S',
+      [21.0,20.2,18.0,14.5,11.4,8.8,8.3,9.8,11.9,14.9,17.7,20.1],
+      [1,3,5,13,53,78,80,55,28,15,8,5]],
+    ['McMurdo, Antarctica', 'S',
+      [-3.0,-9.5,-18.2,-20.7,-21.7,-23.0,-25.7,-26.1,-24.6,-18.9,-9.7,-3.4],
+      [12,15,18,18,16,14,14,12,12,14,12,12]]
+  ];
+
+  PRESETS.forEach(function (p, i) { presetEl.add(new Option(p[0], String(i))); });
+
+  var temps = PRESETS[0][2].slice(), precs = PRESETS[0][3].slice();
+
+  function seasonLabel(i) {
+    var north = hemiEl.value === 'N';
+    var isSummer = north ? (i >= 3 && i <= 8) : (i <= 2 || i >= 9);
+    return isSummer ? 'summer half' : 'winter half';
+  }
+
+  function buildRows() {
+    rowsEl.innerHTML = '';
+    MONTHS.forEach(function (m, i) {
+      var tr = document.createElement('tr');
+      tr.style.borderTop = '1px solid rgba(255,255,255,.06)';
+      tr.innerHTML =
+        '<td style="padding:3px 6px;color:var(--text);">' + m + '</td>' +
+        '<td style="padding:3px 6px;"><label class="small" for="kpc-t' + i + '" style="position:absolute;left:-9999px;">' + m + ' temperature</label>' +
+        '<input type="number" id="kpc-t' + i + '" step="0.1" value="' + temps[i] + '" style="width:88px;padding:5px 7px;border-radius:6px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.22);color:inherit;font-family:monospace;font-size:0.8rem;"></td>' +
+        '<td style="padding:3px 6px;"><label class="small" for="kpc-p' + i + '" style="position:absolute;left:-9999px;">' + m + ' precipitation</label>' +
+        '<input type="number" id="kpc-p' + i + '" step="1" min="0" value="' + precs[i] + '" style="width:88px;padding:5px 7px;border-radius:6px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.22);color:inherit;font-family:monospace;font-size:0.8rem;"></td>' +
+        '<td style="padding:3px 6px;color:var(--text-secondary);font-size:0.72rem;" id="kpc-s' + i + '">' + seasonLabel(i) + '</td>';
+      rowsEl.appendChild(tr);
+    });
+    MONTHS.forEach(function (m, i) {
+      document.getElementById('kpc-t' + i).addEventListener('input', readAndRun);
+      document.getElementById('kpc-p' + i).addEventListener('input', readAndRun);
+    });
+  }
+
+  function readAndRun() {
+    for (var i = 0; i < 12; i++) {
+      var t = parseFloat(document.getElementById('kpc-t' + i).value);
+      var p = parseFloat(document.getElementById('kpc-p' + i).value);
+      temps[i] = isFinite(t) ? t : 0;
+      precs[i] = isFinite(p) && p >= 0 ? p : 0;
+      document.getElementById('kpc-s' + i).textContent = seasonLabel(i);
+    }
+    run();
+  }
+
+  var DESCRIPTIONS = {
+    Af: ['Tropical rainforest', 'Hot and wet every single month — no dry season at all.'],
+    Am: ['Tropical monsoon', 'Hot year-round with a short dry season that the wet season more than compensates for.'],
+    Aw: ['Tropical savanna, dry winter', 'Hot all year with a pronounced dry winter — grassland and scattered trees.'],
+    As: ['Tropical savanna, dry summer', 'Hot all year with the dry spell falling in the high-sun months.'],
+    BWh: ['Hot desert', 'Evaporation vastly exceeds rainfall and the annual mean is above 18 °C.'],
+    BWk: ['Cold desert', 'Desert-dry, but the annual mean is below 18 °C — think high plateaus and rain shadows.'],
+    BSh: ['Hot semi-arid steppe', 'Grassland on the edge of desert; hot, with just enough rain to avoid true desert.'],
+    BSk: ['Cold semi-arid steppe', 'Dry grassland with cold winters — the classic prairie/steppe belt.'],
+    Cfa: ['Humid subtropical', 'Hot muggy summers, mild winters, rain in all seasons.'],
+    Cfb: ['Temperate oceanic', 'Mild damp summers, mild winters, rain spread through the year — north-west Europe.'],
+    Cfc: ['Subpolar oceanic', 'Cool short summers, no dry season — coastal Iceland, Faroes, Alaskan panhandle.'],
+    Csa: ['Hot-summer Mediterranean', 'Dry hot summers, wet mild winters — olive and vine country.'],
+    Csb: ['Warm-summer Mediterranean', 'Dry summers but cooler — coastal California, central Portugal, Cape Town.'],
+    Csc: ['Cool-summer Mediterranean', 'Rare: dry summers that never get warm, found at altitude.'],
+    Cwa: ['Monsoon-influenced humid subtropical', 'Wet hot summers, distinctly dry winters — much of southern China and north India.'],
+    Cwb: ['Subtropical highland', 'Mild all year with a dry winter — Mexico City, Nairobi, Addis Ababa.'],
+    Cwc: ['Cold subtropical highland', 'High-altitude, dry-winter, cool-summer climate.'],
+    Dfa: ['Hot-summer humid continental', 'Hot summers, freezing winters, no dry season.'],
+    Dfb: ['Warm-summer humid continental', 'Warm summers, cold snowy winters, rain year-round.'],
+    Dfc: ['Subarctic', 'Brief cool summers, long severe winters — the boreal forest.'],
+    Dfd: ['Extremely cold subarctic', 'Coldest month below −38 °C: the Siberian pole of cold.'],
+    Dsa: ['Continental, dry hot summer', 'Mediterranean-style dryness with continental winters.'],
+    Dsb: ['Continental, dry warm summer', 'Dry summers, snowy cold winters — interior mountain west.'],
+    Dsc: ['Continental, dry cool summer', 'Cold and dry-summered — high interior ranges.'],
+    Dsd: ['Continental, dry summer, brutal winter', 'Very rare combination of dry summers and −38 °C winters.'],
+    Dwa: ['Monsoon continental, hot summer', 'Wet hot summers, bone-dry frozen winters — north-east China.'],
+    Dwb: ['Monsoon continental, warm summer', 'Dry cold winters, wet warm summers.'],
+    Dwc: ['Monsoon subarctic', 'Dry winters, short cool summers — eastern Siberia.'],
+    Dwd: ['Monsoon subarctic, extreme winter', 'Dry winters colder than −38 °C.'],
+    ET: ['Tundra', 'The warmest month is between 0 and 10 °C: too cold for trees, warm enough for moss and lichen.'],
+    EF: ['Ice cap', 'No month averages above freezing — permanent ice.']
+  };
+
+  var TWINS = {
+    Cfb: 'Dublin · Paris · Vancouver · Auckland · Buenos Aires',
+    Cfa: 'Tokyo · Atlanta · Milan · Brisbane · Buenos Aires',
+    Csa: 'Rome · Athens · Los Angeles · Perth · Beirut',
+    Csb: 'Porto · San Francisco · Cape Town · Santiago',
+    BWh: 'Cairo · Riyadh · Phoenix · Alice Springs',
+    BWk: 'Tehran · Ulaanbaatar outskirts · Turpan',
+    BSh: 'Nouakchott fringe · Karachi · Alice Springs edge',
+    BSk: 'Denver · Zaragoza · Ankara · Regina',
+    Af: 'Singapore · Kuala Lumpur · Belém · Kisangani',
+    Am: 'Miami (marginal) · Cairns · Conakry',
+    Aw: 'Mumbai · Rio de Janeiro · Darwin · Lagos',
+    As: 'Mombasa · Honolulu leeward coast',
+    Dfb: 'Moscow · Toronto · Stockholm · Minneapolis',
+    Dfa: 'Chicago · Beijing (marginal) · Bucharest',
+    Dfc: 'Anchorage · Whitehorse · Tromsø inland',
+    Dfd: 'Yakutsk · Verkhoyansk',
+    Dwa: 'Beijing · Seoul (marginal)',
+    Dwc: 'Chita · Yakutsk fringe',
+    ET: 'Longyearbyen · Nuuk · Mount Washington summit',
+    EF: 'McMurdo · Vostok · the Greenland ice sheet',
+    Cwa: 'Hong Kong · Hanoi · Islamabad',
+    Cwb: 'Mexico City · Nairobi · Addis Ababa · Kunming'
+  };
+
+  function classify() {
+    var north = hemiEl.value === 'N';
+    var coldLimit = parseFloat(coldEl.value);
+    var trace = [], border = [];
+    var Tann = temps.reduce(function (a, b) { return a + b; }, 0) / 12;
+    var Pann = precs.reduce(function (a, b) { return a + b; }, 0);
+    var Thot = Math.max.apply(null, temps), Tcold = Math.min.apply(null, temps);
+    var Pdry = Math.min.apply(null, precs);
+    var monthsAbove10 = temps.filter(function (t) { return t >= 10; }).length;
+
+    var summerIdx = north ? [3,4,5,6,7,8] : [9,10,11,0,1,2];
+    var winterIdx = north ? [9,10,11,0,1,2] : [3,4,5,6,7,8];
+    function sum(idx) { return idx.reduce(function (a, i) { return a + precs[i]; }, 0); }
+    function minP(idx) { return Math.min.apply(null, idx.map(function (i) { return precs[i]; })); }
+    function maxP(idx) { return Math.max.apply(null, idx.map(function (i) { return precs[i]; })); }
+    var Psummer = sum(summerIdx), Pwinter = sum(winterIdx);
+    var Psdry = minP(summerIdx), Pwdry = minP(winterIdx);
+    var Pswet = maxP(summerIdx), Pwwet = maxP(winterIdx);
+
+    trace.push('Annual mean temperature <strong>' + Tann.toFixed(1) + ' °C</strong>; warmest month <strong>' +
+      Thot.toFixed(1) + ' °C</strong>; coldest month <strong>' + Tcold.toFixed(1) + ' °C</strong>; ' +
+      monthsAbove10 + ' month(s) at or above 10 °C.');
+    trace.push('Annual precipitation <strong>' + Math.round(Pann) + ' mm</strong> — ' + Math.round(Psummer) +
+      ' mm in the summer half, ' + Math.round(Pwinter) + ' mm in the winter half; driest month ' + Math.round(Pdry) + ' mm.');
+
+    // --- B (arid) is tested first ---
+    var frac = Pann > 0 ? Psummer / Pann : 0;
+    var offset = frac >= 0.7 ? 280 : (frac >= 0.3 ? 140 : 0);
+    var Pth = 20 * Tann + offset;
+    trace.push('Aridity threshold: 20 × ' + Tann.toFixed(1) + ' + ' + offset + ' = <strong>' + Pth.toFixed(0) +
+      ' mm</strong> (' + Math.round(frac * 100) + '% of the rain falls in the summer half).');
+
+    if (Math.abs(Pann - Pth) / Math.max(1, Pth) < 0.1) {
+      border.push('within 10% of the arid (B) threshold — different rainfall normals for the same place can flip this between a steppe and a temperate class. Delhi is the classic example.');
+    }
+    if (Pann < Pth) {
+      var second = Pann < Pth / 2 ? 'W' : 'S';
+      var third = Tann >= 18 ? 'h' : 'k';
+      trace.push('Annual precipitation is below the threshold → arid <strong>B</strong>. ' +
+        (second === 'W' ? 'Below half the threshold → desert (W).' : 'Between half and full threshold → steppe (S).') +
+        ' Annual mean ' + (Tann >= 18 ? '≥' : '<') + ' 18 °C → ' + third + '.');
+      return { code: 'B' + second + third, trace: trace, border: border };
+    }
+    trace.push('Precipitation exceeds the aridity threshold, so this is <em>not</em> a B (arid) climate.');
+
+    if (Thot < 10) {
+      var e = Thot > 0 ? 'ET' : 'EF';
+      trace.push('Warmest month below 10 °C → polar <strong>E</strong>; ' +
+        (e === 'ET' ? 'above freezing → tundra (ET).' : 'never above freezing → ice cap (EF).'));
+      return { code: e, trace: trace, border: border };
+    }
+
+    if (Tcold >= 18) {
+      trace.push('Coldest month ≥ 18 °C → tropical <strong>A</strong>.');
+      if (Pdry >= 60) { trace.push('Driest month ≥ 60 mm → rainforest (f).'); return { code: 'Af', trace: trace, border: border }; }
+      var amLimit = 100 - Pann / 25;
+      if (Pdry >= amLimit) {
+        trace.push('Driest month (' + Math.round(Pdry) + ' mm) ≥ 100 − annual/25 (' + amLimit.toFixed(0) + ' mm) → monsoon (m).');
+        return { code: 'Am', trace: trace, border: border };
+      }
+      var dryInSummer = Psdry <= Pwdry;
+      trace.push('Short but decisive dry season → savanna; the dry months fall in the ' +
+        (dryInSummer ? 'summer half (s).' : 'winter half (w).'));
+      return { code: dryInSummer ? 'As' : 'Aw', trace: trace, border: border };
+    }
+
+    var group = Tcold >= coldLimit ? 'C' : 'D';
+    trace.push('Coldest month ' + Tcold.toFixed(1) + ' °C is ' + (group === 'C' ? '≥' : '<') + ' ' +
+      coldLimit + ' °C and the warmest month is ≥ 10 °C → <strong>' + group + '</strong> (' +
+      (group === 'C' ? 'temperate' : 'continental') + ').');
+
+    var second2;
+    if (Psdry < 40 && Psdry < Pwwet / 3) {
+      second2 = 's';
+      trace.push('Driest summer month ' + Math.round(Psdry) + ' mm < 40 mm and less than a third of the wettest winter month → dry summer (s).');
+    } else if (Pwdry < Pswet / 10) {
+      second2 = 'w';
+      trace.push('Driest winter month ' + Math.round(Pwdry) + ' mm is under a tenth of the wettest summer month → dry winter (w).');
+    } else {
+      second2 = 'f';
+      trace.push('Neither dry-season test passes → rain in all seasons (f).');
+      if (Pwdry < Pswet / 8) {
+        border.push('the dry-winter (w) test only just failed — near the equator, where "summer" and "winter" barely exist, this letter is genuinely ambiguous (Nairobi is the textbook case).');
+      }
+      if (Psdry < 50 && Psdry < Pwwet / 2.5) {
+        border.push('the dry-summer (s) test was close — a slightly drier July or August would make this a Mediterranean climate.');
+      }
+    }
+
+    var third2;
+    if (Thot >= 22) { third2 = 'a'; trace.push('Warmest month ≥ 22 °C → hot summer (a).'); }
+    else if (monthsAbove10 >= 4) { third2 = 'b'; trace.push('Warmest month < 22 °C but four or more months ≥ 10 °C → warm summer (b).'); }
+    else if (Tcold > -38) { third2 = 'c'; trace.push('Fewer than four months ≥ 10 °C → cool short summer (c).'); }
+    else { third2 = 'd'; trace.push('Coldest month ≤ −38 °C → extreme continental (d).'); }
+    if (group === 'D' && Tcold <= -38) { third2 = 'd'; }
+
+    return { code: group + second2 + third2, trace: trace, border: border };
+  }
+
+  function drawChart() {
+    var w = chart.width, h = chart.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
+    var padL = 52, padR = 52, padT = 18, padB = 34;
+    var plotW = w - padL - padR, plotH = h - padT - padB;
+
+    var pMax = Math.max(60, Math.ceil(Math.max.apply(null, precs) / 20) * 20);
+    var tMin = Math.min(0, Math.floor(Math.min.apply(null, temps) / 10) * 10);
+    var tMax = Math.max(20, Math.ceil(Math.max.apply(null, temps) / 10) * 10);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
+    for (var g = 0; g <= 4; g++) {
+      var y = padT + plotH * g / 4;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(45,212,255,.75)';
+      ctx.font = '10px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText((tMax - (tMax - tMin) * g / 4).toFixed(0) + '°', padL - 6, y + 3);
+      ctx.fillStyle = 'rgba(120,190,255,.75)';
+      ctx.textAlign = 'left';
+      ctx.fillText(Math.round(pMax - pMax * g / 4) + 'mm', padL + plotW + 6, y + 3);
+    }
+
+    var bw = plotW / 12;
+    for (var i = 0; i < 12; i++) {
+      var bh = (precs[i] / pMax) * plotH;
+      ctx.fillStyle = 'rgba(45,140,255,.55)';
+      ctx.fillRect(padL + i * bw + bw * 0.18, padT + plotH - bh, bw * 0.64, bh);
+      ctx.fillStyle = 'rgba(230,250,255,.6)';
+      ctx.font = '10px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(MONTHS[i].charAt(0), padL + i * bw + bw / 2, h - 14);
+    }
+
+    ctx.beginPath();
+    for (var j = 0; j < 12; j++) {
+      var x = padL + j * bw + bw / 2;
+      var yy = padT + plotH - ((temps[j] - tMin) / (tMax - tMin)) * plotH;
+      if (j === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+    }
+    ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 2.2; ctx.stroke();
+    for (var k = 0; k < 12; k++) {
+      var x2 = padL + k * bw + bw / 2;
+      var y2 = padT + plotH - ((temps[k] - tMin) / (tMax - tMin)) * plotH;
+      ctx.beginPath(); ctx.arc(x2, y2, 2.6, 0, Math.PI * 2); ctx.fillStyle = '#ff6b6b'; ctx.fill();
+    }
+
+    if (tMin < 0) {
+      var yz = padT + plotH - ((0 - tMin) / (tMax - tMin)) * plotH;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(255,255,255,.35)';
+      ctx.beginPath(); ctx.moveTo(padL, yz); ctx.lineTo(padL + plotW, yz); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,107,107,.9)';
+    ctx.fillText('— temperature', padL, 13);
+    ctx.fillStyle = 'rgba(45,140,255,.9)';
+    ctx.fillText('▮ precipitation', padL + 110, 13);
+  }
+
+  function run() {
+    var r = classify();
+    var d = DESCRIPTIONS[r.code] || ['Unclassified', ''];
+    var twin = TWINS[r.code];
+    document.getElementById('kpc-result').innerHTML =
+      '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">' +
+        '<div style="font-family:monospace;font-size:2.6rem;font-weight:900;color:var(--accent);line-height:1;">' + r.code + '</div>' +
+        '<div style="flex:1;min-width:200px;">' +
+          '<div style="font-size:1.05rem;color:var(--text);font-weight:600;">' + d[0] + '</div>' +
+          '<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">' + d[1] + '</div>' +
+        '</div>' +
+      '</div>' +
+      ((r.border && r.border.length) ? '<div style="margin-top:10px;font-size:0.78rem;color:#ffd700;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;">' +
+        '<strong>Borderline:</strong> ' + r.border.join(' Also, ') + '</div>' : '') +
+      (twin ? '<div style="margin-top:10px;font-size:0.8rem;color:var(--text-secondary);border-top:1px solid rgba(255,255,255,.08);padding-top:8px;">' +
+        '<strong style="color:#ffd700;">Climate twins:</strong> ' + twin + '</div>' : '');
+    document.getElementById('kpc-trace').innerHTML =
+      '<ol style="margin:0;padding-left:18px;"><li>' + r.trace.join('</li><li>') + '</li></ol>';
+    drawChart();
+  }
+
+  presetEl.addEventListener('change', function () {
+    var p = PRESETS[parseInt(presetEl.value, 10)];
+    if (!p) return;
+    temps = p[2].slice(); precs = p[3].slice();
+    hemiEl.value = p[1];
+    buildRows();
+    run();
+  });
+  hemiEl.addEventListener('change', readAndRun);
+  coldEl.addEventListener('change', readAndRun);
+
+  buildRows();
+  run();
+})();
+</script>
