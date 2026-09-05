@@ -39,6 +39,21 @@
     </div>
   </div>
 
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Eyepiece focal length (2–40 mm)</span><span id="epc-val-ep">13 mm</span>
+      </div>
+      <input id="epc-slider-ep" type="range" min="2" max="40" step="0.5" value="13" style="width:100%;" />
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Barlow factor (1–5×)</span><span id="epc-val-barlow">1.0×</span>
+      </div>
+      <input id="epc-slider-barlow" type="range" min="1" max="5" step="0.5" value="1" style="width:100%;" />
+    </div>
+  </div>
+
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button type="button" id="epc-calc"
             style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
@@ -46,6 +61,14 @@
             style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
   </div>
 </form>
+
+<div style="background:#02030a;border:1px solid rgba(255,184,77,0.25);border-radius:8px;padding:8px;margin-bottom:16px;">
+    <canvas id="epc-canvas" width="720" height="430" style="width:100%;height:430px;display:block;border-radius:6px;background:#01020a;"></canvas>
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:0.66rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span>true-field view: Moon · Jupiter · M42 · M13 · Albireo · M31 (to scale)</span>
+      <span id="epc-canvas-status" style="color:#ffd9a0;font-family:monospace;">field simulator</span>
+    </div>
+  </div>
 
 <div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
   <div id="epc-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
@@ -150,10 +173,248 @@
       '</div>';
   }
 
+  // ---------- true-scale field simulator + exit-pupil comparison ----------
+  var epcCanvas = $('epc-canvas');
+  var epcCtx = epcCanvas ? epcCanvas.getContext('2d') : null;
+  var EPC_FXC = 200, EPC_FYC = 200, EPC_FR = 170;       // field circle
+  var EPC_PXC = 555, EPC_PYC = 170;                     // exit-pupil centre
+
+  function epcDeg(deg) { return deg / 60; }             // arcmin → degrees
+
+  function epcDraw() {
+    if (!epcCtx) return;
+    var ctx = epcCtx;
+    var f = parseFloat($('epc-focal').value) || 0;
+    var d = parseFloat($('epc-aperture').value) || 0;
+    var fe = parseFloat($('epc-ep').value) || 0;
+    var afov = parseFloat($('epc-afov').value) || 0;
+    var barlow = parseFloat($('epc-barlow').value) || 1;
+    var eye = parseFloat($('epc-pupil').value) || 7;
+    if (!(f > 0) || !(d > 0) || !(fe > 0) || !(afov > 0)) return;
+
+    var eff = fe / barlow;
+    var mag = f / eff;
+    var exit = d / mag;
+    var tfov = afov / mag;
+    var maxPower = 2 * d;
+    var minPower = d / eye;
+
+    ctx.clearRect(0, 0, 720, 430);
+    ctx.fillStyle = '#01020a';
+    ctx.fillRect(0, 0, 720, 430);
+
+    // ---------- left: the true field of view ----------
+    ctx.fillStyle = 'rgba(190,215,245,0.85)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Telescope true field — every object drawn to scale', 14, 18);
+    ctx.fillStyle = 'rgba(150,175,205,0.7)';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillText('TFOV ' + tfov.toFixed(3) + '° (' + (tfov * 60).toFixed(1) + ' arcmin)  ·  ' + mag.toFixed(0) + '×', 14, 34);
+
+    var pxPerDeg = EPC_FR / (tfov / 2);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(EPC_FXC, EPC_FYC, EPC_FR, 0, 6.2832);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(6,16,38,0.55)';
+    ctx.fillRect(EPC_FXC - EPC_FR, EPC_FYC - EPC_FR, EPC_FR * 2, EPC_FR * 2);
+    var gridDeg = tfov / 6 < 0.05 ? 0.05 : (tfov / 6 < 0.2 ? 0.1 : 0.25);
+    var gi;
+    ctx.strokeStyle = 'rgba(120,160,220,0.16)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    for (gi = -Math.ceil(tfov / 2 / gridDeg); gi <= Math.ceil(tfov / 2 / gridDeg); gi++) {
+      var gx = EPC_FXC + gi * gridDeg * pxPerDeg, gy = EPC_FYC + gi * gridDeg * pxPerDeg;
+      ctx.beginPath(); ctx.moveTo(gx, EPC_FYC - EPC_FR); ctx.lineTo(gx, EPC_FYC + EPC_FR); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(EPC_FXC - EPC_FR, gy); ctx.lineTo(EPC_FXC + EPC_FR, gy); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // helper: object centred at (ox, oy) degrees, radius rDeg
+    var obj = function (ox, oy) { return { x: EPC_FXC + ox * pxPerDeg, y: EPC_FYC - oy * pxPerDeg }; };
+
+    // M31 Andromeda — 3.17° × 1.17° (mostly outside a small field)
+    var m31 = obj(0.9, -0.35);
+    ctx.fillStyle = 'rgba(200,210,200,0.28)';
+    ctx.strokeStyle = 'rgba(220,235,220,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(m31.x, m31.y, epcDeg(95) * pxPerDeg, epcDeg(35) * pxPerDeg, -0.35, 0, 6.2832);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(m31.x, m31.y, epcDeg(95) * pxPerDeg, epcDeg(35) * pxPerDeg, -0.35, 0, 6.2832);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,250,230,0.75)';
+    ctx.beginPath();
+    ctx.ellipse(m31.x, m31.y, epcDeg(6) * pxPerDeg, epcDeg(3) * pxPerDeg, -0.35, 0, 6.2832);
+    ctx.fill();
+
+    // M42 Orion Nebula — 85′ × 60′
+    var m42 = obj(-0.6, 0.55);
+    ctx.fillStyle = 'rgba(130,220,200,0.20)';
+    ctx.strokeStyle = 'rgba(160,240,220,0.45)';
+    ctx.beginPath();
+    ctx.ellipse(m42.x, m42.y, epcDeg(42) * pxPerDeg, epcDeg(30) * pxPerDeg, 0.3, 0, 6.2832);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,240,200,0.9)';
+    ctx.beginPath();
+    ctx.ellipse(m42.x, m42.y, epcDeg(2.5) * pxPerDeg, epcDeg(2) * pxPerDeg, 0, 0, 6.2832);
+    ctx.fill();
+
+    // M13 globular — 20′
+    var m13 = obj(0.45, 0.62);
+    var m13r = epcDeg(10) * pxPerDeg;
+    var rg = ctx.createRadialGradient(m13.x, m13.y, 0, m13.x, m13.y, Math.max(1, m13r));
+    rg.addColorStop(0, 'rgba(255,250,235,0.85)');
+    rg.addColorStop(0.6, 'rgba(240,235,220,0.35)');
+    rg.addColorStop(1, 'rgba(220,215,205,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(m13.x, m13.y, Math.max(1, m13r), 0, 6.2832); ctx.fill();
+
+    // Albireo double — 35″
+    var al = obj(-0.85, -0.8);
+    ctx.fillStyle = 'rgba(120,170,255,0.95)';
+    ctx.beginPath(); ctx.arc(al.x, al.y, 3.4, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = 'rgba(255,190,120,0.95)';
+    ctx.beginPath(); ctx.arc(al.x + epcDeg(0.00972) * pxPerDeg, al.y, 2.8, 0, 6.2832); ctx.fill();
+
+    // Jupiter at opposition — 40″
+    var jup = obj(0.1, -1.05);
+    var jupR = epcDeg(0.0111) * pxPerDeg;
+    if (jupR > 0.5) {
+      ctx.fillStyle = 'rgba(255,232,190,0.9)';
+      ctx.beginPath(); ctx.arc(jup.x, jup.y, Math.max(0.5, jupR), 0, 6.2832); ctx.fill();
+    }
+
+    // full Moon — 0.52°
+    var moon = obj(-0.15, -0.9);
+    var moonR = epcDeg(0.52) * pxPerDeg / 2;
+    var mg = ctx.createRadialGradient(moon.x - moonR * 0.3, moon.y - moonR * 0.3, moonR * 0.1, moon.x, moon.y, moonR);
+    mg.addColorStop(0, 'rgba(240,246,252,1)');
+    mg.addColorStop(0.75, 'rgba(208,216,228,0.95)');
+    mg.addColorStop(1, 'rgba(150,158,172,0.95)');
+    ctx.fillStyle = mg;
+    ctx.beginPath(); ctx.arc(moon.x, moon.y, Math.max(0.5, moonR), 0, 6.2832); ctx.fill();
+
+    // labels for objects that fit
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(235,245,255,0.8)';
+    if (moonR > 9) ctx.fillText('Moon 0.52°', moon.x - moonR, moon.y + moonR + 14);
+    if (m42.x < EPC_FXC + EPC_FR - epcDeg(42) * pxPerDeg - 70) ctx.fillText('M42', m42.x + epcDeg(42) * pxPerDeg + 4, m42.y + 4);
+    if (m13r > 5) ctx.fillText('M13', m13.x - m13r - 34, m13.y + 4);
+    if (epcDeg(95) * pxPerDeg < EPC_FR * 0.9) { } // M31 label handled below
+    ctx.fillStyle = 'rgba(220,235,220,0.75)';
+    ctx.fillText('M31 (3.17°)', m31.x - epcDeg(30) * pxPerDeg, m31.y + epcDeg(35) * pxPerDeg + 12);
+    ctx.restore();
+
+    // field rim + degree ticks
+    ctx.strokeStyle = 'rgba(255,200,120,0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(EPC_FXC, EPC_FYC, EPC_FR, 0, 6.2832); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,214,150,0.8)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('field edge — nothing beyond here is visible', EPC_FXC - EPC_FR - 2, EPC_FYC + EPC_FR + 18);
+    if (epcDeg(95) * 2 > tfov) {
+      ctx.fillStyle = 'rgba(255,190,120,0.85)';
+      ctx.fillText('M31 extends outside this field —', 28, 394);
+      ctx.fillText('a wider (shorter) eyepiece shows it whole.', 28, 408);
+    }
+
+    // ---------- right: exit pupil vs your pupil ----------
+    ctx.fillStyle = 'rgba(190,215,245,0.85)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText('Exit pupil vs your eye — same scale', 434, 18);
+    var k = 16;                                   // px per mm
+    var exitR = Math.max(3, exit * k), eyeR = eye * k;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath(); ctx.arc(EPC_PXC, EPC_PYC, eyeR + 6, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = 'rgba(200,230,255,0.75)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(EPC_PXC, EPC_PYC, eyeR, 0, 6.2832); ctx.stroke();
+    if (exitR <= eyeR) {
+      ctx.fillStyle = exit < 0.5 ? 'rgba(255,110,110,0.5)' : 'rgba(80,220,200,0.5)';
+      ctx.beginPath(); ctx.arc(EPC_PXC, EPC_PYC, exitR, 0, 6.2832); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(220,240,255,0.9)';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('exit ' + exit.toFixed(2) + ' mm', EPC_PXC, EPC_PYC + eyeR + 22);
+    ctx.fillStyle = 'rgba(180,210,240,0.8)';
+    ctx.fillText('your pupil ' + eye.toFixed(1) + ' mm', EPC_PXC, EPC_PYC + eyeR + 38);
+    if (exit > eye) {
+      ctx.fillStyle = 'rgba(255,190,120,0.95)';
+      ctx.fillText('⚠ beam wider than your pupil —', EPC_PXC, EPC_PYC + eyeR + 56);
+      ctx.fillText('light is wasted', EPC_PXC, EPC_PYC + eyeR + 70);
+    } else if (exit < 0.5) {
+      ctx.fillStyle = 'rgba(255,130,130,0.95)';
+      ctx.fillText('⬤ too small — empty magnification', EPC_PXC, EPC_PYC + eyeR + 56);
+    }
+
+    // 1 mm ruler
+    ctx.strokeStyle = 'rgba(200,220,245,0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(400, 332); ctx.lineTo(400 + k * 5, 332); ctx.stroke();
+    ctx.fillStyle = 'rgba(200,220,245,0.7)';
+    ctx.textAlign = 'left';
+    ctx.fillText('0', 400, 346);
+    ctx.fillText('5 mm', 400 + k * 5 - 18, 346);
+
+    // ---------- bottom: power bar ----------
+    var barX = 400, barW = 300, barY = 414;
+    ctx.fillStyle = 'rgba(200,220,245,0.85)';
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Magnification', barX, 398);
+    var mMax = maxPower * 1.15;
+    var mpx = function (m) { return barX + Math.min(1, m / mMax) * barW; };
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.fillRect(barX, barY, barW, 12);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(mpx(minPower), barY, mpx(maxPower) - mpx(minPower), 12);
+    ctx.fillStyle = 'var(--accent)';
+    ctx.fillRect(mpx(mag) - 1.5, barY - 4, 3, 20);
+    ctx.fillStyle = 'rgba(255,214,150,0.9)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText('min ' + minPower.toFixed(0) + '×', mpx(minPower) + 3, barY - 7);
+    ctx.fillText('max ' + maxPower.toFixed(0) + '×', Math.min(mpx(maxPower) + 3, barX + barW - 52), barY - 7);
+    ctx.fillStyle = 'rgba(120,220,255,0.95)';
+    ctx.fillText(mag.toFixed(0) + '×', mpx(mag) + 6, barY - 7);
+
+    $('epc-canvas-status').textContent =
+      mag.toFixed(1) + '×  ·  TFOV ' + tfov.toFixed(3) + '°  ·  exit pupil ' + exit.toFixed(2) + ' mm  ·  useful range ' +
+      minPower.toFixed(0) + '×–' + maxPower.toFixed(0) + '×';
+  }
+
+  function epcSyncSliders() {
+    var fe = parseFloat($('epc-ep').value), b = parseFloat($('epc-barlow').value) || 1;
+    if (isFinite(fe)) {
+      $('epc-slider-ep').value = Math.max(2, Math.min(40, fe));
+      $('epc-val-ep').textContent = fe.toFixed(1) + ' mm';
+    }
+    $('epc-slider-barlow').value = Math.max(1, Math.min(5, b));
+    $('epc-val-barlow').textContent = b.toFixed(1) + '×';
+  }
+
+  var epcRunOriginal = run;
+  run = function () { epcRunOriginal(); epcSyncSliders(); epcDraw(); };
+
+  $('epc-slider-ep').addEventListener('input', function () {
+    $('epc-ep').value = (parseFloat($('epc-slider-ep').value) || 13);
+    $('epc-ep').dispatchEvent(new Event('input'));
+  });
+  $('epc-slider-barlow').addEventListener('input', function () {
+    $('epc-barlow').value = (parseFloat($('epc-slider-barlow').value) || 1);
+    $('epc-barlow').dispatchEvent(new Event('input'));
+  });
+
   $('epc-calc').addEventListener('click', run);
   $('epc-reset').addEventListener('click', function () {
     card.querySelector('form').reset();
     $('epc-out').innerHTML = 'Enter your telescope and eyepiece.';
+    epcSyncSliders();
+    epcDraw();
   });
   ['epc-focal', 'epc-aperture', 'epc-ep', 'epc-afov', 'epc-barlow', 'epc-pupil'].forEach(function (id) {
     $(id).addEventListener('input', run);
