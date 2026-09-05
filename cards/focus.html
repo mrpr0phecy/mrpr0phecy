@@ -2,7 +2,7 @@
 
 <form aria-describedby="focus-description">
     <p id="focus-description" class="small" style="color:rgba(230,250,255,0.9);margin-bottom:20px;">
-        Advanced Pomodoro timer with productivity tracking, ambient sounds, and progress visualization.
+        Pomodoro focus timer with adjustable sprint and break lengths, long-break cycles, ambient sound, a sprint task list, a daily sprint counter and live productivity stats.
         <span style="color:var(--accent);font-weight:500;">Stay focused, maximize productivity!</span>
     </p>
     
@@ -170,7 +170,11 @@
     </div>
     
     <!-- Stats & Controls -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px;">
+        <div style="padding:12px;background:rgba(255,215,0,0.1);border-radius:8px;text-align:center;">
+            <div style="font-size:0.8rem;color:rgba(230,250,255,0.7);">Sprints Done</div>
+            <div id="ft-sprints-done" style="font-size:1.2rem;color:#ffd700;font-weight:600;">0</div>
+        </div>
         <div style="padding:12px;background:rgba(45,212,255,0.1);border-radius:8px;text-align:center;">
             <div style="font-size:0.8rem;color:rgba(230,250,255,0.7);">Focus Time</div>
             <div id="ft-focus-time" style="font-size:1.2rem;color:var(--accent);font-weight:600;">0m</div>
@@ -185,6 +189,18 @@
         </div>
     </div>
     
+    <!-- Sprint tasks (merged in from the old Pomodoro Flow tool) -->
+    <div style="margin-bottom:20px;padding:14px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);border-radius:10px;">
+        <label for="ft-task-input" style="display:block;color:rgba(230,250,255,0.8);margin-bottom:8px;font-size:14px;">📝 What is this sprint for?</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input type="text" id="ft-task-input" placeholder="e.g. Draft the intro paragraph, finish song hook..."
+                   style="flex:1;min-width:180px;padding:10px 12px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.85rem;">
+            <button type="button" id="ft-task-add" style="padding:10px 16px;min-height:40px;border-radius:8px;background:rgba(45,212,255,0.15);border:1px solid var(--accent);color:var(--accent);font-weight:600;cursor:pointer;">+ Add</button>
+        </div>
+        <ul id="ft-task-list" style="list-style:none;margin:10px 0 0;padding:0;font-size:0.85rem;"></ul>
+        <div class="small" style="color:rgba(230,250,255,0.55);margin-top:6px;font-size:0.72rem;">Tasks stay in this browser only — nothing is uploaded.</div>
+    </div>
+
     <!-- Quick Actions -->
     <div>
         <div style="color:rgba(230,250,255,0.8);margin-bottom:8px;font-size:14px;">⚡ Quick Actions:</div>
@@ -538,6 +554,7 @@ function ftTimerFinished() {
     
     // Update statistics
     ftSessionsCompleted++;
+    if (ftCurrentPhase === 'work') ftBumpSprints();
     
     // Determine next phase
     if (ftCurrentPhase === 'work') {
@@ -788,6 +805,98 @@ if (document.readyState === 'loading') {
         console.log('Focus Timer ready');
     });
 }
+
+/* ---- Sprint counter + task list (merged in from Pomodoro Flow) ---------- */
+var ftSprintsDone = 0;
+var ftTasks = [];
+
+function ftStore(key, value) {
+    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* private mode */ }
+}
+
+function ftRead(key, fallback) {
+    try {
+        var raw = window.localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+    } catch (e) { return fallback; }
+}
+
+function ftTodayKey() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function ftBumpSprints() {
+    ftSprintsDone++;
+    ftStore('ft-sprints', { day: ftTodayKey(), n: ftSprintsDone });
+    var el = document.getElementById('ft-sprints-done');
+    if (el) el.textContent = ftSprintsDone;
+}
+
+function ftRenderTasks() {
+    var list = document.getElementById('ft-task-list');
+    if (!list) return;
+    list.innerHTML = '';
+    ftTasks.forEach(function (t, i) {
+        var li = document.createElement('li');
+        li.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
+        var box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = !!t.done;
+        box.setAttribute('aria-label', 'Mark "' + t.text + '" done');
+        box.addEventListener('change', function () {
+            ftTasks[i].done = box.checked;
+            ftStore('ft-tasks', ftTasks);
+            ftRenderTasks();
+        });
+        var span = document.createElement('span');
+        span.textContent = t.text;
+        span.style.cssText = 'flex:1;' + (t.done ? 'text-decoration:line-through;opacity:.55;' : '');
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.textContent = '\u2715';
+        del.setAttribute('aria-label', 'Remove "' + t.text + '"');
+        del.style.cssText = 'background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:0.9rem;min-width:32px;min-height:32px;';
+        del.addEventListener('click', function () {
+            ftTasks.splice(i, 1);
+            ftStore('ft-tasks', ftTasks);
+            ftRenderTasks();
+        });
+        li.appendChild(box); li.appendChild(span); li.appendChild(del);
+        list.appendChild(li);
+    });
+}
+
+function ftInitTasks() {
+    var saved = ftRead('ft-sprints', null);
+    ftSprintsDone = (saved && saved.day === ftTodayKey()) ? (saved.n || 0) : 0;
+    var el = document.getElementById('ft-sprints-done');
+    if (el) el.textContent = ftSprintsDone;
+
+    ftTasks = ftRead('ft-tasks', []) || [];
+    ftRenderTasks();
+
+    var input = document.getElementById('ft-task-input');
+    var add = document.getElementById('ft-task-add');
+    function addTask() {
+        var text = (input.value || '').trim();
+        if (!text) return;
+        ftTasks.push({ text: text.slice(0, 120), done: false });
+        ftStore('ft-tasks', ftTasks);
+        input.value = '';
+        ftRenderTasks();
+    }
+    if (add) add.addEventListener('click', addTask);
+    if (input) input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); addTask(); }
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ftInitTasks);
+} else {
+    ftInitTasks();
+}
+
 </script>
 
 <style>
