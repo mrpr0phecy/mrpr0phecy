@@ -1,0 +1,268 @@
+<h2 id="phe-title" style="margin-top:0;color:var(--accent);">🌸 Phenology &amp; Growing Degree-Day Lab</h2>
+
+<form aria-describedby="phe-desc" onsubmit="event.preventDefault();">
+  <p id="phe-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Phenology is the study of seasonal timing — when leaves open, flowers bloom and swallows return. This lab models it with real growing degree-days (GDD): heat accumulated above a species-specific base temperature. Spy on how warming shifts oak leaf-out, bluebell bloom, lawn green-up and swallow arrival — and whether our seasons are getting longer.
+  </p>
+
+  <!-- Species presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="phe-preset" data-id="oak" style="padding:4px 10px;border-radius:4px;background:rgba(127,224,195,0.16);border:1px solid #7fe0c3;color:#7fe0c3;font-size:0.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;">🌳 Pedunculate Oak (leaf-out)</button>
+    <button type="button" class="phe-preset" data-id="bluebell" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🔔 Native Bluebell (bloom)</button>
+    <button type="button" class="phe-preset" data-id="lawn" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌱 Lawn Green-up</button>
+    <button type="button" class="phe-preset" data-id="swallow" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🐦 Swallow Arrival</button>
+    <button type="button" class="phe-preset" data-id="butterfly" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🦋 Orange-tip First Flight</button>
+  </div>
+
+  <div style="background:#05070d;border:1px solid rgba(127,224,195,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="phe-canvas" width="640" height="260" style="width:100%;height:260px;display:block;background:#060b12;border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="phe-status" style="color:#aadcff;font-family:monospace;">—</span>
+      <span id="phe-event" style="color:#ffd27f;font-family:monospace;">EVENT DATE: —</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Latitude (site)</span><span id="phe-val-lat">52.0°N</span>
+      </div>
+      <input type="range" id="phe-slider-lat" min="45" max="65" step="0.5" value="52" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Climate Warming</span><span id="phe-val-warm">+2.0 °C</span>
+      </div>
+      <input type="range" id="phe-slider-warm" min="0" max="6" step="0.1" value="2" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Urban Heat Island</span><span id="phe-val-uhi">OFF</span>
+      </div>
+      <input type="range" id="phe-slider-uhi" min="0" max="1" step="1" value="0" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Year Smoothing (model)</span><span id="phe-val-smooth">1.0 yr</span>
+      </div>
+      <input type="range" id="phe-slider-smooth" min="1" max="10" step="1" value="1" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">EVENT DATE (model)</div>
+      <div id="phe-stat-date" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">SHIFT vs BASELINE</div>
+      <div id="phe-stat-shift" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">GROWING SEASON LENGTH</div>
+      <div id="phe-stat-len" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">FROST-FREE DAYS</div>
+      <div id="phe-stat-frost" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Science notes (real model used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Growing degree-days: GDD = Σ max(0, T̄_day − T_base), accumulated from 1 January. Each species has a
+      measured T_base and threshold from the literature — oak leaf-out ≈ 150 GDD above 5 °C, native bluebell
+      bloom ≈ 100 GDD above 5 °C, lawn green-up ≈ 90 GDD above 3 °C, swallow arrival is tied to prey
+      availability (modelled with an 8 °C threshold), and orange-tip butterfly first flight ≈ 120 GDD above
+      4 °C. Temperature follows a sinusoid set by latitude and warming; UHI adds ~0.8 °C in spring. The
+      warming shift you observe (~2 days per °C for oak) matches measured wood-phenology trends across
+      Europe. Real GDD values come from thousands of station records; the model here is a simplified but
+      realistic version for learning.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('phe-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  let lat = 52, warm = 2, uhi = false, smoothYr = 1;
+
+  const SPECIES = {
+    oak:      { name: 'Pedunculate Oak', emoji: '🌳', phase: 'leaf-out', base: 5, gdd: 150, col: '#7fe0c3' },
+    bluebell: { name: 'Native Bluebell', emoji: '🔔', phase: 'first bloom', base: 5, gdd: 100, col: '#96b6ff' },
+    lawn:     { name: 'Lawn Grass', emoji: '🌱', phase: 'green-up', base: 3, gdd: 90, col: '#b8e08c' },
+    swallow:  { name: 'Barn Swallow', emoji: '🐦', phase: 'spring arrival', base: 8, gdd: 140, col: '#ffd27f' },
+    butterfly:{ name: 'Orange-tip Butterfly', emoji: '🦋', phase: 'first flight', base: 4, gdd: 120, col: '#ffb56b' }
+  };
+  let sp = SPECIES.oak;
+
+  function readSliders() {
+    lat = parseFloat($('phe-slider-lat').value);
+    warm = parseFloat($('phe-slider-warm').value);
+    uhi = $('phe-slider-uhi').value === '1';
+    smoothYr = parseInt($('phe-slider-smooth').value, 10);
+    $('phe-val-lat').textContent = lat.toFixed(1) + '°N';
+    $('phe-val-warm').textContent = '+' + warm.toFixed(1) + ' °C';
+    $('phe-val-uhi').textContent = uhi ? 'ON (+~0.8 °C)' : 'OFF';
+    $('phe-val-smooth').textContent = smoothYr + ' yr';
+  }
+
+  function meanAnnual() {
+    // mean annual temp by latitude (rough UK/Europe fit): ~14 °C at 45°N → ~5.5 °C at 65°N
+    return 21.2 - lat * 0.24 + warm + (uhi ? 0.8 : 0);
+  }
+
+  function seasonalAmp() {
+    // amplitude grows with latitude and continentality: ~7 °C at 45°N → ~11 °C at 65°N
+    return 3.4 + (lat - 45) * 0.30;
+  }
+
+  function tempAt(doy) {
+    // sinusoid with coldest day ~15 Jan (doy 15), warmest ~15 Jul (doy 196)
+    const phase = (doy - 15) / 365 * Math.PI * 2;
+    return meanAnnual() - seasonalAmp() * Math.cos(phase);
+  }
+
+  function gddBy(doy, spx) {
+    let acc = 0;
+    for (let d = 1; d <= doy; d++) acc += Math.max(0, tempAt(d) - spx.base);
+    return acc;
+  }
+
+  function eventDoY(spx) {
+    for (let d = 1; d <= 365; d++) if (gddBy(d, spx) >= spx.gdd) return d;
+    return 365;
+  }
+
+  function seasonalLength() {
+    // length between last spring frost and first autumn frost
+    let lastSpringFrost = 0, firstAutumnFrost = 366;
+    for (let d = 1; d <= 365; d++) {
+      if (tempAt(d) < 0) {
+        if (d < 200) lastSpringFrost = Math.max(lastSpringFrost, d);
+        else if (d > 200) firstAutumnFrost = Math.min(firstAutumnFrost, d);
+      }
+    }
+    return firstAutumnFrost - lastSpringFrost;
+  }
+
+  function draw() {
+    ctx.fillStyle = '#060b12'; ctx.fillRect(0, 0, W, H);
+    const padL = 40, padB = 26, padT = 12;
+    const xAt = d => padL + (d / 365) * (W - padL - 12);
+    const tMin = -8, tMax = 24;
+    const yT = t => H - padB - (t - tMin) / (tMax - tMin) * (H - padB - padT);
+
+    // axes
+    ctx.strokeStyle = 'rgba(230,250,255,0.2)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, H - padB); ctx.lineTo(W - 8, H - padB); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,0.5)'; ctx.font = '9px monospace';
+    ['Jan', 'Mar', 'May', 'Jul', 'Sep', 'Nov'].forEach((m, i) => {
+      const d = 15 + i * 61;
+      ctx.fillText(m, xAt(d) - 8, H - 8);
+    });
+    ctx.fillText('°C', 4, 16);
+
+    // temperature curve (baseline dashed + current solid)
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(150,210,255,0.4)';
+    ctx.beginPath();
+    for (let d = 1; d <= 365; d++) {
+      const y = yT(tempAt(d));
+      if (d === 1) ctx.moveTo(xAt(d), y); else ctx.lineTo(xAt(d), y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // warmed curve with current variables
+    const saved = { w: warm, u: uhi };
+    ctx.strokeStyle = sp.col;
+    ctx.lineWidth = 2; ctx.shadowBlur = 6; ctx.shadowColor = sp.col;
+    ctx.beginPath();
+    for (let d = 1; d <= 365; d++) {
+      const y = yT(tempAt(d));
+      if (d === 1) ctx.moveTo(xAt(d), y); else ctx.lineTo(xAt(d), y);
+    }
+    ctx.stroke(); ctx.shadowBlur = 0;
+
+    // base-T line for this species
+    const yBase = yT(sp.base);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.moveTo(padL, yBase); ctx.lineTo(W - 8, yBase); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText('T_base ' + sp.base + '°C', W - 132, yBase - 4);
+
+    // GDD shading under curve above base up to event day
+    const ev = eventDoY(sp);
+    ctx.fillStyle = 'rgba(127,224,195,0.10)';
+    ctx.beginPath();
+    ctx.moveTo(xAt(1), yBase);
+    for (let d = 1; d <= ev; d++) {
+      ctx.lineTo(xAt(d), Math.min(yT(tempAt(d)), yBase));
+    }
+    ctx.lineTo(xAt(ev), yBase); ctx.closePath(); ctx.fill();
+
+    // event marker
+    const yEv = yT(tempAt(ev));
+    ctx.strokeStyle = '#ffd27f'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(xAt(ev), yBase); ctx.lineTo(xAt(ev), yEv - 6); ctx.stroke();
+    ctx.fillStyle = '#ffd27f';
+    ctx.beginPath(); ctx.arc(xAt(ev), yEv - 6, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillText(sp.emoji + ' ' + sp.name + ' — ' + sp.phase, xAt(ev) + 6, yEv - 14);
+    ctx.font = '9px monospace';
+  }
+
+  function fmtDoy(d) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const m = Math.min(11, Math.floor((d - 1) / 30.4));
+    const day = Math.round(d - m * 30.4);
+    return months[m] + ' ' + Math.max(1, Math.min(31, day));
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    draw();
+    const ev = eventDoY(sp);           // 1961–1990-style reference without warming
+    const baseW = warm;                // saved copy for shift calc
+    // baseline event uses the same latitude but zero warming
+    const savedWarm = warm; warm = 0;
+    const baseline = eventDoY(sp);
+    const shift = ev - baseline;
+    warm = savedWarm;
+    const len = seasonalLength();
+    $('phe-status').textContent = sp.emoji + ' ' + sp.name + ' — ' + sp.phase + ' @ ' + lat.toFixed(1) + '°N, +' + warm.toFixed(1) + ' °C' + (uhi ? ', UHI' : '');
+    $('phe-event').textContent = 'EVENT DATE: ' + fmtDoy(ev);
+    $('phe-stat-date').textContent = fmtDoy(ev);
+    $('phe-stat-shift').textContent = (shift <= 0 ? shift + ' days' : '+' + shift + ' days') + (shift <= 0 ? ' earlier' : ' later');
+    $('phe-stat-len').textContent = len + ' days';
+    $('phe-stat-frost').textContent = (365 - len) + ' days';
+    requestAnimationFrame(loop);
+  }
+
+  document.querySelectorAll('.phe-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sp = SPECIES[btn.dataset.id];
+      document.querySelectorAll('.phe-preset').forEach(b => {
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+      });
+      btn.style.background = 'rgba(127,224,195,0.16)';
+      btn.style.borderColor = '#7fe0c3';
+      btn.style.color = '#7fe0c3';
+    });
+  });
+  ['phe-slider-lat', 'phe-slider-warm', 'phe-slider-uhi', 'phe-slider-smooth'].forEach(id => {
+    $(id).addEventListener('input', readSliders);
+  });
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>

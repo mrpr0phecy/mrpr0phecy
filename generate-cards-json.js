@@ -147,7 +147,13 @@ const scienceList = [
   'sand-dune-lab',
   'snowflake-crystal-lab',
   'earthquake-seismograph-lab',
-  'meteor-shower-sky-lab'
+  'meteor-shower-sky-lab',
+  // Nature-learning tools (field science & ecology with variables):
+  'rock-cycle-mineral-id-lab',
+  'nature-id-trainer',
+  'phenology-gdd-calendar-lab',
+  'food-web-ecosystem-lab',
+  'erosion-landscape-lab'
 ];
 const writingList = [
   'markdown-to-html-printer',
