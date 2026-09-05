@@ -176,6 +176,7 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'lorem-ipsum-placeholder-text': 'Writing & Language',
   'uuid-random-id-generator': 'Productivity & Lifestyle',
   'unix-timestamp-epoch-converter': 'Productivity & Lifestyle',
 };
