@@ -1,0 +1,101 @@
+<h2 id="uedp-title" style="margin-top:0;color:var(--accent);">🔗 URL Encoder, Decoder & Parser</h2>
+
+<form aria-describedby="uedp-desc" onsubmit="event.preventDefault();">
+  <p id="uedp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Percent-encode or decode any string, and break a full URL into its parts — protocol, host, port, path, query parameters and hash. Edit query parameters in a table and rebuild the URL. All offline.
+  </p>
+
+  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+    <button type="button" data-uedp-tab="parse" style="padding:7px 14px;border-radius:8px;background:rgba(45,212,255,0.2);border:1px solid rgba(45,212,255,0.5);color:var(--accent);font-size:0.8rem;cursor:pointer;">Parse URL</button>
+    <button type="button" data-uedp-tab="encode" style="padding:7px 14px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.8rem;cursor:pointer;">Encode / Decode</button>
+  </div>
+
+  <div id="uedp-parse">
+    <input id="uedp-url" type="text" placeholder="https://user:pass@www.example.com:8080/path/to/page?q=hello%20world&lang=en#section" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;margin-bottom:10px;">
+    <div id="uedp-parts" style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:12px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;">Query parameters</span>
+      <button type="button" id="uedp-addp" style="padding:4px 10px;border-radius:6px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.35);color:#39ff14;font-size:0.72rem;cursor:pointer;">+ Add</button>
+    </div>
+    <div id="uedp-params" style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span style="font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;">Rebuilt URL</span>
+      <button type="button" id="uedp-copyurl" style="padding:4px 10px;border-radius:6px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.3);color:var(--accent);font-size:0.72rem;cursor:pointer;">copy</button>
+    </div>
+    <div id="uedp-built" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.82rem;color:var(--text);background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px;word-break:break-all;margin-top:4px;min-height:1.6em;"></div>
+  </div>
+
+  <div id="uedp-encode" style="display:none;">
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:0.8rem;color:var(--text);">
+      <label style="display:flex;align-items:center;gap:5px;"><input type="radio" name="uedp-m" value="component" checked> encodeURIComponent (all reserved chars)</label>
+      <label style="display:flex;align-items:center;gap:5px;"><input type="radio" name="uedp-m" value="uri"> encodeURI (keep / ? &amp; = #)</label>
+      <label style="display:flex;align-items:center;gap:5px;"><input type="radio" name="uedp-m" value="form"> Form (spaces → +)</label>
+    </div>
+    <label for="uedp-plain" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Plain text</label>
+    <textarea id="uedp-plain" rows="4" placeholder="hello world & friends / café" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;margin-bottom:8px;"></textarea>
+    <div style="text-align:center;color:var(--text-secondary);font-size:0.8rem;margin-bottom:8px;">⇅ live in both directions</div>
+    <label for="uedp-enc" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Encoded</label>
+    <textarea id="uedp-enc" rows="4" placeholder="hello%20world%20%26%20friends%20%2F%20caf%C3%A9" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;"></textarea>
+    <div id="uedp-encerr" style="font-size:0.75rem;color:#ff4081;margin-top:4px;min-height:1em;"></div>
+    <div style="display:flex;gap:6px;margin-top:6px;">
+      <button type="button" id="uedp-copyenc" style="padding:6px 12px;border-radius:8px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);font-size:0.78rem;cursor:pointer;">Copy encoded</button>
+      <button type="button" id="uedp-copyplain" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.78rem;cursor:pointer;">Copy plain</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+  function copy(text,btn,orig){ var done=function(){ btn.textContent='✓'; setTimeout(function(){btn.textContent=orig;},1000); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,function(){}); } else { var x=document.createElement('textarea'); x.value=text; document.body.appendChild(x); x.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(x); done(); } }
+
+  // tabs
+  Array.prototype.forEach.call(document.querySelectorAll('[data-uedp-tab]'),function(b){ b.addEventListener('click',function(){
+    var t=b.getAttribute('data-uedp-tab'); $('uedp-parse').style.display=t==='parse'?'':'none'; $('uedp-encode').style.display=t==='encode'?'':'none';
+    Array.prototype.forEach.call(document.querySelectorAll('[data-uedp-tab]'),function(x){ var on=x===b; x.style.background=on?'rgba(45,212,255,0.2)':'rgba(255,255,255,0.06)'; x.style.borderColor=on?'rgba(45,212,255,0.5)':'rgba(255,255,255,0.15)'; x.style.color=on?'var(--accent)':'var(--text)'; });
+  }); });
+
+  // ---- parser
+  var params=[]; var base={};
+  function row(label,val){ return '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:6px 10px;"><span style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;white-space:nowrap;">'+label+'</span><span style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.82rem;color:'+(val?'var(--text)':'rgba(255,255,255,0.3)')+';word-break:break-all;text-align:right;">'+(esc(val)||'—')+'</span></div>'; }
+  function parseUrl(){
+    var v=$('uedp-url').value.trim(); if(!v){ $('uedp-parts').innerHTML=''; $('uedp-params').innerHTML=''; $('uedp-built').textContent=''; return; }
+    var u; try{ u=new URL(/^[a-z][a-z0-9+.-]*:/i.test(v)?v:'https://'+v); }catch(e){ $('uedp-parts').innerHTML='<div style="color:#ff4081;font-size:0.8rem;">Could not parse that URL.</div>'; return; }
+    base={protocol:u.protocol,username:u.username,password:u.password,hostname:u.hostname,port:u.port,pathname:u.pathname,hash:u.hash};
+    params=[]; u.searchParams.forEach(function(val,key){ params.push([key,val]); });
+    renderParts(); renderParams(); build();
+  }
+  function renderParts(){
+    var tld=base.hostname.split('.'); 
+    $('uedp-parts').innerHTML=row('Protocol',base.protocol.replace(':',''))+(base.username?row('Username',base.username):'')+(base.password?row('Password',base.password):'')+row('Host',base.hostname)+row('Domain / TLD',tld.length>1?tld.slice(-2).join('.')+' / .'+tld[tld.length-1]:base.hostname)+row('Port',base.port||'(default)')+row('Path',base.pathname)+row('Path segments',base.pathname.split('/').filter(Boolean).map(decodeURIComponent).join(' › '))+row('Hash',base.hash.replace('#',''));
+  }
+  function renderParams(){
+    if(!params.length){ $('uedp-params').innerHTML='<div style="font-size:0.78rem;color:var(--text-secondary);">No query parameters.</div>'; return; }
+    $('uedp-params').innerHTML=params.map(function(p,i){ return '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:5px;"><input data-uedp-k="'+i+'" value="'+esc(p[0])+'" aria-label="key" style="padding:6px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--accent);font-size:12px;font-family:ui-monospace,monospace;"><input data-uedp-v="'+i+'" value="'+esc(p[1])+'" aria-label="value" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:var(--text);font-size:12px;font-family:ui-monospace,monospace;"><button type="button" data-uedp-del="'+i+'" aria-label="remove" style="padding:0 9px;border-radius:6px;background:rgba(255,64,129,0.12);border:1px solid rgba(255,64,129,0.3);color:#ff4081;cursor:pointer;">✕</button></div>'; }).join('');
+  }
+  function build(){
+    if(!base.hostname) return;
+    var q=params.map(function(p){ return encodeURIComponent(p[0])+'='+encodeURIComponent(p[1]); }).join('&');
+    var auth=base.username?(base.username+(base.password?':'+base.password:'')+'@'):'';
+    $('uedp-built').textContent=base.protocol+'//'+auth+base.hostname+(base.port?':'+base.port:'')+base.pathname+(q?'?'+q:'')+base.hash;
+  }
+  $('uedp-url').addEventListener('input',parseUrl);
+  $('uedp-params').addEventListener('input',function(e){ var k=e.target.getAttribute('data-uedp-k'), v=e.target.getAttribute('data-uedp-v'); if(k!==null) params[+k][0]=e.target.value; if(v!==null) params[+v][1]=e.target.value; build(); });
+  $('uedp-params').addEventListener('click',function(e){ var d=e.target.closest('[data-uedp-del]'); if(d){ params.splice(+d.getAttribute('data-uedp-del'),1); renderParams(); build(); } });
+  $('uedp-addp').addEventListener('click',function(){ if(!base.hostname){ $('uedp-url').value='https://www.example.com/'; parseUrl(); } params.push(['key','value']); renderParams(); build(); });
+  $('uedp-copyurl').addEventListener('click',function(){ copy($('uedp-built').textContent,this,'copy'); });
+
+  // ---- encoder
+  var lock=false;
+  function mode(){ return (document.querySelector('input[name="uedp-m"]:checked')||{}).value||'component'; }
+  function enc(s){ var m=mode(); if(m==='uri') return encodeURI(s); var r=encodeURIComponent(s); if(m==='form') r=r.replace(/%20/g,'+'); return r; }
+  function dec(s){ var m=mode(); if(m==='form') s=s.replace(/\+/g,' '); return m==='uri'?decodeURI(s):decodeURIComponent(s); }
+  $('uedp-plain').addEventListener('input',function(){ if(lock) return; lock=true; $('uedp-enc').value=enc(this.value); $('uedp-encerr').textContent=''; lock=false; });
+  $('uedp-enc').addEventListener('input',function(){ if(lock) return; lock=true; try{ $('uedp-plain').value=dec(this.value); $('uedp-encerr').textContent=''; }catch(e){ $('uedp-encerr').textContent='Malformed percent-encoding (e.g. a lone % sign).'; } lock=false; });
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="uedp-m"]'),function(r){ r.addEventListener('change',function(){ $('uedp-enc').value=enc($('uedp-plain').value); }); });
+  $('uedp-copyenc').addEventListener('click',function(){ copy($('uedp-enc').value,this,'Copy encoded'); });
+  $('uedp-copyplain').addEventListener('click',function(){ copy($('uedp-plain').value,this,'Copy plain'); });
+})();
+</script>
