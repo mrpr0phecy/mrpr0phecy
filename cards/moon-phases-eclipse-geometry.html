@@ -1,0 +1,403 @@
+<h2 id="mpe-title" style="margin-top:0;color:var(--accent);">🌘 Moon Phases &amp; Eclipse Geometry</h2>
+
+<form aria-describedby="mpe-desc" onsubmit="event.preventDefault();">
+  <p id="mpe-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Why do phases exist, and why are eclipses so rare? Spin the Moon around Earth (its real orbital
+    inclination is 5.14°) and rotate the <em>line of nodes</em> — the place where the Moon's tilted orbit
+    crosses the ecliptic. When a new or full moon lands near a node, the shadows line up and you get an
+    eclipse; anywhere else the Moon sails above or below the shadow and nothing happens.
+  </p>
+
+  <!-- Geometry view -->
+  <div style="background:#03050c;border:1px solid rgba(150,210,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="mpe-canvas" width="720" height="420" style="width:100%;height:420px;display:block;background:radial-gradient(circle at 70% 40%, #050a18, #01020a 80%);border-radius:6px;cursor:grab;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="mpe-status" style="color:#aadcff;font-family:monospace;">DRAG TO ROTATE</span>
+      <span id="mpe-z" style="color:#ffd27f;font-family:monospace;">Moon above ecliptic: —</span>
+    </div>
+  </div>
+
+  <!-- Phase view -->
+  <div style="display:flex;gap:12px;align-items:center;background:rgba(3,5,12,0.8);border:1px solid rgba(127,224,195,0.25);border-radius:8px;padding:10px;margin-bottom:12px;">
+    <div style="text-align:center;">
+      <canvas id="mpe-phase" width="160" height="160" style="width:160px;height:160px;background:#000;border-radius:50%;display:block;"></canvas>
+      <div style="font-size:0.62rem;color:var(--text-secondary);margin-top:4px;">As seen from Earth</div>
+    </div>
+    <div style="flex:1;">
+      <div id="mpe-phasename" style="font-size:0.95rem;color:#7fe0c3;font-weight:bold;">—</div>
+      <div id="mpe-lit" style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">—</div>
+      <div id="mpe-alert" style="font-size:0.75rem;margin-top:6px;padding:6px 8px;border-radius:5px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--text-secondary);">—</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Moon's position in its orbit</span><span id="mpe-val-u">—</span>
+      </div>
+      <input type="range" id="mpe-slider-u" min="0" max="360" step="1" value="0" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Line of nodes (Ω — where orbit crosses ecliptic)</span><span id="mpe-val-node">—</span>
+      </div>
+      <input type="range" id="mpe-slider-node" min="0" max="360" step="1" value="0" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Orbit inclination (real = 5.14°)</span><span id="mpe-val-tilt">REAL (5.14°)</span>
+      </div>
+      <input type="range" id="mpe-slider-tilt" min="0" max="1" step="1" value="0" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Camera tilt</span><span id="mpe-val-cam">20°</span>
+      </div>
+      <input type="range" id="mpe-slider-cam" min="0" max="88" step="1" value="20" style="width:100%;">
+    </div>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="mpe-btn-play" style="padding:5px 12px;border-radius:6px;background:rgba(127,224,195,0.12);border:1px solid #7fe0c3;color:#7fe0c3;font-size:0.72rem;cursor:pointer;white-space:nowrap;">▶ Play (orbit cycle)</button>
+    <button type="button" class="mpe-scene" data-id="eclipse" style="padding:5px 12px;border-radius:6px;background:rgba(255,210,127,0.12);border:1px solid #ffd27f;color:#ffd27f;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌗 Lunar Eclipse (full moon at node)</button>
+    <button type="button" class="mpe-scene" data-id="solar" style="padding:5px 12px;border-radius:6px;background:rgba(255,210,127,0.12);border:1px solid #ffd27f;color:#ffd27f;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌑 Solar Eclipse (new moon at node)</button>
+    <button type="button" class="mpe-scene" data-id="miss" style="padding:5px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌘 Miss (nodes rotated 90°)</button>
+    <button type="button" id="mpe-btn-shadows" style="padding:5px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">💡 Shadow cones: ON</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 The real geometry (inclination, nodes, umbra)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      The Moon orbits Earth every 27.3 days, but its orbit is tipped 5.14° to the ecliptic — the plane
+      Earth travels around the Sun. Half the month the Moon is above the ecliptic, half below, and it
+      crosses the plane only at two opposite points: the <em>nodes</em>, joined by the line of nodes. A
+      lunar eclipse needs a full Moon sitting inside Earth's shadow (real umbra: ~4,600 km wide at the
+      Moon's distance, and the Moon is 3,474 km across — it fits, just barely). A solar eclipse needs a new
+      Moon's shadow to reach Earth. Because the node line points in a fixed direction while new/full Moon
+      wanders through every position, an eclipse needs the two to line up within a few degrees — roughly
+      twice a year, each type, somewhere on Earth. The shadow cones and bodies below are drawn enlarged
+      (×6 for visibility); the readouts show the true km values.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('mpe-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height, CX = W / 2, CY = H / 2;
+  const pc = $('mpe-phase'), pctx = pc.getContext('2d');
+  const PW = pc.width, PH = pc.height, PCX = PW / 2, PCY = PH / 2;
+
+  const EARTH = { r: 6371, drawR: 14 };
+  const MOON = { r: 1737.4, d: 384400, drawR: 5 };
+  const SUN = { r: 695700, d: 149.6e6 };
+  const ORBIT_PX = 150;          // px per 384,400 km → k
+  const K = ORBIT_PX / MOON.d;   // px per km (Earth–Moon space)
+  const TAN_SHADOW = 0.004609;   // umbra half-angle (rad) = (Rs−Re)/distance ≈ 0.264°
+  const UMBRA_R = 4628;          // real umbra radius at the Moon's mean distance
+  const PENUMBRA_R = 8142;
+
+  let orbitDeg = 0, nodeDeg = 0, tiltReal = true, shadows = true;
+  let yaw = 0.0, pitch = 20 * Math.PI / 180, playing = false;
+  const INC_REAL = 5.14 * Math.PI / 180, INC_BIG = 20 * Math.PI / 180;
+
+  const stars = [];
+  for (let i = 0; i < 200; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, a: 0.06 + Math.random() * 0.3 });
+
+  // Moon position in km relative to Earth (real distances; inclined orbit about the node line)
+  function moonVec() {
+    const i = tiltReal ? INC_REAL : INC_BIG;
+    const om = nodeDeg * Math.PI / 180, u = orbitDeg * Math.PI / 180;
+    const nx = Math.cos(om), ny = Math.sin(om);          // ascending node direction (ecliptic)
+    const e2x = -ny, e2y = nx;                            // 90° CCW from node line
+    const cx = Math.cos(u), sx = Math.sin(u);
+    const x = MOON.d * (cx * nx + sx * Math.cos(i) * e2x);
+    const y = MOON.d * (cx * ny + sx * Math.cos(i) * e2y);
+    const z = MOON.d * sx * Math.sin(i);
+    return { x, y, z };
+  }
+
+  // synodic angle from Sun direction (sun at −x from Earth), CCW positive = waxing
+  function synodic(m) {
+    const dot = (-1) * m.x + 0 * m.y;
+    const crossZ = (-1) * m.y - 0 * m.x;   // (dSun × dMoon)_z
+    let b = Math.atan2(crossZ, dot);
+    if (b < 0) b += Math.PI * 2;
+    return b; // 0=new, π=full
+  }
+
+  function phaseName(b, k) {
+    const dB = b * 180 / Math.PI;
+    if (dB < 22.5 || dB >= 337.5) return 'New Moon';
+    if (dB < 67.5) return 'Waxing Crescent';
+    if (dB < 112.5) return 'First Quarter';
+    if (dB < 157.5) return 'Waxing Gibbous';
+    if (dB < 202.5) return 'Full Moon';
+    if (dB < 247.5) return 'Waning Gibbous';
+    if (dB < 292.5) return 'Last Quarter';
+    return 'Waning Crescent';
+  }
+
+  // phase geometry: unit vectors + phase angle (photometric, exact)
+  function phaseGeometry() {
+    const m = moonVec();
+    const ml = Math.hypot(m.x, m.y, m.z);
+    const vx = m.x / ml, vy = m.y / ml, vz = m.z / ml;          // Earth→Moon (view dir)
+    const r0 = MOON.d / SUN.d; const sx0 = -1 - r0 * vx, sy0 = -r0 * vy, sz0 = -r0 * vz;
+    const sl = Math.hypot(sx0, sy0, sz0);
+    const sx = sx0 / sl, sy = sy0 / sl, sz = sz0 / sl;          // Moon→Sun
+    const cosA = sx * vx + sy * vy + sz * vz;                   // = −cos(phase angle)
+    // bright-limb position angle: project Sun onto the local sky (east, north)
+    let exx = -vy, exy = vx, exz = 0;
+    const el = Math.hypot(exx, exy); exx /= el; exy /= el;
+    const nxp = vy * exz - vz * exy, nyp = vz * exx - vx * exz, nzp = vx * exy - vy * exx;
+    const se = sx * exx + sy * exy;
+    const sn = sx * nxp + sy * nyp + sz * nzp;
+    return { cosA, chi: Math.atan2(se, sn), vx, vy, vz, sx, sy, sz };
+  }
+  // camera projection (rotate about z, then about x)
+  function proj(x, y, z) {
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const x1 = x * cy + y * sy;
+    const y1 = -x * sy + y * cy;
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const y2 = y1 * cp - z * sp;
+    const z2 = y1 * sp + z * cp;
+    return [CX + x1 * K, CY - y2 * K, z2];
+  }
+  function draw() {
+    ctx.fillStyle = '#01020a'; ctx.fillRect(0, 0, W, H);
+    for (const s of stars) {
+      ctx.fillStyle = 'rgba(220,235,255,' + s.a.toFixed(3) + ')';
+      ctx.fillRect(s.x, s.y, 1, 1);
+    }
+
+    const m = moonVec();
+    const b = synodic(m);
+    const zKm = m.z * 1; // real km above ecliptic
+
+    // ecliptic plane grid (ellipse due to tilt)
+    ctx.strokeStyle = 'rgba(120,160,210,0.10)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= 256; i++) {
+      const th = i * Math.PI * 2 / 256;
+      const [x, y] = proj(ORBIT_PX / K * Math.cos(th) * 1.35, ORBIT_PX / K * Math.sin(th) * 1.35, 0);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Sun direction
+    const sunX = 30, sunY = CY - 20;
+    const sg = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 34);
+    sg.addColorStop(0, 'rgba(255,220,130,0.9)'); sg.addColorStop(0.25, 'rgba(255,200,90,0.25)'); sg.addColorStop(1, 'rgba(255,200,90,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sunX, sunY, 34, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffd873'; ctx.beginPath(); ctx.arc(sunX, sunY, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,220,130,0.8)'; ctx.font = '10px monospace';
+    ctx.fillText('☀ Sun (149.6m km away — real angular size)', sunX + 14, sunY + 3);
+    // light rays to Earth
+    ctx.strokeStyle = 'rgba(255,220,130,0.15)';
+    ctx.beginPath(); ctx.moveTo(sunX + 8, sunY - 3); ctx.lineTo(CX - 40, CY - 4); ctx.moveTo(sunX + 8, sunY + 3); ctx.lineTo(CX - 40, CY + 4); ctx.stroke();
+
+    // node line through Earth
+    const om = nodeDeg * Math.PI / 180;
+    const n1 = proj(Math.cos(om) * ORBIT_PX / K * 1.6, Math.sin(om) * ORBIT_PX / K * 1.6, 0);
+    const n2 = proj(-Math.cos(om) * ORBIT_PX / K * 1.6, -Math.sin(om) * ORBIT_PX / K * 1.6, 0);
+    ctx.strokeStyle = 'rgba(255,127,127,0.55)'; ctx.setLineDash([6, 5]); ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(n1[0], n1[1]); ctx.lineTo(n2[0], n2[1]); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,127,127,0.85)'; ctx.font = '9px monospace';
+    ctx.fillText('LINE OF NODES — Moon crosses ecliptic here', n1[0] - 60, n1[1] - 8);
+
+    // inclined Moon orbit (3D polyline)
+    ctx.strokeStyle = 'rgba(150,210,255,0.45)'; ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i <= 512; i++) {
+      const u = i * Math.PI * 2 / 512;
+      const i2 = tiltReal ? INC_REAL : INC_BIG;
+      const cx = Math.cos(u), sx = Math.sin(u);
+      const x = MOON.d * (cx * Math.cos(om) + sx * Math.cos(i2) * (-Math.sin(om)));
+      const y = MOON.d * (cx * Math.sin(om) + sx * Math.cos(i2) * Math.cos(om));
+      const z = MOON.d * sx * Math.sin(i2);
+      const [px, py] = proj(x, y, z);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // shadow cones (drawn behind bodies, enlarged ×6 like the spheres)
+    if (shadows) {
+      const fullNear = Math.abs(b - Math.PI) < 0.31;  // within ~18° of full moon
+      const newNear = Math.abs(b) < 0.31 || Math.abs(b - Math.PI * 2) < 0.31;
+      ctx.lineWidth = 1;
+      if (fullNear) {
+        ctx.strokeStyle = 'rgba(127,127,255,0.35)';
+        const tipX = EARTH.r / TAN_SHADOW;
+        // umbra cone from Earth along +x
+        ctx.beginPath();
+        ctx.moveTo(CX, CY);
+        ctx.lineTo(CX + tipX * K, CY);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(127,127,255,0.28)';
+        ctx.beginPath();
+        ctx.moveTo(CX, CY - 6 * EARTH.drawR * 0.5);
+        ctx.lineTo(CX + tipX * K, CY);
+        ctx.lineTo(CX, CY + 6 * EARTH.drawR * 0.5);
+        ctx.stroke();
+        // ring at Moon's distance: umbra (dark) + penumbra (light)
+        const uR = UMBRA_R * K * 6, pR = PENUMBRA_R * K * 6;
+        ctx.strokeStyle = 'rgba(80,80,255,0.8)';
+        ctx.beginPath(); ctx.arc(CX + ORBIT_PX, CY, Math.max(2, uR), 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(150,150,255,0.35)';
+        ctx.beginPath(); ctx.arc(CX + ORBIT_PX, CY, Math.max(3, pR), 0, Math.PI * 2); ctx.stroke();
+      }
+      if (newNear) {
+        // Moon's shadow cone toward Earth (tip just short of Earth at mean distance)
+        const tipAt = MOON.d - MOON.r / TAN_SHADOW;
+        ctx.strokeStyle = 'rgba(255,180,80,0.35)';
+        ctx.beginPath();
+        const mx = proj(m.x, m.y, m.z);
+        ctx.moveTo(mx[0], mx[1] - 4.5);
+        ctx.lineTo(CX, CY - 1);
+        ctx.lineTo(mx[0], mx[1] + 4.5);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,180,80,0.5)';
+        ctx.fillRect(CX - 1, CY - 5, 2, 10);
+      }
+    }
+
+    // Earth
+    const eg = ctx.createRadialGradient(CX - 4, CY - 5, 1, CX, CY, EARTH.drawR);
+    eg.addColorStop(0, '#9fd8ff'); eg.addColorStop(0.55, '#2e6fb8'); eg.addColorStop(1, '#0a2a4c');
+    ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(CX, CY, EARTH.drawR, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(200,230,255,0.9)'; ctx.font = '10px monospace';
+    ctx.fillText('🌍 Earth (not to scale — enlarged)', CX + EARTH.drawR + 8, CY + 3);
+
+    // Moon (lit toward the Sun)
+    const mp = proj(m.x, m.y, m.z);
+    const mg = ctx.createRadialGradient(mp[0] - 2.4, mp[1] - 2.4, 0.6, mp[0], mp[1], MOON.drawR);
+    mg.addColorStop(0, '#ffffff'); mg.addColorStop(0.3, '#d8d8e0'); mg.addColorStop(0.75, '#70707e'); mg.addColorStop(1, '#16161c');
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mp[0], mp[1], MOON.drawR, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(220,220,235,0.9)'; ctx.font = '9px monospace';
+    ctx.fillText('🌙 Moon', mp[0] + MOON.drawR + 5, mp[1] + 3);
+    ctx.fillText('×6 enlarged', mp[0] - 30, mp[1] + MOON.drawR + 12);
+
+    // status lines
+    const pg = phaseGeometry();
+    const kIllum = (1 - pg.cosA) / 2;
+    $('mpe-status').textContent = 'DRAG TO ROTATE · PHASE ' + (b * 180 / Math.PI).toFixed(0) + '° FROM SUN';
+    $('mpe-z').textContent = 'Moon ' + (zKm >= 0 ? 'above' : 'below') + ' ecliptic: ' + Math.abs(zKm).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' km';
+
+    const dB = b * 180 / Math.PI;
+    const EMOJI = { 'New Moon': ' 🌑', 'Waxing Crescent': ' 🌒', 'First Quarter': ' 🌓', 'Waxing Gibbous': ' 🌔', 'Full Moon': ' 🌕', 'Waning Gibbous': ' 🌖', 'Last Quarter': ' 🌗', 'Waning Crescent': ' 🌘' };
+    const pname = phaseName(b, kIllum);
+    $('mpe-phasename').textContent = pname + (EMOJI[pname] || '');
+    $('mpe-lit').textContent = 'Illuminated: ' + (kIllum * 100).toFixed(1) + '% · Moon–Earth distance ' + Math.round(MOON.d).toLocaleString() + ' km (real)';
+
+    // eclipse check (real numbers)
+    const az = Math.abs(zKm);
+    let alert = 'No eclipse — ';
+    let cls = 'rgba(255,255,255,0.04)';
+    const isFull = Math.abs(dB - 180) < 12, isNew = dB < 12 || dB > 348;
+    if (isFull) {
+      if (az <= UMBRA_R - MOON.r) { alert = '🌗 TOTAL LUNAR ECLIPSE — the Moon sits inside Earth\'s umbra (' + Math.round(UMBRA_R).toLocaleString() + ' km wide at that distance, Moon is ' + Math.round(MOON.r * 2).toLocaleString() + ' km). The Moon turns coppery red.'; cls = 'rgba(127,127,255,0.16)'; }
+      else if (az <= PENUMBRA_R + MOON.r) { alert = '🌗 Partial lunar eclipse — the Moon clips the penumbra (' + Math.round(PENUMBRA_R).toLocaleString() + ' km wide).'; cls = 'rgba(127,127,255,0.12)'; }
+      else alert = 'No lunar eclipse — full Moon is ' + Math.round(az).toLocaleString() + ' km off the ecliptic; the shadow is only ~' + Math.round(UMBRA_R).toLocaleString() + ' km wide at the Moon.';
+    } else if (isNew) {
+      if (az <= 1000) { alert = '🌑 TOTAL SOLAR ECLIPSE — the new Moon\'s shadow cone (~' + Math.round(MOON.r / TAN_SHADOW).toLocaleString() + ' km long) reaches Earth, so day turns to twilight.'; cls = 'rgba(255,180,80,0.16)'; }
+      else if (az <= 5000) { alert = '🌑 Partial solar eclipse — new Moon is ' + Math.round(az).toLocaleString() + ' km off the ecliptic; part of the Sun is covered.'; cls = 'rgba(255,180,80,0.12)'; }
+      else alert = 'No solar eclipse — new Moon is ' + Math.round(az).toLocaleString() + ' km off the ecliptic; its shadow misses Earth.';
+    } else {
+      alert += (Math.round(dB) < 180 ? 'waxing phase' : 'waning phase') + ' and it\'s neither new nor full — phases are just geometry, eclipses need alignment.' + (Math.abs(dB - 90) < 1 || Math.abs(dB - 270) < 1 ? ' (quarter moon — terminator runs straight down the middle)' : '');
+    }
+    $('mpe-alert').textContent = alert;
+    $('mpe-alert').style.background = cls;
+
+    drawPhase(pg, kIllum);
+  }
+
+  // exact orthographic phase render: lit ⇔ U·sinα + t·cosα > 0 (t = toward camera)
+  function drawPhase(pg, kIllum) {
+    const img = pctx.createImageData(PW, PH);
+    const d = img.data, R = PW / 2 - 4;
+    const cosA = pg.cosA, chi = pg.chi;
+    const sinA = Math.max(1e-6, Math.sqrt(1 - cosA * cosA));
+    const cC = Math.cos(chi), sC = Math.sin(chi);
+    for (let py = 0; py < PH; py++) {
+      for (let px = 0; px < PW; px++) {
+        const u0 = (px - PCX) / R, w0 = (PCY - py) / R;
+        const q = u0 * u0 + w0 * w0;
+        let r8 = 0, g8 = 0, b8 = 0, a8 = 0;
+        if (q <= 1) {
+          const u = u0 * cC - w0 * sC;                         // along bright limb
+          const z = Math.sqrt(1 - q);
+          const lit = (u * sinA - z * cosA) > 0;
+          if (lit) { const v = 0.82 + 0.18 * z; r8 = 232 * v; g8 = 232 * v; b8 = 242 * v; a8 = 255; }
+          else { r8 = 30; g8 = 30; b8 = 38; a8 = 255; }
+        }
+        const o = (py * PW + px) * 4;
+        d[o] = r8; d[o + 1] = g8; d[o + 2] = b8; d[o + 3] = a8;
+      }
+    }
+    pctx.putImageData(img, 0, 0);
+  }
+
+  function readSliders() {
+    orbitDeg = parseFloat($('mpe-slider-u').value);
+    nodeDeg = parseFloat($('mpe-slider-node').value);
+    tiltReal = parseInt($('mpe-slider-tilt').value, 10) === 0;
+    pitch = parseFloat($('mpe-slider-cam').value) * Math.PI / 180;
+    $('mpe-val-u').textContent = orbitDeg.toFixed(0) + '° (from ascending node)';
+    $('mpe-val-node').textContent = nodeDeg.toFixed(0) + '°';
+    $('mpe-val-tilt').textContent = tiltReal ? 'REAL (5.14°)' : 'EXAGGERATED (20°)';
+    $('mpe-val-cam').textContent = Math.round(pitch * 180 / Math.PI) + '°';
+  }
+
+  function scene(kind) {
+    if (kind === 'eclipse') { nodeDeg = 0; orbitDeg = 0; }          // full moon at the node
+    else if (kind === 'solar') { nodeDeg = 0; orbitDeg = 180; }     // new moon at the node
+    else { nodeDeg = 90; orbitDeg = 270; }                          // full moon at max tilt: misses
+    $('mpe-slider-node').value = nodeDeg; $('mpe-slider-u').value = orbitDeg;
+    readSliders();
+  }
+
+  let last = 0;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - (loop._p || now)) / 1000); loop._p = now;
+    if (playing && dt > 0) {
+      orbitDeg = (orbitDeg + dt * 14) % 360;
+      $('mpe-slider-u').value = Math.round(orbitDeg);
+      $('mpe-val-u').textContent = orbitDeg.toFixed(0) + '° (from ascending node)';
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('pointerdown', e => { canvas._drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => {
+    if (canvas._drag) {
+      yaw += (e.clientX - canvas._drag.x) * 0.004;
+      canvas._drag = { x: e.clientX, y: e.clientY };
+    }
+  });
+  canvas.addEventListener('pointerup', () => { canvas._drag = null; });
+
+  $('mpe-slider-u').addEventListener('input', () => { readSliders(); });
+  $('mpe-slider-node').addEventListener('input', () => { readSliders(); });
+  $('mpe-slider-tilt').addEventListener('input', () => { readSliders(); });
+  $('mpe-slider-cam').addEventListener('input', () => { readSliders(); });
+  $('mpe-btn-play').addEventListener('click', () => {
+    playing = !playing;
+    $('mpe-btn-play').textContent = playing ? '⏸ Pause' : '▶ Play (orbit cycle)';
+    $('mpe-status').textContent = playing ? 'PLAYING — one Moon orbit = 27.3 real days' : 'DRAG TO ROTATE';
+  });
+  $('mpe-btn-shadows').addEventListener('click', () => {
+    shadows = !shadows;
+    $('mpe-btn-shadows').textContent = '💡 Shadow cones: ' + (shadows ? 'ON' : 'OFF');
+  });
+  document.querySelectorAll('.mpe-scene').forEach(btn => btn.addEventListener('click', () => scene(btn.dataset.id)));
+
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>

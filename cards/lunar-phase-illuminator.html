@@ -22,7 +22,22 @@
               style="width:100%;padding:10px 14px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.35);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">Use current time</button>
     </div>
   </div>
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+    <span style="font-size:0.78rem;color:rgba(230,250,255,0.55);white-space:nowrap;">Scrub the lunar cycle</span>
+    <input id="lpi-slider-phase" type="range" min="0" max="100" step="1" value="47"
+           style="flex:1;min-width:120px;" aria-label="Lunar phase scrubber" />
+    <span id="lpi-val-phase" style="font-family:monospace;font-size:0.8rem;color:#ffd9a0;min-width:150px;text-align:right;">day 13.9 · 47%</span>
+  </div>
 </form>
+
+<div style="background:#02030a;border:1px solid rgba(255,217,160,0.25);border-radius:8px;padding:8px;margin-bottom:16px;">
+    <canvas id="lpi-canvas" width="720" height="430" style="width:100%;height:430px;display:block;border-radius:6px;background:#01020a;"></canvas>
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:0.66rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span>top-down orbit · click the Moon's orbit to set the phase</span>
+      <span id="lpi-canvas-status" style="color:#ffe3b8;font-family:monospace;">lunar geometry</span>
+    </div>
+  </div>
 
 <div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
   <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
@@ -53,6 +68,7 @@
 
   var SYNODIC = 29.53058867;
   var EPOCH = Date.UTC(2000, 0, 6, 18, 14, 0);
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 
   var PHASES = [
     [0.00, 'New Moon'], [0.03, 'Waxing crescent'], [0.22, 'First quarter'],
@@ -140,6 +156,277 @@
     $('lpi-time').value = n.toISOString().slice(11, 16);
     run();
   });
+  // ---------- orbit view + big phase disc + next-24h moonlight curve ----------
+  var lpiCanvas = $('lpi-canvas');
+  var lpiCtx = lpiCanvas ? lpiCanvas.getContext('2d') : null;
+  var LPI_OCX = 168, LPI_OCY = 158, LPI_OR = 126;      // orbit view
+  var LPI_DCX = 505, LPI_DCY = 150, LPI_DR = 98;       // disc
+
+  function lpiT() {                                    // same instant as run()
+    var dv = $('lpi-date').value, tv = $('lpi-time').value || '00:00';
+    if (!dv) return null;
+    var t = Date.parse(dv + 'T' + tv + ':00Z');
+    return isNaN(t) ? null : t;
+  }
+
+  // low-precision mean elements (Meeus-style) for the next-24h altitude curve
+  function lpiMoonAlt(t, latDeg) {
+    var jd = t / 86400000 + 2440587.5;
+    var D = jd - 2451545.0;
+    var L = (280.460 + 0.9856474 * D) % 360;
+    var g = (357.528 + 0.9856003 * D) % 360;
+    var lamS = L + 1.915 * Math.sin(g * D2R) + 0.020 * Math.sin(2 * g * D2R);
+    var Lm = (218.3164 + 13.176396 * D) % 360;
+    var Mm = (134.9634 + 13.064993 * D) % 360;
+    var F = (93.2721 + 13.229350 * D) % 360;
+    var lam = (Lm + 6.289 * Math.sin(Mm * D2R)) % 360;
+    var bet = 5.128 * Math.sin(F * D2R);
+    var eps = 23.439 - 0.0000004 * D;
+    var se = Math.sin(eps * D2R), ce = Math.cos(eps * D2R);
+    var sl = Math.sin(lam * D2R), cl = Math.cos(lam * D2R);
+    var sb = Math.sin(bet * D2R), cb = Math.cos(bet * D2R);
+    var dec = Math.asin(Math.max(-1, Math.min(1, sb * ce + cb * se * sl))) * R2D;
+    var ra = Math.atan2(sl * ce - (sb / cb) * se, cl) * R2D;
+    if (ra < 0) ra += 360;
+    var gmst = (280.46061837 + 360.98564736629 * D) % 360;
+    var lst = ((gmst / 15) % 24 + 24) % 24;            // Greenwich meridian
+    var H = ((lst - ra / 15) % 24 + 24) % 24;
+    var f = latDeg * D2R, dd = dec * D2R, hh = H * 15 * D2R;
+    var alt = Math.asin(Math.max(-1, Math.min(1, Math.sin(dd) * Math.sin(f) + Math.cos(dd) * Math.cos(f) * Math.cos(hh)))) * R2D;
+    return { alt: alt, ra: ra, dec: dec, lam: lam, bet: bet };
+  }
+
+  function lpiDraw() {
+    if (!lpiCtx) return;
+    var ctx = lpiCtx;
+    var t = lpiT();
+    if (!t) return;
+    var age = ageOf(t);
+    var frac = age / SYNODIC;
+    var illum = (1 - Math.cos(2 * Math.PI * frac)) / 2 * 100;
+    var waxing = frac < 0.5;
+    var name = phaseName(frac);
+
+    ctx.clearRect(0, 0, 720, 430);
+    ctx.fillStyle = '#01020a';
+    ctx.fillRect(0, 0, 720, 430);
+
+    // ---------- orbit view ----------
+    ctx.fillStyle = 'rgba(190,215,245,0.85)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Top-down orbit — sunlight from the left', 16, 18);
+    ctx.strokeStyle = 'rgba(120,160,220,0.35)';
+    ctx.setLineDash([4, 5]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(LPI_OCX, LPI_OCY, LPI_OR, 0, 6.2832);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Earth
+    ctx.fillStyle = 'rgba(80,170,255,0.95)';
+    ctx.beginPath(); ctx.arc(LPI_OCX, LPI_OCY, 7, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = 'rgba(150,205,255,0.8)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText('Earth (you)', LPI_OCX + 12, LPI_OCY - 8);
+    // Sun to the left
+    ctx.fillStyle = 'rgba(255,210,110,0.95)';
+    ctx.beginPath(); ctx.arc(24, LPI_OCY, 12, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = 'rgba(255,220,140,0.9)';
+    ctx.fillText('Sun', 16, LPI_OCY - 20);
+    ctx.strokeStyle = 'rgba(255,220,140,0.28)';
+    ctx.lineWidth = 1;
+    for (var ray = -1; ray <= 1; ray++) {
+      ctx.beginPath();
+      ctx.moveTo(40, LPI_OCY + ray * 52);
+      ctx.lineTo(LPI_OCX + LPI_OR + 10, LPI_OCY + ray * 10);
+      ctx.stroke();
+    }
+    // Moon on the orbit (phase angle: 0 → new at the Sun, 180 → full opposite)
+    var th = (180 + frac * 360) * D2R;
+    var mx = LPI_OCX + LPI_OR * Math.cos(th), my = LPI_OCY - LPI_OR * Math.sin(th);
+    // lit half faces the Sun (left, 180°)
+    ctx.save();
+    ctx.beginPath(); ctx.arc(mx, my, 11, 0, 6.2832); ctx.clip();
+    ctx.fillStyle = 'rgba(30,32,40,1)';
+    ctx.fillRect(mx - 12, my - 12, 24, 24);
+    ctx.fillStyle = 'rgba(242,240,230,0.95)';
+    ctx.beginPath();
+    ctx.arc(mx, my, 14, Math.PI / 2, 3 * Math.PI / 2, true);   // left half lit
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(mx, my, 11, 0, 6.2832); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,235,200,0.9)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText('Moon at ' + (frac * 100).toFixed(0) + '% of the cycle', mx - 68, my + 28);
+    ctx.fillStyle = 'rgba(150,175,205,0.7)';
+    ctx.fillText('click the orbit →', mx - 44, my + 42);
+
+    // ---------- big phase disc ----------
+    ctx.fillStyle = 'rgba(190,215,245,0.85)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText('Moon tonight', LPI_DCX - 62, 22);
+    ctx.fillStyle = 'rgba(26,26,34,1)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(LPI_DCX, LPI_DCY, LPI_DR, 0, 6.2832); ctx.fill(); ctx.stroke();
+    if (frac > 0.001) {
+      var k = 1 - 2 * frac;
+      var rx = Math.abs(k) * LPI_DR;
+      var sweepOuter = waxing ? 1 : 0;
+      var sweepInner = (k > 0) === waxing ? sweepOuter : 1 - sweepOuter;
+      var d = 'M ' + LPI_DCX + ' ' + (LPI_DCY - LPI_DR) +
+              ' A ' + LPI_DR + ' ' + LPI_DR + ' 0 0 ' + sweepOuter + ' ' + LPI_DCX + ' ' + (LPI_DCY + LPI_DR) +
+              ' A ' + rx.toFixed(2) + ' ' + LPI_DR + ' 0 0 ' + sweepInner + ' ' + LPI_DCX + ' ' + (LPI_DCY - LPI_DR) + ' Z';
+      if (typeof Path2D !== 'undefined') {
+        ctx.fillStyle = '#f2f0e6';
+        ctx.fill(new Path2D(d));
+      } else {
+        ctx.fillStyle = 'rgba(242,240,230,0.95)';
+        ctx.beginPath();
+        ctx.ellipse(LPI_DCX, LPI_DCY, LPI_DR, LPI_DR, 0, 0, 6.2832);
+        ctx.fill();
+      }
+      // terminator hint line
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(LPI_DCX, LPI_DCY, rx, LPI_DR, 0, 0, 6.2832);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,235,200,0.95)';
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, LPI_DCX, LPI_DCY + LPI_DR + 24);
+    ctx.fillStyle = 'rgba(170,195,225,0.85)';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillText(illum.toFixed(0) + '% illuminated · age ' + age.toFixed(1) + ' d', LPI_DCX, LPI_DCY + LPI_DR + 40);
+
+    // ---------- next-24h altitude curve ----------
+    var lat = 51.5;
+    var steps = 96, stepS = 900;                          // 15 minutes
+    var yTop = 284, yBot = 428, x0 = 24, x1 = 700;
+    var lpiPy = function (alt) { return yTop + (80 - alt) / 110 * (yBot - yTop); };
+    var y0 = lpiPy(0);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(190,215,245,0.85)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText('Moon altitude & moonlight — next 24 h, drawn for lat ' + lat.toFixed(1) + '°N, lon 0°', x0, 262);
+    // horizon line + shading
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(120,180,255,0.06)';
+    ctx.fillRect(x0, yTop, x1 - x0, y0 - yTop);            // above-horizon zone
+    ctx.fillStyle = 'rgba(60,40,80,0.25)';
+    ctx.fillRect(x0, y0, x1 - x0, yBot - y0);
+    ctx.fillStyle = 'rgba(190,210,235,0.6)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText('above horizon', x0, yTop + 12);
+    ctx.fillText('below horizon', x0, y0 + 14);
+
+    var pts = [], i, moonNow = null;
+    for (i = 0; i <= steps; i++) {
+      var tt = t + i * stepS * 1000;
+      var a = lpiMoonAlt(tt, lat).alt;
+      if (i === 0) moonNow = a;
+      pts.push({ t: tt, alt: a });
+    }
+    ctx.strokeStyle = 'rgba(127,220,255,0.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (i = 0; i < pts.length; i++) {
+      var px = x0 + i / steps * (x1 - x0);
+      var py = lpiPy(pts[i].alt);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    // current marker
+    var cpx = x0, cpy = lpiPy(moonNow);
+    ctx.fillStyle = 'rgba(255,230,180,0.95)';
+    ctx.beginPath(); ctx.arc(cpx, cpy, 4, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,230,180,0.6)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cpx, yTop); ctx.lineTo(cpx, yBot); ctx.stroke();
+    // rise/set crossings
+    var rises = [], sets = [];
+    for (i = 1; i < pts.length; i++) {
+      if (pts[i - 1].alt <= 0 && pts[i].alt > 0) rises.push(pts[i].t);
+      if (pts[i - 1].alt >= 0 && pts[i].alt < 0) sets.push(pts[i].t);
+    }
+    var hhmm = function (ms) {
+      var d = new Date(ms);
+      return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+    };
+    var info = 'now ' + moonNow.toFixed(1) + '°';
+    if (rises.length && sets.length) info += '  ·  rises ' + hhmm(rises[0]) + ' UTC  ·  sets ' + hhmm(sets[0]) + ' UTC';
+    else if (moonNow > 0) info += '  ·  up all night';
+    else info += '  ·  down all night';
+    var moonlight = moonNow > 0
+      ? (illum > 60 ? 'bright moonlight — poor for faint deep-sky' : illum > 20 ? 'moderate moonlight' : 'thin moonlight — decent deep-sky')
+      : 'Moon below horizon — darkest-sky window';
+    ctx.fillStyle = 'rgba(170,200,235,0.8)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(info, x0, 246);
+    $('lpi-canvas-status').textContent = name + ' · ' + illum.toFixed(0) + '% lit · age ' + age.toFixed(1) + ' d · ' + info + ' · ' + moonlight;
+  }
+
+  function lpiSyncSlider() {
+    var t = lpiT();
+    if (!t) return;
+    var frac = ageOf(t) / SYNODIC;
+    $('lpi-slider-phase').value = Math.round(frac * 100);
+    $('lpi-val-phase').textContent = 'day ' + ageOf(t).toFixed(1) + ' · ' + (frac * 100).toFixed(0) + '%';
+  }
+
+  function lpiSetFromSlider() {
+    var frac = (parseFloat($('lpi-slider-phase').value) || 0) / 100;
+    var t = EPOCH + frac * SYNODIC * 86400000;
+    var d = new Date(t);
+    $('lpi-date').value = d.toISOString().slice(0, 10);
+    $('lpi-time').value = d.toISOString().slice(11, 16);
+    $('lpi-date').dispatchEvent(new Event('change'));
+    $('lpi-time').dispatchEvent(new Event('change'));
+  }
+
+  if (lpiCanvas) {
+    var lpiOrbitDrag = false;
+    lpiCanvas.addEventListener('pointerdown', function (e) {
+      var r = lpiCanvas.getBoundingClientRect();
+      var x = (e.clientX - r.left) / r.width * 720, y = (e.clientY - r.top) / r.height * 430;
+      var dx = x - LPI_OCX, dy = LPI_OCY - y;
+      var rho = Math.sqrt(dx * dx + dy * dy);
+      if (rho > LPI_OR * 0.6 && rho < LPI_OR * 1.4) {
+        lpiOrbitDrag = true;
+        lpiCanvas.setPointerCapture(e.pointerId);
+        lpiSetFromAngle(dx, dy);
+      }
+    });
+    lpiCanvas.addEventListener('pointermove', function (e) {
+      if (!lpiOrbitDrag) return;
+      var r = lpiCanvas.getBoundingClientRect();
+      var x = (e.clientX - r.left) / r.width * 720, y = (e.clientY - r.top) / r.height * 430;
+      lpiSetFromAngle(x - LPI_OCX, LPI_OCY - y);
+    });
+    lpiCanvas.addEventListener('pointerup', function () { lpiOrbitDrag = false; });
+    function lpiSetFromAngle(dx, dy) {
+      var th = (Math.atan2(dy, dx) * R2D + 360) % 360;     // 0° = full side (right)
+      var frac = ((th - 180 + 360) % 360) / 360;
+      $('lpi-slider-phase').value = Math.round(frac * 100);
+      $('lpi-val-phase').textContent = 'day ' + (frac * SYNODIC).toFixed(1) + ' · ' + (frac * 100).toFixed(0) + '%';
+      lpiSetFromSlider();
+    }
+  }
+
+  var lpiRunOriginal = run;
+  run = function () { lpiRunOriginal(); lpiSyncSlider(); lpiDraw(); };
+
+  $('lpi-slider-phase').addEventListener('input', lpiSetFromSlider);
+
   $('lpi-date').addEventListener('change', run);
   $('lpi-time').addEventListener('change', run);
 

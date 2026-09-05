@@ -11,11 +11,27 @@
       <label for="bhx-mass" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Mass (solar masses)</label>
       <input id="bhx-mass" type="number" min="0.000001" step="any" value="10"
              style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      <input id="bhx-slider-mass" type="range" min="0" max="100" step="1" value="47" style="width:100%;margin-top:8px;"
+             aria-label="Mass slider (log scale)" />
     </div>
     <div>
       <label for="bhx-height" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Your height (m)</label>
       <input id="bhx-height" type="number" min="0.5" max="3" step="0.1" value="1.8"
              style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>🔭 Zoom out (view width)</span><span id="bhx-val-zoom">—</span>
+      </div>
+      <input id="bhx-slider-zoom" type="range" min="0" max="100" step="1" value="13" style="width:100%;" />
+    </div>
+  </div>
+
+  <!-- 3D scene -->
+  <div style="background:#02030a;border:1px solid rgba(255,160,90,0.25);border-radius:8px;padding:8px;margin-bottom:16px;text-align:center;">
+    <canvas id="bhx-canvas" width="720" height="400" style="width:100%;height:400px;display:block;border-radius:6px;background:radial-gradient(circle at 50% 40%, #0a0710, #01020a 80%);"></canvas>
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:0.66rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="bhx-canvas-status" style="color:#aadcff;font-family:monospace;">DRAG TO TILT · scroll for true-size rings</span>
     </div>
   </div>
 
@@ -24,6 +40,8 @@
             style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Calculate</button>
     <button type="button" id="bhx-reset"
             style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">Reset</button>
+    <button type="button" id="bhx-btn-disc"
+            style="padding:12px 24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(230,250,255,0.7);cursor:pointer;">🌀 Accretion disc: ON</button>
   </div>
 
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
@@ -134,15 +152,299 @@
       '</div>';
   }
 
+  // ---------- 3D scene: true-to-scale horizon / photon sphere / ISCO ----------
+  var bhxCanvas = $('bhx-canvas');
+  var bhxCtx = bhxCanvas ? bhxCanvas.getContext('2d') : null;
+  var bhxAz = 0.72, bhxEl = 0.62;                    // camera spherical (rad)
+  var bhxZoom = parseFloat($('bhx-slider-zoom').value) || 13;
+  var bhxDisc = true;
+  var bhxPhase = 0;                                  // accretion-disc rotation
+  var bhxDrag = null;
+
+  function bhxViewR() { return 1.5 * Math.pow(10, (bhxZoom / 100) * Math.log10(4000 / 1.5)); }
+
+  function bhxLog10(x) { return Math.log(x) / Math.LN10; }
+
+  function bhxProject(px, py, pz, d) {
+    var ca = Math.cos(bhxAz), sa = Math.sin(bhxAz);
+    var ce = Math.cos(bhxEl), se = Math.sin(bhxEl);
+    var x1 = px * ca + pz * sa;
+    var z1 = -px * sa + pz * ca;
+    var y2 = py * ce - z1 * se;
+    var z2 = py * se + z1 * ce;
+    var depth = d - z2;
+    if (depth < 0.5) depth = 0.5;
+    return { x: 360 + 940 * x1 / depth, y: 208 - 940 * y2 / depth, y2: y2, depth: depth };
+  }
+
+  function bhxRingPath(ctx, r, d, n) {
+    var i, a, pt, pts = [];
+    for (i = 0; i <= n; i++) {
+      a = (i / n) * Math.PI * 2;
+      pt = bhxProject(r * Math.cos(a), 0, r * Math.sin(a), d);
+      pts.push(pt);
+    }
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (i = 1; i <= n; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    return pts;
+  }
+
+  function bhxFarHalf(ctx, r, d, n) {   // points with y2 > 0 pass behind the hole
+    var i, a, pt, pts = [];
+    for (i = 0; i <= n; i++) {
+      a = (i / n) * Math.PI * 2;
+      pt = bhxProject(r * Math.cos(a), 0, r * Math.sin(a), d);
+      if (pt.y2 > 0) pts.push(pt);
+    }
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+  }
+
+  function bhxNearHalf(ctx, r, d, n) {  // points with y2 < 0 pass in front
+    var i, a, pt, pts = [];
+    for (i = 0; i <= n; i++) {
+      a = (i / n) * Math.PI * 2;
+      pt = bhxProject(r * Math.cos(a), 0, r * Math.sin(a), d);
+      if (pt.y2 < 0) pts.push(pt);
+    }
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+  }
+
+  function bhxLabel(ctx, x, y, text, colour, align) {
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillStyle = colour || 'rgba(200,220,255,0.75)';
+    ctx.textAlign = align || 'left';
+    ctx.fillText(text, x, y);
+  }
+
+  function bhxTick(ctx, x1, y1, x2, y2, colour) {
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  function bhxDraw() {
+    if (!bhxCtx) return;
+    var ms = parseFloat($('bhx-mass').value);
+    if (!(ms > 0)) return;
+    var M = ms * MSUN;
+    var rs = 2 * G * M / (C * C);
+    var d = bhxViewR() * 2.3 + 2;
+    var ctx = bhxCtx;
+
+    ctx.clearRect(0, 0, 720, 400);
+    // deep backdrop + starfield
+    var g0 = ctx.createRadialGradient(360, 190, 20, 360, 230, 420);
+    g0.addColorStop(0, 'rgba(38,20,44,1)');
+    g0.addColorStop(0.55, 'rgba(8,6,20,1)');
+    g0.addColorStop(1, 'rgba(1,2,10,1)');
+    ctx.fillStyle = g0;
+    ctx.fillRect(0, 0, 720, 400);
+    for (var st = 0; st < 90; st++) {
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.12 + 0.5 * Math.abs(Math.sin(st * 7.31))) + ')';
+      ctx.fillRect(((st * 137.5) % 720), ((st * 53.73) % 400), 1.2, 1.2);
+    }
+
+    var viewR = bhxViewR();
+    var earthR = AU / rs;                       // Earth's orbit in units of rs
+
+    // Earth-orbit reference circle (inside the horizon for supermassive holes!)
+    if (earthR < viewR * 1.9 && earthR > 0) {
+      var epts = bhxRingPath(ctx, earthR, d, 128);
+      ctx.strokeStyle = 'rgba(96,180,255,0.55)';
+      ctx.setLineDash([3, 5]);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      var eLast = epts[Math.floor(epts.length * 0.6)];
+      if (earthR < 1.5) {
+        // horizon dwarfs the orbit: pin the legend to the corner instead of the circle
+        bhxLabel(ctx, 10, 356, 'Earth orbit: INSIDE the event horizon', 'rgba(255,150,120,0.95)');
+        bhxLabel(ctx, 10, 342, 'Earth orbits at r = 1 AU, but Rs = ' + (AU / rs).toFixed(4) + ' AU here', 'rgba(120,200,255,0.75)', 'left');
+      } else {
+        bhxLabel(ctx, eLast.x + 8, eLast.y - 5, 'Earth orbit (1 AU)', 'rgba(120,200,255,0.95)');
+      }
+    }
+
+    // accretion disc — far half passes BEHIND the hole, near half in front
+    if (bhxDisc && viewR < 5.2) {
+      var dr, ringCol, ri;
+      var rings = [
+        { r: 1.55, w: 0.55, c: 'rgba(255,96,32,0.75)' },
+        { r: 1.95, w: 0.45, c: 'rgba(255,150,60,0.62)' },
+        { r: 2.35, w: 0.4,  c: 'rgba(255,204,110,0.42)' },
+        { r: 2.72, w: 0.45, c: 'rgba(255,230,170,0.18)' }
+      ];
+      for (ri = 0; ri < rings.length; ri++) {
+        var ring = rings[ri];
+        // front half first (it will be overdrawn by the hole only where it should be)
+        ctx.strokeStyle = ring.c;
+        ctx.lineWidth = ring.w;
+        ctx.lineCap = 'round';
+        if (ri === 0) {
+          // hot rotating spot on the inner ring
+          for (dr = 0; dr < 3; dr++) {
+            var sa = bhxPhase + dr * 2.094;
+            var sr = ring.r + (dr === 1 ? 0.12 : -0.06);
+            var spt = bhxProject(sr * Math.cos(sa), 0, sr * Math.sin(sa), d);
+            if (spt.y2 > -0.2 && spt.y2 < 2.2) {
+              ctx.fillStyle = 'rgba(255,240,200,0.9)';
+              ctx.beginPath();
+              ctx.arc(spt.x, spt.y, 3, 0, 6.2832);
+              ctx.fill();
+            }
+          }
+        }
+        bhxFarHalf(ctx, ring.r, d, 90);
+      }
+    }
+
+    // photon ring + horizon
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.6;
+    bhxRingPath(ctx, 1.5, d, 128);
+    ctx.stroke();
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    bhxRingPath(ctx, 1.02, d, 128);
+    ctx.fill();
+    // thin rim light
+    ctx.strokeStyle = 'rgba(255,170,80,0.85)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    bhxRingPath(ctx, 1.02, d, 128);
+    ctx.stroke();
+    ctx.restore();
+
+    // near half of the disc in front of the hole
+    if (bhxDisc && viewR < 5.2) {
+      var rings2 = [
+        { r: 1.55, w: 0.55, c: 'rgba(255,150,70,0.95)' },
+        { r: 1.95, w: 0.45, c: 'rgba(255,190,100,0.8)' },
+        { r: 2.35, w: 0.4,  c: 'rgba(255,225,150,0.5)' },
+        { r: 2.72, w: 0.45, c: 'rgba(255,240,200,0.22)' }
+      ];
+      for (var ri2 = 0; ri2 < rings2.length; ri2++) {
+        ctx.strokeStyle = rings2[ri2].c;
+        ctx.lineWidth = rings2[ri2].w;
+        bhxNearHalf(ctx, rings2[ri2].r, d, 90);
+      }
+    }
+
+    // labels
+    var lp = bhxProject(1.5, 0, 1.5, d);
+    bhxLabel(ctx, lp.x - 6, lp.y - 10, 'photon sphere r = 1.5 Rs', 'rgba(255,235,200,0.9)');
+    var li = bhxProject(3, 0, 3, d);
+    bhxLabel(ctx, li.x - 14, li.y - 8, 'ISCO r = 3 Rs', 'rgba(170,220,255,0.75)');
+    var lh = bhxProject(1.02, 0, 1.02, d);
+    bhxLabel(ctx, lh.x + 10, lh.y + 22, 'event horizon Rs', 'rgba(255,120,60,0.95)');
+    var wau = viewR * 2 * rs / AU;
+    bhxLabel(ctx, 10, 390, 'view width: ' + (viewR * 2).toFixed(1) + ' Rs' + (wau > 0.25 ? '  \u2248 ' + wau.toFixed(1) + ' AU' : ''), 'rgba(200,220,255,0.7)');
+    bhxLabel(ctx, 10, 374, 'cross-section at equator, disc tilted', 'rgba(130,150,180,0.6)');
+  }
+
+  function bhxReadSliders() {
+    var bz = parseFloat($('bhx-slider-zoom').value);
+    bhxZoom = isFinite(bz) ? Math.max(0, Math.min(100, bz)) : 13;
+    bhxZoom = Math.max(0, Math.min(100, bhxZoom));
+    var wau = bhxViewR() * 2 * parseFloat($('bhx-mass').value || '10') * 2 * G * MSUN / (C * C) / AU;
+    var txt = (bhxViewR() * 2).toFixed(1) + ' Rs';
+    if (wau > 0.25) txt += '  \u2248 ' + wau.toFixed(1) + ' AU';
+    $('bhx-val-zoom').textContent = txt;
+  }
+
+  function bhxSyncSlider() {
+    var ms = parseFloat($('bhx-mass').value);
+    if (ms > 0) {
+      var v = (bhxLog10(ms) + 6) / 17 * 100;
+      $('bhx-slider-mass').value = Math.max(0, Math.min(100, v));
+    }
+    bhxReadSliders();
+  }
+
+  if (bhxCanvas) {
+    bhxCanvas.addEventListener('pointerdown', function (e) {
+      bhxDrag = { x: e.clientX, y: e.clientY };
+      bhxCanvas.setPointerCapture(e.pointerId);
+    });
+    bhxCanvas.addEventListener('pointermove', function (e) {
+      if (!bhxDrag) return;
+      bhxAz += (e.clientX - bhxDrag.x) * 0.009;
+      bhxEl = Math.max(0.1, Math.min(1.5, bhxEl + (e.clientY - bhxDrag.y) * 0.007));
+      bhxDrag = { x: e.clientX, y: e.clientY };
+      bhxDraw();
+    });
+    bhxCanvas.addEventListener('pointerup', function () { bhxDrag = null; });
+    bhxCanvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      $('bhx-slider-zoom').value = Math.max(0, Math.min(100, parseFloat($('bhx-slider-zoom').value) + (e.deltaY < 0 ? 2.5 : -2.5)));
+      bhxReadSliders();
+      bhxDraw();
+    }, { passive: false });
+  }
+
+  var bhxRunning = false;
+  function bhxLoop() {
+    bhxPhase += 0.012;
+    if (!document.hidden) bhxDraw();
+    if (bhxRunning) requestAnimationFrame(bhxLoop);
+  }
+  if (typeof requestAnimationFrame === 'function' && !document.hidden) {
+    bhxRunning = true;
+    requestAnimationFrame(bhxLoop);
+  }
+
+  // keep the classic run() output intact, then paint the scene over it
+  var bhxRunOriginal = run;
+  run = function () { bhxRunOriginal(); bhxSyncSlider(); bhxDraw(); };
+
+  $('bhx-slider-mass').addEventListener('input', function () {
+    var v = parseFloat($('bhx-slider-mass').value);
+    var m = Math.pow(10, -6 + (v / 100) * 17);
+    $('bhx-mass').value = m < 1 ? m.toExponential(3) : m.toPrecision(3);
+    $('bhx-mass').dispatchEvent(new Event('input'));
+  });
+  $('bhx-slider-zoom').addEventListener('input', function () { bhxReadSliders(); bhxDraw(); });
+  $('bhx-btn-disc').addEventListener('click', function () {
+    bhxDisc = !bhxDisc;
+    $('bhx-btn-disc').textContent = bhxDisc ? '🌀 Accretion disc: ON' : '🌀 Accretion disc: OFF';
+    bhxDraw();
+  });
+  ['bhx-mass', 'bhx-height'].forEach(function (id) { $(id).addEventListener('input', bhxDraw); });
+
   $('bhx-calc').addEventListener('click', run);
-  $('bhx-reset').addEventListener('click', function () {
+
+  // keep original reset behaviour
+  var bhxResetOrig = function () {
     card.querySelector('form').reset();
     $('bhx-out').innerHTML = 'Enter a mass.';
-  });
+  };
+
   Array.prototype.forEach.call(card.querySelectorAll('.bhx-p'), function (b) {
     b.addEventListener('click', function () { $('bhx-mass').value = b.getAttribute('data-m'); run(); });
   });
   ['bhx-mass', 'bhx-height'].forEach(function (id) { $(id).addEventListener('input', run); });
+  $('bhx-reset').addEventListener('click', function () {
+    bhxResetOrig();
+    bhxZoom = 13;
+    $('bhx-slider-zoom').value = 13;
+    bhxDisc = true;
+    $('bhx-btn-disc').textContent = '🌀 Accretion disc: ON';
+    bhxSyncSlider();
+    bhxDraw();
+  });
   run();
 })();
 </script>

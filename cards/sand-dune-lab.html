@@ -1,0 +1,281 @@
+<h2 id="dun-title" style="margin-top:0;color:var(--accent);">🏜️ Sand Dune Lab</h2>
+
+<form aria-describedby="dun-desc" onsubmit="event.preventDefault();">
+  <p id="dun-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A saltation cellular automaton of a sand sea. Wind above Bagnold's threshold picks up grains, slip faces (34°) trap them, vegetation anchors the sand, and supply + wind variability decide whether barchans, transverse ridges, linear or star dunes emerge. Watch them migrate.
+  </p>
+
+  <!-- Dune presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="dun-preset" data-id="barchan" style="padding:4px 10px;border-radius:4px;background:rgba(230,190,120,0.16);border:1px solid #e6be78;color:#f2d9a8;font-size:0.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;">🌙 Barchan</button>
+    <button type="button" class="dun-preset" data-id="transverse" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">↔ Transverse</button>
+    <button type="button" class="dun-preset" data-id="linear" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">↗ Linear</button>
+    <button type="button" class="dun-preset" data-id="star" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">✴ Star</button>
+    <button type="button" class="dun-preset" data-id="veg" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌾 Vegetated</button>
+  </div>
+
+  <div style="background:#0a0806;border:1px solid rgba(230,190,120,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="dun-canvas" width="640" height="320" style="width:100%;height:320px;display:block;background:#7a5c33;border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="dun-type" style="color:#f2d9a8;font-family:monospace;">DUNE TYPE: —</span>
+      <span id="dun-migrate" style="color:#d0e68f;font-family:monospace;">MIGRATION —</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Wind Speed (10 m)</span><span id="dun-val-wind">11 m/s</span>
+      </div>
+      <input type="range" id="dun-slider-wind" min="4" max="20" step="0.5" value="11" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Wind Direction Variability</span><span id="dun-val-var">12%</span>
+      </div>
+      <input type="range" id="dun-slider-var" min="0" max="100" step="1" value="12" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Sand Supply (source input)</span><span id="dun-val-supply">0.6</span>
+      </div>
+      <input type="range" id="dun-slider-supply" min="0" max="1.5" step="0.05" value="0.6" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Mean Grain Size</span><span id="dun-val-grain">0.25 mm</span>
+      </div>
+      <input type="range" id="dun-slider-grain" min="0.1" max="1" step="0.05" value="0.25" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Vegetation Cover</span><span id="dun-val-veg">0%</span>
+      </div>
+      <input type="range" id="dun-slider-veg" min="0" max="100" step="1" value="0" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">SALTATION FLUX</div>
+      <div id="dun-stat-q" style="font-size:0.85rem;font-family:monospace;color:#f2d9a8;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">TRESHOLD VELOCITY</div>
+      <div id="dun-stat-ut" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">PREFERRED DUNE TYPE</div>
+      <div id="dun-stat-pref" style="font-size:0.85rem;font-family:monospace;color:#d0e68f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">DURE DENSITY (moved %)</div>
+      <div id="dun-stat-dunes" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div style="text-align:center;">
+    <button type="button" id="dun-btn-reset" style="padding:6px 16px;border-radius:6px;background:rgba(230,190,120,0.16);border:1px solid #e6be78;color:#f2d9a8;font-size:0.75rem;font-weight:bold;cursor:pointer;">↺ Rebuild Sand Sea</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Threshold friction velocity for saltation: u*_t = A·√(g·d·(ρs−ρ)/ρ) (Bagnold, A ≈ 0.1); grains coarser
+      than ~0.1 mm need stronger wind. Sand flux follows the (u − u_t)³ law, q = C·(u − u_t)³. Grains erode
+      windward faces, deposit on the downwind slip face (angle of repose 34°), so dunes migrate at
+      c ≈ q/(ρ·h). Wind directional variability with low supply produces barchans, medium supply transverse
+      ridges, bimodal winds linear dunes and multi-directional winds star dunes.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('dun-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const COLS = 96, ROWS = 32, CW = W / COLS, CH = H / ROWS;
+
+  const sWind = $('dun-slider-wind'), sVar = $('dun-slider-var'), sSupply = $('dun-slider-supply'),
+        sGrain = $('dun-slider-grain'), sVeg = $('dun-slider-veg');
+  const vWind = $('dun-val-wind'), vVar = $('dun-val-var'), vSupply = $('dun-val-supply'),
+        vGrain = $('dun-val-grain'), vVeg = $('dun-val-veg');
+  const typeEl = $('dun-type'), migrateEl = $('dun-migrate');
+  const statQ = $('dun-stat-q'), statUt = $('dun-stat-ut'), statPref = $('dun-stat-pref'), statDunes = $('dun-stat-dunes');
+  const btnReset = $('dun-btn-reset');
+
+  let wind = 11, vary = 12, supply = 0.6, grainMm = 0.25, vegPct = 0;
+  let Ht = new Float32Array(COLS * ROWS), veg = new Uint8Array(COLS * ROWS), t = 0, moved = 0;
+
+  const PRESETS = {
+    barchan:    { wind: 11, vary: 12,  supply: 0.6,  grain: 0.25, veg: 0 },
+    transverse: { wind: 13, vary: 22,  supply: 1.1,  grain: 0.3,  veg: 0 },
+    linear:     { wind: 12, vary: 55,  supply: 0.8,  grain: 0.25, veg: 0 },
+    star:       { wind: 14, vary: 85,  supply: 1.0,  grain: 0.3,  veg: 0 },
+    veg:        { wind: 9,  vary: 25,  supply: 0.9,  grain: 0.25, veg: 55 }
+  };
+
+  function rebuild() {
+    Ht.fill(0); veg.fill(0);
+    // seeded noise bumps
+    for (let i = 0; i < Ht.length; i++) {
+      const x = i % COLS, y = Math.floor(i / COLS);
+      const n = Math.sin(x * 0.23 + y * 0.71) * Math.sin(x * 0.11 - y * 0.33);
+      Ht[i] = Math.max(0, n * 1.4 + 0.25 + (Math.random() - 0.5) * 0.3);
+    }
+    // vegetation
+    for (let i = 0; i < veg.length; i++) {
+      veg[i] = Math.random() * 100 < vegPct ? 1 : 0;
+    }
+    moved = 0; t = 0;
+  }
+
+  function readSliders() {
+    wind = parseFloat(sWind.value); vary = parseFloat(sVar.value); supply = parseFloat(sSupply.value);
+    grainMm = parseFloat(sGrain.value); vegPct = parseFloat(sVeg.value);
+    vWind.textContent = wind + ' m/s'; vVar.textContent = vary + '%';
+    vSupply.textContent = supply; vGrain.textContent = grainMm + ' mm'; vVeg.textContent = vegPct + '%';
+  }
+
+  function physics() {
+    // Bagnold threshold friction velocity u*_t = A·√(g·d·(ρs−ρ)/ρ); u* ≈ 0.05·u₁₀
+    // → threshold 10-m wind speed ut ≈ A·√(g·d·Δρ/ρ)/0.052
+    const ut = (0.1 * Math.sqrt(9.81 * (grainMm / 1000) * (2650 - 1.2) / 1.2)) / 0.052;
+    const q = Math.max(0, wind - ut) ** 3 * 0.0001; // kg/(m·s), Bagnold-type
+    const migrate = q * 3.1536e7 / (1650 * 6); // m/yr for a 6 m dune
+    // preferred type by variability + supply
+    let pref = 'Barchan';
+    if (vary < 15) pref = supply < 0.8 ? 'Barchan' : 'Transverse';
+    else if (vary < 45) pref = 'Transverse';
+    else if (vary < 75) pref = 'Linear';
+    else pref = 'Star';
+    if (vegPct > 35) pref = 'Parabolic (vegetated)';
+    return { ut, q, migrate, pref };
+  }
+
+  function caStep() {
+    const p = physics();
+    const dirBase = 0; // wind from west
+    const dirWig = (vary / 100) * 2.6; // radians of wiggle
+    const th = dirBase + Math.sin(t * 0.8) * dirWig * 0.5 + (Math.random() - 0.5) * dirWig * 0.4;
+    const dx = Math.cos(th), dy = Math.sin(th) * 0.6; // slight N-S component
+    const delta = new Float32Array(Ht.length);
+    const qCell = Math.min(0.16, p.q * 60);
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const i = r * COLS + c;
+        // upwind / downwind neighbours (wrapped or clipped)
+        const uc = Math.round(c - dx), ur = Math.round(r - dy);
+        const dc = Math.round(c + dx), dr = Math.round(r + dy);
+        const ux = Math.min(COLS - 1, Math.max(0, uc)), uy = Math.min(ROWS - 1, Math.max(0, ur));
+        const dxx = Math.min(COLS - 1, Math.max(0, dc)), dyy = Math.min(ROWS - 1, Math.max(0, dr));
+        const up = Ht[uy * COLS + ux], down = Ht[dyy * COLS + dxx];
+        const exposure = Math.max(0, Ht[i] - up);
+        // vegetation anchors unless buried
+        const anchored = veg[i] === 1 && Ht[i] < 5.5;
+        let erode = 0;
+        if (!anchored && p.q > 0.0004) {
+          erode = qCell * (1 + exposure * 2.6);
+          if (Ht[i] < 0.5) erode *= 0.4; // thin sand harder to erode
+        }
+        erode = Math.min(erode, Ht[i]);
+        // supply injected at western edge
+        let dep = erode;
+        if (c === 0 && supply > 0) dep += qCell * supply * 3;
+        // deposit on downwind cell, cap at slip-face slope (34°)
+        const maxH = up + 0.9 * 2.6; // local top barrier — approximated by upwind + slope head
+        const room = Math.max(0, Math.min(1.5, maxH - down) + 1.2);
+        const drop = Math.min(dep, room * 0.8 + 0.35, 2.2);
+        delta[i] -= Math.min(erode, dep);
+        delta[dyy * COLS + dxx] += drop;
+        moved += drop;
+      }
+    }
+    for (let i = 0; i < Ht.length; i++) {
+      Ht[i] = Math.max(0, Math.min(10, Ht[i] + delta[i]));
+    }
+    // vegetation growth on stable sand
+    if (vegPct > 0 && Math.random() < 0.05 * vegPct / 50) {
+      const i = Math.floor(Math.random() * Ht.length);
+      if (Ht[i] > 0.3 && Ht[i] < 5 && veg[i] === 0 && Math.random() * 100 < vegPct) veg[i] = 1;
+    }
+    t += 0.05;
+  }
+
+  function draw() {
+    // sky + horizon
+    ctx.fillStyle = '#c8a05e'; ctx.fillRect(0, 0, W, H);
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const i = r * COLS + c;
+        const hgt = Ht[i], shade = Math.min(1, hgt / 8);
+        // base sand + height shading
+        const l = 190 - shade * 90;
+        ctx.fillStyle = 'rgb(' + Math.round(l) + ',' + Math.round(l - 30) + ',' + Math.round(l - 85) + ')';
+        ctx.fillRect(c * CW, r * CH, CW, CH);
+        // slip-face shadow on downwind (east) side
+        const downIdx = r * COLS + Math.min(COLS - 1, c + 1);
+        if (hgt > Ht[downIdx] + 0.35) {
+          ctx.fillStyle = 'rgba(40,25,10,0.35)';
+          ctx.fillRect(c * CW, r * CH, CW, CH);
+        }
+        // ripple micro-texture
+        if (hgt > 0.2 && (c + r) % 2 === 0) {
+          ctx.fillStyle = 'rgba(255,240,200,0.06)';
+          ctx.fillRect(c * CW, r * CH, CW, CH / 2);
+        }
+        // vegetation
+        if (veg[i] === 1) {
+          ctx.fillStyle = 'rgba(60,110,45,0.9)';
+          ctx.fillRect(c * CW + 2, r * CH + 2, CW - 4, CH - 4);
+          ctx.fillStyle = 'rgba(110,160,70,0.6)';
+          ctx.fillRect(c * CW + 4, r * CH + 4, 2, 2);
+        }
+      }
+    }
+    // wind arrow
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(26, 26); ctx.lineTo(26 + 60, 26); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(26 + 60, 26); ctx.lineTo(26 + 52, 21); ctx.moveTo(26 + 60, 26); ctx.lineTo(26 + 52, 31); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '9px monospace'; ctx.fillText('WIND ' + wind + ' m/s', 30, 12);
+    // source marker
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('SAND SOURCE →', 6, H - 8);
+  }
+
+  let last = performance.now(), acc = 0;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    acc += dt;
+    if (acc > 0.12) { caStep(); acc = 0; }
+    const p = physics();
+    draw();
+    typeEl.textContent = 'DUNE TYPE: ' + p.pref;
+    migrateEl.textContent = 'MIGRATION ' + p.migrate.toFixed(1) + ' m/yr';
+    statQ.textContent = p.q.toFixed(4) + ' kg/m·s';
+    statUt.textContent = p.ut.toFixed(1) + ' m/s';
+    statPref.textContent = p.pref;
+    let dunes = 0;
+    for (let i = 0; i < Ht.length; i++) if (Ht[i] > 2.5) dunes++;
+    statDunes.textContent = (dunes / Ht.length * 100).toFixed(0) + '%';
+    requestAnimationFrame(loop);
+  }
+
+  [sWind, sVar, sSupply, sGrain, sVeg].forEach(s => s.addEventListener('input', readSliders));
+  document.querySelectorAll('.dun-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pr = PRESETS[btn.dataset.id];
+      sWind.value = pr.wind; sVar.value = pr.vary; sSupply.value = pr.supply;
+      sGrain.value = pr.grain; sVeg.value = pr.veg;
+      readSliders(); rebuild();
+    });
+  });
+  btnReset.addEventListener('click', rebuild);
+  readSliders(); rebuild();
+  requestAnimationFrame(loop);
+})();
+</script>

@@ -1,0 +1,254 @@
+<h2 id="eqk-title" style="margin-top:0;color:var(--accent);">🫨 Earthquake Seismograph Lab</h2>
+
+<form aria-describedby="eqk-desc" onsubmit="event.preventDefault();">
+  <p id="eqk-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Trigger a fault rupture and watch P, S and surface waves race outward — then read the synthetic seismogram: S−P time lag gives the distance, amplitude gives the magnitude, and seismic attenuation by rock type shapes what the station actually feels. Change magnitude, depth, distance and crustal quality, then re-trigger.
+  </p>
+
+  <div style="background:#05070d;border:1px solid rgba(255,160,90,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="eqk-canvas" width="640" height="300" style="width:100%;height:300px;display:block;background:linear-gradient(#0b1018,#101820 70%,#1a2118);border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="eqk-status" style="color:#aadcff;font-family:monospace;">TRIGGER THE FAULT</span>
+      <span id="eqk-mmi" style="color:#ff9c6b;font-family:monospace;">MMI —</span>
+    </div>
+  </div>
+
+  <div style="background:#04060a;border:1px solid rgba(255,160,90,0.2);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;padding:0 4px;">
+      <span>SYNTHETIC SEISMOGRAM (P → S → surface waves)</span>
+      <span id="eqk-sp" style="color:#ffd27f;font-family:monospace;">S−P —</span>
+    </div>
+    <canvas id="eqk-seis" width="640" height="170" style="width:100%;height:170px;display:block;background:#060b12;border-radius:6px;"></canvas>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Moment Magnitude</span><span id="eqk-val-mag">M 6.8</span>
+      </div>
+      <input type="range" id="eqk-slider-mag" min="3" max="9.5" step="0.1" value="6.8" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Hypocenter Depth</span><span id="eqk-val-depth">30 km</span>
+      </div>
+      <input type="range" id="eqk-slider-depth" min="5" max="700" step="5" value="30" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Station Distance</span><span id="eqk-val-dist">120 km</span>
+      </div>
+      <input type="range" id="eqk-slider-dist" min="5" max="2000" step="5" value="120" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Crustal Attenuation (1/Q)</span><span id="eqk-val-q">0.010</span>
+      </div>
+      <input type="range" id="eqk-slider-q" min="0.002" max="0.03" step="0.0005" value="0.010" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">S−P TIME LAG</div>
+      <div id="eqk-stat-sp" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">PEAK GROUND ACCEL.</div>
+      <div id="eqk-stat-pga" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">MODIFIED MERCALLI</div>
+      <div id="eqk-stat-mmi" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">SEISMIC ENERGY</div>
+      <div id="eqk-stat-e" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div style="text-align:center;">
+    <button type="button" id="eqk-btn-trigger" style="padding:6px 16px;border-radius:6px;background:rgba(255,120,60,0.2);border:1px solid #ff7838;color:#ffb56b;font-size:0.75rem;font-weight:bold;cursor:pointer;">⚡ TRIGGER FAULT RUPTURE</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Wave speeds Vp ≈ 6.2 km/s, Vs ≈ 3.5 km/s (Vp/Vs ≈ √3), so S−P = r·(1/3.5 − 1/6.2) directly gives
+      hypocentral distance. Radiated energy E ≈ 10^(1.5·M + 4.8) J (Gutenberg–Richter). Ground motion decays
+      with geometric spreading 1/r and anelastic attenuation exp(−πf·r/(Q·c)). PGA scaled from magnitude and
+      distance; Modified Mercalli intensity from PGA via MMI ≈ 1.5·log₁₀(a) + 3.9.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('eqk-canvas'), ctx = canvas.getContext('2d');
+  const seis = $('eqk-seis'), sctx = seis.getContext('2d');
+  const W = canvas.width, H = canvas.height, SW = seis.width, SH = seis.height;
+
+  const sMag = $('eqk-slider-mag'), sDepth = $('eqk-slider-depth'), sDist = $('eqk-slider-dist'), sQ = $('eqk-slider-q');
+  const vMag = $('eqk-val-mag'), vDepth = $('eqk-val-depth'), vDist = $('eqk-val-dist'), vQ = $('eqk-val-q');
+  const statusEl = $('eqk-status'), mmiEl = $('eqk-mmi'), spEl = $('eqk-sp');
+  const statSp = $('eqk-stat-sp'), statPga = $('eqk-stat-pga'), statMmi = $('eqk-stat-mmi'), statE = $('eqk-stat-e');
+  const btnTrigger = $('eqk-btn-trigger');
+
+  let mag = 6.8, depth = 30, dist = 120, qInv = 0.010;
+  let t = 0, t0 = -1e9, quake = null;
+
+  function readSliders() {
+    mag = parseFloat(sMag.value); depth = parseFloat(sDepth.value);
+    dist = parseFloat(sDist.value); qInv = parseFloat(sQ.value);
+    vMag.textContent = 'M ' + mag.toFixed(1); vDepth.textContent = depth + ' km';
+    vDist.textContent = dist + ' km'; vQ.textContent = qInv.toFixed(3);
+  }
+
+  function physics() {
+    const r = Math.sqrt(dist * dist + depth * depth);
+    const tP = r / 6.2, tS = r / 3.5; // s
+    const e = Math.pow(10, 1.5 * mag + 4.8); // J
+    // PGA: scale with M, decay with 1/r + anelastic exp
+    const geo = Math.exp(-0.5 * Math.log(Math.max(1, r)));
+    const anel = Math.exp(-Math.PI * 1.2 * r * (qInv) / 5.2);
+    const pga = 980 * Math.pow(10, 0.5 * mag - 0.55 * Math.log10(Math.max(1, r)) ) * anel * 0.12; // cm/s²
+    const pgaG = pga / 980;
+    const mmi = Math.max(1, Math.min(10, 1.5 * Math.log10(Math.max(0.1, pga)) + 3.9));
+    return { r, tP, tS, e, pga, pgaG, mmi, anel };
+  }
+
+  function trigger() {
+    t0 = t; quake = { tP: physics().tP, stats: physics() };
+    statusEl.textContent = 'RUPTURE! WAVES PROPAGATING…';
+  }
+
+  function drawScene(p) {
+    // sky strip + ground
+    ctx.fillStyle = '#0b1018'; ctx.fillRect(0, 0, W, H * 0.30);
+    const gg = ctx.createLinearGradient(0, H * 0.30, 0, H);
+    gg.addColorStop(0, '#243021'); gg.addColorStop(1, '#12180f');
+    ctx.fillStyle = gg; ctx.fillRect(0, H * 0.30, W, H * 0.70);
+    const surfY = H * 0.30;
+    // fault plane (dipping line into the ground)
+    const hx = W * 0.2, hy = surfY;
+    ctx.strokeStyle = 'rgba(255,180,90,0.5)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + W * 0.07, H * 0.86); ctx.stroke();
+    // hypocenter + epicenter position (scale depth: 700km -> H*0.56)
+    const hyPix = surfY + (depth / 700) * (H * 0.55);
+    // wavefront circles (P cyan, S orange)
+    if (t0 > -1e8) {
+      const age = t - t0;
+      if (age >= 0) {
+        const rP = (age * 6.2 / 700) * (W * 0.55) * (W / H) * 0.6;
+        const rS = (age * 3.5 / 700) * (W * 0.55) * (W / H) * 0.6;
+        const maxR = W * 0.7;
+        // P front
+        ctx.strokeStyle = 'rgba(90,200,255,' + Math.max(0, 0.8 - age * 0.01) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(hx, hyPix, Math.min(maxR, rP), 0, Math.PI * 2); ctx.stroke();
+        // S front
+        ctx.strokeStyle = 'rgba(255,170,80,' + Math.max(0, 0.8 - age * 0.01) + ')';
+        ctx.beginPath(); ctx.arc(hx, hyPix, Math.min(maxR, rS), 0, Math.PI * 2); ctx.stroke();
+        // rupture glow
+        ctx.fillStyle = 'rgba(255,150,60,' + Math.max(0, 0.5 - age * 0.05) + ')';
+        ctx.beginPath(); ctx.arc(hx, hyPix, 10, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // station
+    const sx = W * 0.82, sy = surfY;
+    ctx.fillStyle = '#dde3d0';
+    ctx.beginPath(); ctx.moveTo(sx, sy - 22); ctx.lineTo(sx - 8, sy); ctx.lineTo(sx + 8, sy); ctx.closePath(); ctx.fill();
+    ctx.fillRect(sx - 2, sy, 4, 10);
+    ctx.fillStyle = 'rgba(230,250,255,0.6)'; ctx.font = '9px monospace';
+    ctx.fillText('STATION', sx - 22, sy - 28);
+    // shake intensity at station (colour the ground strip region)
+    const inten = Math.min(1, p.mmi / 10);
+    ctx.fillStyle = 'rgba(255,' + Math.round(220 - inten * 160) + ',60,' + inten * 0.35 + ')';
+    ctx.fillRect(sx - 14, surfY, 28, H - surfY);
+    // epicentre label
+    ctx.fillStyle = 'rgba(255,180,90,0.9)';
+    ctx.fillText('EPICENTRE', hx - 24, surfY + 12);
+    ctx.fillText('HYPOCENTRE ' + depth + ' km', hx - 40, hyPix + 14);
+  }
+
+  function traceAt(age, p) {
+    // synthesised displacement: P (short, small), S (bigger), coda
+    const r = p.r;
+    function wave(a, f, amp, decay) {
+      if (age < a) return 0;
+      const tt = age - a;
+      return amp * Math.exp(-tt / decay) * Math.sin(2 * Math.PI * f * tt) * Math.exp(-Math.min(1, tt / (decay * 4)));
+    }
+    const A = Math.pow(10, 0.5 * mag - 0.5) * 40 * p.anel / Math.max(1, r) * 0.5;
+    return wave(p.tP, 2.2, A * 0.35, 1.6) + wave(p.tS, 1.4, A, 3.2) + wave(p.tS + 4, 0.55, A * 1.8, 9);
+  }
+
+  function drawSeis(p) {
+    sctx.fillStyle = '#060b12'; sctx.fillRect(0, 0, SW, SH);
+    const padB = 20, padL = 14;
+    const maxA = Math.max(0.5, (Math.pow(10, 0.5 * mag - 0.5) * 40 * p.anel / Math.max(1, p.r)) * 1.2);
+    const tMax = Math.max(30, p.tS + 22);
+    const xAt = tt => padL + (tt / tMax) * (SW - padL - 10);
+    const yAt = v => SH / 2 - (v / maxA) * (SH / 2 - 16);
+    // zero line
+    sctx.strokeStyle = 'rgba(230,250,255,0.25)';
+    sctx.beginPath(); sctx.moveTo(padL, SH / 2); sctx.lineTo(SW - 6, SH / 2); sctx.stroke();
+    sctx.fillStyle = 'rgba(230,250,255,0.5)'; sctx.font = '9px monospace';
+    sctx.fillText('0', 2, SH / 2 + 3);
+    sctx.fillText(tMax.toFixed(0) + 's', SW - 34, SH - 6);
+    // arrivals markers
+    const mark = (tt, col, lbl) => {
+      const x = xAt(tt);
+      sctx.strokeStyle = col;
+      sctx.beginPath(); sctx.moveTo(x, 8); sctx.lineTo(x, SH - 20); sctx.stroke();
+      sctx.fillStyle = col; sctx.fillText(lbl, x + 3, 16);
+    };
+    mark(p.tP, '#8fd4ff', 'P'); mark(p.tS, '#ffb56b', 'S');
+    // trace
+    sctx.strokeStyle = '#e8f4ff'; sctx.lineWidth = 1.4;
+    sctx.beginPath();
+    for (let tt = 0; tt <= tMax; tt += 0.05) {
+      const x = xAt(tt), y = yAt(traceAt(tt, p));
+      if (tt === 0) sctx.moveTo(x, y); else sctx.lineTo(x, y);
+    }
+    sctx.stroke();
+    // moving playhead
+    if (t0 > -1e8) {
+      const age = t - t0;
+      if (age <= tMax) {
+        const x = xAt(age);
+        sctx.strokeStyle = 'rgba(255,220,150,0.85)'; sctx.lineWidth = 1;
+        sctx.beginPath(); sctx.moveTo(x, 8); sctx.lineTo(x, SH - 20); sctx.stroke();
+        sctx.fillStyle = '#ffd27f';
+        sctx.fillText('now ' + age.toFixed(0) + 's', x + 3, SH - 8);
+      }
+    }
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    t += dt;
+    const p = physics();
+    drawScene(p); drawSeis(p);
+    const sp = p.tS - p.tP;
+    statSp.textContent = sp.toFixed(1) + ' s';
+    statPga.textContent = (p.pgaG * 100).toFixed(2) + ' %g';
+    statMmi.textContent = 'MMI ' + Math.round(p.mmi);
+    const eT = p.e / 4.184e9;
+    statE.textContent = eT > 1e4 ? (eT / 1e3).toFixed(0) + ' kt' : eT.toFixed(1) + ' t TNT';
+    spEl.textContent = 'S−P ' + sp.toFixed(1) + ' s → r ≈ ' + (((sp * 3.5 * 6.2) / (6.2 - 3.5))).toFixed(0) + ' km';
+    mmiEl.textContent = 'MMI ' + Math.round(p.mmi) + (p.mmi >= 7 ? ' — damaging' : p.mmi >= 5 ? ' — strong' : p.mmi >= 3 ? ' — felt' : ' — minor');
+    if (t0 > -1e8 && t - t0 > 45) statusEl.textContent = 'AFTERSHOCK PROBABILITY HIGH — TRIGGER AGAIN?';
+    requestAnimationFrame(loop);
+  }
+
+  btnTrigger.addEventListener('click', trigger);
+  [sMag, sDepth, sDist, sQ].forEach(s => s.addEventListener('input', readSliders));
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>

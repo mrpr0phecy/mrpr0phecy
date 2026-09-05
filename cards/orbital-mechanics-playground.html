@@ -1,0 +1,364 @@
+<h2 id="orb-title" style="margin-top:0;color:var(--accent);">🚀 Orbital Mechanics Playground</h2>
+
+<form aria-describedby="orb-desc" onsubmit="event.preventDefault();">
+  <p id="orb-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Fly a probe through a real gravity field. Set your starting speed and direction, hit Launch, and watch the trajectory obey Newton's law (a = −GM/r², integrated semi-implicitly). Get a circle at circular velocity, an ellipse at anything less than escape, a parabola exactly at escape, a hyperbola beyond — then try the Jupiter close-encounter, near-escape and Moon-escape presets, and crank the time-warp slider to watch whole orbits in seconds.
+  </p>
+
+  <!-- Scene -->
+  <div style="background:#03050c;border:1px solid rgba(150,210,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="orb-canvas" width="720" height="420" style="width:100%;height:420px;display:block;background:#02030a;border-radius:6px;cursor:crosshair;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="orb-status" style="color:#aadcff;font-family:monospace;">SET SPEED &amp; TAP LAUNCH</span>
+      <span id="orb-live" style="color:#7fe0c3;font-family:monospace;">—</span>
+    </div>
+  </div>
+
+  <!-- Launch controls -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Launch Speed (v_c = circular)</span><span id="orb-val-speed">1.00 × v_c</span>
+      </div>
+      <input type="range" id="orb-slider-speed" min="0.4" max="1.6" step="0.01" value="1" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Burn Direction (0° into body · 90° prograde · 180° away)</span><span id="orb-val-dir">90°</span>
+      </div>
+      <input type="range" id="orb-slider-dir" min="0" max="180" step="1" value="90" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Body (GM)</span><span id="orb-val-gm">EARTH</span>
+      </div>
+      <select id="orb-select-gm" style="width:100%;padding:6px;border-radius:5px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;">
+        <option value="earth">Earth (GM 398,600 km³/s²)</option>
+        <option value="moon">Moon (GM 4,903 km³/s²)</option>
+        <option value="mars">Mars (GM 42,828 km³/s²)</option>
+        <option value="jupiter">Jupiter (GM 126,686,000 km³/s²)</option>
+        <option value="sun">Sun (GM 132,712,000,000 km³/s²)</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:8px;">
+      <button type="button" id="orb-btn-launch" style="flex:1;padding:7px 14px;border-radius:6px;background:rgba(127,224,195,0.16);border:1px solid #7fe0c3;color:#7fe0c3;font-size:0.75rem;font-weight:bold;cursor:pointer;">🚀 LAUNCH</button>
+      <button type="button" id="orb-btn-reset" style="flex:1;padding:7px 14px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">↺ Clear</button>
+    </div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+      <span>⏩ Time Warp (simulated seconds per real second)</span><span id="orb-val-warp">300×</span>
+    </div>
+    <input type="range" id="orb-slider-warp" min="0" max="5" step="1" value="3" style="width:100%;">
+  </div>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="orb-preset" data-id="slingshot" style="padding:5px 10px;border-radius:5px;background:rgba(255,210,127,0.12);border:1px solid #ffd27f;color:#ffd27f;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌀 Jupiter Gravity Assist</button>
+    <button type="button" class="orb-preset" data-id="hohmann" style="padding:5px 10px;border-radius:5px;background:rgba(255,210,127,0.12);border:1px solid #ffd27f;color:#ffd27f;font-size:0.72rem;cursor:pointer;white-space:nowrap;">📐 1.40× — near-escape ellipse</button>
+    <button type="button" class="orb-preset" data-id="apex" style="padding:5px 10px;border-radius:5px;background:rgba(255,210,127,0.12);border:1px solid #ffd27f;color:#ffd27f;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌗 Moon Escape</button>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">ORBIT TYPE</div>
+      <div id="orb-stat-type" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">SPECIFIC ENERGY</div>
+      <div id="orb-stat-e" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">PERIAPSIS (closest approach)</div>
+      <div id="orb-stat-apo" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">PERIOD (if bound)</div>
+      <div id="orb-stat-period" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Physics used (real mechanics)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Gravity is Newton's inverse-square law with the real G·M of each body, integrated with a semi-implicit
+      (symplectic) Euler so energies stay accurate over many orbits. The readouts come from the vis-viva
+      equation v² = GM(2/r − 1/a): specific energy ε = v²/2 − GM/r tells you the orbit type (ε&lt;0 ellipse,
+      ε=0 parabola, ε&gt;0 hyperbola), and a = −GM/(2ε) gives the semi-major axis. Escape velocity at a given
+      radius is v_e = √(2GM/r) = √2 × v_circular — that factor of √2 is why the curve switches from ellipse
+      to hyperbola right around 1.414× circular. A Hohmann
+      transfer between planets is exactly two of these ellipses joined end-to-end — burn prograde at one end
+      to raise the other end to the destination, then burn again there to circularise. The close-encounter
+      preset isolates the swing past a giant planet: the probe speeds up diving in and would slow back down
+      in Jupiter's frame — but in the real solar system it keeps that extra speed because the moving planet
+      drags it along like a sling, stealing a little of Jupiter's momentum around the Sun.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('orb-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CX = W / 2, CY = H / 2;
+
+  const BODIES = {
+    earth:   { GM: 398600,        r: 6371,  name: 'Earth' },
+    moon:    { GM: 4903,          r: 1737,  name: 'Moon' },
+    mars:    { GM: 42828,         r: 3390,  name: 'Mars' },
+    jupiter: { GM: 126686000,     r: 69911, name: 'Jupiter' },
+    sun:     { GM: 132712000000,  r: 695700, name: 'Sun' }
+  };
+  let dispScale = 1; // px per km — set per body so orbits always fit the canvas
+
+  const WARP_VALUES = [1, 10, 60, 300, 1500, 6000];
+  let gmKey = 'earth', speedMult = 1, dirDeg = 90;
+  let probe = null, trail = [], t = 0, launched = false, simSpeed = 300;
+  const TRACK = { a: 0, e: 0, eps: 0, r: 0, v: 0, p: 0, th: 0 };
+  const TRAIL_DT = 24; // simulated seconds between recorded trail points
+
+  function readSliders() {
+    speedMult = parseFloat($('orb-slider-speed').value);
+    dirDeg = parseFloat($('orb-slider-dir').value);
+    gmKey = $('orb-select-gm').value;
+    simSpeed = WARP_VALUES[parseInt($('orb-slider-warp').value, 10)];
+    $('orb-val-speed').textContent = speedMult.toFixed(2) + ' × v_c';
+    $('orb-val-dir').textContent = dirDeg + '°';
+    $('orb-val-gm').textContent = BODIES[gmKey].name.toUpperCase();
+    $('orb-val-warp').textContent = simSpeed + '×';
+  }
+
+  function setDisplayScale() {
+    const b = BODIES[gmKey];
+    dispScale = 170 / (2.2 * b.r); // launch orbit always ≈170 px, body ≈77 px
+  }
+  function px(rKm) { return rKm * dispScale; }
+
+  function reset() {
+    probe = null; trail = []; t = 0; launched = false; readSliders();
+    setDisplayScale();
+    $('orb-stat-type').textContent = '—';
+    $('orb-stat-e').textContent = '—';
+    $('orb-stat-apo').textContent = '—';
+    $('orb-stat-period').textContent = '—';
+    $('orb-live').textContent = '—';
+    $('orb-status').textContent = 'SET SPEED & TAP LAUNCH';
+  }
+
+  function launch() {
+    const b = BODIES[gmKey];
+    const r0 = b.r * 2.2; // start at 2.2 body radii
+    const vc = Math.sqrt(b.GM / r0);
+    const v = vc * speedMult;
+    const th = dirDeg * Math.PI / 180;
+    // prograde = counter-clockwise tangent; 0° = full prograde, 90° = radial out/up (screen up)
+    probe = { x: r0, y: 0, vx: -v * Math.cos(th), vy: v * Math.sin(th) };
+    trail = [{ x: probe.x, y: probe.y }];
+    t = 0; launched = true;
+    step(0, true); updateReadout();
+    $('orb-status').textContent = 'FLYING — watch the path follow Newton\u2019s law';
+  }
+
+  function step(dt, record) {
+    const b = BODIES[gmKey];
+    const G = b.GM;
+    // semi-implicit Euler
+    let r = Math.hypot(probe.x, probe.y);
+    r = Math.max(r, b.r * 1.02);
+    const ax = -G * probe.x / (r * r * r);
+    const ay = -G * probe.y / (r * r * r);
+    probe.vx += ax * dt;
+    probe.vy += ay * dt;
+    probe.x += probe.vx * dt;
+    probe.y += probe.vy * dt;
+    t += dt;
+    // compute orbital elements from state
+    const v2 = probe.vx * probe.vx + probe.vy * probe.vy;
+    const eps = v2 / 2 - G / r;
+    const a = -G / (2 * eps);
+    const h = probe.x * probe.vy - probe.y * probe.vx;
+    const ex = (probe.vy * h) / G - probe.x / r;
+    const ey = (-probe.vx * h) / G - probe.y / r;
+    TRACK.eps = eps; TRACK.a = a; TRACK.e = Math.hypot(ex, ey);
+    TRACK.p = h * h / G; TRACK.th = Math.atan2(ey, ex);
+    TRACK.r = r; TRACK.v = Math.sqrt(v2);
+    if (record) { trail.push({ x: probe.x, y: probe.y }); if (trail.length > 3000) trail.shift(); }
+  }
+  function updateReadout() {
+    const b = BODIES[gmKey];
+    $('orb-live').textContent = 'r ' + (TRACK.r / 1000).toFixed(0) + 'k km · v ' + TRACK.v.toFixed(1) + ' km/s';
+    $('orb-stat-type').textContent = TRACK.eps < -1e-6 ? 'Ellipse (bound)' : TRACK.eps > 1e-6 ? 'Hyperbola (escape!)' : 'Parabola (escape)';
+    $('orb-stat-e').textContent = TRACK.eps.toFixed(1) + ' km²/s²';
+    const rp = TRACK.p / (1 + TRACK.e);
+    $('orb-stat-apo').textContent = (rp / 1000).toFixed(0) + 'k km';
+    const per = 2 * Math.PI * Math.sqrt(Math.abs(TRACK.a) * Math.abs(TRACK.a) * Math.abs(TRACK.a) / b.GM);
+    $('orb-stat-period').textContent = TRACK.eps < 0 ? (per > 86400 ? (per / 86400).toFixed(1) + ' d' : Math.round(per / 60) + ' min') : '— (unbound)';
+  }
+
+  function drawConic() {
+    if (!launched || !probe || TRACK.e < 0.001 || TRACK.e > 30) return;
+    const G = BODIES[gmKey].GM;
+    const rmax = 260 / dispScale; // don't draw beyond ~2× the viewport
+    const pts = [];
+    const e = TRACK.e, p = TRACK.p, th = TRACK.th;
+    if (e < 1) {
+      for (let i = 0; i <= 720; i++) {
+        const nu = -Math.PI + i * (2 * Math.PI / 720);
+        const r = Math.min(p / (1 + e * Math.cos(nu)), rmax);
+        pts.push([r * Math.cos(nu + th), r * Math.sin(nu + th)]);
+      }
+    } else if (e > 1.02) {
+      const lim = Math.acos(-1 / e); // asymptote direction in true anomaly
+      const a0 = 0.12; // keep inside the asymptotes
+      const span = lim - a0;
+      for (let i = 0; i <= 360; i++) {
+        const nu = -span + i * (2 * span / 360);
+        const r = Math.min(p / (1 + e * Math.cos(nu)), rmax);
+        pts.push([r * Math.cos(nu + th), r * Math.sin(nu + th)]);
+      }
+    } else {
+      // near-parabolic: r = p / (1 + cos nu)
+      for (let i = 0; i <= 360; i++) {
+        const nu = -2.1 + i * (4.2 / 360);
+        const r = Math.min(p / (1 + Math.cos(nu)), rmax);
+        pts.push([r * Math.cos(nu + th), r * Math.sin(nu + th)]);
+      }
+    }
+    ctx.strokeStyle = 'rgba(127,224,195,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    pts.forEach((q, i) => {
+      const x = CX + q[0] * dispScale, y = CY - q[1] * dispScale;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function draw() {
+    ctx.fillStyle = '#02030a'; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 220; i++) {
+      ctx.fillStyle = 'rgba(230,240,255,' + (0.10 + ((i * 13) % 20) / 55) + ')';
+      ctx.fillRect((i * 193.7) % W, (i * 97.3) % H, 1, 1);
+    }
+    const b = BODIES[gmKey];
+    const bodyR = Math.max(10, px(b.r));
+    // gravity rings
+    for (let k = 1; k <= 4; k++) {
+      ctx.strokeStyle = 'rgba(150,210,255,' + (0.05 + k * 0.012) + ')';
+      ctx.beginPath(); ctx.arc(CX, CY, bodyR * (1.6 * k + 2), 0, Math.PI * 2); ctx.stroke();
+    }
+    // body
+    const bg = ctx.createRadialGradient(CX - bodyR * 0.3, CY - bodyR * 0.3, bodyR * 0.1, CX, CY, bodyR);
+    bg.addColorStop(0, '#e8f2ff'); bg.addColorStop(0.2, gmKey === 'sun' ? '#ffd873' : '#7fb2e8');
+    bg.addColorStop(1, gmKey === 'sun' ? '#ff8c3c' : '#12365c');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(CX, CY, bodyR, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#e8f2ff'; ctx.font = '11px monospace';
+    ctx.fillText(b.name + ' (GM ' + b.GM.toLocaleString() + ')', CX - bodyR - 10, CY + bodyR + 16);
+    // circular orbit guide
+    const rc = bodyR * 2.2;
+    ctx.strokeStyle = 'rgba(127,224,195,0.28)'; ctx.setLineDash([5, 6]);
+    ctx.beginPath(); ctx.arc(CX, CY, rc, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(127,224,195,0.6)'; ctx.font = '9px monospace';
+    ctx.fillText('v_circular guide — launch tangentially at 1.00×', CX - rc, CY - rc - 8);
+    // start marker
+    ctx.strokeStyle = '#ffd27f';
+    ctx.beginPath(); ctx.arc(CX + rc, CY, 5, 0, Math.PI * 2); ctx.stroke();
+    // trail
+    if (launched && trail.length > 1) {
+      ctx.strokeStyle = '#ffd27f'; ctx.lineWidth = 1.6;
+      ctx.shadowBlur = 6; ctx.shadowColor = '#ffd27f';
+      ctx.beginPath();
+      trail.forEach((p, i) => {
+        const x = CX + p.x * dispScale;
+        const y = CY - p.y * dispScale;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke(); ctx.shadowBlur = 0;
+      drawConic();
+      // probe dot
+      const ppx = CX + probe.x * dispScale;
+      const ppy = CY - probe.y * dispScale;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(ppx, ppy, 3, 0, Math.PI * 2); ctx.fill();
+      // velocity vector
+      const vlen = 14;
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath(); ctx.moveTo(ppx, ppy);
+      ctx.lineTo(ppx + probe.vx / Math.hypot(probe.vx, probe.vy) * vlen, ppy - probe.vy / Math.hypot(probe.vx, probe.vy) * vlen);
+      ctx.stroke();
+    }
+  }
+
+  // ---- presets ----
+  function presetSlingshot() {
+    gmKey = 'jupiter'; $('orb-select-gm').value = 'jupiter';
+    speedMult = 1.25; $('orb-slider-speed').value = 1.25;
+    dirDeg = 115; $('orb-slider-dir').value = 115;
+    $('orb-slider-warp').value = 5;
+    readSliders();
+    dispScale = 260 / (3.5 * BODIES.jupiter.r); // zoom out: flyby at ~3.5 Jovian radii
+    // probe arrives from the lower left on a hyperbolic path (e≈1.23), periapsis ≈3.3 Jupiter radii
+    probe = { x: -110000, y: -360000, vx: 26, vy: 11 };
+    trail = [{ x: probe.x, y: probe.y }]; t = 0; launched = true;
+    step(0, true); updateReadout();
+    $('orb-status').textContent = 'CLOSE ENCOUNTER — the probe dives at Jupiter, slings around, and leaves on a new hyperbola';
+  }
+  function presetEllipse() {
+    gmKey = 'earth'; $('orb-select-gm').value = 'earth';
+    speedMult = 1.40; $('orb-slider-speed').value = 1.40;
+    dirDeg = 90; $('orb-slider-dir').value = 90;
+    $('orb-slider-warp').value = 5;
+    readSliders();
+  }
+  function presetMoonEscape() {
+    gmKey = 'moon'; $('orb-select-gm').value = 'moon';
+    speedMult = Math.SQRT2 * 1.01; $('orb-slider-speed').value = speedMult.toFixed(2);
+    dirDeg = 90; $('orb-slider-dir').value = 90;
+    $('orb-slider-warp').value = 4;
+    readSliders();
+    launch();
+    $('orb-status').textContent = '√2 × v_c ≈ escape — right at the ellipse→hyperbola boundary';
+  }
+
+  function launchFromSliders() { launch(); }
+
+  let last = performance.now(), acc = 0;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (launched && probe) {
+      acc += dt * simSpeed;
+      // adaptive sub-stepping for stability at high speeds
+      const steps = Math.max(1, Math.round(acc * 40));
+      const sdt = acc / steps;
+      const recEvery = Math.max(1, Math.round(TRAIL_DT / sdt)); // one trail point per 24 sim-seconds
+      let rec = 0;
+      for (let i = 0; i < steps; i++) step(sdt, (rec++ % recEvery) === 0);
+      acc = 0;
+      updateReadout();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  $('orb-btn-launch').addEventListener('click', launchFromSliders);
+  $('orb-btn-reset').addEventListener('click', reset);
+  document.querySelectorAll('.orb-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.id === 'slingshot') presetSlingshot();
+      else if (btn.dataset.id === 'hohmann') { presetEllipse(); launch(); $('orb-status').textContent = 'JUST BELOW √2× v_c — a long thin ellipse, the shape a Hohmann transfer is built from' }
+      else presetMoonEscape();
+    });
+  });
+  ['orb-slider-speed', 'orb-slider-dir', 'orb-slider-warp'].forEach(id => $(id).addEventListener('input', readSliders));
+  $('orb-select-gm').addEventListener('change', () => { readSliders(); reset(); });
+  readSliders(); reset();
+  requestAnimationFrame(loop);
+})();
+</script>

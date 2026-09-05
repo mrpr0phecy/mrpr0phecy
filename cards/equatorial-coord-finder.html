@@ -29,6 +29,21 @@
     </div>
   </div>
 
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Local sidereal time</span><span id="ecf-val-lst">6.00 h</span>
+      </div>
+      <input id="ecf-slider-lst" type="range" min="0" max="24" step="0.05" value="6" style="width:100%;" />
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Observer latitude</span><span id="ecf-val-lat">51.9°</span>
+      </div>
+      <input id="ecf-slider-lat" type="range" min="-90" max="90" step="0.5" value="51.875" style="width:100%;" />
+    </div>
+  </div>
+
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button type="button" id="ecf-calc"
             style="padding:12px 24px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Convert</button>
@@ -44,6 +59,14 @@
     <button type="button" class="ecf-p" data-ra="17.963" data-dec="-29.0" style="padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.75);cursor:pointer;font-size:0.78rem;">Galactic Centre</button>
   </div>
 </form>
+
+<div style="background:#02030a;border:1px solid rgba(45,212,255,0.25);border-radius:8px;padding:8px;margin-bottom:16px;">
+    <canvas id="ecf-canvas" width="720" height="430" style="width:100%;height:430px;display:block;border-radius:6px;background:radial-gradient(circle at 50% 42%, #071224, #01020a 82%);"></canvas>
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:0.66rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span>⚪ target &nbsp;● track above horizon &nbsp;--- below horizon &nbsp;◇ transit &nbsp;— celestial equator</span>
+      <span id="ecf-canvas-status" style="color:#aadcff;font-family:monospace;">all-sky dome</span>
+    </div>
+  </div>
 
 <div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
   <div id="ecf-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
@@ -160,10 +183,251 @@
         : '');
   }
 
+  // ---------- all-sky dome: target, 24h track, celestial equator, transit, click-to-invert ----------
+  var ecfCanvas = $('ecf-canvas');
+  var ecfCtx = ecfCanvas ? ecfCanvas.getContext('2d') : null;
+  var ECF_CX = 360, ECF_CY = 210, ECF_R = 182;
+
+  function ecfRadius(alt) {                    // alt in degrees: 90 → centre, 0 → horizon, -90 → nadir (2R)
+    var a = Math.max(-90, Math.min(90, alt));
+    return ECF_R * (1 - a / 90);
+  }
+  function ecfXY(alt, az) {                    // N up, E right, az measured N→E
+    var r = ecfRadius(alt), a = az * D2R;
+    return { x: ECF_CX + r * Math.sin(a), y: ECF_CY - r * Math.cos(a) };
+  }
+  function ecfAltAz(dec, ha, lat) {            // same convention as run()
+    var dr = dec * D2R, fr = lat * D2R, H = ha * 15 * D2R;
+    var sinAlt = Math.sin(dr) * Math.sin(fr) + Math.cos(dr) * Math.cos(fr) * Math.cos(H);
+    var alt = Math.asin(Math.max(-1, Math.min(1, sinAlt))) * R2D;
+    var az = Math.atan2(-Math.cos(dr) * Math.sin(H), Math.sin(dr) * Math.cos(fr) - Math.cos(dr) * Math.sin(fr) * Math.cos(H)) * R2D;
+    return { alt: alt, az: ((az + 360) % 360) };
+  }
+  function ecfInvert(alt, az, lat, lst) {      // alt/az → RA/Dec (the "other way" promised in the description)
+    var a = alt * D2R, A = az * D2R, f = lat * D2R;
+    var dec = Math.asin(Math.max(-1, Math.min(1, Math.sin(a) * Math.sin(f) + Math.cos(a) * Math.cos(f) * Math.cos(A)))) * R2D;
+    var H = Math.atan2(-Math.sin(A) * Math.cos(a), Math.cos(f) * Math.sin(a) - Math.sin(f) * Math.cos(a) * Math.cos(A)) * R2D / 15;
+    var ra = ((lst - H) % 24 + 24) % 24;
+    return { ra: ra, dec: dec };
+  }
+
+  function ecfSlerp(a, b, t) {                 // shortest-path degree interpolation for azimuths
+    var d = ((b - a + 540) % 360) - 180;
+    return (a + d * t + 360) % 360;
+  }
+
+  function ecfDraw() {
+    if (!ecfCtx) return;
+    var ctx = ecfCtx;
+    var ra = parseFloat($('ecf-ra').value), dec = parseFloat($('ecf-dec').value);
+    var lat = parseFloat($('ecf-lat').value), lst = parseFloat($('ecf-lst').value);
+    if ([ra, dec, lat, lst].some(isNaN)) return;
+    dec = Math.max(-90, Math.min(90, dec));
+    lat = Math.max(-90, Math.min(90, lat));
+
+    ctx.clearRect(0, 0, 720, 430);
+    var g = ctx.createRadialGradient(ECF_CX, ECF_CY, 20, ECF_CX, ECF_CY, 300);
+    g.addColorStop(0, 'rgba(16,34,66,0.35)');
+    g.addColorStop(1, 'rgba(1,2,10,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 720, 430);
+
+    // starfield
+    var st;
+    for (st = 0; st < 70; st++) {
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.10 + 0.35 * Math.abs(Math.sin(st * 12.9898))) + ')';
+      var sx = ECF_CX + (0.5 + 0.62 * Math.abs(Math.sin(st * 3.7))) * ECF_R * Math.sin(st * 2.399);
+      var sy = ECF_CY - (0.5 + 0.62 * Math.abs(Math.cos(st * 5.1))) * ECF_R * Math.cos(st * 2.399);
+      if (Math.sin(st * 2.399) == 0 || Math.cos(st * 2.399) == 0) continue;
+      var rr = Math.sqrt(Math.pow(sx - ECF_CX, 2) + Math.pow(sy - ECF_CY, 2));
+      if (rr < ECF_R * 1.02) ctx.fillRect(sx, sy, 1.2, 1.2);
+    }
+
+    // altitude rings 30/60 + horizon
+    ctx.strokeStyle = 'rgba(120,160,220,0.20)';
+    ctx.lineWidth = 1;
+    var al;
+    for (al = 30; al < 90; al += 30) {
+      ctx.beginPath();
+      ctx.arc(ECF_CX, ECF_CY, ecfRadius(al), 0, 6.2832);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(ECF_CX, ECF_CY, ECF_R, 0, 6.2832);
+    ctx.strokeStyle = 'rgba(120,190,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // azimuth ticks + cardinal labels
+    ctx.fillStyle = 'rgba(200,225,255,0.85)';
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', ECF_CX, ECF_CY - ECF_R - 10);
+    ctx.fillText('S', ECF_CX, ECF_CY + ECF_R + 18);
+    ctx.fillText('E', ECF_CX + ECF_R + 14, ECF_CY + 4);
+    ctx.fillText('W', ECF_CX - ECF_R - 14, ECF_CY + 4);
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(170,200,235,0.55)';
+    var azk;
+    for (azk = 30; azk < 360; azk += 30) {
+      var kx = ECF_CX + ECF_R * Math.sin(azk * D2R), ky = ECF_CY - ECF_R * Math.cos(azk * D2R);
+      ctx.fillRect(kx - 1, ky - 1, 2, 2);
+    }
+
+    // meridian (N–S through zenith)
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.moveTo(ECF_CX, ECF_CY - ECF_R); ctx.lineTo(ECF_CX, ECF_CY + ECF_R); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(190,215,245,0.6)';
+    ctx.textAlign = 'left';
+    ctx.fillText('meridian', ECF_CX + 6, ECF_CY - ECF_R + 14);
+
+    // celestial equator: dec = 0 swept over hour angle
+    ctx.strokeStyle = 'rgba(64,224,208,0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    var firstEq = true, hh;
+    for (hh = 0; hh <= 24.01; hh += 0.15) {
+      var p = ecfAltAz(0, hh, lat);
+      var xy = ecfXY(p.alt, p.az);
+      if (p.alt >= -1) {
+        if (firstEq) { ctx.moveTo(xy.x, xy.y); firstEq = false; }
+        else ctx.lineTo(xy.x, xy.y);
+      } else firstEq = true;
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 24h target track
+    var last = null, seg;
+    for (seg = 0; seg <= 96; seg++) {
+      var hseg = seg * 0.25;
+      var pp = ecfAltAz(dec, hseg, lat);
+      if (last) {
+        var p1 = ecfXY(last.alt, last.az), p2 = ecfXY(pp.alt, pp.az);
+        ctx.strokeStyle = (pp.alt > 0 && last.alt > 0) ? 'rgba(127,220,255,0.75)' : 'rgba(255,120,120,0.30)';
+        ctx.lineWidth = (pp.alt > 0 && last.alt > 0) ? 2 : 1.2;
+        if (pp.alt > 0 && last.alt > 0) ctx.setLineDash([]); else ctx.setLineDash([3, 4]);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      last = pp;
+    }
+
+    // current position marker
+    var cur = ecfAltAz(dec, (lst - ra + 24) % 24, lat);
+    var cxy = ecfXY(cur.alt, cur.az);
+    ctx.fillStyle = cur.alt > 0 ? '#eaf6ff' : 'rgba(255,140,140,0.95)';
+    ctx.beginPath(); ctx.arc(cxy.x, cxy.y, 5.5, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = cur.alt > 0 ? 'rgba(120,220,255,0.95)' : 'rgba(255,110,110,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cxy.x, cxy.y, 8.5, 0, 6.2832); ctx.stroke();
+    ctx.fillStyle = 'rgba(220,240,255,0.95)';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = cxy.x > ECF_CX + 40 ? 'left' : 'right';
+    ctx.fillText((cur.alt >= 0 ? '' : 'under horizon · ') + cur.alt.toFixed(1) + '° alt, ' + cur.az.toFixed(0) + '° ' + compass(cur.az),
+      cxy.x + (cxy.x > ECF_CX + 40 ? 14 : -14), cxy.y - 12);
+
+    // transit point (diamond): az 180 for northern observers when dec<lat, else az 0
+    var maxAlt = 90 - Math.abs(lat - dec);
+    var azTr = dec >= lat ? 0 : 180;
+    var txy = ecfXY(maxAlt, azTr);
+    ctx.strokeStyle = 'rgba(255,220,120,0.9)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(txy.x, txy.y - 7); ctx.lineTo(txy.x + 7, txy.y); ctx.lineTo(txy.x, txy.y + 7); ctx.lineTo(txy.x - 7, txy.y);
+    ctx.closePath(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,220,120,0.85)';
+    ctx.textAlign = txy.x < ECF_CX - 60 ? 'right' : 'left';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText('transit ' + maxAlt.toFixed(1) + '°', txy.x + (txy.x < ECF_CX - 60 ? -12 : 12), txy.y - 8);
+
+    // rise / set info
+    var tanf = Math.tan(lat * D2R), tand = Math.tan(dec * D2R);
+    var cosH0 = -tanf * tand;
+    var info;
+    if (cosH0 > 1) info = 'never rises from lat ' + lat.toFixed(1) + '° (always below the horizon)';
+    else if (cosH0 < -1) info = 'circumpolar — never sets from lat ' + lat.toFixed(1) + '°';
+    else {
+      var H0 = Math.acos(cosH0) * R2D / 15;    // hours of hour angle at rise/set
+      var riseLst = ((ra - H0) % 24 + 24) % 24;
+      var setLst = (ra + H0) % 24;
+      info = 'rises LST ' + hms(riseLst) + ' · sets LST ' + hms(setLst);
+    }
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(190,225,255,0.9)';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillText('γ = target  ·  RA ' + hms(ra) + '  Dec ' + dms(dec), 12, 22);
+    ctx.fillStyle = 'rgba(140,170,205,0.75)';
+    ctx.fillText('zenith + · altitude rings 30°/60° · horizon 0°', 12, 38);
+    $('ecf-canvas-status').textContent =
+      cur.alt.toFixed(1) + '° alt, ' + cur.az.toFixed(1) + '° ' + compass(cur.az) + '  ·  ' + info;
+  }
+
+  function ecfSyncSliders() {
+    var lst = parseFloat($('ecf-lst').value), lat = parseFloat($('ecf-lat').value);
+    if (isFinite(lst)) {
+      $('ecf-slider-lst').value = Math.max(0, Math.min(24, lst));
+      $('ecf-val-lst').textContent = lst.toFixed(2) + ' h';
+    }
+    if (isFinite(lat)) {
+      $('ecf-slider-lat').value = Math.max(-90, Math.min(90, lat));
+      $('ecf-val-lat').textContent = lat.toFixed(1) + '°';
+    }
+  }
+
+  if (ecfCanvas) {
+    var ecfPicking = false;
+    ecfCanvas.addEventListener('pointerdown', function (e) {
+      ecfPicking = true;
+      ecfCanvas.setPointerCapture(e.pointerId);
+      ecfPick(e);
+    });
+    ecfCanvas.addEventListener('pointermove', function (e) { if (ecfPicking) ecfPick(e); });
+    ecfCanvas.addEventListener('pointerup', function () { ecfPicking = false; });
+    function ecfPick(e) {
+      var r = ecfCanvas.getBoundingClientRect();
+      var x = (e.clientX - r.left) / r.width * 720, y = (e.clientY - r.top) / r.height * 430;
+      var dx = x - ECF_CX, dy = ECF_CY - y;                 // N up
+      var rho = Math.sqrt(dx * dx + dy * dy);
+      if (rho < 1 || rho > ECF_R * 1.9) return;
+      var alt = 90 * (1 - rho / ECF_R);                     // may be negative → below horizon
+      var az = (Math.atan2(dx, dy) * R2D + 360) % 360;
+      var lat = parseFloat($('ecf-lat').value), lst = parseFloat($('ecf-lst').value);
+      if (!isFinite(lat) || !isFinite(lst)) return;
+      var inv = ecfInvert(alt, az, lat, lst);
+      if (Math.abs(inv.dec) > 90 || inv.dec < -90) return;
+      $('ecf-ra').value = inv.ra.toFixed(5);
+      $('ecf-dec').value = inv.dec.toFixed(3);
+      $('ecf-ra').dispatchEvent(new Event('input'));
+      $('ecf-dec').dispatchEvent(new Event('input'));
+    }
+  }
+
+  var ecfRunOriginal = run;
+  run = function () { ecfRunOriginal(); ecfSyncSliders(); ecfDraw(); };
+
+  $('ecf-slider-lst').addEventListener('input', function () {
+    $('ecf-lst').value = (parseFloat($('ecf-slider-lst').value) || 0).toFixed(3);
+    $('ecf-lst').dispatchEvent(new Event('input'));
+  });
+  $('ecf-slider-lat').addEventListener('input', function () {
+    $('ecf-lat').value = (parseFloat($('ecf-slider-lat').value) || 0).toFixed(3);
+    $('ecf-lat').dispatchEvent(new Event('input'));
+  });
+
   $('ecf-calc').addEventListener('click', run);
   $('ecf-reset').addEventListener('click', function () {
     card.querySelector('form').reset();
     $('ecf-out').innerHTML = 'Enter coordinates and your sidereal time.';
+    ecfSyncSliders();
+    ecfDraw();
   });
   Array.prototype.forEach.call(card.querySelectorAll('.ecf-p'), function (b) {
     b.addEventListener('click', function () {
