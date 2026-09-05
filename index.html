@@ -1693,6 +1693,9 @@
             position: relative;
             width: 100%;
             animation: cardIn 0.3s ease both;
+            /* Skip rendering offscreen cards — keeps a 664-card grid fluid */
+            content-visibility: auto;
+            contain-intrinsic-size: auto 320px;
         }
 
         .card::before {
@@ -2175,10 +2178,10 @@
         .hidden {
             display: none !important;
         }
-        
-        .loading {
-            animation: pulse 1.5s infinite;
-        }
+
+        /* NOTE: .loading must NOT carry an infinite animation — 600+ unloaded
+           cards share this class and animating them all freezes the grid.
+           (The cardIn entrance on .card is a one-shot and is safe.) */
         
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -2197,8 +2200,9 @@
             border: 0;
         }
 
-        /* ===== CARD SKELETONS ===== */
+        /* ===== CARD SKELETONS (static by default — do NOT animate all 664) ===== */
         .card-skeleton {
+            min-height: 170px;
             padding: 22px 16px;
             display: flex;
             flex-direction: column;
@@ -2207,12 +2211,13 @@
 
         .sk {
             border-radius: 8px;
-            background: linear-gradient(90deg,
-                rgba(255, 255, 255, 0.04) 25%,
-                rgba(255, 255, 255, 0.09) 50%,
-                rgba(255, 255, 255, 0.04) 75%);
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
+        }
+
+        /* A shimmer pulse ONLY on the first row (bounded animation budget) */
+        .card:nth-child(-n+8) .sk {
             background-size: 200% 100%;
-            animation: shimmer 1.4s linear infinite;
+            animation: shimmer 1.8s linear infinite;
         }
 
         @keyframes shimmer {
@@ -2227,7 +2232,7 @@
         .sk-block { height: 130px; }
 
         @media (prefers-reduced-motion: reduce) {
-            .sk { animation: none; background: rgba(255, 255, 255, 0.06); }
+            .card:nth-child(-n+8) .sk { animation: none; }
         }
         
         @keyframes fadeIn {
@@ -3637,7 +3642,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     <script>
     // ===== CONFIGURATION =====
     const CONFIG = {
-        INITIAL_LOAD: 6,
+        INITIAL_LOAD: 12,
         LOAD_DELAY: 100,
         GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
         GITHUB_PATH: 'cards',
@@ -4603,7 +4608,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 // Periodic stuck-card recovery — catches cards the observer missed
                 setInterval(() => {
                     if (!isSearching) scrollFallbackLoader();
-                }, 3000);
+                }, 1600);
             }, 300);
             
         } catch (error) {
@@ -4637,7 +4642,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     
     const loadQueue = [];
     let activeLoads = 0;
-    const MAX_CONCURRENT_LOADS = 6;
+    const MAX_CONCURRENT_LOADS = 8;
 
     function loadCard(card, cardName) {
         if (loadedCards.has(cardName) || loadingCards.has(cardName)) return;
@@ -5024,7 +5029,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         let loaded = 0;
         
         for (let i = 0; i < unloadedCards.length; i++) {
-            if (loaded >= 6) break;
+            if (loaded >= 10) break;
             const card = unloadedCards[i];
             const rect = card.getBoundingClientRect();
             const cardTop = rect.top + window.scrollY;

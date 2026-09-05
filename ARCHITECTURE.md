@@ -540,10 +540,15 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   Selecting a row filters the grid; the `↗` cell opens the standalone tool.
   Keep the engine (`getSuggestions` / `updateSuggestions` /
   `selectSuggestion`) in step with `performSearch` so both stay in sync.
-- **Card skeletons**: unloaded cards render `.card-skeleton` shimmer bars
-  (`.sk`, `.sk-line`, `.sk-block`) instead of the old "Loading…" text; the
-  shimmer is disabled under `prefers-reduced-motion`. Don't reintroduce
-  pulsing emoji placeholders.
+- **Card skeletons and performance**: unloaded cards render `.card-skeleton`
+  bars (`.sk`, `.sk-line`, `.sk-block`) instead of the old "Loading…" text.
+  **Animation budget is deliberate**: the shimmer runs only on the first
+  row (`.card:nth-child(-n+8) .sk`) and `.card.loading` has NO infinite
+  animation — animating 600+ unloaded cards at once freezes the grid (this
+  happened before and manifested as "cards not loading"). `.card` uses
+  `content-visibility: auto` + `contain-intrinsic-size: auto 320px` to skip
+  rendering offscreen cards; keep both. Don't reintroduce pulsing emoji
+  placeholders or global skeleton animations.
 
 ---
 
