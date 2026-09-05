@@ -1,0 +1,71 @@
+<h2 id="aced-title" style="margin-top:0;color:var(--accent);">🎂 Exact Age Calculator (Years, Months, Days)</h2>
+
+<form aria-describedby="aced-desc" onsubmit="event.preventDefault();">
+  <p id="aced-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Work out your exact age — or the time between any two dates — in years, months, weeks, days, hours, minutes and seconds. Shows your next birthday countdown, the weekday you were born, your zodiac signs, and fun milestones like your 10,000th day.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="aced-dob" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Date of birth (or start date)</label>
+      <input id="aced-dob" type="date" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+    </div>
+    <div>
+      <label for="aced-to" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Age at date (default: today)</label>
+      <input id="aced-to" type="date" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+    </div>
+  </div>
+
+  <div id="aced-main" style="background:rgba(0,0,0,0.3);border:1px solid rgba(45,212,255,0.25);border-radius:12px;padding:16px;text-align:center;margin-bottom:12px;">
+    <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Exact age</div>
+    <div id="aced-big" style="font-size:1.8rem;font-weight:800;color:var(--accent);line-height:1.2;">Enter a date of birth</div>
+    <div id="aced-sub" style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;"></div>
+  </div>
+
+  <div id="aced-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px;"></div>
+  <div id="aced-facts" style="display:grid;grid-template-columns:1fr;gap:6px;"></div>
+</form>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var dob=$('aced-dob'), to=$('aced-to');
+  var pad=function(n){return n<10?'0'+n:''+n;};
+  var iso=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+  to.value=iso(new Date()); dob.max=iso(new Date());
+  function fromIso(s){ var m=s&&s.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m? new Date(+m[1],+m[2]-1,+m[3]) : null; }
+  function zodiac(m,d){ var z=[[1,20,'Capricorn ♑'],[2,19,'Aquarius ♒'],[3,21,'Pisces ♓'],[4,20,'Aries ♈'],[5,21,'Taurus ♉'],[6,21,'Gemini ♊'],[7,23,'Cancer ♋'],[8,23,'Leo ♌'],[9,23,'Virgo ♍'],[10,23,'Libra ♎'],[11,22,'Scorpio ♏'],[12,22,'Sagittarius ♐'],[13,1,'Capricorn ♑']]; for(var i=0;i<z.length;i++){ if(m<z[i][0]||(m===z[i][0]&&d<z[i][1])) return z[i][2]; } return 'Capricorn ♑'; }
+  function chinese(y){ var a=['Monkey 🐒','Rooster 🐓','Dog 🐕','Pig 🐖','Rat 🐀','Ox 🐂','Tiger 🐅','Rabbit 🐇','Dragon 🐉','Snake 🐍','Horse 🐎','Goat 🐐']; return a[((y%12)+12)%12]; }
+  function stat(label,val){ return '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;">'+label+'</div><div style="font-size:1.1rem;font-weight:700;color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;">'+val+'</div></div>'; }
+  function fact(label,val){ return '<div style="display:flex;justify-content:space-between;gap:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:7px 10px;font-size:0.82rem;"><span style="color:var(--text-secondary);">'+label+'</span><span style="color:var(--text);text-align:right;">'+val+'</span></div>'; }
+  function diffYMD(a,b){ var y=b.getFullYear()-a.getFullYear(), m=b.getMonth()-a.getMonth(), d=b.getDate()-a.getDate();
+    if(d<0){ m--; d+=new Date(b.getFullYear(),b.getMonth(),0).getDate(); } if(m<0){ y--; m+=12; } return {y:y,m:m,d:d}; }
+  function calc(){
+    var a=fromIso(dob.value), b=fromIso(to.value)||new Date(); if(!a){ return; }
+    var swapped=false; if(b<a){ var t=a; a=b; b=t; swapped=true; }
+    var ymd=diffYMD(a,b); var ms=b-a; var days=Math.round(ms/86400000);
+    $('aced-big').textContent=ymd.y+' years, '+ymd.m+' months, '+ymd.d+' days';
+    $('aced-sub').textContent=(swapped?'(dates were swapped) ':'')+'or '+(ymd.y*12+ymd.m)+' months, '+ymd.d+' days · or '+days.toLocaleString()+' days total';
+    $('aced-grid').innerHTML=stat('Years',(ms/31556952000).toFixed(2))+stat('Months',(ms/2629746000).toFixed(1))+stat('Weeks',Math.floor(days/7).toLocaleString()+' + '+(days%7)+'d')+stat('Days',days.toLocaleString())+stat('Hours',Math.floor(ms/3600000).toLocaleString())+stat('Minutes',Math.floor(ms/60000).toLocaleString())+stat('Seconds',Math.floor(ms/1000).toLocaleString())+stat('Heartbeats ≈',Math.round(ms/60000*72).toLocaleString());
+    var now=new Date(); now.setHours(0,0,0,0);
+    var next=new Date(now.getFullYear(),a.getMonth(),a.getDate()); if(next<now) next=new Date(now.getFullYear()+1,a.getMonth(),a.getDate());
+    var untl=Math.round((next-now)/86400000); var turning=next.getFullYear()-a.getFullYear();
+    var wd=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var day10k=new Date(a.getTime()+10000*86400000), day20k=new Date(a.getTime()+20000*86400000), bill=new Date(a.getTime()+1e12);
+    var leap=function(y){return (y%4===0&&y%100!==0)||y%400===0;}, leaps=0; for(var y=a.getFullYear();y<=b.getFullYear();y++){ var f=new Date(y,1,29); if(leap(y)&&f>=a&&f<=b) leaps++; }
+    $('aced-facts').innerHTML=
+      fact('Born on a', wd[a.getDay()]+', '+a.toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'}))+
+      fact('Next birthday', untl===0?'🎉 Today! Happy birthday!':'in '+untl+' day'+(untl!==1?'s':'')+' — turning '+turning+' on a '+wd[next.getDay()])+
+      fact('Half-birthday', new Date(a.getFullYear(),a.getMonth()+6,a.getDate()).toLocaleDateString(undefined,{day:'numeric',month:'long'}))+
+      fact('Western zodiac', zodiac(a.getMonth()+1,a.getDate()))+
+      fact('Chinese zodiac', chinese(a.getFullYear())+' (approx. — lunar new year varies)')+
+      fact('Leap days lived through', String(leaps))+
+      fact('10,000th day', day10k.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})+(day10k<b?' ✓ passed':' (age 27.4)'))+
+      fact('20,000th day', day20k.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})+(day20k<b?' ✓ passed':' (age 54.8)'))+
+      fact('1 billion seconds old', bill.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})+(bill<b?' ✓ passed':' (age 31.7)'))+
+      fact('Age in dog years (rough)', (ymd.y<=2? ymd.y*10.5 : 21+(ymd.y-2)*4).toFixed(0))+
+      fact('Age on Mars', (ms/(686.98*86400000)).toFixed(2)+' Martian years');
+  }
+  dob.addEventListener('input',calc); to.addEventListener('input',calc);
+})();
+</script>

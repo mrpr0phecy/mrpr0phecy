@@ -174,6 +174,7 @@ const aquariumList = [
 // Ten tools added to fill genuine gaps found by auditing the existing 552-card
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
 const gapFillMap = {
+  'age-calculator-exact-days': 'Productivity & Lifestyle',
   'random-number-dice-picker': 'Productivity & Lifestyle',
   'roman-numeral-number-converter': 'Mathematics',
   'csv-to-json-table-converter': 'Productivity & Lifestyle',
