@@ -437,6 +437,7 @@ const csList = [
 // categories (see ARCHITECTURE.md §3, "generate-cards-json.js overwrites
 // categories"). Add new tools here, exact filename slug, no .html.
 const newToolsMap = {
+  'climbing-anchor-force-calculator': 'Sports',
   'rainwater-harvest-tank-simulator': 'Home & DIY',
   'rf-link-budget-fresnel-planner': 'Science & Engineering',
   'wind-wave-fetch-forecaster': 'Geography & Maps',

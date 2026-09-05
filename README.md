@@ -2,7 +2,7 @@
 
 One GitHub Pages site serving two separate products from the same domain:
 
-- **The Most Useful Site In The World** — 651 free, self-contained browser
+- **The Most Useful Site In The World** — 652 free, self-contained browser
   tools. Entry point: [`index.html`](index.html)
 - **MrProphecy** — UK hip hop and animated soundscapes from Luton.
   Entry point: [`listen.html`](listen.html)
@@ -51,7 +51,7 @@ money-related.
 |---|---|
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
-| Tools | 651, indexed by `cards/cards.json` |
+| Tools | 652, indexed by `cards/cards.json` |
 | Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
 
 ## Local preview
