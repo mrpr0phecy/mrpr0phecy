@@ -173,6 +173,12 @@ const aquariumList = [
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
 // Ten tools added to fill genuine gaps found by auditing the existing 552-card
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
+// Explicit slug → category map for tools added after 2026-09-05.
+// Checked before every substring list so nothing can steal these.
+const categoryMap = {
+  'unix-timestamp-epoch-converter': 'Productivity & Lifestyle',
+};
+
 const gapFillMap = {
   'hike-time-planner': 'Science & Engineering',
   'photo-exposure-lab': 'Science & Engineering',
@@ -436,6 +442,7 @@ const csList = [
 ];
 
 function getCategory(name) {
+  if (categoryMap[name]) return categoryMap[name];
   if (gapFillMap[name]) return gapFillMap[name];
   if (sportsList.includes(name)) return 'Sports';
   if (demosList.includes(name)) return 'Mind-Blowing Demos';
