@@ -132,9 +132,6 @@ const scienceList = [
   'solar-system-simulator',
   'thermodynamics',
   'transformer-calculator',
-  'unit-converter-science',
-  'unit-converter',
-  'unitconverter',
   'voltage-drop',
   'wire-gauge'
 ];
