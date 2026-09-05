@@ -203,7 +203,7 @@ be blank — a common cause of "my tool shows up empty".
 | 15 | Culinary & Food Science | | 10 | Dogs & Canine Care |
 | 12 | Museum & Collection | | 10 | MrProphecy Arcade |
 | 11 | Interactive Art & Living Worlds | | 7 | Virtual Worlds & Gaming |
-| 10 | Mind-Blowing Demos | | | |
+| 10 | Mind-Blowing Demos | | 9 | Geography & Maps |
 | 10 | Algorithms & Computer Science | | | |
 
 ---
@@ -732,6 +732,34 @@ sorter**, an **emoji-meaning decoder**, a **caffeine half-life bedtime check** a
 a **coat-or-no-coat weather** advisor. Tool count is now **644** (updated across
 README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html,
 tool.html).
+
+**Added 2026-09-05** — a new **Geography & Maps** category, plus the first pass
+of catalogue consolidation. Nine new tools, each built around a real algorithm
+rather than a lookup table: a **map-projection distortion lab** (numeric
+Jacobian to Tissot indicatrices and true-size comparisons across nine
+projections), a **coordinate format translator** (DD/DMS/DDM, UTM, MGRS, OSGB36
+via a seven-parameter Helmert transform, geohash, Plus Codes, Maidenhead), a
+**great-circle route planner** (Vincenty inverse, rhumb comparison, waypoint
+table, orthographic globe), a **Köppen climate classifier** (full decision tree
+with a numbered trace, borderline warnings and a climograph), a **horizon &
+line-of-sight calculator** (curvature, refraction models, radio horizon,
+cross-section), a **tectonic plate drift calculator** (Euler-pole rotations from
+the NNR-MORVEL56 set), a **daylight & twilight atlas** (NOAA solar equations,
+year-long light ribbon, midnight sun and polar night), an **antipode & gravity
+tunnel explorer** (fall times integrated through the PREM interior density
+model — 38 minutes, not the textbook 42) and a **geodesic area & parcel
+calculator** (spherical excess versus the flat-map answer). The category is
+registered in `KNOWN_CATEGORIES` in `check-cards.py`, in `newToolsMap` in
+`generate-cards-json.js`, in the index pill bar (`count-geo`) and in the index
+JSON-LD.
+
+Consolidation in the same pass removed four duplicate cards: three unit
+converters folded into `physics-unit-converter-matrix`,
+`universal-thumbnail-maker` into `thumbnail-generator`, a `vocab` stub into
+`vocabulary-trainer` and `pomodoro-flow` into `focus`. `index.html` also gained
+`syncCategoryCounts()`, which now derives every category pill count from
+`cards.json` at load and hides empty pills, so the counts can no longer drift
+out of date. Tool count is now **648**.
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —
