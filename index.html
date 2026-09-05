@@ -3368,7 +3368,8 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         LOAD_DELAY: 100,
         GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
         GITHUB_PATH: 'cards',
-        STICKY_THRESHOLD: 200
+        STICKY_THRESHOLD: 200,
+        CARD_FETCH_TIMEOUT: 12000
     };
     
     // ===== STATE MANAGEMENT =====
@@ -4253,9 +4254,14 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 initIntersectionObserver();
                 
                 // Periodic stuck-card recovery — catches cards the observer missed
+                // (including filtered/search views, which used to skip this path)
                 setInterval(() => {
-                    if (!isSearching) scrollFallbackLoader();
+                    scrollFallbackLoader();
                 }, 3000);
+
+                if (currentSelectedCategory !== 'all' || (currentSearchQuery && currentSearchQuery.length)) {
+                    applyFilters();
+                }
             }, 300);
             
         } catch (error) {
@@ -4318,9 +4324,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         // Check cache
         const cached = cardCache.get(cardName);
         if (cached && (Date.now() - cached.timestamp) < (15 * 60 * 1000)) {
-            renderCardContent(card, cardName, cached.html);
+            if (renderCardContent(card, cardName, cached.html)) {
+                loadedCards.add(cardName);
+            }
             loadingCards.delete(cardName);
-            loadedCards.add(cardName);
             if (observer) observer.unobserve(card);
             return;
         }
@@ -4328,7 +4335,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         try {
             const meta = cardsMetaMap.get(cardName);
             const cardUrl = meta ? meta.path : `cards/${cardName}.html`;
-            const response = await fetch(cardUrl);
+            const response = await fetchWithTimeout(cardUrl, CONFIG.CARD_FETCH_TIMEOUT);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -4342,8 +4349,9 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 timestamp: Date.now()
             });
             
-            renderCardContent(card, cardName, html);
-            loadedCards.add(cardName);
+            if (renderCardContent(card, cardName, html)) {
+                loadedCards.add(cardName);
+            }
             
         } catch (error) {
             console.error(`Failed to load card ${cardName}:`, error);
@@ -4448,10 +4456,13 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             setTimeout(() => {
                 adjustCardHeight(card);
             }, 100);
+
+            return true;
             
         } catch (error) {
             console.error(`Error rendering card ${cardName}:`, error);
             showCardError(card, cardName, error);
+            return false;
         }
     }
     
@@ -4639,13 +4650,13 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         
         observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                if (entry.isIntersecting && !isSearching) {
-                    const card = entry.target;
-                    const cardName = card.dataset.name;
-                    
-                    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                        loadCard(card, cardName);
-                    }
+                if (!entry.isIntersecting) return;
+                const card = entry.target;
+                if (card.style.display === 'none') return;
+                const cardName = card.dataset.name;
+                
+                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    loadCard(card, cardName);
                 }
             });
         }, {
@@ -4666,7 +4677,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     let scrollLoadActive = false;
     
     function scrollFallbackLoader() {
-        if (scrollLoadActive || isSearching) return;
+        if (scrollLoadActive) return;
         scrollLoadActive = true;
         
         const viewportTop = window.scrollY - 300;
@@ -4678,6 +4689,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         for (let i = 0; i < unloadedCards.length; i++) {
             if (loaded >= 6) break;
             const card = unloadedCards[i];
+            if (card.style.display === 'none') continue;
             const rect = card.getBoundingClientRect();
             const cardTop = rect.top + window.scrollY;
             const cardBottom = cardTop + rect.height;
@@ -5035,6 +5047,35 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     let currentSort = 'default';
     let currentViewMode = 'cards';
 
+    function normalizeSearchText(s) {
+        return String(s || '')
+            .toLowerCase()
+            .normalize('NFKD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, ch => '0123456789'['₀₁₂₃₄₅₆₇₈₉'.indexOf(ch)])
+            .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, ch => '0123456789'['⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(ch)])
+            .replace(/c02/g, 'co2');
+    }
+
+    function tokenizeSearch(s) {
+        return normalizeSearchText(s).split(/[^a-z0-9]+/).filter(Boolean);
+    }
+
+    async function fetchWithTimeout(url, ms) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), ms);
+        try {
+            return await fetch(url, { signal: controller.signal });
+        } catch (err) {
+            if (err && err.name === 'AbortError') {
+                throw new Error('Timed out loading this tool');
+            }
+            throw err;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
     function performSearch(query) {
         currentSearchQuery = query;
         applyFilters();
@@ -5145,6 +5186,16 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 noResultsState.style.display = 'none';
             }
         }
+
+        requestAnimationFrame(() => {
+            scrollFallbackLoader();
+            if (observer) {
+                document.querySelectorAll('.card:not(.loaded)').forEach(card => {
+                    if (card.style.display === 'none') return;
+                    observer.observe(card);
+                });
+            }
+        });
     }
 
     function renderDirectoryList(names) {
@@ -5284,28 +5335,6 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         `;
         notification.textContent = message;
         document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            notification.style.transform = 'translateY(-20px)';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
-    
-    // ===== INITIALIZE =====
-    // Listen for window resize to adjust card heights
-    window.addEventListener('resize', () => {
-        document.querySelectorAll('.card').forEach(card => {
-            adjustCardHeight(card);
-        });
-    });
-    
-    // Make functions globally available for button onclick events
-    window.retryLoadCard = retryLoadCard;
-    </script>
-</body>
-</html>
-ation);
         
         setTimeout(() => {
             notification.style.opacity = '0';
