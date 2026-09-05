@@ -1,0 +1,372 @@
+<h2 id="great-circle-route-planner-title" style="margin-top:0;color:var(--accent);">✈️ Great-Circle Route Planner</h2>
+
+<form aria-describedby="great-circle-route-planner-desc" onsubmit="event.preventDefault();">
+  <p id="great-circle-route-planner-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Why does a London–Tokyo flight arc over Siberia? Compute the true shortest path between any two points — Vincenty distance on the real ellipsoid, initial and final bearings, waypoints along the way — and compare it with the constant-compass rhumb line a ruler on a Mercator map would give you. Includes the straight-line chord through the Earth itself.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:12px;">
+    <div style="background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;">
+      <div style="font-size:0.72rem;color:var(--accent);font-weight:700;margin-bottom:6px;">FROM</div>
+      <label for="gcrp-fromsel" style="display:block;font-size:0.7rem;color:var(--text-secondary);margin-bottom:3px;">Preset</label>
+      <select id="gcrp-fromsel" style="width:100%;padding:8px 10px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.8rem;margin-bottom:8px;"></select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label for="gcrp-lat1" style="display:block;font-size:0.68rem;color:var(--text-secondary);">Latitude</label>
+          <input type="number" id="gcrp-lat1" value="51.4700" step="0.0001" style="width:100%;padding:8px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+        </div>
+        <div>
+          <label for="gcrp-lon1" style="display:block;font-size:0.68rem;color:var(--text-secondary);">Longitude</label>
+          <input type="number" id="gcrp-lon1" value="-0.4543" step="0.0001" style="width:100%;padding:8px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+        </div>
+      </div>
+    </div>
+    <div style="background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;">
+      <div style="font-size:0.72rem;color:#ffd700;font-weight:700;margin-bottom:6px;">TO</div>
+      <label for="gcrp-tosel" style="display:block;font-size:0.7rem;color:var(--text-secondary);margin-bottom:3px;">Preset</label>
+      <select id="gcrp-tosel" style="width:100%;padding:8px 10px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.8rem;margin-bottom:8px;"></select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label for="gcrp-lat2" style="display:block;font-size:0.68rem;color:var(--text-secondary);">Latitude</label>
+          <input type="number" id="gcrp-lat2" value="35.5494" step="0.0001" style="width:100%;padding:8px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+        </div>
+        <div>
+          <label for="gcrp-lon2" style="display:block;font-size:0.68rem;color:var(--text-secondary);">Longitude</label>
+          <input type="number" id="gcrp-lon2" value="139.7798" step="0.0001" style="width:100%;padding:8px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="gcrp-swap" style="padding:9px 16px;min-height:40px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);color:var(--text);font-size:0.8rem;">⇄ Reverse route</button>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text-secondary);min-height:40px;">
+      <input type="checkbox" id="gcrp-rhumb" checked> Show rhumb line
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text-secondary);min-height:40px;">
+      Cruise speed
+      <input type="number" id="gcrp-speed" value="880" min="1" max="30000" style="width:90px;padding:6px 8px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.8rem;"> km/h
+    </label>
+  </div>
+
+  <div id="gcrp-stats" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="gcrp-canvas" width="820" height="430" role="img"
+          aria-label="Globe schematic showing the great-circle path and the rhumb line between the two points"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:12px;"></canvas>
+
+  <details style="background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.85rem;font-weight:600;">Waypoints along the great circle</summary>
+    <div id="gcrp-waypoints" style="margin-top:10px;font-family:monospace;font-size:0.76rem;color:var(--text-secondary);line-height:1.7;overflow-x:auto;"></div>
+  </details>
+
+  <div id="gcrp-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var c = document.getElementById('gcrp-canvas');
+  if (!c || !c.getContext) return;
+  var ctx = c.getContext('2d');
+  var lat1El = document.getElementById('gcrp-lat1'), lon1El = document.getElementById('gcrp-lon1');
+  var lat2El = document.getElementById('gcrp-lat2'), lon2El = document.getElementById('gcrp-lon2');
+  var fromSel = document.getElementById('gcrp-fromsel'), toSel = document.getElementById('gcrp-tosel');
+  var rhumbBox = document.getElementById('gcrp-rhumb'), speedEl = document.getElementById('gcrp-speed');
+
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI, R = 6371008.8;
+
+  var PLACES = [
+    ['London Heathrow (LHR)', 51.4700, -0.4543],
+    ['Tokyo Haneda (HND)', 35.5494, 139.7798],
+    ['New York JFK', 40.6413, -73.7781],
+    ['Los Angeles (LAX)', 33.9416, -118.4085],
+    ['Sydney (SYD)', -33.9399, 151.1753],
+    ['Johannesburg (JNB)', -26.1392, 28.2460],
+    ['Dubai (DXB)', 25.2532, 55.3657],
+    ['Singapore (SIN)', 1.3644, 103.9915],
+    ['São Paulo (GRU)', -23.4356, -46.4731],
+    ['Reykjavík (KEF)', 63.9850, -22.6056],
+    ['Santiago (SCL)', -33.3930, -70.7858],
+    ['Auckland (AKL)', -37.0082, 174.7850],
+    ['Anchorage (ANC)', 61.1743, -149.9962],
+    ['Cape Town (CPT)', -33.9715, 18.6021],
+    ['Luton, England', 51.8787, -0.4200],
+    ['Mumbai (BOM)', 19.0896, 72.8656],
+    ['Buenos Aires (EZE)', -34.8222, -58.5358],
+    ['Vancouver (YVR)', 49.1967, -123.1815]
+  ];
+  PLACES.forEach(function (p, i) {
+    fromSel.add(new Option(p[0], String(i)));
+    toSel.add(new Option(p[0], String(i)));
+  });
+  fromSel.value = '0'; toSel.value = '1';
+
+  /* ---------- spherical helpers ---------- */
+  function haversine(p1, p2) {
+    var dphi = (p2.lat - p1.lat) * D2R, dlam = (p2.lon - p1.lon) * D2R;
+    var a = Math.sin(dphi / 2) * Math.sin(dphi / 2) +
+            Math.cos(p1.lat * D2R) * Math.cos(p2.lat * D2R) * Math.sin(dlam / 2) * Math.sin(dlam / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+
+  function bearing(p1, p2) {
+    var phi1 = p1.lat * D2R, phi2 = p2.lat * D2R, dl = (p2.lon - p1.lon) * D2R;
+    var y = Math.sin(dl) * Math.cos(phi2);
+    var x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dl);
+    return (Math.atan2(y, x) * R2D + 360) % 360;
+  }
+
+  function interp(p1, p2, f) {
+    var phi1 = p1.lat * D2R, lam1 = p1.lon * D2R, phi2 = p2.lat * D2R, lam2 = p2.lon * D2R;
+    var d = haversine(p1, p2) / R;
+    if (d === 0) return { lat: p1.lat, lon: p1.lon };
+    var A = Math.sin((1 - f) * d) / Math.sin(d), B = Math.sin(f * d) / Math.sin(d);
+    var x = A * Math.cos(phi1) * Math.cos(lam1) + B * Math.cos(phi2) * Math.cos(lam2);
+    var y = A * Math.cos(phi1) * Math.sin(lam1) + B * Math.cos(phi2) * Math.sin(lam2);
+    var z = A * Math.sin(phi1) + B * Math.sin(phi2);
+    return { lat: Math.atan2(z, Math.sqrt(x * x + y * y)) * R2D, lon: Math.atan2(y, x) * R2D };
+  }
+
+  function rhumb(p1, p2) {
+    var phi1 = p1.lat * D2R, phi2 = p2.lat * D2R;
+    var dphi = phi2 - phi1;
+    var dpsi = Math.log(Math.tan(Math.PI / 4 + phi2 / 2) / Math.tan(Math.PI / 4 + phi1 / 2));
+    var q = Math.abs(dpsi) > 1e-12 ? dphi / dpsi : Math.cos(phi1);
+    var dlam = (p2.lon - p1.lon) * D2R;
+    if (Math.abs(dlam) > Math.PI) dlam = dlam > 0 ? dlam - 2 * Math.PI : dlam + 2 * Math.PI;
+    return {
+      dist: Math.sqrt(dphi * dphi + q * q * dlam * dlam) * R,
+      bearing: (Math.atan2(dlam, dpsi) * R2D + 360) % 360
+    };
+  }
+
+  // Vincenty inverse on WGS84 — millimetre-level distance on the real ellipsoid
+  function vincenty(p1, p2) {
+    var a = 6378137, f = 1 / 298.257223563, b = (1 - f) * a;
+    var L = (p2.lon - p1.lon) * D2R;
+    var U1 = Math.atan((1 - f) * Math.tan(p1.lat * D2R));
+    var U2 = Math.atan((1 - f) * Math.tan(p2.lat * D2R));
+    var sinU1 = Math.sin(U1), cosU1 = Math.cos(U1), sinU2 = Math.sin(U2), cosU2 = Math.cos(U2);
+    var lam = L, lamP, iter = 0, cosSqAlpha, sinSigma, cos2SigmaM, cosSigma, sigma;
+    do {
+      var sinLam = Math.sin(lam), cosLam = Math.cos(lam);
+      sinSigma = Math.sqrt((cosU2 * sinLam) * (cosU2 * sinLam) +
+        (cosU1 * sinU2 - sinU1 * cosU2 * cosLam) * (cosU1 * sinU2 - sinU1 * cosU2 * cosLam));
+      if (sinSigma === 0) return 0;
+      cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosLam;
+      sigma = Math.atan2(sinSigma, cosSigma);
+      var sinAlpha = cosU1 * cosU2 * sinLam / sinSigma;
+      cosSqAlpha = 1 - sinAlpha * sinAlpha;
+      cos2SigmaM = cosSqAlpha !== 0 ? cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha : 0;
+      var C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
+      lamP = lam;
+      lam = L + (1 - C) * f * sinAlpha *
+        (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)));
+    } while (Math.abs(lam - lamP) > 1e-12 && ++iter < 200);
+    var uSq = cosSqAlpha * (a * a - b * b) / (b * b);
+    var A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
+    var B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
+    var dSigma = B * sinSigma * (cos2SigmaM + B / 4 * (cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM) -
+      B / 6 * cos2SigmaM * (-3 + 4 * sinSigma * sinSigma) * (-3 + 4 * cos2SigmaM * cos2SigmaM)));
+    return b * A * (sigma - dSigma);
+  }
+
+  function compass(b) {
+    var pts = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    return pts[Math.round(b / 22.5) % 16];
+  }
+
+  function fmtKm(m) {
+    var km = m / 1000;
+    return km.toLocaleString(undefined, { maximumFractionDigits: km < 100 ? 2 : 0 }) + ' km';
+  }
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.05rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') +
+      '</div>';
+  }
+
+  /* ---------- globe drawing ---------- */
+  function drawGlobe(p1, p2, path) {
+    var w = c.width, h = c.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
+
+    var mid = interp(p1, p2, 0.5);
+    var cLat = mid.lat * D2R, cLon = mid.lon * D2R;
+    var rad = Math.min(w, h) / 2 - 22;
+    var cx = w / 2, cy = h / 2;
+
+    function project(lat, lon) {
+      var phi = lat * D2R, lam = lon * D2R;
+      var cosc = Math.sin(cLat) * Math.sin(phi) + Math.cos(cLat) * Math.cos(phi) * Math.cos(lam - cLon);
+      return {
+        x: cx + rad * Math.cos(phi) * Math.sin(lam - cLon),
+        y: cy - rad * (Math.cos(cLat) * Math.sin(phi) - Math.sin(cLat) * Math.cos(phi) * Math.cos(lam - cLon)),
+        vis: cosc >= 0
+      };
+    }
+
+    // globe body
+    ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(45,212,255,.05)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(45,212,255,.45)'; ctx.lineWidth = 1.4; ctx.stroke();
+
+    // graticule
+    ctx.lineWidth = 1;
+    var la, lo, q, started;
+    for (la = -60; la <= 60; la += 30) {
+      ctx.beginPath(); started = false;
+      for (lo = -180; lo <= 180; lo += 3) {
+        q = project(la, lo);
+        if (!q.vis) { started = false; continue; }
+        if (!started) { ctx.moveTo(q.x, q.y); started = true; } else ctx.lineTo(q.x, q.y);
+      }
+      ctx.strokeStyle = la === 0 ? 'rgba(230,250,255,.35)' : 'rgba(230,250,255,.16)';
+      ctx.stroke();
+    }
+    for (lo = -180; lo < 180; lo += 30) {
+      ctx.beginPath(); started = false;
+      for (la = -90; la <= 90; la += 3) {
+        q = project(la, lo);
+        if (!q.vis) { started = false; continue; }
+        if (!started) { ctx.moveTo(q.x, q.y); started = true; } else ctx.lineTo(q.x, q.y);
+      }
+      ctx.strokeStyle = 'rgba(230,250,255,.14)';
+      ctx.stroke();
+    }
+
+    // rhumb line (constant bearing) for comparison
+    if (rhumbBox.checked) {
+      ctx.beginPath(); started = false;
+      var rb = rhumb(p1, p2);
+      var steps = 160;
+      for (var i = 0; i <= steps; i++) {
+        var f = i / steps;
+        // linear in Mercator y, which is what "constant bearing" means
+        var y1 = Math.log(Math.tan(Math.PI / 4 + p1.lat * D2R / 2));
+        var y2 = Math.log(Math.tan(Math.PI / 4 + p2.lat * D2R / 2));
+        var yv = y1 + (y2 - y1) * f;
+        var lat = (2 * Math.atan(Math.exp(yv)) - Math.PI / 2) * R2D;
+        var dlon = p2.lon - p1.lon;
+        if (dlon > 180) dlon -= 360; if (dlon < -180) dlon += 360;
+        var lonv = p1.lon + dlon * f;
+        q = project(lat, lonv);
+        if (!q.vis) { started = false; continue; }
+        if (!started) { ctx.moveTo(q.x, q.y); started = true; } else ctx.lineTo(q.x, q.y);
+      }
+      ctx.strokeStyle = 'rgba(255,215,0,.85)';
+      ctx.setLineDash([5, 4]); ctx.lineWidth = 1.8; ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // great circle
+    ctx.beginPath(); started = false;
+    path.forEach(function (pt) {
+      var s = project(pt.lat, pt.lon);
+      if (!s.vis) { started = false; return; }
+      if (!started) { ctx.moveTo(s.x, s.y); started = true; } else ctx.lineTo(s.x, s.y);
+    });
+    ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2.4; ctx.stroke();
+
+    // endpoints
+    [[p1, '#2dd4ff', 'FROM'], [p2, '#ff6b6b', 'TO']].forEach(function (e) {
+      var s = project(e[0].lat, e[0].lon);
+      if (!s.vis) return;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = e[1]; ctx.fill();
+      ctx.fillStyle = 'rgba(230,250,255,.9)';
+      ctx.font = '600 11px Inter, system-ui, sans-serif';
+      ctx.fillText(e[2], s.x + 8, s.y - 6);
+    });
+
+    ctx.fillStyle = 'rgba(230,250,255,.55)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText('Globe centred on the route midpoint · green = great circle · gold dashes = rhumb line', 14, h - 12);
+  }
+
+  /* ---------- main ---------- */
+  function update() {
+    var p1 = { lat: parseFloat(lat1El.value), lon: parseFloat(lon1El.value) };
+    var p2 = { lat: parseFloat(lat2El.value), lon: parseFloat(lon2El.value) };
+    if (![p1.lat, p1.lon, p2.lat, p2.lon].every(isFinite)) return;
+
+    var gc = haversine(p1, p2);
+    var ell = vincenty(p1, p2);
+    var rb = rhumb(p1, p2);
+    var b1 = bearing(p1, p2), b2 = (bearing(p2, p1) + 180) % 360;
+    var mid = interp(p1, p2, 0.5);
+    var speed = Math.max(1, parseFloat(speedEl.value) || 880);
+    var hours = (ell / 1000) / speed;
+
+    // chord straight through the planet + its deepest point
+    var theta = gc / R;
+    var chord = 2 * R * Math.sin(theta / 2);
+    var depth = R * (1 - Math.cos(theta / 2));
+
+    var extra = rb.dist - gc;
+    var extraPct = gc > 0 ? (extra / gc) * 100 : 0;
+
+    var maxLat = Math.max(p1.lat, p2.lat), i;
+    for (i = 0; i <= 100; i++) {
+      var pt = interp(p1, p2, i / 100);
+      if (Math.abs(pt.lat) > Math.abs(maxLat)) maxLat = pt.lat;
+    }
+
+    document.getElementById('gcrp-stats').innerHTML =
+      stat('GREAT-CIRCLE DISTANCE', fmtKm(ell), (ell / 1852).toFixed(0) + ' nmi · ' + (ell / 1609.344).toFixed(0) + ' mi') +
+      stat('INITIAL BEARING', b1.toFixed(1) + '° ' + compass(b1), 'final ' + b2.toFixed(1) + '° ' + compass(b2), '#39ff14') +
+      stat('FLIGHT TIME AT ' + Math.round(speed) + ' KM/H', Math.floor(hours) + 'h ' + Math.round((hours % 1) * 60) + 'm', 'still-air, great-circle', '#ffd700') +
+      stat('RHUMB LINE (CONSTANT ' + rb.bearing.toFixed(0) + '°)', fmtKm(rb.dist),
+           extra > 500 ? '+' + fmtKm(extra) + ' (' + extraPct.toFixed(1) + '% longer)' : 'nearly identical here', '#ff9f43') +
+      stat('HIGHEST LATITUDE ON ROUTE', Math.abs(maxLat).toFixed(1) + '° ' + (maxLat >= 0 ? 'N' : 'S'), 'the "why it curves" number') +
+      stat('MIDPOINT', mid.lat.toFixed(3) + ', ' + mid.lon.toFixed(3), 'halfway by distance') +
+      stat('STRAIGHT THROUGH THE EARTH', fmtKm(chord), 'deepest point ' + fmtKm(depth) + ' below the surface', '#9d4edd') +
+      stat('ANGULAR SEPARATION', (theta * R2D).toFixed(2) + '°', (theta * R2D / 360 * 100).toFixed(1) + '% of the way round the planet');
+
+    var path = [];
+    for (i = 0; i <= 180; i++) path.push(interp(p1, p2, i / 180));
+    drawGlobe(p1, p2, path);
+
+    var rows = '<table style="border-collapse:collapse;width:100%;min-width:340px;"><tr style="color:var(--accent);">' +
+      '<th style="text-align:left;padding:2px 8px;">Along</th><th style="text-align:left;padding:2px 8px;">Latitude</th>' +
+      '<th style="text-align:left;padding:2px 8px;">Longitude</th><th style="text-align:left;padding:2px 8px;">Distance flown</th></tr>';
+    for (i = 0; i <= 10; i++) {
+      var f = i / 10, w = interp(p1, p2, f);
+      rows += '<tr><td style="padding:2px 8px;">' + (f * 100).toFixed(0) + '%</td>' +
+        '<td style="padding:2px 8px;">' + w.lat.toFixed(3) + '</td>' +
+        '<td style="padding:2px 8px;">' + w.lon.toFixed(3) + '</td>' +
+        '<td style="padding:2px 8px;">' + fmtKm(ell * f) + '</td></tr>';
+    }
+    document.getElementById('gcrp-waypoints').innerHTML = rows + '</table>';
+
+    var sphereVsEll = ell - gc;
+    document.getElementById('gcrp-notes').innerHTML =
+      '<strong style="color:var(--accent);">Reading this route.</strong> The great circle is the shortest path across the surface; it looks bent on a Mercator map only because Mercator bends it. The rhumb line holds a single compass bearing — easier to steer, ' +
+      (extraPct > 0.5 ? 'but ' + fmtKm(extra) + ' (' + extraPct.toFixed(1) + '%) further here.' : 'and barely longer on this short a hop.') +
+      ' Ellipsoidal (Vincenty) distance differs from the spherical estimate by ' + Math.abs(sphereVsEll / 1000).toFixed(1) + ' km — the Earth is about 21 km fatter at the equator than pole to pole.' +
+      '<div style="margin-top:6px;">Fun consequence: a frictionless tunnel drilled along that ' + fmtKm(chord) + ' chord would take about <strong>42 minutes</strong> to fall through — famously the same 42 minutes for <em>any</em> straight tunnel through a uniform Earth, long or short.</div>';
+  }
+
+  fromSel.addEventListener('change', function () {
+    var p = PLACES[parseInt(fromSel.value, 10)];
+    lat1El.value = p[1]; lon1El.value = p[2]; update();
+  });
+  toSel.addEventListener('change', function () {
+    var p = PLACES[parseInt(toSel.value, 10)];
+    lat2El.value = p[1]; lon2El.value = p[2]; update();
+  });
+  document.getElementById('gcrp-swap').addEventListener('click', function () {
+    var a = lat1El.value, b = lon1El.value;
+    lat1El.value = lat2El.value; lon1El.value = lon2El.value;
+    lat2El.value = a; lon2El.value = b;
+    update();
+  });
+  [lat1El, lon1El, lat2El, lon2El, speedEl].forEach(function (el) { el.addEventListener('input', update); });
+  rhumbBox.addEventListener('change', update);
+
+  update();
+})();
+</script>
