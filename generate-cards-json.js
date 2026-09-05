@@ -174,6 +174,7 @@ const aquariumList = [
 // Ten tools added to fill genuine gaps found by auditing the existing 552-card
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
 const gapFillMap = {
+  'password-strength-entropy-checker': 'Productivity & Lifestyle',
   'pregnancy-due-date-week-calculator': 'Health & Fitness',
   'tip-split-bill-per-person': 'Finance & Money',
   'uuid-guid-bulk-generator': 'Productivity & Lifestyle',
