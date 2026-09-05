@@ -437,6 +437,7 @@ const csList = [
 // categories (see ARCHITECTURE.md §3, "generate-cards-json.js overwrites
 // categories"). Add new tools here, exact filename slug, no .html.
 const newToolsMap = {
+  'map-projection-distortion-lab': 'Geography & Maps',
   'uuid-ulid-generator': 'Algorithms & Computer Science',
 };
 

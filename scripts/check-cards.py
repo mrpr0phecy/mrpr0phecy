@@ -39,6 +39,7 @@ KNOWN_CATEGORIES = {
     "AI & Autonomous Agents", "Anime & Otaku Culture", "Aquatics & Fishkeeping",
     "Birdwatching & Ornithology", "Dogs & Canine Care",
     "Virtual Worlds & Gaming", "MrProphecy Arcade", "Museum & Collection",
+    "Geography & Maps",
     "Sports", "Mind-Blowing Demos", "Algorithms & Computer Science",
 }
 
