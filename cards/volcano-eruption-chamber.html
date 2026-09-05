@@ -1,0 +1,182 @@
+<h2 id="vol-title" style="margin-top:0;color:var(--accent);">🌋 Volcano Eruption Chamber</h2>
+
+<form aria-describedby="vol-desc" onsubmit="event.preventDefault();">
+  <p id="vol-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+    Magma viscosity is silica; explosivity is dissolved water flashing to steam. Low-silica Hawaiian fountains pour lava; high-silica, wet magma fragments into a Plinian column. VEI and column height follow Wilson/Sparks scaling from the mass eruption rate the chamber actually produces.
+  </p>
+
+  <div style="background:#120806;border:1px solid rgba(255,120,60,0.3);border-radius:10px;overflow:hidden;margin-bottom:12px;">
+    <canvas id="vol-cv" width="560" height="380" style="width:100%;height:auto;aspect-ratio:560/380;display:block;"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <label for="vol-si" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Silica SiO₂ <span id="vol-si-v">52%</span>
+      <input id="vol-si" type="range" min="45" max="78" value="52" style="width:100%;accent-color:#fb7185;">
+    </label>
+    <label for="vol-h2o" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">H₂O in melt <span id="vol-h2o-v">1.2 wt%</span>
+      <input id="vol-h2o" type="range" min="0.2" max="6" step="0.1" value="1.2" style="width:100%;accent-color:#fb7185;">
+    </label>
+    <label for="vol-p" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Chamber ΔP <span id="vol-p-v">8 MPa</span>
+      <input id="vol-p" type="range" min="1" max="25" value="8" style="width:100%;accent-color:#fb7185;">
+    </label>
+    <label for="vol-vent" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Vent radius <span id="vol-vent-v">12 m</span>
+      <input id="vol-vent" type="range" min="4" max="40" value="12" style="width:100%;accent-color:#fb7185;">
+    </label>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="vol-run" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(251,113,133,0.16);border:1px solid rgba(251,113,133,0.45);color:#fb7185;cursor:pointer;font-weight:600;">Pause</button>
+    <button type="button" id="vol-fire" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,140,60,0.16);border:1px solid rgba(255,140,60,0.45);color:#ffb070;cursor:pointer;font-weight:600;">Erupt</button>
+  </div>
+
+  <div id="vol-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.75);padding:10px 12px;background:rgba(251,113,133,0.07);border:1px solid rgba(251,113,133,0.2);border-radius:8px;">Raise silica and water to flip Hawaiian lava into a Plinian ash column.</div>
+</form>
+
+<details style="margin-top:10px;font-size:0.82rem;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics</summary>
+  <p style="margin-top:8px;">
+    Viscosity of silicate melts jumps ~10 orders of magnitude from 45% to 75% SiO₂ (Giordano–Russell–Dingwell).
+    Dissolved water both drops viscosity and, on decompression, exsolves: if the bubble volume fraction exceeds
+    ~70% the magma fragments. Mass eruption rate Ṁ ≈ ρ π r² u, column height H ≈ 0.3 Ṁ^0.25 (Sparks). VEI is
+    a log scale of erupted volume; here it is inferred from Ṁ. Hawaiian, Strombolian, Vulcanian, sub-Plinian,
+    Plinian follow from that pair of numbers.
+  </p>
+</details>
+
+<script>
+(function () {
+  var cv = document.getElementById('vol-cv');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var parts = [], running = true, erupting = true, t = 0;
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) running = false;
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { return parseFloat($(id).value); }
+
+  function styleOf() {
+    var si = val('vol-si'), h2o = val('vol-h2o'), p = val('vol-p'), r = val('vol-vent');
+    var visc = Math.pow(10, (si - 45) * 0.22 - h2o * 0.35);
+    var frag = (h2o * p) / (visc * 0.0008 + 1);
+    var explosive = frag > 12 && si > 58;
+    var u = Math.min(350, 18 * Math.sqrt(p) * (explosive ? 4 : 1) / Math.pow(visc, 0.12));
+    var mer = 2600 * Math.PI * r * r * u;
+    var H = 0.3 * Math.pow(Math.max(1, mer), 0.25);
+    var vei = 0;
+    if (mer > 1e9) vei = 5;
+    else if (mer > 1e8) vei = 4;
+    else if (mer > 1e7) vei = 3;
+    else if (mer > 1e6) vei = 2;
+    else if (mer > 1e5) vei = 1;
+    var name = explosive ? (H > 18 ? 'Plinian' : H > 10 ? 'sub-Plinian' : 'Vulcanian') : (si < 52 ? 'Hawaiian' : 'Strombolian');
+    return { si: si, h2o: h2o, visc: visc, explosive: explosive, u: u, mer: mer, H: H, vei: vei, name: name, r: r };
+  }
+
+  function spawn(S) {
+    var n = S.explosive ? 14 : 6, i, a, sp;
+    var ventX = cv.width / 2, ventY = cv.height * 0.62;
+    for (i = 0; i < n; i++) {
+      a = S.explosive ? (Math.random() - 0.5) * 0.7 : (Math.random() - 0.5) * 0.9;
+      sp = S.u * (0.4 + Math.random() * 0.4) * 0.12;
+      parts.push({
+        x: ventX + (Math.random() - 0.5) * S.r * 0.4,
+        y: ventY,
+        vx: Math.sin(a) * sp,
+        vy: -sp * (S.explosive ? 1.1 : 0.7),
+        life: S.explosive ? 90 + Math.random() * 50 : 50 + Math.random() * 30,
+        ash: S.explosive,
+        r: S.explosive ? 1.2 + Math.random() * 2 : 2 + Math.random() * 3
+      });
+    }
+    if (parts.length > 700) parts.splice(0, parts.length - 700);
+  }
+
+  function step() {
+    var S = styleOf();
+    t++;
+    if (erupting) spawn(S);
+    var i, p, g = S.explosive ? 0.04 : 0.12;
+    for (i = parts.length - 1; i >= 0; i--) {
+      p = parts[i];
+      p.vy += g;
+      if (S.explosive) p.vx *= 0.995;
+      p.x += p.vx; p.y += p.vy;
+      p.life--;
+      if (p.life <= 0 || p.y > cv.height) parts.splice(i, 1);
+    }
+  }
+
+  function draw() {
+    var S = styleOf();
+    ctx.fillStyle = '#160a08';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = '#2a1a12';
+    ctx.beginPath();
+    ctx.moveTo(0, cv.height);
+    ctx.lineTo(cv.width * 0.18, cv.height * 0.72);
+    ctx.lineTo(cv.width * 0.42, cv.height * 0.62);
+    ctx.lineTo(cv.width * 0.5, cv.height * 0.58);
+    ctx.lineTo(cv.width * 0.58, cv.height * 0.62);
+    ctx.lineTo(cv.width * 0.82, cv.height * 0.72);
+    ctx.lineTo(cv.width, cv.height);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#1a0e0a';
+    ctx.beginPath();
+    ctx.ellipse(cv.width / 2, cv.height * 0.84, 48, 22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,120,40,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(cv.width / 2, cv.height * 0.62);
+    ctx.lineTo(cv.width / 2, cv.height * 0.84);
+    ctx.stroke();
+
+    var i, p;
+    for (i = 0; i < parts.length; i++) {
+      p = parts[i];
+      if (p.ash) ctx.fillStyle = 'rgba(180,180,190,' + Math.min(0.7, p.life / 90) + ')';
+      else ctx.fillStyle = 'rgba(255,' + Math.floor(80 + p.life) + ',30,0.85)';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.fillStyle = '#e6faff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(S.name + '  ·  VEI ' + S.vei, 12, 22);
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = 'rgba(230,250,255,0.75)';
+    ctx.fillText('η ~ 10^' + Math.log10(S.visc).toFixed(1) + ' Pa·s', 12, 40);
+    ctx.fillText('column H ≈ ' + S.H.toFixed(1) + ' km', 12, 56);
+    ctx.fillText('Ṁ = ' + S.mer.toExponential(2) + ' kg/s', 12, 72);
+
+    $('vol-out').textContent = S.name + '  ·  VEI ' + S.vei + '  ·  SiO₂ ' + S.si +
+      '%  ·  H₂O ' + S.h2o.toFixed(1) + ' wt%  ·  exit velocity ' + S.u.toFixed(0) +
+      ' m/s  ·  column ' + S.H.toFixed(1) + ' km  ·  Ṁ ' + S.mer.toExponential(2) + ' kg/s';
+  }
+
+  function frame() {
+    if (running) step();
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function sync() {
+    $('vol-si-v').textContent = val('vol-si') + '%';
+    $('vol-h2o-v').textContent = val('vol-h2o').toFixed(1) + ' wt%';
+    $('vol-p-v').textContent = val('vol-p') + ' MPa';
+    $('vol-vent-v').textContent = val('vol-vent') + ' m';
+  }
+  ['vol-si', 'vol-h2o', 'vol-p', 'vol-vent'].forEach(function (id) { $(id).addEventListener('input', sync); });
+  $('vol-run').addEventListener('click', function () {
+    running = !running; this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('vol-fire').addEventListener('click', function () {
+    erupting = !erupting;
+    this.textContent = erupting ? 'Seal vent' : 'Erupt';
+  });
+
+  sync();
+  if (reduce) $('vol-run').textContent = 'Run';
+  requestAnimationFrame(frame);
+})();
+</script>

@@ -409,6 +409,19 @@ const homeDIYList = [
   'grout-adhesive-calculator'
 ];
 
+const naturalList = [
+  'wildfire-spread-simulator',
+  'tsunami-wave-tank',
+  'hurricane-engine',
+  'earthquake-seismic-lab',
+  'river-meander-lab',
+  'predator-prey-ecosystem',
+  'starling-murmuration',
+  'volcano-eruption-chamber',
+  'earth-tide-clock',
+  'snowflake-growth-chamber'
+];
+
 const demosList = [
   'monte-carlo-pi-estimator',
   'conways-game-of-life',
@@ -437,6 +450,7 @@ const csList = [
 
 function getCategory(name) {
   if (gapFillMap[name]) return gapFillMap[name];
+  if (naturalList.includes(name)) return 'Natural Phenomena';
   if (sportsList.includes(name)) return 'Sports';
   if (demosList.includes(name)) return 'Mind-Blowing Demos';
   if (csList.includes(name)) return 'Algorithms & Computer Science';

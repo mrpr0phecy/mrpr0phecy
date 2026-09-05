@@ -1,0 +1,207 @@
+<h2 id="rvr-title" style="margin-top:0;color:var(--accent);">🏞️ River Meander Lab</h2>
+
+<form aria-describedby="rvr-desc" onsubmit="event.preventDefault();">
+  <p id="rvr-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+    A free channel migrates by the Ikeda–Parker–Sawai law: banks erode on the outside of a bend and deposit on the inside. Raise discharge and the bends fatten; raise cohesion and they freeze. When a neck thins enough the river cuts off and leaves an oxbow lake.
+  </p>
+
+  <div style="background:#0b120c;border:1px solid rgba(80,200,120,0.3);border-radius:10px;overflow:hidden;margin-bottom:12px;">
+    <canvas id="rvr-cv" width="720" height="320" style="width:100%;height:auto;aspect-ratio:720/320;display:block;"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <label for="rvr-q" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Discharge <span id="rvr-q-v">180 m³/s</span>
+      <input id="rvr-q" type="range" min="40" max="500" value="180" style="width:100%;accent-color:#4ade80;">
+    </label>
+    <label for="rvr-sed" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Sediment <span id="rvr-sed-v">0.4</span>
+      <input id="rvr-sed" type="range" min="0.05" max="1" step="0.05" value="0.4" style="width:100%;accent-color:#4ade80;">
+    </label>
+    <label for="rvr-coh" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Bank cohesion <span id="rvr-coh-v">0.55</span>
+      <input id="rvr-coh" type="range" min="0.15" max="1" step="0.05" value="0.55" style="width:100%;accent-color:#4ade80;">
+    </label>
+    <label for="rvr-spd" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Years / frame <span id="rvr-spd-v">2</span>
+      <input id="rvr-spd" type="range" min="1" max="8" value="2" style="width:100%;accent-color:#4ade80;">
+    </label>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="rvr-run" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(74,222,128,0.16);border:1px solid rgba(74,222,128,0.45);color:#4ade80;cursor:pointer;font-weight:600;">Pause</button>
+    <button type="button" id="rvr-reset" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);color:#e6faff;cursor:pointer;font-weight:600;">New valley</button>
+  </div>
+
+  <div id="rvr-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.75);padding:10px 12px;background:rgba(74,222,128,0.07);border:1px solid rgba(74,222,128,0.2);border-radius:8px;">Watch bends grow, migrate downstream, and cut off.</div>
+</form>
+
+<details style="margin-top:10px;font-size:0.82rem;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics</summary>
+  <p style="margin-top:8px;">
+    Lateral migration ζ̇ = E · Ū · H · C, where C is centreline curvature, Ū near-bank excess velocity,
+    H bank height and E an erodibility that falls with cohesion. Downstream advection of curvature
+    (the “skew”) is why real meanders lean. Cutoff fires when two non-adjacent centreline points
+    close within a channel width — the abandoned loop becomes an oxbow that slowly silts up.
+  </p>
+</details>
+
+<script>
+(function () {
+  var cv = document.getElementById('rvr-cv');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var pts = [], oxbows = [], tracers = [], years = 0, cutoffs = 0, running = true;
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) running = false;
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { return parseFloat($(id).value); }
+
+  function seed() {
+    pts = []; oxbows = []; tracers = []; years = 0; cutoffs = 0;
+    var n = 90, i, x, y;
+    for (i = 0; i < n; i++) {
+      x = 20 + i * ((cv.width - 40) / (n - 1));
+      y = cv.height / 2 + Math.sin(i * 0.28) * 18 + (Math.random() - 0.5) * 6;
+      pts.push({ x: x, y: y });
+    }
+    for (i = 0; i < 40; i++) tracers.push({ s: Math.random() });
+  }
+
+  function curvatures() {
+    var c = new Float64Array(pts.length), i, dx1, dy1, dx2, dy2, l1, l2, cross;
+    for (i = 1; i < pts.length - 1; i++) {
+      dx1 = pts[i].x - pts[i - 1].x; dy1 = pts[i].y - pts[i - 1].y;
+      dx2 = pts[i + 1].x - pts[i].x; dy2 = pts[i + 1].y - pts[i].y;
+      l1 = Math.hypot(dx1, dy1) || 1; l2 = Math.hypot(dx2, dy2) || 1;
+      cross = dx1 * dy2 - dy1 * dx2;
+      c[i] = 2 * cross / (l1 * l2 * (l1 + l2));
+    }
+    return c;
+  }
+
+  function step() {
+    var Q = val('rvr-q'), sed = val('rvr-sed'), coh = val('rvr-coh');
+    var E = 0.55 * (Q / 180) * (1.15 - coh) * (0.6 + sed);
+    var c = curvatures();
+    var i, dx, dy, L, nx, ny, mig;
+    for (i = 2; i < pts.length - 2; i++) {
+      dx = pts[i + 1].x - pts[i - 1].x;
+      dy = pts[i + 1].y - pts[i - 1].y;
+      L = Math.hypot(dx, dy) || 1;
+      nx = -dy / L; ny = dx / L;
+      mig = E * c[i] * 18;
+      pts[i].x += nx * mig;
+      pts[i].y += ny * mig;
+      pts[i].y = Math.max(18, Math.min(cv.height - 18, pts[i].y));
+    }
+    for (i = 1; i < pts.length - 1; i++) {
+      pts[i].x = pts[i].x * 0.92 + (pts[i - 1].x + pts[i + 1].x) * 0.04;
+      pts[i].y = pts[i].y * 0.92 + (pts[i - 1].y + pts[i + 1].y) * 0.04;
+    }
+    for (i = 4; i < pts.length - 4; i++) {
+      var j, d;
+      for (j = i + 8; j < pts.length - 2; j++) {
+        d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+        if (d < 14) {
+          oxbows.push({ pts: pts.slice(i, j + 1), age: 0 });
+          pts.splice(i + 1, j - i - 1);
+          cutoffs++;
+          break;
+        }
+      }
+    }
+    for (i = 0; i < oxbows.length; i++) oxbows[i].age++;
+    if (oxbows.length > 8) oxbows.shift();
+    years += val('rvr-spd');
+    for (i = 0; i < tracers.length; i++) {
+      tracers[i].s += 0.012 * (Q / 180);
+      if (tracers[i].s > 1) tracers[i].s -= 1;
+    }
+  }
+
+  function along(s) {
+    var tot = 0, i, seg = [], L;
+    for (i = 0; i < pts.length - 1; i++) {
+      L = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+      seg.push(L); tot += L;
+    }
+    var d = s * tot, acc = 0;
+    for (i = 0; i < seg.length; i++) {
+      if (acc + seg[i] >= d) {
+        var f = (d - acc) / (seg[i] || 1);
+        return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * f, y: pts[i].y + (pts[i + 1].y - pts[i].y) * f };
+      }
+      acc += seg[i];
+    }
+    return pts[pts.length - 1];
+  }
+
+  function draw() {
+    var i, j, o, p, sinu = 0, dx, dy, chord;
+    ctx.fillStyle = '#152016';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = 'rgba(90,140,70,0.25)';
+    for (i = 0; i < 12; i++) ctx.fillRect(0, i * 28, cv.width, 14);
+
+    for (i = 0; i < oxbows.length; i++) {
+      o = oxbows[i];
+      ctx.beginPath();
+      ctx.moveTo(o.pts[0].x, o.pts[0].y);
+      for (j = 1; j < o.pts.length; j++) ctx.lineTo(o.pts[j].x, o.pts[j].y);
+      ctx.strokeStyle = 'rgba(40,90,70,' + Math.max(0.15, 0.7 - o.age / 400) + ')';
+      ctx.lineWidth = 10;
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.strokeStyle = '#1d4e6a';
+    ctx.lineWidth = 16;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.strokeStyle = '#2b8fbf';
+    ctx.lineWidth = 9;
+    ctx.stroke();
+    ctx.strokeStyle = '#7ec8e8';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = '#e6faff';
+    for (i = 0; i < tracers.length; i++) {
+      p = along(tracers[i].s);
+      ctx.beginPath(); ctx.arc(p.x, p.y, 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+
+    for (i = 1; i < pts.length; i++) sinu += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    chord = Math.hypot(pts[pts.length - 1].x - pts[0].x, pts[pts.length - 1].y - pts[0].y) || 1;
+    $('rvr-out').textContent = years.toFixed(0) + ' years  ·  sinuosity ' + (sinu / chord).toFixed(2) +
+      '  ·  oxbows ' + cutoffs + '  ·  discharge ' + val('rvr-q') + ' m³/s';
+  }
+
+  function frame() {
+    if (running) {
+      var n = val('rvr-spd') | 0;
+      for (var k = 0; k < n; k++) step();
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function sync() {
+    $('rvr-q-v').textContent = val('rvr-q') + ' m³/s';
+    $('rvr-sed-v').textContent = val('rvr-sed').toFixed(2);
+    $('rvr-coh-v').textContent = val('rvr-coh').toFixed(2);
+    $('rvr-spd-v').textContent = val('rvr-spd');
+  }
+  ['rvr-q', 'rvr-sed', 'rvr-coh', 'rvr-spd'].forEach(function (id) { $(id).addEventListener('input', sync); });
+  $('rvr-run').addEventListener('click', function () {
+    running = !running; this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('rvr-reset').addEventListener('click', seed);
+
+  seed();
+  sync();
+  if (reduce) $('rvr-run').textContent = 'Run';
+  requestAnimationFrame(frame);
+})();
+</script>

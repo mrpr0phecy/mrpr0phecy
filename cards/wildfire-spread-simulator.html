@@ -1,0 +1,211 @@
+<h2 id="wfs-title" style="margin-top:0;color:var(--accent);">🔥 Wildfire Spread Simulator</h2>
+
+<form aria-describedby="wfs-desc" onsubmit="event.preventDefault();">
+  <p id="wfs-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+    Click to drop a spark. Fire then spreads cell-by-cell using a Rothermel-style rate of spread: fuel, dead-fuel moisture, wind and slope. Watch the head fire run with the wind, the flanking fire crawl, and lakes stop the front.
+  </p>
+
+  <div style="background:#140a06;border:1px solid rgba(255,140,60,0.35);border-radius:10px;overflow:hidden;margin-bottom:12px;position:relative;">
+    <canvas id="wfs-cv" width="640" height="360" style="width:100%;height:auto;aspect-ratio:640/360;display:block;cursor:crosshair;"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <label for="wfs-wind" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Wind <span id="wfs-wind-v">18 km/h</span>
+      <input id="wfs-wind" type="range" min="0" max="60" value="18" style="width:100%;accent-color:#ff8c3c;">
+    </label>
+    <label for="wfs-dir" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Wind dir <span id="wfs-dir-v">90°</span>
+      <input id="wfs-dir" type="range" min="0" max="360" value="90" style="width:100%;accent-color:#ff8c3c;">
+    </label>
+    <label for="wfs-moist" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Fuel moisture <span id="wfs-moist-v">8%</span>
+      <input id="wfs-moist" type="range" min="2" max="30" value="8" style="width:100%;accent-color:#ff8c3c;">
+    </label>
+    <label for="wfs-fuel" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Fuel load <span id="wfs-fuel-v">1.4 kg/m²</span>
+      <input id="wfs-fuel" type="range" min="0.3" max="3" step="0.1" value="1.4" style="width:100%;accent-color:#ff8c3c;">
+    </label>
+    <label for="wfs-slope" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Slope <span id="wfs-slope-v">8°</span>
+      <input id="wfs-slope" type="range" min="0" max="35" value="8" style="width:100%;accent-color:#ff8c3c;">
+    </label>
+    <label for="wfs-speed" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Sim speed <span id="wfs-speed-v">1×</span>
+      <input id="wfs-speed" type="range" min="1" max="8" value="2" style="width:100%;accent-color:#ff8c3c;">
+    </label>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="wfs-run" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,140,60,0.18);border:1px solid rgba(255,140,60,0.5);color:#ffb070;cursor:pointer;font-weight:600;">Pause</button>
+    <button type="button" id="wfs-reset" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);color:#e6faff;cursor:pointer;font-weight:600;">New landscape</button>
+    <button type="button" id="wfs-rain" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.35);color:#2dd4ff;cursor:pointer;font-weight:600;">Rain (raise moisture)</button>
+  </div>
+
+  <div id="wfs-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.75);padding:10px 12px;background:rgba(255,140,60,0.07);border:1px solid rgba(255,140,60,0.2);border-radius:8px;">Click the map to ignite. Head-fire ROS and Byram intensity update live.</div>
+</form>
+
+<details style="margin-top:10px;font-size:0.82rem;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics</summary>
+  <p style="margin-top:8px;">
+    Each cell is fuel, rock or water. A burning cell ignites a neighbour with probability proportional to
+    remaining fuel × (1 − moisture) × a wind alignment term (cos θ of the spread vector vs the wind)
+    × a slope term (fires run uphill). Residence time scales with fuel load. Rate of spread is the
+    head-fire distance per simulated minute; Byram intensity I = H·w·R (heat yield × consumed fuel × ROS)
+    is what firefighters use to decide whether a front is attackable.
+  </p>
+</details>
+
+<script>
+(function () {
+  var cv = document.getElementById('wfs-cv');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var W = 80, H = 45, CW = cv.width, CH = cv.height;
+  var cellW = CW / W, cellH = CH / H;
+  var state, fuel, heat, tMin = 0, running = true, burned = 0, ignitions = 0;
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) running = false;
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { return parseFloat($(id).value); }
+
+  function landscape() {
+    state = new Uint8Array(W * H);
+    fuel = new Float32Array(W * H);
+    heat = new Float32Array(W * H);
+    burned = 0; ignitions = 0; tMin = 0;
+    var i, x, y, n, lake;
+    for (y = 0; y < H; y++) {
+      for (x = 0; x < W; x++) {
+        i = y * W + x;
+        n = Math.sin(x * 0.17) * Math.cos(y * 0.21) + Math.sin(x * 0.07 + y * 0.09);
+        lake = (n < -0.72) || (x > 12 && x < 22 && y > 28 && y < 36 && n < 0.2);
+        if (lake) { state[i] = 0; fuel[i] = 0; }
+        else { state[i] = 1; fuel[i] = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(x * 0.31 + y * 0.19)); }
+        heat[i] = 0;
+      }
+    }
+  }
+
+  function ignite(gx, gy) {
+    if (gx < 0 || gy < 0 || gx >= W || gy >= H) return;
+    var i = gy * W + gx;
+    if (state[i] === 1) { state[i] = 2; heat[i] = 1; ignitions++; }
+  }
+
+  function step() {
+    var wind = val('wfs-wind');
+    var dir = val('wfs-dir') * Math.PI / 180;
+    var moist = val('wfs-moist') / 100;
+    var load = val('wfs-fuel');
+    var slope = val('wfs-slope') * Math.PI / 180;
+    var wx = Math.cos(dir), wy = -Math.sin(dir);
+    var next = new Uint8Array(state);
+    var x, y, i, k, nx, ny, ni, dx, dy, align, p, rosF;
+    var head = 0, flaming = 0;
+    rosF = load * (1 - moist) * (1 + wind / 18) * (1 + Math.tan(slope));
+    for (y = 0; y < H; y++) {
+      for (x = 0; x < W; x++) {
+        i = y * W + x;
+        if (state[i] === 2) {
+          flaming++;
+          heat[i] -= 0.045 / Math.max(0.4, load);
+          if (heat[i] <= 0) { next[i] = 3; burned++; continue; }
+          for (k = 0; k < 8; k++) {
+            dx = (k === 0 || k === 3 || k === 5) ? -1 : (k === 2 || k === 4 || k === 7) ? 1 : 0;
+            dy = (k < 3) ? -1 : (k > 4) ? 1 : 0;
+            nx = x + dx; ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+            ni = ny * W + nx;
+            if (state[ni] !== 1) continue;
+            align = (dx * wx + dy * wy) / Math.sqrt(dx * dx + dy * dy);
+            p = 0.07 * fuel[ni] * load * (1 - moist * 1.4) * (1 + Math.max(0, align) * wind / 12);
+            p *= 1 + Math.max(0, -dy) * Math.tan(slope) * 1.6;
+            if (Math.random() < Math.min(0.55, p)) {
+              next[ni] = 2; heat[ni] = 1;
+              if (align > 0.5) head++;
+            }
+          }
+        }
+      }
+    }
+    state = next;
+    tMin += 0.4;
+    var ros = (rosF * 8).toFixed(1);
+    var I = (18000 * load * 0.7 * rosF * 0.02).toFixed(0);
+    $('wfs-out').textContent = 't = ' + tMin.toFixed(0) + ' min  ·  flaming ' + flaming +
+      '  ·  burned ' + burned + ' ha (1 cell ≈ 1 ha)  ·  head ROS ~ ' + ros +
+      ' m/min  ·  Byram I ≈ ' + I + ' kW/m' + (flaming === 0 && ignitions ? '  —  fire out' : '');
+  }
+
+  function draw() {
+    var x, y, i, s, g;
+    ctx.fillStyle = '#1a0e08';
+    ctx.fillRect(0, 0, CW, CH);
+    for (y = 0; y < H; y++) {
+      for (x = 0; x < W; x++) {
+        i = y * W + x; s = state[i];
+        if (s === 0) ctx.fillStyle = '#1a3a55';
+        else if (s === 1) {
+          g = Math.floor(40 + fuel[i] * 90);
+          ctx.fillStyle = 'rgb(' + (g - 10) + ',' + (g + 30) + ',' + 18 + ')';
+        } else if (s === 2) {
+          g = 180 + Math.floor(heat[i] * 75);
+          ctx.fillStyle = 'rgb(255,' + Math.min(200, 80 + heat[i] * 140) + ',30)';
+        } else ctx.fillStyle = '#2a221c';
+        ctx.fillRect(x * cellW, y * cellH, cellW + 0.5, cellH + 0.5);
+      }
+    }
+    var dir = val('wfs-dir') * Math.PI / 180;
+    var cx = CW - 36, cy = 28;
+    ctx.strokeStyle = '#ffd7a0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(dir) * 16, cy + Math.sin(dir) * 16);
+    ctx.lineTo(cx + Math.cos(dir) * 16, cy - Math.sin(dir) * 16);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd7a0';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('WIND', cx - 16, 14);
+  }
+
+  function frame() {
+    if (running) {
+      var n = val('wfs-speed') | 0;
+      for (var i = 0; i < n; i++) step();
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function syncLabels() {
+    $('wfs-wind-v').textContent = val('wfs-wind') + ' km/h';
+    $('wfs-dir-v').textContent = val('wfs-dir') + '°';
+    $('wfs-moist-v').textContent = val('wfs-moist') + '%';
+    $('wfs-fuel-v').textContent = val('wfs-fuel').toFixed(1) + ' kg/m²';
+    $('wfs-slope-v').textContent = val('wfs-slope') + '°';
+    $('wfs-speed-v').textContent = val('wfs-speed') + '×';
+  }
+
+  ['wfs-wind', 'wfs-dir', 'wfs-moist', 'wfs-fuel', 'wfs-slope', 'wfs-speed'].forEach(function (id) {
+    $(id).addEventListener('input', syncLabels);
+  });
+  $('wfs-run').addEventListener('click', function () {
+    running = !running;
+    this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('wfs-reset').addEventListener('click', landscape);
+  $('wfs-rain').addEventListener('click', function () {
+    var el = $('wfs-moist');
+    el.value = Math.min(30, val('wfs-moist') + 8);
+    syncLabels();
+  });
+  cv.addEventListener('pointerdown', function (e) {
+    var r = cv.getBoundingClientRect();
+    var gx = Math.floor((e.clientX - r.left) / r.width * W);
+    var gy = Math.floor((e.clientY - r.top) / r.height * H);
+    ignite(gx, gy);
+  });
+
+  landscape();
+  syncLabels();
+  if (reduce) $('wfs-run').textContent = 'Run';
+  requestAnimationFrame(frame);
+})();
+</script>

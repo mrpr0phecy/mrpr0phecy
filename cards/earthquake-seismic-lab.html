@@ -1,0 +1,193 @@
+<h2 id="eqs-title" style="margin-top:0;color:var(--accent);">🌍 Earthquake Seismic Lab</h2>
+
+<form aria-describedby="eqs-desc" onsubmit="event.preventDefault();">
+  <p id="eqs-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+    Click the crust to place an epicentre. Compressional P waves race through solid and liquid; shear S waves die at the molten outer core, carving the famous shadow zone. Three seismographs record the arrivals. Magnitude scales amplitude; depth delays the surface wave.
+  </p>
+
+  <div style="background:#07060e;border:1px solid rgba(255,200,80,0.28);border-radius:10px;overflow:hidden;margin-bottom:12px;">
+    <canvas id="eqs-cv" width="640" height="380" style="width:100%;height:auto;aspect-ratio:640/380;display:block;cursor:crosshair;"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <label for="eqs-mag" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Magnitude Mw <span id="eqs-mag-v">7.2</span>
+      <input id="eqs-mag" type="range" min="4" max="9.5" step="0.1" value="7.2" style="width:100%;accent-color:#ffc850;">
+    </label>
+    <label for="eqs-dep" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Depth <span id="eqs-dep-v">35 km</span>
+      <input id="eqs-dep" type="range" min="5" max="600" value="35" style="width:100%;accent-color:#ffc850;">
+    </label>
+    <label for="eqs-vp" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Mantle Vp <span id="eqs-vp-v">8.1 km/s</span>
+      <input id="eqs-vp" type="range" min="6.5" max="11" step="0.1" value="8.1" style="width:100%;accent-color:#ffc850;">
+    </label>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="eqs-run" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,200,80,0.16);border:1px solid rgba(255,200,80,0.45);color:#ffc850;cursor:pointer;font-weight:600;">Pause</button>
+    <button type="button" id="eqs-fire" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.35);color:#2dd4ff;cursor:pointer;font-weight:600;">Replay quake</button>
+  </div>
+
+  <div id="eqs-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.75);padding:10px 12px;background:rgba(255,200,80,0.07);border:1px solid rgba(255,200,80,0.2);border-radius:8px;">Click the globe. P = cyan, S = gold, surface = magenta.</div>
+</form>
+
+<details style="margin-top:10px;font-size:0.82rem;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics</summary>
+  <p style="margin-top:8px;">
+    Earth: crust, silicate mantle, liquid iron outer core, solid inner core. P waves (Vp ≈ 8 km/s in the upper mantle)
+    refract at every boundary and cross the core. S waves (Vs ≈ Vp/√3) cannot shear a liquid, so they vanish at the
+    core–mantle boundary — stations between ~104° and 140° from the epicentre sit in the S-wave shadow.
+    Surface (Rayleigh/Love) waves travel the crust at ~3.5 km/s and usually carry the damage. Amplitude on the
+    traces scales as 10^(0.5 Mw), Gutenberg–Richter style.
+  </p>
+</details>
+
+<script>
+(function () {
+  var cv = document.getElementById('eqs-cv');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var cx = 230, cy = 190, R = 168;
+  var epiA = -0.7, t = 0, running = true, traces = [[], [], []];
+  var stations = [-0.15, 1.05, 2.55];
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) running = false;
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { return parseFloat($(id).value); }
+
+  function reset() { t = 0; traces = [[], [], []]; }
+
+  function layers() {
+    return [
+      { r: 1.00, name: 'crust', fill: '#3a2a22' },
+      { r: 0.94, name: 'mantle', fill: '#6a4030' },
+      { r: 0.55, name: 'outer core', fill: '#c87820' },
+      { r: 0.19, name: 'inner core', fill: '#f0c060' }
+    ];
+  }
+
+  function angDiff(a, b) {
+    var d = Math.abs(a - b) % (Math.PI * 2);
+    return d > Math.PI ? Math.PI * 2 - d : d;
+  }
+
+  function step() {
+    t += 0.9;
+    var vp = val('eqs-vp');
+    var vs = vp / 1.73;
+    var mag = val('eqs-mag');
+    var amp = Math.pow(10, 0.45 * (mag - 6));
+    var i, dAng, distKm, pT, sT, surfT, pA, sA, suA, liquid;
+    for (i = 0; i < 3; i++) {
+      dAng = angDiff(epiA, stations[i]);
+      distKm = dAng * 6371;
+      pT = distKm / vp;
+      sT = distKm / vs;
+      surfT = distKm / 3.5 + val('eqs-dep') / 80;
+      liquid = dAng > 1.82 && dAng < 2.44;
+      pA = 0; sA = 0; suA = 0;
+      if (t > pT) pA = amp * Math.exp(-(t - pT) * 0.08) * Math.sin((t - pT) * 2.2);
+      if (t > sT && !liquid) sA = amp * 1.4 * Math.exp(-(t - sT) * 0.06) * Math.sin((t - sT) * 1.4);
+      if (t > surfT) suA = amp * 1.8 * Math.exp(-(t - surfT) * 0.035) * Math.sin((t - surfT) * 0.9);
+      traces[i].push(pA + sA + suA);
+      if (traces[i].length > 160) traces[i].shift();
+    }
+  }
+
+  function draw() {
+    var L = layers(), i, vp = val('eqs-vp'), vs = vp / 1.73;
+    ctx.fillStyle = '#07060e';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    for (i = 0; i < L.length; i++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, L[i].r * R, 0, Math.PI * 2);
+      ctx.fillStyle = L[i].fill;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(230,250,255,0.55)';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('inner', cx - 12, cy + 4);
+    ctx.fillText('outer core (liquid)', cx - 48, cy - R * 0.35);
+    ctx.fillText('mantle', cx - 18, cy - R * 0.72);
+
+    var pR = (t * vp / 6371) * R;
+    var sR = (t * vs / 6371) * R;
+    var ex = cx + Math.cos(epiA) * R * 0.97;
+    var ey = cy + Math.sin(epiA) * R * 0.97;
+    ctx.strokeStyle = 'rgba(45,212,255,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(ex, ey, Math.min(pR, R * 1.9), 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,200,80,0.7)';
+    ctx.beginPath(); ctx.arc(ex, ey, Math.min(sR, R * 1.9), 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#ff4d4d';
+    ctx.beginPath(); ctx.arc(ex, ey, 5, 0, Math.PI * 2); ctx.fill();
+
+    for (i = 0; i < 3; i++) {
+      var sx = cx + Math.cos(stations[i]) * R;
+      var sy = cy + Math.sin(stations[i]) * R;
+      ctx.fillStyle = '#9d4edd';
+      ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e6faff';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('S' + (i + 1), sx + 6, sy - 4);
+    }
+
+    var tx = 430, i2, j, tr, y0;
+    ctx.fillStyle = 'rgba(230,250,255,0.8)';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('seismographs', tx, 24);
+    for (i2 = 0; i2 < 3; i2++) {
+      y0 = 55 + i2 * 100;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(tx, y0 - 30, 190, 80);
+      ctx.fillStyle = '#c4b5fd';
+      ctx.fillText('Station ' + (i2 + 1), tx + 6, y0 - 16);
+      ctx.beginPath();
+      tr = traces[i2];
+      ctx.strokeStyle = '#2dd4ff';
+      ctx.lineWidth = 1.2;
+      for (j = 0; j < tr.length; j++) {
+        var px = tx + 8 + j * 1.1;
+        var py = y0 + 20 - tr[j] * 3;
+        if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    var mag = val('eqs-mag');
+    var d1 = angDiff(epiA, stations[0]) * 180 / Math.PI;
+    $('eqs-out').textContent = 'Mw ' + mag.toFixed(1) + ' at ' + val('eqs-dep') +
+      ' km  ·  t = ' + t.toFixed(0) + ' s  ·  P cyan / S gold  ·  S1 angular distance ' +
+      d1.toFixed(0) + '°  ·  shadow ~104–140° (liquid outer core)';
+  }
+
+  function frame() {
+    if (running) step();
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function sync() {
+    $('eqs-mag-v').textContent = val('eqs-mag').toFixed(1);
+    $('eqs-dep-v').textContent = val('eqs-dep') + ' km';
+    $('eqs-vp-v').textContent = val('eqs-vp').toFixed(1) + ' km/s';
+  }
+  ['eqs-mag', 'eqs-dep', 'eqs-vp'].forEach(function (id) { $(id).addEventListener('input', sync); });
+  $('eqs-run').addEventListener('click', function () {
+    running = !running; this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('eqs-fire').addEventListener('click', reset);
+  cv.addEventListener('pointerdown', function (e) {
+    var r = cv.getBoundingClientRect();
+    var x = (e.clientX - r.left) * (cv.width / r.width);
+    var y = (e.clientY - r.top) * (cv.height / r.height);
+    epiA = Math.atan2(y - cy, x - cx);
+    reset();
+  });
+
+  sync();
+  if (reduce) $('eqs-run').textContent = 'Run';
+  requestAnimationFrame(frame);
+})();
+</script>
