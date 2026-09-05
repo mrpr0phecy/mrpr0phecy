@@ -1,0 +1,328 @@
+<h2 id="com-title" style="margin-top:0;color:var(--accent);">📡 Emergency Communications &amp; Radio Planner</h2>
+
+<p id="com-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  In every major incident the mobile network is the first thing to fail &mdash; not from damage, but from
+  everybody calling at once. This works out what you can actually reach with, how far a handheld radio will
+  really carry, how long your batteries last, and a check-in plan that still works when the phones are down.
+</p>
+
+<div style="padding:10px 12px;border-radius:10px;background:rgba(45,212,255,0.08);border:1px solid rgba(45,212,255,0.3);font-size:0.8rem;color:rgba(230,250,255,0.85);margin-bottom:14px;">
+  <strong>The rule that survives everything: send a text, not a call.</strong> An SMS needs a fraction of the
+  bandwidth of a voice call, queues and retries automatically, and will often get through when calls cannot.
+  Keep it short. Agree the wording in advance so you are not composing under stress.
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;" id="com-tabs" role="tablist" aria-label="Section">
+  <button type="button" class="com-tab" data-t="range" style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.78rem;border:1px solid rgba(45,212,255,0.5);background:rgba(45,212,255,0.15);color:var(--text);font-weight:700;">How far will it reach?</button>
+  <button type="button" class="com-tab" data-t="kit" style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.78rem;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:var(--text-secondary);">What should I buy?</button>
+  <button type="button" class="com-tab" data-t="power" style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.78rem;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:var(--text-secondary);">How long will it run?</button>
+  <button type="button" class="com-tab" data-t="plan" style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.78rem;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:var(--text-secondary);">Check-in plan</button>
+  <button type="button" class="com-tab" data-t="phrases" style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.78rem;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:var(--text-secondary);">How to say it</button>
+</div>
+
+<div id="com-body" aria-live="polite"></div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">The honest truth about radio range</summary>
+  <p style="margin-top:8px;">
+    VHF and UHF radio travels in straight lines and is stopped by the curve of the earth and by anything solid.
+    The manufacturer's "up to 10 km" on a handheld packet is measured on a mountaintop with nothing in the way.
+    In a town at street level, with buildings and trees, a 0.5 W PMR446 handheld will typically manage a few
+    hundred metres to about 2 km. That is not a fault; it is the same for every brand.
+  </p>
+  <p style="margin-top:8px;">
+    Height is the only thing that changes this meaningfully. Doubling your antenna height increases your radio
+    horizon by about 40%, and it costs nothing. Getting to the top floor of a building, a hill, or simply holding
+    the radio away from your body and out of a vehicle will outperform any amount of extra power.
+  </p>
+  <p style="margin-top:8px;">
+    In the UK, PMR446 is licence-free: 16 channels at 0.5 W ERP on 446 MHz, and a growing number of digital
+    (dPMR/DMR) channels. It is legal for anyone to use. Marine VHF channel 16 is the international distress and
+    calling channel and is monitored continuously — if you are in genuine danger on the water and have a
+    handheld, that is the channel. Amateur radio needs a licence but is the only hobby service with legal
+    high-power and long-distance privileges, and amateur operators run emergency networks during real incidents.
+  </p>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  var state = { tab: 'range', h1: 2, h2: 2, terrain: 'town', repeater: 'no', cap: 1500, rx: 80, tx: 1600, duty: 5, batts: 4, sat: false };
+
+  var PHONETIC = [['A','Alfa'],['B','Bravo'],['C','Charlie'],['D','Delta'],['E','Echo'],['F','Foxtrot'],['G','Golf'],['H','Hotel'],['I','India'],['J','Juliett'],['K','Kilo'],['L','Lima'],['M','Mike'],['N','November'],['O','Oscar'],['P','Papa'],['Q','Quebec'],['R','Romeo'],['S','Sierra'],['T','Tango'],['U','Uniform'],['V','Victor'],['W','Whiskey'],['X','X-ray'],['Y','Yankee'],['Z','Zulu']];
+
+  var PHRASES = [
+    ['MAYDAY', 'Life-threatening emergency. Say it three times, then your position, who you are, what is wrong, how many people, what help you need. Repeat until answered.'],
+    ['PAN-PAN', 'Urgent but not immediately life-threatening — a breakdown, a lost person who is safe, a medical problem that can wait. Said three times.'],
+    ['SECURITE', 'Safety information — a navigational hazard, severe weather, an obstruction.'],
+    ['This is [call sign / name], over', 'Identify yourself every time you transmit. "Over" means I have finished and expect a reply.'],
+    ['[name], this is [name], over', 'How you answer. Always both stations.'],
+    ['Say again', 'Ask them to repeat. Never say "repeat" — on some services that is a specific military command to fire again.'],
+    ['Read back', 'Ask someone to repeat instructions to you so you both know they were heard correctly.'],
+    ['Roger / Affirm / Negative', 'Understood / yes / no. "Roger" never means "yes" — it only means "I received your message".'],
+    ['Standby', 'Wait, I will come back to you.'],
+    ['Nothing further, out', 'Conversation finished, no reply expected. "Out" and "over" are never used together.']
+  ];
+
+  var KIT = [
+    { n: 'PMR446 handheld pair (UK, licence-free)', band: '446 MHz UHF, 0.5 W', range: '300 m – 2 km in a town, several km in open country', use: 'Family and neighbours, walking groups, local coordination. No licence, no subscription, works when the phone network is down.', note: 'Buy a matched pair with a headset socket and a rechargeable pack. Cheap ones share the same 16 channels as everyone else nearby.' },
+    { n: 'Marine VHF handheld', band: '156 MHz, up to 5–6 W', range: '5–10 km to a shore station, further to a tall ship', use: 'On or near the water. Channel 16 is monitored continuously by the Coastguard.', note: 'You need a licence to transmit on marine VHF in the UK. A DSC-equipped set with an MMSI can send a digital distress alert with your position at the press of one button.' },
+    { n: 'Satellite messenger', band: 'Iridium or Globalstar LEO', range: 'Global, including the middle of the ocean', use: 'Hillwalking, sailing, remote travel. Two-way text and an SOS button that reaches a 24-hour rescue coordination centre.', note: 'Needs a subscription. It is the only device here that works anywhere on Earth, and it is the one thing that would have changed the outcome of most remote-rescue failures.' },
+    { n: 'Wind-up / solar emergency radio', band: 'FM / MW / DAB receive only', range: 'Whatever the broadcaster reaches', use: 'Receiving news and official instructions during a power cut. Many include a torch, a USB output and a phone-charging crank.', note: 'This does not transmit. Its whole value is that official information still gets out by broadcast when everything else is congested.' },
+    { n: 'Amateur (ham) radio', band: 'VHF/UHF/HF', range: 'Local repeaters to worldwide on HF', use: 'The only legal route to real long-distance independent communication. Amateurs run formal emergency networks.', note: 'Requires a Foundation licence, which is a short course and an exam. Worth it if you want a skill rather than a gadget.' },
+    { n: 'Pre-agreed paper plan', band: '—', range: 'Unlimited', use: 'Out-of-area contact, meeting points, check-in times, written on paper in every bag.', note: 'The cheapest item on this list and the one that fails least often. Batteries die; a laminated card does not.' }
+  ];
+
+  var CHECKIN = [
+    { t: 'Pick one out-of-area contact', d: 'Someone who lives far enough away that a local incident does not affect them. Local lines get congested; a call 200 miles away often goes straight through. Everyone in the family checks in to that one person, who holds the picture.' },
+    { t: 'Agree the message format', d: 'Keep it fixed so you can send it in seconds: NAME — OK / NEED HELP — LOCATION — NEXT CHECK-IN. Example: "SAM OK LUTON STATION NEXT 1800". Short messages get through congested networks when long ones do not.' },
+    { t: 'Set check-in times', d: 'Two fixed times a day is enough — for example 12:00 and 20:00. Fixed times matter more than frequent ones, because a missed fixed time is information.' },
+    { t: 'Agree the escalation for a missed check-in', d: 'Missed once: try SMS, then a call. Missed twice: the out-of-area contact calls the last known location and the other family members. Still nothing after the agreed window: call the police on 101, or 999 if there is any reason to think someone is in danger.' },
+    { t: 'Agree two meeting points', d: 'One close to home (for a house fire — the lamp post opposite), one outside the area (for an evacuation — the supermarket car park in the next town). Both written down.' },
+    { t: 'Know where you would go if told to evacuate', d: 'The route, the destination, and who you would tell. In the UK, follow the instructions of the emergency services and the local authority; do not self-evacuate to a route that is being used by them.' },
+    { t: 'Keep a paper copy everywhere', d: 'One in each bag, one in the car, one on the fridge, one photographed and saved offline on every phone. Phone batteries die and cloud storage needs a network.' }
+  ];
+
+  function terrainFactor() {
+    return state.terrain === 'open' ? 0.9 : state.terrain === 'country' ? 0.75 : state.terrain === 'suburb' ? 0.55 : 0.35;
+  }
+
+  function rangeOutHtml() {
+    var f = terrainFactor();
+    var los = 4.12 * (Math.sqrt(state.h1) + Math.sqrt(state.h2));
+    var practical = los * f;
+    var miles = practical * 0.621371;
+    var band = practical >= 20 ? { t: 'Excellent', c: 'var(--success)' }
+      : practical >= 8 ? { t: 'Good', c: 'var(--accent)' }
+        : practical >= 3 ? { t: 'Usable', c: 'var(--premium)' }
+          : practical >= 1 ? { t: 'Short range', c: '#ff9f43' }
+            : { t: 'Very short range', c: 'var(--error)' };
+
+    var tips = [];
+    if (state.h1 < 5) tips.push('Raising your end to ' + (state.h1 + 8) + ' m would give roughly ' + (4.12 * (Math.sqrt(state.h1 + 8) + Math.sqrt(state.h2)) * f).toFixed(1) + ' km. Height is worth more than power.');
+    if (state.terrain === 'town') tips.push('In a built-up area, moving outside and away from the building can double your practical range.');
+    if (state.repeater === 'no') tips.push('A repeater on high ground typically multiplies practical range by 5 to 10 times. Some PMR446 users rely on one; amateur repeaters are far more capable.');
+    tips.push('Body-blocking matters: a handheld held against your chest can lose several dB. Hold it up and to the side, or use a headset with the radio on a shoulder.');
+
+    return '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">' +
+      '<div style="font-size:2.2rem;font-weight:800;color:' + band.c + ';">' + practical.toFixed(1) + ' km</div>' +
+      '<div><div style="font-size:0.95rem;font-weight:700;color:' + band.c + ';">' + band.t + '</div>' +
+      '<div style="font-size:0.76rem;color:var(--text-secondary);">' + miles.toFixed(1) + ' miles · theoretical line-of-sight horizon ' + los.toFixed(1) + ' km</div></div>' +
+      '</div>' +
+      '<div style="height:8px;border-radius:4px;background:rgba(255,255,255,0.08);overflow:hidden;margin-top:12px;">' +
+      '<div style="height:100%;width:' + Math.min(100, practical / 40 * 100) + '%;background:' + band.c + ';"></div></div>' +
+      (state.repeater === 'yes'
+        ? '<div style="margin-top:12px;font-size:0.84rem;color:var(--success);">With a repeater you can expect roughly <strong>' + (practical * 5).toFixed(0) + '–' + (practical * 10).toFixed(0) + ' km</strong>, provided you can actually reach the repeater from where you are standing.</div>'
+        : '') +
+      '<div style="margin-top:12px;"><div style="font-weight:700;font-size:0.84rem;color:var(--text);margin-bottom:6px;">How to get further without buying anything</div>' +
+      '<ul style="margin:0 0 0 18px;padding:0;font-size:0.8rem;color:rgba(230,250,255,0.82);">' +
+      tips.map(function (t) { return '<li style="margin-bottom:4px;">' + t + '</li>'; }).join('') + '</ul></div>';
+  }
+
+  function panelRange() {
+    return '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px;">' +
+      sliderRow('Your antenna height', 'h1', 1, 50, state.h1, 'm') +
+      sliderRow('Their antenna height', 'h2', 1, 50, state.h2, 'm') +
+      '<div><label for="com-terrain" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">Terrain between you</label>' +
+      '<select id="com-terrain" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.85rem;">' +
+      '<option value="open"' + (state.terrain === 'open' ? ' selected' : '') + '>Open sea, moorland, or high ground</option>' +
+      '<option value="country"' + (state.terrain === 'country' ? ' selected' : '') + '>Rolling countryside</option>' +
+      '<option value="suburb"' + (state.terrain === 'suburb' ? ' selected' : '') + '>Suburban, trees and low buildings</option>' +
+      '<option value="town"' + (state.terrain === 'town' ? ' selected' : '') + '>Dense town or city at street level</option>' +
+      '</select></div>' +
+      '<div><label for="com-repeater" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">Using a repeater?</label>' +
+      '<select id="com-repeater" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.85rem;">' +
+      '<option value="no"' + (state.repeater === 'no' ? ' selected' : '') + '>No — radio to radio</option>' +
+      '<option value="yes"' + (state.repeater === 'yes' ? ' selected' : '') + '>Yes — via a repeater on high ground</option>' +
+      '</select></div>' +
+      '</div>' +
+      '<div id="com-range-out" aria-live="polite">' + rangeOutHtml() + '</div>' +
+      '</div>';
+  }
+
+  function sliderRow(label, key, min, max, val, unit) {
+    return '<div><div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;"><span>' + label + '</span><span id="com-' + key + 'v" style="color:var(--accent);font-weight:700;">' + val + ' ' + unit + '</span></div>' +
+      '<input id="com-' + key + '" type="range" min="' + min + '" max="' + max + '" step="1" value="' + val + '" style="width:100%;accent-color:#2dd4ff;" aria-label="' + label + '" /></div>';
+  }
+
+  function panelKit() {
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;">' +
+      KIT.map(function (k) {
+        return '<div style="background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">' +
+          '<div style="font-weight:700;font-size:0.88rem;color:var(--accent);margin-bottom:4px;">' + k.n + '</div>' +
+          '<div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:8px;">' + k.band + ' · ' + k.range + '</div>' +
+          '<div style="font-size:0.8rem;color:rgba(230,250,255,0.85);margin-bottom:6px;">' + k.use + '</div>' +
+          '<div style="font-size:0.75rem;color:rgba(230,250,255,0.6);border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">' + k.note + '</div>' +
+          '</div>';
+      }).join('') + '</div>' +
+      '<div style="padding:12px;border-radius:10px;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.35);color:#ffe9a3;font-size:0.78rem;margin-top:12px;">If you only do two things: buy a <strong>matched pair of PMR446 handhelds</strong> for around the house and local area, and make sure everyone has an <strong>out-of-area contact</strong> written on paper. Those two cover the overwhelming majority of real situations, and neither needs a licence.</div>';
+  }
+
+  function powerOutHtml() {
+    var eff = state.rx * (1 - state.duty / 100) + state.tx * (state.duty / 100);
+    var usable = state.cap * 0.85;               // real capacity is lower than the label
+    var hours = eff > 0 ? usable / eff : 0;
+    var days = hours / 12;                       // realistic use is not 24 h
+
+    var verdict = hours >= 24 ? { t: 'A full day or more', c: 'var(--success)' }
+      : hours >= 12 ? { t: 'A working day', c: 'var(--accent)' }
+        : hours >= 6 ? { t: 'Half a day', c: 'var(--premium)' }
+          : hours >= 2 ? { t: 'A few hours — carry spares', c: '#ff9f43' }
+            : { t: 'Under two hours', c: 'var(--error)' };
+
+    return '<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:12px;">' +
+      '<div><div style="font-size:2.2rem;font-weight:800;color:' + verdict.c + ';">' + hours.toFixed(1) + ' h</div><div style="font-size:0.72rem;color:var(--text-secondary);">continuous use on one pack</div></div>' +
+      '<div><div style="font-size:1.4rem;font-weight:700;color:var(--text);">' + (days * (state.batts + 1)).toFixed(1) + ' days</div><div style="font-size:0.72rem;color:var(--text-secondary);">at 12 h/day with ' + (state.batts + 1) + ' packs</div></div>' +
+      '<div><div style="font-size:1.4rem;font-weight:700;color:var(--text);">' + verdict.t + '</div><div style="font-size:0.72rem;color:var(--text-secondary);">' + (state.cap * (state.batts + 1) / 1000).toFixed(1) + ' Wh total stored</div></div>' +
+      '</div>' +
+      '<div style="font-size:0.82rem;color:rgba(230,250,255,0.85);max-width:720px;">Average draw is <strong>' + eff.toFixed(0) + ' mA</strong>. Transmitting is the expensive part — a 5 W handheld pulls roughly 1.5–2 A while the button is pressed, twenty times what it uses listening. Talking less is the single biggest range-to-runtime trade you have.</div>';
+  }
+
+  function panelPower() {
+    return '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;">' +
+      sliderRow('Battery capacity', 'cap', 500, 10000, state.cap, 'mAh') +
+      sliderRow('Receive current', 'rx', 20, 300, state.rx, 'mA') +
+      sliderRow('Transmit current', 'tx', 500, 3000, state.tx, 'mA') +
+      sliderRow('Time spent transmitting', 'duty', 0, 50, state.duty, '%') +
+      sliderRow('Spare battery packs', 'batts', 0, 10, state.batts, '') +
+      '</div>' +
+      '<div id="com-power-out" aria-live="polite">' + powerOutHtml() + '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:14px;">' +
+      powerBox('Keep the batteries alive', ['Lithium packs self-discharge slowly but hate being stored flat. Top them up every three months.', 'Cold kills capacity — a lithium pack at freezing can lose a third of its charge. Keep spares in an inside pocket.', 'Alkaline AA cells lose capacity in the cold far faster than lithium AA. For a winter bag, buy lithium AA.', 'A hand-crank charger is a genuine backup but produces very little: expect minutes of radio use per minute of cranking.']) +
+      powerBox('What else is in the power plan', ['A 12 V car socket is the most reliable large supply most people have. A car battery can run a handheld charger many times over.', 'A power bank in every bag, charged, with the cable that actually fits your phone.', 'A small solar panel is worth having but only produces meaningful power in direct sun — through cloud or a window it is a trickle.', 'Know how to switch your phone to battery saver and turn off everything except SMS. That alone can double its remaining life.']) +
+      '</div></div>';
+  }
+
+  function powerBox(title, items) {
+    return '<div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">' +
+      '<div style="font-weight:700;font-size:0.84rem;color:var(--text);margin-bottom:6px;">' + title + '</div>' +
+      '<ul style="margin:0 0 0 16px;padding:0;font-size:0.78rem;color:rgba(230,250,255,0.8);">' +
+      items.map(function (i) { return '<li style="margin-bottom:4px;">' + i + '</li>'; }).join('') + '</ul></div>';
+  }
+
+  function panelPlan() {
+    return '<div style="background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;">' +
+      '<ol style="margin:0 0 16px 20px;padding:0;">' +
+      CHECKIN.map(function (c) {
+        return '<li style="margin-bottom:12px;"><div style="font-weight:700;font-size:0.88rem;color:var(--text);">' + c.t + '</div>' +
+          '<div style="font-size:0.8rem;color:rgba(230,250,255,0.8);margin-top:3px;">' + c.d + '</div></li>';
+      }).join('') + '</ol>' +
+      '<h3 style="font-size:0.9rem;color:var(--accent);margin:16px 0 8px;">Your wallet card</h3>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">' +
+      cardField('Name', 'name', '') +
+      cardField('Blood group / allergies', 'med', '') +
+      cardField('Emergency contact 1', 'e1', '') +
+      cardField('Emergency contact 2', 'e2', '') +
+      cardField('Out-of-area contact', 'ooa', '') +
+      cardField('Meeting point near home', 'm1', '') +
+      cardField('Meeting point outside the area', 'm2', '') +
+      cardField('Radio channel / call sign', 'ch', '') +
+      cardField('Check-in times', 'times', '12:00 and 20:00') +
+      cardField('Address', 'addr', '') +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' +
+      '<button type="button" id="com-save" style="padding:8px 14px;background:var(--accent);color:#0a0f14;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.82rem;">Save on this device</button>' +
+      '<button type="button" id="com-print" style="padding:8px 14px;background:rgba(255,255,255,0.08);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);border-radius:8px;cursor:pointer;font-size:0.82rem;">🖨 Print</button>' +
+      '<span id="com-status" aria-live="polite" style="align-self:center;font-size:0.76rem;color:var(--text-secondary);"></span>' +
+      '</div>' +
+      '<div style="font-size:0.75rem;color:rgba(230,250,255,0.55);margin-top:8px;">Answers are stored only in this browser. Print it, cut it out and put one in each bag and one in the car.</div>' +
+      '</div>';
+  }
+
+  function cardField(label, key, ph) {
+    return '<div><label for="com-f-' + key + '" style="display:block;font-size:0.74rem;color:var(--text-secondary);margin-bottom:3px;">' + label + '</label>' +
+      '<input id="com-f-' + key + '" class="com-field" data-k="' + key + '" type="text" placeholder="' + ph + '" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.82rem;" /></div>';
+  }
+
+  function panelPhrases() {
+    var ph = '';
+    PHONETIC.forEach(function (p) {
+      ph += '<div style="display:flex;gap:8px;align-items:baseline;background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:5px 8px;">' +
+        '<span style="font-weight:800;color:var(--accent);font-size:0.85rem;min-width:14px;">' + p[0] + '</span>' +
+        '<span style="font-size:0.78rem;color:rgba(230,250,255,0.85);">' + p[1] + '</span></div>';
+    });
+    return '<div style="background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;">' +
+      '<div style="font-weight:700;font-size:0.88rem;color:var(--text);margin-bottom:4px;">Spell it properly</div>' +
+      '<div style="font-size:0.78rem;color:rgba(230,250,255,0.65);margin-bottom:10px;">Bad radio quality makes B, D, E, G, P, T and V almost indistinguishable. The phonetic alphabet exists for that reason — use it for names, call signs and postcodes.</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:5px;margin-bottom:18px;">' + ph + '</div>' +
+      '<div style="font-weight:700;font-size:0.88rem;color:var(--text);margin-bottom:8px;">The words that mean something specific</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;">' +
+      PHRASES.map(function (p) {
+        return '<div style="background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px;">' +
+          '<div style="font-weight:700;font-size:0.82rem;color:var(--accent);margin-bottom:3px;">' + p[0] + '</div>' +
+          '<div style="font-size:0.76rem;color:rgba(230,250,255,0.8);">' + p[1] + '</div></div>';
+      }).join('') + '</div>' +
+      '<div style="margin-top:14px;padding:12px;border-radius:10px;background:rgba(45,212,255,0.08);border:1px solid rgba(45,212,255,0.3);font-size:0.8rem;color:rgba(230,250,255,0.85);">' +
+      '<strong>A radio distress call, in order:</strong> MAYDAY three times · your vessel or call sign three times · your position (latitude/longitude, or a bearing and distance from something obvious) · the nature of the emergency · how many people · what assistance you need · anything that helps them find you. Then listen. If nobody answers, say it again.' +
+      '</div>' +
+      '<div style="margin-top:10px;font-size:0.78rem;color:rgba(230,250,255,0.7);">If you have no radio, a phone with no signal will still make an emergency call: in most countries a device can use any available network for 999 or 112 even without a SIM or a contract. Text-to-999 works in the UK if you have registered in advance — worth doing if you are deaf, hard of hearing or have a speech difficulty.</div>' +
+      '</div>';
+  }
+
+  function render() {
+    host.querySelectorAll('.com-tab').forEach(function (b) {
+      var on = b.getAttribute('data-t') === state.tab;
+      b.style.background = on ? 'rgba(45,212,255,0.15)' : 'rgba(255,255,255,0.06)';
+      b.style.color = on ? 'var(--text)' : 'var(--text-secondary)';
+      b.style.borderColor = on ? 'rgba(45,212,255,0.5)' : 'rgba(255,255,255,0.15)';
+      b.style.fontWeight = on ? '700' : '400';
+    });
+    $('com-body').innerHTML = state.tab === 'range' ? panelRange()
+      : state.tab === 'kit' ? panelKit()
+        : state.tab === 'power' ? panelPower()
+          : state.tab === 'plan' ? panelPlan()
+            : panelPhrases();
+    wire();
+  }
+
+  function wire() {
+    host.querySelectorAll('.com-tab').forEach(function (b) {
+      b.onclick = function () { state.tab = b.getAttribute('data-t'); render(); };
+    });
+    var t = $('com-terrain'); if (t) t.onchange = function () { state.terrain = t.value; render(); };
+    var r = $('com-repeater'); if (r) r.onchange = function () { state.repeater = r.value; render(); };
+    [['h1', 'h1'], ['h2', 'h2'], ['cap', 'cap'], ['rx', 'rx'], ['tx', 'tx'], ['duty', 'duty'], ['batts', 'batts']].forEach(function (p) {
+      var el = $('com-' + p[0]);
+      if (!el) return;
+      el.oninput = function () {
+        state[p[1]] = parseFloat(el.value);
+        var lbl = $('com-' + p[0] + 'v');
+        if (lbl) lbl.textContent = el.value + (p[0] === 'h1' || p[0] === 'h2' ? ' m' : p[0] === 'rx' || p[0] === 'tx' ? ' mA' : p[0] === 'cap' ? ' mAh' : p[0] === 'duty' ? '%' : '');
+        live();
+      };
+    });
+    var save = $('com-save');
+    if (save) save.onclick = function () {
+      var fields = {};
+      host.querySelectorAll('.com-field').forEach(function (el) { fields[el.getAttribute('data-k')] = el.value; });
+      try {
+        localStorage.setItem('com-card-v1', JSON.stringify(fields));
+        $('com-status').textContent = 'Saved on this device';
+      } catch (e) { $('com-status').textContent = 'This browser will not let the page save anything'; }
+    };
+    var pr = $('com-print');
+    if (pr) pr.onclick = function () { window.print(); };
+    try {
+      var saved = JSON.parse(localStorage.getItem('com-card-v1') || 'null');
+      if (saved) host.querySelectorAll('.com-field').forEach(function (el) {
+        var k = el.getAttribute('data-k');
+        if (saved[k] !== undefined && saved[k] !== '') el.value = saved[k];
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  // Only the result region is replaced on slider input, so the control keeps focus mid-drag
+  function live() {
+    var ro = $('com-range-out');
+    if (ro) { ro.innerHTML = rangeOutHtml(); return; }
+    var po = $('com-power-out');
+    if (po) { po.innerHTML = powerOutHtml(); }
+  }
+
+  render();
+})();
+</script>

@@ -279,6 +279,21 @@ const saasKillerList = [
   'markdown-slide-deck-builder'
 ];
 
+// 2026-09-05 — ten survival & emergency-readiness tools. Matched exactly
+// (not by substring) and checked early, so no other list can claim them.
+const survivalList = [
+  'water-purification-treatment-calculator',
+  'heat-cold-exposure-survival-calc',
+  'fire-escape-smoke-safety-planner',
+  'gas-leak-carbon-monoxide-response',
+  'poison-chemical-exposure-response',
+  'driving-emergency-survival-guide',
+  'emergency-comms-radio-planner',
+  'evacuation-go-bag-planner',
+  'personal-safety-awareness-planner',
+  'cold-water-ice-drowning-rescue'
+];
+
 const interactiveArtList = ['3d-spirograph-nebula', 
   'pixel-collaborative-infinite-mural',
   'chrono-garden-l-system-botany',
@@ -452,6 +467,7 @@ function getCategory(name) {
   if (demosList.includes(name)) return 'Mind-Blowing Demos';
   if (csList.includes(name)) return 'Algorithms & Computer Science';
   if (wellbeingList.includes(name)) return 'Wellbeing & Community';
+  if (survivalList.includes(name)) return 'Survival & Emergency Readiness';
   if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
   if (aiList.some(s => name.includes(s))) return 'AI & Autonomous Agents';

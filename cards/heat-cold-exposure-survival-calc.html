@@ -1,0 +1,282 @@
+<h2 id="hcx-title" style="margin-top:0;color:var(--accent);">🥶 Heat &amp; Cold Exposure Calculator</h2>
+
+<p id="hcx-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Temperature alone lies. Wind takes heat off you far faster than the number suggests, humidity stops you
+  cooling yourself down, and wet clothing changes everything again. This works out what the air actually feels
+  like, how long you have before frostbite or heatstroke becomes likely, and what to do about it &mdash; using the
+  formulas weather services and mountain rescue actually use.
+</p>
+
+<div style="padding:10px 12px;border-radius:10px;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.35);color:#ffe9a3;font-size:0.8rem;margin-bottom:14px;">
+  These are population averages for a resting or lightly active adult. Children, older people, anyone on
+  certain medicines and anyone who has been drinking lose heat differently &mdash; usually faster. In the UK
+  call <strong>999</strong> for suspected hypothermia or heatstroke; <strong>111</strong> for advice.
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">
+      <span>Air temperature</span><span id="hcx-tempv" style="color:var(--accent);font-weight:700;">4&deg;C</span>
+    </div>
+    <input id="hcx-temp" type="range" min="-30" max="48" step="0.5" value="4" style="width:100%;accent-color:#2dd4ff;" aria-label="Air temperature in Celsius" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">
+      <span>Wind speed</span><span id="hcx-windv" style="color:var(--accent);font-weight:700;">25 km/h</span>
+    </div>
+    <input id="hcx-wind" type="range" min="0" max="120" step="1" value="25" style="width:100%;accent-color:#2dd4ff;" aria-label="Wind speed in km/h" />
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">
+      <span>Humidity</span><span id="hcx-humv" style="color:var(--accent);font-weight:700;">60%</span>
+    </div>
+    <input id="hcx-hum" type="range" min="5" max="100" step="1" value="60" style="width:100%;accent-color:#2dd4ff;" aria-label="Relative humidity percent" />
+  </div>
+  <div>
+    <label for="hcx-clo" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">What you are wearing</label>
+    <select id="hcx-clo" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.85rem;">
+      <option value="0.6">T-shirt and shorts (0.6 clo)</option>
+      <option value="1.0">Shirt and trousers (1.0 clo)</option>
+      <option value="1.5" selected>Jumper and coat (1.5 clo)</option>
+      <option value="2.5">Winter layers and hat (2.5 clo)</option>
+      <option value="4.0">Full expedition kit (4.0 clo)</option>
+    </select>
+  </div>
+  <div>
+    <label for="hcx-state" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">Condition</label>
+    <select id="hcx-state" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.85rem;">
+      <option value="dry" selected>Dry</option>
+      <option value="damp">Damp / sweating</option>
+      <option value="wet">Wet through (rain or water)</option>
+      <option value="immersed">In water</option>
+    </select>
+  </div>
+  <div>
+    <label for="hcx-activity" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">Activity</label>
+    <select id="hcx-activity" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.85rem;">
+      <option value="0">Stationary / unable to move</option>
+      <option value="1" selected>Walking gently</option>
+      <option value="2">Walking uphill with a load</option>
+      <option value="3">Hard physical work</option>
+    </select>
+  </div>
+</div>
+
+<canvas id="hcx-gauge" width="760" height="120" role="img" aria-label="Feels-like temperature gauge" style="width:100%;height:auto;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;margin-bottom:14px;"></canvas>
+
+<div id="hcx-verdict" aria-live="polite" style="margin-bottom:14px;"></div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;">
+  <div id="hcx-cold" style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;"></div>
+  <div id="hcx-heat" style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;"></div>
+</div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">The formulas, and where they stop being true</summary>
+  <p style="margin-top:8px;">
+    <strong>Wind chill</strong> uses the North American/European standard
+    <code>13.12 + 0.6215T &minus; 11.37V<sup>0.16</sup> + 0.3965TV<sup>0.16</sup></code> with T in &deg;C and V in
+    km/h, measured 10 m up and on a face. It is only defined below 10&deg;C and above about 5 km/h; outside that
+    range this tool shows the air temperature instead of inventing a number. It says nothing about frostbite on
+    covered skin, or about a wind you are sheltered from.
+  </p>
+  <p style="margin-top:8px;">
+    <strong>Heat index</strong> is the Rothfusz regression with the standard low-humidity and high-humidity
+    corrections, computed in Fahrenheit then converted. It assumes shade: in full sun the real load is roughly
+    8&deg;C higher, and it assumes you can still sweat.
+  </p>
+  <p style="margin-top:8px;">
+    <strong>Wetness</strong> is applied as an effective-temperature penalty rather than a formula, because the
+    honest answer is that water conducts heat roughly 25 times better than air and there is no simple correction
+    that covers everything from damp socks to full immersion. Treat the wet column as a warning, not a
+    measurement. The single most useful line on this page is the one about getting wet clothes off.
+  </p>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  function windChill(t, v) {
+    if (t > 10 || v < 4.8) return null;
+    var p = Math.pow(v, 0.16);
+    return 13.12 + 0.6215 * t - 11.37 * p + 0.3965 * t * p;
+  }
+  function heatIndex(tC, rh) {
+    var T = tC * 9 / 5 + 32;
+    if (T < 80) {
+      var simple = 0.5 * (T + 61.0 + (T - 68) * 1.2 + rh * 0.094);
+      if ((simple + T) / 2 >= 80) T = simple; else return (simple - 32) * 5 / 9;
+    }
+    var HI = -42.379 + 2.04901523 * T + 10.14333127 * rh - 0.22475541 * T * rh
+      - 0.00683783 * T * T - 0.05481717 * rh * rh
+      + 0.00122874 * T * T * rh + 0.00085282 * T * rh * rh - 0.00000199 * T * T * rh * rh;
+    if (rh < 13 && T >= 80 && T <= 112) HI -= ((13 - rh) / 4) * Math.sqrt((17 - Math.abs(T - 95)) / 17);
+    if (rh > 85 && T >= 80 && T <= 87) HI += ((rh - 85) / 10) * ((87 - T) / 5);
+    return (HI - 32) * 5 / 9;
+  }
+  // Frostbite onset bands from the wind-chill hazard chart
+  function frostbiteMinutes(wc) {
+    if (wc === null) return null;
+    if (wc >= -10) return { band: 'Low risk', mins: null, note: 'Frostbite unlikely in under an hour for most people, but uncovered skin still goes numb.' };
+    if (wc >= -27) return { band: 'Possible', mins: 30, note: 'Frostbite possible with prolonged exposure, especially on cheeks, nose, ears and fingers.' };
+    if (wc >= -39) return { band: '10–30 min', mins: 20, note: 'Frostbite in 10 to 30 minutes on exposed skin.' };
+    if (wc >= -47) return { band: '5–10 min', mins: 7, note: 'Frostbite in 5 to 10 minutes. Cover every bit of skin.' };
+    if (wc >= -54) return { band: '2–5 min', mins: 3, note: 'Frostbite in 2 to 5 minutes. Do not stay outside.' };
+    return { band: 'Under 2 min', mins: 1, note: 'Frostbite in under two minutes. Being outside at all is the risk.' };
+  }
+  function hiBand(hi) {
+    if (hi < 27) return { band: 'Comfortable', colour: 'var(--success)', act: ['Nothing special. Keep drinking normally.'] };
+    if (hi < 32) return { band: 'Caution', colour: '#7ef9ff', act: ['Drink before you are thirsty.', 'Fatigue is possible with long exposure and hard work.'] };
+    if (hi < 41) return { band: 'Extreme caution', colour: 'var(--premium)', act: ['Cramp and heat exhaustion become likely with prolonged exposure or activity.', 'Work in the shade, rest often, and replace salt as well as water.', 'Check on anyone over 65, anyone on medication, and any child in a car or conservatory.'] };
+    if (hi < 54) return { band: 'Danger', colour: '#ff9f43', act: ['Heat cramp and heat exhaustion likely; heatstroke possible with prolonged exposure.', 'Stop activity, get into shade or air conditioning, and cool the skin with water and fanning.', 'If anyone is confused, hot and dry, or stops sweating — call 999.'] };
+    return { band: 'Extreme danger', colour: 'var(--error)', act: ['Heatstroke imminent.', 'Cool immediately: shade, cold water on the skin, fan hard, ice to the neck, armpits and groin.', 'Call 999. Heatstroke kills and does not wait.'] };
+  }
+  function coldBand(feels, state, activity) {
+    if (feels > 15) return { band: 'Mild', colour: 'var(--success)', act: ['No cold risk unless you are wet, stationary or underdressed.'] };
+    if (feels > 5) return { band: 'Cool', colour: '#7ef9ff', act: ['Add a layer before you are cold, not after.', 'A hat matters: an uncovered head loses a real share of your heat.'] };
+    if (feels > -5) return { band: 'Cold', colour: 'var(--premium)', act: ['Cover extremities — gloves, hat, a buff over the mouth.', 'If you are stationary, you will get cold far faster than this suggests. Move, or add layers.', 'Watch for uncontrollable shivering: that is the last stage before your body gives up on warming itself.'] };
+    if (feels > -20) return { band: 'Severe', colour: '#ff9f43', act: ['Hypothermia is a genuine risk, especially wet or stationary.', 'Get out of wind, get dry, add insulation underneath as well as on top — the ground takes heat faster than the air.', 'Warm sweet drinks help if the person is fully alert. No alcohol; it dilates the skin and dumps core heat.'] };
+    return { band: 'Extreme', colour: 'var(--error)', act: ['Do not stay outside. Frostbite in minutes, hypothermia soon after.', 'If someone is severely cold, handle them gently — a cold heart goes into a fatal rhythm from a rough movement.', 'Get wet clothing off, insulate them from the ground, wrap in whatever is dry, and call 999.'] };
+  }
+
+  function stat(label, value, colour, sub) {
+    return '<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 12px;min-width:112px;">' +
+      '<div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.04em;color:rgba(230,250,255,0.55);">' + label + '</div>' +
+      '<div style="font-size:1.05rem;font-weight:700;color:' + (colour || 'var(--accent)') + ';">' + value + '</div>' +
+      (sub ? '<div style="font-size:0.68rem;color:rgba(230,250,255,0.5);">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function drawGauge(feels, t, wc) {
+    var cv = $('hcx-gauge');
+    if (!cv || !cv.getContext) return;
+    var ctx = cv.getContext('2d');
+    if (!ctx) return;
+    var W = cv.width, H = cv.height, padL = 16, padR = 16, y = 62;
+    ctx.clearRect(0, 0, W, H);
+    var lo = -45, hi = 50;
+    var grd = ctx.createLinearGradient(padL, 0, W - padR, 0);
+    grd.addColorStop(0, '#3b82f6');
+    grd.addColorStop(0.28, '#7ef9ff');
+    grd.addColorStop(0.5, '#e6faff');
+    grd.addColorStop(0.72, '#ffd700');
+    grd.addColorStop(1, '#ff4d4d');
+    ctx.fillStyle = grd;
+    ctx.fillRect(padL, y - 9, W - padL - padR, 18);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.strokeRect(padL, y - 9, W - padL - padR, 18);
+    var x = function (v) { return padL + (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (W - padL - padR); };
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    [-40, -20, 0, 10, 20, 30, 40, 50].forEach(function (v) {
+      ctx.fillStyle = 'rgba(230,250,255,0.55)';
+      ctx.fillText(v + '°', x(v), y + 30);
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.moveTo(x(v), y + 9); ctx.lineTo(x(v), y + 14); ctx.stroke();
+    });
+    // marker
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#0a0f14';
+    ctx.beginPath();
+    ctx.moveTo(x(feels), y - 22);
+    ctx.lineTo(x(feels) - 8, y - 34);
+    ctx.lineTo(x(feels) + 8, y - 34);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 12px system-ui, sans-serif';
+    ctx.fillText('feels like ' + feels.toFixed(0) + '°C', x(feels), y - 40);
+    if (wc !== null && Math.abs(wc - t) > 0.6) {
+      ctx.fillStyle = 'rgba(126,249,255,0.9)';
+      ctx.beginPath(); ctx.arc(x(t), y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.fillText('air ' + t.toFixed(0) + '°', x(t), y + 44);
+    }
+  }
+
+  function render() {
+    var t = parseFloat($('hcx-temp').value);
+    var v = parseFloat($('hcx-wind').value);
+    var rh = parseFloat($('hcx-hum').value);
+    var clo = parseFloat($('hcx-clo').value);
+    var state = $('hcx-state').value;
+    var act = parseInt($('hcx-activity').value, 10);
+
+    $('hcx-tempv').textContent = t.toFixed(1).replace(/\.0$/, '') + '°C';
+    $('hcx-windv').textContent = v + ' km/h';
+    $('hcx-humv').textContent = rh + '%';
+
+    var wc = windChill(t, v);
+    var hi = heatIndex(t, rh);
+
+    // effective temperature: insulation and wetness both matter far more than people expect
+    var eff = wc !== null ? wc : t;
+    var cloRef = 1.5;
+    eff = eff + (clo - cloRef) * 4;                       // ~4 C per clo around typical clothing
+    eff = eff + act * 3;                                  // activity generates real heat
+    if (state === 'damp') eff -= 5;
+    if (state === 'wet') eff -= 14;
+    if (state === 'immersed') eff -= 30;
+
+    var feels = t > 26 ? hi : eff;
+    var fb = frostbiteMinutes(wc !== null ? eff : null);
+    var hb = hiBand(t > 26 ? hi : t);
+    var cb = coldBand(eff, state, act);
+
+    var dominant = t > 26 ? hb : cb;
+    var headline = t > 26 ? 'Heat risk: ' + hb.band : 'Cold risk: ' + cb.band;
+    var sub = t > 26
+      ? 'Heat index ' + hi.toFixed(0) + '°C at ' + t.toFixed(0) + '°C and ' + rh + '% humidity. In direct sun assume roughly 8°C more.'
+      : (wc !== null
+        ? 'Wind chill ' + wc.toFixed(0) + '°C from ' + t.toFixed(0) + '°C at ' + v + ' km/h. ' + (fb ? fb.note : '')
+        : 'Wind chill does not apply above 10°C, so the air temperature is the honest number here.');
+
+    $('hcx-verdict').innerHTML =
+      '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;">' +
+      '<div style="font-size:1.3rem;font-weight:800;color:' + dominant.colour + ';">' + headline + '</div>' +
+      '<div style="font-size:0.88rem;color:rgba(230,250,255,0.85);margin-top:6px;max-width:680px;">' + sub + '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">' +
+      stat('air', t.toFixed(0) + '°C') +
+      stat('wind chill', wc !== null ? wc.toFixed(0) + '°C' : 'n/a', 'var(--text)', wc !== null ? v + ' km/h' : 'above 10°C') +
+      stat('heat index', hi.toFixed(0) + '°C', 'var(--text)', rh + '% humidity') +
+      stat('effective', eff.toFixed(0) + '°C', 'var(--text)', 'clothing, wetness, activity') +
+      stat('frostbite', fb && fb.mins ? '≈' + fb.mins + ' min' : (fb ? fb.band : 'n/a'), fb && fb.mins ? 'var(--error)' : 'var(--text)') +
+      '</div>' +
+      '<ul style="margin:12px 0 0 18px;padding:0;font-size:0.85rem;color:rgba(230,250,255,0.88);">' +
+      dominant.act.map(function (a) { return '<li style="margin-bottom:5px;">' + a + '</li>'; }).join('') + '</ul>' +
+      (state === 'wet' || state === 'immersed'
+        ? '<div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(255,77,77,0.12);border:1px solid rgba(255,77,77,0.4);color:#ffb3b3;font-size:0.82rem;"><strong>Wet changes the maths completely.</strong> Water conducts heat roughly 25 times better than air. Getting dry matters more than any other single action here — including for someone you are rescuing from cold water, and including afterwards: the temperature keeps falling for some time after rescue ("afterdrop"), so warm them gradually and keep them lying down.</div>'
+        : '') +
+      '</div>';
+
+    drawGauge(feels, wc !== null ? wc : t, wc);
+
+    $('hcx-cold').innerHTML =
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--accent);margin-bottom:8px;">Hypothermia &mdash; recognise it early</div>' +
+      '<ol style="margin:0 0 0 18px;padding:0;font-size:0.78rem;color:rgba(230,250,255,0.82);">' +
+      '<li style="margin-bottom:5px;"><strong>Mild:</strong> uncontrollable shivering, cold hands, clumsy, irritable. Get dry, add layers, warm sweet drink.</li>' +
+      '<li style="margin-bottom:5px;"><strong>Moderate:</strong> shivering stops, confused, slurred speech, stumbling. This is an emergency — call 999.</li>' +
+      '<li style="margin-bottom:5px;"><strong>Severe:</strong> drowsy, barely responsive, weak pulse. Handle extremely gently; a cold heart can stop from a jolt.</li>' +
+      '<li>Insulate from the ground first. The ground takes heat faster than the air does.</li>' +
+      '<li>Never rub or massage frostbitten skin, never put it in hot water, never let someone walk on a thawed foot.</li>' +
+      '</ol>';
+    $('hcx-heat').innerHTML =
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--accent);margin-bottom:8px;">Heat illness &mdash; the escalation</div>' +
+      '<ol style="margin:0 0 0 18px;padding:0;font-size:0.78rem;color:rgba(230,250,255,0.82);">' +
+      '<li style="margin-bottom:5px;"><strong>Cramps / rash:</strong> shade, water, and salt as well as water. Plain water alone can make it worse.</li>' +
+      '<li style="margin-bottom:5px;"><strong>Exhaustion:</strong> heavy sweating, pale, weak, nauseous, headache. Lie down, cool, sip fluids. If it does not improve in 30 minutes it is heatstroke.</li>' +
+      '<li style="margin-bottom:5px;"><strong>Heatstroke:</strong> confusion, seizure, collapse, hot skin &mdash; sweating may stop. Call 999 immediately.</li>' +
+      '<li>Cool fastest by whatever means available: cold water immersion, or cold water on the skin with hard fanning.</li>' +
+      '<li>A child or animal in a parked car is an emergency within minutes, even on a mild day. Call 999.</li>' +
+      '</ol>';
+  }
+
+  ['hcx-temp', 'hcx-wind', 'hcx-hum', 'hcx-clo', 'hcx-state', 'hcx-activity'].forEach(function (id) {
+    $(id).addEventListener('input', render);
+    $(id).addEventListener('change', render);
+  });
+
+  render();
+})();
+</script>
