@@ -37,7 +37,7 @@ Measured 2026-08-30, from public sources:
 | YouTube subscribers | **1,360** | Past the 1,000 YPP threshold |
 | YouTube videos | **233** | Substantial back catalogue |
 | Shorts | **46** | Alternate YPP route exists |
-| Tools on site | **652** | Real, working, original (re-derived 2026-09-03) |
+| Tools on site | **653** | Real, working, original (re-derived 2026-09-03) |
 | Site analytics | Now on 12 key pages | Was on 1 |
 
 **The single most important fact: you are already past YouTube's hardest
