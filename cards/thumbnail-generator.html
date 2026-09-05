@@ -2,7 +2,7 @@
 
 <form aria-describedby="thumbnail-generator-desc" style="margin-bottom:20px;">
     <p id="thumbnail-generator-desc" class="small" style="margin-bottom:20px;color:rgba(var(--text-rgb, 230,250,255),0.9);">
-        Generate perfectly sized thumbnails for any platform with advanced editing tools.
+        Crop, adjust and export perfectly sized thumbnails for YouTube, Instagram, TikTok, LinkedIn or any custom size — with brightness, contrast and saturation controls, a text overlay, and JPEG/PNG/WebP output.
         <span style="color:var(--accent);">No upload required - all processing happens locally.</span>
     </p>
     
@@ -130,6 +130,30 @@
     <div style="background:rgba(0,0,0,0.15);border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);">
         <h4 style="color:var(--accent);margin-top:0;margin-bottom:12px;font-size:14px;font-weight:600;">⚙️ Editing Options</h4>
         
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:14px;">
+            <div>
+                <label for="thumb-brightness" style="display:block;margin-bottom:6px;color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">☀️ Brightness</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input id="thumb-brightness" type="range" min="50" max="150" value="100" step="1" style="flex:1;height:6px;" />
+                    <span id="thumb-brightness-value" style="color:var(--accent);font-weight:600;min-width:44px;">100%</span>
+                </div>
+            </div>
+            <div>
+                <label for="thumb-contrast" style="display:block;margin-bottom:6px;color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">🎛️ Contrast</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input id="thumb-contrast" type="range" min="50" max="150" value="100" step="1" style="flex:1;height:6px;" />
+                    <span id="thumb-contrast-value" style="color:var(--accent);font-weight:600;min-width:44px;">100%</span>
+                </div>
+            </div>
+            <div>
+                <label for="thumb-saturation" style="display:block;margin-bottom:6px;color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">🎨 Saturation</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input id="thumb-saturation" type="range" min="0" max="200" value="100" step="1" style="flex:1;height:6px;" />
+                    <span id="thumb-saturation-value" style="color:var(--accent);font-weight:600;min-width:44px;">100%</span>
+                </div>
+            </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <label for="thumb-quality" style="display:block;margin-bottom:6px;color:rgba(var(--text-rgb, 230,250,255),0.9);font-size:13px;">
@@ -626,6 +650,19 @@ function thumbGenerate(btn) {
             cropMode
         );
         
+        // Colour adjustments (folded in from the old thumbnail preview tool):
+        // applied to the pixels, not just the on-screen preview, so the
+        // exported file matches what you see.
+        const bright = card.querySelector('#thumb-brightness');
+        const contrast = card.querySelector('#thumb-contrast');
+        const saturation = card.querySelector('#thumb-saturation');
+        const filterStr = 'brightness(' + (bright ? bright.value : 100) + '%) contrast(' +
+                          (contrast ? contrast.value : 100) + '%) saturate(' +
+                          (saturation ? saturation.value : 100) + '%)';
+        if (filterStr !== 'brightness(100%) contrast(100%) saturate(100%)') {
+            ctx.filter = filterStr;
+        }
+
         // Draw background (for contain mode)
         if (cropMode === 'contain') {
             ctx.fillStyle = '#000000';
@@ -650,6 +687,8 @@ function thumbGenerate(btn) {
             );
         }
         
+        ctx.filter = 'none';   // text overlay must not be tinted
+
         // Add text overlay if provided
         if (textOverlay) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -853,6 +892,12 @@ function thumbResetAll(btn) {
         // Reset form
         card.querySelector('#thumbgen-service').value = 'youtube-standard';
         card.querySelector('#thumb-quality').value = 0.92;
+        ['brightness', 'contrast', 'saturation'].forEach(function(k) {
+            const sl = card.querySelector('#thumb-' + k);
+            const lb = card.querySelector('#thumb-' + k + '-value');
+            if (sl) sl.value = k === 'saturation' ? 100 : 100;
+            if (lb) lb.textContent = '100%';
+        });
         card.querySelector('#thumb-format').value = 'jpeg';
         card.querySelector('#thumb-crop-mode').value = 'cover';
         card.querySelector('#thumb-add-text').value = '';
@@ -897,6 +942,18 @@ if (document.readyState === 'loading') {
         const qualityInput = card.querySelector('#thumb-quality');
         if (qualityInput) {
             qualityInput.addEventListener('input', thumbUpdateQualityDisplay);
+        }
+
+        ['brightness', 'contrast', 'saturation'].forEach(function(k) {
+            const slider = document.getElementById('thumb-' + k);
+            const label = document.getElementById('thumb-' + k + '-value');
+            if (slider && label) {
+                slider.addEventListener('input', function() {
+                    label.textContent = slider.value + '%';
+                });
+            }
+        });
+        if (qualityInput) {
             thumbUpdateQualityDisplay();
         }
         
