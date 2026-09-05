@@ -437,6 +437,7 @@ const csList = [
 // categories (see ARCHITECTURE.md §3, "generate-cards-json.js overwrites
 // categories"). Add new tools here, exact filename slug, no .html.
 const newToolsMap = {
+  'antipode-gravity-tunnel-explorer': 'Geography & Maps',
   'daylight-twilight-atlas': 'Geography & Maps',
   'tectonic-plate-drift-calculator': 'Geography & Maps',
   'horizon-line-of-sight-calculator': 'Geography & Maps',
