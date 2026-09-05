@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 653 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 654 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 653 tools
-│   └── <tool-name>.html    653 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 654 tools
+│   └── <tool-name>.html    654 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 653 cards.** They share one
+2. **Element IDs must be globally unique across all 654 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -187,7 +187,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (653 tools)
+### Categories (654 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
@@ -539,7 +539,7 @@ treats them as duplicates competing with each other.
 ### Regenerating the sitemap
 
 `sitemap.xml` lists all 684 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 653 cards:
+tree, so a sparse checkout does not silently drop the 654 cards:
 
 ```python
 import subprocess, datetime
@@ -584,7 +584,7 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`index.html` has no links to cards.** Everything is driven by `cards.json`.
 
-**ID collisions across cards.** All 653 share one DOM. See §3.
+**ID collisions across cards.** All 654 share one DOM. See §3.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -614,7 +614,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 653 cards):
+# Music work (skip images and the 654 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -904,7 +904,7 @@ geometric sums, convergence detection, both lease verdict branches).
 - **17 `<label for=...>` associations point at no element** (they label button
   groups, e.g. `sub-status`, `tdee-gender`). Screen readers cannot associate
   them. Low severity; fix is converting the button groups to radio inputs or
-  adding `aria-labelledby`. Since all 653 cards share one DOM, `getElementById` can bind to the
+  adding `aria-labelledby`. Since all 654 cards share one DOM, `getElementById` can bind to the
   wrong tool. Worst offenders are whole-file collisions:
   `leanbodymass.html`↔`lease.html` (26 ids), `moving.html`↔`music-theory.html`
   (~40), `essay-templates.html`↔`essay.html`, `salary.html`↔`salarycompare.html`,
@@ -928,7 +928,7 @@ geometric sums, convergence detection, both lease verdict branches).
   to the full-bleed dark pages for notched phones and native dark scrollbars,
   but it changes layout, so it wants visual testing rather than a blind sweep.
 - **`sw.js` is still unregistered** — see the open question below. For a site of
-  653 offline-first tools it is a large caching win (network-first for HTML,
+  654 offline-first tools it is a large caching win (network-first for HTML,
   cache-first for cards), but it must be rolled out carefully.
 - **8 pages use `i.ytimg.com/vi/<id>/maxresdefault.jpg` as their og:image**
   (both ids verified live today). Fine while the videos exist; if one is ever
