@@ -394,7 +394,13 @@ const astronomyList = [
   'equatorial-coord-finder',
   'lunar-phase-illuminator',
   'redshift-distance-calculator',
-  'black-hole-horizon-calculator'
+  'black-hole-horizon-calculator',
+  // Solar-system 3D labs (interactive true-scale astronomy):
+  'solar-system-3d-orrery',
+  'planet-surface-3d-explorer',
+  'orbital-mechanics-playground',
+  'true-scale-of-space-3d',
+  'moon-phases-eclipse-geometry'
 ];
 
 const homeDIYList = [

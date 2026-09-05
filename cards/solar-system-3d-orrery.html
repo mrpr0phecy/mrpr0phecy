@@ -1,0 +1,283 @@
+<h2 id="sol-title" style="margin-top:0;color:var(--accent);">🪐 3D Solar System Orrery</h2>
+
+<form aria-describedby="sol-desc" onsubmit="event.preventDefault();">
+  <p id="sol-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A live 3D orrery of all eight planets with real orbital elements — eccentricity, inclinations and Kepler's equation solved every frame, so Mercury visibly speeds up at perihelion and the tilted orbits weave through space. Drag to orbit the camera, scroll to zoom, click a planet for its fact card, and flip between true and visible scale.
+  </p>
+
+  <div style="background:#03050c;border:1px solid rgba(150,210,255,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="sol-canvas" width="720" height="420" style="width:100%;height:420px;display:block;background:radial-gradient(circle at 50% 35%, #0a1020, #02030a 75%);border-radius:6px;cursor:grab;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="sol-status" style="color:#aadcff;font-family:monospace;">DRAG=ORBIT · SCROLL=ZOOM · CLICK A PLANET</span>
+      <span id="sol-date" style="color:#ffd27f;font-family:monospace;">T+ 0 days</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Time Speed</span><span id="sol-val-speed">20 days/s</span>
+      </div>
+      <input type="range" id="sol-slider-speed" min="0.5" max="200" step="0.5" value="20" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Display Scale</span><span id="sol-val-scale">VISIBLE</span>
+      </div>
+      <input type="range" id="sol-slider-scale" min="0" max="1" step="1" value="1" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Camera Tilt</span><span id="sol-val-tilt">30°</span>
+      </div>
+      <input type="range" id="sol-slider-tilt" min="0" max="89" step="1" value="30" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Extra Objects</span><span id="sol-val-extra">ASTEROIDS ON</span>
+      </div>
+      <input type="range" id="sol-slider-extra" min="0" max="1" step="1" value="1" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Fact card -->
+  <div id="sol-fact" style="background:rgba(14,18,26,0.9);border:1px solid rgba(127,224,195,0.3);border-radius:8px;padding:10px;margin-bottom:12px;min-height:52px;">
+    <div style="font-size:0.72rem;color:var(--text-secondary);">🌀 Click a planet on the orrery for its fact card.</div>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <button type="button" id="sol-btn-pause" style="padding:5px 12px;border-radius:6px;background:rgba(150,210,255,0.12);border:1px solid #96d2ff;color:#aadcff;font-size:0.72rem;cursor:pointer;">⏸ Pause Time</button>
+    <button type="button" id="sol-btn-labels" style="padding:5px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;">🏷 Labels: ON</button>
+    <button type="button" id="sol-btn-resetview" style="padding:5px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;">🎯 Reset Camera</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Astronomy model (real mechanics)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Each planet follows its real orbit: the radius is r = a(1−e²)/(1+e·cos θ), and θ comes from solving
+      Kepler's equation M = E − e·sin E at every frame (Newton's method), so orbital speed is genuinely
+      faster at perihelion. Distances, periods, eccentricities and inclinations are the real values; only
+      planet sizes are exaggerated to stay visible (switch "True scale" and they shrink to dots — which is
+      exactly what the real solar system looks like from above). Inclinations are exaggerated ×5 so the
+      3D weaving is visible. Asteroid belt is procedural at 2.2–3.2 au.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('sol-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const PLANETS = [
+    { name: 'Mercury', au: 0.387, a: 5.6, e: 0.206, inc: 7 * 5, period: 87.97, radius: 6, color: '#b8a68e', moons: 0, fact: 'A year is 88 days, a day is 176. The smallest planet — and the fastest, at perihelion.' },
+    { name: 'Venus', au: 0.723, a: 8.4, e: 0.007, inc: 3.4 * 5, period: 224.7, radius: 12, color: '#e8c88a', moons: 0, fact: 'Spins backwards, and its day (243 Earth days) is longer than its year (225).' },
+    { name: 'Earth', au: 1.0, a: 12, e: 0.017, inc: 0, period: 365.3, radius: 12.5, color: '#5a9ae8', moons: 1, fact: 'The only known world with life. ~71% of its surface is ocean.' },
+    { name: 'Mars', au: 1.524, a: 15.6, e: 0.093, inc: 1.85 * 5, period: 687, radius: 8.5, color: '#e07a4a', moons: 2, fact: 'Has the tallest volcano in the solar system — Olympus Mons, 21.9 km high.' },
+    { name: 'Jupiter', au: 5.203, a: 27, e: 0.048, inc: 1.3 * 5, period: 4333, radius: 30, color: '#d8a96a', moons: 95, fact: 'More than twice the mass of all other planets combined. Great Red Spot is a 350-year-old storm.' },
+    { name: 'Saturn', au: 9.537, a: 37, e: 0.054, inc: 2.49 * 5, period: 10759, radius: 26, color: '#e8d5a0', moons: 146, ring: true, fact: 'Its rings are ~280,000 km wide but only ~10 m thick — mostly water ice.' },
+    { name: 'Uranus', au: 19.19, a: 45, e: 0.047, inc: 0.77 * 5, period: 30687, radius: 15, color: '#8ed8e8', moons: 28, fact: 'Rolls on its side — tilted 98°, likely from a giant ancient collision.' },
+    { name: 'Neptune', au: 30.07, a: 52, e: 0.009, inc: 1.77 * 5, period: 60190, radius: 14.5, color: '#4a6af2', moons: 16, fact: 'Winds reach 2,100 km/h — the fastest in the solar system. Discovered by maths before telescopes.' }
+  ];
+
+  let speed = 20, showLabels = true, paused = false, showAsteroids = true, autoscale = true;
+  let tDays = 0, camYaw = 0.6, camPitch = 0.55, zoom = 1.0, dragging = false, lastX = 0, lastY = 0;
+  let selected = null;
+  const stars = [];
+  for (let i = 0; i < 260; i++) stars.push({ x: (i * 193.7) % W, y: (i * 97.3) % H, r: (i % 3) * 0.4 + 0.4, a: 0.2 + ((i * 7) % 10) / 20 });
+
+  function readSliders() {
+    speed = parseFloat($('sol-slider-speed').value);
+    autoscale = $('sol-slider-scale').value === '1';
+    camPitch = parseFloat($('sol-slider-tilt').value) * Math.PI / 180;
+    showAsteroids = $('sol-slider-extra').value === '1';
+    $('sol-val-speed').textContent = speed + ' days/s';
+    $('sol-val-scale').textContent = autoscale ? 'VISIBLE' : 'TRUE (tiny dots)';
+    $('sol-val-tilt').textContent = Math.round(camPitch * 180 / Math.PI) + '°';
+    $('sol-val-extra').textContent = showAsteroids ? 'ASTEROIDS ON' : 'ASTEROIDS OFF';
+  }
+
+  function keplerE(M, e) {
+    let E = M;
+    for (let i = 0; i < 6; i++) E = E - (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+    return E;
+  }
+
+  function planetPos(p) {
+    // mean anomaly from elapsed days (real revolution periods, scaled into view time)
+    const M = (tDays / p.period) * Math.PI * 2;
+    const E = keplerE(M % (Math.PI * 2), p.e);
+    const nu = 2 * Math.atan2(Math.sqrt(1 + p.e) * Math.sin(E / 2), Math.sqrt(1 - p.e) * Math.cos(E / 2));
+    const r = p.a * (1 - p.e * p.e) / (1 + p.e * Math.cos(nu));
+    const inc = p.inc * Math.PI / 180;
+    return {
+      x: r * Math.cos(nu),
+      y: r * Math.sin(nu) * Math.sin(inc),
+      z: r * Math.sin(nu) * Math.cos(inc) * 0.999 // keep near plane
+    };
+  }
+
+  function rotate(p) {
+    // camera yaw about z, pitch about x
+    const cy = Math.cos(camYaw), sy = Math.sin(camYaw);
+    const cp = Math.cos(camPitch), sp = Math.sin(camPitch);
+    let x = p.x * cy - p.y * sy, y = p.x * sy + p.y * cy, z = p.z;
+    const y2 = y * cp - z * sp, z2 = y * sp + z * cp;
+    return { x, y: y2, z: z2 };
+  }
+
+  function project(p) {
+    const r = rotate(p);
+    const d = 120, f = 460 * zoom;
+    const s = f / (d + r.z);
+    return { x: W / 2 + r.x * s, y: H / 2 - r.y * s, s, z: r.z };
+  }
+
+  function draw() {
+    ctx.fillStyle = '#02030a'; ctx.fillRect(0, 0, W, H);
+    stars.forEach(st => { ctx.fillStyle = 'rgba(230,240,255,' + st.a + ')'; ctx.fillRect(st.x, st.y, st.r, st.r); });
+
+    // asteroid belt
+    if (showAsteroids) {
+      for (let i = 0; i < 160; i++) {
+        const ang = i * 2.399 + tDays * 0.0006;
+        const r = 19.5 + Math.sin(i * 1.7) * 3.2;
+        const px = project({ x: r * Math.cos(ang), y: r * Math.sin(ang) * 0.26, z: r * Math.sin(ang) * 0.97 });
+        ctx.fillStyle = 'rgba(160,150,140,0.5)';
+        ctx.fillRect(px.x, px.y, 1.2, 1.2);
+      }
+    }
+
+    // orbit ellipses
+    PLANETS.forEach(p => {
+      ctx.strokeStyle = 'rgba(150,210,255,0.16)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let k = 0; k <= 120; k++) {
+        const M = (k / 120) * Math.PI * 2;
+        const E = keplerE(M, p.e);
+        const nu = 2 * Math.atan2(Math.sqrt(1 + p.e) * Math.sin(E / 2), Math.sqrt(1 - p.e) * Math.cos(E / 2));
+        const r = p.a * (1 - p.e * p.e) / (1 + p.e * Math.cos(nu));
+        const inc = p.inc * Math.PI / 180;
+        const pt = project({ x: r * Math.cos(nu), y: r * Math.sin(nu) * Math.sin(inc), z: r * Math.sin(nu) * Math.cos(inc) });
+        if (k === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+    });
+
+    // sun
+    const sun = project({ x: 0, y: 0, z: 0 });
+    const sr = 11 * sun.s / 4;
+    const sg = ctx.createRadialGradient(sun.x, sun.y, 1, sun.x, sun.y, sr * 2.4);
+    sg.addColorStop(0, '#fff8e0'); sg.addColorStop(0.35, '#ffd873'); sg.addColorStop(1, 'rgba(255,150,50,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(sun.x, sun.y, sr * 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff2c0';
+    ctx.beginPath(); ctx.arc(sun.x, sun.y, sr, 0, Math.PI * 2); ctx.fill();
+    if (showLabels) { ctx.fillStyle = '#ffd873'; ctx.font = '10px monospace'; ctx.fillText('THE SUN', sun.x - 20, sun.y - sr - 8); }
+
+    // planets (painter's sort by z, back to front)
+    const list = PLANETS.map(p => ({ p, pos: project(planetPos(p)) })).sort((a, b) => a.pos.z - b.pos.z);
+    list.forEach(({ p, pos }) => {
+      const sizePx = p.radius * (autoscale ? pos.s / 4.2 : Math.max(1.4, pos.s * 0.12));
+      // rings behind planet
+      if (p.ring) drawRing(pos, sizePx, p);
+      const grad = ctx.createRadialGradient(pos.x - sizePx * 0.35, pos.y - sizePx * 0.35, sizePx * 0.1, pos.x, pos.y, sizePx);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.18, p.color);
+      grad.addColorStop(1, '#0a0d18');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, sizePx, 0, Math.PI * 2); ctx.fill();
+      if (p.ring) drawRingFront(pos, sizePx, p);
+      if (showLabels) {
+        ctx.fillStyle = selected === p.name ? '#ffd27f' : 'rgba(230,250,255,0.75)';
+        ctx.font = (selected === p.name ? 'bold ' : '') + '9px monospace';
+        ctx.fillText(p.name, pos.x - sizePx - 4, pos.y - sizePx - 5);
+      }
+      if (selected === p.name) {
+        ctx.strokeStyle = '#ffd27f'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, sizePx + 6, 0, Math.PI * 2); ctx.stroke();
+      }
+    });
+  }
+
+  function drawRing(pos, sizePx, p) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(220,205,170,0.6)';
+    ctx.lineWidth = Math.max(1.5, sizePx * 0.28);
+    ctx.beginPath();
+    ctx.ellipse(pos.x, pos.y, sizePx * 2.1, sizePx * 0.55, -0.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function drawRingFront(pos, sizePx, p) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(240,228,196,0.85)';
+    ctx.lineWidth = Math.max(1.2, sizePx * 0.22);
+    ctx.beginPath();
+    ctx.ellipse(pos.x, pos.y, sizePx * 2.1, sizePx * 0.55, -0.5, Math.PI, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function showFact(p) {
+    selected = p.name;
+    $('sol-fact').innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">' +
+      '<strong style="color:#aadcff;">🪐 ' + p.name + '</strong>' +
+      '<span style="font-size:0.7rem;color:var(--text-secondary);font-family:monospace;">' +
+      'orbit ' + p.au.toFixed(3) + ' au · period ' + (p.period / 365.25).toFixed(2) + ' yr · ' + p.moons + ' moons</span></div>' +
+      '<div style="font-size:0.76rem;margin-top:6px;color:var(--text);">' + p.fact + '</div>';
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!paused) tDays += speed * dt;
+    draw();
+    $('sol-date').textContent = 'T+ ' + tDays.toFixed(0) + ' days (' + (tDays / 365.25).toFixed(1) + ' yr)';
+    $('sol-status').textContent = selected ? 'SELECTED: ' + selected + ' — click empty space to deselect, drag to orbit' : 'DRAG=ORBIT · SCROLL=ZOOM · CLICK A PLANET';
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.style.cursor = 'grabbing'; });
+  window.addEventListener('mouseup', () => { dragging = false; canvas.style.cursor = 'grab'; });
+  canvas.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    camYaw += (e.clientX - lastX) * 0.005;
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoom = Math.max(0.4, Math.min(3.5, zoom * (e.deltaY < 0 ? 1.12 : 0.89)));
+  }, { passive: false });
+  canvas.addEventListener('click', e => {
+    selected = null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (W / rect.width);
+    const my = (e.clientY - rect.top) * (H / rect.height);
+    PLANETS.forEach(p => {
+      const pos = project(planetPos(p));
+      const sizePx = p.radius * (autoscale ? pos.s / 4.2 : Math.max(1.4, pos.s * 0.12));
+      if (Math.hypot(mx - pos.x, my - pos.y) < Math.max(12, sizePx + 8)) showFact(p);
+    });
+    if (!selected) $('sol-fact').innerHTML = '<div style="font-size:0.72rem;color:var(--text-secondary);">🌀 Click a planet on the orrery for its fact card.</div>';
+  });
+
+  $('sol-btn-pause').addEventListener('click', () => {
+    paused = !paused;
+    $('sol-btn-pause').textContent = paused ? '▶ Resume Time' : '⏸ Pause Time';
+  });
+  $('sol-btn-labels').addEventListener('click', () => {
+    showLabels = !showLabels;
+    $('sol-btn-labels').textContent = '🏷 Labels: ' + (showLabels ? 'ON' : 'OFF');
+  });
+  $('sol-btn-resetview').addEventListener('click', () => { camYaw = 0.6; zoom = 1; $('sol-slider-tilt').value = 30; readSliders(); });
+
+  ['sol-slider-speed', 'sol-slider-scale', 'sol-slider-tilt', 'sol-slider-extra'].forEach(id => $(id).addEventListener('input', readSliders));
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>
