@@ -1,0 +1,314 @@
+<h2 id="wfr-title" style="margin-top:0;color:var(--accent);">🔥 Wildfire Behaviour Lab</h2>
+
+<form aria-describedby="wfr-desc" onsubmit="event.preventDefault();">
+  <p id="wfr-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A fuel-bed cellular automaton with Rothermel-style spread. Set wind, fuel moisture, fuel load and slope, then click the terrain to ignite. Watch the fire front, smoke column, ember spotting and the live rate-of-spread, flame length and fireline intensity.
+  </p>
+
+  <!-- Fuel presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="wfr-preset" data-id="grass" style="padding:4px 10px;border-radius:4px;background:rgba(190,220,90,0.16);border:1px solid #bedc5a;color:#d6ea8f;font-size:0.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;">🌾 Grassland</button>
+    <button type="button" class="wfr-preset" data-id="shrub" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌿 Shrubland</button>
+    <button type="button" class="wfr-preset" data-id="forest" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌲 Pine Forest</button>
+    <button type="button" class="wfr-preset" data-id="chaparral" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌵 Chaparral</button>
+  </div>
+
+  <div style="background:#05070a;border:1px solid rgba(255,140,60,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="wfr-canvas" width="640" height="320" style="width:100%;height:320px;display:block;background:#2c2f24;border-radius:6px;cursor:crosshair;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="wfr-status" style="color:#ffb56b;font-family:monospace;">CLICK THE TERRAIN TO IGNITE</span>
+      <span id="wfr-windarrow" style="color:#aadcff;font-family:monospace;">WIND → E</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Wind Speed (10 m)</span><span id="wfr-val-wind">10 m/s</span>
+      </div>
+      <input type="range" id="wfr-slider-wind" min="0" max="20" step="0.5" value="10" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Wind Direction (0=N)</span><span id="wfr-val-dir">90° (E)</span>
+      </div>
+      <input type="range" id="wfr-slider-dir" min="0" max="360" step="5" value="90" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Fine Fuel Moisture</span><span id="wfr-val-moist">8%</span>
+      </div>
+      <input type="range" id="wfr-slider-moist" min="3" max="30" step="0.5" value="8" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Fuel Load</span><span id="wfr-val-load">1.5 kg/m²</span>
+      </div>
+      <input type="range" id="wfr-slider-load" min="0.2" max="4" step="0.1" value="1.5" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Terrain Slope (uphill = westward)</span><span id="wfr-val-slope">10°</span>
+      </div>
+      <input type="range" id="wfr-slider-slope" min="-15" max="45" step="1" value="10" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">RATE OF SPREAD</div>
+      <div id="wfr-stat-ros" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">FLAME LENGTH (Byram)</div>
+      <div id="wfr-stat-flame" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">FIRELINE INTENSITY</div>
+      <div id="wfr-stat-i" style="font-size:0.85rem;font-family:monospace;color:#aadcff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">BURNT</div>
+      <div id="wfr-stat-burnt" style="font-size:0.85rem;font-family:monospace;color:#fff;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="wfr-btn-lightning" style="padding:6px 16px;border-radius:6px;background:rgba(255,80,40,0.2);border:1px solid #ff5028;color:#ff8a5c;font-size:0.75rem;font-weight:bold;cursor:pointer;">⚡ LIGHTNING IGNITION</button>
+    <button type="button" id="wfr-btn-reset" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">↺ Reset Terrain</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Spread uses a simplified Rothermel-style rate: R = R₀·exp(0.09·w)·exp(−0.09·fm)·(1+0.05·slope),
+      wind direction weighted by cos(Δθ) so the head fire runs downwind. Flame length from Byram’s line fire
+      intensity: I = H·w·R (H = 18 MJ/kg), L = 0.0775·I^0.46 m. Spotting embers jump ahead in strong wind;
+      moisture above ~25% essentially stops spread, as it does in real fuel beds.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('wfr-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CW = 8, COLS = W / CW, ROWS = H / CW;
+
+  const sWind = $('wfr-slider-wind'), sDir = $('wfr-slider-dir'), sMoist = $('wfr-slider-moist'),
+        sLoad = $('wfr-slider-load'), sSlope = $('wfr-slider-slope');
+  const vWind = $('wfr-val-wind'), vDir = $('wfr-val-dir'), vMoist = $('wfr-val-moist'),
+        vLoad = $('wfr-val-load'), vSlope = $('wfr-val-slope');
+  const statusEl = $('wfr-status'), windArrow = $('wfr-windarrow');
+  const statRos = $('wfr-stat-ros'), statFlame = $('wfr-stat-flame'), statI = $('wfr-stat-i'), statBurnt = $('wfr-stat-burnt');
+  const btnLightning = $('wfr-btn-lightning'), btnReset = $('wfr-btn-reset');
+
+  let wind = 10, dirDeg = 90, moist = 8, load = 1.5, slope = 10;
+  let fuelType = 'grass';
+  let cells = [], smoke = [], embers = [], burnt = 0, runTime = 0, fireActive = false;
+
+  const PRESETS = {
+    grass:     { wind: 10, moist: 8,  load: 1.5, slope: 10 },
+    shrub:     { wind: 12, moist: 6,  load: 2.5, slope: 15 },
+    forest:    { wind: 8,  moist: 10, load: 3.5, slope: 6  },
+    chaparral: { wind: 14, moist: 5,  load: 2.0, slope: 25 }
+  };
+  const BASE_R = { grass: 1.0, shrub: 0.8, forest: 0.65, chaparral: 0.9 };
+
+  function resetTerrain() {
+    cells = [];
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const n = (r * 31 + c * 17) % 23;
+        cells.push({
+          fuel: 0.35 + ((r * 13 + c * 7) % 100) / 140, // uneven fuel depth
+          moisture: moist + (((r * 7 + c * 11) % 13) - 6) * 0.6,
+          burning: false, burnt: false, burnT: 0
+        });
+      }
+    }
+    smoke = []; embers = []; burnt = 0; runTime = 0; fireActive = false;
+    statusEl.textContent = 'CLICK THE TERRAIN TO IGNITE';
+  }
+
+  function ignite(c, r) {
+    const i = r * COLS + c;
+    if (!cells[i] || cells[i].burnt || cells[i].fuel < 0.1) return;
+    cells[i].burning = true; cells[i].burnT = 5 + Math.random() * 5;
+    fireActive = true;
+  }
+
+  function readSliders() {
+    wind = parseFloat(sWind.value); dirDeg = parseFloat(sDir.value);
+    moist = parseFloat(sMoist.value); load = parseFloat(sLoad.value); slope = parseFloat(sSlope.value);
+    vWind.textContent = wind + ' m/s';
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    vDir.textContent = dirDeg + '° (' + dirs[Math.round(dirDeg / 45) % 8] + ')';
+    vMoist.textContent = moist + '%'; vLoad.textContent = load + ' kg/m²'; vSlope.textContent = slope + '°';
+  }
+
+  function physics() {
+    // simplified Rothermel: head-fire rate (m/min) from wind, moisture, slope, load
+    const R0 = BASE_R[fuelType] * (0.55 + 0.28 * load);
+    const ros = R0 * Math.exp(0.09 * wind) * Math.exp(-0.09 * moist) * (1 + 0.05 * Math.max(0, slope));
+    const I = 18000 * load * Math.max(0.05, ros) / 60; // kW/m, Byram
+    const flame = 0.0775 * Math.pow(Math.max(1, I), 0.46); // m
+    const suppress = moist >= 25 ? 0.06 : 1;
+    return { ros: ros * suppress, I, flame };
+  }
+
+  function caStep(dt) {
+    const dirRad = dirDeg * Math.PI / 180;
+    const dxW = Math.sin(dirRad), dyW = -Math.cos(dirRad); // screen coords (N = up)
+    const ph = physics();
+    const P = Math.min(0.9, ph.ros / 90); // per-tick ignition efficiency
+
+    const next = [];
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const i = r * COLS + c, cell = cells[i];
+        let burning = cell.burning, burnt = cell.burnt, burnT = cell.burnT;
+        if (burning) {
+          burnT -= dt;
+          if (burnT <= 0) { burning = false; burnt = true; }
+        }
+        if (!burning && !burnt && cell.fuel > 0.08) {
+          // ignition from neighbours
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (!dr && !dc) continue;
+              const ni = (r + dr) * COLS + (c + dc);
+              if (ni < 0 || ni >= cells.length) continue;
+              if (!cells[ni].burning) continue;
+              const deg = Math.atan2(dc, dr) + Math.PI / 2; // angle in screen space
+              const wF = Math.exp(0.30 * wind * Math.cos(deg - dirRad)); // wind weighting
+              const sF = 1 + 0.045 * Math.max(0, slope) * Math.cos(deg);
+              const mF = Math.exp(-0.08 * cell.moisture);
+              const pIgn = Math.min(1, P * wF * sF * mF * (cell.fuel / 0.9));
+              if (Math.random() < pIgn * 0.10) { burning = true; burnT = 4 + Math.random() * 6; break; }
+            }
+          }
+        }
+        next.push({ fuel: cell.fuel, moisture: cell.moisture, burning, burnt, burnT });
+      }
+    }
+    cells = next;
+    burnt = cells.filter(c => c.burnt).length;
+
+    // smoke + ember spray from burning cells
+    if (fireActive) {
+      for (let i = 0; i < cells.length; i++) {
+        if (cells[i].burning && Math.random() < 0.16) {
+          const x = (i % COLS) * CW + CW / 2, y = Math.floor(i / COLS) * CW + CW / 2;
+          smoke.push({ x, y, vx: Math.sin(dirRad) * wind * 5 + (Math.random() - 0.5) * 8, vy: -Math.cos(dirRad) * wind * 5 - 10 - Math.random() * 14, life: 1, r: 2 + Math.random() * 3 });
+          if (wind > 12 && Math.random() < 0.02) {
+            embers.push({ x, y, vx: Math.sin(dirRad) * wind * 26, vy: -Math.cos(dirRad) * wind * 26 - 20, life: 1 });
+          }
+        }
+      }
+    }
+    smoke.forEach(p => { p.x += p.vx * dt * 4; p.y += p.vy * dt * 4; p.life -= dt * 0.15; p.r += dt * 2; });
+    embers.forEach(p => { p.x += p.vx * dt * 8; p.y += p.vy * dt * 8 + 26 * dt; p.life -= dt * 0.08; });
+    smoke = smoke.filter(p => p.life > 0 && p.y > -20);
+    embers = embers.filter(p => p.life > 0 && p.y < H + 20);
+    if (smoke.length > 300) smoke.splice(0, smoke.length - 300);
+  }
+
+  function drawTerrain() {
+    const palette = {
+      grass:     ['#7c8f3c', '#96a848'],
+      shrub:     ['#5f7f3a', '#74924a'],
+      forest:    ['#3f5e3c', '#4f7048'],
+      chaparral: ['#7a6a45', '#93805a']
+    };
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = cells[r * COLS + c];
+        const x = c * CW, y = r * CW;
+        if (cell.burnt) {
+          ctx.fillStyle = '#241d16';
+        } else if (cell.burning) {
+          const fl = Math.sin(runTime * 9 + c * 1.3) * 0.3 + 0.7;
+          ctx.fillStyle = 'rgba(255,' + Math.round(120 + fl * 80) + ',20,0.95)';
+        } else {
+          ctx.fillStyle = cell.fuel > 0.72 ? palette[fuelType][1] : palette[fuelType][0];
+        }
+        ctx.fillRect(x, y, CW, CW);
+        // fuel texture
+        if (!cell.burnt && !cell.burning && ((r + c) % 3 === 0)) {
+          ctx.fillStyle = 'rgba(0,0,0,0.10)';
+          ctx.fillRect(x + 2, y + 3, 2, 3);
+        }
+      }
+    }
+    // embers
+    embers.forEach(e => {
+      ctx.fillStyle = 'rgba(255,150,40,' + e.life + ')';
+      ctx.fillRect(e.x, e.y, 3, 3);
+    });
+    // smoke
+    smoke.forEach(p => {
+      ctx.fillStyle = 'rgba(80,80,84,' + (p.life * 0.34) + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    });
+    // wind + slope arrows
+    ctx.strokeStyle = 'rgba(150,210,255,0.8)'; ctx.lineWidth = 2;
+    const ax = 36, ay = 36, ar = 22, aRad = dirDeg * Math.PI / 180;
+    ctx.beginPath(); ctx.moveTo(ax, ay);
+    ctx.lineTo(ax + Math.sin(aRad) * ar, ay - Math.cos(aRad) * ar); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ax + Math.sin(aRad) * ar, ay - Math.cos(aRad) * ar);
+    ctx.lineTo(ax + Math.sin(aRad - 0.4) * (ar - 7), ay - Math.cos(aRad - 0.4) * (ar - 7));
+    ctx.moveTo(ax + Math.sin(aRad) * ar, ay - Math.cos(aRad) * ar);
+    ctx.lineTo(ax + Math.sin(aRad + 0.4) * (ar - 7), ay - Math.cos(aRad + 0.4) * (ar - 7));
+    ctx.stroke();
+  }
+
+  let last = performance.now(), acc = 0;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    acc += dt;
+    if (fireActive && acc > 0.12) { caStep(acc); acc = 0; runTime += dt; }
+    const ph = physics();
+    drawTerrain();
+    statusEl.textContent = fireActive ? 'FIRE ACTIVE — ' + runTime.toFixed(0) + 's elapsed' : 'CLICK THE TERRAIN TO IGNITE';
+    windArrow.textContent = 'WIND ' + wind + ' m/s · ' + dirDeg + '°';
+    statRos.textContent = ph.ros.toFixed(1) + ' m/min';
+    statFlame.textContent = ph.flame.toFixed(1) + ' m';
+    statI.textContent = ph.I.toFixed(0) + ' kW/m';
+    statBurnt.textContent = Math.round(burnt / (ROWS * COLS) * 100) + '%';
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (W / rect.width);
+    const y = (e.clientY - rect.top) * (H / rect.height);
+    ignite(Math.floor(x / CW), Math.floor(y / CW));
+  });
+  btnLightning.addEventListener('click', () => {
+    let struck = 0;
+    for (let k = 0; k < 3; k++) {
+      const r = Math.floor(Math.random() * ROWS), c = Math.floor(Math.random() * COLS);
+      ignite(c, r);
+      if (cells[r * COLS + c].burning) struck++;
+    }
+    if (struck) statusEl.textContent = 'LIGHTNING STRIKES! ' + struck + ' ignition point' + (struck > 1 ? 's' : '');
+  });
+  btnReset.addEventListener('click', resetTerrain);
+  [sWind, sDir, sMoist, sLoad, sSlope].forEach(s => s.addEventListener('input', readSliders));
+  document.querySelectorAll('.wfr-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      fuelType = btn.dataset.id;
+      const pr = PRESETS[fuelType];
+      sWind.value = pr.wind; sMoist.value = pr.moist; sLoad.value = pr.load; sSlope.value = pr.slope;
+      readSliders(); resetTerrain();
+    });
+  });
+  readSliders(); resetTerrain();
+  requestAnimationFrame(loop);
+})();
+</script>

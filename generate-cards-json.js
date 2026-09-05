@@ -136,7 +136,18 @@ const scienceList = [
   'unit-converter',
   'unitconverter',
   'voltage-drop',
-  'wire-gauge'
+  'wire-gauge',
+  // Natural-hazard & phenomenon labs (observable physics simulators):
+  'volcanic-eruption-simulator',
+  'tornado-fujita-lab',
+  'wildfire-behaviour-lab',
+  'tsunami-runup-simulator',
+  'flash-flood-lab',
+  'lunar-tide-simulator',
+  'sand-dune-lab',
+  'snowflake-crystal-lab',
+  'earthquake-seismograph-lab',
+  'meteor-shower-sky-lab'
 ];
 const writingList = [
   'markdown-to-html-printer',

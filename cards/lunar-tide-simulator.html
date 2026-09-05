@@ -1,0 +1,296 @@
+<h2 id="tid-title" style="margin-top:0;color:var(--accent);">🌕 Lunar Tide Simulator</h2>
+
+<form aria-describedby="tid-desc" onsubmit="event.preventDefault();">
+  <p id="tid-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    The equilibrium tide, live: Moon and Sun each raise two opposing bulges (H ∝ cos²θ), Earth rotates beneath them, and the 24h50m lunar day makes the tide arrive 50 minutes later every day. Set the lunar calendar, perigee, solar distance and coastal amplification — then read spring/neap, range and high-tide times.
+  </p>
+
+  <div style="background:#04101c;border:1px solid rgba(90,200,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="tid-globe" width="640" height="260" style="width:100%;height:260px;display:block;background:radial-gradient(circle at 40% 40%, #0a2033, #050a12);border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="tid-phase-label" style="color:#8fd4ff;font-family:monospace;">MOON: NEW</span>
+      <span id="tid-range-label" style="color:#ffd27f;font-family:monospace;">RANGE —</span>
+    </div>
+  </div>
+
+  <div style="background:#04060a;border:1px solid rgba(90,200,255,0.2);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="tid-curve" width="640" height="170" style="width:100%;height:170px;display:block;background:#060b12;border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--text-secondary);margin-top:4px;padding:0 4px;">
+      <span>TIDE HEIGHT vs TIME (one lunar day = 24 h 50 m)</span>
+      <span id="tid-now-lbl" style="color:#ff9c6b;font-family:monospace;">—</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Days Since New Moon</span><span id="tid-val-days">0.0 d</span>
+      </div>
+      <input type="range" id="tid-slider-days" min="0" max="29.5" step="0.1" value="0" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Moon Distance</span><span id="tid-val-mdist">406700 km</span>
+      </div>
+      <input type="range" id="tid-slider-mdist" min="356500" max="406700" step="1000" value="406700" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Sun Distance (perihelion–aphelion)</span><span id="tid-val-sdist">1.017 AU</span>
+      </div>
+      <input type="range" id="tid-slider-sdist" min="0.983" max="1.017" step="0.001" value="1.017" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Coastal Amplification</span><span id="tid-val-amp">4.0×</span>
+      </div>
+      <input type="range" id="tid-slider-amp" min="1" max="12" step="0.5" value="4" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Tide Clock (local hours)</span><span id="tid-val-clock">0.0 h</span>
+      </div>
+      <input type="range" id="tid-slider-clock" min="0" max="25" step="0.05" value="0" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">TIDE NOW</div>
+      <div id="tid-stat-now" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">TIDAL RANGE</div>
+      <div id="tid-stat-range" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">NEXT HIGH(S)</div>
+      <div id="tid-stat-highs" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">TIDE TYPE</div>
+      <div id="tid-stat-type" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Equilibrium tide: H = A_m·cos²(θ_m) + A_s·cos²(θ_s), fundamental equilibrium amplitudes 0.268 m (Moon)
+      and 0.124 m (Sun). Distances scale amplitude by (d̄/d)³. Earth's rotation gives each body a 12h25m
+      semi-diurnal period; the lunar day is 24h50m, so highs are ~50 minutes later each day. Spring tides at
+      new &amp; full Moon (bulges aligned), neap at the quarters. Perigean springs occur when a spring tide
+      coincides with lunar perigee — flagged automatically.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const globe = $('tid-globe'), gctx = globe.getContext('2d');
+  const curve = $('tid-curve'), cctx = curve.getContext('2d');
+  const GW = globe.width, GH = globe.height, CW = curve.width, CH = curve.height;
+
+  const sDays = $('tid-slider-days'), sMdist = $('tid-slider-mdist'), sSdist = $('tid-slider-sdist'),
+        sAmp = $('tid-slider-amp'), sClock = $('tid-slider-clock');
+  const vDays = $('tid-val-days'), vMdist = $('tid-val-mdist'), vSdist = $('tid-val-sdist'),
+        vAmp = $('tid-val-amp'), vClock = $('tid-val-clock');
+  const phaseLabel = $('tid-phase-label'), rangeLabel = $('tid-range-label'), nowLbl = $('tid-now-lbl');
+  const statNow = $('tid-stat-now'), statRange = $('tid-stat-range'), statHighs = $('tid-stat-highs'), statType = $('tid-stat-type');
+
+  let days = 0, mdist = 406700, sdist = 1.017, amp = 4, clock = 0;
+  const LUNAR_DAY = 24.84, SOLAR_DAY = 24, SYNODIC = 29.53;
+  const AM0 = 0.268, AS0 = 0.124, MEAN_M = 384400, MEAN_S = 1.0;
+
+  function readSliders() {
+    days = parseFloat(sDays.value); mdist = parseFloat(sMdist.value); sdist = parseFloat(sSdist.value);
+    amp = parseFloat(sAmp.value); clock = parseFloat(sClock.value);
+    vDays.textContent = days.toFixed(1) + ' d';
+    vMdist.textContent = Math.round(mdist) + ' km';
+    vSdist.textContent = sdist.toFixed(3) + ' AU';
+    vAmp.textContent = amp.toFixed(1) + '×';
+    vClock.textContent = (clock % 25).toFixed(1) + ' h';
+  }
+
+  function tideAt(h) {
+    const ph = (days / SYNODIC) * Math.PI * 2;
+    const Am = AM0 * Math.pow(MEAN_M / mdist, 3) * amp;
+    const As = AS0 * Math.pow(MEAN_S / sdist, 3) * amp;
+    const thM = (2 * Math.PI / LUNAR_DAY) * h + ph;
+    const thS = (2 * Math.PI / SOLAR_DAY) * h + ph;
+    return { Am, As, h: Am * Math.cos(thM) ** 2 + As * Math.cos(thS) ** 2, thM, thS };
+  }
+
+  function tideAtDay(h, d) {
+    const ph = (d / SYNODIC) * Math.PI * 2;
+    const Am = AM0 * Math.pow(MEAN_M / mdist, 3) * amp;
+    const As = AS0 * Math.pow(MEAN_S / sdist, 3) * amp;
+    const thM = (2 * Math.PI / LUNAR_DAY) * h + ph;
+    const thS = (2 * Math.PI / SOLAR_DAY) * h + ph;
+    return Am * Math.cos(thM) ** 2 + As * Math.cos(thS) ** 2;
+  }
+
+  function moonName(d) {
+    if (d < 2.0 || d > 27.5) return 'NEW';
+    if (d < 5.7) return 'WAXING CRESCENT';
+    if (d < 9.2) return 'FIRST QUARTER';
+    if (d < 12.7) return 'WAXING GIBBOUS';
+    if (d < 16.3) return 'FULL';
+    if (d < 19.8) return 'WANING GIBBOUS';
+    if (d < 23.3) return 'LAST QUARTER';
+    return 'WANING CRESCENT';
+  }
+
+  function drawGlobe() {
+    gctx.fillStyle = '#050a12'; gctx.fillRect(0, 0, GW, GH);
+    const cx = GW * 0.38, cy = GH * 0.5, R = 78;
+    const t = tideAt(clock);
+    // stars
+    gctx.fillStyle = 'rgba(255,255,255,0.3)';
+    for (let i = 0; i < 50; i++) gctx.fillRect((i * 83.7) % GW, (i * 47.3) % (GH * 0.7), 1, 1);
+
+    // tide envelope: polar sum of two cos² bulges (exaggerated ×40)
+    gctx.beginPath();
+    for (let a = 0; a <= Math.PI * 2 + 0.05; a += 0.08) {
+      const thM = t.thM - a, thS = t.thS - a; // bulge point opposite body
+      const ext = (t.Am * Math.cos(thM) ** 2 + t.As * Math.cos(thS) ** 2) / 0.31;
+      const r = R * (1 + ext * 1.6);
+      const x = cx + Math.cos(a) * r * 1.25, y = cy + Math.sin(a) * r;
+      if (a === 0) gctx.moveTo(x, y); else gctx.lineTo(x, y);
+    }
+    gctx.closePath();
+    gctx.fillStyle = 'rgba(80,170,255,0.12)';
+    gctx.strokeStyle = 'rgba(120,210,255,0.85)';
+    gctx.lineWidth = 2; gctx.shadowBlur = 8; gctx.shadowColor = '#78d2ff';
+    gctx.fill(); gctx.stroke(); gctx.shadowBlur = 0;
+
+    // Earth disc
+    const eg = gctx.createRadialGradient(cx - 20, cy - 20, 8, cx, cy, R);
+    eg.addColorStop(0, '#2b7fb8'); eg.addColorStop(0.7, '#1a4f7a'); eg.addColorStop(1, '#123a5c');
+    gctx.fillStyle = eg;
+    gctx.beginPath(); gctx.arc(cx, cy, R, 0, Math.PI * 2); gctx.fill();
+    gctx.strokeStyle = 'rgba(160,230,255,0.5)'; gctx.lineWidth = 1.5; gctx.stroke();
+    // equator + meridian grid
+    gctx.strokeStyle = 'rgba(160,230,255,0.25)';
+    gctx.beginPath(); gctx.ellipse(cx, cy, R, R * 0.35, 0, 0, Math.PI * 2); gctx.stroke();
+    gctx.beginPath(); gctx.ellipse(cx, cy, R * 0.5, R, 0, 0, Math.PI * 2); gctx.stroke();
+    // observer marker (fixed meridian)
+    gctx.fillStyle = '#ffd27f';
+    gctx.beginPath(); gctx.arc(cx + R * 0.0, cy - R * 0.35, 3.5, 0, Math.PI * 2); gctx.fill();
+    gctx.font = '9px monospace'; gctx.fillText('OBSERVER', cx - 30, cy - R * 0.35 - 8);
+
+    // Moon position (scale 1 px = ~5000 km)
+    const mx = cx + Math.cos(t.thM) * (R + 110), my = cy + Math.sin(t.thM) * (R + 110) * 0.55;
+    const mr = 14 + 4 * (1 - (mdist - 356500) / 50200);
+    const mg = gctx.createRadialGradient(mx - 4, my - 4, 2, mx, my, mr);
+    mg.addColorStop(0, '#f4f6ff'); mg.addColorStop(1, '#aab2c8');
+    gctx.fillStyle = mg;
+    gctx.beginPath(); gctx.arc(mx, my, mr, 0, Math.PI * 2); gctx.fill();
+    gctx.fillStyle = '#fff'; gctx.font = '9px monospace'; gctx.fillText('MOON', mx - 14, my - mr - 6);
+
+    // Sun position (opposite side)
+    const sx = cx + Math.cos(t.thS + Math.PI) * (R + 190), sy = cy + Math.sin(t.thS + Math.PI) * (R + 190) * 0.55;
+    const sg = gctx.createRadialGradient(sx, sy, 3, sx, sy, 20);
+    sg.addColorStop(0, '#fff8d0'); sg.addColorStop(1, '#ffce6b');
+    gctx.fillStyle = sg;
+    gctx.beginPath(); gctx.arc(sx, sy, 20, 0, Math.PI * 2); gctx.fill();
+    gctx.shadowBlur = 14; gctx.shadowColor = '#ffce6b'; gctx.fill(); gctx.shadowBlur = 0;
+    gctx.fillStyle = '#ffd27f'; gctx.fillText('SUN', sx - 8, sy + 32);
+
+    // labels
+    gctx.fillStyle = 'rgba(230,250,255,0.5)'; gctx.font = '9px monospace';
+    gctx.fillText('TIDAL BULGES (exaggerated ×160)', 12, 16);
+  }
+
+  function drawCurve() {
+    cctx.fillStyle = '#060b12'; cctx.fillRect(0, 0, CW, CH);
+    const padL = 30, padB = 20, padT = 10;
+    const yAt = h => CH - padB - (h / (3.6 * amp + 0.5)) * (CH - padB - padT);
+    // grid + axes
+    cctx.strokeStyle = 'rgba(230,250,255,0.15)';
+    for (let hh = 0; hh <= 24; hh += 6) {
+      const x = padL + (hh / 24.84) * (CW - padL - 8);
+      cctx.beginPath(); cctx.moveTo(x, padT); cctx.lineTo(x, CH - padB); cctx.stroke();
+      cctx.fillStyle = 'rgba(230,250,255,0.5)'; cctx.font = '9px monospace';
+      cctx.fillText(hh + 'h', x - 6, CH - 6);
+    }
+    cctx.beginPath(); cctx.moveTo(padL, CH - padB); cctx.lineTo(CW - 6, CH - padB); cctx.stroke();
+    // spring & neap reference curves (faint) — same distances, different lunar phase
+    const refs = [[0, 'rgba(255,210,127,0.25)'], [7.4, 'rgba(127,224,195,0.25)']];
+    refs.forEach(([rd, col]) => {
+      cctx.strokeStyle = col; cctx.lineWidth = 1;
+      cctx.beginPath();
+      for (let h = 0; h <= 24.84; h += 0.1) {
+        const y = yAt(tideAtDay(h, rd));
+        const x = padL + (h / 24.84) * (CW - padL - 8);
+        if (h === 0) cctx.moveTo(x, y); else cctx.lineTo(x, y);
+      }
+      cctx.stroke();
+    });
+    // main curve
+    cctx.strokeStyle = '#78d2ff'; cctx.lineWidth = 2.2;
+    cctx.shadowBlur = 8; cctx.shadowColor = '#78d2ff';
+    cctx.beginPath();
+    for (let h = 0; h <= 24.84; h += 0.05) {
+      const x = padL + (h / 24.84) * (CW - padL - 8);
+      const y = yAt(tideAt(h).h);
+      if (h === 0) cctx.moveTo(x, y); else cctx.lineTo(x, y);
+    }
+    cctx.stroke(); cctx.shadowBlur = 0;
+    // current-time marker
+    const xNow = padL + (clock / 24.84) * (CW - padL - 8);
+    cctx.strokeStyle = '#ff9c6b'; cctx.lineWidth = 1.5;
+    cctx.beginPath(); cctx.moveTo(xNow, padT); cctx.lineTo(xNow, CH - padB); cctx.stroke();
+    cctx.fillStyle = '#ff9c6b';
+    cctx.fillText('now', xNow + 3, padT + 8);
+    // high water points
+    for (let h = 0.5; h < 24.5; h += 0.02) {
+      const a = tideAt(h - 0.02).h, b = tideAt(h).h, c2 = tideAt(h + 0.02).h;
+      if (b > a && b >= c2 && b > 0.05) {
+        const x = padL + (h / 24.84) * (CW - padL - 8);
+        cctx.fillStyle = '#ffd27f';
+        cctx.beginPath(); cctx.arc(x, yAt(b), 3, 0, Math.PI * 2); cctx.fill();
+      }
+    }
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    // drift clock slowly for life
+    const t = tideAt(clock);
+    drawGlobe(); drawCurve();
+    // stats
+    let range = 0, maxH = 0, minH = 1e9;
+    for (let h = 0; h <= 25; h += 0.05) {
+      const v = tideAt(h).h;
+      maxH = Math.max(maxH, v); minH = Math.min(minH, v);
+    }
+    range = maxH - minH;
+    const highs = []; let lastHigh = -1;
+    for (let h = 0.2; h < 25; h += 0.05) {
+      const a = tideAt(h - 0.05).h, b = tideAt(h).h, c2 = tideAt(h + 0.05).h;
+      if (b > a && b >= c2 && b > 0.05 && h - lastHigh > 6) { highs.push(h); lastHigh = h; }
+      if (highs.length >= 2) break;
+    }
+    const springness = Math.cos((days / SYNODIC) * 2 * Math.PI * 2); // 1 at new/full
+    const perigean = Math.abs(springness) > 0.9 && mdist < 370000;
+    const type = perigean ? 'PERIGEAN SPRING' : springness > 0.5 ? 'SPRING' : springness < -0.5 ? 'NEAP' : 'INTERMEDIATE';
+    phaseLabel.textContent = 'MOON: ' + moonName(days) + (perigean ? ' · PERIGEE' : '');
+    rangeLabel.textContent = 'RANGE ' + range.toFixed(2) + ' m';
+    nowLbl.textContent = 'clock ' + clock.toFixed(1) + 'h — height ' + t.h.toFixed(2) + ' m';
+    statNow.textContent = t.h.toFixed(2) + ' m';
+    statRange.textContent = range.toFixed(2) + ' m';
+    statHighs.textContent = highs.map(h => h.toFixed(1) + 'h').join(' / ') || '—';
+    statType.textContent = type;
+    requestAnimationFrame(loop);
+  }
+
+  [sDays, sMdist, sSdist, sAmp, sClock].forEach(s => s.addEventListener('input', readSliders));
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>
