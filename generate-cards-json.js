@@ -174,6 +174,7 @@ const aquariumList = [
 // Ten tools added to fill genuine gaps found by auditing the existing 552-card
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
 const gapFillMap = {
+  'vat-sales-tax-calculator': 'Finance & Money',
   'countdown-timer-stopwatch-laps': 'Productivity & Lifestyle',
   'age-calculator-exact-days': 'Productivity & Lifestyle',
   'random-number-dice-picker': 'Productivity & Lifestyle',
