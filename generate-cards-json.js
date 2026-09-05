@@ -265,7 +265,18 @@ const saasKillerList = [
   'b2b-cold-email-sequence-generator',
   'saas-metrics-ltv-cac-calculator',
   'seo-meta-tag-social-previewer',
-  'social-proof-testimonial-card-generator'
+  'social-proof-testimonial-card-generator',
+  // 2026-09-05 — ten browser replacements for paid SaaS products
+  'csv-data-studio',
+  'json-to-typescript-interface-generator',
+  'image-optimiser-studio',
+  'json-ld-structured-data-generator',
+  'ab-test-significance-calculator',
+  'startup-runway-burn-rate-simulator',
+  'brand-logo-mark-generator',
+  'email-signature-generator',
+  'business-model-canvas-builder',
+  'markdown-slide-deck-builder'
 ];
 
 const interactiveArtList = ['3d-spirograph-nebula', 

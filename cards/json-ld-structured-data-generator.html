@@ -1,0 +1,572 @@
+<h2 id="jld-title" style="margin-top:0;color:var(--accent);">🏷️ Rich Result Forge</h2>
+
+<p id="jld-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Build valid schema.org JSON-LD for the rich results Google actually shows &mdash; products with price and
+  availability, FAQs, breadcrumbs, events, local businesses, articles. Fields are validated as you type and
+  the exact <code>&lt;script type="application/ld+json"&gt;</code> tag is ready to paste. No account, no monthly
+  SEO subscription, nothing sent anywhere.
+</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:14px;">
+  <div style="flex:1;min-width:200px;">
+    <label for="jld-type" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">Schema type</label>
+    <select id="jld-type" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.85rem;"></select>
+  </div>
+  <label for="jld-wrap" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-secondary);padding-bottom:8px;">
+    <input id="jld-wrap" type="checkbox" checked style="width:auto;accent-color:#2dd4ff;" /> Wrap in script tag
+  </label>
+  <label for="jld-context" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-secondary);padding-bottom:8px;">
+    <input id="jld-context" type="checkbox" checked style="width:auto;accent-color:#2dd4ff;" /> Include @context
+  </label>
+</div>
+
+<div id="jld-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:14px;"></div>
+
+<div id="jld-lists"></div>
+
+<div id="jld-issues" role="status" style="margin:12px 0;"></div>
+
+<div id="jld-preview" style="background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:14px;max-width:600px;"></div>
+
+<textarea id="jld-out" rows="16" readonly spellcheck="false" aria-label="Generated JSON-LD" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.4);color:#7ef9ff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.76rem;line-height:1.5;resize:vertical;"></textarea>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+  <button type="button" id="jld-copy" style="padding:8px 14px;background:var(--accent);color:#0a0f14;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.82rem;">Copy snippet</button>
+  <button type="button" id="jld-download" style="padding:8px 14px;background:rgba(255,255,255,0.08);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);border-radius:8px;cursor:pointer;font-size:0.82rem;">⬇ Download .json</button>
+  <button type="button" id="jld-sample" style="padding:8px 14px;background:rgba(255,255,255,0.08);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);border-radius:8px;cursor:pointer;font-size:0.82rem;">Fill example</button>
+  <span id="jld-status" aria-live="polite" style="align-self:center;font-size:0.78rem;color:var(--text-secondary);"></span>
+</div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">Rules this generator enforces</summary>
+  <p style="margin-top:8px;">
+    URLs must be absolute and on <code>https://</code> &mdash; relative or <code>http://</code> values are the
+    single most common reason a rich result is dropped. Dates must be ISO 8601. Prices are plain numbers with a
+    separate three-letter currency code, because <code>"£19.99"</code> inside <code>price</code> fails
+    validation. An <code>FAQPage</code> needs at least one question and answer; a <code>BreadcrumbList</code>
+    needs at least two positions; an <code>Event</code> needs a start date and a location. Empty fields are
+    stripped rather than emitted as <code>""</code>, which validators treat as an error. Always re-check the
+    output in Google's Rich Results Test before you rely on it.
+  </p>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  var AVAIL = [
+    ['https://schema.org/InStock', 'In stock'],
+    ['https://schema.org/OutOfStock', 'Out of stock'],
+    ['https://schema.org/PreOrder', 'Pre-order'],
+    ['https://schema.org/Discontinued', 'Discontinued'],
+    ['https://schema.org/LimitedAvailability', 'Limited availability']
+  ];
+  var ATTEND = [
+    ['https://schema.org/OfflineEventAttendanceMode', 'In person'],
+    ['https://schema.org/OnlineEventAttendanceMode', 'Online'],
+    ['https://schema.org/MixedEventAttendanceMode', 'Mixed']
+  ];
+
+  var TYPES = {
+    Organization: {
+      rich: 'Knowledge panel, sitelinks',
+      fields: [
+        { k: 'name', l: 'Organisation name', t: 'text', req: 1, ph: 'Acme Instruments Ltd' },
+        { k: 'url', l: 'Website (https)', t: 'url', req: 1, ph: 'https://www.example.com/' },
+        { k: 'logo', l: 'Logo URL', t: 'url', ph: 'https://www.example.com/logo.png' },
+        { k: 'description', l: 'Description', t: 'ta' },
+        { k: 'email', l: 'Contact email', t: 'text', ph: 'hello@example.com' },
+        { k: 'telephone', l: 'Telephone', t: 'text', ph: '+44 20 7946 0000' },
+        { k: 'foundingDate', l: 'Founded (YYYY-MM-DD)', t: 'date' },
+        { k: 'sameAs', l: 'Profiles (one URL per line)', t: 'list', ph: 'https://www.linkedin.com/company/…' }
+      ]
+    },
+    LocalBusiness: {
+      rich: 'Local pack, opening hours, reviews',
+      fields: [
+        { k: 'name', l: 'Business name', t: 'text', req: 1 },
+        { k: 'url', l: 'Website (https)', t: 'url', req: 1 },
+        { k: 'image', l: 'Photo URL', t: 'url' },
+        { k: 'telephone', l: 'Telephone', t: 'text', req: 1, ph: '+44 1582 000000' },
+        { k: 'priceRange', l: 'Price range', t: 'text', ph: '££' },
+        { k: 'address.streetAddress', l: 'Street address', t: 'text' },
+        { k: 'address.addressLocality', l: 'Town / city', t: 'text' },
+        { k: 'address.addressRegion', l: 'County / region', t: 'text' },
+        { k: 'address.postalCode', l: 'Postcode', t: 'text' },
+        { k: 'address.addressCountry', l: 'Country code', t: 'text', req: 1, ph: 'GB' },
+        { k: 'geo.latitude', l: 'Latitude', t: 'num', ph: '51.8797' },
+        { k: 'geo.longitude', l: 'Longitude', t: 'num', ph: '-0.4175' },
+        { k: 'openingHours', l: 'Opening hours (one per line)', t: 'list', ph: 'Mo-Fr 09:00-17:30' },
+        { k: 'sameAs', l: 'Profiles (one URL per line)', t: 'list' }
+      ]
+    },
+    Product: {
+      rich: 'Price, availability, rating stars',
+      fields: [
+        { k: 'name', l: 'Product name', t: 'text', req: 1 },
+        { k: 'image', l: 'Image URL', t: 'url', req: 1 },
+        { k: 'description', l: 'Description', t: 'ta' },
+        { k: 'sku', l: 'SKU / MPN', t: 'text' },
+        { k: 'brand.name', l: 'Brand', t: 'text' },
+        { k: 'offers.price', l: 'Price (number only)', t: 'num', req: 1, ph: '19.99' },
+        { k: 'offers.priceCurrency', l: 'Currency code', t: 'text', req: 1, ph: 'GBP' },
+        { k: 'offers.availability', l: 'Availability', t: 'select', o: AVAIL },
+        { k: 'offers.url', l: 'Product page URL', t: 'url', req: 1 },
+        { k: 'offers.priceValidUntil', l: 'Price valid until', t: 'date' },
+        { k: 'aggregateRating.ratingValue', l: 'Rating (0–5)', t: 'num', ph: '4.6' },
+        { k: 'aggregateRating.reviewCount', l: 'Review count', t: 'num', ph: '128' },
+        { k: 'aggregateRating.bestRating', l: 'Best rating', t: 'num', ph: '5' }
+      ]
+    },
+    Article: {
+      rich: 'Article carousel, top stories',
+      fields: [
+        { k: 'headline', l: 'Headline (≤110 chars)', t: 'text', req: 1 },
+        { k: 'description', l: 'Standfirst / description', t: 'ta' },
+        { k: 'image', l: 'Image URL', t: 'url', req: 1 },
+        { k: 'author.name', l: 'Author name', t: 'text', req: 1 },
+        { k: 'author.url', l: 'Author page URL', t: 'url' },
+        { k: 'publisher.name', l: 'Publisher name', t: 'text', req: 1 },
+        { k: 'publisher.logo.url', l: 'Publisher logo URL', t: 'url' },
+        { k: 'datePublished', l: 'Published', t: 'date', req: 1 },
+        { k: 'dateModified', l: 'Last modified', t: 'date' },
+        { k: 'mainEntityOfPage', l: 'Article URL', t: 'url', req: 1 },
+        { k: 'keywords', l: 'Keywords (comma separated)', t: 'text' },
+        { k: 'articleSection', l: 'Section', t: 'text' }
+      ]
+    },
+    FAQPage: {
+      rich: 'FAQ dropdown in search results',
+      faq: 1,
+      fields: []
+    },
+    BreadcrumbList: {
+      rich: 'Breadcrumb trail instead of the raw URL',
+      crumb: 1,
+      fields: []
+    },
+    Event: {
+      rich: 'Event listing with date, venue, tickets',
+      fields: [
+        { k: 'name', l: 'Event name', t: 'text', req: 1 },
+        { k: 'description', l: 'Description', t: 'ta' },
+        { k: 'startDate', l: 'Starts (date or date-time)', t: 'date', req: 1, ph: '2026-10-04T19:30' },
+        { k: 'endDate', l: 'Ends', t: 'date' },
+        { k: 'eventAttendanceMode', l: 'Attendance', t: 'select', o: ATTEND },
+        { k: 'location.name', l: 'Venue name', t: 'text', req: 1 },
+        { k: 'location.address.streetAddress', l: 'Street', t: 'text' },
+        { k: 'location.address.addressLocality', l: 'Town / city', t: 'text' },
+        { k: 'location.address.addressCountry', l: 'Country code', t: 'text', ph: 'GB' },
+        { k: 'image', l: 'Image URL', t: 'url' },
+        { k: 'performer.name', l: 'Performer / speaker', t: 'text' },
+        { k: 'offers.price', l: 'Ticket price', t: 'num' },
+        { k: 'offers.priceCurrency', l: 'Currency', t: 'text', ph: 'GBP' },
+        { k: 'offers.url', l: 'Ticket URL', t: 'url' },
+        { k: 'offers.availability', l: 'Availability', t: 'select', o: AVAIL }
+      ]
+    },
+    Person: {
+      rich: 'Knowledge panel, author cards',
+      fields: [
+        { k: 'name', l: 'Full name', t: 'text', req: 1 },
+        { k: 'url', l: 'Website (https)', t: 'url' },
+        { k: 'jobTitle', l: 'Job title', t: 'text' },
+        { k: 'image', l: 'Photo URL', t: 'url' },
+        { k: 'email', l: 'Email', t: 'text' },
+        { k: 'telephone', l: 'Telephone', t: 'text' },
+        { k: 'worksFor.name', l: 'Works for', t: 'text' },
+        { k: 'birthDate', l: 'Date of birth', t: 'date' },
+        { k: 'sameAs', l: 'Profiles (one URL per line)', t: 'list' }
+      ]
+    },
+    SoftwareApplication: {
+      rich: 'App rating stars in results',
+      fields: [
+        { k: 'name', l: 'Application name', t: 'text', req: 1 },
+        { k: 'url', l: 'Website (https)', t: 'url', req: 1 },
+        { k: 'image', l: 'Screenshot URL', t: 'url' },
+        { k: 'description', l: 'Description', t: 'ta' },
+        { k: 'applicationCategory', l: 'Category', t: 'text', ph: 'DeveloperApplication' },
+        { k: 'operatingSystem', l: 'Operating system', t: 'text', ph: 'Web, Windows, macOS' },
+        { k: 'offers.price', l: 'Price (0 if free)', t: 'num', ph: '0' },
+        { k: 'offers.priceCurrency', l: 'Currency', t: 'text', ph: 'GBP' },
+        { k: 'aggregateRating.ratingValue', l: 'Rating (0–5)', t: 'num' },
+        { k: 'aggregateRating.reviewCount', l: 'Review count', t: 'num' }
+      ]
+    },
+    HowTo: {
+      rich: 'Step-by-step rich result',
+      steps: 1,
+      fields: [
+        { k: 'name', l: 'How-to title', t: 'text', req: 1 },
+        { k: 'description', l: 'Short summary', t: 'ta' },
+        { k: 'totalTime', l: 'Total time (ISO 8601)', t: 'text', ph: 'PT45M' },
+        { k: 'estimatedCost.value', l: 'Estimated cost', t: 'num' },
+        { k: 'estimatedCost.currency', l: 'Currency', t: 'text', ph: 'GBP' },
+        { k: 'image', l: 'Image URL', t: 'url' }
+      ]
+    }
+  };
+
+  var faqs = [{ q: '', a: '' }];
+  var crumbs = ['Home | https://www.example.com/', 'Blog | https://www.example.com/blog/', 'This article | https://www.example.com/blog/post'];
+  var steps = ['Gather the parts listed above', 'Fit the bracket to the wall', 'Tighten and test the load'];
+
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function setPath(obj, path, value) {
+    var parts = path.split('.');
+    var cur = obj;
+    for (var i = 0; i < parts.length - 1; i++) {
+      if (typeof cur[parts[i]] !== 'object' || cur[parts[i]] === null) cur[parts[i]] = {};
+      cur = cur[parts[i]];
+    }
+    cur[parts[parts.length - 1]] = value;
+  }
+  function getPath(obj, path) {
+    return path.split('.').reduce(function (o, k) { return o && typeof o === 'object' ? o[k] : undefined; }, obj);
+  }
+  function prune(o) {
+    if (Array.isArray(o)) {
+      var arr = o.map(prune).filter(function (v) { return v !== null && v !== '' && !(typeof v === 'object' && Object.keys(v).length === 0); });
+      return arr;
+    }
+    if (o && typeof o === 'object') {
+      var out = {};
+      Object.keys(o).forEach(function (k) {
+        var v = prune(o[k]);
+        if (v === '' || v === null || v === undefined) return;
+        if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return;
+        if (Array.isArray(v) && v.length === 0) return;
+        out[k] = v;
+      });
+      return out;
+    }
+    return o;
+  }
+
+  var current = 'Organization';
+  var values = {};
+
+  function buildForm() {
+    var spec = TYPES[current];
+    var box = $('jld-form');
+    box.innerHTML = '';
+    spec.fields.forEach(function (f) {
+      var wrap = el('div');
+      wrap.style.cssText = 'min-width:0;';
+      var lab = el('label', { for: 'jld-f-' + f.k.replace(/\./g, '-'), style: 'display:block;font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;' },
+        f.l + (f.req ? ' *' : ''));
+      wrap.appendChild(lab);
+      var input;
+      if (f.t === 'ta') {
+        input = el('textarea', { rows: '2' });
+      } else if (f.t === 'list') {
+        input = el('textarea', { rows: '3' });
+      } else if (f.t === 'select') {
+        input = el('select');
+        input.appendChild(el('option', { value: '' }, '— choose —'));
+        f.o.forEach(function (pair) { input.appendChild(el('option', { value: pair[0] }, pair[1])); });
+      } else {
+        input = el('input', { type: f.t === 'date' ? 'text' : 'text' });
+      }
+      input.id = 'jld-f-' + f.k.replace(/\./g, '-');
+      input.setAttribute('data-k', f.k);
+      input.setAttribute('data-t', f.t);
+      if (f.ph) input.placeholder = f.ph;
+      input.style.cssText = 'width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;font-family:inherit;';
+      var saved = values[current] && values[current][f.k];
+      if (saved !== undefined) input.value = saved;
+      input.addEventListener('input', function () {
+        values[current] = values[current] || {};
+        values[current][f.k] = input.value;
+        run();
+      });
+      wrap.appendChild(input);
+      box.appendChild(wrap);
+    });
+
+    var lists = $('jld-lists');
+    lists.innerHTML = '';
+    if (spec.faq) lists.appendChild(faqPanel());
+    if (spec.crumb) lists.appendChild(crumbPanel());
+    if (spec.steps) lists.appendChild(stepPanel());
+  }
+
+  function panel(title, hint) {
+    var d = el('div', { style: 'background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-bottom:12px;' });
+    d.appendChild(el('div', { style: 'font-weight:700;font-size:0.85rem;color:var(--accent);' }, title));
+    if (hint) d.appendChild(el('div', { style: 'font-size:0.74rem;color:var(--text-secondary);margin:2px 0 10px;' }, hint));
+    return d;
+  }
+
+  function faqPanel() {
+    var p = panel('Questions and answers', 'At least one pair is required. Answers are shown verbatim in the rich result.');
+    var body = el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
+    faqs.forEach(function (item, i) {
+      var row = el('div', { style: 'display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;' });
+      var q = el('input', { type: 'text', placeholder: 'Question ' + (i + 1), 'aria-label': 'Question ' + (i + 1) });
+      q.value = item.q;
+      q.style.cssText = 'flex:1;min-width:180px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;';
+      q.addEventListener('input', function () { faqs[i].q = q.value; run(); });
+      var a = el('textarea', { rows: '2', placeholder: 'Answer', 'aria-label': 'Answer ' + (i + 1) });
+      a.value = item.a;
+      a.style.cssText = 'flex:2;min-width:220px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;font-family:inherit;';
+      a.addEventListener('input', function () { faqs[i].a = a.value; run(); });
+      var rm = el('button', { type: 'button', 'aria-label': 'Remove question ' + (i + 1), style: 'padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:var(--text-secondary);cursor:pointer;' }, '✕');
+      rm.addEventListener('click', function () { faqs.splice(i, 1); if (!faqs.length) faqs.push({ q: '', a: '' }); buildForm(); run(); });
+      row.appendChild(q); row.appendChild(a); row.appendChild(rm);
+      body.appendChild(row);
+    });
+    p.appendChild(body);
+    var add = el('button', { type: 'button', style: 'margin-top:10px;padding:8px 12px;border-radius:8px;border:1px solid rgba(45,212,255,0.4);background:rgba(45,212,255,0.1);color:var(--accent);cursor:pointer;font-size:0.8rem;' }, '+ Add question');
+    add.addEventListener('click', function () { faqs.push({ q: '', a: '' }); buildForm(); run(); });
+    p.appendChild(add);
+    return p;
+  }
+
+  function crumbPanel() {
+    var p = panel('Breadcrumb trail', 'One crumb per line, as "Name | https://full-url". Order is top-level first.');
+    var ta = el('textarea', { rows: '4', 'aria-label': 'Breadcrumb items' });
+    ta.value = crumbs.join('\n');
+    ta.style.cssText = 'width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.8rem;font-family:ui-monospace,Menlo,Consolas,monospace;';
+    ta.addEventListener('input', function () { crumbs = ta.value.split('\n'); run(); });
+    p.appendChild(ta);
+    return p;
+  }
+
+  function stepPanel() {
+    var p = panel('Steps', 'One step per line. Keep each step to a single action.');
+    var ta = el('textarea', { rows: '5', 'aria-label': 'How-to steps' });
+    ta.value = steps.join('\n');
+    ta.style.cssText = 'width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.8rem;';
+    ta.addEventListener('input', function () { steps = ta.value.split('\n'); run(); });
+    p.appendChild(ta);
+    return p;
+  }
+
+  function collect() {
+    var data = { '@type': current };
+    if ($('jld-context').checked) data['@context'] = 'https://schema.org';
+    var spec = TYPES[current];
+    Object.keys(values[current] || {}).forEach(function (k) {
+      var raw = String(values[current][k] === undefined ? '' : values[current][k]).trim();
+      if (raw === '') return;
+      var f = spec.fields.filter(function (x) { return x.k === k; })[0];
+      var t = f ? f.t : 'text';
+      if (t === 'list') {
+        var arr = raw.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+        if (arr.length) setPath(data, k, arr);
+      } else if (t === 'num') {
+        var n = Number(raw.replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(n)) setPath(data, k, n);
+      } else if (k === 'keywords') {
+        setPath(data, k, raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean));
+      } else {
+        setPath(data, k, raw);
+      }
+    });
+
+    if (spec.faq) {
+      var pairs = faqs.filter(function (f) { return f.q.trim() && f.a.trim(); });
+      data.mainEntity = pairs.map(function (f) {
+        return { '@type': 'Question', name: f.q.trim(), acceptedAnswer: { '@type': 'Answer', text: f.a.trim() } };
+      });
+    }
+    if (spec.crumb) {
+      var items = [];
+      crumbs.forEach(function (line) {
+        var parts = line.split('|');
+        if (parts.length < 2) return;
+        var name = parts[0].trim(), url = parts.slice(1).join('|').trim();
+        if (name && url) items.push({ '@type': 'ListItem', name: name, item: url });
+      });
+      items.forEach(function (it, i) { it.position = i + 1; });
+      data.itemListElement = items;
+    }
+    if (spec.steps) {
+      var st = steps.map(function (s) { return s.trim(); }).filter(Boolean);
+      data.step = st.map(function (s, i) { return { '@type': 'HowToStep', position: i + 1, name: s.slice(0, 60), text: s }; });
+    }
+    if (data.aggregateRating) {
+      data.aggregateRating['@type'] = 'AggregateRating';
+      if (!data.aggregateRating.bestRating) data.aggregateRating.bestRating = 5;
+    }
+    if (data.offers) data.offers['@type'] = 'Offer';
+    if (data.address) data.address['@type'] = 'PostalAddress';
+    if (data.geo) data.geo['@type'] = 'GeoCoordinates';
+    if (data.brand) data.brand['@type'] = 'Brand';
+    if (data.author) data.author['@type'] = 'Person';
+    if (data.publisher) data.publisher['@type'] = 'Organization';
+    if (data.performer) data.performer['@type'] = 'PerformingGroup';
+    if (data.worksFor) data.worksFor['@type'] = 'Organization';
+    if (data.estimatedCost) data.estimatedCost['@type'] = 'MonetaryAmount';
+    if (data.location && data.location.address) data.location['@type'] = 'Place';
+
+    var order = ['@context', '@type'];
+    var out = {};
+    order.forEach(function (k) { if (data[k] !== undefined) out[k] = data[k]; });
+    Object.keys(data).forEach(function (k) { if (order.indexOf(k) === -1) out[k] = data[k]; });
+    return prune(out);
+  }
+
+  function validate(doc) {
+    var errs = [], warns = [];
+    var spec = TYPES[current];
+    spec.fields.forEach(function (f) {
+      var v = getPath(doc, f.k);
+      if (f.req && (v === undefined || v === '')) errs.push('Required field missing: ' + f.l);
+      if (f.t === 'date' && typeof v === 'string' && !/^\d{4}-\d{2}-\d{2}/.test(v)) {
+        warns.push(f.l + ' should be ISO 8601, e.g. 2026-10-04 — got "' + v.slice(0, 24) + '"');
+      }
+    });
+    (function walk(o, path) {
+      Object.keys(o || {}).forEach(function (k) {
+        var v = o[k], p = path ? path + '.' + k : k;
+        if (typeof v === 'string') {
+          var looksUrl = /(url|image|logo|mainEntityOfPage)$|(^|\.)item$|(^|\.)logo$/i.test(p);
+          if (looksUrl && !/^(https?:)?\/\//i.test(v)) warns.push(p + ' is not an absolute URL: "' + v.slice(0, 32) + '"');
+          else if (/^http:\/\//i.test(v)) warns.push(p + ' should use https:// — ' + v.slice(0, 32));
+        } else if (Array.isArray(v)) {
+          v.forEach(function (x, i) {
+            if (x && typeof x === 'object') walk(x, p + '[' + i + ']');
+            else if (typeof x === 'string' && /sameAs/i.test(p)) {
+              if (!/^https?:\/\//i.test(x)) warns.push(p + '[' + i + '] is not an absolute URL: "' + x.slice(0, 32) + '"');
+              else if (/^http:\/\//i.test(x)) warns.push(p + '[' + i + '] should use https://');
+            }
+          });
+        } else if (v && typeof v === 'object') {
+          walk(v, p);
+        }
+      });
+    })(doc, '');
+    if (current === 'FAQPage' && (!doc.mainEntity || !doc.mainEntity.length)) errs.push('FAQPage needs at least one question with an answer');
+    if (current === 'BreadcrumbList' && (!doc.itemListElement || doc.itemListElement.length < 2)) errs.push('BreadcrumbList needs at least two items');
+    if (current === 'Event' && !doc.startDate) errs.push('Event needs a startDate');
+    if (current === 'Product' && doc.offers && doc.offers.price !== undefined && typeof doc.offers.price !== 'number') errs.push('offers.price must be a plain number, no currency symbol');
+    if (current === 'Product' && doc.offers && !doc.offers.priceCurrency) warns.push('Add offers.priceCurrency (e.g. GBP) — required with a price');
+    if (current === 'Article' && doc.headline && doc.headline.length > 110) warns.push('Headline is over 110 characters — it will be truncated');
+    return { errs: errs, warns: warns };
+  }
+
+  function preview(doc) {
+    var box = $('jld-preview');
+    var title = doc.name || doc.headline || doc.title || 'Your page title';
+    var url = doc.url || doc.mainEntityOfPage || 'https://www.example.com/page';
+    var desc = doc.description || (doc.mainEntity && doc.mainEntity[0] ? doc.mainEntity[0].name : 'Rich result preview — the extra lines below are what search engines may append.');
+    var hostTxt = String(url).replace(/^https?:\/\//, '').replace(/\/$/, '');
+    var extra = '';
+    if (doc['@type'] === 'Product' && doc.offers) {
+      extra = '<div style="font-size:13px;color:#015c1c;margin-top:4px;">★ ' + (doc.aggregateRating ? doc.aggregateRating.ratingValue + ' (' + (doc.aggregateRating.reviewCount || 0) + ' reviews)' : 'No ratings yet') +
+        ' · ' + (doc.offers.priceCurrency || '') + ' ' + (doc.offers.price !== undefined ? doc.offers.price : '—') + ' · ' + (doc.offers.availability ? String(doc.offers.availability).split('/').pop() : '') + '</div>';
+    }
+    if (doc['@type'] === 'FAQPage' && doc.mainEntity && doc.mainEntity.length) {
+      extra = '<div style="margin-top:6px;">' + doc.mainEntity.slice(0, 3).map(function (q) {
+        return '<div style="font-size:13px;color:#202124;padding:2px 0;">❯ ' + esc(q.name) + '</div>';
+      }).join('') + '</div>';
+    }
+    if (doc['@type'] === 'BreadcrumbList' && doc.itemListElement) {
+      extra = '<div style="font-size:12px;color:#5f6368;">' + doc.itemListElement.map(function (c) { return esc(c.name); }).join(' › ') + '</div>';
+    }
+    if (doc['@type'] === 'Event' && doc.startDate) {
+      extra = '<div style="font-size:13px;color:#202124;margin-top:4px;">' + esc(String(doc.startDate)) + (doc.location ? ' · ' + esc(doc.location.name || '') : '') + '</div>';
+    }
+    box.innerHTML =
+      '<div style="font-size:12px;color:#202124;">' + esc(hostTxt) + '</div>' +
+      '<div style="font-size:18px;color:#1a0dab;line-height:1.3;margin:2px 0;">' + esc(title) + '</div>' +
+      (doc['@type'] === 'BreadcrumbList' && doc.itemListElement ? '' : '<div style="font-size:13px;color:#4d5156;">' + esc(String(desc).slice(0, 170)) + '</div>') +
+      extra +
+      '<div style="margin-top:8px;font-size:11px;color:#70757a;">Preview only — Google decides what it shows. Eligible for: ' + esc(TYPES[current].rich) + '</div>';
+  }
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function run() {
+    var doc = collect();
+    var json = JSON.stringify(doc, null, 2);
+    $('jld-out').value = $('jld-wrap').checked
+      ? '<script type="application/ld+json">\n' + json + '\n<\/script>'
+      : json;
+    var v = validate(doc);
+    var html = '';
+    if (v.errs.length) {
+      html += '<div style="padding:10px 12px;border-radius:8px;background:rgba(255,77,77,0.12);border:1px solid rgba(255,77,77,0.4);color:#ffb3b3;font-size:0.8rem;margin-bottom:6px;">' +
+        '<strong>Must fix:</strong><ul style="margin:6px 0 0 18px;padding:0;">' + v.errs.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (v.warns.length) {
+      html += '<div style="padding:10px 12px;border-radius:8px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.35);color:#ffe9a3;font-size:0.8rem;">' +
+        '<strong>Worth fixing:</strong><ul style="margin:6px 0 0 18px;padding:0;">' + v.warns.slice(0, 6).map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (!v.errs.length && !v.warns.length) {
+      html = '<div style="padding:8px 12px;border-radius:8px;background:rgba(57,255,20,0.08);border:1px solid rgba(57,255,20,0.3);color:#b6ffb0;font-size:0.8rem;">✓ Structure looks valid. Still run it through Google\'s Rich Results Test — search eligibility changes without notice.</div>';
+    }
+    $('jld-issues').innerHTML = html;
+    preview(doc);
+  }
+
+  var SAMPLES = {
+    Product: { name: 'Aurora Desk Lamp', image: 'https://www.example.com/lamp.jpg', description: 'A dimmable USB-C desk lamp with a 90 CRI panel.', sku: 'ADL-01', 'brand.name': 'Aurora', 'offers.price': '49.99', 'offers.priceCurrency': 'GBP', 'offers.availability': 'https://schema.org/InStock', 'offers.url': 'https://www.example.com/aurora-desk-lamp', 'aggregateRating.ratingValue': '4.6', 'aggregateRating.reviewCount': '128', 'aggregateRating.bestRating': '5' },
+    LocalBusiness: { name: 'Head & Shoulders Barber Co', url: 'https://www.example.com/', image: 'https://www.example.com/shop.jpg', telephone: '+44 1582 123456', priceRange: '££', 'address.streetAddress': '12 Market Hill', 'address.addressLocality': 'Luton', 'address.addressRegion': 'Bedfordshire', 'address.postalCode': 'LU1 2AB', 'address.addressCountry': 'GB', 'geo.latitude': '51.8797', 'geo.longitude': '-0.4175', openingHours: 'Mo-Fr 09:00-18:00\nSa 09:00-16:00' },
+    Organization: { name: 'Acme Instruments Ltd', url: 'https://www.example.com/', logo: 'https://www.example.com/logo.png', description: 'Precision instruments for labs since 1998.', email: 'hello@example.com', telephone: '+44 20 7946 0000', foundingDate: '1998-04-01' },
+    Article: { headline: 'How to wire a consumer unit safely', description: 'A step-by-step guide for qualified electricians.', image: 'https://www.example.com/cu.jpg', 'author.name': 'Russell Head', 'publisher.name': 'The Most Useful Site', 'publisher.logo.url': 'https://www.example.com/logo.png', datePublished: '2026-08-14', dateModified: '2026-09-01', mainEntityOfPage: 'https://www.example.com/guides/consumer-unit', keywords: 'consumer unit, wiring, electrician' }
+  };
+
+  var sel = $('jld-type');
+  Object.keys(TYPES).forEach(function (k) {
+    var o = el('option', { value: k }, k + ' — ' + TYPES[k].rich);
+    sel.appendChild(o);
+  });
+  sel.value = current;
+  sel.addEventListener('change', function () {
+    current = sel.value;
+    buildForm();
+    run();
+  });
+
+  ['jld-wrap', 'jld-context'].forEach(function (id) { $(id).addEventListener('change', run); });
+
+  $('jld-sample').addEventListener('click', function () {
+    if (SAMPLES[current]) {
+      values[current] = Object.assign({}, SAMPLES[current]);
+      buildForm();
+    }
+    if (current === 'FAQPage') {
+      faqs = [
+        { q: 'Do the tools work offline?', a: 'Yes. Every tool runs entirely in your browser, so it keeps working with no connection.' },
+        { q: 'Is my data uploaded?', a: 'No. There is no server component — nothing you type or drop ever leaves the page.' }
+      ];
+      buildForm();
+    }
+    run();
+    $('jld-status').textContent = 'Example loaded';
+  });
+
+  $('jld-copy').addEventListener('click', function () {
+    var text = $('jld-out').value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { $('jld-status').textContent = 'Snippet copied'; },
+        function () { $('jld-out').select(); });
+    } else { $('jld-out').select(); }
+  });
+
+  $('jld-download').addEventListener('click', function () {
+    var doc = collect();
+    var blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = current.toLowerCase() + '-schema.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 400);
+    $('jld-status').textContent = 'Saved ' + current.toLowerCase() + '-schema.json';
+  });
+
+  buildForm();
+  run();
+})();
+</script>
