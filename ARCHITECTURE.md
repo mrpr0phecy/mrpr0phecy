@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 644 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 664 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 644 tools
-│   └── <tool-name>.html    644 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 664 tools
+│   └── <tool-name>.html    664 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 644 cards.** They share one
+2. **Element IDs must be globally unique across all 664 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -187,11 +187,11 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (644 tools)
+### Categories (664 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 122 | Science & Engineering | | 11 | SaaS & Business Killers |
+| 122 | Science & Engineering | | 21 | SaaS & Business Killers |
 | 110 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
 | 47 | Writing & Language | | 10 | Wellbeing & Community |
 | 35 | Finance & Money | | 10 | Natural Remedies & Herbs |
@@ -203,7 +203,7 @@ be blank — a common cause of "my tool shows up empty".
 | 15 | Culinary & Food Science | | 10 | Dogs & Canine Care |
 | 12 | Museum & Collection | | 10 | MrProphecy Arcade |
 | 11 | Interactive Art & Living Worlds | | 7 | Virtual Worlds & Gaming |
-| 10 | Mind-Blowing Demos | | | |
+| 10 | Mind-Blowing Demos | | 10 | Survival & Emergency Readiness |
 | 10 | Algorithms & Computer Science | | | |
 
 ---
@@ -538,15 +538,19 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 684 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 644 cards:
+`sitemap.xml` lists all 704 pages. Build it from git rather than the working
+tree, so a sparse checkout does not silently drop the 664 cards:
 
 ```python
 import subprocess, datetime
 base  = "https://www.themostusefulsiteintheworld.com"
 today = datetime.date.today().isoformat()
+# Never list an error page, the 145-byte scratch file with no <title>, or the
+# unlinked beta catalogue (see §7). Re-running without this set silently
+# re-adds all three.
+EXCLUDE = {"404.html", "hokidea.html", "indexbeta.html"}
 files = subprocess.run(['git','ls-files'], capture_output=True, text=True).stdout.split()
-html  = [f for f in files if f.endswith('.html')]
+html  = [f for f in files if f.endswith('.html') and f not in EXCLUDE]
 prio  = {"listen.html":("1.0","weekly"), "music.html":("0.9","weekly"),
          "index.html":("0.9","daily"),   "youtubepromo2.html":("0.7","monthly")}
 urls  = [(p,*prio[p]) for p in prio if p in html]
@@ -584,7 +588,7 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`index.html` has no links to cards.** Everything is driven by `cards.json`.
 
-**ID collisions across cards.** All 644 share one DOM. See §3.
+**ID collisions across cards.** All 664 share one DOM. See §3.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -614,7 +618,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 644 cards):
+# Music work (skip images and the 664 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -732,6 +736,74 @@ sorter**, an **emoji-meaning decoder**, a **caffeine half-life bedtime check** a
 a **coat-or-no-coat weather** advisor. Tool count is now **644** (updated across
 README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html,
 tool.html).
+
+**Added 2026-09-05** — ten tools in **SaaS & Business Killers**, each one a
+browser replacement for something people pay a monthly subscription for, and
+each one fully offline (no network calls, no uploads):
+
+| Card | Replaces |
+|---|---|
+| `csv-data-studio` | spreadsheet-to-JSON/SQL converters — RFC 4180 parsing, column profiling, chart, 6 export formats |
+| `json-to-typescript-interface-generator` | quicktype — JSON → TypeScript / Zod / Python / Go / C# / JSON Schema |
+| `image-optimiser-studio` | TinyPNG-style image CDNs — batch canvas resize/re-encode with real byte counts |
+| `json-ld-structured-data-generator` | paid schema builders — 10 schema.org types, validation, SERP preview |
+| `ab-test-significance-calculator` | Optimizely/VWO calculators — z-test, sample size + duration, Bayesian win chance |
+| `startup-runway-burn-rate-simulator` | financial-model spreadsheets — 36-month cash curve, break-even, burn multiple, 3 scenarios |
+| `brand-logo-mark-generator` | Looka/Tailor Brands — 22 original icons, SVG/PNG/favicon export |
+| `email-signature-generator` | signature SaaS — table-layout HTML, rich clipboard copy for Gmail/Outlook/Apple Mail |
+| `business-model-canvas-builder` | facilitated canvas workshops — BMC + Lean Canvas, localStorage, coaching, exports |
+| `markdown-slide-deck-builder` | Gamma/Beautiful.ai — text-to-deck with speaker notes, present mode, standalone HTML export |
+
+All ten were added to `saasKillerList` in `generate-cards-json.js` (the category
+is 11 → **21**). `sitemap.xml` regeneration now carries an explicit `EXCLUDE`
+set for `404.html`, `hokidea.html` and `indexbeta.html` — re-running the §6
+script without it silently adds all three to the sitemap. Tool count is now
+**654** and the sitemap has **694** URLs (updated across README, ARCHITECTURE,
+INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html, tool.html, donate.html,
+sponsor.html).
+
+**Added 2026-09-05** — a new **Survival & Emergency Readiness** category with 10
+tools for staying safe when things go wrong. These are advice-and-calculation
+tools, not first-aid training: each one states the emergency number it relies on
+and none of them pretend to replace a professional.
+
+| Card | What it does |
+|---|---|
+| `water-purification-treatment-calculator` | Storage volumes, bleach dosing in drops and mL, boiling and filtration rules, roof rainwater yield |
+| `heat-cold-exposure-survival-calc` | NWS wind chill + Rothfusz heat index, frostbite onset bands, clothing/wetness/activity correction |
+| `fire-escape-smoke-safety-planner` | 14-hazard home score, prioritised fixes, printable two-route escape plan |
+| `gas-leak-carbon-monoxide-response` | Leak protocol, weighted CO symptom checker, alarm and appliance checklist |
+| `poison-chemical-exposure-response` | 22-substance database with route-specific first steps and a read-out-loud call summary |
+| `driving-emergency-survival-guide` | 11 emergencies with the trained response and the instinct that makes it worse, plus a flood-depth verdict |
+| `emergency-comms-radio-planner` | Radio-horizon range, battery runtime, what to buy, check-in protocol, NATO phonetic and distress vocabulary |
+| `evacuation-go-bag-planner` | Three tiers weighed against a quarter-body-weight carry limit, printable checklist |
+| `personal-safety-awareness-planner` | Journey risk score, followed protocol, de-escalation wording, Cooper colour code, local incident log |
+| `cold-water-ice-drowning-rescue` | Cold-shock/incapacitation/hypothermia timeline, reach-throw-row, ice thickness, rip currents, buoyancy ratings |
+
+Deduped against the existing `crisis-offline-triage`, `household-emergency-plan`,
+`scam-sense-checker`, `hike-time-planner` and `food-shelf-life-storage-vault`
+cards — no overlap.
+
+Two things worth copying if you add another safety tool. First, `survivalList` in
+`generate-cards-json.js` is matched with **exact** `.includes(name)` rather than
+the substring `.some(s => name.includes(s))` most other lists use, and is checked
+before `homeDIYList`, so no broader list can claim one of these slugs. Second,
+every card here had to pass a check that the dangerous folk advice is *absent*:
+no "induce vomiting", no mixing bleach, no drinking flood water. That check
+strips markup and scans backwards from each match, because a prohibition reads
+"Never: a, b, c" — a colon introducing the very list it negates — so splitting on
+a colon throws the negation away.
+
+**Fixed while adding them:** `fire-escape-smoke-safety-planner` originally let a
+home with **no smoke alarm at all** still score "Needs work", because good habits
+elsewhere offset it. Nothing compensates for not being woken up, so `alarm ===
+'none'` now floors the risk at 60 ("Genuinely risky") regardless of the rest.
+
+Tool count is now **664** across **27 categories**, and the sitemap has **704**
+URLs (updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS,
+index.html including its JSON-LD `ItemList`, 404.html, tool.html, donate.html,
+sponsor.html, plus the `KNOWN_CATEGORIES` set in `scripts/check-cards.py` and a
+new `count-survival` pill in `index.html`).
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —

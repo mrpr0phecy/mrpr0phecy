@@ -265,7 +265,33 @@ const saasKillerList = [
   'b2b-cold-email-sequence-generator',
   'saas-metrics-ltv-cac-calculator',
   'seo-meta-tag-social-previewer',
-  'social-proof-testimonial-card-generator'
+  'social-proof-testimonial-card-generator',
+  // 2026-09-05 — ten browser replacements for paid SaaS products
+  'csv-data-studio',
+  'json-to-typescript-interface-generator',
+  'image-optimiser-studio',
+  'json-ld-structured-data-generator',
+  'ab-test-significance-calculator',
+  'startup-runway-burn-rate-simulator',
+  'brand-logo-mark-generator',
+  'email-signature-generator',
+  'business-model-canvas-builder',
+  'markdown-slide-deck-builder'
+];
+
+// 2026-09-05 — ten survival & emergency-readiness tools. Matched exactly
+// (not by substring) and checked early, so no other list can claim them.
+const survivalList = [
+  'water-purification-treatment-calculator',
+  'heat-cold-exposure-survival-calc',
+  'fire-escape-smoke-safety-planner',
+  'gas-leak-carbon-monoxide-response',
+  'poison-chemical-exposure-response',
+  'driving-emergency-survival-guide',
+  'emergency-comms-radio-planner',
+  'evacuation-go-bag-planner',
+  'personal-safety-awareness-planner',
+  'cold-water-ice-drowning-rescue'
 ];
 
 const interactiveArtList = ['3d-spirograph-nebula', 
@@ -441,6 +467,7 @@ function getCategory(name) {
   if (demosList.includes(name)) return 'Mind-Blowing Demos';
   if (csList.includes(name)) return 'Algorithms & Computer Science';
   if (wellbeingList.includes(name)) return 'Wellbeing & Community';
+  if (survivalList.includes(name)) return 'Survival & Emergency Readiness';
   if (homeDIYList.some(s => name.includes(s))) return 'Home & DIY';
   if (astronomyList.some(s => name.includes(s))) return 'Astronomy & Space';
   if (aiList.some(s => name.includes(s))) return 'AI & Autonomous Agents';

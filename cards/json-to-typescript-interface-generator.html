@@ -1,0 +1,502 @@
+<h2 id="jts-title" style="margin-top:0;color:var(--accent);">🧬 JSON Schema Forge</h2>
+
+<p id="jts-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Paste any JSON response and get production-ready types in six dialects at once: TypeScript interfaces,
+  a Zod schema, Python dataclasses, Go structs, C# classes and a JSON Schema document. Nested objects are
+  detected, de-duplicated and named; optional, nullable and literal-union fields are inferred from real data.
+</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">
+  <button type="button" id="jts-sample" style="padding:8px 12px;background:rgba(255,255,255,0.07);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.14);border-radius:8px;cursor:pointer;font-size:0.8rem;">Load sample API response</button>
+  <button type="button" id="jts-format" style="padding:8px 12px;background:rgba(255,255,255,0.07);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.14);border-radius:8px;cursor:pointer;font-size:0.8rem;">Pretty-print input</button>
+  <div style="flex:1;min-width:150px;">
+    <label for="jts-root" style="display:block;font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">Root type name</label>
+    <input id="jts-root" type="text" value="ApiResponse" spellcheck="false" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;" />
+  </div>
+  <label for="jts-literals" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-secondary);padding-bottom:8px;">
+    <input id="jts-literals" type="checkbox" checked style="width:auto;accent-color:#2dd4ff;" /> Infer literal unions
+  </label>
+  <label for="jts-readonly" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-secondary);padding-bottom:8px;">
+    <input id="jts-readonly" type="checkbox" style="width:auto;accent-color:#2dd4ff;" /> Mark TS props readonly
+  </label>
+</div>
+
+<textarea id="jts-input" rows="10" spellcheck="false" aria-label="JSON input" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.8rem;line-height:1.5;resize:vertical;">{
+  "status": "ok",
+  "data": {
+    "orders": [
+      { "id": 1042, "customer": "Ada Lovelace", "total": 79.96, "state": "paid", "refunded": false, "items": [{ "sku": "A-100", "qty": 4 }] },
+      { "id": 1043, "customer": "Grace Hopper", "total": 114.00, "state": "shipped", "refunded": false, "items": [{ "sku": "B-220", "qty": 12 }] },
+      { "id": 1044, "customer": "Alan Turing", "total": 149.00, "state": "paid", "refunded": true, "items": [{ "sku": "C-330", "qty": 1 }] }
+    ]
+  },
+  "meta": { "page": 1, "perPage": 50, "nextCursor": null }
+}</textarea>
+
+<div id="jts-error" role="alert" style="display:none;margin:10px 0;padding:10px 12px;border-radius:8px;background:rgba(255,77,77,0.12);border:1px solid rgba(255,77,77,0.4);color:#ffb3b3;font-size:0.8rem;"></div>
+<div id="jts-info" style="margin:10px 0;font-size:0.78rem;color:rgba(230,250,255,0.6);"></div>
+
+<div id="jts-tabs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;" role="tablist" aria-label="Output language"></div>
+
+<textarea id="jts-out" rows="18" readonly spellcheck="false" aria-label="Generated types" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.4);color:#7ef9ff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.78rem;line-height:1.55;resize:vertical;"></textarea>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+  <button type="button" id="jts-copy" style="padding:8px 14px;background:var(--accent);color:#0a0f14;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.82rem;">Copy</button>
+  <button type="button" id="jts-download" style="padding:8px 14px;background:rgba(255,255,255,0.08);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);border-radius:8px;cursor:pointer;font-size:0.82rem;">⬇ Download</button>
+  <span id="jts-status" aria-live="polite" style="align-self:center;font-size:0.78rem;color:var(--text-secondary);"></span>
+</div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">How the inference works</summary>
+  <p style="margin-top:8px;">
+    Every object is fingerprinted by its sorted key list, so the same shape appearing in three places becomes
+    one shared type instead of three copies. A property is optional when it is missing from some instances of
+    that shape, and nullable when <code>null</code> appears among its values. With literal-union inference on,
+    a string property whose values repeat from a small closed set (for example <code>paid</code>,
+    <code>shipped</code>, <code>refunded</code>) is emitted as a union of literals rather than a bare string.
+    Numbers are all treated as 64-bit floats because JSON does not distinguish integers from decimals, except
+    in Python and Go where a whole-number property becomes <code>int</code> / <code>int64</code>.
+  </p>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  var LANGS = [
+    { id: 'ts', label: 'TypeScript', ext: 'ts' },
+    { id: 'zod', label: 'Zod', ext: 'ts' },
+    { id: 'python', label: 'Python', ext: 'py' },
+    { id: 'go', label: 'Go', ext: 'go' },
+    { id: 'csharp', label: 'C#', ext: 'cs' },
+    { id: 'schema', label: 'JSON Schema', ext: 'json' }
+  ];
+  var state = { lang: 'ts' };
+
+  function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function pascal(s) {
+    return String(s).replace(/[^a-zA-Z0-9]+(.)?/g, function (_, c) { return c ? c.toUpperCase() : ''; })
+      .replace(/^(.)/, function (c) { return c.toUpperCase(); });
+  }
+  function snake(s) {
+    return String(s).replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '').toLowerCase();
+  }
+  function singular(s) {
+    if (/ies$/.test(s)) return s.slice(0, -3) + 'y';
+    if (/[^s]s$/.test(s)) return s.slice(0, -1);
+    return s;
+  }
+
+  // ------------------------------------------------------------------ model
+  function newCtx(rootName) {
+    return { types: [], bySig: {}, names: {}, rootName: rootName };
+  }
+  function uniqueName(ctx, want) {
+    var base = pascal(want) || 'Item';
+    if (!/^[A-Za-z_]/.test(base)) base = 'T' + base;
+    var name = base, n = 2;
+    while (ctx.names[name]) { name = base + n; n++; }
+    ctx.names[name] = 1;
+    return name;
+  }
+
+  function ensureObject(ctx, obj, suggest) {
+    var keys = Object.keys(obj);
+    var sig = keys.slice().sort().join('|');
+    if (ctx.bySig[sig]) return ctx.types.filter(function (t) { return t.name === ctx.bySig[sig]; })[0];
+    var name = uniqueName(ctx, suggest);
+    ctx.bySig[sig] = name;
+    var def = { name: name, props: {}, order: [], instances: 0 };
+    ctx.types.push(def);
+    mergeInstance(ctx, def, obj);
+    return def;
+  }
+
+  function mergeInstance(ctx, def, obj) {
+    Object.keys(obj).forEach(function (k) {
+      if (!def.props[k]) { def.props[k] = { values: [], seenIn: 0 }; def.order.push(k); }
+      def.props[k].values.push(obj[k]);
+      def.props[k].seenIn++;
+    });
+    def.instances = (def.instances || 0) + 1;
+  }
+
+  // ------------------------------------------------------------------ nodes
+  function nodeForValues(ctx, values, suggest, path) {
+    var sawNull = false, prim = {}, objs = [], arrs = [], strs = [];
+    values.forEach(function (v) {
+      if (v === null || v === undefined) { sawNull = true; return; }
+      if (Array.isArray(v)) { arrs.push(v); return; }
+      if (typeof v === 'object') { objs.push(v); return; }
+      var t = typeof v === 'number' ? (Number.isInteger(v) ? 'int' : 'number') : typeof v;
+      prim[t] = 1;
+      if (typeof v === 'string') strs.push(v);
+    });
+
+    var parts = [];
+    var primKeys = Object.keys(prim);
+    if (prim.int && prim.number) { delete prim.int; primKeys = Object.keys(prim); }
+    primKeys.forEach(function (t) { parts.push({ kind: 'prim', t: t }); });
+
+    if (objs.length) {
+      var groups = {};
+      objs.forEach(function (o) {
+        var sig = Object.keys(o).slice().sort().join('|');
+        (groups[sig] = groups[sig] || []).push(o);
+      });
+      Object.keys(groups).forEach(function (sig) {
+        var g = groups[sig];
+        var existed = !!ctx.bySig[sig];
+        var def = existed ? ctx.types.filter(function (t) { return t.name === ctx.bySig[sig]; })[0]
+          : ensureObject(ctx, g[0], singular(path));
+        (existed ? g : g.slice(1)).forEach(function (o) { mergeInstance(ctx, def, o); });
+        parts.push({ kind: 'ref', name: def.name });
+      });
+    }
+    if (arrs.length) {
+      var itemVals = [];
+      arrs.forEach(function (a) { a.forEach(function (it) { itemVals.push(it); }); });
+      parts.push({ kind: 'array', of: itemVals.length ? nodeForValues(ctx, itemVals, singular(path), singular(path)) : { kind: 'prim', t: 'any' } });
+    }
+    if (!parts.length) parts.push({ kind: 'prim', t: sawNull ? 'null' : 'any' });
+
+    // literal unions for repeated strings
+    if ($('jts-literals').checked && parts.length === 1 && parts[0].kind === 'prim' && parts[0].t === 'string') {
+      var uniq = strs.filter(function (v, i) { return strs.indexOf(v) === i; });
+      if (uniq.length >= 2 && uniq.length <= 6 && strs.length >= uniq.length + 1 && uniq.every(function (s) { return s.length <= 24; })) {
+        parts = [{ kind: 'enum', values: uniq }];
+      }
+    }
+
+    var node = parts.length === 1 ? parts[0] : { kind: 'union', parts: dedupeParts(parts) };
+    var onlyNull = node.kind === 'prim' && node.t === 'null';
+    if (sawNull && !onlyNull) node = { kind: 'nullable', of: node };
+    return node;
+  }
+
+  function nodeKey(n) {
+    if (n.kind === 'prim') return 'p:' + n.t;
+    if (n.kind === 'enum') return 'e:' + n.values.slice().sort().join(',');
+    if (n.kind === 'array') return 'a:' + nodeKey(n.of);
+    if (n.kind === 'nullable') return 'n:' + nodeKey(n.of);
+    if (n.kind === 'ref') return 'r:' + n.name;
+    return 'u:' + n.parts.map(nodeKey).sort().join('|');
+  }
+  function dedupeParts(parts) {
+    var seen = {}, out = [];
+    parts.forEach(function (p) { var k = nodeKey(p); if (!seen[k]) { seen[k] = 1; out.push(p); } });
+    return out;
+  }
+
+  function build(root) {
+    var ctx = newCtx(($('jts-root').value || 'Root').trim());
+    var rootNode;
+    if (Array.isArray(root)) {
+      var itemVals = root.length ? root : [];
+      var inner = itemVals.length ? nodeForValues(ctx, itemVals, ctx.rootName + 'Item', ctx.rootName + 'Item') : { kind: 'prim', t: 'any' };
+      rootNode = { kind: 'array', of: inner };
+    } else if (root && typeof root === 'object') {
+      var def = ensureObject(ctx, root, ctx.rootName);
+      rootNode = { kind: 'ref', name: def.name };
+    } else {
+      rootNode = nodeForValues(ctx, [root], ctx.rootName, ctx.rootName);
+    }
+    // Resolve every property node now that all shapes are merged. This is a
+    // growing worklist, not a forEach: resolving one shape can reveal a nested
+    // shape that has not been registered yet, and forEach would skip anything
+    // pushed after iteration started.
+    var i = 0;
+    while (i < ctx.types.length) {
+      var def = ctx.types[i];
+      i++;
+      def.resolved = def.order.filter(function (k, n) { return def.order.indexOf(k) === n; }).map(function (k) {
+        var p = def.props[k];
+        var optional = (def.instances || 1) > 1 && p.seenIn < (def.instances || 1);
+        return { key: k, node: nodeForValues(ctx, p.values, k, k), optional: optional };
+      });
+    }
+    return { ctx: ctx, root: rootNode };
+  }
+
+  // ------------------------------------------------------------------ emit
+  function emitTS(m) {
+    var out = ['// Generated by JSON Schema Forge — review before shipping.', ''];
+    m.ctx.types.forEach(function (def) {
+      out.push('export interface ' + def.name + ' {');
+      def.resolved.forEach(function (p) {
+        var ro = $('jts-readonly').checked ? 'readonly ' : '';
+        out.push('  ' + ro + safeTSKey(p.key) + (p.optional ? '?' : '') + ': ' + tsType(p.node) + ';');
+      });
+      out.push('}', '');
+    });
+    // Skip the root alias when the root object already carries that name —
+    // "export type ApiResponse = ApiResponse;" is a circular-alias error.
+    if (!(m.root.kind === 'ref' && m.root.name === m.ctx.rootName)) {
+      out.push('export type ' + m.ctx.rootName + ' = ' + tsType(m.root) + ';');
+    }
+    return out.join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+  function safeTSKey(k) { return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : JSON.stringify(k); }
+  function tsType(n) {
+    switch (n.kind) {
+      case 'prim':
+        return { string: 'string', number: 'number', int: 'number', boolean: 'boolean', null: 'null', any: 'unknown' }[n.t] || 'unknown';
+      case 'enum': return n.values.map(function (v) { return JSON.stringify(v); }).join(' | ');
+      case 'array': return tsType(n.of) === 'unknown' ? 'unknown[]' : (n.of.kind === 'union' || n.of.kind === 'enum' ? '(' + tsType(n.of) + ')[]' : tsType(n.of) + '[]');
+      case 'nullable': return tsType(n.of) + ' | null';
+      case 'ref': return n.name;
+      default: return dedupeParts(n.parts).map(tsType).join(' | ');
+    }
+  }
+
+  function emitZod(m) {
+    var out = ['import { z } from "zod";', ''];
+    m.ctx.types.forEach(function (def) {
+      out.push('export const ' + def.name + 'Schema = z.object({');
+      def.resolved.forEach(function (p) {
+        out.push('  ' + safeTSKey(p.key) + ': ' + zodType(p.node, true) + ',');
+      });
+      out.push('});', '');
+      out.push('export type ' + def.name + ' = z.infer<typeof ' + def.name + 'Schema>;', '');
+    });
+    if (!(m.root.kind === 'ref' && m.root.name === m.ctx.rootName)) {
+      out.push('export const ' + m.ctx.rootName + 'Schema = ' + zodType(m.root, false) + ';');
+      out.push('export type ' + m.ctx.rootName + ' = z.infer<typeof ' + m.ctx.rootName + 'Schema>;');
+    }
+    return out.join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+  function zodType(n, lazyOk) {
+    switch (n.kind) {
+      case 'prim':
+        return { string: 'z.string()', number: 'z.number()', int: 'z.number().int()', boolean: 'z.boolean()', null: 'z.null()', any: 'z.unknown()' }[n.t] || 'z.unknown()';
+      case 'enum': return 'z.enum([' + n.values.map(function (v) { return JSON.stringify(v); }).join(', ') + '])';
+      case 'array': return 'z.array(' + zodType(n.of, lazyOk) + ')';
+      case 'nullable': return zodType(n.of, lazyOk) + '.nullable()';
+      case 'ref': return (lazyOk ? 'z.lazy(() => ' : '') + n.name + 'Schema' + (lazyOk ? ')' : '');
+      default: return 'z.union([' + dedupeParts(n.parts).map(function (p) { return zodType(p, lazyOk); }).join(', ') + '])';
+    }
+  }
+
+  function emitPython(m) {
+    var out = ['"""Generated by JSON Schema Forge."""', 'from __future__ import annotations', '',
+      'from dataclasses import dataclass, field', 'from typing import Any, List, Literal, Optional, Union', ''];
+    m.ctx.types.forEach(function (def) {
+      out.push('@dataclass', 'class ' + def.name + ':');
+      var required = def.resolved.filter(function (p) { return !p.optional; });
+      var optional = def.resolved.filter(function (p) { return p.optional; });
+      var lines = required.concat(optional);
+      if (!lines.length) out.push('    pass');
+      lines.forEach(function (p) {
+        var t = pyType(p.node);
+        var name = snake(p.key) || 'field_';
+        if (p.optional) {
+          t = 'Optional[' + t + ']';
+          out.push('    ' + name + ': ' + t + ' = ' + (p.node.kind === 'array' ? 'field(default_factory=list)' : 'None'));
+        } else {
+          out.push('    ' + name + ': ' + t);
+        }
+      });
+      out.push('');
+    });
+    if (!(m.root.kind === 'ref' && m.root.name === m.ctx.rootName)) {
+      out.push(m.ctx.rootName + ' = ' + pyType(m.root));
+    }
+    return out.join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+  function isNullish(n) { return n.kind === 'prim' && n.t === 'null'; }
+  function pyType(n) {
+    switch (n.kind) {
+      case 'prim': return { string: 'str', number: 'float', int: 'int', boolean: 'bool', null: 'None', any: 'Any' }[n.t] || 'Any';
+      case 'enum': return 'Literal[' + n.values.map(function (v) { return JSON.stringify(v); }).join(', ') + ']';
+      case 'array': return 'List[' + pyType(n.of) + ']';
+      case 'nullable': return 'Optional[' + pyType(n.of) + ']';
+      case 'ref': return '"' + n.name + '"';
+      default: return 'Union[' + dedupeParts(n.parts).map(pyType).join(', ') + ']';
+    }
+  }
+
+  function emitGo(m) {
+    var out = ['// Generated by JSON Schema Forge.', 'package main', ''];
+    m.ctx.types.forEach(function (def) {
+      out.push('type ' + def.name + ' struct {');
+      def.resolved.forEach(function (p) {
+        var t = goType(p.node);
+        var nullable = p.optional || p.node.kind === 'nullable';
+        if (nullable && t.charAt(0) !== '*' && t.slice(0, 2) !== '[]') t = '*' + t;
+        out.push('\t' + pad(pascal(p.key) || 'Field', 22) + t + ' ' + '`json:"' + p.key + (p.optional ? ',omitempty' : '') + '"`');
+      });
+      out.push('}', '');
+    });
+    if (m.root.kind !== 'ref') out.push('type ' + m.ctx.rootName + ' ' + goType(m.root), '');
+    return out.join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+  function pad(s, n) { while (s.length < n) s += ' '; return s; }
+  function goType(n) {
+    switch (n.kind) {
+      case 'prim': return { string: 'string', number: 'float64', int: 'int64', boolean: 'bool', null: 'interface{}', any: 'interface{}' }[n.t] || 'interface{}';
+      case 'enum': return 'string';
+      case 'array': return '[]' + goType(n.of);
+      case 'nullable': return goType(n.of);
+      case 'ref': return n.name;
+      default: return 'interface{}';
+    }
+  }
+
+  function emitCs(m) {
+    var out = ['// Generated by JSON Schema Forge.', 'using System.Collections.Generic;', ''];
+    m.ctx.types.forEach(function (def) {
+      out.push('public class ' + def.name, '{');
+      def.resolved.forEach(function (p) {
+        out.push('    public ' + csType(p.node) + ' ' + pascal(p.key) + ' { get; set; }');
+      });
+      out.push('}', '');
+    });
+    if (m.root.kind !== 'ref') out.push('public class ' + m.ctx.rootName + 'Wrapper', '{', '    public ' + csType(m.root) + ' Value { get; set; }', '}', '');
+    return out.join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+  function csType(n) {
+    switch (n.kind) {
+      case 'prim': return { string: 'string', number: 'double', int: 'long', boolean: 'bool', null: 'object', any: 'object' }[n.t] || 'object';
+      case 'enum': return 'string';
+      case 'array': return 'List<' + csType(n.of) + '>';
+      case 'nullable': return csType(n.of) + '?';
+      case 'ref': return n.name;
+      default: return 'object';
+    }
+  }
+
+  function emitSchema(m) {
+    var defs = {};
+    m.ctx.types.forEach(function (def) {
+      var props = {}, req = [];
+      def.resolved.forEach(function (p) {
+        props[p.key] = schemaNode(p.node);
+        if (!p.optional) req.push(p.key);
+      });
+      defs[def.name] = { type: 'object', properties: props, required: req, additionalProperties: false };
+    });
+    var doc = { $schema: 'http://json-schema.org/draft-07/schema#', title: m.ctx.rootName };
+    var rootNode = schemaNode(m.root);
+    Object.keys(rootNode).forEach(function (k) { doc[k] = rootNode[k]; });
+    doc.$defs = defs;
+    return JSON.stringify(doc, null, 2);
+  }
+  function schemaNode(n) {
+    switch (n.kind) {
+      case 'prim':
+        return { string: { type: 'string' }, number: { type: 'number' }, int: { type: 'integer' }, boolean: { type: 'boolean' }, null: { type: 'null' }, any: {} }[n.t] || {};
+      case 'enum': return { type: 'string', enum: n.values };
+      case 'array': return { type: 'array', items: schemaNode(n.of) };
+      case 'nullable': return { anyOf: [schemaNode(n.of), { type: 'null' }] };
+      case 'ref': return { $ref: '#/$defs/' + n.name };
+      default: return { anyOf: dedupeParts(n.parts).map(schemaNode) };
+    }
+  }
+
+  var EMIT = { ts: emitTS, zod: emitZod, python: emitPython, go: emitGo, csharp: emitCs, schema: emitSchema };
+
+  function run() {
+    var err = $('jts-error'), info = $('jts-info');
+    err.style.display = 'none';
+    var text = $('jts-input').value.trim();
+    if (!text) { $('jts-out').value = ''; info.textContent = ''; return; }
+    var root;
+    try {
+      root = JSON.parse(text);
+    } catch (e) {
+      var msg = String(e.message || e);
+      var mm = msg.match(/position (\d+)/);
+      var line = '', col = '';
+      if (mm) {
+        var upto = text.slice(0, Number(mm[1]));
+        line = ' (line ' + (upto.split('\n').length) + ', column ' + (upto.length - upto.lastIndexOf('\n')) + ')';
+      }
+      err.textContent = 'Invalid JSON' + line + ' — ' + msg;
+      err.style.display = 'block';
+      $('jts-out').value = '';
+      info.textContent = '';
+      return;
+    }
+    var model = build(root);
+    $('jts-out').value = EMIT[state.lang](model);
+    info.textContent = model.ctx.types.length + ' distinct object shape' + (model.ctx.types.length === 1 ? '' : 's') +
+      ' detected · ' + model.ctx.types.reduce(function (a, t) { return a + t.resolved.length; }, 0) + ' properties · root ' +
+      (model.root.kind === 'array' ? 'array of ' + (model.root.of.name || model.root.of.kind) : model.root.kind === 'ref' ? model.root.name : model.root.kind);
+  }
+
+  function renderTabs() {
+    var box = $('jts-tabs');
+    box.innerHTML = '';
+    LANGS.forEach(function (l) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = l.label;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', state.lang === l.id ? 'true' : 'false');
+      b.style.cssText = 'padding:6px 10px;border-radius:8px;cursor:pointer;font-size:0.78rem;border:1px solid rgba(255,255,255,0.15);background:' +
+        (state.lang === l.id ? 'var(--accent)' : 'rgba(255,255,255,0.05)') + ';color:' + (state.lang === l.id ? '#0a0f14' : 'rgba(230,250,255,0.75)') + ';';
+      if (state.lang === l.id) b.style.fontWeight = '700';
+      b.addEventListener('click', function () { state.lang = l.id; renderTabs(); run(); });
+      box.appendChild(b);
+    });
+  }
+
+  var t;
+  $('jts-input').addEventListener('input', function () { clearTimeout(t); t = setTimeout(run, 200); });
+  ['jts-root', 'jts-literals', 'jts-readonly'].forEach(function (id) {
+    $(id).addEventListener('change', run);
+    if (id === 'jts-root') $(id).addEventListener('input', function () { clearTimeout(t); t = setTimeout(run, 200); });
+  });
+
+  $('jts-sample').addEventListener('click', function () {
+    $('jts-input').value = JSON.stringify({
+      status: 'ok',
+      data: {
+        users: [
+          { id: 1, email: 'ada@example.com', role: 'admin', verified: true, profile: { handle: 'ada', followers: 1200, bio: null } },
+          { id: 2, email: 'grace@example.com', role: 'member', verified: false, profile: { handle: 'grace', followers: 44, bio: 'Compilers.' } },
+          { id: 3, email: 'alan@example.com', role: 'member', verified: true, profile: { handle: 'alan', followers: 900, bio: null } }
+        ],
+        pagination: { page: 1, perPage: 25, total: 3, nextCursor: null }
+      }
+    }, null, 2);
+    run();
+  });
+
+  $('jts-format').addEventListener('click', function () {
+    try {
+      $('jts-input').value = JSON.stringify(JSON.parse($('jts-input').value), null, 2);
+      $('jts-status').textContent = 'Input formatted';
+      run();
+    } catch (e) { $('jts-status').textContent = 'Cannot format: invalid JSON'; }
+  });
+
+  $('jts-copy').addEventListener('click', function () {
+    var text = $('jts-out').value;
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { $('jts-status').textContent = 'Copied'; },
+        function () { $('jts-out').select(); });
+    } else { $('jts-out').select(); }
+  });
+
+  $('jts-download').addEventListener('click', function () {
+    var text = $('jts-out').value;
+    if (!text) return;
+    var lang = LANGS.filter(function (l) { return l.id === state.lang; })[0];
+    var name = ($('jts-root').value.trim() || 'schema').replace(/[^A-Za-z0-9_-]/g, '');
+    var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name + '.' + lang.ext;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 400);
+    $('jts-status').textContent = 'Saved ' + name + '.' + lang.ext;
+  });
+
+  renderTabs();
+  run();
+})();
+</script>

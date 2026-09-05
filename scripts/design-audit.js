@@ -145,7 +145,23 @@ check('guard color-scheme', /color-scheme:\s*dark/.test(s));
 check('guard :focus-visible', /:focus-visible\s*\{/.test(s));
 check('guard reduced-motion', s.includes('@media(prefers-reduced-motion:reduce)'));
 check('topbar links >= 40px', ruleHas(s, /\.topbar a\s*\{/, ['min-height:40px']));
-warn('donate count is stale (483)', 'says 483, catalogue is ' + N + ' — money page, fix only with owner consent');
+// donate.html is a money page, so a stale count there is an owner-consent fix
+// and stays advisory — but the warning has to be earned. Scan the page for the
+// counts it actually claims and only warn when one of them disagrees.
+{
+  const donateCounts = new Set();
+  [
+    /(\d{3,4})\s+(?:free,\s+)?(?:free\s+|offline\s+)?(?:ad-free\s+)?(?:browser\s+)?tools?/gi,
+    /<b>(\d{3,4})<\/b>/g
+  ].forEach((re) => {
+    let m;
+    while ((m = re.exec(s)) !== null) donateCounts.add(Number(m[1]));
+  });
+  const stale = [...donateCounts].filter((n) => n !== N);
+  if (stale.length) {
+    warn('donate.html tool count is stale', `says ${stale.join(', ')}, catalogue is ${N} — money page, fix only with owner consent`);
+  }
+}
 
 banner('Product A · cards/card.css (shared fragment hardening)');
 s = read('cards/card.css');

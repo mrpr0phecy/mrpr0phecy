@@ -1,0 +1,564 @@
+<h2 id="cds-title" style="margin-top:0;color:var(--accent);">📊 CSV Data Studio</h2>
+
+<p id="cds-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Paste a spreadsheet, get a clean dataset. Parses CSV/TSV, detects the delimiter, profiles every column,
+  cleans the rows, and re-exports as JSON, SQL, Markdown, XML or HTML. Nothing is uploaded &mdash; the whole
+  pipeline runs in this tab, which is the part spreadsheet-to-JSON sites charge a subscription for.
+</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+  <button type="button" id="cds-sample" style="padding:8px 12px;background:rgba(255,255,255,0.07);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.14);border-radius:8px;cursor:pointer;font-size:0.8rem;">Load sample</button>
+  <label for="cds-file" style="padding:8px 12px;background:rgba(255,255,255,0.07);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.14);border-radius:8px;cursor:pointer;font-size:0.8rem;">📁 Open a .csv file</label>
+  <input id="cds-file" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" style="display:none;" />
+  <button type="button" id="cds-clear" style="padding:8px 12px;background:rgba(255,255,255,0.07);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.14);border-radius:8px;cursor:pointer;font-size:0.8rem;">Clear</button>
+  <span id="cds-status" aria-live="polite" style="align-self:center;font-size:0.78rem;color:var(--text-secondary);"></span>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:10px;">
+  <div>
+    <label for="cds-delim" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">Delimiter</label>
+    <select id="cds-delim" style="padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.85rem;">
+      <option value="auto" selected>Auto-detect</option>
+      <option value=",">Comma ( , )</option>
+      <option value=";">Semicolon ( ; )</option>
+      <option value="&#9;">Tab</option>
+      <option value="|">Pipe ( | )</option>
+    </select>
+  </div>
+  <label for="cds-header" style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-secondary);padding-bottom:8px;">
+    <input id="cds-header" type="checkbox" checked style="width:auto;accent-color:#2dd4ff;" /> First row is the header
+  </label>
+  <label for="cds-trim" style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-secondary);padding-bottom:8px;">
+    <input id="cds-trim" type="checkbox" checked style="width:auto;accent-color:#2dd4ff;" /> Trim cells
+  </label>
+  <label for="cds-dropempty" style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-secondary);padding-bottom:8px;">
+    <input id="cds-dropempty" type="checkbox" checked style="width:auto;accent-color:#2dd4ff;" /> Drop blank rows
+  </label>
+  <label for="cds-dedupe" style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-secondary);padding-bottom:8px;">
+    <input id="cds-dedupe" type="checkbox" style="width:auto;accent-color:#2dd4ff;" /> Remove duplicate rows
+  </label>
+</div>
+
+<textarea id="cds-input" rows="7" spellcheck="false" aria-label="CSV or TSV data" placeholder="Paste CSV here, or open a file…&#10;name,team,revenue,joined&#10;Ada,Lovelace,48200,2024-03-11" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.8rem;line-height:1.5;resize:vertical;"></textarea>
+
+<div id="cds-stats" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;"></div>
+
+<div id="cds-insights" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:14px;"></div>
+
+<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:8px;">
+  <div style="flex:1;min-width:180px;">
+    <label for="cds-chartcol" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">Chart a column</label>
+    <select id="cds-chartcol" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.85rem;"></select>
+  </div>
+  <div style="font-size:0.75rem;color:var(--text-secondary);padding-bottom:8px;" id="cds-chartnote"></div>
+</div>
+<canvas id="cds-chart" width="720" height="220" role="img" aria-label="Column distribution chart" style="width:100%;height:auto;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;margin-bottom:14px;"></canvas>
+
+<div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:6px;">Preview &mdash; first <span id="cds-prevcount">0</span> rows</div>
+<div style="overflow-x:auto;max-height:320px;overflow-y:auto;border:1px solid rgba(255,255,255,0.08);border-radius:10px;margin-bottom:16px;">
+  <table id="cds-table" style="border-collapse:collapse;font-size:0.78rem;min-width:100%;">
+    <thead id="cds-thead"></thead>
+    <tbody id="cds-tbody"></tbody>
+  </table>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;" id="cds-tabs" role="tablist" aria-label="Export format"></div>
+<textarea id="cds-out" rows="9" readonly spellcheck="false" aria-label="Converted output" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#7ef9ff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.76rem;line-height:1.5;resize:vertical;"></textarea>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+  <button type="button" id="cds-copy" style="padding:8px 14px;background:var(--accent);color:#0a0f14;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.82rem;">Copy output</button>
+  <button type="button" id="cds-download" style="padding:8px 14px;background:rgba(255,255,255,0.08);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);border-radius:8px;cursor:pointer;font-size:0.82rem;">⬇ Download file</button>
+</div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">How the parsing and profiling works</summary>
+  <p style="margin-top:8px;">
+    Fields are read with a quote-aware scanner (RFC 4180), so <code>"Smith, Jones"</code> stays one cell and
+    <code>""</code> becomes a literal quote. Auto-detect scores comma, semicolon, tab and pipe by counting
+    separators on the first ten non-empty lines and picks the one with the most consistent column count.
+    A column is typed numeric if at least 90% of its non-blank cells parse as finite numbers after stripping
+    thousands separators and currency symbols; date if at least 90% match ISO, UK or US date shapes.
+    Nothing leaves the browser &mdash; there is no server to send your rows to.
+  </p>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  var state = { rows: [], header: [], delim: ',', fmt: 'json' };
+  var FORMATS = [
+    { id: 'json', label: 'JSON objects' },
+    { id: 'records', label: 'JSON arrays' },
+    { id: 'sql', label: 'SQL' },
+    { id: 'markdown', label: 'Markdown' },
+    { id: 'xml', label: 'XML' },
+    { id: 'html', label: 'HTML table' }
+  ];
+
+  function parseDelimited(text, delim) {
+    var rows = [], row = [], field = '', i = 0, inQ = false;
+    while (i < text.length) {
+      var c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          inQ = false; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+      if (c === '"') { inQ = true; i++; continue; }
+      if (c === delim) { row.push(field); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+      field += c; i++;
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+    return rows.filter(function (r) { return r.length > 1 || (r.length === 1 && r[0].trim() !== ''); });
+  }
+
+  function sniff(text) {
+    var cands = [',', ';', '\t', '|'];
+    var lines = text.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; }).slice(0, 10);
+    if (!lines.length) return ',';
+    var best = ',', bestScore = -1;
+    cands.forEach(function (d) {
+      var counts = lines.map(function (l) { return parseDelimited(l, d).length; });
+      var max = Math.max.apply(null, counts);
+      var consistent = counts.filter(function (n) { return n === max; }).length;
+      var score = (max > 1 ? max * 10 : 0) + consistent;
+      if (score > bestScore) { bestScore = score; best = d; }
+    });
+    return best;
+  }
+
+  function toNumber(v) {
+    if (v === null || v === undefined) return NaN;
+    var s = String(v).trim().replace(/[,\s\u00a0]/g, '').replace(/^[£$€¥]/, '').replace(/%$/, '');
+    if (s === '') return NaN;
+    var n = Number(s);
+    return isFinite(n) ? n : NaN;
+  }
+
+  var DATE_RE = [
+    /^\d{4}-\d{2}-\d{2}([T ].*)?$/,
+    /^\d{2}\/\d{2}\/\d{4}$/,
+    /^\d{2}-\d{2}-\d{4}$/,
+    /^\d{1,2} [A-Za-z]{3,9} \d{4}$/
+  ];
+  function isDate(v) {
+    var s = String(v).trim();
+    if (!s) return false;
+    for (var i = 0; i < DATE_RE.length; i++) if (DATE_RE[i].test(s)) return !isNaN(Date.parse(s));
+    return false;
+  }
+
+  function typeOf(values) {
+    var nonBlank = values.filter(function (v) { return String(v).trim() !== ''; });
+    if (!nonBlank.length) return 'empty';
+    var num = nonBlank.filter(function (v) { return !isNaN(toNumber(v)); }).length;
+    if (num / nonBlank.length >= 0.9) return 'number';
+    var dt = nonBlank.filter(isDate).length;
+    if (dt / nonBlank.length >= 0.9) return 'date';
+    var bool = nonBlank.filter(function (v) { return /^(true|false|yes|no|y|n)$/i.test(String(v).trim()); }).length;
+    if (bool / nonBlank.length >= 0.9) return 'boolean';
+    return 'text';
+  }
+
+  function profile() {
+    var cols = [];
+    for (var c = 0; c < state.header.length; c++) {
+      var values = state.rows.map(function (r) { return r[c] === undefined ? '' : r[c]; });
+      var nonBlank = values.filter(function (v) { return String(v).trim() !== ''; });
+      var type = typeOf(values);
+      var uniq = {};
+      nonBlank.forEach(function (v) { var k = String(v).trim(); uniq[k] = (uniq[k] || 0) + 1; });
+      var col = {
+        name: state.header[c], type: type, blanks: values.length - nonBlank.length,
+        unique: Object.keys(uniq).length, counts: uniq
+      };
+      if (type === 'number') {
+        var nums = nonBlank.map(toNumber).sort(function (a, b) { return a - b; });
+        col.min = nums[0]; col.max = nums[nums.length - 1];
+        col.sum = nums.reduce(function (a, b) { return a + b; }, 0);
+        col.mean = col.sum / nums.length;
+        col.median = nums.length % 2 ? nums[(nums.length - 1) / 2] : (nums[nums.length / 2 - 1] + nums[nums.length / 2]) / 2;
+      }
+      cols.push(col);
+    }
+    return cols;
+  }
+
+  function fmtNum(n) {
+    if (!isFinite(n)) return '—';
+    var a = Math.abs(n);
+    if (a !== 0 && (a < 0.01 || a >= 1e7)) return n.toExponential(2);
+    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  function rebuild() {
+    var raw = $('cds-input').value;
+    var choice = $('cds-delim').value;
+    state.delim = choice === 'auto' ? sniff(raw) : choice;
+    var all = parseDelimited(raw, state.delim);
+    var useHeader = $('cds-header').checked;
+
+    if (!all.length) {
+      state.rows = []; state.header = [];
+      render(); return;
+    }
+    var width = Math.max.apply(null, all.map(function (r) { return r.length; }));
+    all = all.map(function (r) {
+      var out = r.slice(0, width);
+      while (out.length < width) out.push('');
+      return out;
+    });
+
+    var head = useHeader ? all[0] : all[0].map(function (_, i) { return 'column_' + (i + 1); });
+    var body = useHeader ? all.slice(1) : all;
+
+    if ($('cds-trim').checked) {
+      head = head.map(function (h) { return String(h).trim(); });
+      body = body.map(function (r) { return r.map(function (c) { return String(c).trim(); }); });
+    }
+    if ($('cds-dropempty').checked) {
+      body = body.filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); });
+    }
+    if ($('cds-dedupe').checked) {
+      var seen = {};
+      body = body.filter(function (r) {
+        var k = r.join('\u0001');
+        if (seen[k]) return false;
+        seen[k] = 1; return true;
+      });
+    }
+    // drop columns that are entirely blank
+    var keep = [];
+    for (var c = 0; c < width; c++) {
+      if (body.some(function (r) { return String(r[c]).trim() !== ''; }) || (useHeader && String(head[c]).trim() !== '')) keep.push(c);
+    }
+    if (keep.length && keep.length < width) {
+      head = keep.map(function (c) { return head[c]; });
+      body = body.map(function (r) { return keep.map(function (c) { return r[c]; }); });
+    }
+    // unique header names
+    var used = {};
+    head = head.map(function (h, i) {
+      var base = String(h).trim() || ('column_' + (i + 1));
+      var name = base, n = 2;
+      while (used[name]) { name = base + '_' + n; n++; }
+      used[name] = 1;
+      return name;
+    });
+
+    state.header = head;
+    state.rows = body;
+    render();
+  }
+
+  function safeKey(k) { return String(k).replace(/[^a-zA-Z0-9_$]/g, '_'); }
+  function sqlEscape(s) { return String(s).replace(/'/g, "''"); }
+  function xmlEscape(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  }
+  function htmlEscape(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function buildOutput() {
+    var h = state.header, r = state.rows;
+    if (!r.length) return '';
+    var cols = profile();
+    if (state.fmt === 'json') {
+      return JSON.stringify(r.map(function (row) {
+        var o = {};
+        h.forEach(function (k, i) { o[k] = row[i]; });
+        return o;
+      }), null, 2);
+    }
+    if (state.fmt === 'records') {
+      return JSON.stringify([h].concat(r), null, 2);
+    }
+    if (state.fmt === 'sql') {
+      var out = ['-- ' + r.length + ' rows generated by CSV Data Studio', 'CREATE TABLE dataset ('];
+      out.push(cols.map(function (c) {
+        var t = c.type === 'number' ? 'NUMERIC' : (c.type === 'date' ? 'DATE' : 'TEXT');
+        return '  "' + c.name.replace(/"/g, '""') + '" ' + t;
+      }).join(',\n'));
+      out.push(');', '');
+      r.forEach(function (row) {
+        var vals = row.map(function (v, i) {
+          if (String(v).trim() === '') return 'NULL';
+          if (cols[i].type === 'number') { var n = toNumber(v); return isNaN(n) ? "'" + sqlEscape(v) + "'" : String(n); }
+          return "'" + sqlEscape(v) + "'";
+        });
+        out.push('INSERT INTO dataset ("' + h.map(function (k) { return k.replace(/"/g, '""'); }).join('", "') + '") VALUES (' + vals.join(', ') + ');');
+      });
+      return out.join('\n');
+    }
+    if (state.fmt === 'markdown') {
+      var lines = ['| ' + h.join(' | ') + ' |', '| ' + h.map(function () { return '---'; }).join(' | ') + ' |'];
+      r.forEach(function (row) { lines.push('| ' + row.map(function (c) { return String(c).replace(/\|/g, '\\|').replace(/\n/g, ' '); }).join(' | ') + ' |'); });
+      return lines.join('\n');
+    }
+    if (state.fmt === 'xml') {
+      var x = ['<?xml version="1.0" encoding="UTF-8"?>', '<dataset>'];
+      r.forEach(function (row) {
+        x.push('  <row>');
+        h.forEach(function (k, i) { x.push('    <' + safeKey(k) + '>' + xmlEscape(row[i]) + '</' + safeKey(k) + '>'); });
+        x.push('  </row>');
+      });
+      x.push('</dataset>');
+      return x.join('\n');
+    }
+    var ht = ['<table>', '  <thead><tr>' + h.map(function (k) { return '<th>' + htmlEscape(k) + '</th>'; }).join('') + '</tr></thead>', '  <tbody>'];
+    r.forEach(function (row) { ht.push('    <tr>' + row.map(function (c) { return '<td>' + htmlEscape(c) + '</td>'; }).join('') + '</tr>'); });
+    ht.push('  </tbody>', '</table>');
+    return ht.join('\n');
+  }
+
+  function ext() {
+    return state.fmt === 'json' || state.fmt === 'records' ? 'json'
+      : state.fmt === 'sql' ? 'sql' : state.fmt === 'markdown' ? 'md'
+        : state.fmt === 'xml' ? 'xml' : 'html';
+  }
+
+  function renderTabs() {
+    var box = $('cds-tabs');
+    box.innerHTML = '';
+    FORMATS.forEach(function (f) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = f.label;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', state.fmt === f.id ? 'true' : 'false');
+      b.style.cssText = 'padding:6px 10px;border-radius:8px;cursor:pointer;font-size:0.78rem;border:1px solid rgba(255,255,255,0.15);background:' +
+        (state.fmt === f.id ? 'var(--accent)' : 'rgba(255,255,255,0.05)') + ';color:' + (state.fmt === f.id ? '#0a0f14' : 'rgba(230,250,255,0.75)') + ';';
+      if (state.fmt === f.id) b.style.fontWeight = '700';
+      b.addEventListener('click', function () {
+        state.fmt = f.id;
+        renderTabs();
+        $('cds-out').value = buildOutput();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function chip(label, value, colour) {
+    return '<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;">' +
+      '<div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.04em;color:rgba(230,250,255,0.55);">' + label + '</div>' +
+      '<div style="font-size:1rem;font-weight:700;color:' + (colour || 'var(--accent)') + ';">' + value + '</div></div>';
+  }
+
+  var TYPE_COLOUR = { number: '#7ef9ff', date: '#ffd700', text: '#e6faff', boolean: '#39ff14', empty: '#ff4d4d' };
+
+  function render() {
+    var cols = profile();
+    var delimLabel = state.delim === '\t' ? 'tab' : state.delim;
+    $('cds-stats').innerHTML = state.rows.length
+      ? chip('rows', state.rows.length.toLocaleString()) + chip('columns', state.header.length) +
+        chip('cells', (state.rows.length * state.header.length).toLocaleString()) +
+        chip('delimiter', htmlEscape(delimLabel)) +
+        chip('blank cells', cols.reduce(function (a, c) { return a + c.blanks; }, 0).toLocaleString(), '#ffd700')
+      : '<div style="font-size:0.8rem;color:rgba(230,250,255,0.5);">No data parsed yet.</div>';
+
+    // insights
+    var ins = '';
+    cols.forEach(function (c) {
+      var detail = '';
+      if (c.type === 'number') {
+        detail = 'min ' + fmtNum(c.min) + ' · max ' + fmtNum(c.max) + '<br>mean ' + fmtNum(c.mean) + ' · median ' + fmtNum(c.median);
+      } else {
+        var top = Object.keys(c.counts).sort(function (a, b) { return c.counts[b] - c.counts[a]; }).slice(0, 3);
+        detail = top.length ? 'top: ' + top.map(function (t) { return htmlEscape(t.length > 14 ? t.slice(0, 13) + '…' : t); }).join(', ') : 'all blank';
+      }
+      ins += '<div style="background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px;">' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--text);word-break:break-word;">' + htmlEscape(c.name) + '</div>' +
+        '<div style="font-size:0.72rem;margin:2px 0 6px;"><span style="color:' + TYPE_COLOUR[c.type] + ';font-weight:700;">' + c.type + '</span>' +
+        ' · ' + c.unique + ' unique · ' + c.blanks + ' blank</div>' +
+        '<div style="font-size:0.72rem;color:rgba(230,250,255,0.6);">' + detail + '</div></div>';
+    });
+    $('cds-insights').innerHTML = ins;
+
+    // chart column selector
+    var sel = $('cds-chartcol');
+    var prev = sel.value;
+    sel.innerHTML = '';
+    state.header.forEach(function (h, i) {
+      var o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = h + ' (' + cols[i].type + ')';
+      sel.appendChild(o);
+    });
+    if (prev && Number(prev) < state.header.length) sel.value = prev;
+    drawChart(cols);
+
+    // preview table
+    var thead = $('cds-thead'), tbody = $('cds-tbody');
+    var hr = document.createElement('tr');
+    state.header.forEach(function (h) {
+      var th = document.createElement('th');
+      th.textContent = h;
+      th.style.cssText = 'position:sticky;top:0;background:#101a24;color:var(--accent);text-align:left;padding:8px 10px;font-size:0.74rem;border-bottom:1px solid rgba(255,255,255,0.12);white-space:nowrap;';
+      hr.appendChild(th);
+    });
+    thead.innerHTML = '';
+    thead.appendChild(hr);
+    var limit = Math.min(state.rows.length, 25);
+    var frag = '';
+    for (var i = 0; i < limit; i++) {
+      frag += '<tr>' + state.rows[i].map(function (c) {
+        return '<td style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);color:rgba(230,250,255,0.82);white-space:nowrap;">' + htmlEscape(c) + '</td>';
+      }).join('') + '</tr>';
+    }
+    tbody.innerHTML = frag;
+    $('cds-prevcount').textContent = String(limit);
+    $('cds-out').value = buildOutput();
+    $('cds-status').textContent = state.rows.length ? 'Parsed ' + state.rows.length + ' × ' + state.header.length : '';
+  }
+
+  function drawChart(cols) {
+    var cv = $('cds-chart');
+    if (!cv || !cv.getContext) return;
+    var ctx = cv.getContext('2d');
+    if (!ctx) return;
+    var W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    var idx = Number($('cds-chartcol').value || 0);
+    var col = cols[idx];
+    var note = $('cds-chartnote');
+    if (!col || !state.rows.length) { note.textContent = ''; return; }
+
+    var labels = [], values = [], isHist = col.type === 'number';
+    if (isHist) {
+      var nums = state.rows.map(function (r) { return toNumber(r[idx]); }).filter(function (n) { return !isNaN(n); });
+      if (nums.length < 2) { note.textContent = 'Not enough numeric values to plot.'; return; }
+      var min = Math.min.apply(null, nums), max = Math.max.apply(null, nums);
+      var bins = Math.min(12, Math.max(2, Math.ceil(Math.sqrt(nums.length))));
+      var width = (max - min) / bins || 1;
+      var counts = new Array(bins).fill(0);
+      nums.forEach(function (n) {
+        var b = Math.min(bins - 1, Math.floor((n - min) / width));
+        counts[b]++;
+      });
+      for (var b = 0; b < bins; b++) {
+        labels.push(fmtNum(min + b * width) + '–' + fmtNum(min + (b + 1) * width));
+        values.push(counts[b]);
+      }
+      note.textContent = 'Histogram · ' + bins + ' bins · n=' + nums.length;
+    } else {
+      var entries = Object.keys(col.counts).map(function (k) { return [k, col.counts[k]]; })
+        .sort(function (a, b) { return b[1] - a[1]; }).slice(0, 10);
+      if (!entries.length) { note.textContent = 'Nothing to plot.'; return; }
+      labels = entries.map(function (e) { return e[0]; });
+      values = entries.map(function (e) { return e[1]; });
+      note.textContent = 'Top ' + entries.length + ' values · ' + col.unique + ' distinct';
+    }
+
+    var padL = 52, padB = 44, padT = 14, padR = 12;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var maxV = Math.max.apply(null, values) || 1;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillStyle = 'rgba(230,250,255,0.55)';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    for (var g = 0; g <= 4; g++) {
+      var y = padT + plotH - (plotH * g / 4);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillText(String(Math.round(maxV * g / 4)), padL - 6, y + 4);
+    }
+    var bw = plotW / values.length;
+    ctx.textAlign = 'center';
+    values.forEach(function (v, i) {
+      var h = (v / maxV) * plotH;
+      var x = padL + i * bw;
+      var grd = ctx.createLinearGradient(0, padT + plotH - h, 0, padT + plotH);
+      grd.addColorStop(0, reduce ? '#2dd4ff' : '#7ef9ff');
+      grd.addColorStop(1, 'rgba(45,212,255,0.25)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(x + bw * 0.15, padT + plotH - h, bw * 0.7, h);
+      ctx.save();
+      ctx.translate(x + bw / 2, padT + plotH + 8);
+      ctx.rotate(-0.45);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(230,250,255,0.6)';
+      var lab = String(labels[i]);
+      ctx.fillText(lab.length > 16 ? lab.slice(0, 15) + '…' : lab, 0, 8);
+      ctx.restore();
+    });
+  }
+
+  function download(text, filename, mime) {
+    var blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 400);
+  }
+
+  $('cds-tabs') && renderTabs();
+
+  ['cds-input'].forEach(function (id) {
+    var t;
+    $(id).addEventListener('input', function () { clearTimeout(t); t = setTimeout(rebuild, 180); });
+  });
+  ['cds-delim', 'cds-header', 'cds-trim', 'cds-dropempty', 'cds-dedupe'].forEach(function (id) {
+    $(id).addEventListener('change', rebuild);
+  });
+  $('cds-chartcol').addEventListener('change', function () { drawChart(profile()); });
+
+  $('cds-clear').addEventListener('click', function () {
+    $('cds-input').value = '';
+    rebuild();
+  });
+
+  $('cds-sample').addEventListener('click', function () {
+    $('cds-input').value = [
+      'order_id,customer,region,units,unit_price,ordered_on,refunded',
+      '1001,"Smith, Ada",North,4,19.99,2025-11-02,false',
+      '1002,Grace Hopper,South,12,9.50,2025-11-03,no',
+      '1003,Alan Turing,East,1,149.00,2025-11-03,false',
+      '1004,Katherine Johnson,North,7,24.00,2025-11-05,FALSE',
+      '1005,"O\'Brien, Maeve",West,3,32.75,2025-11-06,yes',
+      '1006,Alan Turing,East,1,149.00,2025-11-03,false',
+      '1007,Rosalind Franklin,South,,18.20,2025-11-08,false',
+      '1008,Tim Berners-Lee,North,9,12.00,2025-11-09,no',
+      '1009,Grace Hopper,South,12,9.50,2025-11-03,no',
+      '1002,Grace Hopper,South,12,9.50,2025-11-03,no'
+    ].join('\n');
+    rebuild();
+  });
+
+  $('cds-file').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      $('cds-input').value = String(reader.result || '');
+      rebuild();
+    };
+    reader.readAsText(f);
+  });
+
+  $('cds-copy').addEventListener('click', function () {
+    var text = $('cds-out').value;
+    var done = function () { $('cds-status').textContent = 'Copied to clipboard'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { $('cds-out').select(); });
+    } else { $('cds-out').select(); }
+  });
+
+  $('cds-download').addEventListener('click', function () {
+    var text = $('cds-out').value;
+    if (!text) { $('cds-status').textContent = 'Nothing to download yet'; return; }
+    download(text, 'dataset.' + ext(), 'text/plain;charset=utf-8');
+    $('cds-status').textContent = 'Saved dataset.' + ext();
+  });
+
+  rebuild();
+})();
+</script>
