@@ -1,0 +1,148 @@
+<h2 id="urlx-title" style="margin-top:0;color:var(--accent);">🔗 URL Encoder, Decoder & Parser</h2>
+
+<form aria-describedby="urlx-desc" onsubmit="event.preventDefault();" style="margin-bottom:14px;">
+  <p id="urlx-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:14px;">
+    Percent-encode or decode any text (full <code>encodeURIComponent</code> or URL-safe <code>encodeURI</code>), and break a URL into protocol, host, port, path, hash and an editable table of query parameters. Edit a value and the rebuilt URL updates instantly.
+  </p>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;" role="tablist" aria-label="Mode">
+    <button type="button" class="urlx-tab" data-mode="parse" aria-selected="true" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(45,212,255,0.4);background:rgba(45,212,255,0.15);color:var(--accent);cursor:pointer;font-size:0.85rem;font-weight:600;">Parse URL</button>
+    <button type="button" class="urlx-tab" data-mode="encode" aria-selected="false" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:rgba(230,250,255,0.8);cursor:pointer;font-size:0.85rem;">Encode</button>
+    <button type="button" class="urlx-tab" data-mode="decode" aria-selected="false" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:rgba(230,250,255,0.8);cursor:pointer;font-size:0.85rem;">Decode</button>
+  </div>
+
+  <label for="urlx-in" style="display:block;font-size:0.8rem;color:rgba(230,250,255,0.75);margin-bottom:5px;">Input</label>
+  <textarea id="urlx-in" rows="3" spellcheck="false" style="width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.9rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.5;resize:vertical;">https://www.example.com:8443/search/results?q=hello world&amp;lang=en-GB&amp;page=2&amp;tags=a,b#top</textarea>
+
+  <div id="urlx-encopts" style="display:none;gap:14px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:0.8rem;color:rgba(230,250,255,0.7);">
+    <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="radio" name="urlx-enc" value="component" checked /> encodeURIComponent (everything except A-Z a-z 0-9 - _ . ! ~ * ' ( ))</label>
+    <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="radio" name="urlx-enc" value="uri" /> encodeURI (keeps : / ? # &amp; = @)</label>
+    <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="radio" name="urlx-enc" value="form" /> form (+ for spaces)</label>
+  </div>
+</form>
+
+<div id="urlx-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.05);font-size:0.88rem;color:rgba(230,250,255,0.85);"></div>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var inEl = $('urlx-in'), out = $('urlx-out'), mode = 'parse';
+  var params = []; // [{k, v}] working copy for the parse mode
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var inp = 'width:100%;padding:7px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.35);color:#fff;font-size:0.82rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-width:0;';
+  var btn = 'padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(230,250,255,0.85);cursor:pointer;font-size:0.8rem;';
+
+  function row(label, value) {
+    return '<div style="display:flex;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;"><span style="color:rgba(230,250,255,0.5);font-size:0.78rem;min-width:90px;">' + label + '</span><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#fff;word-break:break-all;flex:1;">' + (value ? esc(value) : '<span style="color:rgba(230,250,255,0.3);">—</span>') + '</span></div>';
+  }
+
+  function safeDecode(s) { try { return decodeURIComponent(s.replace(/\+/g, ' ')); } catch (e) { return s; } }
+
+  function parseParams(search) {
+    var list = [];
+    if (!search) return list;
+    search.replace(/^\?/, '').split('&').forEach(function (p) {
+      if (!p) return;
+      var i = p.indexOf('=');
+      list.push({ k: safeDecode(i < 0 ? p : p.slice(0, i)), v: i < 0 ? '' : safeDecode(p.slice(i + 1)) });
+    });
+    return list;
+  }
+
+  function rebuild(u) {
+    var qs = params.filter(function (p) { return p.k !== ''; }).map(function (p) { return encodeURIComponent(p.k) + (p.v !== '' ? '=' + encodeURIComponent(p.v) : ''); }).join('&');
+    return u.origin + u.pathname + (qs ? '?' + qs : '') + u.hash;
+  }
+
+  function renderParse(fromInput) {
+    var raw = inEl.value.trim(), u;
+    if (!raw) { out.innerHTML = '<span style="color:rgba(230,250,255,0.5);">Paste a URL above.</span>'; return; }
+    try { u = new URL(raw); } catch (e) {
+      try { u = new URL('https://' + raw); } catch (e2) { out.innerHTML = '<span style="color:#ffa500;">That does not parse as a URL.</span>'; return; }
+    }
+    if (fromInput) params = parseParams(u.search);
+    var rebuilt = rebuild(u);
+    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px;">' +
+      row('Protocol', u.protocol) + row('Host', u.hostname) + row('Port', u.port || (u.protocol === 'https:' ? '443 (default)' : u.protocol === 'http:' ? '80 (default)' : '')) +
+      row('Origin', u.origin) + row('Path', u.pathname) + row('Hash', u.hash) +
+      row('Username', u.username) + row('Password', u.password ? '••••••' : '') + '</div>';
+    var segs = u.pathname.split('/').filter(Boolean);
+    if (segs.length) html += row('Path segments', segs.map(function (s, i) { return (i + 1) + ': ' + safeDecode(s); }).join('  ·  '));
+    var tld = u.hostname.split('.');
+    if (tld.length > 1 && !/^\d+$/.test(tld[tld.length - 1])) html += row('Domain', tld.slice(-2).join('.') + (tld.length > 2 ? '  (subdomain: ' + tld.slice(0, -2).join('.') + ')' : ''));
+
+    html += '<div style="margin:12px 0 6px;font-weight:700;color:var(--accent);font-size:0.85rem;">Query parameters (' + params.length + ') — editable</div>';
+    html += '<div id="urlx-params" style="display:grid;grid-template-columns:1fr 1.6fr auto;gap:6px;align-items:center;">';
+    params.forEach(function (p, i) {
+      html += '<input aria-label="key" data-i="' + i + '" data-f="k" value="' + esc(p.k) + '" style="' + inp + '" />' +
+        '<input aria-label="value" data-i="' + i + '" data-f="v" value="' + esc(p.v) + '" style="' + inp + '" />' +
+        '<button type="button" data-del="' + i + '" aria-label="Remove parameter" style="' + btn + 'padding:6px 10px;">&times;</button>';
+    });
+    html += '</div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button type="button" id="urlx-addp" style="' + btn + '">+ Add parameter</button><button type="button" id="urlx-sortp" style="' + btn + '">Sort A→Z</button><button type="button" id="urlx-striputm" style="' + btn + '">Strip utm_* &amp; tracking</button></div>';
+
+    html += '<div style="margin:14px 0 4px;font-weight:700;color:var(--accent);font-size:0.85rem;">Rebuilt URL</div>' +
+      '<div style="display:flex;gap:8px;align-items:flex-start;"><textarea id="urlx-rebuilt" readonly rows="2" style="' + inp + 'flex:1;resize:vertical;">' + esc(rebuilt) + '</textarea><button type="button" id="urlx-copyre" style="' + btn + '">Copy</button></div>' +
+      '<div style="font-size:0.75rem;color:rgba(230,250,255,0.45);margin-top:4px;">' + rebuilt.length + ' characters' + (rebuilt.length > 2000 ? ' — over 2,000; some older browsers/servers truncate' : '') + '</div>';
+    out.innerHTML = html;
+
+    out.querySelectorAll('#urlx-params input').forEach(function (el) {
+      el.addEventListener('input', function () { var p = params[+el.getAttribute('data-i')]; if (!p) return; p[el.getAttribute('data-f')] = el.value; var rbEl = $('urlx-rebuilt'); if (rbEl) rbEl.value = rebuild(u); });
+    });
+    out.querySelectorAll('[data-del]').forEach(function (b) { b.addEventListener('click', function () { params.splice(+b.getAttribute('data-del'), 1); renderParse(false); }); });
+    $('urlx-addp').addEventListener('click', function () { params.push({ k: '', v: '' }); renderParse(false); var ins = out.querySelectorAll('#urlx-params input'); if (ins.length) ins[ins.length - 2].focus(); });
+    $('urlx-sortp').addEventListener('click', function () { params.sort(function (a, b) { return a.k < b.k ? -1 : a.k > b.k ? 1 : 0; }); renderParse(false); });
+    $('urlx-striputm').addEventListener('click', function () { params = params.filter(function (p) { return !/^(utm_|fbclid|gclid|dclid|msclkid|mc_cid|mc_eid|igshid|si|ref_src|_hs|yclid|twclid|ttclid)/i.test(p.k); }); renderParse(false); });
+    $('urlx-copyre').addEventListener('click', function () { var b = this, v = $('urlx-rebuilt').value, d = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1200); }; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(d, d); else d(); });
+  }
+
+  function renderEncode() {
+    var raw = inEl.value, kind = card.querySelector('input[name="urlx-enc"]:checked').value, res;
+    try {
+      if (kind === 'uri') res = encodeURI(raw);
+      else if (kind === 'form') res = encodeURIComponent(raw).replace(/%20/g, '+');
+      else res = encodeURIComponent(raw);
+    } catch (e) { res = 'Cannot encode: ' + e.message; }
+    out.innerHTML = '<div style="font-size:0.75rem;color:rgba(230,250,255,0.5);margin-bottom:6px;">Encoded (' + res.length + ' chars, was ' + raw.length + ')</div>' +
+      '<div style="display:flex;gap:8px;align-items:flex-start;"><textarea id="urlx-res" readonly rows="4" style="' + inp + 'flex:1;resize:vertical;">' + esc(res) + '</textarea><button type="button" id="urlx-copy" style="' + btn + '">Copy</button></div>';
+    bindCopy();
+  }
+  function renderDecode() {
+    var raw = inEl.value, res, warn = '';
+    try { res = decodeURIComponent(raw.replace(/\+/g, ' ')); } catch (e) { res = safeDecode(raw); warn = '<div style="color:#ffa500;font-size:0.78rem;margin-bottom:6px;">Malformed percent sequence somewhere — decoded what was possible.</div>'; }
+    var twice = res; try { twice = decodeURIComponent(res); } catch (e) {}
+    out.innerHTML = warn + '<div style="font-size:0.75rem;color:rgba(230,250,255,0.5);margin-bottom:6px;">Decoded</div>' +
+      '<div style="display:flex;gap:8px;align-items:flex-start;"><textarea id="urlx-res" readonly rows="4" style="' + inp + 'flex:1;resize:vertical;">' + esc(res) + '</textarea><button type="button" id="urlx-copy" style="' + btn + '">Copy</button></div>' +
+      (twice !== res ? '<div style="font-size:0.78rem;color:rgba(230,250,255,0.6);margin-top:8px;">Looks double-encoded. Decoded again: <code style="word-break:break-all;">' + esc(twice) + '</code></div>' : '');
+    bindCopy();
+  }
+  function bindCopy() {
+    var b = $('urlx-copy'); if (!b) return;
+    b.addEventListener('click', function () { var v = $('urlx-res').value, d = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1200); }; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(d, d); else d(); });
+  }
+
+  function render(fromInput) {
+    $('urlx-encopts').style.display = mode === 'encode' ? 'flex' : 'none';
+    if (mode === 'parse') renderParse(fromInput !== false); else if (mode === 'encode') renderEncode(); else renderDecode();
+  }
+
+  card.querySelectorAll('.urlx-tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      mode = t.getAttribute('data-mode');
+      card.querySelectorAll('.urlx-tab').forEach(function (x) {
+        var on = x === t;
+        x.setAttribute('aria-selected', on ? 'true' : 'false');
+        x.style.background = on ? 'rgba(45,212,255,0.15)' : 'rgba(255,255,255,0.05)';
+        x.style.borderColor = on ? 'rgba(45,212,255,0.4)' : 'rgba(255,255,255,0.12)';
+        x.style.color = on ? 'var(--accent)' : 'rgba(230,250,255,0.8)';
+        x.style.fontWeight = on ? '600' : '400';
+      });
+      render(true);
+    });
+  });
+  inEl.addEventListener('input', function () { render(true); });
+  card.querySelectorAll('input[name="urlx-enc"]').forEach(function (r) { r.addEventListener('change', function () { render(true); }); });
+  render(true);
+})();
+</script>
