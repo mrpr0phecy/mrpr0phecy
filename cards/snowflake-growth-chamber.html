@@ -1,0 +1,170 @@
+<h2 id="snw-title" style="margin-top:0;color:var(--accent);">❄️ Snowflake Growth Chamber</h2>
+
+<form aria-describedby="snw-desc" onsubmit="event.preventDefault();">
+  <p id="snw-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+    Nakaya's diagram in a dish. Temperature and supersaturation decide whether a crystal becomes a plate, a needle, a sector or a dendrite — then a hexagonal cellular automaton grows that habit from a single seed. No two flakes are alike because the vapour field is never quite symmetric.
+  </p>
+
+  <div style="background:#071018;border:1px solid rgba(186,230,253,0.3);border-radius:10px;overflow:hidden;margin-bottom:12px;">
+    <canvas id="snw-cv" width="520" height="360" style="width:100%;height:auto;aspect-ratio:520/360;display:block;"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <label for="snw-t" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Temperature <span id="snw-t-v">−15 °C</span>
+      <input id="snw-t" type="range" min="-30" max="-1" value="-15" style="width:100%;accent-color:#bae6fd;">
+    </label>
+    <label for="snw-s" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Supersaturation <span id="snw-s-v">0.45</span>
+      <input id="snw-s" type="range" min="0.1" max="0.9" step="0.05" value="0.45" style="width:100%;accent-color:#bae6fd;">
+    </label>
+    <label for="snw-noise" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Vapour noise <span id="snw-noise-v">0.12</span>
+      <input id="snw-noise" type="range" min="0" max="0.4" step="0.02" value="0.12" style="width:100%;accent-color:#bae6fd;">
+    </label>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="snw-run" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(186,230,253,0.16);border:1px solid rgba(186,230,253,0.45);color:#bae6fd;cursor:pointer;font-weight:600;">Pause</button>
+    <button type="button" id="snw-reset" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);color:#e6faff;cursor:pointer;font-weight:600;">New seed</button>
+  </div>
+
+  <div id="snw-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.75);padding:10px 12px;background:rgba(186,230,253,0.07);border:1px solid rgba(186,230,253,0.2);border-radius:8px;">Dendrites like −15 °C and moist air. Needles like −5 °C.</div>
+</form>
+
+<details style="margin-top:10px;font-size:0.82rem;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics</summary>
+  <p style="margin-top:8px;">
+    Ukichiro Nakaya mapped habit against temperature and supersaturation in the 1930s: plates near 0 °C and −10 to −22 °C,
+    columns and needles near −5 °C, stellar dendrites near −15 °C in moist air. Growth is diffusion-limited on a
+    hexagonal lattice — tips with one ice neighbour win when supersaturation is high (dendrites); filling-in wins
+    when it is low (plates). Six-fold symmetry is the ice Ih crystal; the uniqueness is noise in the vapour field.
+  </p>
+</details>
+
+<script>
+(function () {
+  var cv = document.getElementById('snw-cv');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var N = 71, ice, running = true, cells = 1, age = 0;
+  var HEX = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) running = false;
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { return parseFloat($(id).value); }
+  function idx(q, r) { return (r + N) * (2 * N + 1) + (q + N); }
+
+  function habit(T, s) {
+    if (T > -3) return s > 0.4 ? 'thin plate' : 'plate';
+    if (T > -8) return s > 0.4 ? 'needle' : 'column';
+    if (T > -12) return s > 0.45 ? 'sectored plate' : 'plate';
+    if (T > -16) return s > 0.35 ? 'stellar dendrite' : 'sectored plate';
+    if (T > -22) return s > 0.4 ? 'plate' : 'thick plate';
+    return s > 0.4 ? 'needle' : 'column';
+  }
+
+  function seed() {
+    ice = new Uint8Array((2 * N + 1) * (2 * N + 1));
+    ice[idx(0, 0)] = 1;
+    cells = 1; age = 0;
+  }
+
+  function neighbours(q, r) {
+    var n = 0, k, qq, rr;
+    for (k = 0; k < 6; k++) {
+      qq = q + HEX[k][0]; rr = r + HEX[k][1];
+      if (Math.abs(qq) <= N && Math.abs(rr) <= N && Math.abs(qq + rr) <= N) {
+        if (ice[idx(qq, rr)]) n++;
+      }
+    }
+    return n;
+  }
+
+  function step() {
+    var T = val('snw-t'), s = val('snw-s'), noise = val('snw-noise');
+    var h = habit(T, s);
+    var q, r, n, p, wantTip, wantFill, next = new Uint8Array(ice);
+    wantTip = (h.indexOf('dendrite') >= 0 || h.indexOf('needle') >= 0 || h.indexOf('sector') >= 0);
+    wantFill = (h.indexOf('plate') >= 0 || h === 'column');
+    var added = 0;
+    for (r = -N; r <= N; r++) {
+      for (q = -N; q <= N; q++) {
+        if (Math.abs(q + r) > N) continue;
+        if (ice[idx(q, r)]) continue;
+        n = neighbours(q, r);
+        if (!n) continue;
+        p = s * 0.22;
+        if (wantTip && n === 1) p += 0.35;
+        if (wantTip && n === 2) p += 0.12;
+        if (wantFill && n >= 3) p += 0.4;
+        if (h === 'needle' || h === 'column') {
+          if (Math.abs(q) <= 1 || Math.abs(r) <= 1 || Math.abs(q + r) <= 1) p += 0.25;
+          else p *= 0.45;
+        }
+        p += (Math.random() - 0.5) * noise;
+        if (Math.random() < Math.max(0, Math.min(0.85, p))) {
+          next[idx(q, r)] = 1; added++;
+        }
+      }
+    }
+    ice = next; cells += added; age++;
+  }
+
+  function hexToPixel(q, r) {
+    var size = 4.15;
+    var x = size * Math.sqrt(3) * (q + r / 2);
+    var y = size * 1.5 * r;
+    return [cv.width / 2 + x, cv.height / 2 + 8 + y];
+  }
+
+  function draw() {
+    ctx.fillStyle = '#071018';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    var q, r, p, T = val('snw-t'), s = val('snw-s');
+    ctx.fillStyle = '#e0f2fe';
+    for (r = -N; r <= N; r++) {
+      for (q = -N; q <= N; q++) {
+        if (Math.abs(q + r) > N) continue;
+        if (!ice[idx(q, r)]) continue;
+        p = hexToPixel(q, r);
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    var h = habit(T, s);
+    ctx.fillStyle = '#e6faff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(h, 12, 22);
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = 'rgba(230,250,255,0.7)';
+    ctx.fillText(T + ' °C   σ = ' + s.toFixed(2) + '   ' + cells + ' ice cells', 12, 40);
+    $('snw-out').textContent = h + '  ·  ' + T + ' °C  ·  supersaturation ' + s.toFixed(2) +
+      '  ·  ' + cells + ' cells  ·  step ' + age;
+  }
+
+  function frame() {
+    if (running && cells < 1800) {
+      var k, n = val('snw-s') > 0.5 ? 2 : 1;
+      for (k = 0; k < n; k++) step();
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function sync() {
+    $('snw-t-v').textContent = val('snw-t') + ' °C';
+    $('snw-s-v').textContent = val('snw-s').toFixed(2);
+    $('snw-noise-v').textContent = val('snw-noise').toFixed(2);
+  }
+  ['snw-t', 'snw-s', 'snw-noise'].forEach(function (id) { $(id).addEventListener('input', sync); });
+  $('snw-run').addEventListener('click', function () {
+    running = !running; this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('snw-reset').addEventListener('click', seed);
+
+  seed();
+  sync();
+  if (reduce) $('snw-run').textContent = 'Run';
+  requestAnimationFrame(frame);
+})();
+</script>
