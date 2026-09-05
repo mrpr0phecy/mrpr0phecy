@@ -545,10 +545,28 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   **Animation budget is deliberate**: the shimmer runs only on the first
   row (`.card:nth-child(-n+8) .sk`) and `.card.loading` has NO infinite
   animation — animating 600+ unloaded cards at once freezes the grid (this
-  happened before and manifested as "cards not loading"). `.card` uses
-  `content-visibility: auto` + `contain-intrinsic-size: auto 320px` to skip
-  rendering offscreen cards; keep both. Don't reintroduce pulsing emoji
-  placeholders or global skeleton animations.
+  happened before and manifested as "cards not loading"). Do NOT add
+  `content-visibility: auto` to `.card`: it starved the IntersectionObserver
+  and caused the "stops loading at Anime" stall. Don't reintroduce pulsing
+  emoji placeholders or global skeleton animations.
+- **Guaranteed card loader (`index.html`)**: the home grid no longer uses
+  an IntersectionObserver or scroll-position geometry — both can silently
+  stop. Instead `initGuaranteedLoader()` runs a deterministic tick
+  (250ms) that pumps `pumpCardQueue()` in document order (≤16 starts/tick,
+  ≤8 concurrent), with `recoverStuckCards()` resetting any fetch in flight
+  >12s, retries (≤4) with backoff before showing the error/Retry UI, a 15s
+  `AbortController` per fetch, and a `visibilitychange` pause/resume. It
+  stops itself once the catalogue is settled. Don't replace it with an
+  observer — the whole point is independence from scrolling.
+- **Card script isolation**: `renderCardContent` wraps every inline card
+  script in its own function scope and exports only the names that card's
+  inline `onclick`/`onchange`/etc. handlers reference. This fixed 200+
+  cross-card global collisions (`showError`, `calculate`, `update`, … and
+  hard `const`/`let` `SyntaxError`s) that silently killed card scripts when
+  hundreds of cards share one DOM. Keep the `new Function(code)` compile
+  guard — it logs and skips a broken card script instead of letting it
+  throw. Cards whose scripts contain a literal `</script>` inside a string
+  are truncated by the HTML parser (pre-existing; see §9).
 
 ---
 
@@ -709,6 +727,23 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 ---
 
 ## 9. Current state and known work
+
+**2026-09-05 — guaranteed loader + card script isolation (index.html).** The
+grid loader no longer depends on IntersectionObserver or scroll geometry:
+a deterministic tick pumps all 664 cards in document order with retries,
+backoff, a 12s hung-fetch watchdog and a 15s AbortController per fetch.
+Card scripts are wrapped per-card (see §5) and a compile guard skips broken
+ones. Verified in jsdom: 663/664 load even with a simulated permanent 404
+(renders Retry) and a simulated never-resolving fetch (watchdog recovers it).
+
+**Known: 10 cards' scripts are truncated by the HTML parser** — they contain
+a literal `</script>` inside a JS string/template, so the parser ends the
+script early and the tail never runs. They were broken before this change;
+the loader now at least skips them cleanly rather than throwing. Fix is to
+escape the sequence (e.g. `<\/script>`) inside those strings:
+`clip-short`, `electrical-standards`, `fitnesscore`, `genetics`,
+`grammar-proof`, `interval-trainer`, `mealplanner`, `oscilloscope`,
+`palette-swapper`, `salary`.
 
 **Added 2026-09-02** — a **Sports** category with 53 tools across four batches of
 ten. New tools cover cricket (chase + net run rate), football points-needed,

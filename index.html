@@ -1693,9 +1693,7 @@
             position: relative;
             width: 100%;
             animation: cardIn 0.3s ease both;
-            /* Skip rendering offscreen cards — keeps a 664-card grid fluid */
-            content-visibility: auto;
-            contain-intrinsic-size: auto 320px;
+            /* NOTE: no content-visibility here — it starves the lazy loader. */
         }
 
         .card::before {
@@ -3642,8 +3640,6 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     <script>
     // ===== CONFIGURATION =====
     const CONFIG = {
-        INITIAL_LOAD: 12,
-        LOAD_DELAY: 100,
         GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
         GITHUB_PATH: 'cards',
         STICKY_THRESHOLD: 200
@@ -3654,13 +3650,16 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     let loadedCards = new Set();
     let loadingCards = new Set();
     let cardCache = new Map();
-    let observer = null;
     let isSearching = false;
     let cardRatings = {};
     let toolboxCards = [];
     let toolboxMode = 'grid'; // 'grid' or 'list'
     let expandedGridCards = new Set();
     let expandedListCards = new Set();
+    const cardElMap = new Map();      // cardName -> DOM element
+    const cardStates = new Map();     // cardName -> { retries, backoffUntil, failed }
+    const loadingTokens = new Map();  // cardName -> token (watchdog cancellation)
+    const loadingStartedAt = new Map(); // cardName -> timestamp
     
     // Background themes
     const themes = {
@@ -3766,7 +3765,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             }
             
             lastScrollTop = scrollTop;
-            onScrollLazyLoad();
+            // The guaranteed loader runs on its own tick — no scroll dependency.
         }, { passive: true });
     }
     
@@ -4593,6 +4592,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 `;
                 
                 dashboard.appendChild(card);
+                cardElMap.set(cardName, card);
                 
                 // Initialize rating display with delay
                 setTimeout(() => {
@@ -4600,15 +4600,9 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 }, 100);
             });
             
-            // Load initial cards
+            // Kick off the guaranteed loader — no observer, no scroll math.
             setTimeout(() => {
-                loadInitialCards();
-                initIntersectionObserver();
-                
-                // Periodic stuck-card recovery — catches cards the observer missed
-                setInterval(() => {
-                    if (!isSearching) scrollFallbackLoader();
-                }, 1600);
+                initGuaranteedLoader();
             }, 300);
             
         } catch (error) {
@@ -4624,20 +4618,6 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             `;
             showNotification('Failed to load cards from GitHub', 'error');
         }
-    }
-    
-    function loadInitialCards() {
-        const cards = document.querySelectorAll('.card:not(.loaded)');
-        const initialBatch = Array.from(cards).slice(0, CONFIG.INITIAL_LOAD);
-        
-        initialBatch.forEach((card, index) => {
-            setTimeout(() => {
-                const cardName = card.dataset.name;
-                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                    loadCard(card, cardName);
-                }
-            }, index * CONFIG.LOAD_DELAY);
-        });
     }
     
     const loadQueue = [];
@@ -4666,28 +4646,37 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     }
 
     async function executeLoadCard(card, cardName) {
+        if (loadingCards.has(cardName) || loadedCards.has(cardName)) return;
         loadingCards.add(cardName);
+        const token = {};
+        loadingTokens.set(cardName, token);
+        loadingStartedAt.set(cardName, Date.now());
         
         // Check cache
-        const cached = cardCache.get(cardName);
-        if (cached && (Date.now() - cached.timestamp) < (15 * 60 * 1000)) {
-            renderCardContent(card, cardName, cached.html);
-            loadingCards.delete(cardName);
-            loadedCards.add(cardName);
-            if (observer) observer.unobserve(card);
-            return;
-        }
-        
         try {
+            const cached = cardCache.get(cardName);
+            if (cached && (Date.now() - cached.timestamp) < (15 * 60 * 1000)) {
+                renderCardContent(card, cardName, cached.html);
+                loadedCards.add(cardName);
+                cardStates.delete(cardName);
+                return;
+            }
+            
             const meta = cardsMetaMap.get(cardName);
             const cardUrl = meta ? meta.path : `cards/${cardName}.html`;
-            const response = await fetch(cardUrl);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+            const response = await fetch(cardUrl, { signal: controller.signal });
+            clearTimeout(timeout);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
             const html = await response.text();
+            
+            // A watchdog may have cancelled us while the fetch was in flight
+            if (loadingTokens.get(cardName) !== token) return;
             
             // Cache the content
             cardCache.set(cardName, {
@@ -4697,17 +4686,32 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             
             renderCardContent(card, cardName, html);
             loadedCards.add(cardName);
+            cardStates.delete(cardName);
             
         } catch (error) {
-            console.error(`Failed to load card ${cardName}:`, error);
-            showCardError(card, cardName, error);
-            // Do NOT add to loadedCards — allow retry via observer or scroll
-        } finally {
-            loadingCards.delete(cardName);
+            if (loadingTokens.get(cardName) !== token) return;
             
-            if (observer) {
-                observer.unobserve(card);
+            const st = cardStates.get(cardName) || { retries: 0, backoffUntil: 0 };
+            st.retries = (st.retries || 0) + 1;
+            
+            if (st.retries <= 4) {
+                // Schedule a retry with backoff — never give up on the first wobble.
+                st.backoffUntil = Date.now() + Math.min(10000, 400 * st.retries);
+                cardStates.set(cardName, st);
+                console.warn(`Card load failed (${st.retries}/4): ${cardName} — ${error && error.message ? error.message : error}`);
+            } else {
+                st.failed = true;
+                cardStates.set(cardName, st);
+                console.error(`Card load gave up after ${st.retries} attempts: ${cardName}`, error);
+                showCardError(card, cardName, error);
             }
+            // Do NOT add to loadedCards — the loader tick re-queues failed cards.
+        } finally {
+            if (loadingTokens.get(cardName) === token) {
+                loadingTokens.delete(cardName);
+                loadingStartedAt.delete(cardName);
+            }
+            loadingCards.delete(cardName);
         }
     }
     
@@ -4766,17 +4770,54 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 cardSandbox.appendChild(newStyle);
             });
             
-            // Execute card scripts so interactive tools and calculators function
+            // Names referenced by this card's inline handlers (onclick etc.)
+            // — these must stay reachable globally after script isolation.
+            const inlineRefs = new Set();
+            contentDiv.querySelectorAll('[onclick],[onchange],[oninput],[onsubmit],[onmouseover],[onmouseout]').forEach(el => {
+                Array.from(el.attributes).forEach(attr => {
+                    if (!/^on/i.test(attr.name)) return;
+                    const matches = (attr.value || '').match(/([A-Za-z_$][\w$]*)\s*\(/g);
+                    (matches || []).forEach(tok => inlineRefs.add(tok.replace(/\s*\($/, '')));
+                });
+            });
+
+            // Execute card scripts so interactive tools and calculators function.
+            // Each script is wrapped in its own function scope: card files are
+            // supposed to be IIFE-isolated, but ~50 rely on the shared document
+            // scope and collide (216 duplicate function names, const/let
+            // SyntaxErrors) when hundreds of cards share one DOM.
             scripts.forEach(script => {
                 try {
                     const newScript = document.createElement('script');
                     Array.from(script.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+
+                    if (script.src) {
+                        // External script (e.g. CDN) — leave untouched.
+                        cardSandbox.appendChild(newScript);
+                        return;
+                    }
+
                     let code = script.textContent;
                     // Execute DOMContentLoaded / load handlers immediately if ready without re-firing document event
                     code = code.replace(/document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
                         '(document.readyState !== "loading" ? setTimeout($1, 10) : document.addEventListener("DOMContentLoaded", $1))');
                     code = code.replace(/window\.addEventListener\s*\(\s*['"]load['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
                         '(document.readyState !== "loading" ? setTimeout($1, 10) : window.addEventListener("load", $1))');
+
+                    // Export only the names this card's own inline handlers need.
+                    const exports = Array.from(inlineRefs)
+                        .filter(name => new RegExp(`(?:function\\s+${name}\\b|(?:var|let|const)\\s+${name}\\b)`).test(code))
+                        .map(name => `try{window["${name}"]=${name};}catch(e){}`);
+
+                    code = `(function(){\n${code}\n${exports.join('\n')}\n})();`;
+
+                    // Compile-check per card: a bad card script is logged and
+                    // skipped — it must never take other cards down with it.
+                    try { new Function(code); } catch (e) {
+                        console.warn(`Skipping unparseable script in ${cardName}:`, e.message);
+                        return;
+                    }
+
                     newScript.textContent = code;
                     cardSandbox.appendChild(newScript);
                 } catch (scriptErr) {
@@ -4959,13 +5000,15 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     }
     
     function retryLoadCard(cardName) {
-        const card = document.querySelector(`.card[data-name="${cardName}"]`);
+        const card = cardElMap.get(cardName) || document.querySelector(`.card[data-name="${cardName}"]`);
         if (card) {
             card.classList.add('loading');
             card.classList.remove('loaded', 'visible');
             loadedCards.delete(cardName);
             loadingCards.delete(cardName);
+            cardStates.delete(cardName);
             loadCard(card, cardName);
+            initGuaranteedLoader();
         }
     }
     
@@ -4987,72 +5030,92 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         }
     }
     
-    function initIntersectionObserver() {
-        if (observer) observer.disconnect();
-        
-        observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting && !isSearching) {
-                    const card = entry.target;
-                    const cardName = card.dataset.name;
-                    
-                    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                        loadCard(card, cardName);
-                    }
-                }
-            });
-        }, {
-            root: null,
-            rootMargin: '400px',
-            threshold: 0.1
-        });
-        
-        document.querySelectorAll('.card:not(.loaded)').forEach(card => {
-            observer.observe(card);
-        });
-    }
-    
-    // ===== SCROLL-BASED FALLBACK LOADER =====
-    // Backup for IntersectionObserver — catches cards that the observer missed
-    // (browser resource limits with 250+ observed elements can cause missed callbacks)
-    let scrollLoadTimeout = null;
-    let scrollLoadActive = false;
-    
-    function scrollFallbackLoader() {
-        if (scrollLoadActive || isSearching) return;
-        scrollLoadActive = true;
-        
-        const viewportTop = window.scrollY - 300;
-        const viewportBottom = window.scrollY + window.innerHeight + 300;
-        
-        const unloadedCards = document.querySelectorAll('.card:not(.loaded):not(.loading-fallback)');
-        let loaded = 0;
-        
-        for (let i = 0; i < unloadedCards.length; i++) {
-            if (loaded >= 10) break;
-            const card = unloadedCards[i];
-            const rect = card.getBoundingClientRect();
-            const cardTop = rect.top + window.scrollY;
-            const cardBottom = cardTop + rect.height;
-            
-            if (cardBottom >= viewportTop && cardTop <= viewportBottom) {
-                const cardName = card.dataset.name;
-                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                    card.classList.add('loading-fallback');
-                    loadCard(card, cardName);
-                    loaded++;
-                }
+    // ===== GUARANTEED CARD LOADER =====
+    // A deterministic, self-healing queue pump. It does NOT depend on
+    // IntersectionObserver, scroll position, or layout geometry — anything
+    // that can silently stop working. It just keeps filling the grid in
+    // document order, at a bounded rate, with retries, backoff and a
+    // watchdog for hung fetches. Scroll only makes it faster (if anything).
+    const LOADER_TICK_MS = 250;
+    const LOADER_PER_TICK = 16;      // max cards started per tick
+    const LOADER_STUCK_MS = 12000;   // a fetch in flight longer than this is reset
+    let loaderTimer = null;
+    let loaderIdleTicks = 0;
+
+    function initGuaranteedLoader() {
+        if (loaderTimer) return;
+        loaderTimer = setInterval(loaderTick, LOADER_TICK_MS);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (loaderTimer) { clearInterval(loaderTimer); loaderTimer = null; }
+            } else if (!loaderTimer) {
+                loaderTimer = setInterval(loaderTick, LOADER_TICK_MS);
+                loaderTick();
             }
+        });
+        loaderTick();
+    }
+
+    function loaderTick() {
+        if (document.hidden) return;
+        recoverStuckCards();
+        if (isSearching) return; // applyFilters() handles the filtered set eagerly
+        pumpCardQueue();
+    }
+
+    function pumpCardQueue() {
+        let started = 0;
+        const now = Date.now();
+        const pending = [];
+
+        for (let i = 0; i < allCards.length; i++) {
+            const name = allCards[i];
+            if (loadedCards.has(name) || loadingCards.has(name)) continue;
+            const st = cardStates.get(name);
+            if (st && (st.failed || (st.backoffUntil && st.backoffUntil > now))) continue;
+            const el = cardElMap.get(name);
+            if (isSearching && el && el.style.display === 'none') continue;
+            pending.push({ name, el });
+            if (pending.length >= LOADER_PER_TICK) break;
         }
-        
-        scrollLoadActive = false;
+
+        while (activeLoads < MAX_CONCURRENT_LOADS && started < LOADER_PER_TICK && pending.length) {
+            const item = pending.shift();
+            if (!item.el) { loadedCards.add(item.name); continue; }
+            loadCard(item.el, item.name);
+            started++;
+        }
+
+        // Stop the timer once the whole catalogue has settled (loaded or failed).
+        const remaining = allCards.filter(n =>
+            !loadedCards.has(n) &&
+            !(cardStates.get(n) && cardStates.get(n).failed)
+        ).length;
+        if (remaining === 0 && activeLoads === 0 && started === 0) {
+            loaderIdleTicks++;
+            if (loaderIdleTicks > 3 && loaderTimer) {
+                clearInterval(loaderTimer);
+                loaderTimer = null;
+            }
+        } else {
+            loaderIdleTicks = 0;
+        }
     }
-    
-    function onScrollLazyLoad() {
-        if (scrollLoadTimeout) clearTimeout(scrollLoadTimeout);
-        scrollLoadTimeout = setTimeout(scrollFallbackLoader, 150);
+
+    function recoverStuckCards() {
+        const now = Date.now();
+        loadingStartedAt.forEach((startedAt, name) => {
+            if (now - startedAt <= LOADER_STUCK_MS) return;
+            const token = loadingTokens.get(name);
+            // Cancel the hung fetch (AbortController in executeLoadCard) and requeue.
+            loadingTokens.delete(name);
+            loadingStartedAt.delete(name);
+            loadingCards.delete(name);
+            console.warn(`Card load stuck >${LOADER_STUCK_MS / 1000}s, resetting: ${name}`);
+            if (token) token.aborted = true;
+        });
     }
-    
+
     // ===== EVENT HANDLERS =====
     function setupEventListeners() {
         // Search functionality
