@@ -518,6 +518,18 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
 - **Decorative extras live in classes, not inline styles**: empty-search
   state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
   are class-based so the design tokens stay in one place.
+- **Homepage category pills are generated** (`renderCategoryPills()` in
+  `index.html`) from `cards/cards.json`, biggest category first; only the
+  "All Tools" pill is static (it keeps `id="count-all"`). Never hardcode the
+  27 pills — add a new category to `generate-cards-json.js` and the homepage
+  picks it up automatically.
+- **Hero quick links stay short**: the "Popular right now" strip is a single
+  curated group of ~6 `.dock-pill` links. If you add more, rotate rather than
+  stack — a wall of 33 pills was the old, harder-to-navigate layout.
+- **Smooth-operator chrome**: sticky bar carries a brand link back to
+  `#top`, `/` + `Ctrl/Cmd+K` focus the search, `#backToTop` appears after
+  600px of scroll, and the empty-search state offers popular-search
+  suggestion chips (`.suggestion-chip`).
 
 ---
 
