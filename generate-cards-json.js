@@ -174,6 +174,7 @@ const aquariumList = [
 // Ten tools added to fill genuine gaps found by auditing the existing 552-card
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
 const gapFillMap = {
+  'text-case-converter-toolkit': 'Writing & Language',
   'unix-timestamp-epoch-converter': 'Productivity & Lifestyle',
   'text-diff-compare-checker': 'Writing & Language',
   'hike-time-planner': 'Science & Engineering',
