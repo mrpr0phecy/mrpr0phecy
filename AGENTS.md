@@ -90,6 +90,8 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 #  - forms: onsubmit="event.preventDefault();"
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
+node scripts/generate-ai-index.js   # regenerate llms.txt / llms-full.txt /
+                                    #   tools-index.html from cards.json
 # bump count in index.html: "Search 500" -> "Search 501"
 python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
 PY
