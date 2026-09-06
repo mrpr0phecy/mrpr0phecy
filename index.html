@@ -3911,6 +3911,21 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
     }
     
+    // Global helper used by card links (onclick="showContributionsPanel()")
+    window.showContributionsPanel = function() {
+        const panel = document.getElementById('contributionsPanel');
+        if (!panel) return;
+        document.querySelectorAll('.panel.open').forEach(p => {
+            if (p !== panel) closePanel(p);
+        });
+        if (panel.classList.contains('open')) {
+            closePanel(panel);
+        } else {
+            panel.classList.add('open');
+            document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
+        }
+    };
+    
     // ===== IMPROVED TOOLBOX SYSTEM =====
     function initToolbox() {
         const toolbox = document.getElementById('toolbox');
@@ -4645,6 +4660,54 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         }
     }
 
+    // Some card scripts initialise via `DOMContentLoaded` / `load` listeners
+    // with anonymous callbacks. Those events have already fired by the time a
+    // card is lazy-loaded, so the callbacks would never run. This helper
+    // intercepts such registrations while an inline card script executes
+    // synchronously and fires them right afterwards.
+    function runCardScript(scriptEl, target, cardName) {
+        const deferred = [];
+        const origDocAdd = document.addEventListener;
+        const origWinAdd = window.addEventListener;
+        const intercept = (callback) => {
+            if (typeof callback === 'function') {
+                deferred.push(callback);
+                return;
+            }
+            // no-op for the event registration; nothing else keeps it alive
+        };
+        document.addEventListener = function(type, callback, ...rest) {
+            if ((type === 'DOMContentLoaded' || type === 'load') && document.readyState !== 'loading') {
+                intercept(callback);
+                return;
+            }
+            return origDocAdd.call(document, type, callback, ...rest);
+        };
+        window.addEventListener = function(type, callback, ...rest) {
+            if ((type === 'DOMContentLoaded' || type === 'load') && document.readyState !== 'loading') {
+                intercept(callback);
+                return;
+            }
+            return origWinAdd.call(window, type, callback, ...rest);
+        };
+        try {
+            target.appendChild(scriptEl);
+            // If a script registers 'load' before images/fonts finish, run it
+            // once the current frame settles instead of waiting forever.
+            if (deferred.length && (document.readyState === 'complete' || document.readyState === 'interactive')) {
+                const pending = deferred.splice(0);
+                pending.forEach(cb => setTimeout(() => {
+                    try { cb(); } catch (e) { console.warn(`Script callback error in ${cardName}:`, e); }
+                }, 10));
+            }
+        } catch (e) {
+            console.warn(`Error running script for ${cardName}:`, e);
+        } finally {
+            document.addEventListener = origDocAdd;
+            window.addEventListener = origWinAdd;
+        }
+    }
+
     async function executeLoadCard(card, cardName) {
         if (loadingCards.has(cardName) || loadedCards.has(cardName)) return;
         loadingCards.add(cardName);
@@ -4819,7 +4882,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                     }
 
                     newScript.textContent = code;
-                    cardSandbox.appendChild(newScript);
+                    runCardScript(newScript, cardSandbox, cardName);
                 } catch (scriptErr) {
                     console.warn(`Error running script for ${cardName}:`, scriptErr);
                 }
@@ -5432,7 +5495,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                     code = code.replace(/window\.addEventListener\s*\(\s*['"]load['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
                         '(document.readyState !== "loading" ? setTimeout($1, 10) : window.addEventListener("load", $1))');
                     newScript.textContent = code;
-                    bodyEl.appendChild(newScript);
+                    runCardScript(newScript, bodyEl, cardName);
                 } catch (scriptErr) {
                     console.warn(`Error running script in standalone modal for ${cardName}:`, scriptErr);
                 }

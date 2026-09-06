@@ -1526,4 +1526,99 @@ style.textContent = `
 document.head.appendChild(style);
 
 console.log('Enhanced Graphing Calculator loaded successfully!');
+
+// ========== ADDITIONAL TOOLS ==========
+let gcAnimTimer = null;
+
+function gcAnimateParameter() {
+  if (gcAnimTimer) {
+    cancelAnimationFrame(gcAnimTimer);
+    gcAnimTimer = null;
+    updateOutput('Animation stopped', 'info');
+    return;
+  }
+  const speedSlider = document.getElementById('gc-animation-speed');
+  const speed = speedSlider ? parseInt(speedSlider.value, 10) / 100 : 0.5;
+  const xmin = gc.bounds[0], xmax = gc.bounds[1];
+  const width = xmax - xmin;
+  let phase = 0;
+  const step = () => {
+    phase += speed * 0.05;
+    const offset = Math.sin(phase) * width * 0.3;
+    gc.bounds = [xmin + offset, xmax + offset, gc.bounds[2], gc.bounds[3]];
+    gcPlot();
+    gcAnimTimer = requestAnimationFrame(step);
+  };
+  updateOutput('Animating parameter — click again to stop', 'info');
+  gcAnimTimer = requestAnimationFrame(step);
+}
+
+function gcExportData() {
+  const expr = document.getElementById('gc-expression').value;
+  const [xmin, xmax] = gc.bounds;
+  const samples = 200;
+  const evalExpr = makeEvaluator(expr, ['x']);
+  if (!evalExpr) {
+    updateOutput('Cannot evaluate expression for export', 'error');
+    return;
+  }
+  let csv = 'x,y\n';
+  for (let i = 0; i <= samples; i++) {
+    const x = xmin + (i / samples) * (xmax - xmin);
+    let y = '';
+    try {
+      const v = evalExpr(x);
+      y = isFinite(v) ? v.toFixed(8) : '';
+    } catch (e) { y = ''; }
+    csv += `${x.toFixed(6)},${y}\n`;
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const link = document.createElement('a');
+  link.download = 'graph-data.csv';
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  updateOutput('CSV data exported (' + (samples + 1) + ' points)', 'success');
+}
+
+function gcExportLaTeX() {
+  const expr = document.getElementById('gc-expression').value;
+  let latex = expr
+    .replace(/\*\*/g, '^')
+    .replace(/\*/g, ' \\cdot ')
+    .replace(/\bsin\b/g, '\\sin')
+    .replace(/\bcos\b/g, '\\cos')
+    .replace(/\btan\b/g, '\\tan')
+    .replace(/\bexp\b/g, 'e^{')
+    .replace(/\bln\b/g, '\\ln');
+  const text = '\\[ y = ' + latex + ' \\]';
+  navigator.clipboard.writeText(text).then(() => {
+    updateOutput('LaTeX copied to clipboard', 'success');
+  }).catch(() => {
+    updateOutput('Copy failed — select manually', 'error');
+  });
+}
+
+function gcShareLink() {
+  const expr = document.getElementById('gc-expression').value;
+  let url;
+  try {
+    url = new URL(window.location.href);
+  } catch (e) {
+    url = new URL('https://localhost/');
+  }
+  url.searchParams.set('expr', expr);
+  const shareUrl = url.toString();
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    updateOutput('Share link copied to clipboard', 'success');
+  }).catch(() => {
+    updateOutput('Copy failed — share manually: ' + shareUrl, 'info');
+  });
+}
+
+// Export these for the loader's per-card isolation
+window.gcAnimateParameter = gcAnimateParameter;
+window.gcExportData = gcExportData;
+window.gcExportLaTeX = gcExportLaTeX;
+window.gcShareLink = gcShareLink;
 </script>

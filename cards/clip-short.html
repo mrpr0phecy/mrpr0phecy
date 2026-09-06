@@ -661,3 +661,86 @@ async function csGenerate() {
             
             // Show results
             document
+
+            // Show results
+            document.getElementById('cs-results').style.display = 'block';
+            document.getElementById('cs-hint').textContent = 'Short ready — preview it below.';
+        };
+        
+        // Keep painting the video onto the canvas while recording
+        const drawLoop = () => {
+            if (!csSourceVideo || csSourceVideo.paused) return;
+            const vw = csSourceVideo.videoWidth || 1;
+            const vh = csSourceVideo.videoHeight || 1;
+            ctx.clearRect(0, 0, outputWidth, outputHeight);
+            const scale = fitMode === 'cover'
+                ? Math.max(outputWidth / vw, outputHeight / vh)
+                : Math.min(outputWidth / vw, outputHeight / vh);
+            const dw = vw * scale;
+            const dh = vh * scale;
+            ctx.drawImage(csSourceVideo, (outputWidth - dw) / 2, (outputHeight - dh) / 2, dw, dh);
+            if (watermarkImg) {
+                const ww = Math.min(160, outputWidth / 4);
+                const wh = Math.min(120, outputHeight / 4);
+                ctx.drawImage(watermarkImg, outputWidth - ww - 20, outputHeight - wh - 20, ww, wh);
+            }
+            requestAnimationFrame(drawLoop);
+        };
+        drawLoop();
+        
+        // Start recording and playback
+        csSourceVideo.play();
+        recorder.start(200);
+        
+        // Stop after duration
+        setTimeout(() => {
+            if (csRecorder && csRecorder.state === 'recording') {
+                csRecorder.stop();
+            }
+            if (csMediaStream) {
+                csMediaStream.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('cs-status').textContent = 'Complete';
+            document.getElementById('cs-status').style.color = '#39ff14';
+        }, duration * 1000);
+        
+    } catch (error) {
+        csShowError(`Error generating short: ${error.message}`);
+        document.getElementById('cs-status').textContent = 'Error';
+        document.getElementById('cs-status').style.color = '#ff4d4d';
+    }
+}
+
+// Stop any active recording
+function csStopRecording() {
+    if (csRecorder && csRecorder.state === 'recording') {
+        csRecorder.stop();
+    }
+    if (csMediaStream) {
+        csMediaStream.getTracks().forEach(track => track.stop());
+    }
+    csMediaStream = null;
+}
+
+// Save/copy the recorded short
+function csSaveVideo() {
+    const preview = document.getElementById('clip-preview');
+    if (!preview || !preview.src) {
+        csShowError('Generate a short first');
+        return;
+    }
+    try {
+        const a = document.createElement('a');
+        a.href = preview.src;
+        a.download = 'short.webm';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } catch (e) {
+        csShowError('Could not download the short');
+    }
+}
+
+// Initialize once the DOM is ready
+csInit();
+</script>

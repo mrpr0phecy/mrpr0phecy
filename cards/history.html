@@ -311,6 +311,11 @@
       </button>
     </div>
   </div>
+  
+  <div id="ht-relationship-output" style="display:none;margin-top:16px;padding:16px;background:rgba(255,204,0,0.05);border-radius:8px;border:1px solid rgba(255,204,0,0.2);">
+    <h4 style="color:#ffcc00;font-size:14px;margin:0 0 12px 0;">🔗 Event Connections</h4>
+    <div style="font-size:13px;line-height:1.9;color:rgba(230,250,255,0.9);"></div>
+  </div>
 </div>
 
 <!-- Action Buttons -->
@@ -1493,34 +1498,43 @@ function htShowMessage(message, type = 'info') {
     setTimeout(() => messageEl.remove(), 300);
   }, 3000);
 }
+function htGenerateRelationships() {
+  const container = document.getElementById('ht-relationship-output');
+  if (!container) return;
+  const listEl = container.querySelector('div');
+  if (htEvents.length < 2) {
+    container.style.display = 'block';
+    listEl.innerHTML = '<div style="color:var(--muted);">Add at least two events to see connections between them.</div>';
+    return;
+  }
+
+  const chips = [];
+  const usedPairs = new Set();
+  for (let i = 0; i < htEvents.length; i++) {
+    for (let j = i + 1; j < htEvents.length; j++) {
+      const a = htEvents[i], b = htEvents[j];
+      const yearGap = Math.abs(a.year - b.year);
+      const reasons = [];
+      if (yearGap <= 30) reasons.push(`within ${yearGap} years`);
+      if (a.category && b.category && a.category === b.category) reasons.push('same category (' + htGetCategoryName(a.category) + ')');
+      if (a.region && b.region && a.region === b.region) reasons.push('same region (' + htGetRegionName(a.region) + ')');
+      if (reasons.length) {
+        const key = a.id + '|' + b.id;
+        usedPairs.add(key);
+        chips.push(
+          '<div style="padding:10px;background:rgba(255,204,0,0.06);border:1px solid rgba(255,204,0,0.15);border-radius:8px;margin-bottom:8px;">' +
+            '<span style="color:#ffcc00;font-weight:600;">' + a.event + '</span> (' + a.year + ') ↔ ' +
+            '<span style="color:#ffcc00;font-weight:600;">' + b.event + '</span> (' + b.year + ') — ' + reasons.join(', ') +
+          '</div>'
+        );
+      }
+    }
+  }
+
+  listEl.innerHTML = chips.length
+    ? '<div style="margin-bottom:10px;color:var(--muted);font-size:12px;">' + chips.length + ' connection' + (chips.length === 1 ? '' : 's') + ' found</div>' + chips.join('')
+    : '<div style="color:var(--muted);">No connections found — try events that share a category, region, or are close in time.</div>';
+  container.style.display = 'block';
+  htShowMessage('Relationship map generated', 'success');
+}
 </script>
-
-<style>
-#history-timeline-title {
-  color: var(--accent);
-  margin-top: 0;
-  font-size: 1.3rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-@media (max-width: 768px) {
-  .ht-form-grid {
-    grid-template-columns: 1fr !important;
-  }
-  
-  #ht-timeline-display .timeline-event {
-    width: 100% !important;
-    margin-left: 0 !important;
-  }
-  
-  .ht-controls {
-    flex-direction: column;
-  }
-  
-  .ht-controls select, .ht-controls input {
-    width: 100% !important;
-  }
-}
-</style>

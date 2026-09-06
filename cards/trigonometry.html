@@ -444,9 +444,89 @@ function startTrigQuiz() {
   alert("Quiz: " + randomQ + "\n\n(Answer in your notebook, then check the card!)");
 }
 
-// Set current week in header
-const now = new Date();
-const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-document.querySelector('#currentWeek').textContent = 
-  startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// Safe evaluator for trig-identity checking (whitelisted tokens only)
+function trigEvalSide(expr, x) {
+  let e = String(expr)
+    .replace(/θ/g, 'x')
+    .replace(/[πℼ]/g, 'PI')
+    .replace(/\^/g, '**');
+  if (!/^[0-9x+\-*/().,a-zA-Z\s]+$/.test(e)) return null;
+  if (/constructor|__proto__|\bwindow\b|\bglobal\b|\bdocument\b|\beval\b|\bFunction\b/i.test(e)) return null;
+  e = e.replace(/\bsec\s*\(/g, '(1 / cos(').replace(/\bcsc\s*\(/g, '(1 / sin(').replace(/\bcot\s*\(/g, '(1 / tan(');
+  try {
+    // eslint-disable-next-line no-new-func
+    return new Function('x', 'Math', '"use strict"; return (' + e + ');')(x, Math);
+  } catch (err) {
+    return null;
+  }
+}
+
+function verifyIdentity() {
+  const input = document.getElementById('identityInput').value.trim();
+  const result = document.getElementById('verificationResult');
+  if (!input) {
+    result.textContent = 'Enter an identity first, e.g. sin²x + cos²x = 1';
+    result.style.color = '#ffcc00';
+    return;
+  }
+  const sides = input.split('=');
+  if (sides.length !== 2) {
+    result.textContent = 'Use exactly one "=" to separate the two sides.';
+    result.style.color = '#ff4d4d';
+    return;
+  }
+  const lhs = sides[0].trim(), rhs = sides[1].trim();
+  const tests = [0.3, 0.9, 1.2, 2.0, 4.5, 5.9];
+  let checked = 0;
+  for (const x of tests) {
+    const l = trigEvalSide(lhs, x), r = trigEvalSide(rhs, x);
+    if (l === null || r === null) {
+      result.textContent = 'Unsupported expression — use sin, cos, tan, sec, csc, cot, x, π and + − × ÷ ^.';
+      result.style.color = '#ff4d4d';
+      return;
+    }
+    if (Math.abs(l - r) > 1e-6) {
+      result.innerHTML = `❌ Not an identity (fails at x = ${x.toFixed(1)}):<br>LHS = ${l.toFixed(4)}, RHS = ${r.toFixed(4)}`;
+      result.style.color = '#ff4d4d';
+      return;
+    }
+    checked++;
+  }
+  result.innerHTML = `✅ Verified at ${checked} random points — this is an identity!`;
+  result.style.color = '#39ff14';
+}
+
+function generateProblem() {
+  const type = document.getElementById('problemType').value;
+  const out = document.getElementById('generatedProblem');
+  const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+  let html = '';
+  if (type === 'Right Triangle') {
+    const angle = rand(20, 70);
+    const hyp = rand(5, 20);
+    html = `<p style="margin-bottom:8px;">A right triangle has a hypotenuse of ${hyp} cm and one angle of ${angle}°. Find the opposite side and the adjacent side (to 2 d.p.).</p>
+      <p style="color:var(--muted);">Hint: opposite = hyp × sin(angle), adjacent = hyp × cos(angle).</p>`;
+  } else if (type === 'Simplify Expression') {
+    const picks = [
+      'sin²x + cos²x',
+      '1 + tan²x',
+      'sin(−x)',
+      'cos(−x)',
+      'sin(x) / cos(x)'
+    ];
+    const q = picks[Math.floor(Math.random() * picks.length)];
+    html = `<p style="margin-bottom:8px;">Simplify: ${q}</p><p style="color:var(--muted);">Hint: use the Pythagorean or the even/odd identities.</p>`;
+  } else if (type === 'Solve Equation') {
+    const k = [0.5, 0.707, 0.866][rand(0, 2)];
+    const fn = Math.random() < 0.5 ? 'sin' : 'cos';
+    html = `<p style="margin-bottom:8px;">Solve ${fn}(x) = ${k} for 0 ≤ x &lt; 2π.</p>
+      <p style="color:var(--muted);">Hint: find the reference angle, then use the unit circle for both solutions.</p>`;
+  } else {
+    const amp = rand(1, 4), period = [2, 3, 4, 6][rand(0, 3)];
+    const phase = rand(-3, 3);
+    html = `<p style="margin-bottom:8px;">Describe the transformations of y = ${amp}·sin(${period}x ${phase >= 0 ? '+' : '−'} ${Math.abs(phase)}) compared to y = sin x.</p>
+      <p style="color:var(--muted);">Hint: amplitude a, period 2π/b, phase shift c/b.</p>`;
+  }
+  out.innerHTML = html;
+}
 </script>

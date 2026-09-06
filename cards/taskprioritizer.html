@@ -283,7 +283,22 @@ function tpLoadTasks() {
     const savedId = localStorage.getItem('tp-next-id');
     
     if (savedTasks) {
-        tpTasks = JSON.parse(savedTasks);
+        try {
+            tpTasks = JSON.parse(savedTasks);
+            // Normalise legacy/partial entries so rendering never crashes
+            tpTasks = tpTasks.filter(t => t && typeof t === 'object').map(t => ({
+                id: t.id || (tpCurrentId++),
+                text: String(t.text || t.title || 'Untitled task'),
+                importance: parseInt(t.importance) || 5,
+                urgency: parseInt(t.urgency) || 5,
+                quadrant: parseInt(t.quadrant) || tpGetQuadrant(parseInt(t.importance) || 5, parseInt(t.urgency) || 5),
+                score: (typeof t.score === 'number' && isFinite(t.score)) ? t.score : tpCalculateScore(parseInt(t.importance) || 5, parseInt(t.urgency) || 5),
+                completed: !!t.completed,
+                timestamp: t.timestamp || new Date().toISOString()
+            }));
+        } catch (e) {
+            tpTasks = [];
+        }
     }
     
     if (savedId) {

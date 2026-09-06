@@ -688,4 +688,167 @@ function scDrawChart(netAnnual, totalTax, nationalInsurance, pension, studentLoa
         
         // Simple text display
         ctx.fillStyle = '#ffffff';
-        ctx.font = '16px
+        ctx.font = '16px sans-serif';
+        ctx.fillText('Income Breakdown', 10, 25);
+        
+        const rows = [
+            { label: 'Net Income', value: netAnnual, color: '#39ff14' },
+            { label: 'Income Tax', value: totalTax, color: '#2dd4ff' },
+            { label: 'National Insurance', value: nationalInsurance, color: '#ffcc00' },
+            { label: 'Pension', value: pension, color: '#9d4edd' },
+            { label: 'Student Loan', value: studentLoan, color: '#ff4d4d' },
+            { label: 'Other', value: otherDeductions, color: '#808080' }
+        ];
+        
+        let total = netAnnual + totalTax + nationalInsurance + pension + studentLoan + otherDeductions;
+        if (total <= 0) total = 1;
+        let barX = 10;
+        const barY = 40;
+        const barH = 24;
+        const barMaxW = canvas.width - 20;
+        
+        rows.forEach(row => {
+            const width = Math.max(2, (row.value / total) * barMaxW);
+            ctx.fillStyle = row.color;
+            ctx.fillRect(barX, barY, width, barH);
+            barX += width;
+        });
+        
+        ctx.fillStyle = 'rgba(230,250,255,0.85)';
+        ctx.font = '11px sans-serif';
+        let y = barY + barH + 22;
+        rows.forEach(row => {
+            ctx.fillStyle = row.color;
+            ctx.fillRect(10, y - 7, 10, 10);
+            ctx.fillStyle = 'rgba(230,250,255,0.85)';
+            ctx.fillText(`${row.label}: ${scFormatCurrency(row.value, '£')}`, 28, y);
+            y += 18;
+        });
+    }
+}
+
+// Show transient message toast
+let scMessageTimer = null;
+function scShowMessage(message, type) {
+    const card = document.currentScript ? document.currentScript.closest('.card') : null;
+    const host = card || document.body;
+    let toast = host.querySelector('.sc-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.className = 'sc-toast';
+        toast.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transition:opacity 0.25s;';
+        host.appendChild(toast);
+    }
+    const colors = {
+        success: 'rgba(57,255,20,0.15)',
+        warning: 'rgba(255,204,0,0.15)',
+        error: 'rgba(255,77,77,0.15)',
+        info: 'rgba(45,212,255,0.15)'
+    };
+    const borders = {
+        success: '#39ff14',
+        warning: '#ffcc00',
+        error: '#ff4d4d',
+        info: '#2dd4ff'
+    };
+    toast.style.background = colors[type] || colors.info;
+    toast.style.border = `1px solid ${borders[type] || borders.info}`;
+    toast.style.color = borders[type] || borders.info;
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    if (scMessageTimer) clearTimeout(scMessageTimer);
+    scMessageTimer = setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+}
+
+// Reset all inputs and results
+function scReset() {
+    const ids = ['sc-country', 'sc-currency', 'sc-pay-period', 'sc-hours', 'sc-gross',
+                 'sc-ni', 'sc-pension', 'sc-student-loan', 'sc-other-deductions'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const country = document.getElementById('sc-country');
+    if (country) country.value = 'uk';
+    const currency = document.getElementById('sc-currency');
+    if (currency) currency.value = 'GBP';
+    const gross = document.getElementById('sc-gross');
+    if (gross) gross.value = '';
+    const payPeriod = document.getElementById('sc-pay-period');
+    if (payPeriod) payPeriod.value = 'annual';
+    const results = document.getElementById('sc-results');
+    if (results) results.style.display = 'none';
+    scUpdateTaxBrackets('uk');
+    scShowMessage('Calculator reset', 'info');
+}
+
+// Export breakdown as a downloadable text/JSON file
+function scExport() {
+    const breakdown = document.getElementById('sc-breakdown');
+    if (!breakdown) return;
+    const text = breakdown.textContent.trim();
+    if (!text) {
+        scShowMessage('Nothing to export yet', 'warning');
+        return;
+    }
+    const blob = new Blob([text], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.download = 'salary-breakdown.txt';
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    scShowMessage('Breakdown exported', 'success');
+}
+
+// Save current calculation snapshot
+function scSave() {
+    const breakdown = document.getElementById('sc-breakdown');
+    if (!breakdown) return;
+    const text = breakdown.textContent.trim();
+    if (!text) {
+        scShowMessage('Calculate first', 'warning');
+        return;
+    }
+    try {
+        const saved = JSON.parse(localStorage.getItem('sc-history') || '[]');
+        saved.push({ date: new Date().toISOString(), text });
+        localStorage.setItem('sc-history', JSON.stringify(saved.slice(-10)));
+        scShowMessage('Calculation saved', 'success');
+    } catch (e) {
+        scShowMessage('Could not save', 'error');
+    }
+}
+
+// Copy breakdown to clipboard
+function scCopy() {
+    const breakdown = document.getElementById('sc-breakdown');
+    if (!breakdown) return;
+    const text = breakdown.textContent.trim();
+    if (!text) {
+        scShowMessage('Nothing to copy yet', 'warning');
+        return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+        scShowMessage('Breakdown copied', 'success');
+    }).catch(() => {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            scShowMessage('Breakdown copied', 'success');
+        } catch (err) {
+            scShowMessage('Copy failed — select manually', 'error');
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
+// Print the results section
+function scPrint() {
+    const shortfall = document.getElementById('sc-results');
+    if (!shortfall) return;
+    window.print();
+}
+</script>

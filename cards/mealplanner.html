@@ -586,4 +586,154 @@ function mpLoadTemplate(templateName) {
       { day: 'friday', type: 'dinner', name: 'Beef Stir Fry', category: 'meat', prep: 25, calories: 380 }
     ],
     'family': [
-      { day: 'monday', type
+      { day: 'monday', type: 'dinner', name: 'Spaghetti Bolognese', category: 'meat', prep: 40, calories: 520 },
+      { day: 'tuesday', type: 'dinner', name: 'Chicken Fajitas', category: 'poultry', prep: 30, calories: 450 },
+      { day: 'wednesday', type: 'dinner', name: 'Fish & Chips', category: 'fish', prep: 35, calories: 550 },
+      { day: 'thursday', type: 'dinner', name: 'Shepherd\'s Pie', category: 'meat', prep: 50, calories: 480 },
+      { day: 'friday', type: 'dinner', name: 'Pizza Night', category: 'vegetarian', prep: 30, calories: 600 }
+    ]
+  };
+  
+  const template = templates[templateName] || [];
+  template.forEach((item, index) => {
+    const meal = {
+      id: Date.now() + index,
+      name: item.name,
+      type: item.type,
+      category: item.category,
+      prepTime: item.prep,
+      calories: item.calories,
+      timestamp: new Date().toISOString()
+    };
+    mpMealPlan[item.day][item.type].push(meal);
+  });
+  
+  // Refresh the whole plan display
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  days.forEach(day => mpUpdateDayDisplay(day));
+  mpUpdateStatistics();
+  mpSavePlanToStorage();
+  
+  mpShowSuccess(`${templateName.charAt(0).toUpperCase() + templateName.slice(1)} template loaded!`);
+}
+
+// SAVE / LOAD PLAN
+function mpSavePlanToStorage() {
+  try {
+    localStorage.setItem('meal-planner-plan', JSON.stringify(mpMealPlan));
+  } catch (e) {
+    console.warn('Could not save meal plan:', e);
+  }
+}
+
+function mpLoadSavedPlan() {
+  try {
+    const saved = localStorage.getItem('meal-planner-plan');
+    if (!saved) return;
+    const data = JSON.parse(saved);
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    days.forEach(day => {
+      if (data[day] && typeof data[day] === 'object') {
+        mpMealPlan[day] = Object.assign({ breakfast: [], lunch: [], dinner: [], snack: [], dessert: [] }, data[day]);
+      }
+    });
+    days.forEach(day => mpUpdateDayDisplay(day));
+    mpUpdateStatistics();
+  } catch (e) {
+    console.warn('Could not load meal plan:', e);
+  }
+}
+
+function mpSavePlan() {
+  mpSavePlanToStorage();
+  mpShowSuccess('Plan saved!');
+}
+
+function mpLoadPlan() {
+  mpLoadSavedPlan();
+  mpShowSuccess('Plan loaded!');
+}
+
+// RESET PLAN
+function mpReset() {
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  days.forEach(day => {
+    mpMealPlan[day] = { breakfast: [], lunch: [], dinner: [], snack: [], dessert: [] };
+    mpUpdateDayDisplay(day);
+  });
+  mpUpdateStatistics();
+  mpSavePlanToStorage();
+  mpShowSuccess('Plan cleared');
+}
+
+// COPY PLAN AS TEXT
+function mpCopyPlan() {
+  let text = `🚀 Meal Plan\n`;
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  days.forEach(day => {
+    const meals = mpMealPlan[day];
+    const entries = ['breakfast', 'lunch', 'dinner', 'snack', 'dessert']
+      .map(type => meals[type].map(m => m.name))
+      .filter(arr => arr.length > 0);
+    if (entries.length) {
+      text += `\n${day.charAt(0).toUpperCase() + day.slice(1)}\n`;
+      entries.forEach(arr => {
+        arr.forEach(name => text += `  • ${name}\n`);
+      });
+    }
+  });
+  navigator.clipboard.writeText(text).then(() => {
+    mpShowSuccess('Plan copied!');
+  }).catch(() => {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      mpShowSuccess('Plan copied!');
+    } catch (err) {
+      alert('Copy failed. Please select and copy manually.');
+    }
+    document.body.removeChild(textArea);
+  });
+}
+
+// STATUS MESSAGES
+function mpShowSuccess(message) {
+  const status = document.getElementById('mealplmp-status');
+  if (status) {
+    status.style.color = '#39ff14';
+    status.textContent = `✅ ${message}`;
+  }
+  const hint = document.getElementById('mealplmp-hint');
+  if (hint) hint.textContent = message;
+  setTimeout(() => {
+    if (status && status.textContent.includes(message)) status.textContent = '';
+  }, 3000);
+}
+
+function mpShowError(message) {
+  const status = document.getElementById('mealplmp-status');
+  if (status) {
+    status.style.color = '#ff4d4d';
+    status.textContent = `❌ ${message}`;
+  }
+  const hint = document.getElementById('mealplmp-hint');
+  if (hint) hint.textContent = message;
+  setTimeout(() => {
+    if (status && status.textContent.includes(message)) status.textContent = '';
+  }, 3000);
+}
+
+function mpShowHint(message, color) {
+  const hint = document.getElementById('mealplmp-hint');
+  if (hint) {
+    hint.style.color = color || 'var(--accent)';
+    hint.textContent = message;
+  }
+}
+
+// INITIALIZE
+mpInitializePlanner();
+</script>

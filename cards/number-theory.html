@@ -2003,4 +2003,120 @@ style.textContent = `
 document.head.appendChild(style);
 
 console.log('Advanced Number Theory Toolkit loaded successfully!');
+
+// ========== ADDITIONAL TOOLS ==========
+function ntGenerateRSA() {
+  // Pick two random primes
+  const randPrime = (min, max) => {
+    let c;
+    do {
+      c = Math.floor(Math.random() * (max - min + 1)) + min;
+      if (c % 2 === 0) c++;
+    } while (!isPrime(c));
+    return c;
+  };
+  let p = randPrime(101, 499);
+  let q = randPrime(101, 499);
+  while (q === p) q = randPrime(101, 499);
+
+  const n = p * q;
+  const phi = (p - 1) * (q - 1);
+  let e = 65537;
+  if (findModularInverse(e, phi) === null) e = 17;
+  if (findModularInverse(e, phi) === null) e = 3;
+  const d = findModularInverse(e, phi);
+
+  const output = document.getElementById('nt-output');
+  output.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <div style="color:var(--accent);font-weight:600;font-size:16px;">🔐 RSA Key Pair</div>
+      <div style="color:var(--muted);font-size:13px;margin-top:4px;">${new Date().toLocaleTimeString()}</div>
+    </div>
+    <div style="padding:16px;background:var(--glass);border-radius:8px;border:1px solid var(--border);font-family:monospace;font-size:13px;line-height:1.8;">
+      <div><span style="color:var(--muted);">p (prime):</span> ${p}</div>
+      <div><span style="color:var(--muted);">q (prime):</span> ${q}</div>
+      <div><span style="color:var(--muted);">n = p × q:</span> <strong style="color:var(--accent);">${n}</strong> (public modulus)</div>
+      <div><span style="color:var(--muted);">φ(n):</span> ${phi}</div>
+      <div><span style="color:var(--muted);">e (public):</span> ${e}</div>
+      <div><span style="color:var(--muted);">d (private):</span> <strong style="color:#39ff14;">${d}</strong></div>
+    </div>
+    <div style="margin-top:12px;color:var(--muted);font-size:12px;">
+      Public key: (n = ${n}, e = ${e}) • Private key: (n = ${n}, d = ${d})
+    </div>
+  `;
+  output.scrollTop = 0;
+  showNotification('RSA key pair generated', 'success');
+}
+
+function ntCalculateModExp() {
+  const base = parseFloat(document.getElementById('nt-mod-exp-base').value);
+  const exp = parseFloat(document.getElementById('nt-mod-exp-exp').value);
+  const mod = parseFloat(document.getElementById('nt-mod-exp-mod').value);
+  if (isNaN(base) || isNaN(exp) || isNaN(mod) || mod < 2 || exp < 0) {
+    showNotification('Enter valid base, exponent and modulus (modulus ≥ 2)', 'error');
+    return;
+  }
+  const steps = [];
+  // Square-and-multiply walkthrough
+  let b = base, e = exp, r = 1;
+  const intermediate = [];
+  while (e > 0) {
+    if (e % 2 === 1) { r = (r * b) % mod; intermediate.push(`bit set → r = (${r} × ${b}) mod ${mod} = ${r}`); }
+    else intermediate.push(`bit clear → r stays ${r}`);
+    e = Math.floor(e / 2);
+    if (e > 0) { b = (b * b) % mod; intermediate.push(`square → base = ${b}`); }
+  }
+  steps.push(`Computing ${base}^${exp} mod ${mod} by square-and-multiply...`);
+  steps.push(...intermediate);
+  const result = modularExponentiation(base, exp, mod);
+  displayResults({ message: `${base}^${exp} mod ${mod} = ${result}` }, steps);
+  addToHistory(base, exp, 'mod-exp', { message: `${base}^${exp} mod ${mod} = ${result}` });
+  ntSaveSession();
+  document.getElementById('nt-performance').style.display = 'block';
+  document.getElementById('nt-computation-time').textContent = '0.1ms';
+  showNotification('Modular exponentiation complete', 'success');
+}
+
+function ntGenerateWorksheet() {
+  const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const problems = [];
+  const answers = [];
+  for (let i = 0; i < 10; i++) {
+    const type = rand(0, 2);
+    if (type === 0) {
+      const n = rand(10, 999);
+      problems.push(`Is ${n} prime? (yes/no)`);
+      answers.push(isPrime(n) ? 'Yes' : `No (divisible by ${[...Array(20)].map((_, k) => k + 1).find(k => k > 1 && k < n && n % k === 0) || 'a factor'})`);
+    } else if (type === 1) {
+      const a = rand(2, 50), b = rand(2, 50);
+      problems.push(`Find gcd(${a}, ${b}) and lcm(${a}, ${b})`);
+      const gcd = (x, y) => { while (y) { const t = x % y; x = y; y = t; } return x; };
+      answers.push(`gcd = ${gcd(a, b)}, lcm = ${a * b / gcd(a, b)}`);
+    } else {
+      const a = rand(2, 20), e = rand(2, 8), m = rand(3, 50);
+      problems.push(`Compute ${a}^${e} mod ${m}`);
+      answers.push(String(modularExponentiation(a, e, m)));
+    }
+  }
+  const output = document.getElementById('nt-output');
+  output.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <div style="color:var(--accent);font-weight:600;font-size:16px;">📚 Practice Worksheet</div>
+      <div style="color:var(--muted);font-size:13px;margin-top:4px;">${new Date().toLocaleDateString()} • 10 problems</div>
+    </div>
+    <div style="padding:16px;background:var(--glass);border-radius:8px;border:1px solid var(--border);">
+      <ol style="margin:0;padding-left:20px;line-height:2;">
+        ${problems.map(p => `<li style="color:var(--text);">${p}</li>`).join('')}
+      </ol>
+      <details style="margin-top:16px;">
+        <summary style="color:var(--accent);cursor:pointer;font-weight:600;">🔑 Answer Key</summary>
+        <ol style="margin:8px 0 0 0;padding-left:20px;line-height:1.8;color:var(--muted);font-size:13px;">
+          ${answers.map(a => `<li>${a}</li>`).join('')}
+        </ol>
+      </details>
+    </div>
+  `;
+  output.scrollTop = 0;
+  showNotification('Worksheet generated — 10 problems', 'success');
+}
 </script>

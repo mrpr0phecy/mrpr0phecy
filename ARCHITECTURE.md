@@ -565,8 +565,14 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   hard `const`/`let` `SyntaxError`s) that silently killed card scripts when
   hundreds of cards share one DOM. Keep the `new Function(code)` compile
   guard — it logs and skips a broken card script instead of letting it
-  throw. Cards whose scripts contain a literal `</script>` inside a string
-  are truncated by the HTML parser (pre-existing; see §9).
+  throw.
+- **DOM-ready shim**: `runCardScript()` intercepts `DOMContentLoaded`/`load`
+  registrations made while an inline card script executes and runs the
+  callbacks right afterwards (those events already fired long before a
+  card is lazy-loaded). ~150 cards use anonymous `function(){…}` callbacks
+  that the old identifier-only rewrite could not catch; without the shim
+  they silently never initialised. Keep the shim around every card-script
+  execution, card grid and standalone modal alike (see §9).
 
 ---
 
@@ -728,22 +734,43 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 ## 9. Current state and known work
 
-**2026-09-05 — guaranteed loader + card script isolation (index.html).** The
-grid loader no longer depends on IntersectionObserver or scroll geometry:
+**2026-09-05/06 — guaranteed loader + card script isolation (index.html).**
+The grid loader no longer depends on IntersectionObserver or scroll geometry:
 a deterministic tick pumps all 664 cards in document order with retries,
 backoff, a 12s hung-fetch watchdog and a 15s AbortController per fetch.
 Card scripts are wrapped per-card (see §5) and a compile guard skips broken
-ones. Verified in jsdom: 663/664 load even with a simulated permanent 404
+ones. Verified in jsdom: **664/664 load** even with a simulated permanent 404
 (renders Retry) and a simulated never-resolving fetch (watchdog recovers it).
 
-**Known: 10 cards' scripts are truncated by the HTML parser** — they contain
-a literal `</script>` inside a JS string/template, so the parser ends the
-script early and the tail never runs. They were broken before this change;
-the loader now at least skips them cleanly rather than throwing. Fix is to
-escape the sequence (e.g. `<\/script>`) inside those strings:
-`clip-short`, `electrical-standards`, `fitnesscore`, `genetics`,
+**2026-09-06 — all 10 truncated card scripts reconstructed.** The ten cards
+that had been committed mid-script with **no closing `</script>` at all**
+(`clip-short`, `electrical-standards`, `fitnesscore`, `genetics`,
 `grammar-proof`, `interval-trainer`, `mealplanner`, `oscilloscope`,
-`palette-swapper`, `salary`.
+`palette-swapper`, `salary`) now end with complete implementations and a real
+closing tag. Each was rebuilt from its existing IDs/handlers; a full 664-card
+stress run reports **0 skipped scripts** (previously 10).
+
+**2026-09-06 — anonymous DOM-ready callbacks handled.** ~150 cards register
+initialisation via `document.addEventListener('DOMContentLoaded', function(){…})`
+or an arrow function. Those events have already fired by the time a card is
+lazy-loaded, so the callback would never run. `runCardScript()` (see §5)
+intercepts `DOMContentLoaded`/`load` registrations while an inline card
+script executes and fires them right afterwards; the previous identifier-only
+regex rewrite is kept for named handlers.
+
+**2026-09-06 — missing handlers and init crashes fixed during the no-error
+audit.** Added definitions for handlers that previously existed only as
+buttons (geology `geo*`→`geot*` rename, `htGenerateRelationships`,
+`gcAnimateParameter`/`gcExportData`/`gcExportLaTeX`/`gcShareLink`,
+`ntGenerateRSA`/`ntCalculateModExp`/`ntGenerateWorksheet`, plant `peSavePlant`
+rename, trig `verifyIdentity`/`generateProblem`) and a global
+`showContributionsPanel()` in index.html used by 7 cards. Also fixed
+init-time crashes: hydration losing `#hydration-current`/`#hydration-target`
+ids on re-render, percentages' `percentSetMode` dropping its `<h4>`,
+statistics' `ttShowTab` requiring an event argument, sl-events' null
+`#last-update`, taskprioritizer's legacy localStorage schema, and 41
+case-typo references in `second-life-surnames-guide`.
+
 
 **Added 2026-09-02** — a **Sports** category with 53 tools across four batches of
 ten. New tools cover cricket (chase + net run rate), football points-needed,
