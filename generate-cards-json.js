@@ -340,7 +340,8 @@ const gapFillMap = {
   'markdown-table-generator': 'Writing & Language',
   'ltv-mortgage-calculator': 'Finance & Money',
   'query-string-parser': 'SaaS & Business Killers',
-  'carbon-14-dating-calculator': 'Museum & Collection'
+  'carbon-14-dating-calculator': 'Museum & Collection',
+  'mohs-hardness-gallery': 'Museum & Collection'
 };
 
 const sportsList = [
