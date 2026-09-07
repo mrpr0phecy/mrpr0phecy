@@ -269,7 +269,12 @@ const gapFillMap = {
   'hat-size-converter': 'Productivity & Lifestyle',
   'business-card-size-guide': 'Productivity & Lifestyle',
   'engine-displacement-converter': 'Productivity & Lifestyle',
-  'celsius-fahrenheit-kelvin-converter': 'Productivity & Lifestyle'
+  'celsius-fahrenheit-kelvin-converter': 'Productivity & Lifestyle',
+  'audio-file-size-calculator': 'SaaS & Business Killers',
+  'timelapse-interval-calculator': 'SaaS & Business Killers',
+  'qtc-heart-interval-calculator': 'Health & Fitness',
+  'pregnancy-weight-gain-guide': 'Health & Fitness',
+  'baby-formula-mixing-calculator': 'Health & Fitness'
 };
 
 const sportsList = [
