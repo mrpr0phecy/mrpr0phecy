@@ -91,7 +91,7 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
                                 # also rebuilds tools/*.html, all-tools.html,
-                                # llms.txt and sitemap.xml
+                                # categories/, intent hubs, llms.txt and sitemap.xml
 # bump count in index.html: "Search 809" -> "Search 810"
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
 sleep 50   # Pages deploy latency — then verify live (see §6)
@@ -164,8 +164,9 @@ review and promote — never auto-committed into `cards/`.
   Fix scope: count sync and guard-rule presence only — every aesthetic
   decision is documented in ARCHITECTURE.md §5 and human-reviewed.
 - 🗂 **Catalogue Auditor & Generator** — `cards/`, `cards.json`, `tools/`,
-  sitemap coherence (`python3 scripts/check-cards.py`), fragment-only
-  enforcement, and draft generation. Canonical URLs are `tools/<slug>.html`.
+  `categories/`, intent hubs, sitemap coherence (`python3 scripts/check-cards.py`),
+  fragment-only enforcement, and draft generation. Canonical URLs are
+  `tools/<slug>.html`; category landings are `categories/<slug>.html`.
 - 🔍 **SEO & Metadata Scanner** — every top-level page's title/description/
   canonical/OG/twitter/theme-color and hreflang drift
   (`python3 scripts/scan-seo.py`); advisory only.

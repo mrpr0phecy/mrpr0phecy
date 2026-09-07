@@ -164,6 +164,42 @@ if os.path.isdir(TOOLS):
 else:
     fails.append("tools/ directory missing — run node scripts/generate-discoverability.js")
 
+def _cat_slug(cat: str) -> str:
+    s = (cat or "tools").lower().replace("&", "and")
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s or "tools"
+
+HUBS = [
+    "calculators.html",
+    "converters.html",
+    "generators.html",
+    "developer-tools.html",
+    "about-tools.html",
+    os.path.join("categories", "index.html"),
+]
+for hub in HUBS:
+    if not os.path.exists(os.path.join(ROOT, hub)):
+        fails.append(f"missing hub page {hub} — run node scripts/generate-discoverability.js")
+
+if os.path.exists(SITEMAP_PATH):
+    with open(SITEMAP_PATH, encoding="utf-8", errors="replace") as f:
+        sm = f.read()
+    for hub in ("calculators.html", "converters.html", "generators.html",
+                "developer-tools.html", "about-tools.html", "categories/index.html"):
+        if hub not in sm:
+            fails.append(f"sitemap.xml missing {hub}")
+    missing_cat_pages = []
+    for cat in sorted({e.get("category") or "" for e in index} - {""}):
+        slug = _cat_slug(cat)
+        page = os.path.join(ROOT, "categories", f"{slug}.html")
+        if not os.path.exists(page):
+            missing_cat_pages.append(slug)
+        elif f"categories/{slug}.html" not in sm:
+            fails.append(f"sitemap.xml missing categories/{slug}.html")
+    if missing_cat_pages:
+        fails.append(f"{len(missing_cat_pages)} category landings missing "
+                     f"(first: categories/{missing_cat_pages[0]}.html)")
+
 # ---------------------------------------------------------------- report
 cats = Counter(e.get("category") for e in index)
 print(f"cards on disk : {len(on_disk)}")

@@ -140,8 +140,8 @@ and what earns: **[INCOME.md](INCOME.md)**.
    IIFE. Inline styles + the CSS variables from `index.html` only. No network
    calls. Start from an existing card.
 2. `node generate-cards-json.js` — rebuilds `cards/cards.json` **and** the
-   crawlable wrappers (`tools/<slug>.html`, `all-tools.html`, `llms.txt`,
-   `sitemap.xml`). ⚠️ It **overwrites categories** from hardcoded filename
+   crawlable wrappers (`tools/<slug>.html`, `all-tools.html`, `categories/`,
+   intent hubs, `llms.txt`, `sitemap.xml`). ⚠️ It **overwrites categories** from hardcoded filename
    lists: add the new filename to the right list inside the script, or
    re-apply the category.
 3. Bump the count in `index.html` (`Search 809` → `Search 810`).

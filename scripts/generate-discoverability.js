@@ -5,6 +5,9 @@
 //   tools/index.html    redirect to the A–Z directory
 //   tools/tool-page.css + tools/tool-page.js  shared chrome
 //   all-tools.html      crawlable directory (works without JavaScript)
+//   categories/<slug>.html + categories/index.html
+//   calculators.html / converters.html / generators.html / developer-tools.html
+//   about-tools.html, feed.xml, humans.txt, .well-known/llms.txt
 //   llms.txt / llms-full.txt / ai.txt
 //   sitemap.xml         prefers tools/ over untitled cards/ fragments
 //
@@ -14,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { generateHubs, orgLd } = require('./seo-hubs');
 
 const ROOT = path.join(__dirname, '..');
 const CARDS_JSON = path.join(ROOT, 'cards', 'cards.json');
@@ -72,7 +76,38 @@ function relatedFor(card, all) {
   return all
     .filter((c) => c.category === card.category && c.name !== card.name)
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
-    .slice(0, 6);
+    .slice(0, 8);
+}
+
+function toolKind(card) {
+  const t = `${card.title} ${card.name} ${card.description || ''}`.toLowerCase();
+  if (/\bconvert|\bconverter|⇄/.test(t)) return 'converter';
+  if (/\bgenerat|\bbuilder|\bmaker\b/.test(t)) return 'generator';
+  if (/\bcalculat|\bestimator|\bcalc\b/.test(t)) return 'calculator';
+  return 'tool';
+}
+
+function seoTitle(card) {
+  const t = plainTitle(card.title);
+  const kind = toolKind(card);
+  const kindLabel = kind === 'tool'
+    ? 'Free Browser Tool'
+    : `Free Online ${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
+  if (new RegExp(kind, 'i').test(t)) return `${t} — Free, No Sign-up`;
+  return `${t} — ${kindLabel}`;
+}
+
+function prevNext(card, siblings) {
+  const list = [...(siblings || [])].sort((a, b) =>
+    plainTitle(a.title).localeCompare(plainTitle(b.title)));
+  const i = list.findIndex((c) => c.name === card.name);
+  if (i < 0 || list.length < 2) return { prev: null, next: null };
+  const prev = list[(i - 1 + list.length) % list.length];
+  const next = list[(i + 1) % list.length];
+  return {
+    prev: prev && prev.name !== card.name ? prev : null,
+    next: next && next.name !== card.name ? next : null,
+  };
 }
 
 function gitHtmlFiles() {
@@ -94,7 +129,7 @@ const TOOL_PAGE_CSS = `/* Shared chrome for /tools/<slug>.html — Product A cya
   --bg-primary: #0a0f14;
   --bg-secondary: #141e28;
   --border-light: rgba(255, 255, 255, 0.08);
-  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 * { box-sizing: border-box; }
 html { color-scheme: dark; }
@@ -164,6 +199,14 @@ body {
 .related a:hover { border-color: rgba(45, 212, 255, 0.4); background: rgba(45, 212, 255, 0.05); text-decoration: none; }
 .related strong { display: block; color: var(--accent); font-size: 14px; margin-bottom: 4px; }
 .related span { display: block; font-size: 12px; color: var(--text-secondary); }
+.faq { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--border-light); }
+.faq h2 { font-size: 18px; margin: 0 0 14px; }
+.faq h3 { font-size: 15px; margin: 16px 0 6px; }
+.faq p { color: var(--text-secondary); margin: 0 0 10px; }
+.about-blurb { margin-top: 28px; color: var(--text-secondary); font-size: 0.95rem; }
+.pager { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:28px; }
+.pager a { color: var(--accent); text-decoration:none; min-height:40px; display:inline-flex; align-items:center; }
+.pager a:hover { text-decoration:underline; }
 .page-footer {
   border-top: 1px solid var(--border-light); padding: 22px; text-align: center;
   font-size: 13px; color: var(--text-secondary);
@@ -257,15 +300,17 @@ const TOOL_PAGE_JS = `/* Shared loader for /tools/<slug>.html — injects the ca
 })();
 `;
 
-function toolPageHtml(card, related, count) {
+function toolPageHtml(card, related, count, siblings) {
   const slug = card.name;
   const file = `${slug}.html`;
   const titlePlain = plainTitle(card.title);
-  const pageTitle = `${titlePlain} | Free Online Tool`;
+  const kind = toolKind(card);
+  const pageTitle = seoTitle(card);
   const desc = metaDescription(card.description, titlePlain);
   const url = `${BASE}/tools/${file}`;
-  const catUrl = `${BASE}/all-tools.html#cat-${catSlug(card.category)}`;
-  const catRel = `../all-tools.html#cat-${catSlug(card.category)}`;
+  const catUrl = `${BASE}/categories/${catSlug(card.category)}.html`;
+  const catRel = `../categories/${catSlug(card.category)}.html`;
+  const { prev, next } = prevNext(card, siblings);
   const ld = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -282,13 +327,44 @@ function toolPageHtml(card, related, count) {
         inLanguage: 'en-GB',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'GBP' },
         isPartOf: { '@type': 'WebSite', name: SITE, url: BASE + '/' },
+        publisher: orgLd(),
       },
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: SITE, item: BASE + '/' },
-          { '@type': 'ListItem', position: 2, name: card.category, item: catUrl },
-          { '@type': 'ListItem', position: 3, name: titlePlain, item: url },
+          { '@type': 'ListItem', position: 2, name: 'Categories', item: BASE + '/categories/' },
+          { '@type': 'ListItem', position: 3, name: card.category, item: catUrl },
+          { '@type': 'ListItem', position: 4, name: titlePlain, item: url },
+        ],
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: [
+          {
+            '@type': 'Question',
+            name: `Is ${titlePlain} free to use?`,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: `Yes. ${titlePlain} is a free ${kind} on ${SITE}. No account, no ads, no paywall.`,
+            },
+          },
+          {
+            '@type': 'Question',
+            name: `Does ${titlePlain} work without installing an app?`,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: `Yes. Open ${url} in any modern browser. After the page loads, it runs on this device.`,
+            },
+          },
+          {
+            '@type': 'Question',
+            name: `Which category is ${titlePlain} in?`,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: `${titlePlain} is in ${card.category}. Browse every ${card.category} tool at ${catUrl}.`,
+            },
+          },
         ],
       },
     ],
@@ -300,6 +376,12 @@ function toolPageHtml(card, related, count) {
         return `<a href="${esc(r.name)}.html"><strong>${esc(r.title)}</strong><span>${esc(rd)}</span></a>`;
       }).join('\n      ')
     : `<a href="../all-tools.html"><strong>Browse all ${count} tools</strong><span>Free, no sign-up, runs in your browser.</span></a>`;
+  const pagerHtml = (prev || next)
+    ? `<nav class="pager" aria-label="More ${esc(card.category)} tools">
+      ${prev ? `<a href="${esc(prev.name)}.html" rel="prev">← ${esc(plainTitle(prev.title))}</a>` : '<span></span>'}
+      ${next ? `<a href="${esc(next.name)}.html" rel="next">${esc(plainTitle(next.title))} →</a>` : '<span></span>'}
+    </nav>`
+    : '';
 
   return `<!doctype html>
 <html lang="en-GB">
@@ -311,6 +393,9 @@ function toolPageHtml(card, related, count) {
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="${url}">
   <link rel="alternate" type="text/plain" href="${BASE}/llms.txt" title="LLM catalogue">
+  <link rel="alternate" type="application/rss+xml" href="${BASE}/feed.xml" title="${esc(SITE)} tools">
+  <link rel="sitemap" type="application/xml" href="${BASE}/sitemap.xml">
+  <link rel="search" type="application/opensearchdescription+xml" href="${BASE}/opensearch.xml" title="${esc(SITE)}">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="${esc(SITE)}">
   <meta property="og:locale" content="en_GB">
@@ -318,15 +403,16 @@ function toolPageHtml(card, related, count) {
   <meta property="og:description" content="${esc(desc)}">
   <meta property="og:url" content="${url}">
   <meta property="og:image" content="${BASE}/og-tools.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="${esc(titlePlain)} — free online ${esc(kind)}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${esc(pageTitle)}">
   <meta name="twitter:description" content="${esc(desc)}">
   <meta name="twitter:image" content="${BASE}/og-tools.png">
   <meta name="theme-color" content="#0a0f14">
   <link rel="icon" href="${ICON}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="${BASE}/icon-192.png">
   <link rel="stylesheet" href="../cards/card.css">
   <link rel="stylesheet" href="tool-page.css">
   <script type="application/ld+json">${jsonLd(ld)}</script>
@@ -344,6 +430,7 @@ function toolPageHtml(card, related, count) {
     <nav class="crumbs" aria-label="Breadcrumb">
       <ol>
         <li><a href="../index.html">Home</a></li>
+        <li><a href="../categories/">Categories</a></li>
         <li><a href="${esc(catRel)}">${esc(card.category)}</a></li>
         <li aria-current="page">${esc(titlePlain)}</li>
       </ol>
@@ -360,15 +447,26 @@ function toolPageHtml(card, related, count) {
     <noscript>
       <p>${esc(titlePlain)} runs in your browser and needs JavaScript. You can still read what it does above, or <a href="../all-tools.html">browse every tool as plain HTML</a>.</p>
     </noscript>
+    <section class="faq" aria-labelledby="faq-heading">
+      <h2 id="faq-heading">About this ${esc(kind)}</h2>
+      <h3>Is ${esc(titlePlain)} free?</h3>
+      <p>Yes. It is a free ${esc(kind)} on ${esc(SITE)}. No account, no ads, no paywall.</p>
+      <h3>Do I need to install an app?</h3>
+      <p>No. Open this page in any modern browser. After it loads, it runs on this device.</p>
+      <h3>Where else can I look?</h3>
+      <p>This tool sits in <a href="${esc(catRel)}">${esc(card.category)}</a>. There is also an <a href="../all-tools.html">A–Z directory of all ${count} tools</a>, plus hubs for <a href="../calculators.html">calculators</a>, <a href="../converters.html">converters</a> and <a href="../generators.html">generators</a>.</p>
+    </section>
     <section class="related" aria-labelledby="related-heading">
       <h2 id="related-heading">Related ${esc(card.category)} tools</h2>
       <div class="related-grid">
       ${relatedHtml}
       </div>
     </section>
+    ${pagerHtml}
+    <p class="about-blurb">${esc(SITE)} is a catalogue of ${count} free browser tools, built by one person in Luton. What you type stays on this device. <a href="../about-tools.html">About these tools</a>.</p>
   </main>
   <footer class="page-footer">
-    <p><a href="../all-tools.html">All ${count} free tools</a> · <a href="../index.html">${esc(SITE)}</a> · <a href="../donate.html">Donate</a></p>
+    <p><a href="../all-tools.html">All ${count} free tools</a> · <a href="../categories/">Categories</a> · <a href="../index.html">${esc(SITE)}</a> · <a href="../donate.html">Donate</a></p>
   </footer>
   <div class="toast" id="toast" role="status"></div>
   <script src="tool-page.js" defer></script>
@@ -391,7 +489,7 @@ function allToolsHtml(cards) {
 
   const toc = cats.map((cat) => {
     const n = byCat.get(cat).length;
-    return `<a href="#cat-${esc(catSlug(cat))}">${esc(cat)} <span>${n}</span></a>`;
+    return `<a href="categories/${esc(catSlug(cat))}.html">${esc(cat)} <span>${n}</span></a>`;
   }).join('\n      ');
 
   const sections = cats.map((cat) => {
@@ -405,7 +503,7 @@ function allToolsHtml(cards) {
         </li>`;
     }).join('\n        ');
     return `<section id="cat-${esc(catSlug(cat))}" class="cat-block">
-      <h2>${esc(cat)} <span>${list.length}</span></h2>
+      <h2><a href="categories/${esc(catSlug(cat))}.html">${esc(cat)}</a> <span>${list.length}</span></h2>
       <ul>
         ${items}
       </ul>
@@ -427,7 +525,7 @@ function allToolsHtml(cards) {
         '@type': 'ListItem',
         position: i + 1,
         name: cat,
-        url: `${BASE}/all-tools.html#cat-${catSlug(cat)}`,
+        url: `${BASE}/categories/${catSlug(cat)}.html`,
       })),
     },
   };
@@ -444,7 +542,9 @@ function allToolsHtml(cards) {
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="${BASE}/all-tools.html">
   <link rel="alternate" type="text/plain" href="${BASE}/llms.txt" title="LLM catalogue">
+  <link rel="alternate" type="application/rss+xml" href="${BASE}/feed.xml" title="${esc(SITE)} tools">
   <link rel="sitemap" type="application/xml" href="${BASE}/sitemap.xml">
+  <link rel="search" type="application/opensearchdescription+xml" href="${BASE}/opensearch.xml" title="${esc(SITE)}">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="${esc(SITE)}">
   <meta property="og:locale" content="en_GB">
@@ -452,18 +552,17 @@ function allToolsHtml(cards) {
   <meta property="og:description" content="${esc(desc)}">
   <meta property="og:url" content="${BASE}/all-tools.html">
   <meta property="og:image" content="${BASE}/og-tools.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="All ${count} Free Online Tools | ${esc(SITE)}">
   <meta name="twitter:description" content="${esc(desc)}">
   <meta name="twitter:image" content="${BASE}/og-tools.png">
   <meta name="theme-color" content="#0a0f14">
   <link rel="icon" href="${ICON}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script type="application/ld+json">${jsonLd(itemList)}</script>
   <style>
-    :root { --accent:#2dd4ff; --text:#e6faff; --muted:rgba(230,250,255,.7); --bg:#0a0f14; --card:#141e28; --line:rgba(255,255,255,.08); --font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    :root { --accent:#2dd4ff; --text:#e6faff; --muted:rgba(230,250,255,.7); --bg:#0a0f14; --card:#141e28; --line:rgba(255,255,255,.08); --font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
     * { box-sizing: border-box; }
     html { color-scheme: dark; scroll-behavior: smooth; }
     body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font); line-height:1.6; }
@@ -489,6 +588,8 @@ function allToolsHtml(cards) {
     main { max-width:1040px; margin:0 auto; padding:8px 20px 64px; }
     .cat-block { margin:28px 0; }
     .cat-block h2 { font-size:1.15rem; margin:0 0 10px; padding-top:8px; }
+    .cat-block h2 a { color:inherit; text-decoration:none; }
+    .cat-block h2 a:hover { color:var(--accent); text-decoration:underline; }
     .cat-block h2 span { color:var(--accent); font-size:.85rem; font-weight:600; }
     ul { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; }
     .tool-row {
@@ -509,6 +610,14 @@ function allToolsHtml(cards) {
     <a class="brand" href="index.html">← ${esc(SITE)}</a>
     <h1>All ${count} free online tools</h1>
     <p class="sub">Every calculator, converter, generator and utility on this site, listed as ordinary HTML so people and search engines can find them. No ads. No accounts. Nothing leaves your browser.</p>
+    <nav class="toc" aria-label="Collections">
+      <a href="calculators.html">Calculators</a>
+      <a href="converters.html">Converters</a>
+      <a href="generators.html">Generators</a>
+      <a href="developer-tools.html">Developer tools</a>
+      <a href="categories/">All categories</a>
+      <a href="about-tools.html">About</a>
+    </nav>
     <form class="search" role="search" action="all-tools.html" method="get">
       <label class="visually-hidden" for="q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search tools</label>
       <input type="search" id="q" name="q" placeholder="Search ${count} tools…" autocomplete="off">
@@ -522,7 +631,7 @@ function allToolsHtml(cards) {
     ${sections}
   </main>
   <footer>
-    <p><a href="index.html">${esc(SITE)}</a> · <a href="llms.txt">llms.txt</a> · <a href="cards/cards.json">cards.json</a> · <a href="donate.html">Donate</a></p>
+    <p><a href="index.html">${esc(SITE)}</a> · <a href="categories/">Categories</a> · <a href="calculators.html">Calculators</a> · <a href="converters.html">Converters</a> · <a href="generators.html">Generators</a> · <a href="developer-tools.html">Developer tools</a> · <a href="about-tools.html">About</a> · <a href="llms.txt">llms.txt</a> · <a href="feed.xml">RSS</a> · <a href="donate.html">Donate</a></p>
   </footer>
   <script>
     (function () {
@@ -579,8 +688,15 @@ function llmsTxt(cards) {
   out += `> ${count} free browser tools. No ads, no sign-ups, no uploads. Every tool is a static HTML page that runs entirely in the visitor's browser.\n\n`;
   out += `Live: ${BASE}/\n`;
   out += `Human directory: ${BASE}/all-tools.html\n`;
+  out += `Categories: ${BASE}/categories/\n`;
+  out += `Calculators: ${BASE}/calculators.html\n`;
+  out += `Converters: ${BASE}/converters.html\n`;
+  out += `Generators: ${BASE}/generators.html\n`;
+  out += `Developer tools: ${BASE}/developer-tools.html\n`;
+  out += `About: ${BASE}/about-tools.html\n`;
   out += `JSON catalogue: ${BASE}/cards/cards.json\n`;
-  out += `Full tool list: ${BASE}/llms-full.txt\n\n`;
+  out += `Full tool list: ${BASE}/llms-full.txt\n`;
+  out += `RSS: ${BASE}/feed.xml\n\n`;
   out += `This is Product A (utility tools). Product B is the MrProphecy music site at ${BASE}/listen.html — do not mix the two.\n\n`;
   out += `## How to use a tool\n\n`;
   out += `Each tool has a stable URL: ${BASE}/tools/<slug>.html\n`;
@@ -588,7 +704,7 @@ function llmsTxt(cards) {
   out += `## Categories (${cats.length})\n\n`;
   for (const cat of cats) {
     const list = byCat.get(cat);
-    out += `- [${cat}](${BASE}/all-tools.html#cat-${catSlug(cat)}): ${list.length} tools\n`;
+    out += `- [${cat}](${BASE}/categories/${catSlug(cat)}.html): ${list.length} tools\n`;
   }
   out += `\n## Optional\n\n`;
   out += `- [Donate](${BASE}/donate.html): keep the tools free\n`;
@@ -637,12 +753,18 @@ function toolsIndexHtml(count) {
 `;
 }
 
-function writeSitemap(cards) {
+function writeSitemap(cards, extra = []) {
   const prio = {
     'listen.html': ['1.0', 'weekly'],
     'music.html': ['0.9', 'weekly'],
     'index.html': ['0.9', 'daily'],
     'all-tools.html': ['0.9', 'daily'],
+    'calculators.html': ['0.85', 'weekly'],
+    'converters.html': ['0.85', 'weekly'],
+    'generators.html': ['0.85', 'weekly'],
+    'developer-tools.html': ['0.85', 'weekly'],
+    'about-tools.html': ['0.7', 'monthly'],
+    'categories/index.html': ['0.75', 'weekly'],
     'youtubepromo2.html': ['0.7', 'monthly'],
   };
   const tracked = gitHtmlFiles();
@@ -665,7 +787,15 @@ function writeSitemap(cards) {
     urls.push([key, priority, freq]);
   }
   for (const p of Object.keys(prio)) {
-    if (staticPages.includes(p) || p === 'all-tools.html') add(p, prio[p][0], prio[p][1]);
+    if (staticPages.includes(p) || p === 'all-tools.html' || extra.some((row) => (Array.isArray(row) ? row[0] : row) === p)) {
+      add(p, prio[p][0], prio[p][1]);
+    }
+  }
+  for (const row of extra) {
+    const loc = Array.isArray(row) ? row[0] : row;
+    const pr = Array.isArray(row) && row[1] ? row[1] : '0.7';
+    const freq = Array.isArray(row) && row[2] ? row[2] : 'weekly';
+    add(loc, pr, freq);
   }
   for (const f of staticPages) {
     if (prio[f]) continue;
@@ -704,10 +834,16 @@ function main() {
   fs.writeFileSync(path.join(TOOLS_DIR, 'tool-page.js'), TOOL_PAGE_JS);
   fs.writeFileSync(path.join(TOOLS_DIR, 'index.html'), toolsIndexHtml(cards.length));
 
+  const byCat = new Map();
+  for (const c of cards) {
+    if (!byCat.has(c.category)) byCat.set(c.category, []);
+    byCat.get(c.category).push(c);
+  }
+
   const keep = new Set(['tool-page.css', 'tool-page.js', 'index.html']);
   let written = 0;
   for (const card of cards) {
-    const html = toolPageHtml(card, relatedFor(card, cards), cards.length);
+    const html = toolPageHtml(card, relatedFor(card, cards), cards.length, byCat.get(card.category) || [card]);
     fs.writeFileSync(path.join(TOOLS_DIR, `${card.name}.html`), html);
     keep.add(`${card.name}.html`);
     written++;
@@ -719,10 +855,15 @@ function main() {
   fs.writeFileSync(path.join(ROOT, 'all-tools.html'), allToolsHtml(cards));
   fs.writeFileSync(path.join(ROOT, 'llms.txt'), llmsTxt(cards));
   fs.writeFileSync(path.join(ROOT, 'llms-full.txt'), llmsFullTxt(cards));
-  fs.writeFileSync(path.join(ROOT, 'ai.txt'), `# AI crawlers\n\nSee ${BASE}/llms.txt for how to cite this site.\nFull catalogue: ${BASE}/llms-full.txt\nJSON: ${BASE}/cards/cards.json\nHuman directory: ${BASE}/all-tools.html\n`);
+  fs.writeFileSync(path.join(ROOT, 'ai.txt'), `# AI crawlers\n\nSee ${BASE}/llms.txt for how to cite this site.\nFull catalogue: ${BASE}/llms-full.txt\nJSON: ${BASE}/cards/cards.json\nHuman directory: ${BASE}/all-tools.html\nCategories: ${BASE}/categories/\n`);
 
-  const sitemapN = writeSitemap(cards);
-  console.log(`discoverability: ${written} tool pages, all-tools.html, llms.txt, sitemap ${sitemapN} URLs`);
+  const extra = generateHubs(cards);
+  const wellKnown = path.join(ROOT, '.well-known');
+  fs.mkdirSync(wellKnown, { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'llms.txt'), path.join(wellKnown, 'llms.txt'));
+
+  const sitemapN = writeSitemap(cards, extra);
+  console.log(`discoverability: ${written} tool pages, ${extra.length} hubs, all-tools.html, llms.txt, sitemap ${sitemapN} URLs`);
 }
 
 main();
