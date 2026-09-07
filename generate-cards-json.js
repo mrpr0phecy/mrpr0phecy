@@ -324,7 +324,8 @@ const gapFillMap = {
   'karvonen-heart-rate-zones': 'Health & Fitness',
   'note-frequency-calculator': 'Music & Audio',
   'dividend-yield-calculator': 'Finance & Money',
-  'downlight-spacing-calculator': 'Home & DIY'
+  'downlight-spacing-calculator': 'Home & DIY',
+  'blood-pressure-category-guide': 'Health & Fitness'
 };
 
 const sportsList = [
