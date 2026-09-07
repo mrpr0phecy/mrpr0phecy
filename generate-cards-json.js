@@ -309,7 +309,8 @@ const gapFillMap = {
   'quadratic-equation-solver': 'Mathematics',
   'pythagoras-triangle-solver': 'Mathematics',
   'running-split-pace-calculator': 'Sports',
-  'led-watt-equivalent-calculator': 'Home & DIY'
+  'led-watt-equivalent-calculator': 'Home & DIY',
+  'dew-point-calculator': 'Science & Engineering'
 };
 
 const sportsList = [
