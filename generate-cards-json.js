@@ -300,7 +300,8 @@ const gapFillMap = {
   'tap-drill-size-chart': 'Home & DIY',
   'rainwater-harvest-calculator': 'Home & DIY',
   'flesch-reading-ease': 'Writing & Language',
-  'uk-alcohol-units-calculator': 'Health & Fitness'
+  'uk-alcohol-units-calculator': 'Health & Fitness',
+  'mortgage-overpayment-calculator': 'Finance & Money'
 };
 
 const sportsList = [

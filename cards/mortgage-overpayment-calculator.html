@@ -1,0 +1,90 @@
+<h2 id="movp-title" style="margin-top:0;color:var(--accent);">🏠 Mortgage Overpayment Calculator</h2>
+
+<form aria-describedby="movp-desc" onsubmit="event.preventDefault();">
+  <p id="movp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Extra each month against a repayment mortgage. Shows months and interest saved versus the original schedule. Arithmetic only — not a lender quote, and overpayment rules (and ERC charges) vary.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="movp-p" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Balance £</label>
+      <input id="movp-p" type="number" min="1" step="any" value="185000" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="movp-r" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Interest % / year</label>
+      <input id="movp-r" type="number" min="0" step="any" value="4.25" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="movp-y" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Years left</label>
+      <input id="movp-y" type="number" min="1" step="1" value="22" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="movp-x" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Extra £ / month</label>
+      <input id="movp-x" type="number" min="0" step="any" value="150" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="movp-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function pay(P, r, n) {
+    if (n <= 0) return 0;
+    if (r === 0) return P / n;
+    var g = Math.pow(1 + r, n);
+    return P * r * g / (g - 1);
+  }
+  function runSchedule(P, monthlyRate, n, extra) {
+    var bal = P, m = pay(P, monthlyRate, n), months = 0, interest = 0;
+    var inst = m + extra;
+    if (inst <= 0) return { months: Infinity, interest: Infinity, inst: inst, m: m };
+    while (bal > 0.005 && months < 12000) {
+      var i = bal * monthlyRate;
+      interest += i;
+      var prin = inst - i;
+      if (prin <= 0) return { months: Infinity, interest: Infinity, inst: inst, m: m };
+      if (prin > bal) prin = bal;
+      bal -= prin;
+      months++;
+    }
+    return { months: months, interest: interest, inst: inst, m: m };
+  }
+  function cell(k, v) {
+    return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+  }
+  function gbp(n) {
+    return '£' + n.toLocaleString('en-GB', { maximumFractionDigits: 0 });
+  }
+  function ym(months) {
+    var y = Math.floor(months / 12), m = months % 12;
+    return y + 'y ' + m + 'm';
+  }
+  function run() {
+    var P = Number($('movp-p').value), apr = Number($('movp-r').value), years = Number($('movp-y').value), extra = Number($('movp-x').value);
+    if (!(P > 0) || !(apr >= 0) || !(years > 0) || !(extra >= 0)) {
+      $('movp-out').textContent = 'Enter a balance, rate, term and extra amount.';
+      return;
+    }
+    var r = apr / 100 / 12, n = Math.round(years * 12);
+    var base = runSchedule(P, r, n, 0);
+    var over = runSchedule(P, r, n, extra);
+    if (!isFinite(over.months)) {
+      $('movp-out').textContent = 'The extra is not enough to cover interest — the balance would not fall.';
+      return;
+    }
+    var savedM = base.months - over.months;
+    var savedI = base.interest - over.interest;
+    $('movp-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('Contract payment', gbp(base.m) + ' / mo') +
+      cell('You would pay', gbp(over.inst) + ' / mo') +
+      cell('Original term', ym(base.months)) +
+      cell('With overpayments', ym(over.months)) +
+      cell('Time saved', ym(savedM)) +
+      cell('Interest saved', gbp(Math.max(0, savedI))) +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Assumes a fixed rate for the whole remaining term and that extra goes entirely to principal. Check your offer for annual overpayment limits.</p>';
+  }
+  ['movp-p', 'movp-r', 'movp-y', 'movp-x'].forEach(function (id) { $(id).addEventListener('input', run); });
+  run();
+})();
+</script>
