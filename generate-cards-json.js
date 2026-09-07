@@ -234,7 +234,12 @@ const gapFillMap = {
   'crop-factor-35mm-equivalent': 'SaaS & Business Killers',
   'nd-filter-exposure-calculator': 'SaaS & Business Killers',
   'bytes-kb-mb-gb-converter': 'SaaS & Business Killers',
-  'download-time-calculator': 'SaaS & Business Killers'
+  'download-time-calculator': 'SaaS & Business Killers',
+  'uk-holiday-entitlement-calculator': 'Productivity & Lifestyle',
+  'ucas-tariff-points-calculator': 'Productivity & Lifestyle',
+  'schengen-90-180-day-calculator': 'Productivity & Lifestyle',
+  'notice-period-end-date-calculator': 'Productivity & Lifestyle',
+  'gps-coordinates-dms-decimal': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
