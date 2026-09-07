@@ -1,0 +1,128 @@
+<div id="edu-math3d" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a0a2a,#0a1a2a);border:1px solid #2a3a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#40a0f0">📐 3D Function Plotter</h2>
+    <p style="margin:0 0 20px;color:#8090b0;font-size:0.95em">Visualize 3D mathematical surfaces — rotate, zoom, and explore equations in real time</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="m3-canvas" width="500" height="400" style="width:100%;border-radius:12px;background:#06060a;cursor:grab"></canvas>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <select id="m3-func" style="flex:1;padding:6px;border-radius:6px;border:1px solid #2a3a5a;background:#0a0a2a;color:#e0d0c0;font-size:0.85em">
+            <option value="sin">z = sin(x)·cos(y)</option>
+            <option value="ripple">z = sin(√(x²+y²))</option>
+            <option value="saddle">z = x²-y²</option>
+            <option value="cone">z = √(x²+y²)</option>
+            <option value="wave">z = sin(x+y)·cos(x-y)</option>
+            <option value="gaussian">z = e^(-(x²+y²)/3)</option>
+            <option value="moebius">z = sin(x)·sin(y)·cos(x·y)</option>
+          </select>
+          <label style="font-size:0.82em;color:#8090b0">Res <input id="m3-res" type="range" min="10" max="40" value="25" style="width:60px;vertical-align:middle"></label>
+        </div>
+        <div style="font-size:0.78em;color:#506080;margin-top:4px">Click & drag to rotate · Scroll to zoom</div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a2a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#40a0f0">Functions</b><br>
+          <div style="font-size:0.82em;color:#8090b0">
+            <b>sin(x)·cos(y)</b> — classic wave grid<br>
+            <b>sin(√(x²+y²))</b> — circular ripples<br>
+            <b>x²-y²</b> — saddle point<br>
+            <b>√(x²+y²)</b> — cone<br>
+            <b>sin(x+y)·cos(x-y)</b> — interference<br>
+            <b>gaussian</b> — bell curve surface<br>
+            <b>moebius</b> — twisted surface
+          </div>
+          <br><b style="color:#40a0f0">Controls</b><br>
+          <div style="font-size:0.82em;color:#8090b0">
+            🖱️ Drag — rotate<br>
+            🔍 Scroll — zoom in/out<br>
+            Resolution slider — detail level
+          </div>
+          <br><b style="color:#40a0f0">Color Coding</b><br>
+          <div style="font-size:0.82em;color:#8090b0">
+            <span style="color:#4040f0">Blue</span> — low z values<br>
+            <span style="color:#40f040">Green</span> — mid z values<br>
+            <span style="color:#f04040">Red</span> — high z values
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('m3-canvas'),ctx=c.getContext('2d');
+  const funcEl=document.getElementById('m3-func'),resEl=document.getElementById('m3-res');
+  let W=c.width,H=c.height,rotX=0.6,rotZ=0.4,zoom=1.2,dragging=false,lx=0,ly=0;
+  const funcs={
+    sin:(x,y)=>Math.sin(x)*Math.cos(y),
+    ripple:(x,y)=>{const r=Math.sqrt(x*x+y*y);return Math.sin(r)},
+    saddle:(x,y)=>(x*x-y*y)*0.3,
+    cone:(x,y)=>Math.sqrt(x*x+y*y)*0.5,
+    wave:(x,y)=>Math.sin(x+y)*Math.cos(x-y),
+    gaussian:(x,y)=>Math.exp(-(x*x+y*y)/3),
+    moebius:(x,y)=>Math.sin(x)*Math.sin(y)*Math.cos(x*y*0.5)
+  };
+  function project(x,y,z){
+    const cosA=Math.cos(rotX),sinA=Math.sin(rotX),cosB=Math.cos(rotZ),sinB=Math.sin(rotZ);
+    const x1=x*cosB-y*sinB,y1=x*sinB+y*cosB,z1=z;
+    const x2=x1,y2=y1*cosA-z1*sinA;
+    const scale=60*zoom;
+    return[W/2+x2*scale,H/2-y2*scale];
+  }
+  function color(z,min,max){
+    const t=(z-min)/(max-min+0.001);
+    const r=Math.floor(t<0.5?t*2*255:255);
+    const g=Math.floor(t<0.5?255:(1-(t-0.5)*2)*255);
+    const b=Math.floor(t<0.5?(1-t*2)*255:0);
+    return'rgb('+r+','+g+','+b+')';
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const fn=funcs[funcEl.value]||funcs.sin;
+    const n=parseInt(resEl.value);
+    const range=4,step=range*2/n;
+    let minZ=Infinity,maxZ=-Infinity;
+    let grid=[];
+    for(let i=0;i<=n;i++){
+      grid[i]=[];
+      for(let j=0;j<=n;j++){
+        const x=-range+i*step,y=-range+j*step;
+        const z=fn(x,y);
+        grid[i][j]={x,y,z};
+        if(z<minZ)minZ=z;if(z>maxZ)maxZ=z;
+      }
+    }
+    // Draw faces
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        const a=grid[i][j],b=grid[i+1][j],d=grid[i][j+1],e=grid[i+1][j+1];
+        const pa=project(a.x,a.y,a.z),pb=project(b.x,b.y,b.z);
+        const pd=project(d.x,d.y,d.z),pe=project(e.x,e.y,e.z);
+        const avgZ=(a.z+b.z+d.z+e.z)/4;
+        ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.lineTo(pe[0],pe[1]);ctx.lineTo(pd[0],pd[1]);ctx.closePath();
+        ctx.fillStyle=color(avgZ,minZ,maxZ);ctx.fill();
+        ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.5;ctx.stroke();
+      }
+    }
+    // Axes
+    const o=project(0,0,0),ax=project(2.5,0,0),ay=project(0,2.5,0),az=project(0,0,2.5);
+    ctx.strokeStyle='#f04040';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(o[0],o[1]);ctx.lineTo(ax[0],ax[1]);ctx.stroke();
+    ctx.strokeStyle='#40f040';ctx.beginPath();ctx.moveTo(o[0],o[1]);ctx.lineTo(ay[0],ay[1]);ctx.stroke();
+    ctx.strokeStyle='#4080f0';ctx.beginPath();ctx.moveTo(o[0],o[1]);ctx.lineTo(az[0],az[1]);ctx.stroke();
+    ctx.font='10px system-ui';ctx.fillStyle='#f04040';ctx.fillText('X',ax[0]+4,ax[1]);
+    ctx.fillStyle='#40f040';ctx.fillText('Y',ay[0]+4,ay[1]);
+    ctx.fillStyle='#4080f0';ctx.fillText('Z',az[0]+4,az[1]);
+  }
+  c.onmousedown=function(e){dragging=true;lx=e.clientX;ly=e.clientY;c.style.cursor='grabbing'};
+  window.addEventListener('mousemove',function(e){
+    if(!dragging)return;
+    rotZ+=(e.clientX-lx)*0.01;rotX+=(e.clientY-ly)*0.01;
+    rotX=Math.max(-Math.PI/2,Math.min(Math.PI/2,rotX));
+    lx=e.clientX;ly=e.clientY;draw();
+  });
+  window.addEventListener('mouseup',function(){dragging=false;c.style.cursor='grab'});
+  c.onwheel=function(e){zoom*=e.deltaY>0?0.9:1.1;zoom=Math.max(0.3,Math.min(4,zoom));e.preventDefault();draw()};
+  funcEl.onchange=resEl.oninput=draw;
+  draw();
+})();
+</script>

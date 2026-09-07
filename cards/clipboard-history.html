@@ -1,0 +1,84 @@
+<h2>📋 Clipboard History</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Save and manage text snippets. Copy, pin, search, and organize your frequently used text. Persists in browser storage.</p>
+
+<div id="ch-app" style="max-width:600px;margin:0 auto;">
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <textarea id="ch-input" style="flex:1;height:60px;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:none;box-sizing:border-box;" placeholder="Type or paste text to save..."></textarea>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="window._chSave()" style="flex:1;padding:10px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">💾 Save</button>
+    <button onclick="window._chPaste()" style="padding:10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:8px;color:#2dd4ff;cursor:pointer;">📋 Paste from Clipboard</button>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <input id="ch-search" type="text" placeholder="Search snippets..." style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />
+    <button onclick="window._chClear()" style="padding:8px 14px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:6px;color:#ff4d4d;cursor:pointer;font-size:12px;">🗑 Clear All</button>
+  </div>
+
+  <div id="ch-count" style="font-size:12px;color:rgba(230,250,255,0.4);margin-bottom:8px;"></div>
+  <div id="ch-list" style="max-height:400px;overflow-y:auto;"></div>
+</div>
+
+<script>
+(function(){
+  var items=[];
+  try{items=JSON.parse(localStorage.getItem('ch-items')||'[]');}catch(e){}
+  function save(){localStorage.setItem('ch-items',JSON.stringify(items));}
+  function render(){
+    var search=document.getElementById('ch-search').value.toLowerCase();
+    var filtered=items.filter(function(item){
+      if(!search)return true;
+      return item.text.toLowerCase().indexOf(search)>=0;
+    });
+    document.getElementById('ch-count').textContent=items.length+' snippet'+(items.length!==1?'s':'')+' saved';
+    if(!filtered.length){
+      document.getElementById('ch-list').innerHTML='<div style="text-align:center;padding:40px;color:rgba(230,250,255,0.3);">'+(search?'No matching snippets':'Save some text snippets to get started')+'</div>';
+      return;
+    }
+    // Sort: pinned first, then by date
+    filtered.sort(function(a,b){if(a.pinned&&!b.pinned)return -1;if(!a.pinned&&b.pinned)return 1;return b.date-a.date;});
+    var html='';
+    filtered.forEach(function(item,idx){
+      var origIdx=items.indexOf(item);
+      var preview=item.text.length>100?item.text.substring(0,100)+'...':item.text;
+      var date=new Date(item.date);
+      var dateStr=date.toLocaleDateString()+' '+date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      html+='<div style="padding:10px 12px;background:rgba(0,0,0,0.2);border:1px solid '+(item.pinned?'rgba(255,215,0,0.2)':'rgba(255,255,255,0.03)')+';border-radius:8px;margin-bottom:6px;">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'+
+          '<div style="flex:1;font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;">'+preview.replace(/</g,'&lt;')+'</div>'+
+          '<div style="display:flex;gap:4px;flex-shrink:0;">'+
+            '<button onclick="window._chCopy('+origIdx+')" style="padding:4px 8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.2);border-radius:4px;color:#2dd4ff;cursor:pointer;font-size:11px;">📋</button>'+
+            '<button onclick="window._chPin('+origIdx+')" style="padding:4px 8px;background:rgba(255,215,0,'+(item.pinned?0.2:0.05)+');border:1px solid rgba(255,215,0,'+(item.pinned?0.4:0.1)+');border-radius:4px;color:#ffd700;cursor:pointer;font-size:11px;">'+(item.pinned?'📌':'📍')+'</button>'+
+            '<button onclick="window._chDelete('+origIdx+')" style="padding:4px 8px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.2);border-radius:4px;color:#ff4d4d;cursor:pointer;font-size:11px;">✕</button>'+
+          '</div>'+
+        '</div>'+
+        '<div style="font-size:11px;color:rgba(230,250,255,0.3);margin-top:4px;">'+dateStr+' · '+item.text.length+' chars</div>'+
+      '</div>';
+    });
+    document.getElementById('ch-list').innerHTML=html;
+  }
+  function add(text){
+    if(!text||!text.trim())return;
+    items.unshift({text:text.trim(),date:Date.now(),pinned:false});
+    save();render();
+    document.getElementById('ch-input').value='';
+  }
+  function copy(idx){
+    var text=items[idx].text;
+    if(navigator.clipboard)navigator.clipboard.writeText(text);
+  }
+  function pin(idx){items[idx].pinned=!items[idx].pinned;save();render();}
+  function del(idx){items.splice(idx,1);save();render();}
+  function clearAll(){if(confirm('Clear all snippets?')){items=[];save();render();}}
+  async function paste(){
+    try{
+      var text=await navigator.clipboard.readText();
+      if(text)add(text);
+    }catch(e){alert('Clipboard access denied. Paste manually.');}
+  }
+  window._chSave=function(){add(document.getElementById('ch-input').value);};
+  window._chCopy=copy;window._chPin=pin;window._chDelete=del;window._chClear=clearAll;window._chPaste=paste;
+  document.getElementById('ch-search').addEventListener('input',render);
+  render();
+})();
+</script>

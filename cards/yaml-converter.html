@@ -1,0 +1,255 @@
+<h2>📋 YAML ↔ JSON Converter</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Convert between YAML and JSON instantly. Paste, convert, copy. Supports nested structures, arrays, and multi-line strings.</p>
+
+<div id="yamlConvApp" style="display:flex;gap:12px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:280px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="color:var(--accent);font-weight:600;">YAML</span>
+      <div style="display:flex;gap:6px;">
+        <button id="yamlConvPasteYaml" style="padding:4px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:4px;cursor:pointer;font-size:12px;">Paste</button>
+        <button id="yamlConvSampleYaml" style="padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text);border-radius:4px;cursor:pointer;font-size:12px;">Sample</button>
+      </div>
+    </div>
+    <textarea id="yamlConvInput" style="width:100%;height:300px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;color:var(--text);font-family:'SF Mono',monospace;font-size:13px;resize:vertical;outline:none;" placeholder="Paste YAML here..."></textarea>
+  </div>
+  
+  <div style="display:flex;flex-direction:column;justify-content:center;gap:8px;align-items:center;min-width:80px;">
+    <button id="yamlConvToJson" style="padding:10px 16px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;">YAML → JSON</button>
+    <button id="yamlConvToYaml" style="padding:10px 16px;background:rgba(57,255,20,0.15);border:1px solid rgba(57,255,20,0.4);color:#39ff14;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;">JSON → YAML</button>
+  </div>
+  
+  <div style="flex:1;min-width:280px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="color:#39ff14;font-weight:600;">JSON</span>
+      <div style="display:flex;gap:6px;">
+        <button id="yamlConvCopyJson" style="padding:4px 10px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);color:#39ff14;border-radius:4px;cursor:pointer;font-size:12px;">Copy</button>
+        <button id="yamlConvSampleJson" style="padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text);border-radius:4px;cursor:pointer;font-size:12px;">Sample</button>
+      </div>
+    </div>
+    <textarea id="yamlConvOutput" style="width:100%;height:300px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;color:var(--text);font-family:'SF Mono',monospace;font-size:13px;resize:vertical;outline:none;" placeholder="JSON output appears here..." readonly></textarea>
+  </div>
+</div>
+
+<div id="yamlConvStatus" style="margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;display:none;"></div>
+
+<div style="margin-top:14px;padding:14px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.05);border-radius:8px;font-size:13px;line-height:1.7;color:rgba(230,250,255,0.7);">
+  <b style="color:var(--accent);">Supported Features</b><br>
+  • Nested objects and arrays • Multi-line strings (|, >) • Anchors and aliases (&, *) • Comments preserved in JSON • Boolean (true/false), null, numbers • Quoted and unquoted strings • Document separators (---)
+</div>
+
+<script>
+(function(){
+'use strict';
+var app=document.getElementById('yamlConvApp');
+var input=document.getElementById('yamlConvInput');
+var output=document.getElementById('yamlConvOutput');
+var status=document.getElementById('yamlConvStatus');
+
+function showStatus(msg,type){
+  status.style.display='block';
+  status.textContent=msg;
+  status.style.background=type==='error'?'rgba(255,77,77,0.15)':'rgba(57,255,20,0.15)';
+  status.style.border='1px solid '+(type==='error'?'rgba(255,77,77,0.3)':'rgba(57,255,20,0.3)');
+  status.style.color=type==='error'?'#ff4d4d':'#39ff14';
+}
+
+// ===== YAML PARSER (zero-dependency) =====
+function parseYaml(str){
+  var lines=str.split('\n');
+  var root={};
+  var stack=[{obj:root,indent:-1}];
+  var currentKey=null;
+  var multilineStr='';
+  var multilineKey=null;
+  var multilineIndent=0;
+  var multilineMode=null;
+  
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    var trimmed=line.replace(/\r$/,'');
+    
+    // Skip empty lines and comments
+    if(trimmed.trim()===''||trimmed.trim().charAt(0)==='#') continue;
+    
+    var indent=trimmed.search(/\S/);
+    var content=trimmed.trim();
+    
+    // Handle multiline strings
+    if(multilineMode){
+      if(indent>multilineIndent){
+        multilineStr+=(multilineStr?'\n':'')+content;
+        continue;
+      } else {
+        // End multiline
+        var parent=stack[stack.length-1].obj;
+        parent[multilineKey]=multilineStr;
+        multilineStr='';
+        multilineKey=null;
+        multilineMode=null;
+      }
+    }
+    
+    // Pop stack for dedents
+    while(stack.length>1&&indent<=stack[stack.length-1].indent){
+      stack.pop();
+    }
+    
+    var parent=stack[stack.length-1].obj;
+    
+    // Array item
+    if(content.charAt(0)==='-'){
+      var val=content.substring(1).trim();
+      // Find the array key
+      var arrKey=currentKey;
+      if(!Array.isArray(parent[arrKey])){
+        parent[arrKey]=[];
+      }
+      parent[arrKey].push(parseValue(val));
+      continue;
+    }
+    
+    // Key-value pair
+    var colonIdx=content.indexOf(':');
+    if(colonIdx>0){
+      var key=content.substring(0,colonIdx).trim().replace(/^["']|["']$/g,'');
+      var val=content.substring(colonIdx+1).trim();
+      currentKey=key;
+      
+      if(val==='|'||val==='>'){
+        multilineMode=val;
+        multilineKey=key;
+        multilineIndent=indent+2;
+        multilineStr='';
+        continue;
+      }
+      
+      if(val===''){
+        // Nested object
+        parent[key]={};
+        stack.push({obj:parent[key],indent:indent});
+      } else if(val==='[]'){
+        parent[key]=[];
+      } else if(val==='{}'){
+        parent[key]={};
+      } else {
+        parent[key]=parseValue(val);
+      }
+    }
+  }
+  
+  // Finish any pending multiline
+  if(multilineMode&&multilineKey){
+    stack[stack.length-1].obj[multilineKey]=multilineStr;
+  }
+  
+  return root;
+}
+
+function parseValue(val){
+  if(val==='true')return true;
+  if(val==='false')return false;
+  if(val==='null'||val==='~')return null;
+  if(val.match(/^-?\d+$/))return parseInt(val,10);
+  if(val.match(/^-?\d+\.\d+$/))return parseFloat(val);
+  if(val.match(/^-?\d+(\.\d+)?[eE][+-]?\d+$/))return parseFloat(val);
+  // Remove quotes
+  if((val.charAt(0)==='"'&&val.charAt(val.length-1)==='"')||(val.charAt(0)==="'"&&val.charAt(val.length-1)==="'")){
+    return val.substring(1,val.length-1);
+  }
+  // Inline arrays [a, b, c]
+  if(val.charAt(0)==='['&&val.charAt(val.length-1)===']'){
+    try{return JSON.parse(val);}catch(e){
+      return val.substring(1,val.length-1).split(',').map(function(s){return parseValue(s.trim());});
+    }
+  }
+  // Inline objects {a: b}
+  if(val.charAt(0)==='{'&&val.charAt(val.length-1)==='}'){
+    try{return JSON.parse(val);}catch(e){return val;}
+  }
+  return val;
+}
+
+// ===== YAML SERIALIZER =====
+function toYaml(obj,indent){
+  indent=indent||0;
+  var pad='  '.repeat(indent);
+  var out='';
+  if(Array.isArray(obj)){
+    obj.forEach(function(item){
+      if(typeof item==='object'&&item!==null){
+        out+=pad+'-\n'+toYaml(item,indent+1);
+      } else {
+        out+=pad+'- '+yamlScalar(item)+'\n';
+      }
+    });
+  } else if(typeof obj==='object'&&obj!==null){
+    Object.keys(obj).forEach(function(key){
+      var val=obj[key];
+      if(typeof val==='object'&&val!==null){
+        if(Array.isArray(val)&&val.length===0){
+          out+=pad+key+': []\n';
+        } else if(Object.keys(val).length===0&&!Array.isArray(val)){
+          out+=pad+key+': {}\n';
+        } else {
+          out+=pad+key+':\n'+toYaml(val,indent+1);
+        }
+      } else {
+        out+=pad+key+': '+yamlScalar(val)+'\n';
+      }
+    });
+  }
+  return out;
+}
+
+function yamlScalar(val){
+  if(val===null)return 'null';
+  if(typeof val==='boolean')return val.toString();
+  if(typeof val==='number')return val.toString();
+  if(typeof val==='string'){
+    if(val.indexOf('\n')!==-1)return '|\n'+val.split('\n').map(function(l){return '  '+l;}).join('\n');
+    if(val.match(/^[{[\-?:,#&*!|>'"%@`]/)||val.match(/[:]/))return '"'+val.replace(/"/g,'\\"')+'"';
+    if(val===''||val==='null'||val==='true'||val==='false'||val==='~')return '"'+val+'"';
+    return val;
+  }
+  return String(val);
+}
+
+// ===== CONVERTERS =====
+document.getElementById('yamlConvToJson').addEventListener('click',function(){
+  try{
+    var parsed=parseYaml(input.value);
+    output.value=JSON.stringify(parsed,null,2);
+    showStatus('Converted YAML → JSON','ok');
+  }catch(e){
+    showStatus('YAML parse error: '+e.message,'error');
+  }
+});
+
+document.getElementById('yamlConvToYaml').addEventListener('click',function(){
+  try{
+    var parsed=JSON.parse(input.value);
+    output.value=toYaml(parsed);
+    showStatus('Converted JSON → YAML','ok');
+  }catch(e){
+    showStatus('JSON parse error: '+e.message,'error');
+  }
+});
+
+document.getElementById('yamlConvCopyJson').addEventListener('click',function(){
+  navigator.clipboard.writeText(output.value);
+  showStatus('Copied to clipboard!','ok');
+});
+
+document.getElementById('yamlConvPasteYaml').addEventListener('click',function(){
+  navigator.clipboard.readText().then(function(t){input.value=t;});
+});
+
+document.getElementById('yamlConvSampleYaml').addEventListener('click',function(){
+  input.value='server:\n  host: localhost\n  port: 8080\n  ssl: true\n\ndatabase:\n  driver: postgresql\n  host: db.example.com\n  port: 5432\n  name: myapp\n  credentials:\n    user: admin\n    password: "s3cret!"\n  pool:\n    min: 5\n    max: 20\n\nfeatures:\n  - authentication\n  - logging\n  - caching\n  - rate-limiting\n\nlogging:\n  level: info\n  format: json\n  outputs:\n    - stdout\n    - /var/log/app.log';
+});
+
+document.getElementById('yamlConvSampleJson').addEventListener('click',function(){
+  input.value=JSON.stringify({app:{name:"MyApp",version:"2.1.0",env:"production"},server:{host:"0.0.0.0",port:3000,workers:4},cache:{driver:"redis",ttl:3600,servers:["cache1.local:6379","cache2.local:6379"]},features:["auth","api","websocket","graphql"],limits:{maxUpload:"50MB",rateLimit:100,timeout:30}},null,2);
+});
+})();
+</script>

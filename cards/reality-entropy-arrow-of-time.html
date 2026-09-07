@@ -1,0 +1,84 @@
+<h2>🔄 Entropy & The Arrow of Time</h2>
+<p class="description">Why does time only flow forward? Watch entropy increase in real-time as ordered systems dissolve into disorder — the fundamental law that gives time its direction.</p>
+<div id="ent-app" style="max-width:500px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var canvas,ctx,W=460,H=300,particles=[],entropy=0,step=0;
+function init(){
+  particles=[];entropy=0;step=0;
+  // start ordered: all particles in left half
+  for(var i=0;i<120;i++){
+    particles.push({x:Math.random()*W*0.3+20,y:Math.random()*H*0.8+20,vx:(Math.random()-0.5)*2,vy:(Math.random()-0.5)*2,r:3+Math.random()*2});
+  }
+  var h='<canvas id="ent-cv" width="'+W+'" height="'+H+'" style="display:block;margin:0 auto;border-radius:8px;background:#0a0a1a;"></canvas>';
+  h+='<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#9ccbe0;">';
+  h+='<span>Entropy: <span id="ent-val" style="color:#ff4444;">0</span></span>';
+  h+='<span>Step: <span id="ent-step">0</span></span>';
+  h+='<span>Order: <span id="ent-order" style="color:#39ff14;">100%</span></span>';
+  h+='</div>';
+  h+='<div style="margin-top:4px;height:8px;background:#1a1a2a;border-radius:4px;overflow:hidden;"><div id="ent-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#39ff14,#ff4444);transition:width 0.3s;"></div></div>';
+  h+='<div style="display:flex;gap:6px;margin-top:10px;justify-content:center;">';
+  h+='<button onclick="window._entRun()" style="padding:6px 16px;background:rgba(57,255,20,0.2);color:#39ff14;border:1px solid #39ff14;border-radius:6px;cursor:pointer;font-weight:600;">▶ Simulate</button>';
+  h+='<button onclick="window._entReset()" style="padding:6px 16px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-weight:600;">Reset (Low Entropy)</button>';
+  h+='<button onclick="window._entScatter()" style="padding:6px 16px;background:rgba(255,165,0,0.15);color:#ffa500;border:1px solid rgba(255,165,0,0.3);border-radius:6px;cursor:pointer;font-weight:600;">Scatter (High Entropy)</button>';
+  h+='</div>';
+  h+='<div style="margin-top:12px;font-size:13px;line-height:1.7;color:#e6faff;background:rgba(255,255,255,0.05);border-radius:8px;padding:12px;border:1px solid rgba(255,68,68,0.2);">';
+  h+='<b>The Second Law of Thermodynamics:</b> Entropy always increases. An egg breaks but never unbreaks. Ice melts but water never spontaneously freezes in a warm room. This is the ONLY law of physics that distinguishes past from future.';
+  h+='<br><br><i>Time\'s arrow exists not because the past is different from the future at the level of physics, but because the universe started in an extraordinarily low-entropy state. The Big Bang was the most ordered moment in history — and everything since has been the universe winding down.</i>';
+  h+='</div>';
+  document.getElementById('ent-app').innerHTML=h;
+  canvas=document.getElementById('ent-cv');ctx=canvas.getContext('2d');
+  drawFrame();
+}
+function drawFrame(){
+  ctx.clearRect(0,0,W,H);
+  // divider line
+  ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();ctx.setLineDash([]);
+  // update particles
+  for(var i=0;i<particles.length;i++){
+    var p=particles[i];
+    p.x+=p.vx;p.y+=p.vy;
+    if(p.x<p.r){p.x=p.r;p.vx*=-1;}if(p.x>W-p.r){p.x=W-p.r;p.vx*=-1;}
+    if(p.y<p.r){p.y=p.r;p.vy*=-1;}if(p.y>H-p.r){p.y=H-p.r;p.vy*=-1;}
+    // simple collision
+    for(var j=i+1;j<particles.length;j++){
+      var q=particles[j];
+      var dx=q.x-p.x,dy=q.y-p.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<p.r+q.r&&d>0){
+        var nx=dx/d,ny=dy/d;
+        var dvx=p.vx-q.vx,dvy=p.vy-q.vy;
+        var dot=dvx*nx+dvy*ny;
+        p.vx-=dot*nx;p.vy-=dot*ny;q.vx+=dot*nx;q.vy+=dot*ny;
+        var overlap=(p.r+q.r-d)/2;
+        p.x-=nx*overlap;p.y-=ny*overlap;q.x+=nx*overlap;q.y+=ny*overlap;
+      }
+    }
+    ctx.fillStyle='hsl('+(200+i*1.2)+',80%,60%)';
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+  }
+  // calculate entropy (how spread out)
+  var leftCount=0;for(var i=0;i<particles.length;i++)if(particles[i].x<W/2)leftCount++;
+  var ratio=leftCount/particles.length;
+  entropy=Math.abs(ratio-0.5)*200; // 0=evenly spread, 100=all on one side
+  var orderPct=Math.round(100-entropy);
+  var ev=document.getElementById('ent-val');if(ev)ev.textContent=Math.round(entropy);
+  var es=document.getElementById('ent-step');if(es)es.textContent=step;
+  var eo=document.getElementById('ent-order');if(eo)eo.textContent=orderPct+'%';
+  var eb=document.getElementById('ent-bar');if(eb)eb.style.width=orderPct+'%';
+  step++;
+}
+function run(){var cnt=0;var iv=setInterval(function(){drawFrame();cnt++;if(cnt>=300)clearInterval(iv);},30);}
+function reset(){init();}
+function scatter(){
+  for(var i=0;i<particles.length;i++){
+    particles[i].x=Math.random()*W;particles[i].y=Math.random()*H;
+    particles[i].vx=(Math.random()-0.5)*3;particles[i].vy=(Math.random()-0.5)*3;
+  }
+  drawFrame();
+}
+window._entRun=run;window._entReset=reset;window._entScatter=scatter;
+init();
+setInterval(drawFrame,50);
+})();
+</script>

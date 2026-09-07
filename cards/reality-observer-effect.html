@@ -1,0 +1,100 @@
+<h2>👁️ The Observer Effect</h2>
+<p class="description">Does observation change reality? Explore the measurement problem, Schrödinger's cat, and the role of the observer in quantum mechanics.</p>
+<div id="obs-app" style="max-width:520px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var state='superposed',boxOpen=false,catAlive=true,decayProb=0,canvas,ctx;
+function init(){
+  state='superposed';boxOpen=false;catAlive=true;decayProb=0;
+  var h='<canvas id="obs-cv" width="480" height="280" style="display:block;margin:0 auto;border-radius:8px;background:#0a0a1a;"></canvas>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px;justify-content:center;flex-wrap:wrap;">';
+  h+='<button onclick="window._obsDecay()" style="padding:8px 20px;background:linear-gradient(135deg,#8844ff,#ff44ff);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;">⏳ Wait (time passes)</button>';
+  h+='<button onclick="window._obsOpen()" style="padding:8px 20px;background:linear-gradient(135deg,#ffcc00,#ff8800);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;">👁️ Open Box (Observe)</button>';
+  h+='<button onclick="window._obsReset()" style="padding:8px 16px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-weight:600;">Reset</button>';
+  h+='</div>';
+  h+='<div id="obs-info" style="margin-top:12px;font-size:13px;line-height:1.7;color:#e6faff;background:rgba(255,255,255,0.05);border-radius:8px;padding:12px;border:1px solid rgba(136,68,255,0.2);"></div>';
+  document.getElementById('obs-app').innerHTML=h;
+  canvas=document.getElementById('obs-cv');ctx=canvas.getContext('2d');
+  draw();updateInfo();
+}
+function draw(){
+  ctx.clearRect(0,0,480,280);
+  // box
+  ctx.strokeStyle='#8844ff';ctx.lineWidth=2;
+  ctx.strokeRect(140,40,200,160);
+  // label
+  ctx.fillStyle='#8844ff';ctx.font='12px monospace';ctx.textAlign='center';
+  ctx.fillText('SEALED BOX',240,30);
+  if(!boxOpen){
+    // superposition visualization
+    var t=Date.now()/1000;
+    // alive ghost
+    ctx.globalAlpha=0.3+Math.sin(t*2)*0.2;
+    ctx.font='60px serif';ctx.fillText('😺',200,140);
+    // dead ghost
+    ctx.globalAlpha=0.3+Math.cos(t*2)*0.2;
+    ctx.font='60px serif';ctx.fillText('💀',260,140);
+    ctx.globalAlpha=1;
+    // wave function
+    ctx.strokeStyle='rgba(136,68,255,0.5)';ctx.lineWidth=2;ctx.beginPath();
+    for(var x=150;x<340;x++){
+      var y=200+Math.sin((x-150)*0.05+t*3)*15*Math.sin((x-150)/190*Math.PI);
+      x===150?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.fillStyle='#8844ff';ctx.font='11px monospace';
+    ctx.fillText('ψ = |alive⟩ + |dead⟩',240,240);
+    ctx.fillText('SUPERPOSITION',240,255);
+  }else{
+    // collapsed state
+    ctx.font='60px serif';
+    if(catAlive){ctx.fillText('😺',220,140);ctx.fillStyle='#39ff14';ctx.font='14px monospace';ctx.fillText('ALIVE',240,200);}
+    else{ctx.fillText('💀',220,140);ctx.fillStyle='#ff4444';ctx.font='14px monospace';ctx.fillText('DEAD',240,200);}
+    // collapsed wave function
+    ctx.strokeStyle=catAlive?'rgba(57,255,20,0.5)':'rgba(255,68,68,0.5)';ctx.lineWidth=2;ctx.beginPath();
+    var peak=catAlive?170:310;
+    for(var x=150;x<340;x++){
+      var g=Math.exp(-Math.pow(x-peak,2)/800);
+      var y=240-g*30;
+      x===150?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.fillStyle='#9ccbe0';ctx.font='11px monospace';
+    ctx.fillText('ψ = |'+(catAlive?'alive':'dead')+'⟩',240,255);
+    ctx.fillText('COLLAPSED',240,270);
+  }
+  // probability bar
+  ctx.fillStyle='#1a1a2a';ctx.fillRect(140,18,200,8);
+  ctx.fillStyle='#8844ff';ctx.fillRect(140,18,200*Math.min(decayProb/100,1),8);
+  ctx.fillStyle='#9ccbe0';ctx.font='10px monospace';ctx.textAlign='left';
+  ctx.fillText('Decay: '+Math.round(decayProb)+'%',345,26);
+  ctx.textAlign='start';
+  requestAnimationFrame(draw);
+}
+function decay(){
+  if(boxOpen)return;
+  decayProb=Math.min(100,decayProb+15+Math.random()*10);
+  updateInfo();
+}
+function openBox(){
+  if(boxOpen)return;
+  boxOpen=true;
+  catAlive=Math.random()*100>decayProb;
+  updateInfo();
+}
+function updateInfo(){
+  var info='';
+  if(!boxOpen){
+    info='<b>The cat is in superposition.</b> According to quantum mechanics, the radioactive atom is both decayed and not decayed. The poison is both released and not released. The cat is both alive and dead — not one or the other, but genuinely both simultaneously.';
+    info+='<br><br>Click "Wait" to increase the probability of decay. Click "Open Box" to observe.';
+  }else{
+    info='<b>You observed. The wave function collapsed.</b> The moment you opened the box, the superposition ended. The cat became definitively '+ (catAlive?'alive':'dead')+'. Before you looked, it was neither — or both. Your observation did not reveal a pre-existing fact. It <i>created</i> the fact.';
+    info+='<br><br><i>This is not a thought experiment anymore. In 2019, scientists put a bacterium in superposition. In 2022, molecules with 2,000 atoms were superposed. The boundary between quantum and classical — between "both" and "one" — is still unknown.</i>';
+  }
+  document.getElementById('obs-info').innerHTML=info;
+}
+window._obsDecay=decay;window._obsOpen=openBox;window._obsReset=init;
+init();
+})();
+</script>

@@ -1,0 +1,163 @@
+<h2>🎲 Backgammon</h2>
+<p class="description">Classic backgammon: move your pieces around the board and bear them off first. Roll dice and race against the AI!</p>
+<div id="bg-app" style="max-width:520px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var points=[],bar={w:0,b:0},borneOff={w:0,b:0},dice=[],turn='w',msg='',over=false,selected=-1;
+function init(){
+  // 24 points: 0-23. White moves 23->0, Black moves 0->23
+  points=[];for(var i=0;i<24;i++)points[i]={count:0,color:''};
+  // standard setup
+  setPoint(0,'w',2);setPoint(5,'b',5);setPoint(7,'b',3);setPoint(11,'w',5);
+  setPoint(12,'b',5);setPoint(16,'w',3);setPoint(18,'w',5);setPoint(23,'b',2);
+  bar={w:0,b:0};borneOff={w:0,b:0};dice=[];turn='w';over=false;selected=-1;
+  msg='Your turn — roll the dice';render();
+}
+function setPoint(p,c,n){points[p]={count:n,color:c};}
+function rollDice(){
+  if(dice.length||over)return;
+  var d1=Math.floor(Math.random()*6)+1,d2=Math.floor(Math.random()*6)+1;
+  dice=d1===d2?[d1,d1,d1,d1]:[d1,d2];
+  selected=-1;
+  if(!hasMoves()){turn=turn==='w'?'b':'w';dice=[];msg=turn==='w'?'Your turn — roll':'AI turn';if(turn==='b')setTimeout(aiTurn,500);render();return;}
+  msg='Click a point to move from';render();
+}
+function hasMoves(){
+  if(bar[turn]>0){
+    var entry=turn==='w'?24-dice[0]:dice[0]-1;
+    return points[entry].count===0||points[entry].color===turn||points[entry].count===1;
+  }
+  for(var i=0;i<24;i++){
+    if(points[i].color!==turn||points[i].count===0)continue;
+    for(var d=0;d<dice.length;d++){
+      var dest=turn==='w'?i-dice[d]:i+dice[d];
+      if(dest>=0&&dest<24&&(points[dest].count===0||points[dest].color===turn||points[dest].count===1))return true;
+    }
+  }
+  return false;
+}
+function canBearOff(){
+  var home=turn==='w'?{from:0,to:5}:{from:18,to:23};
+  var total=bar[turn];
+  for(var i=0;i<24;i++){
+    if(points[i].color===turn){
+      if(turn==='w'&&(i<home.from||i>home.to))return false;
+      if(turn==='b'&&(i<home.from||i>home.to))return false;
+      total+=points[i].count;
+    }
+  }
+  return total===0;
+}
+function moveFrom(p){
+  if(over||turn!=='w'||dice.length===0)return;
+  if(bar.w>0){
+    var entry=24-dice[0];
+    if(p!==entry)return;
+    // enter from bar
+    if(points[entry].count===0||points[entry].color==='w'){points[entry].count++;points[entry].color='w';bar.w--;dice.splice(0,1);}
+    else if(points[entry].count===1){points[entry].color='w';bar.w--;bar.b++;dice.splice(0,1);}
+    selected=-1;endTurn();return;
+  }
+  if(points[p].color!=='w'||points[p].count===0)return;
+  selected=p;render();
+}
+function moveTo(dest){
+  if(selected<0||over||turn!=='w')return;
+  var d=selected-dest;
+  var di=-1;for(var i=0;i<dice.length;i++)if(dice[i]===d)di=i;
+  // bear off
+  if(dest<0&&canBearOff()&&d>=dice[0]){di=0;}
+  if(dest<0&&di<0)return;
+  if(dest>=0&&di<0)return;
+  if(dest>=0){
+    if(points[dest].count>0&&points[dest].color!=='w'&&points[dest].count>1){selected=-1;render();return;}
+    if(points[dest].count===1&&points[dest].color==='b'){points[dest].color='w';bar.b++;}
+    else{points[dest].count++;}
+  }
+  points[selected].count--;
+  if(points[selected].count===0)points[selected].color='';
+  if(dest<0)borneOff.w++;
+  dice.splice(di,1);selected=-1;
+  if(borneOff.w>=15){over=true;msg='🎉 You win!';render();return;}
+  endTurn();
+}
+function endTurn(){
+  if(dice.length===0||!hasMoves()){
+    turn='b';dice=[];msg='AI thinking...';render();
+    setTimeout(aiTurn,500);return;
+  }
+  render();
+}
+function aiTurn(){
+  var d1=Math.floor(Math.random()*6)+1,d2=Math.floor(Math.random()*6)+1;
+  dice=d1===d2?[d1,d1,d1,d1]:[d1,d2];
+  // simple AI: move highest point first
+  for(var di=0;di<dice.length&&dice.length>0;di++){
+    var best=-1;
+    for(var i=23;i>=0;i--){
+      if(points[i].color!=='b'||points[i].count===0)continue;
+      var dest=i+dice[0];
+      if(canBearOff()&&dest>=24){best=i;break;}
+      if(dest<24&&(points[dest].count===0||points[dest].color==='b'||points[dest].count===1)){best=i;break;}
+    }
+    if(best>=0){
+      var dest=best+dice[0];
+      if(dest>=24&&canBearOff()){points[best].count--;if(points[best].count===0)points[best].color='';borneOff.b++;dice.splice(0,1);continue;}
+      if(dest<24){
+        if(points[dest].count===1&&points[dest].color==='w'){points[dest].color='b';bar.w++;}
+        else{points[dest].count++;}
+        points[best].count--;if(points[best].count===0)points[best].color='';
+        dice.splice(0,1);
+      }
+    }else{break;}
+  }
+  if(borneOff.b>=15){over=true;msg='🤖 AI wins!';turn='w';render();return;}
+  turn='w';dice=[];msg='Your turn — roll the dice';render();
+}
+function render(){
+  var h='<div style="text-align:center;margin-bottom:8px;font-size:14px;color:#2dd4ff;font-weight:700;">'+msg+'</div>';
+  h+='<div style="text-align:center;margin-bottom:6px;font-size:12px;color:#9ccbe0;">You: '+borneOff.w+'/15 borne off | AI: '+borneOff.b+'/15 borne off';
+  if(bar.w)h+=' | Bar: '+bar.w;
+  h+='</div>';
+  // board
+  h+='<div style="display:flex;justify-content:center;gap:2px;">';
+  // top row (points 13-23, then 12)
+  h+='<div style="display:flex;gap:1px;">';
+  for(var i=13;i<24;i++)h+=pointDiv(i,'top');
+  h+='</div>';
+  h+='<div style="width:20px;background:#1a2a3a;"></div>';
+  h+='<div style="display:flex;gap:1px;">'+pointDiv(12,'top')+'</div>';
+  h+='</div>';
+  h+='<div style="height:20px;background:#0a1a2a;display:flex;align-items:center;justify-content:center;font-size:11px;color:#666;">'+(bar.w?'⚪ Bar:'+bar.w:'')+(bar.b?' ⚫ Bar:'+bar.b:'')+'</div>';
+  h+='<div style="display:flex;justify-content:center;gap:2px;">';
+  h+='<div style="display:flex;gap:1px;">';
+  for(var i=11;i>=0;i--)h+=pointDiv(i,'bottom');
+  h+='</div>';
+  h+='<div style="width:20px;background:#1a2a3a;"></div>';
+  h+='<div style="display:flex;gap:1px;">'+pointDiv(11,'bottom')+'</div>';
+  h+='</div>';
+  // dice & buttons
+  h+='<div style="text-align:center;margin-top:10px;">';
+  if(dice.length)h+='<span style="font-size:20px;margin-right:8px;">🎲 '+dice.join(' ')+'</span>';
+  if(turn==='w'&&!dice.length&&!over)h+='<button onclick="window._bgRoll()" style="padding:8px 24px;background:linear-gradient(135deg,#39ff14,#2dd4ff);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:700;">🎲 Roll</button> ';
+  h+='<button onclick="window._bgInit()" style="padding:6px 16px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-weight:600;">New Game</button></div>';
+  h+='<div style="text-align:center;margin-top:6px;font-size:11px;color:#666;">Click your point, then click destination. White moves counter-clockwise (23→0).</div>';
+  document.getElementById('bg-app').innerHTML=h;
+}
+function pointDiv(i,pos){
+  var p=points[i];
+  var bg=i%2===0?'#1a3a2a':'#2a1a1a';
+  var sel=selected===i;
+  var ch='';
+  if(p.count>0){
+    var col=p.color==='w'?'#e6faff':'#ff4444';
+    ch='<div style="color:'+col+';font-size:11px;font-weight:700;">'+(p.count>1?p.count:'')+(p.color==='w'?'○':'●')+'</div>';
+  }
+  var clickFn=turn==='w'&&!over?((p.color==='w'&&p.count>0)?'window._bgFrom('+i+')':'window._bgTo('+i+')'):'';
+  return '<div onclick="'+clickFn+'" style="width:28px;height:60px;background:'+(sel?'#3a5a4a':bg)+';border:1px solid '+(sel?'#39ff14':'#0a1a2a')+';display:flex;align-items:center;justify-content:center;cursor:pointer;">'+ch+'</div>';
+}
+window._bgRoll=rollDice;window._bgFrom=moveFrom;window._bgTo=moveTo;window._bgInit=init;
+init();
+})();
+</script>

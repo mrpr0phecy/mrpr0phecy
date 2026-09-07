@@ -1,0 +1,95 @@
+<div id="edu-dna" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a08,#0d1b2a);border:1px solid #2a5a20;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#40c040">🧬 DNA → Protein Translator</h2>
+    <p style="margin:0 0 20px;color:#80a070;font-size:0.95em">Paste a DNA or mRNA sequence and watch it get transcribed and translated into amino acids — with a visual codon table</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="margin-bottom:10px">
+          <label style="font-size:0.82em;color:#80a070">Input type</label>
+          <select id="dt-type" style="width:100%;padding:8px;border-radius:6px;border:1px solid #2a5a20;background:#0a0a08;color:#e0d0c0;font-size:0.9em">
+            <option value="dna">DNA (template strand: TAC...)</option>
+            <option value="mrna">mRNA (codons: AUG...)</option>
+          </select>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:0.82em;color:#80a070">Sequence (spaces OK)</label>
+          <textarea id="dt-seq" style="width:100%;padding:8px;border-radius:6px;border:1px solid #2a5a20;background:#0a0a08;color:#40c040;font-family:monospace;font-size:0.9em;height:60px;resize:vertical;box-sizing:border-box" placeholder="TACAAAGGCTACTTTAATCGAACT">TACAAAGGCTACTTTAATCGAACT</textarea>
+        </div>
+        <button onclick="window._dtTranslate()" style="padding:8px 18px;border-radius:8px;border:1px solid #40c040;background:#0a2a08;color:#40c040;cursor:pointer;font-size:0.9em;width:100%">🧬 Translate</button>
+        <div id="dt-result" style="margin-top:12px"></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a3a1a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#40c040">The Central Dogma</b><br>
+          <div style="text-align:center;font-size:1.1em;margin:8px 0;color:#a0d080">DNA → mRNA → Protein</div>
+          <b style="color:#40c040">DNA Bases</b><br>
+          <div style="font-size:0.85em;color:#80a070">
+            <span style="color:#f04040">A</span>denine ↔ <span style="color:#4080f0">T</span>hymine<br>
+            <span style="color:#40c040">G</span>uanine ↔ <span style="color:#f0a040">C</span>ytosine
+          </div>
+          <br><b style="color:#40c040">mRNA Bases</b><br>
+          <div style="font-size:0.85em;color:#80a070">
+            <span style="color:#f04040">A</span>denine ↔ <span style="color:#f0c040">U</span>racil<br>
+            <span style="color:#40c040">G</span>uanine ↔ <span style="color:#f0a040">C</span>ytosine
+          </div>
+          <br><b style="color:#40c040">Start/Stop Codons</b><br>
+          <div style="font-size:0.85em;color:#80a070">
+            <b>AUG</b> = Start (Methionine)<br>
+            <b>UAA, UAG, UGA</b> = Stop
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const typeEl=document.getElementById('dt-type'),seqEl=document.getElementById('dt-seq');
+  const resultEl=document.getElementById('dt-result');
+  const codonTable={
+    UUU:'Phe',UUC:'Phe',UUA:'Leu',UUG:'Leu',CUU:'Leu',CUC:'Leu',CUA:'Leu',CUG:'Leu',
+    AUU:'Ile',AUC:'Ile',AUA:'Ile',AUG:'Met',GUU:'Val',GUC:'Val',GUA:'Val',GUG:'Val',
+    UCU:'Ser',UCC:'Ser',UCA:'Ser',UCG:'Ser',CCU:'Pro',CCC:'Pro',CCA:'Pro',CCG:'Pro',
+    ACU:'Thr',ACC:'Thr',ACA:'Thr',ACG:'Thr',GCU:'Ala',GCC:'Ala',GCA:'Ala',GCG:'Ala',
+    UAU:'Tyr',UAC:'Tyr',UAA:'STOP',UAG:'STOP',CAU:'His',CAC:'His',CAA:'Gln',CAG:'Gln',
+    AAU:'Asn',AAC:'Asn',AAA:'Lys',AAG:'Lys',GAU:'Asp',GAC:'Asp',GAA:'Glu',GAG:'Glu',
+    UGU:'Cys',UGC:'Cys',UGA:'STOP',UGG:'Trp',CGU:'Arg',CGC:'Arg',CGA:'Arg',CGG:'Arg',
+    AGU:'Ser',AGC:'Ser',AGA:'Arg',AGG:'Arg',GGU:'Gly',GGC:'Gly',GGA:'Gly',GGG:'Gly'
+  };
+  const aaColors={Phe:'#f08080',Leu:'#f06060',Ile:'#e05050',Met:'#ff4040',Val:'#d04040',Ser:'#f0a040',Pro:'#e09040',Thr:'#d08040',Ala:'#c07040',Tyr:'#f0c040',His:'#40c040',Gln:'#40b040',Asn:'#40a040',Lys:'#40f040',Asp:'#4080f0',Glu:'#4070e0',Cys:'#f0f040',Trp:'#c0c040',Arg:'#a060f0',Gly:'#8080f0',STOP:'#808080'};
+  function dnaToMrna(dna){
+    return dna.replace(/A/g,'U').replace(/T/g,'A').replace(/C/g,'X').replace(/G/g,'C').replace(/X/g,'G');
+  }
+  function translate(){
+    let seq=seqEl.value.toUpperCase().replace(/[^ATCGU]/g,'');
+    let mrna=typeEl.value==='dna'?dnaToMrna(seq):seq;
+    let codons=[];for(let i=0;i<mrna.length-2;i+=3)codons.push(mrna.slice(i,i+3));
+    let html='<div style="margin-bottom:10px"><div style="font-size:0.82em;color:#80a070;margin-bottom:4px">mRNA:</div>';
+    html+='<div style="font-family:monospace;font-size:0.95em;letter-spacing:2px;color:#40c040;word-break:break-all">'+mrna+'</div></div>';
+    html+='<div style="margin-bottom:10px"><div style="font-size:0.82em;color:#80a070;margin-bottom:4px">Codons → Amino Acids:</div>';
+    html+='<div style="display:flex;flex-wrap:wrap;gap:4px">';
+    let protein='';
+    codons.forEach((cd,i)=>{
+      const aa=codonTable[cd]||'?';
+      const col=aaColors[aa]||'#808080';
+      const isStop=aa==='STOP';
+      const isStart=cd==='AUG';
+      html+='<div style="text-align:center;padding:4px 6px;background:#060a04;border-radius:4px;border:1px solid '+col+'40">'+
+        '<div style="font-family:monospace;font-size:0.78em;color:'+col+'">'+cd+'</div>'+
+        '<div style="font-size:0.72em;color:'+col+';font-weight:bold">'+aa+'</div></div>';
+      if(!isStop)protein+=aa+'-';
+    });
+    html+='</div></div>';
+    if(protein){
+      html+='<div style="padding:10px;background:#060a04;border-radius:6px;border:1px solid #2a5a20">';
+      html+='<div style="font-size:0.82em;color:#80a070;margin-bottom:4px">Protein:</div>';
+      html+='<div style="font-family:monospace;color:#a0d080;font-size:0.9em">'+protein.slice(0,-1)+'</div>';
+      html+='</div>';
+    }
+    resultEl.innerHTML=html;
+  }
+  window._dtTranslate=translate;
+  typeEl.onchange=seqEl.oninput=translate;
+  translate();
+})();
+</script>

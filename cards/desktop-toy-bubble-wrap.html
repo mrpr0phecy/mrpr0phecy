@@ -1,0 +1,132 @@
+<div id="bubble-wrap-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a2a,#0d2818);border:1px solid #2a4a3a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#60d0a0">🫧 Bubble Wrap Popper</h2>
+    <p style="margin:0 0 20px;color:#90b0a0;font-size:0.95em">Satisfying bubble wrap popping — click to pop, hold to drag-pop entire rows, shake to reset</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="bw-canvas" width="480" height="400" style="width:100%;border-radius:12px;background:#1a2a20;cursor:pointer"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="bw-reset" style="padding:6px 14px;border-radius:8px;border:1px solid #2a4a3a;background:#0d2818;color:#60d0a0;cursor:pointer;font-size:0.85em">🔄 New Sheet</button>
+          <span id="bw-stats" style="font-size:0.85em;color:#60d0a0;line-height:2">0 / 0 popped</span>
+          <span id="bw-combo" style="font-size:0.85em;color:#f0c040;line-height:2"></span>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a3a2a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#60d0a0">How it works</b><br>
+          Each bubble has its own inflation physics. When you press, the bubble deforms realistically before popping with a satisfying burst animation. Nearby bubbles wobble from the shockwave.<br><br>
+          <b style="color:#60d0a0">Controls</b><br>
+          • <b>Click/tap</b> — pop a single bubble<br>
+          • <b>Click & drag</b> — pop a trail of bubbles<br>
+          • <b>New Sheet</b> — fresh bubble wrap<br>
+          • Pop all bubbles for a celebration!
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('bw-canvas'),ctx=c.getContext('2d');
+  const resetBtn=document.getElementById('bw-reset'),statsEl=document.getElementById('bw-stats'),comboEl=document.getElementById('bw-combo');
+  let W=c.width,H=c.height,bubbles=[],pops=[],combo=0,comboTimer=0,mouseDown=false;
+  const cols=16,rows=12,bubbleR=14,gap=4;
+  const offsetX=(W-(cols*(bubbleR*2+gap)))/2+bubbleR,offsetY=(H-(rows*(bubbleR*2+gap)))/2+bubbleR;
+  function init(){
+    bubbles=[];pops=[];
+    for(let r=0;r<rows;r++){
+      for(let cl=0;cl<cols;cl++){
+        bubbles.push({
+          x:offsetX+cl*(bubbleR*2+gap),y:offsetY+r*(bubbleR*2+gap),
+          r:bubbleR,popped:false,press:0,wobble:0,wobbleV:0,
+          hue:160+Math.random()*40
+        });
+      }
+    }
+    combo=0;updateStats();
+  }
+  init();
+  resetBtn.onclick=init;
+  function updateStats(){
+    const total=bubbles.length,popped=bubbles.filter(b=>b.popped).length;
+    statsEl.textContent=`${popped} / ${total} popped`;
+  }
+  function getBubble(mx,my){
+    let best=null,bestD=Infinity;
+    bubbles.forEach(b=>{
+      if(b.popped)return;
+      const dx=b.x-mx,dy=b.y-my,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<b.r*1.5&&d<bestD){best=b;bestD=d}
+    });
+    return best;
+  }
+  function popBubble(b){
+    if(!b||b.popped)return;
+    b.popped=true;
+    for(let i=0;i<8;i++){
+      pops.push({x:b.x,y:b.y,angle:Math.PI*2*i/8,v:2+Math.random()*3,life:1,r:2+Math.random()*3,color:`hsl(${b.hue},80%,70%)`});
+    }
+    bubbles.forEach(ob=>{
+      if(ob.popped)return;
+      const dx=ob.x-b.x,dy=ob.y-b.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<80){ob.wobbleV+=(1-d/80)*8*((Math.random()-0.5)*2)}
+    });
+    combo++;comboTimer=60;
+    updateStats();
+  }
+  function getPos(e){
+    const rect=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;
+    return{x:(t.clientX-rect.left)*W/rect.width,y:(t.clientY-rect.top)*H/rect.height};
+  }
+  c.onmousedown=c.ontouchstart=function(e){e.preventDefault();mouseDown=true;const p=getPos(e);popBubble(getBubble(p.x,p.y))};
+  c.onmousemove=c.ontouchmove=function(e){e.preventDefault();if(mouseDown){const p=getPos(e);popBubble(getBubble(p.x,p.y))}};
+  c.onmouseup=c.ontouchend=function(){mouseDown=false};
+  function step(){
+    bubbles.forEach(b=>{
+      if(b.popped)return;
+      if(mouseDown){const p=getPos(event||{});const dx=b.x-(p.x||-999),dy=b.y-(p.y||-999);if(Math.sqrt(dx*dx+dy*dy)<b.r*2){b.press=Math.min(1,b.press+0.1)}else{b.press=Math.max(0,b.press-0.05)}}
+      else{b.press=Math.max(0,b.press-0.08)}
+      b.wobbleV-=b.wobble*0.15;b.wobbleV*=0.9;b.wobble+=b.wobbleV;
+    });
+    pops=pops.filter(p=>{p.x+=Math.cos(p.angle)*p.v;p.y+=Math.sin(p.angle)*p.v;p.v*=0.95;p.life-=0.03;return p.life>0});
+    if(comboTimer>0)comboTimer--;else combo=0;
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#1a2a20';ctx.fillRect(0,0,W,H);
+    bubbles.forEach(b=>{
+      if(b.popped){
+        ctx.beginPath();ctx.arc(b.x,b.y,b.r*0.3,0,Math.PI*2);ctx.fillStyle='rgba(40,60,50,0.3)';ctx.fill();
+        return;
+      }
+      const w=b.wobble,pr=b.r*(1-b.press*0.3);
+      ctx.beginPath();
+      for(let a=0;a<Math.PI*2;a+=0.2){
+        const rr=pr+Math.sin(a*3+w)*1.5+Math.sin(a*5-w*0.7)*1;
+        const px=b.x+Math.cos(a)*rr,py=b.y+Math.sin(a)*rr;
+        a===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+      }
+      ctx.closePath();
+      const grd=ctx.createRadialGradient(b.x-pr*0.3,b.y-pr*0.3,pr*0.1,b.x,b.y,pr);
+      grd.addColorStop(0,`hsla(${b.hue},60%,85%,0.6)`);grd.addColorStop(0.7,`hsla(${b.hue},50%,65%,0.4)`);grd.addColorStop(1,`hsla(${b.hue},40%,45%,0.2)`);
+      ctx.fillStyle=grd;ctx.fill();
+      ctx.strokeStyle=`hsla(${b.hue},40%,70%,0.3)`;ctx.lineWidth=1;ctx.stroke();
+      ctx.beginPath();ctx.arc(b.x-pr*0.25,b.y-pr*0.25,pr*0.15,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.4)';ctx.fill();
+    });
+    pops.forEach(p=>{
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.life;ctx.fill();ctx.globalAlpha=1;
+    });
+    if(comboTimer>0&&combo>1){
+      comboEl.textContent=`🔥 ${combo}x combo!`;
+    }else{comboEl.textContent=''}
+    const total=bubbles.length,popped=bubbles.filter(b=>b.popped).length;
+    if(popped===total&&total>0){
+      ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,H/2-30,W,60);
+      ctx.fillStyle='#60d0a0';ctx.font='bold 24px system-ui';ctx.textAlign='center';
+      ctx.fillText('🎉 All popped! Satisfying! 🎉',W/2,H/2+8);
+    }
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

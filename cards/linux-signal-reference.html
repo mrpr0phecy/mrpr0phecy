@@ -1,0 +1,84 @@
+<div id="linux-signals" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#1a0a08,#0d1b2a);border:1px solid #5a3a2a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#f0a040">📡 Linux Process & Signal Reference</h2>
+    <p style="margin:0 0 20px;color:#b09070;font-size:0.95em">Complete reference of Linux signals, process states, and process management commands with examples</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <input id="lsig-search" type="text" placeholder="🔍 Search signals..." style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #5a3a2a;background:#0a0808;color:#f0a040;font-size:0.9em;margin-bottom:12px;box-sizing:border-box">
+        <div id="lsig-list" style="max-height:400px;overflow-y:auto"></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #3a2a1a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#f0a040">Process States</b><br>
+          <table style="width:100%;font-size:0.82em;border-collapse:collapse;margin-top:6px">
+            <tr style="border-bottom:1px solid #2a1a1a"><td style="padding:3px 6px;color:#f0a040;font-family:monospace">R</td><td style="padding:3px 6px;color:#b09070">Running / Runnable</td></tr>
+            <tr style="border-bottom:1px solid #2a1a1a"><td style="padding:3px 6px;color:#f0a040;font-family:monospace">S</td><td style="padding:3px 6px;color:#b09070">Sleeping (interruptible)</td></tr>
+            <tr style="border-bottom:1px solid #2a1a1a"><td style="padding:3px 6px;color:#f0a040;font-family:monospace">D</td><td style="padding:3px 6px;color:#b09070">Disk sleep (uninterruptible)</td></tr>
+            <tr style="border-bottom:1px solid #2a1a1a"><td style="padding:3px 6px;color:#f0a040;font-family:monospace">Z</td><td style="padding:3px 6px;color:#b09070">Zombie (defunct)</td></tr>
+            <tr style="border-bottom:1px solid #2a1a1a"><td style="padding:3px 6px;color:#f0a040;font-family:monospace">T</td><td style="padding:3px 6px;color:#b09070">Stopped / Traced</td></tr>
+            <tr><td style="padding:3px 6px;color:#f0a040;font-family:monospace">I</td><td style="padding:3px 6px;color:#b09070">Idle (kernel thread)</td></tr>
+          </table>
+          <br><b style="color:#f0a040">Kill Hierarchy</b><br>
+          <div style="font-size:0.85em;color:#b09070">
+            1. Try <b>SIGTERM</b> (15) first — graceful<br>
+            2. Wait a few seconds<br>
+            3. Try <b>SIGINT</b> (2) — interrupt<br>
+            4. Last resort: <b>SIGKILL</b> (9) — force<br><br>
+            <b>Never</b> kill PID 1 (init/systemd)<br>
+            <b>Never</b> kill D-state processes (I/O wait)
+          </div>
+          <br><b style="color:#f0a040">Quick Commands</b><br>
+          <code style="font-size:0.78em;color:#d0a080;background:#060606;padding:2px 6px;border-radius:4px">kill -l</code> — list all signals<br>
+          <code style="font-size:0.78em;color:#d0a080;background:#060606;padding:2px 6px;border-radius:4px">ps aux --sort=-%mem</code> — by memory<br>
+          <code style="font-size:0.78em;color:#d0a080;background:#060606;padding:2px 6px;border-radius:4px">pgrep -f pattern</code> — find by name<br>
+          <code style="font-size:0.78em;color:#d0a080;background:#060606;padding:2px 6px;border-radius:4px">pstree -p</code> — process tree
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const searchEl=document.getElementById('lsig-search'),listEl=document.getElementById('lsig-list');
+  const signals=[
+    {num:1,name:'SIGHUP',action:'Terminal hangup',use:'Reload config (daemons)',kill:'kill -1 PID',canCatch:true},
+    {num:2,name:'SIGINT',action:'Interrupt (Ctrl+C)',use:'Graceful stop',kill:'kill -2 PID',canCatch:true},
+    {num:3,name:'SIGQUIT',action:'Quit + core dump',use:'Debug quit',kill:'kill -3 PID',canCatch:true},
+    {num:4,name:'SIGILL',action:'Illegal instruction',use:'—',kill:'—',canCatch:false},
+    {num:5,name:'SIGTRAP',action:'Trace/breakpoint',use:'Debugging',kill:'—',canCatch:false},
+    {num:6,name:'SIGABRT',action:'Abort + core dump',use:'—',kill:'—',canCatch:false},
+    {num:8,name:'SIGFPE',action:'Floating point error',use:'—',kill:'—',canCatch:false},
+    {num:9,name:'SIGKILL',action:'Force kill (uncatchable)',use:'Last resort kill',kill:'kill -9 PID',canCatch:false},
+    {num:10,name:'SIGUSR1',action:'User-defined 1',use:'Custom (e.g. reopen logs)',kill:'kill -10 PID',canCatch:true},
+    {num:11,name:'SIGSEGV',action:'Segmentation fault',use:'—',kill:'—',canCatch:false},
+    {num:12,name:'SIGUSR2',action:'User-defined 2',use:'Custom',kill:'kill -12 PID',canCatch:true},
+    {num:13,name:'SIGPIPE',action:'Broken pipe',use:'Write to closed pipe',kill:'—',canCatch:true},
+    {num:14,name:'SIGALRM',action:'Timer expired',use:'timeout commands',kill:'—',canCatch:true},
+    {num:15,name:'SIGTERM',action:'Graceful termination',use:'Default kill signal',kill:'kill PID',canCatch:true},
+    {num:17,name:'SIGCHLD',action:'Child process exited',use:'Process management',kill:'—',canCatch:true},
+    {num:18,name:'SIGCONT',action:'Continue if stopped',use:'Resume process',kill:'kill -18 PID',canCatch:false},
+    {num:19,name:'SIGSTOP',action:'Stop (uncatchable)',use:'Pause process',kill:'kill -19 PID',canCatch:false},
+    {num:20,name:'SIGTSTP',action:'Stop (Ctrl+Z)',use:'Background process',kill:'kill -20 PID',canCatch:true},
+    {num:28,name:'SIGWINCH',action:'Window resize',use:'Terminal resize',kill:'—',canCatch:true},
+    {num:29,name:'SIGIO',action:'I/O ready',use:'Async I/O',kill:'—',canCatch:true},
+    {num:30,name:'SIGPWR',action:'Power failure',use:'UPS notification',kill:'—',canCatch:false},
+    {num:31,name:'SIGSYS',action:'Bad system call',use:'—',kill:'—',canCatch:false}
+  ];
+  function render(){
+    const q=searchEl.value.toLowerCase();
+    let filtered=signals;
+    if(q)filtered=filtered.filter(s=>s.name.toLowerCase().includes(q)||s.action.toLowerCase().includes(q)||s.use.toLowerCase().includes(q));
+    let html='';
+    filtered.forEach(s=>{
+      html+='<div style="padding:8px 12px;margin-bottom:4px;background:#0a0808;border-radius:6px;border-left:3px solid '+(s.canCatch?'#f0a040':'#f04040')+'">'+
+        '<div style="display:flex;justify-content:space-between"><span style="color:#f0a040;font-weight:bold;font-family:monospace">'+s.name+'</span>'+
+        '<span style="font-size:0.78em;color:#605030">Signal '+s.num+(s.canCatch?' · catchable':' · uncatchable')+'</span></div>'+
+        '<div style="font-size:0.85em;color:#b09070">'+s.action+'</div>'+
+        '<div style="font-size:0.82em;color:#807050">Use: '+s.use+'</div>'+
+        '<div style="font-size:0.82em;font-family:monospace;color:#d0a080;background:#060606;padding:2px 6px;border-radius:3px;margin-top:3px">'+s.kill+'</div></div>';
+    });
+    listEl.innerHTML=html||'<div style="text-align:center;padding:16px;color:#605030">No signals found</div>';
+  }
+  searchEl.oninput=render;render();
+})();
+</script>

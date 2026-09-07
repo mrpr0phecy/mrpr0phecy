@@ -1,0 +1,108 @@
+<h2>🐍 Snakes & Ladders</h2>
+<p class="description">Roll the dice and race to square 100! Ladders boost you up, snakes drag you down. Play against the AI on a beautiful animated board.</p>
+<div id="sl-app" style="max-width:500px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var pos=0,aiPos=0,turn=0,over=false,msg='🎲 Roll the dice!',rolling=false;
+var ladders={2:38,7:14,8:31,15:26,21:42,28:84,36:44,51:67,71:91,78:98,87:94};
+var snakes={16:6,46:25,49:11,62:19,64:60,74:53,89:68,92:88,95:75,99:80};
+var scores={you:0,ai:0};
+
+function init(){pos=0;aiPos=0;turn=0;over=false;msg='🎲 Roll the dice!';rolling=false;render();}
+
+function roll(){
+  if(over||turn!==0||rolling)return;
+  rolling=true;
+  var frames=10,frame=0,lastDie=1;
+  var anim=setInterval(function(){
+    lastDie=Math.floor(Math.random()*6)+1;
+    render(lastDie);
+    frame++;
+    if(frame>=frames){
+      clearInterval(anim);rolling=false;
+      var d=lastDie;
+      pos=Math.min(100,pos+d);
+      if(ladders[pos])pos=ladders[pos];
+      if(snakes[pos])pos=snakes[pos];
+      if(pos>=100){over=true;scores.you++;msg='🎉 You rolled '+d+' and won!';render();return;}
+      turn=1;msg='You rolled '+d+'. AI rolling...';render();
+      setTimeout(aiRoll,800);
+    }
+  },80);
+}
+
+function aiRoll(){
+  var d=Math.floor(Math.random()*6)+1;
+  aiPos=Math.min(100,aiPos+d);
+  if(ladders[aiPos])aiPos=ladders[aiPos];
+  if(snakes[aiPos])aiPos=snakes[aiPos];
+  if(aiPos>=100){over=true;scores.ai++;msg='🤖 AI rolled '+d+' and won!';render();return;}
+  turn=0;msg='AI rolled '+d+'. Your turn!';render();
+}
+
+function getXY(sq){
+  if(sq<=0)return{x:0,y:9};
+  sq--;
+  var row=Math.floor(sq/10),col=sq%10;
+  if(row%2===1)col=9-col;
+  return{x:col,y:9-row};
+}
+
+function render(dieVal){
+  var app=document.getElementById('sl-app');
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 12px;background:rgba(0,0,0,0.3);border-radius:8px;">'+
+    '<div style="font-size:13px;color:#39ff14;">🟢 You: <b>'+pos+'</b></div>'+
+    '<div style="font-size:14px;color:#2dd4ff;font-weight:700;">'+msg+'</div>'+
+    '<div style="font-size:13px;color:#ff4444;">🔴 AI: <b>'+aiPos+'</b></div>'+
+  '</div>';
+
+  // Dice display
+  var diceChars=['⚀','⚁','⚂','⚃','⚄','⚅'];
+  var die=dieVal||1;
+  h+='<div style="text-align:center;margin-bottom:10px;">'+
+    '<span style="font-size:48px;'+(rolling?'animation:spin 0.1s linear infinite;':'')+'">'+diceChars[die-1]+'</span>'+
+  '</div>';
+
+  // Board
+  h+='<div style="position:relative;background:linear-gradient(135deg,#0a1a2a,#0a2a1a);border-radius:10px;padding:6px;border:2px solid #2dd4ff;">';
+  h+='<div style="display:grid;grid-template-columns:repeat(10,1fr);gap:2px;">';
+  for(var r=9;r>=0;r--){
+    for(var c=0;c<10;c++){
+      var sq=(r%2===0)?(r*10+c+1):(r*10+(9-c)+1);
+      if(r%2===0)sq=r*10+c+1; else sq=r*10+(9-c)+1;
+      var bg='rgba(20,40,60,0.8)';
+      var border='1px solid rgba(45,212,255,0.1)';
+      var extra='';
+      if(ladders[sq]){bg='rgba(57,255,20,0.15)';border='1px solid rgba(57,255,20,0.3)';}
+      if(snakes[sq]){bg='rgba(255,77,77,0.15)';border='1px solid rgba(255,77,77,0.3)';}
+      if(sq===100){bg='rgba(255,215,0,0.2)';border='1px solid rgba(255,215,0,0.5)';}
+      var content='<span style="font-size:9px;color:rgba(230,250,255,0.3);">'+sq+'</span>';
+      if(ladders[sq])content='<span style="font-size:10px;">🪜</span>';
+      if(snakes[sq])content='<span style="font-size:10px;">🐍</span>';
+      if(sq===100)content='<span style="font-size:12px;">🏆</span>';
+      // Players
+      var pContent='';
+      if(pos===sq&&aiPos===sq)pContent='<span style="font-size:10px;">🟢🔴</span>';
+      else if(pos===sq)pContent='<span style="font-size:14px;">🟢</span>';
+      else if(aiPos===sq)pContent='<span style="font-size:14px;">🔴</span>';
+      h+='<div style="aspect-ratio:1;background:'+bg+';border:'+border+';border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;">'+
+        (pContent||content)+'</div>';
+    }
+  }
+  h+='</div></div>';
+
+  h+='<div style="display:flex;gap:8px;justify-content:center;margin-top:10px;">'+
+    '<button onclick="window._slRoll()" style="padding:10px 28px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.4);border-radius:8px;cursor:pointer;font-weight:700;font-size:16px;'+(over||turn!==0?'opacity:0.5;':'')+'">🎲 Roll</button>'+
+    '<button onclick="window._slInit()" style="padding:10px 20px;background:rgba(255,255,255,0.05);color:rgba(230,250,255,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;">New Game</button>'+
+  '</div>';
+
+  h+='<div style="text-align:center;margin-top:8px;font-size:12px;color:rgba(230,250,255,0.4);">🪜 Ladders go up · 🐍 Snakes go down · First to 🏆 wins!</div>';
+
+  app.innerHTML=h;
+}
+
+window._slRoll=roll;window._slInit=init;
+init();
+})();
+</script>

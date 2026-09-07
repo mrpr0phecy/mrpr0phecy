@@ -1,0 +1,93 @@
+<h2>🆔 UUID Generator</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Generate universally unique identifiers (UUIDs) v4 and v1. Bulk generate, copy, and download.</p>
+
+<div id="ug-app" style="max-width:600px;margin:0 auto;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#2dd4ff;font-size:12px;">Version</label>
+      <select id="ug-ver" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;">
+        <option value="4">v4 (Random)</option>
+        <option value="1">v1 (Timestamp)</option>
+      </select>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#2dd4ff;font-size:12px;">Count</label>
+      <input id="ug-count" type="number" min="1" max="1000" value="1" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="window._ugGenerate()" style="flex:1;padding:10px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;">Generate</button>
+    <button onclick="window._ugCopy()" style="padding:10px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:8px;color:#2dd4ff;cursor:pointer;">📋 Copy All</button>
+    <button onclick="window._ugDownload()" style="padding:10px 16px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.3);border-radius:8px;color:#ffa500;cursor:pointer;">⬇ Download</button>
+  </div>
+
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+    <label style="font-size:12px;color:rgba(230,250,255,0.5);display:flex;align-items:center;gap:4px;">
+      <input id="ug-upper" type="checkbox" style="accent-color:#2dd4ff;"> Uppercase
+    </label>
+    <label style="font-size:12px;color:rgba(230,250,255,0.5);display:flex;align-items:center;gap:4px;">
+      <input id="ug-nodash" type="checkbox" style="accent-color:#2dd4ff;"> No dashes
+    </label>
+    <label style="font-size:12px;color:rgba(230,250,255,0.5);display:flex;align-items:center;gap:4px;">
+      <input id="ug-braces" type="checkbox" style="accent-color:#2dd4ff;"> {Braces}
+    </label>
+  </div>
+
+  <div id="ug-output" style="padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.05);border-radius:8px;font-family:monospace;font-size:14px;color:#39ff14;min-height:60px;max-height:300px;overflow-y:auto;word-break:break-all;line-height:1.8;"></div>
+
+  <div id="ug-stats" style="margin-top:8px;font-size:12px;color:rgba(230,250,255,0.4);text-align:center;"></div>
+</div>
+
+<script>
+(function(){
+  function uuid4(){
+    var d=new Date().getTime();
+    if(typeof performance!=='undefined'&&performance.now)d+=performance.now()*1000;
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){
+      var r=(d+Math.random()*16)%16|0;
+      d=Math.floor(d/16);
+      return(c==='x'?r:(r&0x3|0x8)).toString(16);
+    });
+  }
+  function uuid1(){
+    var d=new Date().getTime();
+    var timeLow=(d&0xffffffff).toString(16).padStart(8,'0');
+    var timeMid=((d>>32)&0xffff).toString(16).padStart(4,'0');
+    var timeHi='1'+((d>>48)&0xfff).toString(16).padStart(3,'0');
+    var clock=Math.floor(Math.random()*0x3fff)|0x8000;
+    var node='';for(var i=0;i<6;i++)node+=Math.floor(Math.random()*256).toString(16).padStart(2,'0');
+    return timeLow+'-'+timeMid+'-'+timeHi+'-'+clock.toString(16).padStart(4,'0')+'-'+node;
+  }
+  function format(uuid){
+    var upper=document.getElementById('ug-upper').checked;
+    var noDash=document.getElementById('ug-nodash').checked;
+    var braces=document.getElementById('ug-braces').checked;
+    if(upper)uuid=uuid.toUpperCase();
+    if(noDash)uuid=uuid.replace(/-/g,'');
+    if(braces)uuid='{'+uuid+'}';
+    return uuid;
+  }
+  function generate(){
+    var ver=document.getElementById('ug-ver').value;
+    var count=Math.max(1,Math.min(1000,parseInt(document.getElementById('ug-count').value)||1));
+    var fn=ver==='1'?uuid1:uuid4;
+    var uuids=[];for(var i=0;i<count;i++)uuids.push(format(fn()));
+    document.getElementById('ug-output').textContent=uuids.join('\n');
+    document.getElementById('ug-stats').textContent=count+' UUID v'+ver+' generated';
+  }
+  function copy(){
+    var text=document.getElementById('ug-output').textContent;
+    if(navigator.clipboard){navigator.clipboard.writeText(text);}
+    else{var t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}
+  }
+  function download(){
+    var text=document.getElementById('ug-output').textContent;
+    var blob=new Blob([text],{type:'text/plain'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='uuids.txt';a.click();
+  }
+  window._ugGenerate=generate;window._ugCopy=copy;window._ugDownload=download;
+  ['ug-upper','ug-nodash','ug-braces'].forEach(function(id){document.getElementById(id).addEventListener('change',generate);});
+  generate();
+})();
+</script>

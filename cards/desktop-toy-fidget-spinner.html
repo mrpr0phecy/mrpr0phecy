@@ -1,0 +1,101 @@
+<div id="fidget-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a2a,#1a0a2a);border:1px solid #3a2a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#60a0f0">🌀 Fidget Spinner</h2>
+    <p style="margin:0 0 20px;color:#8090b0;font-size:0.95em">Spin a fidget spinner with realistic angular momentum — flick to spin, hold to accelerate, watch it slow down</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="fs-canvas" width="400" height="400" style="width:100%;border-radius:12px;background:#080a14;cursor:pointer"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="fs-flick" style="padding:6px 14px;border-radius:8px;border:1px solid #3a2a5a;background:#1a0a2a;color:#60a0f0;cursor:pointer;font-size:0.85em">👆 Flick</button>
+          <button id="fs-stop" style="padding:6px 14px;border-radius:8px;border:1px solid #3a2a5a;background:#1a0a2a;color:#60a0f0;cursor:pointer;font-size:0.85em">🛑 Stop</button>
+          <label style="font-size:0.82em;color:#8090b0">Friction <input id="fs-friction" type="range" min="0.99" max="0.9999" step="0.0001" value="0.9995" style="width:80px;vertical-align:middle"></label>
+          <label style="font-size:0.82em;color:#8090b0">Arms <input id="fs-arms" type="range" min="2" max="6" step="1" value="3" style="width:60px;vertical-align:middle"></label>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #2a1a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#60a0f0">How it works</b><br>
+          The spinner has angular momentum — it spins freely with very low friction. Each arm has weighted tips that create a satisfying gyroscopic effect. The faster it spins, the more stable it feels.<br><br>
+          <b style="color:#60a0f0">Controls</b><br>
+          • <b>Click & drag</b> — spin by dragging around center<br>
+          • <b>Flick</b> — give it a random spin<br>
+          • <b>Stop</b> — brake the spinner<br>
+          • <b>Friction</b> — how fast it slows down<br>
+          • <b>Arms</b> — number of spinner arms
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('fs-canvas'),ctx=c.getContext('2d');
+  const flickBtn=document.getElementById('fs-flick'),stopBtn=document.getElementById('fs-stop');
+  const frictionEl=document.getElementById('fs-friction'),armsEl=document.getElementById('fs-arms');
+  let W=c.width,H=c.height,cx=W/2,cy=H/2;
+  let angle=0,omega=0,dragging=false,lastAngle=0,glowIntensity=0;
+  let particles=[];
+  flickBtn.onclick=function(){omega+=(Math.random()>0.5?1:-1)*(15+Math.random()*20)};
+  stopBtn.onclick=function(){omega*=0.1};
+  function getAngle(e){const rect=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;const mx=(t.clientX-rect.left)*W/rect.width,my=(t.clientY-rect.top)*H/rect.height;return Math.atan2(my-cy,mx-cx)}
+  c.onmousedown=c.ontouchstart=function(e){e.preventDefault();dragging=true;lastAngle=getAngle(e)};
+  c.onmousemove=c.ontouchmove=function(e){e.preventDefault();if(!dragging)return;const a=getAngle(e);let da=a-lastAngle;if(da>Math.PI)da-=Math.PI*2;if(da<-Math.PI)da+=Math.PI*2;omega=da*0.5+omega*0.5;lastAngle=a};
+  c.onmouseup=c.ontouchend=function(){dragging=false};
+  function step(){
+    const friction=parseFloat(frictionEl.value);
+    if(!dragging)omega*=friction;
+    angle+=omega;
+    glowIntensity=Math.min(1,Math.abs(omega)*0.15);
+    if(Math.abs(omega)>3&&Math.random()<Math.abs(omega)*0.1){
+      const a=Math.random()*Math.PI*2,r=60+Math.random()*20;
+      particles.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r,vx:Math.cos(a)*2,vy:Math.sin(a)*2,life:1,hue:200+Math.random()*60});
+    }
+    particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vx*=0.96;p.vy*=0.96;p.life-=0.02;return p.life>0});
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#080a14';ctx.fillRect(0,0,W,H);
+    const n=parseInt(armsEl.value);
+    const armLen=80,tipR=18,centerR=20;
+    if(glowIntensity>0.1){
+      const grd=ctx.createRadialGradient(cx,cy,0,cx,cy,120);
+      grd.addColorStop(0,`rgba(96,160,240,${glowIntensity*0.15})`);grd.addColorStop(1,'rgba(96,160,240,0)');
+      ctx.fillStyle=grd;ctx.beginPath();ctx.arc(cx,cy,120,0,Math.PI*2);ctx.fill();
+    }
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
+    for(let i=0;i<n;i++){
+      const a=i*Math.PI*2/n;
+      ctx.save();ctx.rotate(a);
+      ctx.beginPath();ctx.moveTo(centerR-5,-6);ctx.lineTo(armLen-tipR,0);ctx.lineTo(centerR-5,6);ctx.closePath();
+      const armGrd=ctx.createLinearGradient(centerR,0,armLen,0);
+      armGrd.addColorStop(0,'#4a5a7a');armGrd.addColorStop(1,'#3a4a6a');
+      ctx.fillStyle=armGrd;ctx.fill();
+      ctx.strokeStyle='#5a6a8a';ctx.lineWidth=1;ctx.stroke();
+      const tipGrd=ctx.createRadialGradient(armLen-tipR+3,-3,2,armLen-tipR,0,tipR);
+      tipGrd.addColorStop(0,'#8aa0d0');tipGrd.addColorStop(0.5,'#5a70a0');tipGrd.addColorStop(1,'#3a4a6a');
+      ctx.beginPath();ctx.arc(armLen-tipR,0,tipR,0,Math.PI*2);ctx.fillStyle=tipGrd;ctx.fill();
+      ctx.strokeStyle='#6a80b0';ctx.lineWidth=1.5;ctx.stroke();
+      ctx.restore();
+    }
+    const cGrd=ctx.createRadialGradient(3,-3,2,0,0,centerR);
+    cGrd.addColorStop(0,'#7a8ab0');cGrd.addColorStop(0.5,'#4a5a7a');cGrd.addColorStop(1,'#2a3a5a');
+    ctx.beginPath();ctx.arc(0,0,centerR,0,Math.PI*2);ctx.fillStyle=cGrd;ctx.fill();
+    ctx.strokeStyle='#5a6a8a';ctx.lineWidth=2;ctx.stroke();
+    ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.fillStyle='#1a2a3a';ctx.fill();
+    ctx.restore();
+    particles.forEach(p=>{
+      ctx.beginPath();ctx.arc(p.x,p.y,2*p.life,0,Math.PI*2);
+      ctx.fillStyle=`hsla(${p.hue},80%,70%,${p.life})`;ctx.fill();
+    });
+    const rpm=Math.abs(omega)*60/(Math.PI*2)*60;
+    ctx.fillStyle='#60a0f0';ctx.font='11px system-ui';ctx.textAlign='center';
+    ctx.fillText(`${Math.floor(rpm)} RPM`,cx,H-10);
+    if(Math.abs(omega)>10){
+      ctx.fillStyle=`rgba(96,160,240,${glowIntensity*0.5})`;ctx.font='bold 14px system-ui';
+      ctx.fillText('🔥 SPINNING!',cx,25);
+    }
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

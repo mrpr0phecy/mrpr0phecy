@@ -1,0 +1,108 @@
+<div id="bouncy-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a0d,#0d1b2a);border:1px solid #2a5a3a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#40f080">🏀 Bouncy Ball Box</h2>
+    <p style="margin:0 0 20px;color:#80b090;font-size:0.95em">A box full of bouncy balls — shake, tilt, add gravity wells, and watch the chaos unfold</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="bb-canvas" width="480" height="440" style="width:100%;border-radius:12px;background:#080a08;cursor:pointer"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="bb-add" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">➕ Add 10</button>
+          <button id="bb-shake" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">🫨 Shake</button>
+          <button id="bb-gravity" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">🌀 Gravity Well</button>
+          <button id="bb-clear" style="padding:6px 12px;border-radius:8px;border:1px solid #2a5a3a;background:#0d2818;color:#40f080;cursor:pointer;font-size:0.82em">🗑️ Clear</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a3a2a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#40f080">How it works</b><br>
+          Each ball has position, velocity, and radius. They bounce off walls and each other with coefficient of restitution. Gravity wells attract nearby balls creating orbital patterns.<br><br>
+          <b style="color:#40f080">Controls</b><br>
+          • <b>Add 10</b> — spawn 10 random balls<br>
+          • <b>Shake</b> — randomize all velocities<br>
+          • <b>Gravity Well</b> — click to place an attractor<br>
+          • <b>Click/tap</b> — push balls away from cursor
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('bb-canvas'),ctx=c.getContext('2d');
+  const addBtn=document.getElementById('bb-add'),shakeBtn=document.getElementById('bb-shake');
+  const gravBtn=document.getElementById('bb-gravity'),clearBtn=document.getElementById('bb-clear');
+  let W=c.width,H=c.height,balls=[],wells=[],gravityMode=false;
+  function addBalls(n){
+    for(let i=0;i<n;i++){
+      const r=5+Math.random()*12;
+      balls.push({
+        x:r+Math.random()*(W-2*r),y:r+Math.random()*(H-2*r),
+        vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6,
+        r,color:`hsl(${Math.random()*360},80%,60%)`,trail:[]
+      });
+    }
+  }
+  addBalls(20);
+  addBtn.onclick=function(){addBalls(10)};
+  shakeBtn.onclick=function(){balls.forEach(b=>{b.vx+=(Math.random()-0.5)*15;b.vy+=(Math.random()-0.5)*15})};
+  gravBtn.onclick=function(){gravityMode=!gravityMode;gravBtn.style.background=gravityMode?'#2a5a3a':'#0d2818'};
+  clearBtn.onclick=function(){balls=[];wells=[]};
+  function getPos(e){const rect=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-rect.left)*W/rect.width,y:(t.clientY-rect.top)*H/rect.height}}
+  c.onmousedown=c.ontouchstart=function(e){
+    e.preventDefault();const p=getPos(e);
+    if(gravityMode){wells.push({x:p.x,y:p.y,strength:50+Math.random()*50});return}
+    balls.forEach(b=>{const dx=b.x-p.x,dy=b.y-p.y,d=Math.sqrt(dx*dx+dy*dy);if(d<100){b.vx+=dx/d*8;b.vy+=dy/d*8}});
+  };
+  function step(){
+    balls.forEach(b=>{
+      wells.forEach(w=>{
+        const dx=w.x-b.x,dy=w.y-b.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        if(d<200){b.vx+=dx/d*w.strength/d*0.5;b.vy+=dy/d*w.strength/d*0.5}
+      });
+      b.vy+=0.05;
+      b.vx*=0.999;b.vy*=0.999;
+      b.x+=b.vx;b.y+=b.vy;
+      b.trail.push({x:b.x,y:b.y});if(b.trail.length>15)b.trail.shift();
+      if(b.x<b.r){b.x=b.r;b.vx=Math.abs(b.vx)*0.85}
+      if(b.x>W-b.r){b.x=W-b.r;b.vx=-Math.abs(b.vx)*0.85}
+      if(b.y<b.r){b.y=b.r;b.vy=Math.abs(b.vy)*0.85}
+      if(b.y>H-b.r){b.y=H-b.r;b.vy=-Math.abs(b.vy)*0.85}
+    });
+    for(let i=0;i<balls.length;i++){
+      for(let j=i+1;j<balls.length;j++){
+        const a=balls[i],b=balls[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy),minD=a.r+b.r;
+        if(d<minD&&d>0.1){
+          const nx=dx/d,ny=dy/d,overlap=(minD-d)*0.5;
+          a.x-=nx*overlap;a.y-=ny*overlap;b.x+=nx*overlap;b.y+=ny*overlap;
+          const dvn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
+          if(dvn<0){a.vx-=dvn*nx*0.9;a.vy-=dvn*ny*0.9;b.vx+=dvn*nx*0.9;b.vy+=dvn*ny*0.9}
+        }
+      }
+    }
+    wells=wells.filter(w=>{w.strength*=0.998;return w.strength>1});
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#080a08';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='#1a2a1a';ctx.lineWidth=2;ctx.strokeRect(2,2,W-4,H-4);
+    wells.forEach(w=>{
+      const grd=ctx.createRadialGradient(w.x,w.y,0,w.x,w.y,40);
+      grd.addColorStop(0,'rgba(64,240,128,0.3)');grd.addColorStop(1,'rgba(64,240,128,0)');
+      ctx.beginPath();ctx.arc(w.x,w.y,40,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    });
+    balls.forEach(b=>{
+      if(b.trail.length>1){
+        ctx.beginPath();b.trail.forEach((t,i)=>{i===0?ctx.moveTo(t.x,t.y):ctx.lineTo(t.x,t.y)});
+        ctx.strokeStyle=b.color;ctx.globalAlpha=0.15;ctx.lineWidth=b.r*0.8;ctx.lineCap='round';ctx.stroke();ctx.globalAlpha=1;
+      }
+      const grd=ctx.createRadialGradient(b.x-b.r*0.3,b.y-b.r*0.3,b.r*0.1,b.x,b.y,b.r);
+      grd.addColorStop(0,'rgba(255,255,255,0.8)');grd.addColorStop(0.4,b.color);grd.addColorStop(1,'rgba(0,0,0,0.3)');
+      ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    });
+    ctx.fillStyle='#40f080';ctx.font='11px system-ui';ctx.textAlign='left';
+    ctx.fillText(`Balls: ${balls.length} · Wells: ${wells.length}${gravityMode?' · Click to place well':' · Click to push'}`,8,H-8);
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

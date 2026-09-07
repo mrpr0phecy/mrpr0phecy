@@ -1,0 +1,118 @@
+<div id="marble-run-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#1a1a08,#0d1b2a);border:1px solid #4a4a20;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#f0e060">🎱 Marble Run Builder</h2>
+    <p style="margin:0 0 20px;color:#b0a060;font-size:0.95em">Place ramps and bumpers, then release marbles and watch them roll with real physics</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="mr-canvas" width="480" height="500" style="width:100%;border-radius:12px;background:#0a0a08;cursor:crosshair"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="mr-ramp" style="padding:6px 12px;border-radius:8px;border:1px solid #4a4a20;background:#2a2a10;color:#f0e060;cursor:pointer;font-size:0.82em">📐 Ramp</button>
+          <button id="mr-bumper" style="padding:6px 12px;border-radius:8px;border:1px solid #4a4a20;background:#2a2a10;color:#f0e060;cursor:pointer;font-size:0.82em">⭕ Bumper</button>
+          <button id="mr-drop" style="padding:6px 12px;border-radius:8px;border:1px solid #4a4a20;background:#2a2a10;color:#f0e060;cursor:pointer;font-size:0.82em">🔴 Drop Marble</button>
+          <button id="mr-clear" style="padding:6px 12px;border-radius:8px;border:1px solid #4a4a20;background:#2a2a10;color:#f0e060;cursor:pointer;font-size:0.82em">🗑️ Clear</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #2a2a1a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#f0e060">How it works</b><br>
+          Marbles obey gravity and bounce off ramps and bumpers with realistic collision physics. Place objects to create a path from top to bottom.<br><br>
+          <b style="color:#f0e060">Controls</b><br>
+          • <b>Ramp</b> mode — click & drag to draw a ramp<br>
+          • <b>Bumper</b> mode — click to place a bouncy circle<br>
+          • <b>Drop Marble</b> — release from top<br>
+          • <b>Clear</b> — remove all objects<br>
+          • Marbles bounce off canvas edges
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('mr-canvas'),ctx=c.getContext('2d');
+  const rampBtn=document.getElementById('mr-ramp'),bumperBtn=document.getElementById('mr-bumper');
+  const dropBtn=document.getElementById('mr-drop'),clearBtn=document.getElementById('mr-clear');
+  let W=c.width,H=c.height,mode='ramp',ramps=[],bumpers=[],marbles=[],drawing=false,drawStart={x:0,y:0},drawEnd={x:0,y:0};
+  rampBtn.onclick=function(){mode='ramp';rampBtn.style.background='#4a4a20';bumperBtn.style.background='#2a2a10'};
+  bumperBtn.onclick=function(){mode='bumper';bumperBtn.style.background='#4a4a20';rampBtn.style.background='#2a2a10'};
+  dropBtn.onclick=function(){marbles.push({x:W/2+Math.random()*40-20,y:20,vx:Math.random()*2-1,vy:0,r:6,color:`hsl(${Math.random()*60+20},80%,60%)`,trail:[]})};
+  clearBtn.onclick=function(){ramps=[];bumpers=[];marbles=[]};
+  function getPos(e){const rect=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-rect.left)*W/rect.width,y:(t.clientY-rect.top)*H/rect.height}}
+  c.onmousedown=c.ontouchstart=function(e){e.preventDefault();const p=getPos(e);if(mode==='bumper'){bumpers.push({x:p.x,y:p.y,r:15+Math.random()*10});return}drawing=true;drawStart=p;drawEnd=p};
+  c.onmousemove=c.ontouchmove=function(e){e.preventDefault();if(drawing)drawEnd=getPos(e)};
+  c.onmouseup=c.ontouchend=function(){if(drawing&&mode==='ramp'){const dx=drawEnd.x-drawStart.x,dy=drawEnd.y-drawStart.y;if(Math.sqrt(dx*dx+dy*dy)>15)ramps.push({x1:drawStart.x,y1:drawStart.y,x2:drawEnd.x,y2:drawEnd.y})}drawing=false};
+  function step(){
+    marbles.forEach(m=>{
+      m.vy+=0.15;m.vx*=0.999;m.vy*=0.999;
+      m.x+=m.vx;m.y+=m.vy;
+      m.trail.push({x:m.x,y:m.y});if(m.trail.length>30)m.trail.shift();
+      if(m.x<m.r){m.x=m.r;m.vx=Math.abs(m.vx)*0.7}
+      if(m.x>W-m.r){m.x=W-m.r;m.vx=-Math.abs(m.vx)*0.7}
+      if(m.y>H-m.r){m.y=H-m.r;m.vy=-Math.abs(m.vy)*0.6;m.vx*=0.9}
+      if(m.y<m.r){m.y=m.r;m.vy=Math.abs(m.vy)*0.5}
+      ramps.forEach(r=>{
+        const dx=r.x2-r.x1,dy=r.y2-r.y1,len=Math.sqrt(dx*dx+dy*dy)||1;
+        const nx=-dy/len,ny=dx/len;
+        const t=((m.x-r.x1)*dx+(m.y-r.y1)*dy)/(len*len);
+        if(t>=-0.05&&t<=1.05){
+          const closestX=r.x1+dx*Math.max(0,Math.min(1,t)),closestY=r.y1+dy*Math.max(0,Math.min(1,t));
+          const dist=(m.x-closestX)*nx+(m.y-closestY)*ny;
+          if(Math.abs(dist)<m.r+3){
+            m.x=closestX+nx*(m.r+3)*(dist>0?1:-1);m.y=closestY+ny*(m.r+3)*(dist>0?1:-1);
+            const vn=m.vx*nx+m.vy*ny;
+            if((dist>0&&vn<0)||(dist<0&&vn>0)){
+              m.vx-=2*vn*nx*0.6;m.vy-=2*vn*ny*0.6;
+              const vt=m.vx*(dx/len)+m.vy*(dy/len);
+              m.vx-=vt*0.05*(dx/len);m.vy-=vt*0.05*(dy/len);
+            }
+          }
+        }
+      });
+      bumpers.forEach(b=>{
+        const dx=m.x-b.x,dy=m.y-b.y,d=Math.sqrt(dx*dx+dy*dy),minD=m.r+b.r;
+        if(d<minD&&d>0){
+          const nx=dx/d,ny=dy/d;
+          m.x=b.x+nx*minD;m.y=b.y+ny*minD;
+          const vn=m.vx*nx+m.vy*ny;
+          m.vx-=2*vn*nx*1.2;m.vy-=2*vn*ny*1.2;
+        }
+      });
+    });
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0a0a08';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='#3a3a20';ctx.lineWidth=1;
+    for(let y=0;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    for(let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+    ramps.forEach(r=>{
+      ctx.beginPath();ctx.moveTo(r.x1,r.y1);ctx.lineTo(r.x2,r.y2);
+      ctx.strokeStyle='#808040';ctx.lineWidth=5;ctx.lineCap='round';ctx.stroke();
+      ctx.strokeStyle='#a0a060';ctx.lineWidth=3;ctx.stroke();
+    });
+    bumpers.forEach(b=>{
+      const grd=ctx.createRadialGradient(b.x-2,b.y-2,0,b.x,b.y,b.r);
+      grd.addColorStop(0,'#f0e060');grd.addColorStop(1,'#806020');
+      ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+      ctx.strokeStyle='#a08030';ctx.lineWidth=2;ctx.stroke();
+    });
+    marbles.forEach(m=>{
+      if(m.trail.length>1){
+        ctx.beginPath();m.trail.forEach((t,i)=>{i===0?ctx.moveTo(t.x,t.y):ctx.lineTo(t.x,t.y)});
+        ctx.strokeStyle=m.color;ctx.globalAlpha=0.2;ctx.lineWidth=m.r;ctx.lineCap='round';ctx.stroke();ctx.globalAlpha=1;
+      }
+      const grd=ctx.createRadialGradient(m.x-m.r*0.3,m.y-m.r*0.3,m.r*0.1,m.x,m.y,m.r);
+      grd.addColorStop(0,'#fff');grd.addColorStop(0.3,m.color);grd.addColorStop(1,'#222');
+      ctx.beginPath();ctx.arc(m.x,m.y,m.r,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    });
+    if(drawing){
+      ctx.beginPath();ctx.moveTo(drawStart.x,drawStart.y);ctx.lineTo(drawEnd.x,drawEnd.y);
+      ctx.strokeStyle='rgba(160,160,80,0.5)';ctx.lineWidth=5;ctx.setLineDash([5,5]);ctx.stroke();ctx.setLineDash([]);
+    }
+    ctx.fillStyle='#f0e060';ctx.font='11px system-ui';ctx.textAlign='left';
+    ctx.fillText(`Mode: ${mode} · Ramps: ${ramps.length} · Bumpers: ${bumpers.length} · Marbles: ${marbles.length}`,8,H-8);
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>
