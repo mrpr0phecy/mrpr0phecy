@@ -14,7 +14,7 @@ const healthList = ['sleep-circadian-rem-calculator', 'crisis-offline-triage', '
 const financeList = ['fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax'];
 const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'element-hall', 'energy-watt-exchange', 'statistics-illusion-gallery', 'thermal-wall-simulator', 'structural-beam-stress', 'pipe-flow-simulator', 'room-acoustics-simulator', 'daylight-room-simulator', 'moisture-capillary-simulator'];
 const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
-const mathList = ['algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
+const mathList = ['mental-math-sprint-trainer', 'algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
   'van-de-graaff-electrostatic-generator',
   'gravitational-n-body-galaxy-collision',
@@ -448,7 +448,10 @@ const homeDIYList = [
   'fence-calculator',
   'plastering-calculator',
   'stud-framing-calculator',
- lculator',
+  'board-foot-lumber-calculator',
+  'stair-stringer-calculator',
+  'roof-pitch-rafter-calculator',
+  'drywall-calculator',
   'room-btu-hvac-calculator',
   'miter-bevel-angle-calculator',
   'laminate-flooring-calculator',
@@ -578,6 +581,4 @@ const manifest = files.map(file => {
 });
 
 fs.writeFileSync(outputFile, JSON.stringify(manifest, null, 2));
-console.log(`✅ cards.json updated with ${manifest.length} cards`);
-ll, 2));
 console.log(`✅ cards.json updated with ${manifest.length} cards`);
