@@ -321,7 +321,8 @@ const gapFillMap = {
   'html-to-markdown-converter': 'Writing & Language',
   'mean-median-mode-stdev': 'Mathematics',
   'syllable-counter': 'Writing & Language',
-  'karvonen-heart-rate-zones': 'Health & Fitness'
+  'karvonen-heart-rate-zones': 'Health & Fitness',
+  'note-frequency-calculator': 'Music & Audio'
 };
 
 const sportsList = [
