@@ -334,7 +334,8 @@ const gapFillMap = {
   'ieee-754-converter': 'SaaS & Business Killers',
   'guitar-fret-calculator': 'Music & Audio',
   'sleep-debt-calculator': 'Health & Fitness',
-  'loan-amortization-schedule': 'Finance & Money'
+  'loan-amortization-schedule': 'Finance & Money',
+  'sphere-cylinder-cone-volume': 'Mathematics'
 };
 
 const sportsList = [
