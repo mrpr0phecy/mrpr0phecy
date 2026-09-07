@@ -279,7 +279,12 @@ const gapFillMap = {
   'speaker-ohm-wiring-calculator': 'Science & Engineering',
   'mulch-coverage-calculator': 'Home & DIY',
   'garden-plant-spacing-calculator': 'Home & DIY',
-  'cubic-bezier-easing-preview': 'SaaS & Business Killers'
+  'cubic-bezier-easing-preview': 'SaaS & Business Killers',
+  'nginx-redirect-generator': 'SaaS & Business Killers',
+  'html-css-minifier': 'SaaS & Business Killers',
+  'ascii-hex-binary-text-converter': 'Writing & Language',
+  'uk-postcode-formatter': 'Productivity & Lifestyle',
+  'fiscal-quarter-finder': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
