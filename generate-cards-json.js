@@ -327,7 +327,8 @@ const gapFillMap = {
   'downlight-spacing-calculator': 'Home & DIY',
   'blood-pressure-category-guide': 'Health & Fitness',
   'turkey-thaw-cook-time': 'Culinary & Food Science',
-  'rice-water-ratio-calculator': 'Culinary & Food Science'
+  'rice-water-ratio-calculator': 'Culinary & Food Science',
+  'beaufort-wind-scale': 'Science & Engineering'
 };
 
 const sportsList = [
