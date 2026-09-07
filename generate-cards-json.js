@@ -181,7 +181,10 @@ const gapFillMap = {
   'unit-price-comparator': 'Finance & Money',
   'fluid-type-scale': 'Productivity & Lifestyle',
   'fabric-yardage-estimator': 'Productivity & Lifestyle',
-  'car-care-tracker': 'Home & DIY'
+  'car-care-tracker': 'Home & DIY',
+  'roman-numeral-converter': 'Mathematics',
+  'age-calculator-exact': 'Productivity & Lifestyle',
+  'business-days-working-days-calculator': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
@@ -298,7 +301,12 @@ const saasKillerList = [
   'html-table-generator',
   'curl-command-builder',
   'email-subject-line-tester',
-  'css-animation-generator'
+  'css-animation-generator',
+  // 2026-09-07 — high-search developer / designer lookups
+  'color-hex-rgb-hsl-converter',
+  'http-status-code-encyclopedia',
+  'mime-type-lookup-table',
+  'semver-compare-bump-calculator'
 ];
 
 // 2026-09-05 — ten survival & emergency-readiness tools. Matched exactly

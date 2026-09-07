@@ -1,0 +1,100 @@
+<h2 id="smvr-title" style="margin-top:0;color:var(--accent);">📦 SemVer Compare &amp; Bump</h2>
+
+<form aria-describedby="smvr-desc" onsubmit="event.preventDefault();">
+  <p id="smvr-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Compare two Semantic Versioning 2.0.0 strings, then bump major, minor, patch or a pre-release. Precedence follows the spec: major.minor.patch, then pre-release identifiers, build metadata ignored.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+    <div>
+      <label for="smvr-a" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Version A</label>
+      <input id="smvr-a" type="text" value="1.4.2" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+    <div>
+      <label for="smvr-b" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Version B</label>
+      <input id="smvr-b" type="text" value="1.5.0-rc.1" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+  </div>
+</form>
+<div id="smvr-cmp" style="padding:12px;border-radius:10px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);margin-bottom:12px;font-weight:800;color:var(--text);"></div>
+<div id="smvr-err" role="alert" style="display:none;margin-bottom:12px;padding:10px;border-radius:8px;background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.4);color:#ffb8b8;font-size:.82rem;"></div>
+<div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:6px;">Bump version A</div>
+<div id="smvr-bumps" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/;
+
+  function parse(str) {
+    var m = String(str).trim().replace(/^v/i, '').match(RE);
+    if (!m) return null;
+    return { major: +m[1], minor: +m[2], patch: +m[3], pre: m[4] ? m[4].split('.') : [], build: m[5] || '' };
+  }
+  function identCmp(a, b) {
+    var na = /^\d+$/.test(a), nb = /^\d+$/.test(b);
+    if (na && nb) {
+      var da = BigInt(a), db = BigInt(b);
+      return da < db ? -1 : da > db ? 1 : 0;
+    }
+    if (na && !nb) return -1;
+    if (!na && nb) return 1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+  function cmp(a, b) {
+    if (a.major !== b.major) return a.major < b.major ? -1 : 1;
+    if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1;
+    if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1;
+    if (!a.pre.length && b.pre.length) return 1;
+    if (a.pre.length && !b.pre.length) return -1;
+    var n = Math.max(a.pre.length, b.pre.length);
+    for (var i = 0; i < n; i++) {
+      if (i >= a.pre.length) return -1;
+      if (i >= b.pre.length) return 1;
+      var c = identCmp(a.pre[i], b.pre[i]);
+      if (c) return c;
+    }
+    return 0;
+  }
+  function fmt(v) {
+    var s = v.major + '.' + v.minor + '.' + v.patch;
+    if (v.pre.length) s += '-' + v.pre.join('.');
+    return s;
+  }
+  function copy(text, el) {
+    function done() { el.textContent = '✓ ' + text; setTimeout(function () { el.textContent = el.getAttribute('data-label'); }, 1200); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done);
+    else done();
+  }
+  function run() {
+    var A = parse($('smvr-a').value), B = parse($('smvr-b').value);
+    if (!A || !B) {
+      $('smvr-err').style.display = 'block';
+      $('smvr-err').textContent = 'Both values must be valid SemVer 2.0.0 (e.g. 1.2.3, 2.0.0-beta.1).';
+      $('smvr-cmp').textContent = 'Cannot compare yet.';
+      $('smvr-bumps').innerHTML = '';
+      return;
+    }
+    $('smvr-err').style.display = 'none';
+    var c = cmp(A, B);
+    $('smvr-cmp').textContent = c < 0 ? fmt(A) + '  <  ' + fmt(B) + '   (A is older)' : (c > 0 ? fmt(A) + '  >  ' + fmt(B) + '   (A is newer)' : fmt(A) + '  =  ' + fmt(B));
+    var bumps = [
+      ['Major', { major: A.major + 1, minor: 0, patch: 0, pre: [] }],
+      ['Minor', { major: A.major, minor: A.minor + 1, patch: 0, pre: [] }],
+      ['Patch', { major: A.major, minor: A.minor, patch: A.patch + 1, pre: [] }],
+      ['Pre-release', { major: A.major, minor: A.minor, patch: A.patch, pre: A.pre.length ? (function () { var p = A.pre.slice(); var last = p[p.length - 1]; if (/^\d+$/.test(last)) p[p.length - 1] = String(Number(last) + 1); else p.push('1'); return p; })() : ['0'] }]
+    ];
+    $('smvr-bumps').innerHTML = bumps.map(function (item) {
+      var v = fmt(item[1]);
+      return '<button type="button" data-v="' + v + '" data-label="' + item[0] + ' · ' + v + '" style="padding:10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text);cursor:pointer;text-align:left;"><div style="font-size:.72rem;color:var(--text-secondary);">' + item[0] + '</div><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:800;color:var(--accent);margin-top:3px;">' + v + '</div></button>';
+    }).join('');
+  }
+  $('smvr-bumps').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-v]');
+    if (btn) copy(btn.getAttribute('data-v'), btn);
+  });
+  $('smvr-a').addEventListener('input', run);
+  $('smvr-b').addEventListener('input', run);
+  run();
+})();
+</script>

@@ -1,0 +1,103 @@
+<h2 id="romn-title" style="margin-top:0;color:var(--accent);">🏛️ Roman Numeral Converter</h2>
+
+<form aria-describedby="romn-desc" onsubmit="event.preventDefault();">
+  <p id="romn-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert Arabic numbers 1–3999 to Roman numerals and back, with subtractive notation (IV, IX, XL, XC, CD, CM). Useful for outlines, clock faces, monarchs and Super Bowls.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="romn-num" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Number (1–3999)</label>
+      <input id="romn-num" type="number" min="1" max="3999" value="2026" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="romn-roman" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Roman numeral</label>
+      <input id="romn-roman" type="text" value="MMXXVI" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em;">
+    </div>
+  </div>
+</form>
+<div id="romn-out" style="margin-top:14px;padding:14px;border-radius:10px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);">
+  <div id="romn-big" style="font-size:1.6rem;font-weight:800;color:var(--accent);letter-spacing:.12em;"></div>
+  <div id="romn-note" style="font-size:.8rem;color:var(--text-secondary);margin-top:6px;"></div>
+</div>
+<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+  <button type="button" id="romn-copy" style="padding:8px 12px;background:rgba(45,212,255,.14);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;">Copy Roman</button>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var TABLE = [
+    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+    [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+  ];
+  var VAL = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  var lock = false;
+  var lastRoman = 'MMXXVI';
+
+  function toRoman(n) {
+    n = Math.floor(n);
+    if (n < 1 || n > 3999) return null;
+    var out = '';
+    for (var i = 0; i < TABLE.length; i++) {
+      while (n >= TABLE[i][0]) { out += TABLE[i][1]; n -= TABLE[i][0]; }
+    }
+    return out;
+  }
+  function fromRoman(s) {
+    s = s.toUpperCase().replace(/[^IVXLCDM]/g, '');
+    if (!s) return null;
+    var n = 0;
+    for (var i = 0; i < s.length; i++) {
+      var cur = VAL[s[i]], next = VAL[s[i + 1]] || 0;
+      if (!cur) return null;
+      n += cur < next ? -cur : cur;
+    }
+    if (n < 1 || n > 3999) return null;
+    if (toRoman(n) !== s) return null;
+    return n;
+  }
+  function fromNumber() {
+    if (lock) return;
+    var n = Number($('romn-num').value);
+    var r = toRoman(n);
+    if (!r) {
+      $('romn-big').textContent = 'Out of range';
+      $('romn-note').textContent = 'Classical Roman numerals cover 1–3999. Overline notation for larger values is not used here.';
+      return;
+    }
+    lastRoman = r;
+    lock = true;
+    $('romn-roman').value = r;
+    lock = false;
+    $('romn-big').textContent = n + '  =  ' + r;
+    $('romn-note').textContent = 'Subtractive pairs used: IV=4, IX=9, XL=40, XC=90, CD=400, CM=900.';
+  }
+  function fromText() {
+    if (lock) return;
+    var n = fromRoman($('romn-roman').value);
+    if (n == null) {
+      $('romn-big').textContent = 'Not a valid numeral';
+      $('romn-note').textContent = 'Use I V X L C D M with standard subtractive notation. IIII is rejected in favour of IV.';
+      return;
+    }
+    lastRoman = toRoman(n);
+    lock = true;
+    $('romn-num').value = n;
+    lock = false;
+    $('romn-big').textContent = lastRoman + '  =  ' + n;
+    $('romn-note').textContent = 'Normalised to standard form ' + lastRoman + '.';
+  }
+
+  $('romn-num').addEventListener('input', fromNumber);
+  $('romn-roman').addEventListener('input', fromText);
+  $('romn-copy').addEventListener('click', function () {
+    var btn = this;
+    function done() { btn.textContent = '✓ Copied'; setTimeout(function () { btn.textContent = 'Copy Roman'; }, 1400); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(lastRoman).then(done);
+    else done();
+  });
+  fromNumber();
+})();
+</script>

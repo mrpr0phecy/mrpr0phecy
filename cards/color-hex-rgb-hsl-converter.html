@@ -1,0 +1,140 @@
+<h2 id="clxc-title" style="margin-top:0;color:var(--accent);">🎨 Colour Converter HEX RGB HSL</h2>
+
+<form aria-describedby="clxc-desc" onsubmit="event.preventDefault();">
+  <p id="clxc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert any colour between HEX, RGB, HSL, HSV and CMYK, with a live swatch and one-click copy. Parsing is local — no eyedropper upload, no network.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+    <div>
+      <label for="clxc-hex" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">HEX</label>
+      <input id="clxc-hex" type="text" value="#2dd4ff" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+    <div>
+      <label for="clxc-pick" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Picker</label>
+      <input id="clxc-pick" type="color" value="#2dd4ff" aria-label="Colour picker" style="width:100%;height:42px;padding:4px;border-radius:8px;background:#071019;border:1px solid rgba(255,255,255,.16);cursor:pointer;">
+    </div>
+    <div>
+      <label for="clxc-rgb" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">RGB</label>
+      <input id="clxc-rgb" type="text" value="45, 212, 255" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+    <div>
+      <label for="clxc-hsl" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">HSL</label>
+      <input id="clxc-hsl" type="text" value="191, 100%, 59%" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+  </div>
+</form>
+
+<div style="display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:stretch;margin-bottom:12px;">
+  <div id="clxc-swatch" style="border-radius:12px;background:#2dd4ff;border:1px solid rgba(255,255,255,.2);min-height:88px;"></div>
+  <dl style="display:grid;grid-template-columns:70px 1fr;gap:4px 10px;margin:0;font-size:.82rem;">
+    <dt style="color:var(--text-secondary);">HEX</dt><dd id="clxc-o-hex" style="margin:0;color:#91f7ff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+    <dt style="color:var(--text-secondary);">RGB</dt><dd id="clxc-o-rgb" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+    <dt style="color:var(--text-secondary);">HSL</dt><dd id="clxc-o-hsl" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+    <dt style="color:var(--text-secondary);">HSV</dt><dd id="clxc-o-hsv" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+    <dt style="color:var(--text-secondary);">CMYK</dt><dd id="clxc-o-cmyk" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+  </dl>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;">
+  <button type="button" id="clxc-copy-hex" style="padding:8px 12px;background:rgba(45,212,255,.14);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;">Copy HEX</button>
+  <button type="button" id="clxc-copy-css" style="padding:8px 12px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.16);border-radius:8px;cursor:pointer;font-size:.8rem;">Copy CSS rgb()</button>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var lock = false;
+  var last = { hex: '#2DD4FF', rgb: 'rgb(45, 212, 255)' };
+
+  function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+  function hexByte(n) { return clamp(Math.round(n), 0, 255).toString(16).padStart(2, '0'); }
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), h = 0, s = 0, l = (max + min) / 2, d = max - min;
+    if (d) {
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+      else if (max === g) h = ((b - r) / d + 2) / 6;
+      else h = ((r - g) / d + 4) / 6;
+    }
+    return [h * 360, s * 100, l * 100];
+  }
+  function hslToRgb(h, s, l) {
+    h = ((h % 360) + 360) % 360 / 360; s /= 100; l /= 100;
+    if (s === 0) { var g = Math.round(l * 255); return [g, g, g]; }
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    var p = 2 * l - q;
+    function hue(t) {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    }
+    return [Math.round(hue(h + 1 / 3) * 255), Math.round(hue(h) * 255), Math.round(hue(h - 1 / 3) * 255)];
+  }
+  function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, h = 0, s = max === 0 ? 0 : d / max;
+    if (d) {
+      if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+      else if (max === g) h = ((b - r) / d + 2) / 6;
+      else h = ((r - g) / d + 4) / 6;
+    }
+    return [h * 360, s * 100, max * 100];
+  }
+  function rgbToCmyk(r, g, b) {
+    if (r === 0 && g === 0 && b === 0) return [0, 0, 0, 100];
+    var c = 1 - r / 255, m = 1 - g / 255, y = 1 - b / 255, k = Math.min(c, m, y);
+    return [((c - k) / (1 - k)) * 100, ((m - k) / (1 - k)) * 100, ((y - k) / (1 - k)) * 100, k * 100];
+  }
+  function parseHex(str) {
+    var s = str.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{3}$/i.test(s)) s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
+    if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+    return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
+  }
+  function parseTriplet(str) {
+    var m = str.match(/-?\d+(\.\d+)?/g);
+    if (!m || m.length < 3) return null;
+    return [Number(m[0]), Number(m[1]), Number(m[2])];
+  }
+  function show(r, g, b) {
+    r = clamp(Math.round(r), 0, 255); g = clamp(Math.round(g), 0, 255); b = clamp(Math.round(b), 0, 255);
+    var hex = '#' + hexByte(r) + hexByte(g) + hexByte(b);
+    var hsl = rgbToHsl(r, g, b);
+    var hsv = rgbToHsv(r, g, b);
+    var cmyk = rgbToCmyk(r, g, b);
+    last = { hex: hex.toUpperCase(), rgb: 'rgb(' + r + ', ' + g + ', ' + b + ')' };
+    $('clxc-swatch').style.background = hex;
+    $('clxc-o-hex').textContent = last.hex;
+    $('clxc-o-rgb').textContent = last.rgb;
+    $('clxc-o-hsl').textContent = 'hsl(' + Math.round(hsl[0]) + ', ' + Math.round(hsl[1]) + '%, ' + Math.round(hsl[2]) + '%)';
+    $('clxc-o-hsv').textContent = Math.round(hsv[0]) + '°, ' + Math.round(hsv[1]) + '%, ' + Math.round(hsv[2]) + '%';
+    $('clxc-o-cmyk').textContent = cmyk.map(function (n) { return Math.round(n) + '%'; }).join(' / ');
+    lock = true;
+    $('clxc-hex').value = last.hex;
+    $('clxc-pick').value = hex;
+    $('clxc-rgb').value = r + ', ' + g + ', ' + b;
+    $('clxc-hsl').value = Math.round(hsl[0]) + ', ' + Math.round(hsl[1]) + '%, ' + Math.round(hsl[2]) + '%';
+    lock = false;
+  }
+  function fromHex() { if (lock) return; var rgb = parseHex($('clxc-hex').value); if (rgb) show(rgb[0], rgb[1], rgb[2]); }
+  function fromRgb() { if (lock) return; var t = parseTriplet($('clxc-rgb').value); if (t) show(t[0], t[1], t[2]); }
+  function fromHsl() { if (lock) return; var t = parseTriplet($('clxc-hsl').value); if (t) { var rgb = hslToRgb(t[0], t[1], t[2]); show(rgb[0], rgb[1], rgb[2]); } }
+  function copy(text, btn, label) {
+    function done() { btn.textContent = '✓ Copied'; setTimeout(function () { btn.textContent = label; }, 1400); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done);
+    else done();
+  }
+
+  $('clxc-hex').addEventListener('input', fromHex);
+  $('clxc-pick').addEventListener('input', function () { if (!lock) { var rgb = parseHex(this.value); if (rgb) show(rgb[0], rgb[1], rgb[2]); } });
+  $('clxc-rgb').addEventListener('input', fromRgb);
+  $('clxc-hsl').addEventListener('input', fromHsl);
+  $('clxc-copy-hex').addEventListener('click', function () { copy(last.hex, this, 'Copy HEX'); });
+  $('clxc-copy-css').addEventListener('click', function () { copy(last.rgb, this, 'Copy CSS rgb()'); });
+  show(45, 212, 255);
+})();
+</script>
