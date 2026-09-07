@@ -341,7 +341,8 @@ const gapFillMap = {
   'ltv-mortgage-calculator': 'Finance & Money',
   'query-string-parser': 'SaaS & Business Killers',
   'carbon-14-dating-calculator': 'Museum & Collection',
-  'mohs-hardness-gallery': 'Museum & Collection'
+  'mohs-hardness-gallery': 'Museum & Collection',
+  'heraldry-blazon-workshop': 'Museum & Collection'
 };
 
 const sportsList = [
