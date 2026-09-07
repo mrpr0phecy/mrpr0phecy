@@ -318,7 +318,8 @@ const gapFillMap = {
   'nanoid-generator': 'SaaS & Business Killers',
   'srt-subtitle-time-shifter': 'SaaS & Business Killers',
   'skip-hire-volume-calculator': 'Home & DIY',
-  'html-to-markdown-converter': 'Writing & Language'
+  'html-to-markdown-converter': 'Writing & Language',
+  'mean-median-mode-stdev': 'Mathematics'
 };
 
 const sportsList = [
