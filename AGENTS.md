@@ -129,13 +129,47 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 Expect `200` and a count matching `cards/`. A green push is not proof of a
 live deploy.
 
-## 7. If unsure
+## 7. Finishing a session — land it on main
+
+**A pushed branch is not finished work.** Sessions here run on a per-session
+branch (`arena/…`) and cannot push to `main` directly; `main` only moves
+through a *merged* PR. That gap is how work goes missing: an agent does the
+work, opens a PR, the session ends, nobody merges it. Ten branches' worth sat
+like that until PR #27 drained them on 2026-09-07.
+
+So finishing the job includes merging it:
+
+```bash
+gh pr create --fill --base main          # once the work is ready
+gh pr checks <n> --watch                 # wait for green
+gh pr merge <n> --merge                  # land it — do not stop at "PR opened"
+git ls-remote origin refs/heads/main     # confirm main actually moved
+git push origin --delete arena/<branch>  # tidy up once merged
+```
+
+Rules:
+
+- **Never end a session with an open PR you could have merged.** If checks are
+  still running, use `gh pr merge --auto` and say so in your summary.
+- If you genuinely cannot merge (no permission, a check you cannot fix), say so
+  **explicitly**: PR number, link, and the blocker. Do not leave it implied.
+- **Never claim "nothing is lost" or "content landed in X" without verifying
+  it.** Compare trees by blob SHA first — `git ls-tree -r <branch>` against
+  `git ls-tree -r origin/main` — and count what actually differs. Vague
+  reassurance about salvaged work is worse than an honest gap, because the
+  owner has to be able to trust the status report.
+- If you deliberately skip part of a branch (PR #27 took `01a07c1d`'s `cards/`
+  but not its parallel `tools/` + `categories/` architecture), name the
+  excluded paths in the PR body so the next agent does not have to re-derive it.
+- Dependabot PRs count too. Merge them when checks are green, or say why not.
+
+## 8. If unsure
 
 Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.
 
-## 8. AI Developer staff & the Visual Design Expert
+## 9. AI Developer staff & the Visual Design Expert
 
 `.github/workflows/ai-developer.yml` runs **Mon & Thu 06:00 UTC** (or on
 demand: Actions → AI Developer → *Run workflow*). Its brain is
