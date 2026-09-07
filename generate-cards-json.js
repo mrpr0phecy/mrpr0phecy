@@ -330,7 +330,8 @@ const gapFillMap = {
   'rice-water-ratio-calculator': 'Culinary & Food Science',
   'beaufort-wind-scale': 'Science & Engineering',
   'clock-angle-calculator': 'Mathematics',
-  'radians-degrees-converter': 'Mathematics'
+  'radians-degrees-converter': 'Mathematics',
+  'ieee-754-converter': 'SaaS & Business Killers'
 };
 
 const sportsList = [
