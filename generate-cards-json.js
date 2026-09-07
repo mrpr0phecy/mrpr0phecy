@@ -347,7 +347,8 @@ const gapFillMap = {
   'younger-futhark-runes': 'Museum & Collection',
   'dewey-decimal-classifier': 'Museum & Collection',
   'messier-catalogue-hall': 'Museum & Collection',
-  'conservation-lux-hours': 'Museum & Collection'
+  'conservation-lux-hours': 'Museum & Collection',
+  'museum-tombstone-label': 'Museum & Collection'
 };
 
 const sportsList = [
