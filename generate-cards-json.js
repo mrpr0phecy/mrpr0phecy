@@ -254,7 +254,12 @@ const gapFillMap = {
   'pool-spa-volume-calculator': 'Home & DIY',
   'projector-throw-distance-calculator': 'Productivity & Lifestyle',
   'xml-beautifier-formatter': 'SaaS & Business Killers',
-  'color-harmony-palette-generator': 'SaaS & Business Killers'
+  'color-harmony-palette-generator': 'SaaS & Business Killers',
+  'mattress-size-converter': 'Productivity & Lifestyle',
+  'abv-proof-dilution-calculator': 'Culinary & Food Science',
+  'leap-year-weekday-finder': 'Productivity & Lifestyle',
+  'rule-of-72-doubling-calculator': 'Finance & Money',
+  'gallons-litres-pints-converter': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
