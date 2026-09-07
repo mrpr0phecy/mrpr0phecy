@@ -338,7 +338,8 @@ const gapFillMap = {
   'sphere-cylinder-cone-volume': 'Mathematics',
   'scrabble-score-calculator': 'Productivity & Lifestyle',
   'markdown-table-generator': 'Writing & Language',
-  'ltv-mortgage-calculator': 'Finance & Money'
+  'ltv-mortgage-calculator': 'Finance & Money',
+  'query-string-parser': 'SaaS & Business Killers'
 };
 
 const sportsList = [
