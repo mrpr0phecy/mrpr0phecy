@@ -352,7 +352,8 @@ const gapFillMap = {
   'pigment-cabinet-of-colour': 'Museum & Collection',
   'dinosaur-scale-hall': 'Museum & Collection',
   'japanese-era-nengo': 'Museum & Collection',
-  'british-regnal-years': 'Museum & Collection'
+  'british-regnal-years': 'Museum & Collection',
+  'sundial-gnomon-angle': 'Museum & Collection'
 };
 
 const sportsList = [
