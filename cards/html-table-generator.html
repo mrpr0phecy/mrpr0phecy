@@ -1,0 +1,69 @@
+<h2 id="htg-title" style="margin-top:0;color:var(--accent);">📋 HTML Table Generator</h2>
+
+<p id="htg-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Turn a quick list of headers and rows into accessible, escaped HTML table markup with a live preview. Paste pipe- or
+  comma-separated data, add an optional caption, and copy code that works cleanly in a web page or CMS block.
+</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+  <div><label for="htg-headers" style="display:block;font-size:.77rem;color:var(--text-secondary);margin-bottom:5px;">Column headers (comma-separated)</label><input id="htg-headers" type="text" value="Name, Role, Location" spellcheck="false" style="width:100%;padding:9px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"></div>
+  <div><label for="htg-caption" style="display:block;font-size:.77rem;color:var(--text-secondary);margin-bottom:5px;">Table caption (optional)</label><input id="htg-caption" type="text" value="Project team" spellcheck="false" style="width:100%;padding:9px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"></div>
+  <label for="htg-striped" style="display:flex;align-items:center;gap:7px;padding:10px 0;font-size:.78rem;color:var(--text-secondary);"><input id="htg-striped" type="checkbox" checked style="accent-color:var(--accent);"> Stripe preview rows</label>
+  <button type="button" id="htg-build" style="padding:10px 13px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;font-size:.83rem;">Build table</button>
+  <button type="button" id="htg-sample" style="padding:10px 11px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.16);border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;">Load sample</button>
+</div>
+
+<label for="htg-rows" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Rows — one per line; use <code>|</code> or commas between cells</label>
+<textarea id="htg-rows" rows="7" spellcheck="false" aria-describedby="htg-note" style="width:100%;box-sizing:border-box;padding:11px;border-radius:9px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.79rem;line-height:1.5;resize:vertical;">Ada Lovelace | Engineer | London
+Grace Hopper | Researcher | New York
+Alan Turing | Mathematician | Manchester</textarea>
+<div id="htg-note" style="font-size:.73rem;color:var(--text-secondary);margin:4px 0 12px;">Cells are escaped in the generated code, so a literal <code>&lt;</code> stays text rather than becoming markup. Add more or fewer cells than headers and blank cells are filled safely.</div>
+
+<div style="border:1px solid rgba(45,212,255,.25);border-radius:10px;background:rgba(45,212,255,.04);padding:12px;overflow:auto;margin-bottom:13px;"><div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:800;margin-bottom:8px;">Live preview</div><div id="htg-preview" aria-label="Generated table preview"></div></div>
+
+<label for="htg-output" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Accessible HTML markup</label>
+<textarea id="htg-output" rows="13" readonly spellcheck="false" aria-label="Generated accessible HTML table markup" style="width:100%;box-sizing:border-box;padding:11px;border-radius:9px;background:rgba(0,0,0,.3);color:#91f7ff;border:1px solid rgba(45,212,255,.3);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.76rem;line-height:1.5;resize:vertical;"></textarea>
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;"><button type="button" id="htg-copy" style="padding:8px 13px;background:rgba(45,212,255,.14);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-size:.81rem;font-weight:700;">Copy HTML</button><button type="button" id="htg-download" style="padding:8px 13px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.16);border-radius:8px;cursor:pointer;font-size:.81rem;">↓ Download .html</button><span id="htg-status" aria-live="polite" style="font-size:.76rem;color:var(--text-secondary);"></span></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function escapeHtml(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+  function splitLine(line) { return (line.indexOf('|') >= 0 ? line.split('|') : line.split(',')).map(function (cell) { return cell.trim(); }); }
+  function read() {
+    var headers = $('htg-headers').value.split(',').map(function (header, index) { return header.trim() || 'Column ' + (index + 1); }).filter(function (header) { return header; });
+    if (!headers.length) headers = ['Column 1'];
+    var rows = $('htg-rows').value.split(/\r?\n/).filter(function (line) { return line.trim(); }).map(splitLine);
+    return { headers: headers, rows: rows, caption: $('htg-caption').value.trim() };
+  }
+  function makeCode(data) {
+    var output = ['<table>'];
+    if (data.caption) output.push('  <caption>' + escapeHtml(data.caption) + '</caption>');
+    output.push('  <thead>', '    <tr>');
+    data.headers.forEach(function (header) { output.push('      <th scope="col">' + escapeHtml(header) + '</th>'); });
+    output.push('    </tr>', '  </thead>', '  <tbody>');
+    data.rows.forEach(function (row) { output.push('    <tr>'); data.headers.forEach(function (_, index) { output.push('      <td>' + escapeHtml(row[index] || '') + '</td>'); }); output.push('    </tr>'); });
+    output.push('  </tbody>', '</table>'); return output.join('\n');
+  }
+  function preview(data) {
+    var container = $('htg-preview'); container.innerHTML = '';
+    var table = document.createElement('table'); table.style.cssText = 'width:100%;border-collapse:collapse;font-size:.8rem;color:var(--text);min-width:420px;';
+    if (data.caption) { var caption = document.createElement('caption'); caption.textContent = data.caption; caption.style.cssText = 'caption-side:top;text-align:left;color:var(--text);font-weight:800;padding:0 0 7px;'; table.appendChild(caption); }
+    var head = document.createElement('thead'), headRow = document.createElement('tr');
+    data.headers.forEach(function (header) { var th = document.createElement('th'); th.scope = 'col'; th.textContent = header; th.style.cssText = 'padding:8px;text-align:left;border-bottom:1px solid rgba(45,212,255,.38);color:var(--accent);'; headRow.appendChild(th); }); head.appendChild(headRow); table.appendChild(head);
+    var body = document.createElement('tbody');
+    data.rows.forEach(function (row, rowIndex) { var tr = document.createElement('tr'); if ($('htg-striped').checked && rowIndex % 2) tr.style.background = 'rgba(255,255,255,.045)'; data.headers.forEach(function (_, index) { var td = document.createElement('td'); td.textContent = row[index] || ''; td.style.cssText = 'padding:8px;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:top;'; tr.appendChild(td); }); body.appendChild(tr); }); table.appendChild(body); container.appendChild(table);
+  }
+  function build() {
+    var data = read(); $('htg-output').value = makeCode(data); preview(data); $('htg-status').textContent = data.headers.length + ' columns · ' + data.rows.length + ' row' + (data.rows.length === 1 ? '' : 's') + ' · escaped HTML.';
+  }
+  function copyText(text, done) { if (!text) return; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); }); else fallback(text, done); }
+  function fallback(text, done) { var helper = document.createElement('textarea'); helper.value = text; helper.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(helper); helper.select(); try { document.execCommand('copy'); } catch (e) {} helper.remove(); done(); }
+  $('htg-build').addEventListener('click', build); $('htg-striped').addEventListener('change', build);
+  $('htg-sample').addEventListener('click', function () { $('htg-headers').value = 'Name, Role, Location'; $('htg-caption').value = 'Project team'; $('htg-rows').value = 'Ada Lovelace | Engineer | London\nGrace Hopper | Researcher | New York\nAlan Turing | Mathematician | Manchester'; build(); });
+  $('htg-copy').addEventListener('click', function () { copyText($('htg-output').value, function () { $('htg-copy').textContent = '✓ Copied'; setTimeout(function () { $('htg-copy').textContent = 'Copy HTML'; }, 1400); }); });
+  $('htg-download').addEventListener('click', function () { var blob = new Blob([$('htg-output').value + '\n'], { type: 'text/html;charset=utf-8' }); var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = 'table.html'; a.click(); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); });
+  build();
+})();
+</script>

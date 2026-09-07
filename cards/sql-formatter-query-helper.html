@@ -1,0 +1,112 @@
+<h2 id="sqlf-title" style="margin-top:0;color:var(--accent);">🗃️ SQL Formatter &amp; Query Helper</h2>
+
+<p id="sqlf-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Make a dense SQL query readable without sending it to a database. This formatter understands common SELECT, INSERT,
+  UPDATE and DELETE clauses, preserves quoted strings/comments, and can output compact SQL again when you need it.
+</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px;">
+  <button type="button" id="sqlf-format" style="padding:9px 13px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;font-size:.83rem;">Format SQL</button>
+  <button type="button" id="sqlf-minify" style="padding:9px 12px;background:rgba(45,212,255,.11);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-weight:800;font-size:.82rem;">Minify</button>
+  <button type="button" id="sqlf-sample" style="padding:9px 12px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.16);border-radius:8px;cursor:pointer;font-size:.81rem;">Load sample</button>
+  <label for="sqlf-upper" style="display:flex;align-items:center;gap:6px;margin-left:auto;padding:7px 0;font-size:.77rem;color:var(--text-secondary);"><input id="sqlf-upper" type="checkbox" checked style="accent-color:var(--accent);"> Uppercase SQL keywords</label>
+  <label for="sqlf-indent" style="font-size:.77rem;color:var(--text-secondary);">Indent <select id="sqlf-indent" style="margin-left:4px;padding:7px;border-radius:7px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"><option value="2">2 spaces</option><option value="4">4 spaces</option></select></label>
+</div>
+
+<label for="sqlf-input" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">SQL input</label>
+<textarea id="sqlf-input" rows="10" spellcheck="false" aria-label="SQL input" style="width:100%;box-sizing:border-box;padding:11px;border-radius:9px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.79rem;line-height:1.5;resize:vertical;">select users.id, users.name, count(orders.id) as order_count from users left join orders on orders.user_id = users.id where users.active = true and users.created_at >= '2025-01-01' group by users.id, users.name having count(orders.id) > 2 order by order_count desc limit 25;</textarea>
+
+<div id="sqlf-status" role="status" aria-live="polite" style="margin:10px 0;padding:9px 11px;border-radius:8px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.24);color:var(--text-secondary);font-size:.79rem;"></div>
+<label for="sqlf-output" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Formatted output</label>
+<textarea id="sqlf-output" rows="14" readonly spellcheck="false" aria-label="Formatted SQL output" style="width:100%;box-sizing:border-box;padding:11px;border-radius:9px;background:rgba(0,0,0,.3);color:#91f7ff;border:1px solid rgba(45,212,255,.3);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.79rem;line-height:1.52;resize:vertical;"></textarea>
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;"><button type="button" id="sqlf-copy" style="padding:8px 13px;background:rgba(45,212,255,.14);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-size:.81rem;font-weight:700;">Copy output</button><button type="button" id="sqlf-download" style="padding:8px 13px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.16);border-radius:8px;cursor:pointer;font-size:.81rem;">↓ Download .sql</button></div>
+
+<details style="margin-top:15px;color:var(--text-secondary);font-size:.8rem;"><summary style="cursor:pointer;color:var(--text);">A formatter is not a validator</summary><p style="margin:8px 0 0;">This tool only rearranges text; it never runs a query, verifies a schema or protects against SQL injection. Always use parameterised queries in application code, review generated SQL, and test it against the database that will execute it.</p></details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var keywordSet = new Set(['select', 'from', 'where', 'having', 'limit', 'offset', 'join', 'on', 'insert', 'into', 'values', 'update', 'set', 'delete', 'returning', 'union', 'all', 'distinct', 'as', 'left', 'right', 'inner', 'outer', 'full', 'cross', 'group', 'order', 'by', 'asc', 'desc', 'and', 'or', 'case', 'when', 'then', 'else', 'end', 'exists', 'in', 'is', 'null', 'not', 'like', 'between']);
+  var clauseStarts = new Set(['SELECT', 'FROM', 'WHERE', 'HAVING', 'LIMIT', 'OFFSET', 'INSERT INTO', 'UPDATE', 'SET', 'DELETE FROM', 'VALUES', 'RETURNING', 'UNION', 'UNION ALL', 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'OUTER JOIN', 'FULL JOIN', 'CROSS JOIN', 'GROUP BY', 'ORDER BY']);
+
+  function lex(sql) {
+    var result = [], current = '', i = 0;
+    function push() { if (current) { result.push(current); current = ''; } }
+    while (i < sql.length) {
+      var char = sql.charAt(i), next = sql.charAt(i + 1);
+      if (/\s/.test(char)) { push(); i++; continue; }
+      if (char === "'" || char === '"' || char === '`') {
+        push(); var quote = char, token = char; i++;
+        while (i < sql.length) { var c = sql.charAt(i); token += c; if (c === quote) { if (sql.charAt(i + 1) === quote && quote === "'") { token += quote; i += 2; continue; } i++; break; } if (c === '\\' && i + 1 < sql.length) { token += sql.charAt(i + 1); i += 2; } else i++; }
+        result.push(token); continue;
+      }
+      if (char === '-' && next === '-') { push(); var line = ''; while (i < sql.length && sql.charAt(i) !== '\n') { line += sql.charAt(i++); } result.push(line); continue; }
+      if (char === '/' && next === '*') { push(); var comment = '/*'; i += 2; while (i < sql.length && !(sql.charAt(i) === '*' && sql.charAt(i + 1) === '/')) comment += sql.charAt(i++); if (i < sql.length) { comment += '*/'; i += 2; } result.push(comment); continue; }
+      if (',();'.indexOf(char) !== -1) { push(); result.push(char); i++; continue; }
+      if ('=<>!+-*/'.indexOf(char) !== -1) { push(); var op = char; if ('=<>!'.indexOf(char) !== -1 && '=><'.indexOf(next) !== -1) { op += next; i++; } result.push(op); i++; continue; }
+      current += char; i++;
+    }
+    push(); return result;
+  }
+  function normalToken(token) { return $('sqlf-upper').checked && keywordSet.has(token.toLocaleLowerCase()) ? token.toLocaleUpperCase() : token; }
+  function joinToken(line, token) {
+    if (!line) return token;
+    if (token === ',' || token === ')' || token === ';') return line + token;
+    if (line.endsWith('(')) return line + token;
+    if (/^[=<>!+*/-]/.test(token) || /[=<>!+*/-]$/.test(line)) return line + ' ' + token;
+    return line + ' ' + token;
+  }
+  function compact(tokens) {
+    var line = '';
+    tokens.forEach(function (token) { line = joinToken(line, normalToken(token)); });
+    return line.replace(/\s+/g, ' ').trim();
+  }
+  function phraseAt(tokens, index) {
+    var one = tokens[index] ? tokens[index].toLocaleUpperCase() : '';
+    var two = tokens[index + 1] ? tokens[index + 1].toLocaleUpperCase() : '';
+    if ((one === 'GROUP' || one === 'ORDER' || one === 'INSERT' || one === 'DELETE' || one === 'UNION' || one === 'LEFT' || one === 'RIGHT' || one === 'INNER' || one === 'OUTER' || one === 'FULL' || one === 'CROSS') && (two === 'BY' || two === 'INTO' || two === 'FROM' || two === 'ALL' || two === 'JOIN')) return one + ' ' + two;
+    return one;
+  }
+  function format(tokens) {
+    var indent = ' '.repeat(Number($('sqlf-indent').value));
+    var lines = [], line = '', level = 0, clause = '';
+    function newline() { if (line.trim()) lines.push(indent.repeat(Math.max(0, level)) + line.trim()); line = ''; }
+    for (var i = 0; i < tokens.length; i++) {
+      var raw = tokens[i], phrase = phraseAt(tokens, i), use = raw;
+      if (phrase.indexOf(' ') > -1) { use = $('sqlf-upper').checked ? phrase : raw + ' ' + tokens[i + 1]; i++; }
+      else use = normalToken(raw);
+      var upper = String(use).toLocaleUpperCase();
+      if (clauseStarts.has(upper)) {
+        newline();
+        if (upper === 'SELECT') { line = use; newline(); level = 1; clause = 'SELECT'; continue; }
+        if (upper === 'UNION' || upper === 'UNION ALL') { level = 0; line = use; newline(); clause = upper; continue; }
+        line = use; clause = upper; continue;
+      }
+      if (upper === 'AND' || upper === 'OR') { newline(); line = use; continue; }
+      if (raw === '(') { line = joinToken(line, raw); level++; continue; }
+      if (raw === ')') { line = joinToken(line, raw); level = Math.max(0, level - 1); continue; }
+      if (raw === ',') { line = joinToken(line, raw); if (/SELECT|GROUP BY|ORDER BY|SET|VALUES/.test(clause) && level <= 1) newline(); continue; }
+      if (raw === ';') { line = joinToken(line, raw); newline(); clause = ''; level = 0; continue; }
+      if (raw.indexOf('--') === 0 || raw.indexOf('/*') === 0) { newline(); line = raw; newline(); continue; }
+      line = joinToken(line, use);
+    }
+    newline();
+    return lines.join('\n');
+  }
+  function run(minified) {
+    var source = $('sqlf-input').value.trim();
+    if (!source) { $('sqlf-output').value = ''; $('sqlf-status').textContent = 'Paste a SQL statement first.'; return; }
+    var tokens = lex(source); $('sqlf-output').value = minified ? compact(tokens) : format(tokens);
+    $('sqlf-status').textContent = tokens.length + ' tokens · ' + (minified ? 'whitespace compacted' : 'common clauses formatted') + ' · this query has not been run.';
+  }
+  function copyText(text, done) { if (!text) return; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); }); else fallback(text, done); }
+  function fallback(text, done) { var helper = document.createElement('textarea'); helper.value = text; helper.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(helper); helper.select(); try { document.execCommand('copy'); } catch (e) {} helper.remove(); done(); }
+  $('sqlf-format').addEventListener('click', function () { run(false); }); $('sqlf-minify').addEventListener('click', function () { run(true); });
+  $('sqlf-sample').addEventListener('click', function () { $('sqlf-input').value = "select users.id, users.name, count(orders.id) as order_count from users left join orders on orders.user_id = users.id where users.active = true and users.created_at >= '2025-01-01' group by users.id, users.name having count(orders.id) > 2 order by order_count desc limit 25;"; run(false); });
+  $('sqlf-upper').addEventListener('change', function () { run(false); }); $('sqlf-indent').addEventListener('change', function () { run(false); });
+  $('sqlf-copy').addEventListener('click', function () { copyText($('sqlf-output').value, function () { $('sqlf-copy').textContent = '✓ Copied'; setTimeout(function () { $('sqlf-copy').textContent = 'Copy output'; }, 1400); }); });
+  $('sqlf-download').addEventListener('click', function () { var blob = new Blob([$('sqlf-output').value + '\n'], { type: 'application/sql;charset=utf-8' }); var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = 'formatted-query.sql'; a.click(); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); });
+  run(false);
+})();
+</script>

@@ -11,7 +11,7 @@ If you need GitHub access in a fresh session, see
 (`bash scripts/agent-auth.sh`) plus the sparse-clone recipe. Use it instead of
 asking the owner to paste a token.
 
-Last substantive update: 2026-08-30.
+Last substantive update: 2026-09-07.
 
 For anything money-related — what earns, what the real numbers are, and what
 was deliberately not built — see **[INCOME.md](INCOME.md)**.
@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 664 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 684 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 664 tools
-│   └── <tool-name>.html    664 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 684 tools
+│   └── <tool-name>.html    684 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 664 cards.** They share one
+2. **Element IDs must be globally unique across all 684 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -187,11 +187,11 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (664 tools)
+### Categories (684 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 122 | Science & Engineering | | 21 | SaaS & Business Killers |
+| 122 | Science & Engineering | | 41 | SaaS & Business Killers |
 | 110 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
 | 47 | Writing & Language | | 10 | Wellbeing & Community |
 | 35 | Finance & Money | | 10 | Natural Remedies & Herbs |
@@ -538,8 +538,8 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 704 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 664 cards:
+`sitemap.xml` lists all 724 pages. Build it from git rather than the working
+tree, so a sparse checkout does not silently drop the 684 cards:
 
 ```python
 import subprocess, datetime
@@ -588,7 +588,7 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`index.html` has no links to cards.** Everything is driven by `cards.json`.
 
-**ID collisions across cards.** All 664 share one DOM. See §3.
+**ID collisions across cards.** All 684 share one DOM. See §3.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -618,7 +618,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 664 cards):
+# Music work (skip images and the 684 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -799,11 +799,52 @@ home with **no smoke alarm at all** still score "Needs work", because good habit
 elsewhere offset it. Nothing compensates for not being woken up, so `alarm ===
 'none'` now floors the risk at 60 ("Genuinely risky") regardless of the rest.
 
-Tool count is now **664** across **27 categories**, and the sitemap has **704**
+At that point, the tool count reached **664** across **27 categories**, and the sitemap had **704**
 URLs (updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS,
 index.html including its JSON-LD `ItemList`, 404.html, tool.html, donate.html,
 sponsor.html, plus the `KNOWN_CATEGORIES` set in `scripts/check-cards.py` and a
 new `count-survival` pill in `index.html`).
+
+**Added 2026-09-07** — ten high-intent, privacy-first web utilities aimed at practical developer, designer and content-creator searches. All are self-contained browser tools in **SaaS & Business Killers** — no API calls, accounts, tracking or uploads:
+
+| Card | What it does |
+|---|---|
+| `text-case-slug-converter` | Human-readable, code-style and URL-slug case conversion with per-format copying |
+| `uuid-ulid-generator` | Cryptographically random UUID v4, UUID v7 and ULID batches with copy/download |
+| `unix-timestamp-date-converter` | Seconds/milliseconds ↔ local date, UTC, ISO 8601 and relative time conversion |
+| `url-encoder-query-builder` | Component/full-URL encoding plus editable query-string parsing and rebuilding |
+| `html-entity-encoder-decoder` | HTML escaping, entity decoding, optional numeric encoding and a Unicode character inspector |
+| `lorem-ipsum-placeholder-generator` | Classic or readable placeholder copy in text, HTML or Markdown |
+| `text-diff-checker` | Local LCS-based line/word diff with whitespace/case options and copyable unified output |
+| `css-box-shadow-generator` | Live visual shadow controls, presets, inset support and copyable CSS |
+| `css-grid-layout-generator` | Live grid-track, gap, alignment and featured-cell span controls with copyable CSS |
+| `robots-sitemap-generator` | Valid robots.txt and same-host sitemap.xml generation from an entered URL list |
+
+`saasKillerList` then held **31** cards. The catalogue reached **674 tools** across
+**27 categories**; `sitemap.xml` had **714 URLs**. Counts, the homepage ItemList,
+category pill and supporting page metadata were synchronized.
+
+**Added 2026-09-07, second utility batch** — ten more high-intent, local-first
+browser utilities for developer, designer and business workflows. They were
+checked against the existing catalogue to avoid duplicating its JSON formatter,
+fluid typography and related CSS utilities:
+
+| Card | What it does |
+|---|---|
+| `css-border-radius-generator` | Linked or independent corner controls, presets and compact copyable CSS shorthand |
+| `css-flexbox-playground` | Live direction, alignment, wrapping, gap and item-count Flexbox preview with CSS export |
+| `css-filter-generator` | Adjustable CSS image filters, named presets and copyable `filter` declaration |
+| `favicon-svg-icon-generator` | Local SVG favicon creation with shape, colours, gradient, character mark and data-URI export |
+| `sql-formatter-query-helper` | Browser-only SQL formatter/minifier with indentation and keyword-case controls; never runs a query |
+| `mock-data-generator` | Seeded fictional customer, product or event records exported as JSON, CSV or SQL inserts |
+| `html-table-generator` | Accessible table markup from editable headers/rows, live preview and safe HTML escaping |
+| `curl-command-builder` | Validated HTTP request settings, editable headers, JSON-body validation and shell-safe cURL output |
+| `email-subject-line-tester` | Mobile/desktop inbox previews, transparent writing score and editing prompts — not a deliverability claim |
+| `css-animation-generator` | Keyframes, timing controls, replayable preview and reduced-motion fallback CSS |
+
+`saasKillerList` now holds **41** cards. The catalogue now has **684 tools**
+across **27 categories**; `sitemap.xml` has **724 URLs**. Counts, homepage
+structured data, category pills and supporting page metadata were synchronized.
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —
