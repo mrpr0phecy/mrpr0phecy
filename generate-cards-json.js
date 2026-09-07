@@ -315,7 +315,8 @@ const gapFillMap = {
   'waist-to-height-ratio': 'Health & Fitness',
   'delay-time-bpm-calculator': 'Music & Audio',
   'meat-internal-temperature-guide': 'Culinary & Food Science',
-  'nanoid-generator': 'SaaS & Business Killers'
+  'nanoid-generator': 'SaaS & Business Killers',
+  'srt-subtitle-time-shifter': 'SaaS & Business Killers'
 };
 
 const sportsList = [
