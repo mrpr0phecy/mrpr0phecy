@@ -314,7 +314,8 @@ const gapFillMap = {
   'pro-rata-salary-calculator': 'Finance & Money',
   'waist-to-height-ratio': 'Health & Fitness',
   'delay-time-bpm-calculator': 'Music & Audio',
-  'meat-internal-temperature-guide': 'Culinary & Food Science'
+  'meat-internal-temperature-guide': 'Culinary & Food Science',
+  'nanoid-generator': 'SaaS & Business Killers'
 };
 
 const sportsList = [
