@@ -259,7 +259,12 @@ const gapFillMap = {
   'abv-proof-dilution-calculator': 'Culinary & Food Science',
   'leap-year-weekday-finder': 'Productivity & Lifestyle',
   'rule-of-72-doubling-calculator': 'Finance & Money',
-  'gallons-litres-pints-converter': 'Productivity & Lifestyle'
+  'gallons-litres-pints-converter': 'Productivity & Lifestyle',
+  'acres-hectares-sqm-converter': 'Productivity & Lifestyle',
+  'bar-psi-kpa-pressure-converter': 'Productivity & Lifestyle',
+  'knots-mph-kph-converter': 'Productivity & Lifestyle',
+  'duplicate-line-remover-sorter': 'Writing & Language',
+  'julian-day-date-converter': 'Astronomy & Space'
 };
 
 const sportsList = [
