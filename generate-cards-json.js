@@ -306,7 +306,8 @@ const gapFillMap = {
   'stripe-paypal-fee-calculator': 'Finance & Money',
   'css-specificity-calculator': 'SaaS & Business Killers',
   'json-flatten-unflatten': 'SaaS & Business Killers',
-  'quadratic-equation-solver': 'Math & Logic Lab'
+  'quadratic-equation-solver': 'Mathematics',
+  'pythagoras-triangle-solver': 'Mathematics'
 };
 
 const sportsList = [
