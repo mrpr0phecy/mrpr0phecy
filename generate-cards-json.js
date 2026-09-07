@@ -344,7 +344,8 @@ const gapFillMap = {
   'mohs-hardness-gallery': 'Museum & Collection',
   'heraldry-blazon-workshop': 'Museum & Collection',
   'egyptian-hieroglyph-alphabet': 'Museum & Collection',
-  'younger-futhark-runes': 'Museum & Collection'
+  'younger-futhark-runes': 'Museum & Collection',
+  'dewey-decimal-classifier': 'Museum & Collection'
 };
 
 const sportsList = [
