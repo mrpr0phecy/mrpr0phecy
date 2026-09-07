@@ -345,7 +345,8 @@ const gapFillMap = {
   'heraldry-blazon-workshop': 'Museum & Collection',
   'egyptian-hieroglyph-alphabet': 'Museum & Collection',
   'younger-futhark-runes': 'Museum & Collection',
-  'dewey-decimal-classifier': 'Museum & Collection'
+  'dewey-decimal-classifier': 'Museum & Collection',
+  'messier-catalogue-hall': 'Museum & Collection'
 };
 
 const sportsList = [
