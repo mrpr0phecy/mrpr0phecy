@@ -896,6 +896,10 @@ page metadata were synchronized.
 
 Also in this pass: a responsive hardening of `index.html` — the sticky search input can now shrink (`min-width: 0`), toolbar actions wrap, the directory grid drops to one column at ≤480px, the standalone modal goes icon-only at ≤640px, notifications clamp to the viewport, rating footers get room for their vote counts, and the header dock pills become a horizontal scroll strip at ≤700px.
 
+**Fixed 2026-09-07 — whole cards spinning.** Card fragments share one DOM, and six of them defined a global `.loading` CSS class (notably `censorship-monitor`'s `animation: spin`). The catalogue shell also used `class="loading"` on unloaded card placeholders, so injected card styles made entire cards rotate. The shell now uses `card-pending`, censorship-monitor's live spinner is scoped to `.censor-loading`, and the five dead `.loading` rules (dog-photo-viewer, microbiology, sheet-music, transformer-calculator, youtube-dj) were deleted. Lesson: never use a bare generic class name for shell chrome — any card can hijack it.
+
+**Redesigned 2026-09-07 — aurora glass homepage.** Dramatic pure-CSS overhaul of `index.html` chrome: two slowly drifting aurora background layers, frosted-glass hero panel with an animated sheen title, glass search/dock/category/toolbar pills, smoked-glass cards with neon hover glow, and matching directory/footer/sticky/modal treatments. No IDs, classes or JS behaviour changed — search, filters, lazy-load, toolbox and modal all work as before. Cards deliberately have no per-card `backdrop-filter` (perf with hundreds of cards); translucency carries the effect. `prefers-reduced-motion` freezes all of it via the existing global kill-switch.
+
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —
 now replaced with the real catalogue; a 404'd `og:image`; a mangled duplicated
