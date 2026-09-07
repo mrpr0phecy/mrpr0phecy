@@ -289,7 +289,12 @@ const gapFillMap = {
   'gitignore-template-builder': 'SaaS & Business Killers',
   'diceware-passphrase-generator': 'SaaS & Business Killers',
   'tabata-interval-timer': 'Health & Fitness',
-  'lumen-lux-calculator': 'Science & Engineering'
+  'lumen-lux-calculator': 'Science & Engineering',
+  'vcard-contact-generator': 'Productivity & Lifestyle',
+  'ics-event-builder': 'Productivity & Lifestyle',
+  'nato-phonetic-speller': 'Writing & Language',
+  'wind-chill-calculator': 'Science & Engineering',
+  'cors-header-builder': 'SaaS & Business Killers'
 };
 
 const sportsList = [
