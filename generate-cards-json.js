@@ -349,7 +349,8 @@ const gapFillMap = {
   'messier-catalogue-hall': 'Museum & Collection',
   'conservation-lux-hours': 'Museum & Collection',
   'museum-tombstone-label': 'Museum & Collection',
-  'pigment-cabinet-of-colour': 'Museum & Collection'
+  'pigment-cabinet-of-colour': 'Museum & Collection',
+  'dinosaur-scale-hall': 'Museum & Collection'
 };
 
 const sportsList = [
