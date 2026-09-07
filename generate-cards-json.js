@@ -353,7 +353,8 @@ const gapFillMap = {
   'dinosaur-scale-hall': 'Museum & Collection',
   'japanese-era-nengo': 'Museum & Collection',
   'british-regnal-years': 'Museum & Collection',
-  'sundial-gnomon-angle': 'Museum & Collection'
+  'sundial-gnomon-angle': 'Museum & Collection',
+  'architectural-orders-column': 'Museum & Collection'
 };
 
 const sportsList = [
