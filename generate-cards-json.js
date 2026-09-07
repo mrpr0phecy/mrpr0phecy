@@ -325,7 +325,8 @@ const gapFillMap = {
   'note-frequency-calculator': 'Music & Audio',
   'dividend-yield-calculator': 'Finance & Money',
   'downlight-spacing-calculator': 'Home & DIY',
-  'blood-pressure-category-guide': 'Health & Fitness'
+  'blood-pressure-category-guide': 'Health & Fitness',
+  'turkey-thaw-cook-time': 'Culinary & Food Science'
 };
 
 const sportsList = [
