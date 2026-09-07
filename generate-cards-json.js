@@ -194,7 +194,12 @@ const gapFillMap = {
   'fuel-economy-mpg-converter': 'Productivity & Lifestyle',
   'tv-viewing-distance-calculator': 'Productivity & Lifestyle',
   'print-dpi-photo-size-calculator': 'SaaS & Business Killers',
-  'video-bitrate-file-size-calculator': 'SaaS & Business Killers'
+  'video-bitrate-file-size-calculator': 'SaaS & Business Killers',
+  'shoe-size-converter': 'Productivity & Lifestyle',
+  'sunrise-sunset-calculator': 'Astronomy & Space',
+  'screen-ppi-calculator': 'SaaS & Business Killers',
+  'tire-size-comparison-calculator': 'Productivity & Lifestyle',
+  'iso-week-number-finder': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
