@@ -1,0 +1,114 @@
+<!--
+  📜 The Kalends Desk — HALL OF INSCRIPTIONS. Convert a modern date to the
+  Roman formula: pridie, a.d. III Kalendas, Nones, Ides.
+-->
+<style>
+  .kald-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .kald-kicker{display:inline-block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a227;border:1px solid rgba(201,162,39,.35);padding:6px 14px;border-radius:2px;margin-bottom:14px}
+  .kald-title{font-family:Georgia,'Times New Roman',serif;font-size:1.7rem;margin:0 0 6px;color:#f4ead0;font-weight:400}
+  .kald-lede{color:#9aa6b6;font-size:.9rem;line-height:1.6;margin:0 0 14px;max-width:780px}
+  .kald-lede b{color:#e3c05a}
+  .kald-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+  .kald-lab{font-size:.72rem;color:#8fa3bf;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  .kald-inp,.kald-sel{width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(201,162,39,.28)}
+  .kald-plaque{margin-top:14px;border:1px solid rgba(201,162,39,.35);border-radius:10px;padding:16px 18px;background:rgba(201,162,39,.05)}
+  .kald-no{font-family:ui-monospace,monospace;font-size:.62rem;letter-spacing:.2em;color:#c9a227;text-transform:uppercase}
+  .kald-h{font-family:Georgia,serif;font-size:1.25rem;color:#f4ead0;margin:8px 0;line-height:1.4}
+  .kald-note{font-size:.82rem;color:#c3c9d4;line-height:1.6}
+  .kald-src{font-size:.68rem;color:#7c8698;margin-top:12px;line-height:1.5}
+</style>
+
+<div class="kald-wrap">
+  <span class="kald-kicker">Hall of Inscriptions · Catalogue 21 · Kalends</span>
+  <h2 id="kald-title" class="kald-title" style="margin-top:0">📜 The Kalends Desk</h2>
+  <p class="kald-lede">
+    Romans counted <b>forward to</b> the next named day, inclusively. The named days are the Kalends (1st), the Nones (5th, or 7th in Mar/May/Jul/Oct) and the Ides (13th, or 15th in those four months). The Ides of March is a.d. XV Kalendas Apriles in nobody’s joke — it is just the 15th.
+  </p>
+  <form onsubmit="event.preventDefault();">
+    <div class="kald-grid">
+      <div>
+        <label class="kald-lab" for="kald-d">Day</label>
+        <input id="kald-d" class="kald-inp" type="number" min="1" max="31" value="15" inputmode="numeric">
+      </div>
+      <div>
+        <label class="kald-lab" for="kald-m">Month</label>
+        <select id="kald-m" class="kald-sel"></select>
+      </div>
+      <div>
+        <label class="kald-lab" for="kald-leap">February</label>
+        <select id="kald-leap" class="kald-sel">
+          <option value="0">Common year</option>
+          <option value="1">Leap year (bisextile)</option>
+        </select>
+      </div>
+    </div>
+  </form>
+  <div class="kald-plaque" id="kald-out"></div>
+  <p class="kald-src">Inclusive counting: the day itself is 1. Pridie = the day before. Ante diem III = two days before in modern exclusive counting. Month names in the accusative after Kalendas / Nonas / Idus. Leap-year extra day is a.d. bis VI Kal. Mart. — this desk only flags the year type, it does not rewrite the whole bissextile dossier.</p>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var months = [
+    { n: 'January', lat: 'Ianuarius', kal: 'Kalendas Ianuarias', non: 'Nonas Ianuarias', idu: 'Idus Ianuarias', next: 'Kalendas Februarias', nonD: 5, idD: 13, len: 31 },
+    { n: 'February', lat: 'Februarius', kal: 'Kalendas Februarias', non: 'Nonas Februarias', idu: 'Idus Februarias', next: 'Kalendas Martias', nonD: 5, idD: 13, len: 28 },
+    { n: 'March', lat: 'Martius', kal: 'Kalendas Martias', non: 'Nonas Martias', idu: 'Idus Martias', next: 'Kalendas Apriles', nonD: 7, idD: 15, len: 31 },
+    { n: 'April', lat: 'Aprilis', kal: 'Kalendas Apriles', non: 'Nonas Apriles', idu: 'Idus Apriles', next: 'Kalendas Maias', nonD: 5, idD: 13, len: 30 },
+    { n: 'May', lat: 'Maius', kal: 'Kalendas Maias', non: 'Nonas Maias', idu: 'Idus Maias', next: 'Kalendas Iunias', nonD: 7, idD: 15, len: 31 },
+    { n: 'June', lat: 'Iunius', kal: 'Kalendas Iunias', non: 'Nonas Iunias', idu: 'Idus Iunias', next: 'Kalendas Iulias', nonD: 5, idD: 13, len: 30 },
+    { n: 'July', lat: 'Iulius', kal: 'Kalendas Iulias', non: 'Nonas Iulias', idu: 'Idus Iulias', next: 'Kalendas Augustas', nonD: 7, idD: 15, len: 31 },
+    { n: 'August', lat: 'Augustus', kal: 'Kalendas Augustas', non: 'Nonas Augustas', idu: 'Idus Augustas', next: 'Kalendas Septembres', nonD: 5, idD: 13, len: 31 },
+    { n: 'September', lat: 'September', kal: 'Kalendas Septembres', non: 'Nonas Septembres', idu: 'Idus Septembres', next: 'Kalendas Octobres', nonD: 5, idD: 13, len: 30 },
+    { n: 'October', lat: 'October', kal: 'Kalendas Octobres', non: 'Nonas Octobres', idu: 'Idus Octobres', next: 'Kalendas Novembres', nonD: 7, idD: 15, len: 31 },
+    { n: 'November', lat: 'November', kal: 'Kalendas Novembres', non: 'Nonas Novembres', idu: 'Idus Novembres', next: 'Kalendas Decembres', nonD: 5, idD: 13, len: 30 },
+    { n: 'December', lat: 'December', kal: 'Kalendas Decembres', non: 'Nonas Decembres', idu: 'Idus Decembres', next: 'Kalendas Ianuarias', nonD: 5, idD: 13, len: 31 }
+  ];
+  var rom = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX'];
+  months.forEach(function (m, i) {
+    var o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = m.n;
+    $('kald-m').appendChild(o);
+  });
+  $('kald-m').value = '2';
+  function run() {
+    var mi = Number($('kald-m').value);
+    var m = months[mi];
+    var d = Number($('kald-d').value);
+    var leap = $('kald-leap').value === '1';
+    var len = m.len + (mi === 1 && leap ? 1 : 0);
+    if (d < 1 || d > len) {
+      $('kald-out').textContent = 'That day does not exist in this month.';
+      return;
+    }
+    var latin, target;
+    if (d === 1) { latin = 'Kalendis ' + m.lat.replace(/us$|ius$|is$|ber$|ilis$/, function (x) {
+      if (x === 'us') return 'is';
+      return m.lat;
+    }); latin = 'Kalendis ' + (m.n === 'March' ? 'Martiis' : m.n === 'May' ? 'Maiis' : m.n === 'June' ? 'Iuniis' : m.n === 'July' ? 'Iuliis' : m.n === 'April' ? 'Aprilibus' : m.lat + (m.lat.endsWith('ber') ? 'ibus' : '')); target = 'the Kalends'; }
+    if (d === 1) latin = 'Kalendis (' + m.n + ')';
+    if (d === m.nonD) latin = 'Nonis (' + m.n + ')';
+    if (d === m.idD) latin = 'Idibus (' + m.n + ')';
+    if (!latin) {
+      var nextName, nextDay;
+      if (d < m.nonD) { nextName = m.non; nextDay = m.nonD; }
+      else if (d < m.idD) { nextName = m.idu; nextDay = m.idD; }
+      else { nextName = m.next; nextDay = len + 1; }
+      var inc = nextDay - d + 1;
+      if (inc === 2) latin = 'pridie ' + nextName;
+      else latin = 'a.d. ' + rom[inc] + ' ' + nextName;
+    }
+    var joke = (mi === 2 && d === 15) ? ' Yes: this is the Ides of March.' : '';
+    $('kald-out').innerHTML = '<div class="kald-no">Inscription formula</div>' +
+      '<div class="kald-h">' + latin + '</div>' +
+      '<p class="kald-note"><b>Curator’s note.</b> Modern date: ' + d + ' ' + m.n + '.' + joke + ' Ablative on the named day itself (Kalendis, Nonis, Idibus); accusative after pridie / ante diem. Year of the consulship is a separate field on a real stone.</p>';
+  }
+  ['kald-d', 'kald-m', 'kald-leap'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>
