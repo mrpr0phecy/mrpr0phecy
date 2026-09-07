@@ -333,7 +333,8 @@ const gapFillMap = {
   'radians-degrees-converter': 'Mathematics',
   'ieee-754-converter': 'SaaS & Business Killers',
   'guitar-fret-calculator': 'Music & Audio',
-  'sleep-debt-calculator': 'Health & Fitness'
+  'sleep-debt-calculator': 'Health & Fitness',
+  'loan-amortization-schedule': 'Finance & Money'
 };
 
 const sportsList = [
