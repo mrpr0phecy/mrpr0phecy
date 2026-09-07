@@ -320,7 +320,8 @@ const gapFillMap = {
   'skip-hire-volume-calculator': 'Home & DIY',
   'html-to-markdown-converter': 'Writing & Language',
   'mean-median-mode-stdev': 'Mathematics',
-  'syllable-counter': 'Writing & Language'
+  'syllable-counter': 'Writing & Language',
+  'karvonen-heart-rate-zones': 'Health & Fitness'
 };
 
 const sportsList = [
