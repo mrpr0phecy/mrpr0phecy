@@ -167,16 +167,20 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 
 Hard rules, learned from breakages:
 
-1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 809 cards.** They share one
-   DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
-   every single element. An ID collision silently makes another tool misbehave,
-   which is very hard to trace.
+1. **Prefer a fragment** (`h2` + form + script). Full documents are tolerated:
+   `cards/card-frame.js` extracts `<body>` and runs the tool in its own iframe,
+   so `<html>`/`<body>` no longer blow up the catalogue shell.
+2. **IDs no longer have to be globally unique.** The homepage grid, toolbox and
+   standalone modal each mount a tool in an isolated iframe (`CardFrame`). A
+   prefix per tool is still nice, not required. Do not inject card HTML into
+   the parent DOM.
 3. **Inline styles**, plus the CSS variables in §5. There is no per-card
    stylesheet.
-4. **Wrap all JS in an IIFE.** No global `let`/`const`/`function`.
-5. **Self-contained.** No external JS/CSS. No network calls. Everything runs
-   offline in the browser.
+4. **Wrap JS in an IIFE when you can.** Isolation contains leaks; an IIFE still
+   keeps the iframe itself tidy.
+5. **Self-contained.** No required external JS/CSS. Network calls are allowed
+   when the tool actually needs them (live FX, maps) and should be obvious on
+   the page.
 6. `onsubmit="event.preventDefault();"` on any form, or the page reloads.
 
 ### Adding a tool — the exact sequence
@@ -189,7 +193,8 @@ vim cards/my-tool.html
 node generate-cards-json.js
 #    (this also runs node scripts/generate-discoverability.js)
 
-# 3. Re-apply the category (see the warning below)
+# 3. New files get a category from the lists in generate-cards-json.js;
+#    existing categories in cards.json are kept.
 
 # 4. Bump the count in index.html: "Search 809+ free tools" -> 810+
 
@@ -199,12 +204,11 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 curl -sI https://www.themostusefulsiteintheworld.com/tools/my-tool.html
 ```
 
-> **Warning — `generate-cards-json.js` overwrites categories.**
-> The script assigns `category` from hardcoded filename lists near the top of
-> the file. Any card not in a list gets a default. If you set a category by
-> hand and then re-run the script, **your category is silently lost**. Either
-> add the filename to the appropriate list inside the script (preferred), or
-> re-apply the category after every run. This has bitten previous work.
+> **`generate-cards-json.js` preserves categories already in `cards.json`.**
+> New files are classified by the filename lists near the top of the script
+> (`getCategory()`). To recategorise an existing tool, edit `cards.json` (or
+> add it to a list *and* change the JSON). Lists are how new tools get a
+> shelf; they no longer clobber a category you already set.
 
 ### Card JSON shape
 
@@ -609,7 +613,7 @@ because `addAll()` is atomic — a single 404 aborts the whole install and the
 worker never activates. The previous version had four 404s in its precache list
 and could never have installed. Bump `CACHE_NAME` on any change.
 
-**`generate-cards-json.js` overwrites categories.** See §3.
+**`generate-cards-json.js` preserves categories already in `cards.json`.** See §3.
 
 **`index.html` has no links to `cards/` fragments.** The live grid is driven by
 `cards.json`. Standalone / dock / directory links go to `tools/<slug>.html`.

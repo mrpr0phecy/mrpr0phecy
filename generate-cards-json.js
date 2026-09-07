@@ -656,6 +656,18 @@ function decodeEntities(str) {
     .replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16)));
 }
 
+let previousByName = {};
+try {
+  const prev = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+  if (Array.isArray(prev)) {
+    for (const e of prev) {
+      if (e && e.name) previousByName[e.name] = e;
+    }
+  }
+} catch (e) {
+  previousByName = {};
+}
+
 const manifest = files.map(file => {
   const base = file.replace(/\.html$/, '');
   const filePath = path.join(cardsDir, file);
@@ -694,7 +706,9 @@ const manifest = files.map(file => {
     name: base,
     title,
     description,
-    category: getCategory(base),
+    category: (previousByName[base] && previousByName[base].category)
+      ? previousByName[base].category
+      : getCategory(base),
     file: file,
     path: `cards/${file}`
   };

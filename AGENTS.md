@@ -85,11 +85,11 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
 ### Add a tool (Product A)
 ```bash
 cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/body
-#  - IDs: global per-tool prefix `xyz-` on EVERY element (all cards share one DOM)
-#  - IIFE-wrapped JS, inline styles + index.html CSS vars only, zero network calls
+#  - Prefer a fragment; tools run in isolated iframes so IDs no longer have to
+#    be unique across the catalogue. IIFE + inline styles still recommended.
 #  - forms: onsubmit="event.preventDefault();"
-node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
-                                #   hardcoded list in the script first
+node generate-cards-json.js     # keeps existing categories in cards.json;
+                                # new slugs use the lists in the script
                                 # also rebuilds tools/*.html, all-tools.html,
                                 # categories/, intent hubs, llms.txt and sitemap.xml
 # bump count in index.html: "Search 809" -> "Search 810"
@@ -108,7 +108,7 @@ Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 
 ## 5. Quality bar (all of these have bitten this repo)
 
-- Unique element IDs across *all* cards (one shared DOM); fragments only.
+- Tools run in isolated iframes (`cards/card-frame.js`); fragments preferred, not required.
 - `target="_blank"` ⇒ `rel="noopener noreferrer"`; `loading="lazy"` below fold;
   `prefers-reduced-motion` respected; mobile-first (360 px); keyboard reachable.
 - Canonical + OG URLs: `https://` **and** `www.` host — never plain `http://`.

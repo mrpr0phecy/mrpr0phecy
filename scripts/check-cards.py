@@ -4,14 +4,14 @@
 Failures (exit 1 if any):
   * cards/ files not indexed in cards/cards.json, or JSON entries with no file
   * JSON entries with a blank title/description (renders blank in the grid)
-  * a card that is NOT a fragment (contains <!doctype|html|head|body) — breaks
-    the catalogue shell layout
+  * (full-document tags in a card are now a warning — tools run in isolated
+    frames, so <html>/<body> no longer breaks the catalogue)
   * category missing/empty
   * index.html "Search <N>" claim != number of cards
   * sitemap.xml missing any tools/<file> URL (canonical crawlable pages)
 
 Warnings (never fail):
-  * duplicate element IDs across cards (cards share one DOM)
+  * a card that contains full-document tags (harmless under iframe isolation)
   * JSON entries whose category isn't in the known category set
 
 Works on a sparse checkout (only reads cards/, cards/cards.json, index.html,
@@ -106,24 +106,7 @@ for f in sorted(on_disk):
     except OSError:
         continue
     if _fragment_scan(text):
-        fails.append(f"{f}: contains a full-document tag (<!doctype/html/head/body) "
-                     f"— cards must be fragments")
-
-# ---------------------------------------------------------------- 4. ID scope
-id_re = re.compile(r'id=["\']([^"\']+)["\']', re.I)
-seen: dict[str, str] = {}
-for f in sorted(on_disk):
-    try:
-        with open(os.path.join(CARDS, f), encoding="utf-8", errors="replace") as fh:
-            text = fh.read()
-    except OSError:
-        continue
-    for m in id_re.finditer(text):
-        iid = m.group(1)
-        if iid in seen and seen[iid] != f:
-            warns.append(f"duplicate id '{iid}' in {seen[iid]} and {f}")
-        else:
-            seen.setdefault(iid, f)
+        warns.append(f"{f}: full-document tag present — isolated frames still load it")
 
 # ---------------------------------------------------------------- 5. counts
 count_claim = None

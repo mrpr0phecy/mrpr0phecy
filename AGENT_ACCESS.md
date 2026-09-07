@@ -136,14 +136,12 @@ and what earns: **[INCOME.md](INCOME.md)**.
 
 1. Write `cards/<tool-name>.html` — an **HTML fragment** (no `<!doctype>`,
    `<head>`, `<body>`). All element IDs must carry a short unique per-tool
-   prefix (`xyz-…`) because all 809 cards share one DOM. Wrap all JS in an
-   IIFE. Inline styles + the CSS variables from `index.html` only. No network
-   calls. Start from an existing card.
+   prefix is optional — tools run in isolated iframes. Wrap JS in an IIFE when
+   you can. Start from an existing card.
 2. `node generate-cards-json.js` — rebuilds `cards/cards.json` **and** the
    crawlable wrappers (`tools/<slug>.html`, `all-tools.html`, `categories/`,
-   intent hubs, `llms.txt`, `sitemap.xml`). ⚠️ It **overwrites categories** from hardcoded filename
-   lists: add the new filename to the right list inside the script, or
-   re-apply the category.
+   intent hubs, `llms.txt`, `sitemap.xml`). Existing categories in `cards.json`
+   are kept; new filenames go through the lists in the script.
 3. Bump the count in `index.html` (`Search 809` → `Search 810`).
 4. Commit, push, **wait ~50 s**, then verify live (see §6). Canonical URL
    for a tool is `/tools/<slug>.html`, not `/cards/` and not `/tool.html?card=`.

@@ -1601,8 +1601,16 @@
             padding: var(--space-md);
             pointer-events: auto;
             min-height: 100%;
-            overflow-y: auto;
+            overflow: hidden;
             background: #0f1722;
+        }
+        .card-sandbox iframe.card-frame,
+        .standalone-modal-body iframe.card-frame,
+        .grid-mode-card-content iframe.card-frame,
+        .list-mode-item-content iframe.card-frame {
+            width: 100%;
+            border: 0;
+            background: transparent;
         }
         
         .card-sandbox * {
@@ -3416,6 +3424,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     </footer>
 
     <!-- ===== JAVASCRIPT ===== -->
+    <script src="cards/card-frame.js"></script>
     <script>
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -3893,7 +3902,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 </div>
             </div>
             <div class="grid-mode-card-content">
-                <div class="grid-mode-card-content-inner">${card.content}</div>
+                <div class="grid-mode-card-content-inner" data-frame-slug="${slug}"></div>
             </div>
         `;
         
@@ -3930,6 +3939,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             });
         }
         
+        mountToolboxFrame(cardElement, slug);
         return cardElement;
     }
     
@@ -3969,9 +3979,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                     ✕
                 </button>
             </div>
-            <div class="list-mode-item-content">
-                ${card.content}
-            </div>
+            <div class="list-mode-item-content" data-frame-slug="${slug}"></div>
         `;
         
         // Add event listeners
@@ -4008,10 +4016,32 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             });
         }
         
+        mountToolboxFrame(listItem, slug);
         return listItem;
     }
     
-    function addCardToToolbox(name, contentHTML, mode, slug) {
+    function mountToolboxFrame(el, slug) {
+        if (!el || !slug || !window.CardFrame) return;
+        const slot = el.querySelector('[data-frame-slug]');
+        if (!slot) return;
+        const go = (html) => {
+            window.CardFrame.mount(slot, html, { slug: slug + '-toolbox', title: slug, minHeight: 80 });
+        };
+        const cached = cardCache.get(slug);
+        if (cached && cached.html) { go(cached.html); return; }
+        fetch('cards/' + encodeURIComponent(slug) + '.html').then(r => {
+            if (!r.ok) throw new Error(r.status);
+            return r.text();
+        }).then(html => {
+            cardCache.set(slug, { html: html, timestamp: Date.now() });
+            go(html);
+        }).catch(err => {
+            slot.innerHTML = '<p class="quiet">Could not load this tool.</p>';
+            console.warn(err);
+        });
+    }
+
+        function addCardToToolbox(name, contentHTML, mode, slug) {
         // Check if card already exists
         const existingIndex = toolboxCards.findIndex(card => card.name === name);
         if (existingIndex !== -1) {
@@ -4023,7 +4053,6 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             id: `card-${Date.now()}`,
             name: name,
             slug: slug || '',
-            content: contentHTML,
             timestamp: Date.now()
         };
         
@@ -4060,7 +4089,9 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     }
     
     function saveToolboxCards() {
-        localStorage.setItem('toolboxCards', JSON.stringify(toolboxCards));
+        localStorage.setItem('toolboxCards', JSON.stringify(toolboxCards.map(c => ({
+            id: c.id, name: c.name, slug: c.slug, timestamp: c.timestamp
+        }))));
         updateToolboxCardCount();
     }
     
@@ -4416,100 +4447,45 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     function renderCardContent(card, cardName, html) {
         const cardSandbox = card.querySelector(`#card-${cardName}`);
         if (!cardSandbox) return;
-        
+
         try {
-            // Create content container
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'card-sandbox-content';
-            
-            // Use DOMParser to safely parse HTML
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            
-            // Extract scripts before removing them from doc
-            const scripts = Array.from(doc.querySelectorAll('script'));
-            scripts.forEach(script => script.remove());
-            
-            // Extract styles before removing them from doc
-            const styles = Array.from(doc.querySelectorAll('style'));
-            styles.forEach(style => style.remove());
-            
-            // Get body content
-            const bodyContent = doc.body.innerHTML;
-            
-            // Create a temporary div to hold content
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = bodyContent;
-            
-            // Apply mobile optimizations to content
-            optimizeContentForMobile(tempDiv);
-            
-            // Apply basic card styles
-            tempDiv.style.cssText = `
-                color: var(--text);
-                font-family: inherit;
-                font-size: 14px;
-                line-height: 1.6;
-            `;
-            
-            // Move all content to sandbox
-            while (tempDiv.firstChild) {
-                contentDiv.appendChild(tempDiv.firstChild);
+            const displayName = card.dataset.displayName || cardName;
+            if (window.CardFrame) {
+                window.CardFrame.mount(cardSandbox, html, {
+                    slug: cardName,
+                    title: displayName,
+                    minHeight: 200,
+                    onHeight: function (h) {
+                        const cardContent = card.querySelector('.card-content');
+                        if (!cardContent) return;
+                        const extra = 24;
+                        if (document.body.classList.contains('reader-mode')) {
+                            cardContent.style.minHeight = (h + extra) + 'px';
+                        } else {
+                            cardContent.style.minHeight = Math.max(200, h + extra) + 'px';
+                        }
+                    }
+                });
+            } else {
+                cardSandbox.innerHTML = html;
             }
-            
-            // Clear and update sandbox
-            cardSandbox.innerHTML = '';
-            cardSandbox.appendChild(contentDiv);
-            
-            // Inject and activate card styles
-            styles.forEach(style => {
-                const newStyle = document.createElement('style');
-                newStyle.textContent = style.textContent;
-                cardSandbox.appendChild(newStyle);
-            });
-            
-            // Execute card scripts so interactive tools and calculators function
-            scripts.forEach(script => {
-                try {
-                    const newScript = document.createElement('script');
-                    Array.from(script.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                    let code = script.textContent;
-                    // Execute DOMContentLoaded / load handlers immediately if ready without re-firing document event
-                    code = code.replace(/document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
-                        '(document.readyState !== "loading" ? setTimeout($1, 10) : document.addEventListener("DOMContentLoaded", $1))');
-                    code = code.replace(/window\.addEventListener\s*\(\s*['"]load['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
-                        '(document.readyState !== "loading" ? setTimeout($1, 10) : window.addEventListener("load", $1))');
-                    newScript.textContent = code;
-                    cardSandbox.appendChild(newScript);
-                } catch (scriptErr) {
-                    console.warn(`Error running script for ${cardName}:`, scriptErr);
-                }
-            });
-            
-            // Add footer to card
+
             const footer = document.createElement('div');
             footer.className = 'card-footer';
             footer.id = `footer-${cardName}`;
             card.appendChild(footer);
-            
-            // Update rating display
+
             updateCardRatingDisplay(card, cardName);
-            
+
             card.classList.remove('loading');
             card.classList.add('loaded', 'visible');
             updateSiteStats();
-            
-            // Auto-adjust card height
-            setTimeout(() => {
-                adjustCardHeight(card);
-            }, 100);
-            
         } catch (error) {
             console.error(`Error rendering card ${cardName}:`, error);
             showCardError(card, cardName, error);
         }
     }
-    
+
     function optimizeContentForMobile(element) {
         // Add mobile-friendly styles to form elements
         const inputs = element.querySelectorAll('input, textarea, select, button');
@@ -4950,46 +4926,15 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             }
 
             bodyEl.innerHTML = '';
-
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-
-            const scripts = Array.from(doc.querySelectorAll('script'));
-            scripts.forEach(s => s.remove());
-
-            const styles = Array.from(doc.querySelectorAll('style'));
-            styles.forEach(s => s.remove());
-
-            const contentDiv = document.createElement('div');
-            contentDiv.style.cssText = 'max-width:920px;margin:0 auto;';
-            while (doc.body.firstChild) {
-                contentDiv.appendChild(doc.body.firstChild);
+            if (window.CardFrame) {
+                window.CardFrame.mount(bodyEl, html, {
+                    slug: cardName + '-modal',
+                    title: title,
+                    minHeight: 420
+                });
+            } else {
+                bodyEl.innerHTML = html;
             }
-            bodyEl.appendChild(contentDiv);
-
-            // Inject styles
-            styles.forEach(s => {
-                const newStyle = document.createElement('style');
-                newStyle.textContent = s.textContent;
-                bodyEl.appendChild(newStyle);
-            });
-
-            // Inject scripts
-            scripts.forEach(s => {
-                try {
-                    const newScript = document.createElement('script');
-                    Array.from(s.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                    let code = s.textContent;
-                    code = code.replace(/document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
-                        '(document.readyState !== "loading" ? setTimeout($1, 10) : document.addEventListener("DOMContentLoaded", $1))');
-                    code = code.replace(/window\.addEventListener\s*\(\s*['"]load['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
-                        '(document.readyState !== "loading" ? setTimeout($1, 10) : window.addEventListener("load", $1))');
-                    newScript.textContent = code;
-                    bodyEl.appendChild(newScript);
-                } catch (scriptErr) {
-                    console.warn(`Error running script in standalone modal for ${cardName}:`, scriptErr);
-                }
-            });
 
         } catch (err) {
             bodyEl.innerHTML = `
@@ -5009,7 +4954,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         modal.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
         const bodyEl = document.getElementById('standaloneModalBody');
-        if (bodyEl) bodyEl.innerHTML = '';
+        if (bodyEl) {
+            if (window.CardFrame) window.CardFrame.unmount(bodyEl);
+            else bodyEl.innerHTML = '';
+        }
     }
 
     function setupStandaloneModal() {

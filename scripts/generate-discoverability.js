@@ -229,7 +229,7 @@ noscript p { color: var(--text-secondary); }
 }
 `;
 
-const TOOL_PAGE_JS = `/* Shared loader for /tools/<slug>.html — injects the card fragment. */
+const TOOL_PAGE_JS = `/* Shared loader for /tools/<slug>.html — isolated iframe, no ID clashes. */
 (function () {
   function toast(msg) {
     var el = document.getElementById('toast');
@@ -239,40 +239,38 @@ const TOOL_PAGE_JS = `/* Shared loader for /tools/<slug>.html — injects the ca
     setTimeout(function () { el.classList.remove('show'); }, 2500);
   }
 
-  function inject(container, html) {
+  function withFrame(cb) {
+    if (window.CardFrame) { cb(); return; }
+    var s = document.createElement('script');
+    s.src = '../cards/card-frame.js';
+    s.onload = function () { cb(); };
+    s.onerror = function () { cb(); };
+    document.head.appendChild(s);
+  }
+
+  function inject(container, html, slug, title) {
+    if (window.CardFrame) {
+      window.CardFrame.mount(container, html, { slug: slug, title: title || slug, minHeight: 240 });
+      return;
+    }
     var parser = new DOMParser();
     var doc = parser.parseFromString(html, 'text/html');
-    var scripts = Array.from(doc.querySelectorAll('script'));
-    scripts.forEach(function (s) { s.remove(); });
-    var styles = Array.from(doc.querySelectorAll('style'));
-    styles.forEach(function (s) { s.remove(); });
     container.innerHTML = '';
     var wrap = document.createElement('div');
     while (doc.body.firstChild) wrap.appendChild(doc.body.firstChild);
     container.appendChild(wrap);
-    styles.forEach(function (s) {
-      var n = document.createElement('style');
-      n.textContent = s.textContent;
-      container.appendChild(n);
-    });
-    scripts.forEach(function (s) {
-      try {
-        var n = document.createElement('script');
-        Array.from(s.attributes).forEach(function (a) { n.setAttribute(a.name, a.value); });
-        n.textContent = s.textContent;
-        container.appendChild(n);
-      } catch (err) { console.warn(err); }
-    });
   }
 
   async function boot() {
     var slug = document.body.getAttribute('data-tool');
+    var title = document.body.getAttribute('data-title') || slug;
     var box = document.getElementById('toolBox');
     if (!slug || !box) return;
     try {
       var res = await fetch('../cards/' + encodeURIComponent(slug) + '.html');
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      inject(box, await res.text());
+      var html = await res.text();
+      withFrame(function () { inject(box, html, slug, title); });
     } catch (err) {
       box.innerHTML = '<p style="color:#ff4d4d">Could not load this tool (' + String(err.message || err) + '). Try the <a href="../all-tools.html">full catalogue</a>.</p>';
     }
