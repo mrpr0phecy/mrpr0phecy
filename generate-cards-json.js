@@ -355,7 +355,8 @@ const gapFillMap = {
   'british-regnal-years': 'Museum & Collection',
   'sundial-gnomon-angle': 'Museum & Collection',
   'architectural-orders-column': 'Museum & Collection',
-  'seven-wonders-hall': 'Museum & Collection'
+  'seven-wonders-hall': 'Museum & Collection',
+  'roman-coin-denominations': 'Museum & Collection'
 };
 
 const sportsList = [
