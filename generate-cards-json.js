@@ -139,6 +139,8 @@ const scienceList = [
   'wire-gauge'
 ];
 const writingList = [
+  'speed-reading-rsvp-trainer', 'socratic-thinking-coach', 'typing-story-sprint',
+  'story-dice-plot-twister',
   'markdown-to-html-printer',
   'llm-prompt-token-counter',
   'regex-replace-string-transform',
@@ -446,10 +448,7 @@ const homeDIYList = [
   'fence-calculator',
   'plastering-calculator',
   'stud-framing-calculator',
-  'board-foot-lumber-calculator',
-  'stair-stringer-calculator',
-  'roof-pitch-rafter-calculator',
-  'drywall-calculator',
+ lculator',
   'room-btu-hvac-calculator',
   'miter-bevel-angle-calculator',
   'laminate-flooring-calculator',
@@ -458,6 +457,7 @@ const homeDIYList = [
 ];
 
 const demosList = [
+  'logic-detective-puzzle-club',
   'monte-carlo-pi-estimator',
   'conways-game-of-life',
   'mandelbrot-set-explorer',
@@ -578,4 +578,6 @@ const manifest = files.map(file => {
 });
 
 fs.writeFileSync(outputFile, JSON.stringify(manifest, null, 2));
+console.log(`✅ cards.json updated with ${manifest.length} cards`);
+ll, 2));
 console.log(`✅ cards.json updated with ${manifest.length} cards`);
