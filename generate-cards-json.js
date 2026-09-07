@@ -342,7 +342,8 @@ const gapFillMap = {
   'query-string-parser': 'SaaS & Business Killers',
   'carbon-14-dating-calculator': 'Museum & Collection',
   'mohs-hardness-gallery': 'Museum & Collection',
-  'heraldry-blazon-workshop': 'Museum & Collection'
+  'heraldry-blazon-workshop': 'Museum & Collection',
+  'egyptian-hieroglyph-alphabet': 'Museum & Collection'
 };
 
 const sportsList = [
