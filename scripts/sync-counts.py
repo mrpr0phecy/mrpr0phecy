@@ -41,6 +41,13 @@ CARDS = os.path.join(ROOT, "cards")
 TARGETS = [
     "index.html", "404.html", "tool.html", "donate.html", "sponsor.html",
     "README.md", "AGENTS.md", "ARCHITECTURE.md", "AGENT_ACCESS.md", "INCOME.md",
+    # Content and AI-facing pages salvaged from arena/01a05fea + 01a078f8.
+    # changelog.html is deliberately absent: its entries are past-tense
+    # history ("+10 tools, 23 categories, 562 total") and rewriting them
+    # would turn the changelog into a lie.
+    "about.html", "ai.html", "case-studies.html", "embed.html", "guides.html",
+    "help.html", "legal.html", "new.html", "popular.html", "press.html",
+    "sitemap.html", "tools.html", "tools-index.html", "use-case.html",
 ]
 
 # Past-tense narrative must never be rewritten: "the catalogue was not 500
