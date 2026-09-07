@@ -214,7 +214,12 @@ const gapFillMap = {
   'hourly-to-annual-salary-converter': 'Finance & Money',
   'overtime-pay-calculator': 'Finance & Money',
   'feet-inches-cm-height-converter': 'Productivity & Lifestyle',
-  'stone-pounds-kg-weight-converter': 'Productivity & Lifestyle'
+  'stone-pounds-kg-weight-converter': 'Productivity & Lifestyle',
+  'paper-size-iso-us-converter': 'Productivity & Lifestyle',
+  'ring-size-converter': 'Productivity & Lifestyle',
+  'passport-photo-size-guide': 'Productivity & Lifestyle',
+  'cabin-bag-airline-size-checker': 'Productivity & Lifestyle',
+  'dimensional-weight-shipping-calculator': 'SaaS & Business Killers'
 };
 
 const sportsList = [

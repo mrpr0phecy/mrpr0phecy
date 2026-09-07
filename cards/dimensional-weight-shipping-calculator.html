@@ -1,0 +1,76 @@
+<h2 id="dimw-title" style="margin-top:0;color:var(--accent);">📦 Dimensional Weight Calculator</h2>
+
+<form aria-describedby="dimw-desc" onsubmit="event.preventDefault();">
+  <p id="dimw-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Carriers bill the higher of actual weight and volumetric (dimensional) weight. Enter the box and compare IATA /6000, DHL·FedEx /5000 and US domestic /139. Not a postage quote.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="dimw-l" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Length</label>
+      <input id="dimw-l" type="number" min="1" step="any" value="40" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="dimw-w" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Width</label>
+      <input id="dimw-w" type="number" min="1" step="any" value="30" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="dimw-h" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Height</label>
+      <input id="dimw-h" type="number" min="1" step="any" value="20" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="dimw-u" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Size unit</label>
+      <select id="dimw-u" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="cm" selected>cm</option>
+        <option value="in">inches</option>
+      </select>
+    </div>
+    <div>
+      <label for="dimw-kg" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Actual weight</label>
+      <input id="dimw-kg" type="number" min="0" step="any" value="2.5" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="dimw-wu" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Weight unit</label>
+      <select id="dimw-wu" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="kg" selected>kg</option>
+        <option value="lb">lb</option>
+      </select>
+    </div>
+  </div>
+</form>
+<div id="dimw-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function run() {
+    var l = Number($('dimw-l').value), w = Number($('dimw-w').value), h = Number($('dimw-h').value);
+    var actual = Number($('dimw-kg').value);
+    if (!(l > 0 && w > 0 && h > 0 && actual >= 0)) return;
+    var cmL = l, cmW = w, cmH = h;
+    if ($('dimw-u').value === 'in') { cmL = l * 2.54; cmW = w * 2.54; cmH = h * 2.54; }
+    var kg = actual;
+    if ($('dimw-wu').value === 'lb') kg = actual * 0.45359237;
+    var vol = cmL * cmW * cmH;
+    var iata = vol / 6000;
+    var express = vol / 5000;
+    var inL = cmL / 2.54, inW = cmW / 2.54, inH = cmH / 2.54;
+    var us = (inL * inW * inH) / 139 * 0.45359237;
+    function row(name, dimKg, note) {
+      var bill = Math.max(kg, dimKg);
+      var billedDim = dimKg > kg + 0.001;
+      return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.72rem;color:var(--accent);font-weight:800;">' + name + '</div><div style="font-size:.9rem;font-weight:800;color:var(--text);margin:4px 0;">DIM ' + dimKg.toFixed(2) + ' kg · billable ' + bill.toFixed(2) + ' kg</div><div style="font-size:.74rem;color:var(--text-secondary);">' + (billedDim ? 'Volumetric wins — you pay for air.' : 'Actual weight wins.') + ' ' + note + '</div></div>';
+    }
+    $('dimw-out').innerHTML = '<p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 8px;">Box ' + Math.round(vol) + ' cm³ · actual ' + kg.toFixed(2) + ' kg</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">' +
+      row('IATA / Royal Mail ÷6000', iata, 'Common for air cargo and some UK parcels.') +
+      row('DHL / FedEx / UPS ÷5000', express, 'Typical international express divisor.') +
+      row('US domestic ÷139', us, 'Inches × inches ÷ 139 → pounds, shown as kg.') +
+      '</div>';
+  }
+  ['dimw-l', 'dimw-w', 'dimw-h', 'dimw-u', 'dimw-kg', 'dimw-wu'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>
