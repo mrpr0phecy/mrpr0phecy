@@ -1,0 +1,62 @@
+<h2 id="ttsr-title" style="margin-top:0;color:var(--accent);">🔊 Text-to-Speech Reader (Offline Browser Voices)</h2>
+
+<form aria-describedby="ttsr-desc" onsubmit="event.preventDefault();">
+  <p id="ttsr-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Paste any text and have your device read it aloud using the voices already built into your browser or operating system — no upload, no account. Choose voice and language, adjust speed and pitch, follow along with word highlighting, and pause or skip between sentences. Great for proofreading, accessibility and language practice.
+  </p>
+
+  <textarea id="ttsr-text" rows="7" placeholder="Paste text to read aloud…" style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;line-height:1.6;font-family:inherit;margin-bottom:8px;">Welcome to the most useful site in the world. This reader uses the voices already on your device, so nothing you type ever leaves your browser. Try changing the voice, the speed, or the pitch.</textarea>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px;">
+    <div><label for="ttsr-voice" style="display:block;font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Voice</label><select id="ttsr-voice" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;"><option>Loading voices…</option></select></div>
+    <div><label for="ttsr-rate" style="display:block;font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Speed <span id="ttsr-ratev">1.0×</span></label><input id="ttsr-rate" type="range" min="0.5" max="2.5" step="0.1" value="1" style="width:100%;"></div>
+    <div><label for="ttsr-pitch" style="display:block;font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Pitch <span id="ttsr-pitchv">1.0</span></label><input id="ttsr-pitch" type="range" min="0.5" max="2" step="0.1" value="1" style="width:100%;"></div>
+    <div><label for="ttsr-vol" style="display:block;font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Volume <span id="ttsr-volv">100%</span></label><input id="ttsr-vol" type="range" min="0" max="1" step="0.05" value="1" style="width:100%;"></div>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+    <button type="button" id="ttsr-play" style="flex:2;padding:12px;border-radius:10px;background:linear-gradient(135deg,#2dd4ff,#39ff14);border:none;color:#050811;font-weight:800;font-size:1rem;cursor:pointer;">▶ Read aloud</button>
+    <button type="button" id="ttsr-pause" style="flex:1;padding:12px;border-radius:10px;background:rgba(255,165,0,0.12);border:1px solid rgba(255,165,0,0.4);color:#ffa500;font-weight:700;cursor:pointer;">⏸ Pause</button>
+    <button type="button" id="ttsr-prev" style="padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);cursor:pointer;">⏮</button>
+    <button type="button" id="ttsr-next" style="padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);cursor:pointer;">⏭</button>
+    <button type="button" id="ttsr-stop" style="padding:12px 14px;border-radius:10px;background:rgba(255,64,129,0.12);border:1px solid rgba(255,64,129,0.4);color:#ff4081;font-weight:700;cursor:pointer;">■ Stop</button>
+  </div>
+
+  <div id="ttsr-status" aria-live="polite" style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px;"></div>
+  <div id="ttsr-follow" style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;font-size:0.95rem;line-height:1.7;color:var(--text);max-height:240px;overflow:auto;"></div>
+  <div style="font-size:0.7rem;color:var(--text-secondary);margin-top:8px;">Voice quality depends on your device. On Windows try the "Natural" voices, on macOS/iOS "Siri" or "Enhanced" voices (download in Settings → Accessibility → Spoken Content). Chrome's Google voices need an internet connection; the rest work offline.</div>
+</form>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var synth=window.speechSynthesis;
+  if(!synth||!window.SpeechSynthesisUtterance){ $('ttsr-status').textContent='Sorry — this browser has no speech synthesis support.'; $('ttsr-play').disabled=true; return; }
+  var voices=[], sentences=[], idx=0, playing=false, utter=null;
+  function loadVoices(){ voices=synth.getVoices(); if(!voices.length) return; var sel=$('ttsr-voice'), prev=sel.value; var lang=(navigator.language||'en-GB').toLowerCase();
+    voices.sort(function(a,b){ var al=a.lang.toLowerCase()===lang?0:a.lang.toLowerCase().slice(0,2)===lang.slice(0,2)?1:2, bl=b.lang.toLowerCase()===lang?0:b.lang.toLowerCase().slice(0,2)===lang.slice(0,2)?1:2; return al-bl||a.name.localeCompare(b.name); });
+    sel.innerHTML=voices.map(function(v,i){ return '<option value="'+i+'">'+v.name+' ('+v.lang+')'+(v.localService?'':' ☁')+(v.default?' ★':'')+'</option>'; }).join('');
+    if(prev&&voices[prev]) sel.value=prev; $('ttsr-status').textContent=voices.length+' voices available · ☁ = needs internet'; }
+  loadVoices(); if(synth.onvoiceschanged!==undefined) synth.onvoiceschanged=loadVoices; setTimeout(loadVoices,500);
+  ['rate','pitch','vol'].forEach(function(k){ $('ttsr-'+k).addEventListener('input',function(){ $('ttsr-'+k+'v').textContent= k==='vol'?Math.round(this.value*100)+'%': k==='rate'?(+this.value).toFixed(1)+'×':(+this.value).toFixed(1); if(playing){ speakFrom(idx); } }); });
+  var esc=function(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  function split(t){ var s=t.match(/[^.!?\n]+[.!?]*["')\]]*\s*|\n+/g)||[t]; return s.map(function(x){return x;}).filter(function(x){return x.trim().length;}); }
+  function renderFollow(wordStart,wordLen){ $('ttsr-follow').innerHTML=sentences.map(function(s,i){ var inner=esc(s); if(i===idx&&wordLen){ inner=esc(s.slice(0,wordStart))+'<mark style="background:#39ff14;color:#050811;border-radius:3px;">'+esc(s.slice(wordStart,wordStart+wordLen))+'</mark>'+esc(s.slice(wordStart+wordLen)); } return '<span data-ttsr-i="'+i+'" style="cursor:pointer;'+(i===idx?'background:rgba(45,212,255,0.18);border-radius:4px;':'opacity:'+(i<idx?'0.55':'0.85')+';')+'">'+inner+'</span>'; }).join(''); var cur=$('ttsr-follow').querySelector('[data-ttsr-i="'+idx+'"]'); if(cur&&cur.scrollIntoView) cur.scrollIntoView({block:'nearest'}); }
+  function speakFrom(i){ synth.cancel(); idx=i; if(idx>=sentences.length){ stop(); return; } playing=true; $('ttsr-play').textContent='▶ Reading…';
+    utter=new SpeechSynthesisUtterance(sentences[idx]); var v=voices[+$('ttsr-voice').value]; if(v){ utter.voice=v; utter.lang=v.lang; } utter.rate=+$('ttsr-rate').value; utter.pitch=+$('ttsr-pitch').value; utter.volume=+$('ttsr-vol').value;
+    utter.onboundary=function(e){ if(e.name==='word'||e.charLength) renderFollow(e.charIndex,e.charLength||(sentences[idx].slice(e.charIndex).match(/^\S+/)||[''])[0].length); };
+    utter.onend=function(){ if(playing&&utter===this){ speakFrom(idx+1); } };
+    utter.onerror=function(e){ if(e.error!=='interrupted'&&e.error!=='canceled'){ $('ttsr-status').textContent='Speech error: '+e.error; stop(); } };
+    renderFollow(0,0); $('ttsr-status').textContent='Sentence '+(idx+1)+' of '+sentences.length; synth.speak(utter); }
+  function stop(){ playing=false; synth.cancel(); $('ttsr-play').textContent='▶ Read aloud'; $('ttsr-pause').textContent='⏸ Pause'; if(sentences.length) $('ttsr-status').textContent='Stopped.'; }
+  $('ttsr-play').addEventListener('click',function(){ var t=$('ttsr-text').value.trim(); if(!t) return; sentences=split(t); if(synth.paused){ synth.resume(); $('ttsr-pause').textContent='⏸ Pause'; return; } speakFrom(0); });
+  $('ttsr-pause').addEventListener('click',function(){ if(!playing) return; if(synth.paused){ synth.resume(); this.textContent='⏸ Pause'; } else { synth.pause(); this.textContent='▶ Resume'; } });
+  $('ttsr-stop').addEventListener('click',stop);
+  $('ttsr-next').addEventListener('click',function(){ if(sentences.length) speakFrom(Math.min(sentences.length-1,idx+1)); });
+  $('ttsr-prev').addEventListener('click',function(){ if(sentences.length) speakFrom(Math.max(0,idx-1)); });
+  $('ttsr-follow').addEventListener('click',function(e){ var s=e.target.closest('[data-ttsr-i]'); if(s) speakFrom(+s.getAttribute('data-ttsr-i')); });
+  $('ttsr-text').addEventListener('input',function(){ if(!playing){ sentences=split(this.value); idx=0; renderFollow(0,0); } });
+  sentences=split($('ttsr-text').value); renderFollow(0,0);
+  window.addEventListener('beforeunload',function(){ synth.cancel(); });
+})();
+</script>

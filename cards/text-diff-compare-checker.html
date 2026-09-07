@@ -1,0 +1,135 @@
+<h2 id="tdcc-title" style="margin-top:0;color:var(--accent);">🔍 Text Diff & Compare Checker</h2>
+
+<form aria-describedby="tdcc-desc" onsubmit="event.preventDefault();">
+  <p id="tdcc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Paste two versions of any text and see exactly what changed — line by line or word by word — with additions and deletions highlighted. Runs entirely in your browser; nothing is uploaded.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="tdcc-a" style="display:block;font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Original (A)</label>
+      <textarea id="tdcc-a" rows="9" placeholder="Paste the original text..." style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;line-height:1.5;"></textarea>
+    </div>
+    <div>
+      <label for="tdcc-b" style="display:block;font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Changed (B)</label>
+      <textarea id="tdcc-b" rows="9" placeholder="Paste the new version..." style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;line-height:1.5;"></textarea>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;">
+    <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:6px;"><input type="radio" name="tdcc-mode" value="line" checked> Line diff</label>
+    <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:6px;"><input type="radio" name="tdcc-mode" value="word"> Word diff</label>
+    <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:6px;"><input type="radio" name="tdcc-mode" value="char"> Character diff</label>
+    <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:6px;"><input type="checkbox" id="tdcc-ws"> Ignore whitespace</label>
+    <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:6px;"><input type="checkbox" id="tdcc-case"> Ignore case</label>
+    <button type="button" id="tdcc-swap" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.8rem;cursor:pointer;">⇄ Swap</button>
+    <button type="button" id="tdcc-clear" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.8rem;cursor:pointer;">Clear</button>
+    <button type="button" id="tdcc-copy" style="padding:6px 12px;border-radius:8px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);font-size:0.8rem;cursor:pointer;">Copy unified diff</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px;text-align:center;">
+    <div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:10px;border:1px solid rgba(57,255,20,0.2);">
+      <div style="font-size:0.7rem;color:var(--text-secondary);">Added</div>
+      <div id="tdcc-added" style="font-size:1.3rem;font-weight:700;color:#39ff14;">0</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:10px;border:1px solid rgba(255,64,129,0.2);">
+      <div style="font-size:0.7rem;color:var(--text-secondary);">Removed</div>
+      <div id="tdcc-removed" style="font-size:1.3rem;font-weight:700;color:#ff4081;">0</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:10px;border:1px solid rgba(45,212,255,0.2);">
+      <div style="font-size:0.7rem;color:var(--text-secondary);">Unchanged</div>
+      <div id="tdcc-same" style="font-size:1.3rem;font-weight:700;color:var(--accent);">0</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:10px;border:1px solid rgba(255,165,0,0.2);">
+      <div style="font-size:0.7rem;color:var(--text-secondary);">Similarity</div>
+      <div id="tdcc-sim" style="font-size:1.3rem;font-weight:700;color:#ffa500;">—</div>
+    </div>
+  </div>
+
+  <div id="tdcc-out" aria-live="polite" style="background:rgba(0,0,0,0.35);border:1px solid rgba(45,212,255,0.15);border-radius:10px;padding:12px;min-height:80px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:var(--text);overflow:auto;max-height:460px;">
+    <span style="color:var(--text-secondary);">The diff will appear here.</span>
+  </div>
+</form>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var ta=$('tdcc-a'), tb=$('tdcc-b'), out=$('tdcc-out');
+  var lastUnified='';
+
+  function tokenize(s, mode){
+    if(mode==='line') return s.split(/\r?\n/);
+    if(mode==='word') return s.match(/\S+|\s+/g)||[];
+    return Array.from(s);
+  }
+  function norm(t){
+    var ws=$('tdcc-ws').checked, cs=$('tdcc-case').checked;
+    var v=t;
+    if(ws) v=v.replace(/\s+/g,' ').trim();
+    if(cs) v=v.toLowerCase();
+    return v;
+  }
+  // Myers-lite LCS via DP (fine for typical pasted sizes; cap to keep it snappy)
+  function diff(a,b){
+    var na=a.map(norm), nb=b.map(norm);
+    var n=a.length, m=b.length;
+    if(n*m>4000000){ return null; }
+    var dp=new Array(n+1);
+    for(var i=0;i<=n;i++){ dp[i]=new Uint32Array(m+1); }
+    for(var i=n-1;i>=0;i--){
+      for(var j=m-1;j>=0;j--){
+        dp[i][j]= na[i]===nb[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
+      }
+    }
+    var res=[]; var i=0,j=0;
+    while(i<n&&j<m){
+      if(na[i]===nb[j]){ res.push(['=',a[i]]); i++; j++; }
+      else if(dp[i+1][j]>=dp[i][j+1]){ res.push(['-',a[i]]); i++; }
+      else { res.push(['+',b[j]]); j++; }
+    }
+    while(i<n){ res.push(['-',a[i++]]); }
+    while(j<m){ res.push(['+',b[j++]]); }
+    return res;
+  }
+  function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function render(){
+    var mode=(document.querySelector('input[name="tdcc-mode"]:checked')||{}).value||'line';
+    var A=ta.value, B=tb.value;
+    if(!A && !B){ out.innerHTML='<span style="color:var(--text-secondary);">The diff will appear here.</span>'; setStats(0,0,0,null); return; }
+    var a=tokenize(A,mode), b=tokenize(B,mode);
+    var d=diff(a,b);
+    if(!d){ out.innerHTML='<span style="color:#ffa500;">Text too large for this mode — try Line diff or shorten the input.</span>'; return; }
+    var add=0,rem=0,same=0,html='',uni=[];
+    var sep = mode==='line' ? '\n' : '';
+    d.forEach(function(p){
+      var t=p[1];
+      if(mode==='word' && /^\s+$/.test(t) && p[0]!=='='){ /* whitespace-only tokens shown plainly */ }
+      if(p[0]==='='){ same++; html+= (mode==='line' ? '<div style="opacity:0.7;"><span style="color:var(--text-secondary);user-select:none;">  </span>'+esc(t)+'</div>' : esc(t)); uni.push(' '+t); }
+      else if(p[0]==='-'){ rem++; html+= (mode==='line' ? '<div style="background:rgba(255,64,129,0.16);color:#ff8fb3;"><span style="user-select:none;">- </span>'+esc(t)+'</div>' : '<del style="background:rgba(255,64,129,0.25);color:#ffb3c9;text-decoration:line-through;">'+esc(t)+'</del>'); uni.push('-'+t); }
+      else { add++; html+= (mode==='line' ? '<div style="background:rgba(57,255,20,0.14);color:#a6ff8a;"><span style="user-select:none;">+ </span>'+esc(t)+'</div>' : '<ins style="background:rgba(57,255,20,0.22);color:#c6ffb3;text-decoration:none;">'+esc(t)+'</ins>'); uni.push('+'+t); }
+    });
+    out.innerHTML=html||'<span style="color:var(--text-secondary);">No differences.</span>';
+    var total=add+rem+same*2;
+    var sim = total? Math.round((same*2/(a.length+b.length||1))*100) : 100;
+    setStats(add,rem,same,sim);
+    lastUnified = mode==='line' ? '--- A\n+++ B\n'+uni.join('\n') : uni.join(sep);
+  }
+  function setStats(a,r,s,sim){
+    $('tdcc-added').textContent=a; $('tdcc-removed').textContent=r; $('tdcc-same').textContent=s;
+    $('tdcc-sim').textContent = sim===null?'—':sim+'%';
+  }
+  var t; function sched(){ clearTimeout(t); t=setTimeout(render,120); }
+  ta.addEventListener('input',sched); tb.addEventListener('input',sched);
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="tdcc-mode"]'),function(r){ r.addEventListener('change',render); });
+  $('tdcc-ws').addEventListener('change',render); $('tdcc-case').addEventListener('change',render);
+  $('tdcc-swap').addEventListener('click',function(){ var v=ta.value; ta.value=tb.value; tb.value=v; render(); });
+  $('tdcc-clear').addEventListener('click',function(){ ta.value=''; tb.value=''; render(); });
+  $('tdcc-copy').addEventListener('click',function(){
+    var btn=this;
+    function done(){ btn.textContent='Copied ✓'; setTimeout(function(){btn.textContent='Copy unified diff';},1400); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(lastUnified).then(done,function(){}); }
+    else { var x=document.createElement('textarea'); x.value=lastUnified; document.body.appendChild(x); x.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(x); done(); }
+  });
+})();
+</script>

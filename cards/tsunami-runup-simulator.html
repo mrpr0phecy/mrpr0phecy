@@ -1,0 +1,277 @@
+<h2 id="tsn-title" style="margin-top:0;color:var(--accent);">🌊 Tsunami Runup Simulator</h2>
+
+<form aria-describedby="tsn-desc" onsubmit="event.preventDefault();">
+  <p id="tsn-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A real 1D shallow-water wave solver (c = √gh, leapfrog scheme) running a subduction-zone tsunami from seafloor rupture to the coast. Watch the wave slow, shoal and amplify — Green's law emerges naturally — then measure arrival time, wave height at the shore and runup.
+  </p>
+
+  <div style="background:#04101c;border:1px solid rgba(90,200,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="tsn-canvas" width="640" height="300" style="width:100%;height:300px;display:block;background:linear-gradient(#0a1522,#0d2438);border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="tsn-clock" style="color:#8fd4ff;font-family:monospace;">ELAPSED 0 min</span>
+      <span id="tsn-arrival" style="color:#ffd27f;font-family:monospace;">—</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Earthquake Moment Magnitude</span><span id="tsn-val-mag">M 8.6</span>
+      </div>
+      <input type="range" id="tsn-slider-mag" min="7" max="9.6" step="0.1" value="8.6" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Ocean Depth (deep)</span><span id="tsn-val-depth">3500 m</span>
+      </div>
+      <input type="range" id="tsn-slider-depth" min="800" max="5000" step="100" value="3500" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Source → Coast Distance</span><span id="tsn-val-dist">300 km</span>
+      </div>
+      <input type="range" id="tsn-slider-dist" min="50" max="900" step="10" value="300" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Beach Slope</span><span id="tsn-val-slope">1:100</span>
+      </div>
+      <input type="range" id="tsn-slider-slope" min="0" max="2" step="1" value="0" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Simulation Speed</span><span id="tsn-val-speed">×180</span>
+      </div>
+      <input type="range" id="tsn-slider-speed" min="1" max="600" step="1" value="180" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">SOURCE WAVE HEIGHT</div>
+      <div id="tsn-stat-h0" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">ARRIVAL TIME</div>
+      <div id="tsn-stat-eta" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">MAX SHORE WAVE HEIGHT</div>
+      <div id="tsn-stat-hsh" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">RUNUP / INUNDATION</div>
+      <div id="tsn-stat-runup" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div style="text-align:center;">
+    <button type="button" id="tsn-btn-quake" style="padding:6px 16px;border-radius:6px;background:rgba(90,170,255,0.2);border:1px solid #5aaaff;color:#8fd4ff;font-size:0.75rem;font-weight:bold;cursor:pointer;">⛴️ GENERATE NEW RUPTURE</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Linearised shallow-water equations ∂u/∂t = −g·∂η/∂x and ∂η/∂t = −∂(hu)/∂x, solved by leapfrog with a
+      CFL-stable timestep. Long-wave speed c = √(gh) automatically slows the wave from ~200 m/s in the deep
+      ocean to ~15 m/s at the shore, and shoaling amplification follows Green's law H ∝ h^(−1/4) without being
+      hard-coded. Source: static seafloor displacement ~ 0.3·10^(0.5(M−8)) m, the standard giant-earthquake
+      scaling. Runup = shore height × slope factor (1.2 gentle / 1.6 typical / 2.2 steep).
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('tsn-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const sMag = $('tsn-slider-mag'), sDepth = $('tsn-slider-depth'), sDist = $('tsn-slider-dist'),
+        sSlope = $('tsn-slider-slope'), sSpeed = $('tsn-slider-speed');
+  const vMag = $('tsn-val-mag'), vDepth = $('tsn-val-depth'), vDist = $('tsn-val-dist'),
+        vSlope = $('tsn-val-slope'), vSpeed = $('tsn-val-speed');
+  const clockEl = $('tsn-clock'), arrEl = $('tsn-arrival');
+  const statH0 = $('tsn-stat-h0'), statEta = $('tsn-stat-eta'), statHsh = $('tsn-stat-hsh'), statRunup = $('tsn-stat-runup');
+  const btnQuake = $('tsn-btn-quake');
+
+  const N = 220;
+  let mag = 8.6, depth = 3500, distKm = 300, slopeIdx = 0, speed = 180;
+  let h = new Float64Array(N + 1), bed = new Float64Array(N + 1);
+  let eta = new Float64Array(N + 2), etaPrev = new Float64Array(N + 2), u = new Float64Array(N + 2), uPrev = new Float64Array(N + 2);
+  let simT = 0, sourceAmp = 0, arrived = false, arrT = -1, maxShore = 0, coastI = 0;
+
+  function readSliders() {
+    mag = parseFloat(sMag.value); depth = parseFloat(sDepth.value); distKm = parseFloat(sDist.value);
+    slopeIdx = parseInt(sSlope.value, 10); speed = parseFloat(sSpeed.value);
+    vMag.textContent = 'M ' + mag.toFixed(1); vDepth.textContent = depth + ' m';
+    vDist.textContent = distKm + ' km';
+    vSlope.textContent = ['1:100', '1:40', '1:5'][slopeIdx];
+    vSpeed.textContent = '×' + Math.round(speed);
+    reset();
+  }
+
+  function reset() {
+    const L = distKm * 1000, dx = L / N;
+    // bathymetry: deep ocean → continental slope → beach
+    for (let i = 0; i <= N; i++) {
+      const x = i / N;
+      const shelf = 0.78; // fraction of domain that is ocean floor
+      if (x < shelf) {
+        h[i] = depth * (0.72 + 0.28 * x / shelf); // gentle deepening toward source
+        bed[i] = -h[i];
+      } else {
+        const t = (x - shelf) / (1 - shelf);
+        const beachH = [1.4, 3.5, 12][slopeIdx];
+        h[i] = Math.max(0.3, depth * (1 - t) * 0.9);
+        bed[i] = depth * (t - 1) * 0.9 + (t * t) * beachH * 0.8; // rises to shore then beach
+      }
+    }
+    coastI = Math.floor(N * 0.86);
+    // initial source displacement (static seafloor uplift), Gaussian bump
+    sourceAmp = 0.3 * Math.pow(10, 0.5 * (mag - 8));
+    const x0 = N * 0.10, sig = N * 0.05;
+    eta.fill(0); u.fill(0); etaPrev.fill(0); uPrev.fill(0);
+    for (let i = 0; i <= N; i++) {
+      eta[i] = sourceAmp * Math.exp(-Math.pow((i - x0) / sig, 2));
+    }
+    // u is staggered: u[i] is velocity between i and i+1
+    simT = 0; arrived = false; arrT = -1; maxShore = 0;
+    clockEl.textContent = 'ELAPSED 0 min';
+    arrEl.textContent = 'GENERATING RUPTURE…';
+    statEta.textContent = '—';
+  }
+
+  function swStep() {
+    const dx = distKm * 1000 / N;
+    let maxC = 0;
+    for (let i = 0; i <= N; i++) maxC = Math.max(maxC, Math.sqrt(9.81 * Math.max(h[i], 0.4)));
+    const dt = Math.min(0.45 * dx / maxC, 2.0); // CFL-safe
+    // momentum
+    for (let i = 1; i < N; i++) {
+      u[i] = uPrev[i] - 9.81 * dt / dx * (eta[i + 1] - eta[i]);
+    }
+    // continuity on interior cells
+    for (let i = 1; i < N; i++) {
+      const hm = Math.max(h[i - 1], h[i]), hp = Math.max(h[i], h[i + 1]);
+      eta[i] = etaPrev[i] - dt / dx * (hm * u[i] - hp * u[i - 1]);
+    }
+    // radiating left boundary, wall at coast
+    u[0] = 0; u[N] = 0; eta[0] = eta[1]; eta[N] = eta[N - 1];
+    // tiny smoothing keeps the leapfrog scheme stable (damps checkerboard modes)
+    for (let i = 1; i < N; i++) {
+      eta[i] += 0.015 * (eta[i + 1] - 2 * eta[i] + eta[i - 1]);
+    }
+    const tmpE = etaPrev; etaPrev.set(eta); eta.set(tmpE);
+    const tmpU = uPrev; uPrev.set(u); u.set(tmpU);
+    simT += dt;
+    // gauge at coast
+    if (!arrived && Math.abs(eta[coastI]) > 0.03) {
+      arrived = true; arrT = simT;
+    }
+    if (arrived) maxShore = Math.max(maxShore, Math.abs(eta[coastI]));
+  }
+
+  function draw() {
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.5);
+    sky.addColorStop(0, '#0a1522'); sky.addColorStop(1, '#14384f');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H * 0.5);
+    // domain geometry
+    const xPix = i => (i / N) * W;
+    const yBed = i => H * 0.5 - (bed[i] / (depth * 1.15)) * H * 0.42; // + above, − below 0
+    const ySea = i => H * 0.5 - eta[i] * 7; // wave height ×7 px/m for visibility
+
+    // water body: bed → surface
+    ctx.beginPath();
+    ctx.moveTo(xPix(0), ySea(0));
+    for (let i = 1; i <= N; i++) ctx.lineTo(xPix(i), ySea(i));
+    for (let i = N; i >= 0; i--) ctx.lineTo(xPix(i), yBed(i));
+    ctx.closePath();
+    const wg = ctx.createLinearGradient(0, H * 0.32, 0, H * 0.75);
+    wg.addColorStop(0, 'rgba(38,110,160,0.95)'); wg.addColorStop(1, 'rgba(10,35,60,0.95)');
+    ctx.fillStyle = wg; ctx.fill();
+
+    // free-surface line
+    ctx.strokeStyle = 'rgba(140,220,255,0.9)'; ctx.lineWidth = 2;
+    ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(90,200,255,0.7)';
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const px = xPix(i), py = Math.max(ySea(i), yBed(i) + 1); // clip under bed
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke(); ctx.shadowBlur = 0;
+
+    // land / beach
+    ctx.beginPath(); ctx.moveTo(xPix(coastI), H * 0.5);
+    for (let i = coastI; i <= N; i++) ctx.lineTo(xPix(i), yBed(i));
+    ctx.lineTo(W, H); ctx.lineTo(xPix(coastI), H); ctx.closePath();
+    ctx.fillStyle = ['#8f9a72', '#93865e', '#9c8a60'][slopeIdx];
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+
+    // inundation overlay: water advancing over the beach when the wave overtopps
+    if (maxShore > 0.05) {
+      const runFactor = [1.2, 1.6, 2.2][slopeIdx];
+      const runH = Math.min(maxShore * runFactor, 14);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(xPix(coastI), H * 0.5);
+      for (let i = coastI; i <= N; i++) ctx.lineTo(xPix(i), yBed(i));
+      ctx.lineTo(W, H); ctx.lineTo(xPix(coastI), H); ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = 'rgba(60,150,220,0.5)';
+      const floodX = Math.min(W, xPix(coastI) + runH * 0.055 * W / 1.14);
+      ctx.fillRect(xPix(coastI), 0, floodX - xPix(coastI), H);
+      ctx.restore();
+    }
+
+    // gauge marker
+    ctx.strokeStyle = '#ffd27f'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(xPix(coastI), H * 0.5 - 40); ctx.lineTo(xPix(coastI), H * 0.5 + 20); ctx.stroke();
+    ctx.fillStyle = '#ffd27f'; ctx.font = '9px monospace';
+    ctx.fillText('TIDE GAUGE', xPix(coastI) - 34, H * 0.5 - 44);
+
+    // rupture/fault zone marker
+    ctx.fillStyle = 'rgba(255,140,60,0.5)';
+    ctx.fillRect(0, H * 0.5 + 30, xPix(N * 0.16), 8);
+    ctx.fillStyle = '#ffb56b'; ctx.font = '9px monospace';
+    ctx.fillText('FAULT RUPTURE ZONE', 8, H * 0.5 + 52);
+
+    // map scale bar
+    ctx.fillStyle = 'rgba(230,250,255,0.5)'; ctx.font = '9px monospace';
+    ctx.fillText('|— ' + distKm + ' km —>', W - 150, 18);
+  }
+
+  let last = performance.now(), acc = 0;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    acc += dt;
+    // advance simulation
+    const stepsPerFrame = Math.max(1, Math.round(speed / 15));
+    for (let s = 0; s < stepsPerFrame; s++) swStep();
+
+    draw();
+    const min = Math.floor(simT / 60);
+    clockEl.textContent = 'ELAPSED ' + min + ' min';
+    statH0.textContent = sourceAmp.toFixed(2) + ' m';
+    statEta.textContent = (arrived && arrT >= 0)
+      ? (arrT / 60).toFixed(1) + ' min' + ' (arrived)'
+      : '≈ ' + Math.max(0, ((distKm * 1000) / Math.sqrt(9.81 * depth) / 60)).toFixed(0) + ' min';
+    statHsh.textContent = maxShore.toFixed(1) + ' m';
+    const runFactor = [1.2, 1.6, 2.2][slopeIdx];
+    const runup = maxShore * runFactor;
+    statRunup.textContent = runup.toFixed(1) + ' m';
+    if (arrived) arrEl.textContent = 'WAVE ARRIVED — gauge max ' + maxShore.toFixed(1) + ' m';
+    else if (maxShore > 0) arrEl.textContent = 'WAVE TRAVELLING…';
+    requestAnimationFrame(loop);
+  }
+
+  btnQuake.addEventListener('click', reset);
+  [sMag, sDepth, sDist, sSlope, sSpeed].forEach(s => s.addEventListener('input', readSliders));
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>

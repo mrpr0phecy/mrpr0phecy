@@ -1,0 +1,273 @@
+<h2 id="rfl-title" style="margin-top:0;color:var(--accent);">🌧️ Rainfall &amp; Flash Flood Lab</h2>
+
+<form aria-describedby="rfl-desc" onsubmit="event.preventDefault();">
+  <p id="rfl-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A catchment that converts rain into a flood hydrograph. Horton infiltration soaks the soil, the rational method produces peak discharge, and a Kirpich time-of-concentration shapes the river's rise and recession — watch the level gauge and the streams respond in real time.
+  </p>
+
+  <div style="background:#04101c;border:1px solid rgba(90,200,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="rfl-canvas" width="640" height="300" style="width:100%;height:300px;display:block;background:linear-gradient(#08131f,#0d2438 60%,#12303f);border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="rfl-rain-now" style="color:#8fd4ff;font-family:monospace;">RAIN: 0 mm/h</span>
+      <span id="rfl-stage" style="color:#ffd27f;font-family:monospace;">RIVER: LOW</span>
+    </div>
+  </div>
+
+  <div style="background:#04060a;border:1px solid rgba(90,200,255,0.2);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="rfl-hydro" width="640" height="170" style="width:100%;height:170px;display:block;background:#060b12;border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--text-secondary);margin-top:4px;padding:0 4px;">
+      <span>HYDROGRAPH — Q (m³/s) vs TIME since storm start</span>
+      <span id="rfl-peak-lbl" style="color:#ff9c6b;font-family:monospace;">peak —</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Rainfall Intensity</span><span id="rfl-val-rain">40 mm/h</span>
+      </div>
+      <input type="range" id="rfl-slider-rain" min="5" max="150" step="1" value="40" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Storm Duration</span><span id="rfl-val-dur">3 h</span>
+      </div>
+      <input type="range" id="rfl-slider-dur" min="0.5" max="12" step="0.5" value="3" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Catchment Area</span><span id="rfl-val-area">25 km²</span>
+      </div>
+      <input type="range" id="rfl-slider-area" min="1" max="500" step="1" value="25" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Soil Infiltration (steady)</span><span id="rfl-val-inf">12 mm/h</span>
+      </div>
+      <input type="range" id="rfl-slider-inf" min="1" max="60" step="1" value="12" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Catchment Slope</span><span id="rfl-val-slope">4%</span>
+      </div>
+      <input type="range" id="rfl-slider-slope" min="0.5" max="25" step="0.5" value="4" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Antecedent Soil Moisture</span><span id="rfl-val-amc">30%</span>
+      </div>
+      <input type="range" id="rfl-slider-amc" min="0" max="100" step="1" value="30" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">RUNOFF COEFFICIENT</div>
+      <div id="rfl-stat-c" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">PEAK DISCHARGE</div>
+      <div id="rfl-stat-q" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">TIME TO PEAK</div>
+      <div id="rfl-stat-tc" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">FLOOD SEVERITY</div>
+      <div id="rfl-stat-sev" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Horton infiltration: f(t) = f_c + (f₀ − f_c)·e^(−kt), f₀ = 5×f_c damped by antecedent soil moisture.
+      Rainfall excess = P − f; routed by the rational method Q = C·i·A with C rising as soil saturates.
+      Time of concentration from the Kirpich formula t_c = 0.0195·L^0.77·S^−0.385 min. Hydrograph = linear
+      reservoir cascade: rise to peak near t_c, exponential recession R = Qp·e^(−t/k).
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('rfl-canvas'), ctx = canvas.getContext('2d');
+  const hydro = $('rfl-hydro'), hctx = hydro.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const sRain = $('rfl-slider-rain'), sDur = $('rfl-slider-dur'), sArea = $('rfl-slider-area'),
+        sInf = $('rfl-slider-inf'), sSlope = $('rfl-slider-slope'), sAmc = $('rfl-slider-amc');
+  const vRain = $('rfl-val-rain'), vDur = $('rfl-val-dur'), vArea = $('rfl-val-area'),
+        vInf = $('rfl-val-inf'), vSlope = $('rfl-val-slope'), vAmc = $('rfl-val-amc');
+  const rainNow = $('rfl-rain-now'), stageEl = $('rfl-stage'), peakLbl = $('rfl-peak-lbl');
+  const statC = $('rfl-stat-c'), statQ = $('rfl-stat-q'), statTc = $('rfl-stat-tc'), statSev = $('rfl-stat-sev');
+
+  let rain = 40, durH = 3, area = 25, inf = 12, slopePct = 4, amc = 30;
+  let simH = 0, t = 0, drops = [], qHistory = [], maxQ = 0;
+
+  function readSliders() {
+    rain = parseFloat(sRain.value); durH = parseFloat(sDur.value); area = parseFloat(sArea.value);
+    inf = parseFloat(sInf.value); slopePct = parseFloat(sSlope.value); amc = parseFloat(sAmc.value);
+    vRain.textContent = rain + ' mm/h'; vDur.textContent = durH + ' h';
+    vArea.textContent = area + ' km²'; vInf.textContent = inf + ' mm/h';
+    vSlope.textContent = slopePct + '%'; vAmc.textContent = amc + '%';
+    qHistory = []; maxQ = 0; simH = 0;
+  }
+
+  function physics() {
+    // Horton: f0 = 5·fc damped by antecedent moisture; k ~ 0.5/h
+    const fc = inf;
+    const f0 = fc * (1 + 4 * (1 - amc / 100));
+    const k = 0.6;
+    const t = Math.min(simH, durH);
+    const f = fc + (f0 - fc) * Math.exp(-k * t);
+    const effRain = Math.max(0, rain - f); // mm/h
+    // antecedent moisture raises the runoff coefficient
+    const C = Math.min(0.95, 0.15 + 0.5 * (amc / 100) + effRain * 0.004 + slopePct * 0.006);
+    // Kirpich: tc (min) = 0.0195·L^0.77·S^-0.385 (L km, S m/m) with L ≈ sqrt(2·A) km
+    const L = Math.sqrt(2 * area);
+    const tcMin = 0.0195 * Math.pow(L, 0.77) * Math.pow(Math.max(slopePct / 100, 0.005), -0.385);
+    const tcH = tcMin / 60;
+    const qPeak = (C * rain * area) / 3.6; // rational method (mm/h·km² → m³/s)
+    const durEff = Math.min(durH, 8);
+    // severity thresholds scale with catchment size
+    const qRef = 1.1 * Math.pow(area, 0.8);
+    const sev = qPeak < qRef ? 'Normal' : qPeak < 2.2 * qRef ? 'Watch' : qPeak < 4 * qRef ? 'Flood Warning' : 'Major Flood';
+    return { fc, f0, f, effRain, C, tcH, qPeak, sev };
+  }
+
+  function hydroAt(hour) {
+    const p = physics();
+    if (hour < 0) return 0;
+    const rise = Math.min(1, hour / (Math.max(0.15, p.tcH * 1.6)));
+    const fall = hour > p.tcH ? Math.exp(-(hour - p.tcH) / (p.tcH * 1.4 + 0.3)) : 1;
+    return p.qPeak * rise * fall;
+  }
+
+  function step(dtReal) {
+    const p = physics();
+    const steps = 3;
+    for (let s = 0; s < steps; s++) {
+      simH += dtReal / steps; // hours of simulation
+      t += dtReal / steps;
+      // rain particles while storm active
+      if (simH < durH && drops.length < 90) {
+        drops.push({ x: Math.random() * W, y: -(Math.random() * 40), v: 140 + Math.random() * 90 });
+      }
+      if (simH < durH) {
+        // ground ponding glint
+      }
+    }
+    drops.forEach(d => { d.y += d.v * dtReal * 10; });
+    drops = drops.filter(d => d.y < H * 0.42);
+    const q = hydroAt(simH);
+    qHistory.push(q);
+    if (qHistory.length > 400) qHistory.shift();
+    maxQ = Math.max(maxQ, q);
+  }
+
+  function drawScene(p) {
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.5);
+    sky.addColorStop(0, '#0a1622'); sky.addColorStop(1, '#1a3244');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H * 0.5);
+    // hills
+    ctx.fillStyle = '#2c4438';
+    ctx.beginPath(); ctx.moveTo(0, H * 0.55);
+    ctx.lineTo(W * 0.22, H * 0.30); ctx.lineTo(W * 0.42, H * 0.5); ctx.lineTo(W * 0.6, H * 0.28); ctx.lineTo(W, H * 0.5);
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+    // streams
+    ctx.strokeStyle = 'rgba(90,170,220,0.6)'; ctx.lineWidth = 2;
+    const flow = Math.min(1, maxQ / (physics().qPeak * 1.2 + 0.001)) * 0.9 + 0.1;
+    ctx.globalAlpha = flow; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(W * 0.2, H * 0.34);
+    ctx.quadraticCurveTo(W * 0.34, H * 0.5, W * 0.52, H * 0.62); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+    // river
+    const riverW = 6 + 40 * Math.min(1.6, maxQ / 20);
+    const rg = ctx.createLinearGradient(0, H * 0.6, 0, H);
+    rg.addColorStop(0, 'rgba(70,140,190,' + (0.5 + 0.4 * Math.min(1, maxQ / 20)) + ')');
+    rg.addColorStop(1, 'rgba(40,90,140,0.95)');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.moveTo(W * 0.5, H * 0.62);
+    ctx.quadraticCurveTo(W * 0.7, H * 0.66, W * 0.86, H * 0.8);
+    ctx.lineTo(W * 0.86 + riverW, H * 0.8 + 4);
+    ctx.quadraticCurveTo(W * 0.7, H * 0.7, W * 0.5, H * 0.66);
+    ctx.closePath(); ctx.fill();
+    // gauge post
+    const level = Math.min(1, maxQ / 30);
+    ctx.fillStyle = '#ddd'; ctx.fillRect(W * 0.86, H * 0.5, 6, H * 0.4);
+    ctx.fillStyle = '#ff5040';
+    ctx.fillRect(W * 0.86 + 1, H * 0.5 + (1 - level) * H * 0.36, 4, level * H * 0.36);
+    ctx.fillStyle = '#ffd27f'; ctx.font = '9px monospace';
+    ctx.fillText('GAUGE ' + (level * 3.2).toFixed(1) + ' m', W * 0.86 + 10, H * 0.55);
+    // rain
+    ctx.strokeStyle = 'rgba(150,210,255,0.5)'; ctx.lineWidth = 1;
+    drops.forEach(d => {
+      ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - 2, d.y + 8); ctx.stroke();
+    });
+  }
+
+  function drawHydro() {
+    const pw = hydro.width, ph = hydro.height;
+    hctx.fillStyle = '#060b12'; hctx.fillRect(0, 0, pw, ph);
+    const padB = 20, padL = 40;
+    const maxQv = Math.max(0.5, maxQ * 1.15);
+    const hours = Math.max(6, qHistory.length * 0.05);
+    const xAt = q => padL + (q / hours) * (pw - padL - 10);
+    const yAt = q => ph - padB - (q / maxQv) * (ph - padB - 14);
+    // axes
+    hctx.strokeStyle = 'rgba(230,250,255,0.25)';
+    hctx.beginPath(); hctx.moveTo(padL, ph - padB); hctx.lineTo(pw - 6, ph - padB); hctx.stroke();
+    hctx.beginPath(); hctx.moveTo(padL, ph - padB); hctx.lineTo(padL, 8); hctx.stroke();
+    hctx.fillStyle = 'rgba(230,250,255,0.5)'; hctx.font = '9px monospace';
+    hctx.fillText('Q m³/s', 2, 14); hctx.fillText('time →', pw - 60, ph - 6);
+    hctx.fillText('0', padL - 10, ph - 8);
+    // storm period shading
+    const p = physics();
+    const xEnd = xAt(Math.min(durH, hours));
+    hctx.fillStyle = 'rgba(120,200,255,0.08)';
+    hctx.fillRect(padL, 8, xEnd - padL, ph - padB - 8);
+    // curve
+    hctx.strokeStyle = '#7fd4ff'; hctx.lineWidth = 2;
+    hctx.shadowBlur = 6; hctx.shadowColor = '#7fd4ff';
+    hctx.beginPath();
+    for (let i = 0; i < qHistory.length; i++) {
+      const x = xAt(i * 0.05), y = yAt(qHistory[i]);
+      if (i === 0) hctx.moveTo(x, y); else hctx.lineTo(x, y);
+    }
+    hctx.stroke(); hctx.shadowBlur = 0;
+    // peak marker
+    if (maxQ > 0) {
+      const xp = xAt(Math.min(p.tcH, hours)), yp = yAt(maxQ);
+      hctx.fillStyle = '#ffd27f';
+      hctx.beginPath(); hctx.arc(xp, yp, 3, 0, Math.PI * 2); hctx.fill();
+      hctx.fillText('Qp=' + maxQ.toFixed(1), xp + 6, yp - 6);
+    }
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const p = physics();
+    if (simH < durH + p.tcH * 6 + 2) step(dt);
+    drawScene(p); drawHydro();
+    rainNow.textContent = simH < durH ? 'RAIN: ' + rain + ' mm/h (storm ' + simH.toFixed(1) + '/' + durH + ' h)' : 'RAIN: STOPPED — RECESSION ' + (simH - durH).toFixed(1) + ' h';
+    stageEl.textContent = 'RIVER: ' + (maxQ < Math.max(1, p.qPeak * 0.2) ? 'LOW' : maxQ < Math.max(2, p.qPeak * 0.6) ? 'RISING' : 'HIGH — FLOODING');
+    peakLbl.textContent = 'peak ' + maxQ.toFixed(1) + ' m³/s';
+    statC.textContent = p.C.toFixed(2);
+    statQ.textContent = p.qPeak.toFixed(1) + ' m³/s';
+    statTc.textContent = (p.tcH * 60).toFixed(0) + ' min';
+    statSev.textContent = p.sev;
+    requestAnimationFrame(loop);
+  }
+
+  [sRain, sDur, sArea, sInf, sSlope, sAmc].forEach(s => s.addEventListener('input', readSliders));
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>

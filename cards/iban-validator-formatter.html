@@ -1,0 +1,76 @@
+<h2 id="iban-title" style="margin-top:0;color:var(--accent);">🏦 IBAN Validator &amp; Formatter</h2>
+
+<form aria-describedby="iban-desc" onsubmit="event.preventDefault();">
+  <p id="iban-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Check an International Bank Account Number with the ISO 13616 MOD-97 algorithm, then pretty-print it in groups of four. This confirms the check digits only — it cannot prove an account exists.
+  </p>
+  <label for="iban-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">IBAN</label>
+  <input id="iban-in" type="text" placeholder="GB82 WEST 1234 5698 7654 32" spellcheck="false" autocomplete="off" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.04em;">
+</form>
+<div id="iban-out" style="margin-top:14px;display:none;">
+  <div id="iban-status" style="padding:10px 12px;border-radius:8px;margin-bottom:10px;font-weight:700;"></div>
+  <dl style="display:grid;grid-template-columns:minmax(110px,auto) 1fr;gap:6px 12px;margin:0;font-size:.84rem;">
+    <dt style="color:var(--text-secondary);">Country</dt><dd id="iban-cc" style="margin:0;color:var(--text);"></dd>
+    <dt style="color:var(--text-secondary);">Check digits</dt><dd id="iban-cd" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+    <dt style="color:var(--text-secondary);">BBAN</dt><dd id="iban-bban" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere;"></dd>
+    <dt style="color:var(--text-secondary);">Formatted</dt><dd id="iban-fmt" style="margin:0;color:#91f7ff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere;"></dd>
+    <dt style="color:var(--text-secondary);">Length</dt><dd id="iban-len" style="margin:0;color:var(--text);"></dd>
+  </dl>
+  <button type="button" id="iban-copy" style="margin-top:10px;padding:8px 12px;background:rgba(45,212,255,.14);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;">Copy formatted</button>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var LEN = { AL:28, AD:24, AT:20, AZ:28, BH:22, BE:16, BA:20, BR:29, BG:22, CR:22, HR:21, CY:28, CZ:24, DK:18, DO:28, EE:20, FO:18, FI:18, FR:27, GE:22, DE:22, GI:23, GR:27, GL:18, GT:28, HU:28, IS:26, IE:22, IL:23, IT:27, JO:30, KZ:20, KW:30, LV:21, LB:28, LI:21, LT:20, LU:20, MK:19, MT:31, MR:27, MU:30, MC:27, MD:24, ME:22, NL:18, NO:15, PK:24, PS:29, PL:28, PT:25, QA:29, RO:24, SM:27, SA:24, RS:22, SK:24, SI:19, ES:24, SE:24, CH:21, TN:24, TR:26, AE:23, GB:22, VG:24, XK:20, UA:29, EG:29, LC:32 };
+  var NAMES = { GB:'United Kingdom', IE:'Ireland', DE:'Germany', FR:'France', ES:'Spain', IT:'Italy', NL:'Netherlands', BE:'Belgium', AT:'Austria', CH:'Switzerland', SE:'Sweden', NO:'Norway', DK:'Denmark', FI:'Finland', PL:'Poland', PT:'Portugal', GR:'Greece', CZ:'Czechia', HU:'Hungary', RO:'Romania', US:'United States (no IBAN)' };
+  var lastFmt = '';
+
+  function compact(s) { return s.toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function pretty(s) { return s.replace(/(.{4})/g, '$1 ').trim(); }
+  function mod97(iban) {
+    var rearranged = iban.slice(4) + iban.slice(0, 4);
+    var expanded = '';
+    for (var i = 0; i < rearranged.length; i++) {
+      var ch = rearranged.charCodeAt(i);
+      expanded += ch >= 65 && ch <= 90 ? String(ch - 55) : rearranged[i];
+    }
+    var rem = 0;
+    for (var j = 0; j < expanded.length; j++) rem = (rem * 10 + Number(expanded[j])) % 97;
+    return rem;
+  }
+  function run() {
+    var iban = compact($('iban-in').value);
+    if (!iban) { $('iban-out').style.display = 'none'; return; }
+    $('iban-out').style.display = 'block';
+    var cc = iban.slice(0, 2);
+    var expected = LEN[cc];
+    var issues = [];
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(iban)) issues.push('Must start with a country code and two check digits.');
+    if (expected && iban.length !== expected) issues.push('A ' + cc + ' IBAN should be ' + expected + ' characters, not ' + iban.length + '.');
+    if (!expected) issues.push('No registered length for country ' + cc + ' in this table (still running MOD-97).');
+    var rem = /^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(iban) ? mod97(iban) : -1;
+    var valid = rem === 1 && issues.length === 0;
+    var almost = rem === 1;
+    $('iban-status').textContent = valid ? '✓ Check digits are valid' : (almost ? 'MOD-97 passes, but length/format needs a look' : '✗ Check digits failed (remainder ' + rem + ', should be 1)');
+    $('iban-status').style.background = valid ? 'rgba(57,255,20,.08)' : (almost ? 'rgba(255,215,0,.1)' : 'rgba(255,77,77,.12)');
+    $('iban-status').style.border = '1px solid ' + (valid ? 'rgba(57,255,20,.35)' : (almost ? 'rgba(255,215,0,.4)' : 'rgba(255,77,77,.4)'));
+    $('iban-status').style.color = valid ? '#b8ffb0' : (almost ? '#ffe9a8' : '#ffb8b8');
+    $('iban-cc').textContent = cc + (NAMES[cc] ? ' — ' + NAMES[cc] : '');
+    $('iban-cd').textContent = iban.slice(2, 4) || '—';
+    $('iban-bban').textContent = iban.slice(4) || '—';
+    lastFmt = pretty(iban);
+    $('iban-fmt').textContent = lastFmt;
+    $('iban-len').textContent = iban.length + (expected ? ' (expected ' + expected + ')' : '') + (issues.length ? ' · ' + issues.join(' ') : '');
+  }
+  $('iban-in').addEventListener('input', run);
+  $('iban-copy').addEventListener('click', function () {
+    if (!lastFmt) return;
+    var btn = this;
+    function done() { btn.textContent = '✓ Copied'; setTimeout(function () { btn.textContent = 'Copy formatted'; }, 1400); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(lastFmt).then(done);
+    else done();
+  });
+})();
+</script>

@@ -1,0 +1,292 @@
+<h2 id="sundial-designer-gnomonics-title" style="margin-top:0;color:var(--accent);">🌞 Sundial Designer</h2>
+
+<form aria-describedby="sundial-designer-gnomonics-desc" onsubmit="event.preventDefault();">
+  <p id="sundial-designer-gnomonics-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A sundial only works at the latitude it was cut for, which is why the garden-centre ones are decorative rather than accurate. Give it your latitude and this lays out the hour lines properly — the angles come straight from spherical trigonometry — sizes the gnomon, and tells you how many minutes to add today so the dial agrees with your watch.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="sdg-place" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Place</label>
+      <select id="sdg-place" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.82rem;"></select>
+    </div>
+    <div>
+      <label for="sdg-lat" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Latitude (° N positive)</label>
+      <input type="number" id="sdg-lat" value="51.8787" step="0.0001" min="-89" max="89" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="sdg-lon" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Longitude (° E positive)</label>
+      <input type="number" id="sdg-lon" value="-0.4200" step="0.0001" min="-180" max="180" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="sdg-meridian" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Your time zone meridian (°)</label>
+      <input type="number" id="sdg-meridian" value="0" step="15" min="-180" max="180" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="sdg-type" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Dial type</label>
+      <select id="sdg-type" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.82rem;">
+        <option value="horizontal" selected>Horizontal — flat on a plinth</option>
+        <option value="vertical">Vertical — on a south-facing wall</option>
+        <option value="equatorial">Equatorial — plate tilted to the equator</option>
+      </select>
+    </div>
+    <div>
+      <label for="sdg-radius" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Dial plate radius (mm)</label>
+      <input type="number" id="sdg-radius" value="150" step="10" min="20" max="2000" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="sdg-date" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Date to correct for</label>
+      <input type="date" id="sdg-date" style="width:100%;padding:7px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.82rem;">
+    </div>
+    <div>
+      <label for="sdg-dst" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Summer time in force?</label>
+      <select id="sdg-dst" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.82rem;">
+        <option value="0" selected>No — standard time</option>
+        <option value="60">Yes — clocks forward one hour</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="sdg-stats" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="sdg-canvas" width="820" height="440" role="img"
+          aria-label="The dial face with its hour lines, and the gnomon shown in side elevation"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:12px;"></canvas>
+
+  <div id="sdg-table" style="margin-bottom:12px;"></div>
+  <div id="sdg-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var canvas = document.getElementById('sdg-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var el = function (id) { return document.getElementById(id); };
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
+
+  var PLACES = [
+    ['Luton, England', 51.8787, -0.4200, 0],
+    ['London, England', 51.5074, -0.1278, 0],
+    ['Edinburgh, Scotland', 55.9533, -3.1883, 0],
+    ['Dublin, Ireland', 53.3498, -6.2603, 0],
+    ['Paris, France', 48.8566, 2.3522, 15],
+    ['Madrid, Spain', 40.4168, -3.7038, 15],
+    ['Rome, Italy', 41.9028, 12.4964, 15],
+    ['New York, USA', 40.7128, -74.0060, -75],
+    ['Chicago, USA', 41.8781, -87.6298, -90],
+    ['Denver, USA', 39.7392, -104.9903, -105],
+    ['Los Angeles, USA', 34.0522, -118.2437, -120],
+    ['Cairo, Egypt', 30.0444, 31.2357, 30],
+    ['Delhi, India', 28.6139, 77.2090, 82.5],
+    ['Singapore', 1.3521, 103.8198, 120],
+    ['Sydney, Australia', -33.8688, 151.2093, 150],
+    ['Cape Town, South Africa', -33.9249, 18.4241, 30]
+  ];
+  var placeEl = el('sdg-place');
+  PLACES.forEach(function (p, i) { placeEl.add(new Option(p[0], String(i))); });
+
+  function eqTime(doy) {           // minutes: sundial ahead of mean time when positive
+    var g = 2 * Math.PI / 365 * (doy - 1);
+    return 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g)
+      - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  }
+
+  function dayOfYear(d) {
+    return Math.floor((d - new Date(Date.UTC(d.getUTCFullYear(), 0, 0))) / 86400000);
+  }
+
+  // hour-line angle from the noon line, degrees, positive towards afternoon
+  function hourAngleLine(H, lat, type) {
+    var Hr = H * D2R;
+    if (type === 'equatorial') return H;                                    // 15° per hour, evenly
+    if (type === 'vertical') return Math.atan(Math.cos(lat * D2R) * Math.tan(Hr)) * R2D;
+    return Math.atan(Math.sin(Math.abs(lat) * D2R) * Math.tan(Hr)) * R2D;   // horizontal
+  }
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.02rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function draw(lat, type, lines, radius, eot, corr) {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
+    var split = Math.round(w * 0.58);
+    var south = lat < 0;
+
+    // ---------- dial face ----------
+    var cx = split * 0.5, cy = type === 'vertical' ? h * 0.3 : h * 0.62;
+    var rr = Math.min(split * 0.42, h * 0.36);
+    var dir = type === 'vertical' ? 1 : -1;   // vertical dials read downwards
+
+    ctx.beginPath();
+    if (type === 'equatorial') {
+      ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+    } else if (type === 'vertical') {
+      ctx.arc(cx, cy, rr, 0, Math.PI);
+    } else {
+      ctx.arc(cx, cy, rr, Math.PI, Math.PI * 2);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(45,212,255,.07)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(45,212,255,.45)'; ctx.lineWidth = 1.4; ctx.stroke();
+
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    lines.forEach(function (L) {
+      var a = (90 + dir * (south && type !== 'equatorial' ? -L.angle : L.angle)) * D2R;
+      var x2 = cx + Math.cos(a) * rr * (dir === 1 ? 1 : 1);
+      var y2 = cy - dir * Math.sin(a) * rr;
+      var xx = cx + Math.sin((south && type !== 'equatorial' ? -L.angle : L.angle) * D2R) * rr;
+      var yy = cy - dir * Math.cos((south && type !== 'equatorial' ? -L.angle : L.angle) * D2R) * rr;
+      var major = L.hour % 3 === 0;
+      ctx.strokeStyle = L.hour === 12 ? '#ffd700' : major ? 'rgba(45,212,255,.85)' : 'rgba(45,212,255,.45)';
+      ctx.lineWidth = L.hour === 12 ? 2.2 : major ? 1.6 : 1;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(xx, yy); ctx.stroke();
+      ctx.fillStyle = L.hour === 12 ? '#ffd700' : 'rgba(230,250,255,.8)';
+      ctx.textAlign = 'center';
+      ctx.fillText(L.label, cx + (xx - cx) * 1.11, cy + (yy - cy) * 1.11 + 4);
+    });
+    ctx.textAlign = 'left';
+
+    // gnomon shown in plan
+    var gnomonAngle = type === 'equatorial' ? 90 : (type === 'vertical' ? 90 - Math.abs(lat) : Math.abs(lat));
+    ctx.fillStyle = 'rgba(255,215,0,.25)';
+    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(cx - 7, cy);
+    ctx.lineTo(cx + 7, cy);
+    ctx.lineTo(cx, cy - dir * rr * 0.9);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = 'rgba(230,250,255,.6)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(type === 'horizontal' ? (south ? 'point the gnomon at true south' : 'point the gnomon at true north')
+      : type === 'vertical' ? 'wall faces the equator' : 'plate tilted ' + (90 - Math.abs(lat)).toFixed(1) + '° from horizontal', cx, h - 14);
+    ctx.textAlign = 'left';
+
+    // ---------- gnomon elevation + equation of time ----------
+    var gx = split + 24, gy = 96, gw = w - split - 48;
+    ctx.strokeStyle = 'rgba(230,250,255,.6)'; ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy); ctx.lineTo(gx + gw * 0.7, gy);
+    ctx.lineTo(gx, gy - Math.tan(gnomonAngle * D2R) * gw * 0.7);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,215,0,.18)'; ctx.fill();
+    ctx.strokeStyle = '#ffd700'; ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,.8)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText('gnomon: ' + gnomonAngle.toFixed(1) + '° style angle', gx, gy + 18);
+    ctx.fillText('height ' + (Math.tan(gnomonAngle * D2R) * radius * 0.7).toFixed(0) + ' mm at ' + (radius * 0.7).toFixed(0) + ' mm base', gx, gy + 34);
+
+    // equation of time curve
+    var ey = h - 150, eh = 100;
+    ctx.strokeStyle = 'rgba(255,255,255,.1)';
+    ctx.beginPath(); ctx.moveTo(gx, ey + eh / 2); ctx.lineTo(gx + gw, ey + eh / 2); ctx.stroke();
+    ctx.beginPath();
+    for (var d = 1; d <= 365; d++) {
+      var e = eqTime(d);
+      var x = gx + (d / 365) * gw, y = ey + eh / 2 - e / 20 * (eh / 2);
+      if (d === 1) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#2dd4ff'; ctx.lineWidth = 1.8; ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,.6)';
+    ctx.font = '10px Inter, system-ui, sans-serif';
+    ctx.fillText('equation of time, ±16 minutes across the year', gx, ey - 8);
+    ctx.fillText('Jan', gx, ey + eh + 14);
+    ctx.fillText('Jul', gx + gw / 2 - 8, ey + eh + 14);
+    ctx.fillText('Dec', gx + gw - 20, ey + eh + 14);
+
+    var todayX = gx + (dayOfYear(new Date()) / 365) * gw;
+    ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(todayX, ey); ctx.lineTo(todayX, ey + eh); ctx.stroke();
+  }
+
+  function update() {
+    var lat = parseFloat(el('sdg-lat').value), lon = parseFloat(el('sdg-lon').value);
+    var meridian = parseFloat(el('sdg-meridian').value), radius = parseFloat(el('sdg-radius').value);
+    var type = el('sdg-type').value, dst = parseFloat(el('sdg-dst').value);
+    if (![lat, lon, meridian, radius, dst].every(isFinite)) return;
+    var d = el('sdg-date').value ? new Date(el('sdg-date').value + 'T12:00:00Z') : new Date();
+    var doy = dayOfYear(d);
+    var eot = eqTime(doy);
+    var lonCorr = (lon - meridian) * 4;         // minutes: east of the meridian, the sun is early
+    var correction = -eot - lonCorr + dst;      // minutes to ADD to the dial reading to get clock time
+
+    var lines = [];
+    for (var hr = 4; hr <= 20; hr++) {
+      var H = (hr - 12) * 15;
+      if (type !== 'equatorial' && Math.abs(H) > 90 && type === 'vertical') continue;
+      var ang = hourAngleLine(H, lat, type);
+      if (type === 'horizontal' && Math.abs(H) > 90) ang = ang + (H > 0 ? 180 : -180);
+      if (Math.abs(ang) > 178) continue;
+      lines.push({ hour: hr, angle: ang, label: String(hr) });
+    }
+
+    var gnomonAngle = type === 'equatorial' ? 90 : (type === 'vertical' ? 90 - Math.abs(lat) : Math.abs(lat));
+    var gnomonHeight = Math.tan(gnomonAngle * D2R) * radius * 0.7;
+
+    el('sdg-stats').innerHTML =
+      stat('GNOMON STYLE ANGLE', gnomonAngle.toFixed(2) + '°',
+           type === 'horizontal' ? 'exactly your latitude — nothing else works' : 'measured from the dial plate', '#ffd700') +
+      stat('GNOMON HEIGHT', gnomonHeight.toFixed(0) + ' mm',
+           'over a ' + (radius * 0.7).toFixed(0) + ' mm base on a ' + radius + ' mm plate') +
+      stat('LONGITUDE CORRECTION', (lonCorr >= 0 ? '+' : '') + lonCorr.toFixed(1) + ' min',
+           Math.abs(lon - meridian).toFixed(2) + '° ' + (lon > meridian ? 'east' : 'west') + ' of your zone meridian', '#9d4edd') +
+      stat('EQUATION OF TIME TODAY', (eot >= 0 ? '+' : '') + eot.toFixed(1) + ' min',
+           eot >= 0 ? 'the sun is running fast' : 'the sun is running slow', '#2dd4ff') +
+      stat('ADD TO THE DIAL TODAY', (correction >= 0 ? '+' : '') + correction.toFixed(0) + ' min',
+           'to convert dial reading into clock time', '#39ff14') +
+      stat('NOON ARRIVES AT', (function () {
+        var mins = 12 * 60 + correction;
+        var hh = Math.floor(((mins % 1440) + 1440) % 1440 / 60), mm = Math.round(mins % 60);
+        return String(hh).padStart(2, '0') + ':' + String(((mm % 60) + 60) % 60).padStart(2, '0');
+      })(), 'when the shadow crosses the noon line', '#ff9f43');
+
+    draw(lat, type, lines, radius, eot, correction);
+
+    var rows = lines.filter(function (L) { return L.hour >= 5 && L.hour <= 19; }).map(function (L) {
+      var side = L.angle < -0.05 ? 'west of noon' : L.angle > 0.05 ? 'east of noon' : 'the noon line';
+      if (lat < 0) side = side === 'west of noon' ? 'east of noon' : side === 'east of noon' ? 'west of noon' : side;
+      var mm = Math.tan(Math.min(88, Math.abs(L.angle)) * D2R) * radius;
+      return '<tr><td style="padding:5px 8px;color:var(--text-secondary);">' + String(L.hour).padStart(2, '0') + ':00</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace;color:var(--accent);">' + L.angle.toFixed(2) + '°</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace;">' + (mm > radius * 4 ? '—' : mm.toFixed(1) + ' mm') + '</td>' +
+        '<td style="padding:5px 8px;color:var(--text-secondary);font-size:0.72rem;">' + side + '</td></tr>';
+    }).join('');
+    el('sdg-table').innerHTML =
+      '<div style="overflow-x:auto;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:0.77rem;min-width:360px;">' +
+      '<thead><tr style="color:var(--text-secondary);font-size:0.66rem;letter-spacing:.05em;">' +
+      '<th style="text-align:left;padding:6px 8px;">SOLAR HOUR</th><th style="text-align:right;padding:6px 8px;">ANGLE FROM NOON</th>' +
+      '<th style="text-align:right;padding:6px 8px;">OFFSET AT ' + radius + ' mm</th><th style="text-align:left;padding:6px 8px;">SIDE</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div>';
+
+    el('sdg-notes').innerHTML =
+      '<strong style="color:var(--accent);">Three corrections stand between a shadow and the right time.</strong> First the dial must be cut for your latitude: the hour-line spacing comes from tan(angle) = sin(latitude) × tan(hour angle), which is why a dial made for Cornwall reads wrong in Aberdeen. Second, your clock keeps the time of a meridian that probably is not yours — being ' +
+      Math.abs(lon - meridian).toFixed(2) + '° ' + (lon > meridian ? 'east' : 'west') + ' of it shifts everything by ' +
+      Math.abs(lonCorr).toFixed(1) + ' minutes, every day of the year. Third comes the equation of time, the wobble caused by the Earth\u2019s elliptical orbit and its tilted axis, worth up to sixteen minutes either way.' +
+      '<div style="margin-top:6px;">Put together: today your dial needs <strong style="color:#39ff14;">' +
+      (correction >= 0 ? '+' : '') + correction.toFixed(0) + ' minutes</strong> adding to it to match a watch. Engrave that curve on the dial and you have an analemmatic correction; leave it off and every visitor will tell you the dial is broken.</div>' +
+      '<div style="margin-top:6px;">To set the dial up: align the gnomon with true north (or true south below the equator), not magnetic north — the difference can be several degrees, which is several minutes of error. Level the plate. The gnomon\u2019s upper edge, not its face, casts the reading edge of the shadow, and that edge must lie parallel to the Earth\u2019s axis.</div>' +
+      '<div style="margin-top:6px;font-size:0.72rem;">Horizontal and direct-vertical dials are covered here. A wall that does not face due south needs a declining dial, whose substyle no longer sits on the noon line — worth cutting a cardboard prototype before committing to slate.</div>';
+  }
+
+  placeEl.addEventListener('change', function () {
+    var p = PLACES[parseInt(placeEl.value, 10)];
+    if (!p) return;
+    el('sdg-lat').value = p[1]; el('sdg-lon').value = p[2]; el('sdg-meridian').value = p[3];
+    update();
+  });
+  ['lat', 'lon', 'meridian', 'radius', 'type', 'date', 'dst'].forEach(function (i) {
+    el('sdg-' + i).addEventListener('input', update);
+    el('sdg-' + i).addEventListener('change', update);
+  });
+  el('sdg-date').value = new Date().toISOString().slice(0, 10);
+  update();
+})();
+</script>

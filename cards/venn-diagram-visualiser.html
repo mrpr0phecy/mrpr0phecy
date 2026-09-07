@@ -1,0 +1,105 @@
+<h2 id="vn-title" style="margin-top:0;color:var(--accent);">🔵 Venn Diagram Visualiser</h2>
+
+<form aria-describedby="vn-desc" onsubmit="event.preventDefault();">
+  <p id="vn-desc" class="small" style="color:var(--muted);margin-bottom:14px;">Type two lists and watch the Venn diagram draw itself — union, intersection, symmetric difference and per-zone items are listed.</p>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Your sets</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:12px;">
+      <div>
+        <label for="vn-a" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px;">Set A (one item per line, or commas):</label>
+        <textarea id="vn-a" rows="5" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.9rem;resize:vertical;">apple
+banana
+cherry
+date</textarea>
+      </div>
+      <div>
+        <label for="vn-b" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px;">Set B (one item per line, or commas):</label>
+        <textarea id="vn-b" rows="5" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.9rem;resize:vertical;">banana
+cherry
+elderberry
+fig</textarea>
+      </div>
+      <div>
+        <label for="vn-label-a" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px;">Label A:</label>
+        <input type="text" id="vn-label-a" value="Fruit I own" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.9rem;">
+        <label for="vn-label-b" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text);margin:8px 0 4px;">Label B:</label>
+        <input type="text" id="vn-label-b" value="Fruit I like" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.9rem;">
+      </div>
+    </div>
+    <button type="button" id="vn-go" style="padding:10px 22px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">Draw Venn</button>
+  </div>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div id="vn-diagram" style="position:relative;width:100%;max-width:620px;height:340px;margin:0 auto;"></div>
+    <div id="vn-stats" style="font-size:0.95rem;font-weight:800;color:#e6faff;margin-top:12px;"></div>
+    <div id="vn-areas" style="font-size:0.8rem;color:var(--muted);line-height:1.8;margin-top:8px;"></div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>Set language:</strong> A ∪ B (union) = everything in either · A ∩ B (intersection) = the overlap · A − B = only in A · symmetric difference = in exactly one. Matches are case-insensitive and spaces are trimmed.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var aIn = el('vn-a'), bIn = el('vn-b'), labelAIn = el('vn-label-a'), labelBIn = el('vn-label-b'),
+      go = el('vn-go'), diagram = el('vn-diagram'), stats = el('vn-stats'), areas = el('vn-areas');
+
+  function parse(text) {
+    return text.split(/[\n,]/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+  function norm(s) { return s.toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function set(x) { var m = {}; x.forEach(function (i) { m[norm(i)] = i; }); return m; }
+
+  function draw() {
+    diagram.textContent = ''; stats.textContent = ''; areas.textContent = '';
+    var a = parse(aIn.value), b = parse(bIn.value);
+    var sa = set(a), sb = set(b);
+    var onlyA = [], both = [], onlyB = [];
+    a.forEach(function (i) { if (sb[norm(i)]) both.push(i); else onlyA.push(i); });
+    b.forEach(function (i) { if (!sa[norm(i)]) onlyB.push(i); });
+
+    var circles = document.createElement('div');
+    circles.style.cssText = 'position:absolute;left:50%;top:50%;width:300px;height:300px;transform:translate(-50%,-50%);';
+    var ca = document.createElement('div');
+    ca.style.cssText = 'position:absolute;left:8%;top:8%;width:62%;height:84%;border-radius:50%;background:rgba(0,255,204,0.14);border:2px solid rgba(0,255,204,0.7);';
+    var cb = document.createElement('div');
+    cb.style.cssText = 'position:absolute;right:8%;top:8%;width:62%;height:84%;border-radius:50%;background:rgba(0,187,255,0.14);border:2px solid rgba(0,187,255,0.7);';
+    circles.appendChild(ca); circles.appendChild(cb);
+    diagram.appendChild(circles);
+
+    function addList(items, zone, color) {
+      var d = document.createElement('div');
+      if (zone === 'a') d.style.cssText = 'position:absolute;left:2%;top:30%;width:33%;text-align:center;font-size:0.8rem;color:' + color + ';line-height:1.7;';
+      else if (zone === 'b') d.style.cssText = 'position:absolute;right:2%;top:30%;width:33%;text-align:center;font-size:0.8rem;color:' + color + ';line-height:1.7;';
+      else d.style.cssText = 'position:absolute;left:50%;top:30%;width:30%;text-align:center;font-size:0.8rem;font-weight:800;color:' + color + ';transform:translateX(-50%);line-height:1.7;';
+      d.textContent = items.join('\n');
+      diagram.appendChild(d);
+    }
+    addList(onlyA, 'a', '#00ffcc');
+    addList(onlyB, 'b', '#00bbff');
+    addList(both, 'both', '#e6faff');
+    var la = document.createElement('div');
+    la.textContent = labelAIn.value || 'A';
+    la.style.cssText = 'position:absolute;left:6%;top:25%;font-size:0.8rem;font-weight:800;color:#00ffcc;';
+    var lb = document.createElement('div');
+    lb.textContent = labelBIn.value || 'B';
+    lb.style.cssText = 'position:absolute;right:6%;top:25%;font-size:0.8rem;font-weight:800;color:#00bbff;';
+    diagram.appendChild(la); diagram.appendChild(lb);
+
+    stats.textContent = 'A ∪ B = ' + (onlyA.length + both.length + onlyB.length) + ' items · A ∩ B = ' + both.length + ' · A − B = ' + onlyA.length + ' · B − A = ' + onlyB.length;
+    var lines = [
+      'Union (either set): ' + (onlyA.concat(both, onlyB).length ? onlyA.concat(both, onlyB).join(', ') : 'none'),
+      'Intersection (both): ' + (both.length ? both.join(', ') : 'none'),
+      'Symmetric difference (exactly one): ' + (onlyA.concat(onlyB).length ? onlyA.concat(onlyB).join(', ') : 'none')
+    ];
+    lines.forEach(function (l) { var d = document.createElement('div'); d.textContent = '• ' + l; areas.appendChild(d); });
+  }
+
+  go.addEventListener('click', draw);
+  draw();
+})();
+</script>

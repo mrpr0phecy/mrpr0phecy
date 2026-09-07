@@ -1,0 +1,179 @@
+<h2 id="mur-title" style="margin-top:0;color:var(--accent);">🐦 Starling Murmuration</h2>
+
+<form aria-describedby="mur-desc" onsubmit="event.preventDefault();">
+  <p id="mur-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+    Reynolds boids with the three forces starlings actually use: short-range separation, local alignment, and a weaker cohesion. Click to drop a hawk — the flock folds, splits and re-forms. The ribbon is not choreography; it is local rules at 120 birds.
+  </p>
+
+  <div style="background:#070b12;border:1px solid rgba(180,200,255,0.25);border-radius:10px;overflow:hidden;margin-bottom:12px;">
+    <canvas id="mur-cv" width="720" height="360" style="width:100%;height:auto;aspect-ratio:720/360;display:block;cursor:crosshair;"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <label for="mur-sep" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Separation <span id="mur-sep-v">1.4</span>
+      <input id="mur-sep" type="range" min="0" max="3" step="0.1" value="1.4" style="width:100%;accent-color:#c4b5fd;">
+    </label>
+    <label for="mur-ali" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Alignment <span id="mur-ali-v">1.0</span>
+      <input id="mur-ali" type="range" min="0" max="3" step="0.1" value="1.0" style="width:100%;accent-color:#c4b5fd;">
+    </label>
+    <label for="mur-coh" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Cohesion <span id="mur-coh-v">0.7</span>
+      <input id="mur-coh" type="range" min="0" max="3" step="0.1" value="0.7" style="width:100%;accent-color:#c4b5fd;">
+    </label>
+    <label for="mur-spd" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Cruise speed <span id="mur-spd-v">2.4</span>
+      <input id="mur-spd" type="range" min="0.8" max="4.5" step="0.1" value="2.4" style="width:100%;accent-color:#c4b5fd;">
+    </label>
+    <label for="mur-rad" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Perception <span id="mur-rad-v">42 px</span>
+      <input id="mur-rad" type="range" min="16" max="90" value="42" style="width:100%;accent-color:#c4b5fd;">
+    </label>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="mur-run" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(196,181,253,0.16);border:1px solid rgba(196,181,253,0.45);color:#c4b5fd;cursor:pointer;font-weight:600;">Pause</button>
+    <button type="button" id="mur-reset" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);color:#e6faff;cursor:pointer;font-weight:600;">Reseed flock</button>
+  </div>
+
+  <div id="mur-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.75);padding:10px 12px;background:rgba(196,181,253,0.07);border:1px solid rgba(196,181,253,0.2);border-radius:8px;">Click anywhere to send in a hawk. Polarisation (how aligned the flock is) is live.</div>
+</form>
+
+<details style="margin-top:10px;font-size:0.82rem;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics</summary>
+  <p style="margin-top:8px;">
+    Starling flocks on the Roman roosts of the Campagna follow topological, not metric, neighbours — each bird
+    copies about seven others. Here a metric radius is a close, cheap analogue. Polarisation Φ = |⟨v̂⟩| is 1 when
+    every bird points the same way and 0 when the cloud is a scramble. A hawk injects a repulsive potential;
+    the fold and split you see is the same “wave of agitation” measured in real murmurations.
+  </p>
+</details>
+
+<script>
+(function () {
+  var cv = document.getElementById('mur-cv');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var birds = [], hawks = [], running = true, N = 130;
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) running = false;
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { return parseFloat($(id).value); }
+
+  function seed() {
+    birds = [];
+    var i, a;
+    for (i = 0; i < N; i++) {
+      a = Math.random() * Math.PI * 2;
+      birds.push({
+        x: 80 + Math.random() * (cv.width - 160),
+        y: 60 + Math.random() * (cv.height - 120),
+        vx: Math.cos(a), vy: Math.sin(a)
+      });
+    }
+    hawks = [];
+  }
+
+  function step() {
+    var sepW = val('mur-sep'), aliW = val('mur-ali'), cohW = val('mur-coh');
+    var spd = val('mur-spd'), rad = val('mur-rad');
+    var i, j, b, o, dx, dy, d, n, sx, sy, ax, ay, cx, cy, mag, hx, hy, hd;
+    var next = [];
+    for (i = 0; i < birds.length; i++) {
+      b = birds[i];
+      sx = 0; sy = 0; ax = 0; ay = 0; cx = 0; cy = 0; n = 0;
+      for (j = 0; j < birds.length; j++) {
+        if (i === j) continue;
+        o = birds[j];
+        dx = o.x - b.x; dy = o.y - b.y;
+        if (dx > cv.width / 2) dx -= cv.width;
+        if (dx < -cv.width / 2) dx += cv.width;
+        if (dy > cv.height / 2) dy -= cv.height;
+        if (dy < -cv.height / 2) dy += cv.height;
+        d = Math.hypot(dx, dy);
+        if (d < rad && d > 0) {
+          n++;
+          if (d < rad * 0.35) { sx -= dx / (d * d); sy -= dy / (d * d); }
+          ax += o.vx; ay += o.vy;
+          cx += dx; cy += dy;
+        }
+      }
+      if (n) { ax /= n; ay /= n; cx /= n; cy /= n; }
+      var vx = b.vx + sx * sepW * 0.08 + ax * aliW * 0.05 + cx * cohW * 0.012;
+      var vy = b.vy + sy * sepW * 0.08 + ay * aliW * 0.05 + cy * cohW * 0.012;
+      for (j = 0; j < hawks.length; j++) {
+        hx = b.x - hawks[j].x; hy = b.y - hawks[j].y;
+        hd = Math.hypot(hx, hy) || 1;
+        if (hd < 90) { vx += hx / hd * (90 - hd) * 0.04; vy += hy / hd * (90 - hd) * 0.04; }
+      }
+      mag = Math.hypot(vx, vy) || 1;
+      vx = vx / mag * spd; vy = vy / mag * spd;
+      next.push({
+        x: (b.x + vx + cv.width) % cv.width,
+        y: (b.y + vy + cv.height) % cv.height,
+        vx: vx, vy: vy
+      });
+    }
+    birds = next;
+    for (i = hawks.length - 1; i >= 0; i--) {
+      hawks[i].life--;
+      if (hawks[i].life <= 0) hawks.splice(i, 1);
+    }
+  }
+
+  function draw() {
+    ctx.fillStyle = 'rgba(7,11,18,0.35)';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    var i, b, ang, px = 0, py = 0;
+    ctx.fillStyle = '#e8eefc';
+    for (i = 0; i < birds.length; i++) {
+      b = birds[i];
+      ang = Math.atan2(b.vy, b.vx);
+      ctx.beginPath();
+      ctx.moveTo(b.x + Math.cos(ang) * 6, b.y + Math.sin(ang) * 6);
+      ctx.lineTo(b.x + Math.cos(ang + 2.5) * 4, b.y + Math.sin(ang + 2.5) * 4);
+      ctx.lineTo(b.x + Math.cos(ang - 2.5) * 4, b.y + Math.sin(ang - 2.5) * 4);
+      ctx.closePath();
+      ctx.fill();
+      px += b.vx; py += b.vy;
+    }
+    ctx.fillStyle = '#ff4d4d';
+    for (i = 0; i < hawks.length; i++) {
+      ctx.beginPath(); ctx.arc(hawks[i].x, hawks[i].y, 7, 0, Math.PI * 2); ctx.fill();
+    }
+    var mag = Math.hypot(px, py) / (birds.length * (val('mur-spd') || 1));
+    $('mur-out').textContent = N + ' starlings  ·  polarisation Φ = ' + mag.toFixed(2) +
+      (mag > 0.85 ? ' (highly aligned ribbon)' : mag > 0.5 ? ' (coherent flock)' : ' (mixing / split)') +
+      (hawks.length ? '  ·  hawk in the air' : '  ·  click to scare');
+  }
+
+  function frame() {
+    if (running) step();
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function sync() {
+    $('mur-sep-v').textContent = val('mur-sep').toFixed(1);
+    $('mur-ali-v').textContent = val('mur-ali').toFixed(1);
+    $('mur-coh-v').textContent = val('mur-coh').toFixed(1);
+    $('mur-spd-v').textContent = val('mur-spd').toFixed(1);
+    $('mur-rad-v').textContent = val('mur-rad') + ' px';
+  }
+  ['mur-sep', 'mur-ali', 'mur-coh', 'mur-spd', 'mur-rad'].forEach(function (id) { $(id).addEventListener('input', sync); });
+  $('mur-run').addEventListener('click', function () {
+    running = !running; this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('mur-reset').addEventListener('click', seed);
+  cv.addEventListener('pointerdown', function (e) {
+    var r = cv.getBoundingClientRect();
+    hawks.push({
+      x: (e.clientX - r.left) * (cv.width / r.width),
+      y: (e.clientY - r.top) * (cv.height / r.height),
+      life: 90
+    });
+  });
+
+  seed();
+  sync();
+  if (reduce) $('mur-run').textContent = 'Run';
+  requestAnimationFrame(frame);
+})();
+</script>

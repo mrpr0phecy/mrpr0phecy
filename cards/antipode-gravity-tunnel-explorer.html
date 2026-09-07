@@ -1,0 +1,336 @@
+<h2 id="antipode-gravity-tunnel-explorer-title" style="margin-top:0;color:var(--accent);">🕳️ Antipode &amp; Gravity Tunnel Explorer</h2>
+
+<form aria-describedby="antipode-gravity-tunnel-explorer-desc" onsubmit="event.preventDefault();">
+  <p id="antipode-gravity-tunnel-explorer-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Find the exact point on the far side of the planet from anywhere, then drill a straight frictionless tunnel to any second place and drop a capsule down it. The fall time is integrated through the real PREM density model of the Earth's interior — not the textbook uniform sphere — so you get the honest 38 minutes, the peak speed, the depth reached, and the pressure and temperature the tunnel would have to survive.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="agte-from" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">From</label>
+      <select id="agte-from" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+    <div>
+      <label for="agte-to" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">To</label>
+      <select id="agte-to" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="agte-lat1" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">From latitude</label>
+      <input type="number" id="agte-lat1" value="51.8787" step="0.0001" min="-90" max="90" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="agte-lon1" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">From longitude</label>
+      <input type="number" id="agte-lon1" value="-0.4200" step="0.0001" min="-180" max="180" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="agte-lat2" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">To latitude</label>
+      <input type="number" id="agte-lat2" value="-33.8688" step="0.0001" min="-90" max="90" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="agte-lon2" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">To longitude</label>
+      <input type="number" id="agte-lon2" value="151.2093" step="0.0001" min="-180" max="180" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="agte-antipode" style="min-height:40px;padding:10px 16px;border-radius:8px;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);font-weight:700;cursor:pointer;font-size:0.82rem;">Set destination to my antipode</button>
+    <button type="button" id="agte-drop" style="min-height:40px;padding:10px 16px;border-radius:8px;border:1px solid rgba(57,255,20,.4);background:rgba(57,255,20,.12);color:#39ff14;font-weight:700;cursor:pointer;font-size:0.82rem;">Drop the capsule</button>
+    <button type="button" id="agte-swap" style="min-height:40px;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:inherit;cursor:pointer;font-size:0.82rem;">Swap ends</button>
+  </div>
+
+  <div id="agte-stats" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="agte-canvas" width="820" height="420" role="img"
+          aria-label="Cross-section of the Earth showing the interior layers and the straight tunnel between the two chosen points"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:12px;"></canvas>
+
+  <div id="agte-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var canvas = document.getElementById('agte-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var lat1El = document.getElementById('agte-lat1'), lon1El = document.getElementById('agte-lon1');
+  var lat2El = document.getElementById('agte-lat2'), lon2El = document.getElementById('agte-lon2');
+  var fromEl = document.getElementById('agte-from'), toEl = document.getElementById('agte-to');
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI, R = 6371, G = 6.674e-11;
+
+  var PLACES = [
+    ['Luton, England', 51.8787, -0.4200],
+    ['London, England', 51.5074, -0.1278],
+    ['Madrid, Spain', 40.4168, -3.7038],
+    ['Wellington, New Zealand', -41.2866, 174.7756],
+    ['Auckland, New Zealand', -36.8485, 174.7633],
+    ['Sydney, Australia', -33.8688, 151.2093],
+    ['New York, USA', 40.7128, -74.0060],
+    ['Los Angeles, USA', 34.0522, -118.2437],
+    ['Tokyo, Japan', 35.6762, 139.6503],
+    ['Beijing, China', 39.9042, 116.4074],
+    ['Delhi, India', 28.6139, 77.2090],
+    ['Cairo, Egypt', 30.0444, 31.2357],
+    ['Cape Town, South Africa', -33.9249, 18.4241],
+    ['Buenos Aires, Argentina', -34.6037, -58.3816],
+    ['Santiago, Chile', -33.4489, -70.6693],
+    ['Shanghai, China', 31.2304, 121.4737],
+    ['Honolulu, Hawaii', 21.3069, -157.8583],
+    ['Reykjavík, Iceland', 64.1466, -21.9426],
+    ['North Pole', 90, 0],
+    ['South Pole', -90, 0]
+  ];
+  PLACES.forEach(function (p, i) {
+    fromEl.add(new Option(p[0], String(i)));
+    toEl.add(new Option(p[0], String(i)));
+  });
+  fromEl.value = '0'; toEl.value = '5';
+
+  // ---- PREM: Preliminary Reference Earth Model density, g/cm3, r in km ----
+  function rho(r) {
+    var x = r / 6371;
+    if (r < 1221.5) return 13.0885 - 8.8381 * x * x;
+    if (r < 3480) return 12.5815 - 1.2638 * x - 3.6426 * x * x - 5.5281 * x * x * x;
+    if (r < 5701) return 7.9565 - 6.4761 * x + 5.5283 * x * x - 3.0807 * x * x * x;
+    if (r < 5771) return 5.3197 - 1.4836 * x;
+    if (r < 5971) return 11.2494 - 8.0298 * x;
+    if (r < 6151) return 7.1089 - 3.8045 * x;
+    if (r < 6346.6) return 2.6910 + 0.6924 * x;
+    if (r < 6356) return 2.900;
+    return 2.600;
+  }
+
+  // enclosed mass, gravity and hydrostatic pressure on a 1 km grid, built once
+  var N = 6371, dr = R / N;
+  var Mt = new Float64Array(N + 1), gT = new Float64Array(N + 1), Pt = new Float64Array(N + 1);
+  (function build() {
+    var M = 0, i, rm;
+    for (i = 1; i <= N; i++) {
+      rm = (i - 0.5) * dr;
+      M += 4 * Math.PI * Math.pow(rm * 1000, 2) * (dr * 1000) * rho(rm) * 1000;
+      Mt[i] = M;
+      gT[i] = G * M / Math.pow(i * dr * 1000, 2);
+    }
+    var P = 0;
+    for (i = N; i >= 1; i--) {
+      P += rho((i - 0.5) * dr) * 1000 * gT[i] * dr * 1000;
+      Pt[i] = P;
+    }
+    Pt[0] = P;
+  })();
+  var TOTAL_MASS = Mt[N], G_SURFACE = gT[N];
+
+  function gAt(r) {
+    if (r <= 0) return 0;
+    var i = Math.min(N, Math.max(1, Math.round(r / dr)));
+    return gT[i];
+  }
+  function pAt(r) {
+    var i = Math.min(N, Math.max(0, Math.round(r / dr)));
+    return Pt[i];
+  }
+  // rough geotherm, deliberately approximate
+  function tempAt(depth) {
+    var pts = [[0, 15], [3, 60], [35, 600], [100, 1200], [410, 1600], [660, 1900],
+               [2890, 2700], [2900, 3800], [5150, 5000], [6371, 5400]];
+    for (var i = 1; i < pts.length; i++) {
+      if (depth <= pts[i][0]) {
+        var f = (depth - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
+        return pts[i - 1][1] + f * (pts[i][1] - pts[i - 1][1]);
+      }
+    }
+    return 5400;
+  }
+
+  function centralAngle(a, b) {
+    var p1 = a.lat * D2R, p2 = b.lat * D2R, dl = (b.lon - a.lon) * D2R;
+    var x = Math.sin((p2 - p1) / 2) * Math.sin((p2 - p1) / 2) +
+            Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return 2 * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
+
+  var trajectory = [];
+  function fall(theta) {
+    var half = theta / 2;
+    var s0 = R * Math.sin(half) * 1000, rmin = R * Math.cos(half) * 1000;
+    var s = s0, v = 0, t = 0, dt = 0.25, vmax = 0, guard = 0;
+    trajectory = [{ t: 0, s: s0 }];
+    while (s > 0 && guard++ < 200000) {
+      var r = Math.sqrt(s * s + rmin * rmin);
+      var a = r > 0 ? -gAt(r / 1000) * (s / r) : 0;
+      v += a * dt; s += v * dt; t += dt;
+      if (Math.abs(v) > vmax) vmax = Math.abs(v);
+      if (guard % 4 === 0) trajectory.push({ t: t, s: s });
+    }
+    // mirror the second half of the fall
+    var half1 = trajectory.slice();
+    for (var i = half1.length - 2; i >= 0; i--) {
+      trajectory.push({ t: 2 * t - half1[i].t, s: -half1[i].s });
+    }
+    return { time: 2 * t, vmax: vmax, s0: s0, rmin: rmin };
+  }
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.02rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  var LAYERS = [
+    [1221.5, '#ffe066', 'inner core'],
+    [3480, '#ff9f43', 'outer core'],
+    [5701, '#8b3a2f', 'lower mantle'],
+    [6346.6, '#5d4037', 'upper mantle'],
+    [6371, '#39ff14', 'crust']
+  ];
+
+  var animT = null, animStart = 0, animDur = 0, rafId = 0;
+
+  function draw(theta, res, capsuleFrac) {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
+    var cx = w / 2, cy = h / 2 + 10, rad = Math.min(w, h) / 2 - 34;
+    var scale = rad / R;
+
+    for (var i = LAYERS.length - 1; i >= 0; i--) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, LAYERS[i][0] * scale, 0, Math.PI * 2);
+      ctx.fillStyle = LAYERS[i][1];
+      ctx.globalAlpha = i === 4 ? 0.5 : 0.28;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,.16)'; ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    // tunnel: chord drawn symmetrically about the vertical axis
+    var half = theta / 2;
+    var ax = cx - R * Math.sin(half) * scale, ay = cy - R * Math.cos(half) * scale;
+    var bx = cx + R * Math.sin(half) * scale, by = ay;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+    ctx.strokeStyle = 'rgba(45,212,255,.95)'; ctx.lineWidth = 2.6; ctx.stroke();
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, ay);
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.setLineDash([]);
+
+    [[ax, ay, '#39ff14', fromEl.options[fromEl.selectedIndex] ? fromEl.options[fromEl.selectedIndex].text : 'A'],
+     [bx, by, '#ff6b6b', toEl.options[toEl.selectedIndex] ? toEl.options[toEl.selectedIndex].text : 'B']]
+      .forEach(function (p, idx) {
+        ctx.beginPath(); ctx.arc(p[0], p[1], 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = p[2]; ctx.fill();
+        ctx.fillStyle = 'rgba(230,250,255,.9)';
+        ctx.font = '600 11px Inter, system-ui, sans-serif';
+        ctx.textAlign = idx === 0 ? 'right' : 'left';
+        ctx.fillText(p[3].split(',')[0], p[0] + (idx === 0 ? -9 : 9), p[1] - 8);
+      });
+    ctx.textAlign = 'left';
+
+    if (capsuleFrac !== null && trajectory.length) {
+      var idx2 = Math.min(trajectory.length - 1, Math.floor(capsuleFrac * (trajectory.length - 1)));
+      var sNow = trajectory[idx2].s / 1000;
+      var px = cx + (sNow / R) * R * scale * (-1);
+      var py = ay;
+      ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffd700'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.stroke();
+    }
+
+    ctx.font = '10px Inter, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(230,250,255,.75)';
+    var ly = 18;
+    LAYERS.forEach(function (l) {
+      ctx.fillStyle = l[1]; ctx.fillRect(14, ly - 8, 10, 10);
+      ctx.fillStyle = 'rgba(230,250,255,.7)';
+      ctx.fillText(l[2] + ' (to ' + Math.round(6371 - l[0]) + ' km depth)', 30, ly);
+      ly += 15;
+    });
+    ctx.fillStyle = 'rgba(230,250,255,.5)';
+    ctx.fillText('Cross-section through the plane containing both cities and the Earth\u2019s centre', 14, h - 10);
+  }
+
+  function fmtTime(sec) {
+    var m = Math.floor(sec / 60), s = sec - m * 60;
+    return m + ' min ' + s.toFixed(0) + ' s';
+  }
+
+  function update(capsuleFrac) {
+    var a = { lat: parseFloat(lat1El.value), lon: parseFloat(lon1El.value) };
+    var b = { lat: parseFloat(lat2El.value), lon: parseFloat(lon2El.value) };
+    if (![a.lat, a.lon, b.lat, b.lon].every(isFinite)) return;
+    var theta = centralAngle(a, b);
+    var chord = 2 * R * Math.sin(theta / 2);
+    var surface = R * theta;
+    var depth = R * (1 - Math.cos(theta / 2));
+    var res = fall(theta);
+    var rmin = R * Math.cos(theta / 2);
+    var press = pAt(rmin) / 1e9;
+    var temp = tempAt(depth);
+    var anti = { lat: -a.lat, lon: a.lon > 0 ? a.lon - 180 : a.lon + 180 };
+    var antiDist = R * centralAngle(b, anti);
+    var uniform = Math.PI * Math.sqrt(R * 1000 / G_SURFACE);
+
+    document.getElementById('agte-stats').innerHTML =
+      stat('FALL TIME (PREM EARTH)', fmtTime(res.time), 'uniform-density answer: ' + fmtTime(uniform), '#39ff14') +
+      stat('TUNNEL LENGTH', Math.round(chord).toLocaleString() + ' km', 'surface route is ' + Math.round(surface).toLocaleString() + ' km') +
+      stat('SHORTCUT SAVED', Math.round(surface - chord).toLocaleString() + ' km', ((1 - chord / surface) * 100).toFixed(1) + '% shorter than flying', '#ffd700') +
+      stat('DEEPEST POINT', Math.round(depth).toLocaleString() + ' km', 'radius ' + Math.round(rmin).toLocaleString() + ' km from centre', '#ff9f43') +
+      stat('PEAK SPEED', (res.vmax / 1000).toFixed(2) + ' km/s', (res.vmax * 3.6).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' km/h at the midpoint', '#ff6b6b') +
+      stat('PRESSURE THERE', press.toFixed(1) + ' GPa', (press * 9869).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '× sea-level air pressure', '#9d4edd') +
+      stat('TEMPERATURE THERE', Math.round(temp).toLocaleString() + ' °C', 'approximate geotherm', '#ff2e63') +
+      stat('YOUR ANTIPODE', anti.lat.toFixed(3) + ', ' + anti.lon.toFixed(3),
+           antiDist < 100 ? 'this destination IS the antipode' : Math.round(antiDist).toLocaleString() + ' km from the destination');
+
+    draw(theta, res, typeof capsuleFrac === 'number' ? capsuleFrac : null);
+
+    var flight = surface / 900;
+    document.getElementById('agte-notes').innerHTML =
+      '<strong style="color:var(--accent);">Why 38 minutes, not 42?</strong> The classic physics answer — π√(R/g) = ' + fmtTime(uniform) +
+      ' — assumes the Earth has uniform density, and it gives the same time for every tunnel, long or short. The real Earth hides most of its mass in a very dense iron core, so gravity actually <em>rises</em> to about 10.7 m/s² at the core–mantle boundary before falling away. Integrating through the PREM density profile gives ' + fmtTime(res.time) +
+      ' for this tunnel; a tunnel straight through the centre takes about 38 min 10 s, and very short tunnels creep back up towards 42 minutes.' +
+      '<div style="margin-top:6px;">This model reproduces the Earth\u2019s mass as ' + (TOTAL_MASS / 1e24).toFixed(3) + '×10²⁴ kg and surface gravity as ' + G_SURFACE.toFixed(2) + ' m/s², both within a fraction of a percent of the measured values — so the fall times are honest, even though the tunnel is not. An airliner would need about ' + flight.toFixed(1) + ' hours to cover the same journey over the surface.</div>' +
+      '<div style="margin-top:6px;font-size:0.72rem;">Ignores air resistance, the Coriolis force (a real tunnel would grind against its walls unless it ran pole to pole), rotation, and the small matter of ' + Math.round(temp).toLocaleString() + ' °C rock. Pressures come from hydrostatic integration of the same density model; the geotherm is a rough interpolation.</div>';
+  }
+
+  function setFrom(i) { var p = PLACES[i]; lat1El.value = p[1]; lon1El.value = p[2]; }
+  function setTo(i) { var p = PLACES[i]; lat2El.value = p[1]; lon2El.value = p[2]; }
+
+  fromEl.addEventListener('change', function () { setFrom(parseInt(fromEl.value, 10)); update(); });
+  toEl.addEventListener('change', function () { setTo(parseInt(toEl.value, 10)); update(); });
+  [lat1El, lon1El, lat2El, lon2El].forEach(function (el) { el.addEventListener('input', function () { update(); }); });
+
+  document.getElementById('agte-antipode').addEventListener('click', function () {
+    var la = parseFloat(lat1El.value), lo = parseFloat(lon1El.value);
+    if (!isFinite(la) || !isFinite(lo)) return;
+    lat2El.value = (-la).toFixed(4);
+    lon2El.value = (lo > 0 ? lo - 180 : lo + 180).toFixed(4);
+    update();
+  });
+
+  document.getElementById('agte-swap').addEventListener('click', function () {
+    var la = lat1El.value, lo = lon1El.value;
+    lat1El.value = lat2El.value; lon1El.value = lon2El.value;
+    lat2El.value = la; lon2El.value = lo;
+    update();
+  });
+
+  document.getElementById('agte-drop').addEventListener('click', function () {
+    var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) { update(1); return; }
+    if (rafId) cancelAnimationFrame(rafId);
+    animStart = performance.now();
+    animDur = 6000;
+    (function step(now) {
+      var f = Math.min(1, (now - animStart) / animDur);
+      update(f);
+      if (f < 1) rafId = requestAnimationFrame(step);
+      else rafId = 0;
+    })(animStart);
+  });
+
+  update();
+})();
+</script>

@@ -1,0 +1,172 @@
+<h2 id="uxts-title" style="margin-top:0;color:var(--accent);">⏱️ Unix Timestamp Converter</h2>
+
+<form aria-describedby="uxts-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="uxts-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:14px;">
+    Convert Unix epoch timestamps (seconds, milliseconds, microseconds or nanoseconds — auto-detected) to human dates and back. Shows UTC, your local time, ISO 8601, relative time and the weekday. A live clock keeps the current epoch ticking.
+  </p>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;">
+    <div>
+      <div style="font-size:0.7rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(230,250,255,0.55);">Current Unix time</div>
+      <div id="uxts-now" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.4rem;font-weight:700;color:var(--accent);">—</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button type="button" id="uxts-copy-now" style="padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(230,250,255,0.85);cursor:pointer;font-size:0.8rem;">Copy</button>
+      <button type="button" id="uxts-use-now" style="padding:8px 12px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.35);border-radius:8px;color:var(--accent);cursor:pointer;font-size:0.8rem;">Use now</button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div>
+      <label for="uxts-in" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">Timestamp → date</label>
+      <input id="uxts-in" type="text" inputmode="numeric" placeholder="e.g. 1700000000 or 1700000000000" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;" />
+      <div id="uxts-unit" style="font-size:0.75rem;color:rgba(230,250,255,0.5);margin-top:4px;min-height:1em;"></div>
+    </div>
+    <div>
+      <label for="uxts-date" style="display:block;font-size:0.85rem;color:rgba(230,250,255,0.75);margin-bottom:6px;">Date → timestamp</label>
+      <input id="uxts-date" type="datetime-local" step="1" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.95rem;" />
+      <div style="display:flex;gap:10px;align-items:center;margin-top:6px;font-size:0.75rem;color:rgba(230,250,255,0.6);">
+        <label style="display:flex;gap:4px;align-items:center;cursor:pointer;"><input type="radio" name="uxts-tz" value="local" checked /> interpret as local</label>
+        <label style="display:flex;gap:4px;align-items:center;cursor:pointer;"><input type="radio" name="uxts-tz" value="utc" /> as UTC</label>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div id="uxts-out" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.05);font-size:0.9rem;color:rgba(230,250,255,0.85);">
+  Enter a timestamp or pick a date.
+</div>
+
+<details class="small" style="margin-top:14px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Quick reference</summary>
+  <div style="margin-top:8px;line-height:1.7;">
+    <div><strong>Epoch</strong> = 00:00:00 UTC on 1 January 1970. Timestamps count seconds since then, ignoring leap seconds.</div>
+    <div><strong>Digits tell you the unit</strong>: 10 digits ≈ seconds, 13 ≈ milliseconds (JavaScript <code>Date.now()</code>), 16 ≈ microseconds, 19 ≈ nanoseconds.</div>
+    <div><strong>Year 2038</strong>: signed 32-bit seconds overflow at 2,147,483,647 (03:14:07 UTC, 19 Jan 2038).</div>
+    <div>Everything here runs in your browser; nothing is sent anywhere.</div>
+  </div>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var nowEl = $('uxts-now'), inEl = $('uxts-in'), dateEl = $('uxts-date'), out = $('uxts-out'), unitEl = $('uxts-unit');
+  var pad = function (n, w) { n = String(n); while (n.length < (w || 2)) n = '0' + n; return n; };
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  function tick() { nowEl.textContent = Math.floor(Date.now() / 1000); }
+  tick();
+  var timer = setInterval(function () { if (!card.isConnected) { clearInterval(timer); return; } tick(); }, 1000);
+
+  function detect(raw) {
+    var s = String(raw).trim().replace(/[,_\s]/g, '');
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+    var neg = s.charAt(0) === '-';
+    var digits = s.replace('-', '').split('.')[0].length;
+    var v = parseFloat(s);
+    var unit, ms;
+    if (s.indexOf('.') > -1 || digits <= 11) { unit = 'seconds'; ms = v * 1000; }
+    else if (digits <= 14) { unit = 'milliseconds'; ms = v; }
+    else if (digits <= 17) { unit = 'microseconds'; ms = v / 1000; }
+    else { unit = 'nanoseconds'; ms = v / 1e6; }
+    return { unit: unit, ms: ms, neg: neg };
+  }
+
+  function rel(ms) {
+    var d = (ms - Date.now()) / 1000, a = Math.abs(d), s;
+    if (a < 5) return 'just now';
+    var units = [[31557600, 'year'], [2629800, 'month'], [604800, 'week'], [86400, 'day'], [3600, 'hour'], [60, 'minute'], [1, 'second']];
+    for (var i = 0; i < units.length; i++) {
+      if (a >= units[i][0]) { var n = Math.floor(a / units[i][0]); s = n + ' ' + units[i][1] + (n === 1 ? '' : 's'); break; }
+    }
+    return d < 0 ? s + ' ago' : 'in ' + s;
+  }
+
+  function isoLocal(d) {
+    var off = -d.getTimezoneOffset(), sign = off >= 0 ? '+' : '-';
+    off = Math.abs(off);
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + sign + pad(Math.floor(off / 60)) + ':' + pad(off % 60);
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function row(label, value, mono) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">' +
+      '<span style="color:rgba(230,250,255,0.55);font-size:0.8rem;">' + label + '</span>' +
+      '<span style="' + (mono ? 'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;' : '') + 'color:#fff;text-align:right;word-break:break-all;">' + esc(value) + '</span></div>';
+  }
+
+  function render(ms, srcNote) {
+    if (!isFinite(ms) || Math.abs(ms) > 8.64e15) { out.innerHTML = '<span style="color:#ffa500;">That is outside the range JavaScript dates can represent (±271,821 years).</span>'; return; }
+    var d = new Date(ms);
+    var sec = Math.floor(ms / 1000);
+    var tzName = '';
+    try { tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    var y2038 = sec > 2147483647 ? '<div style="margin-top:8px;font-size:0.78rem;color:#ffa500;">⚠ Beyond the signed 32-bit limit (Year 2038 problem).</div>' : '';
+    var doy = Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000) + 1;
+    out.innerHTML =
+      (srcNote ? '<div style="font-size:0.75rem;color:rgba(230,250,255,0.5);margin-bottom:6px;">' + srcNote + '</div>' : '') +
+      '<div style="font-size:1.15rem;font-weight:700;color:var(--accent);margin-bottom:4px;">' + DAYS[d.getUTCDay()] + ', ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear() + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()) + ' UTC</div>' +
+      '<div style="font-size:0.85rem;color:rgba(230,250,255,0.7);margin-bottom:10px;">' + rel(ms) + '</div>' +
+      row('Seconds', sec, true) +
+      row('Milliseconds', Math.floor(ms), true) +
+      row('ISO 8601 (UTC)', d.toISOString(), true) +
+      row('ISO 8601 (local)', isoLocal(d), true) +
+      row('Local time' + (tzName ? ' · ' + tzName : ''), d.toLocaleString()) +
+      row('RFC 2822', d.toUTCString(), true) +
+      row('Day of year', doy + ' · week ' + isoWeek(d)) +
+      y2038;
+  }
+
+  function isoWeek(d) {
+    var t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    var day = t.getUTCDay() || 7;
+    t.setUTCDate(t.getUTCDate() + 4 - day);
+    var y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+    return Math.ceil(((t - y0) / 86400000 + 1) / 7);
+  }
+
+  function fromInput() {
+    var raw = inEl.value.trim();
+    if (!raw) { unitEl.textContent = ''; return; }
+    var det = detect(raw);
+    if (!det) {
+      // maybe they pasted a date string
+      var p = Date.parse(raw);
+      if (!isNaN(p)) { unitEl.textContent = 'parsed as a date string'; render(p, 'From date string'); return; }
+      unitEl.textContent = 'not a number'; out.innerHTML = '<span style="color:#ffa500;">Enter digits (seconds, ms, µs or ns) or an ISO date string.</span>'; return;
+    }
+    unitEl.textContent = 'detected: ' + det.unit;
+    render(det.ms, 'From timestamp (' + det.unit + ')');
+  }
+
+  function fromDate() {
+    var v = dateEl.value;
+    if (!v) return;
+    var m = v.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) return;
+    var utc = card.querySelector('input[name="uxts-tz"]:checked').value === 'utc';
+    var ms = utc ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) : new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)).getTime();
+    inEl.value = Math.floor(ms / 1000);
+    unitEl.textContent = 'from date (' + (utc ? 'UTC' : 'local') + ')';
+    render(ms, 'From date picker (' + (utc ? 'UTC' : 'local time') + ')');
+  }
+
+  inEl.addEventListener('input', fromInput);
+  dateEl.addEventListener('input', fromDate);
+  dateEl.addEventListener('change', fromDate);
+  Array.prototype.forEach.call(card.querySelectorAll('input[name="uxts-tz"]'), function (r) { r.addEventListener('change', fromDate); });
+  $('uxts-use-now').addEventListener('click', function () { inEl.value = Math.floor(Date.now() / 1000); fromInput(); });
+  $('uxts-copy-now').addEventListener('click', function () {
+    var btn = this, txt = nowEl.textContent;
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, done); else done();
+  });
+
+  // default: show now
+  inEl.value = Math.floor(Date.now() / 1000);
+  fromInput();
+})();
+</script>

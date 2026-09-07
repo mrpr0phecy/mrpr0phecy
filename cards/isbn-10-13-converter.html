@@ -1,0 +1,106 @@
+<h2 id="isbx-title" style="margin-top:0;color:var(--accent);">📚 ISBN-10 ⇄ ISBN-13 Converter</h2>
+
+<form aria-describedby="isbx-desc" onsubmit="event.preventDefault();">
+  <p id="isbx-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Validate an ISBN-10 or ISBN-13, compute the check digit, and convert between the two. Hyphens and spaces are ignored. Check digits follow the ISBN / EAN rules — this does not look up a book.
+  </p>
+  <label for="isbx-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">ISBN</label>
+  <input id="isbx-in" type="text" placeholder="0-306-40615-2  or  978-0-306-40615-7" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.04em;">
+</form>
+<div id="isbx-out" style="margin-top:14px;display:none;">
+  <div id="isbx-status" style="padding:10px 12px;border-radius:8px;margin-bottom:10px;font-size:.84rem;"></div>
+  <dl style="display:grid;grid-template-columns:minmax(90px,auto) 1fr;gap:6px 12px;margin:0;font-size:.84rem;">
+    <dt style="color:var(--text-secondary);">ISBN-10</dt><dd id="isbx-10" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+    <dt style="color:var(--text-secondary);">ISBN-13</dt><dd id="isbx-13" style="margin:0;color:#91f7ff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+    <dt style="color:var(--text-secondary);">EAN-13</dt><dd id="isbx-ean" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></dd>
+  </dl>
+  <button type="button" id="isbx-copy" style="margin-top:10px;padding:8px 12px;background:rgba(45,212,255,.14);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;">Copy ISBN-13</button>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var last13 = '';
+
+  function clean(s) { return s.toUpperCase().replace(/[^0-9X]/g, ''); }
+  function isbn10Check(d9) {
+    var sum = 0;
+    for (var i = 0; i < 9; i++) sum += (10 - i) * Number(d9[i]);
+    var rem = (11 - (sum % 11)) % 11;
+    return rem === 10 ? 'X' : String(rem);
+  }
+  function isbn13Check(d12) {
+    var sum = 0;
+    for (var i = 0; i < 12; i++) sum += Number(d12[i]) * (i % 2 === 0 ? 1 : 3);
+    return String((10 - (sum % 10)) % 10);
+  }
+  function hyphen10(s) {
+    if (s.length !== 10) return s;
+    return s[0] + '-' + s.slice(1, 4) + '-' + s.slice(4, 9) + '-' + s[9];
+  }
+  function hyphen13(s) {
+    if (s.length !== 13) return s;
+    return s.slice(0, 3) + '-' + s[3] + '-' + s.slice(4, 7) + '-' + s.slice(7, 12) + '-' + s[12];
+  }
+  function run() {
+    var raw = clean($('isbx-in').value);
+    if (!raw) { $('isbx-out').style.display = 'none'; return; }
+    var ten = null, thirteen = null, ok = false, msg = '', bad = false;
+    if (raw.length === 10) {
+      var body = raw.slice(0, 9);
+      if (!/^\d{9}$/.test(body)) { bad = true; msg = 'ISBN-10 must be 9 digits plus a check digit (0–9 or X).'; }
+      else {
+        var chk = isbn10Check(body);
+        ok = chk === raw[9];
+        ten = body + chk;
+        if (ten[9] === 'X' && !ok && raw[9] === 'X') ok = true;
+        thirteen = '978' + body + isbn13Check('978' + body);
+        msg = ok ? 'Valid ISBN-10. Converted to ISBN-13 with the 978 prefix.' : 'Check digit should be ' + chk + ', not ' + raw[9] + '. Showing the corrected ISBNs.';
+      }
+    } else if (raw.length === 13) {
+      if (!/^\d{13}$/.test(raw)) { bad = true; msg = 'ISBN-13 must be 13 digits.'; }
+      else {
+        var c13 = isbn13Check(raw.slice(0, 12));
+        ok = c13 === raw[12];
+        thirteen = raw.slice(0, 12) + c13;
+        if (thirteen.slice(0, 3) === '978') {
+          var b9 = thirteen.slice(3, 12);
+          ten = b9 + isbn10Check(b9);
+        } else ten = null;
+        msg = ok ? (ten ? 'Valid ISBN-13. ISBN-10 is available because the prefix is 978.' : 'Valid ISBN-13. Prefix ' + thirteen.slice(0, 3) + ' has no ISBN-10 equivalent.') : 'Check digit should be ' + c13 + '. Showing the corrected ISBN-13.';
+      }
+    } else if (raw.length === 9 && /^\d{9}$/.test(raw)) {
+      ten = raw + isbn10Check(raw);
+      thirteen = '978' + raw + isbn13Check('978' + raw);
+      ok = true;
+      msg = 'Nine digits — computed both check digits.';
+    } else if (raw.length === 12 && /^\d{12}$/.test(raw)) {
+      thirteen = raw + isbn13Check(raw);
+      if (raw.slice(0, 3) === '978') ten = raw.slice(3) + isbn10Check(raw.slice(3));
+      ok = true;
+      msg = 'Twelve digits — computed the ISBN-13 check digit.';
+    } else {
+      bad = true;
+      msg = 'Enter 9–10 characters (ISBN-10) or 12–13 digits (ISBN-13).';
+    }
+    $('isbx-out').style.display = 'block';
+    $('isbx-status').textContent = msg;
+    $('isbx-status').style.background = bad ? 'rgba(255,77,77,.12)' : (ok ? 'rgba(57,255,20,.08)' : 'rgba(255,215,0,.1)');
+    $('isbx-status').style.border = '1px solid ' + (bad ? 'rgba(255,77,77,.4)' : (ok ? 'rgba(57,255,20,.35)' : 'rgba(255,215,0,.4)'));
+    $('isbx-status').style.color = bad ? '#ffb8b8' : 'var(--text)';
+    $('isbx-10').textContent = ten ? hyphen10(ten) + '   (' + ten + ')' : '— (only 978-prefix ISBN-13 convert back)';
+    $('isbx-13').textContent = thirteen ? hyphen13(thirteen) : '—';
+    $('isbx-ean').textContent = thirteen || '—';
+    last13 = thirteen || '';
+  }
+  $('isbx-in').addEventListener('input', run);
+  $('isbx-copy').addEventListener('click', function () {
+    if (!last13) return;
+    var btn = this;
+    function done() { btn.textContent = '✓ Copied'; setTimeout(function () { btn.textContent = 'Copy ISBN-13'; }, 1400); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(last13).then(done);
+    else done();
+  });
+})();
+</script>

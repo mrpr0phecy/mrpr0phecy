@@ -1,0 +1,84 @@
+<h2 id="ugbg-title" style="margin-top:0;color:var(--accent);">🆔 UUID / GUID & Random ID Bulk Generator</h2>
+
+<form aria-describedby="ugbg-desc" onsubmit="event.preventDefault();">
+  <p id="ugbg-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Generate one or hundreds of UUID v4s, time-ordered UUID v7s, ULIDs, NanoIDs, short IDs or custom-pattern codes using the browser's cryptographic random source. Choose case, braces and separators, then copy or download as text or JSON.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="ugbg-type" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">ID type</label>
+      <select id="ugbg-type" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+        <option value="v4">UUID v4 (random)</option>
+        <option value="v7">UUID v7 (time-ordered)</option>
+        <option value="ulid">ULID</option>
+        <option value="nano">NanoID (21 chars)</option>
+        <option value="short">Short ID (8 chars)</option>
+        <option value="hex32">Hex token (32 chars)</option>
+        <option value="hex64">Hex token (64 chars)</option>
+        <option value="pattern">Custom pattern</option>
+      </select>
+    </div>
+    <div>
+      <label for="ugbg-count" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">How many</label>
+      <input id="ugbg-count" type="number" min="1" max="1000" value="5" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+    </div>
+    <div id="ugbg-patwrap" style="display:none;">
+      <label for="ugbg-pattern" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Pattern (X=letter, 9=digit, A=either)</label>
+      <input id="ugbg-pattern" type="text" value="XXXX-9999-AAAA" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;font-family:ui-monospace,monospace;">
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;font-size:0.8rem;color:var(--text);">
+    <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" id="ugbg-upper"> UPPERCASE</label>
+    <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" id="ugbg-braces"> {braces}</label>
+    <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" id="ugbg-nohyphen"> No hyphens</label>
+    <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" id="ugbg-quotes"> "quoted", comma-separated</label>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+    <button type="button" id="ugbg-gen" style="flex:1;padding:12px;border-radius:10px;background:linear-gradient(135deg,#2dd4ff,#9d4edd);border:none;color:#fff;font-weight:800;font-size:0.95rem;cursor:pointer;">Generate</button>
+    <button type="button" id="ugbg-copy" style="padding:12px 16px;border-radius:10px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);font-weight:700;cursor:pointer;">Copy</button>
+    <button type="button" id="ugbg-dl" style="padding:12px 16px;border-radius:10px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.35);color:#39ff14;font-weight:700;cursor:pointer;">Download .txt</button>
+    <button type="button" id="ugbg-json" style="padding:12px 16px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">Download .json</button>
+  </div>
+  <textarea id="ugbg-out" rows="8" readonly aria-live="polite" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.35);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;"></textarea>
+  <div id="ugbg-info" style="font-size:0.72rem;color:var(--text-secondary);margin-top:6px;"></div>
+</form>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  function bytes(n){ var b=new Uint8Array(n); if(window.crypto&&crypto.getRandomValues) crypto.getRandomValues(b); else for(var i=0;i<n;i++) b[i]=Math.floor(Math.random()*256); return b; }
+  function hex(b){ return Array.prototype.map.call(b,function(x){return ('0'+x.toString(16)).slice(-2);}).join(''); }
+  function fmtUuid(b){ var h=hex(b); return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20); }
+  function v4(){ if(window.crypto&&crypto.randomUUID) return crypto.randomUUID(); var b=bytes(16); b[6]=(b[6]&0x0f)|0x40; b[8]=(b[8]&0x3f)|0x80; return fmtUuid(b); }
+  function v7(){ var b=bytes(16), t=Date.now(); b[0]=(t/1099511627776)&255; b[1]=(t/4294967296)&255; b[2]=(t/16777216)&255; b[3]=(t/65536)&255; b[4]=(t/256)&255; b[5]=t&255; b[6]=(b[6]&0x0f)|0x70; b[8]=(b[8]&0x3f)|0x80; return fmtUuid(b); }
+  var B32='0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  function ulid(){ var t=Date.now(), s=''; for(var i=9;i>=0;i--){ s=B32[t%32]+s; t=Math.floor(t/32); } var r=bytes(16); for(var j=0;j<16;j++) s+=B32[r[j]%32]; return s; }
+  function fromAlphabet(alpha,len){ var r=bytes(len*2), s=''; var lim=Math.floor(256/alpha.length)*alpha.length; var i=0; while(s.length<len){ if(i>=r.length){ r=bytes(len*2); i=0; } if(r[i]<lim) s+=alpha[r[i]%alpha.length]; i++; } return s; }
+  var NANO='useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict', SHORT='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  function pattern(p){ var L='ABCDEFGHJKLMNPQRSTUVWXYZ', D='0123456789'; return p.split('').map(function(c){ if(c==='X') return fromAlphabet(L,1); if(c==='9') return fromAlphabet(D,1); if(c==='A') return fromAlphabet(L+D,1); return c; }).join(''); }
+  var last=[];
+  function gen(){
+    var t=$('ugbg-type').value, n=Math.max(1,Math.min(1000,parseInt($('ugbg-count').value,10)||1)), out=[];
+    for(var i=0;i<n;i++){ var id;
+      switch(t){ case 'v4': id=v4(); break; case 'v7': id=v7(); break; case 'ulid': id=ulid(); break; case 'nano': id=fromAlphabet(NANO,21); break; case 'short': id=fromAlphabet(SHORT,8); break; case 'hex32': id=hex(bytes(16)); break; case 'hex64': id=hex(bytes(32)); break; default: id=pattern($('ugbg-pattern').value||'XXXX-9999'); }
+      if($('ugbg-nohyphen').checked) id=id.replace(/-/g,'');
+      if($('ugbg-upper').checked) id=id.toUpperCase();
+      if($('ugbg-braces').checked) id='{'+id+'}';
+      out.push(id); }
+    last=out;
+    $('ugbg-out').value= $('ugbg-quotes').checked ? out.map(function(x){return '"'+x+'"';}).join(', ') : out.join('\n');
+    var bits={v4:122,v7:74,ulid:80,nano:126,short:47,hex32:128,hex64:256}[t];
+    $('ugbg-info').textContent=n+' generated'+(bits?' · ~'+bits+' bits of randomness each':'')+(t==='v7'||t==='ulid'?' · sortable by creation time':'')+' · '+new Date().toISOString();
+  }
+  $('ugbg-type').addEventListener('change',function(){ $('ugbg-patwrap').style.display=this.value==='pattern'?'':'none'; gen(); });
+  ['ugbg-count','ugbg-pattern'].forEach(function(id){ $(id).addEventListener('input',gen); });
+  ['ugbg-upper','ugbg-braces','ugbg-nohyphen','ugbg-quotes'].forEach(function(id){ $(id).addEventListener('change',gen); });
+  $('ugbg-gen').addEventListener('click',gen);
+  $('ugbg-copy').addEventListener('click',function(){ var b=this,o=$('ugbg-out'); var done=function(){ b.textContent='Copied ✓'; setTimeout(function(){b.textContent='Copy';},1100); }; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(o.value).then(done,function(){}); } else { o.select(); try{document.execCommand('copy');}catch(e){} done(); } });
+  function dl(name,content,type){ var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type:type})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); document.body.removeChild(a); },500); }
+  $('ugbg-dl').addEventListener('click',function(){ dl('ids.txt',last.join('\n'),'text/plain'); });
+  $('ugbg-json').addEventListener('click',function(){ dl('ids.json',JSON.stringify(last,null,2),'application/json'); });
+  gen();
+})();
+</script>

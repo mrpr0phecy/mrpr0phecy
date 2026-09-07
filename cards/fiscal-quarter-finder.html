@@ -1,0 +1,48 @@
+<h2 id="fisc-title" style="margin-top:0;color:var(--accent);">📊 Fiscal Quarter Finder</h2>
+
+<form aria-describedby="fisc-desc" onsubmit="event.preventDefault();">
+  <p id="fisc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Calendar quarters, the UK tax year (6 April–5 April) and the US federal fiscal year (starts 1 October). Pick a date; see which Q you are in and when it ends.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="fisc-date" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Date</label>
+      <input id="fisc-date" type="date" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="fisc-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function iso(d) { return d.toISOString().slice(0, 10); }
+  function pretty(d) { return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
+  (function init() { $('fisc-date').value = iso(new Date()); })();
+  function run() {
+    var ds = $('fisc-date').value;
+    if (!ds) return;
+    var d = new Date(ds + 'T12:00:00');
+    var m = d.getMonth(), y = d.getFullYear();
+    var calQ = Math.floor(m / 3) + 1;
+    var calStart = new Date(y, (calQ - 1) * 3, 1);
+    var calEnd = new Date(y, calQ * 3, 0);
+    var taxStartY = (m > 3 || (m === 3 && d.getDate() >= 6)) ? y : y - 1;
+    var taxDay = (d - new Date(taxStartY, 3, 6)) / 86400000;
+    var taxQ = Math.min(4, Math.floor(taxDay / 91.25) + 1);
+    var fyStartY = m >= 9 ? y : y - 1;
+    var fyQ = m >= 9 ? Math.floor((m - 9) / 3) + 1 : Math.floor((m + 3) / 3) + 1;
+    function cell(k, v) {
+      return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+    }
+    $('fisc-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;">' +
+      cell('Calendar', 'Q' + calQ + ' ' + y + '  ·  ' + pretty(calStart) + ' – ' + pretty(calEnd)) +
+      cell('UK tax year', taxStartY + '/' + String(taxStartY + 1).slice(2) + '  ·  Q' + taxQ) +
+      cell('US federal FY', 'FY ' + (fyStartY + 1) + '  ·  Q' + fyQ + ' (starts Oct)') +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Companies can pick any year-end. UK corporation tax “financial year” is 1 April, distinct from the personal tax year that starts 6 April.</p>';
+  }
+  $('fisc-date').addEventListener('input', run);
+  run();
+})();
+</script>

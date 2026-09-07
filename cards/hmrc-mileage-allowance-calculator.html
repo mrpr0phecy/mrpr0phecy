@@ -1,0 +1,66 @@
+<h2 id="hmrc-title" style="margin-top:0;color:var(--accent);">🚗 HMRC Mileage Allowance</h2>
+
+<form aria-describedby="hmrc-desc" onsubmit="event.preventDefault();">
+  <p id="hmrc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Tax-free Approved Mileage Allowance Payments for 2026/27: cars and vans 55p for the first 10,000 business miles then 25p; motorcycles 24p; bicycles 20p; plus 5p per passenger per mile. Rates from GOV.UK — not a tax return.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="hmrc-veh" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Vehicle</label>
+      <select id="hmrc-veh" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="car">Car / van</option>
+        <option value="moto">Motorcycle</option>
+        <option value="bike">Bicycle</option>
+      </select>
+    </div>
+    <div>
+      <label for="hmrc-miles" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Business miles this tax year</label>
+      <input id="hmrc-miles" type="number" min="0" step="any" value="8500" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hmrc-pass" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Passenger miles (car/van)</label>
+      <input id="hmrc-pass" type="number" min="0" step="any" value="0" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hmrc-paid" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Already paid by employer £</label>
+      <input id="hmrc-paid" type="number" min="0" step="any" value="0" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="hmrc-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function money(v) { return '£' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function run() {
+    var miles = Number($('hmrc-miles').value), pass = Number($('hmrc-pass').value), paid = Number($('hmrc-paid').value);
+    var veh = $('hmrc-veh').value;
+    if (!(miles >= 0)) return;
+    var allow;
+    if (veh === 'car') {
+      var first = Math.min(miles, 10000), rest = Math.max(0, miles - 10000);
+      allow = first * 0.55 + rest * 0.25;
+    } else if (veh === 'moto') allow = miles * 0.24;
+    else allow = miles * 0.20;
+    var passenger = veh === 'car' ? Math.max(0, pass) * 0.05 : 0;
+    var total = allow + passenger;
+    var gap = total - paid;
+    function cell(k, v) {
+      return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+    }
+    $('hmrc-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('AMAP (vehicle)', money(allow)) +
+      cell('Passenger add-on', money(passenger)) +
+      cell('Tax-free ceiling', money(total)) +
+      cell(gap >= 0 ? 'Unpaid you may claim as relief' : 'Paid above AMAP (taxable extra)', money(Math.abs(gap))) +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">2026/27 tax year (from 6 April 2026). Before that, cars were 45p/25p. Keep a mileage log: date, miles, purpose. Commuting from home to a permanent workplace is not business mileage.</p>';
+  }
+  ['hmrc-veh', 'hmrc-miles', 'hmrc-pass', 'hmrc-paid'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

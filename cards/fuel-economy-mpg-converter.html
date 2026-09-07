@@ -1,0 +1,75 @@
+<h2 id="feco-title" style="margin-top:0;color:var(--accent);">⛽ Fuel Economy MPG Converter</h2>
+
+<form aria-describedby="feco-desc" onsubmit="event.preventDefault();">
+  <p id="feco-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert between US MPG, UK (imperial) MPG, L/100 km and km/L. Optional trip distance estimates fuel used. US gallon = 3.785 L, imperial gallon = 4.546 L.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+    <div>
+      <label for="feco-val" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Value</label>
+      <input id="feco-val" type="number" min="0" step="any" value="35" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="feco-unit" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">This is</label>
+      <select id="feco-unit" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="mpgus">US MPG</option>
+        <option value="mpguk">UK MPG</option>
+        <option value="l100">L / 100 km</option>
+        <option value="kml">km / L</option>
+      </select>
+    </div>
+    <div>
+      <label for="feco-trip" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Trip distance (optional)</label>
+      <input id="feco-trip" type="number" min="0" step="any" placeholder="e.g. 250" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="feco-tripu" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Trip unit</label>
+      <select id="feco-tripu" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="km">kilometres</option>
+        <option value="mi">miles</option>
+      </select>
+    </div>
+  </div>
+</form>
+<div id="feco-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;"></div>
+<div id="feco-tripout" style="margin-top:12px;font-size:.84rem;color:var(--text-secondary);"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var US = 3.785411784, UK = 4.54609;
+
+  function run() {
+    var v = Number($('feco-val').value);
+    if (!(v > 0)) { $('feco-grid').innerHTML = ''; $('feco-tripout').textContent = 'Enter a positive economy figure.'; return; }
+    var unit = $('feco-unit').value;
+    var kml;
+    if (unit === 'kml') kml = v;
+    else if (unit === 'l100') kml = 100 / v;
+    else if (unit === 'mpgus') kml = v * 1.609344 / US;
+    else kml = v * 1.609344 / UK;
+    var rows = [
+      ['US MPG', kml * US / 1.609344],
+      ['UK MPG', kml * UK / 1.609344],
+      ['L / 100 km', 100 / kml],
+      ['km / L', kml]
+    ];
+    $('feco-grid').innerHTML = rows.map(function (r) {
+      return '<div style="padding:12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);"><div style="font-size:.72rem;color:var(--text-secondary);">' + r[0] + '</div><div style="font-size:1.15rem;font-weight:800;color:var(--accent);margin-top:4px;">' + r[1].toLocaleString(undefined, { maximumFractionDigits: 2 }) + '</div></div>';
+    }).join('');
+    var trip = Number($('feco-trip').value);
+    if (trip > 0) {
+      var km = $('feco-tripu').value === 'km' ? trip : trip * 1.609344;
+      var litres = km / kml;
+      var usGal = litres / US, ukGal = litres / UK;
+      $('feco-tripout').textContent = 'For ' + trip + ' ' + $('feco-tripu').value + ': ' + litres.toFixed(2) + ' L  ·  ' + usGal.toFixed(2) + ' US gal  ·  ' + ukGal.toFixed(2) + ' UK gal.';
+    } else $('feco-tripout').textContent = 'Add a trip distance to estimate fuel used.';
+  }
+  ['feco-val', 'feco-unit', 'feco-trip', 'feco-tripu'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

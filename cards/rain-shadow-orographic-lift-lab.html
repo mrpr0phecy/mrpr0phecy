@@ -1,0 +1,341 @@
+<h2 id="rain-shadow-orographic-lift-lab-title" style="margin-top:0;color:var(--accent);">⛰️ Rain Shadow &amp; Orographic Lift Lab</h2>
+
+<form aria-describedby="rain-shadow-orographic-lift-lab-desc" onsubmit="event.preventDefault();">
+  <p id="rain-shadow-orographic-lift-lab-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Push a parcel of air over a mountain and watch geography make weather. This lifts your air dry-adiabatically to the cloud base, integrates a proper saturated adiabat over the summit — the lapse rate is recomputed at every step from the temperature and pressure, not assumed — rains the water out, and drops the parcel down the far side to show you exactly why one flank is a rainforest and the other is a desert.
+  </p>
+
+  <div style="margin-bottom:12px;">
+    <label for="rsol-preset" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Real-world setup</label>
+    <select id="rsol-preset" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="rsol-temp" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Air temperature at the windward foot (°C)</label>
+      <input type="number" id="rsol-temp" value="12" step="0.5" min="-40" max="50" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="rsol-rh" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Relative humidity (%)</label>
+      <input type="number" id="rsol-rh" value="85" step="1" min="1" max="100" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="rsol-base" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Windward foot elevation (m)</label>
+      <input type="number" id="rsol-base" value="50" step="10" min="-100" max="5000" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="rsol-summit" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Summit / ridge elevation (m)</label>
+      <input type="number" id="rsol-summit" value="1085" step="10" min="10" max="8850" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="rsol-lee" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Leeward foot elevation (m)</label>
+      <input type="number" id="rsol-lee" value="80" step="10" min="-500" max="5000" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="rsol-wind" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Wind speed across the range (m/s)</label>
+      <input type="number" id="rsol-wind" value="12" step="1" min="1" max="60" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="rsol-slope" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Windward slope length (km)</label>
+      <input type="number" id="rsol-slope" value="12" step="1" min="1" max="300" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="rsol-eff" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Rain-out efficiency (%)</label>
+      <input type="number" id="rsol-eff" value="70" step="5" min="0" max="100" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+  </div>
+
+  <div id="rsol-stats" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="rsol-canvas" width="820" height="400" role="img"
+          aria-label="Cross-section of air rising over a mountain, forming cloud and rain on the windward side and descending warm and dry on the leeward side"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:12px;"></canvas>
+
+  <div id="rsol-profile" style="margin-bottom:12px;"></div>
+  <div id="rsol-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var canvas = document.getElementById('rsol-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var el = function (id) { return document.getElementById(id); };
+  var tempEl = el('rsol-temp'), rhEl = el('rsol-rh'), baseEl = el('rsol-base'),
+      summitEl = el('rsol-summit'), leeEl = el('rsol-lee'), windEl = el('rsol-wind'),
+      slopeEl = el('rsol-slope'), effEl = el('rsol-eff'), presetEl = el('rsol-preset');
+
+  // name, T, RH, base, summit, lee, wind, slope km, note
+  var PRESETS = [
+    ['Snowdonia, Wales — Atlantic air over Yr Wyddfa', 12, 85, 50, 1085, 80, 12, 12,
+     'Why Snowdonia gets 4,500 mm a year and Chester, 90 km east, gets 700 mm.'],
+    ['The Alps — classic Innsbruck föhn', 10, 80, 500, 2600, 574, 18, 25,
+     'The wind that Austrians blame for headaches: air arrives from Italy and lands warm and parched.'],
+    ['Sierra Nevada into Death Valley', 20, 70, 100, 3500, -60, 14, 60,
+     'The deepest rain shadow in North America — and the hottest place on Earth on the far side.'],
+    ['Cascades — Seattle to Yakima', 11, 88, 60, 2000, 325, 13, 70,
+     'Rainforest on one flank, irrigated desert on the other, 150 km apart.'],
+    ['Hawaii — Hilo to Kona across Mauna Loa', 25, 80, 5, 2500, 10, 8, 40,
+     'Hilo takes 3,300 mm a year; Kona, on the same island, takes 500 mm.'],
+    ['Southern Andes into Patagonia', 8, 88, 30, 2000, 200, 20, 30,
+     'The Roaring Forties dump their load on Chile and leave Argentina a steppe.'],
+    ['Scottish Highlands to Moray Firth', 9, 90, 20, 1100, 10, 16, 25,
+     'Fort William: 2,000 mm. Elgin, 120 km east-north-east: 600 mm.'],
+    ['Himalaya — monsoon at the Great Barrier', 28, 85, 200, 5500, 4000, 10, 80,
+     'The monsoon wrings itself out on the south face and leaves the Tibetan Plateau a cold desert.']
+  ];
+  PRESETS.forEach(function (p, i) { presetEl.add(new Option(p[0], String(i))); });
+
+  var g = 9.80665, Rd = 287.05, cpd = 1005.7, EPS = 0.622;
+
+  function esat(T) { return 6.112 * Math.exp(17.67 * T / (T + 243.5)); }        // hPa
+  function mixing(T, p) { var e = esat(T); return EPS * e / Math.max(0.1, p - e); }
+  function Lv(T) { return 2.501e6 - 2370 * T; }
+  function pressureAt(z) { return 1013.25 * Math.pow(1 - 2.25577e-5 * z, 5.25588); }
+
+  function dewpoint(T, rh) {
+    var gm = Math.log(Math.max(0.001, rh / 100)) + 17.67 * T / (T + 243.5);
+    return 243.5 * gm / (17.67 - gm);
+  }
+
+  function moistLapse(T, p) {           // K per metre
+    var Tk = T + 273.15, r = mixing(T, p), L = Lv(T);
+    return g * (1 + L * r / (Rd * Tk)) / (cpd + L * L * r * EPS / (Rd * Tk * Tk));
+  }
+
+  function simulate(o) {
+    var dz = 5;
+    var z = o.base, T = o.temp, p = pressureAt(z);
+    var Td = dewpoint(o.temp, o.rh);
+    var r0 = mixing(Td, p);              // conserved mixing ratio below cloud
+    var profile = [], lcl = null, condensed = 0, rLCL = null;
+
+    // --- windward climb ---
+    while (z < o.summit) {
+      p = pressureAt(z);
+      var rs = mixing(T, p);
+      if (lcl === null && rs <= r0 + 1e-9) { lcl = z; rLCL = rs; }
+      profile.push({ z: z, T: T, cloud: lcl !== null, side: 'up' });
+      var step = Math.min(dz, o.summit - z);
+      if (lcl === null) {
+        T -= (g / cpd) * step;           // dry adiabatic, 9.75 K/km
+      } else {
+        T -= moistLapse(T, p) * step;
+        var rNew = mixing(T, pressureAt(z + step));
+        condensed += Math.max(0, rs - rNew);
+      }
+      z += step;
+    }
+    p = pressureAt(z);
+    var summitT = T, summitR = lcl === null ? r0 : mixing(T, p);
+    profile.push({ z: z, T: T, cloud: lcl !== null, side: 'top' });
+
+    // --- leeward descent: what did not rain out re-evaporates ---
+    var retained = condensed * (1 - o.eff);
+    var rDown = summitR + retained;
+    var cloudWater = retained;
+    while (z > o.lee) {
+      var stepD = Math.min(dz, z - o.lee);
+      p = pressureAt(z);
+      if (cloudWater > 1e-9) {
+        var rsd = mixing(T, p);
+        T += moistLapse(T, p) * stepD;   // evaporating cloud damps the warming
+        var rsd2 = mixing(T, pressureAt(z - stepD));
+        cloudWater -= Math.max(0, rsd2 - rsd);
+      } else {
+        T += (g / cpd) * stepD;          // dry adiabatic descent — the föhn
+      }
+      z -= stepD;
+      profile.push({ z: z, T: T, cloud: cloudWater > 1e-9, side: 'down' });
+    }
+    var leeP = pressureAt(o.lee);
+    var leeR = Math.max(0, rDown - Math.max(0, retained - cloudWater));
+    var leeE = leeR * leeP / (EPS + leeR);
+    var leeRH = Math.max(1, Math.min(100, 100 * leeE / esat(T)));
+
+    // precipitation flux over the windward slope
+    var rhoAir = 100 * pressureAt((o.base + o.summit) / 2) / (Rd * (T + 273.15));
+    var depth = Math.max(0, o.summit - (lcl === null ? o.summit : lcl));
+    var flux = condensed * o.eff * rhoAir * o.wind * depth;   // kg per metre of ridge per second
+    var rate = flux / (o.slope * 1000) * 3600;                // mm per hour over the slope
+
+    return {
+      lcl: lcl, summitT: summitT, leeT: T, leeRH: leeRH, dewpoint: Td,
+      condensed: condensed * 1000, rained: condensed * o.eff * 1000,
+      rate: rate, profile: profile, cloudDepth: depth,
+      warming: T - o.temp, r0: r0 * 1000, leeR: leeR * 1000
+    };
+  }
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.02rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function draw(o, r) {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    var sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#071018'); sky.addColorStop(1, '#0b1a24');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
+
+    var top = Math.max(o.summit + 400, 600), ground = Math.min(o.base, o.lee) - 100;
+    var padB = 34, padT = 14;
+    function Y(z) { return padT + (top - z) / (top - ground) * (h - padT - padB); }
+    var xBase = 70, xSummit = w * 0.5, xLee = w - 50;
+
+    // rain band on the windward slope
+    if (r.rate > 0.05 && r.lcl !== null) {
+      ctx.fillStyle = 'rgba(45,212,255,.10)';
+      ctx.fillRect(xBase - 40, Y(top), xSummit - xBase + 40, Y(ground) - Y(top));
+    }
+
+    // cloud
+    if (r.lcl !== null) {
+      var cy = Y(r.lcl);
+      ctx.fillStyle = 'rgba(200,225,245,.30)';
+      ctx.beginPath();
+      ctx.moveTo(xBase + 20, cy);
+      ctx.lineTo(xSummit + 90, cy);
+      ctx.lineTo(xSummit + 40, Y(o.summit) - 14);
+      ctx.lineTo(xSummit - 40, Y(o.summit) - 26);
+      ctx.lineTo(xBase + 60, cy - 30);
+      ctx.closePath(); ctx.fill();
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(200,225,245,.6)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xBase - 40, cy); ctx.lineTo(w, cy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(200,225,245,.85)';
+      ctx.font = '11px Inter, system-ui, sans-serif';
+      ctx.fillText('cloud base (LCL) ' + Math.round(r.lcl) + ' m', xBase - 36, cy - 6);
+    }
+
+    // rain streaks
+    if (r.rate > 0.05) {
+      ctx.strokeStyle = 'rgba(45,212,255,.5)'; ctx.lineWidth = 1;
+      for (var i = 0; i < 40; i++) {
+        var rx = xBase - 20 + (i * 37) % (xSummit - xBase + 40);
+        var ry = Y(r.lcl || o.summit) + ((i * 53) % 90);
+        ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 11); ctx.stroke();
+      }
+    }
+
+    // mountain
+    ctx.beginPath();
+    ctx.moveTo(0, Y(o.base));
+    ctx.lineTo(xBase, Y(o.base));
+    ctx.lineTo(xSummit, Y(o.summit));
+    ctx.lineTo(xLee, Y(o.lee));
+    ctx.lineTo(w, Y(o.lee));
+    ctx.lineTo(w, h); ctx.lineTo(0, h);
+    ctx.closePath();
+    var rock = ctx.createLinearGradient(0, Y(o.summit), 0, h);
+    rock.addColorStop(0, '#3b4a52'); rock.addColorStop(1, '#16232b');
+    ctx.fillStyle = rock; ctx.fill();
+    ctx.strokeStyle = 'rgba(45,212,255,.5)'; ctx.lineWidth = 1.6; ctx.stroke();
+
+    // wind arrows
+    ctx.strokeStyle = 'rgba(57,255,20,.8)'; ctx.fillStyle = 'rgba(57,255,20,.8)';
+    ctx.lineWidth = 1.8;
+    [[16, Y(o.base) - 60], [16, Y(o.base) - 130]].forEach(function (a) {
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(a[0] + 34, a[1]); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(a[0] + 34, a[1]); ctx.lineTo(a[0] + 27, a[1] - 4);
+      ctx.lineTo(a[0] + 27, a[1] + 4); ctx.closePath(); ctx.fill();
+    });
+
+    function tag(x, y, text, colour, align) {
+      ctx.font = '600 12px Inter, system-ui, sans-serif';
+      ctx.textAlign = align || 'center';
+      ctx.fillStyle = 'rgba(5,10,16,.85)';
+      var wdt = ctx.measureText(text).width + 10;
+      ctx.fillRect(align === 'left' ? x - 4 : x - wdt / 2, y - 13, wdt, 18);
+      ctx.fillStyle = colour;
+      ctx.fillText(text, align === 'left' ? x + 1 : x, y);
+      ctx.textAlign = 'left';
+    }
+    tag(xBase, Y(o.base) - 8, o.temp.toFixed(1) + '°C  ' + Math.round(o.rh) + '% RH', '#39ff14');
+    tag(xSummit, Y(o.summit) - 34, r.summitT.toFixed(1) + '°C at the ridge', '#8ecae6');
+    tag(xLee - 10, Y(o.lee) - 8, r.leeT.toFixed(1) + '°C  ' + Math.round(r.leeRH) + '% RH', '#ff9f43');
+
+    ctx.fillStyle = 'rgba(230,250,255,.6)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText('windward — wet', xBase - 10, h - 12);
+    ctx.textAlign = 'right';
+    ctx.fillText('leeward — rain shadow', w - 14, h - 12);
+    ctx.textAlign = 'left';
+  }
+
+  function update() {
+    var o = {
+      temp: parseFloat(tempEl.value), rh: parseFloat(rhEl.value),
+      base: parseFloat(baseEl.value), summit: parseFloat(summitEl.value),
+      lee: parseFloat(leeEl.value), wind: parseFloat(windEl.value),
+      slope: parseFloat(slopeEl.value), eff: parseFloat(effEl.value) / 100
+    };
+    if (!Object.keys(o).every(function (k) { return isFinite(o[k]); })) return;
+    if (o.summit <= o.base) o.summit = o.base + 10;
+    var r = simulate(o);
+
+    var annual = r.rate * 24 * 30;   // if it rained like this for 30 days a year
+    document.getElementById('rsol-stats').innerHTML =
+      stat('CLOUD BASE', r.lcl === null ? 'no cloud forms' : Math.round(r.lcl - o.base) + ' m above you',
+           r.lcl === null ? 'air stays unsaturated over the top' : 'altitude ' + Math.round(r.lcl) + ' m · dew point ' + r.dewpoint.toFixed(1) + '°C', '#8ecae6') +
+      stat('SUMMIT TEMPERATURE', r.summitT.toFixed(1) + ' °C',
+           ((o.temp - r.summitT) / (o.summit - o.base) * 1000).toFixed(1) + ' °C per km on the way up', '#2dd4ff') +
+      stat('LEEWARD TEMPERATURE', r.leeT.toFixed(1) + ' °C',
+           (r.warming >= 0 ? '+' : '') + r.warming.toFixed(1) + ' °C versus the windward foot', r.warming > 0 ? '#ff9f43' : '#8ecae6') +
+      stat('LEEWARD HUMIDITY', Math.round(r.leeRH) + ' %',
+           'was ' + Math.round(o.rh) + '% on the other side', '#ffd700') +
+      stat('WATER WRUNG OUT', r.rained.toFixed(2) + ' g/kg',
+           'of ' + r.r0.toFixed(2) + ' g/kg the air carried in', '#39ff14') +
+      stat('RAIN RATE ON THE SLOPE', r.rate.toFixed(1) + ' mm/h',
+           r.rate > 8 ? 'torrential' : r.rate > 4 ? 'heavy' : r.rate > 1 ? 'steady rain' : r.rate > 0.1 ? 'drizzle' : 'dry', '#2dd4ff') +
+      stat('IF THIS RAN 30 DAYS A YEAR', Math.round(annual).toLocaleString() + ' mm',
+           'a crude annual analogue for this flank', '#9d4edd') +
+      stat('FÖHN GAP', (r.leeT - r.summitT).toFixed(1) + ' °C',
+           'warming on the descent alone', '#ff2e63');
+
+    draw(o, r);
+
+    var rows = [
+      ['Windward foot', o.base, o.temp, o.rh + '%'],
+      ['Cloud base', r.lcl === null ? null : r.lcl, r.lcl === null ? null : (o.temp - (g / 1005.7) * (r.lcl - o.base)), '100%'],
+      ['Ridge line', o.summit, r.summitT, r.lcl === null ? '<100%' : '100%'],
+      ['Leeward foot', o.lee, r.leeT, Math.round(r.leeRH) + '%']
+    ].map(function (row) {
+      return '<tr><td style="padding:5px 8px;color:var(--text-secondary);">' + row[0] + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace;">' + (row[1] === null ? '—' : Math.round(row[1]) + ' m') + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace;color:var(--accent);">' + (row[2] === null ? '—' : row[2].toFixed(1) + ' °C') + '</td>' +
+        '<td style="padding:5px 8px;text-align:right;font-family:monospace;color:var(--text-secondary);">' + row[3] + '</td></tr>';
+    }).join('');
+    document.getElementById('rsol-profile').innerHTML =
+      '<div style="overflow-x:auto;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:0.78rem;min-width:320px;">' +
+      '<thead><tr style="color:var(--text-secondary);font-size:0.68rem;letter-spacing:.05em;">' +
+      '<th style="text-align:left;padding:6px 8px;">STAGE</th><th style="text-align:right;padding:6px 8px;">HEIGHT</th>' +
+      '<th style="text-align:right;padding:6px 8px;">TEMP</th><th style="text-align:right;padding:6px 8px;">RH</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div>';
+
+    var p = PRESETS[parseInt(presetEl.value, 10)];
+    document.getElementById('rsol-notes').innerHTML =
+      '<strong style="color:var(--accent);">What just happened.</strong> Unsaturated air cools at 9.8 °C per kilometre as it climbs, because it expands. Once it saturates at the lifting condensation level, condensation releases latent heat and the cooling slows to somewhere between 4 and 7 °C per kilometre — this model recomputes that rate at every 5 m step from the local temperature and pressure, so it is steeper in cold thin air and gentler in warm moist air. Coming down the far side the parcel has lost its water, so it warms at the full dry rate all the way, arriving ' +
+      Math.abs(r.warming).toFixed(1) + ' °C ' + (r.warming >= 0 ? 'warmer' : 'cooler') + ' and far drier than it started. That asymmetry is the rain shadow, and it is why deserts sit behind mountains all over the planet.' +
+      (p ? '<div style="margin-top:6px;color:#ffd700;">' + p[8] + '</div>' : '') +
+      '<div style="margin-top:6px;font-size:0.72rem;">The rain rate is a condensate-flux estimate: the water condensed per kilogram of air, multiplied by the mass of air crossing the ridge each second and the depth of the cloud layer, spread over the length of the windward slope, times your rain-out efficiency. Real orographic precipitation also depends on airflow blocking, seeder-feeder cloud interaction and how long droplets spend growing, so treat it as the right order of magnitude rather than a forecast.</div>';
+  }
+
+  presetEl.addEventListener('change', function () {
+    var p = PRESETS[parseInt(presetEl.value, 10)];
+    if (!p) return;
+    tempEl.value = p[1]; rhEl.value = p[2]; baseEl.value = p[3]; summitEl.value = p[4];
+    leeEl.value = p[5]; windEl.value = p[6]; slopeEl.value = p[7];
+    update();
+  });
+  [tempEl, rhEl, baseEl, summitEl, leeEl, windEl, slopeEl, effEl].forEach(function (e) {
+    e.addEventListener('input', update);
+  });
+  update();
+})();
+</script>

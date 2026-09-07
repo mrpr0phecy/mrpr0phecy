@@ -1,0 +1,66 @@
+<h2 id="skhv-title" style="margin-top:0;color:var(--accent);">🗑️ Skip Hire Volume Calculator</h2>
+
+<form aria-describedby="skhv-desc" onsubmit="event.preventDefault();">
+  <p id="skhv-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Rough cubic yards from room waste, rubble or bags. UK skips are sold in yards: 4, 6, 8, 12, 16. Loose waste settles; rubble is heavy — many yards cap weight before the skip looks full. Not a quote.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="skhv-kind" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">I am filling from</label>
+      <select id="skhv-kind" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="pile">A pile (L × W × H)</option>
+        <option value="bags">Builder bags (1 m³ each)</option>
+        <option value="rooms">Cleared rooms</option>
+      </select>
+    </div>
+    <div>
+      <label for="skhv-l" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Length m</label>
+      <input id="skhv-l" type="number" min="0" step="any" value="3" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="skhv-w" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Width m</label>
+      <input id="skhv-w" type="number" min="0" step="any" value="2" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="skhv-h" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Height m / bags / rooms</label>
+      <input id="skhv-h" type="number" min="0" step="any" value="0.6" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="skhv-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var skips = [2, 4, 6, 8, 12, 16];
+  function cell(k, v) {
+    return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+  }
+  function run() {
+    var kind = $('skhv-kind').value;
+    var l = Number($('skhv-l').value), w = Number($('skhv-w').value), h = Number($('skhv-h').value);
+    var m3 = 0;
+    if (kind === 'pile') m3 = l * w * h;
+    else if (kind === 'bags') m3 = h * 1;
+    else m3 = h * 4;
+    if (!(m3 >= 0) || !isFinite(m3)) {
+      $('skhv-out').textContent = 'Enter sizes or a count.';
+      return;
+    }
+    var yd = m3 * 1.30795;
+    var pick = skips.filter(function (s) { return s >= yd * 1.15; })[0] || 16;
+    var note = kind === 'rooms' ? 'Each “room” is treated as ~4 m³ of mixed household junk (a small bedroom).' : kind === 'bags' ? 'Each bag is 1 m³. Height field = number of bags.' : 'Measure the heap, not the room.';
+    $('skhv-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('Volume', m3.toFixed(2) + ' m³') +
+      cell('Cubic yards', yd.toFixed(1) + ' yd³') +
+      cell('Suggested skip', pick + '-yard') +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">' + note + ' Add ~15% headroom because waste does not pack like a rectangle. Soil and brick hit weight limits in a 6-yard. Check permits for highway placement.</p>';
+  }
+  ['skhv-kind', 'skhv-l', 'skhv-w', 'skhv-h'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

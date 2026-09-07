@@ -1,0 +1,263 @@
+<h2 id="spoc-title" style="margin-top:0;color:var(--accent);">⚡ SVG Path Optimizer &amp; Minifier</h2>
+
+<p id="spoc-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Minify and clean SVG markup, remove metadata, editor bloat and unused namespaces, round decimal precision, preview live, and copy optimized SVG.
+</p>
+
+<!-- Top Upload & Paste Bar -->
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;">
+  <label for="spoc-file-input" style="padding:6px 12px;background:var(--accent);color:#071019;border:0;border-radius:6px;cursor:pointer;font-weight:800;font-size:0.78rem;">📁 Open SVG File</label>
+  <input type="file" id="spoc-file-input" accept=".svg,image/svg+xml" style="display:none;">
+  <button type="button" id="spoc-sample-btn" style="padding:6px 11px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;font-size:0.78rem;">Load Sample Icon</button>
+  <button type="button" id="spoc-clear-btn" style="padding:6px 11px;background:rgba(255,77,77,0.1);color:#ff7878;border:1px solid rgba(255,77,77,0.3);border-radius:6px;cursor:pointer;font-size:0.78rem;">Clear</button>
+  <span id="spoc-savings-badge" style="margin-left:auto;font-size:0.78rem;font-weight:800;padding:4px 10px;border-radius:6px;background:rgba(57,255,20,0.15);color:#39ff14;border:1px solid rgba(57,255,20,0.3);">Saved: 0%</span>
+</div>
+
+<!-- Optimization Options Checkbox Matrix -->
+<div style="background:#0b1722;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-bottom:14px;">
+  <div style="font-size:0.78rem;color:var(--accent);font-weight:700;margin-bottom:8px;">Optimization Rules</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;font-size:0.75rem;">
+    <label style="display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;">
+      <input type="checkbox" id="spoc-opt-doctype" checked> Strip XML Doctype &amp; Comments
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;">
+      <input type="checkbox" id="spoc-opt-editor" checked> Remove Editor Namespaces (Inkscape/AI)
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;">
+      <input type="checkbox" id="spoc-opt-metadata" checked> Remove &lt;metadata&gt; &amp; &lt;desc&gt;
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;">
+      <input type="checkbox" id="spoc-opt-empty-groups" checked> Remove Empty &lt;g&gt; Groups
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;">
+      <input type="checkbox" id="spoc-opt-whitespace" checked> Collapse Whitespace &amp; Linebreaks
+    </label>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <label for="spoc-opt-decimals" style="color:var(--text);">Coordinate Decimals:</label>
+      <select id="spoc-opt-decimals" style="padding:2px 6px;border-radius:4px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,0.15);font-size:0.75rem;">
+        <option value="none">Preserve</option>
+        <option value="3">3 Decimals</option>
+        <option value="2" selected>2 Decimals</option>
+        <option value="1">1 Decimal</option>
+        <option value="0">0 (Integers)</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Side-by-side Editors & Previews -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:14px;">
+  <!-- Original Box -->
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">
+      <span>Original SVG Source</span>
+      <span id="spoc-orig-bytes">0 bytes</span>
+    </div>
+    <textarea id="spoc-input-svg" rows="8" placeholder="Paste <svg>...</svg> markup here..." style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,0.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.75rem;resize:vertical;"></textarea>
+  </div>
+
+  <!-- Optimized Box -->
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">
+      <span>Optimized SVG Output</span>
+      <span id="spoc-opt-bytes" style="color:var(--accent);">0 bytes</span>
+    </div>
+    <textarea id="spoc-output-svg" rows="8" readonly spellcheck="false" style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;background:rgba(0,0,0,0.35);color:#91f7ff;border:1px solid rgba(45,212,255,0.3);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.75rem;resize:vertical;"></textarea>
+  </div>
+</div>
+
+<!-- Live Visual Graphic Preview -->
+<div style="background:#0b1722;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-bottom:14px;text-align:center;">
+  <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:8px;">Live Render Verification (Optimized Output)</div>
+  <div style="display:inline-flex;align-items:center;justify-content:center;min-width:120px;min-height:120px;max-width:240px;max-height:240px;padding:16px;background:radial-gradient(#1f2937 1px, transparent 1px) 0 0 / 12px 12px, #071019;border:1px solid rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;">
+    <div id="spoc-preview-container" style="max-width:100%;max-height:100%;display:flex;align-items:center;justify-content:center;">
+      <span style="font-size:0.75rem;color:var(--text-secondary);">No SVG rendered</span>
+    </div>
+  </div>
+</div>
+
+<!-- Action Export Buttons -->
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+  <button type="button" id="spoc-copy-svg-btn" style="padding:8px 14px;background:var(--accent);color:#071019;border:0;border-radius:6px;cursor:pointer;font-weight:800;font-size:0.8rem;">📋 Copy Optimized SVG</button>
+  <button type="button" id="spoc-copy-datauri-btn" style="padding:8px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;font-size:0.8rem;">Copy as Data URI</button>
+  <button type="button" id="spoc-download-btn" style="padding:8px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;font-size:0.8rem;">💾 Download .svg</button>
+  <span id="spoc-status" aria-live="polite" style="font-size:0.78rem;color:var(--accent);"></span>
+</div>
+
+<script>
+(function(){
+  var host = document.currentScript.parentNode;
+  var $ = function(id){ return host.querySelector('#' + id); };
+  var $$ = function(sel){ return host.querySelectorAll(sel); };
+
+  var sampleSVG = '<?xml version="1.0" encoding="utf-8"?>\n' +
+    '<!-- Generator: Adobe Illustrator 27.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->\n' +
+    '<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"\n' +
+    '     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100;" xml:space="preserve">\n' +
+    '<metadata>\n' +
+    '  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n' +
+    '    <cc:Work rdf:about=""><dc:format>image/svg+xml</dc:format></cc:Work>\n' +
+    '  </rdf:RDF>\n' +
+    '</metadata>\n' +
+    '<g id="illustration_group">\n' +
+    '  <g id="empty_sub_group"></g>\n' +
+    '  <circle fill="#2dd4ff" cx="50.00000" cy="50.00000" r="40.00000"/>\n' +
+    '  <polygon fill="#071019" points="40.2345,30.6789 70.8912,50.1234 40.2345,69.5678"/>\n' +
+    '</g>\n' +
+    '</svg>';
+
+  function optimizeSVG(raw) {
+    if (!raw || !raw.trim()) return '';
+    var out = raw;
+
+    // 1. Doctype and Comments
+    if ($('spoc-opt-doctype').checked) {
+      out = out.replace(/<\?xml[\s\S]*?\?>/gi, '');
+      out = out.replace(/<!DOCTYPE[\s\S]*?>/gi, '');
+      out = out.replace(/<!--[\s\S]*?-->/gi, '');
+    }
+
+    // 2. Metadata & Desc
+    if ($('spoc-opt-metadata').checked) {
+      out = out.replace(/<metadata[\s\S]*?<\/metadata>/gi, '');
+      out = out.replace(/<desc[\s\S]*?<\/desc>/gi, '');
+      out = out.replace(/<title[\s\S]*?<\/title>/gi, '');
+    }
+
+    // 3. Editor namespaces
+    if ($('spoc-opt-editor').checked) {
+      out = out.replace(/\sxmlns:(?:inkscape|sodipodi|sketch|illustrator|vectornator|adobe)=["'][^"']*["']/gi, '');
+      out = out.replace(/\s(?:inkscape|sodipodi|sketch|adobe):[a-z0-9_-]+=["'][^"']*["']/gi, '');
+      out = out.replace(/\s(?:xml:space|enable-background)=["'][^"']*["']/gi, '');
+    }
+
+    // 4. Empty groups
+    if ($('spoc-opt-empty-groups').checked) {
+      out = out.replace(/<g[^>]*>\s*<\/g>/gi, '');
+      out = out.replace(/<g[^>]*>\s*<\/g>/gi, ''); // second pass for nested
+    }
+
+    // 5. Decimals precision rounding
+    var decSetting = $('spoc-opt-decimals').value;
+    if (decSetting !== 'none') {
+      var dPlaces = parseInt(decSetting, 10);
+      out = out.replace(/(\d+\.\d{2,})/g, function(match, numStr){
+        var n = parseFloat(numStr);
+        if (isNaN(n)) return match;
+        return dPlaces === 0 ? Math.round(n).toString() : n.toFixed(dPlaces).replace(/\.?0+$/, '');
+      });
+    }
+
+    // 6. Whitespace
+    if ($('spoc-opt-whitespace').checked) {
+      out = out.replace(/\r?\n|\r/g, ' ');
+      out = out.replace(/\s{2,}/g, ' ');
+      out = out.replace(/>\s+</g, '><');
+      out = out.trim();
+    }
+
+    return out;
+  }
+
+  function runOptimization() {
+    var raw = $('spoc-input-svg').value;
+    var origBytes = new TextEncoder().encode(raw).length;
+    $('spoc-orig-bytes').textContent = origBytes + ' bytes';
+
+    if (!raw.trim()) {
+      $('spoc-output-svg').value = '';
+      $('spoc-opt-bytes').textContent = '0 bytes';
+      $('spoc-savings-badge').textContent = 'Saved: 0%';
+      $('spoc-preview-container').innerHTML = '<span style="font-size:0.75rem;color:var(--text-secondary);">No SVG rendered</span>';
+      return;
+    }
+
+    var opt = optimizeSVG(raw);
+    $('spoc-output-svg').value = opt;
+    var optBytes = new TextEncoder().encode(opt).length;
+    $('spoc-opt-bytes').textContent = optBytes + ' bytes';
+
+    var savedPct = origBytes > 0 ? (((origBytes - optBytes) / origBytes) * 100).toFixed(1) : 0;
+    if (savedPct < 0) savedPct = 0;
+    $('spoc-savings-badge').textContent = 'Saved: ' + savedPct + '% (' + origBytes + 'B → ' + optBytes + 'B)';
+
+    // Update Live Preview safely
+    if (opt.includes('<svg')) {
+      $('spoc-preview-container').innerHTML = opt;
+      var renderedSvg = $('spoc-preview-container').querySelector('svg');
+      if (renderedSvg) {
+        renderedSvg.style.maxWidth = '100%';
+        renderedSvg.style.maxHeight = '140px';
+        renderedSvg.style.display = 'block';
+      }
+    } else {
+      $('spoc-preview-container').innerHTML = '<span style="font-size:0.75rem;color:#ff7878;">Invalid SVG markup</span>';
+    }
+  }
+
+  // Inputs
+  $('spoc-input-svg').addEventListener('input', runOptimization);
+  $$('#spoc-opt-doctype, #spoc-opt-editor, #spoc-opt-metadata, #spoc-opt-empty-groups, #spoc-opt-whitespace, #spoc-opt-decimals').forEach(function(el){
+    el.addEventListener('change', runOptimization);
+  });
+
+  // Sample and Clear
+  $('spoc-sample-btn').addEventListener('click', function(){
+    $('spoc-input-svg').value = sampleSVG;
+    runOptimization();
+  });
+
+  $('spoc-clear-btn').addEventListener('click', function(){
+    $('spoc-input-svg').value = '';
+    runOptimization();
+  });
+
+  // File open
+  $('spoc-file-input').addEventListener('change', function(e){
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(evt){
+      $('spoc-input-svg').value = evt.target.result;
+      runOptimization();
+    };
+    reader.readAsText(file);
+  });
+
+  // Copy Buttons
+  $('spoc-copy-svg-btn').addEventListener('click', function(){
+    var val = $('spoc-output-svg').value;
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(function(){
+      $('spoc-status').textContent = '✓ SVG markup copied!';
+      setTimeout(function(){ $('spoc-status').textContent = ''; }, 3000);
+    });
+  });
+
+  $('spoc-copy-datauri-btn').addEventListener('click', function(){
+    var val = $('spoc-output-svg').value;
+    if (!val) return;
+    var dataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(val);
+    navigator.clipboard.writeText(dataUri).then(function(){
+      $('spoc-status').textContent = '✓ SVG Data URI copied!';
+      setTimeout(function(){ $('spoc-status').textContent = ''; }, 3000);
+    });
+  });
+
+  $('spoc-download-btn').addEventListener('click', function(){
+    var val = $('spoc-output-svg').value;
+    if (!val) return;
+    var blob = new Blob([val], { type: 'image/svg+xml' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'optimized-vector.svg';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Initial load
+  $('spoc-input-svg').value = sampleSVG;
+  runOptimization();
+})();
+</script>

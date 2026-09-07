@@ -1,0 +1,337 @@
+<h2 id="wind-wave-fetch-forecaster-title" style="margin-top:0;color:var(--accent);">🌬️ Wind, Fetch &amp; Wave Forecaster</h2>
+
+<form aria-describedby="wind-wave-fetch-forecaster-desc" onsubmit="event.preventDefault();">
+  <p id="wind-wave-fetch-forecaster-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Waves are built by three things: how hard the wind blows, how far it blows over open water, and how long it keeps blowing. This works out which of the three is holding your sea state back, using the JONSWAP fetch-growth relations, and turns it into the numbers that actually matter on the water — significant height, the biggest wave you should expect, period, steepness and whether the far shore is a lee or a trap.
+  </p>
+
+  <div style="margin-bottom:12px;">
+    <label for="wwff-preset" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Load a real water</label>
+    <select id="wwff-preset" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="wwff-wind" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Wind speed</label>
+      <div style="display:flex;gap:6px;">
+        <input type="number" id="wwff-wind" value="20" step="1" min="1" max="120" style="flex:1;min-width:0;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+        <select id="wwff-windunit" aria-label="Wind speed unit" style="padding:8px 6px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.8rem;">
+          <option value="kn" selected>knots</option>
+          <option value="ms">m/s</option>
+          <option value="mph">mph</option>
+          <option value="kmh">km/h</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label for="wwff-fetch" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Fetch — open water upwind (km)</label>
+      <input type="number" id="wwff-fetch" value="20" step="1" min="0.1" max="5000" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="wwff-hours" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">How long it has blown (hours)</label>
+      <input type="number" id="wwff-hours" value="6" step="0.5" min="0.1" max="120" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="wwff-depth" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">Mean water depth (m)</label>
+      <input type="number" id="wwff-depth" value="25" step="1" min="0.5" max="6000" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.85rem;">
+    </div>
+    <div>
+      <label for="wwff-craft" style="display:block;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;">What are you in?</label>
+      <select id="wwff-craft" style="width:100%;padding:8px 11px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;">
+        <option value="swim">Open-water swimming</option>
+        <option value="paddle">Paddleboard</option>
+        <option value="kayak" selected>Sea kayak</option>
+        <option value="dinghy">Sailing dinghy</option>
+        <option value="rib">RIB or small motorboat</option>
+        <option value="yacht">Cruising yacht (10 m)</option>
+        <option value="ship">Coastal ship</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="wwff-verdict" role="status" aria-live="polite" style="margin-bottom:12px;"></div>
+  <div id="wwff-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="wwff-canvas" width="820" height="400" role="img"
+          aria-label="Wave growth curve against fetch, and a scale drawing of the resulting sea"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:12px;"></canvas>
+
+  <div id="wwff-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var canvas = document.getElementById('wwff-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var el = function (id) { return document.getElementById(id); };
+  var windEl = el('wwff-wind'), unitEl = el('wwff-windunit'), fetchEl = el('wwff-fetch'),
+      hoursEl = el('wwff-hours'), depthEl = el('wwff-depth'), craftEl = el('wwff-craft'),
+      presetEl = el('wwff-preset');
+
+  var g = 9.80665, RHO = 1025;
+
+  // label, wind, unit, fetch km, hours, depth m, note
+  var PRESETS = [
+    ['Windermere in a fresh southerly', 18, 'kn', 16, 5, 20,
+     'England\u2019s longest lake is only 16 km of fetch — but that is enough to stop a paddleboard.'],
+    ['Loch Ness, gale down the glen', 35, 'kn', 36, 8, 130,
+     'The glen funnels the wind straight along 36 km of very deep water.'],
+    ['Solent chop, wind over tide', 22, 'kn', 12, 4, 12,
+     'Short fetch, shallow water and a foul tide: the waves are small but vicious and steep.'],
+    ['English Channel crossing, F6', 25, 'kn', 150, 12, 60,
+     'A classic Channel day — a real sea, but not yet fully developed.'],
+    ['North Sea winter storm', 45, 'kn', 500, 24, 45,
+     'Long fetch, shallow shelf sea: this is what closes ports.'],
+    ['Atlantic, fully developed', 40, 'kn', 2000, 48, 4000,
+     'Nothing limits this sea but the wind itself.'],
+    ['A 2 km reservoir in a squall', 30, 'kn', 2, 0.5, 8,
+     'Even 30 knots cannot build much across 2 km — but the gust still capsizes dinghies.'],
+    ['Lake Geneva, the Bise', 25, 'kn', 60, 10, 150,
+     'The Bise blows the length of the lake and the far end gets a genuinely rough sea.']
+  ];
+  PRESETS.forEach(function (p, i) { presetEl.add(new Option(p[0], String(i))); });
+
+  function toMs(v, unit) {
+    if (unit === 'kn') return v * 0.514444;
+    if (unit === 'mph') return v * 0.44704;
+    if (unit === 'kmh') return v / 3.6;
+    return v;
+  }
+
+  // JONSWAP fetch-limited growth, capped at the fully developed (Pierson–Moskowitz) sea
+  function waves(U, Fm, depth) {
+    var X = g * Fm / (U * U);
+    var Hn = Math.min(0.0016 * Math.sqrt(X), 0.243);
+    var Tn = Math.min(0.286 * Math.pow(X, 1 / 3), 8.13);
+    var Hs = Hn * U * U / g, Tp = Tn * U / g;
+    var fullyDeveloped = Hn >= 0.2429;
+    var depthCapped = false;
+    if (Hs > 0.55 * depth) { Hs = 0.55 * depth; depthCapped = true; }
+    return { Hs: Hs, Tp: Tp, fullyDeveloped: fullyDeveloped, depthCapped: depthCapped, X: X };
+  }
+
+  function durationFetch(U, hours) {          // fetch the wind has had time to work over
+    var t = hours * 3600;
+    return Math.sqrt(g * U * Math.pow(t / 68.8, 3));
+  }
+
+  function wavelength(T, d) {                 // linear dispersion, solved iteratively
+    var L = g * T * T / (2 * Math.PI);
+    for (var i = 0; i < 40; i++) L = g * T * T / (2 * Math.PI) * Math.tanh(2 * Math.PI * d / L);
+    return L;
+  }
+
+  function beaufort(U) {
+    var lim = [0.3, 1.6, 3.4, 5.5, 8.0, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7];
+    var names = ['Calm', 'Light air', 'Light breeze', 'Gentle breeze', 'Moderate breeze',
+      'Fresh breeze', 'Strong breeze', 'Near gale', 'Gale', 'Strong gale', 'Storm',
+      'Violent storm', 'Hurricane force'];
+    for (var i = 0; i < lim.length; i++) if (U < lim[i]) return { n: i, name: names[i] };
+    return { n: 12, name: names[12] };
+  }
+
+  function seaState(Hs) {
+    // WMO sea state codes: the code number is the index
+    var t = [[0, 'Calm, glassy'], [0.001, 'Calm, rippled'], [0.1, 'Smooth'], [0.5, 'Slight'],
+             [1.25, 'Moderate'], [2.5, 'Rough'], [4, 'Very rough'], [6, 'High'],
+             [9, 'Very high'], [14, 'Phenomenal']];
+    for (var i = t.length - 1; i >= 0; i--) if (Hs >= t[i][0]) return 'WMO ' + i + ' — ' + t[i][1];
+    return 'WMO 0';
+  }
+
+  var CRAFT = {
+    swim: ['Open-water swimming', 0.3, 0.6],
+    paddle: ['Paddleboard', 0.3, 0.7],
+    kayak: ['Sea kayak', 0.8, 1.5],
+    dinghy: ['Sailing dinghy', 0.9, 1.6],
+    rib: ['RIB or small motorboat', 1.2, 2.2],
+    yacht: ['Cruising yacht (10 m)', 2.5, 4.5],
+    ship: ['Coastal ship', 5, 8]
+  };
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.02rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function draw(U, Feff, depth, r) {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
+    var splitX = Math.round(w * 0.52);
+
+    // ---------- left: growth curve ----------
+    var padL = 46, padT = 22, padB = 34;
+    var pw = splitX - padL - 18, ph = h - padT - padB;
+    var maxH = Math.max(0.5, 0.243 * U * U / g * 1.12);
+    function X(fkm) { return padL + (Math.log10(Math.max(0.1, fkm)) + 1) / (Math.log10(3000) + 1) * pw; }
+    function Y(hs) { return padT + (1 - hs / maxH) * ph; }
+
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.fillStyle = 'rgba(230,250,255,.55)';
+    ctx.font = '10px Inter, system-ui, sans-serif';
+    [0.1, 1, 10, 100, 1000].forEach(function (fk) {
+      var x = X(fk);
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + ph); ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillText(fk < 1 ? fk + '' : fk + ' km', x, h - 14);
+    });
+    ctx.textAlign = 'right';
+    for (var v = 0; v <= maxH; v += maxH > 6 ? 2 : maxH > 2 ? 1 : 0.25) {
+      var y = Y(v);
+      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + pw, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(230,250,255,.55)';
+      ctx.fillText(v.toFixed(maxH > 2 ? 0 : 2) + ' m', padL - 5, y + 3);
+    }
+    ctx.textAlign = 'left';
+
+    ctx.beginPath();
+    for (var px = 0; px <= pw; px += 2) {
+      var fkm = Math.pow(10, (px / pw) * (Math.log10(3000) + 1) - 1);
+      var hs = waves(U, fkm * 1000, depth).Hs;
+      if (px === 0) ctx.moveTo(padL + px, Y(hs)); else ctx.lineTo(padL + px, Y(hs));
+    }
+    ctx.strokeStyle = '#2dd4ff'; ctx.lineWidth = 2.2; ctx.stroke();
+
+    var fx = X(Feff / 1000), fy = Y(r.Hs);
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(57,255,20,.6)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(fx, padT + ph); ctx.lineTo(fx, fy); ctx.lineTo(padL, fy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(fx, fy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#39ff14'; ctx.fill();
+
+    ctx.fillStyle = 'rgba(230,250,255,.7)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText('wave height vs fetch at ' + (U / 0.514444).toFixed(0) + ' kn', padL, 14);
+
+    // ---------- right: the sea at scale ----------
+    var rx = splitX + 14, rw = w - rx - 14;
+    var scaleMax = Math.max(r.Hs * 1.9, 2.2);
+    var seaY = h - 60, mPerPx = scaleMax / (seaY - 40);
+    ctx.fillStyle = 'rgba(45,212,255,.07)';
+    ctx.fillRect(rx, 20, rw, h - 40);
+
+    ctx.beginPath();
+    var L = wavelength(r.Tp, depth);
+    var pxPerM = 1 / mPerPx;
+    for (var sx = 0; sx <= rw; sx++) {
+      var m = sx * mPerPx * 3.2;
+      var yy = seaY - (r.Hs / 2) * pxPerM * Math.sin(2 * Math.PI * m / Math.max(1, L))
+               - (r.Hs / 6) * pxPerM * Math.sin(2 * Math.PI * m / Math.max(1, L * 0.42) + 1.1);
+      if (sx === 0) ctx.moveTo(rx + sx, yy); else ctx.lineTo(rx + sx, yy);
+    }
+    ctx.lineTo(rx + rw, h - 14); ctx.lineTo(rx, h - 14); ctx.closePath();
+    var grd = ctx.createLinearGradient(0, seaY - r.Hs * pxPerM, 0, h);
+    grd.addColorStop(0, 'rgba(45,212,255,.45)'); grd.addColorStop(1, 'rgba(10,40,60,.9)');
+    ctx.fillStyle = grd; ctx.fill();
+    ctx.strokeStyle = '#2dd4ff'; ctx.lineWidth = 1.6; ctx.stroke();
+
+    // 1.8 m human for scale
+    var hpx = 1.8 * pxPerM, hx = rx + rw * 0.22;
+    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(hx, seaY - hpx + hpx * 0.09, Math.max(2, hpx * 0.09), 0, Math.PI * 2);
+    ctx.moveTo(hx, seaY - hpx + hpx * 0.2); ctx.lineTo(hx, seaY - hpx * 0.42);
+    ctx.moveTo(hx, seaY - hpx * 0.42); ctx.lineTo(hx - hpx * 0.16, seaY);
+    ctx.moveTo(hx, seaY - hpx * 0.42); ctx.lineTo(hx + hpx * 0.16, seaY);
+    ctx.moveTo(hx - hpx * 0.2, seaY - hpx * 0.72); ctx.lineTo(hx + hpx * 0.2, seaY - hpx * 0.72);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,215,0,.85)';
+    ctx.font = '10px Inter, system-ui, sans-serif';
+    ctx.fillText('1.8 m', hx - 12, seaY - hpx - 6);
+
+    // height bar
+    var bx = rx + rw - 40;
+    ctx.strokeStyle = '#ff2e63'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(bx, seaY); ctx.lineTo(bx, seaY - r.Hs * pxPerM);
+    ctx.moveTo(bx - 6, seaY); ctx.lineTo(bx + 6, seaY);
+    ctx.moveTo(bx - 6, seaY - r.Hs * pxPerM); ctx.lineTo(bx + 6, seaY - r.Hs * pxPerM);
+    ctx.stroke();
+    ctx.fillStyle = '#ff2e63';
+    ctx.font = '600 11px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('Hs ' + r.Hs.toFixed(2) + ' m', bx - 9, seaY - r.Hs * pxPerM / 2);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(230,250,255,.7)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText('the sea, drawn to scale', rx, 14);
+  }
+
+  function update() {
+    var U = toMs(parseFloat(windEl.value), unitEl.value);
+    var Fkm = parseFloat(fetchEl.value), hours = parseFloat(hoursEl.value), depth = parseFloat(depthEl.value);
+    if (![U, Fkm, hours, depth].every(isFinite) || U <= 0) return;
+    var Fm = Fkm * 1000;
+    var Fdur = durationFetch(U, hours);
+    var Feff = Math.min(Fm, Fdur);
+    var r = waves(U, Feff, depth);
+    var Hmax = 1.86 * r.Hs, H1000 = 2.22 * r.Hs;
+    var L = wavelength(r.Tp, depth);
+    var steep = r.Hs / L;
+    var c = L / r.Tp;
+    var power = RHO * g * g * r.Hs * r.Hs * r.Tp / (64 * Math.PI) / 1000;
+    var bf = beaufort(U);
+    var craft = CRAFT[craftEl.value] || CRAFT.kayak;
+    var timeToFull = 68.8 * Math.pow(Fm * Fm / (g * U), 1 / 3) / 3600;
+
+    var limiter = r.fullyDeveloped ? 'fully developed — nothing but the wind limits this sea'
+      : (Fdur < Fm ? 'duration-limited: the wind has not blown long enough yet'
+        : 'fetch-limited: the far shore is what is saving you');
+
+    var risk = r.Hs < craft[1] ? ['MANAGEABLE', '#39ff14'] :
+               r.Hs < craft[2] ? ['AT YOUR LIMIT', '#ffd700'] : ['BEYOND THE CRAFT', '#ff2e63'];
+
+    el('wwff-verdict').innerHTML =
+      '<div style="border:1px solid ' + risk[1] + '55;background:' + risk[1] + '12;border-radius:10px;padding:11px 13px;">' +
+      '<strong style="color:' + risk[1] + ';font-size:0.95rem;">' + risk[0] + ' — ' + craft[0] + ' in ' + r.Hs.toFixed(2) + ' m significant wave height</strong>' +
+      '<div style="font-size:0.78rem;color:var(--text-secondary);margin-top:3px;">' +
+      'Force ' + bf.n + ', ' + bf.name.toLowerCase() + '. ' + seaState(r.Hs) + '. ' +
+      'One wave in a hundred will reach <strong style="color:var(--accent);">' + Hmax.toFixed(2) + ' m</strong>' +
+      (r.depthCapped ? ', and the ' + depth + ' m depth is already breaking the biggest ones.' : '.') +
+      '</div></div>';
+
+    el('wwff-stats').innerHTML =
+      stat('SIGNIFICANT HEIGHT', r.Hs.toFixed(2) + ' m', 'average of the biggest third', '#2dd4ff') +
+      stat('HIGHEST IN 3 HOURS', H1000.toFixed(2) + ' m', 'the one that catches you out', '#ff2e63') +
+      stat('PEAK PERIOD', r.Tp.toFixed(1) + ' s', 'wavelength ' + L.toFixed(0) + ' m, moving at ' + (c * 1.94384).toFixed(1) + ' kn') +
+      stat('STEEPNESS', (steep * 100).toFixed(1) + '%',
+           steep > 0.055 ? 'dangerously steep — breaking tops' : steep > 0.04 ? 'short and steep' : 'long and easy',
+           steep > 0.055 ? '#ff2e63' : steep > 0.04 ? '#ffd700' : '#39ff14') +
+      stat('WHAT IS LIMITING IT', r.fullyDeveloped ? 'nothing' : (Fdur < Fm ? 'duration' : 'fetch'),
+           'effective fetch ' + (Feff / 1000).toFixed(1) + ' km', '#9d4edd') +
+      stat('TIME TO FULL FETCH SEA', r.fullyDeveloped ? 'already there' : timeToFull.toFixed(1) + ' h',
+           'from a standing start at this wind', '#ffd700') +
+      stat('WAVE POWER', power.toFixed(1) + ' kW/m', 'energy crossing every metre of crest') +
+      stat('DEPTH CHECK', depth < L / 2 ? 'feeling the bottom' : 'deep water',
+           'half a wavelength is ' + (L / 2).toFixed(0) + ' m', depth < L / 4 ? '#ff9f43' : 'var(--accent)');
+
+    draw(U, Feff, depth, r);
+
+    var p = PRESETS[parseInt(presetEl.value, 10)];
+    el('wwff-notes').innerHTML =
+      '<strong style="color:var(--accent);">Read the limiter first.</strong> ' + limiter.charAt(0).toUpperCase() + limiter.slice(1) +
+      '. That single fact is what most people get wrong: 40 knots across 2 km of reservoir makes an unpleasant but survivable chop, while 20 knots across 200 km of open sea builds something a small boat has no business in. Doubling the wind roughly quadruples the wave height, but doubling the fetch only multiplies it by about 1.4.' +
+      (p ? '<div style="margin-top:6px;color:#ffd700;">' + p[6] + '</div>' : '') +
+      '<div style="margin-top:6px;">Significant wave height is the average of the highest third of waves — the number forecasts quote, and roughly what an experienced eye estimates. Individual waves are far bigger: about 1.86× for the highest in a hundred and 2.2× for the highest in a three-hour watch, which is the figure to plan around.</div>' +
+      '<div style="margin-top:6px;font-size:0.72rem;">JONSWAP growth relations with a Pierson–Moskowitz fully developed cap, a depth-breaking limit of 0.55× depth, and linear dispersion for wavelength. Real seas add swell from elsewhere, wind against tide (which shortens and steepens everything savagely), refraction round headlands and gusts well above the mean. This is planning arithmetic, not a marine forecast — always read the actual one.</div>';
+  }
+
+  presetEl.addEventListener('change', function () {
+    var p = PRESETS[parseInt(presetEl.value, 10)];
+    if (!p) return;
+    windEl.value = p[1]; unitEl.value = p[2]; fetchEl.value = p[3]; hoursEl.value = p[4]; depthEl.value = p[5];
+    update();
+  });
+  [windEl, unitEl, fetchEl, hoursEl, depthEl, craftEl].forEach(function (e) {
+    e.addEventListener('input', update);
+    e.addEventListener('change', update);
+  });
+  update();
+})();
+</script>

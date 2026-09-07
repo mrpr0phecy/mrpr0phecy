@@ -1,0 +1,78 @@
+<h2 id="bted-title" style="margin-top:0;color:var(--accent);">🔐 Base64, Hex & Binary Text Encoder / Decoder</h2>
+
+<form aria-describedby="bted-desc" onsubmit="event.preventDefault();">
+  <p id="bted-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Encode text to Base64 (standard or URL-safe), hexadecimal, binary, HTML entities, Unicode escapes or ROT13 — and decode back. Full UTF-8 and emoji support. Live in both directions; nothing leaves your device.
+  </p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;" id="bted-modes">
+    <button type="button" data-bted="b64" style="padding:6px 12px;border-radius:8px;background:rgba(45,212,255,0.2);border:1px solid rgba(45,212,255,0.5);color:var(--accent);font-size:0.78rem;cursor:pointer;">Base64</button>
+    <button type="button" data-bted="b64url" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.78rem;cursor:pointer;">Base64 URL-safe</button>
+    <button type="button" data-bted="hex" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.78rem;cursor:pointer;">Hex</button>
+    <button type="button" data-bted="bin" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.78rem;cursor:pointer;">Binary</button>
+    <button type="button" data-bted="html" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.78rem;cursor:pointer;">HTML entities</button>
+    <button type="button" data-bted="uni" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.78rem;cursor:pointer;">Unicode \u</button>
+    <button type="button" data-bted="rot13" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.78rem;cursor:pointer;">ROT13</button>
+    <button type="button" data-bted="ascii" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.78rem;cursor:pointer;">ASCII codes</button>
+  </div>
+
+  <label for="bted-plain" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Plain text</label>
+  <textarea id="bted-plain" rows="5" placeholder="Hello, world! 👋" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;margin-bottom:6px;"></textarea>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <span id="bted-pstat" style="font-size:0.72rem;color:var(--text-secondary);"></span>
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="bted-swap" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.72rem;cursor:pointer;">⇅ Swap</button>
+      <button type="button" id="bted-copyp" style="padding:5px 10px;border-radius:6px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.3);color:var(--accent);font-size:0.72rem;cursor:pointer;">Copy plain</button>
+    </div>
+  </div>
+
+  <label for="bted-enc" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Encoded <span id="bted-encname">(Base64)</span></label>
+  <textarea id="bted-enc" rows="5" placeholder="SGVsbG8sIHdvcmxkISDwn5GL" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;margin-bottom:6px;"></textarea>
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <span id="bted-estat" style="font-size:0.72rem;color:var(--text-secondary);"></span>
+    <button type="button" id="bted-copye" style="padding:5px 10px;border-radius:6px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.3);color:#39ff14;font-size:0.72rem;cursor:pointer;">Copy encoded</button>
+  </div>
+  <div id="bted-err" style="font-size:0.75rem;color:#ff4081;margin-top:4px;min-height:1em;"></div>
+  <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:6px;">Tip: Base64 grows data by ~33%. It is encoding, not encryption — anyone can decode it.</div>
+</form>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var mode='b64', lock=false, names={b64:'Base64',b64url:'Base64 URL-safe',hex:'Hexadecimal',bin:'Binary',html:'HTML entities',uni:'Unicode escapes',rot13:'ROT13',ascii:'ASCII / code points'};
+  var te=new TextEncoder(), td=new TextDecoder('utf-8',{fatal:true});
+  function bytesToB64(b){ var s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+  function b64ToBytes(s){ s=s.replace(/\s/g,''); var bin=atob(s); var b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b; }
+  var enc={
+    b64:function(t){ return bytesToB64(te.encode(t)); },
+    b64url:function(t){ return bytesToB64(te.encode(t)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); },
+    hex:function(t){ return Array.prototype.map.call(te.encode(t),function(b){ return ('0'+b.toString(16)).slice(-2); }).join(' '); },
+    bin:function(t){ return Array.prototype.map.call(te.encode(t),function(b){ return ('0000000'+b.toString(2)).slice(-8); }).join(' '); },
+    html:function(t){ return t.replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }).replace(/[^\x20-\x7e\n\r\t]/g,function(c){ return '&#'+c.codePointAt(0)+';'; }); },
+    uni:function(t){ return Array.from(t).map(function(c){ var cp=c.codePointAt(0); if(cp<128) return c; return cp>0xffff ? '\\u{'+cp.toString(16)+'}' : '\\u'+('000'+cp.toString(16)).slice(-4); }).join(''); },
+    rot13:function(t){ return t.replace(/[a-z]/gi,function(c){ var b=c<='Z'?65:97; return String.fromCharCode((c.charCodeAt(0)-b+13)%26+b); }); },
+    ascii:function(t){ return Array.from(t).map(function(c){ return c.codePointAt(0); }).join(' '); }
+  };
+  var dec={
+    b64:function(s){ return td.decode(b64ToBytes(s)); },
+    b64url:function(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return td.decode(b64ToBytes(s)); },
+    hex:function(s){ s=s.replace(/0x|[\s,:]/g,''); if(s.length%2||/[^0-9a-f]/i.test(s)) throw new Error('Hex must be pairs of 0-9 a-f'); var b=new Uint8Array(s.length/2); for(var i=0;i<b.length;i++) b[i]=parseInt(s.substr(i*2,2),16); return td.decode(b); },
+    bin:function(s){ s=s.replace(/[\s,]/g,''); if(s.length%8||/[^01]/.test(s)) throw new Error('Binary must be groups of 8 bits'); var b=new Uint8Array(s.length/8); for(var i=0;i<b.length;i++) b[i]=parseInt(s.substr(i*8,8),2); return td.decode(b); },
+    html:function(s){ var d=document.createElement('textarea'); d.innerHTML=s; return d.value; },
+    uni:function(s){ return s.replace(/\\u\{([0-9a-f]+)\}/gi,function(m,h){ return String.fromCodePoint(parseInt(h,16)); }).replace(/\\u([0-9a-f]{4})/gi,function(m,h){ return String.fromCharCode(parseInt(h,16)); }); },
+    rot13:function(s){ return enc.rot13(s); },
+    ascii:function(s){ return s.trim().split(/[\s,]+/).filter(Boolean).map(function(n){ if(!/^\d+$/.test(n)) throw new Error('Codes must be numbers'); return String.fromCodePoint(+n); }).join(''); }
+  };
+  function stats(){ var p=$('bted-plain').value, e=$('bted-enc').value; var pb=te.encode(p).length; $('bted-pstat').textContent=Array.from(p).length+' chars · '+pb+' bytes UTF-8'; $('bted-estat').textContent=e.length+' chars'+(pb?' · '+(e.length/pb*100).toFixed(0)+'% of original bytes':''); }
+  function fromPlain(){ if(lock) return; lock=true; $('bted-err').textContent=''; try{ $('bted-enc').value=enc[mode]($('bted-plain').value); }catch(e){ $('bted-err').textContent=e.message; } stats(); lock=false; }
+  function fromEnc(){ if(lock) return; lock=true; $('bted-err').textContent=''; try{ $('bted-plain').value=dec[mode]($('bted-enc').value); }catch(e){ $('bted-err').textContent='Cannot decode: '+(e.message||'invalid input for '+names[mode]); } stats(); lock=false; }
+  $('bted-plain').addEventListener('input',fromPlain); $('bted-enc').addEventListener('input',fromEnc);
+  $('bted-modes').addEventListener('click',function(e){ var b=e.target.closest('[data-bted]'); if(!b) return; mode=b.getAttribute('data-bted'); $('bted-encname').textContent='('+names[mode]+')';
+    Array.prototype.forEach.call(this.querySelectorAll('button'),function(x){ var on=x===b; x.style.background=on?'rgba(45,212,255,0.2)':'rgba(255,255,255,0.06)'; x.style.borderColor=on?'rgba(45,212,255,0.5)':'rgba(255,255,255,0.15)'; x.style.color=on?'var(--accent)':'var(--text)'; }); fromPlain(); });
+  $('bted-swap').addEventListener('click',function(){ var v=$('bted-plain').value; $('bted-plain').value=$('bted-enc').value; $('bted-enc').value=v; fromPlain(); });
+  function copy(text,btn,orig){ var done=function(){ btn.textContent='Copied ✓'; setTimeout(function(){btn.textContent=orig;},1100); }; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,function(){}); } else { var x=document.createElement('textarea'); x.value=text; document.body.appendChild(x); x.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(x); done(); } }
+  $('bted-copyp').addEventListener('click',function(){ copy($('bted-plain').value,this,'Copy plain'); });
+  $('bted-copye').addEventListener('click',function(){ copy($('bted-enc').value,this,'Copy encoded'); });
+  stats();
+})();
+</script>

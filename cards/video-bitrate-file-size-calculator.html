@@ -1,0 +1,83 @@
+<h2 id="vfsz-title" style="margin-top:0;color:var(--accent);">🎬 Video Bitrate File Size</h2>
+
+<form aria-describedby="vfsz-desc" onsubmit="event.preventDefault();">
+  <p id="vfsz-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Estimate video file size from duration and video/audio bitrates, or solve for the bitrate that fits a size budget. Formula: size ≈ (video + audio) × time. Container overhead is ignored.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+    <div>
+      <label for="vfsz-h" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Hours</label>
+      <input id="vfsz-h" type="number" min="0" value="0" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="vfsz-m" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Minutes</label>
+      <input id="vfsz-m" type="number" min="0" value="10" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="vfsz-s" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Seconds</label>
+      <input id="vfsz-s" type="number" min="0" value="0" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="vfsz-vbr" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Video bitrate (Mbps)</label>
+      <input id="vfsz-vbr" type="number" min="0" step="any" value="8" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="vfsz-abr" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Audio bitrate (kbps)</label>
+      <input id="vfsz-abr" type="number" min="0" step="any" value="192" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="vfsz-budget" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Size budget (MB, optional)</label>
+      <input id="vfsz-budget" type="number" min="0" step="any" placeholder="e.g. 50" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+  <div id="vfsz-presets" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+</form>
+<div id="vfsz-out"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var PRESETS = [
+    ['YouTube 1080p', 8], ['YouTube 1440p', 16], ['YouTube 4K', 45],
+    ['Twitch 1080p', 6], ['Blu-ray 1080p', 25], ['Podcast video', 2.5]
+  ];
+
+  function bytes(n) {
+    if (n < 1024) return n.toFixed(0) + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    if (n < 1073741824) return (n / 1048576).toFixed(2) + ' MB';
+    return (n / 1073741824).toFixed(2) + ' GB';
+  }
+  function run() {
+    var sec = (Number($('vfsz-h').value) || 0) * 3600 + (Number($('vfsz-m').value) || 0) * 60 + (Number($('vfsz-s').value) || 0);
+    var vbr = Number($('vfsz-vbr').value) || 0;
+    var abr = Number($('vfsz-abr').value) || 0;
+    var bits = (vbr * 1e6 + abr * 1e3) * sec;
+    var b = bits / 8;
+    var budget = Number($('vfsz-budget').value);
+    var extra = '';
+    if (budget > 0 && sec > 0) {
+      var maxBits = budget * 1048576 * 8 / sec;
+      var maxV = Math.max(0, (maxBits - abr * 1e3) / 1e6);
+      extra = '<div style="margin-top:10px;font-size:.84rem;color:var(--text-secondary);">To stay under ' + budget + ' MB, video bitrate ≤ <strong style="color:var(--accent);">' + maxV.toFixed(2) + ' Mbps</strong> (with ' + abr + ' kbps audio).</div>';
+    }
+    $('vfsz-out').innerHTML =
+      '<div style="padding:14px;border-radius:10px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);">' +
+      '<div style="font-size:.72rem;color:var(--accent);font-weight:800;letter-spacing:.06em;text-transform:uppercase;">Estimated file size</div>' +
+      '<div style="font-size:1.5rem;font-weight:800;color:var(--text);margin-top:4px;">' + bytes(b) + '</div>' +
+      '<div style="font-size:.8rem;color:var(--text-secondary);margin-top:6px;">' + sec + ' s · video ' + vbr + ' Mbps · audio ' + abr + ' kbps · ' + (bits / 1e6).toFixed(1) + ' Mbit total</div>' + extra + '</div>';
+  }
+  $('vfsz-presets').innerHTML = PRESETS.map(function (p) {
+    return '<button type="button" data-v="' + p[1] + '" style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--text);cursor:pointer;font-size:.76rem;">' + p[0] + '</button>';
+  }).join('');
+  $('vfsz-presets').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-v]');
+    if (!b) return;
+    $('vfsz-vbr').value = b.getAttribute('data-v');
+    run();
+  });
+  ['vfsz-h', 'vfsz-m', 'vfsz-s', 'vfsz-vbr', 'vfsz-abr', 'vfsz-budget'].forEach(function (id) { $(id).addEventListener('input', run); });
+  run();
+})();
+</script>

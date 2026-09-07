@@ -1,0 +1,295 @@
+<h2 id="tectonic-plate-drift-calculator-title" style="margin-top:0;color:var(--accent);">🌋 Tectonic Plate Drift Calculator</h2>
+
+<form aria-describedby="tectonic-plate-drift-calculator-desc" onsubmit="event.preventDefault();">
+  <p id="tectonic-plate-drift-calculator-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    The ground under you is moving right now. Pick a place and its tectonic plate and this rotates it about the plate's Euler pole — the real way plate motion is described — to give the present-day speed and direction in mm per year, and where that spot sits after any span of geological time you like.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="tpd-place" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Place</label>
+      <select id="tpd-place" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+    <div>
+      <label for="tpd-plate" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Plate it rides on</label>
+      <select id="tpd-plate" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+    <div>
+      <label for="tpd-lat" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Latitude</label>
+      <input type="number" id="tpd-lat" value="51.8787" step="0.0001" min="-90" max="90" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.88rem;">
+    </div>
+    <div>
+      <label for="tpd-lon" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Longitude</label>
+      <input type="number" id="tpd-lon" value="-0.4200" step="0.0001" min="-180" max="180" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.88rem;">
+    </div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <label for="tpd-time" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">
+      Time travel: <span id="tpd-timelabel" style="color:var(--accent);font-weight:700;">+10 million years</span>
+    </label>
+    <input type="range" id="tpd-time" min="-100" max="100" step="1" value="10" style="width:100%;">
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);">
+      <span>100 Myr ago</span><span>today</span><span>100 Myr from now</span>
+    </div>
+  </div>
+
+  <div id="tpd-stats" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="tpd-canvas" width="820" height="380" role="img"
+          aria-label="Globe showing the present position, the drift track and the extrapolated position of the chosen point"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:12px;"></canvas>
+
+  <div id="tpd-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var canvas = document.getElementById('tpd-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var latEl = document.getElementById('tpd-lat'), lonEl = document.getElementById('tpd-lon');
+  var plateEl = document.getElementById('tpd-plate'), placeEl = document.getElementById('tpd-place');
+  var timeEl = document.getElementById('tpd-time');
+
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI, R = 6371;
+
+  // Euler poles of the major plates in the no-net-rotation frame, close to the
+  // published NNR-MORVEL56 set: pole latitude, pole longitude, rate in degrees
+  // per million years. Speeds derived from these match GPS observations to
+  // within a few mm/yr, which is the honest precision for a tool like this.
+  var PLATES = [
+    ['Eurasian', 48.85, -106.50, 0.223],
+    ['African (Nubian)', 47.68, -68.44, 0.292],
+    ['North American', -4.85, -80.64, 0.209],
+    ['South American', -22.62, -112.83, 0.109],
+    ['Pacific', -63.58, 114.70, 0.651],
+    ['Australian', 33.86, 37.94, 0.632],
+    ['Antarctic', 59.81, -125.02, 0.250],
+    ['Indian', 50.37, -3.29, 0.544],
+    ['Arabian', 48.88, -8.49, 0.559],
+    ['Nazca', 46.23, -101.06, 0.696],
+    ['Cocos', 26.93, -124.31, 1.198],
+    ['Caribbean', 35.20, -92.62, 0.286],
+    ['Philippine Sea', -46.02, -31.36, 0.910],
+    ['Juan de Fuca', -38.31, 60.04, 0.951],
+    ['Somali', 49.95, -84.52, 0.339]
+  ];
+  PLATES.forEach(function (p, i) { plateEl.add(new Option(p[0] + ' plate', String(i))); });
+
+  var PLACES = [
+    ['Luton, England', 51.8787, -0.4200, 0],
+    ['London, England', 51.5074, -0.1278, 0],
+    ['Reykjavík, Iceland (on the ridge)', 64.1466, -21.9426, 0],
+    ['Tokyo, Japan (Okhotsk block)', 35.6762, 139.6503, 2],
+    ['Honolulu, Hawaii', 21.3069, -157.8583, 4],
+    ['San Francisco, USA', 37.7749, -122.4194, 4],
+    ['Los Angeles, USA (Pacific side)', 34.0522, -118.2437, 4],
+    ['New York, USA', 40.7128, -74.0060, 2],
+    ['Mexico City, Mexico', 19.4326, -99.1332, 2],
+    ['Lima, Peru', -12.0464, -77.0428, 3],
+    ['Cape Town, South Africa', -33.9249, 18.4241, 1],
+    ['Nairobi, Kenya', -1.2921, 36.8219, 14],
+    ['Mumbai, India', 19.0760, 72.8777, 7],
+    ['Dubai, UAE', 25.2048, 55.2708, 8],
+    ['Sydney, Australia', -33.8688, 151.2093, 5],
+    ['Auckland, New Zealand', -36.8485, 174.7633, 4],
+    ['McMurdo Station, Antarctica', -77.8419, 166.6863, 6],
+    ['Kingston, Jamaica', 17.9714, -76.7931, 11],
+    ['Manila, Philippines', 14.5995, 120.9842, 12]
+  ];
+  PLACES.forEach(function (p, i) { placeEl.add(new Option(p[0], String(i))); });
+
+  function toVec(lat, lon) {
+    var phi = lat * D2R, lam = lon * D2R;
+    return [Math.cos(phi) * Math.cos(lam), Math.cos(phi) * Math.sin(lam), Math.sin(phi)];
+  }
+
+  function toLatLon(v) {
+    return {
+      lat: Math.asin(Math.max(-1, Math.min(1, v[2]))) * R2D,
+      lon: Math.atan2(v[1], v[0]) * R2D
+    };
+  }
+
+  function cross(a, b) {
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function norm(a) { return Math.sqrt(dot(a, a)); }
+
+  // Rodrigues: rotate v about unit axis k by angle theta (radians)
+  function rotate(v, k, theta) {
+    var c = Math.cos(theta), s = Math.sin(theta), kc = cross(k, v), kd = dot(k, v);
+    return [
+      v[0] * c + kc[0] * s + k[0] * kd * (1 - c),
+      v[1] * c + kc[1] * s + k[1] * kd * (1 - c),
+      v[2] * c + kc[2] * s + k[2] * kd * (1 - c)
+    ];
+  }
+
+  function velocity(lat, lon, plate) {
+    var k = toVec(plate[1], plate[2]);
+    var omega = plate[3] * D2R;             // radians per Myr
+    var r = toVec(lat, lon);
+    var v = cross([k[0] * omega, k[1] * omega, k[2] * omega], r);   // rad/Myr tangent
+    var speed = norm(v) * R * 1000 / 1000;  // km per Myr == mm per year
+    // decompose into local east / north
+    var phi = lat * D2R, lam = lon * D2R;
+    var east = [-Math.sin(lam), Math.cos(lam), 0];
+    var north = [-Math.sin(phi) * Math.cos(lam), -Math.sin(phi) * Math.sin(lam), Math.cos(phi)];
+    var ve = dot(v, east) * R * 1000;
+    var vn = dot(v, north) * R * 1000;
+    var az = (Math.atan2(ve, vn) * R2D + 360) % 360;
+    return { speed: speed, azimuth: az, east: ve / 1000, north: vn / 1000 };
+  }
+
+  function compass(b) {
+    var pts = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    return pts[Math.round(b / 22.5) % 16];
+  }
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.02rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function haversineKm(a, b) {
+    var dphi = (b.lat - a.lat) * D2R, dl = (b.lon - a.lon) * D2R;
+    var x = Math.sin(dphi / 2) * Math.sin(dphi / 2) +
+            Math.cos(a.lat * D2R) * Math.cos(b.lat * D2R) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
+
+  function draw(now, track, then, plate) {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
+    var rad = Math.min(w, h) / 2 - 20, cx = w / 2, cy = h / 2;
+    var cLat = now.lat * D2R, cLon = now.lon * D2R;
+
+    function project(lat, lon) {
+      var phi = lat * D2R, lam = lon * D2R;
+      var cosc = Math.sin(cLat) * Math.sin(phi) + Math.cos(cLat) * Math.cos(phi) * Math.cos(lam - cLon);
+      return {
+        x: cx + rad * Math.cos(phi) * Math.sin(lam - cLon),
+        y: cy - rad * (Math.cos(cLat) * Math.sin(phi) - Math.sin(cLat) * Math.cos(phi) * Math.cos(lam - cLon)),
+        vis: cosc >= 0
+      };
+    }
+
+    ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(45,212,255,.05)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(45,212,255,.45)'; ctx.lineWidth = 1.4; ctx.stroke();
+
+    var la, lo, q, started;
+    ctx.lineWidth = 1;
+    for (la = -60; la <= 60; la += 30) {
+      ctx.beginPath(); started = false;
+      for (lo = -180; lo <= 180; lo += 3) {
+        q = project(la, lo);
+        if (!q.vis) { started = false; continue; }
+        if (!started) { ctx.moveTo(q.x, q.y); started = true; } else ctx.lineTo(q.x, q.y);
+      }
+      ctx.strokeStyle = la === 0 ? 'rgba(230,250,255,.3)' : 'rgba(230,250,255,.14)';
+      ctx.stroke();
+    }
+    for (lo = -180; lo < 180; lo += 30) {
+      ctx.beginPath(); started = false;
+      for (la = -90; la <= 90; la += 3) {
+        q = project(la, lo);
+        if (!q.vis) { started = false; continue; }
+        if (!started) { ctx.moveTo(q.x, q.y); started = true; } else ctx.lineTo(q.x, q.y);
+      }
+      ctx.strokeStyle = 'rgba(230,250,255,.12)'; ctx.stroke();
+    }
+
+    // drift track
+    ctx.beginPath(); started = false;
+    track.forEach(function (p) {
+      var s = project(p.lat, p.lon);
+      if (!s.vis) { started = false; return; }
+      if (!started) { ctx.moveTo(s.x, s.y); started = true; } else ctx.lineTo(s.x, s.y);
+    });
+    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.4; ctx.stroke();
+
+    [[now, '#39ff14', 'today'], [then, '#ff6b6b', (timeEl.value > 0 ? '+' : '') + timeEl.value + ' Myr']].forEach(function (e) {
+      var s = project(e[0].lat, e[0].lon);
+      if (!s.vis) return;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = e[1]; ctx.fill();
+      ctx.fillStyle = 'rgba(230,250,255,.9)';
+      ctx.font = '600 11px Inter, system-ui, sans-serif';
+      ctx.fillText(e[2], s.x + 9, s.y - 7);
+    });
+
+    // Euler pole, if it is on the visible hemisphere
+    var pole = project(plate[1], plate[2]);
+    if (pole.vis) {
+      ctx.beginPath(); ctx.arc(pole.x, pole.y, 4, 0, Math.PI * 2);
+      ctx.strokeStyle = '#9d4edd'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = 'rgba(157,78,221,.95)';
+      ctx.font = '11px Inter, system-ui, sans-serif';
+      ctx.fillText('Euler pole', pole.x + 8, pole.y + 4);
+    }
+
+    ctx.fillStyle = 'rgba(230,250,255,.55)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText('Gold track = the path this point traces as the plate rotates about its Euler pole', 14, h - 12);
+  }
+
+  function update() {
+    var lat = parseFloat(latEl.value), lon = parseFloat(lonEl.value);
+    if (!isFinite(lat) || !isFinite(lon)) return;
+    var plate = PLATES[parseInt(plateEl.value, 10)] || PLATES[0];
+    var t = parseFloat(timeEl.value) || 0;
+    document.getElementById('tpd-timelabel').textContent =
+      t === 0 ? 'today' : (t > 0 ? '+' + t + ' million years from now' : Math.abs(t) + ' million years ago');
+
+    var v = velocity(lat, lon, plate);
+    var axis = toVec(plate[1], plate[2]);
+    var now = { lat: lat, lon: lon };
+    var thenVec = rotate(toVec(lat, lon), axis, plate[3] * D2R * t);
+    var then = toLatLon(thenVec);
+
+    var track = [];
+    var steps = 80;
+    for (var i = 0; i <= steps; i++) {
+      var tt = t * i / steps;
+      track.push(toLatLon(rotate(toVec(lat, lon), axis, plate[3] * D2R * tt)));
+    }
+
+    var moved = haversineKm(now, then);
+    var nails = v.speed / 35;   // fingernails grow at roughly 35 mm a year
+
+    document.getElementById('tpd-stats').innerHTML =
+      stat('PLATE SPEED HERE', v.speed.toFixed(1) + ' mm/yr', (v.speed / 10).toFixed(1) + ' cm per decade', '#39ff14') +
+      stat('DIRECTION', v.azimuth.toFixed(0) + '° ' + compass(v.azimuth), 'E ' + v.east.toFixed(1) + ' · N ' + v.north.toFixed(1) + ' m per 1000 yr') +
+      stat('POSITION AT ' + (t >= 0 ? '+' : '') + t + ' MYR', then.lat.toFixed(2) + ', ' + then.lon.toFixed(2), 'from ' + lat.toFixed(2) + ', ' + lon.toFixed(2), '#ffd700') +
+      stat('GROUND COVERED', Math.round(moved).toLocaleString() + ' km', Math.abs(t) + ' Myr of drift', '#ff9f43') +
+      stat('LATITUDE SHIFT', (then.lat - lat >= 0 ? '+' : '') + (then.lat - lat).toFixed(2) + '°', 'climate zone change', '#9d4edd') +
+      stat('IN HUMAN TERMS', nails.toFixed(2) + '× fingernail growth', 'nails grow ~35 mm a year');
+
+    draw(now, track, then, plate);
+
+    var century = v.speed * 100 / 1000;
+    document.getElementById('tpd-notes').innerHTML =
+      '<strong style="color:var(--accent);">What the numbers mean.</strong> A plate\u2019s motion is a rotation, not a slide: every plate turns about an <em>Euler pole</em>, so points far from that pole move fastest and points near it barely move at all. That is why the ' +
+      plate[0] + ' plate carries this spot at ' + v.speed.toFixed(1) + ' mm a year — about ' + century.toFixed(2) + ' m in a human century, roughly ' + (v.speed / 25).toFixed(1) + ' km since the pyramids were built.' +
+      '<div style="margin-top:6px;">Extrapolating a present-day rotation over tens of millions of years is deliberately naive — real plates change speed, split and collide, and the Atlantic\u2019s opening rate has varied. Treat long timespans as "where this heading points", not a forecast. On that scale the Atlantic keeps widening by roughly 2–4 cm a year, Africa is closing the Mediterranean, and East Africa is tearing open along the Rift — none of which a single fixed rotation can capture.</div>';
+  }
+
+  placeEl.addEventListener('change', function () {
+    var p = PLACES[parseInt(placeEl.value, 10)];
+    if (!p) return;
+    latEl.value = p[1]; lonEl.value = p[2]; plateEl.value = String(p[3]);
+    update();
+  });
+  plateEl.addEventListener('change', update);
+  timeEl.addEventListener('input', update);
+  [latEl, lonEl].forEach(function (el) { el.addEventListener('input', update); });
+  update();
+})();
+</script>

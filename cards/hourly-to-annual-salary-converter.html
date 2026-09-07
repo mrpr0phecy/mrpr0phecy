@@ -1,0 +1,69 @@
+<h2 id="hsal-title" style="margin-top:0;color:var(--accent);">💷 Hourly ⇄ Annual Salary</h2>
+
+<form aria-describedby="hsal-desc" onsubmit="event.preventDefault();">
+  <p id="hsal-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert an hourly rate to a yearly salary (and back) using your hours per week and weeks per year. Defaults match a UK full-time week. Gross pay only — tax is not deducted.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="hsal-hourly" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Hourly rate</label>
+      <input id="hsal-hourly" type="number" min="0" step="any" value="15" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hsal-annual" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Annual salary</label>
+      <input id="hsal-annual" type="number" min="0" step="any" value="29250" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hsal-hpw" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Hours / week</label>
+      <input id="hsal-hpw" type="number" min="1" max="168" step="any" value="37.5" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hsal-wpy" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Paid weeks / year</label>
+      <input id="hsal-wpy" type="number" min="1" max="52" step="any" value="52" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="hsal-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var lock = false;
+  function money(v) { return isFinite(v) ? v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'; }
+  function hours() {
+    var h = Number($('hsal-hpw').value), w = Number($('hsal-wpy').value);
+    return (h > 0 && w > 0) ? h * w : 0;
+  }
+  function paint(hourly, annual, totalH) {
+    var weekly = hourly * Number($('hsal-hpw').value);
+    var monthly = annual / 12;
+    var daily = Number($('hsal-hpw').value) ? weekly / 5 : 0;
+    $('hsal-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;">' +
+      [['Hourly', money(hourly)], ['Daily (5-day week)', money(daily)], ['Weekly', money(weekly)], ['Monthly', money(monthly)], ['Annual', money(annual)], ['Hours / year', totalH ? totalH.toLocaleString() : '—']].map(function (row) {
+        return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + row[0] + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + row[1] + '</div></div>';
+      }).join('') + '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">UK National Living Wage and holiday pay are separate. 52 paid weeks means holiday is paid at the same rate. Use 46.4 weeks if you want unpaid leave of 5.6 weeks stripped out.</p>';
+  }
+  function fromHourly() {
+    if (lock) return;
+    var h = Number($('hsal-hourly').value), t = hours();
+    if (!(h >= 0 && t > 0)) return;
+    var a = h * t;
+    lock = true; $('hsal-annual').value = String(Number(a.toFixed(2))); lock = false;
+    paint(h, a, t);
+  }
+  function fromAnnual() {
+    if (lock) return;
+    var a = Number($('hsal-annual').value), t = hours();
+    if (!(a >= 0 && t > 0)) return;
+    var h = a / t;
+    lock = true; $('hsal-hourly').value = String(Number(h.toFixed(4))); lock = false;
+    paint(h, a, t);
+  }
+  $('hsal-hourly').addEventListener('input', fromHourly);
+  $('hsal-annual').addEventListener('input', fromAnnual);
+  $('hsal-hpw').addEventListener('input', fromHourly);
+  $('hsal-wpy').addEventListener('input', fromHourly);
+  fromHourly();
+})();
+</script>

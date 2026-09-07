@@ -1,0 +1,65 @@
+<h2 id="ogmk-title" style="margin-top:0;color:var(--accent);">🔥 Oven Gas Mark Converter</h2>
+
+<form aria-describedby="ogmk-desc" onsubmit="event.preventDefault();">
+  <p id="ogmk-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert British gas marks to °C, °F and a typical fan/convection setting. Gas mark 4 is a moderate 180°C / 350°F oven. Fan ovens usually run about 20°C cooler than the recipe’s conventional figure.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="ogmk-mark" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Gas mark</label>
+      <select id="ogmk-mark" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"></select>
+    </div>
+    <div>
+      <label for="ogmk-c" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">°C (conventional)</label>
+      <input id="ogmk-c" type="number" min="50" max="300" step="any" value="180" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="ogmk-f" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">°F</label>
+      <input id="ogmk-f" type="number" min="120" max="600" step="any" value="356" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="ogmk-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var MARKS = [
+    ['¼', 110], ['½', 120], ['1', 140], ['2', 150], ['3', 160],
+    ['4', 180], ['5', 190], ['6', 200], ['7', 220], ['8', 230], ['9', 240]
+  ];
+  var sel = $('ogmk-mark');
+  sel.innerHTML = MARKS.map(function (m, i) {
+    return '<option value="' + i + '"' + (m[0] === '4' ? ' selected' : '') + '>Gas mark ' + m[0] + '</option>';
+  }).join('');
+  var lock = false;
+  function nearest(c) {
+    var best = 0, d = 1e9;
+    MARKS.forEach(function (m, i) {
+      var x = Math.abs(m[1] - c);
+      if (x < d) { d = x; best = i; }
+    });
+    return best;
+  }
+  function paint(c) {
+    if (!(c > 0) || lock) return;
+    var f = c * 9 / 5 + 32;
+    var fan = c - 20;
+    var i = nearest(c);
+    lock = true;
+    $('ogmk-c').value = String(Math.round(c));
+    $('ogmk-f').value = String(Math.round(f));
+    sel.value = String(i);
+    lock = false;
+    $('ogmk-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;">' +
+      [['Gas mark', MARKS[i][0] + (Math.abs(MARKS[i][1] - c) > 8 ? ' (nearest)' : '')], ['Conventional', Math.round(c) + '°C'], ['Fahrenheit', Math.round(f) + '°F'], ['Fan / convection', Math.round(fan) + '°C']].map(function (row) {
+        return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + row[0] + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + row[1] + '</div></div>';
+      }).join('') + '</div>';
+  }
+  sel.addEventListener('change', function () { paint(MARKS[Number(sel.value)][1]); });
+  $('ogmk-c').addEventListener('input', function () { paint(Number($('ogmk-c').value)); });
+  $('ogmk-f').addEventListener('input', function () { paint((Number($('ogmk-f').value) - 32) * 5 / 9); });
+  paint(180);
+})();
+</script>

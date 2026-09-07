@@ -1,0 +1,182 @@
+<h2 id="hur-title" style="margin-top:0;color:var(--accent);">🌀 Hurricane Engine</h2>
+
+<form aria-describedby="hur-desc" onsubmit="event.preventDefault();">
+  <p id="hur-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+    A rotating tropical cyclone whose intensity is set by Emanuel's maximum potential intensity: sea-surface temperature, Coriolis (latitude) and vertical wind shear. Warm water and a spinning Earth build an eye; shear rips the tower apart. Category follows the Saffir–Simpson scale from the modelled Vmax.
+  </p>
+
+  <div style="background:#020814;border:1px solid rgba(45,212,255,0.3);border-radius:10px;overflow:hidden;margin-bottom:12px;">
+    <canvas id="hur-cv" width="560" height="360" style="width:100%;height:auto;aspect-ratio:560/360;display:block;"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <label for="hur-sst" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">SST <span id="hur-sst-v">28.5 °C</span>
+      <input id="hur-sst" type="range" min="24" max="32" step="0.1" value="28.5" style="width:100%;accent-color:#2dd4ff;">
+    </label>
+    <label for="hur-lat" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Latitude <span id="hur-lat-v">18°N</span>
+      <input id="hur-lat" type="range" min="0" max="40" value="18" style="width:100%;accent-color:#2dd4ff;">
+    </label>
+    <label for="hur-shear" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Wind shear <span id="hur-shear-v">8 m/s</span>
+      <input id="hur-shear" type="range" min="0" max="30" value="8" style="width:100%;accent-color:#2dd4ff;">
+    </label>
+    <label for="hur-hum" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Mid-level RH <span id="hur-hum-v">70%</span>
+      <input id="hur-hum" type="range" min="30" max="95" value="70" style="width:100%;accent-color:#2dd4ff;">
+    </label>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="hur-run" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(45,212,255,0.18);border:1px solid rgba(45,212,255,0.5);color:#2dd4ff;cursor:pointer;font-weight:600;">Pause</button>
+    <button type="button" id="hur-reset" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);color:#e6faff;cursor:pointer;font-weight:600;">Reseed clouds</button>
+  </div>
+
+  <div id="hur-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.75);padding:10px 12px;background:rgba(45,212,255,0.07);border:1px solid rgba(45,212,255,0.2);border-radius:8px;">Tuning SST, latitude and shear…</div>
+</form>
+
+<details style="margin-top:10px;font-size:0.82rem;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics</summary>
+  <p style="margin-top:8px;">
+    Hurricanes are heat engines. Emanuel MPI scales as Vmax² ∝ (SST − T_out) × efficiency, with a practical
+    threshold near 26.5 °C. Coriolis parameter f = 2Ω sin φ organises inflow into a cyclone — within ~5° of the
+    equator f is too small and no closed eye forms. Vertical shear ventilates the warm core; above ~12–15 m/s
+    most storms weaken. Central pressure uses a Holland-style vortex: V(r) = Vmax · (r/rm) · exp((1 − (r/rm)²)/2).
+  </p>
+</details>
+
+<script>
+(function () {
+  var cv = document.getElementById('hur-cv');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var drops = [];
+  var t = 0, running = true;
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) running = false;
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { return parseFloat($(id).value); }
+
+  function intensity() {
+    var sst = val('hur-sst'), lat = val('hur-lat'), shear = val('hur-shear'), rh = val('hur-hum');
+    var cor = Math.max(0, Math.sin(lat * Math.PI / 180) - Math.sin(5 * Math.PI / 180));
+    var heat = Math.max(0, sst - 26.5);
+    var mpi = 28 * Math.sqrt(heat) * (0.35 + 0.65 * (rh / 100));
+    mpi *= cor / 0.3;
+    mpi *= Math.max(0.05, 1 - shear / 22);
+    if (lat < 5) mpi *= 0.08;
+    var vmax = Math.max(0, mpi);
+    var cat = 0;
+    if (vmax >= 70) cat = 5;
+    else if (vmax >= 58) cat = 4;
+    else if (vmax >= 50) cat = 3;
+    else if (vmax >= 43) cat = 2;
+    else if (vmax >= 33) cat = 1;
+    var pmin = 1010 - vmax * vmax / 180;
+    var rm = 28 + (40 - vmax) * 0.4 + shear * 0.8;
+    return { vmax: vmax, cat: cat, pmin: pmin, rm: rm, lat: lat, shear: shear, sst: sst };
+  }
+
+  function seed() {
+    drops = [];
+    var i, a, r;
+    for (i = 0; i < 900; i++) {
+      a = Math.random() * Math.PI * 2;
+      r = 20 + Math.random() * 240;
+      drops.push({ a: a, r: r, z: Math.random() });
+    }
+  }
+
+  function step() {
+    var I = intensity();
+    var i, d, v, rm = I.rm * 2.2, ratio;
+    t += 0.016;
+    for (i = 0; i < drops.length; i++) {
+      d = drops[i];
+      ratio = d.r / Math.max(12, rm);
+      v = I.vmax * ratio * Math.exp((1 - ratio * ratio) / 2);
+      d.a += (v / Math.max(18, d.r)) * 0.035 * (I.lat >= 0 ? 1 : -1);
+      d.r += -0.35 * (1 - Math.min(1, I.shear / 18)) + (Math.random() - 0.5) * 0.4;
+      if (d.r < 8) d.r = 8 + Math.random() * 10;
+      if (d.r > 260) { d.r = 30 + Math.random() * 40; d.a = Math.random() * Math.PI * 2; }
+      d.r += I.shear * 0.04 * Math.cos(d.a);
+    }
+  }
+
+  function draw() {
+    var I = intensity();
+    var cx = cv.width / 2, cy = cv.height / 2 + 6;
+    ctx.fillStyle = '#020814';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    var ocean = ctx.createRadialGradient(cx, cy, 10, cx, cy, 280);
+    ocean.addColorStop(0, I.cat >= 3 ? '#14304a' : '#0c2438');
+    ocean.addColorStop(1, '#041018');
+    ctx.fillStyle = ocean;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 270, 0, Math.PI * 2);
+    ctx.fill();
+
+    var i, d, x, y, alpha;
+    for (i = 0; i < drops.length; i++) {
+      d = drops[i];
+      x = cx + Math.cos(d.a) * d.r;
+      y = cy + Math.sin(d.a) * d.r * 0.92;
+      alpha = 0.15 + d.z * 0.55;
+      ctx.fillStyle = I.cat >= 4 ? 'rgba(230,245,255,' + alpha + ')' : 'rgba(180,220,255,' + alpha + ')';
+      ctx.fillRect(x, y, 1.8, 1.8);
+    }
+
+    var eye = Math.max(6, I.rm * 0.55);
+    if (I.vmax > 18 && I.lat >= 5) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, eye, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(8, 30, 55, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, eye + 6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    var kt = I.vmax * 1.94384;
+    var cats = ['TD / TS', 'Cat 1', 'Cat 2', 'Cat 3', 'Cat 4', 'Cat 5'];
+    var label = I.vmax < 18 ? 'no closed cyclone' : (I.vmax < 33 ? 'Tropical Storm' : cats[I.cat]);
+    ctx.fillStyle = '#e6faff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(label, 12, 22);
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = 'rgba(230,250,255,0.75)';
+    ctx.fillText('Vmax ' + I.vmax.toFixed(0) + ' m/s  (' + kt.toFixed(0) + ' kt)', 12, 40);
+    ctx.fillText('Pmin ' + I.pmin.toFixed(0) + ' hPa   RMW ' + I.rm.toFixed(0) + ' km', 12, 56);
+    if (I.lat < 5) ctx.fillText('Coriolis too weak — storms die on the equator', 12, cv.height - 12);
+
+    $('hur-out').textContent = 'SST ' + I.sst.toFixed(1) + ' °C  ·  φ = ' + I.lat.toFixed(0) +
+      '°  ·  shear ' + I.shear.toFixed(0) + ' m/s  ·  ' + label +
+      '  ·  MPI Vmax ' + I.vmax.toFixed(1) + ' m/s  ·  central pressure ' + I.pmin.toFixed(0) + ' hPa';
+  }
+
+  function frame() {
+    if (running) step();
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function sync() {
+    $('hur-sst-v').textContent = val('hur-sst').toFixed(1) + ' °C';
+    $('hur-lat-v').textContent = val('hur-lat') + '°N';
+    $('hur-shear-v').textContent = val('hur-shear') + ' m/s';
+    $('hur-hum-v').textContent = val('hur-hum') + '%';
+  }
+  ['hur-sst', 'hur-lat', 'hur-shear', 'hur-hum'].forEach(function (id) {
+    $(id).addEventListener('input', sync);
+  });
+  $('hur-run').addEventListener('click', function () {
+    running = !running; this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('hur-reset').addEventListener('click', seed);
+
+  seed();
+  sync();
+  if (reduce) $('hur-run').textContent = 'Run';
+  requestAnimationFrame(frame);
+})();
+</script>

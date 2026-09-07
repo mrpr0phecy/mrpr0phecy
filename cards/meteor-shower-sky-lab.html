@@ -1,0 +1,243 @@
+<h2 id="msh-title" style="margin-top:0;color:var(--accent);">☄️ Meteor Shower Sky Lab</h2>
+
+<form aria-describedby="msh-desc" onsubmit="event.preventDefault();">
+  <p id="msh-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Stargaze a live meteor shower: pick a real shower (Perseids, Geminids, Leonids…), set radiant altitude, observing skill and light pollution — the model converts the catalogue Zenithal Hourly Rate into the meteors you'd actually see per hour, with brightness ∝ velocity³ and the occasional fireball.
+  </p>
+
+  <!-- Shower presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="msh-preset" data-id="pers" style="padding:4px 10px;border-radius:4px;background:rgba(150,210,255,0.16);border:1px solid #96d2ff;color:#aadcff;font-size:0.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;">🌠 Perseids</button>
+    <button type="button" class="msh-preset" data-id="gem" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🔹 Geminids</button>
+    <button type="button" class="msh-preset" data-id="leo" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🦁 Leonids</button>
+    <button type="button" class="msh-preset" data-id="quad" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">✨ Quadrantids</button>
+    <button type="button" class="msh-preset" data-id="ori" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">⚔ Orionids</button>
+    <button type="button" class="msh-preset" data-id="tau" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🐂 Taurids</button>
+  </div>
+
+  <div style="background:#03050c;border:1px solid rgba(150,210,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="msh-canvas" width="640" height="320" style="width:100%;height:320px;display:block;background:linear-gradient(#020308 0%,#050a14 55%,#0a1220 100%);border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="msh-count" style="color:#aadcff;font-family:monospace;">METEORS: 0 in 0 min</span>
+      <span id="msh-name" style="color:#ffd27f;font-family:monospace;">CUSTOM SHOWER</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Zenithal Hourly Rate</span><span id="msh-val-zhr">100 /h</span>
+      </div>
+      <input type="range" id="msh-slider-zhr" min="5" max="200" step="1" value="100" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Meteoroid Entrance Speed</span><span id="msh-val-speed">59 km/s</span>
+      </div>
+      <input type="range" id="msh-slider-speed" min="11" max="72" step="1" value="59" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Radiant Altitude</span><span id="msh-val-alt">55°</span>
+      </div>
+      <input type="range" id="msh-slider-alt" min="0" max="90" step="1" value="55" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Limiting Magnitude (sky quality)</span><span id="msh-val-lm">6.5</span>
+      </div>
+      <input type="range" id="msh-slider-lm" min="3" max="7" step="0.1" value="6.5" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">OBSERVED RATE</div>
+      <div id="msh-stat-rate" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">AVG BRIGHTNESS</div>
+      <div id="msh-stat-bright" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">FIREBALL CHANCE (1/hr)</div>
+      <div id="msh-stat-fire" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">LIKELY SHOWER</div>
+      <div id="msh-stat-shower" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Observed rate N ≈ ZHR·sin(altitude of radiant)·r^(m_lim − 6.5), population index r ≈ 2.2, the standard
+      ZHR-to-visible conversion. Luminosity ∝ meteoroid mass·v³ (kinetic-energy rate), so the same grain is
+      ~8× brighter at 59 km/s than at 30 km/s. Meteoroid masses follow a power law (differential index s ≈ 2.2)
+      giving ~1 fireball per 30–500 h depending on shower. Real shower parameters: Perseids 100/59, Geminids
+      150/35, Leonids 15/71, Quadrantids 110/41, Orionids 20/66, Taurids 7/28.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('msh-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const sZhr = $('msh-slider-zhr'), sSpeed = $('msh-slider-speed'), sAlt = $('msh-slider-alt'), sLm = $('msh-slider-lm');
+  const vZhr = $('msh-val-zhr'), vSpeed = $('msh-val-speed'), vAlt = $('msh-val-alt'), vLm = $('msh-val-lm');
+  const countEl = $('msh-count'), nameEl = $('msh-name');
+  const statRate = $('msh-stat-rate'), statBright = $('msh-stat-bright'), statFire = $('msh-stat-fire'), statShower = $('msh-stat-shower');
+
+  let zhr = 100, speed = 59, altDeg = 55, lm = 6.5;
+  let meteors = [], stars = [], seen = 0, minutes = 0, name = 'CUSTOM SHOWER', poisAcc = 0;
+
+  const SHOWERS = {
+    pers: { zhr: 100, speed: 59, name: 'PERSEIDS' },
+    gem:  { zhr: 150, speed: 35, name: 'GEMINIDS' },
+    leo:  { zhr: 15,  speed: 71, name: 'LEONIDS' },
+    quad: { zhr: 110, speed: 41, name: 'QUADRANTIDS' },
+    ori:  { zhr: 20,  speed: 66, name: 'ORIONIDS' },
+    tau:  { zhr: 7,   speed: 28, name: 'TAURIDS' }
+  };
+
+  function readSliders() {
+    zhr = parseFloat(sZhr.value); speed = parseFloat(sSpeed.value);
+    altDeg = parseFloat(sAlt.value); lm = parseFloat(sLm.value);
+    vZhr.textContent = zhr + ' /h'; vSpeed.textContent = speed + ' km/s';
+    vAlt.textContent = altDeg + '°'; vLm.textContent = lm.toFixed(1);
+    if (name !== 'CUSTOM SHOWER') nameEl.textContent = name;
+  }
+
+  function physicals() {
+    const rate = zhr * Math.sin(altDeg * Math.PI / 180) * Math.pow(2.2, lm - 6.5);
+    const bright = 5.2 - (speed / 72) * 1.6; // average mag, faster → brighter
+    const fireball = zhr * 0.002; // from the mass power-law tail
+    let showerId = 'UNKNOWN — speed ' + Math.round(speed) + ' km/s';
+    if (Math.abs(speed - 59) < 3) showerId = 'PERSEIDS-like';
+    else if (Math.abs(speed - 35) < 3) showerId = 'GEMINIDS-like';
+    else if (Math.abs(speed - 71) < 3) showerId = 'LEONIDS-like';
+    else if (Math.abs(speed - 41) < 3) showerId = 'QUADRANTIDS-like';
+    else if (Math.abs(speed - 66) < 3) showerId = 'ORIONIDS-like';
+    else if (Math.abs(speed - 28) < 3) showerId = 'TAURIDS-like';
+    return { rate, bright, fireball, showerId };
+  }
+
+  function spawnMeteor() {
+    const radX = W * 0.55, radY = (1 - altDeg / 90) * H * 0.72 + H * 0.04;
+    const ang = (Math.random() - 0.5) * 1.6; // spread from radiant
+    const dir = Math.PI / 2 + ang; // mostly downward
+    const mass = Math.pow(10, -2.2 * Math.random() + 0.2); // power-law masses
+    const lum = mass * Math.pow(speed, 3);
+    const isFire = Math.random() < 0.004;
+    meteors.push({
+      x: radX + Math.cos(ang) * (30 + Math.random() * 160),
+      y: radY + Math.sin(ang) * (30 + Math.random() * 160) + Math.random() * 40,
+      vx: Math.cos(dir) * (3 + speed / 22),
+      vy: Math.sin(dir) * (3 + speed / 22),
+      life: 1,
+      len: 20 + lum * 0.004 + (isFire ? 90 : 0),
+      hue: isFire ? 30 : (lum > 60 ? 130 : 200),
+      fire: isFire
+    });
+    if (meteors.length > 80) meteors.shift();
+    seen++;
+  }
+
+  function step(dt) {
+    const p = physicals();
+    minutes += dt / 60 * 10; // 10× time compression for observation
+    poisAcc += p.rate / 3600 * dt * 10;
+    while (poisAcc >= 1) { poisAcc -= 1; spawnMeteor(); }
+    meteors.forEach(m => {
+      m.x += m.vx * dt * 30; m.y += m.vy * dt * 30;
+      m.life -= dt * (0.4 + (m.fire ? 0.15 : 0));
+    });
+    meteors = meteors.filter(m => m.life > 0 && m.y < H + 20);
+  }
+
+  function draw() {
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#020308'); sky.addColorStop(0.6, '#050a14'); sky.addColorStop(1, '#0c1524');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    // stars (seeded)
+    if (stars.length === 0) {
+      for (let i = 0; i < 260; i++) {
+        stars.push({ x: (i * 193.7) % W, y: (i * 97.3) % (H * 0.72), r: (i % 3) * 0.4 + 0.4, a: 0.25 + ((i * 7) % 10) / 16 });
+      }
+    }
+    stars.forEach(s => {
+      ctx.fillStyle = 'rgba(230,240,255,' + s.a * Math.min(1, Math.max(0.15, lm / 5)) + ')';
+      ctx.fillRect(s.x, s.y, s.r, s.r);
+    });
+    // altitude grid
+    ctx.strokeStyle = 'rgba(150,210,255,0.10)';
+    ctx.lineWidth = 1;
+    for (let a = 15; a < 90; a += 15) {
+      const y = (1 - a / 90) * H * 0.72 + H * 0.04;
+      ctx.beginPath(); ctx.ellipse(W * 0.55, H * 0.78, 40 + (90 - a) * 3.6, 4 + (90 - a) * 0.6, 0, Math.PI, 0); ctx.stroke();
+    }
+    // horizon + ground silhouette
+    ctx.fillStyle = '#0a0d12';
+    ctx.beginPath(); ctx.moveTo(0, H * 0.78);
+    for (let x = 0; x <= W; x += 20) ctx.lineTo(x, H * 0.78 + Math.sin(x * 0.02) * 3);
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(160,220,255,0.35)'; ctx.font = '9px monospace';
+    ctx.fillText('HORIZON', 8, H * 0.78 - 6);
+    // radiant marker
+    const radX = W * 0.55, radY = (1 - altDeg / 90) * H * 0.72 + H * 0.04;
+    ctx.strokeStyle = 'rgba(255,210,127,0.8)'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(radX, radY, 7, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(radX - 11, radY); ctx.lineTo(radX + 11, radY);
+    ctx.moveTo(radX, radY - 11); ctx.lineTo(radX, radY + 11); ctx.stroke();
+    ctx.fillStyle = '#ffd27f'; ctx.fillText('RADIANT ' + altDeg + '°', radX + 12, radY - 10);
+    // meteors
+    meteors.forEach(m => {
+      const a = Math.max(0, Math.min(1, m.life));
+      const grad = ctx.createLinearGradient(m.x, m.y, m.x - m.vx * m.len * 0.2, m.y - m.vy * m.len * 0.2);
+      grad.addColorStop(0, 'hsla(' + m.hue + ',100%,75%,' + a + ')');
+      grad.addColorStop(1, 'hsla(' + m.hue + ',100%,55%,0)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = m.fire ? 3.4 : 2;
+      ctx.shadowBlur = m.fire ? 16 : 8;
+      ctx.shadowColor = 'hsla(' + m.hue + ',100%,60%,' + a + ')';
+      ctx.beginPath();
+      ctx.moveTo(m.x, m.y);
+      ctx.lineTo(m.x - m.vx * m.len * 0.2 * 8, m.y - m.vy * m.len * 0.2 * 8);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    });
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    step(dt); draw();
+    const p = physicals();
+    countEl.textContent = 'METEORS: ' + seen + ' in ' + minutes.toFixed(1) + ' min (×10 speed)';
+    if (name !== 'CUSTOM SHOWER') nameEl.textContent = name;
+    statRate.textContent = p.rate.toFixed(1) + ' /h';
+    statBright.textContent = 'mag ' + p.bright.toFixed(1);
+    statFire.textContent = (p.fireball > 0.05 ? p.fireball.toFixed(2) : '<0.05') + ' /h';
+    statShower.textContent = p.showerId;
+    requestAnimationFrame(loop);
+  }
+
+  document.querySelectorAll('.msh-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pr = SHOWERS[btn.dataset.id];
+      sZhr.value = pr.zhr; sSpeed.value = pr.speed; name = pr.name;
+      readSliders();
+    });
+  });
+  [sZhr, sSpeed, sAlt, sLm].forEach(s => s.addEventListener('input', readSliders));
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>

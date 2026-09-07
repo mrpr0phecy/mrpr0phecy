@@ -1,0 +1,120 @@
+<h2 id="rndx-title" style="margin-top:0;color:var(--accent);">🎲 Random Number, Dice &amp; Coin</h2>
+
+<form aria-describedby="rndx-desc" onsubmit="event.preventDefault();">
+  <p id="rndx-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Roll dice, flip a coin or draw integers in a range. Uses the Web Crypto API when the browser has it, so results are suitable for raffles and tabletop — not for cryptographic keys.
+  </p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+    <button type="button" id="rndx-tab-num" style="padding:8px 12px;border-radius:8px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);cursor:pointer;font-size:.8rem;font-weight:700;">Numbers</button>
+    <button type="button" id="rndx-tab-dice" style="padding:8px 12px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--text-secondary);cursor:pointer;font-size:.8rem;font-weight:700;">Dice</button>
+    <button type="button" id="rndx-tab-coin" style="padding:8px 12px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--text-secondary);cursor:pointer;font-size:.8rem;font-weight:700;">Coin</button>
+  </div>
+  <div id="rndx-num" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="rndx-min" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Minimum</label>
+      <input id="rndx-min" type="number" value="1" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="rndx-max" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Maximum</label>
+      <input id="rndx-max" type="number" value="100" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="rndx-count" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">How many</label>
+      <input id="rndx-count" type="number" min="1" max="200" value="1" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <label for="rndx-unique" style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-secondary);padding-bottom:8px;">
+      <input id="rndx-unique" type="checkbox" style="accent-color:var(--accent);"> Unique
+    </label>
+  </div>
+  <div id="rndx-dice" style="display:none;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="rndx-n" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Number of dice</label>
+      <input id="rndx-n" type="number" min="1" max="40" value="2" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="rndx-sides" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Sides</label>
+      <select id="rndx-sides" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="4">d4</option>
+        <option value="6" selected>d6</option>
+        <option value="8">d8</option>
+        <option value="10">d10</option>
+        <option value="12">d12</option>
+        <option value="20">d20</option>
+        <option value="100">d100</option>
+      </select>
+    </div>
+  </div>
+  <div id="rndx-coin" style="display:none;font-size:.84rem;color:var(--text-secondary);">Fair coin. Heads or tails, nothing up the sleeve.</div>
+  <button type="submit" id="rndx-go" style="margin-top:12px;padding:10px 14px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;font-size:.84rem;">Roll</button>
+</form>
+<div id="rndx-out" style="margin-top:14px;padding:14px;border-radius:10px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);font-size:1.4rem;font-weight:800;color:var(--accent);min-height:52px;"></div>
+<div id="rndx-hist" style="margin-top:8px;font-size:.78rem;color:var(--text-secondary);"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var mode = 'num';
+  var hist = [];
+
+  function randInt(min, max) {
+    min = Math.ceil(min); max = Math.floor(max);
+    var span = max - min + 1;
+    if (span <= 0) return min;
+    if (window.crypto && window.crypto.getRandomValues) {
+      var buf = new Uint32Array(1);
+      window.crypto.getRandomValues(buf);
+      return min + (buf[0] % span);
+    }
+    return min + Math.floor(Math.random() * span);
+  }
+  function setTab(which) {
+    mode = which;
+    var on = 'padding:8px 12px;border-radius:8px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);cursor:pointer;font-size:.8rem;font-weight:700;';
+    var off = 'padding:8px 12px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--text-secondary);cursor:pointer;font-size:.8rem;font-weight:700;';
+    $('rndx-tab-num').style.cssText = which === 'num' ? on : off;
+    $('rndx-tab-dice').style.cssText = which === 'dice' ? on : off;
+    $('rndx-tab-coin').style.cssText = which === 'coin' ? on : off;
+    $('rndx-num').style.display = which === 'num' ? 'grid' : 'none';
+    $('rndx-dice').style.display = which === 'dice' ? 'grid' : 'none';
+    $('rndx-coin').style.display = which === 'coin' ? 'block' : 'none';
+  }
+  function run() {
+    var result;
+    if (mode === 'coin') result = randInt(0, 1) ? 'Heads' : 'Tails';
+    else if (mode === 'dice') {
+      var n = Math.max(1, Math.min(40, Number($('rndx-n').value) || 1));
+      var sides = Number($('rndx-sides').value);
+      var rolls = [];
+      for (var i = 0; i < n; i++) rolls.push(randInt(1, sides));
+      var sum = rolls.reduce(function (a, b) { return a + b; }, 0);
+      result = rolls.join(' + ') + (n > 1 ? '  =  ' + sum : '');
+    } else {
+      var min = Number($('rndx-min').value), max = Number($('rndx-max').value);
+      if (!isFinite(min) || !isFinite(max)) { $('rndx-out').textContent = 'Need two integers.'; return; }
+      if (min > max) { var t = min; min = max; max = t; }
+      var count = Math.max(1, Math.min(200, Number($('rndx-count').value) || 1));
+      var unique = $('rndx-unique').checked;
+      var span = max - min + 1;
+      if (unique && count > span) count = span;
+      var out = [], used = {};
+      var guard = 0;
+      while (out.length < count && guard++ < 5000) {
+        var v = randInt(min, max);
+        if (unique && used[v]) continue;
+        used[v] = true;
+        out.push(v);
+      }
+      result = out.join(', ');
+    }
+    $('rndx-out').textContent = result;
+    hist.unshift(result);
+    hist = hist.slice(0, 8);
+    $('rndx-hist').textContent = hist.length > 1 ? 'Recent: ' + hist.slice(1).join(' · ') : '';
+  }
+  $('rndx-tab-num').addEventListener('click', function () { setTab('num'); });
+  $('rndx-tab-dice').addEventListener('click', function () { setTab('dice'); });
+  $('rndx-tab-coin').addEventListener('click', function () { setTab('coin'); });
+  host.querySelector('form').addEventListener('submit', run);
+})();
+</script>

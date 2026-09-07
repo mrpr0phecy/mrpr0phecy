@@ -1,0 +1,76 @@
+<h2 id="hpkw-title" style="margin-top:0;color:var(--accent);">🏎️ Horsepower, kW &amp; Torque</h2>
+
+<form aria-describedby="hpkw-desc" onsubmit="event.preventDefault();">
+  <p id="hpkw-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert mechanical horsepower, metric PS and kilowatts, and compute power from torque × RPM. 1 hp = 745.7 W; 1 PS = 735.5 W. Power (kW) = torque (N·m) × RPM / 9549.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="hpkw-hp" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">hp (mechanical)</label>
+      <input id="hpkw-hp" type="number" min="0" step="any" value="150" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hpkw-ps" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">PS (metric)</label>
+      <input id="hpkw-ps" type="number" min="0" step="any" value="152.1" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hpkw-kw" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">kW</label>
+      <input id="hpkw-kw" type="number" min="0" step="any" value="111.9" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hpkw-nm" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Torque N·m</label>
+      <input id="hpkw-nm" type="number" min="0" step="any" value="250" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hpkw-lbft" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Torque lb·ft</label>
+      <input id="hpkw-lbft" type="number" min="0" step="any" value="184.4" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="hpkw-rpm" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">RPM</label>
+      <input id="hpkw-rpm" type="number" min="1" step="any" value="5500" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="hpkw-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var lock = false;
+  var HP = 0.7457, PS = 0.7355, NM_LBFT = 0.737562;
+  function setKw(kw) {
+    if (!(kw >= 0) || lock) return;
+    lock = true;
+    $('hpkw-kw').value = Number(kw.toFixed(2));
+    $('hpkw-hp').value = Number((kw / HP).toFixed(2));
+    $('hpkw-ps').value = Number((kw / PS).toFixed(2));
+    lock = false;
+    paint();
+  }
+  function paint() {
+    var kw = Number($('hpkw-kw').value), nm = Number($('hpkw-nm').value), rpm = Number($('hpkw-rpm').value);
+    var fromT = (nm > 0 && rpm > 0) ? nm * rpm / 9549 : NaN;
+    $('hpkw-out').innerHTML = '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);font-size:.84rem;">Power at ' + rpm + ' rpm with ' + nm + ' N·m: <strong style="color:var(--accent);">' + (isFinite(fromT) ? fromT.toFixed(1) + ' kW / ' + (fromT / HP).toFixed(0) + ' hp' : '—') + '</strong>. Same torque in lb·ft is ' + (nm * NM_LBFT).toFixed(1) + '.</div>';
+  }
+  $('hpkw-hp').addEventListener('input', function () { setKw(Number($('hpkw-hp').value) * HP); });
+  $('hpkw-ps').addEventListener('input', function () { setKw(Number($('hpkw-ps').value) * PS); });
+  $('hpkw-kw').addEventListener('input', function () { setKw(Number($('hpkw-kw').value)); });
+  $('hpkw-nm').addEventListener('input', function () {
+    if (lock) return;
+    lock = true;
+    $('hpkw-lbft').value = Number((Number($('hpkw-nm').value) * NM_LBFT).toFixed(2));
+    lock = false;
+    paint();
+  });
+  $('hpkw-lbft').addEventListener('input', function () {
+    if (lock) return;
+    lock = true;
+    $('hpkw-nm').value = Number((Number($('hpkw-lbft').value) / NM_LBFT).toFixed(2));
+    lock = false;
+    paint();
+  });
+  $('hpkw-rpm').addEventListener('input', paint);
+  paint();
+})();
+</script>

@@ -1,0 +1,65 @@
+<h2 id="apyx-title" style="margin-top:0;color:var(--accent);">🏦 APR ⇄ APY Converter</h2>
+
+<form aria-describedby="apyx-desc" onsubmit="event.preventDefault();">
+  <p id="apyx-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    APY = (1 + APR/n)<sup>n</sup> − 1, where n is compounds per year. APR is the quoted nominal rate; APY (EAR in the UK) is what you actually earn or pay after compounding. Savings ads in Britain must show AER.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="apyx-apr" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">APR / nominal %</label>
+      <input id="apyx-apr" type="number" step="any" value="5" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="apyx-apy" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">APY / AER %</label>
+      <input id="apyx-apy" type="number" step="any" value="5.12" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="apyx-n" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Compounds / year</label>
+      <select id="apyx-n" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="1">Annual (1)</option>
+        <option value="2">Semi-annual (2)</option>
+        <option value="4">Quarterly (4)</option>
+        <option value="12" selected>Monthly (12)</option>
+        <option value="365">Daily (365)</option>
+      </select>
+    </div>
+  </div>
+</form>
+<div id="apyx-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var lock = false;
+  function n() { return Number($('apyx-n').value); }
+  function paint(apr, apy) {
+    var principal = 1000;
+    var grown = principal * (1 + apy / 100);
+    $('apyx-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      [['APR', apr.toFixed(3) + '%'], ['APY / AER', apy.toFixed(3) + '%'], ['On £1,000 in a year', '£' + grown.toFixed(2)], ['Compounds', String(n())]].map(function (row) {
+        return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + row[0] + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + row[1] + '</div></div>';
+      }).join('') + '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Credit-card APR is not the same as the interest you pay if you revolve a balance — fees and promotional periods sit outside this formula.</p>';
+  }
+  function fromApr() {
+    if (lock) return;
+    var apr = Number($('apyx-apr').value) / 100, k = n();
+    if (!(k > 0 && isFinite(apr))) return;
+    var apy = (Math.pow(1 + apr / k, k) - 1) * 100;
+    lock = true; $('apyx-apy').value = String(Number(apy.toFixed(4))); lock = false;
+    paint(apr * 100, apy);
+  }
+  function fromApy() {
+    if (lock) return;
+    var apy = Number($('apyx-apy').value) / 100, k = n();
+    if (!(k > 0 && apy > -1)) return;
+    var apr = k * (Math.pow(1 + apy, 1 / k) - 1) * 100;
+    lock = true; $('apyx-apr').value = String(Number(apr.toFixed(4))); lock = false;
+    paint(apr, apy * 100);
+  }
+  $('apyx-apr').addEventListener('input', fromApr);
+  $('apyx-apy').addEventListener('input', fromApy);
+  $('apyx-n').addEventListener('change', fromApr);
+  fromApr();
+})();
+</script>

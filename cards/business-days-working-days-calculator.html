@@ -1,0 +1,155 @@
+<h2 id="bdwk-title" style="margin-top:0;color:var(--accent);">📅 Business Days Calculator</h2>
+
+<form aria-describedby="bdwk-desc" onsubmit="event.preventDefault();">
+  <p id="bdwk-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Count weekdays between two dates, or add N working days to a start date. Weekends are skipped; paste extra holidays if you need them. All counting stays on this device.
+  </p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+    <button type="button" id="bdwk-tab-count" style="padding:8px 12px;border-radius:8px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);cursor:pointer;font-size:.8rem;font-weight:700;">Count between dates</button>
+    <button type="button" id="bdwk-tab-add" style="padding:8px 12px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--text-secondary);cursor:pointer;font-size:.8rem;font-weight:700;">Add working days</button>
+  </div>
+
+  <div id="bdwk-count-panel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+    <div>
+      <label for="bdwk-from" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">From</label>
+      <input id="bdwk-from" type="date" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="bdwk-to" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">To</label>
+      <input id="bdwk-to" type="date" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <label for="bdwk-inclusive" style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-secondary);padding-bottom:8px;">
+      <input id="bdwk-inclusive" type="checkbox" checked style="accent-color:var(--accent);"> Include both end dates
+    </label>
+  </div>
+
+  <div id="bdwk-add-panel" style="display:none;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+    <div>
+      <label for="bdwk-start" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Start date</label>
+      <input id="bdwk-start" type="date" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="bdwk-n" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Working days to add</label>
+      <input id="bdwk-n" type="number" value="10" min="-3650" max="3650" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <label for="bdwk-hols" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Extra holidays (optional, YYYY-MM-DD, comma or newline)</label>
+    <textarea id="bdwk-hols" rows="2" placeholder="2026-12-25, 2026-12-26" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;"></textarea>
+  </div>
+  <button type="submit" id="bdwk-go" style="padding:10px 13px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;font-size:.83rem;">Calculate</button>
+</form>
+
+<div id="bdwk-error" role="alert" style="display:none;margin:12px 0 0;padding:10px 12px;border-radius:8px;background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.4);color:#ffb8b8;font-size:.82rem;"></div>
+<div id="bdwk-out" style="display:none;margin-top:14px;padding:14px;border-radius:10px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);">
+  <div id="bdwk-result" style="font-size:1.15rem;font-weight:800;color:var(--text);"></div>
+  <div id="bdwk-detail" style="font-size:.8rem;color:var(--text-secondary);margin-top:6px;"></div>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var mode = 'count';
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function todayStr() {
+    var n = new Date();
+    return n.getFullYear() + '-' + pad(n.getMonth() + 1) + '-' + pad(n.getDate());
+  }
+  function parseDate(str) {
+    var p = str.split('-');
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  }
+  function key(d) {
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  function holidays() {
+    var set = {};
+    var raw = $('bdwk-hols').value.split(/[\s,;]+/);
+    for (var i = 0; i < raw.length; i++) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw[i])) set[raw[i]] = true;
+    }
+    return set;
+  }
+  function isBusiness(d, hols) {
+    var day = d.getDay();
+    if (day === 0 || day === 6) return false;
+    return !hols[key(d)];
+  }
+  function setTab(which) {
+    mode = which;
+    var on = 'padding:8px 12px;border-radius:8px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);cursor:pointer;font-size:.8rem;font-weight:700;';
+    var off = 'padding:8px 12px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--text-secondary);cursor:pointer;font-size:.8rem;font-weight:700;';
+    $('bdwk-tab-count').style.cssText = which === 'count' ? on : off;
+    $('bdwk-tab-add').style.cssText = which === 'add' ? on : off;
+    $('bdwk-count-panel').style.display = which === 'count' ? 'grid' : 'none';
+    $('bdwk-add-panel').style.display = which === 'add' ? 'grid' : 'none';
+  }
+  function run() {
+    var hols = holidays();
+    $('bdwk-error').style.display = 'none';
+    if (mode === 'count') {
+      if (!$('bdwk-from').value || !$('bdwk-to').value) {
+        $('bdwk-error').textContent = 'Pick both a from and a to date.';
+        $('bdwk-error').style.display = 'block';
+        $('bdwk-out').style.display = 'none';
+        return;
+      }
+      var a = parseDate($('bdwk-from').value);
+      var b = parseDate($('bdwk-to').value);
+      if (a > b) { var tmp = a; a = b; b = tmp; }
+      var inclusive = $('bdwk-inclusive').checked;
+      var cursor = new Date(a.getTime());
+      if (!inclusive) cursor.setDate(cursor.getDate() + 1);
+      var end = new Date(b.getTime());
+      if (!inclusive) end.setDate(end.getDate() - 1);
+      var biz = 0, weekend = 0, holiday = 0, calendar = 0;
+      while (cursor <= end) {
+        calendar++;
+        var k = key(cursor);
+        var day = cursor.getDay();
+        if (day === 0 || day === 6) weekend++;
+        else if (hols[k]) holiday++;
+        else biz++;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      $('bdwk-out').style.display = 'block';
+      $('bdwk-result').textContent = biz.toLocaleString() + ' working day' + (biz === 1 ? '' : 's');
+      $('bdwk-detail').textContent = calendar + ' calendar days in range · ' + weekend + ' weekend day' + (weekend === 1 ? '' : 's') + ' · ' + holiday + ' listed holiday' + (holiday === 1 ? '' : 's');
+    } else {
+      if (!$('bdwk-start').value) {
+        $('bdwk-error').textContent = 'Pick a start date.';
+        $('bdwk-error').style.display = 'block';
+        $('bdwk-out').style.display = 'none';
+        return;
+      }
+      var n = Math.trunc(Number($('bdwk-n').value) || 0);
+      var d = parseDate($('bdwk-start').value);
+      var step = n >= 0 ? 1 : -1;
+      var left = Math.abs(n);
+      var skipped = 0;
+      while (left > 0) {
+        d.setDate(d.getDate() + step);
+        if (isBusiness(d, hols)) left--;
+        else skipped++;
+      }
+      $('bdwk-out').style.display = 'block';
+      $('bdwk-result').textContent = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      $('bdwk-detail').textContent = (n >= 0 ? 'Added ' : 'Subtracted ') + Math.abs(n) + ' working days, skipping ' + skipped + ' weekend/holiday day' + (skipped === 1 ? '' : 's') + '.';
+    }
+  }
+
+  $('bdwk-from').value = todayStr();
+  $('bdwk-start').value = todayStr();
+  var later = new Date();
+  later.setDate(later.getDate() + 14);
+  $('bdwk-to').value = later.getFullYear() + '-' + pad(later.getMonth() + 1) + '-' + pad(later.getDate());
+  $('bdwk-tab-count').addEventListener('click', function () { setTab('count'); });
+  $('bdwk-tab-add').addEventListener('click', function () { setTab('add'); });
+  host.querySelector('form').addEventListener('submit', run);
+  run();
+})();
+</script>

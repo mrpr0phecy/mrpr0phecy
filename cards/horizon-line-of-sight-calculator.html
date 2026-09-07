@@ -1,0 +1,242 @@
+<h2 id="horizon-line-of-sight-calculator-title" style="margin-top:0;color:var(--accent);">🌅 Horizon &amp; Line-of-Sight Calculator</h2>
+
+<form aria-describedby="horizon-line-of-sight-calculator-desc" onsubmit="event.preventDefault();">
+  <p id="horizon-line-of-sight-calculator-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    How far can you actually see, and how much of that distant hill, ship or radio mast is hidden behind the bulge of the Earth? Enter two heights and a distance and get the geometric answer, the refraction-corrected answer opticians and surveyors use, and the 4/3-Earth radio answer — plus a cross-section showing exactly where the sightline grazes the planet.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="hlos-preset" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Quick scenario</label>
+      <select id="hlos-preset" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+    <div>
+      <label for="hlos-h1" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Your eye height (m above sea level)</label>
+      <input type="number" id="hlos-h1" value="1.7" step="0.1" min="0" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.9rem;">
+    </div>
+    <div>
+      <label for="hlos-h2" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Target height (m)</label>
+      <input type="number" id="hlos-h2" value="60" step="0.1" min="0" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.9rem;">
+    </div>
+    <div>
+      <label for="hlos-d" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Distance to target (km)</label>
+      <input type="number" id="hlos-d" value="40" step="0.1" min="0" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.9rem;">
+    </div>
+    <div>
+      <label for="hlos-model" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Refraction model</label>
+      <select id="hlos-model" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;">
+        <option value="1.17" selected>Standard optical (7/6 Earth)</option>
+        <option value="1">None — pure geometry</option>
+        <option value="1.33">Radio / VHF (4/3 Earth)</option>
+        <option value="1.4">Warm sea, strong inversion</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="hlos-verdict" role="status" aria-live="polite" style="border-radius:12px;padding:14px;margin-bottom:12px;font-size:0.95rem;"></div>
+
+  <div id="hlos-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="hlos-canvas" width="820" height="330" role="img"
+          aria-label="Cross-section of the Earth's curvature between observer and target, with the grazing sightline"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:12px;"></canvas>
+
+  <div id="hlos-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var canvas = document.getElementById('hlos-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var h1El = document.getElementById('hlos-h1'), h2El = document.getElementById('hlos-h2');
+  var dEl = document.getElementById('hlos-d'), modelEl = document.getElementById('hlos-model');
+  var presetEl = document.getElementById('hlos-preset');
+
+  var R = 6371;   // km
+
+  var PRESETS = [
+    ['— pick a scenario —', null, null, null, null],
+    ['Standing on the beach → ship\u2019s bridge', 1.7, 20, 30, '1.17'],
+    ['Beach → Beachy Head lighthouse lamp', 1.7, 31, 25, '1.17'],
+    ['Ben Nevis summit → Ben Macdui', 1345, 1309, 130, '1.17'],
+    ['Snowdon summit → Wicklow Mountains (Ireland)', 1085, 900, 145, '1.17'],
+    ['Blackpool Tower top → Isle of Man', 158, 620, 90, '1.17'],
+    ['Kite camera at 100 m → coastline', 100, 0, 40, '1.17'],
+    ['Airliner at 11 km → ground', 11000, 0, 400, '1.17'],
+    ['ISS at 408 km → ground', 408000, 0, 2200, '1'],
+    ['VHF repeater mast → car aerial', 60, 2, 45, '1.33'],
+    ['Drone at 120 m → drone at 120 m', 120, 120, 90, '1.33']
+  ];
+  PRESETS.forEach(function (p, i) { presetEl.add(new Option(p[0], String(i))); });
+
+  function horizon(hMetres, kFactor) {
+    var h = hMetres / 1000;
+    var Re = R * kFactor;
+    return Math.sqrt(Math.max(0, 2 * Re * h + h * h));
+  }
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.02rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function km(v) {
+    return v >= 100 ? v.toFixed(0) + ' km' : v.toFixed(2) + ' km';
+  }
+
+  function metres(v) {
+    if (v >= 1000) return (v / 1000).toFixed(2) + ' km';
+    if (v >= 1) return v.toFixed(1) + ' m';
+    return (v * 100).toFixed(0) + ' cm';
+  }
+
+  function draw(h1, h2, D, k, d1, hidden) {
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
+    var padX = 46, padTop = 30, baseY = h - 58;
+    var plotW = w - padX * 2;
+    var Re = R * k;
+
+    // vertical exaggeration so the bulge is visible at all
+    var span = Math.max(D, 1);
+    var bulgeMid = (span * span) / (8 * Re) * 1000;                 // metres at midpoint
+    var maxH = Math.max(h1, h2, bulgeMid * 1.4, 1);
+    var vScale = (baseY - padTop) / maxH;
+
+    function X(dist) { return padX + (dist / span) * plotW; }
+    function Y(metresUp, dist) {
+      // drop of the surface at this distance from the chord's left end
+      var drop = ((dist * (span - dist)) / (2 * Re)) * 1000;
+      return baseY - (metresUp - drop) * vScale;
+    }
+
+    // the curved surface
+    ctx.beginPath();
+    for (var i = 0; i <= 200; i++) {
+      var dd = span * i / 200;
+      var y = Y(0, dd);
+      if (i === 0) ctx.moveTo(X(dd), y); else ctx.lineTo(X(dd), y);
+    }
+    ctx.lineTo(X(span), h); ctx.lineTo(X(0), h); ctx.closePath();
+    ctx.fillStyle = 'rgba(45,212,255,.09)'; ctx.fill();
+    ctx.beginPath();
+    for (var j = 0; j <= 200; j++) {
+      var d2 = span * j / 200, y2 = Y(0, d2);
+      if (j === 0) ctx.moveTo(X(d2), y2); else ctx.lineTo(X(d2), y2);
+    }
+    ctx.strokeStyle = 'rgba(45,212,255,.75)'; ctx.lineWidth = 2; ctx.stroke();
+
+    // observer + target masts
+    ctx.strokeStyle = '#39ff14'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(X(0), Y(0, 0)); ctx.lineTo(X(0), Y(h1, 0)); ctx.stroke();
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.beginPath(); ctx.moveTo(X(span), Y(0, span)); ctx.lineTo(X(span), Y(h2, span)); ctx.stroke();
+
+    // hidden portion of the target
+    if (hidden > 0) {
+      ctx.strokeStyle = 'rgba(255,107,107,.35)';
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(X(span), Y(0, span));
+      ctx.lineTo(X(span), Y(Math.min(hidden, h2), span));
+      ctx.stroke();
+    }
+
+    // sightline from the observer, grazing the horizon
+    ctx.setLineDash([6, 4]); ctx.lineWidth = 1.8;
+    ctx.strokeStyle = '#ffd700';
+    ctx.beginPath();
+    var y0 = Y(h1, 0);
+    var grazeX = X(Math.min(d1, span));
+    var grazeY = Y(0, Math.min(d1, span));
+    var slope = (grazeY - y0) / (grazeX - X(0) || 1);
+    ctx.moveTo(X(0), y0);
+    ctx.lineTo(X(span), y0 + slope * (X(span) - X(0)));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // graze marker
+    if (d1 < span) {
+      ctx.beginPath(); ctx.arc(grazeX, grazeY, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffd700'; ctx.fill();
+      ctx.fillStyle = 'rgba(255,215,0,.9)';
+      ctx.font = '11px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('horizon at ' + km(d1), grazeX, grazeY + 18);
+    }
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(57,255,20,.9)';
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillText('you (' + metres(h1) + ')', X(0) - 4, Y(h1, 0) - 8);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255,107,107,.9)';
+    ctx.fillText('target (' + metres(h2) + ')', X(span) + 4, Y(h2, span) - 8);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(230,250,255,.55)';
+    ctx.fillText('Vertical scale exaggerated ×' + Math.round(vScale * 1000 / (plotW / span)) +
+                 ' · distance ' + km(span) + ' · bulge at midpoint ' + metres(bulgeMid), padX, h - 14);
+  }
+
+  function update() {
+    var h1 = Math.max(0, parseFloat(h1El.value) || 0);
+    var h2 = Math.max(0, parseFloat(h2El.value) || 0);
+    var D = Math.max(0.01, parseFloat(dEl.value) || 0.01);
+    var k = parseFloat(modelEl.value) || 1.17;
+
+    var d1 = horizon(h1, k), d2 = horizon(h2, k);
+    var reach = d1 + d2;
+    var Re = R * k;
+    var beyond = Math.max(0, D - d1);
+    var hidden = (beyond * beyond) / (2 * Re) * 1000;             // metres of target hidden
+    var visible = Math.max(0, h2 - hidden);
+    var needed = hidden;                                          // height to be just visible
+    var dipDeg = Math.acos(R / (R + h1 / 1000)) * 180 / Math.PI;
+    var bulge = ((D * D) / (8 * Re)) * 1000;
+
+    var ok = reach >= D && (h2 <= 0 ? d1 >= D : visible > 0);
+    document.getElementById('hlos-verdict').innerHTML = ok
+      ? '<div style="background:rgba(57,255,20,.1);border:1px solid rgba(57,255,20,.4);border-radius:10px;padding:12px;color:#39ff14;"><strong>✓ Visible.</strong> ' +
+        (hidden > 0
+          ? 'The bottom ' + metres(hidden) + ' of the target is below the horizon; you see the top ' + metres(visible) + ' of it.'
+          : 'The whole target is above the horizon — nothing is hidden by curvature.') + '</div>'
+      : '<div style="background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.4);border-radius:10px;padding:12px;color:#ff6b6b;"><strong>✗ Hidden by the curve of the Earth.</strong> ' +
+        'At ' + km(D) + ' the target would need to be at least <strong>' + metres(needed) + '</strong> tall (it is ' + metres(h2) + '), ' +
+        'or you would need to climb to <strong>' + metres(Math.pow(Math.max(0, D - d2), 2) / (2 * Re) * 1000) + '</strong>.</div>';
+
+    document.getElementById('hlos-stats').innerHTML =
+      stat('YOUR HORIZON', km(d1), 'from ' + metres(h1) + ' up') +
+      stat('TARGET\u2019S HORIZON', km(d2), 'from ' + metres(h2) + ' up', '#ff9f43') +
+      stat('MAX SIGHTLINE', km(reach), 'sum of both horizons', '#39ff14') +
+      stat('HIDDEN BY CURVATURE', metres(hidden), 'at ' + km(D), hidden > 0 ? '#ff6b6b' : '#39ff14') +
+      stat('EARTH BULGE AT MIDPOINT', metres(bulge), 'above the straight chord', '#9d4edd') +
+      stat('HORIZON DIP ANGLE', dipDeg.toFixed(3) + '°', 'below true level', '#ffd700');
+
+    draw(h1, h2, D, k, d1, hidden);
+
+    var thumb = 3.57 * Math.sqrt(h1);
+    document.getElementById('hlos-notes').innerHTML =
+      '<strong style="color:var(--accent);">The rule of thumb.</strong> Pure geometry gives horizon ≈ 3.57 × √(height in metres) km — ' +
+      metres(h1) + ' works out at ' + thumb.toFixed(2) + ' km. Refraction bends light downwards along with the surface, which is why surveyors ' +
+      'inflate the Earth\u2019s radius by about a seventh (the 7/6 model) and radio engineers by a third (4/3): your selected model gives ' +
+      km(d1) + '.' +
+      '<div style="margin-top:6px;">This is why ships vanish hull-first, why lighthouse ranges are quoted for a specific eye height, and why a ' +
+      'hill 130 km away can be perfectly visible while a boat 15 km away is not. Hot air over a cold sea can raise the effective radius far ' +
+      'higher still — that is a superior mirage, and it is how people occasionally photograph France from Kent.</div>';
+  }
+
+  presetEl.addEventListener('change', function () {
+    var p = PRESETS[parseInt(presetEl.value, 10)];
+    if (!p || p[1] === null) return;
+    h1El.value = p[1]; h2El.value = p[2]; dEl.value = p[3]; modelEl.value = p[4];
+    update();
+  });
+  [h1El, h2El, dEl].forEach(function (el) { el.addEventListener('input', update); });
+  modelEl.addEventListener('change', update);
+  update();
+})();
+</script>

@@ -1,0 +1,72 @@
+<h2 id="scrb-title" style="margin-top:0;color:var(--accent);">🔤 Scrabble Score Calculator</h2>
+
+<form aria-describedby="scrb-desc" onsubmit="event.preventDefault();">
+  <p id="scrb-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    English (Hasbro / Mattel) tile values. Type a word, mark double/triple letter on a character with <code style="color:var(--accent);">2</code> or <code style="color:var(--accent);">3</code> after it (C3AT = C on a TL). Word multipliers apply after letters. Bingo +50 for 7 tiles.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="scrb-w" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Word (use ? for blank)</label>
+      <input id="scrb-w" type="text" value="QUIZZED" autocomplete="off" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);text-transform:uppercase;">
+    </div>
+    <div>
+      <label for="scrb-wm" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Word multiplier</label>
+      <select id="scrb-wm" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="1">None</option>
+        <option value="2">Double word</option>
+        <option value="3">Triple word</option>
+      </select>
+    </div>
+    <div>
+      <label for="scrb-bingo" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Used 7 tiles?</label>
+      <select id="scrb-bingo" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="no">No</option>
+        <option value="yes">Yes (+50)</option>
+      </select>
+    </div>
+  </div>
+</form>
+<div id="scrb-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var val = { A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10,'?':0 };
+  function cell(k, v) {
+    return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+  }
+  function run() {
+    var raw = $('scrb-w').value.toUpperCase();
+    var tiles = [], i = 0;
+    while (i < raw.length) {
+      var ch = raw.charAt(i);
+      if (!/[A-Z?]/.test(ch)) { i++; continue; }
+      var m = 1;
+      if (raw.charAt(i + 1) === '2' || raw.charAt(i + 1) === '3') { m = Number(raw.charAt(i + 1)); i++; }
+      tiles.push({ ch: ch, m: m, v: (val[ch] != null ? val[ch] : 0) * m });
+      i++;
+    }
+    if (!tiles.length) {
+      $('scrb-out').textContent = 'Type a word.';
+      return;
+    }
+    var letters = tiles.reduce(function (a, t) { return a + t.v; }, 0);
+    var wm = Number($('scrb-wm').value);
+    var bingo = $('scrb-bingo').value === 'yes' ? 50 : 0;
+    var total = letters * wm + bingo;
+    var breakdown = tiles.map(function (t) { return t.ch + (t.m > 1 ? '×' + t.m : '') + '=' + t.v; }).join(' · ');
+    $('scrb-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('Letter points', String(letters)) +
+      cell('After word multiplier', String(letters * wm)) +
+      cell('Bingo', bingo ? '+50' : '0') +
+      cell('Total', String(total)) +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">' + breakdown + '. Dictionary legality is not checked. Super Scrabble and some school sets differ. Blanks are always 0 even on a DL/TL.</p>';
+  }
+  ['scrb-w', 'scrb-wm', 'scrb-bingo'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

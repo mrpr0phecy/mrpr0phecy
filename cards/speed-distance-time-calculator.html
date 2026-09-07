@@ -1,0 +1,105 @@
+<h2 id="sdtc-title" style="margin-top:0;color:var(--accent);">🚗 Speed Distance Time Calculator</h2>
+
+<form aria-describedby="sdtc-desc" onsubmit="event.preventDefault();">
+  <p id="sdtc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Fill in any two of speed, distance and time; the third is calculated. Swap units without changing the physics: metres, kilometres, miles, knots, hours, minutes, seconds.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="sdtc-dist" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Distance</label>
+      <input id="sdtc-dist" type="number" min="0" step="any" value="100" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <select id="sdtc-du" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="1000">kilometres</option>
+        <option value="1609.344">miles</option>
+        <option value="1">metres</option>
+        <option value="1852">nautical miles</option>
+        <option value="0.3048">feet</option>
+      </select>
+    </div>
+    <div>
+      <label for="sdtc-spd" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Speed</label>
+      <input id="sdtc-spd" type="number" min="0" step="any" value="" placeholder="leave blank to solve" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <select id="sdtc-su" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="0.2777777778">km/h</option>
+        <option value="0.44704">mph</option>
+        <option value="1">m/s</option>
+        <option value="0.514444">knots</option>
+      </select>
+    </div>
+    <div>
+      <label for="sdtc-time" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Time (hours)</label>
+      <input id="sdtc-time" type="number" min="0" step="any" value="1.5" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <div style="font-size:.72rem;color:var(--text-secondary);margin-top:6px;">Use decimals: 1.5 = 1 h 30 min</div>
+    </div>
+  </div>
+  <button type="submit" id="sdtc-go" style="padding:10px 13px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;font-size:.83rem;">Solve the blank</button>
+</form>
+<div id="sdtc-err" role="alert" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.4);color:#ffb8b8;font-size:.82rem;"></div>
+<div id="sdtc-out" style="margin-top:14px;padding:14px;border-radius:10px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);display:none;">
+  <div id="sdtc-headline" style="font-size:1.15rem;font-weight:800;color:var(--text);"></div>
+  <div id="sdtc-alt" style="font-size:.82rem;color:var(--text-secondary);margin-top:8px;"></div>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  function num(id) {
+    var v = $(id).value.trim();
+    if (v === '') return null;
+    var n = Number(v);
+    return isFinite(n) ? n : NaN;
+  }
+  function fmtTime(hours) {
+    var total = Math.round(hours * 3600);
+    var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    return h + ' h ' + m + ' min ' + s + ' s';
+  }
+  function run() {
+    var dU = Number($('sdtc-du').value), sU = Number($('sdtc-su').value);
+    var d = num('sdtc-dist'), s = num('sdtc-spd'), t = num('sdtc-time');
+    var blanks = [d, s, t].filter(function (v) { return v === null; }).length;
+    if (blanks !== 1) {
+      $('sdtc-err').style.display = 'block';
+      $('sdtc-err').textContent = 'Leave exactly one field blank (the one you want solved).';
+      $('sdtc-out').style.display = 'none';
+      return;
+    }
+    if ([d, s, t].some(function (v) { return v !== null && (!(v >= 0) || !isFinite(v)); })) {
+      $('sdtc-err').style.display = 'block';
+      $('sdtc-err').textContent = 'Values must be zero or positive numbers.';
+      $('sdtc-out').style.display = 'none';
+      return;
+    }
+    var metres, mps, seconds, headline;
+    if (d === null) {
+      if (s === 0) { $('sdtc-err').style.display = 'block'; $('sdtc-err').textContent = 'Speed is zero, so distance cannot be found.'; $('sdtc-out').style.display = 'none'; return; }
+      mps = s * sU; seconds = t * 3600; metres = mps * seconds;
+      $('sdtc-dist').value = (metres / dU).toFixed(4).replace(/\.?0+$/, '');
+      headline = 'Distance = ' + (metres / dU).toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' in the selected unit';
+    } else if (s === null) {
+      if (t === 0) { $('sdtc-err').style.display = 'block'; $('sdtc-err').textContent = 'Time is zero, so speed cannot be found.'; $('sdtc-out').style.display = 'none'; return; }
+      metres = d * dU; seconds = t * 3600; mps = metres / seconds;
+      $('sdtc-spd').value = (mps / sU).toFixed(4).replace(/\.?0+$/, '');
+      headline = 'Speed = ' + (mps / sU).toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' in the selected unit';
+    } else {
+      if (s === 0) { $('sdtc-err').style.display = 'block'; $('sdtc-err').textContent = 'Speed is zero, so time cannot be found.'; $('sdtc-out').style.display = 'none'; return; }
+      metres = d * dU; mps = s * sU; seconds = metres / mps;
+      $('sdtc-time').value = (seconds / 3600).toFixed(6).replace(/\.?0+$/, '');
+      headline = 'Time = ' + fmtTime(seconds / 3600);
+    }
+    $('sdtc-err').style.display = 'none';
+    $('sdtc-out').style.display = 'block';
+    $('sdtc-headline').textContent = headline;
+    metres = (num('sdtc-dist') || 0) * dU;
+    mps = (num('sdtc-spd') || 0) * sU;
+    $('sdtc-alt').textContent = (metres / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 }) + ' km  ·  ' +
+      (metres / 1609.344).toLocaleString(undefined, { maximumFractionDigits: 3 }) + ' mi  ·  ' +
+      (mps * 3.6).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' km/h  ·  ' +
+      (mps / 0.44704).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' mph  ·  ' +
+      fmtTime((num('sdtc-time') || 0));
+  }
+  host.querySelector('form').addEventListener('submit', run);
+})();
+</script>

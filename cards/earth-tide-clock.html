@@ -1,0 +1,190 @@
+<h2 id="etd-title" style="margin-top:0;color:var(--accent);">🌙 Earth Tide Clock</h2>
+
+<form aria-describedby="etd-desc" onsubmit="event.preventDefault();">
+  <p id="etd-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+    Two tidal bulges, not one. The Moon (and a weaker Sun) stretch Earth into a prolate spheroid; a port rotates through both bulges and sees two highs a day. Align Moon and Sun for spring tide; put them at right angles for neap. The gauge at the bottom is a real harbour clock.
+  </p>
+
+  <div style="background:#050814;border:1px solid rgba(125,180,255,0.28);border-radius:10px;overflow:hidden;margin-bottom:12px;">
+    <canvas id="etd-cv" width="640" height="400" style="width:100%;height:auto;aspect-ratio:640/400;display:block;"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <label for="etd-phase" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Sun–Moon angle <span id="etd-phase-v">0° (spring)</span>
+      <input id="etd-phase" type="range" min="0" max="180" value="0" style="width:100%;accent-color:#93c5fd;">
+    </label>
+    <label for="etd-lat" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Port latitude <span id="etd-lat-v">51°N</span>
+      <input id="etd-lat" type="range" min="0" max="70" value="51" style="width:100%;accent-color:#93c5fd;">
+    </label>
+    <label for="etd-amp" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Moon amplitude <span id="etd-amp-v">1.2 m</span>
+      <input id="etd-amp" type="range" min="0.4" max="4" step="0.1" value="1.2" style="width:100%;accent-color:#93c5fd;">
+    </label>
+    <label for="etd-spd" style="font-size:0.78rem;color:rgba(230,250,255,0.7);">Hours / frame <span id="etd-spd-v">0.4</span>
+      <input id="etd-spd" type="range" min="0.05" max="1.5" step="0.05" value="0.4" style="width:100%;accent-color:#93c5fd;">
+    </label>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="etd-run" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(147,197,253,0.16);border:1px solid rgba(147,197,253,0.45);color:#93c5fd;cursor:pointer;font-weight:600;">Pause</button>
+    <button type="button" id="etd-spring" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.35);color:#ffd700;cursor:pointer;font-weight:600;">Spring</button>
+    <button type="button" id="etd-neap" style="padding:8px 14px;min-height:40px;border-radius:8px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.35);color:#2dd4ff;cursor:pointer;font-weight:600;">Neap</button>
+  </div>
+
+  <div id="etd-out" aria-live="polite" style="font-size:0.85rem;color:rgba(230,250,255,0.75);padding:10px 12px;background:rgba(147,197,253,0.07);border:1px solid rgba(147,197,253,0.2);border-radius:8px;">Two highs per rotation — spring when the Sun lines up, neap at quadrature.</div>
+</form>
+
+<details style="margin-top:10px;font-size:0.82rem;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">The physics</summary>
+  <p style="margin-top:8px;">
+    Equilibrium tide: a test mass feels the Moon's gravity more on the near side and less on the far side than
+    Earth's centre does, so both faces bulge. Height at longitude λ is
+    h = Aₘ cos 2(λ − λₘ) + Aₛ cos 2(λ − λₛ), with Aₛ ≈ 0.46 Aₘ.
+    Spring tide at syzygy (new/full, angle 0°/180°); neap at quadrature (90°). A sidereal day plus the Moon's
+    orbital motion makes the true interval ~12 h 25 min. Declination (port latitude) trims the two highs unequal
+    — the diurnal inequality sailors know.
+  </p>
+</details>
+
+<script>
+(function () {
+  var cv = document.getElementById('etd-cv');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var tHours = 0, running = true, gauge = [];
+  var reduce = false;
+  try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) running = false;
+
+  function $(id) { return document.getElementById(id); }
+  function val(id) { return parseFloat($(id).value); }
+
+  function height(lon, moonLon, sunLon, Am) {
+    var As = 0.46 * Am;
+    var latF = Math.cos(val('etd-lat') * Math.PI / 180);
+    return latF * (Am * Math.cos(2 * (lon - moonLon)) + As * Math.cos(2 * (lon - sunLon)));
+  }
+
+  function step() {
+    tHours += val('etd-spd');
+    var Am = val('etd-amp');
+    var moonLon = tHours * (Math.PI * 2) / 24.84;
+    var sunLon = moonLon + val('etd-phase') * Math.PI / 180;
+    var portLon = tHours * (Math.PI * 2) / 24;
+    var h = height(portLon, moonLon, sunLon, Am);
+    gauge.push(h);
+    if (gauge.length > 220) gauge.shift();
+  }
+
+  function draw() {
+    var Am = val('etd-amp');
+    var moonLon = tHours * (Math.PI * 2) / 24.84;
+    var sunLon = moonLon + val('etd-phase') * Math.PI / 180;
+    var earthA = tHours * (Math.PI * 2) / 24;
+    var cx = 200, cy = 175, R = 78;
+    ctx.fillStyle = '#050814';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    var a, r, hx, hy, bulge;
+    ctx.beginPath();
+    for (a = 0; a <= Math.PI * 2 + 0.05; a += 0.05) {
+      bulge = 1 + 0.22 * Math.cos(2 * (a - moonLon)) + 0.10 * Math.cos(2 * (a - sunLon));
+      r = R * bulge;
+      hx = Math.cos(a) * r; hy = Math.sin(a) * r;
+      if (a === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(45,140,220,0.35)';
+    ctx.fill();
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.78, 0, Math.PI * 2);
+    ctx.fillStyle = '#1d4e6a';
+    ctx.fill();
+    ctx.save();
+    ctx.rotate(earthA);
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath(); ctx.arc(R * 0.62, 0, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#e6faff';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('port', R * 0.62 + 7, 4);
+    ctx.restore();
+
+    var mx = Math.cos(moonLon) * 150, my = Math.sin(moonLon) * 150;
+    ctx.fillStyle = '#e5e7eb';
+    ctx.beginPath(); ctx.arc(mx, my, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath(); ctx.arc(mx - 4, my - 3, 4, 0, Math.PI * 2); ctx.fill();
+    var sx = Math.cos(sunLon) * 175, sy = Math.sin(sunLon) * 175;
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath(); ctx.arc(sx, sy, 18, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = 'rgba(230,250,255,0.7)';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('Moon', cx + Math.cos(moonLon) * 150 - 12, cy + Math.sin(moonLon) * 150 - 20);
+    ctx.fillText('Sun', cx + Math.cos(sunLon) * 175 - 8, cy + Math.sin(sunLon) * 175 - 24);
+
+    var gx = 400, gy = 40, gw = 220, gh = 300;
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(gx, gy, gw, gh);
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.strokeRect(gx, gy, gw, gh);
+    ctx.fillStyle = 'rgba(230,250,255,0.7)';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('harbour gauge (m)', gx + 8, gy + 16);
+    ctx.beginPath();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.6;
+    var i, mid = gy + gh / 2, scale = 28;
+    for (i = 0; i < gauge.length; i++) {
+      var px = gx + 10 + i * ((gw - 20) / 220);
+      var py = mid - gauge[i] * scale;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath(); ctx.moveTo(gx + 8, mid); ctx.lineTo(gx + gw - 8, mid); ctx.stroke();
+
+    var portLon = tHours * (Math.PI * 2) / 24;
+    var hNow = height(portLon, moonLon, sunLon, Am);
+    var phase = val('etd-phase');
+    var kind = phase < 20 || phase > 160 ? 'spring tide' : (Math.abs(phase - 90) < 20 ? 'neap tide' : 'intermediate');
+    var day = Math.floor(tHours / 24);
+    var hr = tHours % 24;
+    $('etd-out').textContent = 'day ' + day + '  ' + hr.toFixed(1) + ' h  ·  ' + kind +
+      '  ·  water ' + (hNow >= 0 ? '+' : '') + hNow.toFixed(2) + ' m  ·  two highs / 24 h 25 min';
+  }
+
+  function frame() {
+    if (running) step();
+    draw();
+    requestAnimationFrame(frame);
+  }
+  function phaseLabel(v) {
+    if (v < 15 || v > 165) return v + '° (spring)';
+    if (Math.abs(v - 90) < 15) return v + '° (neap)';
+    return v + '°';
+  }
+  function sync() {
+    $('etd-phase-v').textContent = phaseLabel(val('etd-phase'));
+    $('etd-lat-v').textContent = val('etd-lat') + '°N';
+    $('etd-amp-v').textContent = val('etd-amp').toFixed(1) + ' m';
+    $('etd-spd-v').textContent = val('etd-spd').toFixed(2);
+  }
+  ['etd-phase', 'etd-lat', 'etd-amp', 'etd-spd'].forEach(function (id) { $(id).addEventListener('input', sync); });
+  $('etd-run').addEventListener('click', function () {
+    running = !running; this.textContent = running ? 'Pause' : 'Run';
+  });
+  $('etd-spring').addEventListener('click', function () { $('etd-phase').value = 0; sync(); });
+  $('etd-neap').addEventListener('click', function () { $('etd-phase').value = 90; sync(); });
+
+  sync();
+  if (reduce) $('etd-run').textContent = 'Run';
+  requestAnimationFrame(frame);
+})();
+</script>

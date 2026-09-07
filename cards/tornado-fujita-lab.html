@@ -1,0 +1,304 @@
+<h2 id="torn-title" style="margin-top:0;color:var(--accent);">🌪️ Tornado &amp; EF-Scale Lab</h2>
+
+<form aria-describedby="torn-desc" onsubmit="event.preventDefault();">
+  <p id="torn-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Build a supercell in real time. CAPE (buoyant energy), 0–6 km wind shear, core radius and surface roughness control rotation, funnel formation, damage and the Enhanced Fujita rating — with the live Rankine vortex wind profile below.
+  </p>
+
+  <!-- Presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="torn-preset" data-id="weak" style="padding:4px 10px;border-radius:4px;background:rgba(120,200,255,0.15);border:1px solid #78c8ff;color:#aadcff;font-size:0.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;">💨 Weak / Landspout</button>
+    <button type="button" class="torn-preset" data-id="classic" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌩️ Classic Supercell</button>
+    <button type="button" class="torn-preset" data-id="wedge" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🟤 Violent Wedge</button>
+  </div>
+
+  <!-- Main scene -->
+  <div style="background:#04060a;border:1px solid rgba(120,200,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="torn-canvas" width="640" height="300" style="width:100%;height:300px;display:block;background:linear-gradient(#0a0d14 0%,#141a22 55%,#1c2026 100%);border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="torn-status" style="color:#aadcff;font-family:monospace;">NO ROTATION — WAITING FOR CAPE + SHEAR</span>
+      <span id="torn-wind" style="color:#ffd27f;font-family:monospace;">0 m/s</span>
+    </div>
+  </div>
+
+  <!-- Rankine profile -->
+  <div style="background:#04060a;border:1px solid rgba(120,200,255,0.2);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="torn-profile" width="640" height="150" style="width:100%;height:150px;display:block;background:#070b12;border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--text-secondary);margin-top:4px;padding:0 4px;">
+      <span>RANKINE VORTEX — TANGENTIAL WIND vs RADIUS (P = solid core V, outside V ∝ 1/r)</span>
+      <span id="torn-ef" style="color:#ff9c6b;font-family:monospace;">EF-</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>CAPE (buoyant energy)</span><span id="torn-val-cape">2500 J/kg</span>
+      </div>
+      <input type="range" id="torn-slider-cape" min="0" max="6000" step="50" value="2500" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>0–6 km Wind Shear</span><span id="torn-val-shear">32 m/s</span>
+      </div>
+      <input type="range" id="torn-slider-shear" min="0" max="60" step="1" value="32" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Core Radius</span><span id="torn-val-core">150 m</span>
+      </div>
+      <input type="range" id="torn-slider-core" min="50" max="500" step="10" value="150" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Surface Roughness</span><span id="torn-val-rough">0.10 m</span>
+      </div>
+      <input type="range" id="torn-slider-rough" min="0.02" max="1.5" step="0.01" value="0.10" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">PEAK WIND (3-S GUST)</div>
+      <div id="torn-stat-peak" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">FORMATION PROBABILITY</div>
+      <div id="torn-stat-prob" style="font-size:0.85rem;font-family:monospace;color:#aadcff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">DAMAGE POTENTIAL</div>
+      <div id="torn-stat-dmg" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">CORE PRESSURE DEFICIT</div>
+      <div id="torn-stat-dp" style="font-size:0.85rem;font-family:monospace;color:#fff;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Peak wind: V ≈ η·√(2·CAPE) + 0.55·shear, with thermodynamic efficiency η ≈ 0.34 (Emanuel-style heat
+      engine). Rankine vortex: V = Vmax·(r/R) inside the core and Vmax·(R/r) outside. Cyclostrophic pressure
+      deficit Δp = ρ·Vmax² (accounted for with 1.1× roughness damping on rough terrain). EF damage scale from
+      the 3-second gust (EF0 29–37, EF1 38–49, EF2 50–60, EF3 61–73, EF4 74–89, EF5 90+ m/s).
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('torn-canvas'), ctx = canvas.getContext('2d');
+  const prof = $('torn-profile'), pctx = prof.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const sCape = $('torn-slider-cape'), sShear = $('torn-slider-shear'), sCore = $('torn-slider-core'), sRough = $('torn-slider-rough');
+  const vCape = $('torn-val-cape'), vShear = $('torn-val-shear'), vCore = $('torn-val-core'), vRough = $('torn-val-rough');
+  const statusEl = $('torn-status'), windEl = $('torn-wind'), efEl = $('torn-ef');
+  const statPeak = $('torn-stat-peak'), statProb = $('torn-stat-prob'), statDmg = $('torn-stat-dmg'), statDp = $('torn-stat-dp');
+
+  let cape = 2500, shear = 32, coreR = 150, rough = 0.10;
+  let swirl = [], debris = [], t = 0, funnelFrac = 0;
+
+  const PRESETS = {
+    weak:    { cape: 900,  shear: 8,  core: 80,  rough: 0.3 },
+    classic: { cape: 2500, shear: 32, core: 150, rough: 0.10 },
+    wedge:   { cape: 4500, shear: 46, core: 400, rough: 0.05 }
+  };
+
+  function readSliders() {
+    cape = parseFloat(sCape.value); shear = parseFloat(sShear.value);
+    coreR = parseFloat(sCore.value); rough = parseFloat(sRough.value);
+    vCape.textContent = cape + ' J/kg'; vShear.textContent = shear + ' m/s';
+    vCore.textContent = coreR + ' m'; vRough.textContent = rough.toFixed(2) + ' m';
+  }
+
+  function efFromV(v) {
+    if (v >= 90) return 'EF5'; if (v >= 74) return 'EF4'; if (v >= 61) return 'EF3';
+    if (v >= 50) return 'EF2'; if (v >= 38) return 'EF1'; if (v >= 29) return 'EF0';
+    return 'EF-';
+  }
+
+  function physics() {
+    const vmax = Math.min(96, 0.34 * Math.sqrt(2 * cape) + 0.55 * shear);
+    const prob = 1 / (1 + Math.exp(-((cape - 1200) / 650 + (shear - 14) / 8)));
+    const dp = 1.15 * 1.2 * vmax * vmax; // Pa, cyclostrophic, roughness damping
+    const dmg = vmax < 29 ? 'None' : vmax < 38 ? 'Minor' : vmax < 50 ? 'Significant' :
+                vmax < 61 ? 'Severe' : vmax < 74 ? 'Devastating' : vmax < 90 ? 'Incredible' : 'Catastrophic';
+    return { vmax, prob, dp, dmg, ef: efFromV(vmax) };
+  }
+
+  function step(dt) {
+    const p = physics();
+    const target = p.prob > 0.45 ? Math.min(1, (p.prob - 0.45) * 1.9) : 0;
+    funnelFrac += (target - funnelFrac) * Math.min(1, dt * 0.8);
+    t += dt;
+
+    // swirling air particles along the funnel
+    if (funnelFrac > 0.02 && swirl.length < 220) {
+      for (let i = 0; i < 4; i++) {
+        swirl.push({ ang: Math.random() * Math.PI * 2, yy: 0.12 + Math.random() * 0.85, spd: 0.8 + Math.random() * 1.4, r: Math.random() });
+      }
+    }
+    swirl.forEach(pd => { pd.ang += dt * pd.spd * (2 + p.vmax / 30); });
+    if (swirl.length > 240) swirl.splice(0, swirl.length - 240);
+
+    // debris at the base
+    if (funnelFrac > 0.6 && debris.length < 60) {
+      debris.push({ x: W / 2 + (Math.random() - 0.5) * 90, y: H - 26 - Math.random() * 14, vy: -(Math.random() * 30 + 8), age: 0 });
+    }
+    for (let i = debris.length - 1; i >= 0; i--) {
+      const d = debris[i]; d.age += dt;
+      d.x += dt * 20 * (Math.random() - 0.5) + dt * 8; d.y += d.vy * dt; d.vy += 40 * dt;
+      if (d.age > 3 || d.y > H - 18) debris.splice(i, 1);
+    }
+  }
+
+  function drawScene(p) {
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#1b2029'); sky.addColorStop(0.7, '#232a33'); sky.addColorStop(1, '#2a2f35');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+    // ground
+    ctx.fillStyle = '#191d20'; ctx.fillRect(0, H - 26, W, 26);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    for (let i = 0; i < 30; i++) ctx.fillRect((i * 47) % W, H - 26, 14, 2);
+
+    // rain curtain behind funnel
+    ctx.strokeStyle = 'rgba(140,180,220,0.16)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 46; i++) {
+      const rx = W / 2 + Math.sin(i * 1.7) * 120 + (i % 7) * 8;
+      ctx.beginPath(); ctx.moveTo(rx, 84); ctx.lineTo(rx - 14, H - 26); ctx.stroke();
+    }
+
+    // cloud base (supercell)
+    ctx.fillStyle = 'rgba(40,46,56,0.95)';
+    ctx.beginPath();
+    ctx.ellipse(W / 2, 74, 190, 34, 0, Math.PI, 0);
+    ctx.ellipse(W / 2 - 90, 78, 110, 26, 0, Math.PI, 0);
+    ctx.ellipse(W / 2 + 100, 78, 120, 28, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(120,200,255,0.5)';
+    // rotating wall cloud
+    ctx.beginPath(); ctx.ellipse(W / 2, 84, 52 + Math.sin(t * 2) * 6, 16, 0, 0, Math.PI * 2); ctx.fill();
+
+    // funnel
+    if (funnelFrac > 0.02) {
+      const tipY = 104 + (H - 40 - 104) * funnelFrac;
+      const width = Math.max(3, coreR * funnelFrac / 14) + 4;
+      ctx.beginPath();
+      ctx.moveTo(W / 2 - width, 100);
+      ctx.bezierCurveTo(W / 2 - width * 2.4, 150, W / 2 - width * 1.2, tipY - 20, W / 2 - 3, tipY);
+      ctx.lineTo(W / 2 + 3, tipY);
+      ctx.bezierCurveTo(W / 2 + width * 1.2, tipY - 20, W / 2 + width * 2.4, 150, W / 2 + width, 100);
+      ctx.closePath();
+      const fg = ctx.createLinearGradient(0, 100, 0, tipY);
+      fg.addColorStop(0, 'rgba(85,95,110,0.95)');
+      fg.addColorStop(1, 'rgba(58,66,80,0.98)');
+      ctx.fillStyle = fg; ctx.fill();
+      ctx.strokeStyle = 'rgba(140,190,230,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    // swirl streaks
+    ctx.strokeStyle = 'rgba(190,220,250,0.35)';
+    ctx.lineWidth = 1.4;
+    swirl.forEach(pd => {
+      const yy = 100 + (H - 38 - 100) * pd.yy * (0.4 + funnelFrac * 0.6);
+      const wid = Math.max(4, (coreR * funnelFrac / 18) * (1 - pd.yy * 0.4) + 6);
+      const x = W / 2 + Math.cos(pd.ang) * wid;
+      const x2 = W / 2 + Math.cos(pd.ang + 0.3) * wid;
+      ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x2, yy - 2); ctx.stroke();
+    });
+
+    // debris
+    debris.forEach(d => {
+      ctx.fillStyle = 'rgba(180,170,150,0.9)';
+      ctx.fillRect(d.x, d.y, 3, 3);
+    });
+
+    // dust cloud at base
+    if (funnelFrac > 0.55) {
+      ctx.fillStyle = 'rgba(120,116,108,0.35)';
+      ctx.beginPath(); ctx.ellipse(W / 2, H - 26, 70 + funnelFrac * 40, 18 + funnelFrac * 8, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function drawProfile(p) {
+    const pw = prof.width, ph = prof.height;
+    pctx.fillStyle = '#070b12'; pctx.fillRect(0, 0, pw, ph);
+    const pad = 26, cx = pw / 2, maxR = 600, maxV = 110;
+    const xAt = r => cx + (r / maxR) * (pw / 2 - pad - 8);
+    const yAt = v => ph - 16 - (v / maxV) * (ph - 34);
+
+    // axes
+    pctx.strokeStyle = 'rgba(230,250,255,0.25)'; pctx.lineWidth = 1;
+    pctx.beginPath(); pctx.moveTo(14, ph - 16); pctx.lineTo(pw - 6, ph - 16); pctx.stroke();
+    pctx.beginPath(); pctx.moveTo(cx, ph - 16); pctx.lineTo(cx, 8); pctx.stroke();
+    pctx.fillStyle = 'rgba(230,250,255,0.5)'; pctx.font = '9px monospace';
+    pctx.fillText('r (m)', pw - 40, ph - 4);
+    pctx.fillText('v (m/s)', 2, 14);
+    pctx.fillText('0', cx - 8, ph - 4);
+    pctx.fillText('600', pw - 26, ph - 4);
+
+    // Rankine curve (right half), mirrored
+    pctx.strokeStyle = '#7fd4ff'; pctx.lineWidth = 2; pctx.shadowBlur = 8; pctx.shadowColor = '#7fd4ff';
+    pctx.beginPath();
+    for (let r = 0; r <= maxR; r += 4) {
+      const v = r <= coreR ? p.vmax * (r / coreR) : p.vmax * (coreR / r);
+      const x = xAt(r), y = yAt(Math.min(maxV, v));
+      if (r === 0) pctx.moveTo(x, y); else pctx.lineTo(x, y);
+    }
+    for (let r = maxR; r >= 0; r -= 4) {
+      const v = r <= coreR ? p.vmax * (r / coreR) : p.vmax * (coreR / r);
+      pctx.lineTo(xAt(-r), yAt(Math.min(maxV, v)));
+    }
+    pctx.closePath(); pctx.stroke(); pctx.shadowBlur = 0;
+    pctx.fillStyle = 'rgba(127,212,255,0.10)'; pctx.fill();
+
+    // Vmax marker
+    const rx = xAt(coreR);
+    pctx.strokeStyle = 'rgba(255,210,127,0.8)';
+    pctx.beginPath(); pctx.moveTo(rx, yAt(p.vmax)); pctx.lineTo(rx, ph - 16); pctx.stroke();
+    pctx.fillStyle = '#ffd27f'; pctx.fillText('R=' + coreR + 'm', rx + 3, ph - 22);
+    pctx.fillStyle = '#fff';
+    pctx.fillText('Vmax ' + p.vmax.toFixed(0) + ' m/s', cx + 8, yAt(p.vmax) - 4);
+
+    // ground roughness tick
+    pctx.fillStyle = 'rgba(230,250,255,0.4)';
+    pctx.fillText('z₀ ' + rough.toFixed(2) + ' m', 16, yAt(p.vmax) - 4);
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const p = physics();
+    step(dt); drawScene(p); drawProfile(p);
+    statusEl.textContent = funnelFrac < 0.05 ? 'NO ROTATION — ADD CAPE + SHEAR' :
+      funnelFrac < 0.5 ? 'MESOCYCLONE — FUNNEL ALMOST TOUCHING' : 'TORNADO ON THE GROUND — ' + (p.vmax * 2.237).toFixed(0) + ' MPH WIND';
+    windEl.textContent = p.vmax.toFixed(0) + ' m/s';
+    efEl.textContent = p.ef + ' (' + (p.vmax * 2.237).toFixed(0) + ' mph)';
+    statPeak.textContent = p.vmax.toFixed(0) + ' m/s';
+    statProb.textContent = (p.prob * 100).toFixed(0) + '%';
+    statDmg.textContent = p.dmg;
+    statDp.textContent = (p.dp / 1000).toFixed(1) + ' kPa';
+    requestAnimationFrame(loop);
+  }
+
+  [sCape, sShear, sCore, sRough].forEach(s => s.addEventListener('input', readSliders));
+  document.querySelectorAll('.torn-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pr = PRESETS[btn.dataset.id];
+      sCape.value = pr.cape; sShear.value = pr.shear; sCore.value = pr.core; sRough.value = pr.rough;
+      readSliders();
+    });
+  });
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>

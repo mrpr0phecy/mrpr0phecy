@@ -1,0 +1,87 @@
+<h2 id="gclf-title" style="margin-top:0;color:var(--accent);">🧮 GCF, LCM &amp; Prime Factors</h2>
+
+<form aria-describedby="gclf-desc" onsubmit="event.preventDefault();">
+  <p id="gclf-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Find the greatest common factor, least common multiple and prime factorisation of one or more integers. Euclidean algorithm for GCF; trial division up to √n for factors. Integers only, up to 12 digits.
+  </p>
+  <label for="gclf-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Numbers (spaces, commas or ×)</label>
+  <input id="gclf-in" type="text" value="48, 180, 84" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+</form>
+<div id="gclf-err" role="alert" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.4);color:#ffb8b8;font-size:.82rem;"></div>
+<div id="gclf-out" style="margin-top:14px;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;">
+    <div style="padding:12px;border-radius:10px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);">
+      <div style="font-size:.72rem;color:var(--accent);">GCF / GCD</div>
+      <div id="gclf-gcf" style="font-size:1.3rem;font-weight:800;color:var(--text);margin-top:4px;"></div>
+    </div>
+    <div style="padding:12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);">
+      <div style="font-size:.72rem;color:var(--text-secondary);">LCM</div>
+      <div id="gclf-lcm" style="font-size:1.3rem;font-weight:800;color:var(--text);margin-top:4px;overflow-wrap:anywhere;"></div>
+    </div>
+  </div>
+  <div id="gclf-facts" style="font-size:.82rem;color:var(--text);"></div>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  function gcd(a, b) {
+    a = Math.abs(a); b = Math.abs(b);
+    while (b) { var t = b; b = a % b; a = t; }
+    return a;
+  }
+  function lcm(a, b) {
+    if (a === 0 || b === 0) return 0;
+    return Math.abs(a / gcd(a, b) * b);
+  }
+  function factors(n) {
+    n = Math.abs(n);
+    if (n < 2) return n === 1 ? [[1, 1]] : [];
+    var out = [], p = 2;
+    while (p * p <= n) {
+      var c = 0;
+      while (n % p === 0) { n /= p; c++; }
+      if (c) out.push([p, c]);
+      p += p === 2 ? 1 : 2;
+    }
+    if (n > 1) out.push([n, 1]);
+    return out;
+  }
+  function pretty(f) {
+    if (!f.length) return '—';
+    return f.map(function (pair) { return pair[1] === 1 ? String(pair[0]) : pair[0] + '<sup>' + pair[1] + '</sup>'; }).join(' × ');
+  }
+  function run() {
+    var raw = $('gclf-in').value.split(/[^0-9-]+/).filter(Boolean);
+    var nums = [];
+    for (var i = 0; i < raw.length; i++) {
+      if (!/^-?\d{1,12}$/.test(raw[i])) {
+        $('gclf-err').style.display = 'block';
+        $('gclf-err').textContent = 'Use integers of at most 12 digits.';
+        return;
+      }
+      nums.push(Number(raw[i]));
+    }
+    if (!nums.length) { $('gclf-err').style.display = 'none'; $('gclf-gcf').textContent = '—'; $('gclf-lcm').textContent = '—'; $('gclf-facts').innerHTML = ''; return; }
+    $('gclf-err').style.display = 'none';
+    var g = Math.abs(nums[0]);
+    var m = Math.abs(nums[0]);
+    for (var j = 1; j < nums.length; j++) {
+      g = gcd(g, nums[j]);
+      m = lcm(m, nums[j]);
+    }
+    $('gclf-gcf').textContent = String(g);
+    $('gclf-lcm').textContent = Number.isFinite(m) ? String(Math.round(m)) : 'overflow';
+    var html = nums.map(function (n) {
+      var f = factors(n);
+      var isPrime = Math.abs(n) > 1 && f.length === 1 && f[0][1] === 1;
+      return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.07);"><strong style="color:var(--accent);">' + n + '</strong> = ' + pretty(f) + (isPrime ? ' <span style="color:#39ff14;font-size:.75rem;">prime</span>' : '') + '</div>';
+    }).join('');
+    $('gclf-facts').innerHTML = html;
+  }
+  $('gclf-in').addEventListener('input', run);
+  run();
+})();
+</script>
