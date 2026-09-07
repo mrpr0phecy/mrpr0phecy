@@ -336,7 +336,8 @@ const gapFillMap = {
   'sleep-debt-calculator': 'Health & Fitness',
   'loan-amortization-schedule': 'Finance & Money',
   'sphere-cylinder-cone-volume': 'Mathematics',
-  'scrabble-score-calculator': 'Productivity & Lifestyle'
+  'scrabble-score-calculator': 'Productivity & Lifestyle',
+  'markdown-table-generator': 'Writing & Language'
 };
 
 const sportsList = [
