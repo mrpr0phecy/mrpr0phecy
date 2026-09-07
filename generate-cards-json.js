@@ -189,7 +189,12 @@ const gapFillMap = {
   'iban-validator-formatter': 'Finance & Money',
   'luhn-check-digit-validator': 'Finance & Money',
   'number-to-words-cheque-writer': 'Writing & Language',
-  'gcf-lcm-prime-factor-calculator': 'Mathematics'
+  'gcf-lcm-prime-factor-calculator': 'Mathematics',
+  'speed-distance-time-calculator': 'Productivity & Lifestyle',
+  'fuel-economy-mpg-converter': 'Productivity & Lifestyle',
+  'tv-viewing-distance-calculator': 'Productivity & Lifestyle',
+  'print-dpi-photo-size-calculator': 'SaaS & Business Killers',
+  'video-bitrate-file-size-calculator': 'SaaS & Business Killers'
 };
 
 const sportsList = [
