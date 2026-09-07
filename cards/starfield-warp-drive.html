@@ -1,0 +1,168 @@
+<h2 id="swd-title" style="margin-top:0;color:var(--accent);">🚀 Starfield Warp Drive</h2>
+<p id="swd-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">A retro warp-speed starfield with real flight feel: steer with your pointer, throttle from sublight to Warp 9, punch through hyperspace jumps, and watch the light-years stack up as famous exoplanets drift past.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;align-items:end;">
+  <div style="flex:1;min-width:180px;"><label for="swd-warp" style="display:block;font-size:.78rem;color:var(--text-secondary);">Warp throttle: <b id="swd-warpv" style="color:var(--accent);">3.0</b></label><input id="swd-warp" type="range" min="0" max="9" step="0.5" value="3" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="swd-stars" style="display:block;font-size:.78rem;color:var(--text-secondary);">Stars: <b id="swd-starsv" style="color:var(--accent);">400</b></label><input id="swd-stars" type="range" min="100" max="900" step="50" value="400" style="width:130px;accent-color:var(--accent);"></div>
+  <button type="button" id="swd-punch" style="padding:10px 22px;background:linear-gradient(135deg,#ff6b81,#ff9d3d);color:#14060a;border:0;border-radius:8px;cursor:pointer;font-weight:900;">⚡ PUNCH IT</button>
+</div>
+
+<div style="position:relative;">
+  <canvas id="swd-cv" width="600" height="340" style="width:100%;height:340px;background:#020308;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;touch-action:none;cursor:crosshair;" role="img" aria-label="Warp speed starfield"></canvas>
+  <div style="position:absolute;top:10px;left:14px;font-size:.78rem;color:#9adcff;text-shadow:0 0 8px rgba(45,212,255,.6);pointer-events:none;line-height:1.7;">
+    <div>VELOCITY <b id="swd-vel" style="color:#fff;">0.0c</b></div>
+    <div>DISTANCE <b id="swd-dist" style="color:#fff;">0.00 ly</b></div>
+  </div>
+  <div id="swd-pass" style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:.8rem;color:#ffd700;text-shadow:0 0 10px rgba(255,215,0,.5);pointer-events:none;">◉ —</div>
+</div>
+<div style="font-size:.76rem;color:var(--text-secondary);margin-top:6px;">🖱️ move pointer over the view to steer · throttle past Warp 5 for redshift streaks</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("swd-cv"), ctx = cv.getContext("2d");
+  var W = 600, H = 340, DPR = 1;
+  function fit(){
+    DPR = Math.min(1.5, window.devicePixelRatio || 1);
+    W = Math.round(cv.clientWidth || 600); H = 340;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    makeNebula();
+    render(0);
+  }
+  window.addEventListener("resize", fit);
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var warp = 3, punchUntil = 0, dist = 0, flash = 0;
+  var steerX = 0, steerY = 0; // -1..1
+  var stars = [];
+  function spawn(s, randomZ){
+    s.x = (Math.random() * 2 - 1);
+    s.y = (Math.random() * 2 - 1);
+    s.z = randomZ ? Math.random() : 1;
+    s.temp = Math.random();
+    s.r = 0.6 + Math.random() * 1.6;
+    return s;
+  }
+  function setCount(n){
+    while (stars.length < n) stars.push(spawn({}, true));
+    stars.length = n;
+  }
+  setCount(400);
+  var NAMES = ["Proxima Centauri b — 4.25 ly", "TRAPPIST-1 e — 39.5 ly", "Kepler-186 f — 492 ly", "HD 209458 b (Osiris) — 159 ly", "Kepler-442 b — 1,206 ly", "Gliese 667 Cc — 23.6 ly", "55 Cancri e — 41 ly", "LHS 1140 b — 48.6 ly", "TOI-700 d — 101 ly", "Wolf 1061 c — 13.8 ly", "Ross 128 b — 11.0 ly", "Teegarden b — 12.5 ly"];
+  var passIdx = -1, nextPassAt = 2;
+  // nebula backdrop (offscreen, parallax-shifted)
+  var neb = document.createElement("canvas");
+  function makeNebula(){
+    neb.width = Math.max(2, Math.round(W / 2)); neb.height = Math.max(2, Math.round(H / 2));
+    var nctx = neb.getContext("2d");
+    nctx.fillStyle = "#020308"; nctx.fillRect(0, 0, neb.width, neb.height);
+    var blobs = [[0.2, 0.3, 0.35, "45,80,200"], [0.75, 0.65, 0.4, "150,60,190"], [0.55, 0.2, 0.25, "30,180,170"], [0.85, 0.15, 0.2, "200,80,60"]];
+    for (var i = 0; i < blobs.length; i++) {
+      var b = blobs[i];
+      var g = nctx.createRadialGradient(neb.width*b[0], neb.height*b[1], 2, neb.width*b[0], neb.height*b[1], neb.width*b[2]);
+      g.addColorStop(0, "rgba(" + b[3] + ",.28)");
+      g.addColorStop(1, "rgba(" + b[3] + ",0)");
+      nctx.fillStyle = g;
+      nctx.fillRect(0, 0, neb.width, neb.height);
+    }
+  }
+  function starColor(t, warpF){
+    // t: 0 blue-white .. 1 red; warp adds redshift tint to streaks
+    var c;
+    if (t < 0.33) c = [170 + t*200, 200 + t*100, 255];
+    else if (t < 0.66) c = [255, 240, 200 - (t-0.33)*200];
+    else c = [255, 150 - (t-0.66)*120, 120];
+    if (warpF > 0.55) { var k = (warpF - 0.55) * 1.4; c[0] = Math.min(255, c[0] + 60*k); c[2] = Math.max(60, c[2] - 80*k); }
+    return "rgb(" + Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]) + ")";
+  }
+  function render(dt){
+    var now = performance.now();
+    var wTarget = (now < punchUntil) ? 9.5 : warp;
+    // smooth warp changes
+    render.w = render.w === undefined ? wTarget : render.w + (wTarget - render.w) * Math.min(1, dt * 3 + (dt === 0 ? 1 : 0));
+    var w = render.w, warpF = w / 9.5;
+    var speed = 0.05 + Math.pow(w / 9.5, 1.6) * 2.2; // z-units per second
+    dist += speed * dt * 0.9;
+    var cx = W / 2 + steerX * W * 0.12, cy = H / 2 + steerY * H * 0.12;
+    if (w > 7) { cx += (Math.random() - 0.5) * (w - 7) * 2; cy += (Math.random() - 0.5) * (w - 7) * 2; }
+    // bg
+    ctx.fillStyle = "#020308"; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(neb, -steerX * 18 - 9, -steerY * 12 - 6, W + 18, H + 12);
+    var F = Math.min(W, H) * 0.9;
+    var streak = 1 + Math.max(0, (w - 2.5)) * (dt > 0 ? 1 : 0.6);
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      if (dt > 0) {
+        s.z -= speed * dt * (0.35 + (1 - s.z) * 0.9);
+        if (s.z <= 0.015) { spawn(s, false); }
+      }
+      var z = Math.max(0.015, s.z);
+      var sx = cx + s.x * F / z * 0.28, sy = cy + s.y * F / z * 0.28;
+      // previous position (for streak): where it was at slightly larger z
+      var zp = Math.min(1.2, z + speed * 0.09 * streak);
+      var px = cx + s.x * F / zp * 0.28, py = cy + s.y * F / zp * 0.28;
+      var bright = Math.max(0.15, 1 - z);
+      var sz = s.r * bright * (1 + warpF * 0.8);
+      ctx.strokeStyle = starColor(s.temp, warpF);
+      ctx.globalAlpha = Math.min(1, bright + 0.15);
+      ctx.lineWidth = sz;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy); ctx.stroke();
+      if (bright > 0.92) { // close star glow head
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(sx, sy, sz * 0.9, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    // warp flash
+    if (flash > 0.01) {
+      ctx.fillStyle = "rgba(200,230,255," + Math.min(0.85, flash).toFixed(2) + ")";
+      ctx.fillRect(0, 0, W, H);
+      flash *= Math.pow(0.02, dt || 0.016);
+    }
+    // vignette
+    var v = ctx.createRadialGradient(cx, cy, Math.min(W,H)*0.3, cx, cy, Math.max(W,H)*0.75);
+    v.addColorStop(0, "rgba(0,0,0,0)");
+    v.addColorStop(1, "rgba(0,0,10,.55)");
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+    // HUD
+    var c = w <= 0.05 ? 0 : (w < 1 ? w * 0.2 : Math.pow(w, 3.2) / 12);
+    $("swd-vel").textContent = (now < punchUntil ? "9.9⚡ " : "") + (c < 1 ? c.toFixed(2) + "c" : c.toFixed(1) + "c");
+    $("swd-dist").textContent = dist < 100 ? dist.toFixed(2) + " ly" : Math.round(dist).toLocaleString() + " ly";
+    if (dist > nextPassAt) {
+      passIdx = (passIdx + 1) % NAMES.length;
+      $("swd-pass").textContent = "◉ passing " + NAMES[passIdx];
+      nextPassAt = dist + 3 + Math.random() * 8;
+    }
+  }
+  $("swd-warp").addEventListener("input", function(){
+    warp = +this.value;
+    $("swd-warpv").textContent = warp.toFixed(1);
+    if (reduced) render(0);
+  });
+  $("swd-stars").addEventListener("input", function(){
+    $("swd-starsv").textContent = this.value;
+    setCount(+this.value);
+    if (reduced) render(0);
+  });
+  $("swd-punch").addEventListener("click", function(){
+    punchUntil = performance.now() + 2200;
+    flash = 0.9;
+    if (reduced) { dist += 12; render(0); }
+  });
+  cv.addEventListener("pointermove", function(e){
+    var r = cv.getBoundingClientRect();
+    steerX = Math.max(-1, Math.min(1, (e.clientX - r.left) / r.width * 2 - 1));
+    steerY = Math.max(-1, Math.min(1, (e.clientY - r.top) / r.height * 2 - 1));
+  });
+  cv.addEventListener("pointerleave", function(){ steerX = 0; steerY = 0; });
+  var last = 0;
+  function frame(ts){
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    render(dt);
+    requestAnimationFrame(frame);
+  }
+  fit();
+  if (!reduced) requestAnimationFrame(frame);
+})();
+</script>

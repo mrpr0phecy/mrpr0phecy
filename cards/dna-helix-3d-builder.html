@@ -1,0 +1,273 @@
+<h2 id="dh3-title" style="margin-top:0;color:var(--accent);">🧬 DNA Helix 3D Builder</h2>
+<p id="dh3-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Type any DNA sequence and watch it become a spinning double helix — with correct A‑T / G‑C pairing, hydrogen bonds, live GC content, mRNA transcription and protein translation. Includes a mutation button. What could go wrong?</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+  <input id="dh3-seq" value="ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG" maxlength="60" spellcheck="false" aria-label="DNA sequence, letters A T G C only" style="flex:1;min-width:220px;padding:10px 12px;border-radius:8px;background:#071019;color:#7dff6a;border:1px solid rgba(125,255,106,.35);font-family:ui-monospace,monospace;font-size:.9rem;letter-spacing:.08em;text-transform:uppercase;">
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center;">
+  <button type="button" id="dh3-build" style="padding:9px 18px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">🔨 Build helix</button>
+  <button type="button" id="dh3-random" style="padding:9px 14px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;font-weight:700;">🎲 Random</button>
+  <button type="button" id="dh3-mutate" style="padding:9px 14px;background:rgba(255,107,129,.12);color:#ff6b81;border:1px solid rgba(255,107,129,.4);border-radius:8px;cursor:pointer;font-weight:700;">☢️ Mutate!</button>
+  <button type="button" id="dh3-revcomp" style="padding:9px 14px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;font-weight:700;">🔄 Reverse‑complement</button>
+  <label style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;"><input id="dh3-spin" type="checkbox" checked style="accent-color:var(--accent);"> spin</label>
+</div>
+<div id="dh3-warn" style="font-size:.8rem;color:#ffb347;margin-bottom:8px;min-height:1em;"></div>
+
+<canvas id="dh3-cv" width="600" height="340" style="width:100%;height:340px;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;touch-action:none;cursor:grab;" role="img" aria-label="Rotating 3D DNA double helix"></canvas>
+
+<div id="dh3-strip" style="display:flex;flex-wrap:wrap;gap:3px;margin:10px 0;font-family:ui-monospace,monospace;font-size:.78rem;" role="group" aria-label="Bases, click to highlight in 3D"></div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+  <div style="background:rgba(45,212,255,.05);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:10px 12px;font-size:.82rem;line-height:1.7;color:var(--text-secondary);">
+    <b style="color:var(--text);">📏 Stats</b><br>
+    Length: <b id="dh3-len" style="color:var(--text);">–</b> bp<br>
+    GC content: <b id="dh3-gc" style="color:var(--text);">–</b>
+    <span style="display:inline-block;width:80px;height:8px;background:rgba(255,255,255,.1);border-radius:4px;vertical-align:middle;margin-left:4px;"><span id="dh3-gcbar" style="display:block;height:8px;border-radius:4px;background:linear-gradient(90deg,#2dd4ff,#7dff6a);width:0%;"></span></span><br>
+    Melting temp ≈ <b id="dh3-tm" style="color:var(--text);">–</b> (Wallace rule)<br>
+    H‑bonds: <b id="dh3-hb" style="color:var(--text);">–</b>
+  </div>
+  <div style="background:rgba(45,212,255,.05);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:10px 12px;font-size:.82rem;line-height:1.7;color:var(--text-secondary);">
+    <b style="color:var(--text);">🧪 Transcribe &amp; translate</b><br>
+    <span style="font-size:.75rem;">Template 3′→5′:</span> <span id="dh3-comp" style="font-family:ui-monospace,monospace;font-size:.72rem;word-break:break-all;"></span><br>
+    <span style="font-size:.75rem;">mRNA 5′→3′:</span> <span id="dh3-mrna" style="font-family:ui-monospace,monospace;font-size:.72rem;word-break:break-all;"></span><br>
+    <span style="font-size:.75rem;">Protein:</span> <span id="dh3-prot" style="font-family:ui-monospace,monospace;font-size:.78rem;word-break:break-all;"></span>
+  </div>
+</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("dh3-cv"), ctx = cv.getContext("2d");
+  var W = 600, H = 340, DPR = 1;
+  function fit(){
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.round(cv.clientWidth || 600); H = 340;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    render();
+  }
+  window.addEventListener("resize", fit);
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var spinning = !reduced;
+  var BASEC = { A: "#39d353", T: "#ff6b81", G: "#ffd700", C: "#2dd4ff" };
+  var COMP = { A: "T", T: "A", G: "C", C: "G" };
+  // genetic code: 64 aa letters in TCAG order
+  var CODONS = "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG";
+  var BIDX = { T: 0, C: 1, A: 2, G: 3 };
+  var AANAME = { F: "Phe", L: "Leu", I: "Ile", M: "Met", V: "Val", S: "Ser", P: "Pro", T: "Thr", A: "Ala", Y: "Tyr", H: "His", Q: "Gln", N: "Asn", K: "Lys", D: "Asp", E: "Glu", C: "Cys", W: "Trp", R: "Arg", G: "Gly", "*": "STOP" };
+  var seq = "ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG";
+  var sel = -1, flash = -1, flashT = 0;
+  var az = 0.5, el = 0.12, zoom = 1;
+  var BPTURN = 10.5, RISE = 0.52, RAD = 1.45;
+  function clean(s){
+    s = (s || "").toUpperCase().replace(/U/g, "T");
+    var bad = (s.match(/[^ATGC]/g) || []).length;
+    s = s.replace(/[^ATGC]/g, "").slice(0, 60);
+    return { s: s, bad: bad };
+  }
+  function helixPts(){
+    var n = seq.length, pts = [];
+    for (var i = 0; i < n; i++) {
+      var a = i * Math.PI * 2 / BPTURN;
+      var y = (i - (n - 1) / 2) * RISE;
+      pts.push({
+        i: i,
+        L: [-Math.cos(a) * RAD, y, -Math.sin(a) * RAD],   // backbone left (5'->3' strand)
+        R: [Math.cos(a) * RAD, y, Math.sin(a) * RAD],     // backbone right
+        bL: seq[i], bR: COMP[seq[i]]
+      });
+    }
+    return pts;
+  }
+  function project(p, SC){
+    var ca = Math.cos(az), sa = Math.sin(az);
+    var x1 = p[0] * ca - p[2] * sa, z1 = p[0] * sa + p[2] * ca, y1 = p[1];
+    var ce = Math.cos(el), se = Math.sin(el);
+    var y2 = y1 * ce - z1 * se, z2 = y1 * se + z1 * ce;
+    var q = 5 / (5 + z2);
+    return [W / 2 + x1 * SC * q * zoom, H / 2 + y2 * SC * q * zoom, z2];
+  }
+  function render(){
+    ctx.fillStyle = "#04070d"; ctx.fillRect(0, 0, W, H);
+    var pts = helixPts(), n = pts.length;
+    if (!n) { ctx.fillStyle = "#8899aa"; ctx.font = "14px system-ui"; ctx.textAlign = "center"; ctx.fillText("type A, T, G and C above, then Build helix", W/2, H/2); return; }
+    var spanY = Math.max(4, (n - 1) * RISE + 3);
+    var SC = Math.min(W / 7.5, H * 0.94 / spanY);
+    // project backbones
+    var PL = pts.map(function(p){ return project(p.L, SC); });
+    var PR = pts.map(function(p){ return project(p.R, SC); });
+    // depth-sorted draw list
+    var items = [];
+    for (var i = 0; i < n; i++) {
+      var p = pts[i];
+      var mid = project([(p.L[0] + p.R[0]) / 2, (p.L[1] + p.R[1]) / 2, (p.L[2] + p.R[2]) / 2], SC);
+      var inL = project([p.L[0] * 0.35, p.L[1], p.L[2] * 0.35], SC);
+      var inR = project([p.R[0] * 0.35, p.R[1], p.R[2] * 0.35], SC);
+      items.push({ z: PL[i][2], k: "bb", P: PL[i], i: i });
+      items.push({ z: PR[i][2], k: "bb", P: PR[i], i: i });
+      items.push({ z: mid[2], k: "rung", L: PL[i], R: PR[i], inL: inL, inR: inR, mid: mid, i: i, bL: p.bL, bR: p.bR });
+      if (i > 0) {
+        items.push({ z: (PL[i][2] + PL[i-1][2]) / 2, k: "tube", A: PL[i-1], B: PL[i] });
+        items.push({ z: (PR[i][2] + PR[i-1][2]) / 2, k: "tube", A: PR[i-1], B: PR[i] });
+      }
+    }
+    items.sort(function(a, b){ return a.z - b.z; });
+    for (var q = items.length - 1; q >= 0; q--) {
+      var it = items[q];
+      if (it.k === "tube") {
+        ctx.strokeStyle = "rgba(150,180,210,.5)"; ctx.lineWidth = Math.max(1.5, SC * 0.09);
+        ctx.beginPath(); ctx.moveTo(it.A[0], it.A[1]); ctx.lineTo(it.B[0], it.B[1]); ctx.stroke();
+      } else if (it.k === "bb") {
+        var r = Math.max(2, SC * 0.16);
+        var hl = (it.i === sel || it.i === flash);
+        ctx.beginPath(); ctx.arc(it.P[0], it.P[1], r + (hl ? 3 : 0), 0, Math.PI * 2);
+        ctx.fillStyle = hl ? "#ffffff" : "#c8d4e3"; ctx.fill();
+        ctx.beginPath(); ctx.arc(it.P[0] - r * 0.3, it.P[1] - r * 0.3, r * 0.45, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fill();
+      } else {
+        var hot = (it.i === sel || it.i === flash);
+        ctx.lineCap = "round";
+        // base capsules: backbone -> inner
+        ctx.lineWidth = Math.max(3, SC * 0.22);
+        ctx.strokeStyle = BASEC[it.bL];
+        ctx.beginPath(); ctx.moveTo(it.L[0], it.L[1]); ctx.lineTo(it.inL[0], it.inL[1]); ctx.stroke();
+        ctx.strokeStyle = BASEC[it.bR];
+        ctx.beginPath(); ctx.moveTo(it.R[0], it.R[1]); ctx.lineTo(it.inR[0], it.inR[1]); ctx.stroke();
+        // hydrogen bonds: 2 for A-T, 3 for G-C
+        var nb = (it.bL === "A" || it.bL === "T") ? 2 : 3;
+        ctx.strokeStyle = hot ? "#ffffff" : "rgba(255,255,255,.75)";
+        ctx.lineWidth = hot ? 3 : 1.6;
+        ctx.setLineDash([3, 3]);
+        for (var b = 0; b < nb; b++) {
+          var off = (b - (nb - 1) / 2) * Math.max(2.5, SC * 0.09);
+          ctx.beginPath();
+          ctx.moveTo(it.inL[0], it.inL[1] + off);
+          ctx.lineTo(it.inR[0], it.inR[1] + off);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        // letters
+        if (SC > 13) {
+          ctx.font = "700 " + Math.round(Math.max(9, SC * 0.42)) + "px ui-monospace,monospace";
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = "#04070d";
+          ctx.fillText(it.bL, (it.L[0] + it.inL[0]) / 2, (it.L[1] + it.inL[1]) / 2);
+          ctx.fillText(it.bR, (it.R[0] + it.inR[0]) / 2, (it.R[1] + it.inR[1]) / 2);
+        }
+      }
+    }
+    ctx.lineCap = "butt";
+    // legend
+    ctx.font = "11px system-ui"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    var lx = 10, ly = H - 12;
+    ["A", "T", "G", "C"].forEach(function(b){
+      ctx.fillStyle = BASEC[b];
+      ctx.fillRect(lx, ly - 9, 10, 10);
+      ctx.fillStyle = "#c8d4e3";
+      ctx.fillText(b, lx + 13, ly);
+      lx += 34;
+    });
+    ctx.fillStyle = "#7a8a9d";
+    ctx.fillText("drag to orbit · scroll to zoom · click a base below to spotlight", lx + 6, ly);
+  }
+  function paintInfo(){
+    var n = seq.length;
+    $("dh3-len").textContent = n;
+    var gc = 0, hb = 0;
+    for (var i = 0; i < n; i++) {
+      if (seq[i] === "G" || seq[i] === "C") { gc++; hb += 3; } else hb += 2;
+    }
+    var gcp = n ? Math.round(gc / n * 100) : 0;
+    $("dh3-gc").textContent = gcp + "%";
+    $("dh3-gcbar").style.width = gcp + "%";
+    var at = n - gc;
+    $("dh3-tm").textContent = n ? (2 * at + 4 * gc) + "°C" : "–";
+    $("dh3-hb").textContent = hb;
+    var comp = "", mrna = "";
+    for (var j = 0; j < n; j++) { comp += COMP[seq[j]]; mrna += seq[j] === "T" ? "U" : seq[j]; }
+    $("dh3-comp").textContent = comp.split("").reverse().join("");
+    $("dh3-mrna").textContent = mrna;
+    // translate from first ATG? No — frame 1 from position 0, mark start/stop
+    var prot = "";
+    for (var c = 0; c + 2 < n; c += 3) {
+      var trip = seq.substr(c, 3).replace(/T/g, "T");
+      var key = trip.split("").map(function(b){ return BIDX[b]; });
+      var aa = CODONS[key[0] * 16 + key[1] * 4 + key[2]];
+      prot += aa;
+    }
+    $("dh3-prot").innerHTML = prot.split("").map(function(aa){
+      var col = aa === "*" ? "#ff6b81" : (aa === "M" ? "#7dff6a" : "#e8eef5");
+      return "<span title='" + AANAME[aa] + "' style='color:" + col + ";font-weight:800;'>" + aa + "</span>";
+    }).join("") + (n % 3 ? "<span style='color:#5a6a7d;'> +" + (n % 3) + "nt</span>" : "");
+    // clickable strip
+    $("dh3-strip").innerHTML = seq.split("").map(function(b, i){
+      return "<button type='button' data-dh3-i='" + i + "' title='pair " + (i + 1) + ": " + b + "–" + COMP[b] + "' style='padding:3px 0;width:24px;text-align:center;border-radius:5px;cursor:pointer;font-weight:800;border:1px solid " + BASEC[b] + ";background:" + (i === sel ? BASEC[b] : "transparent") + ";color:" + (i === sel ? "#04070d" : BASEC[b]) + ";'>" + b + "</button>";
+    }).join("");
+    var chips = document.querySelectorAll("[data-dh3-i]");
+    for (var k = 0; k < chips.length; k++) (function(ch){
+      ch.addEventListener("click", function(){
+        sel = +ch.getAttribute("data-dh3-i");
+        paintInfo();
+        if (!spinning) render();
+      });
+    })(chips[k]);
+  }
+  function rebuild(fromInput){
+    var c = clean(fromInput ? $("dh3-seq").value : seq);
+    seq = c.s || "ATGC";
+    if (fromInput) $("dh3-seq").value = seq;
+    sel = -1;
+    $("dh3-warn").textContent = c.bad ? ("⚠️ ignored " + c.bad + " non‑ATGC character" + (c.bad > 1 ? "s" : "") + " (RNA U → T auto-converted)") : "";
+    paintInfo(); render();
+  }
+  $("dh3-build").addEventListener("click", function(){ rebuild(true); });
+  $("dh3-seq").addEventListener("keydown", function(e){ if (e.key === "Enter") rebuild(true); });
+  $("dh3-random").addEventListener("click", function(){
+    var s = "", letters = "ATGC", len = 24 + Math.floor(Math.random() * 13);
+    for (var i = 0; i < len; i++) s += letters[Math.floor(Math.random() * 4)];
+    $("dh3-seq").value = s; rebuild(true);
+  });
+  $("dh3-mutate").addEventListener("click", function(){
+    if (!seq.length) return;
+    var i = Math.floor(Math.random() * seq.length);
+    var alts = "ATGC".replace(seq[i], "");
+    seq = seq.slice(0, i) + alts[Math.floor(Math.random() * 3)] + seq.slice(i + 1);
+    $("dh3-seq").value = seq;
+    flash = i; flashT = Date.now(); sel = i;
+    $("dh3-warn").textContent = "☢️ point mutation at pair " + (i + 1) + " — blame cosmic rays";
+    paintInfo(); render();
+  });
+  $("dh3-revcomp").addEventListener("click", function(){
+    seq = seq.split("").map(function(b){ return COMP[b]; }).reverse().join("");
+    $("dh3-seq").value = seq;
+    $("dh3-warn").textContent = "🔄 now showing the opposite strand (5′→3′)";
+    rebuild(false);
+  });
+  $("dh3-spin").checked = spinning;
+  $("dh3-spin").addEventListener("change", function(){ spinning = this.checked; if (spinning) requestAnimationFrame(frame); });
+  var dragging = false, lx = 0, ly = 0;
+  cv.addEventListener("pointerdown", function(e){ dragging = true; lx = e.clientX; ly = e.clientY; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", function(e){
+    if (!dragging) return;
+    az += (e.clientX - lx) * 0.009; el = Math.max(-1.2, Math.min(1.2, el + (e.clientY - ly) * 0.007));
+    lx = e.clientX; ly = e.clientY;
+    if (!spinning) render();
+  });
+  cv.addEventListener("pointerup", function(){ dragging = false; });
+  cv.addEventListener("wheel", function(e){ e.preventDefault(); zoom = Math.max(0.4, Math.min(2.5, zoom * (e.deltaY > 0 ? 0.93 : 1.07))); if (!spinning) render(); }, { passive: false });
+  var last = 0;
+  function frame(ts){
+    if (!spinning) return;
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    if (!dragging) az += dt * 0.5;
+    if (flash >= 0 && Date.now() - flashT > 2500) flash = -1;
+    render();
+    requestAnimationFrame(frame);
+  }
+  rebuild(false);
+  // fix: rebuild(false) uses default seq var already set — ensure input matches
+  $("dh3-seq").value = seq;
+  fit();
+  if (spinning) requestAnimationFrame(frame);
+})();
+</script>

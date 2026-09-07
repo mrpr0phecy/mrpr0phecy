@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 684 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 708 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 684 tools
-│   └── <tool-name>.html    684 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 708 tools
+│   └── <tool-name>.html    708 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -82,7 +82,7 @@ establish *which* site first.
 ├── manifest.json           PWA manifest
 ├── sw.js                   Service worker — present but NOT registered (§7)
 ├── robots.txt              Allows all, points at the sitemap
-├── sitemap.xml             All 518 pages, generated (§6)
+├── sitemap.xml             All 748 pages, generated (§6)
 ├── icon-192.png, icon-512.png, icon-maskable-512.png
 ├── logo.png, mrprophecypic.jpg, backgroundpic.jpg
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 684 cards.** They share one
+2. **Element IDs must be globally unique across all 708 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -187,23 +187,23 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (684 tools)
+### Categories (708 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 122 | Science & Engineering | | 41 | SaaS & Business Killers |
-| 110 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
-| 47 | Writing & Language | | 10 | Wellbeing & Community |
+| 126 | Science & Engineering | | 41 | SaaS & Business Killers |
+| 114 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
+| 51 | Writing & Language | | 10 | Wellbeing & Community |
 | 35 | Finance & Money | | 10 | Natural Remedies & Herbs |
 | 53 | Sports | | 10 | AI & Autonomous Agents |
-| 28 | Mathematics | | 10 | Astronomy & Space |
+| 32 | Mathematics | | 11 | Astronomy & Space |
 | 23 | Music & Audio | | 10 | Anime & Otaku Culture |
 | 22 | Health & Fitness | | 10 | Aquatics & Fishkeeping |
 | 27 | Home & DIY | | 10 | Birdwatching & Ornithology |
 | 15 | Culinary & Food Science | | 10 | Dogs & Canine Care |
 | 12 | Museum & Collection | | 10 | MrProphecy Arcade |
-| 11 | Interactive Art & Living Worlds | | 7 | Virtual Worlds & Gaming |
-| 10 | Mind-Blowing Demos | | 10 | Survival & Emergency Readiness |
+| 12 | Interactive Art & Living Worlds | | 9 | Virtual Worlds & Gaming |
+| 14 | Mind-Blowing Demos | | 10 | Survival & Emergency Readiness |
 | 10 | Algorithms & Computer Science | | | |
 
 ---
@@ -538,8 +538,8 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 724 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 684 cards:
+`sitemap.xml` lists all 748 pages. Build it from git rather than the working
+tree, so a sparse checkout does not silently drop the 708 cards:
 
 ```python
 import subprocess, datetime
@@ -588,7 +588,7 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`index.html` has no links to cards.** Everything is driven by `cards.json`.
 
-**ID collisions across cards.** All 684 share one DOM. See §3.
+**ID collisions across cards.** All 708 share one DOM. See §3.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -618,7 +618,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 684 cards):
+# Music work (skip images and the 708 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -845,6 +845,60 @@ fluid typography and related CSS utilities:
 `saasKillerList` now holds **41** cards. The catalogue now has **684 tools**
 across **27 categories**; `sitemap.xml` has **724 URLs**. Counts, homepage
 structured data, category pills and supporting page metadata were synchronized.
+
+**Added 2026-09-07, inspiration & learning batch** — twelve fun, informative
+and educational tools, each pushed in its own commit so the catalogue stayed
+usable throughout. All are self-contained and offline (localStorage only):
+
+| Card | Category | What it does |
+|---|---|---|
+| `speed-reading-rsvp-trainer` | Writing & Language | RSVP word flasher (100–800 WPM) over true science/history passages, with comprehension quizzes |
+| `geography-flag-capital-quiz` | Science & Engineering | 40-country flashcards plus capital and flag quizzes with streaks and fun facts |
+| `mental-math-sprint-trainer` | Mathematics | 60-second arithmetic sprints, 3 levels, streak bonuses, missed-question review |
+| `memory-palace-loci-builder` | Productivity & Lifestyle | Method-of-loci palace builder with walkthrough and self-test modes |
+| `daily-curiosity-fact-deck` | Productivity & Lifestyle | 48 verified facts, fact of the day, favourites, category quiz |
+| `socratic-thinking-coach` | Writing & Language | Claim interrogator, steelman builder, 10-fallacy spotter quiz |
+| `probability-paradox-lab` | Mathematics | Playable + simulated Monty Hall, birthday paradox and coin-streak experiments |
+| `kitchen-science-experiments` | Science & Engineering | 10 safe home experiments with steps, real science and safety notes |
+| `typing-story-sprint` | Writing & Language | Typing test over educational mini-stories with WPM, accuracy and tricky keys |
+| `great-minds-quote-explorer` | Productivity & Lifestyle | 40 quotes with context, themes, search, quote of the day, favourites |
+| `logic-detective-puzzle-club` | Mind-Blowing Demos | 8 classic logic puzzles with progressive hints, solutions, rank tracking |
+| `story-dice-plot-twister` | Writing & Language | Hero/setting/object/twist dice, challenge constraints, starters, saved prompts |
+
+`mathList` gained 1 card, `writingList` 4, `demosList` 1;
+`geography-flag-capital-quiz`, `probability-paradox-lab` and
+`kitchen-science-experiments` map to Science & Engineering via the existing
+substring lists, and the remaining three default to Productivity & Lifestyle.
+Writing & Language is now **51**, Mathematics **30**, Science & Engineering
+**124**, Mind-Blowing Demos **11**, Productivity & Lifestyle **113**. The
+catalogue now has **696 tools** across **27 categories**; `sitemap.xml` has
+**736 URLs**. Counts, homepage structured data, category pills and supporting
+page metadata were synchronized.
+
+**Added 2026-09-07, software-3D batch** — twelve quirky tools that render real-time 3D with hand-rolled Canvas-2D maths (zero WebGL anywhere on the site), each pushed in its own commit so the catalogue stayed usable throughout. All are self-contained and offline:
+
+| Card | Category | What it does |
+|---|---|---|
+| `impossible-object-viewer` | Mind-Blowing Demos | Necker cube, Penrose triangle and endless stairs with the impossible over/under draw order |
+| `hypercube-4d-explorer` | Mind-Blowing Demos | Tesseract + 16-cell with XW/YW/ZW 4D rotation sliders and perspective projection |
+| `function-terrain-3d-explorer` | Mathematics | z=f(x,y) plotter with a safe recursive-descent parser (no eval) and hypsometric shading |
+| `klein-bottle-mobius-lab` | Mathematics | Parametric Möbius (1/3/5 twists), Klein bottle, torus and (p,q) torus knots in points/wire/solid |
+| `raycast-pocket-dungeon` | Virtual Worlds & Gaming | Wolfenstein-style DDA raycaster: generated maze, orb pickups, portal exit, minimap, touch controls |
+| `polyhedral-dice-3d-roller` | Virtual Worlds & Gaming | True D4–D20 platonic solids; the die physically rotates the rolled face to camera, plus fairness stats |
+| `dna-helix-3d-builder` | Science & Engineering | Editable sequence → spinning helix with H-bonds, GC/Tm stats, mRNA + protein translation, mutation button |
+| `molecule-3d-viewer` | Science & Engineering | 11 ball-and-stick molecules; bonds auto-detected from covalent radii, double/triple bonds, molar masses |
+| `starfield-warp-drive` | Mind-Blowing Demos | Warp-throttle starfield with steering, hyperspace jumps, redshift streaks, exoplanet flyby ticker |
+| `heightmap-3d-sculptor` | Interactive Art & Living Worlds | Paint-a-map terrain sculptor: procedural islands/ridges/craters, erosion, animated water |
+| `planet-ring-designer-3d` | Astronomy & Space | Gas/rocky/ice/lava worlds with storms, tilted Keplerian rings, moons, generated names |
+| `extruded-3d-text-studio` | Productivity & Lifestyle | 3D logo maker with true perspective slice-rendering, extrusion, presets and PNG export |
+
+`demosList` gained 3 cards, `mathList` 2, `slList` 2, `scienceList` 2, `astronomyList` 1, `interactiveArtList` 1; `extruded-3d-text-studio` defaults to Productivity & Lifestyle. Mind-Blowing Demos is now **14**, Mathematics **32**, Virtual Worlds & Gaming **9**, Science & Engineering **126**, Astronomy & Space **11**, Interactive Art & Living Worlds **12**, Productivity & Lifestyle **114**. The catalogue now has **708 tools** across **27 categories**; `sitemap.xml` has **748 URLs**. Counts, homepage structured data, category pills and supporting page metadata were synchronized.
+
+Also in this pass: a responsive hardening of `index.html` — the sticky search input can now shrink (`min-width: 0`), toolbar actions wrap, the directory grid drops to one column at ≤480px, the standalone modal goes icon-only at ≤640px, notifications clamp to the viewport, rating footers get room for their vote counts, and the header dock pills become a horizontal scroll strip at ≤700px.
+
+**Fixed 2026-09-07 — whole cards spinning.** Card fragments share one DOM, and six of them defined a global `.loading` CSS class (notably `censorship-monitor`'s `animation: spin`). The catalogue shell also used `class="loading"` on unloaded card placeholders, so injected card styles made entire cards rotate. The shell now uses `card-pending`, censorship-monitor's live spinner is scoped to `.censor-loading`, and the five dead `.loading` rules (dog-photo-viewer, microbiology, sheet-music, transformer-calculator, youtube-dj) were deleted. Lesson: never use a bare generic class name for shell chrome — any card can hijack it.
+
+**Redesigned 2026-09-07 — aurora glass homepage.** Dramatic pure-CSS overhaul of `index.html` chrome: two slowly drifting aurora background layers, frosted-glass hero panel with an animated sheen title, glass search/dock/category/toolbar pills, smoked-glass cards with neon hover glow, and matching directory/footer/sticky/modal treatments. No IDs, classes or JS behaviour changed — search, filters, lazy-load, toolbox and modal all work as before. Cards deliberately have no per-card `backdrop-filter` (perf with hundreds of cards); translucency carries the effect. `prefers-reduced-motion` freezes all of it via the existing global kill-switch.
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —

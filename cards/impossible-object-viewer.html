@@ -1,0 +1,256 @@
+<h2 id="iov-title" style="margin-top:0;color:var(--accent);">🌀 Impossible Object Viewer</h2>
+<p id="iov-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">A spinning Necker cube that flips inside your head, a Penrose triangle with an X-ray slider that reveals the cheat, and endless stairs with a ball that descends forever. True 3D rotation of impossible objects is, technically, impossible — so we faked it beautifully.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+  <button type="button" data-iov-obj="cube" style="padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:800;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);">🧊 Necker cube</button>
+  <button type="button" data-iov-obj="penrose" style="padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">🔺 Penrose triangle</button>
+  <button type="button" data-iov-obj="stairs" style="padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">🪜 Endless stairs</button>
+</div>
+
+<canvas id="iov-cv" width="600" height="340" style="width:100%;height:340px;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;" role="img" aria-label="Animated impossible object"></canvas>
+
+<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0;">
+  <button type="button" id="iov-play" style="padding:9px 18px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">⏸ Pause</button>
+  <label for="iov-speed" style="font-size:.82rem;color:var(--text-secondary);">Speed <input id="iov-speed" type="range" min="0" max="100" value="45" style="vertical-align:middle;accent-color:var(--accent);width:110px;"></label>
+  <button type="button" id="iov-flip" style="padding:9px 16px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;font-weight:700;">🔄 Flip depth</button>
+  <label for="iov-explode" id="iov-exlabel" style="display:none;font-size:.82rem;color:var(--text-secondary);">X-ray cheat <input id="iov-explode" type="range" min="0" max="100" value="0" style="vertical-align:middle;accent-color:#ff5d5d;width:110px;"></label>
+</div>
+
+<div id="iov-info" style="font-size:.86rem;color:var(--text-secondary);background:rgba(45,212,255,.05);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px 14px;line-height:1.65;"></div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("iov-cv"), ctx = cv.getContext("2d");
+  var mode = "cube", playing = true, speed = 0.45, flip = 1, explode = 0, t = 0;
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var W = 600, H = 340, DPR = 1;
+  function fit(){
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    var w = cv.clientWidth || 600;
+    W = Math.round(w); H = 340;
+    cv.width = Math.round(w * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", fit); fit();
+  var INFO = {
+    cube: "<b style='color:var(--text);'>🧊 The Necker cube (1832).</b> A wireframe cube with no depth cues — your brain flips it inside-out every few seconds and you can't stop it. Hit <b>Flip depth</b> to mirror the spin, which usually triggers a flip. Stare at one corner to try to hold it still. You will fail; that's the point.",
+    penrose: "<b style='color:var(--text);'>🔺 The Penrose triangle (1958).</b> Each corner looks like a normal 3D joint, but together they form a loop that can't exist — each bar passes <i>over</i> the next in a cycle. Drag the <b style='color:#ff8080;'>X-ray cheat</b> slider to pull the bars apart and see the overlap trick the drawing hides.",
+    stairs: "<b style='color:var(--text);'>🪜 Penrose stairs.</b> M.C. Escher made these famous in <i>Ascending and Descending</i> (1960). The ball rolls downhill forever yet never gets lower — watch it slip behind the little obelisk, where the 'impossible step' hides. The cheat is always behind a pillar."
+  };
+  function setMode(m){
+    mode = m;
+    var btns = document.querySelectorAll("[data-iov-obj]");
+    for (var i = 0; i < btns.length; i++) {
+      var on = btns[i].getAttribute("data-iov-obj") === m;
+      btns[i].style.cssText = on
+        ? "padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:800;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);"
+        : "padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);";
+    }
+    $("iov-exlabel").style.display = m === "penrose" ? "inline" : "none";
+    $("iov-flip").style.display = m === "cube" ? "inline-block" : "none";
+    $("iov-info").innerHTML = INFO[m];
+    draw();
+  }
+  var btns = document.querySelectorAll("[data-iov-obj]");
+  for (var bi = 0; bi < btns.length; bi++) (function(b){ b.addEventListener("click", function(){ setMode(b.getAttribute("data-iov-obj")); }); })(btns[bi]);
+  $("iov-play").addEventListener("click", function(){ playing = !playing; this.textContent = playing ? "⏸ Pause" : "▶ Play"; if (playing) requestAnimationFrame(frame); });
+  $("iov-speed").addEventListener("input", function(){ speed = this.value / 100; });
+  $("iov-flip").addEventListener("click", function(){ flip *= -1; });
+  $("iov-explode").addEventListener("input", function(){ explode = this.value / 100; if (!playing) draw(); });
+
+  // ---------- Necker cube: real 3D wireframe ----------
+  var CV = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
+  var CE = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+  function drawCube(){
+    var cx = W / 2, cy = H / 2, S = Math.min(W, H) * 0.32;
+    var ax = t * 0.5 * flip, ay = t * 0.83 * flip;
+    var sx = Math.sin(ax), cxr = Math.cos(ax), sy = Math.sin(ay), cyr = Math.cos(ay);
+    var pts = CV.map(function(v){
+      var x = v[0], y = v[1], z = v[2];
+      var x1 = x * cyr + z * sy, z1 = -x * sy + z * cyr;      // rotate Y
+      var y1 = y * cxr - z1 * sx, z2 = y * sx + z1 * cxr;     // rotate X
+      var persp = 3.2 / (3.2 + z2);
+      return [cx + x1 * S * persp * flip, cy + y1 * S * persp, z2];
+    });
+    ctx.lineWidth = 2.5; ctx.lineCap = "round";
+    ctx.shadowColor = "rgba(45,212,255,.7)"; ctx.shadowBlur = 12;
+    // faint trail ring
+    ctx.strokeStyle = "rgba(45,212,255,.12)"; ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(cx, cy, S * 1.55, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 12;
+    for (var i = 0; i < CE.length; i++) {
+      var a = pts[CE[i][0]], b = pts[CE[i][1]];
+      var depth = (a[2] + b[2]) / 2; // -2..2
+      var glow = Math.round(120 + (2 - depth) * 35);
+      ctx.strokeStyle = "rgb(45," + Math.min(255, glow + 90) + ",255)";
+      ctx.globalAlpha = 0.55 + (2 - depth) * 0.11;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    for (var j = 0; j < pts.length; j++) {
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(pts[j][0], pts[j][1], 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // ---------- Penrose triangle ----------
+  function barPts(p1, p2, w){
+    var dx = p2[0] - p1[0], dy = p2[1] - p1[1], L = Math.hypot(dx, dy);
+    var nx = -dy / L * w / 2, ny = dx / L * w / 2;
+    return { a: [p1[0] + nx, p1[1] + ny], b: [p2[0] + nx, p2[1] + ny], c: [p2[0] - nx, p2[1] - ny], d: [p1[0] - nx, p1[1] - ny], n: [nx, ny], L: L, u: [dx / L, dy / L] };
+  }
+  function poly(points, fill, stroke){
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (var i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+  }
+  function drawBar(p1, p2, w, cut0, cut1){
+    // draws bar segment between fractions cut0..cut1 along its axis
+    cut0 = cut0 === undefined ? 0 : cut0; cut1 = cut1 === undefined ? 1 : cut1;
+    var dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+    var q1 = [p1[0] + dx * cut0, p1[1] + dy * cut0], q2 = [p1[0] + dx * cut1, p1[1] + dy * cut1];
+    var B = barPts(q1, q2, w);
+    var upA = (B.a[1] + B.b[1]) / 2 < (B.c[1] + B.d[1]) / 2;
+    poly([B.a, B.b, B.c, B.d], "#5b6b7f", "#0b1118");
+    // light strip along the upper long edge
+    var e1 = upA ? B.a : B.d, e2 = upA ? B.b : B.c;
+    var mx = (e1[0] + e2[0]) / 2, my = (e1[1] + e2[1]) / 2;
+    var inw = upA ? [-B.n[0], -B.n[1]] : [B.n[0], B.n[1]];
+    var inset = 0.38;
+    poly([e1, e2, [e2[0] + inw[0] * inset * 2, e2[1] + inw[1] * inset * 2], [e1[0] + inw[0] * inset * 2, e1[1] + inw[1] * inset * 2]], "#aebdd0", null);
+    void mx; void my;
+  }
+  function drawPenrose(){
+    var cx = W / 2, cy = H / 2 + 8, R = Math.min(W, H) * 0.30;
+    // triangle corners: bottom-left, bottom-right, top
+    var P0 = [cx - R * 1.15, cy + R * 0.75], P1 = [cx + R * 1.15, cy + R * 0.75], P2 = [cx, cy - R * 1.05];
+    // explode: push each bar outward from centroid
+    var C = [(P0[0] + P1[0] + P2[0]) / 3, (P0[1] + P1[1] + P2[1]) / 3];
+    function push(P, Q){
+      var mx = (P[0] + Q[0]) / 2 - C[0], my = (P[1] + Q[1]) / 2 - C[1];
+      var L = Math.hypot(mx, my) || 1, d = explode * 46;
+      return [[P[0] + mx / L * d, P[1] + my / L * d], [Q[0] + mx / L * d, Q[1] + my / L * d]];
+    }
+    var w = Math.max(20, R * 0.42);
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(Math.sin(t * 0.6) * 0.12); ctx.translate(-cx, -cy);
+    ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+    var A = push(P0, P1), B = push(P1, P2), Cc = push(P2, P0);
+    drawBar(B[0], B[1], w);          // right bar first (under at its bottom end)
+    drawBar(A[0], A[1], w);          // bottom bar over the right bar's foot
+    drawBar(Cc[0], Cc[1], w);        // left bar over the bottom bar's left end AND over the right bar's tip...
+    drawBar(B[0], B[1], w, 0.78, 1); // ...but the right bar's tip redrawn on top -> the impossible cycle
+    ctx.restore();
+    if (explode > 0.03) {
+      ctx.fillStyle = "rgba(255,93,93,.9)";
+      ctx.font = "700 13px system-ui,sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("← the overlap cheat, exposed →", cx, H - 14);
+    } else {
+      // pulsing marker on the impossible joint (top corner)
+      var pr = 6 + Math.sin(t * 4) * 2;
+      ctx.strokeStyle = "rgba(255,93,93,.85)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(P2[0], P2[1] - 6, pr + 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "rgba(255,93,93,.85)";
+      ctx.font = "700 12px system-ui,sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("impossible joint", P2[0], P2[1] - 22);
+    }
+  }
+
+  // ---------- Endless stairs ----------
+  function drawStairs(){
+    var cx = W / 2, cy = H / 2 + 6;
+    var RX = Math.min(W * 0.36, 190), RY = RX * 0.44;
+    var rx2 = RX * 0.58, ry2 = RY * 0.58;
+    var N = 12, drop = 2.1;
+    function ringPt(k, ro, r2o){
+      var a = (k / N) * Math.PI * 2 - Math.PI / 2;
+      return [cx + Math.cos(a) * (ro ? RX : rx2), cy + Math.sin(a) * (r2o ? ry2 : RY)];
+    }
+    // steps with cumulative drop; joint between step 11 and 0
+    var steps = [];
+    for (var k = 0; k < N; k++) {
+      var o0 = ringPt(k, true), o1 = ringPt(k + 1, true);
+      var i0 = ringPt(k, false, true), i1 = ringPt(k + 1, false, true);
+      var y0 = -k * drop, y1 = -((k + 1) % N) * drop;
+      steps.push({ k: k, o0: o0, o1: o1, i0: i0, i1: i1, y0: y0, y1: y1, midY: (o0[1] + o1[1] + i0[1] + i1[1]) / 4 });
+    }
+    steps.sort(function(a, b){ return a.midY - b.midY; });
+    for (var s = 0; s < steps.length; s++) {
+      (function(st){
+        var lift = st.k === 0 ? 0 : 0;
+        var O0 = [st.o0[0], st.o0[1] + st.y0 + lift], O1 = [st.o1[0], st.o1[1] + st.y1];
+        var I0 = [st.i0[0], st.i0[1] + st.y0 + lift], I1 = [st.i1[0], st.i1[1] + st.y1];
+        // outer skirt
+        poly([O0, O1, [O1[0], O1[1] + 16], [O0[0], O0[1] + 16]], "#232c3a", null);
+        // top face shading varies around ring
+        var sh = 60 + Math.round(40 * (0.5 + 0.5 * Math.sin(st.k / N * Math.PI * 2)));
+        poly([O0, O1, I1, I0], "rgb(" + (sh + 20) + "," + (sh + 55) + "," + (sh + 85) + ")", "#0b1118");
+        // riser at the leading edge (the little step down)
+        if (st.k !== 0) poly([O1, I1, [I1[0], I1[1] + drop + 1.5], [O1[0], O1[1] + drop + 1.5]], "#39445a", null);
+      })(steps[s]);
+    }
+    // the impossible tall riser at the joint (step 0 leading edge)
+    var j0 = ringPt(0, true), j1 = ringPt(0, false, true);
+    var tallH = (N - 1) * drop;
+    poly([[j0[0], j0[1]], [j1[0], j1[1]], [j1[0], j1[1] + tallH], [j0[0], j0[1] + tallH]], "#2dd4ff", "#0b1118");
+    // ball path (centerline incl. drop), hidden behind obelisk near joint
+    var loop = (t * 0.55) % 1, pos = loop * N, k0 = Math.floor(pos) % N, fr = pos - Math.floor(pos);
+    var cA = ringPt(k0, false), cB = ringPt((k0 + 1) % N, false);
+    // centerline radius: average of outer/inner
+    function center(k){
+      var a = (k / N) * Math.PI * 2 - Math.PI / 2;
+      return [cx + Math.cos(a) * (RX + rx2) / 2, cy + Math.sin(a) * (RY + ry2) / 2];
+    }
+    var pa = center(k0), pb = center((k0 + 1) % N);
+    var ya = -(k0) * drop, yb = -((k0 + 1) % N) * drop;
+    var bx = pa[0] + (pb[0] - pa[0]) * fr, by = pa[1] + (pb[1] - pa[1]) * fr + (ya + (yb - ya) * fr);
+    var nearJoint = (k0 === N - 1 && fr > 0.72) || (k0 === 0 && fr < 0.28);
+    // obelisk at joint
+    var ob = center(0);
+    var obBaseY = ob[1] + 2;
+    poly([[ob[0] - 9, obBaseY], [ob[0] + 9, obBaseY], [ob[0] + 5, obBaseY - 44], [ob[0] - 5, obBaseY - 44]], "#8a6b3d", "#0b1118");
+    poly([[ob[0] - 5, obBaseY - 44], [ob[0] + 5, obBaseY - 44], [ob[0], obBaseY - 56]], "#d8b25c", "#0b1118");
+    if (!nearJoint) {
+      // shadow
+      ctx.fillStyle = "rgba(0,0,0,.35)";
+      ctx.beginPath(); ctx.ellipse(bx, by + 2, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
+      var grd = ctx.createRadialGradient(bx - 3, by - 12, 1, bx, by - 8, 10);
+      grd.addColorStop(0, "#fff"); grd.addColorStop(0.5, "#ff9d3d"); grd.addColorStop(1, "#b34a12");
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(bx, by - 8, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#0b1118"; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(230,250,255,.75)"; ctx.font = "700 12px system-ui,sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("the ball descends forever (watch the obelisk 👀)", cx, H - 12);
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, W, H);
+    // starfield backdrop
+    ctx.fillStyle = "rgba(255,255,255,.25)";
+    for (var i = 0; i < 40; i++) {
+      var sx = (i * 137.5 + 30) % W, sy = (i * 89.3 + 17) % H;
+      ctx.fillRect(sx, sy, 1.4, 1.4);
+    }
+    if (mode === "cube") drawCube();
+    else if (mode === "penrose") drawPenrose();
+    else drawStairs();
+  }
+  var last = 0;
+  function frame(ts){
+    if (!playing) return;
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    t += dt * (0.25 + speed * 1.6);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  if (reduced) { playing = false; $("iov-play").textContent = "▶ Play"; t = 0.8; }
+  $("iov-info").innerHTML = INFO.cube;
+  fit(); draw();
+  if (playing) requestAnimationFrame(frame);
+})();
+</script>

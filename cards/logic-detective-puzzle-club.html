@@ -1,0 +1,113 @@
+<h2 id="ldp-title" style="margin-top:0;color:var(--accent);">🕵️ Logic Detective Puzzle Club</h2>
+<p id="ldp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">8 classic logic puzzles that have stumped clever people for centuries — with progressive hints, full solutions and detective-rank progress tracking. No maths degree required.</p>
+
+<div style="margin-bottom:12px;background:#071019;border:1px solid rgba(45,212,255,.25);border-radius:10px;padding:12px 14px;">
+  <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:6px;flex-wrap:wrap;gap:4px;">
+    <span>🎖 Rank: <b id="ldp-rank" style="color:var(--accent);">Rookie</b></span>
+    <span><span id="ldp-solved">0</span>/8 solved · <span id="ldp-seen">0</span> solutions peeked</span>
+  </div>
+  <div style="height:8px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;"><div id="ldp-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#9d4edd);border-radius:99px;transition:width .4s;"></div></div>
+</div>
+
+<div id="ldp-list"></div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var P = [
+    { e: "🚪", name: "The Two Guards", diff: "★★☆☆☆",
+      story: "You face two doors: one leads to freedom, one to doom. A guard stands at each. One guard always tells the truth, the other always lies — but you don't know which is which. You may ask ONE guard ONE question. What do you ask?",
+      hints: ["You need a question that works no matter which guard you ask.", "Ask about what the OTHER guard would say.", "Ask either guard: 'Which door would the other guard say leads to freedom?'"],
+      sol: "Ask either guard: “Which door would the other guard say leads to freedom?” — then choose the OPPOSITE door. If you asked the truth-teller, they honestly report the liar's wrong answer. If you asked the liar, they lie about the truth-teller's correct answer. Either way the answer points at the doom door — so pick the other one." },
+    { e: "🐺", name: "Wolf, Goat & Cabbage", diff: "★★☆☆☆",
+      story: "A farmer must ferry a wolf, a goat and a cabbage across a river. The boat holds the farmer plus ONE item. Left alone, the wolf eats the goat, and the goat eats the cabbage. How does everything cross safely?",
+      hints: ["The goat is the troublemaker — it can't be left with either of the others.", "You'll need to bring something BACK on one trip.", "Goat first. Then wolf over, goat back. Then cabbage over, goat back. Then goat over. Seven crossings total."],
+      sol: "1) Take the goat over. 2) Return alone. 3) Take the wolf over. 4) Bring the goat BACK. 5) Take the cabbage over. 6) Return alone. 7) Take the goat over. The trick: the goat shuttles back and forth while the wolf and cabbage — who ignore each other — wait together." },
+    { e: "💡", name: "Three Switches, One Bulb", diff: "★★★☆☆",
+      story: "Three switches downstairs control one bulb in the attic. You can flip switches as much as you like, but you may climb to the attic only ONCE. How do you work out which switch controls the bulb?",
+      hints: ["You can use more than your eyes when you get upstairs.", "Old bulbs give off something besides light…", "Turn switch 1 ON for a few minutes, then OFF. Turn switch 2 ON. Go up: lit bulb = switch 2, warm dark bulb = switch 1, cold dark bulb = switch 3."],
+      sol: "Turn switch 1 ON for 5 minutes, then turn it OFF. Turn switch 2 ON and climb up. If the bulb is LIT, it's switch 2. If it's OFF but WARM, it's switch 1. If it's OFF and COLD, it's switch 3. Heat is the hidden third signal." },
+    { e: "⚖️", name: "Nine Balls, One Heavy", diff: "★★★☆☆",
+      story: "You have 9 identical balls and a balance scale. One ball is slightly heavier. Find it in only TWO weighings. (A balance tells you left-heavy, right-heavy, or equal.)",
+      hints: ["Split the balls into three groups of three.", "Weigh group A vs group B. What does each outcome tell you?", "The heavy group reveals itself — then weigh one ball vs one ball from that group."],
+      sol: "Weighing 1: put 3 balls on each side, 3 aside. If one side dips, the heavy ball is in that trio; if balanced, it's in the set-aside trio. Weighing 2: from the heavy trio, weigh 1 vs 1 (third aside). The dipping side — or the set-aside ball if balanced — is the heavy one. Divide into thirds is the key." },
+    { e: "🧙", name: "Knights & Knaves", diff: "★★★☆☆",
+      story: "On an island, knights always tell the truth and knaves always lie. You meet two natives, A and B. A says: 'We are both knaves.' What are A and B?",
+      hints: ["Suppose A is a knight (truth-teller). Could a truth-teller say 'we are both knaves'?", "That statement can't be true — so A must be lying. What does that make A?", "If A is a knave, the statement 'we are both knaves' is false — so they are NOT both knaves."],
+      sol: "A is a KNAVE and B is a KNIGHT. Proof: if A were a knight, the statement 'we are both knaves' would be true — impossible, since a knight said it. So A is a knave, meaning the statement is false: they are not both knaves. Since A is one, B must be a knight." },
+    { e: "🔥", name: "Bridge & Torch", diff: "★★★★☆",
+      story: "Four people must cross a bridge at night with ONE torch. The bridge holds two at a time, and anyone crossing needs the torch — so someone must bring it back. They walk at 1, 2, 7 and 10 minutes. Can all cross in 17 minutes?",
+      hints: ["The two slowest people (7 and 10) should cross TOGETHER — otherwise the 10-minute person walks twice.", "But someone fast must be waiting to bring the torch back...", "1+2 cross (2), 1 returns (1), 7+10 cross (10), 2 returns (2), 1+2 cross (2). Total: 17. ✓"],
+      sol: "Yes — in exactly 17 minutes: 1) The 1-min and 2-min people cross (2 min). 2) The 1-min person returns (1). 3) The 7-min and 10-min people cross together (10). 4) The 2-min person returns (2). 5) The 1-min and 2-min people cross (2). Total: 2+1+10+2+2 = 17. The secret: never let the slowest walk twice." },
+    { e: "📦", name: "The Mislabeled Boxes", diff: "★★★☆☆",
+      story: "Three boxes are labelled APPLES, ORANGES, and MIXED — but EVERY label is wrong. You may take ONE fruit from ONE box (without looking inside). How do you correctly relabel all three?",
+      hints: ["Pick from the box labelled MIXED. Since every label is wrong, what must that box really be?", "Whatever fruit you pull from MIXED reveals that box's true contents.", "Then use elimination: the remaining two labels are both wrong, so there's only one way to place them."],
+      sol: "Take one fruit from the box labelled MIXED. Since all labels are wrong, this box is pure apples or pure oranges — the fruit you draw tells you which. Say you draw an apple: that box is APPLES. The box labelled ORANGES can't be oranges (wrong label) and can't be apples (taken) — so it must be MIXED. The box labelled APPLES is therefore ORANGES. One fruit solves everything." },
+    { e: "🐌", name: "Snail in the Well", diff: "★★☆☆☆",
+      story: "A snail is at the bottom of a 30-foot well. Each day it climbs 3 feet up, and each night it slips 2 feet down. How many days to escape? (Most people's first answer is wrong!)",
+      hints: ["Most people say 30 days (1 foot of net progress per day). What's wrong with that?", "Think about what happens when the snail is NEAR the top.", "On day 28 the snail reaches 28 feet at dawn, climbs 3 to 31 — and escapes before ever slipping back!"],
+      sol: "28 days — not 30! Each full day-night cycle gains 1 foot, so after 25 cycles the snail starts day 26 at 25 feet. Day 26: climbs to 28, slips to 26. Day 27: climbs to 29, slips to 27. Day 28: climbs from 27 to 30 — OUT before nightfall! The final climb has no slip-back. Off-by-one errors always hide in the last step." }
+  ];
+  var state = { solved: [], seen: [] };
+  try { var s = JSON.parse(localStorage.getItem("ldp-state") || "{}"); if (Array.isArray(s.solved)) state = s; } catch (e) {}
+  function save(){ try { localStorage.setItem("ldp-state", JSON.stringify(state)); } catch (e) {} }
+  function rank(){
+    var n = state.solved.length;
+    return n >= 8 ? "🕵️ Master Detective" : n >= 6 ? "🔍 Senior Sleuth" : n >= 4 ? "🧩 Puzzle Pro" : n >= 2 ? "🔎 Junior Detective" : n >= 1 ? "🐣 Rookie (warming up)" : "🐣 Rookie";
+  }
+  function paint(){
+    $("ldp-rank").textContent = rank();
+    $("ldp-solved").textContent = state.solved.length;
+    $("ldp-seen").textContent = state.seen.length;
+    $("ldp-bar").style.width = (state.solved.length / P.length * 100) + "%";
+  }
+  function render(){
+    paint();
+    $("ldp-list").innerHTML = P.map(function(p, i){
+      var done = state.solved.indexOf(i) !== -1, peeked = state.seen.indexOf(i) !== -1;
+      var badge = done ? " <span style='font-size:.72rem;background:rgba(57,255,20,.15);color:#7dff6a;border:1px solid rgba(57,255,20,.4);border-radius:99px;padding:2px 10px;'>✓ SOLVED</span>" : peeked ? " <span style='font-size:.72rem;background:rgba(255,180,71,.12);color:#ffb347;border:1px solid rgba(255,180,71,.4);border-radius:99px;padding:2px 10px;'>👁 SOLUTION SEEN</span>" : "";
+      return "<details " + (i === 0 && !done && !peeked ? "open" : "") + " style='margin-bottom:10px;background:#071019;border:1px solid rgba(45,212,255,.22);border-radius:10px;padding:12px 14px;'>"
+        + "<summary style='cursor:pointer;font-weight:800;'>" + p.e + " " + (i + 1) + ". " + p.name + " <span style='font-weight:400;font-size:.75rem;color:var(--text-secondary);'>" + p.diff + "</span>" + badge + "</summary>"
+        + "<div style='margin-top:10px;font-size:.88rem;line-height:1.65;'>" + p.story + "</div>"
+        + "<div id='ldp-h" + i + "' style='margin-top:8px;font-size:.85rem;color:var(--text-secondary);'></div>"
+        + "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;'>"
+        + "<button type='button' data-ldp-hint='" + i + "' style='padding:8px 14px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.18);border-radius:8px;cursor:pointer;font-weight:700;'>💡 Hint (<span id='ldp-hn" + i + "'>0</span>/3)</button>"
+        + "<button type='button' data-ldp-sol='" + i + "' style='padding:8px 14px;background:rgba(255,180,71,.1);color:#ffb347;border:1px solid rgba(255,180,71,.4);border-radius:8px;cursor:pointer;font-weight:700;'>📜 Reveal solution</button>"
+        + (done ? "" : "<button type='button' data-ldp-done='" + i + "' style='padding:8px 14px;background:rgba(57,255,20,.12);color:#7dff6a;border:1px solid rgba(57,255,20,.4);border-radius:8px;cursor:pointer;font-weight:800;'>✓ I solved it!</button>")
+        + "</div>"
+        + "<div id='ldp-s" + i + "' style='margin-top:8px;font-size:.86rem;display:none;background:rgba(57,255,20,.05);border:1px solid rgba(57,255,20,.3);border-radius:8px;padding:12px;'></div>"
+        + "</div>";
+    }).join("");
+    var shown = {};
+    document.querySelectorAll("[data-ldp-hint]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var i = +b.getAttribute("data-ldp-hint");
+        shown[i] = Math.min(3, (shown[i] || 0) + 1);
+        document.getElementById("ldp-hn" + i).textContent = shown[i];
+        var h = "";
+        for (var k = 0; k < shown[i]; k++) h += "<div style='margin-top:4px;'>💡 <b>Hint " + (k + 1) + ":</b> " + P[i].hints[k] + "</div>";
+        document.getElementById("ldp-h" + i).innerHTML = h;
+      });
+    });
+    document.querySelectorAll("[data-ldp-sol]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var i = +b.getAttribute("data-ldp-sol");
+        var box = document.getElementById("ldp-s" + i);
+        box.style.display = "block";
+        box.innerHTML = "<b>📜 Solution:</b> " + P[i].sol;
+        if (state.seen.indexOf(i) === -1 && state.solved.indexOf(i) === -1) { state.seen.push(i); save(); paint(); }
+        b.disabled = true; b.style.opacity = "0.5";
+      });
+    });
+    document.querySelectorAll("[data-ldp-done]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var i = +b.getAttribute("data-ldp-done");
+        if (state.solved.indexOf(i) === -1) state.solved.push(i);
+        var si = state.seen.indexOf(i); if (si !== -1) state.seen.splice(si, 1);
+        save(); render();
+      });
+    });
+  }
+  render();
+})();
+</script>

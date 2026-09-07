@@ -1,0 +1,115 @@
+<h2 id="tss-title" style="margin-top:0;color:var(--accent);">⌨️ Typing Story Sprint</h2>
+<p id="tss-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Build typing speed by retyping fascinating true mini-stories — bees, pyramids, photosynthesis. Live WPM, accuracy, tricky-key analysis and personal bests.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;">
+  <div><label for="tss-level" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Story</label>
+    <select id="tss-level" style="padding:9px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <option value="0">🐝 Easy: The Bee Dance</option>
+      <option value="1">🔺 Medium: The Great Pyramid</option>
+      <option value="2">🌿 Hard: Photosynthesis</option>
+    </select></div>
+  <button type="button" id="tss-restart" style="padding:10px 18px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">↻ Restart</button>
+  <span style="font-size:.8rem;color:var(--text-secondary);">🏆 Best: <b id="tss-best" style="color:var(--text);">—</b></span>
+</div>
+
+<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem;margin-bottom:8px;">
+  <span>⚡ <b id="tss-wpm" style="color:var(--accent);font-size:1.1rem;">0</b> WPM</span>
+  <span>🎯 <b id="tss-acc" style="color:var(--text);font-size:1.1rem;">100%</b> accuracy</span>
+  <span>⏱ <b id="tss-time" style="color:var(--text);font-size:1.1rem;">0.0</b>s</span>
+</div>
+
+<div id="tss-text" style="background:#071019;border:1px solid rgba(45,212,255,.3);border-radius:12px;padding:18px;font-size:1.12rem;line-height:2;cursor:text;user-select:none;" role="textbox" aria-label="Typing passage. Click then type the text shown." tabindex="0"></div>
+<input id="tss-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Typing input" style="position:absolute;opacity:0;height:1px;width:1px;pointer-events:none;">
+
+<div id="tss-done" style="display:none;margin-top:12px;background:rgba(57,255,20,.06);border:1px solid rgba(57,255,20,.3);border-radius:10px;padding:14px;"></div>
+<div style="font-size:.78rem;color:var(--text-secondary);margin-top:8px;">💡 Click the story, then just type. Timer starts on your first keystroke. Pasting is disabled — no cheating!</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var STORIES = [
+    "Honeybees dance to share directions. A forager bee waggles across the honeycomb, and the angle of her dance points toward flowers. The longer she waggles, the farther the feast. Her sisters watch closely, then fly straight to the blooms.",
+    "The Great Pyramid of Giza was the tallest building on Earth for over 3,800 years. It contains about 2.3 million stone blocks, some weighing 15 tonnes. Built around 2560 BC, it aligned almost perfectly with true north.",
+    "Photosynthesis powers almost all life. Chlorophyll captures sunlight, splitting water to release oxygen while converting carbon dioxide into glucose. A single leaf performs this quantum trick billions of times per second, silently sustaining every ecosystem."
+  ];
+  var target = "", typed = "", startT = 0, timer = null, wrongs = {}, finished = false;
+  var best = 0;
+  try { best = parseFloat(localStorage.getItem("tss-best") || "0") || 0; } catch (e) {}
+  function paintBest(){ $("tss-best").textContent = best > 0 ? Math.round(best) + " WPM" : "—"; }
+  paintBest();
+  function render(){
+    var box = $("tss-text"), h = "";
+    for (var i = 0; i < target.length; i++) {
+      var ch = target[i] === " " ? "&nbsp;" : target[i].replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      var cls;
+      if (i < typed.length) cls = typed[i] === target[i] ? "color:#7dff6a;" : "color:#ff8080;background:rgba(255,77,77,.25);border-radius:3px;";
+      else if (i === typed.length) cls = "background:rgba(45,212,255,.25);border-left:2px solid var(--accent);";
+      else cls = "color:var(--text-secondary);";
+      h += "<span style='" + cls + "'>" + ch + "</span>";
+    }
+    box.innerHTML = h;
+    var cur = box.children[typed.length];
+    if (cur && cur.scrollIntoView) { try { cur.scrollIntoView({ block: "nearest" }); } catch (e) {} }
+  }
+  function stats(){
+    var el = startT ? (Date.now() - startT) / 1000 : 0;
+    $("tss-time").textContent = el.toFixed(1);
+    var correct = 0;
+    for (var i = 0; i < typed.length; i++) if (typed[i] === target[i]) correct++;
+    var acc = typed.length ? correct / typed.length * 100 : 100;
+    $("tss-acc").textContent = acc.toFixed(0) + "%";
+    var wpm = el > 1 ? (correct / 5) / (el / 60) : 0;
+    $("tss-wpm").textContent = Math.round(wpm);
+    return { el: el, acc: acc, wpm: wpm, correct: correct };
+  }
+  function reset(){
+    target = STORIES[+$("tss-level").value];
+    typed = ""; startT = 0; wrongs = {}; finished = false;
+    if (timer) { clearInterval(timer); timer = null; }
+    $("tss-in").value = "";
+    $("tss-done").style.display = "none";
+    $("tss-wpm").textContent = "0"; $("tss-acc").textContent = "100%"; $("tss-time").textContent = "0.0";
+    render();
+  }
+  function finish(s){
+    finished = true;
+    if (timer) { clearInterval(timer); timer = null; }
+    var isBest = s.wpm > best;
+    if (isBest) { best = s.wpm; try { localStorage.setItem("tss-best", String(best)); } catch (e) {} paintBest(); }
+    var tricky = Object.keys(wrongs).sort(function(a, b){ return wrongs[b] - wrongs[a]; }).slice(0, 5);
+    var verdict = s.wpm >= 60 ? "🌟 Blazing!" : s.wpm >= 40 ? "🎉 Excellent!" : s.wpm >= 25 ? "👍 Solid typing!" : "💪 Keep practising!";
+    $("tss-done").style.display = "block";
+    $("tss-done").innerHTML = "<b style='font-size:1.05rem;'>" + verdict + "</b><br>⚡ <b style='color:var(--accent);'>" + Math.round(s.wpm) + " WPM</b>" + (isBest ? " 🏆 <b>new best!</b>" : "") + " · 🎯 " + s.acc.toFixed(1) + "% accuracy · ⏱ " + s.el.toFixed(1) + "s"
+      + (tricky.length ? "<br>🔤 Trickiest keys: " + tricky.map(function(k){ return "<b style='font-family:ui-monospace,monospace;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:5px;'>" + (k === " " ? "space" : k) + "</b>×" + wrongs[k]; }).join(" ") : "<br>✨ Flawless — zero mistakes!");
+  }
+  $("tss-in").addEventListener("input", function(){
+    if (finished) return;
+    var v = this.value;
+    if (!startT && v.length) { startT = Date.now(); timer = setInterval(stats, 200); }
+    if (v.length > target.length) { v = v.slice(0, target.length); this.value = v; }
+    if (v.length > typed.length) {
+      for (var i = typed.length; i < v.length; i++) {
+        if (v[i] !== target[i]) { var k = target[i]; wrongs[k] = (wrongs[k] || 0) + 1; }
+      }
+    }
+    typed = v;
+    render();
+    var s = stats();
+    if (typed.length >= target.length) finish(s);
+  });
+  $("tss-in").addEventListener("paste", function(e){ e.preventDefault(); });
+  $("tss-in").addEventListener("keydown", function(e){
+    if (e.key === "Enter") { e.preventDefault(); reset(); }
+  });
+  function focus(){ var el = $("tss-in"); el.focus({ preventScroll: true }); }
+  $("tss-text").addEventListener("click", focus);
+  $("tss-text").addEventListener("keydown", function(e){ if (e.key !== "Tab") focus(); });
+  document.addEventListener("click", function(e){
+    var box = $("tss-text");
+    if (box.style.display !== "none" && !finished && box.offsetParent !== null && e.target !== box && !box.contains(e.target)) { /* keep focus attempts minimal */ }
+  });
+  $("tss-restart").addEventListener("click", function(){ reset(); focus(); });
+  $("tss-level").addEventListener("change", function(){ reset(); focus(); });
+  reset();
+})();
+</script>

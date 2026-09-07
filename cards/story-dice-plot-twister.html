@@ -1,0 +1,114 @@
+<h2 id="sdp-title" style="margin-top:0;color:var(--accent);">🎲 Story Dice Plot Twister</h2>
+<p id="sdp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Roll story dice for a hero, a setting, a mysterious object and a plot twist — then write the tale. With challenge-mode constraints, story starters and saved prompts for classrooms and young writers.</p>
+
+<div id="sdp-dice" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px;"></div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;">
+  <button type="button" id="sdp-roll" style="padding:11px 24px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;font-size:1rem;">🎲 ROLL ALL</button>
+  <label style="font-size:.84rem;display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="sdp-hard" type="checkbox" style="accent-color:var(--accent);width:16px;height:16px;"> Challenge mode (adds a tricky constraint)</label>
+</div>
+
+<div id="sdp-story" style="background:#071019;border:1px solid rgba(45,212,255,.3);border-radius:12px;padding:18px;margin-bottom:12px;"></div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+  <button type="button" id="sdp-save" style="padding:9px 16px;background:rgba(255,215,0,.1);color:#ffd700;border:1px solid rgba(255,215,0,.4);border-radius:8px;cursor:pointer;font-weight:700;">★ Save prompt</button>
+  <button type="button" id="sdp-copy" style="padding:9px 16px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.18);border-radius:8px;cursor:pointer;font-weight:700;">📋 Copy</button>
+  <span id="sdp-msg" style="align-self:center;font-size:.82rem;color:#7dff6a;"></span>
+</div>
+
+<div id="sdp-saved"></div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var DICE = [
+    { label: "🦸 HERO", opts: ["🤖 A lonely robot","🧙 A forgetful wizard","🦊 A talking fox","👩‍🚀 A lost astronaut","🧜 A pirate mermaid","🦖 A tiny dinosaur","🧑‍🍳 A magical chef","👻 A friendly ghost","🐝 A giant bee","🧝 An elf inventor","🐙 An octopus detective","👑 A runaway prince"] },
+    { label: "🗺️ SETTING", opts: ["🏰 A floating castle","🌊 An underwater city","🚀 A broken spaceship","🌋 Inside a volcano","🎪 An abandoned circus","❄️ An ice palace","🌵 A desert of glass","🌳 A treehouse village","🏚️ A haunted lighthouse","🍄 A mushroom forest","⏳ An ancient pyramid","🎡 A funfair at midnight"] },
+    { label: "🎁 OBJECT", opts: ["🗝️ A whispering key","📕 A book that writes itself","⏰ A clock running backwards","💎 A singing crystal","🧪 A bubbling potion","🎺 A trumpet of storms","🪞 A mirror to tomorrow","🧭 A compass of wishes","📜 A map with moving X","🕯️ A candle that never dies","🎩 A hat of disguises","📻 A radio from the future"] },
+    { label: "🌀 PLOT TWIST", opts: ["⚡ The hero loses their powers","🤝 The villain offers help","⏪ Time starts repeating","💤 It was all a dream… or was it?","👯 A twin appears","🌑 The sun goes out","💬 Animals start talking","🌀 A portal opens","📢 The hero's secret is revealed","🎭 The friend was the villain","🌊 A great flood rises","✨ Magic stops working"] }
+  ];
+  var CHALLENGES = ["No dialogue allowed — tell it all through action.", "Under 100 words. Every word must earn its place.", "A storm must change everything halfway through.", "Tell the story backwards, ending at the beginning.", "The hero may not speak — someone else narrates.", "Include exactly three sounds (crash! whisper… roar!).", "Happy endings are forbidden. Make it bittersweet.", "One character must misunderstand everything.", "Set a 5-minute timer. Stop mid-sentence if you must!", "The object must be lost, then found, then lost again."];
+  var STARTERS = [
+    "Nobody believed the {hero} until the night the {object} began to glow in {setting}.",
+    "It started as an ordinary day in {setting} — until the {hero} discovered the {object}.",
+    "The {hero} had one rule: never touch the {object}. But {setting} has a way of breaking rules.",
+    "Deep within {setting}, the {hero} found the {object} — and everything changed.",
+    "Legends said the {object} was hidden in {setting}. The {hero} was about to find out why."
+  ];
+  var cur = [0, 0, 0, 0], challenge = -1;
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem("sdp-saved") || "[]"); } catch (e) { saved = []; }
+  function strip(s){ return s.replace(/^[^\s]+\s/, ""); }
+  function promptText(){
+    return "Write a story about " + strip(DICE[0].opts[cur[0]]).toLowerCase() + " (" + DICE[0].opts[cur[0]].split(" ")[0] + ") in " + strip(DICE[1].opts[cur[1]]).toLowerCase() + ", featuring " + strip(DICE[2].opts[cur[2]]).toLowerCase() + ". Twist: " + strip(DICE[3].opts[cur[3]]).toLowerCase() + ".";
+  }
+  function renderDice(){
+    $("sdp-dice").innerHTML = DICE.map(function(d, i){
+      return "<div data-sdp-die='" + i + "' role='button' tabindex='0' title='Click to re-roll this die' style='cursor:pointer;background:#071019;border:2px solid rgba(45,212,255,.3);border-radius:12px;padding:14px 8px;text-align:center;'>"
+        + "<div style='font-size:.68rem;color:var(--text-secondary);letter-spacing:.08em;margin-bottom:6px;'>" + d.label + "</div>"
+        + "<div style='font-size:2rem;line-height:1.2;'>" + d.opts[cur[i]].split(" ").slice(0, 1).join("") + "</div>"
+        + "<div style='font-size:.78rem;font-weight:700;margin-top:4px;'>" + d.opts[cur[i]].split(" ").slice(1).join(" ") + "</div>"
+        + "<div style='font-size:.68rem;color:var(--text-secondary);margin-top:4px;'>↻ tap to re-roll</div></div>";
+    }).join("");
+    document.querySelectorAll("[data-sdp-die]").forEach(function(el){
+      function reroll(){
+        var i = +el.getAttribute("data-sdp-die");
+        var n = Math.floor(Math.random() * DICE[i].opts.length);
+        if (n === cur[i]) n = (n + 1) % DICE[i].opts.length;
+        cur[i] = n; renderDice(); renderStory();
+      }
+      el.addEventListener("click", reroll);
+      el.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " ") { e.preventDefault(); reroll(); } });
+    });
+  }
+  function renderStory(){
+    var starter = STARTERS[Math.floor(Math.random() * STARTERS.length)]
+      .replace("{hero}", strip(DICE[0].opts[cur[0]]))
+      .replace("{object}", strip(DICE[2].opts[cur[2]]))
+      .replace("{setting}", strip(DICE[1].opts[cur[1]]));
+    var html = "<div style='font-size:.75rem;color:var(--text-secondary);letter-spacing:.1em;margin-bottom:6px;'>📝 YOUR WRITING PROMPT</div>"
+      + "<div style='font-weight:700;margin-bottom:8px;'>" + promptText() + "</div>"
+      + "<div style='font-size:.9rem;color:var(--text-secondary);border-left:3px solid #9d4edd;padding-left:10px;margin-bottom:8px;'><b style='color:var(--text);'>Starter:</b> <i>" + starter + "</i></div>";
+    if ($("sdp-hard").checked) {
+      if (challenge === -1) challenge = Math.floor(Math.random() * CHALLENGES.length);
+      html += "<div style='font-size:.86rem;background:rgba(255,77,77,.07);border:1px solid rgba(255,77,77,.35);border-radius:8px;padding:8px 12px;'>🔥 <b>Challenge:</b> " + CHALLENGES[challenge] + "</div>";
+    }
+    $("sdp-story").innerHTML = html;
+    $("sdp-msg").textContent = "";
+  }
+  function renderSaved(){
+    var box = $("sdp-saved");
+    if (!saved.length) { box.innerHTML = ""; return; }
+    box.innerHTML = "<b>★ Saved prompts (" + saved.length + ")</b>" + saved.map(function(s, i){
+      return "<div style='margin-top:8px;padding:10px 12px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);border-radius:8px;font-size:.84rem;display:flex;justify-content:space-between;gap:8px;align-items:flex-start;'><span>" + s + "</span><span data-sdp-del='" + i + "' role='button' tabindex='0' style='cursor:pointer;color:#ff8080;flex-shrink:0;' aria-label='Delete saved prompt'>✕</span></div>";
+    }).join("");
+    box.querySelectorAll("[data-sdp-del]").forEach(function(el){
+      function del(){ saved.splice(+el.getAttribute("data-sdp-del"), 1); try { localStorage.setItem("sdp-saved", JSON.stringify(saved)); } catch (e) {} renderSaved(); }
+      el.addEventListener("click", del);
+      el.addEventListener("keydown", function(e){ if (e.key === "Enter") del(); });
+    });
+  }
+  $("sdp-roll").addEventListener("click", function(){
+    for (var i = 0; i < 4; i++) cur[i] = Math.floor(Math.random() * DICE[i].opts.length);
+    challenge = -1;
+    renderDice(); renderStory();
+  });
+  $("sdp-hard").addEventListener("change", renderStory);
+  $("sdp-save").addEventListener("click", function(){
+    saved.unshift(promptText());
+    if (saved.length > 20) saved.length = 20;
+    try { localStorage.setItem("sdp-saved", JSON.stringify(saved)); } catch (e) {}
+    renderSaved();
+    $("sdp-msg").textContent = "★ Saved!";
+  });
+  $("sdp-copy").addEventListener("click", function(){
+    var txt = promptText();
+    function done(){ $("sdp-msg").textContent = "✓ Copied!"; }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function(){ fb(); });
+    else fb();
+    function fb(){ var h = document.createElement("textarea"); h.value = txt; document.body.appendChild(h); h.select(); try { document.execCommand("copy"); } catch (e) {} h.remove(); done(); }
+  });
+  for (var r = 0; r < 4; r++) cur[r] = Math.floor(Math.random() * DICE[r].opts.length);
+  renderDice(); renderStory(); renderSaved();
+})();
+</script>

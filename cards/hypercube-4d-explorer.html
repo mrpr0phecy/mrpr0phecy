@@ -1,0 +1,140 @@
+<h2 id="hc4-title" style="margin-top:0;color:var(--accent);">🧊 Hypercube 4D Explorer</h2>
+<p id="hc4-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Spin a real tesseract — a 4D cube — with true four-dimensional rotation. Twist the XW, YW and ZW planes that don't exist in our world, slide 4D perspective until it turns inside-out, and meet its stranger cousin, the 16-cell.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center;">
+  <button type="button" data-hc4-shape="tess" style="padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:800;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);">🧊 Tesseract</button>
+  <button type="button" data-hc4-shape="cell16" style="padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">✨ 16-cell</button>
+  <label style="font-size:.82rem;color:var(--text-secondary);display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="hc4-spin" type="checkbox" checked style="accent-color:var(--accent);width:16px;height:16px;"> auto-spin 4D</label>
+  <label style="font-size:.82rem;color:var(--text-secondary);display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="hc4-trails" type="checkbox" checked style="accent-color:var(--accent);width:16px;height:16px;"> phosphor trails</label>
+</div>
+
+<canvas id="hc4-cv" width="600" height="340" style="width:100%;height:340px;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;" role="img" aria-label="Rotating four-dimensional hypercube"></canvas>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0;">
+  <div><label for="hc4-xw" style="display:block;font-size:.78rem;color:var(--text-secondary);">XW plane: <b id="hc4-xwv" style="color:#ff6b81;">30°</b></label><input id="hc4-xw" type="range" min="-180" max="180" value="30" style="width:100%;accent-color:#ff6b81;"></div>
+  <div><label for="hc4-yw" style="display:block;font-size:.78rem;color:var(--text-secondary);">YW plane: <b id="hc4-ywv" style="color:#7dff6a;">0°</b></label><input id="hc4-yw" type="range" min="-180" max="180" value="0" style="width:100%;accent-color:#7dff6a;"></div>
+  <div><label for="hc4-zw" style="display:block;font-size:.78rem;color:var(--text-secondary);">ZW plane: <b id="hc4-zwv" style="color:#c084fc;">0°</b></label><input id="hc4-zw" type="range" min="-180" max="180" value="0" style="width:100%;accent-color:#c084fc;"></div>
+  <div><label for="hc4-dist" style="display:block;font-size:.78rem;color:var(--text-secondary);">4D distance: <b id="hc4-distv" style="color:var(--accent);">2.4</b></label><input id="hc4-dist" type="range" min="12" max="40" value="24" style="width:100%;accent-color:var(--accent);"></div>
+</div>
+
+<div id="hc4-info" style="font-size:.86rem;color:var(--text-secondary);background:rgba(45,212,255,.05);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px 14px;line-height:1.65;"></div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("hc4-cv"), ctx = cv.getContext("2d");
+  var W = 600, H = 340, DPR = 1;
+  function fit(){
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.round(cv.clientWidth || 600); H = 340;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", fit); fit();
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Tesseract: 16 verts, edges join verts differing in exactly one coord
+  var TV = [];
+  for (var i = 0; i < 16; i++) TV.push([(i & 1) ? 1 : -1, (i & 2) ? 1 : -1, (i & 4) ? 1 : -1, (i & 8) ? 1 : -1]);
+  var TE = [];
+  for (var a = 0; a < 16; a++) for (var b = a + 1; b < 16; b++) {
+    var d = 0;
+    for (var k = 0; k < 4; k++) if (TV[a][k] !== TV[b][k]) d++;
+    if (d === 1) TE.push([a, b]);
+  }
+  // 16-cell: 8 verts (±1,0,0,0) permutations; edges join non-opposite pairs
+  var SV = [[1,0,0,0],[-1,0,0,0],[0,1,0,0],[0,-1,0,0],[0,0,1,0],[0,0,-1,0],[0,0,0,1],[0,0,0,-1]];
+  var SE = [];
+  for (var c = 0; c < 8; c++) for (var e2 = c + 1; e2 < 8; e2++) {
+    var opp = true;
+    for (var m = 0; m < 4; m++) if (SV[c][m] + SV[e2][m] !== 0) { opp = false; break; }
+    if (!opp) SE.push([c, e2]);
+  }
+  var shape = "tess", spin = !reduced, trails = true, t = 0.6;
+  var INFO = {
+    tess: "<b style='color:var(--text);'>🧊 Tesseract</b> — 16 vertices, 32 edges, 8 cube cells. What you see is a 3D 'shadow' of a 4D object, the way a cube's shadow is a flat hexagon. The <b>XW/YW/ZW sliders</b> rotate in planes involving the 4th dimension — moves no 3D object can make. Slide <b>4D distance</b> near minimum and the shadow turns inside-out.",
+    cell16: "<b style='color:var(--text);'>✨ 16-cell</b> — 8 vertices, 24 edges, 16 tetrahedral cells. The 4D cross-polytope: two pyramids glued base-to-base, then the same trick again in 4D. It is the dual of the tesseract — faces and vertices swapped. Spin the W-planes and watch it pulse through itself."
+  };
+  $("hc4-info").innerHTML = INFO.tess;
+  var sbtns = document.querySelectorAll("[data-hc4-shape]");
+  for (var si = 0; si < sbtns.length; si++) (function(b){
+    b.addEventListener("click", function(){
+      shape = b.getAttribute("data-hc4-shape");
+      for (var j = 0; j < sbtns.length; j++) {
+        var on = sbtns[j] === b;
+        sbtns[j].style.cssText = on
+          ? "padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:800;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);"
+          : "padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);";
+      }
+      $("hc4-info").innerHTML = INFO[shape];
+      hardClear(); draw(0);
+    });
+  })(sbtns[si]);
+  $("hc4-spin").checked = spin;
+  $("hc4-spin").addEventListener("change", function(){ spin = this.checked; if (spin) requestAnimationFrame(frame); });
+  $("hc4-trails").addEventListener("change", function(){ trails = this.checked; if (!trails) hardClear(); if (!spin) draw(0); });
+  function bindSlider(id, vid, fmt){
+    $(id).addEventListener("input", function(){ $(vid).textContent = fmt(+this.value); if (!spin) { hardClear(); draw(0); } });
+  }
+  bindSlider("hc4-xw", "hc4-xwv", function(v){ return v + "°"; });
+  bindSlider("hc4-yw", "hc4-ywv", function(v){ return v + "°"; });
+  bindSlider("hc4-zw", "hc4-zwv", function(v){ return v + "°"; });
+  bindSlider("hc4-dist", "hc4-distv", function(v){ return (v / 10).toFixed(1); });
+  function rot4(p, i, j, ang){
+    var c = Math.cos(ang), s = Math.sin(ang);
+    var u = p[i] * c - p[j] * s, v = p[i] * s + p[j] * c;
+    p[i] = u; p[j] = v;
+  }
+  function hardClear(){ ctx.fillStyle = "#04070d"; ctx.fillRect(0, 0, W, H); }
+  function draw(auto){
+    if (trails && spin) { ctx.fillStyle = "rgba(4,7,13,.22)"; ctx.fillRect(0, 0, W, H); }
+    else hardClear();
+    var V = shape === "tess" ? TV : SV;
+    var E = shape === "tess" ? TE : SE;
+    var axw = (+$("hc4-xw").value) * Math.PI / 180 + auto * 0.7;
+    var ayw = (+$("hc4-yw").value) * Math.PI / 180 + auto * 0.45;
+    var azw = (+$("hc4-zw").value) * Math.PI / 180 + auto * 0.3;
+    var axy = auto * 0.25, axz = Math.sin(auto * 0.2) * 0.4;
+    var D = (+$("hc4-dist").value) / 10;
+    var cx = W / 2, cy = H / 2, S = Math.min(W, H) * (shape === "tess" ? 0.30 : 0.34);
+    var pts = V.map(function(v){
+      var p = [v[0], v[1], v[2], v[3]];
+      rot4(p, 0, 1, axy); rot4(p, 0, 2, axz);
+      rot4(p, 0, 3, axw); rot4(p, 1, 3, ayw); rot4(p, 2, 3, azw);
+      var s = D / Math.max(0.2, D - p[3]);       // 4D -> 3D perspective
+      var x3 = p[0] * s, y3 = p[1] * s, z3 = p[2] * s;
+      var tilt = 0.42, y4 = y3 * Math.cos(tilt) - z3 * Math.sin(tilt), z4 = y3 * Math.sin(tilt) + z3 * Math.cos(tilt);
+      var q = 3.4 / (3.4 + z4);                   // 3D -> 2D perspective
+      return [cx + x3 * S * q, cy + y4 * S * q, p[3], z4];
+    });
+    ctx.lineWidth = 2; ctx.lineCap = "round";
+    ctx.shadowColor = "rgba(192,132,252,.8)"; ctx.shadowBlur = 8;
+    for (var i = 0; i < E.length; i++) {
+      var A = pts[E[i][0]], B = pts[E[i][1]];
+      var w = (A[2] + B[2]) / 2; // -2..2ish
+      var f = (w + 2) / 4;
+      var r = Math.round(45 + f * 210), g = Math.round(212 - f * 130), bl = 255;
+      ctx.strokeStyle = "rgb(" + r + "," + g + "," + bl + ")";
+      ctx.globalAlpha = 0.45 + f * 0.55;
+      ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    for (var j = 0; j < pts.length; j++) {
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(pts[j][0], pts[j][1], shape === "tess" ? 2.6 : 3.4, 0, Math.PI * 2); ctx.fill();
+    }
+    // HUD
+    ctx.fillStyle = "rgba(230,250,255,.6)"; ctx.font = "11px ui-monospace,monospace"; ctx.textAlign = "left";
+    ctx.fillText((shape === "tess" ? "verts 16 · edges 32 · cells 8" : "verts 8 · edges 24 · cells 16") + " · w-spin " + Math.round(((auto * 0.7) % (Math.PI * 2)) / (Math.PI * 2) * 360) + "°", 10, H - 10);
+  }
+  var last = 0;
+  function frame(ts){
+    if (!spin) return;
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    t += dt;
+    draw(t);
+    requestAnimationFrame(frame);
+  }
+  hardClear(); draw(t);
+  if (spin) requestAnimationFrame(frame);
+})();
+</script>

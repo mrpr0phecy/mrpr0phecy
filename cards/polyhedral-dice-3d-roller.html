@@ -1,0 +1,247 @@
+<h2 id="pd3-title" style="margin-top:0;color:var(--accent);">🎲 Polyhedral Dice 3D Roller</h2>
+<p id="pd3-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Real tumbling 3D dice — D4 through D20 — rendered as true platonic solids. The die physically rotates so your rolled face lands front-and-centre. Includes roll history, fairness stats and a 100-roll simulator.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center;">
+  <button type="button" data-pd3-die="4" style="padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">D4</button>
+  <button type="button" data-pd3-die="6" style="padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:800;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);">D6</button>
+  <button type="button" data-pd3-die="8" style="padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">D8</button>
+  <button type="button" data-pd3-die="12" style="padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">D12</button>
+  <button type="button" data-pd3-die="20" style="padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">D20</button>
+  <button type="button" id="pd3-roll" style="padding:10px 26px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;font-size:1rem;">🎲 ROLL</button>
+  <button type="button" id="pd3-sim" style="padding:10px 16px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;font-weight:700;">📊 Roll ×100</button>
+</div>
+
+<div style="position:relative;">
+  <canvas id="pd3-cv" width="600" height="320" style="width:100%;height:320px;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;" role="img" aria-label="Tumbling three-dimensional die"></canvas>
+  <div id="pd3-result" style="position:absolute;top:10px;right:14px;text-align:center;pointer-events:none;">
+    <div style="font-size:.7rem;color:var(--text-secondary);letter-spacing:.1em;">RESULT</div>
+    <div id="pd3-num" style="font-size:2.6rem;font-weight:900;color:#ffd700;text-shadow:0 0 18px rgba(255,215,0,.5);">–</div>
+  </div>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:flex-start;">
+  <div style="flex:1;min-width:200px;">
+    <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">📜 Recent rolls</div>
+    <div id="pd3-hist" style="display:flex;flex-wrap:wrap;gap:5px;min-height:28px;"></div>
+  </div>
+  <div style="flex:1;min-width:200px;">
+    <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">📊 Fairness (<span id="pd3-total">0</span> rolls)</div>
+    <div id="pd3-bars" style="display:flex;align-items:flex-end;gap:2px;height:44px;"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("pd3-cv"), ctx = cv.getContext("2d");
+  var W = 600, H = 320, DPR = 1;
+  function fit(){
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.round(cv.clientWidth || 600); H = 320;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    render();
+  }
+  window.addEventListener("resize", fit);
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // ---------- 3x3 matrix utils ----------
+  function matMul(A, B){
+    var C = [[0,0,0],[0,0,0],[0,0,0]];
+    for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) for (var k = 0; k < 3; k++) C[i][j] += A[i][k] * B[k][j];
+    return C;
+  }
+  function matVec(M, v){ return [M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2], M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2], M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]]; }
+  function axisAngle(ax, ang){
+    var c = Math.cos(ang), s = Math.sin(ang), t = 1 - c, x = ax[0], y = ax[1], z = ax[2];
+    return [[t*x*x+c, t*x*y-s*z, t*x*z+s*y],[t*x*y+s*z, t*y*y+c, t*y*z-s*x],[t*x*z-s*y, t*y*z+s*x, t*z*z+c]];
+  }
+  function norm(v){ var l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0]/l, v[1]/l, v[2]/l]; }
+  // ---------- solids ----------
+  var PHI = (1 + Math.sqrt(5)) / 2;
+  function facesFromDual(verts, centers, k){
+    return centers.map(function(c){
+      var cn = norm(c);
+      var idx = verts.map(function(v, i){ return [Math.hypot(v[0]-c[0], v[1]-c[1], v[2]-c[2]), i]; });
+      idx.sort(function(a, b){ return a[0] - b[0]; });
+      var face = idx.slice(0, k).map(function(e){ return e[1]; });
+      // angular sort around center for clean polygons
+      var up = Math.abs(cn[1]) > 0.9 ? [1,0,0] : [0,1,0];
+      var u = norm([cn[1]*up[2]-cn[2]*up[1], cn[2]*up[0]-cn[0]*up[2], cn[0]*up[1]-cn[1]*up[0]]);
+      var w = [cn[1]*u[2]-cn[2]*u[1], cn[2]*u[0]-cn[0]*u[2], cn[0]*u[1]-cn[1]*u[0]];
+      face.sort(function(a, b){
+        var aa = Math.atan2(verts[a][0]*w[0]+verts[a][1]*w[1]+verts[a][2]*w[2], verts[a][0]*u[0]+verts[a][1]*u[1]+verts[a][2]*u[2]);
+        var bb = Math.atan2(verts[b][0]*w[0]+verts[b][1]*w[1]+verts[b][2]*w[2], verts[b][0]*u[0]+verts[b][1]*u[1]+verts[b][2]*u[2]);
+        return aa - bb;
+      });
+      return face;
+    });
+  }
+  var D4V = norm ? [[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]].map(norm) : [];
+  var C8 = [];
+  [[1,1,1],[1,1,-1],[1,-1,1],[1,-1,-1],[-1,1,1],[-1,1,-1],[-1,-1,1],[-1,-1,-1]].forEach(function(v){ C8.push(norm(v)); });
+  var D6F = [];
+  for (var ax = 0; ax < 3; ax++) for (var sg = -1; sg <= 1; sg += 2) {
+    (function(axis, s){
+      D6F.push(C8.map(function(v, i){ return [v, i]; }).filter(function(e){ return (e[0][axis] > 0 ? 1 : -1) === s; }).map(function(e){ return e[1]; }));
+    })(ax, sg);
+  }
+  var O6 = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  var D8F = [];
+  [1,-1].forEach(function(sx){ [1,-1].forEach(function(sy){ [1,-1].forEach(function(sz){
+    D8F.push([sx > 0 ? 0 : 1, sy > 0 ? 2 : 3, sz > 0 ? 4 : 5]);
+  }); }); });
+  var D12V = [[1,1,1],[1,1,-1],[1,-1,1],[1,-1,-1],[-1,1,1],[-1,1,-1],[-1,-1,1],[-1,-1,-1],
+    [0,1/PHI,PHI],[0,1/PHI,-PHI],[0,-1/PHI,PHI],[0,-1/PHI,-PHI],
+    [1/PHI,PHI,0],[1/PHI,-PHI,0],[-1/PHI,PHI,0],[-1/PHI,-PHI,0],
+    [PHI,0,1/PHI],[PHI,0,-1/PHI],[-PHI,0,1/PHI],[-PHI,0,-1/PHI]].map(norm);
+  var I12V = [[0,1,PHI],[0,1,-PHI],[0,-1,PHI],[0,-1,-PHI],[1,PHI,0],[1,-PHI,0],[-1,PHI,0],[-1,-PHI,0],[PHI,0,1],[PHI,0,-1],[-PHI,0,1],[-PHI,0,-1]].map(norm);
+  var SOLIDS = {
+    4:  { v: D4V, f: [[0,2,1],[0,1,3],[0,3,2],[1,2,3]], hue: 0 },
+    6:  { v: C8, f: D6F, hue: 195 },
+    8:  { v: O6, f: D8F, hue: 140 },
+    12: { v: D12V, f: facesFromDual(D12V, I12V, 5), hue: 275 },
+    20: { v: I12V, f: facesFromDual(I12V, D12V, 3), hue: 45 }
+  };
+  var sides = 6, M = [[1,0,0],[0,1,0],[0,0,1]];
+  var counts = [], total = 0, hist = [];
+  function resetStats(){ counts = []; for (var i = 0; i < sides; i++) counts[i] = 0; total = 0; hist = []; paintStats(); }
+  function paintStats(){
+    $("pd3-total").textContent = total;
+    $("pd3-hist").innerHTML = hist.slice(-14).map(function(h){
+      return "<span style='padding:3px 9px;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.35);border-radius:6px;font-weight:800;font-size:.8rem;color:#ffd700;'>" + h + "</span>";
+    }).join("") || "<span style='font-size:.8rem;color:var(--text-secondary);'>no rolls yet</span>";
+    var mx = 1; for (var i = 0; i < counts.length; i++) if (counts[i] > mx) mx = counts[i];
+    $("pd3-bars").innerHTML = counts.map(function(c, i){
+      var h = Math.max(3, Math.round(c / mx * 40));
+      return "<div title='" + (i + 1) + ": " + c + "' style='flex:1;background:linear-gradient(180deg,var(--accent),rgba(45,212,255,.25));border-radius:2px 2px 0 0;height:" + h + "px;min-width:4px;'></div>";
+    }).join("");
+  }
+  function record(r){ counts[r - 1]++; total++; hist.push(r); $("pd3-num").textContent = r; paintStats(); }
+  // ---------- animation state machine ----------
+  var phase = "idle", tumbleAxis = [0.4, 1, 0.25], tumbleW = 0, settle = null, settleT = 0, result = 0, idleA = 0.5;
+  function render(){
+    ctx.fillStyle = "#04070d"; ctx.fillRect(0, 0, W, H);
+    // glow pedestal
+    var g = ctx.createRadialGradient(W/2, H*0.82, 4, W/2, H*0.82, W*0.3);
+    g.addColorStop(0, "rgba(45,212,255,.18)"); g.addColorStop(1, "rgba(45,212,255,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(W/2, H*0.82, W*0.3, 26, 0, 0, Math.PI*2); ctx.fill();
+    var S = SOLIDS[sides];
+    var WV = S.v.map(function(v){ return matVec(M, v); });
+    var cx = W/2, cy = H/2 - 6, SC = Math.min(W,H) * 0.34;
+    var P = WV.map(function(v){
+      var q = 3.1 / (3.1 + v[2]);
+      return [cx + v[0]*SC*q, cy + v[1]*SC*q, v[2]];
+    });
+    var light = norm([0.5, -0.8, 0.6]);
+    var faces = S.f.map(function(f, fi){
+      var n = [0,0,0];
+      f.forEach(function(vi){ n[0]+=WV[vi][0]; n[1]+=WV[vi][1]; n[2]+=WV[vi][2]; });
+      n = norm(n);
+      var depth = 0; f.forEach(function(vi){ depth += P[vi][2]; }); depth /= f.length;
+      var lambert = Math.max(0.15, n[0]*light[0]+n[1]*light[1]+n[2]*light[2]);
+      return { f: f, n: n, depth: depth, lam: lambert, num: fi + 1 };
+    });
+    faces.sort(function(a, b){ return a.depth - b.depth; });
+    for (var i = faces.length - 1; i >= 0; i--) {
+      var F = faces[i];
+      if (F.n[2] > 0.12) continue; // backface cull: camera sits at -z, visible faces point -z
+      ctx.beginPath();
+      F.f.forEach(function(vi, k){ if (k) ctx.lineTo(P[vi][0], P[vi][1]); else ctx.moveTo(P[vi][0], P[vi][1]); });
+      ctx.closePath();
+      var L = Math.round(28 + F.lam * 38);
+      ctx.fillStyle = "hsl(" + S.hue + ",70%," + L + "%)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.lineWidth = 1.5; ctx.stroke();
+      // number
+      if (F.n[2] < -0.12) {
+        var px = 0, py = 0;
+        F.f.forEach(function(vi){ px += P[vi][0]; py += P[vi][1]; });
+        px /= F.f.length; py /= F.f.length;
+        var fs = Math.max(11, Math.min(30, SC * (sides >= 12 ? 0.16 : 0.24)));
+        ctx.fillStyle = "rgba(255,255,255,.95)";
+        ctx.font = "900 " + Math.round(fs) + "px system-ui,sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(F.num, px, py);
+      }
+    }
+  }
+  function faceNormalWorld(fi){
+    var S = SOLIDS[sides], n = [0,0,0];
+    S.f[fi].forEach(function(vi){ var w = matVec(M, S.v[vi]); n[0]+=w[0]; n[1]+=w[1]; n[2]+=w[2]; });
+    return norm(n);
+  }
+  $("pd3-roll").addEventListener("click", function(){
+    if (phase === "tumble" || phase === "settle") return;
+    result = 1 + Math.floor(Math.random() * sides);
+    if (reduced) {
+      // snap instantly to a readable orientation
+      var n0 = faceNormalWorld(result - 1), tgt = [0, -0.18, -1];
+      var axis = norm([n0[1]*tgt[2]-n0[2]*tgt[1], n0[2]*tgt[0]-n0[0]*tgt[2], n0[0]*tgt[1]-n0[1]*tgt[0]]);
+      var ang = Math.acos(Math.max(-1, Math.min(1, n0[0]*tgt[0]+n0[1]*tgt[1]+n0[2]*tgt[2])));
+      M = matMul(axisAngle(axis, ang), M);
+      record(result); render();
+      return;
+    }
+    phase = "tumble";
+    tumbleW = 9 + Math.random() * 5;
+    tumbleAxis = norm([Math.random()-0.5, Math.random()-0.5, Math.random()-0.5]);
+    $("pd3-num").textContent = "…";
+    requestAnimationFrame(frame);
+  });
+  $("pd3-sim").addEventListener("click", function(){
+    for (var k = 0; k < 100; k++) record(1 + Math.floor(Math.random() * sides));
+  });
+  var dbtns = document.querySelectorAll("[data-pd3-die]");
+  for (var di = 0; di < dbtns.length; di++) (function(b){
+    b.addEventListener("click", function(){
+      sides = +b.getAttribute("data-pd3-die");
+      for (var j = 0; j < dbtns.length; j++) {
+        var on = dbtns[j] === b;
+        dbtns[j].style.cssText = on
+          ? "padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:800;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);"
+          : "padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:700;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);";
+      }
+      $("pd3-num").textContent = "–";
+      resetStats(); render();
+    });
+  })(dbtns[di]);
+  var last = 0;
+  function frame(ts){
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    if (phase === "tumble") {
+      M = matMul(axisAngle(tumbleAxis, tumbleW * dt), M);
+      // precess the axis for chaotic tumble
+      tumbleAxis = norm([tumbleAxis[0] + (Math.random()-0.5)*0.3, tumbleAxis[1] + (Math.random()-0.5)*0.3, tumbleAxis[2] + (Math.random()-0.5)*0.3]);
+      tumbleW *= Math.pow(0.25, dt); // decay
+      if (tumbleW < 1.1) {
+        phase = "settle"; settleT = 0;
+        var n0 = faceNormalWorld(result - 1), tgt = norm([0, -0.22, -1]);
+        var ax = [n0[1]*tgt[2]-n0[2]*tgt[1], n0[2]*tgt[0]-n0[0]*tgt[2], n0[0]*tgt[1]-n0[1]*tgt[0]];
+        var al = Math.hypot(ax[0], ax[1], ax[2]);
+        settle = al < 1e-4 ? null : { axis: [ax[0]/al, ax[1]/al, ax[2]/al], ang: Math.acos(Math.max(-1, Math.min(1, n0[0]*tgt[0]+n0[1]*tgt[1]+n0[2]*tgt[2]))) };
+      }
+      render();
+      requestAnimationFrame(frame);
+    } else if (phase === "settle") {
+      settleT += dt;
+      var dur = 0.65, f = Math.min(1, settleT / dur);
+      var e = 1 - Math.pow(1 - f, 3); // easeOutCubic
+      if (settle) {
+        var step = settle.ang * (e - (settle.prevE || 0));
+        settle.prevE = e;
+        M = matMul(axisAngle(settle.axis, step), M);
+      }
+      render();
+      if (f >= 1) { phase = "idle"; record(result); }
+      else requestAnimationFrame(frame);
+    } else if (!reduced) {
+      // gentle idle spin
+      M = matMul(axisAngle([0, 1, 0.15], dt * 0.25), M);
+      render();
+      requestAnimationFrame(frame);
+    }
+  }
+  fit(); resetStats(); render();
+  if (!reduced) requestAnimationFrame(frame);
+})();
+</script>

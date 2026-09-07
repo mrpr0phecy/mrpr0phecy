@@ -1,0 +1,163 @@
+<h2 id="mpl-title" style="margin-top:0;color:var(--accent);">🏛️ Memory Palace Builder</h2>
+<p id="mpl-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Memorise anything with the 2,500-year-old method of loci used by memory champions. Build rooms, place vivid images at each stop, walk your palace, then test your recall.</p>
+
+<details style="margin-bottom:12px;background:rgba(45,212,255,.05);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:10px 14px;">
+  <summary style="cursor:pointer;font-weight:700;">❓ How the method of loci works (60 seconds)</summary>
+  <ol style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;margin:8px 0 4px;padding-left:20px;">
+    <li><b style="color:var(--text);">Pick a familiar route</b> — rooms in your home work perfectly.</li>
+    <li><b style="color:var(--text);">Place one image per stop.</b> Each thing to remember becomes a picture parked at a stop.</li>
+    <li><b style="color:var(--text);">Make it absurd.</b> Giant, smelly, moving, rude — boring images fade, weird ones stick.</li>
+    <li><b style="color:var(--text);">Walk the route</b> to recall in order. Memory champions memorise decks of cards this way.</li>
+  </ol>
+</details>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px;">
+  <div>
+    <label for="mpl-room" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">1 · Add a room (a stop on your route)</label>
+    <div style="display:flex;gap:6px;">
+      <input id="mpl-room" type="text" placeholder="e.g. Kitchen" maxlength="30" style="flex:1;min-width:0;padding:9px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <button type="button" id="mpl-addroom" style="padding:9px 14px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">+</button>
+    </div>
+  </div>
+  <div>
+    <label for="mpl-item" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">2 · Place an item in the selected room</label>
+    <div style="display:flex;gap:6px;">
+      <input id="mpl-item" type="text" placeholder="e.g. Milk" maxlength="40" style="flex:1;min-width:0;padding:9px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <button type="button" id="mpl-additem" style="padding:9px 14px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">+</button>
+    </div>
+  </div>
+</div>
+
+<div id="mpl-palace" style="margin-bottom:12px;"></div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+  <button type="button" id="mpl-walk" style="padding:10px 18px;background:rgba(57,255,20,.12);color:#7dff6a;border:1px solid rgba(57,255,20,.4);border-radius:8px;cursor:pointer;font-weight:800;">🚶 Walk the palace</button>
+  <button type="button" id="mpl-test" style="padding:10px 18px;background:rgba(255,180,71,.12);color:#ffb347;border:1px solid rgba(255,180,71,.4);border-radius:8px;cursor:pointer;font-weight:800;">🧠 Test recall</button>
+  <button type="button" id="mpl-demo" style="padding:10px 18px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.18);border-radius:8px;cursor:pointer;font-weight:700;">✨ Load demo palace</button>
+  <button type="button" id="mpl-clear" style="padding:10px 18px;background:rgba(255,77,77,.1);color:#ff8080;border:1px solid rgba(255,77,77,.35);border-radius:8px;cursor:pointer;font-weight:700;">🗑 Clear</button>
+</div>
+
+<div id="mpl-stage" style="display:none;background:#071019;border:1px solid rgba(45,212,255,.3);border-radius:12px;padding:20px;text-align:center;"></div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var palace = [];
+  try { palace = JSON.parse(localStorage.getItem("mpl-palace") || "[]"); if (!Array.isArray(palace)) palace = []; } catch (e) { palace = []; }
+  var selRoom = 0;
+  function save(){ try { localStorage.setItem("mpl-palace", JSON.stringify(palace)); } catch (e) {} }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function vivid(item){
+    var t = [
+      "Imagine a GIANT " + item + " blocking the doorway — you have to climb over it.",
+      "Picture the " + item + " melting like ice cream, dripping everywhere, smelling strongly.",
+      "See the " + item + " dancing and singing loudly, demanding your attention.",
+      "Imagine a hundred tiny " + item + "s marching across the floor like ants.",
+      "Picture yourself slipping on the " + item + " with a loud cartoon crash.",
+      "See the " + item + " glowing neon and humming with electricity.",
+      "Imagine the " + item + " three metres tall, squeezing through the ceiling.",
+      "Picture the " + item + " arguing with the furniture in a squeaky voice."
+    ];
+    var h = 0; for (var i = 0; i < item.length; i++) h = (h * 31 + item.charCodeAt(i)) % 997;
+    return t[h % t.length];
+  }
+  function render(){
+    var box = $("mpl-palace");
+    if (!palace.length) { box.innerHTML = "<div style='font-size:.85rem;color:var(--text-secondary);background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.2);border-radius:10px;padding:14px;text-align:center;'>Your palace is empty. Add a room above — or load the demo palace to see how it works.</div>"; return; }
+    var html = "";
+    palace.forEach(function(room, ri){
+      html += "<div style='margin-bottom:8px;border:1px solid " + (ri === selRoom ? "rgba(45,212,255,.5)" : "rgba(255,255,255,.1)") + ";border-radius:10px;overflow:hidden;'>";
+      html += "<div data-mpl-sel='" + ri + "' style='cursor:pointer;padding:9px 12px;background:" + (ri === selRoom ? "rgba(45,212,255,.1)" : "rgba(255,255,255,.03)") + ";font-weight:800;display:flex;justify-content:space-between;align-items:center;'><span>🚪 " + esc(room.name) + " <span style='font-weight:400;font-size:.75rem;color:var(--text-secondary);'>(" + room.items.length + " loci)</span></span><span style='font-size:.75rem;color:var(--text-secondary);'>" + (ri === selRoom ? "● selected" : "tap to select") + "</span></div>";
+      if (room.items.length) {
+        html += "<div style='padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px;'>";
+        room.items.forEach(function(it, ii){
+          html += "<span style='font-size:.8rem;padding:5px 10px;background:rgba(0,0,0,.3);border-radius:7px;' title='" + esc(vivid(it)) + "'>" + (ii + 1) + ". " + esc(it) + " <span data-mpl-del='" + ri + ":" + ii + "' style='cursor:pointer;color:#ff8080;margin-left:4px;' role='button' tabindex='0' aria-label='Remove " + esc(it) + "'>✕</span></span>";
+        });
+        html += "</div>";
+      }
+      html += "</div>";
+    });
+    box.innerHTML = html;
+    box.querySelectorAll("[data-mpl-sel]").forEach(function(el){
+      el.addEventListener("click", function(){ selRoom = +el.getAttribute("data-mpl-sel"); render(); });
+    });
+    box.querySelectorAll("[data-mpl-del]").forEach(function(el){
+      function del(){ var p = el.getAttribute("data-mpl-del").split(":"); palace[+p[0]].items.splice(+p[1], 1); save(); render(); }
+      el.addEventListener("click", function(ev){ ev.stopPropagation(); del(); });
+      el.addEventListener("keydown", function(ev){ if (ev.key === "Enter") del(); });
+    });
+  }
+  function flat(){
+    var out = [];
+    palace.forEach(function(room){ room.items.forEach(function(it, ii){ out.push({ room: room.name, n: ii + 1, item: it }); }); });
+    return out;
+  }
+  $("mpl-addroom").addEventListener("click", function(){
+    var v = $("mpl-room").value.trim(); if (!v) return;
+    palace.push({ name: v.slice(0, 30), items: [] }); selRoom = palace.length - 1;
+    $("mpl-room").value = ""; save(); render();
+  });
+  $("mpl-additem").addEventListener("click", function(){
+    var v = $("mpl-item").value.trim(); if (!v || !palace.length) return;
+    palace[selRoom].items.push(v.slice(0, 40));
+    $("mpl-item").value = ""; save(); render();
+  });
+  $("mpl-demo").addEventListener("click", function(){
+    palace = [
+      { name: "Front Door", items: ["Milk", "Eggs"] },
+      { name: "Kitchen", items: ["Bread", "Cheese"] },
+      { name: "Living Room", items: ["Apples", "Coffee"] },
+      { name: "Bedroom", items: ["Batteries", "Socks"] },
+      { name: "Bathroom", items: ["Soap", "Towel"] }
+    ];
+    selRoom = 0; save(); render();
+  });
+  $("mpl-clear").addEventListener("click", function(){
+    if (!palace.length) return;
+    if (confirm("Clear your whole palace?")) { palace = []; selRoom = 0; save(); render(); $("mpl-stage").style.display = "none"; }
+  });
+  $("mpl-walk").addEventListener("click", function(){
+    var loci = flat();
+    if (!loci.length) { alert("Add at least one item first."); return; }
+    var i = 0, st = $("mpl-stage"); st.style.display = "block";
+    (function draw(){
+      var L = loci[i];
+      st.innerHTML = "<div style='font-size:.75rem;color:var(--text-secondary);letter-spacing:.1em;'>STOP " + (i + 1) + " OF " + loci.length + " · 🚪 " + esc(L.room) + "</div>"
+        + "<div style='font-size:2rem;font-weight:800;margin:10px 0;'>" + esc(L.item) + "</div>"
+        + "<div style='font-size:.88rem;color:var(--text-secondary);max-width:440px;margin:0 auto 14px;'>🎨 " + esc(vivid(L.item)) + "</div>"
+        + "<div style='display:flex;gap:8px;justify-content:center;'>"
+        + "<button type='button' id='mpl-wprev' style='padding:9px 18px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.18);border-radius:8px;cursor:pointer;font-weight:700;'>← Back</button>"
+        + "<button type='button' id='mpl-wnext' style='padding:9px 18px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;'>" + (i === loci.length - 1 ? "🏁 Finish walk" : "Next stop →") + "</button></div>";
+      document.getElementById("mpl-wprev").addEventListener("click", function(){ if (i > 0) { i--; draw(); } });
+      document.getElementById("mpl-wnext").addEventListener("click", function(){
+        if (i < loci.length - 1) { i++; draw(); }
+        else st.innerHTML = "<div style='font-size:2rem;'>🏁</div><b>Walk complete!</b><div style='font-size:.85rem;color:var(--text-secondary);margin-top:6px;'>Now close your eyes and re-walk the route from memory — then try Test recall.</div>";
+      });
+    })();
+  });
+  $("mpl-test").addEventListener("click", function(){
+    var loci = flat();
+    if (!loci.length) { alert("Add at least one item first."); return; }
+    var i = 0, remembered = 0, st = $("mpl-stage"); st.style.display = "block";
+    (function draw(){
+      var L = loci[i];
+      st.innerHTML = "<div style='font-size:.75rem;color:var(--text-secondary);letter-spacing:.1em;'>RECALL " + (i + 1) + " OF " + loci.length + " · 🚪 " + esc(L.room) + " · stop " + L.n + "</div>"
+        + "<div style='font-size:1.6rem;font-weight:800;margin:12px 0;' id='mpl-tans'>❓ What lives here?</div>"
+        + "<div id='mpl-tbtns'><button type='button' id='mpl-reveal' style='padding:9px 22px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;'>👁 Reveal</button></div>";
+      document.getElementById("mpl-reveal").addEventListener("click", function(){
+        document.getElementById("mpl-tans").innerHTML = "💡 " + esc(L.item);
+        document.getElementById("mpl-tbtns").innerHTML = "<button type='button' id='mpl-got' style='padding:9px 18px;background:rgba(57,255,20,.15);color:#7dff6a;border:1px solid rgba(57,255,20,.45);border-radius:8px;cursor:pointer;font-weight:800;margin-right:8px;'>✓ I remembered</button>"
+          + "<button type='button' id='mpl-miss' style='padding:9px 18px;background:rgba(255,77,77,.12);color:#ff8080;border:1px solid rgba(255,77,77,.4);border-radius:8px;cursor:pointer;font-weight:800;'>✗ I forgot</button>";
+        document.getElementById("mpl-got").addEventListener("click", function(){ remembered++; advance(); });
+        document.getElementById("mpl-miss").addEventListener("click", advance);
+      });
+      function advance(){
+        i++;
+        if (i < loci.length) draw();
+        else st.innerHTML = "<div style='font-size:2rem;'>" + (remembered === loci.length ? "🏆" : remembered >= loci.length / 2 ? "🎉" : "💪") + "</div><b>You recalled " + remembered + "/" + loci.length + "</b><div style='font-size:.85rem;color:var(--text-secondary);margin-top:6px;'>" + (remembered === loci.length ? "Flawless — your palace is solid!" : "Walk the palace once more and re-test. Repetition builds the route.") + "</div>";
+      }
+    })();
+  });
+  render();
+})();
+</script>

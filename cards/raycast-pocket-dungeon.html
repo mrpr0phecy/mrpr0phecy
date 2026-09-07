@@ -1,0 +1,269 @@
+<h2 id="rpd-title" style="margin-top:0;color:var(--accent);">🗝️ Raycast Pocket Dungeon</h2>
+<p id="rpd-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">A Wolfenstein-style 3D dungeon in pure maths — no game engine. Procedurally generated maze, glowing orb collectibles, a portal exit, minimap and touch controls. Click the view, then use WASD or arrows.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center;">
+  <button type="button" id="rpd-new" style="padding:9px 18px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">🎲 New dungeon</button>
+  <select id="rpd-wall" aria-label="Wall style" style="padding:9px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    <option value="neon">🧱 Neon bricks</option><option value="candy">🍬 Candy stripes</option><option value="moss">🌿 Mossy stone</option>
+  </select>
+  <span id="rpd-hud" style="font-size:.84rem;color:var(--text-secondary);">🔮 0/5 · 👣 0 · ⏱ 0s</span>
+</div>
+
+<div style="position:relative;">
+  <canvas id="rpd-cv" width="600" height="340" tabindex="0" style="width:100%;height:340px;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;outline:none;" role="application" aria-label="3D dungeon. Click then use WASD or arrow keys to move."></canvas>
+  <div id="rpd-win" style="display:none;position:absolute;inset:0;background:rgba(4,7,13,.88);border-radius:12px;text-align:center;padding-top:70px;">
+    <div style="font-size:2.6rem;">🏆</div>
+    <div style="font-size:1.2rem;font-weight:800;margin:6px 0;">Dungeon escaped!</div>
+    <div id="rpd-stats" style="font-size:.88rem;color:var(--text-secondary);margin-bottom:12px;"></div>
+    <button type="button" id="rpd-again" style="padding:10px 22px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">↻ Deeper dungeon</button>
+  </div>
+</div>
+<div style="font-size:.76rem;color:var(--text-secondary);margin:6px 0 8px;">⌨️ Click the view, then <b>WASD / arrows</b> to move &amp; turn · 📱 hold the buttons below</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:420px;">
+  <button type="button" data-rpd-k="left" style="padding:12px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;font-size:1.2rem;cursor:pointer;touch-action:none;">◀</button>
+  <button type="button" data-rpd-k="up" style="padding:12px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;font-size:1.2rem;cursor:pointer;touch-action:none;">▲</button>
+  <button type="button" data-rpd-k="down" style="padding:12px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;font-size:1.2rem;cursor:pointer;touch-action:none;">▼</button>
+  <button type="button" data-rpd-k="right" style="padding:12px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;font-size:1.2rem;cursor:pointer;touch-action:none;">▶</button>
+</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("rpd-cv"), ctx = cv.getContext("2d");
+  var W = 600, H = 340, DPR = 1, COLS = 150;
+  function fit(){
+    DPR = 1; // fixed: software raycaster renders at CSS pixels for speed
+    W = Math.round(cv.clientWidth || 600); H = 340;
+    cv.width = W; cv.height = H;
+    COLS = Math.max(90, Math.min(200, Math.round(W / 3)));
+  }
+  window.addEventListener("resize", fit); fit();
+  // ---------- maze gen (recursive backtracker) ----------
+  var MW = 21, MH = 21, grid, px, py, pdx, pdy, plx, ply, orbs, exit, steps, orbsGot, startT, won;
+  function genMaze(){
+    grid = [];
+    for (var y = 0; y < MH; y++) { grid[y] = []; for (var x = 0; x < MW; x++) grid[y][x] = 1; }
+    var stack = [[1, 1]]; grid[1][1] = 0;
+    while (stack.length) {
+      var top = stack[stack.length - 1], cx = top[0], cy = top[1];
+      var dirs = [[2, 0], [-2, 0], [0, 2], [0, -2]].filter(function(d){
+        var nx = cx + d[0], ny = cy + d[1];
+        return nx > 0 && ny > 0 && nx < MW - 1 && ny < MH - 1 && grid[ny][nx] === 1;
+      });
+      if (!dirs.length) { stack.pop(); continue; }
+      var d = dirs[Math.floor(Math.random() * dirs.length)];
+      grid[cy + d[1] / 2][cx + d[0] / 2] = 0; grid[cy + d[1]][cx + d[0]] = 0;
+      stack.push([cx + d[0], cy + d[1]]);
+    }
+    // braid: knock some extra walls to add loops
+    for (var k = 0; k < 26; k++) {
+      var bx = 1 + Math.floor(Math.random() * (MW - 2)), by = 1 + Math.floor(Math.random() * (MH - 2));
+      if (grid[by][bx] === 1) grid[by][bx] = 0;
+    }
+    // wall variants for colour
+    for (var y2 = 0; y2 < MH; y2++) for (var x2 = 0; x2 < MW; x2++)
+      if (grid[y2][x2] === 1) grid[y2][x2] = 1 + ((x2 * 7 + y2 * 13) % 3);
+    px = 1.5; py = 1.5;
+    setDir(1, 0);
+    // exit = farthest open cell from start
+    var best = null, bd = -1;
+    for (var ey = 1; ey < MH - 1; ey++) for (var ex = 1; ex < MW - 1; ex++)
+      if (grid[ey][ex] === 0) { var dd = Math.abs(ex - 1) + Math.abs(ey - 1); if (dd > bd) { bd = dd; best = [ex + 0.5, ey + 0.5]; } }
+    exit = best;
+    orbs = [];
+    var tries = 0;
+    while (orbs.length < 5 && tries < 500) {
+      tries++;
+      var ox = 1 + Math.floor(Math.random() * (MW - 2)), oy = 1 + Math.floor(Math.random() * (MH - 2));
+      if (grid[oy][ox] !== 0) continue;
+      if (Math.abs(ox - 1) + Math.abs(oy - 1) < 4) continue;
+      if (orbs.some(function(o){ return Math.abs(o[0] - ox - 0.5) < 1 && Math.abs(o[1] - oy - 0.5) < 1; })) continue;
+      orbs.push([ox + 0.5, oy + 0.5, false]);
+    }
+    steps = 0; orbsGot = 0; startT = Date.now(); won = false;
+    $("rpd-win").style.display = "none";
+  }
+  function setDir(dx, dy){ pdx = dx; pdy = dy; plx = -dy * 0.66; ply = dx * 0.66; }
+  // ---------- input (canvas-scoped so page scroll/keys stay safe) ----------
+  var keys = {};
+  cv.addEventListener("keydown", function(e){
+    var k = e.key.toLowerCase();
+    if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].indexOf(k) !== -1) { e.preventDefault(); keys[k] = true; }
+  });
+  cv.addEventListener("keyup", function(e){ keys[e.key.toLowerCase()] = false; });
+  cv.addEventListener("blur", function(){ keys = {}; });
+  cv.addEventListener("click", function(){ cv.focus(); });
+  var touchBtns = document.querySelectorAll("[data-rpd-k]");
+  for (var ti = 0; ti < touchBtns.length; ti++) (function(b){
+    var map = { left: "arrowleft", up: "arrowup", down: "arrowdown", right: "arrowright" };
+    var k = map[b.getAttribute("data-rpd-k")];
+    function on(e){ e.preventDefault(); keys[k] = true; b.style.background = "rgba(45,212,255,.25)"; }
+    function off(e){ if (e) e.preventDefault(); keys[k] = false; b.style.background = "rgba(255,255,255,.07)"; }
+    b.addEventListener("pointerdown", on);
+    b.addEventListener("pointerup", off);
+    b.addEventListener("pointerleave", off);
+    b.addEventListener("pointercancel", off);
+  })(touchBtns[ti]);
+  // ---------- raycaster ----------
+  var zbuf = [];
+  var WALLS = {
+    neon: ["#2dd4ff", "#9d4edd", "#ff6b81"],
+    candy: ["#ff9d3d", "#7dff6a", "#ff6b81"],
+    moss: ["#5a7a4e", "#3d5a45", "#7a8a5a"]
+  };
+  function shade(hex, f){
+    var r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    return "rgb(" + Math.round(r * f) + "," + Math.round(g * f) + "," + Math.round(b * f) + ")";
+  }
+  function castAll(){
+    var style = WALLS[$("rpd-wall").value];
+    // ceiling + floor with cheap gradient bands
+    for (var b = 0; b < 8; b++) {
+      ctx.fillStyle = "rgb(" + (4 + b) + "," + (7 + b) + "," + (13 + b * 2) + ")";
+      ctx.fillRect(0, H / 2 - (b + 1) * H / 16, W, H / 16 + 1);
+      ctx.fillStyle = "rgb(" + (10 + (7 - b) * 2) + "," + (15 + (7 - b) * 2) + "," + (24 + (7 - b) * 3) + ")";
+      ctx.fillRect(0, H / 2 + b * H / 16, W, H / 16 + 1);
+    }
+    var colW = W / COLS;
+    for (var col = 0; col < COLS; col++) {
+      var cam = 2 * col / COLS - 1;
+      var rdx = pdx + plx * cam, rdy = pdy + ply * cam;
+      var mx = Math.floor(px), my = Math.floor(py);
+      var ddx = Math.abs(rdx) < 1e-9 ? 1e9 : Math.abs(1 / rdx);
+      var ddy = Math.abs(rdy) < 1e-9 ? 1e9 : Math.abs(1 / rdy);
+      var stepX, stepY, sdx, sdy;
+      if (rdx < 0) { stepX = -1; sdx = (px - mx) * ddx; } else { stepX = 1; sdx = (mx + 1 - px) * ddx; }
+      if (rdy < 0) { stepY = -1; sdy = (py - my) * ddy; } else { stepY = 1; sdy = (my + 1 - py) * ddy; }
+      var side = 0, hit = 0, guard = 0;
+      while (!hit && guard++ < 64) {
+        if (sdx < sdy) { sdx += ddx; mx += stepX; side = 0; } else { sdy += ddy; my += stepY; side = 1; }
+        if (mx < 0 || my < 0 || mx >= MW || my >= MH) { hit = 1; break; }
+        if (grid[my][mx] > 0) hit = grid[my][mx];
+      }
+      var dist = side === 0 ? sdx - ddx : sdy - ddy;
+      if (dist < 0.02) dist = 0.02;
+      zbuf[col] = dist;
+      var lineH = Math.min(H * 3, H / dist);
+      var y0 = H / 2 - lineH / 2;
+      // brick pattern: darken every other row band + mortar lines
+      var wallX = side === 0 ? py + dist * rdy : px + dist * rdx;
+      wallX -= Math.floor(wallX);
+      var brick = ((Math.floor(wallX * 6) + Math.floor((y0 / H) * 24)) % 2 === 0) ? 1 : 0.82;
+      var fog = Math.max(0.12, 1 - dist / 9);
+      var f = fog * (side === 1 ? 0.72 : 1) * brick;
+      ctx.fillStyle = shade(style[(hit - 1) % 3], f);
+      ctx.fillRect(col * colW, y0, colW + 0.5, lineH);
+      // glowing top edge for near walls
+      if (dist < 3) {
+        ctx.fillStyle = "rgba(255,255,255," + (0.25 * (1 - dist / 3)).toFixed(2) + ")";
+        ctx.fillRect(col * colW, y0, colW + 0.5, 2);
+      }
+    }
+  }
+  function drawSprites(now){
+    // far-to-near
+    var list = [];
+    for (var i = 0; i < orbs.length; i++) if (!orbs[i][2]) list.push({ x: orbs[i][0], y: orbs[i][1], orb: i });
+    list.push({ x: exit[0], y: exit[1], exit: true });
+    list.sort(function(a, b){ return ((b.x - px) * (b.x - px) + (b.y - py) * (b.y - py)) - ((a.x - px) * (a.x - px) + (a.y - py) * (a.y - py)); });
+    var invDet = 1 / (plx * pdy - pdx * ply);
+    for (var s = 0; s < list.length; s++) {
+      var sp = list[s];
+      var rx = sp.x - px, ry = sp.y - py;
+      var tY = invDet * (-ply * rx + plx * ry); // depth
+      if (tY <= 0.15) continue;
+      var tX = invDet * (pdy * rx - pdx * ry);
+      var sx = (COLS / 2) * (1 + tX / tY);
+      var size = Math.abs(H / tY) * (sp.exit ? 0.9 : 0.42);
+      var colW = W / COLS;
+      var x0 = Math.max(0, Math.floor(sx - size / 2 / colW)), x1 = Math.min(COLS - 1, Math.ceil(sx + size / 2 / colW));
+      var bob = sp.exit ? Math.sin(now / 300) * size * 0.03 : Math.sin(now / 400 + sp.x * 7) * size * 0.06;
+      var cy = H / 2 + bob + (sp.exit ? 0 : size * 0.1);
+      for (var stripe = x0; stripe <= x1; stripe++) {
+        if (tY >= zbuf[stripe]) continue;
+        var dx = (stripe - sx) / (size / colW / 2); // -1..1
+        if (dx < -1 || dx > 1) continue;
+        var halfH = Math.sqrt(Math.max(0, 1 - dx * dx)) * size / 2;
+        if (sp.exit) {
+          var pulse = 0.6 + 0.4 * Math.sin(now / 250);
+          ctx.fillStyle = "rgba(57,255,120," + (0.85 * pulse).toFixed(2) + ")";
+          ctx.fillRect(stripe * colW, cy - halfH, colW + 0.5, halfH * 2);
+          ctx.fillStyle = "rgba(220,255,235,.9)";
+          ctx.fillRect(stripe * colW, cy - halfH * 0.45, colW + 0.5, halfH * 0.9);
+        } else {
+          var glow = 0.75 + 0.25 * Math.sin(now / 350 + sp.x * 9);
+          ctx.fillStyle = "rgba(255,215,0," + glow.toFixed(2) + ")";
+          ctx.fillRect(stripe * colW, cy - halfH, colW + 0.5, halfH * 2);
+          ctx.fillStyle = "rgba(255,255,255,.95)";
+          ctx.fillRect(stripe * colW, cy - halfH * 0.4, colW + 0.5, halfH * 0.8);
+        }
+      }
+    }
+  }
+  function drawMap(){
+    var s = Math.max(2, Math.floor(Math.min(W, H) * 0.28 / MW));
+    var ox = W - MW * s - 8, oy = 8;
+    ctx.fillStyle = "rgba(0,0,0,.55)";
+    ctx.fillRect(ox - 3, oy - 3, MW * s + 6, MH * s + 6);
+    for (var y = 0; y < MH; y++) for (var x = 0; x < MW; x++) {
+      ctx.fillStyle = grid[y][x] > 0 ? "rgba(120,160,200,.5)" : "rgba(10,20,30,.6)";
+      ctx.fillRect(ox + x * s, oy + y * s, s, s);
+    }
+    ctx.fillStyle = "#39ff78";
+    ctx.fillRect(ox + (exit[0] - 0.5) * s, oy + (exit[1] - 0.5) * s, s, s);
+    ctx.fillStyle = "#ffd700";
+    for (var i = 0; i < orbs.length; i++) if (!orbs[i][2]) ctx.fillRect(ox + (orbs[i][0] - 0.5) * s, oy + (orbs[i][1] - 0.5) * s, s, s);
+    // player arrow
+    var pxx = ox + px * s, pyy = oy + py * s;
+    ctx.fillStyle = "#2dd4ff";
+    ctx.beginPath(); ctx.arc(pxx, pyy, Math.max(2, s * 0.7), 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(pxx, pyy); ctx.lineTo(pxx + pdx * s * 2, pyy + pdy * s * 2); ctx.stroke();
+  }
+  function move(dt){
+    var sp = 2.6 * dt, rs = 2.4 * dt, moved = false;
+    if (keys["arrowleft"] || keys["a"]) { var a = -rs; var ndx = pdx * Math.cos(a) - pdy * Math.sin(a), ndy = pdx * Math.sin(a) + pdy * Math.cos(a); var nlx = plx * Math.cos(a) - ply * Math.sin(a), nly = plx * Math.sin(a) + ply * Math.cos(a); pdx = ndx; pdy = ndy; plx = nlx; ply = nly; }
+    if (keys["arrowright"] || keys["d"]) { var a2 = rs; var mdx = pdx * Math.cos(a2) - pdy * Math.sin(a2), mdy = pdx * Math.sin(a2) + pdy * Math.cos(a2); var mlx = plx * Math.cos(a2) - ply * Math.sin(a2), mly = plx * Math.sin(a2) + ply * Math.cos(a2); pdx = mdx; pdy = mdy; plx = mlx; ply = mly; }
+    var mx = 0, my = 0;
+    if (keys["arrowup"] || keys["w"]) { mx += pdx * sp; my += pdy * sp; moved = true; }
+    if (keys["arrowdown"] || keys["s"]) { mx -= pdx * sp; my -= pdy * sp; moved = true; }
+    // strafe with A/D? no — A/D turn. collision slide:
+    var r = 0.22;
+    if (grid[Math.floor(py)][Math.floor(px + mx + (mx > 0 ? r : -r))] === 0) px += mx;
+    if (grid[Math.floor(py + my + (my > 0 ? r : -r))][Math.floor(px)] === 0) py += my;
+    if (moved) steps += sp * 10;
+    // pickups
+    for (var i = 0; i < orbs.length; i++) {
+      if (!orbs[i][2] && Math.hypot(orbs[i][0] - px, orbs[i][1] - py) < 0.55) { orbs[i][2] = true; orbsGot++; }
+    }
+    if (!won && Math.hypot(exit[0] - px, exit[1] - py) < 0.65) {
+      won = true;
+      var secs = Math.round((Date.now() - startT) / 1000);
+      $("rpd-stats").textContent = "🔮 " + orbsGot + "/" + orbs.length + " orbs · 👣 " + Math.round(steps) + " steps · ⏱ " + secs + "s";
+      $("rpd-win").style.display = "block";
+    }
+    var el2 = Math.round((Date.now() - startT) / 1000);
+    $("rpd-hud").textContent = "🔮 " + orbsGot + "/" + orbs.length + " · 👣 " + Math.round(steps) + " · ⏱ " + el2 + "s";
+  }
+  var last = 0;
+  function frame(ts){
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    if (!won) move(dt);
+    castAll();
+    drawSprites(ts);
+    drawMap();
+    // focus hint
+    if (document.activeElement !== cv) {
+      ctx.fillStyle = "rgba(0,0,0,.45)";
+      ctx.fillRect(0, H - 26, W, 26);
+      ctx.fillStyle = "#9adcff"; ctx.font = "13px system-ui,sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("click here, then move with WASD / arrows  ⌨️", W / 2, H - 9);
+    }
+    requestAnimationFrame(frame);
+  }
+  $("rpd-new").addEventListener("click", genMaze);
+  $("rpd-again").addEventListener("click", genMaze);
+  genMaze();
+  requestAnimationFrame(frame);
+})();
+</script>

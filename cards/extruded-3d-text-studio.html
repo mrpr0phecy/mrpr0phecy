@@ -1,0 +1,211 @@
+<h2 id="et3-title" style="margin-top:0;color:var(--accent);">✏️ Extruded 3D Text Studio</h2>
+<p id="et3-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Design chunky 3D logos: real perspective rotation (rendered slice-by-slice in software), adjustable extrusion depth, bevel light, backdrops and one-click PNG export. No WebGL, no libraries — just maths.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+  <input id="et3-text" value="WOW 3D!" maxlength="24" aria-label="Text to render in 3D" style="flex:1;min-width:160px;padding:10px 12px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(45,212,255,.35);font-size:1rem;font-weight:700;">
+  <select id="et3-font" aria-label="Font style" style="padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-weight:700;">
+    <option value="900">🅿️ Poster (black)</option>
+    <option value="800i">📰 Serif bold</option>
+    <option value="mono">💻 Monospace</option>
+    <option value="round">🍬 Rounded</option>
+  </select>
+  <button type="button" id="et3-png" style="padding:10px 18px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">⬇️ PNG</button>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;" role="group" aria-label="Colour presets">
+  <button type="button" data-et3-p="neon">💠 Neon</button>
+  <button type="button" data-et3-p="gold">🥇 Gold</button>
+  <button type="button" data-et3-p="candy">🍬 Candy</button>
+  <button type="button" data-et3-p="matrix">🟢 Matrix</button>
+  <button type="button" data-et3-p="sunset">🌅 Sunset</button>
+</div>
+
+<canvas id="et3-cv" width="600" height="340" style="width:100%;height:340px;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;" role="img" aria-label="3D extruded text preview"></canvas>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px;">
+  <div><label for="et3-size" style="display:block;font-size:.78rem;color:var(--text-secondary);">Size: <b id="et3-sizev" style="color:var(--accent);">120</b></label><input id="et3-size" type="range" min="40" max="200" value="120" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="et3-depth" style="display:block;font-size:.78rem;color:var(--text-secondary);">Extrusion: <b id="et3-depthv" style="color:var(--accent);">12</b></label><input id="et3-depth" type="range" min="0" max="24" value="12" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="et3-ry" style="display:block;font-size:.78rem;color:var(--text-secondary);">Swivel: <b id="et3-ryv" style="color:var(--accent);">−18°</b></label><input id="et3-ry" type="range" min="-60" max="60" value="-18" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="et3-rx" style="display:block;font-size:.78rem;color:var(--text-secondary);">Tilt: <b id="et3-rxv" style="color:var(--accent);">12°</b></label><input id="et3-rx" type="range" min="-45" max="45" value="12" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="et3-hue" style="display:block;font-size:.78rem;color:var(--text-secondary);">Hue: <b id="et3-huev" style="color:var(--accent);">190°</b></label><input id="et3-hue" type="range" min="0" max="360" value="190" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="et3-bg" style="display:block;font-size:.78rem;color:var(--text-secondary);">Backdrop</label><select id="et3-bg" style="width:100%;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"><option value="midnight">🌌 Midnight</option><option value="grid">📐 Blueprint grid</option><option value="sunset">🌅 Sunset</option><option value="plain">⬛ Plain black</option></select></div>
+</div>
+<div style="display:flex;gap:14px;margin-top:8px;align-items:center;flex-wrap:wrap;">
+  <label style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;"><input id="et3-spin" type="checkbox" style="accent-color:var(--accent);"> turntable spin</label>
+  <label style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;"><input id="et3-bevel" type="checkbox" checked style="accent-color:var(--accent);"> bevel light</label>
+  <span style="font-size:.76rem;color:var(--text-secondary);">drag on the preview to swivel &amp; tilt</span>
+</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("et3-cv"), ctx = cv.getContext("2d");
+  var W = 600, H = 340, DPR = 1;
+  var face = document.createElement("canvas"), side = document.createElement("canvas");
+  var FW = 600, FH = 340;
+  face.width = FW; face.height = FH; side.width = FW; side.height = FH;
+  var fctx = face.getContext("2d"), sctx = side.getContext("2d");
+  function fit(){
+    DPR = Math.min(1.5, window.devicePixelRatio || 1);
+    W = Math.round(cv.clientWidth || 600); H = 340;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    render();
+  }
+  window.addEventListener("resize", fit);
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var spinning = false, ry = -18 * Math.PI / 180, rx = 12 * Math.PI / 180;
+  var hue = 190;
+  var FONTS = {
+    "900": function(s){ return "900 " + s + "px system-ui,'Arial Black',sans-serif"; },
+    "800i": function(s){ return "800 " + s + "px Georgia,'Times New Roman',serif"; },
+    "mono": function(s){ return "800 " + s + "px ui-monospace,Menlo,Consolas,monospace"; },
+    "round": function(s){ return "900 " + s + "px 'Trebuchet MS','Comic Sans MS',system-ui,sans-serif"; }
+  };
+  // ---- pre-render flat text layers (only on text/style change, not per frame) ----
+  function buildLayers(){
+    var txt = $("et3-text").value || "3D!";
+    var size = +$("et3-size").value;
+    var fk = $("et3-font").value;
+    fctx.clearRect(0, 0, FW, FH); sctx.clearRect(0, 0, FW, FH);
+    // shrink to fit width
+    fctx.font = FONTS[fk](size);
+    var tw = fctx.measureText(txt).width;
+    if (tw > FW - 60) { size = Math.floor(size * (FW - 60) / tw); fctx.font = FONTS[fk](size); }
+    fctx.textAlign = "center"; fctx.textBaseline = "middle";
+    sctx.textAlign = "center"; sctx.textBaseline = "middle";
+    fctx.font = FONTS[fk](size); sctx.font = FONTS[fk](size);
+    // face: vertical gradient (light top -> rich base)
+    var g = fctx.createLinearGradient(0, FH/2 - size*0.55, 0, FH/2 + size*0.55);
+    g.addColorStop(0, "hsl(" + hue + ",90%,78%)");
+    g.addColorStop(0.45, "hsl(" + hue + ",85%,55%)");
+    g.addColorStop(1, "hsl(" + ((hue + 18) % 360) + ",80%,32%)");
+    fctx.fillStyle = g;
+    fctx.fillText(txt, FW/2, FH/2);
+    // side silhouette: deep shade
+    sctx.fillStyle = "hsl(" + hue + ",70%,16%)";
+    sctx.fillText(txt, FW/2, FH/2);
+    if ($("et3-bevel").checked) {
+      // bevel light on the glyphs only (temp canvas is transparent elsewhere)
+      fctx.globalCompositeOperation = "source-atop";
+      fctx.fillStyle = "rgba(255,255,255,.22)";
+      fctx.fillRect(0, 0, FW, FH * 0.40);
+      fctx.fillStyle = "rgba(0,0,20,.20)";
+      fctx.fillRect(0, FH * 0.74, FW, FH * 0.26);
+      fctx.globalCompositeOperation = "source-over";
+    }
+  }
+  function backdrop(){
+    var bg = $("et3-bg").value;
+    if (bg === "plain") { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H); return; }
+    if (bg === "sunset") {
+      var g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, "#1a0b2e"); g.addColorStop(0.55, "#7b2d5b"); g.addColorStop(0.8, "#ff8c42"); g.addColorStop(1, "#2b1055");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      return;
+    }
+    ctx.fillStyle = "#04070d"; ctx.fillRect(0, 0, W, H);
+    if (bg === "grid") {
+      ctx.strokeStyle = "rgba(45,212,255,.14)"; ctx.lineWidth = 1;
+      for (var x = 0; x < W; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (var y = 0; y < H; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    } else {
+      // midnight: stars + glow
+      for (var i = 0; i < 70; i++) {
+        var sx = (i * 197.3) % W, sy = (i * 311.7) % H;
+        ctx.fillStyle = "rgba(200,225,255," + (0.15 + (i % 5) * 0.12).toFixed(2) + ")";
+        ctx.fillRect(sx, sy, i % 7 === 0 ? 2 : 1, i % 7 === 0 ? 2 : 1);
+      }
+      var gl = ctx.createRadialGradient(W/2, H/2, 10, W/2, H/2, W*0.45);
+      gl.addColorStop(0, "hsla(" + hue + ",80%,50%,.14)");
+      gl.addColorStop(1, "hsla(" + hue + ",80%,50%,0)");
+      ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
+    }
+  }
+  function drawSlices(src, xoff, yoff, step, alpha){
+    // true perspective swivel around vertical axis, slice by 1px source column
+    var D = 900, cT = FW / 2, cx = W / 2 + xoff, cy = H / 2 + yoff;
+    var cosR = Math.cos(ry), sinR = Math.sin(ry);
+    var tiltK = Math.cos(rx);
+    ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+    for (var sx = 0; sx < FW; sx += step) {
+      var dx = sx - cT;
+      var Z = dx * sinR;
+      var q = D / (D + Z);
+      var screenX = cx + dx * cosR * q;
+      var sh = FH * q * tiltK;
+      ctx.drawImage(src, sx, 0, step, FH, screenX, cy - sh / 2, step * cosR * q + 0.6, sh);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function render(){
+    backdrop();
+    var depth = +$("et3-depth").value;
+    // extrusion: dark silhouette copies receding down-right (light from top-left)
+    for (var d = depth; d >= 1; d--) {
+      drawSlices(side, d * 0.9, d * 1.1, 2, 1);
+    }
+    // face
+    drawSlices(face, 0, 0, 1, 1);
+  }
+  var PRESETS = { neon: 190, gold: 45, candy: 315, matrix: 120, sunset: 15 };
+  var pb = document.querySelectorAll("[data-et3-p]");
+  for (var pi = 0; pi < pb.length; pi++) (function(btn){
+    btn.style.cssText = "padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);";
+    btn.addEventListener("click", function(){
+      hue = PRESETS[btn.getAttribute("data-et3-p")];
+      $("et3-hue").value = hue;
+      $("et3-huev").textContent = hue + "°";
+      buildLayers();
+    });
+  })(pb[pi]);
+  $("et3-text").addEventListener("input", buildLayers);
+  $("et3-font").addEventListener("change", buildLayers);
+  $("et3-size").addEventListener("input", function(){ $("et3-sizev").textContent = this.value; buildLayers(); });
+  $("et3-hue").addEventListener("input", function(){ hue = +this.value; $("et3-huev").textContent = hue + "°"; buildLayers(); });
+  $("et3-depth").addEventListener("input", function(){ $("et3-depthv").textContent = this.value; if (!spinning) render(); });
+  $("et3-ry").addEventListener("input", function(){ ry = +this.value * Math.PI / 180; $("et3-ryv").textContent = this.value + "°"; if (!spinning) render(); });
+  $("et3-rx").addEventListener("input", function(){ rx = +this.value * Math.PI / 180; $("et3-rxv").textContent = this.value + "°"; if (!spinning) render(); });
+  $("et3-bg").addEventListener("change", function(){ if (!spinning) render(); });
+  $("et3-bevel").addEventListener("change", buildLayers);
+  $("et3-spin").addEventListener("change", function(){
+    spinning = this.checked && !reduced;
+    if (this.checked && reduced) { this.checked = false; return; }
+    if (spinning) requestAnimationFrame(frame);
+  });
+  $("et3-png").addEventListener("click", function(){
+    render();
+    var a = document.createElement("a");
+    a.download = (($("et3-text").value || "3d-text").replace(/\W+/g, "-").toLowerCase()) + "-3d.png";
+    a.href = cv.toDataURL("image/png");
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  // drag to rotate
+  var dragging = false, lx = 0, ly = 0;
+  cv.style.touchAction = "none"; cv.style.cursor = "grab";
+  cv.addEventListener("pointerdown", function(e){ dragging = true; lx = e.clientX; ly = e.clientY; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", function(e){
+    if (!dragging) return;
+    ry = Math.max(-1.05, Math.min(1.05, ry + (e.clientX - lx) * 0.008));
+    rx = Math.max(-0.8, Math.min(0.8, rx + (e.clientY - ly) * 0.006));
+    lx = e.clientX; ly = e.clientY;
+    $("et3-ry").value = Math.round(ry * 180 / Math.PI); $("et3-ryv").textContent = $("et3-ry").value + "°";
+    $("et3-rx").value = Math.round(rx * 180 / Math.PI); $("et3-rxv").textContent = $("et3-rx").value + "°";
+    if (!spinning) render();
+  });
+  cv.addEventListener("pointerup", function(){ dragging = false; });
+  var last = 0;
+  function frame(ts){
+    if (!spinning) return;
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    if (!dragging) {
+      ry += dt * 0.7;
+      if (ry > Math.PI) ry -= Math.PI * 2;
+      $("et3-ry").value = Math.round(ry * 180 / Math.PI); $("et3-ryv").textContent = $("et3-ry").value + "°";
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+  buildLayers(); fit();
+})();
+</script>

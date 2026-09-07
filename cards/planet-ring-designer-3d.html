@@ -1,0 +1,268 @@
+<h2 id="pr3-title" style="margin-top:0;color:var(--accent);">🪐 Planet &amp; Ring Designer 3D</h2>
+<p id="pr3-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Build your own ringed world: gas giants with racing storms, lava planets with glowing cracks, tilted Keplerian rings where inner particles genuinely orbit faster, and up to three moons. Every world gets a procedurally generated name.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;">
+  <button type="button" data-pr3-t="gas" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:800;font-size:.8rem;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);">🌀 Gas giant</button>
+  <button type="button" data-pr3-t="rock" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">🌍 Rocky</button>
+  <button type="button" data-pr3-t="ice" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">❄️ Ice</button>
+  <button type="button" data-pr3-t="lava" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">🌋 Lava</button>
+  <button type="button" id="pr3-alien" style="padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:800;font-size:.8rem;border:1px solid rgba(255,215,0,.45);background:rgba(255,215,0,.08);color:#ffd700;">🎲 Alien world</button>
+</div>
+
+<canvas id="pr3-cv" width="600" height="360" style="width:100%;height:360px;background:#020308;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;" role="img" aria-label="Designed ringed planet"></canvas>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px;">
+  <div><label for="pr3-hue" style="display:block;font-size:.78rem;color:var(--text-secondary);">Palette: <b id="pr3-huev" style="color:var(--accent);">25°</b></label><input id="pr3-hue" type="range" min="0" max="360" value="25" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="pr3-bands" style="display:block;font-size:.78rem;color:var(--text-secondary);">Bands: <b id="pr3-bandsv" style="color:var(--accent);">5</b></label><input id="pr3-bands" type="range" min="0" max="10" value="5" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="pr3-tilt" style="display:block;font-size:.78rem;color:var(--text-secondary);">Ring tilt: <b id="pr3-tiltv" style="color:var(--accent);">24°</b></label><input id="pr3-tilt" type="range" min="0" max="75" value="24" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="pr3-ring" style="display:block;font-size:.78rem;color:var(--text-secondary);">Ring width: <b id="pr3-ringv" style="color:var(--accent);">wide</b></label><input id="pr3-ring" type="range" min="0" max="2" value="1" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="pr3-moons" style="display:block;font-size:.78rem;color:var(--text-secondary);">Moons: <b id="pr3-moonsv" style="color:var(--accent);">2</b></label><input id="pr3-moons" type="range" min="0" max="3" value="2" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="pr3-sun" style="display:block;font-size:.78rem;color:var(--text-secondary);">Sun angle: <b id="pr3-sunv" style="color:var(--accent);">−35°</b></label><input id="pr3-sun" type="range" min="-90" max="90" value="-35" style="width:100%;accent-color:#ffd700;"></div>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;align-items:center;">
+  <label style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;"><input id="pr3-spin" type="checkbox" checked style="accent-color:var(--accent);"> animate</label>
+  <label style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;"><input id="pr3-storm" type="checkbox" checked style="accent-color:var(--accent);"> great storm</label>
+  <label style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;"><input id="pr3-cassini" type="checkbox" checked style="accent-color:var(--accent);"> Cassini division</label>
+</div>
+
+<div style="background:rgba(45,212,255,.05);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:10px 14px;font-size:.86rem;line-height:1.7;color:var(--text-secondary);margin-top:10px;">
+  <b id="pr3-name" style="color:var(--text);font-size:1.05rem;"></b> <span id="pr3-class" style="font-size:.78rem;"></span><br>
+  <span id="pr3-blurb"></span>
+</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("pr3-cv"), ctx = cv.getContext("2d");
+  var W = 600, H = 360, DPR = 1;
+  function fit(){
+    DPR = Math.min(1.5, window.devicePixelRatio || 1);
+    W = Math.round(cv.clientWidth || 600); H = 360;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    makeStars();
+    render();
+  }
+  window.addEventListener("resize", fit);
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var animating = !reduced;
+  var type = "gas", rot = 0;
+  var parts = []; // ring particles
+  for (var pi = 0; pi < 260; pi++) parts.push({ r: 1.35 + Math.random() * 1.15, a: Math.random() * Math.PI * 2, s: 0.5 + Math.random() * 1.1 });
+  var stars = [];
+  function makeStars(){
+    stars = [];
+    for (var i = 0; i < 130; i++) stars.push([Math.random() * W, Math.random() * H, Math.random()]);
+  }
+  var SYL1 = ["Ke", "Tra", "Glie", "Ze", "Noo", "Vo", "Xan", "Bel", "Osi", "Tau", "Ry", "Ae"];
+  var SYL2 = ["pler", "ppist", "se", "phor", "dle", "rtan", "dor", "gara", "ris", "cete", "gel", "thon"];
+  function genName(){
+    return SYL1[Math.floor(Math.random() * SYL1.length)] + SYL2[Math.floor(Math.random() * SYL2.length)] + " " + ["b", "c", "d", "e", "Prime", "II", "Major"][Math.floor(Math.random() * 7)];
+  }
+  var pname = genName();
+  var BLURBS = {
+    gas: ["Wind speeds: yes.", "A storm has been raging here since before your species existed.", "Do not attempt to land. There is no land."],
+    rock: ["Property values: reasonable near the terminator.", "Local wildlife: rocks. Friendly rocks.", "Bring sunscreen and a magnetosphere."],
+    ice: ["Average temperature: no.", "The ice mines are hiring. The ice mines are always hiring.", "Cryovolcanoes erupt on Tuesdays."],
+    lava: ["Do NOT lick the planet.", "Day side: molten. Night side: also molten, but darker.", "Travel advisory level: run."]
+  };
+  function paintInfo(){
+    $("pr3-name").textContent = "🪐 " + pname;
+    var cls = { gas: "🌀 gas giant", rock: "🌍 rocky world", ice: "❄️ ice world", lava: "🌋 lava world" }[type];
+    $("pr3-class").textContent = "· " + cls;
+    $("pr3-blurb").textContent = "💬 Travel guide: " + BLURBS[type][Math.floor(Math.random() * BLURBS[type].length)];
+  }
+  function hash(x, y){
+    var s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  function vnoise(x, y){
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    return hash(xi, yi) * (1-u) * (1-v) + hash(xi+1, yi) * u * (1-v) + hash(xi, yi+1) * (1-u) * v + hash(xi+1, yi+1) * u * v;
+  }
+  function render(){
+    var hue = +$("pr3-hue").value, nbands = +$("pr3-bands").value;
+    var tilt = +$("pr3-tilt").value * Math.PI / 180;
+    var ringW = [0.55, 1.0, 1.5][+$("pr3-ring").value];
+    var nmoons = +$("pr3-moons").value, sunA = +$("pr3-sun").value * Math.PI / 180;
+    var storm = $("pr3-storm").checked, cassini = $("pr3-cassini").checked;
+    ctx.fillStyle = "#020308"; ctx.fillRect(0, 0, W, H);
+    for (var si = 0; si < stars.length; si++) {
+      ctx.globalAlpha = 0.25 + stars[si][2] * 0.6;
+      ctx.fillStyle = "#cfe6ff";
+      ctx.fillRect(stars[si][0], stars[si][1], stars[si][2] > 0.85 ? 2 : 1, stars[si][2] > 0.85 ? 2 : 1);
+    }
+    ctx.globalAlpha = 1;
+    var cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.30;
+    var L = [Math.cos(sunA), -0.4, Math.sin(sunA) * 0.9 - 0.45]; // sun dir
+    var Ll = Math.hypot(L[0], L[1], L[2]); L = [L[0]/Ll, L[1]/Ll, L[2]/Ll];
+    // sun glow
+    var sgx = cx + L[0] * R * 4.2, sgy = cy + L[1] * R * 4.2;
+    var sg = ctx.createRadialGradient(sgx, sgy, 2, sgx, sgy, R * 1.6);
+    sg.addColorStop(0, "rgba(255,240,200,.9)"); sg.addColorStop(0.25, "rgba(255,220,150,.35)"); sg.addColorStop(1, "rgba(255,220,150,0)");
+    ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+    function ringXY(r, a){
+      return [cx + Math.cos(a) * R * r, cy + Math.sin(a) * R * r * Math.sin(Math.max(0.06, tilt)) - Math.cos(tilt) * 0];
+    }
+    function drawRingHalf(back){
+      // smooth bands
+      var inner = 1.32, outer = 1.32 + 1.15 * ringW;
+      ctx.lineWidth = Math.max(2, R * 0.045);
+      for (var r = inner; r < outer; r += 0.075) {
+        if (cassini && r > 1.95 && r < 2.12) continue; // Cassini division
+        var band = 0.5 + 0.5 * Math.sin(r * 22 + hue);
+        ctx.strokeStyle = "hsla(" + Math.round((hue + r * 14) % 360) + ",45%," + Math.round(32 + band * 30) + "%,.55)";
+        ctx.beginPath();
+        for (var a = 0; a <= Math.PI; a += Math.PI / 60) {
+          var p = ringXY(r, back ? -a : a); // back half: upper arc; front half: lower arc
+          if (a === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+        }
+        ctx.stroke();
+      }
+      // keplerian particles: inner orbit faster (a += k/r^1.5)
+      for (var i = 0; i < parts.length; i++) {
+        var pt = parts[i];
+        if (pt.r > outer) continue;
+        if (cassini && pt.r > 1.95 && pt.r < 2.12) continue;
+        var s = Math.sin(pt.a);
+        if (back ? s > -0.02 : s < 0.02) continue;
+        var pp = ringXY(pt.r, pt.a);
+        var tw = 0.5 + 0.5 * Math.sin(pt.a * 7 + rot * 3);
+        ctx.fillStyle = "hsla(" + Math.round((hue + pt.r * 20) % 360) + ",60%," + Math.round(55 + tw * 25) + "%,.9)";
+        ctx.fillRect(pp[0], pp[1], pt.s + 1, pt.s + 1);
+      }
+    }
+    // moons split behind/front
+    var moonDefs = [
+      { r: 2.9, sz: 0.10, sp: 0.35, ph: 0.5, h: 200 },
+      { r: 3.5, sz: 0.07, sp: 0.22, ph: 2.8, h: 40 },
+      { r: 2.45, sz: 0.055, sp: 0.5, ph: 4.5, h: 300 }
+    ];
+    function moonPos(m){
+      var a = m.ph + rot * m.sp * 2;
+      return { x: cx + Math.cos(a) * R * m.r, y: cy + Math.sin(a) * R * m.r * Math.sin(Math.max(0.12, tilt)) * 1.4, behind: Math.sin(a) < 0, m: m };
+    }
+    function drawMoon(mp){
+      var m = mp.m, mr = Math.max(2.5, R * m.sz);
+      var g = ctx.createRadialGradient(mp.x - mr*0.4 + L[0]*mr*0.5, mp.y - mr*0.4, mr*0.15, mp.x, mp.y, mr);
+      var lit = 0.55 + 0.45 * Math.max(0, L[0] * 0.7 + 0.5);
+      g.addColorStop(0, "hsl(" + m.h + ",25%," + Math.round(62*lit) + "%)");
+      g.addColorStop(1, "hsl(" + m.h + ",30%," + Math.round(16*lit) + "%)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, mr, 0, Math.PI * 2); ctx.fill();
+    }
+    var moons = [];
+    for (var mi = 0; mi < nmoons; mi++) moons.push(moonPos(moonDefs[mi]));
+    drawRingHalf(true);
+    moons.forEach(function(mp){ if (mp.behind) drawMoon(mp); });
+    // ---- planet disc ----
+    var step = Math.max(2, Math.round(R / 70));
+    for (var py = -R; py <= R; py += step) {
+      var ny = py / R;
+      var hw = Math.sqrt(Math.max(0, 1 - ny * ny)) * R;
+      for (var px = -hw; px <= hw; px += step) {
+        var nx = px / R, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+        // longitude (rotating) + latitude
+        var lon = Math.atan2(nx, nz) + rot * (1.1 - Math.abs(ny) * 0.7); // differential rotation
+        var lat = ny;
+        var bright = Math.max(0.05, nx * L[0] + (-ny) * L[1] + nz * L[2]);
+        // terminator softening
+        var day = Math.min(1, Math.max(0, (bright - 0.02) * 3));
+        var hh = hue, ss = 55, ll = 45;
+        if (type === "gas") {
+          var bandv = Math.sin(lat * (2 + nbands) * 2.2 + vnoise(lon * 2, lat * 5) * 3) * 0.5 + 0.5;
+          ll = 30 + bandv * 34;
+          ss = 45 + bandv * 25;
+          hh = (hue + lat * 30 + bandv * 14) % 360;
+          // storm spot
+          if (storm) {
+            var sla = -0.42, slo = 1.1 + rot * 0.35;
+            var dla = (lat - sla) * 2.6, dlo = (lon - slo);
+            dlo = Math.atan2(Math.sin(dlo), Math.cos(dlo)) * 1.1;
+            var dd2 = dla * dla + dlo * dlo;
+            if (dd2 < 1 && nz > 0.25) {
+              var k = 1 - Math.sqrt(dd2);
+              hh = (hue + 180 + k * 30) % 360; ss = 75; ll = 42 + k * 22;
+            }
+          }
+        } else if (type === "rock") {
+          var cont = vnoise(lon * 2.4 + 9, lat * 3.4) + vnoise(lon * 5.1, lat * 7.7) * 0.45;
+          if (cont > 0.78) { hh = (hue + 90) % 360; ss = 42; ll = 26 + cont * 14; } // land
+          else { hh = (hue + 200) % 360; ss = 70; ll = 22 + cont * 12; }             // ocean
+          if (Math.abs(lat) > 0.82) { ss = 12; ll = 72; }                            // caps
+        } else if (type === "ice") {
+          var crack = vnoise(lon * 6 + 3, lat * 9);
+          ll = 68 + vnoise(lon * 3, lat * 4) * 14;
+          ss = 22; hh = (hue + 170) % 360;
+          if (crack > 0.86) { ll = 40; ss = 60; hh = (hue + 190) % 360; } // cracks
+        } else { // lava
+          var ridge = 1 - Math.abs(vnoise(lon * 4, lat * 5.5) * 2 - 1);
+          if (ridge > 0.86) { hh = 30 + ridge * 20; ss = 100; ll = 45 + ridge * 15; } // glowing cracks
+          else { hh = 8; ss = 45; ll = 8 + ridge * 10; }                              // crust
+          bright = Math.max(bright, ridge > 0.86 ? 0.9 : 0.12); // lava glows at night
+        }
+        var f = 0.06 + day * Math.min(1.35, bright * 1.9);
+        ctx.fillStyle = "hsl(" + Math.round((hh + 360) % 360) + "," + Math.round(ss) + "%," + Math.round(Math.max(2, Math.min(92, ll * f))) + "%)";
+        ctx.fillRect(cx + px, cy + py, step + 0.4, step + 0.4);
+      }
+    }
+    // atmosphere rim
+    ctx.strokeStyle = type === "lava" ? "rgba(255,120,40,.5)" : "rgba(140,200,255,.45)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R + 1, 0, Math.PI * 2); ctx.stroke();
+    drawRingHalf(false);
+    moons.forEach(function(mp){ if (!mp.behind) drawMoon(mp); });
+  }
+  var tb = document.querySelectorAll("[data-pr3-t]");
+  for (var ti = 0; ti < tb.length; ti++) (function(btn){
+    btn.addEventListener("click", function(){
+      type = btn.getAttribute("data-pr3-t");
+      for (var j = 0; j < tb.length; j++) {
+        var on = tb[j] === btn;
+        tb[j].style.cssText = "padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:" + (on ? "800" : "700") + ";font-size:.8rem;border:1px solid " + (on ? "rgba(45,212,255,.4)" : "rgba(255,255,255,.18)") + ";background:" + (on ? "rgba(45,212,255,.12)" : "rgba(255,255,255,.06)") + ";color:" + (on ? "var(--accent)" : "var(--text)") + ";";
+      }
+      paintInfo();
+      if (!animating) render();
+    });
+  })(tb[ti]);
+  $("pr3-alien").addEventListener("click", function(){
+    var types = ["gas", "rock", "ice", "lava"];
+    var pick = types[Math.floor(Math.random() * 4)];
+    document.querySelector("[data-pr3-t='" + pick + "']").click();
+    $("pr3-hue").value = Math.floor(Math.random() * 360);
+    $("pr3-huev").textContent = $("pr3-hue").value + "°";
+    $("pr3-bands").value = Math.floor(Math.random() * 11);
+    $("pr3-bandsv").textContent = $("pr3-bands").value;
+    $("pr3-tilt").value = Math.floor(Math.random() * 76);
+    $("pr3-tiltv").textContent = $("pr3-tilt").value + "°";
+    $("pr3-moons").value = Math.floor(Math.random() * 4);
+    $("pr3-moonsv").textContent = $("pr3-moons").value;
+    pname = genName();
+    paintInfo();
+    if (!animating) render();
+  });
+  $("pr3-hue").addEventListener("input", function(){ $("pr3-huev").textContent = this.value + "°"; if (!animating) render(); });
+  $("pr3-bands").addEventListener("input", function(){ $("pr3-bandsv").textContent = this.value; if (!animating) render(); });
+  $("pr3-tilt").addEventListener("input", function(){ $("pr3-tiltv").textContent = this.value + "°"; if (!animating) render(); });
+  var RNAMES = ["narrow", "wide", "majestic"];
+  $("pr3-ring").addEventListener("input", function(){ $("pr3-ringv").textContent = RNAMES[+this.value]; if (!animating) render(); });
+  $("pr3-moons").addEventListener("input", function(){ $("pr3-moonsv").textContent = this.value; if (!animating) render(); });
+  $("pr3-sun").addEventListener("input", function(){ $("pr3-sunv").textContent = this.value + "°"; if (!animating) render(); });
+  $("pr3-storm").addEventListener("change", function(){ if (!animating) render(); });
+  $("pr3-cassini").addEventListener("change", function(){ if (!animating) render(); });
+  $("pr3-spin").checked = animating;
+  $("pr3-spin").addEventListener("change", function(){ animating = this.checked; if (animating) requestAnimationFrame(frame); });
+  var last = 0;
+  function frame(ts){
+    if (!animating) return;
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    rot += dt * 0.35;
+    for (var i = 0; i < parts.length; i++) parts[i].a += dt * 0.9 / Math.pow(parts[i].r, 1.5) * 2; // Kepler!
+    render();
+    requestAnimationFrame(frame);
+  }
+  paintInfo(); fit();
+  if (animating) requestAnimationFrame(frame);
+})();
+</script>

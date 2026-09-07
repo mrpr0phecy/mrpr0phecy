@@ -1,0 +1,265 @@
+<h2 id="ft3-title" style="margin-top:0;color:var(--accent);">⛰️ Function Terrain 3D Explorer</h2>
+<p id="ft3-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Type any z = f(x, y) formula and watch it become a spinning 3D mountain range. Safe built-in math parser (no eval), orbit/zoom controls, height colormaps and a random-function dice for beautiful accidents.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center;">
+  <label for="ft3-expr" style="font-size:.85rem;font-weight:800;">z =</label>
+  <input id="ft3-expr" type="text" value="sin(sqrt(x*x+y*y)) / (1+0.15*sqrt(x*x+y*y))" spellcheck="false" autocomplete="off" style="flex:1;min-width:200px;padding:10px;border-radius:8px;background:#071019;color:#91f7ff;border:1px solid rgba(45,212,255,.35);font-family:ui-monospace,monospace;font-size:.85rem;">
+  <button type="button" id="ft3-go" style="padding:10px 20px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;">🏔 Render</button>
+  <button type="button" id="ft3-rand" style="padding:10px 14px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;font-weight:700;" title="Random beautiful function">🎲</button>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;" id="ft3-presets"></div>
+
+<canvas id="ft3-cv" width="600" height="360" style="width:100%;height:360px;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;touch-action:none;cursor:grab;" role="img" aria-label="3D terrain plot of your function"></canvas>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:10px 0;">
+  <div><label for="ft3-res" style="display:block;font-size:.78rem;color:var(--text-secondary);">Detail: <b id="ft3-resv" style="color:var(--accent);">36²</b></label><input id="ft3-res" type="range" min="20" max="60" value="36" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="ft3-h" style="display:block;font-size:.78rem;color:var(--text-secondary);">Height ×<b id="ft3-hv" style="color:var(--accent);">1.0</b></label><input id="ft3-h" type="range" min="20" max="250" value="100" style="width:100%;accent-color:var(--accent);"></div>
+  <div><label for="ft3-range" style="display:block;font-size:.78rem;color:var(--text-secondary);">Range ±<b id="ft3-rangev" style="color:var(--accent);">6</b></label><input id="ft3-range" type="range" min="2" max="12" value="6" style="width:100%;accent-color:var(--accent);"></div>
+  <div style="display:flex;gap:12px;align-items:end;padding-bottom:2px;">
+    <label style="font-size:.8rem;color:var(--text-secondary);cursor:pointer;"><input id="ft3-fill" type="checkbox" checked style="accent-color:var(--accent);"> fill</label>
+    <label style="font-size:.8rem;color:var(--text-secondary);cursor:pointer;"><input id="ft3-wire" type="checkbox" checked style="accent-color:var(--accent);"> wire</label>
+    <label style="font-size:.8rem;color:var(--text-secondary);cursor:pointer;"><input id="ft3-spin" type="checkbox" checked style="accent-color:var(--accent);"> spin</label>
+  </div>
+</div>
+<div id="ft3-msg" style="font-size:.84rem;color:var(--text-secondary);min-height:1.5em;" aria-live="polite"></div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("ft3-cv"), ctx = cv.getContext("2d");
+  var W = 600, H = 360, DPR = 1;
+  function fit(){
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.round(cv.clientWidth || 600); H = 360;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    render();
+  }
+  window.addEventListener("resize", fit);
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // ---------- safe parser (recursive descent, no eval) ----------
+  var FUNCS = {
+    sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
+    sqrt: Math.sqrt, abs: Math.abs, exp: Math.exp, floor: Math.floor, ceil: Math.ceil,
+    ln: Math.log, log: function(x){ return Math.log(x) / Math.LN10; },
+    min: Math.min, max: Math.max, pow: Math.pow, atan2: Math.atan2
+  };
+  function parse(src){
+    var i = 0;
+    function skip(){ while (i < src.length && /\s/.test(src[i])) i++; }
+    function peek(){ skip(); return src[i]; }
+    function eat(ch){ skip(); if (src[i] === ch) { i++; return true; } return false; }
+    function parseExpr(){
+      var n = parseTerm();
+      for (;;) {
+        if (eat("+")) n = { t: "+", a: n, b: parseTerm() };
+        else if (eat("-")) n = { t: "-", a: n, b: parseTerm() };
+        else return n;
+      }
+    }
+    function parseTerm(){
+      var n = parseFactor();
+      for (;;) {
+        if (eat("*")) n = { t: "*", a: n, b: parseFactor() };
+        else if (eat("/")) n = { t: "/", a: n, b: parseFactor() };
+        else return n;
+      }
+    }
+    function parseFactor(){
+      var n = parseUnary();
+      if (eat("^")) n = { t: "^", a: n, b: parseFactor() };
+      return n;
+    }
+    function parseUnary(){
+      if (eat("-")) return { t: "neg", a: parseUnary() };
+      if (eat("+")) return parseUnary();
+      return parsePrimary();
+    }
+    function parsePrimary(){
+      skip();
+      if (eat("(")) { var n = parseExpr(); if (!eat(")")) throw new Error("missing ')'"); return n; }
+      var m = /^[0-9]*\.?[0-9]+/.exec(src.slice(i));
+      if (m) { i += m[0].length; return { t: "num", v: parseFloat(m[0]) }; }
+      var w = /^[a-zA-Z_][a-zA-Z0-9_]*/.exec(src.slice(i));
+      if (w) {
+        i += w[0].length;
+        var name = w[0].toLowerCase();
+        if (name === "x" || name === "y" || name === "pi" || name === "e") return { t: "var", v: name };
+        if (eat("(")) {
+          var args = [parseExpr()];
+          while (eat(",")) args.push(parseExpr());
+          if (!eat(")")) throw new Error("missing ')' after " + name);
+          if (!FUNCS[name]) throw new Error("unknown function '" + name + "'");
+          return { t: "fn", f: name, args: args };
+        }
+        throw new Error("unexpected '" + w[0] + "'");
+      }
+      throw new Error("unexpected '" + (src[i] || "end") + "'");
+    }
+    var n = parseExpr();
+    skip();
+    if (i < src.length) throw new Error("unexpected '" + src[i] + "'");
+    return n;
+  }
+  function ev(n, x, y){
+    switch (n.t) {
+      case "num": return n.v;
+      case "var": return n.v === "x" ? x : n.v === "y" ? y : n.v === "pi" ? Math.PI : Math.E;
+      case "neg": return -ev(n.a, x, y);
+      case "+": return ev(n.a, x, y) + ev(n.b, x, y);
+      case "-": return ev(n.a, x, y) - ev(n.b, x, y);
+      case "*": return ev(n.a, x, y) * ev(n.b, x, y);
+      case "/": return ev(n.a, x, y) / ev(n.b, x, y);
+      case "^": return Math.pow(ev(n.a, x, y), ev(n.b, x, y));
+      case "fn": return FUNCS[n.f].apply(null, n.args.map(function(a){ return ev(a, x, y); }));
+    }
+    return NaN;
+  }
+  // ---------- presets ----------
+  var PRESETS = [
+    ["🌊 Ripple", "sin(sqrt(x*x+y*y)) / (1+0.15*sqrt(x*x+y*y))"],
+    ["🎩 Sombrero", "cos(sqrt(x*x+y*y)) * exp(-0.06*(x*x+y*y))"],
+    ["🏔 Peaks", "3*exp(-((x-2)^2+(y-2)^2)/4) + 2*exp(-((x+2)^2+(y+1)^2)/3) - 2.5*exp(-(x^2+y^2)/5)"],
+    ["🐴 Saddle", "(x^2 - y^2) / 12"],
+    ["🌋 Volcano", "-sqrt(x*x+y*y) + 2*exp(-(x*x+y*y)/2)"],
+    ["👽 Dunes", "sin(x)*cos(y) + 0.5*sin(2*x+y) - 0.3*cos(x-2*y)"]
+  ];
+  var RANDOMS = [
+    "sin(x*y/3)*cos(x/2)", "cos(x)*sin(y)+0.4*sin(3*x)*cos(2*y)", "exp(-((x)^2+(y)^2)/8)*sin(2*sqrt(x*x+y*y))",
+    "sin(x)+cos(y)+0.5*sin(x+y)", "(sin(x*1.5)+cos(y*1.5))/2 + 0.3*sin(x*y/2)", "atan2(y,x)*sin(sqrt(x*x+y*y))/2"
+  ];
+  var pbox = $("ft3-presets");
+  PRESETS.forEach(function(p){
+    var b = document.createElement("button");
+    b.type = "button"; b.textContent = p[0];
+    b.style.cssText = "padding:6px 12px;background:rgba(255,255,255,.06);color:var(--text);border:1px solid rgba(255,255,255,.15);border-radius:7px;cursor:pointer;font-size:.78rem;";
+    b.addEventListener("click", function(){ $("ft3-expr").value = p[1]; compile(); });
+    pbox.appendChild(b);
+  });
+  // ---------- state + render ----------
+  var ast = null, grid = null, zmin = 0, zmax = 1, az = 0.7, el = 0.9, zoom = 1, spinning = !reduced;
+  $("ft3-spin").checked = spinning;
+  function compile(){
+    try {
+      ast = parse($("ft3-expr").value);
+      // test-eval
+      var t0 = ev(ast, 0.5, -0.5);
+      if (typeof t0 !== "number") throw new Error("did not evaluate to a number");
+      buildGrid();
+      $("ft3-msg").innerHTML = "z range <b style='color:var(--accent);'>[" + zmin.toFixed(3) + ", " + zmax.toFixed(3) + "]</b> · drag to orbit · scroll to zoom";
+    } catch (err) {
+      ast = null; grid = null;
+      $("ft3-msg").innerHTML = "<span style='color:#ff8080;'>⚠ " + err.message + "</span> — try <i>sin(x)*cos(y)</i>. Functions: sin cos tan asin acos atan sqrt abs exp ln log floor ceil min max pow atan2, plus pi, e, ^.";
+      drawEmpty();
+    }
+  }
+  function buildGrid(){
+    var n = +$("ft3-res").value, R = +$("ft3-range").value;
+    grid = { n: n, R: R, z: [] };
+    zmin = Infinity; zmax = -Infinity;
+    for (var j = 0; j < n; j++) {
+      grid.z[j] = [];
+      for (var i = 0; i < n; i++) {
+        var x = -R + 2 * R * i / (n - 1), y = -R + 2 * R * j / (n - 1);
+        var z = ev(ast, x, y);
+        if (!isFinite(z)) z = 0;
+        z = Math.max(-1e3, Math.min(1e3, z));
+        grid.z[j][i] = z;
+        if (z < zmin) zmin = z; if (z > zmax) zmax = z;
+      }
+    }
+    if (zmax - zmin < 1e-9) zmax = zmin + 1;
+  }
+  var STOPS = [[0,"#0b2a6b"],[0.25,"#0e7f8c"],[0.45,"#2dd4ff"],[0.62,"#39d353"],[0.78,"#e3b341"],[1,"#ff5d5d"]];
+  function cmap(f){
+    f = Math.max(0, Math.min(1, f));
+    for (var s = 0; s < STOPS.length - 1; s++) {
+      if (f <= STOPS[s + 1][0]) {
+        var t = (f - STOPS[s][0]) / (STOPS[s + 1][0] - STOPS[s][0]);
+        var c1 = STOPS[s][1], c2 = STOPS[s + 1][1];
+        var r = Math.round(parseInt(c1.slice(1, 3), 16) + (parseInt(c2.slice(1, 3), 16) - parseInt(c1.slice(1, 3), 16)) * t);
+        var g = Math.round(parseInt(c1.slice(3, 5), 16) + (parseInt(c2.slice(3, 5), 16) - parseInt(c1.slice(3, 5), 16)) * t);
+        var b = Math.round(parseInt(c1.slice(5, 7), 16) + (parseInt(c2.slice(5, 7), 16) - parseInt(c1.slice(5, 7), 16)) * t);
+        return "rgb(" + r + "," + g + "," + b + ")";
+      }
+    }
+    return STOPS[STOPS.length - 1][1];
+  }
+  function drawEmpty(){
+    ctx.fillStyle = "#04070d"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(230,250,255,.5)"; ctx.font = "14px system-ui,sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("Fix the formula to render terrain", W / 2, H / 2);
+  }
+  function render(){
+    if (!grid) { drawEmpty(); return; }
+    ctx.fillStyle = "#04070d"; ctx.fillRect(0, 0, W, H);
+    var n = grid.n, R = grid.R;
+    var hScale = (+$("ft3-h").value) / 100;
+    var S = Math.min(W, H) * 0.42 * zoom / R;
+    var zS = Math.min(W, H) * 0.30 * hScale / Math.max(1e-9, (zmax - zmin)) * zoom;
+    var zMid = (zmin + zmax) / 2;
+    var cx = W / 2, cy = H / 2 + (Math.min(W, H) * 0.06);
+    var ca = Math.cos(az), sa = Math.sin(az), se = Math.sin(el);
+    // project all points
+    var P = [];
+    for (var j = 0; j < n; j++) {
+      P[j] = [];
+      for (var i = 0; i < n; i++) {
+        var x = -R + 2 * R * i / (n - 1), y = -R + 2 * R * j / (n - 1);
+        var rx = x * ca - y * sa, ry = x * sa + y * ca;
+        P[j][i] = [cx + rx * S, cy + ry * S * se - (grid.z[j][i] - zMid) * zS, ry];
+      }
+    }
+    // painter order by depth (ry): draw far first (depends on view dir)
+    var quads = [];
+    for (var qj = 0; qj < n - 1; qj++) for (var qi = 0; qi < n - 1; qi++) {
+      var depth = (P[qj][qi][2] + P[qj][qi + 1][2] + P[qj + 1][qi][2] + P[qj + 1][qi + 1][2]) / 4;
+      var zm = (grid.z[qj][qi] + grid.z[qj][qi + 1] + grid.z[qj + 1][qi] + grid.z[qj + 1][qi + 1]) / 4;
+      quads.push([depth, qi, qj, zm]);
+    }
+    quads.sort(function(a, b){ return a[0] - b[0]; });
+    var doFill = $("ft3-fill").checked, doWire = $("ft3-wire").checked;
+    ctx.lineWidth = 0.7;
+    for (var q = 0; q < quads.length; q++) {
+      var Q = quads[q], a = P[Q[2]][Q[1]], b = P[Q[2]][Q[1] + 1], c = P[Q[2] + 1][Q[1] + 1], d = P[Q[2] + 1][Q[1]];
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]);
+      ctx.closePath();
+      if (doFill) { ctx.fillStyle = cmap((Q[3] - zmin) / (zmax - zmin)); ctx.fill(); }
+      if (doWire) { ctx.strokeStyle = doFill ? "rgba(0,0,0,.35)" : "rgba(45,212,255,.5)"; ctx.stroke(); }
+    }
+  }
+  // ---------- interaction ----------
+  var dragging = false, lx = 0, ly = 0;
+  cv.addEventListener("pointerdown", function(e){ dragging = true; lx = e.clientX; ly = e.clientY; cv.style.cursor = "grabbing"; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", function(e){
+    if (!dragging) return;
+    az += (e.clientX - lx) * 0.008; el = Math.max(0.15, Math.min(1.5, el + (e.clientY - ly) * 0.006));
+    lx = e.clientX; ly = e.clientY;
+    if (!spinning) render();
+  });
+  cv.addEventListener("pointerup", function(){ dragging = false; cv.style.cursor = "grab"; });
+  cv.addEventListener("wheel", function(e){ e.preventDefault(); zoom = Math.max(0.4, Math.min(2.5, zoom * (e.deltaY > 0 ? 0.93 : 1.07))); if (!spinning) render(); }, { passive: false });
+  $("ft3-go").addEventListener("click", compile);
+  $("ft3-expr").addEventListener("keydown", function(e){ if (e.key === "Enter") compile(); });
+  $("ft3-rand").addEventListener("click", function(){ $("ft3-expr").value = RANDOMS[Math.floor(Math.random() * RANDOMS.length)]; compile(); });
+  $("ft3-res").addEventListener("input", function(){ $("ft3-resv").textContent = this.value + "²"; });
+  $("ft3-res").addEventListener("change", function(){ if (ast) { buildGrid(); if (!spinning) render(); } });
+  $("ft3-h").addEventListener("input", function(){ $("ft3-hv").textContent = (+this.value / 100).toFixed(1); if (!spinning) render(); });
+  $("ft3-range").addEventListener("input", function(){ $("ft3-rangev").textContent = this.value; });
+  $("ft3-range").addEventListener("change", function(){ if (ast) { buildGrid(); if (!spinning) render(); } });
+  $("ft3-fill").addEventListener("change", function(){ if (!spinning) render(); });
+  $("ft3-wire").addEventListener("change", function(){ if (!spinning) render(); });
+  $("ft3-spin").addEventListener("change", function(){ spinning = this.checked; if (spinning) requestAnimationFrame(frame); });
+  var last = 0;
+  function frame(ts){
+    if (!spinning) return;
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    if (!dragging) az += dt * 0.35;
+    render();
+    requestAnimationFrame(frame);
+  }
+  fit(); compile();
+  if (spinning) requestAnimationFrame(frame);
+})();
+</script>
