@@ -305,7 +305,8 @@ const gapFillMap = {
   'rental-yield-calculator': 'Finance & Money',
   'stripe-paypal-fee-calculator': 'Finance & Money',
   'css-specificity-calculator': 'SaaS & Business Killers',
-  'json-flatten-unflatten': 'SaaS & Business Killers'
+  'json-flatten-unflatten': 'SaaS & Business Killers',
+  'quadratic-equation-solver': 'Math & Logic Lab'
 };
 
 const sportsList = [
