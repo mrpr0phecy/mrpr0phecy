@@ -335,7 +335,8 @@ const gapFillMap = {
   'guitar-fret-calculator': 'Music & Audio',
   'sleep-debt-calculator': 'Health & Fitness',
   'loan-amortization-schedule': 'Finance & Money',
-  'sphere-cylinder-cone-volume': 'Mathematics'
+  'sphere-cylinder-cone-volume': 'Mathematics',
+  'scrabble-score-calculator': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
