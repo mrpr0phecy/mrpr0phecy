@@ -351,7 +351,8 @@ const gapFillMap = {
   'museum-tombstone-label': 'Museum & Collection',
   'pigment-cabinet-of-colour': 'Museum & Collection',
   'dinosaur-scale-hall': 'Museum & Collection',
-  'japanese-era-nengo': 'Museum & Collection'
+  'japanese-era-nengo': 'Museum & Collection',
+  'british-regnal-years': 'Museum & Collection'
 };
 
 const sportsList = [
