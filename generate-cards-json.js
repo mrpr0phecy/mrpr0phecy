@@ -209,7 +209,12 @@ const gapFillMap = {
   'px-rem-em-unit-converter': 'SaaS & Business Killers',
   'htaccess-redirect-generator': 'SaaS & Business Killers',
   'body-surface-area-calculator': 'Health & Fitness',
-  'golden-ratio-crop-calculator': 'SaaS & Business Killers'
+  'golden-ratio-crop-calculator': 'SaaS & Business Killers',
+  'markup-vs-margin-calculator': 'Finance & Money',
+  'hourly-to-annual-salary-converter': 'Finance & Money',
+  'overtime-pay-calculator': 'Finance & Money',
+  'feet-inches-cm-height-converter': 'Productivity & Lifestyle',
+  'stone-pounds-kg-weight-converter': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
