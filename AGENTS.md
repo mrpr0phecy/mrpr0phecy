@@ -3,7 +3,7 @@
 Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-08-30. **ARCHITECTURE.md is authoritative if anything here
+Last updated: 2026-09-07. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
 ---
@@ -16,7 +16,7 @@ deploy):
 
 | | Product | Entry | Don't mix |
 |---|---|---|---|
-| **A** | The Most Useful Site In The World — **664** offline browser tools | `index.html` | Never add music players/banners here |
+| **A** | The Most Useful Site In The World — **674** offline browser tools | `index.html` | Never add music players/banners here |
 | **B** | MrProphecy — UK hip hop & animated soundscapes (Luton) | `listen.html` | Never add tool links here |
 
 Live: `https://www.themostusefulsiteintheworld.com` (CNAME = custom domain,

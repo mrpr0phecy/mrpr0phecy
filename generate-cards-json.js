@@ -276,7 +276,18 @@ const saasKillerList = [
   'brand-logo-mark-generator',
   'email-signature-generator',
   'business-model-canvas-builder',
-  'markdown-slide-deck-builder'
+  'markdown-slide-deck-builder',
+  // 2026-09-07 — high-intent, private web and content utilities
+  'text-case-slug-converter',
+  'uuid-ulid-generator',
+  'unix-timestamp-date-converter',
+  'url-encoder-query-builder',
+  'html-entity-encoder-decoder',
+  'lorem-ipsum-placeholder-generator',
+  'text-diff-checker',
+  'css-box-shadow-generator',
+  'css-grid-layout-generator',
+  'robots-sitemap-generator'
 ];
 
 // 2026-09-05 — ten survival & emergency-readiness tools. Matched exactly
