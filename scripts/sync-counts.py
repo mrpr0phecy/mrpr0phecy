@@ -66,10 +66,13 @@ HISTORY_ANCHOR = {
 # documentation here, and a checker that mangles them would be worse than none.
 EXEMPT = "historical-count"
 
-# Historical counts this repo has shipped. Used only to recognise a stale
-# claim; a number outside this set is left alone so we can never mangle a
+# Recognises a stale catalogue count. Must cover 4 digits: the catalogue
+# passed 1000 tools, and with r"\d{3}" the leading digit of "1164 tools"
+# fails the (?<![\d.]) lookbehind while the trailing "164" is never seen,
+# so every 4-digit claim became invisible and the check silently passed.
+# The 200-1500 plausibility guard in fix_text() still stops this matching a
 # price, a year, or a video ID.
-KNOWN_STALE = r"\d{3}"
+KNOWN_STALE = r"\d{3,4}"
 
 # A count claim: <number>[+] <up to 4 small words> <noun>.
 # The word window lets "644 free offline browser tools" match while stopping

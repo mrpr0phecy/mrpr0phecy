@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 1164 tools
-│   └── <tool-name>.html    1164 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 1165 tools
+│   └── <tool-name>.html    1165 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 1164 cards.** They share one
+2. **Element IDs must be globally unique across all 1165 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -155,7 +155,7 @@ node generate-cards-json.js
 
 # 3. Re-apply the category (see the warning below)
 
-# 4. Bump the count in index.html: "Search 1164+ free tools" -> 501+
+# 4. Bump the count in index.html: "Search 1165+ free tools" -> 501+
 
 # 5. Commit, push, wait ~50s, then verify live:
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
@@ -187,7 +187,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (1164 tools)
+### Categories (1165 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
@@ -539,7 +539,7 @@ treats them as duplicates competing with each other.
 ### Regenerating the sitemap
 
 `sitemap.xml` lists all 748 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 1164 cards:
+tree, so a sparse checkout does not silently drop the 1165 cards:
 
 ```python
 import subprocess, datetime
@@ -618,7 +618,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 1164 cards):
+# Music work (skip images and the 1165 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):

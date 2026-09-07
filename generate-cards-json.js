@@ -494,6 +494,7 @@ const csList = [
 // Exact filenames so no substring list can silently re-claim them, matching the
 // gapFillMap convention above. Every value is in check-cards.py KNOWN_CATEGORIES.
 const imported05a89Map = {
+  'reward-site-reality-check': 'Finance & Money',
   'bank-complaint-tracker': 'Finance & Money',
   'bank-credit-score-dispute': 'Finance & Money',
   'bank-dispute-letter': 'Finance & Money',
