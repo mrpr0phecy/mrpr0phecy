@@ -346,7 +346,8 @@ const gapFillMap = {
   'egyptian-hieroglyph-alphabet': 'Museum & Collection',
   'younger-futhark-runes': 'Museum & Collection',
   'dewey-decimal-classifier': 'Museum & Collection',
-  'messier-catalogue-hall': 'Museum & Collection'
+  'messier-catalogue-hall': 'Museum & Collection',
+  'conservation-lux-hours': 'Museum & Collection'
 };
 
 const sportsList = [
