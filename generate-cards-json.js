@@ -310,7 +310,8 @@ const gapFillMap = {
   'pythagoras-triangle-solver': 'Mathematics',
   'running-split-pace-calculator': 'Sports',
   'led-watt-equivalent-calculator': 'Home & DIY',
-  'dew-point-calculator': 'Science & Engineering'
+  'dew-point-calculator': 'Science & Engineering',
+  'pro-rata-salary-calculator': 'Finance & Money'
 };
 
 const sportsList = [
