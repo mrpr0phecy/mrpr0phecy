@@ -1,0 +1,70 @@
+<h2 id="evcc-title" style="margin-top:0;color:var(--accent);">🔌 EV Charging Cost &amp; Time</h2>
+
+<form aria-describedby="evcc-desc" onsubmit="event.preventDefault();">
+  <p id="evcc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Estimate kWh, cost and wall-clock time to charge an electric car. Uses usable battery size, start/end state of charge, charger kW and unit rate. Peak DC rates taper — treat rapid times as optimistic.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="evcc-kwh" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Usable battery kWh</label>
+      <input id="evcc-kwh" type="number" min="10" max="200" step="any" value="64" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="evcc-from" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Start %</label>
+      <input id="evcc-from" type="number" min="0" max="100" value="20" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="evcc-to" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">End %</label>
+      <input id="evcc-to" type="number" min="0" max="100" value="80" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="evcc-kw" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Charger kW</label>
+      <input id="evcc-kw" type="number" min="1" max="350" step="any" value="7.4" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="evcc-p" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Unit rate p/kWh</label>
+      <input id="evcc-p" type="number" min="0" step="any" value="8" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="evcc-mi" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Miles per kWh</label>
+      <input id="evcc-mi" type="number" min="0.5" max="8" step="any" value="3.5" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="evcc-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function run() {
+    var cap = Number($('evcc-kwh').value), from = Number($('evcc-from').value), to = Number($('evcc-to').value);
+    var kw = Number($('evcc-kw').value), p = Number($('evcc-p').value), mi = Number($('evcc-mi').value);
+    if (!(cap > 0 && kw > 0 && mi > 0 && to > from && from >= 0 && to <= 100)) {
+      $('evcc-out').innerHTML = '<p style="color:#ffb8b8;font-size:.84rem;">End % must be higher than start %.</p>';
+      return;
+    }
+    var energy = cap * (to - from) / 100;
+    var fromWall = energy / 0.9;
+    var hours = fromWall / kw;
+    var cost = fromWall * p / 100;
+    var miles = energy * mi;
+    var h = Math.floor(hours), min = Math.round((hours - h) * 60);
+    function cell(k, v) {
+      return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+    }
+    $('evcc-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('Into battery', energy.toFixed(1) + ' kWh') +
+      cell('From wall (~90%)', fromWall.toFixed(1) + ' kWh') +
+      cell('Time', h + ' h ' + min + ' min') +
+      cell('Cost', '£' + cost.toFixed(2) + '  (' + p + 'p)') +
+      cell('Range added', miles.toFixed(0) + ' mi / ' + (miles * 1.609).toFixed(0) + ' km') +
+      cell('p per mile', (cost / miles * 100).toFixed(1) + 'p') +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Home 7.4 kW on a cheap overnight rate is usually far cheaper than a 150 kW public rapid. 10% lost in the cable and onboard charger is a typical average, not a measurement of your car.</p>';
+  }
+  ['evcc-kwh', 'evcc-from', 'evcc-to', 'evcc-kw', 'evcc-p', 'evcc-mi'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+  });
+  run();
+})();
+</script>

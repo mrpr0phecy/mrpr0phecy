@@ -219,7 +219,12 @@ const gapFillMap = {
   'ring-size-converter': 'Productivity & Lifestyle',
   'passport-photo-size-guide': 'Productivity & Lifestyle',
   'cabin-bag-airline-size-checker': 'Productivity & Lifestyle',
-  'dimensional-weight-shipping-calculator': 'SaaS & Business Killers'
+  'dimensional-weight-shipping-calculator': 'SaaS & Business Killers',
+  'oven-gas-mark-temperature-converter': 'Culinary & Food Science',
+  'yeast-fresh-instant-converter': 'Culinary & Food Science',
+  'air-fryer-oven-conversion': 'Culinary & Food Science',
+  'ev-charging-cost-calculator': 'Productivity & Lifestyle',
+  'horsepower-kw-torque-converter': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
