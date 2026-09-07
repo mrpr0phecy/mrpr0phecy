@@ -1,0 +1,93 @@
+<h2 id="bras-title" style="margin-top:0;color:var(--accent);">🎀 Bra Size Converter</h2>
+
+<form aria-describedby="bras-desc" onsubmit="event.preventDefault();">
+  <p id="bras-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert UK, US, EU/FR and AU band + cup. Sister sizes keep the same cup volume (one band up, one cup down). Brands still vary — treat this as a starting letter, not a fitting.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="bras-sys" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">I have</label>
+      <select id="bras-sys" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="UK">UK</option>
+        <option value="US">US</option>
+        <option value="EU">EU / CM</option>
+        <option value="FR">France</option>
+        <option value="AU">Australia</option>
+      </select>
+    </div>
+    <div>
+      <label for="bras-band" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Band</label>
+      <select id="bras-band" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"></select>
+    </div>
+    <div>
+      <label for="bras-cup" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Cup</label>
+      <select id="bras-cup" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"></select>
+    </div>
+  </div>
+</form>
+<div id="bras-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var UK_BANDS = [28, 30, 32, 34, 36, 38, 40, 42, 44, 46];
+  var UK_CUPS = ['AA', 'A', 'B', 'C', 'D', 'DD', 'E', 'F', 'FF', 'G', 'GG', 'H'];
+  var US_CUPS = ['AA', 'A', 'B', 'C', 'D', 'DD', 'DDD/E', 'F', 'G', 'H', 'I', 'J'];
+  function ukBandFrom(sys, band) {
+    if (sys === 'UK' || sys === 'US') return band;
+    if (sys === 'AU') return band + 22;
+    if (sys === 'FR') return (band - 15 - 6) / 2;
+    return (band - 6) / 2;
+  }
+  function bandsFor(sys) {
+    return UK_BANDS.map(function (uk) {
+      if (sys === 'UK' || sys === 'US') return uk;
+      if (sys === 'AU') return uk - 22;
+      if (sys === 'EU') return uk * 2 + 6;
+      return uk * 2 + 21;
+    });
+  }
+  function cupsFor(sys) { return sys === 'US' ? US_CUPS : UK_CUPS; }
+  function fill() {
+    var sys = $('bras-sys').value;
+    var bands = bandsFor(sys);
+    var cups = cupsFor(sys);
+    $('bras-band').innerHTML = bands.map(function (b, i) {
+      return '<option value="' + UK_BANDS[i] + '"' + (UK_BANDS[i] === 34 ? ' selected' : '') + '>' + b + '</option>';
+    }).join('');
+    $('bras-cup').innerHTML = cups.map(function (c, i) {
+      return '<option value="' + i + '"' + (c === 'D' || c === 'D' ? '' : '') + (i === 4 ? ' selected' : '') + '>' + c + '</option>';
+    }).join('');
+  }
+  function cell(k, v) {
+    return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+  }
+  function run() {
+    var ukBand = Number($('bras-band').value);
+    var cupI = Number($('bras-cup').value);
+    if (!isFinite(ukBand) || !isFinite(cupI)) return;
+    var ukCup = UK_CUPS[cupI] || 'D';
+    var usCup = US_CUPS[cupI] || ukCup;
+    var eu = ukBand * 2 + 6;
+    var fr = eu + 15;
+    var au = ukBand - 22;
+    var sisterDown = ukBand > 28 ? (ukBand - 2) + (UK_CUPS[cupI + 1] || ukCup) : '—';
+    var sisterUp = ukBand < 46 && cupI > 0 ? (ukBand + 2) + (UK_CUPS[cupI - 1] || ukCup) : '—';
+    $('bras-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;">' +
+      cell('UK', ukBand + ukCup) +
+      cell('US', ukBand + usCup) +
+      cell('EU', eu + ukCup) +
+      cell('FR', fr + ukCup) +
+      cell('AU', au + ukCup) +
+      cell('Sister −2/+cup', sisterDown) +
+      cell('Sister +2/−cup', sisterUp) +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">EU 75C ≈ UK 34C. A sister size of 34D is 32DD or 36C. Measure snug underbust and fullest bust if a brand runs odd.</p>';
+  }
+  $('bras-sys').addEventListener('change', function () { fill(); run(); });
+  $('bras-band').addEventListener('change', run);
+  $('bras-cup').addEventListener('change', run);
+  fill();
+  run();
+})();
+</script>

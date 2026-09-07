@@ -264,7 +264,12 @@ const gapFillMap = {
   'bar-psi-kpa-pressure-converter': 'Productivity & Lifestyle',
   'knots-mph-kph-converter': 'Productivity & Lifestyle',
   'duplicate-line-remover-sorter': 'Writing & Language',
-  'julian-day-date-converter': 'Astronomy & Space'
+  'julian-day-date-converter': 'Astronomy & Space',
+  'bra-size-converter': 'Productivity & Lifestyle',
+  'hat-size-converter': 'Productivity & Lifestyle',
+  'business-card-size-guide': 'Productivity & Lifestyle',
+  'engine-displacement-converter': 'Productivity & Lifestyle',
+  'celsius-fahrenheit-kelvin-converter': 'Productivity & Lifestyle'
 };
 
 const sportsList = [
