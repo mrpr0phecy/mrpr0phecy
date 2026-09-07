@@ -274,7 +274,12 @@ const gapFillMap = {
   'timelapse-interval-calculator': 'SaaS & Business Killers',
   'qtc-heart-interval-calculator': 'Health & Fitness',
   'pregnancy-weight-gain-guide': 'Health & Fitness',
-  'baby-formula-mixing-calculator': 'Health & Fitness'
+  'baby-formula-mixing-calculator': 'Health & Fitness',
+  'rc-time-constant-calculator': 'Science & Engineering',
+  'speaker-ohm-wiring-calculator': 'Science & Engineering',
+  'mulch-coverage-calculator': 'Home & DIY',
+  'garden-plant-spacing-calculator': 'Home & DIY',
+  'cubic-bezier-easing-preview': 'SaaS & Business Killers'
 };
 
 const sportsList = [
