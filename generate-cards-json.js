@@ -329,7 +329,8 @@ const gapFillMap = {
   'turkey-thaw-cook-time': 'Culinary & Food Science',
   'rice-water-ratio-calculator': 'Culinary & Food Science',
   'beaufort-wind-scale': 'Science & Engineering',
-  'clock-angle-calculator': 'Mathematics'
+  'clock-angle-calculator': 'Mathematics',
+  'radians-degrees-converter': 'Mathematics'
 };
 
 const sportsList = [
