@@ -144,8 +144,13 @@ gh pr create --fill --base main          # once the work is ready
 gh pr checks <n> --watch                 # wait for green
 gh pr merge <n> --merge                  # land it — do not stop at "PR opened"
 git ls-remote origin refs/heads/main     # confirm main actually moved
-git push origin --delete arena/<branch>  # tidy up once merged
 ```
+
+Deleting the branch afterwards is **optional** — a merged branch is harmless,
+and if this is your *own* session branch do not delete it while the session may
+still continue (the harness tracks work by that branch name). Only delete
+stranded `arena/…` branches from *finished* sessions, and only after their
+content is confirmed merged into `main`.
 
 Rules:
 
