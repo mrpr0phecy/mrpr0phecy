@@ -204,7 +204,12 @@ const gapFillMap = {
   'character-limit-platform-counter': 'Writing & Language',
   'random-number-dice-coin-generator': 'Productivity & Lifestyle',
   'jet-lag-sleep-shift-planner': 'Health & Fitness',
-  'clothing-size-converter': 'Productivity & Lifestyle'
+  'clothing-size-converter': 'Productivity & Lifestyle',
+  'meeting-overlap-timezone-planner': 'Productivity & Lifestyle',
+  'px-rem-em-unit-converter': 'SaaS & Business Killers',
+  'htaccess-redirect-generator': 'SaaS & Business Killers',
+  'body-surface-area-calculator': 'Health & Fitness',
+  'golden-ratio-crop-calculator': 'SaaS & Business Killers'
 };
 
 const sportsList = [

@@ -1,0 +1,92 @@
+<h2 id="htxr-title" style="margin-top:0;color:var(--accent);">🔀 .htaccess Redirect Generator</h2>
+
+<form aria-describedby="htxr-desc" onsubmit="event.preventDefault();">
+  <p id="htxr-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Build Apache mod_rewrite rules for 301/302 redirects, HTTP→HTTPS and www/apex canonical hosts. Output is a snippet to paste into <code>.htaccess</code>. Review before deploying — a bad rewrite loops a site.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+    <div>
+      <label for="htxr-from" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">From path or URL</label>
+      <input id="htxr-from" type="text" placeholder="/old-page or https://old.example/" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+    <div>
+      <label for="htxr-to" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">To URL</label>
+      <input id="htxr-to" type="text" placeholder="https://www.example.com/new" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+    <div>
+      <label for="htxr-code" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Status</label>
+      <select id="htxr-code" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="301">301 permanent</option>
+        <option value="302">302 temporary</option>
+      </select>
+    </div>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text-secondary);margin:6px 0;">
+    <input id="htxr-https" type="checkbox" checked style="accent-color:var(--accent);"> Force HTTPS
+  </label>
+  <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text-secondary);margin:6px 0;">
+    <input id="htxr-www" type="checkbox" style="accent-color:var(--accent);"> Force www
+  </label>
+  <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text-secondary);margin:6px 0 12px;">
+    <input id="htxr-apex" type="checkbox" style="accent-color:var(--accent);"> Force apex (no www)
+  </label>
+  <div>
+    <label for="htxr-host" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Canonical host (for www/apex)</label>
+    <input id="htxr-host" type="text" placeholder="example.com" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+  </div>
+</form>
+<pre id="htxr-out" style="margin-top:14px;padding:12px;border-radius:10px;background:#071019;border:1px solid rgba(45,212,255,.28);color:#91f7ff;font-size:.78rem;white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"></pre>
+<button type="button" id="htxr-copy" style="margin-top:10px;padding:8px 12px;background:rgba(45,212,255,.14);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;">Copy snippet</button>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function run() {
+    var lines = ['RewriteEngine On', ''];
+    var host = $('htxr-host').value.trim().replace(/^www\./, '');
+    if ($('htxr-https').checked) {
+      lines.push('# HTTPS');
+      lines.push('RewriteCond %{HTTPS} !=on');
+      lines.push('RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]', '');
+    }
+    if ($('htxr-www').checked && !$('htxr-apex').checked && host) {
+      lines.push('# www');
+      lines.push('RewriteCond %{HTTP_HOST} !^www\\. [NC]');
+      lines.push('RewriteRule ^ https://www.' + host + '%{REQUEST_URI} [L,R=301]', '');
+    }
+    if ($('htxr-apex').checked && host) {
+      lines.push('# apex (no www)');
+      lines.push('RewriteCond %{HTTP_HOST} ^www\\.(.+)$ [NC]');
+      lines.push('RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]', '');
+    }
+    var from = $('htxr-from').value.trim();
+    var to = $('htxr-to').value.trim();
+    var code = $('htxr-code').value;
+    if (from && to) {
+      var path = from;
+      try {
+        if (/^https?:\/\//i.test(from)) path = new URL(from).pathname;
+      } catch (e) {}
+      if (path.charAt(0) !== '/') path = '/' + path;
+      lines.push('# page redirect');
+      lines.push('Redirect ' + code + ' ' + path + ' ' + to);
+    }
+    if (lines[lines.length - 1] === '') lines.pop();
+    $('htxr-out').textContent = lines.join('\n');
+  }
+  ['htxr-from', 'htxr-to', 'htxr-code', 'htxr-https', 'htxr-www', 'htxr-apex', 'htxr-host'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  $('htxr-copy').addEventListener('click', function () {
+    var btn = this, text = $('htxr-out').textContent;
+    function done() { btn.textContent = '✓ Copied'; setTimeout(function () { btn.textContent = 'Copy snippet'; }, 1400); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done);
+    else done();
+  });
+  run();
+})();
+</script>

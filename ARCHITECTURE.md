@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 714 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 719 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 714 tools
-│   └── <tool-name>.html    714 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 719 tools
+│   └── <tool-name>.html    719 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 714 cards.** They share one
+2. **Element IDs must be globally unique across all 719 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -187,18 +187,18 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (714 tools)
+### Categories (719 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 122 | Science & Engineering | | 41 | SaaS & Business Killers |
-| 110 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
-| 47 | Writing & Language | | 10 | Wellbeing & Community |
-| 35 | Finance & Money | | 10 | Natural Remedies & Herbs |
+| 122 | Science & Engineering | | 51 | SaaS & Business Killers |
+| 123 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
+| 49 | Writing & Language | | 10 | Wellbeing & Community |
+| 38 | Finance & Money | | 10 | Natural Remedies & Herbs |
 | 53 | Sports | | 10 | AI & Autonomous Agents |
-| 28 | Mathematics | | 10 | Astronomy & Space |
+| 30 | Mathematics | | 11 | Astronomy & Space |
 | 23 | Music & Audio | | 10 | Anime & Otaku Culture |
-| 22 | Health & Fitness | | 10 | Aquatics & Fishkeeping |
+| 26 | Health & Fitness | | 10 | Aquatics & Fishkeeping |
 | 27 | Home & DIY | | 10 | Birdwatching & Ornithology |
 | 15 | Culinary & Food Science | | 10 | Dogs & Canine Care |
 | 12 | Museum & Collection | | 10 | MrProphecy Arcade |
@@ -758,7 +758,7 @@ All ten were added to `saasKillerList` in `generate-cards-json.js` (the category
 is 11 → **21**). `sitemap.xml` regeneration now carries an explicit `EXCLUDE`
 set for `404.html`, `hokidea.html` and `indexbeta.html` — re-running the §6
 script without it silently adds all three to the sitemap. Tool count is now
-**654** and the sitemap has **714** URLs (updated across README, ARCHITECTURE,
+**654** and the sitemap has **719** URLs (updated across README, ARCHITECTURE,
 INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html, tool.html, donate.html,
 sponsor.html).
 
@@ -799,7 +799,7 @@ home with **no smoke alarm at all** still score "Needs work", because good habit
 elsewhere offset it. Nothing compensates for not being woken up, so `alarm ===
 'none'` now floors the risk at 60 ("Genuinely risky") regardless of the rest.
 
-At that point, the tool count reached **664** across **27 categories**, and the sitemap had **714**
+At that point, the tool count reached **664** across **27 categories**, and the sitemap had **719**
 URLs (updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS,
 index.html including its JSON-LD `ItemList`, 404.html, tool.html, donate.html,
 sponsor.html, plus the `KNOWN_CATEGORIES` set in `scripts/check-cards.py` and a
@@ -821,7 +821,7 @@ new `count-survival` pill in `index.html`).
 | `robots-sitemap-generator` | Valid robots.txt and same-host sitemap.xml generation from an entered URL list |
 
 `saasKillerList` then held **31** cards. The catalogue reached **674 tools** across
-**27 categories**; `sitemap.xml` had **714 URLs**. Counts, the homepage ItemList,
+**27 categories**; `sitemap.xml` had **719 URLs**. Counts, the homepage ItemList,
 category pill and supporting page metadata were synchronized.
 
 **Added 2026-09-07, second utility batch** — ten more high-intent, local-first
