@@ -350,7 +350,8 @@ const gapFillMap = {
   'conservation-lux-hours': 'Museum & Collection',
   'museum-tombstone-label': 'Museum & Collection',
   'pigment-cabinet-of-colour': 'Museum & Collection',
-  'dinosaur-scale-hall': 'Museum & Collection'
+  'dinosaur-scale-hall': 'Museum & Collection',
+  'japanese-era-nengo': 'Museum & Collection'
 };
 
 const sportsList = [
