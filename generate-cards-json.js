@@ -299,7 +299,8 @@ const gapFillMap = {
   'heat-index-calculator': 'Science & Engineering',
   'tap-drill-size-chart': 'Home & DIY',
   'rainwater-harvest-calculator': 'Home & DIY',
-  'flesch-reading-ease': 'Writing & Language'
+  'flesch-reading-ease': 'Writing & Language',
+  'uk-alcohol-units-calculator': 'Health & Fitness'
 };
 
 const sportsList = [
