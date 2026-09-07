@@ -323,7 +323,8 @@ const gapFillMap = {
   'syllable-counter': 'Writing & Language',
   'karvonen-heart-rate-zones': 'Health & Fitness',
   'note-frequency-calculator': 'Music & Audio',
-  'dividend-yield-calculator': 'Finance & Money'
+  'dividend-yield-calculator': 'Finance & Money',
+  'downlight-spacing-calculator': 'Home & DIY'
 };
 
 const sportsList = [
