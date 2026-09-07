@@ -328,7 +328,8 @@ const gapFillMap = {
   'blood-pressure-category-guide': 'Health & Fitness',
   'turkey-thaw-cook-time': 'Culinary & Food Science',
   'rice-water-ratio-calculator': 'Culinary & Food Science',
-  'beaufort-wind-scale': 'Science & Engineering'
+  'beaufort-wind-scale': 'Science & Engineering',
+  'clock-angle-calculator': 'Mathematics'
 };
 
 const sportsList = [
