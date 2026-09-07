@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 684 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 689 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 684 tools
-│   └── <tool-name>.html    684 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 689 tools
+│   └── <tool-name>.html    689 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 684 cards.** They share one
+2. **Element IDs must be globally unique across all 689 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -187,7 +187,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (684 tools)
+### Categories (689 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
