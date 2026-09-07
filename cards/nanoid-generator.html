@@ -1,0 +1,67 @@
+<h2 id="nano-title" style="margin-top:0;color:var(--accent);">🪪 Nano ID Generator</h2>
+
+<form aria-describedby="nano-desc" onsubmit="event.preventDefault();">
+  <p id="nano-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    URL-safe IDs from <code style="color:var(--accent);">crypto.getRandomValues</code>. Default alphabet is A–Za–z0–9_- (64 symbols). Collision odds are about (n²) / (2 × 64^size) for n IDs — this is not a password manager.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="nano-size" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Length</label>
+      <input id="nano-size" type="number" min="4" max="64" step="1" value="21" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="nano-n" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">How many</label>
+      <input id="nano-n" type="number" min="1" max="50" step="1" value="8" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="nano-alpha" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Alphabet</label>
+      <select id="nano-alpha" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="url">URL-safe 64</option>
+        <option value="num">Digits</option>
+        <option value="hex">Hex</option>
+        <option value="lower">Lower + digits</option>
+      </select>
+    </div>
+  </div>
+  <button type="button" id="nano-go" style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);font-weight:700;cursor:pointer;min-height:36px;">Generate</button>
+</form>
+<pre id="nano-out" style="margin-top:14px;padding:12px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);overflow:auto;font-size:.85rem;white-space:pre-wrap;word-break:break-all;"></pre>
+<p id="nano-odds" style="margin:8px 0 0;font-size:.75rem;color:var(--text-secondary);"></p>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var alph = {
+    url: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-',
+    num: '0123456789',
+    hex: '0123456789abcdef',
+    lower: 'abcdefghijklmnopqrstuvwxyz0123456789'
+  };
+  function id(size, alphabet) {
+    var bytes = new Uint8Array(size);
+    crypto.getRandomValues(bytes);
+    var out = '';
+    for (var i = 0; i < size; i++) out += alphabet.charAt(bytes[i] % alphabet.length);
+    return out;
+  }
+  function run() {
+    var size = Number($('nano-size').value), n = Number($('nano-n').value);
+    var alphabet = alph[$('nano-alpha').value] || alph.url;
+    if (!(size >= 4) || size > 64 || !(n >= 1) || n > 50) {
+      $('nano-out').textContent = 'Length 4–64, count 1–50.';
+      return;
+    }
+    var lines = [];
+    for (var i = 0; i < n; i++) lines.push(id(size, alphabet));
+    $('nano-out').textContent = lines.join('\n');
+    var space = Math.pow(alphabet.length, size);
+    $('nano-odds').textContent = 'Alphabet ' + alphabet.length + ' symbols. ~' + space.toExponential(2) + ' possible IDs of this length. Generated in your browser.';
+  }
+  $('nano-go').addEventListener('click', run);
+  ['nano-size', 'nano-n', 'nano-alpha'].forEach(function (i) {
+    $(i).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

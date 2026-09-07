@@ -1,0 +1,98 @@
+<h2 id="jflt-title" style="margin-top:0;color:var(--accent);">🧩 JSON Flatten / Unflatten</h2>
+
+<form aria-describedby="jflt-desc" onsubmit="event.preventDefault();">
+  <p id="jflt-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Nested objects become dotted keys (<code style="color:var(--accent);">user.address.city</code>); arrays use <code style="color:var(--accent);">items.0</code>. Unflatten rebuilds the tree. Runs in this page — nothing is uploaded.
+  </p>
+  <label for="jflt-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">JSON</label>
+  <textarea id="jflt-in" rows="10" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;">{
+  "user": { "name": "Ada", "address": { "city": "London" } },
+  "tags": ["math", "code"]
+}</textarea>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+    <button type="button" id="jflt-flat" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);font-weight:700;cursor:pointer;min-height:36px;">Flatten</button>
+    <button type="button" id="jflt-un" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);font-weight:700;cursor:pointer;min-height:36px;">Unflatten</button>
+    <button type="button" id="jflt-copy" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:transparent;color:var(--text);font-weight:700;cursor:pointer;min-height:36px;">Copy output</button>
+  </div>
+</form>
+<pre id="jflt-out" style="margin-top:14px;padding:12px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);overflow:auto;font-size:.8rem;white-space:pre-wrap;word-break:break-word;"></pre>
+<p id="jflt-msg" style="margin:8px 0 0;font-size:.75rem;color:var(--text-secondary);"></p>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function flatten(obj, prefix, out) {
+    out = out || {};
+    if (obj !== null && typeof obj === 'object') {
+      var keys = Array.isArray(obj) ? obj.map(function (_, i) { return String(i); }) : Object.keys(obj);
+      if (keys.length === 0) {
+        out[prefix || ''] = Array.isArray(obj) ? [] : {};
+        return out;
+      }
+      keys.forEach(function (k) {
+        var path = prefix ? prefix + '.' + k : k;
+        flatten(obj[k], path, out);
+      });
+    } else {
+      out[prefix] = obj;
+    }
+    return out;
+  }
+  function unflatten(map) {
+    var root = {};
+    Object.keys(map).forEach(function (path) {
+      if (!path) { root = map[path]; return; }
+      var parts = path.split('.');
+      var cur = root;
+      parts.forEach(function (p, i) {
+        var last = i === parts.length - 1;
+        var nextIsIndex = !last && /^\d+$/.test(parts[i + 1]);
+        if (last) {
+          cur[p] = map[path];
+        } else {
+          if (cur[p] == null) cur[p] = nextIsIndex ? [] : {};
+          cur = cur[p];
+        }
+      });
+    });
+    return root;
+  }
+  function show(obj) {
+    $('jflt-out').textContent = JSON.stringify(obj, null, 2);
+    $('jflt-msg').textContent = '';
+  }
+  function parse() {
+    try {
+      return JSON.parse($('jflt-in').value);
+    } catch (e) {
+      $('jflt-msg').textContent = 'Could not parse JSON: ' + e.message;
+      return null;
+    }
+  }
+  $('jflt-flat').addEventListener('click', function () {
+    var v = parse();
+    if (v === null) return;
+    show(flatten(v, '', {}));
+  });
+  $('jflt-un').addEventListener('click', function () {
+    var v = parse();
+    if (v === null) return;
+    if (v === null || typeof v !== 'object' || Array.isArray(v)) {
+      $('jflt-msg').textContent = 'Unflatten expects a flat object of dotted keys.';
+      return;
+    }
+    show(unflatten(v));
+  });
+  $('jflt-copy').addEventListener('click', function () {
+    var t = $('jflt-out').textContent;
+    if (!t) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () {
+        $('jflt-msg').textContent = 'Copied.';
+      }).catch(function () { $('jflt-msg').textContent = 'Copy failed.'; });
+    }
+  });
+  show(flatten(JSON.parse($('jflt-in').value), '', {}));
+})();
+</script>

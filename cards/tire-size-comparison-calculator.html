@@ -1,0 +1,73 @@
+<h2 id="tire-title" style="margin-top:0;color:var(--accent);">🛞 Tyre Size Comparison</h2>
+
+<form aria-describedby="tire-desc" onsubmit="event.preventDefault();">
+  <p id="tire-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Compare two metric tyre sizes (e.g. 225/45R17 vs 235/40R18): overall diameter, circumference, sidewall and the speedometer error if you swap them. Not a load or speed-rating check.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
+    <fieldset style="border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px;margin:0;">
+      <legend style="color:var(--accent);font-size:.78rem;font-weight:700;padding:0 6px;">Current tyre</legend>
+      <label for="tire-a-w" style="display:block;font-size:.74rem;color:var(--text-secondary);margin:6px 0 4px;">Width mm</label>
+      <input id="tire-a-w" type="number" value="225" min="105" max="395" style="width:100%;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <label for="tire-a-ar" style="display:block;font-size:.74rem;color:var(--text-secondary);margin:8px 0 4px;">Aspect %</label>
+      <input id="tire-a-ar" type="number" value="45" min="25" max="95" style="width:100%;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <label for="tire-a-r" style="display:block;font-size:.74rem;color:var(--text-secondary);margin:8px 0 4px;">Rim inches</label>
+      <input id="tire-a-r" type="number" value="17" min="10" max="30" style="width:100%;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </fieldset>
+    <fieldset style="border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px;margin:0;">
+      <legend style="color:var(--accent);font-size:.78rem;font-weight:700;padding:0 6px;">New tyre</legend>
+      <label for="tire-b-w" style="display:block;font-size:.74rem;color:var(--text-secondary);margin:6px 0 4px;">Width mm</label>
+      <input id="tire-b-w" type="number" value="235" min="105" max="395" style="width:100%;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <label for="tire-b-ar" style="display:block;font-size:.74rem;color:var(--text-secondary);margin:8px 0 4px;">Aspect %</label>
+      <input id="tire-b-ar" type="number" value="40" min="25" max="95" style="width:100%;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+      <label for="tire-b-r" style="display:block;font-size:.74rem;color:var(--text-secondary);margin:8px 0 4px;">Rim inches</label>
+      <input id="tire-b-r" type="number" value="18" min="10" max="30" style="width:100%;padding:8px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </fieldset>
+  </div>
+</form>
+<div id="tire-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  function spec(w, ar, r) {
+    var side = w * (ar / 100);
+    var diam = side * 2 + r * 25.4;
+    var circ = Math.PI * diam;
+    var revs = 1000000 / circ;
+    return { w: w, ar: ar, r: r, side: side, diam: diam, circ: circ, revs: revs, label: w + '/' + ar + 'R' + r };
+  }
+  function run() {
+    var A = spec(Number($('tire-a-w').value), Number($('tire-a-ar').value), Number($('tire-a-r').value));
+    var B = spec(Number($('tire-b-w').value), Number($('tire-b-ar').value), Number($('tire-b-r').value));
+    if (![A.w, A.ar, A.r, B.w, B.ar, B.r].every(function (n) { return n > 0; })) return;
+    var dPct = ((B.diam - A.diam) / A.diam) * 100;
+    var trueAt100 = 100 * (B.diam / A.diam);
+    var ok = Math.abs(dPct) <= 3;
+    function row(name, a, b, unit) {
+      return '<tr><td style="padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.07);color:var(--text-secondary);">' + name + '</td>' +
+        '<td style="padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.07);">' + a + unit + '</td>' +
+        '<td style="padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.07);">' + b + unit + '</td></tr>';
+    }
+    $('tire-out').innerHTML =
+      '<div style="padding:12px;border-radius:10px;margin-bottom:10px;background:' + (ok ? 'rgba(57,255,20,.08)' : 'rgba(255,215,0,.1)') + ';border:1px solid ' + (ok ? 'rgba(57,255,20,.35)' : 'rgba(255,215,0,.4)') + ';color:var(--text);font-weight:700;">' +
+      B.label + ' is ' + (dPct >= 0 ? '+' : '') + dPct.toFixed(2) + '% diameter vs ' + A.label +
+      (ok ? ' — within the usual ±3% guideline.' : ' — outside ±3%. Speedo, ABS and gearing will be off.') +
+      '</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:.82rem;color:var(--text);"><thead><tr>' +
+      '<th style="text-align:left;padding:6px 8px;color:var(--text-secondary);"></th><th style="text-align:left;padding:6px 8px;color:var(--text-secondary);">' + A.label + '</th><th style="text-align:left;padding:6px 8px;color:var(--text-secondary);">' + B.label + '</th></tr></thead><tbody>' +
+      row('Diameter', A.diam.toFixed(1), B.diam.toFixed(1), ' mm') +
+      row('Sidewall', A.side.toFixed(1), B.side.toFixed(1), ' mm') +
+      row('Circumference', (A.circ / 1000).toFixed(3), (B.circ / 1000).toFixed(3), ' m') +
+      row('Revs / km', A.revs.toFixed(1), B.revs.toFixed(1), '') +
+      '</tbody></table>' +
+      '<p style="margin:10px 0 0;font-size:.8rem;color:var(--text-secondary);">If the speedo reads 100 on the new tyre, true speed is about <strong style="color:var(--text);">' + trueAt100.toFixed(1) + '</strong>.</p>';
+  }
+  ['tire-a-w', 'tire-a-ar', 'tire-a-r', 'tire-b-w', 'tire-b-ar', 'tire-b-r'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+  });
+  run();
+})();
+</script>

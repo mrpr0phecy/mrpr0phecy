@@ -1,0 +1,324 @@
+<h2 id="vol-title" style="margin-top:0;color:var(--accent);">🌋 Volcano Eruption Simulator</h2>
+
+<form aria-describedby="vol-desc" onsubmit="event.preventDefault();">
+  <p id="vol-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A living cross-section of a stratovolcano. Magma viscosity, dissolved gas, vent width and slope drive the real eruption style — Hawaiian fountains, Strombolian bursts or Plinian columns — with buoyant plume height, tephra, lava-flow speed and a VEI estimate. Wait for pressure to build, or press ERUPT.
+  </p>
+
+  <!-- Eruption style presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="vol-preset" data-id="hawaiian" style="padding:4px 10px;border-radius:4px;background:rgba(255,120,40,0.18);border:1px solid #ff7838;color:#ffb56b;font-size:0.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;">🌊 Hawaiian</button>
+    <button type="button" class="vol-preset" data-id="strombolian" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">💥 Strombolian</button>
+    <button type="button" class="vol-preset" data-id="vulcanian" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🪨 Vulcanian</button>
+    <button type="button" class="vol-preset" data-id="plinian" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌀 Plinian</button>
+    <button type="button" class="vol-preset" data-id="dome" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🗿 Rhyolitic Dome</button>
+  </div>
+
+  <div style="background:#05080f;border:1px solid rgba(255,140,60,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;position:relative;">
+    <canvas id="vol-canvas" width="640" height="300" style="width:100%;height:300px;display:block;background:linear-gradient(#0b1020,#1a0d08 70%,#241108);border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="vol-phase" style="color:#7fd4ff;font-family:monospace;">CHAMBER FILLING…</span>
+      <span>WIND →</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Magma Viscosity (log₁₀ μ, Pa·s)</span><span id="vol-val-vis">4.8 log Pa·s</span>
+      </div>
+      <input type="range" id="vol-slider-vis" min="4" max="9.5" step="0.1" value="4.8" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Dissolved Gas (wt% H₂O)</span><span id="vol-val-gas">1.2 wt%</span>
+      </div>
+      <input type="range" id="vol-slider-gas" min="0.2" max="8" step="0.1" value="1.2" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Vent Radius</span><span id="vol-val-vent">25 m</span>
+      </div>
+      <input type="range" id="vol-slider-vent" min="5" max="80" step="5" value="25" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Edifice Slope</span><span id="vol-val-slope">10°</span>
+      </div>
+      <input type="range" id="vol-slider-slope" min="4" max="35" step="1" value="10" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Live readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">COLUMN HEIGHT</div>
+      <div id="vol-stat-col" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">LAVA FLOW SPEED</div>
+      <div id="vol-stat-lava" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">ERUPTION STYLE</div>
+      <div id="vol-stat-style" style="font-size:0.85rem;font-family:monospace;color:#7fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">VEI ESTIMATE</div>
+      <div id="vol-stat-vei" style="font-size:0.85rem;font-family:monospace;color:#fff;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="vol-btn-erupt" style="padding:6px 16px;border-radius:6px;background:rgba(255,80,40,0.2);border:1px solid #ff5028;color:#ff8a5c;font-size:0.75rem;font-weight:bold;cursor:pointer;">⚡ TRIGGER ERUPTION</button>
+    <button type="button" id="vol-btn-auto" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">Auto-cycle: ON</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Eruption column: buoyant-plume scaling H ≈ 1.35·(Q/10⁶ W)^0.25 km (Sparks 1986). Exit velocity from
+      chamber overpressure v = √(2ΔP/ρ). Lava flow: laminar channel speed u = ρg·sinθ·h²/(3μ) — higher
+      viscosity or lower slope = far slower flow. Effusive vs explosive split: low μ + low gas → fountaining;
+      high μ + high gas → column collapse into a pyroclastic density current. VEI mapped from column height and
+      tephra volume (Newhall & Self 1982).
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('vol-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const sVis = $('vol-slider-vis'), sGas = $('vol-slider-gas'), sVent = $('vol-slider-vent'), sSlope = $('vol-slider-slope');
+  const vVis = $('vol-val-vis'), vGas = $('vol-val-gas'), vVent = $('vol-val-vent'), vSlope = $('vol-val-slope');
+  const statCol = $('vol-stat-col'), statLava = $('vol-stat-lava'), statStyle = $('vol-stat-style'), statVei = $('vol-stat-vei');
+  const phaseEl = $('vol-phase');
+  const btnErupt = $('vol-btn-erupt'), btnAuto = $('vol-btn-auto');
+
+  let vis = 4.8, gas = 1.2, vent = 25, slope = 10;
+  let pressure = 0, mode = 'fill', t = 0, emberT = 0, refill = 0;
+  let autoCycle = true;
+  let particles = [];
+  let lavaFront = -1; // -1 = no active flow, else 0..1 down the flank
+  let lavaAge = 0;
+
+  const PRESETS = {
+    hawaiian:   { vis: 4.5, gas: 0.6, vent: 30, slope: 8  },
+    strombolian:{ vis: 5.5, gas: 2.0, vent: 25, slope: 12 },
+    vulcanian:  { vis: 7.0, gas: 3.5, vent: 35, slope: 15 },
+    plinian:    { vis: 8.5, gas: 5.5, vent: 60, slope: 20 },
+    dome:       { vis: 9.5, gas: 4.0, vent: 80, slope: 25 }
+  };
+
+  // ---- geometry of the edifice ----
+  const crater = { x: W * 0.62, y: H * 0.46 };
+  const chamber = { x: W * 0.62, y: H * 0.86 };
+
+  function readSliders() {
+    vis = parseFloat(sVis.value); gas = parseFloat(sGas.value);
+    vent = parseFloat(sVent.value); slope = parseFloat(sSlope.value);
+    vVis.textContent = vis.toFixed(1) + ' log Pa·s';
+    vGas.textContent = gas.toFixed(1) + ' wt%';
+    vVent.textContent = vent + ' m';
+    vSlope.textContent = slope + '°';
+  }
+
+  function physics() {
+    const mu = Math.pow(10, vis);
+    const rho = 2500; // kg/m3 magma
+    const g = 9.81;
+    const theta = slope * Math.PI / 180;
+    const h = 1.5; // lava channel depth (m)
+    const uLava = (rho * g * Math.sin(theta) * h * h) / (3 * mu);
+    const explosive = (vis > 6.2 && gas > 1.6) || (gas > 4 && vis > 5.8);
+    const q = vis * (gas + 0.4); // power proxy (arbitrary units)
+    const Qw = Math.pow(10, 4.2 + q * 0.55); // thermal power, W proxy
+    const colH = 1.35 * Math.pow(Qw / 1e6, 0.25); // km, buoyant plume scaling
+    let vei = 0;
+    if (colH > 1) vei = 1;
+    if (colH > 3) vei = 2;
+    if (colH > 10) vei = 3;
+    if (colH > 25) vei = 4;
+    return { mu, uLava, explosive, colH, vei };
+  }
+
+  function spawnEruption(p, dt) {
+    const n = Math.min(6, Math.max(1, Math.round(p.colH * 0.7)));
+    for (let i = 0; i < n; i++) {
+      const vx = 6 + Math.random() * 16;                     // wind
+      const vy = -(30 + Math.random() * 90 * Math.sqrt(p.colH + 1)); // ejecta speed
+      particles.push({
+        x: crater.x + (Math.random() - 0.5) * 4,
+        y: crater.y, vx: vx, vy: vy,
+        r: 0.8 + Math.random() * (p.explosive ? 3.2 : 1.6),
+        life: 1,
+        ash: Math.random() < 0.55
+      });
+    }
+    if (particles.length > 420) particles.splice(0, particles.length - 420);
+  }
+
+  function step(dt) {
+    const p = physics();
+    if (mode === 'fill') {
+      // refill rate scales with how "open" the system is (low viscosity fills faster)
+      pressure += (0.25 + (9.5 - vis) * 0.09) * dt;
+      if (pressure > 100) { mode = 'erupt'; t = 0; lavaFront = 0; lavaAge = 0; }
+    } else if (mode === 'erupt') {
+      t += dt;
+      pressure = Math.max(0, pressure - dt * 14);
+      spawnEruption(p, dt);
+      // lava flow advances if eruption is effusive; pyroclastic flow if column collapses
+      const advancing = p.uLava > 0.005 || p.explosive;
+      if (advancing) lavaFront = Math.min(1, lavaFront + dt * (p.explosive ? 1.6 : 0.55));
+      lavaAge += dt;
+      if (t > 14 || pressure <= 1) {
+        mode = refill > 0 ? 'fill' : 'pause';
+        refill = 0;
+        lavaFront = -1;
+      }
+    } else {
+      if (autoCycle && refill > 0) mode = 'fill';
+    }
+
+    // particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const pt = particles[i];
+      pt.vy += 26 * dt;         // gravity
+      pt.vx *= (1 - 0.4 * dt);
+      if (pt.ash) { pt.vy *= (1 - 0.5 * dt); pt.vx += 14 * dt; } // ash decelerates, drifts with wind
+      pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+      pt.life -= dt * 0.055;
+      if (pt.y > H + 10 || pt.life <= 0) { particles.splice(i, 1); }
+    }
+    if (mode === 'fill') refill = 1;
+
+    // readouts (throttled)
+    emberT += dt;
+    if (emberT > 0.25) {
+      emberT = 0;
+      phaseEl.textContent = mode === 'fill' ? 'CHAMBER FILLING… ' + Math.round(pressure) + '%' :
+        mode === 'erupt' ? 'ERUPTING — ' + Math.round(pressure) + '% chamber pressure' : 'DORMANT (auto-cycle paused)';
+      statCol.textContent = (mode === 'erupt' ? p.colH : 0).toFixed(1) + ' km';
+      statLava.textContent = p.uLava >= 0.001 ? (p.uLava < 10 ? p.uLava.toFixed(2) : p.uLava.toFixed(0)) + ' m/s' : '—';
+      statStyle.textContent = p.explosive ? 'Explosive' : 'Effusive';
+      statVei.textContent = 'VEI ' + (mode === 'erupt' ? p.vei : 0);
+    }
+  }
+
+  function drawEdifice() {
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#0b1020'); sky.addColorStop(0.55, '#33150d'); sky.addColorStop(1, '#1a0d08');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    // stars
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    for (let i = 0; i < 40; i++) ctx.fillRect((i * 97.3) % W, (i * 61.7) % (H * 0.4), 1, 1);
+    // distant ridge
+    ctx.fillStyle = '#141019';
+    ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.82); ctx.lineTo(W * 0.3, H * 0.74);
+    ctx.lineTo(W * 0.55, H * 0.84); ctx.lineTo(W, H * 0.78); ctx.lineTo(W, H); ctx.fill();
+    // edifice (cone)
+    const baseY = H * 0.98, apexY = crater.y, apexX = crater.x;
+    const halfBase = 150;
+    ctx.beginPath();
+    ctx.moveTo(apexX - halfBase, baseY); ctx.lineTo(apexX, apexY); ctx.lineTo(apexX + halfBase, baseY); ctx.closePath();
+    const rockGrad = ctx.createLinearGradient(apexX, apexY, apexX, baseY);
+    rockGrad.addColorStop(0, '#4a3226'); rockGrad.addColorStop(1, '#241109');
+    ctx.fillStyle = rockGrad; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,160,80,0.15)'; ctx.stroke();
+    // crater rim
+    ctx.fillStyle = '#120a06';
+    ctx.beginPath(); ctx.ellipse(apexX, crater.y, 34, 8, 0, 0, Math.PI * 2); ctx.fill();
+    // conduit
+    ctx.strokeStyle = mode === 'erupt' ? '#ffb347' : '#5a2a12';
+    ctx.lineWidth = 6 + vent * 0.09;
+    ctx.shadowBlur = mode === 'erupt' ? 22 : 0; ctx.shadowColor = '#ff6a00';
+    ctx.beginPath(); ctx.moveTo(chamber.x, chamber.y); ctx.lineTo(apexX, crater.y); ctx.stroke();
+    ctx.shadowBlur = 0;
+    // chamber
+    const pG = Math.min(1, pressure / 100);
+    ctx.beginPath(); ctx.ellipse(chamber.x, chamber.y, 46, 18, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#3a1008'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(chamber.x, chamber.y, 46 * pG, 18 * pG, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,110,20,' + (0.35 + pG * 0.6) + ')';
+    ctx.shadowBlur = 16 * pG; ctx.shadowColor = '#ff5a00'; ctx.fill(); ctx.shadowBlur = 0;
+    // label
+    ctx.fillStyle = 'rgba(230,250,255,0.55)'; ctx.font = '9px monospace';
+    ctx.fillText('MAGMA CHAMBER', chamber.x - 52, chamber.y + 32);
+  }
+
+  function drawLava(p) {
+    if (lavaFront < 0) return;
+    const baseY = H * 0.98, dx = crater.x - (crater.x - 150), dy = baseY - crater.y;
+    const fx = crater.x + (lavaFront - 0.2) * dx, fy = crater.y + lavaFront * dy;
+    const cool = Math.max(0, 1 - lavaAge / 40);
+    ctx.strokeStyle = 'rgba(255,' + Math.round(40 + cool * 110) + ',10,' + (0.4 + cool * 0.6) + ')';
+    ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.shadowBlur = 18 * cool + 4; ctx.shadowColor = '#ff4a00';
+    ctx.beginPath(); ctx.moveTo(crater.x, crater.y);
+    ctx.quadraticCurveTo(crater.x + 60, crater.y + (baseY - crater.y) * 0.4, fx, fy);
+    ctx.stroke(); ctx.shadowBlur = 0; ctx.lineCap = 'butt';
+    // glowing head
+    ctx.beginPath(); ctx.arc(fx, fy, 5 + cool * 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,200,80,0.9)'; ctx.fill();
+  }
+
+  function drawParticles() {
+    particles.forEach(pt => {
+      const a = Math.max(0, Math.min(1, pt.life));
+      if (pt.ash) {
+        ctx.fillStyle = 'rgba(120,110,105,' + (a * 0.5) + ')';
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r * 2.2, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.fillStyle = 'rgba(255,' + Math.round(140 + Math.random() * 80) + ',50,' + a + ')';
+        ctx.shadowBlur = 8; ctx.shadowColor = '#ff5a00';
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    });
+  }
+
+  function draw() {
+    const p = physics();
+    drawEdifice();
+    drawLava(p);
+    drawParticles();
+    if (mode === 'erupt') {
+      // eruptive column glow marker at vent
+      ctx.fillStyle = 'rgba(255,120,30,0.35)';
+      ctx.beginPath(); ctx.arc(crater.x, crater.y, 10 + Math.sin(t * 6) * 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    step(dt); draw();
+    requestAnimationFrame(loop);
+  }
+
+  // controls
+  [sVis, sGas, sVent, sSlope].forEach(s => s.addEventListener('input', readSliders));
+  document.querySelectorAll('.vol-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pr = PRESETS[btn.dataset.id];
+      sVis.value = pr.vis; sGas.value = pr.gas; sVent.value = pr.vent; sSlope.value = pr.slope;
+      readSliders();
+    });
+  });
+  btnErupt.addEventListener('click', () => { mode = 'erupt'; t = 0; lavaFront = 0; lavaAge = 0; pressure = 100; });
+  btnAuto.addEventListener('click', () => {
+    autoCycle = !autoCycle;
+    btnAuto.textContent = 'Auto-cycle: ' + (autoCycle ? 'ON' : 'OFF');
+    if (autoCycle && mode === 'pause') mode = 'fill';
+  });
+  readSliders();
+  requestAnimationFrame(loop);
+})();
+</script>

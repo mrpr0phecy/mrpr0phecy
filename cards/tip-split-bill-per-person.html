@@ -1,0 +1,73 @@
+<h2 id="tsbp-title" style="margin-top:0;color:var(--accent);">🍽️ Restaurant Bill Splitter with Itemised Shares</h2>
+
+<form aria-describedby="tsbp-desc" onsubmit="event.preventDefault();">
+  <p id="tsbp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Split a restaurant bill fairly: add each dish and tick who shared it, set a service charge or tip, and get an exact per-person total including their proportional share of tax and tip. Handles "I only had a starter" without arguments.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px;">
+    <input id="tsbp-newp" type="text" placeholder="Add a person (e.g. Sam)" style="padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.9rem;">
+    <button type="button" id="tsbp-addp" style="padding:9px 14px;border-radius:8px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);font-weight:700;cursor:pointer;">+ Person</button>
+  </div>
+  <div id="tsbp-people" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-bottom:8px;">
+    <input id="tsbp-newi" type="text" placeholder="Item (e.g. Margherita)" style="padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.9rem;">
+    <input id="tsbp-newc" type="number" step="0.01" min="0" placeholder="Price" style="padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.9rem;">
+    <button type="button" id="tsbp-addi" style="padding:9px 14px;border-radius:8px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.35);color:#39ff14;font-weight:700;cursor:pointer;">+ Item</button>
+  </div>
+  <div id="tsbp-items" style="display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:12px;"></div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px;">
+    <div><label for="tsbp-tip" style="display:block;font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Tip / service %</label><input id="tsbp-tip" type="number" step="0.5" min="0" value="12.5" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);"></div>
+    <div><label for="tsbp-tax" style="display:block;font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Extra tax % (if not in prices)</label><input id="tsbp-tax" type="number" step="0.5" min="0" value="0" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);"></div>
+    <div><label for="tsbp-disc" style="display:block;font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Discount / voucher</label><input id="tsbp-disc" type="number" step="0.01" min="0" value="0" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);"></div>
+    <div><label for="tsbp-cur" style="display:block;font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Currency</label><input id="tsbp-cur" type="text" value="£" maxlength="4" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);"></div>
+  </div>
+  <label style="font-size:0.78rem;color:var(--text);display:flex;gap:5px;align-items:center;margin-bottom:10px;"><input type="checkbox" id="tsbp-round"> Round each person up to the nearest whole unit (extra goes to tip)</label>
+
+  <div id="tsbp-result" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:10px;"></div>
+  <div id="tsbp-total" style="background:rgba(0,0,0,0.3);border:1px solid rgba(45,212,255,0.25);border-radius:10px;padding:10px 12px;font-size:0.85rem;color:var(--text);line-height:1.6;"></div>
+  <div style="display:flex;gap:6px;margin-top:8px;">
+    <button type="button" id="tsbp-copy" style="padding:8px 14px;border-radius:8px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);font-size:0.8rem;cursor:pointer;">Copy summary</button>
+    <button type="button" id="tsbp-reset" style="padding:8px 14px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.8rem;cursor:pointer;">Start over</button>
+  </div>
+</form>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var people=['Alex','Sam'], items=[{n:'Shared starter',p:9.5,who:[0,1]},{n:'Pizza',p:14,who:[0]},{n:'Pasta',p:13.5,who:[1]},{n:'Wine bottle',p:24,who:[0,1]}];
+  var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+  var colors=['#2dd4ff','#39ff14','#ffa500','#ff4081','#9d4edd','#ffd700','#00e5a0','#ff7f50','#7fdbff','#f012be'];
+  function money(v){ return ($('tsbp-cur').value||'')+v.toFixed(2); }
+  function renderPeople(){ $('tsbp-people').innerHTML=people.map(function(p,i){ return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(0,0,0,0.3);border:1px solid '+colors[i%colors.length]+'55;color:'+colors[i%colors.length]+';font-size:0.82rem;">'+esc(p)+'<button type="button" data-tsbp-rmp="'+i+'" aria-label="Remove '+esc(p)+'" style="background:none;border:none;color:inherit;cursor:pointer;font-size:0.9rem;padding:0;">✕</button></span>'; }).join('')||'<span style="font-size:0.8rem;color:var(--text-secondary);">Add at least one person.</span>'; }
+  function renderItems(){ $('tsbp-items').innerHTML=items.map(function(it,i){ return '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 10px;"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span style="color:var(--text);font-size:0.9rem;">'+esc(it.n)+'</span><span style="display:flex;align-items:center;gap:8px;"><span style="font-family:ui-monospace,monospace;color:var(--accent);">'+money(it.p)+'</span><button type="button" data-tsbp-rmi="'+i+'" aria-label="Remove item" style="background:rgba(255,64,129,0.12);border:1px solid rgba(255,64,129,0.3);color:#ff4081;border-radius:6px;cursor:pointer;padding:2px 7px;">✕</button></span></div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">'+people.map(function(p,j){ var on=it.who.indexOf(j)>-1; return '<button type="button" data-tsbp-tog="'+i+':'+j+'" style="padding:3px 9px;border-radius:999px;font-size:0.72rem;cursor:pointer;background:'+(on?colors[j%colors.length]+'33':'transparent')+';border:1px solid '+(on?colors[j%colors.length]:'rgba(255,255,255,0.15)')+';color:'+(on?colors[j%colors.length]:'var(--text-secondary)')+';">'+(on?'✓ ':'')+esc(p)+'</button>'; }).join('')+(it.who.length===0?'<span style="font-size:0.7rem;color:#ff4081;align-self:center;">nobody assigned — split equally</span>':'')+'</div></div>'; }).join('')||'<div style="font-size:0.8rem;color:var(--text-secondary);">No items yet — add what was ordered.</div>'; }
+  var summary='';
+  function calc(){
+    var tip=(+$('tsbp-tip').value||0)/100, tax=(+$('tsbp-tax').value||0)/100, disc=+$('tsbp-disc').value||0, roundUp=$('tsbp-round').checked;
+    var sub=items.reduce(function(a,b){return a+b.p;},0); var share=people.map(function(){return 0;});
+    items.forEach(function(it){ var w=it.who.length?it.who:people.map(function(_,i){return i;}); if(!w.length) return; w.forEach(function(j){ share[j]+=it.p/w.length; }); });
+    var discRatio= sub>0 ? Math.max(0,sub-disc)/sub : 0;
+    var totals=share.map(function(s){ var afterDisc=s*discRatio; var t=afterDisc*(1+tax); var withTip=t*(1+tip); return {food:s,tax:afterDisc*tax,tip:t*tip,total:withTip}; });
+    var grand=totals.reduce(function(a,b){return a+b.total;},0), extra=0;
+    if(roundUp){ totals.forEach(function(t){ var r=Math.ceil(t.total-1e-9); extra+=r-t.total; t.total=r; }); }
+    $('tsbp-result').innerHTML=people.map(function(p,i){ var t=totals[i]; return '<div style="background:rgba(0,0,0,0.3);border:1px solid '+colors[i%colors.length]+'55;border-radius:10px;padding:10px;"><div style="font-size:0.75rem;color:'+colors[i%colors.length]+';font-weight:700;">'+esc(p)+'</div><div style="font-size:1.4rem;font-weight:800;color:var(--text);">'+money(t.total)+'</div><div style="font-size:0.7rem;color:var(--text-secondary);">food '+money(t.food)+(disc?' · disc −'+money(t.food*(1-discRatio)):'')+(tax?' · tax '+money(t.tax):'')+' · tip '+money(t.tip)+'</div></div>'; }).join('');
+    var tipTotal=totals.reduce(function(a,b){return a+b.tip;},0)+extra, taxTotal=totals.reduce(function(a,b){return a+b.tax;},0);
+    var payable=totals.reduce(function(a,b){return a+b.total;},0);
+    $('tsbp-total').innerHTML='Subtotal <b>'+money(sub)+'</b>'+(disc?' − discount <b>'+money(Math.min(disc,sub))+'</b>':'')+(tax?' + tax <b>'+money(taxTotal)+'</b>':'')+' + tip <b>'+money(tipTotal)+'</b> ('+(sub? (tipTotal/(sub*discRatio*(1+tax))*100).toFixed(1):'0')+'%) = <b style="color:#39ff14;">'+money(payable)+'</b> to pay'+(people.length?' · equal split would be '+money(payable/people.length)+' each':'');
+    summary='Bill split ('+new Date().toLocaleDateString()+')\n'+people.map(function(p,i){return p+': '+money(totals[i].total);}).join('\n')+'\nTotal: '+money(payable)+' (incl. tip '+money(tipTotal)+')';
+  }
+  function all(){ renderPeople(); renderItems(); calc(); }
+  $('tsbp-addp').addEventListener('click',function(){ var v=$('tsbp-newp').value.trim(); if(!v) return; people.push(v); $('tsbp-newp').value=''; all(); });
+  $('tsbp-newp').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); $('tsbp-addp').click(); } });
+  $('tsbp-addi').addEventListener('click',function(){ var n=$('tsbp-newi').value.trim(), p=parseFloat($('tsbp-newc').value); if(!n||!(p>=0)) return; items.push({n:n,p:p,who:[]}); $('tsbp-newi').value=''; $('tsbp-newc').value=''; $('tsbp-newi').focus(); all(); });
+  $('tsbp-newc').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); $('tsbp-addi').click(); } });
+  $('tsbp-people').addEventListener('click',function(e){ var b=e.target.closest('[data-tsbp-rmp]'); if(!b) return; var i=+b.getAttribute('data-tsbp-rmp'); people.splice(i,1); items.forEach(function(it){ it.who=it.who.filter(function(j){return j!==i;}).map(function(j){return j>i?j-1:j;}); }); all(); });
+  $('tsbp-items').addEventListener('click',function(e){ var r=e.target.closest('[data-tsbp-rmi]'); if(r){ items.splice(+r.getAttribute('data-tsbp-rmi'),1); all(); return; } var t=e.target.closest('[data-tsbp-tog]'); if(t){ var p=t.getAttribute('data-tsbp-tog').split(':'), it=items[+p[0]], j=+p[1], k=it.who.indexOf(j); if(k>-1) it.who.splice(k,1); else it.who.push(j); all(); } });
+  ['tsbp-tip','tsbp-tax','tsbp-disc','tsbp-cur'].forEach(function(id){ $(id).addEventListener('input',all); }); $('tsbp-round').addEventListener('change',calc);
+  $('tsbp-reset').addEventListener('click',function(){ people=[]; items=[]; all(); });
+  $('tsbp-copy').addEventListener('click',function(){ var b=this; var done=function(){ b.textContent='Copied ✓'; setTimeout(function(){b.textContent='Copy summary';},1100); }; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(summary).then(done,function(){}); } else { var x=document.createElement('textarea'); x.value=summary; document.body.appendChild(x); x.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(x); done(); } });
+  all();
+})();
+</script>

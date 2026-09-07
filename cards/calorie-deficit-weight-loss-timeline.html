@@ -1,0 +1,68 @@
+<h2 id="cdwl-title" style="margin-top:0;color:var(--accent);">📉 Calorie Deficit Timeline</h2>
+
+<form aria-describedby="cdwl-desc" onsubmit="event.preventDefault();">
+  <p id="cdwl-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Rough weeks to a goal weight from a daily calorie deficit. Uses ~7,700 kcal per kg (about 3,500 kcal per lb). Real bodies adapt — this is a sketch, not a promise, and not medical advice.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="cdwl-now" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Current weight</label>
+      <input id="cdwl-now" type="number" min="30" max="400" step="any" value="85" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cdwl-goal" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Goal weight</label>
+      <input id="cdwl-goal" type="number" min="30" max="400" step="any" value="75" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cdwl-u" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Unit</label>
+      <select id="cdwl-u" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="kg">kg</option>
+        <option value="lb">lb</option>
+      </select>
+    </div>
+    <div>
+      <label for="cdwl-def" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Daily deficit (kcal)</label>
+      <input id="cdwl-def" type="number" min="100" max="1500" value="500" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="cdwl-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function run() {
+    var now = Number($('cdwl-now').value), goal = Number($('cdwl-goal').value), def = Number($('cdwl-def').value);
+    var unit = $('cdwl-u').value;
+    if (!(now > 0 && goal > 0 && def > 0)) return;
+    var loss = now - goal;
+    if (loss <= 0) {
+      $('cdwl-out').innerHTML = '<p style="color:#ffb8b8;font-size:.84rem;">Goal must be below current weight. For a surplus / bulk, invert the numbers.</p>';
+      return;
+    }
+    var kcalPer = unit === 'kg' ? 7700 : 3500;
+    var days = loss * kcalPer / def;
+    var weeks = days / 7;
+    var perWeek = def * 7 / kcalPer;
+    var d = new Date();
+    d.setDate(d.getDate() + Math.round(days));
+    function cell(k, v) {
+      return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+    }
+    var warn = def > 1000 ? '<p style="color:#ffb8b8;font-size:.8rem;margin-top:8px;">Deficits over ~1,000 kcal/day are hard to sustain and more likely to drop muscle. 300–500 is the usual starting band.</p>' : '';
+    $('cdwl-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('To lose', loss.toFixed(1) + ' ' + unit) +
+      cell('At this deficit', Math.round(days) + ' days · ' + weeks.toFixed(1) + ' weeks') +
+      cell('Rate', perWeek.toFixed(2) + ' ' + unit + ' / week') +
+      cell('Rough date', d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })) +
+      '</div>' + warn +
+      '<p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Plateaus, water, and training change the curve. Recalculate TDEE as you get lighter. Speak to a GP before aggressive cuts.</p>';
+  }
+  ['cdwl-now', 'cdwl-goal', 'cdwl-u', 'cdwl-def'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

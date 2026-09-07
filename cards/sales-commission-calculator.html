@@ -1,0 +1,67 @@
+<h2 id="cmss-title" style="margin-top:0;color:var(--accent);">💼 Sales Commission Calculator</h2>
+
+<form aria-describedby="cmss-desc" onsubmit="event.preventDefault();">
+  <p id="cmss-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Commission from a sale amount and rate, with an optional second-tier rate above a threshold (common in sales plans). Gross figures — tax is not deducted.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="cmss-sale" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Sale amount</label>
+      <input id="cmss-sale" type="number" min="0" step="any" value="12500" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cmss-rate" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Rate %</label>
+      <input id="cmss-rate" type="number" min="0" step="any" value="8" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cmss-base" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Salary / draw (optional)</label>
+      <input id="cmss-base" type="number" min="0" step="any" value="0" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cmss-thr" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Tier 2 above</label>
+      <input id="cmss-thr" type="number" min="0" step="any" value="10000" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cmss-rate2" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Tier 2 rate %</label>
+      <input id="cmss-rate2" type="number" min="0" step="any" value="12" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.82rem;color:var(--text-secondary);">
+    <input id="cmss-tier" type="checkbox" style="accent-color:var(--accent);"> Use two-tier rates
+  </label>
+</form>
+<div id="cmss-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function money(v) { return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function run() {
+    var sale = Number($('cmss-sale').value), r1 = Number($('cmss-rate').value) / 100;
+    var r2 = Number($('cmss-rate2').value) / 100, thr = Number($('cmss-thr').value);
+    var base = Number($('cmss-base').value) || 0;
+    if (!(sale >= 0 && r1 >= 0)) return;
+    var comm;
+    if ($('cmss-tier').checked && thr >= 0) {
+      var low = Math.min(sale, thr);
+      var high = Math.max(0, sale - thr);
+      comm = low * r1 + high * r2;
+    } else comm = sale * r1;
+    function cell(k, v) {
+      return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+    }
+    $('cmss-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('Commission', money(comm)) +
+      cell('Effective rate', sale ? (comm / sale * 100).toFixed(2) + '%' : '—') +
+      cell('Pay this deal', money(base + comm)) +
+      cell('Seller keeps vs sale', sale ? (comm / sale * 100).toFixed(1) + '% of sale' : '—') +
+      '</div>';
+  }
+  ['cmss-sale', 'cmss-rate', 'cmss-base', 'cmss-thr', 'cmss-rate2', 'cmss-tier'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

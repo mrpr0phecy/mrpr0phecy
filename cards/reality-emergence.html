@@ -1,0 +1,75 @@
+<h2>🌀 Emergence — Simple Rules, Infinite Complexity</h2>
+<p class="description">Watch Conway's Game of Life: 4 simple rules create self-replicating patterns, computation, and open-ended complexity from nothing.</p>
+<div id="emg-app" style="max-width:500px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var N=80,grid=[],running=false,speed=100,timer=null,gen=0;
+function init(){
+  grid=[];for(var r=0;r<N;r++){grid[r]=[];for(var c=0;c<N;c++)grid[r][c]=0;}
+  gen=0;running=false;if(timer)clearInterval(timer);timer=null;
+  render();
+}
+function seed(){
+  // Gosper glider gun
+  var gun=[[1,5],[1,6],[2,5],[2,6],[11,5],[11,6],[11,7],[12,4],[12,8],[13,3],[13,9],[14,3],[14,9],[15,6],[16,4],[16,8],[17,5],[17,6],[17,7],[18,6],[21,3],[21,4],[21,5],[22,3],[22,4],[22,5],[23,2],[23,6],[25,1],[25,2],[25,6],[25,7],[35,3],[35,4],[36,3],[36,4]];
+  for(var i=0;i<gun.length;i++){var r=gun[i][0]+10,c=gun[i][1]+10;if(r<N&&c<N)grid[r][c]=1;}
+  // add a few random gliders
+  var glider=[[0,1],[1,2],[2,0],[2,1],[2,2]];
+  for(var g=0;g<5;g++){
+    var gr=Math.floor(Math.random()*(N-10))+5,gc=Math.floor(Math.random()*(N-10))+5;
+    for(var i=0;i<glider.length;i++){var r=gr+glider[i][0],c=gc+glider[i][1];if(r<N&&c<N)grid[r][c]=1;}
+  }
+  gen=0;render();
+}
+function step(){
+  var ng=[];for(var r=0;r<N;r++){ng[r]=[];for(var c=0;c<N;c++){
+    var n=0;
+    for(var dr=-1;dr<=1;dr++)for(var dc=-1;dc<=1;dc++){
+      if(dr===0&&dc===0)continue;
+      var nr=(r+dr+N)%N,nc=(c+dc+N)%N;
+      n+=grid[nr][nc];
+    }
+    if(grid[r][c])ng[r][c]=(n===2||n===3)?1:0;
+    else ng[r][c]=n===3?1:0;
+  }}
+  grid=ng;gen++;render();
+}
+function toggle(){
+  running=!running;
+  if(running){timer=setInterval(step,speed);}
+  else{clearInterval(timer);timer=null;}
+  render();
+}
+function click(r,c){grid[r][c]=1-grid[r][c];render();}
+function render(){
+  var alive=0;for(var r=0;r<N;r++)for(var c=0;c<N;c++)if(grid[r][c])alive++;
+  var h='<div style="text-align:center;margin-bottom:8px;font-size:13px;color:#2dd4ff;">Gen: '+gen+' | Alive: '+alive+' | Rules: Birth=3, Survive=2-3</div>';
+  h+='<canvas id="emg-cv" width="'+(N*6)+'" height="'+(N*6)+'" style="display:block;margin:0 auto;border-radius:4px;cursor:pointer;"></canvas>';
+  h+='<div style="display:flex;gap:6px;margin-top:10px;justify-content:center;flex-wrap:wrap;">';
+  h+='<button onclick="window._emgToggle()" style="padding:6px 16px;background:'+(running?'rgba(255,77,77,0.2)':'rgba(57,255,20,0.2)')+';color:'+(running?'#ff4d4d':'#39ff14')+';border:1px solid '+(running?'#ff4d4d':'#39ff14')+';border-radius:6px;cursor:pointer;font-weight:600;">'+(running?'⏸ Pause':'▶ Run')+'</button>';
+  h+='<button onclick="window._emgStep()" style="padding:6px 16px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-weight:600;">Step</button>';
+  h+='<button onclick="window._emgSeed()" style="padding:6px 16px;background:rgba(255,165,0,0.15);color:#ffa500;border:1px solid rgba(255,165,0,0.3);border-radius:6px;cursor:pointer;font-weight:600;">Seed Gun</button>';
+  h+='<button onclick="window._emgInit()" style="padding:6px 16px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-weight:600;">Clear</button>';
+  h+='</div>';
+  h+='<div style="margin-top:12px;font-size:13px;line-height:1.7;color:#e6faff;background:rgba(255,255,255,0.05);border-radius:8px;padding:12px;border:1px solid rgba(45,212,255,0.2);">';
+  h+='<b>4 rules. That\'s all.</b> A cell lives or dies based only on how many neighbors it has. From these rules emerge gliders, oscillators, guns, and patterns that compute any mathematical function. ';
+  h+='<br><br><i>Conway proved that from the simplest possible rules, open-ended complexity emerges — just like in our universe. The laws of physics are simple. Everything else is emergence.</i>';
+  h+='</div>';
+  document.getElementById('emg-app').innerHTML=h;
+  var cv=document.getElementById('emg-cv'),cx=cv.getContext('2d');
+  cx.fillStyle='#0a0a1a';cx.fillRect(0,0,cv.width,cv.height);
+  for(var r=0;r<N;r++)for(var c=0;c<N;c++){
+    if(grid[r][c]){cx.fillStyle='#2dd4ff';cx.fillRect(c*6,r*6,5,5);}
+    else{cx.fillStyle='#111122';cx.fillRect(c*6,r*6,5,5);}
+  }
+  cv.addEventListener('click',function(e){
+    var rect=cv.getBoundingClientRect();
+    var c=Math.floor((e.clientX-rect.left)/6),r=Math.floor((e.clientY-rect.top)/6);
+    if(r>=0&&r<N&&c>=0&&c<N)click(r,c);
+  });
+}
+window._emgToggle=toggle;window._emgStep=step;window._emgSeed=seed;window._emgInit=init;
+init();
+})();
+</script>

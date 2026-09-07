@@ -1,0 +1,151 @@
+<div id="linux-ssh" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a1a2a,#0d1b2a);border:1px solid #2a3a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#4080f0">🔑 SSH Command Generator</h2>
+    <p style="margin:0 0 20px;color:#8090b0;font-size:0.95em">Build SSH, SCP, and SSH tunnel commands — fill in the options, copy the command</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="margin-bottom:10px">
+          <label style="font-size:0.82em;color:#8090b0;display:block;margin-bottom:4px">Command Type</label>
+          <select id="lssh-type" style="width:100%;padding:8px;border-radius:6px;border:1px solid #2a3a5a;background:#0d1b2a;color:#e0d0c0;font-size:0.9em">
+            <option value="ssh">SSH — Remote login</option>
+            <option value="scp">SCP — Copy files</option>
+            <option value="tunnel">SSH Tunnel (port forwarding)</option>
+            <option value="keygen">ssh-keygen — Generate key</option>
+            <option value="rsync">rsync — Sync over SSH</option>
+          </select>
+        </div>
+        <div id="lssh-fields"></div>
+        <div id="lssh-output" style="font-family:monospace;font-size:0.88em;background:#060a10;padding:12px;border-radius:8px;border:1px solid #1a2a4a;margin-top:12px;word-break:break-all;color:#80c0f0;min-height:40px"></div>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('lssh-output').textContent)" style="margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid #4080f0;background:#1a2a4a;color:#4080f0;cursor:pointer;font-size:0.85em;width:100%">📋 Copy Command</button>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a2a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#4080f0">SSH Tips</b><br>
+          • Use <b>~/.ssh/config</b> for host aliases<br>
+          • <b>ssh-copy-id</b> installs your key on server<br>
+          • <b>-o StrictHostKeyChecking=no</b> for first connect<br>
+          • <b>-J</b> for jump/bastion hosts<br><br>
+          <b style="color:#4080f0">Common Ports</b><br>
+          <table style="width:100%;font-size:0.82em;border-collapse:collapse;margin-top:6px">
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:2px 4px;color:#4080f0">22</td><td style="padding:2px 4px;color:#8090b0">SSH (default)</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:2px 4px;color:#4080f0">80</td><td style="padding:2px 4px;color:#8090b0">HTTP</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:2px 4px;color:#4080f0">443</td><td style="padding:2px 4px;color:#8090b0">HTTPS</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:2px 4px;color:#4080f0">3306</td><td style="padding:2px 4px;color:#8090b0">MySQL</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:2px 4px;color:#4080f0">5432</td><td style="padding:2px 4px;color:#8090b0">PostgreSQL</td></tr>
+            <tr style="border-bottom:1px solid #1a2a3a"><td style="padding:2px 4px;color:#4080f0">6379</td><td style="padding:2px 4px;color:#8090b0">Redis</td></tr>
+            <tr><td style="padding:2px 4px;color:#4080f0">27017</td><td style="padding:2px 4px;color:#8090b0">MongoDB</td></tr>
+          </table>
+          <br><b style="color:#4080f0">SSH Config Example</b><br>
+          <code style="font-size:0.78em;color:#80c0f0;background:#060a10;padding:2px 6px;border-radius:4px;display:block;margin-top:4px;white-space:pre">Host myserver
+  HostName 192.168.1.100
+  User admin
+  Port 2222
+  IdentityFile ~/.ssh/id_ed25519</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const typeEl=document.getElementById('lssh-type'),fieldsEl=document.getElementById('lssh-fields');
+  const outputEl=document.getElementById('lssh-output');
+  const fieldDefs={
+    ssh:[
+      {id:'user',label:'Username',ph:'root',def:'root'},
+      {id:'host',label:'Host / IP',ph:'192.168.1.100',def:''},
+      {id:'port',label:'Port',ph:'22',def:'22'},
+      {id:'key',label:'Key file (optional)',ph:'~/.ssh/id_ed25519',def:''},
+      {id:'cmd',label:'Remote command (optional)',ph:'ls -la',def:''},
+      {id:'tunnel',label:'Local tunnel (optional)',ph:'8080:localhost:80',def:''}
+    ],
+    scp:[
+      {id:'src',label:'Source',ph:'user@host:/path/file',def:''},
+      {id:'dest',label:'Destination',ph:'./local/',def:''},
+      {id:'port',label:'Port',ph:'22',def:'22'},
+      {id:'key',label:'Key file (optional)',ph:'~/.ssh/id_ed25519',def:''},
+      {id:'recursive',label:'Recursive (directory)',ph:'yes/no',def:'yes'}
+    ],
+    tunnel:[
+      {id:'local',label:'Local port',ph:'8080',def:''},
+      {id:'remote',label:'Remote host:port',ph:'localhost:80',def:''},
+      {id:'user',label:'Username',ph:'root',def:'root'},
+      {id:'host',label:'SSH Host',ph:'192.168.1.100',def:''},
+      {id:'port',label:'SSH Port',ph:'22',def:'22'},
+      {id:'type',label:'Type (L/D/R)',ph:'L',def:'L'}
+    ],
+    keygen:[
+      {id:'type',label:'Key type',ph:'ed25519/rsa',def:'ed25519'},
+      {id:'file',label:'Output file',ph:'~/.ssh/id_ed25519',def:''},
+      {id:'comment',label:'Comment (email)',ph:'user@example.com',def:''},
+      {id:'bits',label:'Bits (RSA only)',ph:'4096',def:'4096'}
+    ],
+    rsync:[
+      {id:'src',label:'Source',ph:'./local/ or user@host:/path/',def:''},
+      {id:'dest',label:'Destination',ph:'user@host:/path/',def:''},
+      {id:'port',label:'SSH Port',ph:'22',def:'22'},
+      {id:'key',label:'Key file (optional)',ph:'~/.ssh/id_ed25519',def:''},
+      {id:'exclude',label:'Exclude pattern (optional)',ph:'*.log,node_modules',def:''},
+      {id:'delete',label:'Delete extraneous?',ph:'yes/no',def:'no'}
+    ]
+  };
+  function renderFields(){
+    const type=typeEl.value;const fields=fieldDefs[type]||[];
+    let html='';
+    fields.forEach(f=>{
+      html+='<div style="margin-bottom:8px"><label style="font-size:0.82em;color:#8090b0;display:block;margin-bottom:3px">'+f.label+'</label>';
+      html+='<input id="lssh-'+f.id+'" type="text" placeholder="'+f.ph+'" value="'+f.def+'" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #2a3a5a;background:#0a0a1a;color:#e0d0c0;font-size:0.88em;box-sizing:border-box"></div>';
+    });
+    fieldsEl.innerHTML=html;
+    fields.forEach(f=>{document.getElementById('lssh-'+f.id).oninput=build});
+    build();
+  }
+  function val(id){const el=document.getElementById('lssh-'+id);return el?el.value.trim():''}
+  function build(){
+    const type=typeEl.value;let cmd='';
+    if(type==='ssh'){
+      const user=val('user'),host=val('host'),port=val('port'),key=val('key'),rcmd=val('cmd'),tunnel=val('tunnel');
+      if(!host){outputEl.textContent='Enter a host...';return}
+      cmd='ssh';
+      if(port&&port!=='22')cmd+=' -p '+port;
+      if(key)cmd+=' -i '+key;
+      if(tunnel)cmd+=' -L '+tunnel;
+      cmd+=' '+(user?user+'@':'')+host;
+      if(rcmd)cmd+=' "'+rcmd+'"';
+    }else if(type==='scp'){
+      const src=val('src'),dest=val('dest'),port=val('port'),key=val('key'),rec=val('recursive');
+      if(!src||!dest){outputEl.textContent='Enter source and destination...';return}
+      cmd='scp';
+      if(port&&port!=='22')cmd+=' -P '+port;
+      if(key)cmd+=' -i '+key;
+      if(rec==='yes')cmd+=' -r';
+      cmd+=' '+src+' '+dest;
+    }else if(type==='tunnel'){
+      const local=val('local'),remote=val('remote'),user=val('user'),host=val('host'),port=val('port'),ttype=val('type');
+      if(!local||!remote||!host){outputEl.textContent='Enter local port, remote, and host...';return}
+      cmd='ssh';
+      if(port&&port!=='22')cmd+=' -p '+port;
+      cmd+=' -'+(ttype||'L')+' '+local+':'+remote;
+      cmd+=' -N '+(user?user+'@':'')+host;
+    }else if(type==='keygen'){
+      const ktype=val('type')||'ed25519',file=val('file'),comment=val('comment'),bits=val('bits');
+      cmd='ssh-keygen -t '+ktype;
+      if(ktype==='rsa'&&bits)cmd+=' -b '+bits;
+      if(file)cmd+=' -f '+file;
+      if(comment)cmd+=' -C "'+comment+'"';
+    }else if(type==='rsync'){
+      const src=val('src'),dest=val('dest'),port=val('port'),key=val('key'),exclude=val('exclude'),del=val('delete');
+      if(!src||!dest){outputEl.textContent='Enter source and destination...';return}
+      cmd='rsync -avz';
+      if(port&&port!=='22')cmd+=' -e "ssh -p '+port+'"';
+      if(key)cmd+=' -e "ssh -i '+key+'"';
+      if(del==='yes')cmd+=' --delete';
+      if(exclude)cmd+=' --exclude="'+exclude+'"';
+      cmd+=' '+src+' '+dest;
+    }
+    outputEl.textContent=cmd;
+  }
+  typeEl.onchange=renderFields;
+  renderFields();
+})();
+</script>

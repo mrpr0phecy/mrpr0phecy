@@ -1,0 +1,66 @@
+<h2 id="ltvm-title" style="margin-top:0;color:var(--accent);">🏦 LTV Mortgage Calculator</h2>
+
+<form aria-describedby="ltvm-desc" onsubmit="event.preventDefault();">
+  <p id="ltvm-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Loan-to-value = mortgage ÷ property price. UK product tiers often sit at 60, 75, 85, 90, 95%. Deposit is price − loan. Not a lender decision and not advice.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="ltvm-mode" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">I know</label>
+      <select id="ltvm-mode" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="price">Price and deposit</option>
+        <option value="ltv">Price and target LTV</option>
+        <option value="loan">Price and loan</option>
+      </select>
+    </div>
+    <div>
+      <label for="ltvm-price" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Property price £</label>
+      <input id="ltvm-price" type="number" min="1" step="any" value="325000" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="ltvm-x" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Deposit £ / LTV % / loan £</label>
+      <input id="ltvm-x" type="number" min="0" step="any" value="32500" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="ltvm-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var tiers = [60, 75, 80, 85, 90, 95];
+  function gbp(n) {
+    return '£' + n.toLocaleString('en-GB', { maximumFractionDigits: 0 });
+  }
+  function cell(k, v) {
+    return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+  }
+  function run() {
+    var price = Number($('ltvm-price').value), x = Number($('ltvm-x').value), mode = $('ltvm-mode').value;
+    if (!(price > 0) || !(x >= 0)) {
+      $('ltvm-out').textContent = 'Enter a price and the other figure.';
+      return;
+    }
+    var loan, deposit, ltv;
+    if (mode === 'price') { deposit = x; loan = price - deposit; }
+    else if (mode === 'ltv') { ltv = x / 100; loan = price * ltv; deposit = price - loan; }
+    else { loan = x; deposit = price - loan; }
+    ltv = loan / price;
+    var next = tiers.filter(function (t) { return t / 100 > ltv + 1e-9; })[0];
+    var extra = next ? price * (next / 100) - loan : 0;
+    $('ltvm-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('Loan', gbp(loan)) +
+      cell('Deposit', gbp(deposit)) +
+      cell('LTV', (ltv * 100).toFixed(1) + '%') +
+      cell('Deposit %', ((deposit / price) * 100).toFixed(1) + '%') +
+      (next ? cell('Headroom to ' + next + '% LTV', gbp(extra) + ' more loan') : cell('Above 95%', 'specialist / not a standard high-street tier')) +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Help to Buy / shared equity and gifted deposits have extra rules. Fees added to the loan raise LTV. A valuation below the asking price also raises it.</p>';
+  }
+  ['ltvm-mode', 'ltvm-price', 'ltvm-x'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

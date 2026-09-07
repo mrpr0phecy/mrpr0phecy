@@ -1,0 +1,253 @@
+<h2 id="snf-title" style="margin-top:0;color:var(--accent);">❄️ Snowflake Crystal Lab</h2>
+
+<form aria-describedby="snf-desc" onsubmit="event.preventDefault();">
+  <p id="snf-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Grow an ice crystal from the real Nakaya diagram: temperature and supersaturation decide its habit — plates, needles, columns, sectored plates or fern-like dendrites. Vapour is consumed by the crystal, so growth stalls as the air around it dries, just like in a real cloud chamber. Reset and re-grow to compare crystals.
+  </p>
+
+  <div style="background:#05070d;border:1px solid rgba(150,210,255,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="snf-canvas" width="640" height="320" style="width:100%;height:320px;display:block;background:radial-gradient(circle at 50% 50%, #0a1424, #04060c);border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="snf-status" style="color:#aadcff;font-family:monospace;">GROWING…</span>
+      <span id="snf-habit" style="color:#cfe6ff;font-family:monospace;">HABIT: —</span>
+    </div>
+  </div>
+
+  <div style="background:#04060a;border:1px solid rgba(150,210,255,0.2);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:4px;padding:0 4px;">
+      <span>NAKAYA DIAGRAM — ice crystal habit vs temperature &amp; supersaturation</span>
+      <span id="snf-map-label" style="color:#ffd27f;font-family:monospace;">—</span>
+    </div>
+    <canvas id="snf-map" width="640" height="150" style="width:100%;height:150px;display:block;background:#060b12;border-radius:6px;"></canvas>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Temperature (air)</span><span id="snf-val-temp">-14.0 °C</span>
+      </div>
+      <input type="range" id="snf-slider-temp" min="-25" max="0" step="0.5" value="-14" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Supersaturation (over ice)</span><span id="snf-val-ss">120%</span>
+      </div>
+      <input type="range" id="snf-slider-ss" min="100" max="140" step="0.5" value="120" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">HABIT</div>
+      <div id="snf-stat-morph" style="font-size:0.85rem;font-family:monospace;color:#aadcff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">CRYSTAL DIAMETER</div>
+      <div id="snf-stat-size" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">VAPOUR AT CRYSTAL</div>
+      <div id="snf-stat-vap" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">GROWTH RATE</div>
+      <div id="snf-stat-gr" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="snf-btn-restart" style="padding:6px 16px;border-radius:6px;background:rgba(150,210,255,0.15);border:1px solid #96d2ff;color:#aadcff;font-size:0.75rem;font-weight:bold;cursor:pointer;">🌱 Re-grow Crystal</button>
+    <button type="button" id="snf-btn-pause" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">Pause</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Modelling notes (real physics used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Habit follows the Nakaya / Kobayashi diagram: plates near −2°C and −12…−16°C, needles at −5°C,
+      hollow columns at −8°C and −22…−25°C; higher supersaturation drives branching from plates into
+      sectored plates then dendrites. Growth is diffusion-limited: the crystal consumes local water vapour,
+      so the effective supersaturation falls and growth stalls — the same depletion that creates the
+      characteristic fern shape. Six-fold symmetry arranges the arms at 60°.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('snf-canvas'), ctx = canvas.getContext('2d');
+  const map = $('snf-map'), mctx = map.getContext('2d');
+  const W = canvas.width, H = canvas.height, MW = map.width, MH = map.height;
+
+  const sTemp = $('snf-slider-temp'), sSs = $('snf-slider-ss');
+  const vTemp = $('snf-val-temp'), vSs = $('snf-val-ss');
+  const statusEl = $('snf-status'), habitEl = $('snf-habit'), mapLabel = $('snf-map-label');
+  const statMorph = $('snf-stat-morph'), statSize = $('snf-stat-size'), statVap = $('snf-stat-vap'), statGr = $('snf-stat-gr');
+  const btnRestart = $('snf-btn-restart'), btnPause = $('snf-btn-pause');
+
+  let temp = -14, ss = 120, paused = false, t = 0;
+  let tips = [], segs = [], grown = 0;
+
+  function habitName(T, S) {
+    if (T > -2) return 'Thin Plates';
+    if (T > -4) return 'Needles';
+    if (T > -6) return 'Sheath Needles';
+    if (T > -10) return 'Hollow Columns';
+    if (T > -12) return 'Sectored Plates';
+    if (T > -16) return S > 115 ? 'Stellar Dendrites' : 'Broad Plates';
+    if (T > -22) return 'Sectored Plates';
+    return 'Columns';
+  }
+
+  function growthParams(T, S) {
+    // branching probability, side angle, tip speed, max generations
+    if (T < -22) return { bp: 0.06, ang: 55, spd: 1.15, maxg: 5, name: 'Columns' };
+    if (T < -16) return { bp: 0.16, ang: 62, spd: 1.3, maxg: 6, name: 'Sectored Plates' };
+    if (T < -12) return { bp: 0.30, ang: 66, spd: 1.7, maxg: 6, name: 'Dendrites' };
+    if (T < -10) return { bp: 0.14, ang: 66, spd: 1.25, maxg: 5, name: 'Sectored Plates' };
+    if (T < -6) return { bp: 0.05, ang: 46, spd: 1.0, maxg: 4, name: 'Hollow Columns' };
+    if (T < -4) return { bp: 0.03, ang: 40, spd: 0.9, maxg: 4, name: 'Needles' };
+    if (T < -2) return { bp: 0.10, ang: 60, spd: 1.1, maxg: 5, name: 'Needles' };
+    return { bp: 0.22, ang: 70, spd: 1.4, maxg: 5, name: 'Plates' };
+  }
+
+  function reset() {
+    tips = [{ x: 0, y: 0, ang: -Math.PI / 2, gen: 0 }];
+    segs = []; grown = 0; t = 0;
+    statusEl.textContent = 'GROWING…';
+  }
+
+  function step(dt) {
+    const g = growthParams(temp, ss);
+    const branchP = g.bp * (1 + (ss - 100) / 60);
+    const consumed = 1 - Math.exp(-grown * 0.00045);
+    const ssEff = ss - 100 - consumed * 55; // % above saturation left at crystal
+    if (ssEff <= 1.5) { statusEl.textContent = 'GROWTH STALLED — VAPOUR DEPLETED (re-grow or raise supersaturation)'; return; }
+
+    const newTips = [];
+    for (const tp of tips) {
+      const dx = Math.cos(tp.ang) * g.spd * dt * 22;
+      const dy = Math.sin(tp.ang) * g.spd * dt * 22;
+      if (Math.random() < 1 - Math.exp(-dt * 2.2)) { // smooth continuous growth
+        segs.push({ x1: tp.x, y1: tp.y, x2: tp.x + dx, y2: tp.y + dy });
+        tp.x += dx; tp.y += dy;
+        grown += Math.hypot(dx, dy);
+      }
+      if (tp.gen < g.maxg && Math.random() < branchP * dt * 2.2 && Math.abs(tp.x) + Math.abs(tp.y) > 6) {
+        for (const sgn of [-1, 1]) {
+          newTips.push({ x: tp.x, y: tp.y, ang: tp.ang + sgn * g.ang * Math.PI / 180, gen: tp.gen + 1 });
+        }
+      }
+    }
+    tips = tips.concat(newTips);
+    if (tips.length > 2600) tips = tips.slice(0, 2600);
+    if (segs.length > 9000) segs.splice(0, segs.length - 9000);
+    t += dt;
+  }
+
+  function drawCrystal() {
+    ctx.fillStyle = '#04060c'; ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(Math.sin(t * 0.25) * 0.06);
+    ctx.strokeStyle = 'rgba(220,240,255,0.95)';
+    ctx.lineWidth = 1.6;
+    ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(150,210,255,0.8)';
+    for (let k = 0; k < 6; k++) {
+      ctx.save();
+      ctx.rotate(k * Math.PI / 3);
+      for (const sg of segs) {
+        ctx.beginPath(); ctx.moveTo(sg.x1, sg.y1); ctx.lineTo(sg.x2, sg.y2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.shadowBlur = 0;
+    // centre hex
+    ctx.fillStyle = 'rgba(220,240,255,0.95)';
+    ctx.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const a = k * Math.PI / 3;
+      const x = Math.cos(a) * 4, y = Math.sin(a) * 4;
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMap() {
+    mctx.fillStyle = '#060b12'; mctx.fillRect(0, 0, MW, MH);
+    const pad = 26;
+    const xAt = s => pad + ((s - 100) / 40) * (MW - pad - 40);
+    const yAt = T => MH - 24 - ((T + 25) / 25) * (MH - 44);
+    // habit zones (simplified Nakaya map)
+    const zones = [
+      [-2, 0, 'Plates', 'rgba(150,190,255,0.30)'], [-4, -2, 'Needles', 'rgba(190,150,255,0.30)'],
+      [-6, -4, 'Sheath Needles', 'rgba(220,170,255,0.28)'], [-10, -6, 'Hollow Columns', 'rgba(150,220,200,0.30)'],
+      [-12, -10, 'Sectored Plates', 'rgba(150,220,255,0.30)'], [-16, -12, 'Dendrites', 'rgba(120,200,255,0.38)'],
+      [-22, -16, 'Sectored Plates', 'rgba(150,220,255,0.26)'], [-25, -22, 'Columns', 'rgba(150,220,200,0.30)']
+    ];
+    zones.forEach(z => {
+      const y1 = yAt(z[0]), y2 = yAt(z[1]);
+      mctx.fillStyle = z[3];
+      mctx.fillRect(pad, Math.min(y1, y2), MW - pad - 30, Math.abs(y2 - y1));
+    });
+    // axes
+    mctx.strokeStyle = 'rgba(230,250,255,0.35)'; mctx.lineWidth = 1;
+    mctx.beginPath(); mctx.moveTo(pad, MH - 24); mctx.lineTo(MW - 10, MH - 24); mctx.stroke();
+    mctx.fillStyle = 'rgba(230,250,255,0.6)'; mctx.font = '9px monospace';
+    mctx.fillText('100%', pad - 6, MH - 8);
+    mctx.fillText('140%', MW - 40, MH - 8);
+    mctx.fillText('supersaturation →', MW / 2 - 50, MH - 4);
+    mctx.fillText('0°C', 6, yAt(0) + 4);
+    mctx.fillText('−25°C', 2, yAt(-25) + 4);
+    // zone labels
+    zones.forEach(z => {
+      if (z[0] <= temp && temp < z[1]) {
+        mctx.fillStyle = '#ffd27f';
+        mctx.fillText('◀ current', 8, yAt(temp) - 4);
+      }
+    });
+    // marker
+    const mx = xAt(ss), my = yAt(temp);
+    mctx.strokeStyle = '#ffd27f'; mctx.lineWidth = 2;
+    mctx.beginPath(); mctx.arc(mx, my, 6, 0, Math.PI * 2); mctx.stroke();
+    mctx.fillStyle = 'rgba(255,210,127,0.4)';
+    mctx.beginPath(); mctx.arc(mx, my, 6, 0, Math.PI * 2); mctx.fill();
+    mapLabel.textContent = temp.toFixed(1) + ' °C · ' + ss.toFixed(0) + '% → ' + habitName(temp, ss);
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!paused) step(dt);
+    const g = growthParams(temp, ss);
+    drawCrystal(); drawMap();
+    const consumed = 1 - Math.exp(-grown * 0.00045);
+    const ssEff = Math.max(0, ss - 100 - consumed * 55);
+    const diameter = grown > 0 ? Math.min(((grown / 14) ** 0.75).toFixed(1), 12) : 0;
+    statusEl.textContent = paused ? 'PAUSED' : ssEff <= 1.5 ? 'GROWTH STALLED — VAPOUR DEPLETED' : 'GROWING DIFFUSION-LIMITED…';
+    habitEl.textContent = 'HABIT: ' + g.name.toUpperCase();
+    statMorph.textContent = g.name;
+    statSize.textContent = diameter + ' mm';
+    statVap.textContent = ssEff.toFixed(0) + '% (local)';
+    statGr.textContent = Math.max(0, ssEff / 40 * g.spd).toFixed(2) + ' µm/s';
+    requestAnimationFrame(loop);
+  }
+
+  [sTemp, sSs].forEach(s => s.addEventListener('input', () => {
+    temp = parseFloat(sTemp.value); ss = parseFloat(sSs.value);
+    vTemp.textContent = temp.toFixed(1) + ' °C'; vSs.textContent = ss.toFixed(1) + '%';
+    reset();
+  }));
+  btnRestart.addEventListener('click', reset);
+  btnPause.addEventListener('click', () => {
+    paused = !paused;
+    btnPause.textContent = paused ? 'Resume' : 'Pause';
+  });
+  vTemp.textContent = temp.toFixed(1) + ' °C'; vSs.textContent = ss.toFixed(1) + '%';
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>

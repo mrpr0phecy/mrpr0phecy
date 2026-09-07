@@ -1,0 +1,552 @@
+<h2 id="coordinate-format-translator-title" style="margin-top:0;color:var(--accent);">🧭 Coordinate Format Translator</h2>
+
+<form aria-describedby="coordinate-format-translator-desc" onsubmit="event.preventDefault();">
+  <p id="coordinate-format-translator-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    One position, every notation: decimal degrees, degrees-minutes-seconds, marine DDM, UTM, MGRS, the British Ordnance Survey grid, geohash, Plus Code and the Maidenhead locator used by radio amateurs. Paste any of them and the rest are recalculated — including the full Helmert transform from WGS84 to OSGB36, offline.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="ucrd-any" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Paste any coordinate</label>
+      <input type="text" id="ucrd-any" placeholder="51.5074, -0.1278 · TQ 30142 80520 · IO91wm · gcpvj0"
+             style="width:100%;padding:10px 12px;border-radius:8px;background:#070f18;border:1px solid rgba(45,212,255,.3);color:var(--text);font-size:0.85rem;font-family:monospace;">
+    </div>
+    <div>
+      <label for="ucrd-place" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">…or jump to a landmark</label>
+      <select id="ucrd-place" style="width:100%;padding:10px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px;">
+    <div>
+      <label for="ucrd-lat" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Latitude (°, + north)</label>
+      <input type="number" id="ucrd-lat" value="51.507400" step="0.000001" min="-90" max="90"
+             style="width:100%;padding:10px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.9rem;font-family:monospace;">
+    </div>
+    <div>
+      <label for="ucrd-lon" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Longitude (°, + east)</label>
+      <input type="number" id="ucrd-lon" value="-0.127800" step="0.000001" min="-180" max="180"
+             style="width:100%;padding:10px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.9rem;font-family:monospace;">
+    </div>
+  </div>
+  <div id="ucrd-parse" role="status" aria-live="polite" style="font-size:0.75rem;color:var(--text-secondary);min-height:1.2em;margin-bottom:12px;"></div>
+
+  <div id="ucrd-out" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;"></div>
+
+  <div style="margin-top:14px;background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.76rem;color:var(--text-secondary);line-height:1.6;">
+    <strong style="color:var(--accent);">Notes on precision.</strong>
+    Latitude/longitude here are WGS84 (what satnav gives you). The Ordnance Survey reference is produced by converting to the Airy 1830 ellipsoid with the standard OSTN-approximating 7-parameter Helmert transform: expect agreement with the printed grid to within a few metres, which is fine for walking, not for surveying. A six-figure grid reference locates a 100&nbsp;m square, eight figures a 10&nbsp;m square. Geohash and Plus Code shorten by dropping precision, so a 6-character geohash is a ~1.2&nbsp;km box while an 11-character Plus Code is roughly 3&nbsp;m.
+  </div>
+</form>
+
+<script>
+(function () {
+  var latEl = document.getElementById('ucrd-lat');
+  var lonEl = document.getElementById('ucrd-lon');
+  var anyEl = document.getElementById('ucrd-any');
+  var outEl = document.getElementById('ucrd-out');
+  var parseEl = document.getElementById('ucrd-parse');
+  var placeEl = document.getElementById('ucrd-place');
+  if (!latEl || !outEl) return;
+
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
+
+  /* =================== formatting helpers ================================ */
+  function dms(v, isLat) {
+    var hemi = v < 0 ? (isLat ? 'S' : 'W') : (isLat ? 'N' : 'E');
+    var a = Math.abs(v);
+    var d = Math.floor(a);
+    var mFull = (a - d) * 60;
+    var m = Math.floor(mFull);
+    var s = (mFull - m) * 60;
+    if (s >= 59.9995) { s = 0; m += 1; }
+    if (m === 60) { m = 0; d += 1; }
+    return d + '° ' + String(m).padStart(2, '0') + "' " + s.toFixed(3).padStart(6, '0') + '" ' + hemi;
+  }
+
+  function ddm(v, isLat) {
+    var hemi = v < 0 ? (isLat ? 'S' : 'W') : (isLat ? 'N' : 'E');
+    var a = Math.abs(v);
+    var d = Math.floor(a);
+    var m = (a - d) * 60;
+    return hemi + ' ' + d + '° ' + m.toFixed(4) + "'";
+  }
+
+  /* =================== UTM / MGRS ======================================== */
+  var WGS = { a: 6378137, f: 1 / 298.257223563 };
+
+  function toUTM(lat, lon) {
+    var a = WGS.a, f = WGS.f;
+    var e2 = f * (2 - f);
+    var ep2 = e2 / (1 - e2);
+    var zone = Math.floor((lon + 180) / 6) + 1;
+    // Norway/Svalbard exceptions
+    if (lat >= 56 && lat < 64 && lon >= 3 && lon < 12) zone = 32;
+    if (lat >= 72 && lat < 84) {
+      if (lon >= 0 && lon < 9) zone = 31;
+      else if (lon >= 9 && lon < 21) zone = 33;
+      else if (lon >= 21 && lon < 33) zone = 35;
+      else if (lon >= 33 && lon < 42) zone = 37;
+    }
+    var lam0 = ((zone - 1) * 6 - 180 + 3) * D2R;
+    var phi = lat * D2R, lam = lon * D2R;
+    var N = a / Math.sqrt(1 - e2 * Math.sin(phi) * Math.sin(phi));
+    var T = Math.tan(phi) * Math.tan(phi);
+    var C = ep2 * Math.cos(phi) * Math.cos(phi);
+    var A = Math.cos(phi) * (lam - lam0);
+    var M = a * ((1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi
+      - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi)
+      + (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi)
+      - (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi));
+    var k0 = 0.9996;
+    var easting = k0 * N * (A + (1 - T + C) * Math.pow(A, 3) / 6
+      + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * Math.pow(A, 5) / 120) + 500000;
+    var northing = k0 * (M + N * Math.tan(phi) * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4) / 24
+      + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * Math.pow(A, 6) / 720));
+    if (lat < 0) northing += 10000000;
+    return { zone: zone, hemisphere: lat >= 0 ? 'N' : 'S', easting: easting, northing: northing, band: latBand(lat) };
+  }
+
+  function utmToLatLon(zone, hemi, easting, northing) {
+    var a = WGS.a, f = WGS.f, k0 = 0.9996;
+    var e2 = f * (2 - f);
+    var e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+    var x = easting - 500000;
+    var y = hemi === 'S' ? northing - 10000000 : northing;
+    var M = y / k0;
+    var mu = M / (a * (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256));
+    var phi1 = mu + (3 * e1 / 2 - 27 * Math.pow(e1, 3) / 32) * Math.sin(2 * mu)
+      + (21 * e1 * e1 / 16 - 55 * Math.pow(e1, 4) / 32) * Math.sin(4 * mu)
+      + (151 * Math.pow(e1, 3) / 96) * Math.sin(6 * mu);
+    var ep2 = e2 / (1 - e2);
+    var C1 = ep2 * Math.cos(phi1) * Math.cos(phi1);
+    var T1 = Math.tan(phi1) * Math.tan(phi1);
+    var N1 = a / Math.sqrt(1 - e2 * Math.sin(phi1) * Math.sin(phi1));
+    var R1 = a * (1 - e2) / Math.pow(1 - e2 * Math.sin(phi1) * Math.sin(phi1), 1.5);
+    var D = x / (N1 * k0);
+    var lat = phi1 - (N1 * Math.tan(phi1) / R1) * (D * D / 2
+      - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * Math.pow(D, 4) / 24
+      + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * Math.pow(D, 6) / 720);
+    var lon = (D - (1 + 2 * T1 + C1) * Math.pow(D, 3) / 6
+      + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * Math.pow(D, 5) / 120) / Math.cos(phi1);
+    return { lat: lat * R2D, lon: ((zone - 1) * 6 - 180 + 3) + lon * R2D };
+  }
+
+  function latBand(lat) {
+    var bands = 'CDEFGHJKLMNPQRSTUVWX';
+    if (lat < -80 || lat > 84) return '';
+    var i = Math.floor((lat + 80) / 8);
+    if (lat >= 72) i = 19;
+    return bands.charAt(Math.min(19, i));
+  }
+
+  function toMGRS(u) {
+    if (!u.band) return 'outside MGRS latitude range';
+    var e100 = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    var setCol = (u.zone - 1) % 3;         // 0,1,2 -> A..H, J..R, S..Z
+    var colIdx = Math.floor(u.easting / 100000) - 1;
+    var colLetter = e100.charAt(setCol * 8 + colIdx);
+    var rowLetters = (u.zone % 2 === 1) ? 'ABCDEFGHJKLMNPQRSTUV' : 'FGHJKLMNPQRSTUVABCDE';
+    var rowIdx = Math.floor(u.northing / 100000) % 20;
+    var rowLetter = rowLetters.charAt(rowIdx);
+    var e = Math.floor(u.easting % 100000).toString().padStart(5, '0');
+    var n = Math.floor(u.northing % 100000).toString().padStart(5, '0');
+    return u.zone + u.band + ' ' + colLetter + rowLetter + ' ' + e + ' ' + n;
+  }
+
+  /* =================== OSGB36 / British National Grid ==================== */
+  // WGS84 -> OSGB36 via Helmert, then Airy 1830 transverse Mercator.
+  function helmert(lat, lon, h, from, to, p) {
+    var phi = lat * D2R, lam = lon * D2R;
+    var a = from.a, e2 = from.f * (2 - from.f);
+    var v = a / Math.sqrt(1 - e2 * Math.sin(phi) * Math.sin(phi));
+    var x1 = (v + h) * Math.cos(phi) * Math.cos(lam);
+    var y1 = (v + h) * Math.cos(phi) * Math.sin(lam);
+    var z1 = ((1 - e2) * v + h) * Math.sin(phi);
+    var s = 1 + p.s / 1e6;
+    var rx = p.rx / 3600 * D2R, ry = p.ry / 3600 * D2R, rz = p.rz / 3600 * D2R;
+    var x2 = p.tx + s * (x1 - rz * y1 + ry * z1);
+    var y2 = p.ty + s * (rz * x1 + y1 - rx * z1);
+    var z2 = p.tz + s * (-ry * x1 + rx * y1 + z1);
+    var a2 = to.a, e2b = to.f * (2 - to.f);
+    var p2 = Math.sqrt(x2 * x2 + y2 * y2);
+    var phi2 = Math.atan2(z2, p2 * (1 - e2b)), phiP = 2 * Math.PI, v2 = a2;
+    var guard = 0;
+    while (Math.abs(phi2 - phiP) > 1e-12 && guard++ < 100) {
+      v2 = a2 / Math.sqrt(1 - e2b * Math.sin(phi2) * Math.sin(phi2));
+      phiP = phi2;
+      phi2 = Math.atan2(z2 + e2b * v2 * Math.sin(phi2), p2);
+    }
+    return { lat: phi2 * R2D, lon: Math.atan2(y2, x2) * R2D };
+  }
+
+  var AIRY = { a: 6377563.396, f: 1 / 299.3249646 };
+  var OSGB_PARAMS = { tx: -446.448, ty: 125.157, tz: -542.060, s: 20.4894, rx: -0.1502, ry: -0.2470, rz: -0.8421 };
+  var WGS_PARAMS = { tx: 446.448, ty: -125.157, tz: 542.060, s: -20.4894, rx: 0.1502, ry: 0.2470, rz: 0.8421 };
+
+  function osgbGrid(lat, lon) {
+    var g = helmert(lat, lon, 0, WGS, AIRY, OSGB_PARAMS);
+    var phi = g.lat * D2R, lam = g.lon * D2R;
+    var a = 6377563.396, b = 6356256.909, F0 = 0.9996012717;
+    var phi0 = 49 * D2R, lam0 = -2 * D2R, N0 = -100000, E0 = 400000;
+    var e2 = 1 - (b * b) / (a * a);
+    var n = (a - b) / (a + b);
+    var v = a * F0 / Math.sqrt(1 - e2 * Math.sin(phi) * Math.sin(phi));
+    var rho = a * F0 * (1 - e2) / Math.pow(1 - e2 * Math.sin(phi) * Math.sin(phi), 1.5);
+    var eta2 = v / rho - 1;
+    var Ma = (1 + n + 1.25 * n * n + 1.25 * n * n * n) * (phi - phi0);
+    var Mb = (3 * n + 3 * n * n + 2.625 * n * n * n) * Math.sin(phi - phi0) * Math.cos(phi + phi0);
+    var Mc = (1.875 * n * n + 1.875 * n * n * n) * Math.sin(2 * (phi - phi0)) * Math.cos(2 * (phi + phi0));
+    var Md = (35 / 24) * n * n * n * Math.sin(3 * (phi - phi0)) * Math.cos(3 * (phi + phi0));
+    var M = b * F0 * (Ma - Mb + Mc - Md);
+    var cp = Math.cos(phi), sp = Math.sin(phi), tp = Math.tan(phi);
+    var I = M + N0;
+    var II = (v / 2) * sp * cp;
+    var III = (v / 24) * sp * Math.pow(cp, 3) * (5 - tp * tp + 9 * eta2);
+    var IIIA = (v / 720) * sp * Math.pow(cp, 5) * (61 - 58 * tp * tp + Math.pow(tp, 4));
+    var IV = v * cp;
+    var V = (v / 6) * Math.pow(cp, 3) * (v / rho - tp * tp);
+    var VI = (v / 120) * Math.pow(cp, 5) * (5 - 18 * tp * tp + Math.pow(tp, 4) + 14 * eta2 - 58 * tp * tp * eta2);
+    var dl = lam - lam0;
+    var north = I + II * dl * dl + III * Math.pow(dl, 4) + IIIA * Math.pow(dl, 6);
+    var east = E0 + IV * dl + V * Math.pow(dl, 3) + VI * Math.pow(dl, 5);
+    return { e: east, n: north };
+  }
+
+  var OS_LETTERS = ['SV','SW','SX','SY','SZ','TV','TW',
+                    'SQ','SR','SS','ST','SU','TQ','TR',
+                    'SL','SM','SN','SO','SP','TL','TM',
+                    'SF','SG','SH','SJ','SK','TF','TG',
+                    'SA','SB','SC','SD','SE','TA','TB',
+                    'NV','NW','NX','NY','NZ','OV','OW',
+                    'NQ','NR','NS','NT','NU','OQ','OR',
+                    'NL','NM','NN','NO','NP','OL','OM',
+                    'NF','NG','NH','NJ','NK','OF','OG',
+                    'NA','NB','NC','ND','NE','OA','OB',
+                    'HV','HW','HX','HY','HZ','JV','JW',
+                    'HQ','HR','HS','HT','HU','JQ','JR',
+                    'HL','HM','HN','HO','HP','JL','JM'];
+
+  function osgbRef(e, n, digits) {
+    if (e < 0 || e >= 700000 || n < 0 || n >= 1300000) return null;
+    var col = Math.floor(e / 100000), row = Math.floor(n / 100000);
+    var sq = OS_LETTERS[row * 7 + col];
+    if (!sq) return null;
+    var half = digits / 2;
+    var div = Math.pow(10, 5 - half);
+    var ee = Math.floor((e % 100000) / div).toString().padStart(half, '0');
+    var nn = Math.floor((n % 100000) / div).toString().padStart(half, '0');
+    return sq + ' ' + ee + ' ' + nn;
+  }
+
+  function osgbRefToEN(ref) {
+    var t = ref.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    var m = t.match(/^([A-Z]{2})(\d+)$/);
+    if (!m || m[2].length % 2 !== 0) return null;
+    var idx = OS_LETTERS.indexOf(m[1]);
+    if (idx < 0) return null;
+    var col = idx % 7, row = Math.floor(idx / 7);
+    var half = m[2].length / 2;
+    var mult = Math.pow(10, 5 - half);
+    return {
+      e: col * 100000 + parseInt(m[2].slice(0, half), 10) * mult,
+      n: row * 100000 + parseInt(m[2].slice(half), 10) * mult
+    };
+  }
+
+  function osgbENToLatLon(E, N) {
+    var a = 6377563.396, b = 6356256.909, F0 = 0.9996012717;
+    var phi0 = 49 * D2R, lam0 = -2 * D2R, N0 = -100000, E0 = 400000;
+    var e2 = 1 - (b * b) / (a * a), n = (a - b) / (a + b);
+    var phi = phi0, M = 0, guard = 0;
+    do {
+      phi = (N - N0 - M) / (a * F0) + phi;
+      var Ma = (1 + n + 1.25 * n * n + 1.25 * n * n * n) * (phi - phi0);
+      var Mb = (3 * n + 3 * n * n + 2.625 * n * n * n) * Math.sin(phi - phi0) * Math.cos(phi + phi0);
+      var Mc = (1.875 * n * n + 1.875 * n * n * n) * Math.sin(2 * (phi - phi0)) * Math.cos(2 * (phi + phi0));
+      var Md = (35 / 24) * n * n * n * Math.sin(3 * (phi - phi0)) * Math.cos(3 * (phi + phi0));
+      M = b * F0 * (Ma - Mb + Mc - Md);
+    } while (Math.abs(N - N0 - M) >= 0.00001 && guard++ < 100);
+    var v = a * F0 / Math.sqrt(1 - e2 * Math.sin(phi) * Math.sin(phi));
+    var rho = a * F0 * (1 - e2) / Math.pow(1 - e2 * Math.sin(phi) * Math.sin(phi), 1.5);
+    var eta2 = v / rho - 1;
+    var tp = Math.tan(phi), cp = Math.cos(phi);
+    var VII = tp / (2 * rho * v);
+    var VIII = tp / (24 * rho * Math.pow(v, 3)) * (5 + 3 * tp * tp + eta2 - 9 * tp * tp * eta2);
+    var IX = tp / (720 * rho * Math.pow(v, 5)) * (61 + 90 * tp * tp + 45 * Math.pow(tp, 4));
+    var X = 1 / (cp * v);
+    var XI = 1 / (6 * cp * Math.pow(v, 3)) * (v / rho + 2 * tp * tp);
+    var XII = 1 / (120 * cp * Math.pow(v, 5)) * (5 + 28 * tp * tp + 24 * Math.pow(tp, 4));
+    var XIIA = 1 / (5040 * cp * Math.pow(v, 7)) * (61 + 662 * tp * tp + 1320 * Math.pow(tp, 4) + 720 * Math.pow(tp, 6));
+    var dE = E - E0;
+    var lat = phi - VII * dE * dE + VIII * Math.pow(dE, 4) - IX * Math.pow(dE, 6);
+    var lon = lam0 + X * dE - XI * Math.pow(dE, 3) + XII * Math.pow(dE, 5) - XIIA * Math.pow(dE, 7);
+    return helmert(lat * R2D, lon * R2D, 0, AIRY, WGS, WGS_PARAMS);
+  }
+
+  /* =================== geohash =========================================== */
+  var GH32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+
+  function geohash(lat, lon, len) {
+    var latR = [-90, 90], lonR = [-180, 180], hash = '', bits = 0, ch = 0, even = true;
+    while (hash.length < len) {
+      var r = even ? lonR : latR;
+      var mid = (r[0] + r[1]) / 2;
+      var v = even ? lon : lat;
+      if (v > mid) { ch = (ch << 1) + 1; r[0] = mid; } else { ch = ch << 1; r[1] = mid; }
+      even = !even;
+      if (++bits === 5) { hash += GH32.charAt(ch); bits = 0; ch = 0; }
+    }
+    return hash;
+  }
+
+  function geohashDecode(hash) {
+    var latR = [-90, 90], lonR = [-180, 180], even = true;
+    for (var i = 0; i < hash.length; i++) {
+      var idx = GH32.indexOf(hash.charAt(i).toLowerCase());
+      if (idx < 0) return null;
+      for (var b = 4; b >= 0; b--) {
+        var bit = (idx >> b) & 1;
+        var r = even ? lonR : latR;
+        var mid = (r[0] + r[1]) / 2;
+        if (bit) r[0] = mid; else r[1] = mid;
+        even = !even;
+      }
+    }
+    return { lat: (latR[0] + latR[1]) / 2, lon: (lonR[0] + lonR[1]) / 2 };
+  }
+
+  /* =================== Open Location Code (Plus Code) ==================== */
+  var OLC_ALPHA = '23456789CFGHJMPQRVWX';
+
+  function plusCode(lat, lon, len) {
+    len = len || 11;
+    lat = Math.min(89.999999, Math.max(-90, lat));
+    lon = ((lon + 180) % 360 + 360) % 360 - 180;
+    var code = '';
+    // pair section: 10 digits in 5 pairs, then grid refinement
+    var rlat = lat + 90, rlon = lon + 180;
+    var latP = 20, lonP = 20;
+    var i;
+    for (i = 0; i < 5; i++) {
+      var latDigit = Math.floor(rlat / latP);
+      var lonDigit = Math.floor(rlon / lonP);
+      code += OLC_ALPHA.charAt(Math.min(19, latDigit)) + OLC_ALPHA.charAt(Math.min(19, lonDigit));
+      rlat -= Math.min(19, latDigit) * latP;
+      rlon -= Math.min(19, lonDigit) * lonP;
+      latP /= 20; lonP /= 20;
+    }
+    // grid refinement: 4 rows x 5 columns per extra character
+    var gLat = latP * 20, gLon = lonP * 20;   // size of the last pair cell
+    for (i = 10; i < len; i++) {
+      gLat /= 5; gLon /= 4;
+      var row = Math.min(4, Math.floor(rlat / gLat));
+      var col = Math.min(3, Math.floor(rlon / gLon));
+      code += OLC_ALPHA.charAt(row * 4 + col);
+      rlat -= row * gLat;
+      rlon -= col * gLon;
+    }
+    return code.slice(0, 8) + '+' + code.slice(8);
+  }
+
+  function plusCodeDecode(code) {
+    var c = code.toUpperCase().replace(/\+/g, '').replace(/0+$/, '');
+    if (!/^[23456789CFGHJMPQRVWX]{8,}$/.test(c)) return null;
+    var rlat = -90, rlon = -180, latP = 20, lonP = 20, i;
+    for (i = 0; i + 1 < Math.min(10, c.length); i += 2) {
+      rlat += OLC_ALPHA.indexOf(c.charAt(i)) * latP;
+      rlon += OLC_ALPHA.indexOf(c.charAt(i + 1)) * lonP;
+      latP /= 20; lonP /= 20;
+    }
+    var gLat = latP * 20, gLon = lonP * 20;
+    for (i = 10; i < c.length; i++) {
+      gLat /= 5; gLon /= 4;
+      var d = OLC_ALPHA.indexOf(c.charAt(i));
+      rlat += Math.floor(d / 4) * gLat;
+      rlon += (d % 4) * gLon;
+    }
+    return { lat: rlat + gLat / 2, lon: rlon + gLon / 2 };
+  }
+
+  /* =================== Maidenhead locator ================================ */
+  function maidenhead(lat, lon, len) {
+    var A = 'ABCDEFGHIJKLMNOPQRSTUVWX';
+    var adjLon = lon + 180, adjLat = lat + 90;
+    var code = A.charAt(Math.floor(adjLon / 20)) + A.charAt(Math.floor(adjLat / 10));
+    adjLon %= 20; adjLat %= 10;
+    code += Math.floor(adjLon / 2) + '' + Math.floor(adjLat / 1);
+    adjLon %= 2; adjLat %= 1;
+    code += A.charAt(Math.floor(adjLon * 12)).toLowerCase() + A.charAt(Math.floor(adjLat * 24)).toLowerCase();
+    if (len >= 8) {
+      adjLon -= Math.floor(adjLon * 12) / 12;
+      adjLat -= Math.floor(adjLat * 24) / 24;
+      code += Math.floor(adjLon * 120) + '' + Math.floor(adjLat * 240);
+    }
+    return code;
+  }
+
+  function maidenheadDecode(loc) {
+    var s = loc.trim();
+    if (!/^[A-Ra-r]{2}\d{2}([A-Xa-x]{2}(\d{2})?)?$/.test(s)) return null;
+    var A = 'ABCDEFGHIJKLMNOPQRSTUVWX';
+    var lon = A.indexOf(s.charAt(0).toUpperCase()) * 20 - 180;
+    var lat = A.indexOf(s.charAt(1).toUpperCase()) * 10 - 90;
+    lon += parseInt(s.charAt(2), 10) * 2;
+    lat += parseInt(s.charAt(3), 10) * 1;
+    if (s.length >= 6) {
+      lon += A.indexOf(s.charAt(4).toUpperCase()) * (2 / 24);
+      lat += A.indexOf(s.charAt(5).toUpperCase()) * (1 / 24);
+      lon += (2 / 24) / 2; lat += (1 / 24) / 2;
+    } else {
+      lon += 1; lat += 0.5;
+    }
+    return { lat: lat, lon: lon };
+  }
+
+  /* =================== smart parsing ===================================== */
+  function parseAny(text) {
+    var t = text.trim();
+    if (!t) return null;
+
+    // decimal pair
+    var m = t.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (m) return { lat: parseFloat(m[1]), lon: parseFloat(m[2]), how: 'decimal degrees' };
+
+    // DMS / DDM with hemisphere letters
+    var dmsRe = /(-?\d+(?:\.\d+)?)\s*[°d:\s]\s*(?:(\d+(?:\.\d+)?)\s*['m:\s]\s*)?(?:(\d+(?:\.\d+)?)\s*["s]?\s*)?([NSEW])/gi;
+    var found = [], mm;
+    while ((mm = dmsRe.exec(t)) !== null) {
+      var val = Math.abs(parseFloat(mm[1])) + (parseFloat(mm[2]) || 0) / 60 + (parseFloat(mm[3]) || 0) / 3600;
+      var hemi = mm[4].toUpperCase();
+      if (hemi === 'S' || hemi === 'W') val = -val;
+      found.push({ v: val, axis: (hemi === 'N' || hemi === 'S') ? 'lat' : 'lon' });
+    }
+    if (found.length === 2) {
+      var la = found.filter(function (x) { return x.axis === 'lat'; })[0];
+      var lo = found.filter(function (x) { return x.axis === 'lon'; })[0];
+      if (la && lo) return { lat: la.v, lon: lo.v, how: 'degrees / minutes / seconds' };
+    }
+
+    // OS grid reference
+    if (/^[A-Za-z]{2}\s*\d{2,10}(\s*\d{2,5})?$/.test(t)) {
+      var en = osgbRefToEN(t);
+      if (en) {
+        var ll = osgbENToLatLon(en.e, en.n);
+        return { lat: ll.lat, lon: ll.lon, how: 'Ordnance Survey grid reference' };
+      }
+    }
+
+    // Maidenhead
+    var mh = maidenheadDecode(t);
+    if (mh) return { lat: mh.lat, lon: mh.lon, how: 'Maidenhead locator' };
+
+    // Plus Code
+    if (t.indexOf('+') > 0) {
+      var pc = plusCodeDecode(t);
+      if (pc) return { lat: pc.lat, lon: pc.lon, how: 'Plus Code (Open Location Code)' };
+    }
+
+    // UTM  e.g. "30U 699000 5710000"
+    var um = t.match(/^(\d{1,2})\s*([C-Xc-x])?\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)$/);
+    if (um) {
+      var band = (um[2] || 'N').toUpperCase();
+      var hemi2 = 'NPQRSTUVWX'.indexOf(band) >= 0 || band === 'N' ? 'N' : 'S';
+      var r = utmToLatLon(parseInt(um[1], 10), hemi2, parseFloat(um[3]), parseFloat(um[4]));
+      return { lat: r.lat, lon: r.lon, how: 'UTM' };
+    }
+
+    // geohash (letters+digits, base32 alphabet, no spaces)
+    if (/^[0123456789bcdefghjkmnpqrstuvwxyz]{3,12}$/i.test(t.replace(/\s/g, ''))) {
+      var gh = geohashDecode(t.replace(/\s/g, ''));
+      if (gh) return { lat: gh.lat, lon: gh.lon, how: 'geohash' };
+    }
+    return null;
+  }
+
+  /* =================== render ============================================ */
+  function cell(label, value, extra) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;">' +
+      '<div style="font-size:0.65rem;color:var(--text-secondary);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;">' + label + '</div>' +
+      '<div style="font-family:monospace;font-size:0.92rem;color:var(--text);word-break:break-word;">' + value + '</div>' +
+      (extra ? '<div style="font-size:0.68rem;color:var(--text-secondary);margin-top:3px;">' + extra + '</div>' : '') +
+      '</div>';
+  }
+
+  function render() {
+    var lat = parseFloat(latEl.value), lon = parseFloat(lonEl.value);
+    if (!isFinite(lat) || !isFinite(lon)) { outEl.innerHTML = ''; return; }
+    lat = Math.max(-90, Math.min(90, lat));
+    lon = Math.max(-180, Math.min(180, lon));
+
+    var u = toUTM(lat, lon);
+    var os = osgbGrid(lat, lon);
+    var osr = osgbRef(os.e, os.n, 10);
+    var inGB = osr !== null && lat > 49 && lat < 61 && lon > -9 && lon < 2.2;
+
+    var html = '';
+    html += cell('Decimal degrees', lat.toFixed(6) + ', ' + lon.toFixed(6), 'the format URLs and APIs expect');
+    html += cell('Degrees / min / sec', dms(lat, true) + '<br>' + dms(lon, false), 'maps, land registry, aviation charts');
+    html += cell('Degrees decimal minutes', ddm(lat, true) + '<br>' + ddm(lon, false), 'marine GPS and RYA convention');
+    html += cell('UTM', u.zone + u.band + ' ' + Math.round(u.easting) + 'E ' + Math.round(u.northing) + 'N',
+                 'metric grid, ' + (u.hemisphere === 'N' ? 'northern' : 'southern') + ' hemisphere');
+    html += cell('MGRS', toMGRS(u), 'military / NATO 1 m grid');
+    html += cell('Ordnance Survey grid', inGB
+      ? osgbRef(os.e, os.n, 8) + '<br><span style="font-size:0.8rem;">' + osgbRef(os.e, os.n, 6) + ' · E ' + Math.round(os.e) + ' N ' + Math.round(os.n) + '</span>'
+      : '<span style="color:#ffd700;">outside Great Britain</span>',
+      inGB ? 'OSGB36 · 8-figure = 10 m square' : 'the British National Grid only covers GB');
+    html += cell('Geohash', geohash(lat, lon, 12) + '<br><span style="font-size:0.8rem;">' + geohash(lat, lon, 6) + ' (~1.2 km box)</span>', 'database indexing, proximity search');
+    html += cell('Plus Code', plusCode(lat, lon, 11) + '<br><span style="font-size:0.8rem;">' + plusCode(lat, lon, 10) + '</span>', 'addresses where streets have no names');
+    html += cell('Maidenhead locator', maidenhead(lat, lon, 8) + '<br><span style="font-size:0.8rem;">' + maidenhead(lat, lon, 6) + '</span>', 'amateur radio grid square');
+    var earthR = 6371008.8;
+    var arc = (2 * Math.PI * earthR * Math.cos(lat * D2R)) / 1000;
+    html += cell('Local geometry', '1° lon = ' + (arc / 360).toFixed(2) + ' km', 'circle of latitude is ' + Math.round(arc).toLocaleString() + ' km round');
+    outEl.innerHTML = html;
+  }
+
+  var PLACES = [
+    ['— jump to —', null, null],
+    ['Nelson\u2019s Column, London', 51.507400, -0.127800],
+    ['Royal Observatory, Greenwich', 51.476852, -0.000500],
+    ['Ben Nevis summit', 56.796850, -5.003600],
+    ['Snowdon / Yr Wyddfa summit', 53.068400, -4.076500],
+    ['Land\u2019s End', 50.066200, -5.714800],
+    ['John o\u2019 Groats', 58.643900, -3.070100],
+    ['Eiffel Tower, Paris', 48.858400, 2.294500],
+    ['Statue of Liberty, New York', 40.689200, -74.044500],
+    ['Sydney Opera House', -33.856800, 151.215300],
+    ['Christ the Redeemer, Rio', -22.951900, -43.210500],
+    ['Table Mountain, Cape Town', -33.962800, 18.409800],
+    ['Mount Everest summit', 27.988100, 86.925000],
+    ['Geographic North Pole', 89.999900, 0],
+    ['Point Nemo (oceanic pole of inaccessibility)', -48.876700, -123.393300]
+  ];
+  PLACES.forEach(function (p, i) { placeEl.add(new Option(p[0], String(i))); });
+
+  placeEl.addEventListener('change', function () {
+    var p = PLACES[parseInt(placeEl.value, 10)];
+    if (!p || p[1] === null) return;
+    latEl.value = p[1].toFixed(6);
+    lonEl.value = p[2].toFixed(6);
+    parseEl.textContent = 'Jumped to ' + p[0] + '.';
+    render();
+  });
+
+  anyEl.addEventListener('input', function () {
+    var t = anyEl.value;
+    if (!t.trim()) { parseEl.textContent = ''; return; }
+    var r = parseAny(t);
+    if (r) {
+      latEl.value = r.lat.toFixed(6);
+      lonEl.value = r.lon.toFixed(6);
+      parseEl.innerHTML = '<span style="color:var(--success);">✓ read as ' + r.how + '</span>';
+      render();
+    } else {
+      parseEl.innerHTML = '<span style="color:#ffd700;">not recognised yet — keep typing, or use the latitude and longitude boxes</span>';
+    }
+  });
+
+  latEl.addEventListener('input', render);
+  lonEl.addEventListener('input', render);
+  render();
+})();
+</script>

@@ -1,0 +1,55 @@
+<h2 id="syll-title" style="margin-top:0;color:var(--accent);">🔤 Syllable Counter</h2>
+
+<form aria-describedby="syll-desc" onsubmit="event.preventDefault();">
+  <p id="syll-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Heuristic English syllable count (vowel groups, silent e, -le, some -ed/-es). Good enough for haiku drafts and readability checks — not a dictionary.
+  </p>
+  <label for="syll-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Text</label>
+  <textarea id="syll-in" rows="6" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">An old silent pond
+A frog jumps into the pond
+Splash! Silence again.</textarea>
+</form>
+<div id="syll-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function syllables(word) {
+    word = word.toLowerCase().replace(/[^a-z]/g, '');
+    if (!word) return 0;
+    if (word.length <= 3) return 1;
+    word = word.replace(/e$/, '');
+    word = word.replace(/le$/, 'l');
+    var m = word.match(/[aeiouy]+/g);
+    var n = m ? m.length : 1;
+    if (/(ed|es)$/.test(word) && n > 1 && !/(ted|ded|ies)$/.test(word)) n -= 1;
+    return Math.max(1, n);
+  }
+  function cell(k, v) {
+    return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+  }
+  function run() {
+    var text = $('syll-in').value;
+    var words = text.split(/\s+/).filter(Boolean);
+    var total = 0;
+    var lines = text.split(/\n/).map(function (line) {
+      var w = line.split(/\s+/).filter(Boolean);
+      var s = 0;
+      w.forEach(function (x) { s += syllables(x); });
+      total += s;
+      return { line: line, s: s };
+    });
+    var rows = lines.map(function (L, i) {
+      return '<tr><td style="padding:4px 8px;">' + (i + 1) + '</td><td style="padding:4px 8px;">' + L.s + '</td><td style="padding:4px 8px;opacity:.8;">' + L.line.replace(/</g, '&lt;') + '</td></tr>';
+    }).join('');
+    $('syll-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('Words', String(words.length)) +
+      cell('Syllables', String(total)) +
+      cell('Per word', words.length ? (total / words.length).toFixed(2) : '0') +
+      '</div><table style="margin-top:12px;width:100%;border-collapse:collapse;font-size:.82rem;"><thead><tr><th style="text-align:left;padding:4px 8px;">#</th><th style="text-align:left;padding:4px 8px;">Syl</th><th style="text-align:left;padding:4px 8px;">Line</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  $('syll-in').addEventListener('input', run);
+  run();
+})();
+</script>

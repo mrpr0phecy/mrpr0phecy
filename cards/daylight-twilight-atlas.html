@@ -1,0 +1,297 @@
+<h2 id="daylight-twilight-atlas-title" style="margin-top:0;color:var(--accent);">🌞 Daylight &amp; Twilight Atlas</h2>
+
+<form aria-describedby="daylight-twilight-atlas-desc" onsubmit="event.preventDefault();">
+  <p id="daylight-twilight-atlas-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A whole year of light for any point on Earth, computed offline with the NOAA solar equations: sunrise, sunset, solar noon, the three twilights, golden hour, the compass bearing the sun rises on, how many minutes of daylight you gain tomorrow — and the ribbon chart that shows midnight sun and polar night appearing as you drag the latitude north.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="dta-place" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Place</label>
+      <select id="dta-place" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;"></select>
+    </div>
+    <div>
+      <label for="dta-lat" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Latitude</label>
+      <input type="number" id="dta-lat" value="51.8787" step="0.0001" min="-90" max="90" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.88rem;">
+    </div>
+    <div>
+      <label for="dta-lon" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Longitude</label>
+      <input type="number" id="dta-lon" value="-0.4200" step="0.0001" min="-180" max="180" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.88rem;">
+    </div>
+    <div>
+      <label for="dta-tz" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Clock offset from UTC (hours)</label>
+      <input type="number" id="dta-tz" value="1" step="0.25" min="-12" max="14" style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-family:monospace;font-size:0.88rem;">
+    </div>
+    <div>
+      <label for="dta-date" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Date</label>
+      <input type="date" id="dta-date" style="width:100%;padding:8px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;">
+    </div>
+  </div>
+
+  <div id="dta-today" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
+
+  <canvas id="dta-chart" width="820" height="360" role="img"
+          aria-label="Ribbon chart of the whole year showing night, twilight and daylight for the chosen latitude"
+          style="width:100%;height:auto;background:#050a10;border:1px solid rgba(45,212,255,.25);border-radius:12px;display:block;margin-bottom:10px;"></canvas>
+
+  <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.72rem;color:var(--text-secondary);margin-bottom:12px;">
+    <span><span style="display:inline-block;width:12px;height:12px;background:#0a1220;border:1px solid rgba(255,255,255,.2);vertical-align:-2px;"></span> night</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#1b2b5a;vertical-align:-2px;"></span> astronomical</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#2f4a86;vertical-align:-2px;"></span> nautical</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#5c7ec0;vertical-align:-2px;"></span> civil</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#ffd98a;vertical-align:-2px;"></span> daylight</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#ff9f43;vertical-align:-2px;"></span> golden hour</span>
+  </div>
+
+  <div id="dta-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"></div>
+</form>
+
+<script>
+(function () {
+  var chart = document.getElementById('dta-chart');
+  if (!chart || !chart.getContext) return;
+  var ctx = chart.getContext('2d');
+  var latEl = document.getElementById('dta-lat'), lonEl = document.getElementById('dta-lon');
+  var tzEl = document.getElementById('dta-tz'), dateEl = document.getElementById('dta-date');
+  var placeEl = document.getElementById('dta-place');
+
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
+
+  var PLACES = [
+    ['Luton, England', 51.8787, -0.4200, 1],
+    ['London, England', 51.5074, -0.1278, 1],
+    ['Edinburgh, Scotland', 55.9533, -3.1883, 1],
+    ['Tromsø, Norway (Arctic)', 69.6492, 18.9553, 2],
+    ['Longyearbyen, Svalbard', 78.2232, 15.6469, 2],
+    ['Reykjavík, Iceland', 64.1466, -21.9426, 0],
+    ['Vigo, Spain (far west of its zone)', 42.2406, -8.7207, 2],
+    ['Quito, Ecuador (equator)', -0.1807, -78.4678, -5],
+    ['Singapore', 1.3521, 103.8198, 8],
+    ['New York, USA', 40.7128, -74.0060, -4],
+    ['Los Angeles, USA', 34.0522, -118.2437, -7],
+    ['Cape Town, South Africa', -33.9249, 18.4241, 2],
+    ['Sydney, Australia', -33.8688, 151.2093, 10],
+    ['Ushuaia, Argentina', -54.8019, -68.3030, -3],
+    ['McMurdo, Antarctica', -77.8419, 166.6863, 13]
+  ];
+  PLACES.forEach(function (p, i) { placeEl.add(new Option(p[0], String(i))); });
+
+  function dayOfYear(d) {
+    return Math.floor((d - new Date(Date.UTC(d.getUTCFullYear(), 0, 0))) / 86400000);
+  }
+
+  // NOAA general solar position equations
+  function solar(doy, hourUTC) {
+    var g = (2 * Math.PI / 365) * (doy - 1 + (hourUTC - 12) / 24);
+    var eqtime = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g)
+      - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+    var decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g)
+      - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g)
+      - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+    return { eqtime: eqtime, decl: decl };
+  }
+
+  // minutes after local midnight for a given solar zenith; null when the sun
+  // never reaches that altitude on this day
+  function eventTimes(doy, lat, lon, tz, zenithDeg) {
+    var s = solar(doy, 12);
+    var z = zenithDeg * D2R, phi = lat * D2R;
+    var cosH = (Math.cos(z) - Math.sin(phi) * Math.sin(s.decl)) / (Math.cos(phi) * Math.cos(s.decl));
+    var noon = 720 - 4 * lon - s.eqtime + tz * 60;
+    if (cosH > 1) return { rise: null, set: null, noon: noon, state: 'below' };   // never rises this high
+    if (cosH < -1) return { rise: null, set: null, noon: noon, state: 'above' };  // never drops this low
+    var ha = Math.acos(cosH) * R2D;
+    return {
+      rise: 720 - 4 * (lon + ha) - s.eqtime + tz * 60,
+      set: 720 - 4 * (lon - ha) - s.eqtime + tz * 60,
+      noon: noon,
+      state: 'normal'
+    };
+  }
+
+  function hhmm(mins) {
+    if (mins === null || !isFinite(mins)) return '—';
+    var m = ((mins % 1440) + 1440) % 1440;
+    var h = Math.floor(m / 60), mi = Math.round(m % 60);
+    if (mi === 60) { mi = 0; h = (h + 1) % 24; }
+    return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+  }
+
+  function dur(mins) {
+    if (mins === null) return '—';
+    var h = Math.floor(mins / 60), m = Math.round(mins % 60);
+    return h + 'h ' + String(m).padStart(2, '0') + 'm';
+  }
+
+  function sunAzimuth(doy, lat, altDeg) {
+    var s = solar(doy, 12);
+    var phi = lat * D2R, alt = altDeg * D2R;
+    var cosA = (Math.sin(s.decl) - Math.sin(phi) * Math.sin(alt)) / (Math.cos(phi) * Math.cos(alt));
+    cosA = Math.max(-1, Math.min(1, cosA));
+    return Math.acos(cosA) * R2D;
+  }
+
+  function stat(label, value, sub, colour) {
+    return '<div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px;">' +
+      '<div style="color:var(--text-secondary);font-size:0.62rem;letter-spacing:.05em;">' + label + '</div>' +
+      '<strong style="color:' + (colour || 'var(--accent)') + ';font-size:1.02rem;">' + value + '</strong>' +
+      (sub ? '<div style="color:var(--text-secondary);font-size:0.66rem;margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function dayLength(doy, lat, lon, tz) {
+    var e = eventTimes(doy, lat, lon, tz, 90.833);
+    if (e.state === 'above') return 1440;
+    if (e.state === 'below') return 0;
+    return e.set - e.rise;
+  }
+
+  function drawChart(lat, lon, tz, selectedDoy) {
+    var w = chart.width, h = chart.height;
+    ctx.clearRect(0, 0, w, h);
+    var padL = 44, padR = 14, padT = 16, padB = 26;
+    var plotW = w - padL - padR, plotH = h - padT - padB;
+    ctx.fillStyle = '#0a1220';
+    ctx.fillRect(padL, padT, plotW, plotH);
+
+    var bands = [
+      [108, '#1b2b5a'],   // astronomical twilight
+      [102, '#2f4a86'],   // nautical
+      [96,  '#5c7ec0'],   // civil
+      [90.833, '#ffd98a'],// daylight
+      [84,  '#ffd98a']    // (golden hour drawn separately)
+    ];
+
+    function yFor(mins) {
+      var m = Math.max(0, Math.min(1440, mins));
+      return padT + (m / 1440) * plotH;
+    }
+
+    for (var doy = 1; doy <= 365; doy++) {
+      var x = padL + ((doy - 1) / 364) * plotW;
+      var colW = plotW / 364 + 1;
+      for (var b = 0; b < 4; b++) {
+        var e = eventTimes(doy, lat, lon, tz, bands[b][0]);
+        ctx.fillStyle = bands[b][1];
+        if (e.state === 'above') {
+          ctx.fillRect(x, padT, colW, plotH);
+        } else if (e.state === 'normal') {
+          var y1 = yFor(e.rise), y2 = yFor(e.set);
+          if (y2 >= y1) {
+            ctx.fillRect(x, y1, colW, y2 - y1);
+          } else {           // wraps past midnight
+            ctx.fillRect(x, padT, colW, y2 - padT);
+            ctx.fillRect(x, y1, colW, padT + plotH - y1);
+          }
+        }
+      }
+      // golden hour: sun between the horizon and 6° up
+      var g6 = eventTimes(doy, lat, lon, tz, 84);
+      var g0 = eventTimes(doy, lat, lon, tz, 90.833);
+      if (g0.state === 'normal' && g6.state === 'normal') {
+        ctx.fillStyle = '#ff9f43';
+        ctx.fillRect(x, yFor(g0.rise), colW, Math.max(1, yFor(g6.rise) - yFor(g0.rise)));
+        ctx.fillRect(x, yFor(g6.set), colW, Math.max(1, yFor(g0.set) - yFor(g6.set)));
+      }
+    }
+
+    // hour grid
+    ctx.strokeStyle = 'rgba(255,255,255,.12)';
+    ctx.fillStyle = 'rgba(230,250,255,.6)';
+    ctx.font = '10px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    for (var hh = 0; hh <= 24; hh += 3) {
+      var y = padT + (hh / 24) * plotH;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+      ctx.fillText(String(hh).padStart(2, '0') + ':00', padL - 6, y + 3);
+    }
+    var monthStarts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];
+    var monthNames = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+    ctx.textAlign = 'center';
+    monthStarts.forEach(function (d, i) {
+      var mx = padL + ((d - 1) / 364) * plotW;
+      ctx.strokeStyle = 'rgba(255,255,255,.1)';
+      ctx.beginPath(); ctx.moveTo(mx, padT); ctx.lineTo(mx, padT + plotH); ctx.stroke();
+      ctx.fillStyle = 'rgba(230,250,255,.6)';
+      ctx.fillText(monthNames[i], mx + plotW / 24, h - 8);
+    });
+
+    // today marker
+    var tx = padL + ((selectedDoy - 1) / 364) * plotW;
+    ctx.strokeStyle = '#ff2e63'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(tx, padT); ctx.lineTo(tx, padT + plotH); ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(45,212,255,.4)';
+    ctx.strokeRect(padL, padT, plotW, plotH);
+  }
+
+  function update() {
+    var lat = parseFloat(latEl.value), lon = parseFloat(lonEl.value), tz = parseFloat(tzEl.value);
+    if (![lat, lon, tz].every(isFinite)) return;
+    lat = Math.max(-89.9, Math.min(89.9, lat));
+    var d = dateEl.value ? new Date(dateEl.value + 'T12:00:00Z') : new Date();
+    var doy = dayOfYear(d);
+
+    var sun = eventTimes(doy, lat, lon, tz, 90.833);
+    var civil = eventTimes(doy, lat, lon, tz, 96);
+    var naut = eventTimes(doy, lat, lon, tz, 102);
+    var astro = eventTimes(doy, lat, lon, tz, 108);
+    var golden = eventTimes(doy, lat, lon, tz, 84);
+
+    var len = dayLength(doy, lat, lon, tz);
+    var lenTomorrow = dayLength(doy % 365 + 1, lat, lon, tz);
+    var delta = lenTomorrow - len;
+
+    var special = '';
+    if (sun.state === 'above') special = 'Midnight sun — the sun does not set today.';
+    else if (sun.state === 'below') special = 'Polar night — the sun does not rise today.';
+
+    var az = sun.state === 'normal' ? sunAzimuth(doy, lat, -0.833) : null;
+    var s = solar(doy, 12);
+    var noonAlt = 90 - Math.abs(lat - s.decl * R2D);
+
+    document.getElementById('dta-today').innerHTML =
+      stat('SUNRISE', sun.state === 'normal' ? hhmm(sun.rise) : (sun.state === 'above' ? 'no sunset' : 'no sunrise'),
+           az !== null ? 'bearing ' + az.toFixed(0) + '° (' + (az < 90 ? 'north of east' : 'south of east') + ')' : special, '#ffd98a') +
+      stat('SUNSET', sun.state === 'normal' ? hhmm(sun.set) : '—',
+           az !== null ? 'bearing ' + (360 - az).toFixed(0) + '°' : '', '#ff9f43') +
+      stat('DAY LENGTH', dur(len), (delta >= 0 ? 'gaining ' : 'losing ') + Math.abs(delta).toFixed(1) + ' min tomorrow', '#39ff14') +
+      stat('SOLAR NOON', hhmm(sun.noon), 'sun ' + noonAlt.toFixed(1) + '° above the horizon') +
+      stat('CIVIL TWILIGHT', civil.state === 'normal' ? hhmm(civil.rise) + ' – ' + hhmm(civil.set) : (civil.state === 'above' ? 'all night' : 'none'),
+           'enough light to read outside', '#5c7ec0') +
+      stat('ASTRONOMICAL DARK', astro.state === 'above' ? 'never truly dark' :
+           (astro.state === 'below' ? 'dark all day' : hhmm(astro.set) + ' – ' + hhmm(astro.rise)),
+           'when deep-sky observing is possible', '#9d4edd') +
+      stat('GOLDEN HOUR (MORNING)', golden.state === 'normal' && sun.state === 'normal' ? hhmm(sun.rise) + ' – ' + hhmm(golden.rise) : '—',
+           'sun below 6° — soft, warm light', '#ffd700') +
+      stat('GOLDEN HOUR (EVENING)', golden.state === 'normal' && sun.state === 'normal' ? hhmm(golden.set) + ' – ' + hhmm(sun.set) : '—',
+           'the photographer\u2019s window', '#ffd700');
+
+    drawChart(lat, lon, tz, doy);
+
+    // solstice extremes for context
+    var jun = dayLength(172, lat, lon, tz), dec = dayLength(355, lat, lon, tz);
+    var solarNoonOffset = sun.noon - 720;
+    document.getElementById('dta-notes').innerHTML =
+      '<strong style="color:var(--accent);">Your year of light.</strong> Longest day here is <strong>' + dur(Math.max(jun, dec)) +
+      '</strong>, shortest <strong>' + dur(Math.min(jun, dec)) + '</strong> — a swing of ' + dur(Math.abs(jun - dec)) + '.' +
+      (special ? ' <span style="color:#ffd700;">' + special + '</span>' : '') +
+      '<div style="margin-top:6px;">Solar noon lands at ' + hhmm(sun.noon) + ' on the clock, ' +
+      (Math.abs(solarNoonOffset) < 1 ? 'almost exactly midday' :
+        Math.abs(solarNoonOffset).toFixed(0) + ' minutes ' + (solarNoonOffset > 0 ? 'after' : 'before') + ' midday') +
+      '. That gap is the price of living east or west inside a wide time zone, plus the equation of time — the sun runs up to 16 minutes fast or slow against a clock across the year, which is also why the earliest sunset does not fall on the shortest day.</div>' +
+      '<div style="margin-top:6px;font-size:0.72rem;">Times are computed for a level horizon at sea level and ignore local terrain and summer-time switches: set the UTC offset yourself to match the clock you are using.</div>';
+  }
+
+  placeEl.addEventListener('change', function () {
+    var p = PLACES[parseInt(placeEl.value, 10)];
+    if (!p) return;
+    latEl.value = p[1]; lonEl.value = p[2]; tzEl.value = p[3];
+    update();
+  });
+  [latEl, lonEl, tzEl, dateEl].forEach(function (el) { el.addEventListener('input', update); });
+
+  var now = new Date();
+  dateEl.value = now.toISOString().slice(0, 10);
+  update();
+})();
+</script>

@@ -1,0 +1,71 @@
+<h2 id="rngs-title" style="margin-top:0;color:var(--accent);">💍 Ring Size Converter</h2>
+
+<form aria-describedby="rngs-desc" onsubmit="event.preventDefault();">
+  <p id="rngs-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert UK letters, US numbers, EU/ISO circumference and inner diameter. Based on a circular inside; wide bands often need a half-size up. Measure a well-fitting ring, not a string if you can help it.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="rngs-uk" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">UK / Ireland / AU</label>
+      <select id="rngs-uk" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"></select>
+    </div>
+    <div>
+      <label for="rngs-us" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">US / Canada</label>
+      <input id="rngs-us" type="number" min="1" max="16" step="0.25" value="7" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="rngs-circ" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Inside circ. (mm)</label>
+      <input id="rngs-circ" type="number" min="30" max="80" step="any" value="54.4" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="rngs-dia" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Inside diameter (mm)</label>
+      <input id="rngs-dia" type="number" min="10" max="25" step="any" value="17.3" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+</form>
+<div id="rngs-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var lock = false;
+  var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  function ukIndex(letter) { return LETTERS.indexOf(letter); }
+  function ukFromCirc(c) {
+    var idx = Math.round((c - 37.8) / 1.25);
+    idx = Math.max(0, Math.min(25, idx));
+    return LETTERS[idx];
+  }
+  var sel = $('rngs-uk');
+  sel.innerHTML = LETTERS.map(function (L) { return '<option value="' + L + '"' + (L === 'N' ? ' selected' : '') + '>' + L + '</option>'; }).join('');
+
+  function fromCirc(c) {
+    if (!(c > 0) || lock) return;
+    var d = c / Math.PI;
+    var us = (d - 11.63) / 0.8128;
+    var uk = ukFromCirc(c);
+    lock = true;
+    $('rngs-circ').value = Number(c.toFixed(2));
+    $('rngs-dia').value = Number(d.toFixed(2));
+    $('rngs-us').value = Number(Math.max(0, us).toFixed(2));
+    sel.value = uk;
+    lock = false;
+    $('rngs-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;">' +
+      [['UK', uk], ['US', us.toFixed(2)], ['EU / ISO', Math.round(c) + ' mm'], ['Diameter', d.toFixed(2) + ' mm'], ['Circumference', c.toFixed(1) + ' mm']].map(function (row) {
+        return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + row[0] + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + row[1] + '</div></div>';
+      }).join('') + '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">UK N ≈ US 7 ≈ 54 mm inside. Confirm with a jeweller before engraving or ordering a wide band.</p>';
+  }
+  sel.addEventListener('change', function () {
+    var c = 37.8 + ukIndex(sel.value) * 1.25;
+    fromCirc(c);
+  });
+  $('rngs-us').addEventListener('input', function () {
+    var d = 11.63 + Number($('rngs-us').value) * 0.8128;
+    fromCirc(d * Math.PI);
+  });
+  $('rngs-circ').addEventListener('input', function () { fromCirc(Number($('rngs-circ').value)); });
+  $('rngs-dia').addEventListener('input', function () { fromCirc(Number($('rngs-dia').value) * Math.PI); });
+  fromCirc(54.4);
+})();
+</script>

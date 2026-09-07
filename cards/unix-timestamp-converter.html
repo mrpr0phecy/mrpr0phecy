@@ -1,0 +1,87 @@
+<h2>⏱️ Unix Timestamp Converter</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Convert between Unix timestamps and human-readable dates. Live clock, batch conversion, and multiple formats.</p>
+
+<div id="ut-app" style="max-width:600px;margin:0 auto;">
+  <div style="text-align:center;padding:16px;background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.2);border-radius:10px;margin-bottom:16px;">
+    <div style="font-size:12px;color:rgba(230,250,255,0.5);margin-bottom:4px;">Current Unix Timestamp</div>
+    <div id="ut-live" style="font-size:2em;font-weight:700;color:#2dd4ff;font-family:monospace;">0000000000</div>
+    <div id="ut-live-date" style="font-size:13px;color:rgba(230,250,255,0.6);margin-top:4px;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div style="padding:14px;background:rgba(0,0,0,0.2);border:1px solid rgba(45,212,255,0.15);border-radius:8px;">
+      <div style="font-size:12px;color:#2dd4ff;margin-bottom:8px;">Timestamp → Date</div>
+      <input id="ut-ts" type="text" placeholder="e.g. 1700000000" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-family:monospace;font-size:14px;margin-bottom:8px;box-sizing:border-box;" />
+      <button onclick="window._utToDate()" style="width:100%;padding:8px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:#2dd4ff;cursor:pointer;font-weight:600;">Convert</button>
+      <div id="ut-date-result" style="margin-top:8px;font-size:13px;color:var(--text);line-height:1.6;"></div>
+    </div>
+    <div style="padding:14px;background:rgba(0,0,0,0.2);border:1px solid rgba(57,255,20,0.15);border-radius:8px;">
+      <div style="font-size:12px;color:#39ff14;margin-bottom:8px;">Date → Timestamp</div>
+      <input id="ut-date" type="datetime-local" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;margin-bottom:8px;box-sizing:border-box;" />
+      <button onclick="window._utToTs()" style="width:100%;padding:8px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:6px;color:#39ff14;cursor:pointer;font-weight:600;">Convert</button>
+      <div id="ut-ts-result" style="margin-top:8px;font-size:13px;color:var(--text);line-height:1.6;"></div>
+    </div>
+  </div>
+
+  <div style="padding:12px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.05);border-radius:8px;">
+    <div style="font-size:12px;color:rgba(230,250,255,0.5);margin-bottom:8px;">Common Timestamps</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;">
+      <div style="color:rgba(230,250,255,0.4);">Epoch (0): <span style="color:#2dd4ff;cursor:pointer;" onclick="document.getElementById(\'ut-ts\').value=\'0\';window._utToDate();">1970-01-01 00:00:00</span></div>
+      <div style="color:rgba(230,250,255,0.4);">Y2K: <span style="color:#2dd4ff;cursor:pointer;" onclick="document.getElementById(\'ut-ts\').value=\'946684800\';window._utToDate();">946684800</span></div>
+      <div style="color:rgba(230,250,255,0.4);">1 Billion: <span style="color:#2dd4ff;cursor:pointer;" onclick="document.getElementById(\'ut-ts\').value=\'1000000000\';window._utToDate();">2001-09-09</span></div>
+      <div style="color:rgba(230,250,255,0.4);">2 Billion: <span style="color:#2dd4ff;cursor:pointer;" onclick="document.getElementById(\'ut-ts\').value=\'2000000000\';window._utToDate();">2033-05-18</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function updateLive(){
+    var now=Math.floor(Date.now()/1000);
+    document.getElementById('ut-live').textContent=now;
+    document.getElementById('ut-live-date').textContent=new Date().toUTCString();
+  }
+  function toLocalInput(ts){
+    var d=new Date(ts*1000);
+    var pad=function(n){return n<10?'0'+n:n;};
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  function toDate(){
+    var ts=parseInt(document.getElementById('ut-ts').value);
+    if(isNaN(ts)){document.getElementById('ut-date-result').innerHTML='<span style="color:#ff4d4d;">Enter a valid timestamp</span>';return;}
+    var d=new Date(ts*1000);
+    var h='<div><b>UTC:</b> '+d.toUTCString()+'</div>';
+    h+='<div><b>Local:</b> '+d.toLocaleString()+'</div>';
+    h+='<div><b>ISO:</b> '+d.toISOString()+'</div>';
+    h+='<div><b>Relative:</b> '+relativeTime(ts)+'</div>';
+    document.getElementById('ut-date-result').innerHTML=h;
+  }
+  function toTs(){
+    var val=document.getElementById('ut-date').value;
+    if(!val){document.getElementById('ut-ts-result').innerHTML='<span style="color:#ff4d4d;">Select a date</span>';return;}
+    var d=new Date(val);
+    var ts=Math.floor(d.getTime()/1000);
+    var h='<div><b>Seconds:</b> <span style="color:#39ff14;font-family:monospace;">'+ts+'</span></div>';
+    h+='<div><b>Milliseconds:</b> <span style="color:#39ff14;font-family:monospace;">'+(ts*1000)+'</span></div>';
+    h+='<div><b>Days since epoch:</b> '+Math.floor(ts/86400)+'</div>';
+    document.getElementById('ut-ts-result').innerHTML=h;
+  }
+  function relativeTime(ts){
+    var now=Math.floor(Date.now()/1000);
+    var diff=now-ts;
+    var future=diff<0;diff=Math.abs(diff);
+    var str='';
+    if(diff<60)str=diff+' seconds';
+    else if(diff<3600)str=Math.floor(diff/60)+' minutes';
+    else if(diff<86400)str=Math.floor(diff/3600)+' hours';
+    else if(diff<31536000)str=Math.floor(diff/86400)+' days';
+    else str=(diff/31536000).toFixed(1)+' years';
+    return str+(future?'from now':'ago');
+  }
+  window._utToDate=toDate;window._utToTs=toTs;
+  updateLive();setInterval(updateLive,1000);
+  document.getElementById('ut-ts').addEventListener('keydown',function(e){if(e.key==='Enter')toDate();});
+  // Set default date input to now
+  document.getElementById('ut-date').value=toLocalInput(Math.floor(Date.now()/1000));
+})();
+</script>

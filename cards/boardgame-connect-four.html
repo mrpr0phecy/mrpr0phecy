@@ -1,0 +1,139 @@
+<h2>🔴⚫ Connect Four</h2>
+<p class="description">Drop discs to connect four in a row — horizontally, vertically, or diagonally. Play against a smart AI with animations.</p>
+<div id="c4-app" style="max-width:480px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var B=[],turn='r',over=false,msg='Your turn — click a column',animating=false,scores={you:0,ai:0,draw:0};
+function init(){
+  B=[];for(var r=0;r<6;r++){B[r]=[];for(var c=0;c<7;c++)B[r][c]='';}
+  turn='r';over=false;animating=false;msg='Your turn — click a column';render();
+}
+function drop(col){
+  if(over||turn!=='r'||animating)return;
+  var rr=-1;for(var r=5;r>=0;r--)if(!B[r][col]){rr=r;break;}
+  if(rr<0)return;
+  animating=true;
+  // Animate drop
+  var frames=rr+1,frame=0;
+  var anim=setInterval(function(){
+    frame++;
+    render(rr,col,frame);
+    if(frame>=frames){clearInterval(anim);B[rr][col]='r';animating=false;
+      if(checkWin('r')){over=true;scores.you++;msg='🎉 You win!';highlightWin('r');render();return;}
+      if(full()){over=true;scores.draw++;msg='Draw!';render();return;}
+      turn='y';msg='🤖 AI thinking...';render();
+      setTimeout(aiPlay,400);
+    }
+  },50);
+}
+function aiPlay(){
+  // Smart AI: win > block > center > avoid traps > random
+  var move=aiFind('y')||aiFind('r')||aiCenter()||aiAvoidTrap()||aiRandom();
+  if(move===null){over=true;scores.draw++;msg='Draw!';render();return;}
+  var rr=-1;for(var r=5;r>=0;r--)if(!B[r][move]){rr=r;break;}
+  B[rr][move]='y';
+  if(checkWin('y')){over=true;scores.ai++;msg='🤖 AI wins!';highlightWin('y');render();return;}
+  if(full()){over=true;scores.draw++;msg='Draw!';render();return;}
+  turn='r';msg='Your turn';render();
+}
+function aiFind(p){
+  for(var c=0;c<7;c++)for(var r=5;r>=0;r--)if(!B[r][c]){B[r][c]=p;if(checkWin(p)){B[r][c]='';return c;}B[r][c]='';break;}
+  return null;
+}
+function aiCenter(){
+  var cols=[3,2,4,1,5,0,6];
+  for(var i=0;i<cols.length;i++)if(B[0][cols[i]]==='')return cols[i];
+  return null;
+}
+function aiAvoidTrap(){
+  // Prefer columns that don't give opponent a win
+  var cols=[3,2,4,1,5,0,6];
+  for(var i=0;i<cols.length;i++){
+    var c=cols[i];if(B[0][c]!=='')continue;
+    var rr=-1;for(var r=5;r>=0;r--)if(!B[r][c]){rr=r;break;}
+    B[rr][c]='y';
+    var oppWin=aiFind('r');
+    B[rr][c]='';
+    if(oppWin===null)return c;
+  }
+  return null;
+}
+function aiRandom(){
+  var avail=[];for(var c=0;c<7;c++)if(B[0][c]==='')avail.push(c);
+  return avail.length?avail[Math.floor(Math.random()*avail.length)]:null;
+}
+function full(){for(var c=0;c<7;c++)if(!B[0][c])return false;return true;}
+function checkWin(p){
+  for(var r=0;r<6;r++)for(var c=0;c<7;c++){
+    if(B[r][c]!==p)continue;
+    var dirs=[[0,1],[1,0],[1,1],[1,-1]];
+    for(var d=0;d<dirs.length;d++){
+      var cnt=0;
+      for(var s=0;s<4;s++){var nr=r+dirs[d][0]*s,nc=c+dirs[d][1]*s;if(nr>=0&&nr<6&&nc>=0&&nc<7&&B[nr][nc]===p)cnt++;}
+      if(cnt>=4)return true;
+    }
+  }
+  return false;
+}
+function getWinCells(p){
+  var cells=[];
+  for(var r=0;r<6;r++)for(var c=0;c<7;c++){
+    if(B[r][c]!==p)continue;
+    var dirs=[[0,1],[1,0],[1,1],[1,-1]];
+    for(var d=0;d<dirs.length;d++){
+      var line=[];
+      for(var s=0;s<4;s++){var nr=r+dirs[d][0]*s,nc=c+dirs[d][1]*s;if(nr>=0&&nr<6&&nc>=0&&nc<7&&B[nr][nc]===p)line.push(nr+','+nc);else break;}
+      if(line.length>=4)cells=cells.concat(line);
+    }
+  }
+  return cells;
+}
+function highlightWin(p){
+  var cells=getWinCells(p);
+  window._c4WinCells=cells;
+}
+function render(dropRow,dropCol,dropFrame){
+  var app=document.getElementById('c4-app');
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:rgba(0,0,0,0.3);border-radius:8px;">'+
+    '<div style="font-size:13px;color:#ff4444;">🔴 You: <b>'+scores.you+'</b></div>'+
+    '<div style="font-size:14px;color:#2dd4ff;font-weight:700;">'+msg+'</div>'+
+    '<div style="font-size:13px;color:#ffcc00;">🤖 AI: <b>'+scores.ai+'</b></div>'+
+  '</div>';
+  h+='<div style="background:linear-gradient(180deg,#0a2a5a,#0a1a3a);border-radius:12px;padding:12px;border:2px solid #2dd4ff;box-shadow:0 0 30px rgba(45,212,255,0.15);">';
+  // Column buttons
+  h+='<div style="display:flex;gap:4px;margin-bottom:6px;">';
+  for(var c=0;c<7;c++){
+    var canDrop=!over&&turn==='r'&&B[0][c]==='';
+    h+='<div onclick="window._c4Drop('+c+')" style="width:52px;text-align:center;cursor:'+(canDrop?'pointer':'default')+';color:'+(canDrop?'#2dd4ff':'transparent')+';font-size:20px;transition:color 0.2s;">▼</div>';
+  }
+  h+='</div>';
+  // Board
+  for(var r=0;r<6;r++){
+    h+='<div style="display:flex;gap:4px;margin-bottom:4px;">';
+    for(var c=0;c<7;c++){
+      var cell=B[r][c];
+      var isDropCell=dropRow===r&&dropCol===c&&dropFrame;
+      var isWinCell=window._c4WinCells&&window._c4WinCells.indexOf(r+','+c)>=0;
+      var bg,shadow='';
+      if(cell==='r'){bg='radial-gradient(circle at 35% 35%,#ff6666,#cc0000)';if(isWinCell)shadow='box-shadow:0 0 12px #ff4444;';}
+      else if(cell==='y'){bg='radial-gradient(circle at 35% 35%,#ffee66,#ccaa00)';if(isWinCell)shadow='box-shadow:0 0 12px #ffcc00;';}
+      else if(isDropCell&&dropFrame<r+1){bg='radial-gradient(circle at 35% 35%,#ff6666,#cc0000)';}
+      else{bg='radial-gradient(circle,#0d3a5a,#0a2a4a)';}
+      h+='<div style="width:52px;height:52px;border-radius:50%;background:'+bg+';border:2px solid rgba(45,212,255,0.15);display:flex;align-items:center;justify-content:center;'+shadow+'transition:all 0.15s;">'+
+        (cell||isDropCell?'':'')+'</div>';
+    }
+    h+='</div>';
+  }
+  h+='</div>';
+  h+='<div style="text-align:center;margin-top:12px;display:flex;gap:8px;justify-content:center;">'+
+    '<button onclick="window._c4Init()" style="padding:8px 20px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:8px;cursor:pointer;font-weight:600;">New Game</button>'+
+    '<button onclick="window._c4Reset()" style="padding:8px 20px;background:rgba(255,255,255,0.05);color:rgba(230,250,255,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;">Reset Scores</button>'+
+  '</div>';
+  app.innerHTML=h;
+}
+window._c4Drop=drop;window._c4Init=init;
+window._c4Reset=function(){scores={you:0,ai:0,draw:0};init();};
+init();
+})();
+</script>

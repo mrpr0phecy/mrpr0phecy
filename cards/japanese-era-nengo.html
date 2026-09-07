@@ -1,0 +1,113 @@
+<!--
+  🏯 The Nengō Desk — HALL OF DATES. Convert a CE year to a Japanese era
+  year (and back). The plaque museums use on lacquer, prints and swords.
+-->
+<style>
+  .neng-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .neng-kicker{display:inline-block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a227;border:1px solid rgba(201,162,39,.35);padding:6px 14px;border-radius:2px;margin-bottom:14px}
+  .neng-title{font-family:Georgia,'Times New Roman',serif;font-size:1.7rem;margin:0 0 6px;color:#f4ead0;font-weight:400}
+  .neng-lede{color:#9aa6b6;font-size:.9rem;line-height:1.6;margin:0 0 14px;max-width:780px}
+  .neng-lede b{color:#e3c05a}
+  .neng-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .neng-lab{font-size:.72rem;color:#8fa3bf;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  .neng-inp,.neng-sel{width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(201,162,39,.28)}
+  .neng-plaque{margin-top:14px;border:1px solid rgba(201,162,39,.35);border-radius:10px;padding:16px 18px;background:rgba(201,162,39,.05)}
+  .neng-no{font-family:ui-monospace,monospace;font-size:.62rem;letter-spacing:.2em;color:#c9a227;text-transform:uppercase}
+  .neng-h{font-family:Georgia,serif;font-size:1.35rem;color:#f4ead0;margin:6px 0}
+  .neng-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:10px 0}
+  .neng-fact{background:rgba(255,255,255,.04);border:1px solid rgba(201,162,39,.2);border-radius:7px;padding:8px 10px}
+  .neng-fact .k{font-size:.62rem;color:#8fa3bf;text-transform:uppercase;letter-spacing:.1em}
+  .neng-fact .v{font-size:.9rem;color:#f0e6c8;font-weight:700;margin-top:3px}
+  .neng-note{font-size:.82rem;color:#c3c9d4;line-height:1.6}
+  .neng-src{font-size:.68rem;color:#7c8698;margin-top:12px;line-height:1.5}
+</style>
+
+<div class="neng-wrap">
+  <span class="neng-kicker">Hall of Dates · Catalogue 15 · Nengō</span>
+  <h2 id="neng-title" class="neng-title" style="margin-top:0">🏯 The Nengō Desk</h2>
+  <p class="neng-lede">
+    Japanese objects are dated in <b>era years</b>: Meiji 6, Shōwa 20, Reiwa 6. Year 1 of an era is the year it was proclaimed, even if that was December. The desk covers Meiji (1868) to Reiwa. Earlier nengō changed too often for a short plaque.
+  </p>
+  <form onsubmit="event.preventDefault();">
+    <div class="neng-grid">
+      <div>
+        <label class="neng-lab" for="neng-ce">Gregorian year</label>
+        <input id="neng-ce" class="neng-inp" type="number" step="1" value="1925" inputmode="numeric">
+      </div>
+      <div>
+        <label class="neng-lab" for="neng-era">Or era</label>
+        <select id="neng-era" class="neng-sel"></select>
+      </div>
+      <div>
+        <label class="neng-lab" for="neng-y">Era year</label>
+        <input id="neng-y" class="neng-inp" type="number" min="1" step="1" value="14" inputmode="numeric">
+      </div>
+    </div>
+  </form>
+  <div class="neng-plaque" id="neng-out"></div>
+  <p class="neng-src">Era starts: Meiji 23 Oct 1868 (retroactive to 3 Jan), Taishō 30 Jul 1912, Shōwa 25 Dec 1926, Heisei 8 Jan 1989, Reiwa 1 May 2019. A print dated “Meiji 45 / Taishō 1” is 1912. This desk uses calendar years, not the exact proclamation day — good enough for a caption, not for a legal document.</p>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var E = [
+    { id: 'meiji', n: 'Meiji 明治', start: 1868, end: 1912, note: 'The era of the restored emperor and the industrialising state. Woodblock prints still say Meiji even as the railway arrives.' },
+    { id: 'taisho', n: 'Taishō 大正', start: 1912, end: 1926, note: 'A short era. Democracy, jazz, the Great Kantō earthquake of 1923. Objects are fewer, and prized.' },
+    { id: 'showa', n: 'Shōwa 昭和', start: 1926, end: 1989, note: 'The longest modern era: militarism, ruin, then the economic miracle. A Shōwa 20 camera is 1945; Shōwa 40 is 1965.' },
+    { id: 'heisei', n: 'Heisei 平成', start: 1989, end: 2019, note: 'Peace era. Burst bubble, mobile phones, the slow museum of analogue Japan.' },
+    { id: 'reiwa', n: 'Reiwa 令和', start: 2019, end: 2099, note: 'Proclaimed 1 May 2019. Reiwa 1 is only May–December of that year.' }
+  ];
+  E.forEach(function (e, i) {
+    var o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = e.n;
+    $('neng-era').appendChild(o);
+  });
+  function eraFor(year) {
+    for (var i = E.length - 1; i >= 0; i--) if (year >= E[i].start) return E[i];
+    return null;
+  }
+  function fact(k, v) { return '<div class="neng-fact"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; }
+  var lock = false;
+  function fromCe() {
+    if (lock) return;
+    var y = Number($('neng-ce').value);
+    var e = eraFor(y);
+    if (!e || y < 1868) {
+      $('neng-out').innerHTML = '<div class="neng-no">Out of cabinet</div><p class="neng-note">Meiji begins 1868. Earlier nengō need a fuller list than this desk.</p>';
+      return;
+    }
+    var n = y - e.start + 1;
+    lock = true;
+    $('neng-era').value = String(E.indexOf(e));
+    $('neng-y').value = String(n);
+    lock = false;
+    plaque(e, n, y);
+  }
+  function fromEra() {
+    if (lock) return;
+    var e = E[Number($('neng-era').value)];
+    var n = Number($('neng-y').value);
+    if (!(n >= 1)) return;
+    var y = e.start + n - 1;
+    if (y > e.end) y = e.end;
+    lock = true;
+    $('neng-ce').value = String(y);
+    lock = false;
+    plaque(e, y - e.start + 1, y);
+  }
+  function plaque(e, n, y) {
+    var gannen = n === 1 ? ' (gannen, year 1)' : '';
+    $('neng-out').innerHTML = '<div class="neng-no">Caption date</div>' +
+      '<div class="neng-h">' + e.n.split(' ')[0] + ' ' + n + gannen + '</div>' +
+      '<div class="neng-facts">' + fact('Gregorian', String(y)) + fact('Era span', e.start + '–' + (e.end === 2099 ? 'present' : e.end)) + '</div>' +
+      '<p class="neng-note"><b>Curator’s note.</b> ' + e.note + '</p>';
+  }
+  $('neng-ce').addEventListener('input', fromCe);
+  $('neng-era').addEventListener('change', fromEra);
+  $('neng-y').addEventListener('input', fromEra);
+  fromCe();
+})();
+</script>

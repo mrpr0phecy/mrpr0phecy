@@ -1,0 +1,294 @@
+<h2 id="ero-title" style="margin-top:0;color:var(--accent);">⛰️ Erosion &amp; Landscape Lab</h2>
+
+<form aria-describedby="ero-desc" onsubmit="event.preventDefault();">
+  <p id="ero-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Sculpt a landscape and watch it move. Set rainfall, soil erodibility, vegetation cover and steepness — the runoff erodes the hills, transport by flowing water sorts/deposits the sediment downstream, and gullies carve themselves. The universal soil loss equation (USLE) predicts the rate; the terrain evolution emerges from the physics.
+  </p>
+
+  <!-- Terrain presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="ero-preset" data-id="hill" style="padding:4px 10px;border-radius:4px;background:rgba(200,170,110,0.16);border:1px solid #c8aa6e;color:#d8c088;font-size:0.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;">⛰️ Rolling Hill</button>
+    <button type="button" class="ero-preset" data-id="mount" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🏔️ Steep Mountain</button>
+    <button type="button" class="ero-preset" data-id="plateau" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🏜️ Hard-Rock Plateau</button>
+    <button type="button" class="ero-preset" data-id="river" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌊 Valley &amp; River</button>
+  </div>
+
+  <div style="background:#05070d;border:1px solid rgba(200,170,110,0.35);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="ero-canvas" width="640" height="300" style="width:100%;height:300px;display:block;background:#0c0f0a;border-radius:6px;cursor:crosshair;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="ero-status" style="color:#aadcff;font-family:monospace;">CLICK TO BULDOZE A RIDGE</span>
+      <span id="ero-time" style="color:#d8c088;font-family:monospace;">0 yrs · 0 t lost</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Rainfall Erosivity (R)</span><span id="ero-val-rain">240 MJ·mm/ha·h</span>
+      </div>
+      <input type="range" id="ero-slider-rain" min="50" max="700" step="10" value="240" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Soil Erodibility (K)</span><span id="ero-val-k">0.28</span>
+      </div>
+      <input type="range" id="ero-slider-k" min="0.05" max="0.55" step="0.01" value="0.28" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Vegetation Cover (C)</span><span id="ero-val-veg">20%</span>
+      </div>
+      <input type="range" id="ero-slider-veg" min="0" max="100" step="1" value="20" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Time Speed (years/second)</span><span id="ero-val-speed">2 yr/s</span>
+      </div>
+      <input type="range" id="ero-slider-speed" min="0.5" max="20" step="0.5" value="2" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">SOIL LOSS RATE (USLE)</div>
+      <div id="ero-stat-usle" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">TOTAL SOIL LOST</div>
+      <div id="ero-stat-lost" style="font-size:0.85rem;font-family:monospace;color:#d8c088;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">RIVER SEDIMENT LOAD</div>
+      <div id="ero-stat-load" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">RISK OF GULLYING</div>
+      <div id="ero-stat-gully" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button type="button" id="ero-btn-reset" style="padding:6px 16px;border-radius:6px;background:rgba(200,170,110,0.16);border:1px solid #c8aa6e;color:#d8c088;font-size:0.75rem;font-weight:bold;cursor:pointer;">↺ Restore Landscape</button>
+    <button type="button" id="ero-btn-pause" style="padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.75rem;cursor:pointer;">Pause Erosion</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Science notes (real model used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Soil loss is predicted with the Universal Soil Loss Equation A = R·K·L·S·C·P where R = rainfall
+      erosivity, K = soil erodibility (0.05–0.55), LS = slope-length factor (LS ≈ √(L/22)·(0.065+0.045·S+0.0065·S²),
+      the classic Wischmeier–Smith formula), C = cover/management and P = conservation practice. In the
+      terrain evolution, each cell erodes at ~A and the sediment is routed downhill by water: deposition
+      happens where slope flattens — exactly why valleys silt up and floodplains form. Vegetation cover
+      cuts erosion roughly like exp(−0.035·C%) and, in the sim, also knits the surface together so gullies
+      struggle to start. Gullying risk fires when local slope × runoff exceeds a threshold — that's where
+      the landscape develops its most dramatic scars.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('ero-canvas'), ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const N = 160; // cross-section cells
+
+  let rain = 240, k = 0.28, veg = 20, speed = 2;
+  let elev = new Float32Array(N), elev0 = new Float32Array(N), flow = new Float32Array(N), sediment = new Float32Array(N);
+  let years = 0, totalLost = 0, paused = false;
+
+  function readSliders() {
+    rain = parseFloat($('ero-slider-rain').value);
+    k = parseFloat($('ero-slider-k').value);
+    veg = parseFloat($('ero-slider-veg').value);
+    speed = parseFloat($('ero-slider-speed').value);
+    $('ero-val-rain').textContent = rain + ' MJ·mm/ha·h';
+    $('ero-val-k').textContent = k.toFixed(2);
+    $('ero-val-veg').textContent = veg + '%';
+    $('ero-val-speed').textContent = speed.toFixed(1) + ' yr/s';
+  }
+
+  function preset(id) {
+    const p = {
+      hill:   { rain: 240, k: 0.28, veg: 20 },
+      mount:  { rain: 380, k: 0.20, veg: 35 },
+      plateau:{ rain: 180, k: 0.10, veg: 40 },
+      river:  { rain: 280, k: 0.34, veg: 15 }
+    }[id];
+    $('ero-slider-rain').value = p.rain;
+    $('ero-slider-k').value = p.k;
+    $('ero-slider-veg').value = p.veg;
+    readSliders();
+    build(id);
+  }
+
+  function build(id) {
+    for (let i = 0; i < N; i++) {
+      const x = i / (N - 1) * Math.PI * 2;
+      let h = 0;
+      if (id === 'hill') h = 30 * Math.exp(-Math.pow((i / N - 0.5) * 4.4, 2)) + 8 * Math.sin(x * 1.3) + 4;
+      else if (id === 'mount') h = 70 * Math.exp(-Math.pow((i / N - 0.42) * 3.6, 2)) + 30 * Math.exp(-Math.pow((i / N - 0.72) * 4.2, 2)) + 5 * Math.abs(Math.sin(x * 2.1));
+      else if (id === 'plateau') h = 44 * (i / N > 0.25 && i / N < 0.75 ? 1 : 0.15) + 6 * Math.sin(x * 2.6);
+      else h = 26 * Math.exp(-Math.pow((i / N - 0.4) * 5, 2)) + 14 * Math.exp(-Math.pow((i / N - 0.75) * 6, 2)) + 15;
+      elev[i] = h + (Math.random() - 0.5) * 0.4;
+    }
+    elev0.set(elev);
+    flow.fill(0); sediment.fill(0);
+    years = 0; totalLost = 0;
+    $('ero-stat-lost').textContent = '0 t';
+    $('ero-time').textContent = '0 yrs · 0 t lost';
+  }
+
+  const WORLD_M = 2000;           // cross-section width in metres
+  const VIS = 240;                // visual exaggeration of hillslope evolution (see notes)
+
+  function erosionRate(i) {
+    // USLE per-cell: A = R·K·LS·C  (t/ha·yr) with Wischmeier–Smith slope factor.
+    // Physical cell width required for a sane slope %; S capped at 60% like real LS tables.
+    const dx = WORLD_M / (N - 1);
+    const dz = Math.abs(elev[i] - elev[i - 1]);
+    const S = Math.min(60, (dz / dx) * 100);
+    const LS = Math.sqrt(0.35) * (0.065 + 0.045 * S + 0.0065 * S * S);
+    const C = Math.exp(-0.035 * veg); // cover factor (exponential decline)
+    return rain * k * LS * C;          // t/ha·yr
+  }
+
+  function step(dtYears) {
+    const dx = WORLD_M / (N - 1);
+    const erode = new Float32Array(N), depos = new Float32Array(N);
+    for (let i = 1; i < N - 1; i++) {
+      const slopeD = elev[i] - elev[i + 1];
+      const slopeL = elev[i] - elev[i - 1];
+      const dir = Math.abs(slopeD) > Math.abs(slopeL) ? 1 : -1;
+      const down = dir === 1 ? i + 1 : i - 1;
+      const slopePct = Math.min(60, (Math.abs(dir === 1 ? slopeD : slopeL) / dx) * 100);
+      // A ≈ 0.006 m/yr for 100 t/ha·yr; × VIS for the sped-up visualisation
+      const rate = erosionRate(i) * 0.00006 * VIS;      // visual m per model year
+      const q = rate * dtYears * (0.4 + slopePct * 0.25);
+      const taken = Math.min(elev[i], q * 0.5);
+      erode[i] += taken;
+      // transport capacity grows with slope; carry sediment, deposit the excess
+      const cap = q * 0.6 * (0.2 + slopePct * 0.15);
+      const carry = Math.min(taken + flow[i], cap);
+      flow[i] = carry;
+      const drop = Math.max(0, (taken + flow[i]) - carry) * 0.6;
+      depos[down] += drop;
+    }
+    let net = 0;
+    for (let i = 1; i < N - 1; i++) {
+      const change = depos[i] - erode[i];
+      elev[i] = Math.max(0, elev[i] + change);
+      net += change;
+    }
+    // slow vegetation recovery on flats
+    if (veg < 100 && Math.random() < 0.02) veg = Math.min(100, veg + 0.2 * speed * 0.05);
+    totalLost += Math.max(0, -net);
+    years += dtYears;
+  }
+
+  function draw() {
+    ctx.fillStyle = '#0c0f0a'; ctx.fillRect(0, 0, W, H);
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.3);
+    sky.addColorStop(0, '#131a2a'); sky.addColorStop(1, '#28303f');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H * 0.3);
+    // terrain
+    const x0 = 14, w = W - 28, base = H - 18, maxH = 90;
+    const xAt = i => x0 + (i / (N - 1)) * w;
+    const yAt = h => base - (h / maxH) * (H - 70);
+    ctx.beginPath();
+    ctx.moveTo(xAt(0), yAt(elev[0]));
+    for (let i = 1; i < N; i++) ctx.lineTo(xAt(i), yAt(elev[i]));
+    ctx.lineTo(W - x0, base); ctx.lineTo(x0, base);
+    ctx.closePath();
+    const tg = ctx.createLinearGradient(0, H * 0.3, 0, base);
+    tg.addColorStop(0, veg > 50 ? '#4a7a3d' : veg > 20 ? '#6b5a3a' : '#8a6a42');
+    tg.addColorStop(1, '#5a4632');
+    ctx.fillStyle = tg; ctx.fill();
+    // vegetation speckle on surface
+    ctx.fillStyle = 'rgba(90,160,70,' + (0.12 + veg / 300) + ')';
+    for (let i = 0; i < N; i += 2) {
+      ctx.fillRect(xAt(i) - 2, yAt(elev[i]) - 3, 4, 3);
+    }
+    // water in valley bottoms
+    ctx.fillStyle = 'rgba(70,140,200,0.5)';
+    for (let i = 1; i < N - 1; i++) {
+      const localMin = elev[i] <= elev[i - 1] && elev[i] <= elev[i + 1];
+      if (localMin && elev[i] < 28) ctx.fillRect(xAt(i) - 4, yAt(elev[i]) + 1, 8, 5);
+    }
+    // gully highlights (steep local drops)
+    for (let i = 1; i < N - 1; i++) {
+      const s = Math.abs(elev[i] - elev[i + 1]);
+      if (s > 1.6) {
+        ctx.strokeStyle = 'rgba(60,45,30,0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(xAt(i), yAt(elev[i])); ctx.lineTo(xAt(i + 1), yAt(elev[i + 1])); ctx.stroke();
+      }
+    }
+    // original profile (ghost)
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(xAt(0), yAt(elev0[0]));
+    for (let i = 1; i < N; i++) ctx.lineTo(xAt(i), yAt(elev0[i]));
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(230,250,255,0.5)'; ctx.font = '9px monospace';
+    ctx.fillText('-- original profile', x0 + 6, H - 32);
+  }
+
+  function stats() {
+    // USLE A in t/ha/yr at the steepest 5 cells average
+    const rates = [];
+    for (let i = 1; i < N - 1; i++) rates.push(erosionRate(i));
+    rates.sort((a, b) => b - a);
+    const aUsle = rates.slice(0, 5).reduce((x, y) => x + y, 0) / 5; // t/ha·yr (true USLE value)
+    const load = flow.slice().reduce((x, y) => x + y, 0) / N * 400;
+    let gully = 0;
+    for (let i = 1; i < N - 1; i++) gully += Math.abs(elev[i] - elev[i + 1]) > 1.6 ? 1 : 0;
+    return { aUsle, load, gully: gully / N };
+  }
+
+  let last = performance.now(), acc = 0;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    acc += dt;
+    if (!paused && acc > 0.08) {
+      step(speed * acc);
+      acc = 0;
+    }
+    draw();
+    const s = stats();
+    const gullyRisk = s.gully > 0.14 ? 'HIGH — gullies forming' : s.gully > 0.05 ? 'MODERATE' : 'LOW';
+    $('ero-status').textContent = paused ? 'PAUSED' : 'ERODING — vegetation may recover on flat ground';
+    $('ero-time').textContent = years.toFixed(1) + ' yrs · ' + Math.round(totalLost) + ' t lost';
+    $('ero-stat-usle').textContent = s.aUsle.toFixed(0) + ' t/ha·yr';
+    $('ero-stat-lost').textContent = Math.round(totalLost) + ' t';
+    $('ero-stat-load').textContent = s.load.toFixed(0) + ' t/yr';
+    $('ero-stat-gully').textContent = gullyRisk;
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (W / rect.width);
+    const i = Math.max(0, Math.min(N - 1, Math.round((x - 14) / (W - 28) * (N - 1))));
+    // bulldoze a local ridge (like a quarry cut) to start an instant experiment
+    for (let j = Math.max(0, i - 5); j <= Math.min(N - 1, i + 5); j++) {
+      elev[j] = Math.max(2, elev[j] - 6);
+    }
+  });
+  $('ero-btn-reset').addEventListener('click', () => build('hill'));
+  $('ero-btn-pause').addEventListener('click', () => {
+    paused = !paused;
+    $('ero-btn-pause').textContent = paused ? 'Resume Erosion' : 'Pause Erosion';
+  });
+  ['ero-slider-rain', 'ero-slider-k', 'ero-slider-veg', 'ero-slider-speed'].forEach(id => $(id).addEventListener('input', readSliders));
+  document.querySelectorAll('.ero-preset').forEach(btn => {
+    btn.addEventListener('click', () => preset(btn.dataset.id));
+  });
+  readSliders();
+  build('hill');
+  requestAnimationFrame(loop);
+})();
+</script>

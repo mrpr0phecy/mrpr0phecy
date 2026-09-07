@@ -1,0 +1,76 @@
+<h2>📝 Text Diff Viewer</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Compare two texts side by side and see exactly what changed. Added, removed, and modified lines highlighted.</p>
+
+<div id="td-app" style="max-width:800px;margin:0 auto;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#39ff14;font-size:12px;">Original Text</label>
+      <textarea id="td-orig" style="width:100%;height:150px;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-family:monospace;font-size:13px;resize:vertical;box-sizing:border-box;" placeholder="Paste original text...">The quick brown fox jumps over the lazy dog.
+This line is unchanged.
+This line will be deleted.
+Another unchanged line.
+Final line stays the same.</textarea>
+    </div>
+    <div>
+      <label style="display:block;margin-bottom:4px;color:#2dd4ff;font-size:12px;">Modified Text</label>
+      <textarea id="td-mod" style="width:100%;height:150px;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-family:monospace;font-size:13px;resize:vertical;box-sizing:border-box;" placeholder="Paste modified text...">The quick brown fox leaps over the lazy cat.
+This line is unchanged.
+A brand new line was added here.
+Another unchanged line.
+Final line stays the same.</textarea>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="window._tdCompare()" style="flex:1;padding:10px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:#2dd4ff;cursor:pointer;font-weight:600;">Compare</button>
+    <button onclick="window._tdSwap()" style="padding:10px;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.3);border-radius:8px;color:#ffa500;cursor:pointer;">⇄ Swap</button>
+    <button onclick="window._tdClear()" style="padding:10px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.3);border-radius:8px;color:#ff4d4d;cursor:pointer;">Clear</button>
+  </div>
+
+  <div id="td-stats" style="margin-bottom:8px;font-size:13px;color:rgba(230,250,255,0.6);text-align:center;"></div>
+  <div id="td-result" style="font-family:monospace;font-size:13px;line-height:1.6;max-height:400px;overflow-y:auto;border-radius:8px;border:1px solid rgba(255,255,255,0.05);"></div>
+</div>
+
+<script>
+(function(){
+  function diff(){
+    var orig=document.getElementById('td-orig').value.split('\n');
+    var mod=document.getElementById('td-mod').value.split('\n');
+    // Simple LCS-based diff
+    var m=orig.length,n=mod.length;
+    var dp=[];
+    for(var i=0;i<=m;i++){dp[i]=[];for(var j=0;j<=n;j++)dp[i][j]=0;}
+    for(var i=1;i<=m;i++)for(var j=1;j<=n;j++){
+      if(orig[i-1]===mod[j-1])dp[i][j]=dp[i-1][j-1]+1;
+      else dp[i][j]=Math.max(dp[i-1][j],dp[i][j-1]);
+    }
+    // Backtrack
+    var result=[],i=m,j=n;
+    while(i>0||j>0){
+      if(i>0&&j>0&&orig[i-1]===mod[j-1]){
+        result.unshift({type:'same',text:orig[i-1]});i--;j--;
+      }else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){
+        result.unshift({type:'add',text:mod[j-1]});j--;
+      }else{
+        result.unshift({type:'del',text:orig[i-1]});i--;
+      }
+    }
+    var added=0,removed=0,unchanged=0;
+    var html='';
+    result.forEach(function(r){
+      if(r.type==='add'){added++;html+='<div style="background:rgba(57,255,20,0.1);border-left:3px solid #39ff14;padding:2px 8px;"><span style="color:#39ff14;">+ </span>'+esc(r.text)+'</div>';}
+      else if(r.type==='del'){removed++;html+='<div style="background:rgba(255,77,77,0.1);border-left:3px solid #ff4d4d;padding:2px 8px;"><span style="color:#ff4d4d;">- </span>'+esc(r.text)+'</div>';}
+      else{unchanged++;html+='<div style="padding:2px 8px;color:rgba(230,250,255,0.4);">  '+esc(r.text)+'</div>';}
+    });
+    document.getElementById('td-result').innerHTML=html;
+    document.getElementById('td-stats').innerHTML='<span style="color:#39ff14;">+'+added+' added</span> · <span style="color:#ff4d4d;">-'+removed+' removed</span> · '+unchanged+' unchanged';
+  }
+  function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function swap(){
+    var o=document.getElementById('td-orig'),m=document.getElementById('td-mod');
+    var t=o.value;o.value=m.value;m.value=t;
+  }
+  function clear(){document.getElementById('td-orig').value='';document.getElementById('td-mod').value='';document.getElementById('td-result').innerHTML='';document.getElementById('td-stats').innerHTML='';}
+  window._tdCompare=diff;window._tdSwap=swap;window._tdClear=clear;
+})();
+</script>

@@ -1,0 +1,194 @@
+<h2 id="brl-title" style="margin-top:0;color:var(--accent);">🔵 Braille Alphabet Trainer</h2>
+
+<form aria-describedby="brl-desc" onsubmit="event.preventDefault();">
+  <p id="brl-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Learn the 26 letters of English Braille by building cells dot by dot and decoding them. Each letter is a 2×3 grid of raised dots — once you see the pattern, the whole alphabet unfolds. All local, nothing sent anywhere.
+  </p>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">🧠 Trainer</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:10px;">
+      <div>
+        <label for="brl-mode" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Mode:</label>
+        <select id="brl-mode" style="width:100%;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:inherit;font-size:0.85rem;">
+          <option value="l2d" selected>Letter → build the dots</option>
+          <option value="d2l">Dots → decode the letter</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button type="button" id="brl-new" style="width:100%;padding:10px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">🎲 Give me a letter</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:center;">
+      <div>
+        <div id="brl-prompt" style="font-size:1.4rem;font-weight:900;color:#e6faff;text-align:center;margin-bottom:10px;">A</div>
+        <div id="brl-cell" style="display:grid;grid-template-columns:repeat(2,34px);grid-auto-rows:34px;gap:6px;justify-content:center;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:12px;"></div>
+      </div>
+      <div>
+        <label for="brl-answer" id="brl-answer-label" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Your answer (a–z):</label>
+        <input type="text" id="brl-answer" maxlength="1" style="width:80px;padding:10px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:1.2rem;text-align:center;text-transform:lowercase;">
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button type="button" id="brl-check" style="padding:9px 16px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">Check</button>
+          <button type="button" id="brl-reveal" style="padding:9px 16px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">Reveal</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="brl-fb" style="font-size:0.9rem;margin-top:12px;font-weight:700;color:var(--muted);text-align:center;"></div>
+    <div style="margin-top:8px;font-size:0.8rem;color:var(--muted);text-align:center;">Score: <span id="brl-score" style="color:#00ffcc;">0</span> · Streak: <span id="brl-streak" style="color:#ffd700;">0</span></div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;margin-bottom:14px;overflow-x:auto;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">The alphabet — dots 1–6</div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px;">Dot numbering: left column top→bottom is 1, 2, 3; right column top→bottom is 4, 5, 6.</div>
+    <div id="brl-table" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:10px;"></div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>See the logic:</strong> a–j use the top four dots (1,2,4,5); k–t add dot 3 to the a–j pattern (k = a + dot 3); u–z mostly add dots 3 and 6. That structure makes Braille far easier to learn than 26 random shapes. Numbers use a–j with a number sign before them.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var mode = el('brl-mode'), newBtn = el('brl-new'), prompt = el('brl-prompt'),
+      cell = el('brl-cell'), answer = el('brl-answer'), checkBtn = el('brl-check'),
+      revealBtn = el('brl-reveal'), fb = el('brl-fb'),
+      scoreEl = el('brl-score'), streakEl = el('brl-streak'), tableEl = el('brl-table');
+
+  // Standard English Braille (Grade 1) dot patterns.
+  var LETTERS = {
+    a:'1', b:'12', c:'14', d:'145', e:'15', f:'124', g:'1245', h:'125', i:'24', j:'245',
+    k:'13', l:'123', m:'134', n:'1345', o:'135', p:'1234', q:'12345', r:'1235', s:'234', t:'2345',
+    u:'136', v:'1236', w:'2456', x:'1346', y:'13456', z:'1356'
+  };
+  var ORDER = ['1','4','2','5','3','6']; // grid positions, column-major within the 2x3 cell
+
+  var score = 0, streak = 0, current = 'a', revealed = false;
+  var build = {}; // dots selected in l2d mode
+
+  function setDots(state) {
+    build = {};
+    for (var i = 0; i < cell.children.length; i++) {
+      var dot = cell.children[i].getAttribute('data-dot');
+      var on = state.indexOf(dot) !== -1;
+      if (on) build[dot] = true;
+      cell.children[i].style.background = on ? '#00ffcc' : 'rgba(255,255,255,0.12)';
+      cell.children[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  function makeCell(parent, dots, interactive) {
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,26px);grid-auto-rows:26px;gap:5px;justify-content:center;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px;';
+    ORDER.forEach(function (d) {
+      var dot = document.createElement('div');
+      dot.style.cssText = 'border-radius:50%;width:22px;height:22px;margin:auto;';
+      dot.style.background = dots.indexOf(d) !== -1 ? '#00ffcc' : 'rgba(255,255,255,0.12)';
+      dot.setAttribute('data-dot', d);
+      grid.appendChild(dot);
+    });
+    parent.appendChild(grid);
+    return grid;
+  }
+
+  function buildCell() {
+    cell.textContent = '';
+    ORDER.forEach(function (d) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('data-dot', d);
+      b.setAttribute('aria-pressed', 'false');
+      b.style.cssText = 'border-radius:50%;width:26px;height:26px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);cursor:pointer;margin:auto;';
+      b.addEventListener('click', function () {
+        if (mode.value !== 'l2d' || revealed) return;
+        var on = b.getAttribute('aria-pressed') === 'true';
+        b.setAttribute('aria-pressed', on ? 'false' : 'true');
+        b.style.background = on ? 'rgba(255,255,255,0.12)' : '#00ffcc';
+        if (on) delete build[d];
+        else build[d] = true;
+      });
+      cell.appendChild(b);
+    });
+  }
+
+  function newQ() {
+    var letters = Object.keys(LETTERS);
+    current = letters[Math.floor(Math.random() * letters.length)];
+    revealed = false;
+    fb.textContent = '';
+    answer.value = '';
+    if (mode.value === 'l2d') {
+      prompt.textContent = current.toUpperCase();
+      buildCell();
+      setDots('');
+      answer.style.display = 'none';
+      el('brl-answer-label').style.display = 'none';
+    } else {
+      prompt.textContent = '?';
+      cell.textContent = '';
+      makeCell(cell, LETTERS[current], false);
+      answer.style.display = '';
+      el('brl-answer-label').style.display = '';
+    }
+  }
+
+  // Canonical Braille order is numeric (1,2,3,4,5,6) — the display layout
+  // is the 2x3 grid (1,4 / 2,5 / 3,6), so sort before comparing.
+  function dotsText() {
+    return Object.keys(build).sort(function (a, b) { return a - b; }).join('');
+  }
+
+  function check() {
+    if (revealed) return;
+    var got = (answer.value || '').trim().toLowerCase();
+    var right;
+    var correctDots = LETTERS[current];
+    var gotDots = mode.value === 'l2d' ? dotsText() : correctDots;
+    if (mode.value === 'l2d') right = gotDots === correctDots;
+    else right = got === current;
+    if (right) {
+      score++; streak++;
+      fb.style.color = '#00ffcc';
+      fb.textContent = '✓ Correct — ' + current.toUpperCase() + ' = dots ' + correctDots.split('').join(', ') + '.';
+    } else {
+      streak = 0;
+      fb.style.color = '#ffb3b3';
+      fb.textContent = '✗ ' + current.toUpperCase() + ' is dots ' + correctDots.split('').join(', ') + '.' +
+        (mode.value === 'l2d' ? ' Take a look at the reference table and try again.' : '');
+    }
+    scoreEl.textContent = String(score);
+    streakEl.textContent = String(streak);
+  }
+
+  revealBtn.addEventListener('click', function () {
+    revealed = true;
+    fb.style.color = '#ffe9a3';
+    fb.textContent = current.toUpperCase() + ' = dots ' + LETTERS[current].split('').join(', ') + '. Click “Give me a letter” for the next one.';
+    if (mode.value === 'l2d') setDots(LETTERS[current]);
+  });
+
+  checkBtn.addEventListener('click', check);
+  answer.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); check(); } });
+  newBtn.addEventListener('click', newQ);
+  mode.addEventListener('change', newQ);
+
+  // Reference table
+  Object.keys(LETTERS).forEach(function (letter) {
+    var wrap = document.createElement('div');
+    wrap.style.textAlign = 'center';
+    makeCell(wrap, LETTERS[letter], false);
+    var lab = document.createElement('div');
+    lab.style.fontSize = '0.8rem';
+    lab.style.marginTop = '4px';
+    lab.textContent = letter.toUpperCase() + ' · ' + LETTERS[letter].split('').join('');
+    wrap.appendChild(lab);
+    tableEl.appendChild(wrap);
+  });
+
+  newQ();
+})();
+</script>

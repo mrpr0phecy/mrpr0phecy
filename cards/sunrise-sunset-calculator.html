@@ -1,0 +1,112 @@
+<h2 id="suns-title" style="margin-top:0;color:var(--accent);">🌅 Sunrise &amp; Sunset Calculator</h2>
+
+<form aria-describedby="suns-desc" onsubmit="event.preventDefault();">
+  <p id="suns-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Compute sunrise, solar noon and sunset from latitude, longitude and date using the NOAA solar-position equations. Runs entirely in the browser — no weather API, no location permission required.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="suns-lat" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Latitude</label>
+      <input id="suns-lat" type="number" step="any" value="51.5074" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="suns-lon" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Longitude</label>
+      <input id="suns-lon" type="number" step="any" value="-0.1278" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="suns-date" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Date</label>
+      <input id="suns-date" type="date" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="suns-tz" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">UTC offset (hours)</label>
+      <input id="suns-tz" type="number" step="0.25" value="0" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
+    <button type="button" data-lat="51.5074" data-lon="-0.1278" data-tz="0" class="suns-city" style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--text);cursor:pointer;font-size:.76rem;">London</button>
+    <button type="button" data-lat="40.7128" data-lon="-74.006" data-tz="-5" class="suns-city" style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--text);cursor:pointer;font-size:.76rem;">New York</button>
+    <button type="button" data-lat="35.6762" data-lon="139.6503" data-tz="9" class="suns-city" style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--text);cursor:pointer;font-size:.76rem;">Tokyo</button>
+    <button type="button" data-lat="-33.8688" data-lon="151.2093" data-tz="10" class="suns-city" style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--text);cursor:pointer;font-size:.76rem;">Sydney</button>
+  </div>
+</form>
+<div id="suns-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  function sind(d) { return Math.sin(d * Math.PI / 180); }
+  function cosd(d) { return Math.cos(d * Math.PI / 180); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function fmtHours(h) {
+    if (!isFinite(h)) return '—';
+    h = ((h % 24) + 24) % 24;
+    var m = Math.round(h * 60);
+    return pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60);
+  }
+  function julian(y, m, d) {
+    if (m <= 2) { y -= 1; m += 12; }
+    var A = Math.floor(y / 100), B = 2 - A + Math.floor(A / 4);
+    return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5;
+  }
+  function solar(lat, lon, y, m, d, tz) {
+    var J = julian(y, m, d);
+    var n = J - 2451545.0 + 0.0008;
+    var Jstar = n - lon / 360;
+    var M = (357.5291 + 0.98560028 * Jstar) % 360;
+    var C = 1.9148 * sind(M) + 0.02 * sind(2 * M) + 0.0003 * sind(3 * M);
+    var L = (M + C + 180 + 102.9372) % 360;
+    var Jtransit = 2451545.0 + Jstar + 0.0053 * sind(M) - 0.0069 * sind(2 * L);
+    var sinDec = sind(L) * sind(23.4397);
+    var dec = Math.asin(sinDec) * 180 / Math.PI;
+    var cosH = (sind(-0.833) - sind(lat) * sinDec) / (cosd(lat) * Math.cos(dec * Math.PI / 180));
+    var polar = '';
+    if (cosH < -1) polar = 'polar day — the sun does not set';
+    if (cosH > 1) polar = 'polar night — the sun does not rise';
+    var w = Math.acos(Math.max(-1, Math.min(1, cosH))) * 180 / Math.PI;
+    var Jrise = Jtransit - w / 360;
+    var Jset = Jtransit + w / 360;
+    function toLocal(j) {
+      var days = j - J;
+      return (days * 24) + tz;
+    }
+    return {
+      rise: toLocal(Jrise), noon: toLocal(Jtransit), set: toLocal(Jset),
+      dec: dec, polar: polar, dayLen: (Jset - Jrise) * 24
+    };
+  }
+  function run() {
+    var lat = Number($('suns-lat').value), lon = Number($('suns-lon').value), tz = Number($('suns-tz').value);
+    var p = $('suns-date').value.split('-');
+    if (p.length !== 3 || !isFinite(lat) || !isFinite(lon)) return;
+    var r = solar(lat, lon, Number(p[0]), Number(p[1]), Number(p[2]), tz);
+    var h = Math.floor(r.dayLen), mi = Math.round((r.dayLen - h) * 60);
+    $('suns-out').innerHTML =
+      (r.polar ? '<div style="padding:10px;border-radius:8px;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.35);margin-bottom:10px;color:#ffe9a8;">' + r.polar + '</div>' : '') +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;">' +
+      cell('Sunrise', fmtHours(r.rise)) + cell('Solar noon', fmtHours(r.noon)) + cell('Sunset', fmtHours(r.set)) +
+      cell('Day length', h + ' h ' + mi + ' min') + cell('Declination', r.dec.toFixed(2) + '°') +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Times are in the UTC offset you entered (no DST table). −0.833° accounts for refraction and the solar disc.</p>';
+  }
+  function cell(k, v) {
+    return '<div style="padding:12px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-size:1.15rem;font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+  }
+  var n = new Date();
+  $('suns-date').value = n.getFullYear() + '-' + pad(n.getMonth() + 1) + '-' + pad(n.getDate());
+  $('suns-tz').value = String(-n.getTimezoneOffset() / 60);
+  host.querySelectorAll('.suns-city').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      $('suns-lat').value = btn.getAttribute('data-lat');
+      $('suns-lon').value = btn.getAttribute('data-lon');
+      $('suns-tz').value = btn.getAttribute('data-tz');
+      run();
+    });
+  });
+  ['suns-lat', 'suns-lon', 'suns-date', 'suns-tz'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  run();
+})();
+</script>

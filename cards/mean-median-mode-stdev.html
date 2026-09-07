@@ -1,0 +1,57 @@
+<h2 id="mmms-title" style="margin-top:0;color:var(--accent);">📊 Mean, Median, Mode &amp; Std Dev</h2>
+
+<form aria-describedby="mmms-desc" onsubmit="event.preventDefault();">
+  <p id="mmms-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Paste numbers separated by commas, spaces or new lines. Sample standard deviation uses n − 1 (Bessel); population uses n. Mode lists every most-frequent value.
+  </p>
+  <label for="mmms-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Numbers</label>
+  <textarea id="mmms-in" rows="5" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem;">12, 15, 15, 17, 18, 21, 21, 21, 24, 30</textarea>
+</form>
+<div id="mmms-out" style="margin-top:14px;"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function cell(k, v) {
+    return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
+  }
+  function parse(text) {
+    return text.split(/[^0-9eE.+-]+/).map(Number).filter(function (n) { return isFinite(n); });
+  }
+  function run() {
+    var xs = parse($('mmms-in').value).sort(function (a, b) { return a - b; });
+    if (!xs.length) {
+      $('mmms-out').textContent = 'Paste at least one number.';
+      return;
+    }
+    var n = xs.length;
+    var sum = xs.reduce(function (a, b) { return a + b; }, 0);
+    var mean = sum / n;
+    var median = n % 2 ? xs[(n - 1) / 2] : (xs[n / 2 - 1] + xs[n / 2]) / 2;
+    var freq = {};
+    xs.forEach(function (x) { freq[x] = (freq[x] || 0) + 1; });
+    var maxF = 0;
+    Object.keys(freq).forEach(function (k) { if (freq[k] > maxF) maxF = freq[k]; });
+    var modes = Object.keys(freq).filter(function (k) { return freq[k] === maxF; }).map(Number);
+    var modeStr = maxF === 1 ? 'none (all unique)' : modes.join(', ') + ' (×' + maxF + ')';
+    var ss = xs.reduce(function (a, x) { return a + (x - mean) * (x - mean); }, 0);
+    var pop = Math.sqrt(ss / n);
+    var samp = n > 1 ? Math.sqrt(ss / (n - 1)) : 0;
+    var q1 = xs[Math.floor((n - 1) * 0.25)];
+    var q3 = xs[Math.floor((n - 1) * 0.75)];
+    $('mmms-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
+      cell('Count n', String(n)) +
+      cell('Mean', mean.toPrecision(6)) +
+      cell('Median', median.toPrecision(6)) +
+      cell('Mode', modeStr) +
+      cell('Range', (xs[n - 1] - xs[0]).toPrecision(6)) +
+      cell('Sample s', samp.toPrecision(6)) +
+      cell('Population σ', pop.toPrecision(6)) +
+      cell('Q1 / Q3', q1 + ' / ' + q3) +
+      '</div>';
+  }
+  $('mmms-in').addEventListener('input', run);
+  run();
+})();
+</script>

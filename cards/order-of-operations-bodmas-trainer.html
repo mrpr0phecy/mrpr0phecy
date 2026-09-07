@@ -1,0 +1,336 @@
+<h2 id="ood-title" style="margin-top:0;color:var(--accent);">🧠 BODMAS Step-by-Step Trainer</h2>
+
+<form aria-describedby="ood-desc" onsubmit="event.preventDefault();">
+  <p id="ood-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Type any expression and see it solved one operation at a time with the reason for each step — no calculator tricks, no guessing. Then take the 5-question practice round with worked solutions. Everything is computed locally, never sent anywhere.
+  </p>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Solver</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <input type="text" id="ood-expr" value="2 + 3 × 4 − 6 ÷ 2" placeholder="e.g. (2 + 3) × 4 − 6 ÷ 2" style="flex:1;min-width:200px;padding:9px 12px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:inherit;font-size:0.95rem;font-family:ui-monospace,Menlo,Consolas,monospace;">
+      <button type="button" id="ood-go" style="padding:10px 22px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">Solve</button>
+    </div>
+    <div id="ood-result" style="font-size:1.4rem;font-weight:900;color:#00ffcc;margin-bottom:8px;">—</div>
+    <div id="ood-steps" style="font-size:0.85rem;color:var(--muted);line-height:1.9;font-family:ui-monospace,Menlo,Consolas,monospace;"></div>
+  </div>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">✍ 5-question practice</div>
+    <div id="ood-qs"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+      <button type="button" id="ood-check" style="padding:10px 20px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">Check answers</button>
+      <button type="button" id="ood-reveal" style="padding:10px 20px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">Show step-by-step solutions</button>
+      <button type="button" id="ood-again" style="padding:10px 16px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">🎲 New questions</button>
+    </div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">BODMAS (or BIDMAS — the same thing)</div>
+    <div style="font-size:0.8rem;color:var(--muted);line-height:1.8;">
+      1. <strong>B</strong>rackets — work inside ( ) first.<br>
+      2. <strong>O</strong>rders / <strong>I</strong>ndices — powers like 2³ before multiplying.<br>
+      3. <strong>D</strong>ivision and <strong>M</strong>ultiplication — left to right, equal weight.<br>
+      4. <strong>A</strong>ddition and <strong>S</strong>ubtraction — left to right, equal weight.<br>
+      <span style="color:#ffe9a3;">Use × and ÷ or * and / — both work. Write 2 × (3 + 1), not 2(3 + 1).</span>
+    </div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>Why it matters:</strong> 2 + 3 × 4 is 14, not 20. If you multiply first, the answer is 14; left-to-right blindly gives the wrong answer — this is the single most common maths slip in school exams.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var exprIn = el('ood-expr'), go = el('ood-go'), result = el('ood-result'), stepsBox = el('ood-steps');
+  var qs = el('ood-qs'), checkBtn = el('ood-check'), revealBtn = el('ood-reveal'), againBtn = el('ood-again');
+  var quiz = [];
+
+  var OP = { '+': 1, '-': 1, '*': 2, '/': 2, '^': 3 };
+  var DISPLAY = { '*': '×', '/': '÷' };
+
+  function fmt(x) {
+    if (!isFinite(x)) return 'undefined';
+    if (Math.abs(x) >= 1e15) return 'too large to display';
+    var r = Math.round(x * 1e6) / 1e6;
+    return String(r === 0 ? 0 : r);
+  }
+
+  function tokenize(s) {
+    var tokens = [], i = 0;
+    s = s.replace(/[−–]/g, '-').replace(/·/g, '*');
+    while (i < s.length) {
+      var c = s[i];
+      if (c === ' ' || c === '\t') { i++; continue; }
+      if ('+-*/^×÷()'.indexOf(c) !== -1) {
+        if (c === '(' || c === ')') tokens.push({ t: c });
+        else tokens.push({ t: 'op', v: c === '×' ? '*' : c === '÷' ? '/' : c, raw: c });
+        i++;
+        continue;
+      }
+      var m = /^\d+(\.\d+)?/.exec(s.slice(i));
+      if (!m) return { error: 'Unexpected character “' + c + '”. Only numbers and + − × ÷ * / ^ ( ) are allowed.' };
+      tokens.push({ t: 'n', v: parseFloat(m[0]) });
+      i += m[0].length;
+    }
+    return { tokens: tokens };
+  }
+
+  function validate(tokens) {
+    var depth = 0, prev = null, i, tk;
+    for (i = 0; i < tokens.length; i++) {
+      tk = tokens[i];
+      if (tk.t === '(') {
+        if (prev && (prev.t === 'n' || prev.t === ')')) return { error: 'Expected an operator before “(”. Write “2 × (3 + 1)” not “2(3 + 1)”.' };
+        depth++; prev = tk; continue;
+      }
+      if (tk.t === ')') {
+        depth--;
+        if (depth < 0) return { error: 'Unbalanced brackets — you closed a “(” that was never opened.' };
+        if (!prev || prev.t === 'op' || prev.t === '(' || prev.t === 'u') return { error: 'Expected a number just before “)”.' };
+        prev = tk; continue;
+      }
+      if (tk.t === 'op') {
+        if (tk.v === '-' || tk.v === '+') {
+          if (!prev || prev.t === 'op' || prev.t === '(' || prev.t === 'u') {
+            var sign = tk.v === '-' ? -1 : 1;
+            tk.t = 'u'; tk.v = sign;
+          }
+        }
+        if (tk.t !== 'u') {
+          if (!prev || prev.t === 'op' || prev.t === '(' || prev.t === 'u') return { error: 'Expected a number after “' + (DISPLAY[tk.v] || tk.v) + '”.' };
+          if (prev.t !== 'n' && prev.t !== ')') return { error: 'Expected a number after “' + (DISPLAY[tk.v] || tk.v) + '”.' };
+        }
+        prev = tk; continue;
+      }
+      // number
+      if (prev && prev.t === 'n') return { error: 'Two numbers in a row — put an operator between them.' };
+      if (prev && prev.t === ')') return { error: 'Two values in a row — put an operator between them.' };
+      prev = tk; continue;
+    }
+    if (depth !== 0) return { error: 'Unbalanced brackets — you opened a “(” that was never closed.' };
+    if (!prev || prev.t === 'op' || prev.t === '(') return { error: 'Expression ends with an operator — add a number.' };
+    return null;
+  }
+
+  // Normalise unary tokens into signed numbers for the evaluator.
+  function resolveUnary(tokens) {
+    var out = [], i = 0;
+    while (i < tokens.length) {
+      var tk = tokens[i];
+      if (tk.t === 'u') {
+        var sign = tk.v;
+        var next = tokens[i + 1];
+        if (!next || next.t !== 'n') return null; // validated earlier
+        out.push({ t: 'n', v: sign * next.v });
+        i += 2;
+      } else { out.push(tk); i++; }
+    }
+    return out;
+  }
+
+  function show(tokens) {
+    return tokens.map(function (tk) {
+      if (tk.t === 'n') return fmt(tk.v);
+      if (tk.t === 'u') return tk.v === -1 ? '-' : '+';
+      if (tk.t === 'op') return DISPLAY[tk.v] || tk.v;
+      return DISPLAY[tk.t] || tk.t;
+    }).join(' ');
+  }
+
+  function findBracket(tokens) {
+    var depth = 0, open = -1, i;
+    for (i = 0; i < tokens.length; i++) {
+      if (tokens[i].t === '(') { if (depth === 0) open = i; depth++; }
+      else if (tokens[i].t === ')') { depth--; if (depth === 0) return { open: open, close: i }; }
+    }
+    return null;
+  }
+
+  function solve(tokens) {
+    var steps = [];
+    var work = tokens.slice();
+    var guard = 0;
+    while (work.length > 1 && guard++ < 500) {
+      var br = findBracket(work);
+      if (br) {
+        var inner = work.slice(br.open + 1, br.close);
+        var innerVal = evaluateFlat(inner, steps);
+        if (innerVal === null) { steps.push({ expr: 'brackets error' }); return null; }
+        steps.push({ expr: null, note: 'Brackets first: (' + show(inner) + ') = ' + fmt(innerVal), usedBracket: true });
+        work = work.slice(0, br.open).concat([{ t: 'n', v: innerVal }], work.slice(br.close + 1));
+        continue;
+      }
+      var pick = pickOp(work);
+      if (!pick) break;
+      var a = work[pick - 1], op = work[pick], b = work[pick + 1];
+      if (op.v === '^') {
+        if (Math.abs(Math.pow(a.v, b.v)) > 1e12 || !isFinite(Math.pow(a.v, b.v))) { steps.push({ expr: 'Power too large' }); return null; }
+      }
+      var val;
+      if (op.v === '/') {
+        if (b.v === 0) { steps.push({ expr: null, note: 'Cannot divide by zero.', error: true }); return { error: true, steps: steps }; }
+        val = a.v / b.v;
+      } else if (op.v === '^') val = Math.pow(a.v, b.v);
+      else val = op.v === '+' ? a.v + b.v : op.v === '-' ? a.v - b.v : a.v * b.v;
+      var before = show(work);
+      work = work.slice(0, pick - 1).concat([{ t: 'n', v: val }], work.slice(pick + 2));
+      steps.push({ expr: before + '  →  ' + show(work), note: reasonFor(op, pick, work) });
+    }
+    if (work.length !== 1) return null;
+    return { value: work[0].v, steps: steps };
+  }
+
+  function reasonFor(op, pick, work) {
+    if (op.v === '^') return 'Powers (orders/indices) first — right to left.';
+    if (op.v === '*' || op.v === '/') return '× and ÷ before + and − (left to right).';
+    return '+ and − left to right.';
+  }
+
+  function pickOp(tokens) {
+    var best = -1, bestPri = 0, i;
+    for (i = 1; i < tokens.length; i++) {
+      if (tokens[i].t === 'op') {
+        var pri = OP[tokens[i].v];
+        if (pri > bestPri) { bestPri = pri; best = i; }
+      }
+    }
+    if (bestPri === 3) { // '^' is right-associative
+      for (i = tokens.length - 2; i >= 1; i--) {
+        if (tokens[i].t === 'op' && OP[tokens[i].v] === 3) { best = i; break; }
+      }
+    }
+    return best >= 0 ? best : null;
+  }
+
+  function evaluateFlat(tokens, steps) {
+    // Recursively reduces a bracket-free token list; used inside brackets.
+    var work = tokens.slice();
+    var guard = 0;
+    while (work.length > 1 && guard++ < 200) {
+      var pick = pickOp(work);
+      if (!pick) return null;
+      var a = work[pick - 1], op = work[pick], b = work[pick + 1];
+      if (op.v === '/' && b.v === 0) return null;
+      var val = op.v === '^' ? Math.pow(a.v, b.v) : op.v === '*' ? a.v * b.v : op.v === '/' ? a.v / b.v : op.v === '+' ? a.v + b.v : a.v - b.v;
+      work = work.slice(0, pick - 1).concat([{ t: 'n', v: val }], work.slice(pick + 2));
+    }
+    return work.length === 1 ? work[0].v : null;
+  }
+
+  function renderSteps(list) {
+    stepsBox.textContent = '';
+    list.forEach(function (st) {
+      var d = document.createElement('div');
+      if (st.error) { d.style.color = '#ffb3b3'; d.textContent = st.note; }
+      else if (st.note && !st.expr) { d.style.color = '#ffe9a3'; d.textContent = st.note; }
+      else { d.textContent = st.expr + '   ' + (st.note || ''); }
+      stepsBox.appendChild(d);
+    });
+  }
+
+  go.addEventListener('click', function () {
+    var s = exprIn.value.trim().replace(/[−–]/g, '-').replace(/·/g, '*').toUpperCase();
+    if (!s) { result.textContent = '—'; stepsBox.textContent = ''; return; }
+    var t = tokenize(s);
+    if (t.error) { result.textContent = '—'; stepsBox.textContent = ''; var e = document.createElement('div'); e.style.color = '#ffb3b3'; e.textContent = t.error; stepsBox.appendChild(e); return; }
+    var err = validate(t.tokens);
+    if (err) { result.textContent = '—'; stepsBox.textContent = ''; var e2 = document.createElement('div'); e2.style.color = '#ffb3b3'; e2.textContent = err.error; stepsBox.appendChild(e2); return; }
+    var flat = resolveUnary(t.tokens);
+    if (!flat) { result.textContent = '—'; return; }
+    var sol = solve(flat);
+    if (sol && sol.error) { result.textContent = '—'; renderSteps(sol.steps); return; }
+    if (!sol) { result.textContent = '—'; return; }
+    result.textContent = '= ' + fmt(sol.value);
+    renderSteps(sol.steps);
+  });
+
+  // ---------- practice ----------
+  function genQuiz() {
+    var out = [], template;
+    for (var i = 0; i < 5; i++) {
+      template = i % 5;
+      var a = 2 + Math.floor(Math.random() * 11), b = 2 + Math.floor(Math.random() * 11), c = 2 + Math.floor(Math.random() * 11);
+      var d = 2 + Math.floor(Math.random() * 5);
+      var exprText;
+      if (template === 0) exprText = a + ' + ' + b + ' × ' + c;
+      else if (template === 1) exprText = '(' + a + ' + ' + b + ') × ' + c;
+      else if (template === 2) exprText = a + ' × ' + b + ' − ' + (c * d) + ' ÷ ' + d;
+      else if (template === 3) exprText = a + ' × (' + b + ' + ' + c + ') ÷ ' + d;
+      else exprText = a + ' + ' + b + ' ^ 2';
+      out.push(exprText);
+    }
+    return out;
+  }
+
+  function buildQuiz() {
+    quiz = genQuiz();
+    qs.textContent = '';
+    quiz.forEach(function (txt, i) {
+      var wrap = document.createElement('div');
+      wrap.style.marginBottom = '12px';
+      var label = document.createElement('div');
+      label.style.fontSize = '0.9rem';
+      label.textContent = (i + 1) + '. ' + txt + ' = ';
+      label.style.display = 'inline-block';
+      var ans = document.createElement('input');
+      ans.type = 'number';
+      ans.id = 'ood-a' + (i + 1);
+      ans.style.width = '110px'; ans.style.padding = '8px 10px'; ans.style.borderRadius = '8px';
+      ans.style.background = 'rgba(0,0,0,0.3)'; ans.style.border = '1px solid rgba(255,255,255,0.15)'; ans.style.color = 'inherit';
+      var fb = document.createElement('div');
+      fb.id = 'ood-f' + (i + 1);
+      fb.style.fontSize = '0.8rem'; fb.style.marginTop = '4px';
+      wrap.appendChild(label); wrap.appendChild(ans); wrap.appendChild(fb);
+      qs.appendChild(wrap);
+    });
+  }
+
+  function quizAnswer(txt) {
+    var t = tokenize(txt.toUpperCase());
+    if (t.error) return null;
+    var err = validate(t.tokens);
+    if (err) return null;
+    var flat = resolveUnary(t.tokens);
+    if (!flat) return null;
+    var sol = solve(flat);
+    return sol && !sol.error ? sol.value : null;
+  }
+
+  checkBtn.addEventListener('click', function () {
+    quiz.forEach(function (txt, i) {
+      var input = document.getElementById('ood-a' + (i + 1));
+      var fb = document.getElementById('ood-f' + (i + 1));
+      if (!input || !fb) return;
+      var v = parseFloat(input.value);
+      var want = quizAnswer(txt);
+      var right = !isNaN(v) && want !== null && Math.abs(v - want) < 1e-9;
+      fb.style.color = right ? '#00ffcc' : '#ffb3b3';
+      fb.textContent = right ? '✓ Correct — ' + txt.replace(/\*/g, '×').replace(/\//g, '÷') + ' = ' + fmt(want) : '✗ Not this time — try again, or reveal the solution below.';
+    });
+  });
+
+  revealBtn.addEventListener('click', function () {
+    quiz.forEach(function (txt, i) {
+      var fb = document.getElementById('ood-f' + (i + 1));
+      if (!fb) return;
+      var want = quizAnswer(txt);
+      var t = tokenize(txt.toUpperCase());
+      var flat = resolveUnary(t.tokens);
+      var sol = solve(flat);
+      if (!want || !sol) return;
+      fb.style.color = '#ffe9a3';
+      fb.textContent = '✏ Answer: ' + fmt(want) + ' — ' + sol.steps.map(function (st) {
+        return st.expr ? st.expr.split('  →  ').pop() : (st.note ? st.note : '');
+      }).filter(Boolean).join(' · ');
+    });
+  });
+
+  againBtn.addEventListener('click', buildQuiz);
+
+  buildQuiz();
+})();
+</script>

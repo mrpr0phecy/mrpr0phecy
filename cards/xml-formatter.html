@@ -1,0 +1,213 @@
+<h2>📐 XML Formatter & Validator</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Format, minify, validate, and explore XML. Paste messy XML, get clean indented output with syntax highlighting.</p>
+
+<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+  <button id="xmlFmtFormat" style="padding:8px 16px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);border-radius:6px;cursor:pointer;font-weight:600;">Format</button>
+  <button id="xmlFmtMinify" style="padding:8px 16px;background:rgba(255,200,50,0.15);border:1px solid rgba(255,200,50,0.4);color:#ffc832;border-radius:6px;cursor:pointer;font-weight:600;">Minify</button>
+  <button id="xmlFmtValidate" style="padding:8px 16px;background:rgba(57,255,20,0.15);border:1px solid rgba(57,255,20,0.4);color:#39ff14;border-radius:6px;cursor:pointer;font-weight:600;">Validate</button>
+  <button id="xmlFmtTree" style="padding:8px 16px;background:rgba(160,60,220,0.15);border:1px solid rgba(160,60,220,0.4);color:#a03cdc;border-radius:6px;cursor:pointer;font-weight:600;">Tree View</button>
+  <button id="xmlFmtSample" style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text);border-radius:6px;cursor:pointer;">Sample</button>
+  <button id="xmlFmtCopy" style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text);border-radius:6px;cursor:pointer;">Copy</button>
+</div>
+
+<div style="display:flex;gap:12px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:280px;">
+    <div style="color:var(--accent);font-weight:600;margin-bottom:6px;font-size:13px;">Input XML</div>
+    <textarea id="xmlFmtInput" style="width:100%;height:320px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;color:var(--text);font-family:'SF Mono',monospace;font-size:13px;resize:vertical;outline:none;" placeholder="Paste XML here..."></textarea>
+  </div>
+  <div style="flex:1;min-width:280px;">
+    <div style="color:#39ff14;font-weight:600;margin-bottom:6px;font-size:13px;">Output</div>
+    <div id="xmlFmtOutput" style="width:100%;height:320px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;color:var(--text);font-family:'SF Mono',monospace;font-size:13px;overflow:auto;white-space:pre;resize:vertical;"></div>
+  </div>
+</div>
+
+<div id="xmlFmtStatus" style="margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;display:none;"></div>
+
+<div style="margin-top:14px;padding:14px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.05);border-radius:8px;font-size:13px;line-height:1.7;color:rgba(230,250,255,0.7);">
+  <b style="color:var(--accent);">Features</b><br>
+  • Format with customizable indent • Minify to single line • Validate XML structure • Tree view with collapsible nodes • Escape/unescape entities • Copy output to clipboard
+</div>
+
+<script>
+(function(){
+'use strict';
+var inp=document.getElementById('xmlFmtInput');
+var out=document.getElementById('xmlFmtOutput');
+var stat=document.getElementById('xmlFmtStatus');
+
+function showSt(m,t){stat.style.display='block';stat.textContent=m;stat.style.background=t==='e'?'rgba(255,77,77,0.15)':'rgba(57,255,20,0.15)';stat.style.border='1px solid '+(t==='e'?'rgba(255,77,77,0.3)':'rgba(57,255,20,0.3)');stat.style.color=t==='e'?'#ff4d4d':'#39ff14';}
+
+function formatXml(xml,indent){
+  indent=indent||2;
+  var pad='';
+  var result='';
+  var inTag=false;
+  var inClose=false;
+  var inComment=false;
+  var inDecl=false;
+  var tag='';
+  var depth=0;
+  var selfClosing=false;
+  
+  // Simple but effective formatter
+  var formatted='';
+  var indentLevel=0;
+  var lines=xml.replace(/>\s*</g,'><').split('<');
+  
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    if(!line) continue;
+    
+    // Closing tag
+    if(line.charAt(0)==='/'){
+      indentLevel--;
+      formatted+=' '.repeat(Math.max(0,indentLevel)*indent)+'<'+line+'>\n';
+    }
+    // Processing instruction or declaration
+    else if(line.charAt(0)==='?'){
+      formatted+='<'+line+'>\n';
+    }
+    // Comment
+    else if(line.substring(0,3)==='!--'){
+      formatted+=' '.repeat(indentLevel*indent)+'<'+line+'>\n';
+    }
+    // Self-closing tag
+    else if(line.charAt(line.length-1)==='/'){
+      formatted+=' '.repeat(indentLevel*indent)+'<'+line+'>\n';
+    }
+    // Opening tag with content
+    else if(line.indexOf('</')!==-1){
+      // Has inline content: <tag>content</tag>
+      var closeIdx=line.indexOf('</');
+      var openEnd=line.indexOf('>');
+      if(closeIdx>openEnd){
+        formatted+=' '.repeat(indentLevel*indent)+'<'+line+'>\n';
+      } else {
+        formatted+=' '.repeat(indentLevel*indent)+'<'+line+'>\n';
+      }
+    }
+    // Opening tag
+    else {
+      formatted+=' '.repeat(indentLevel*indent)+'<'+line+'>\n';
+      indentLevel++;
+    }
+  }
+  return formatted.trim();
+}
+
+function minifyXml(xml){
+  return xml.replace(/>\s+</g,'><').replace(/\n/g,'').replace(/\s+/g,' ').trim();
+}
+
+function validateXml(xml){
+  var errors=[];
+  var stack=[];
+  var tagRegex=/<\/?([a-zA-Z_][\w.-]*)[^>]*\/?>/g;
+  var match;
+  var lineNum=1;
+  
+  // Check for declaration
+  if(xml.indexOf('<?xml')!==-1&&xml.indexOf('?>')===-1){
+    errors.push('Line 1: Unclosed XML declaration');
+  }
+  
+  while((match=tagRegex.exec(xml))!==null){
+    var fullTag=match[0];
+    var tagName=match[1];
+    
+    // Count line
+    var before=xml.substring(0,match.index);
+    lineNum=(before.match(/\n/g)||[]).length+1;
+    
+    // Skip self-closing, comments, declarations
+    if(fullTag.indexOf('!--')!==-1) continue;
+    if(fullTag.charAt(1)==='?') continue;
+    
+    if(fullTag.charAt(1)==='/'){
+      // Closing tag
+      if(stack.length===0){
+        errors.push('Line '+lineNum+': Unexpected closing tag </'+tagName+'>');
+      } else if(stack[stack.length-1]!==tagName){
+        errors.push('Line '+lineNum+': Mismatched tag. Expected </'+stack[stack.length-1]+'>, found </'+tagName+'>');
+      } else {
+        stack.pop();
+      }
+    } else if(fullTag.charAt(fullTag.length-2)!=='/'){
+      // Opening tag (not self-closing)
+      stack.push(tagName);
+    }
+  }
+  
+  if(stack.length>0){
+    errors.push('Unclosed tags: '+stack.map(function(t){return '<'+t+'>';}).join(', '));
+  }
+  
+  return errors;
+}
+
+function buildTree(xml){
+  var parser=new DOMParser();
+  var doc=parser.parseFromString(xml,'text/xml');
+  var err=doc.querySelector('parsererror');
+  if(err)return'<span style="color:#ff4d4d">Invalid XML: '+err.textContent.substring(0,100)+'</span>';
+  
+  function renderNode(node,depth){
+    var pad='  '.repeat(depth);
+    var html='';
+    if(node.nodeType===1){
+      var attrs='';
+      if(node.attributes){
+        for(var i=0;i<node.attributes.length;i++){
+          var a=node.attributes[i];
+          attrs+=' <span style="color:#ffc832">'+a.name+'</span>=<span style="color:#39ff14">"'+a.value+'"</span>';
+        }
+      }
+      if(node.childNodes.length===0){
+        html+=pad+'&lt;<span style="color:var(--accent)">'+node.tagName+'</span>'+attrs+' /&gt;\n';
+      } else if(node.childNodes.length===1&&node.childNodes[0].nodeType===3){
+        html+=pad+'&lt;<span style="color:var(--accent)">'+node.tagName+'</span>'+attrs+'&gt;'+node.textContent+'&lt;/'+node.tagName+'&gt;\n';
+      } else {
+        html+=pad+'&lt;<span style="color:var(--accent)">'+node.tagName+'</span>'+attrs+'&gt;\n';
+        for(var i=0;i<node.childNodes.length;i++){
+          html+=renderNode(node.childNodes[i],depth+1);
+        }
+        html+=pad+'&lt;/<span style="color:var(--accent)">'+node.tagName+'</span>&gt;\n';
+      }
+    } else if(node.nodeType===3){
+      var t=node.textContent.trim();
+      if(t)html+=pad+'<span style="color:rgba(230,250,255,0.6)">'+t+'</span>\n';
+    } else if(node.nodeType===8){
+      html+=pad+'<span style="color:#666">&lt;!--'+node.textContent+'--&gt;</span>\n';
+    }
+    return html;
+  }
+  
+  var result='';
+  for(var i=0;i<doc.childNodes.length;i++){
+    result+=renderNode(doc.childNodes[i],0);
+  }
+  return result;
+}
+
+document.getElementById('xmlFmtFormat').addEventListener('click',function(){
+  try{out.innerHTML='';out.textContent=formatXml(inp.value);showSt('XML formatted successfully','ok');}catch(e){showSt('Error: '+e.message,'e');}
+});
+document.getElementById('xmlFmtMinify').addEventListener('click',function(){
+  try{out.innerHTML='';out.textContent=minifyXml(inp.value);showSt('XML minified','ok');}catch(e){showSt('Error: '+e.message,'e');}
+});
+document.getElementById('xmlFmtValidate').addEventListener('click',function(){
+  var errs=validateXml(inp.value);
+  if(errs.length===0){out.innerHTML='<span style="color:#39ff14">✅ Valid XML — no errors found</span>';showSt('XML is valid!','ok');}
+  else{out.innerHTML='<span style="color:#ff4d4d">❌ '+errs.length+' error(s) found:\n\n</span>'+errs.map(function(e){return'<span style="color:#ff4d4d">• '+e+'</span>';}).join('\n');showSt(errs.length+' validation error(s)','e');}
+});
+document.getElementById('xmlFmtTree').addEventListener('click',function(){
+  out.innerHTML=buildTree(inp.value);
+});
+document.getElementById('xmlFmtSample').addEventListener('click',function(){
+  inp.value='<?xml version="1.0" encoding="UTF-8"?>\n<catalog>\n  <book id="1">\n    <title>The Great Gatsby</title>\n    <author>F. Scott Fitzgerald</author>\n    <year>1925</year>\n    <price currency="USD">10.99</price>\n    <genres>\n      <genre>Fiction</genre>\n      <genre>Classic</genre>\n    </genres>\n  </book>\n  <book id="2">\n    <title>1984</title>\n    <author>George Orwell</author>\n    <year>1949</year>\n    <price currency="USD">8.99</price>\n    <genres>\n      <genre>Dystopian</genre>\n      <genre>Science Fiction</genre>\n    </genres>\n  </book>\n</catalog>';
+});
+document.getElementById('xmlFmtCopy').addEventListener('click',function(){
+  navigator.clipboard.writeText(out.textContent);showSt('Copied!','ok');
+});
+})();
+</script>

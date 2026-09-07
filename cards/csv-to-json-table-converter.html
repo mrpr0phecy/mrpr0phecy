@@ -1,0 +1,103 @@
+<h2 id="cjtc-title" style="margin-top:0;color:var(--accent);">📊 CSV ⇄ JSON ⇄ Markdown Table Converter</h2>
+
+<form aria-describedby="cjtc-desc" onsubmit="event.preventDefault();">
+  <p id="cjtc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Paste CSV, TSV or a JSON array and convert it to JSON, CSV, Markdown table, HTML table or SQL INSERT statements. Handles quoted fields, custom delimiters and header detection. Everything stays in your browser.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="cjtc-from" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Input format</label>
+      <select id="cjtc-from" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+        <option value="auto">Auto-detect</option><option value="csv">CSV (comma)</option><option value="tsv">TSV (tab)</option><option value="semi">Semicolon</option><option value="pipe">Pipe |</option><option value="json">JSON array</option>
+      </select>
+    </div>
+    <div>
+      <label for="cjtc-to" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Output format</label>
+      <select id="cjtc-to" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+        <option value="json">JSON (array of objects)</option><option value="jsonrows">JSON (array of arrays)</option><option value="csv">CSV</option><option value="tsv">TSV</option><option value="md">Markdown table</option><option value="html">HTML table</option><option value="sql">SQL INSERT</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;">
+      <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:5px;"><input type="checkbox" id="cjtc-hdr" checked> First row is header</label>
+      <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:5px;"><input type="checkbox" id="cjtc-num" checked> Parse numbers</label>
+    </div>
+  </div>
+
+  <label for="cjtc-in" style="display:block;font-size:0.72rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Input</label>
+  <textarea id="cjtc-in" rows="7" placeholder="name,city,age&#10;Ada,London,36&#10;&quot;Smith, John&quot;,Luton,41" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;margin-bottom:8px;"></textarea>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
+    <span id="cjtc-info" style="font-size:0.75rem;color:var(--text-secondary);"></span>
+    <div style="display:flex;gap:6px;">
+      <button type="button" id="cjtc-sample" style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.75rem;cursor:pointer;">Load sample</button>
+      <button type="button" id="cjtc-copy" style="padding:6px 12px;border-radius:8px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);color:var(--accent);font-size:0.75rem;cursor:pointer;">Copy output</button>
+      <button type="button" id="cjtc-dl" style="padding:6px 12px;border-radius:8px;background:rgba(57,255,20,0.12);border:1px solid rgba(57,255,20,0.35);color:#39ff14;font-size:0.75rem;cursor:pointer;">Download</button>
+    </div>
+  </div>
+  <textarea id="cjtc-out" rows="9" readonly aria-live="polite" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.35);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;"></textarea>
+  <div id="cjtc-err" style="font-size:0.75rem;color:#ff4081;margin-top:4px;min-height:1em;"></div>
+</form>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var inp=$('cjtc-in'), out=$('cjtc-out');
+  var delims={csv:',',tsv:'\t',semi:';',pipe:'|'};
+  function detect(s){
+    var t=s.trim(); if(t[0]==='['||t[0]==='{') return 'json';
+    var first=t.split(/\r?\n/)[0]; var best='csv',bc=-1;
+    Object.keys(delims).forEach(function(k){ var c=first.split(delims[k]).length-1; if(c>bc){bc=c;best=k;} });
+    return best;
+  }
+  function parseDSV(s,d){
+    var rows=[],row=[],f='',q=false,i=0;
+    while(i<s.length){ var c=s[i];
+      if(q){ if(c==='"'){ if(s[i+1]==='"'){ f+='"'; i++; } else q=false; } else f+=c; }
+      else if(c==='"'){ q=true; }
+      else if(c===d){ row.push(f); f=''; }
+      else if(c==='\n'||c==='\r'){ if(c==='\r'&&s[i+1]==='\n') i++; row.push(f); rows.push(row); row=[]; f=''; }
+      else f+=c;
+      i++; }
+    if(f!==''||row.length){ row.push(f); rows.push(row); }
+    return rows.filter(function(r){ return r.length>1||(r[0]||'').trim()!==''; });
+  }
+  function coerce(v){ if(!$('cjtc-num').checked) return v; if(typeof v!=='string') return v; var t=v.trim(); if(t==='') return v; if(/^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(t)) return +t; if(t==='true') return true; if(t==='false') return false; if(t==='null') return null; return v; }
+  function toTable(){
+    var s=inp.value; if(!s.trim()) return null;
+    var f=$('cjtc-from').value; if(f==='auto') f=detect(s);
+    var headers,rows;
+    if(f==='json'){
+      var j=JSON.parse(s); if(!Array.isArray(j)) j=[j];
+      if(j.length&&Array.isArray(j[0])){ rows=j; headers=$('cjtc-hdr').checked?rows.shift().map(String):rows[0].map(function(_,i){return 'col'+(i+1);}); }
+      else { var keys=[]; j.forEach(function(o){ Object.keys(o||{}).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); }); }); headers=keys; rows=j.map(function(o){ return keys.map(function(k){ var v=(o||{})[k]; return v===undefined?'':(typeof v==='object'&&v!==null?JSON.stringify(v):v); }); }); }
+    } else {
+      rows=parseDSV(s,delims[f]);
+      if($('cjtc-hdr').checked){ headers=rows.shift()||[]; } else { headers=(rows[0]||[]).map(function(_,i){return 'col'+(i+1);}); }
+    }
+    $('cjtc-info').textContent='Detected '+f.toUpperCase()+' · '+rows.length+' rows × '+headers.length+' columns';
+    return {h:headers,r:rows};
+  }
+  function q(v,d){ v=v===null||v===undefined?'':String(v); return (v.indexOf(d)>-1||/["\n\r]/.test(v))?'"'+v.replace(/"/g,'""')+'"':v; }
+  var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  function convert(){
+    $('cjtc-err').textContent='';
+    var t; try{ t=toTable(); }catch(e){ $('cjtc-err').textContent='Parse error: '+e.message; out.value=''; return; }
+    if(!t){ out.value=''; $('cjtc-info').textContent=''; return; }
+    var to=$('cjtc-to').value,h=t.h,r=t.r,res='';
+    if(to==='json'){ res=JSON.stringify(r.map(function(row){ var o={}; h.forEach(function(k,i){ o[k]=coerce(row[i]===undefined?'':row[i]); }); return o; }),null,2); }
+    else if(to==='jsonrows'){ res=JSON.stringify([h].concat(r.map(function(row){return row.map(coerce);})),null,1); }
+    else if(to==='csv'||to==='tsv'){ var d=to==='csv'?',':'\t'; res=[h].concat(r).map(function(row){ return row.map(function(v){return q(v,d);}).join(d); }).join('\n'); }
+    else if(to==='md'){ var w=h.map(function(k,i){ return Math.max(3,String(k).length,Math.max.apply(null,r.map(function(row){return String(row[i]===undefined?'':row[i]).length;}).concat([0]))); }); var pad=function(v,i){ v=String(v===undefined?'':v).replace(/\|/g,'\\|'); while(v.length<w[i]) v+=' '; return v; };
+      res='| '+h.map(pad).join(' | ')+' |\n| '+w.map(function(n){ var s=''; while(s.length<n) s+='-'; return s; }).join(' | ')+' |\n'+r.map(function(row){ return '| '+h.map(function(_,i){return pad(row[i],i);}).join(' | ')+' |'; }).join('\n'); }
+    else if(to==='html'){ res='<table>\n  <thead>\n    <tr>'+h.map(function(k){return '<th>'+esc(k)+'</th>';}).join('')+'</tr>\n  </thead>\n  <tbody>\n'+r.map(function(row){ return '    <tr>'+h.map(function(_,i){return '<td>'+esc(row[i]===undefined?'':row[i])+'</td>';}).join('')+'</tr>'; }).join('\n')+'\n  </tbody>\n</table>'; }
+    else if(to==='sql'){ var cols=h.map(function(k){return '"'+String(k).replace(/"/g,'""')+'"';}).join(', '); res=r.map(function(row){ return 'INSERT INTO my_table ('+cols+') VALUES ('+h.map(function(_,i){ var v=coerce(row[i]===undefined?'':row[i]); if(v===null) return 'NULL'; if(typeof v==='number'||typeof v==='boolean') return String(v); return "'"+String(v).replace(/'/g,"''")+"'"; }).join(', ')+');'; }).join('\n'); }
+    out.value=res;
+  }
+  ['cjtc-from','cjtc-to','cjtc-hdr','cjtc-num'].forEach(function(id){ $(id).addEventListener('change',convert); });
+  var tm; inp.addEventListener('input',function(){ clearTimeout(tm); tm=setTimeout(convert,120); });
+  $('cjtc-sample').addEventListener('click',function(){ inp.value='name,city,age,member\nAda Lovelace,London,36,true\n"Smith, John",Luton,41,false\nGrace Hopper,"New York, NY",85,true'; convert(); });
+  $('cjtc-copy').addEventListener('click',function(){ var b=this; var done=function(){ b.textContent='Copied ✓'; setTimeout(function(){b.textContent='Copy output';},1200); }; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(out.value).then(done,function(){}); } else { out.select(); try{document.execCommand('copy');}catch(e){} done(); } });
+  $('cjtc-dl').addEventListener('click',function(){ var to=$('cjtc-to').value; var ext={json:'json',jsonrows:'json',csv:'csv',tsv:'tsv',md:'md',html:'html',sql:'sql'}[to]; var mime={json:'application/json',csv:'text/csv',tsv:'text/tab-separated-values',md:'text/markdown',html:'text/html',sql:'text/plain'}[ext]||'text/plain'; var blob=new Blob([out.value],{type:mime}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='converted.'+ext; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); document.body.removeChild(a); },500); });
+})();
+</script>

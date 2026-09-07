@@ -1,0 +1,78 @@
+<h2 id="luhn-title" style="margin-top:0;color:var(--accent);">🔢 Luhn Check Digit Validator</h2>
+
+<form aria-describedby="luhn-desc" onsubmit="event.preventDefault();">
+  <p id="luhn-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Validate or generate a Luhn (mod 10) check digit. Used by card numbers, IMEI, NPI and some barcodes. This only tests the checksum — it cannot tell you whether a number is issued, active or real.
+  </p>
+  <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;">
+    <div>
+      <label for="luhn-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Number</label>
+      <input id="luhn-in" type="text" inputmode="numeric" placeholder="4539 1488 0343 6467" spellcheck="false" autocomplete="off" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+    <button type="button" id="luhn-gen" style="padding:10px 12px;background:rgba(45,212,255,.12);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-weight:800;font-size:.8rem;">Append check digit</button>
+  </div>
+</form>
+<div id="luhn-out" style="margin-top:14px;display:none;">
+  <div id="luhn-status" style="padding:12px;border-radius:10px;font-weight:800;margin-bottom:10px;"></div>
+  <dl style="display:grid;grid-template-columns:minmax(110px,auto) 1fr;gap:6px 12px;margin:0;font-size:.84rem;">
+    <dt style="color:var(--text-secondary);">Digits</dt><dd id="luhn-digits" style="margin:0;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere;"></dd>
+    <dt style="color:var(--text-secondary);">Length</dt><dd id="luhn-len" style="margin:0;color:var(--text);"></dd>
+    <dt style="color:var(--text-secondary);">Checksum</dt><dd id="luhn-sum" style="margin:0;color:var(--text);"></dd>
+    <dt style="color:var(--text-secondary);">Guessed scheme</dt><dd id="luhn-scheme" style="margin:0;color:var(--text);"></dd>
+  </dl>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  function digits(s) { return s.replace(/\D/g, ''); }
+  function luhnSum(num) {
+    var sum = 0, alt = false;
+    for (var i = num.length - 1; i >= 0; i--) {
+      var n = Number(num[i]);
+      if (alt) { n *= 2; if (n > 9) n -= 9; }
+      sum += n;
+      alt = !alt;
+    }
+    return sum;
+  }
+  function valid(num) { return num.length >= 2 && luhnSum(num) % 10 === 0; }
+  function checkDigit(body) {
+    var sum = luhnSum(body + '0');
+    return String((10 - (sum % 10)) % 10);
+  }
+  function scheme(num) {
+    if (/^4/.test(num) && (num.length === 13 || num.length === 16 || num.length === 19)) return 'Looks like Visa (IIN 4)';
+    if (/^5[1-5]/.test(num) && num.length === 16) return 'Looks like Mastercard (IIN 51–55)';
+    if (/^3[47]/.test(num) && num.length === 15) return 'Looks like American Express';
+    if (/^6(?:011|5)/.test(num) && num.length === 16) return 'Looks like Discover';
+    if (/^3[068]/.test(num) && num.length === 14) return 'Looks like Diners Club';
+    if (num.length === 15 && /^[0-9]/.test(num)) return 'Could be an IMEI (15 digits)';
+    if (num.length === 10) return 'Could be a US NPI (10 digits)';
+    return 'No well-known IIN matched — checksum still applies.';
+  }
+  function run() {
+    var num = digits($('luhn-in').value);
+    if (!num) { $('luhn-out').style.display = 'none'; return; }
+    var ok = valid(num);
+    $('luhn-out').style.display = 'block';
+    $('luhn-status').textContent = ok ? '✓ Checksum passes' : '✗ Checksum fails — next digit would need to be ' + checkDigit(num);
+    $('luhn-status').style.background = ok ? 'rgba(57,255,20,.08)' : 'rgba(255,77,77,.12)';
+    $('luhn-status').style.border = '1px solid ' + (ok ? 'rgba(57,255,20,.35)' : 'rgba(255,77,77,.4)');
+    $('luhn-status').style.color = ok ? '#b8ffb0' : '#ffb8b8';
+    $('luhn-digits').textContent = num.replace(/(.{4})/g, '$1 ').trim();
+    $('luhn-len').textContent = num.length + ' digits';
+    $('luhn-sum').textContent = luhnSum(num) + '  (must be divisible by 10)';
+    $('luhn-scheme').textContent = scheme(num);
+  }
+  $('luhn-in').addEventListener('input', run);
+  $('luhn-gen').addEventListener('click', function () {
+    var body = digits($('luhn-in').value);
+    if (!body) return;
+    $('luhn-in').value = body + checkDigit(body);
+    run();
+  });
+})();
+</script>

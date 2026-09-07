@@ -1,0 +1,127 @@
+<h2>🁣 Dominoes</h2>
+<p class="description">Block dominoes: match ends to play your tiles. If you can't play, draw from the boneyard. Lowest hand score wins!</p>
+<div id="dom-app" style="max-width:520px;margin:0 auto;"></div>
+<script>
+(function(){
+'use strict';
+var hand=[],aiHand=[],chain=[],boneyard=[],leftEnd=0,rightEnd=0,msg='',over=false;
+function init(){
+  hand=[];aiHand=[];chain=[];boneyard=[];over=false;
+  // generate all dominoes
+  var all=[];for(var a=0;a<=6;a++)for(var b=a;b<=6;b++)all.push([a,b]);
+  // shuffle
+  for(var i=all.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=all[i];all[i]=all[j];all[j]=t;}
+  hand=all.splice(0,7);aiHand=all.splice(0,7);boneyard=all;
+  // find highest double to start
+  var starter=-1;
+  for(var i=0;i<hand.length;i++)if(hand[i][0]===hand[i][1]&&(starter<0||hand[i][0]>hand[starter][0]))starter=i;
+  if(starter<0){for(var i=0;i<aiHand.length;i++)if(aiHand[i][0]===aiHand[i][1]&&(starter<0||aiHand[i][0]>aiHand[starter][0]))starter=i;
+    if(starter>=0){chain.push(aiHand.splice(starter,1)[0]);}
+  }else{chain.push(hand.splice(starter,1)[0]);}
+  if(chain.length){leftEnd=chain[0][0];rightEnd=chain[0][1];}
+  msg='Your turn — play a domino';render();
+}
+function canPlay(tile){return tile[0]===leftEnd||tile[0]===rightEnd||tile[1]===leftEnd||tile[1]===rightEnd;}
+function playTile(tile,side){
+  if(side==='left'){
+    if(tile[1]===leftEnd)leftEnd=tile[0];
+    else if(tile[0]===leftEnd){leftEnd=tile[1];}
+    else return false;
+    chain.unshift(tile);
+  }else{
+    if(tile[0]===rightEnd)rightEnd=tile[1];
+    else if(tile[1]===rightEnd){rightEnd=tile[0];}
+    else return false;
+    chain.push(tile);
+  }
+  return true;
+}
+function playerPlay(idx,side){
+  if(over)return;
+  var tile=hand[idx];
+  if(!canPlay(tile))return;
+  hand.splice(idx,1);
+  playTile(tile,side);
+  if(!hand.length){over=true;msg='🎉 You win! Empty hand!';render();return;}
+  msg='AI thinking...';render();
+  setTimeout(aiTurn,500);
+}
+function aiTurn(){
+  // find playable tile
+  var played=false;
+  for(var i=0;i<aiHand.length;i++){
+    if(canPlay(aiHand[i])){
+      var tile=aiHand.splice(i,1)[0];
+      if(tile[0]===leftEnd||tile[1]===leftEnd){playTile(tile,'left');}
+      else{playTile(tile,'right');}
+      played=true;break;
+    }
+  }
+  if(!played){
+    // draw
+    while(boneyard.length&&!played){
+      var drawn=boneyard.pop();aiHand.push(drawn);
+      if(canPlay(drawn)){
+        var idx=aiHand.indexOf(drawn);
+        aiHand.splice(idx,1);
+        if(drawn[0]===leftEnd||drawn[1]===leftEnd)playTile(drawn,'left');
+        else playTile(drawn,'right');
+        played=true;
+      }
+    }
+  }
+  if(!aiHand.length){over=true;msg='🤖 AI wins! Empty hand!';render();return;}
+  // check if both stuck
+  if(!played&&!boneyard.length){
+    var pScore=0,aScore=0;for(var i=0;i<hand.length;i++)pScore+=hand[i][0]+hand[i][1];
+    for(var i=0;i<aiHand.length;i++)aScore+=aiHand[i][0]+aiHand[i][1];
+    over=true;
+    msg=pScore<aScore?'🎉 You win! '+pScore+'-'+aScore:aScore<pScore?'🤖 AI wins! '+aScore+'-'+pScore:'Draw! '+pScore+'-'+pScore;
+    render();return;
+  }
+  msg='Your turn — play a domino';render();
+}
+function drawTile(){
+  if(over||boneyard.length===0)return;
+  hand.push(boneyard.pop());
+  // check if new tile can be played
+  var can=false;for(var i=0;i<hand.length;i++)if(canPlay(hand[i]))can=true;
+  if(!can&&!boneyard.length){msg='No moves! AI turn';render();setTimeout(aiTurn,500);return;}
+  msg='Drew a tile — play or draw again';render();
+}
+function render(){
+  var h='<div style="text-align:center;margin-bottom:8px;font-size:14px;color:#2dd4ff;font-weight:700;">'+msg+'</div>';
+  h+='<div style="text-align:center;margin-bottom:6px;font-size:12px;color:#9ccbe0;">You: '+hand.length+' tiles | AI: '+aiHand.length+' tiles | Boneyard: '+boneyard.length+'</div>';
+  // chain
+  h+='<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;margin-bottom:12px;min-height:40px;">';
+  for(var i=0;i<chain.length;i++){
+    var t=chain[i];
+    h+='<div style="background:#1a2a3a;border:1px solid #2dd4ff;border-radius:4px;padding:4px 8px;font-size:14px;color:#e6faff;">'+t[0]+'|'+t[1]+'</div>';
+  }
+  h+='</div>';
+  h+='<div style="text-align:center;color:#9ccbe0;font-size:12px;margin-bottom:8px;">Left: '+leftEnd+' | Right: '+rightEnd+'</div>';
+  // player hand
+  h+='<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin-bottom:12px;">';
+  for(var i=0;i<hand.length;i++){
+    var t=hand[i],cp=canPlay(t);
+    var bg=cp?'#2a4a3a':'#1a1a2a';
+    var border=cp?'#39ff14':'#333';
+    if(cp){
+      h+='<div style="display:flex;gap:2px;">';
+      h+='<div onclick="window._domPlay('+i+',\'left\')" style="background:'+bg+';border:1px solid '+border+';border-radius:4px;padding:6px 10px;font-size:16px;color:#e6faff;cursor:pointer;">'+t[0]+'|</div>';
+      h+='<div onclick="window._domPlay('+i+',\'right\')" style="background:'+bg+';border:1px solid '+border+';border-radius:4px;padding:6px 10px;font-size:16px;color:#e6faff;cursor:pointer;">|'+t[1]+'</div>';
+      h+='</div>';
+    }else{
+      h+='<div style="background:'+bg+';border:1px solid '+border+';border-radius:4px;padding:6px 10px;font-size:16px;color:#666;">'+t[0]+'|'+t[1]+'</div>';
+    }
+  }
+  h+='</div>';
+  h+='<div style="text-align:center;">';
+  h+='<button onclick="window._domDraw()" style="padding:6px 16px;background:rgba(255,165,0,0.15);color:#ffa500;border:1px solid rgba(255,165,0,0.3);border-radius:6px;cursor:pointer;font-weight:600;margin-right:8px;">Draw ('+boneyard.length+')</button>';
+  h+='<button onclick="window._domInit()" style="padding:6px 16px;background:rgba(45,212,255,0.15);color:#2dd4ff;border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-weight:600;">New Game</button></div>';
+  document.getElementById('dom-app').innerHTML=h;
+}
+window._domPlay=playerPlay;window._domDraw=drawTile;window._domInit=init;
+init();
+})();
+</script>

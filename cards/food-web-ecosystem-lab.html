@@ -1,0 +1,388 @@
+<h2 id="fwb-title" style="margin-top:0;color:var(--accent);">🕸️ Food Web &amp; Trophic Energy Lab</h2>
+
+<form aria-describedby="fwb-desc" onsubmit="event.preventDefault();">
+  <p id="fwb-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Build a food web and see it breathe. Pick a habitat, toggle species in or out, set sunlight/rainfall and the predation rate — then run the simulation: producer growth, consumer–prey dynamics (logistic + Holling type II predation) and the 10% energy rule. Perturb it: remove a species and watch the cascade, or boost the top predator and see the whole pyramid wobble.
+  </p>
+
+  <!-- Habitat presets -->
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;">
+    <button type="button" class="fwb-habitat active" data-id="pond" style="padding:4px 10px;border-radius:4px;background:rgba(127,224,195,0.16);border:1px solid #7fe0c3;color:#7fe0c3;font-size:0.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;">💧 Pond</button>
+    <button type="button" class="fwb-habitat" data-id="grassland" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌾 Grassland</button>
+    <button type="button" class="fwb-habitat" data-id="forest" style="padding:4px 10px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;cursor:pointer;white-space:nowrap;">🌲 Forest</button>
+  </div>
+
+  <div style="background:#05070d;border:1px solid rgba(127,224,195,0.3);border-radius:8px;padding:8px;margin-bottom:12px;text-align:center;">
+    <canvas id="fwb-canvas" width="640" height="300" style="width:100%;height:300px;display:block;background:#060b12;border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-top:6px;padding:0 4px;">
+      <span id="fwb-status" style="color:#aadcff;font-family:monospace;">TAP SPECIES TO ADD / REMOVE</span>
+      <span id="fwb-species" style="color:#ffd27f;font-family:monospace;">0 / 0 species</span>
+    </div>
+  </div>
+
+  <div style="background:#04060a;border:1px solid rgba(127,224,195,0.2);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="fwb-chart" width="640" height="170" style="width:100%;height:170px;display:block;background:#060b12;border-radius:6px;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--text-secondary);margin-top:4px;padding:0 4px;">
+      <span>POPULATIONS vs TIME (log scale)</span>
+      <span id="fwb-energy" style="color:#ff9c6b;font-family:monospace;">ENERGY PYRAMID: —</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:12px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Sunlight / Rainfall (productivity)</span><span id="fwb-val-sun">100%</span>
+      </div>
+      <input type="range" id="fwb-slider-sun" min="30" max="160" step="1" value="100" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Predation Rate Multiplier</span><span id="fwb-val-pred">1.0×</span>
+      </div>
+      <input type="range" id="fwb-slider-pred" min="0.3" max="2.5" step="0.05" value="1" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Simulation Speed</span><span id="fwb-val-speed">×120</span>
+      </div>
+      <input type="range" id="fwb-slider-speed" min="10" max="600" step="1" value="120" style="width:100%;">
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-secondary);margin-bottom:2px;">
+        <span>Energy Transfer Efficiency</span><span id="fwb-val-eff">10%</span>
+      </div>
+      <input type="range" id="fwb-slider-eff" min="5" max="20" step="1" value="10" style="width:100%;">
+    </div>
+  </div>
+
+  <!-- Readouts -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">TOP PREDATOR</div>
+      <div id="fwb-stat-top" style="font-size:0.85rem;font-family:monospace;color:#ff9c6b;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">ECOSYSTEM STATUS</div>
+      <div id="fwb-stat-status" style="font-size:0.85rem;font-family:monospace;color:#8fd4ff;font-weight:bold;">—</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">STEP</div>
+      <div id="fwb-stat-step" style="font-size:0.85rem;font-family:monospace;color:#7fe0c3;font-weight:bold;">0</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px;text-align:center;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);">SPECIES PERSISTING</div>
+      <div id="fwb-stat-persist" style="font-size:0.85rem;font-family:monospace;color:#ffd27f;font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div style="text-align:center;">
+    <button type="button" id="fwb-btn-reset" style="padding:6px 16px;border-radius:6px;background:rgba(127,224,195,0.15);border:1px solid #7fe0c3;color:#7fe0c3;font-size:0.75rem;font-weight:bold;cursor:pointer;">↺ Reset to Classic Web</button>
+  </div>
+
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:0.72rem;color:var(--text-secondary);">🔬 Science notes (real model used)</summary>
+    <p style="font-size:0.7rem;color:var(--text-secondary);margin:8px 0 0;">
+      Producers grow logistically: dN/dt = r·N·(1 − N/K) with carrying capacity K set by sunlight/rainfall.
+      Consumers gain energy via a Holling type II functional response (saturating at high prey density)
+      and lose it to metabolism and competition, so populations cycle — the classic predator–prey oscillation
+      you can see in the chart. A prey-refuge term (prey at low density are hard to find) is what keeps the
+      webs from collapsing — the same stabilising mechanism ecologists saw in Huffaker's 1958 mite
+      experiments. Trophic transfer uses the ~10% rule (adjustable 5–20%): each level keeps only the
+      captured fraction, so an apex predator needs a huge biomass of prey beneath it. Removing a species
+      removes a link: you can trigger mesopredator release (mid-level predator booms after top predator
+      removal) or a trophic cascade right here — try the apex predators and watch them wipe out
+      competitors that shared their prey.
+    </p>
+  </details>
+</form>
+
+<script>
+(function() {
+  const $ = id => document.getElementById(id);
+  const canvas = $('fwb-canvas'), ctx = canvas.getContext('2d');
+  const chart = $('fwb-chart'), cctx = chart.getContext('2d');
+  const W = canvas.width, H = canvas.height, CW = chart.width, CH = chart.height;
+
+  const HABITATS = {
+    pond: {
+      name: 'Pond', species: [
+        { id: 'algae', name: 'Algae', emoji: '🪸', trophic: 1, r: 1.4, K: 1e6, init: 300000, diet: [] },
+        { id: 'lily', name: 'Water Lilies', emoji: '🪷', trophic: 1, r: 1.0, K: 8e5, init: 220000, diet: [] },
+        { id: 'zoo', name: 'Zooplankton', emoji: '🦠', trophic: 2, r: 0.9, init: 220, diet: ['algae', 'lily'] },
+        { id: 'fish', name: 'Minnows', emoji: '🐟', trophic: 3, r: 0.7, init: 12, diet: ['zoo'] },
+        { id: 'heron', name: 'Herons (apex)', emoji: '🦩', trophic: 4, r: 0.4, init: 3, apex: true, diet: ['fish'] }
+      ]
+    },
+    grassland: {
+      name: 'Grassland', species: [
+        { id: 'grass', name: 'Grass', emoji: '🌾', trophic: 1, r: 1.5, K: 1e6, init: 320000, diet: [] },
+        { id: 'clover', name: 'Clover', emoji: '🍀', trophic: 1, r: 1.1, K: 7e5, init: 200000, diet: [] },
+        { id: 'rabbit', name: 'Rabbits', emoji: '🐇', trophic: 2, r: 0.9, init: 200, diet: ['grass', 'clover'] },
+        { id: 'vole', name: 'Field Voles', emoji: '🐭', trophic: 2, r: 0.95, init: 180, diet: ['grass', 'clover'] },
+        { id: 'fox', name: 'Foxes', emoji: '🦊', trophic: 3, r: 0.5, init: 14, diet: ['rabbit', 'vole'] },
+        { id: 'buzzard', name: 'Buzzards (apex)', emoji: '🦅', trophic: 4, r: 0.45, init: 3, apex: true, diet: ['vole', 'rabbit'] }
+      ]
+    },
+    forest: {
+      name: 'Forest', species: [
+        { id: 'trees', name: 'Trees & Shrubs', emoji: '🌳', trophic: 1, r: 0.8, K: 1e6, init: 280000, diet: [] },
+        { id: 'undergrowth', name: 'Undergrowth', emoji: '☘️', trophic: 1, r: 1.1, K: 6e5, init: 180000, diet: [] },
+        { id: 'deer', name: 'Deer', emoji: '🦌', trophic: 2, r: 0.6, init: 150, diet: ['trees', 'undergrowth'] },
+        { id: 'mice', name: 'Wood Mice', emoji: '🐁', trophic: 2, r: 0.95, init: 190, diet: ['trees', 'undergrowth'] },
+        { id: 'owl', name: 'Tawny Owls', emoji: '🦉', trophic: 3, r: 0.5, init: 12, diet: ['mice'] },
+        { id: 'wolf', name: 'Wolves (apex)', emoji: '🐺', trophic: 4, r: 0.35, init: 3, apex: true, diet: ['deer', 'mice'] }
+      ]
+    }
+  };
+
+  let habitat = 'pond', sun = 100, predMult = 1, speed = 120, eff = 10;
+  let active = new Set(), N = {}, time = 0, step = 0, history = [];
+  let running = true;
+
+  function reset() {
+    const h = HABITATS[habitat];
+    // Classic web = all species except the apex predator (off to start, so you can
+    // add it yourself and watch the trophic cascade it triggers).
+    active = new Set(h.species.filter(s => !s.apex).map(s => s.id));
+    N = {};
+    h.species.forEach(s => { N[s.id] = s.init * (0.9 + Math.random() * 0.2); });
+    time = 0; step = 0; history = [[Object.assign({}, N)]];
+    $('fwb-stat-step').textContent = 0;
+  }
+
+  function readSliders() {
+    sun = parseFloat($('fwb-slider-sun').value);
+    predMult = parseFloat($('fwb-slider-pred').value);
+    speed = parseFloat($('fwb-slider-speed').value);
+    eff = parseFloat($('fwb-slider-eff').value);
+    $('fwb-val-sun').textContent = sun + '%';
+    $('fwb-val-pred').textContent = predMult.toFixed(2) + '×';
+    $('fwb-val-speed').textContent = '×' + Math.round(speed);
+    $('fwb-val-eff').textContent = eff + '%';
+  }
+
+  function model(s) {
+    // Holling type II functional response: per-predator intake = a·n / (1 + a·h·n)
+    return {
+      a: 0.5 * predMult,
+      h: 1.0,
+      eff: eff / 100
+    };
+  }
+
+  function stepSim() {
+    const h = HABITATS[habitat];
+    const dt = 0.02;
+    const dN = {};
+    h.species.forEach(s => {
+      if (!active.has(s.id)) { dN[s.id] = 0; return; }
+      const Ns = Math.max(0.01, N[s.id] || 0);
+      if (s.trophic === 1) {
+        // Logistic growth; carrying capacity scales with sunlight/rainfall
+        dN[s.id] = s.r * (sun / 100) * Ns * (1 - Ns / (s.K * 1000));
+      } else {
+        const m = model(s);
+        let intake = 0;
+        s.diet.forEach(preyId => {
+          if (!active.has(preyId)) return;
+          const Np = Math.max(0.01, N[preyId] || 0);
+          intake += (m.a * Np) / (1 + m.a * m.h * Np); // per-predator prey captured
+        });
+        // Energy in = captured × trophic efficiency (10% rule); out = metabolism
+        // plus intraspecific competition (territorial / resource limits)
+        dN[s.id] = m.eff * intake * Ns - 0.05 * Ns - 0.0005 * Ns * Ns;
+      }
+    });
+    // Predation losses on prey: each consumer removes prey at its intake rate.
+    // The refuge factor Np/(Np+30) is the classic stabiliser — prey at very low
+    // density are hard for predators to find (Huffaker 1958).
+    h.species.forEach(pred => {
+      if (!active.has(pred.id) || pred.trophic === 1) return;
+      const m = model(pred);
+      const Npc = Math.max(0.01, N[pred.id] || 0);
+      pred.diet.forEach(preyId => {
+        if (!active.has(preyId)) return;
+        const Np = Math.max(0.01, N[preyId] || 0);
+        const refuge = Np / (Np + 30);
+        dN[preyId] = (dN[preyId] || 0) - ((m.a * Np) / (1 + m.a * m.h * Np)) * Npc * refuge;
+      });
+    });
+    h.species.forEach(s => {
+      if (!active.has(s.id)) { N[s.id] = 0; return; }
+      N[s.id] = Math.max(0, N[s.id] + dN[s.id] * dt);
+    });
+    time += dt;
+    step++;
+    if (step % 4 === 0) {
+      history.push(Object.assign({}, N));
+      if (history.length > 260) history.shift();
+    }
+  }
+
+  function drawWeb() {
+    const h = HABITATS[habitat];
+    ctx.fillStyle = '#060b12'; ctx.fillRect(0, 0, W, H);
+    const cols = 5;
+    // levels -> rows, species across
+    const rows = 4;
+    const cx = i => (i + 0.5) * W / cols;
+    const cy = t => H - 32 - (t - 1) * (H - 60) / (rows - 1);
+    const pos = {};
+    h.species.forEach(s => {
+      const same = h.species.filter(x => x.trophic === s.trophic);
+      const idx = same.indexOf(s);
+      pos[s.id] = { x: cx(idx + 0.5 * (cols / same.length - 1)), y: cy(s.trophic) };
+    });
+    // links
+    h.species.forEach(s => {
+      s.diet.forEach(p => {
+        const A = pos[p], B = pos[s.id];
+        ctx.strokeStyle = 'rgba(127,224,195,0.5)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+      });
+    });
+    // nodes
+    h.species.forEach(s => {
+      const p = pos[s.id];
+      const on = active.has(s.id);
+      const pop = on ? (N[s.id] || 0) : 0;
+      const r = 8 + Math.min(16, Math.sqrt(pop) * 2.2);
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = on ? (s.trophic === 1 ? 'rgba(127,224,195,0.9)' : 'rgba(150,210,255,0.9)') : 'rgba(70,80,95,0.35)';
+      ctx.shadowBlur = on ? 10 : 0; ctx.shadowColor = '#7fe0c3';
+      ctx.fill(); ctx.shadowBlur = 0;
+      ctx.strokeStyle = on ? '#fff' : 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = on ? '#0a0c10' : '#556';
+      ctx.font = (on ? 'bold ' : '') + '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(s.emoji + ' ' + s.name, p.x, p.y - r - 6);
+      ctx.fillStyle = 'rgba(230,250,255,0.6)';
+      ctx.font = '9px monospace';
+      ctx.fillText(on ? Math.round(pop) : 'ABSENT', p.x, p.y + r + 12);
+      ctx.textAlign = 'left';
+    });
+    ctx.fillStyle = 'rgba(230,250,255,0.5)'; ctx.font = '9px monospace';
+    ctx.fillText('TROPHIC LEVEL 4 (top)', 8, 12);
+  }
+
+  function drawChart() {
+    const h = HABITATS[habitat];
+    cctx.fillStyle = '#060b12'; cctx.fillRect(0, 0, CW, CH);
+    const padB = 18, padL = 40;
+    const maxV = Math.max(30, ...history.map(r => Math.max(...Object.values(r))));
+    // log-ish scale conversion
+    const log = v => Math.log10(Math.max(1, v)) / Math.log10(Math.max(10, maxV));
+    const xAt = i => padL + (i / Math.max(1, history.length - 1)) * (CW - padL - 10);
+    const yAt = v => CH - padB - log(v) * (CH - padB - 10);
+    cctx.strokeStyle = 'rgba(230,250,255,0.2)';
+    cctx.beginPath(); cctx.moveTo(padL, CH - padB); cctx.lineTo(CW - 6, CH - padB); cctx.stroke();
+    cctx.fillStyle = 'rgba(230,250,255,0.5)'; cctx.font = '9px monospace';
+    cctx.fillText('0', 18, CH - 6);
+    cctx.fillText(Math.round(maxV), 20, 14);
+    const colors = { 1: '#7fe0c3', 2: '#96d2ff', 3: '#ffd27f', 4: '#ff9c6b' };
+    h.species.forEach(s => {
+      if (!active.has(s.id) || history.length < 2) return;
+      cctx.strokeStyle = colors[s.trophic]; cctx.lineWidth = 1.6;
+      cctx.beginPath();
+      history.forEach((r, i) => {
+        const x = xAt(i), y = yAt(r[s.id] || 0.01);
+        if (i === 0) cctx.moveTo(x, y); else cctx.lineTo(x, y);
+      });
+      cctx.stroke();
+    });
+  }
+
+  function energyPyramidText() {
+    const h = HABITATS[habitat];
+    let base = 0;
+    h.species.forEach(s => { if (s.trophic === 1 && active.has(s.id)) base += N[s.id] || 0; });
+    let mid = 0, top = 0;
+    h.species.forEach(s => {
+      if (!active.has(s.id)) return;
+      if (s.trophic === 2 || s.trophic === 3) mid += (N[s.id] || 0);
+      if (s.trophic === 4) top += (N[s.id] || 0);
+    });
+    const ratio = base > 0 ? (mid / base) * 100 : 0;
+    return 'producer→consumer ratio ≈ ' + ratio.toFixed(1) + '%';
+  }
+
+  let last = performance.now(), acc = 0;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    acc += dt;
+    const steps = Math.round(speed / 60);
+    if (acc > 0.05 && running) {
+      for (let i = 0; i < steps; i++) stepSim();
+      acc = 0;
+    }
+    drawWeb(); drawChart();
+    const h = HABITATS[habitat];
+    const extinct = h.species.filter(s => active.has(s.id) && (N[s.id] || 0) < 0.5);
+    const persisting = h.species.filter(s => active.has(s.id) && (N[s.id] || 0) >= 0.5).length;
+    $('fwb-status').textContent = running ? 'SIMULATING… tap a species to remove / restore it' : 'PAUSED';
+    $('fwb-species').textContent = active.size + ' / ' + h.species.length + ' species';
+    $('fwb-energy').textContent = energyPyramidText();
+    const tops = h.species.filter(s => s.trophic === 4 && active.has(s.id));
+    $('fwb-stat-top').textContent = tops.length ? tops[0].emoji + ' ' + tops[0].name : 'NONE ACTIVE';
+    $('fwb-stat-status').textContent = extinct.length ? ('⚠ Extinct: ' + extinct.map(s => s.name).join(', ')) : 'Stable / oscillating';
+    $('fwb-stat-step').textContent = step;
+    $('fwb-stat-persist').textContent = persisting + ' / ' + active.size;
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (W / rect.width);
+    const y = (e.clientY - rect.top) * (H / rect.height);
+    const h = HABITATS[habitat];
+    const cols = 5;
+    const cx = i => (i + 0.5) * W / cols;
+    const cy = t => H - 32 - (t - 1) * (H - 60) / 3;
+    const pos = {};
+    h.species.forEach(s => {
+      const same = h.species.filter(z => z.trophic === s.trophic);
+      pos[s.id] = { x: cx(same.indexOf(s)), y: cy(s.trophic) };
+    });
+    for (const [id, p] of Object.entries(pos)) {
+      if (Math.hypot(x - p.x, y - p.y) < 46) {
+        if (active.has(id)) {
+          const s = h.species.find(z => z.id === id);
+          const depend = h.species.some(z => z.diet.includes(id));
+          if (depend && s.trophic < 4) {
+            // warn-by-cascade: still allow, but surface the effect
+            $('fwb-status').textContent = '⚠ REMOVED ' + s.name.toUpperCase() + ' — watch consumers that ate it';
+          }
+          active.delete(id); N[id] = 0;
+        } else {
+          const s = h.species.find(z => z.id === id);
+          active.add(id);
+          N[id] = s.apex ? s.init * 0.5 : s.init; // apex enters small — cascades take time
+          $('fwb-status').textContent = 'ADDED ' + s.name.toUpperCase() + ' — watch what it eats!';
+        }
+        break;
+      }
+    }
+  });
+  $('fwb-btn-reset').addEventListener('click', () => { reset(); });
+  ['fwb-slider-sun', 'fwb-slider-pred', 'fwb-slider-speed', 'fwb-slider-eff'].forEach(id => $(id).addEventListener('input', readSliders));
+  document.querySelectorAll('.fwb-habitat').forEach(btn => {
+    btn.addEventListener('click', () => {
+      habitat = btn.dataset.id;
+      document.querySelectorAll('.fwb-habitat').forEach(b => {
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.borderColor = 'rgba(255,255,255,0.15)';
+        b.style.color = '#fff';
+        b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      btn.style.background = 'rgba(127,224,195,0.16)';
+      btn.style.borderColor = '#7fe0c3';
+      btn.style.color = '#7fe0c3';
+      reset();
+    });
+  });
+  readSliders(); reset();
+  requestAnimationFrame(loop);
+})();
+</script>

@@ -1,0 +1,80 @@
+<div id="sl-prim-budget" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a0a2a,#1a0a1a);border:1px solid #3a3a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#6080f0">🧱 SL Prim Budget Planner</h2>
+    <p style="margin:0 0 20px;color:#8090b0;font-size:0.95em">Plan your land's prim usage — add objects, track LI (Land Impact), and stay within your budget</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.85em;color:#8090b0;display:block;margin-bottom:4px">Total Land Impact Budget: <span id="sl-prim-budget-val">234</span> LI</label>
+          <input id="sl-prim-budget" type="range" min="37" max="15000" step="1" value="234" style="width:100%">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input id="sl-prim-name" type="text" placeholder="Object name (e.g. Sofa)" style="flex:2;padding:8px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a2a;color:#e0d0c0;font-size:0.9em">
+          <input id="sl-prim-li" type="number" placeholder="LI" min="1" value="5" style="flex:0.5;padding:8px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a2a;color:#e0d0c0;font-size:0.9em">
+          <button id="sl-prim-add" style="padding:8px 14px;border-radius:6px;border:1px solid #6080f0;background:#1a1a4a;color:#6080f0;cursor:pointer;font-size:0.9em">+ Add</button>
+        </div>
+        <div id="sl-prim-list" style="max-height:250px;overflow-y:auto;margin-bottom:12px"></div>
+        <div id="sl-prim-results" style="background:#0d1b2a;border:1px solid #2a2a4a;border-radius:10px;padding:16px;font-size:0.9em;line-height:1.8"></div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <div style="background:#0d1b2a;border:1px solid #2a2a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#6080f0">Common Object LI Costs</b><br>
+          <table style="width:100%;font-size:0.85em;border-collapse:collapse;margin-top:8px">
+            <tr style="border-bottom:1px solid #1a1a3a"><td style="padding:3px 6px;color:#8090b0">Simple prim box</td><td style="padding:3px 6px;color:#a0b0e0">1 LI</td></tr>
+            <tr style="border-bottom:1px solid #1a1a3a"><td style="padding:3px 6px;color:#8090b0">Basic furniture</td><td style="padding:3px 6px;color:#a0b0e0">2–5 LI</td></tr>
+            <tr style="border-bottom:1px solid #1a1a3a"><td style="padding:3px 6px;color:#8090b0">Detailed furniture</td><td style="padding:3px 6px;color:#a0b0e0">8–20 LI</td></tr>
+            <tr style="border-bottom:1px solid #1a1a3a"><td style="padding:3px 6px;color:#8090b0">House (mesh)</td><td style="padding:3px 6px;color:#a0b0e0">30–150 LI</td></tr>
+            <tr style="border-bottom:1px solid #1a1a3a"><td style="padding:3px 6px;color:#8090b0">Vehicle</td><td style="padding:3px 6px;color:#a0b0e0">15–50 LI</td></tr>
+            <tr style="border-bottom:1px solid #1a1a3a"><td style="padding:3px 6px;color:#8090b0">Tree (mesh)</td><td style="padding:3px 6px;color:#a0b0e0">3–15 LI</td></tr>
+            <tr><td style="padding:3px 6px;color:#8090b0">Avatar attachment</td><td style="padding:3px 6px;color:#a0b0e0">Doesn't count</td></tr>
+          </table>
+          <br><b style="color:#6080f0">LI Explained</b><br>
+          Land Impact = max(Physics, Download, Server) cost. Mesh objects with high physics cost or many triangles use more LI. Use <b>Physics Shape Type: None</b> on decorative objects to reduce LI.<br><br>
+          <b style="color:#6080f0">Tips to Reduce LI</b><br>
+          • Use mesh instead of prims<br>
+          • Set physics to None on decorative items<br>
+          • Reduce triangle count in Blender<br>
+          • Combine small objects into one mesh<br>
+          • Use LOD (Level of Detail) wisely
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const budgetEl=document.getElementById('sl-prim-budget'),budgetVal=document.getElementById('sl-prim-budget-val');
+  const nameEl=document.getElementById('sl-prim-name'),liEl=document.getElementById('sl-prim-li');
+  const addBtn=document.getElementById('sl-prim-add'),listEl=document.getElementById('sl-prim-list');
+  const resultsEl=document.getElementById('sl-prim-results');
+  let objects=[];
+  budgetEl.oninput=function(){budgetVal.textContent=this.value;render()};
+  addBtn.onclick=function(){
+    const name=nameEl.value.trim()||'Object',li=parseInt(liEl.value)||1;
+    objects.push({name,li,id:Date.now()});nameEl.value='';liEl.value='5';render();
+  };
+  function removeObj(id){objects=objects.filter(o=>o.id!==id);render()}
+  function render(){
+    const budget=parseInt(budgetEl.value);
+    const used=objects.reduce((s,o)=>s+o.li,0);
+    const remaining=budget-used;
+    const pct=Math.round(used/budget*100);
+    let listHtml='';
+    objects.forEach(o=>{
+      listHtml+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;margin-bottom:4px;background:#0a0a1a;border-radius:6px;border:1px solid #1a1a3a">'+
+        '<span style="font-size:0.88em">'+o.name+'</span>'+
+        '<span><span style="color:#a0b0e0;font-weight:bold">'+o.li+' LI</span> <button onclick="window._slPrimRemove('+o.id+')" style="background:none;border:none;color:#f04040;cursor:pointer;font-size:0.9em">✕</button></span></div>';
+    });
+    listEl.innerHTML=listHtml||'<div style="font-size:0.85em;color:#5060a0;text-align:center;padding:12px">No objects added yet</div>';
+    const barColor=remaining<0?'#f04040':pct>80?'#f0c040':'#40f080';
+    resultsEl.innerHTML=
+      '<div style="display:flex;justify-content:space-between"><span>Used:</span><span style="color:'+barColor+';font-weight:bold">'+used+' / '+budget+' LI</span></div>'+
+      '<div style="background:#1a1a3a;border-radius:4px;height:12px;margin:6px 0"><div style="background:'+barColor+';height:100%;border-radius:4px;width:'+Math.min(100,pct)+'%;transition:width 0.3s"></div></div>'+
+      '<div style="display:flex;justify-content:space-between"><span>Remaining:</span><span style="color:'+(remaining<0?'#f04040':'#40f080')+';font-weight:bold">'+remaining+' LI</span></div>'+
+      '<div>Objects: <b>'+objects.length+'</b> · Usage: <b>'+pct+'%</b></div>'+
+      (remaining<0?'<div style="color:#f04040;font-weight:bold;margin-top:6px">⚠️ Over budget by '+(-remaining)+' LI!</div>':'');
+  }
+  window._slPrimRemove=removeObj;
+  render();
+})();
+</script>

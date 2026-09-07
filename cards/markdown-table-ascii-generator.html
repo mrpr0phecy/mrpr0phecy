@@ -1,0 +1,352 @@
+<h2 id="mtag-title" style="margin-top:0;color:var(--accent);">📊 Markdown &amp; ASCII Table Generator</h2>
+
+<p id="mtag-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Interactive spreadsheet grid editor to create, format, and convert tables to GitHub-flavored Markdown, ASCII box art, Unicode borders, HTML, and CSV.
+</p>
+
+<!-- Action Toolbar -->
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;">
+  <button type="button" id="mtag-add-row" style="padding:6px 11px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;font-size:0.78rem;">+ Add Row</button>
+  <button type="button" id="mtag-add-col" style="padding:6px 11px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;font-size:0.78rem;">+ Add Column</button>
+  <button type="button" id="mtag-del-row" style="padding:6px 11px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;font-size:0.78rem;">- Remove Row</button>
+  <button type="button" id="mtag-del-col" style="padding:6px 11px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.15);border-radius:6px;cursor:pointer;font-size:0.78rem;">- Remove Column</button>
+  <button type="button" id="mtag-sample-btn" style="padding:6px 11px;background:rgba(45,212,255,0.08);color:var(--accent);border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-size:0.78rem;">Load Sample Data</button>
+  <button type="button" id="mtag-clear-btn" style="padding:6px 11px;background:rgba(255,77,77,0.1);color:#ff7878;border:1px solid rgba(255,77,77,0.3);border-radius:6px;cursor:pointer;font-size:0.78rem;">Clear</button>
+</div>
+
+<!-- Interactive Visual Grid -->
+<div style="background:#0b1722;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;margin-bottom:16px;overflow-x:auto;">
+  <table id="mtag-grid-table" style="width:100%;border-collapse:collapse;min-width:320px;">
+    <!-- Headers, Alignments, and Rows built dynamically -->
+  </table>
+</div>
+
+<!-- Import Paste Section -->
+<details style="background:#0b1722;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;margin-bottom:16px;">
+  <summary style="cursor:pointer;font-size:0.8rem;color:var(--accent);font-weight:700;">📥 Import from CSV / TSV / Markdown</summary>
+  <div style="margin-top:10px;">
+    <textarea id="mtag-import-area" rows="4" placeholder="Paste CSV, TSV (from Excel/Sheets), or existing markdown table here..." style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,0.16);font-family:monospace;font-size:0.78rem;"></textarea>
+    <button type="button" id="mtag-import-btn" style="margin-top:6px;padding:6px 12px;background:var(--accent);color:#071019;border:0;border-radius:6px;cursor:pointer;font-weight:700;font-size:0.78rem;">Import Table</button>
+  </div>
+</details>
+
+<!-- Export Format Selector Tabs -->
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+  <button type="button" class="mtag-tab-btn" data-fmt="md" style="padding:6px 12px;background:var(--accent);color:#071019;border:0;border-radius:6px;cursor:pointer;font-weight:800;font-size:0.78rem;">Markdown (GFM)</button>
+  <button type="button" class="mtag-tab-btn" data-fmt="ascii" style="padding:6px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.14);border-radius:6px;cursor:pointer;font-size:0.78rem;">ASCII Box Art</button>
+  <button type="button" class="mtag-tab-btn" data-fmt="unicode" style="padding:6px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.14);border-radius:6px;cursor:pointer;font-size:0.78rem;">Unicode Borders</button>
+  <button type="button" class="mtag-tab-btn" data-fmt="html" style="padding:6px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.14);border-radius:6px;cursor:pointer;font-size:0.78rem;">HTML &lt;table&gt;</button>
+  <button type="button" class="mtag-tab-btn" data-fmt="csv" style="padding:6px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.14);border-radius:6px;cursor:pointer;font-size:0.78rem;">CSV Format</button>
+</div>
+
+<!-- Output Code Box -->
+<div style="position:relative;margin-bottom:14px;">
+  <textarea id="mtag-output" rows="9" readonly spellcheck="false" style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;background:rgba(0,0,0,0.35);color:#91f7ff;border:1px solid rgba(45,212,255,0.3);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.78rem;line-height:1.45;resize:vertical;"></textarea>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+  <button type="button" id="mtag-copy-btn" style="padding:9px 15px;background:var(--accent);color:#071019;border:0;border-radius:8px;cursor:pointer;font-weight:800;font-size:0.82rem;">📋 Copy Table</button>
+  <span id="mtag-status" aria-live="polite" style="font-size:0.78rem;color:var(--text-secondary);"></span>
+</div>
+
+<script>
+(function(){
+  var host = document.currentScript.parentNode;
+  var $ = function(id){ return host.querySelector('#' + id); };
+  var $$ = function(sel){ return host.querySelectorAll(sel); };
+
+  var headers = ['Feature', 'Starter', 'Pro', 'Enterprise'];
+  var aligns = ['left', 'center', 'center', 'center'];
+  var rows = [
+    ['Offline Tools', '50', '250', 'Unlimited'],
+    ['Export Formats', 'Markdown', 'All Formats', 'All + API'],
+    ['API Requests', '1,000/mo', '50,000/mo', 'Unlimited'],
+    ['Custom Domain', 'No', 'Yes', 'Yes']
+  ];
+  var currentFormat = 'md';
+
+  function renderGrid() {
+    var table = $('mtag-grid-table');
+    table.innerHTML = '';
+
+    // Align row
+    var alignTr = document.createElement('tr');
+    alignTr.innerHTML = '<td style="padding:4px;font-size:0.7rem;color:var(--text-secondary);width:30px;">Align:</td>';
+    for (var c = 0; c < headers.length; c++) {
+      var td = document.createElement('td');
+      td.style.padding = '4px';
+      var select = document.createElement('select');
+      select.setAttribute('data-col', c);
+      select.style.cssText = 'width:100%;padding:4px;border-radius:4px;background:#071019;color:var(--accent);border:1px solid rgba(45,212,255,0.3);font-size:0.72rem;';
+      select.innerHTML = '<option value="left"' + (aligns[c] === 'left' ? ' selected' : '') + '>Left</option>' +
+                         '<option value="center"' + (aligns[c] === 'center' ? ' selected' : '') + '>Center</option>' +
+                         '<option value="right"' + (aligns[c] === 'right' ? ' selected' : '') + '>Right</option>';
+      select.addEventListener('change', function(){
+        var colIdx = parseInt(this.getAttribute('data-col'), 10);
+        aligns[colIdx] = this.value;
+        renderOutput();
+      });
+      td.appendChild(select);
+      alignTr.appendChild(td);
+    }
+    table.appendChild(alignTr);
+
+    // Header row
+    var headTr = document.createElement('tr');
+    headTr.innerHTML = '<th style="padding:4px;font-size:0.7rem;color:var(--text-secondary);">Hdr:</th>';
+    for (var c = 0; c < headers.length; c++) {
+      var th = document.createElement('th');
+      th.style.padding = '4px';
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = headers[c];
+      input.setAttribute('data-col', c);
+      input.style.cssText = 'width:100%;box-sizing:border-box;padding:6px;border-radius:5px;background:#142230;color:var(--text);border:1px solid rgba(255,255,255,0.2);font-weight:700;font-size:0.8rem;';
+      input.addEventListener('input', function(){
+        var colIdx = parseInt(this.getAttribute('data-col'), 10);
+        headers[colIdx] = this.value;
+        renderOutput();
+      });
+      th.appendChild(input);
+      headTr.appendChild(th);
+    }
+    table.appendChild(headTr);
+
+    // Body rows
+    for (var r = 0; r < rows.length; r++) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td style="padding:4px;font-size:0.7rem;color:var(--text-secondary);text-align:center;">' + (r + 1) + '</td>';
+      for (var c = 0; c < headers.length; c++) {
+        var td = document.createElement('td');
+        td.style.padding = '4px';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = (rows[r] && rows[r][c] !== undefined) ? rows[r][c] : '';
+        input.setAttribute('data-row', r);
+        input.setAttribute('data-col', c);
+        input.style.cssText = 'width:100%;box-sizing:border-box;padding:6px;border-radius:5px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,0.12);font-size:0.78rem;';
+        input.addEventListener('input', function(){
+          var rowIdx = parseInt(this.getAttribute('data-row'), 10);
+          var colIdx = parseInt(this.getAttribute('data-col'), 10);
+          if (!rows[rowIdx]) rows[rowIdx] = [];
+          rows[rowIdx][colIdx] = this.value;
+          renderOutput();
+        });
+        td.appendChild(input);
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    }
+
+    renderOutput();
+  }
+
+  function getColWidths() {
+    var widths = headers.map(function(h){ return (h || '').length; });
+    rows.forEach(function(row){
+      row.forEach(function(cell, c){
+        if (c < widths.length) {
+          widths[c] = Math.max(widths[c], (cell || '').length);
+        }
+      });
+    });
+    return widths.map(function(w){ return Math.max(w, 3); });
+  }
+
+  function pad(str, len, align) {
+    str = String(str || '');
+    var diff = len - str.length;
+    if (diff <= 0) return str;
+    if (align === 'right') return ' '.repeat(diff) + str;
+    if (align === 'center') {
+      var left = Math.floor(diff / 2);
+      var right = diff - left;
+      return ' '.repeat(left) + str + ' '.repeat(right);
+    }
+    return str + ' '.repeat(diff);
+  }
+
+  function renderOutput() {
+    var widths = getColWidths();
+    var out = '';
+
+    if (currentFormat === 'md') {
+      // Markdown
+      var hLine = '| ' + headers.map(function(h, c){ return pad(h, widths[c], aligns[c]); }).join(' | ') + ' |';
+      var dLine = '| ' + headers.map(function(h, c){
+        var w = widths[c];
+        if (aligns[c] === 'center') return ':' + '-'.repeat(Math.max(w - 2, 1)) + ':';
+        if (aligns[c] === 'right') return '-'.repeat(Math.max(w - 1, 2)) + ':';
+        return ':' + '-'.repeat(Math.max(w - 1, 2));
+      }).join(' | ') + ' |';
+      var rLines = rows.map(function(r){
+        return '| ' + headers.map(function(_, c){ return pad(r[c] || '', widths[c], aligns[c]); }).join(' | ') + ' |';
+      });
+      out = [hLine, dLine].concat(rLines).join('\n');
+    } else if (currentFormat === 'ascii') {
+      // ASCII Box
+      var border = '+' + widths.map(function(w){ return '-'.repeat(w + 2); }).join('+') + '+';
+      var hLine = '| ' + headers.map(function(h, c){ return pad(h, widths[c], aligns[c]); }).join(' | ') + ' |';
+      var rLines = rows.map(function(r){
+        return '| ' + headers.map(function(_, c){ return pad(r[c] || '', widths[c], aligns[c]); }).join(' | ') + ' |';
+      });
+      out = [border, hLine, border].concat(rLines).concat([border]).join('\n');
+    } else if (currentFormat === 'unicode') {
+      // Unicode border
+      var top = '┌' + widths.map(function(w){ return '─'.repeat(w + 2); }).join('┬') + '┐';
+      var mid = '├' + widths.map(function(w){ return '─'.repeat(w + 2); }).join('┼') + '┤';
+      var bot = '└' + widths.map(function(w){ return '─'.repeat(w + 2); }).join('┴') + '┘';
+      var hLine = '│ ' + headers.map(function(h, c){ return pad(h, widths[c], aligns[c]); }).join(' │ ') + ' │';
+      var rLines = rows.map(function(r){
+        return '│ ' + headers.map(function(_, c){ return pad(r[c] || '', widths[c], aligns[c]); }).join(' │ ') + ' │';
+      });
+      out = [top, hLine, mid].concat(rLines).concat([bot]).join('\n');
+    } else if (currentFormat === 'html') {
+      // HTML table
+      var hTr = '  <thead>\n    <tr>\n' + headers.map(function(h, c){ return '      <th style="text-align:' + aligns[c] + ';">' + (h || '') + '</th>'; }).join('\n') + '\n    </tr>\n  </thead>';
+      var bTr = '  <tbody>\n' + rows.map(function(r){
+        return '    <tr>\n' + headers.map(function(_, c){ return '      <td style="text-align:' + aligns[c] + ';">' + (r[c] || '') + '</td>'; }).join('\n') + '\n    </tr>';
+      }).join('\n') + '\n  </tbody>';
+      out = '<table>\n' + hTr + '\n' + bTr + '\n</table>';
+    } else if (currentFormat === 'csv') {
+      // CSV
+      var esc = function(v){ v = String(v || ''); return (v.includes(',') || v.includes('"') || v.includes('\n')) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      var hLine = headers.map(esc).join(',');
+      var rLines = rows.map(function(r){
+        return headers.map(function(_, c){ return esc(r[c] || ''); }).join(',');
+      });
+      out = [hLine].concat(rLines).join('\n');
+    }
+
+    $('mtag-output').value = out;
+  }
+
+  // Add / Remove buttons
+  $('mtag-add-col').addEventListener('click', function(){
+    headers.push('Column ' + (headers.length + 1));
+    aligns.push('left');
+    rows.forEach(function(r){ r.push(''); });
+    renderGrid();
+  });
+
+  $('mtag-add-row').addEventListener('click', function(){
+    var newRow = [];
+    for (var c = 0; c < headers.length; c++) newRow.push('');
+    rows.push(newRow);
+    renderGrid();
+  });
+
+  $('mtag-del-col').addEventListener('click', function(){
+    if (headers.length > 1) {
+      headers.pop();
+      aligns.pop();
+      rows.forEach(function(r){ r.pop(); });
+      renderGrid();
+    }
+  });
+
+  $('mtag-del-row').addEventListener('click', function(){
+    if (rows.length > 1) {
+      rows.pop();
+      renderGrid();
+    }
+  });
+
+  $('mtag-clear-btn').addEventListener('click', function(){
+    headers = ['Col 1', 'Col 2'];
+    aligns = ['left', 'left'];
+    rows = [['', '']];
+    renderGrid();
+  });
+
+  $('mtag-sample-btn').addEventListener('click', function(){
+    headers = ['Feature', 'Starter', 'Pro', 'Enterprise'];
+    aligns = ['left', 'center', 'center', 'center'];
+    rows = [
+      ['Offline Tools', '50', '250', 'Unlimited'],
+      ['Export Formats', 'Markdown', 'All Formats', 'All + API'],
+      ['API Requests', '1,000/mo', '50,000/mo', 'Unlimited'],
+      ['Custom Domain', 'No', 'Yes', 'Yes']
+    ];
+    renderGrid();
+  });
+
+  // Import handler
+  $('mtag-import-btn').addEventListener('click', function(){
+    var raw = $('mtag-import-area').value.trim();
+    if (!raw) return;
+
+    // Check if markdown
+    if (raw.includes('|')) {
+      var lines = raw.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l.startsWith('|') && l.endsWith('|'); });
+      if (lines.length >= 2) {
+        var parseLine = function(l){
+          return l.slice(1, -1).split('|').map(function(c){ return c.trim(); });
+        };
+        headers = parseLine(lines[0]);
+        aligns = headers.map(function(){ return 'left'; });
+        rows = [];
+        for (var i = 1; i < lines.length; i++) {
+          if (lines[i].includes('---')) {
+            // align definitions
+            var segs = parseLine(lines[i]);
+            segs.forEach(function(s, idx){
+              if (idx < aligns.length) {
+                if (s.startsWith(':') && s.endsWith(':')) aligns[idx] = 'center';
+                else if (s.endsWith(':')) aligns[idx] = 'right';
+                else aligns[idx] = 'left';
+              }
+            });
+          } else {
+            rows.push(parseLine(lines[i]));
+          }
+        }
+        renderGrid();
+        return;
+      }
+    }
+
+    // CSV / TSV parse
+    var delimiter = raw.includes('\t') ? '\t' : ',';
+    var rawLines = raw.split('\n').filter(function(l){ return l.trim(); });
+    if (rawLines.length > 0) {
+      headers = rawLines[0].split(delimiter).map(function(c){ return c.trim().replace(/^"(.*)"$/, '$1'); });
+      aligns = headers.map(function(){ return 'left'; });
+      rows = [];
+      for (var j = 1; j < rawLines.length; j++) {
+        rows.push(rawLines[j].split(delimiter).map(function(c){ return c.trim().replace(/^"(.*)"$/, '$1'); }));
+      }
+      renderGrid();
+    }
+  });
+
+  // Tabs
+  $$('.mtag-tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      $$('.mtag-tab-btn').forEach(function(b){
+        b.style.background = 'rgba(255,255,255,0.06)';
+        b.style.color = 'var(--text)';
+        b.style.border = '1px solid rgba(255,255,255,0.14)';
+        b.style.fontWeight = 'normal';
+      });
+      this.style.background = 'var(--accent)';
+      this.style.color = '#071019';
+      this.style.border = '0';
+      this.style.fontWeight = '800';
+      currentFormat = this.getAttribute('data-fmt');
+      renderOutput();
+    });
+  });
+
+  // Copy
+  $('mtag-copy-btn').addEventListener('click', function(){
+    var val = $('mtag-output').value;
+    navigator.clipboard.writeText(val).then(function(){
+      $('mtag-status').textContent = '✓ Table copied to clipboard!';
+      setTimeout(function(){ $('mtag-status').textContent = ''; }, 3000);
+    });
+  });
+
+  renderGrid();
+})();
+</script>

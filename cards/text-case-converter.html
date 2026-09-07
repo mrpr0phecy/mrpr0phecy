@@ -1,0 +1,91 @@
+<h2 id="tcase-title" style="margin-top:0;color:var(--accent);">🔡 Text Case Converter</h2>
+
+<form aria-describedby="tcase-desc" onsubmit="event.preventDefault();" style="margin-bottom:14px;">
+  <p id="tcase-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:14px;">
+    Paste anything and get it back in every case at once: UPPER, lower, Title Case, Sentence case, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE, dot.case, aLtErNaTiNg and reversed. Click any result to copy it.
+  </p>
+  <label for="tcase-in" style="display:block;font-size:0.8rem;color:rgba(230,250,255,0.75);margin-bottom:5px;">Your text</label>
+  <textarea id="tcase-in" rows="4" placeholder="the most useful site in the world" spellcheck="false" style="width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.95rem;line-height:1.5;resize:vertical;"></textarea>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+    <button type="button" id="tcase-clear" style="padding:8px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(230,250,255,0.85);cursor:pointer;font-size:0.85rem;">Clear</button>
+    <button type="button" id="tcase-paste" style="padding:8px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(230,250,255,0.85);cursor:pointer;font-size:0.85rem;">Paste</button>
+    <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:0.8rem;color:rgba(230,250,255,0.7);margin-left:auto;"><input type="checkbox" id="tcase-lines" /> treat each line separately</label>
+  </div>
+</form>
+
+<div id="tcase-out" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;"></div>
+<div id="tcase-stats" style="font-size:0.78rem;color:rgba(230,250,255,0.5);margin-top:8px;"></div>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var inEl = $('tcase-in'), out = $('tcase-out'), stats = $('tcase-stats');
+  var SMALL = { a: 1, an: 1, and: 1, as: 1, at: 1, but: 1, by: 1, for: 1, in: 1, nor: 1, of: 1, on: 1, or: 1, the: 1, to: 1, up: 1, via: 1, vs: 1 };
+
+  // split into words: handles camelCase, snake_case, kebab-case, punctuation, digits
+  function tokens(s) {
+    return s.replace(/([a-z\d])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .replace(/[_\-\.\/\\]+/g, ' ').replace(/[^\p{L}\p{N}\s']/gu, ' ').trim().split(/\s+/).filter(Boolean);
+  }
+  var cap = function (w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); };
+
+  var CASES = [
+    ['UPPER CASE', function (s) { return s.toUpperCase(); }],
+    ['lower case', function (s) { return s.toLowerCase(); }],
+    ['Title Case', function (s) {
+      var ws = s.toLowerCase().split(/(\s+)/), n = ws.length;
+      return ws.map(function (w, i) { if (/^\s+$/.test(w) || !w) return w; var last = i === n - 1 || i === 0; return (!last && SMALL[w]) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join('');
+    }],
+    ['Sentence case', function (s) { return s.toLowerCase().replace(/(^\s*\p{L}|[.!?]\s+\p{L})/gu, function (m) { return m.toUpperCase(); }).replace(/\bi\b/g, 'I'); }],
+    ['Capitalize Every Word', function (s) { return s.toLowerCase().replace(/(^|\s)(\p{L})/gu, function (m, a, b) { return a + b.toUpperCase(); }); }],
+    ['camelCase', function (s) { return tokens(s).map(function (w, i) { return i ? cap(w) : w.toLowerCase(); }).join(''); }],
+    ['PascalCase', function (s) { return tokens(s).map(cap).join(''); }],
+    ['snake_case', function (s) { return tokens(s).map(function (w) { return w.toLowerCase(); }).join('_'); }],
+    ['kebab-case', function (s) { return tokens(s).map(function (w) { return w.toLowerCase(); }).join('-'); }],
+    ['CONSTANT_CASE', function (s) { return tokens(s).map(function (w) { return w.toUpperCase(); }).join('_'); }],
+    ['dot.case', function (s) { return tokens(s).map(function (w) { return w.toLowerCase(); }).join('.'); }],
+    ['path/case', function (s) { return tokens(s).map(function (w) { return w.toLowerCase(); }).join('/'); }],
+    ['Train-Case', function (s) { return tokens(s).map(cap).join('-'); }],
+    ['aLtErNaTiNg', function (s) { var u = false; return s.split('').map(function (c) { if (!/\p{L}/u.test(c)) return c; u = !u; return u ? c.toLowerCase() : c.toUpperCase(); }).join(''); }],
+    ['iNVERSE cASE', function (s) { return s.split('').map(function (c) { return c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase(); }).join(''); }],
+    ['desrever', function (s) { return Array.from(s).reverse().join(''); }],
+    ['Slug (URL)', function (s) { return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }],
+    ['Remove extra spaces', function (s) { return s.replace(/[ \t]+/g, ' ').replace(/^ | $/gm, ''); }]
+  ];
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function render() {
+    var src = inEl.value;
+    var txt = src.trim() ? src : (inEl.placeholder || '');
+    var perLine = $('tcase-lines').checked;
+    out.innerHTML = CASES.map(function (c, i) {
+      var v;
+      try { v = perLine ? txt.split('\n').map(c[1]).join('\n') : c[1](txt); } catch (e) { v = '—'; }
+      return '<button type="button" class="tcase-item" data-i="' + i + '" title="Click to copy" style="text-align:left;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 12px;cursor:pointer;color:inherit;min-width:0;">' +
+        '<div style="font-size:0.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;display:flex;justify-content:space-between;"><span>' + esc(c[0]) + '</span><span class="tcase-tick" style="color:#39ff14;opacity:0;">copied</span></div>' +
+        '<div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85rem;color:#e6faff;white-space:pre-wrap;word-break:break-word;max-height:5.2em;overflow:hidden;">' + esc(v) + '</div></button>';
+    }).join('');
+    var words = txt.trim() ? txt.trim().split(/\s+/).length : 0;
+    stats.textContent = txt.length + ' characters · ' + words + ' words · ' + txt.split('\n').length + ' line' + (txt.split('\n').length === 1 ? '' : 's') + (src.trim() ? '' : ' · showing the example — type to convert your own text');
+  }
+
+  out.addEventListener('click', function (e) {
+    var btn = e.target.closest('.tcase-item'); if (!btn) return;
+    var i = +btn.getAttribute('data-i'), txt = inEl.value.trim() ? inEl.value : inEl.placeholder;
+    var v = $('tcase-lines').checked ? txt.split('\n').map(CASES[i][1]).join('\n') : CASES[i][1](txt);
+    var tick = btn.querySelector('.tcase-tick');
+    var done = function () { tick.style.opacity = 1; setTimeout(function () { tick.style.opacity = 0; }, 1000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, done); else done();
+  });
+  inEl.addEventListener('input', render);
+  $('tcase-lines').addEventListener('change', render);
+  $('tcase-clear').addEventListener('click', function () { inEl.value = ''; render(); inEl.focus(); });
+  $('tcase-paste').addEventListener('click', function () {
+    if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(function (t) { inEl.value = t; render(); }, function () { inEl.focus(); });
+    else inEl.focus();
+  });
+  render();
+})();
+</script>

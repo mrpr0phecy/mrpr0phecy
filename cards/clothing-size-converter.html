@@ -1,0 +1,114 @@
+<h2 id="clsz-title" style="margin-top:0;color:var(--accent);">👕 Clothing Size Converter</h2>
+
+<form aria-describedby="clsz-desc" onsubmit="event.preventDefault();">
+  <p id="clsz-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Convert common adult clothing sizes between US, UK and EU for tops, dresses and men’s shirts. Charts are industry averages — cut, stretch and brand vanity sizing still win. Measure twice.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="clsz-kind" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Garment</label>
+      <select id="clsz-kind" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="wtop">Women’s top / dress</option>
+        <option value="mshirt">Men’s shirt / jacket</option>
+        <option value="wpant">Women’s trousers</option>
+        <option value="mpant">Men’s trousers (waist in)</option>
+      </select>
+    </div>
+    <div>
+      <label for="clsz-sys" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">I know</label>
+      <select id="clsz-sys" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"></select>
+    </div>
+    <div>
+      <label for="clsz-val" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Size</label>
+      <select id="clsz-val" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);"></select>
+    </div>
+  </div>
+</form>
+<div id="clsz-out" style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;"></div>
+<p style="margin:12px 0 0;font-size:.75rem;color:var(--text-secondary);">Letter sizes (XS–XL) map to the middle of each band. When in doubt, size up for structured jackets and down for stretch knits.</p>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var CHARTS = {
+    wtop: [
+      { us: '0', uk: '4', eu: '32', alpha: 'XXS' },
+      { us: '2', uk: '6', eu: '34', alpha: 'XS' },
+      { us: '4', uk: '8', eu: '36', alpha: 'XS' },
+      { us: '6', uk: '10', eu: '38', alpha: 'S' },
+      { us: '8', uk: '12', eu: '40', alpha: 'S' },
+      { us: '10', uk: '14', eu: '42', alpha: 'M' },
+      { us: '12', uk: '16', eu: '44', alpha: 'M' },
+      { us: '14', uk: '18', eu: '46', alpha: 'L' },
+      { us: '16', uk: '20', eu: '48', alpha: 'L' },
+      { us: '18', uk: '22', eu: '50', alpha: 'XL' },
+      { us: '20', uk: '24', eu: '52', alpha: 'XL' }
+    ],
+    mshirt: [
+      { us: '34', uk: '34', eu: '44', alpha: 'XS' },
+      { us: '36', uk: '36', eu: '46', alpha: 'S' },
+      { us: '38', uk: '38', eu: '48', alpha: 'S' },
+      { us: '40', uk: '40', eu: '50', alpha: 'M' },
+      { us: '42', uk: '42', eu: '52', alpha: 'M' },
+      { us: '44', uk: '44', eu: '54', alpha: 'L' },
+      { us: '46', uk: '46', eu: '56', alpha: 'L' },
+      { us: '48', uk: '48', eu: '58', alpha: 'XL' },
+      { us: '50', uk: '50', eu: '60', alpha: 'XL' }
+    ],
+    wpant: [
+      { us: '2', uk: '6', eu: '34', alpha: 'XS' },
+      { us: '4', uk: '8', eu: '36', alpha: 'XS' },
+      { us: '6', uk: '10', eu: '38', alpha: 'S' },
+      { us: '8', uk: '12', eu: '40', alpha: 'S' },
+      { us: '10', uk: '14', eu: '42', alpha: 'M' },
+      { us: '12', uk: '16', eu: '44', alpha: 'M' },
+      { us: '14', uk: '18', eu: '46', alpha: 'L' },
+      { us: '16', uk: '20', eu: '48', alpha: 'L' }
+    ],
+    mpant: [
+      { us: '28', uk: '28', eu: '38', alpha: 'XS' },
+      { us: '30', uk: '30', eu: '40', alpha: 'S' },
+      { us: '32', uk: '32', eu: '42', alpha: 'S' },
+      { us: '34', uk: '34', eu: '44', alpha: 'M' },
+      { us: '36', uk: '36', eu: '46', alpha: 'M' },
+      { us: '38', uk: '38', eu: '48', alpha: 'L' },
+      { us: '40', uk: '40', eu: '50', alpha: 'L' },
+      { us: '42', uk: '42', eu: '52', alpha: 'XL' }
+    ]
+  };
+  var LABELS = { us: 'US', uk: 'UK', eu: 'EU', alpha: 'Alpha' };
+
+  function fill() {
+    var kind = $('clsz-kind').value;
+    var sys = $('clsz-sys').value || 'us';
+    $('clsz-sys').innerHTML = Object.keys(LABELS).map(function (k) {
+      return '<option value="' + k + '"' + (k === sys ? ' selected' : '') + '>' + LABELS[k] + '</option>';
+    }).join('');
+    var rows = CHARTS[kind];
+    var seen = {};
+    var opts = [];
+    rows.forEach(function (r) {
+      if (!seen[r[sys]]) { seen[r[sys]] = true; opts.push(r[sys]); }
+    });
+    var prev = $('clsz-val').value;
+    $('clsz-val').innerHTML = opts.map(function (v) {
+      return '<option' + (v === prev ? ' selected' : '') + '>' + v + '</option>';
+    }).join('');
+    run();
+  }
+  function run() {
+    var kind = $('clsz-kind').value, sys = $('clsz-sys').value, val = $('clsz-val').value;
+    var hit = CHARTS[kind].filter(function (r) { return r[sys] === val; });
+    if (!hit.length) hit = [CHARTS[kind][0]];
+    var r = hit[Math.floor(hit.length / 2)];
+    $('clsz-out').innerHTML = ['us', 'uk', 'eu', 'alpha'].map(function (k) {
+      return '<div style="padding:12px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);text-align:center;"><div style="font-size:.7rem;color:var(--text-secondary);">' + LABELS[k] + '</div><div style="font-size:1.25rem;font-weight:800;color:var(--accent);margin-top:4px;">' + r[k] + '</div></div>';
+    }).join('');
+  }
+  $('clsz-kind').addEventListener('change', fill);
+  $('clsz-sys').addEventListener('change', fill);
+  $('clsz-val').addEventListener('change', run);
+  fill();
+})();
+</script>

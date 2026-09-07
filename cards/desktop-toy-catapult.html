@@ -1,0 +1,110 @@
+<div id="catapult-toy" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#1a1008,#0d1b2a);border:1px solid #5a3a1a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#e08020">🏹 Catapult Simulator</h2>
+    <p style="margin:0 0 20px;color:#b09070;font-size:0.95em">Build a medieval trebuchet, load projectiles, set the counterweight, and launch!</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <canvas id="cp-canvas" width="480" height="400" style="width:100%;border-radius:12px;background:#0a0808;cursor:pointer"></canvas>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="cp-launch" style="padding:6px 14px;border-radius:8px;border:1px solid #5a3a1a;background:#2a1a08;color:#e08020;cursor:pointer;font-size:0.85em">🚀 Launch!</button>
+          <button id="cp-reset" style="padding:6px 14px;border-radius:8px;border:1px solid #5a3a1a;background:#2a1a08;color:#e08020;cursor:pointer;font-size:0.85em">🔄 Reset</button>
+          <label style="font-size:0.82em;color:#b09070">Angle <input id="cp-angle" type="range" min="20" max="80" step="1" value="45" style="width:80px;vertical-align:middle"></label>
+          <label style="font-size:0.82em;color:#b09070">Weight <input id="cp-weight" type="range" min="1" max="10" step="0.5" value="5" style="width:80px;vertical-align:middle"></label>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #3a2a1a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#e08020">How it works</b><br>
+          A trebuchet uses a counterweight to swing the throwing arm. The heavier the weight and the better the angle, the farther the projectile flies. Wind and air resistance add realism.<br><br>
+          <b style="color:#e08020">Controls</b><br>
+          • <b>Angle</b> — release angle of the arm<br>
+          • <b>Weight</b> — counterweight mass<br>
+          • <b>Launch</b> — fire the trebuchet<br>
+          • <b>Reset</b> — reload and reset position
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const c=document.getElementById('cp-canvas'),ctx=c.getContext('2d');
+  const launchBtn=document.getElementById('cp-launch'),resetBtn=document.getElementById('cp-reset');
+  const angleEl=document.getElementById('cp-angle'),weightEl=document.getElementById('cp-weight');
+  let W=c.width,H=c.height,projectile=null,trail=[],launched=false,armAngle=0,armAnimating=false;
+  const baseX=120,baseY=H-40,armLen=120;
+  function resetProjectile(){
+    projectile={x:baseX,y:baseY-150,vx:0,vy:0,r:8,active:false};
+    trail=[];launched=false;armAnimating=false;armAngle=0;
+  }
+  resetProjectile();
+  launchBtn.onclick=function(){
+    if(launched)return;
+    launched=true;armAnimating=true;
+    const angle=parseFloat(angleEl.value)*Math.PI/180;
+    const power=parseFloat(weightEl.value)*8+20;
+    setTimeout(function(){
+      projectile.active=true;
+      projectile.vx=Math.cos(angle)*power;
+      projectile.vy=-Math.sin(angle)*power;
+      armAnimating=false;
+    },300);
+  };
+  resetBtn.onclick=resetProjectile;
+  function step(){
+    if(armAnimating){armAngle=Math.min(1.2,armAngle+0.08)}
+    if(!projectile||!projectile.active)return;
+    projectile.vy+=0.15;
+    projectile.vx+=0.01;
+    projectile.vx*=0.999;
+    projectile.x+=projectile.vx;projectile.y+=projectile.vy;
+    trail.push({x:projectile.x,y:projectile.y});if(trail.length>200)trail.shift();
+    if(projectile.y>H-projectile.r){
+      projectile.y=H-projectile.r;projectile.vy=-projectile.vy*0.4;projectile.vx*=0.8;
+      if(Math.abs(projectile.vy)<0.5)projectile.active=false;
+    }
+    if(projectile.x>W-projectile.r){projectile.x=W-projectile.r;projectile.vx=-projectile.vx*0.5}
+    if(projectile.x<projectile.r){projectile.x=projectile.r;projectile.vx=Math.abs(projectile.vx)*0.5}
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const sky=ctx.createLinearGradient(0,0,0,H);
+    sky.addColorStop(0,'#0a0814');sky.addColorStop(0.7,'#0d1b2a');sky.addColorStop(1,'#1a1008');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#2a1a08';ctx.fillRect(0,H-30,W,30);
+    ctx.fillStyle='#3a2a18';ctx.fillRect(0,H-30,W,3);
+    ctx.fillStyle='#4a3a20';
+    ctx.fillRect(baseX-8,baseY-120,16,120);
+    ctx.fillRect(baseX-30,baseY-10,60,10);
+    const armEndX=baseX+Math.cos(-Math.PI/2+armAngle)*armLen;
+    const armEndY=baseY-120+Math.sin(-Math.PI/2+armAngle)*armLen;
+    ctx.beginPath();ctx.moveTo(baseX,baseY-120);ctx.lineTo(armEndX,armEndY);
+    ctx.strokeStyle='#6a5a30';ctx.lineWidth=6;ctx.lineCap='round';ctx.stroke();
+    const cwX=baseX-Math.cos(-Math.PI/2+armAngle)*armLen*0.4;
+    const cwY=baseY-120-Math.sin(-Math.PI/2+armAngle)*armLen*0.4;
+    ctx.fillStyle='#8a6a30';ctx.fillRect(cwX-12,cwY-8,24,16);
+    const weight=parseFloat(weightEl.value);
+    ctx.fillStyle='#e08020';ctx.font='10px system-ui';ctx.textAlign='center';
+    ctx.fillText(weight+'kg',cwX,cwY+4);
+    if(trail.length>1){
+      ctx.beginPath();trail.forEach((t,i)=>{i===0?ctx.moveTo(t.x,t.y):ctx.lineTo(t.x,t.y)});
+      ctx.strokeStyle='rgba(224,128,32,0.3)';ctx.lineWidth=2;ctx.stroke();
+    }
+    if(projectile){
+      const grd=ctx.createRadialGradient(projectile.x-2,projectile.y-2,1,projectile.x,projectile.y,projectile.r);
+      grd.addColorStop(0,'#ffa040');grd.addColorStop(0.5,'#c06020');grd.addColorStop(1,'#603010');
+      ctx.beginPath();ctx.arc(projectile.x,projectile.y,projectile.r,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    }
+    if(projectile&&!projectile.active&&launched){
+      const dist=Math.sqrt((projectile.x-baseX)**2+(projectile.y-baseY)**2);
+      ctx.fillStyle='#e08020';ctx.font='bold 14px system-ui';ctx.textAlign='center';
+      ctx.fillText(`Distance: ${Math.floor(dist/5)}m`,W/2,30);
+    }
+    const angle=parseFloat(angleEl.value);
+    ctx.fillStyle='#e08020';ctx.font='11px system-ui';ctx.textAlign='left';
+    ctx.fillText(`Angle: ${angle}° · Weight: ${parseFloat(weightEl.value)}kg${launched?' · Launched!':' · Ready'}`,8,H-8);
+  }
+  function loop(){step();draw();requestAnimationFrame(loop)}
+  loop();
+})();
+</script>

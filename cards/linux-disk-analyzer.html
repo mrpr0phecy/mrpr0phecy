@@ -1,0 +1,130 @@
+<div id="linux-disk" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a0a1a,#0d1b2a);border:1px solid #2a3a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#40a0f0">💾 Disk Space Analyzer & Planner</h2>
+    <p style="margin:0 0 20px;color:#8090b0;font-size:0.95em">Calculate partition sizes, plan disk layouts, convert units, and get the commands to set it all up</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.82em;color:#8090b0;display:block;margin-bottom:4px">Total Disk Size</label>
+          <div style="display:flex;gap:8px">
+            <input id="ld-total" type="number" value="500" style="flex:1;padding:8px;border-radius:6px;border:1px solid #2a3a5a;background:#0a0a1a;color:#e0d0c0;font-size:0.9em">
+            <select id="ld-unit" style="padding:8px;border-radius:6px;border:1px solid #2a3a5a;background:#0a0a1a;color:#e0d0c0;font-size:0.9em">
+              <option value="gb">GB</option><option value="tb">TB</option><option value="mb">MB</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.82em;color:#8090b0;display:block;margin-bottom:4px">Filesystem</label>
+          <select id="ld-fs" style="width:100%;padding:8px;border-radius:6px;border:1px solid #2a3a5a;background:#0a0a1a;color:#e0d0c0;font-size:0.9em">
+            <option value="ext4">ext4 (Linux default)</option>
+            <option value="xfs">XFS (CentOS/RHEL default)</option>
+            <option value="btrfs">Btrfs (snapshots, RAID)</option>
+            <option value="zfs">ZFS (enterprise, RAID-Z)</option>
+            <option value="ntfs">NTFS (Windows compat)</option>
+          </select>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.82em;color:#8090b0;display:block;margin-bottom:4px">Use Case</label>
+          <select id="ld-use" style="width:100%;padding:8px;border-radius:6px;border:1px solid #2a3a5a;background:#0a0a1a;color:#e0d0c0;font-size:0.9em">
+            <option value="server">Web Server</option>
+            <option value="database">Database Server</option>
+            <option value="desktop">Desktop / Workstation</option>
+            <option value="dev">Development Machine</option>
+            <option value="nas">NAS / File Server</option>
+          </select>
+        </div>
+        <div id="ld-results" style="background:#0d1b2a;border:1px solid #1a2a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.8"></div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #1a2a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#40a0f0">Unit Converter</b><br>
+          <div style="margin:8px 0">
+            <input id="ld-conv-val" type="number" value="1" style="width:80px;padding:4px;border-radius:4px;border:1px solid #2a3a5a;background:#0a0a1a;color:#e0d0c0;font-size:0.85em">
+            <select id="ld-conv-from" style="padding:4px;border-radius:4px;border:1px solid #2a3a5a;background:#0a0a1a;color:#e0d0c0;font-size:0.85em">
+              <option value="tb">TB</option><option value="gb" selected>GB</option><option value="mb">MB</option><option value="kb">KB</option><option value="b">B</option>
+            </select>
+            <span style="color:#4060a0">=</span>
+            <span id="ld-conv-result" style="color:#80c0f0;font-family:monospace"></span>
+          </div>
+          <br><b style="color:#40a0f0">Partition Layout Tips</b><br>
+          • <b>/</b> (root) — 20–50 GB for OS + packages<br>
+          • <b>/home</b> — user data, largest partition<br>
+          • <b>/var</b> — logs, databases, mail queues<br>
+          • <b>/tmp</b> — 2–10 GB, consider tmpfs<br>
+          • <b>swap</b> — RAM size or 2× RAM (if hibernate)<br>
+          • <b>/boot</b> — 512 MB–1 GB (EFI: /boot/efi 512MB)<br><br>
+          <b style="color:#40a0f0">Useful Commands</b><br>
+          <code style="font-size:0.78em;color:#80c0f0">df -hT</code> — disk usage with types<br>
+          <code style="font-size:0.78em;color:#80c0f0">du -sh /*</code> — directory sizes<br>
+          <code style="font-size:0.78em;color:#80c0f0">lsblk -f</code> — block devices<br>
+          <code style="font-size:0.78em;color:#80c0f0">fdisk -l</code> — partition table
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const totalEl=document.getElementById('ld-total'),unitEl=document.getElementById('ld-unit');
+  const fsEl=document.getElementById('ld-fs'),useEl=document.getElementById('ld-use');
+  const resultsEl=document.getElementById('ld-results');
+  const convValEl=document.getElementById('ld-conv-val'),convFromEl=document.getElementById('ld-conv-from');
+  const convResultEl=document.getElementById('ld-conv-result');
+  const layouts={
+    server:{root:30,home:5,var:20,tmp:5,swap:4,boot:1},
+    database:{root:30,home:5,var:60,tmp:10,swap:16,boot:1},
+    desktop:{root:40,home:60,var:10,tmp:5,swap:8,boot:1},
+    dev:{root:50,home:40,var:15,tmp:10,swap:8,boot:1},
+    nas:{root:20,home:80,var:5,tmp:2,swap:2,boot:1}
+  };
+  function fmtGB(gb){if(gb>=1024)return(gb/1024).toFixed(1)+' TB';if(gb>=1)return gb.toFixed(1)+' GB';return(gb*1024).toFixed(0)+' MB'}
+  function calc(){
+    let total=parseFloat(totalEl.value)||0;
+    const u=unitEl.value;if(u==='tb')total*=1024;if(u==='mb')total/=1024;
+    const fs=fsEl.value,use=useEl.value;
+    const layout=layouts[use];
+    const fsOverhead={ext4:0.05,xfs:0.02,btrfs:0.06,zfs:0.08,ntfs:0.04};
+    const overhead=total*(fsOverhead[fs]||0.05);
+    const usable=total-overhead;
+    let html='<div style="color:#40a0f0;font-weight:bold;margin-bottom:8px">Disk Layout: '+fmtGB(total)+' '+fs.toUpperCase()+'</div>';
+    html+='<div>📦 Total: <b>'+fmtGB(total)+'</b> · Filesystem overhead: <b>'+fmtGB(overhead)+'</b> · Usable: <b>'+fmtGB(usable)+'</b></div>';
+    html+='<div style="margin-top:10px">';
+    const colors={root:'#4080f0',home:'#40c080',var:'#f0a040',tmp:'#f06040',swap:'#a060f0',boot:'#808080'};
+    let used=0;
+    Object.entries(layout).forEach(([part,pct])=>{
+      const size=usable*pct/100;used+=size;
+      const barW=Math.max(2,pct);
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+        '<span style="width:50px;font-size:0.82em;color:#8090b0;text-align:right">/'+(part==='root'?'':part)+'</span>'+
+        '<div style="flex:1;background:#1a1a3a;border-radius:3px;height:16px"><div style="background:'+colors[part]+';width:'+barW+'%;height:100%;border-radius:3px"></div></div>'+
+        '<span style="width:70px;font-size:0.82em;color:#a0b0e0">'+fmtGB(size)+'</span>'+
+        '<span style="width:30px;font-size:0.75em;color:#6060a0">'+pct+'%</span></div>';
+    });
+    html+='</div>';
+    html+='<div style="margin-top:10px;font-family:monospace;font-size:0.82em;background:#060a10;padding:10px;border-radius:6px;color:#80c0f0">';
+    html+='# Create partitions (example for /dev/sda)<br>';
+    Object.entries(layout).forEach(([part,pct])=>{
+      const size=usable*pct/100;
+      const mount=part==='root'?'/':'/'+part;
+      html+='mkfs.'+fs+' /dev/sda_'+part+'  # '+mount+' ('+fmtGB(size)+')<br>';
+    });
+    html+='</div>';
+    resultsEl.innerHTML=html;
+  }
+  function conv(){
+    const val=parseFloat(convValEl.value)||0;
+    const from=convFromEl.value;
+    const bytes={tb:1099511627776,gb:1073741824,mb:1048576,kb:1024,b:1};
+    const b=val*bytes[from];
+    const results=[];
+    if(b>=bytes.tb)results.push((b/bytes.tb).toFixed(4)+' TB');
+    if(b>=bytes.gb)results.push((b/bytes.gb).toFixed(2)+' GB');
+    if(b>=bytes.mb)results.push((b/bytes.mb).toFixed(2)+' MB');
+    results.push(b.toLocaleString()+' bytes');
+    convResultEl.textContent=results.join(' = ');
+  }
+  totalEl.oninput=unitEl.onchange=fsEl.onchange=useEl.onchange=calc;
+  convValEl.oninput=convFromEl.onchange=conv;
+  calc();conv();
+})();
+</script>

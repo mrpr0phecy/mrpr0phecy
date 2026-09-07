@@ -1,0 +1,169 @@
+<h2 id="wpm-title" style="margin-top:0;color:var(--accent);">⌨️ Typing Speed Test</h2>
+
+<form aria-describedby="wpm-desc" onsubmit="event.preventDefault();">
+  <p id="wpm-desc" class="small" style="color:var(--muted);margin-bottom:14px;">
+    Measure your typing speed and accuracy with live feedback. Type the passage, watch your WPM build as you go, and see exactly which characters you missed. Your keystrokes never leave this page.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:14px;">
+    <div>
+      <label for="wpm-pass" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Passage:</label>
+      <select id="wpm-pass" style="width:100%;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:inherit;font-size:0.85rem;">
+        <option value="0">Pangram</option>
+        <option value="1" selected>Practice rhythm</option>
+        <option value="2">Accuracy first</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:flex-end;">
+      <button type="button" id="wpm-reset" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-weight:700;cursor:pointer;">↺ Reset</button>
+    </div>
+  </div>
+
+  <div style="background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:8px;">Type this</div>
+    <div id="wpm-target" style="font-size:1rem;line-height:1.9;color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;margin-bottom:12px;"></div>
+    <label for="wpm-input" style="display:block;font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:4px;">Your typing:</label>
+    <textarea id="wpm-input" rows="3" style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:inherit;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1rem;line-height:1.6;"></textarea>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+      <button type="button" id="wpm-finish" style="padding:10px 20px;border-radius:8px;background:linear-gradient(135deg,#00ffcc,#00bbff);border:none;color:#050811;font-weight:800;cursor:pointer;">🏁 Finish</button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;text-align:center;">
+    <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;">Live WPM</div>
+      <div id="wpm-live" style="font-size:1.7rem;font-weight:900;color:#00ffcc;">0</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;">Accuracy</div>
+      <div id="wpm-acc" style="font-size:1.7rem;font-weight:900;color:#ffd700;">—</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;">Time</div>
+      <div id="wpm-time" style="font-size:1.7rem;font-weight:900;color:#e6faff;">0:00</div>
+    </div>
+  </div>
+
+  <div id="wpm-result" style="display:none;background:rgba(14,21,37,0.85);border:1px solid rgba(0,255,204,0.3);border-radius:14px;padding:20px;margin-bottom:14px;">
+    <div style="font-size:1.2rem;font-weight:900;color:#00ffcc;margin-bottom:8px;">📊 Result</div>
+    <div id="wpm-resulttext" style="font-size:0.9rem;color:var(--muted);line-height:1.8;"></div>
+  </div>
+
+  <p style="font-size:0.75rem;color:var(--muted);border-left:3px solid rgba(255,215,0,0.5);padding-left:10px;margin-top:6px;">
+    <strong>How it's measured:</strong> one “word” = 5 characters. <strong>WPM</strong> = (correct characters − errors) ÷ 5 ÷ minutes, clamped at 0. <strong>Accuracy</strong> = correct characters ÷ characters typed. Green letters are right; red shows what you typed instead.
+  </p>
+</form>
+
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  var passSel = el('wpm-pass'), reset = el('wpm-reset'), target = el('wpm-target'),
+      input = el('wpm-input'), finish = el('wpm-finish'),
+      live = el('wpm-live'), acc = el('wpm-acc'), timeEl = el('wpm-time'),
+      result = el('wpm-result'), resulttext = el('wpm-resulttext');
+
+  var PASSAGES = [
+    'The quick brown fox jumps over the lazy dog while nine tiny kittens chase a ball of wool.',
+    'Practice a little every day and your fingers will learn the rhythm of the keyboard on their own.',
+    'Fast typing is not about speed alone. Accuracy comes first, and the speed follows naturally.'
+  ];
+
+  var t0 = 0, started = false, finished = false, timer = null;
+  var spans = [];
+
+  function fmtTime(s) {
+    return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+  }
+
+  function renderTarget(text) {
+    target.textContent = '';
+    spans = [];
+    for (var i = 0; i < text.length; i++) {
+      var s = document.createElement('span');
+      s.textContent = text[i] === ' ' ? '\u00a0' : text[i];
+      spans.push(s);
+      target.appendChild(s);
+    }
+  }
+
+  function startIfNeeded() {
+    if (!started && !finished) {
+      started = true;
+      t0 = Date.now();
+      timer = setInterval(function () {
+        timeEl.textContent = fmtTime(Math.floor((Date.now() - t0) / 1000));
+      }, 300);
+    }
+  }
+
+  function metrics() {
+    var typed = input.value;
+    var text = PASSAGES[parseInt(passSel.value, 10) || 0];
+    var correct = 0, i;
+    for (i = 0; i < typed.length && i < text.length; i++) {
+      if (typed[i] === text[i]) correct++;
+      spans[i].style.color = typed[i] === text[i] ? '#00ffcc' : '#ff4d4d';
+    }
+    for (i = typed.length; i < text.length; i++) spans[i].style.color = '';
+    var mins = Math.max((Date.now() - t0) / 60000, 0.0001);
+    var errors = Math.max(0, typed.length - correct);
+    var wpm = Math.max(0, Math.floor((correct - errors) / 5 / mins));
+    var accPct = typed.length ? Math.round((correct / typed.length) * 100) : 100;
+    return { typed: typed.length, correct: correct, errors: errors, wpm: wpm, acc: accPct, mins: mins };
+  }
+
+  function update() {
+    if (finished) return;
+    startIfNeeded();
+    var m = metrics();
+    if (m.typed < PASSAGES[parseInt(passSel.value, 10) || 0].length) {
+      live.textContent = String(m.wpm);
+      acc.textContent = m.typed ? m.acc + '%' : '—';
+    }
+    if (m.typed >= PASSAGES[parseInt(passSel.value, 10) || 0].length) finishTest();
+  }
+
+  function finishTest() {
+    if (finished) return;
+    finished = true;
+    if (timer) clearInterval(timer);
+    var m = metrics();
+    var text = PASSAGES[parseInt(passSel.value, 10) || 0];
+    var secs = Math.max(1, Math.round((Date.now() - t0) / 1000));
+    timeEl.textContent = fmtTime(secs);
+    live.textContent = String(m.wpm);
+    acc.textContent = m.acc + '%';
+    result.style.display = 'block';
+    resulttext.textContent =
+      'Final: ' + m.wpm + ' WPM (net) · ' + m.acc + '% accuracy · ' + fmtTime(secs) +
+      ' · ' + m.correct + ' of ' + text.length + ' characters correct, ' + m.errors + ' error(s).' +
+      '\n' + (m.wpm >= 50 && m.acc >= 95 ? 'Excellent — you type faster than most people.' :
+              m.acc >= 90 ? 'Solid accuracy. Speed comes with repetition — try the other passages.' :
+              'Slow down and let accuracy lead; the speed will follow.');
+    resulttext.style.whiteSpace = 'pre-line';
+    input.readOnly = true;
+  }
+
+  input.addEventListener('input', update);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finishTest(); }
+  });
+  finish.addEventListener('click', finishTest);
+
+  function resetAll() {
+    if (timer) clearInterval(timer);
+    started = false; finished = false; t0 = 0;
+    input.value = '';
+    input.readOnly = false;
+    live.textContent = '0'; acc.textContent = '—'; timeEl.textContent = '0:00';
+    result.style.display = 'none';
+    renderTarget(PASSAGES[parseInt(passSel.value, 10) || 0]);
+    input.focus();
+  }
+
+  reset.addEventListener('click', resetAll);
+  passSel.addEventListener('change', resetAll);
+  resetAll();
+})();
+</script>

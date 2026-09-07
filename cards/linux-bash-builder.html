@@ -1,0 +1,81 @@
+<div id="linux-bash" style="max-width:960px;margin:0 auto;font-family:system-ui,sans-serif;color:#e0d0c0">
+  <div style="background:linear-gradient(135deg,#0a0a1a,#0d1b2a);border:1px solid #3a3a5a;border-radius:16px;padding:32px">
+    <h2 style="margin:0 0 8px;font-size:1.6em;color:#8080f0">🐚 Bash Script Builder</h2>
+    <p style="margin:0 0 20px;color:#9090b0;font-size:0.95em">Build bash scripts from common patterns — select blocks, customize, and copy the complete script</p>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px">
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.82em;color:#9090b0;display:block;margin-bottom:4px">Script Name</label>
+          <input id="lbash-name" type="text" value="myscript.sh" style="width:100%;padding:8px;border-radius:6px;border:1px solid #3a3a5a;background:#0a0a1a;color:#e0d0c0;font-size:0.9em;box-sizing:border-box">
+        </div>
+        <div style="font-size:0.82em;color:#9090b0;margin-bottom:6px">Select blocks to include:</div>
+        <div id="lbash-blocks" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+        <div id="lbash-preview" style="font-family:monospace;font-size:0.8em;background:#06060a;padding:12px;border-radius:8px;border:1px solid #1a1a3a;max-height:350px;overflow-y:auto;white-space:pre-wrap;color:#a0a0e0;line-height:1.5"></div>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('lbash-preview').textContent)" style="margin-top:8px;padding:8px 18px;border-radius:8px;border:1px solid #8080f0;background:#1a1a3a;color:#8080f0;cursor:pointer;font-size:0.9em;width:100%">📋 Copy Script</button>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div style="background:#0d1b2a;border:1px solid #2a2a4a;border-radius:10px;padding:16px;font-size:0.88em;line-height:1.6">
+          <b style="color:#8080f0">Bash Best Practices</b><br>
+          • Always start with <code>#!/bin/bash</code><br>
+          • Use <code>set -euo pipefail</code> for safety<br>
+          • Quote variables: <code>"$var"</code> not <code>$var</code><br>
+          • Use <code>[[ ]]</code> instead of <code>[ ]</code><br>
+          • Check return codes with <code>$?</code><br>
+          • Use <code>local</code> in functions<br><br>
+          <b style="color:#8080f0">Useful Patterns</b><br>
+          <code style="font-size:0.78em;color:#a0a0e0;background:#06060a;padding:2px 6px;border-radius:4px">trap 'cleanup' EXIT</code> — cleanup on exit<br>
+          <code style="font-size:0.78em;color:#a0a0e0;background:#06060a;padding:2px 6px;border-radius:4px">read -p "?" var</code> — prompt user<br>
+          <code style="font-size:0.78em;color:#a0a0e0;background:#06060a;padding:2px 6px;border-radius:4px">$(command)</code> — command substitution<br>
+          <code style="font-size:0.78em;color:#a0a0e0;background:#06060a;padding:2px 6px;border-radius:4px">"${var:-default}"</code> — default value<br>
+          <code style="font-size:0.78em;color:#a0a0e0;background:#06060a;padding:2px 6px;border-radius:4px">"${var:?error}"</code> — required var<br><br>
+          <b style="color:#8080f0">Run Your Script</b><br>
+          <code style="font-size:0.78em;color:#a0a0e0;background:#06060a;padding:2px 6px;border-radius:4px">chmod +x script.sh</code><br>
+          <code style="font-size:0.78em;color:#a0a0e0;background:#06060a;padding:2px 6px;border-radius:4px">./script.sh</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const nameEl=document.getElementById('lbash-name'),blocksEl=document.getElementById('lbash-blocks');
+  const previewEl=document.getElementById('lbash-preview');
+  const blocks=[
+    {id:'shebang',label:'#!/bin/bash',code:'#!/bin/bash\n'},
+    {id:'strict',label:'set -euo pipefail',code:'set -euo pipefail\n'},
+    {id:'colors',label:'Color constants',code:'# Colors\nRED="\\033[0;31m"\nGREEN="\\033[0;32m"\nYELLOW="\\033[1;33m"\nNC="\\033[0m"\n'},
+    {id:'logging',label:'Log functions',code:'log()   { echo -e "${GREEN}[INFO]${NC} $*"; }\nwarn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }\nerror() { echo -e "${RED}[ERROR]${NC} $*" >&2; }\n'},
+    {id:'args',label:'Argument parsing',code:'# Parse arguments\nwhile [[ $# -gt 0 ]]; do\n  case "$1" in\n    -h|--help)  echo "Usage: $0 [-f file] [-v]"; exit 0 ;;\n    -f|--file)  FILE="$2"; shift 2 ;;\n    -v|--verbose) VERBOSE=1; shift ;;\n    *)  error "Unknown option: $1"; exit 1 ;;\n  esac\ndone\n'},
+    {id:'deps',label:'Dependency check',code:'# Check dependencies\nfor cmd in curl jq; do\n  if ! command -v "$cmd" &>/dev/null; then\n    error "$cmd is required but not installed."\n    exit 1\n  fi\ndone\n'},
+    {id:'root',label:'Root check',code:'# Check if running as root\nif [[ $EUID -ne 0 ]]; then\n  error "This script must be run as root"\n  exit 1\nfi\n'},
+    {id:'trap',label:'Cleanup trap',code:'# Cleanup on exit\ncleanup() {\n  rm -f "$TMPFILE" 2>/dev/null\n  log "Cleanup complete"\n}\ntrap cleanup EXIT\nTMPFILE=$(mktemp)\n'},
+    {id:'confirm',label:'Confirm prompt',code:'# Confirm action\nconfirm() {\n  read -rp "${1:-Are you sure?} [y/N] " response\n  [[ "$response" =~ ^[Yy]$ ]]\n}\n'},
+    {id:'spinner',label:'Spinner',code:'# Spinner for long operations\nspinner() {\n  local pid=$1\n  local spin="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"\n  while kill -0 "$pid" 2>/dev/null; do\n    for i in $(seq 0 9); do\n      printf "\\r%s" "${spin:$i:1}"\n      sleep 0.1\n    done\n  done\n  printf "\\r"\n}\n'},
+    {id:'retry',label:'Retry function',code:'# Retry command with backoff\nretry() {\n  local max_attempts=${1:-3}\n  local delay=${2:-5}\n  shift 2\n  local attempt=1\n  until "$@"; do\n    if ((attempt >= max_attempts)); then\n      error "Failed after $max_attempts attempts"\n      return 1\n    fi\n    warn "Attempt $attempt failed. Retrying in ${delay}s..."\n    sleep "$delay"\n    ((attempt++))\n  done\n}\n'},
+    {id:'backup',label:'File backup',code:'# Backup file before modifying\nbackup_file() {\n  local file="$1"\n  if [[ -f "$file" ]]; then\n    cp "$file" "${file}.bak.$(date +%Y%m%d_%H%M%S)"\n    log "Backed up $file"\n  fi\n}\n'},
+    {id:'main',label:'Main function',code:'# Main function\nmain() {\n  log "Starting $(basename "$0")"\n  # Your code here\n  log "Done!"\n}\n\nmain "$@"\n'}
+  ];
+  let selected=new Set(['shebang','strict','logging','main']);
+  function renderBlocks(){
+    let html='';
+    blocks.forEach(b=>{
+      const on=selected.has(b.id);
+      html+='<button data-id="'+b.id+'" style="padding:4px 10px;border-radius:6px;border:1px solid '+(on?'#8080f0':'#2a2a4a')+';background:'+(on?'#1a1a4a':'#0a0a1a')+';color:'+(on?'#8080f0':'#6060a0')+';cursor:pointer;font-size:0.78em">'+b.label+'</button>';
+    });
+    blocksEl.innerHTML=html;
+    blocksEl.querySelectorAll('button').forEach(b=>{
+      b.onclick=function(){
+        const id=this.dataset.id;
+        if(selected.has(id))selected.delete(id);else selected.add(id);
+        renderBlocks();renderPreview();
+      };
+    });
+  }
+  function renderPreview(){
+    let code='';
+    blocks.forEach(b=>{if(selected.has(b.id))code+=b.code});
+    previewEl.textContent=code;
+  }
+  renderBlocks();renderPreview();
+})();
+</script>

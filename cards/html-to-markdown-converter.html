@@ -1,0 +1,67 @@
+<h2 id="h2md-title" style="margin-top:0;color:var(--accent);">📝 HTML to Markdown Converter</h2>
+
+<form aria-describedby="h2md-desc" onsubmit="event.preventDefault();">
+  <p id="h2md-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    A practical subset: headings, paragraphs, links, images, lists, bold/italic, code, blockquotes, hr. Scripts and styles are dropped. Not a full CommonMark round-trip.
+  </p>
+  <label for="h2md-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">HTML</label>
+  <textarea id="h2md-in" rows="9" spellcheck="false" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;">&lt;h1&gt;Notes&lt;/h1&gt;
+&lt;p&gt;A &lt;strong&gt;local&lt;/strong&gt; converter with a &lt;a href="https://example.com"&gt;link&lt;/a&gt;.&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;One&lt;/li&gt;&lt;li&gt;Two&lt;/li&gt;&lt;/ul&gt;</textarea>
+  <button type="button" id="h2md-go" style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);font-weight:700;cursor:pointer;min-height:36px;">Convert</button>
+</form>
+<pre id="h2md-out" style="margin-top:14px;padding:12px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);overflow:auto;font-size:.85rem;white-space:pre-wrap;word-break:break-word;"></pre>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  function md(html) {
+    var doc = document.implementation.createHTMLDocument('');
+    doc.body.innerHTML = html;
+    function walk(node) {
+      if (node.nodeType === 3) return node.nodeValue.replace(/\s+/g, ' ');
+      if (node.nodeType !== 1) return '';
+      var tag = node.tagName.toLowerCase();
+      if (tag === 'script' || tag === 'style' || tag === 'noscript') return '';
+      var inner = '';
+      for (var i = 0; i < node.childNodes.length; i++) inner += walk(node.childNodes[i]);
+      inner = inner.replace(/[ \t]+\n/g, '\n');
+      if (tag === 'h1') return '\n# ' + inner.trim() + '\n\n';
+      if (tag === 'h2') return '\n## ' + inner.trim() + '\n\n';
+      if (tag === 'h3') return '\n### ' + inner.trim() + '\n\n';
+      if (tag === 'h4') return '\n#### ' + inner.trim() + '\n\n';
+      if (tag === 'p') return inner.trim() + '\n\n';
+      if (tag === 'br') return '\n';
+      if (tag === 'hr') return '\n---\n\n';
+      if (tag === 'strong' || tag === 'b') return '**' + inner.trim() + '**';
+      if (tag === 'em' || tag === 'i') return '*' + inner.trim() + '*';
+      if (tag === 'code' && node.parentNode && node.parentNode.tagName.toLowerCase() !== 'pre') return '`' + inner + '`';
+      if (tag === 'pre') return '\n```\n' + (node.textContent || '') + '\n```\n\n';
+      if (tag === 'blockquote') return inner.trim().split(/\n/).map(function (l) { return '> ' + l; }).join('\n') + '\n\n';
+      if (tag === 'a') {
+        var href = node.getAttribute('href') || '';
+        return '[' + inner.trim() + '](' + href + ')';
+      }
+      if (tag === 'img') {
+        var alt = node.getAttribute('alt') || '';
+        var src = node.getAttribute('src') || '';
+        return '![' + alt + '](' + src + ')';
+      }
+      if (tag === 'li') {
+        var parent = node.parentNode && node.parentNode.tagName.toLowerCase();
+        var bullet = parent === 'ol' ? '1. ' : '- ';
+        return bullet + inner.trim() + '\n';
+      }
+      if (tag === 'ul' || tag === 'ol') return '\n' + inner + '\n';
+      return inner;
+    }
+    return walk(doc.body).replace(/\n{3,}/g, '\n\n').trim();
+  }
+  function run() {
+    $('h2md-out').textContent = md($('h2md-in').value);
+  }
+  $('h2md-go').addEventListener('click', run);
+  run();
+})();
+</script>

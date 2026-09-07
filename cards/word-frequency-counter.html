@@ -1,0 +1,73 @@
+<h2>📊 Word Frequency Counter</h2>
+<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Analyze text to find the most common words, unique words, and word frequency distribution with visual charts.</p>
+
+<div id="wf-app" style="max-width:600px;margin:0 auto;">
+  <div style="margin-bottom:12px;">
+    <textarea id="wf-input" style="width:100%;height:120px;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;resize:vertical;box-sizing:border-box;" placeholder="Paste your text here...">The quick brown fox jumps over the lazy dog. The dog barked at the fox, but the fox was too quick. The lazy dog eventually gave up and went to sleep.</textarea>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="window._wfAnalyze()" style="flex:1;padding:10px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:#2dd4ff;cursor:pointer;font-weight:600;">Analyze</button>
+    <label style="font-size:12px;color:rgba(230,250,255,0.5);display:flex;align-items:center;gap:4px;">
+      <input id="wf-stop" type="checkbox" checked style="accent-color:#2dd4ff;"> Skip common words
+    </label>
+  </div>
+
+  <div id="wf-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
+  <div id="wf-chart" style="margin-bottom:12px;"></div>
+  <div id="wf-list" style="max-height:300px;overflow-y:auto;"></div>
+</div>
+
+<script>
+(function(){
+  var stopWords='the a an and or but in on at to for of is it that this with from by as are was were be been being have has had do does did will would shall should may might can could'.split(' ');
+  function analyze(){
+    var text=document.getElementById('wf-input').value.toLowerCase();
+    var skipStop=document.getElementById('wf-stop').checked;
+    var words=text.match(/[a-z]+(?:'[a-z]+)?/g)||[];
+    var freq={};
+    words.forEach(function(w){
+      if(skipStop&&stopWords.indexOf(w)>=0)return;
+      if(w.length<2)return;
+      freq[w]=(freq[w]||0)+1;
+    });
+    var sorted=Object.entries(freq).sort(function(a,b){return b[1]-a[1];});
+    var totalWords=words.length;
+    var uniqueWords=Object.keys(freq).length;
+    var topWord=sorted.length?sorted[0][0]:'-';
+    var avgLen=words.length?Math.round(words.reduce(function(s,w){return s+w.length;},0)/words.length*10)/10:0;
+    // Stats
+    document.getElementById('wf-stats').innerHTML=
+      '<div style="padding:10px;background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.2);border-radius:6px;text-align:center;"><div style="font-size:1.5em;font-weight:700;color:#2dd4ff;">'+totalWords+'</div><div style="font-size:11px;color:rgba(230,250,255,0.5);">Total Words</div></div>'+
+      '<div style="padding:10px;background:rgba(57,255,20,0.05);border:1px solid rgba(57,255,20,0.2);border-radius:6px;text-align:center;"><div style="font-size:1.5em;font-weight:700;color:#39ff14;">'+uniqueWords+'</div><div style="font-size:11px;color:rgba(230,250,255,0.5);">Unique Words</div></div>'+
+      '<div style="padding:10px;background:rgba(255,165,0,0.05);border:1px solid rgba(255,165,0,0.2);border-radius:6px;text-align:center;"><div style="font-size:1.5em;font-weight:700;color:#ffa500;">'+avgLen+'</div><div style="font-size:11px;color:rgba(230,250,255,0.5);">Avg Length</div></div>'+
+      '<div style="padding:10px;background:rgba(192,96,240,0.05);border:1px solid rgba(192,96,240,0.2);border-radius:6px;text-align:center;"><div style="font-size:1.2em;font-weight:700;color:#c060f0;">'+topWord+'</div><div style="font-size:11px;color:rgba(230,250,255,0.5);">Most Common</div></div>';
+    // Chart
+    var maxCount=sorted.length?sorted[0][1]:1;
+    var top20=sorted.slice(0,20);
+    var chartHtml='';
+    top20.forEach(function(item,i){
+      var pct=(item[1]/maxCount)*100;
+      var hue=200-i*8;
+      chartHtml+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">'+
+        '<div style="width:80px;font-size:12px;color:rgba(230,250,255,0.7);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+item[0]+'</div>'+
+        '<div style="flex:1;height:18px;background:rgba(0,0,0,0.2);border-radius:3px;overflow:hidden;">'+
+          '<div style="height:100%;width:'+pct+'%;background:hsl('+hue+',70%,50%);border-radius:3px;transition:width 0.3s;"></div>'+
+        '</div>'+
+        '<div style="width:30px;font-size:12px;color:rgba(230,250,255,0.5);">'+item[1]+'</div>'+
+      '</div>';
+    });
+    document.getElementById('wf-chart').innerHTML=chartHtml;
+    // Full list
+    var listHtml='';
+    sorted.forEach(function(item,i){
+      listHtml+='<div style="display:inline-block;padding:3px 8px;margin:2px;background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.1);border-radius:4px;font-size:12px;">'+
+        '<span style="color:var(--text);">'+item[0]+'</span> <span style="color:#2dd4ff;">'+item[1]+'</span></div>';
+    });
+    document.getElementById('wf-list').innerHTML=listHtml;
+  }
+  window._wfAnalyze=analyze;
+  document.getElementById('wf-stop').addEventListener('change',analyze);
+  analyze();
+})();
+</script>

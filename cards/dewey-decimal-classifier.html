@@ -1,0 +1,111 @@
+<!--
+  📚 The Dewey Stacks — HALL OF CLASSIFICATION. The ten main classes and
+  a hundred divisions as numbered shelves. Search a topic, get a call number.
+-->
+<style>
+  .dewey-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .dewey-kicker{display:inline-block;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a227;border:1px solid rgba(201,162,39,.35);padding:6px 14px;border-radius:2px;margin-bottom:14px}
+  .dewey-title{font-family:Georgia,'Times New Roman',serif;font-size:1.7rem;margin:0 0 6px;color:#f4ead0;font-weight:400}
+  .dewey-lede{color:#9aa6b6;font-size:.9rem;line-height:1.6;margin:0 0 14px;max-width:780px}
+  .dewey-lede b{color:#e3c05a}
+  .dewey-in{width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(201,162,39,.28);margin-bottom:12px}
+  .dewey-mains{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:12px}
+  .dewey-main{border:1px solid rgba(201,162,39,.28);border-radius:8px;padding:10px;background:rgba(201,162,39,.04);cursor:pointer;text-align:left;color:inherit}
+  .dewey-main b{color:#e3c05a;font-family:ui-monospace,monospace;display:block;font-size:.78rem}
+  .dewey-main.on{outline:2px solid #f4ead0}
+  .dewey-plaque{border:1px solid rgba(201,162,39,.35);border-radius:10px;padding:16px 18px;background:rgba(201,162,39,.05)}
+  .dewey-no{font-family:ui-monospace,monospace;font-size:.62rem;letter-spacing:.2em;color:#c9a227;text-transform:uppercase}
+  .dewey-h{font-family:Georgia,serif;font-size:1.2rem;color:#f4ead0;margin:6px 0}
+  .dewey-list{font-size:.82rem;color:#c3c9d4;line-height:1.7;margin:8px 0 0}
+  .dewey-list b{color:#e3c05a;font-family:ui-monospace,monospace}
+  .dewey-src{font-size:.68rem;color:#7c8698;margin-top:12px;line-height:1.5}
+</style>
+
+<div class="dewey-wrap">
+  <span class="dewey-kicker">Hall of Classification · Catalogue 09 · DDC</span>
+  <h2 id="dewey-title" class="dewey-title" style="margin-top:0">📚 The Dewey Stacks</h2>
+  <p class="dewey-lede">
+    Melvil Dewey, 1876: knowledge in <b>ten</b> main classes, each split by tens. Museums and small libraries still live by it. Search a word or tap a hall. This is the public summary, not a licensed DDC schedule.
+  </p>
+  <input id="dewey-q" class="dewey-in" type="search" placeholder="Search: painting · birds · railways · Buddhism…" aria-label="Search Dewey">
+  <div class="dewey-mains" id="dewey-mains"></div>
+  <div class="dewey-plaque" id="dewey-out"></div>
+  <p class="dewey-src">Summaries follow the well-known public 10/100 outline of the Dewey Decimal Classification. OCLC owns the full schedules; this hall is a finding aid, not a substitute for WebDewey. 200s religion still centre Christianity — a 19th-century bias the plaque does not hide.</p>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var MAINS = [
+    ['000', 'Computer science, information, general works'],
+    ['100', 'Philosophy & psychology'],
+    ['200', 'Religion'],
+    ['300', 'Social sciences'],
+    ['400', 'Language'],
+    ['500', 'Science'],
+    ['600', 'Technology'],
+    ['700', 'Arts & recreation'],
+    ['800', 'Literature'],
+    ['900', 'History & geography']
+  ];
+  var DIV = {
+    '000': [['000','General works'],['010','Bibliography'],['020','Library & information science'],['030','Encyclopaedias'],['050','Serials'],['060','Museums & organisations'],['070','News media'],['080','Collected essays'],['090','Manuscripts & rare books']],
+    '100': [['100','Philosophy'],['110','Metaphysics'],['120','Epistemology'],['130','Parapsychology'],['140','Philosophical schools'],['150','Psychology'],['160','Logic'],['170','Ethics'],['180','Ancient philosophy'],['190','Modern western philosophy']],
+    '200': [['200','Religion'],['210','Philosophy of religion'],['220','Bible'],['230','Christianity'],['290','Other religions (incl. 292–299 classical, Indic, East Asian, Islam)']],
+    '300': [['300','Social sciences'],['310','Statistics'],['320','Political science'],['330','Economics'],['340','Law'],['350','Public administration'],['360','Social problems & services'],['370','Education'],['380','Commerce & communications'],['390','Customs, etiquette, folklore']],
+    '400': [['400','Language'],['410','Linguistics'],['420','English'],['430','German'],['440','French'],['450','Italian'],['460','Spanish & Portuguese'],['470','Latin'],['480','Classical Greek'],['490','Other languages']],
+    '500': [['500','Science'],['510','Mathematics'],['520','Astronomy'],['530','Physics'],['540','Chemistry'],['550','Earth sciences'],['560','Palaeontology'],['570','Biology'],['580','Plants'],['590','Animals']],
+    '600': [['600','Technology'],['610','Medicine'],['620','Engineering'],['630','Agriculture'],['640','Home & family'],['650','Management'],['660','Chemical engineering'],['670','Manufacturing'],['680','Manufacture for specific uses'],['690','Buildings']],
+    '700': [['700','Arts'],['710','Landscaping'],['720','Architecture'],['730','Sculpture'],['740','Drawing & decorative arts'],['750','Painting'],['760','Printmaking'],['770','Photography'],['780','Music'],['790','Sports & performing arts']],
+    '800': [['800','Literature'],['810','American literature in English'],['820','English & Old English'],['830','German literature'],['840','French'],['850','Italian'],['860','Spanish & Portuguese'],['870','Latin'],['880','Classical Greek'],['890','Other literatures']],
+    '900': [['900','History'],['910','Geography & travel'],['920','Biography'],['930','Ancient history'],['940','Europe'],['950','Asia'],['960','Africa'],['970','North America'],['980','South America'],['990','Australasia & other']]
+  };
+  var extras = [
+    ['598', 'Birds'], ['759', 'Historical painting by region'], ['932', 'Ancient Egypt'],
+    ['737', 'Numismatics (coins)'], ['745', 'Decorative arts'], ['069', 'Museology'],
+    ['560', 'Fossils'], ['709', 'Art history'], ['296', 'Judaism'], ['297', 'Islam']
+  ];
+  var mains = $('dewey-mains');
+  MAINS.forEach(function (m, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'dewey-main';
+    b.innerHTML = '<b>' + m[0] + '</b>' + m[1];
+    b.addEventListener('click', function () { show(m[0]); });
+    mains.appendChild(b);
+  });
+  function show(code, hits) {
+    Array.prototype.forEach.call(mains.querySelectorAll('.dewey-main'), function (b) {
+      b.classList.toggle('on', b.querySelector('b').textContent === code);
+    });
+    var main = MAINS.filter(function (m) { return m[0] === code; })[0];
+    var rows = (DIV[code] || []).map(function (d) {
+      return '<div><b>' + d[0] + '</b> ' + d[1] + '</div>';
+    }).join('');
+    var extra = '';
+    if (hits && hits.length) extra = '<p class="dewey-list">' + hits.map(function (h) { return '<b>' + h[0] + '</b> ' + h[1]; }).join('<br>') + '</p>';
+    $('dewey-out').innerHTML = '<div class="dewey-no">Shelf ' + code + 's</div><div class="dewey-h">' + main[1] + '</div><div class="dewey-list">' + rows + '</div>' + extra;
+  }
+  $('dewey-q').addEventListener('input', function () {
+    var q = $('dewey-q').value.trim().toLowerCase();
+    if (!q) { show('000'); return; }
+    var hits = [];
+    Object.keys(DIV).forEach(function (k) {
+      DIV[k].forEach(function (d) {
+        if ((d[0] + ' ' + d[1]).toLowerCase().indexOf(q) !== -1) hits.push(d);
+      });
+    });
+    extras.forEach(function (e) {
+      if (e[1].toLowerCase().indexOf(q) !== -1 || e[0].indexOf(q) !== -1) hits.push(e);
+    });
+    if (!hits.length) {
+      $('dewey-out').innerHTML = '<div class="dewey-no">No shelf</div><div class="dewey-h">Nothing in the public outline matches that word.</div>';
+      return;
+    }
+    var code = hits[0][0].charAt(0) + '00';
+    show(code, hits.slice(0, 12));
+  });
+  show('700');
+})();
+</script>
