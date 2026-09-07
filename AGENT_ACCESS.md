@@ -88,7 +88,7 @@ cd r
 # Tool work (everything except the photos):
 git sparse-checkout set --no-cone '/*' '!/images/'
 
-# Music work (omit the 749 cards too):
+# Music work (omit the 754 cards too):
 # git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 git config user.name  mrpr0phecy
@@ -115,7 +115,7 @@ One GitHub Pages site, **two deliberately separate products**:
 
 | Product | Entry point | What it is |
 |---|---|---|
-| **A — The Most Useful Site In The World** | `index.html` | **749** self-contained offline browser tools, indexed by `cards/cards.json` |
+| **A — The Most Useful Site In The World** | `index.html` | **754** self-contained offline browser tools, indexed by `cards/cards.json` |
 | **B — MrProphecy** | `listen.html` | UK hip hop / animated soundscapes from Luton; YouTube + SoundCloud |
 
 **Never mix them**: no music players/banners in the catalogue or cards; no tool
@@ -136,7 +136,7 @@ and what earns: **[INCOME.md](INCOME.md)**.
 
 1. Write `cards/<tool-name>.html` — an **HTML fragment** (no `<!doctype>`,
    `<head>`, `<body>`). All element IDs must carry a short unique per-tool
-   prefix (`xyz-…`) because all 749 cards share one DOM. Wrap all JS in an
+   prefix (`xyz-…`) because all 754 cards share one DOM. Wrap all JS in an
    IIFE. Inline styles + the CSS variables from `index.html` only. No network
    calls. Start from an existing card.
 2. `node generate-cards-json.js` — rebuilds `cards/cards.json`.
@@ -178,9 +178,9 @@ Expect `200` and a card count matching `cards/`. GitHub Pages deploys from
 
 ## 7. Current verified state (2026-09-07)
 
-- Cards: **749**, all indexed (no orphans), all with title+description
+- Cards: **754**, all indexed (no orphans), all with title+description
   (counts re-derived per `staff/DECISIONS.md` D-001).
   The latest batch brings **SaaS & Business Killers** to **41** cards.
 - Tool counts in [README.md](README.md)/[ARCHITECTURE.md](ARCHITECTURE.md)/
-  [INCOME.md](INCOME.md) were refreshed to 749 on this date.
+  [INCOME.md](INCOME.md) were refreshed to 754 on this date.
 - `ARCHITECTURE.md` §9 lists deliberate leave-alones and open questions.

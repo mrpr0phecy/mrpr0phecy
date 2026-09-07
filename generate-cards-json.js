@@ -239,7 +239,12 @@ const gapFillMap = {
   'ucas-tariff-points-calculator': 'Productivity & Lifestyle',
   'schengen-90-180-day-calculator': 'Productivity & Lifestyle',
   'notice-period-end-date-calculator': 'Productivity & Lifestyle',
-  'gps-coordinates-dms-decimal': 'Productivity & Lifestyle'
+  'gps-coordinates-dms-decimal': 'Productivity & Lifestyle',
+  'ratio-proportion-calculator': 'Mathematics',
+  'scientific-notation-sigfig-calculator': 'Mathematics',
+  'prime-number-checker': 'Mathematics',
+  'sales-commission-calculator': 'Finance & Money',
+  'keyword-density-word-frequency': 'Writing & Language'
 };
 
 const sportsList = [
