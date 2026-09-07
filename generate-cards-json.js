@@ -354,7 +354,8 @@ const gapFillMap = {
   'japanese-era-nengo': 'Museum & Collection',
   'british-regnal-years': 'Museum & Collection',
   'sundial-gnomon-angle': 'Museum & Collection',
-  'architectural-orders-column': 'Museum & Collection'
+  'architectural-orders-column': 'Museum & Collection',
+  'seven-wonders-hall': 'Museum & Collection'
 };
 
 const sportsList = [
