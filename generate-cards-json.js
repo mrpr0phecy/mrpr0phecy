@@ -249,7 +249,12 @@ const gapFillMap = {
   'apr-apy-converter': 'Finance & Money',
   'hmrc-mileage-allowance-calculator': 'Finance & Money',
   'battery-runtime-mah-calculator': 'Science & Engineering',
-  'led-current-limiting-resistor': 'Science & Engineering'
+  'led-current-limiting-resistor': 'Science & Engineering',
+  'voltage-divider-calculator': 'Science & Engineering',
+  'pool-spa-volume-calculator': 'Home & DIY',
+  'projector-throw-distance-calculator': 'Productivity & Lifestyle',
+  'xml-beautifier-formatter': 'SaaS & Business Killers',
+  'color-harmony-palette-generator': 'SaaS & Business Killers'
 };
 
 const sportsList = [
