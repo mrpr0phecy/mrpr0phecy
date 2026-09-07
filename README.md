@@ -51,8 +51,9 @@ money-related.
 |---|---|
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
-| Tools | 809, indexed by `cards/cards.json` |
-| Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
+| Tools | 809, indexed by `cards/cards.json`. Canonical pages: `tools/<slug>.html` |
+| Directory | [`all-tools.html`](all-tools.html) (crawlable HTML). AI catalogue: [`llms.txt`](llms.txt) |
+| Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js` (also rebuilds `tools/` + sitemap), bump the count in `index.html` |
 
 ## Local preview
 

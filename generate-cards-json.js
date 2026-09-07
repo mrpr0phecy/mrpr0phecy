@@ -702,3 +702,9 @@ const manifest = files.map(file => {
 
 fs.writeFileSync(outputFile, JSON.stringify(manifest, null, 2));
 console.log(`✅ cards.json updated with ${manifest.length} cards`);
+
+const { spawnSync } = require('child_process');
+const disco = spawnSync(process.execPath, [path.join(__dirname, 'scripts', 'generate-discoverability.js')], {
+  stdio: 'inherit'
+});
+if (disco.status) process.exit(disco.status);

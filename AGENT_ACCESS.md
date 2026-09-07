@@ -139,13 +139,14 @@ and what earns: **[INCOME.md](INCOME.md)**.
    prefix (`xyz-…`) because all 809 cards share one DOM. Wrap all JS in an
    IIFE. Inline styles + the CSS variables from `index.html` only. No network
    calls. Start from an existing card.
-2. `node generate-cards-json.js` — rebuilds `cards/cards.json`.
-   ⚠️ It **overwrites categories** from hardcoded filename lists: add the new
-   filename to the right list inside the script, or re-apply the category.
-3. Bump the count in `index.html` (`Search 500` → `Search 501`).
-4. `python3` — regenerate `sitemap.xml` (script in ARCHITECTURE.md §6), built
-   from `git ls-files` so sparse checkouts don't drop the cards.
-5. Commit, push, **wait ~50 s**, then verify live (see §6).
+2. `node generate-cards-json.js` — rebuilds `cards/cards.json` **and** the
+   crawlable wrappers (`tools/<slug>.html`, `all-tools.html`, `llms.txt`,
+   `sitemap.xml`). ⚠️ It **overwrites categories** from hardcoded filename
+   lists: add the new filename to the right list inside the script, or
+   re-apply the category.
+3. Bump the count in `index.html` (`Search 809` → `Search 810`).
+4. Commit, push, **wait ~50 s**, then verify live (see §6). Canonical URL
+   for a tool is `/tools/<slug>.html`, not `/cards/` and not `/tool.html?card=`.
 
 ## 5. Non-negotiables (all of these have caused real breakage here)
 

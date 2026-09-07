@@ -47,10 +47,18 @@ establish *which* site first.
 ```
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
+├── all-tools.html          Crawlable A–Z / category directory (plain HTML)
+├── llms.txt                Machine-readable catalogue for AI crawlers
+├── llms-full.txt           Full per-tool list (same slugs as cards.json)
+├── tools/
+│   ├── <slug>.html         809 crawlable tool pages (unique title/canonical)
+│   ├── tool-page.css/.js   Shared chrome; fragments are fetched, not inlined
+│   └── index.html          Redirects to all-tools.html
 ├── cards/
 │   ├── cards.json          Generated index of all 809 tools
-│   └── <tool-name>.html    809 tool fragments (NOT full documents)
-├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
+│   └── <tool-name>.html    809 tool fragments (NOT full documents — noindex)
+├── generate-cards-json.js  Rebuilds cards.json, then runs generate-discoverability.js
+├── scripts/generate-discoverability.js  tools/ + all-tools.html + llms.txt + sitemap
 │
 ├── listen.html             Product B: music hub — the main entry point
 ├── radio.html              Continuous player — 47 tracks back to back (YPP watch time)
@@ -81,8 +89,8 @@ establish *which* site first.
 │
 ├── manifest.json           PWA manifest
 ├── sw.js                   Service worker — present but NOT registered (§7)
-├── robots.txt              Allows all, points at the sitemap
-├── sitemap.xml             All 518 pages, generated (§6)
+├── robots.txt              Allows crawlers; Disallow /cards/ (fragments have no <head>)
+├── sitemap.xml             Generated (§6) — tools/*.html, not cards/ fragments
 ├── icon-192.png, icon-512.png, icon-maskable-512.png
 ├── logo.png, mrprophecypic.jpg, backgroundpic.jpg
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
@@ -99,12 +107,23 @@ establish *which* site first.
 ### How it works
 
 `index.html` fetches `cards/cards.json` at runtime and renders a searchable
-grid. **There are no hardcoded links to individual tools anywhere.** Grepping
-`index.html` for `cards/*.html` returns nothing — this surprises people. A tool
-is discoverable if and only if it appears in `cards.json`.
+grid. Cards themselves are **HTML fragments** (no `<head>`), so they cannot
+carry unique titles or canonicals. Search engines and AI crawlers therefore
+use a second, generated surface:
 
-Each tool opens inside the catalogue shell, which supplies the CSS custom
-properties. That is why cards are fragments rather than whole pages.
+| URL | Role |
+|---|---|
+| `/tools/<slug>.html` | Canonical page for one tool — unique title, description, OG, JSON-LD |
+| `/all-tools.html` | Crawlable A–Z / category directory; every tool is a real `<a href>` |
+| `/llms.txt` | Short catalogue for AI agents (llmstxt.org). Full list: `/llms-full.txt` |
+| `/cards/<slug>.html` | Fragment only. `robots.txt` Disallows `/cards/` so fragments are not indexed |
+| `/tool.html?card=` | Embed / legacy viewer. `noindex,follow`; share links point at `/tools/` |
+
+A tool is in the live grid if it appears in `cards.json`. It is findable in
+Google/Bing/AI search if `scripts/generate-discoverability.js` has written
+`tools/<slug>.html` (this runs automatically at the end of
+`node generate-cards-json.js`). Do not mix Product B music chrome onto
+`tools/*.html`.
 
 ### Anatomy of a card
 
@@ -150,16 +169,18 @@ Hard rules, learned from breakages:
 # 1. Write the fragment
 vim cards/my-tool.html
 
-# 2. Regenerate the index
+# 2. Regenerate the index AND the crawlable wrappers / sitemap / llms.txt
 node generate-cards-json.js
+#    (this also runs node scripts/generate-discoverability.js)
 
 # 3. Re-apply the category (see the warning below)
 
-# 4. Bump the count in index.html: "Search 500+ free tools" -> 501+
+# 4. Bump the count in index.html: "Search 809+ free tools" -> 810+
 
 # 5. Commit, push, wait ~50s, then verify live:
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
   | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
+curl -sI https://www.themostusefulsiteintheworld.com/tools/my-tool.html
 ```
 
 > **Warning — `generate-cards-json.js` overwrites categories.**
@@ -538,35 +559,18 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 809 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 684 cards:
+Do **not** list `cards/*.html` — those fragments have no `<title>`/`<head>` and
+must not compete with the canonical tool URLs. Run:
 
-```python
-import subprocess, datetime
-base  = "https://www.themostusefulsiteintheworld.com"
-today = datetime.date.today().isoformat()
-# Never list an error page, the 145-byte scratch file with no <title>, or the
-# unlinked beta catalogue (see §7). Re-running without this set silently
-# re-adds all three.
-EXCLUDE = {"404.html", "hokidea.html", "indexbeta.html"}
-files = subprocess.run(['git','ls-files'], capture_output=True, text=True).stdout.split()
-html  = [f for f in files if f.endswith('.html') and f not in EXCLUDE]
-prio  = {"listen.html":("1.0","weekly"), "music.html":("0.9","weekly"),
-         "index.html":("0.9","daily"),   "youtubepromo2.html":("0.7","monthly")}
-urls  = [(p,*prio[p]) for p in prio if p in html]
-urls += [(f, "0.4" if f.startswith("cards/") else "0.5", "monthly")
-         for f in sorted(html) if f not in prio]
-body = "\n".join(
-    f'  <url><loc>{base}/{u.replace(" ","%20")}</loc><lastmod>{today}</lastmod>'
-    f'<changefreq>{c}</changefreq><priority>{p}</priority></url>'
-    for u, p, c in urls)
-open('sitemap.xml','w').write(
-    '<?xml version="1.0" encoding="UTF-8"?>\n'
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    + body + '\n</urlset>\n')
+```bash
+node scripts/generate-discoverability.js
 ```
 
-Note the `%20` escaping: some filenames in `images/` contain spaces.
+That writes `tools/<slug>.html`, `all-tools.html`, `llms.txt` /
+`llms-full.txt` / `ai.txt`, and rebuilds `sitemap.xml` from `git ls-files`
+(static pages) plus every tool in `cards.json`. Excluded: `404.html`,
+`hokidea.html`, `indexbeta.html`, `tool.html`. Homepage SearchAction points at
+`all-tools.html?q={search_term_string}`.
 
 ---
 
@@ -586,7 +590,9 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`generate-cards-json.js` overwrites categories.** See §3.
 
-**`index.html` has no links to cards.** Everything is driven by `cards.json`.
+**`index.html` has no links to `cards/` fragments.** The live grid is driven by
+`cards.json`. Standalone / dock / directory links go to `tools/<slug>.html`.
+`all-tools.html` is the crawlable HTML directory (works with JavaScript off).
 
 **ID collisions across cards.** All 684 share one DOM. See §3.
 
@@ -678,6 +684,16 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 ---
 
 ## 9. Current state and known work
+
+**Added 2026-09-07** — Product A **discoverability / SEO pass**. Each of the
+809 tools now has a compact `/tools/<slug>.html` page (unique title,
+description, canonical, OG/Twitter, WebApplication + Breadcrumb JSON-LD) that
+fetches the existing fragment rather than duplicating it. `all-tools.html` is
+the crawlable A–Z directory; `llms.txt` / `llms-full.txt` serve AI agents;
+`robots.txt` Disallows `/cards/`; `sitemap.xml` lists `tools/` not fragments;
+`tool.html` is `noindex,follow`. Regenerated by
+`node scripts/generate-discoverability.js` (hooked from `generate-cards-json.js`).
+Do not put Product B music banners on `tools/*.html`.
 
 **Added 2026-09-02** — a **Sports** category with 53 tools across four batches of
 ten. New tools cover cricket (chase + net run rate), football points-needed,

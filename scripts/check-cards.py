@@ -8,7 +8,7 @@ Failures (exit 1 if any):
     the catalogue shell layout
   * category missing/empty
   * index.html "Search <N>" claim != number of cards
-  * sitemap.xml missing any card path
+  * sitemap.xml missing any tools/<file> URL (canonical crawlable pages)
 
 Warnings (never fail):
   * duplicate element IDs across cards (cards share one DOM)
@@ -137,17 +137,32 @@ elif count_claim != len(index):
     fails.append(f"index.html claims '{count_claim}' tools but cards.json has "
                  f"{len(index)} — bump the count when adding tools")
 
-# ---------------------------------------------------------------- 6. sitemap
+# ---------------------------------------------------------------- 6. sitemap + crawlable wrappers
+TOOLS = os.path.join(ROOT, "tools")
 if os.path.exists(SITEMAP_PATH):
     with open(SITEMAP_PATH, encoding="utf-8", errors="replace") as f:
         sitemap = f.read()
     missing_sitemap = [f for f in sorted(on_disk)
-                       if os.path.join("cards", f) not in sitemap]
+                       if f"tools/{f}" not in sitemap]
     if missing_sitemap:
-        fails.append(f"{len(missing_sitemap)} cards absent from sitemap.xml "
-                     f"(first: {missing_sitemap[0]})")
+        fails.append(f"{len(missing_sitemap)} tools absent from sitemap.xml "
+                     f"(first: tools/{missing_sitemap[0]})")
+    leaked_fragments = sitemap.count("/cards/")
+    if leaked_fragments:
+        fails.append(f"sitemap.xml still lists {leaked_fragments} untitled "
+                     f"cards/ fragments — canonical URLs are tools/<slug>.html")
 else:
-    warns.append("sitemap.xml missing (regenerate per ARCHITECTURE.md §6)")
+    warns.append("sitemap.xml missing (regenerate: node scripts/generate-discoverability.js)")
+
+if os.path.isdir(TOOLS):
+    missing_wrappers = [f for f in sorted(on_disk)
+                        if not os.path.exists(os.path.join(TOOLS, f))]
+    if missing_wrappers:
+        fails.append(f"{len(missing_wrappers)} cards missing tools/ wrappers "
+                     f"(run node scripts/generate-discoverability.js; first: "
+                     f"{missing_wrappers[0]})")
+else:
+    fails.append("tools/ directory missing — run node scripts/generate-discoverability.js")
 
 # ---------------------------------------------------------------- report
 cats = Counter(e.get("category") for e in index)

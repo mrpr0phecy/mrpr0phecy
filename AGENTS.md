@@ -90,9 +90,9 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 #  - forms: onsubmit="event.preventDefault();"
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
-# bump count in index.html: "Search 500" -> "Search 501"
-python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
-PY
+                                # also rebuilds tools/*.html, all-tools.html,
+                                # llms.txt and sitemap.xml
+# bump count in index.html: "Search 809" -> "Search 810"
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
 sleep 50   # Pages deploy latency — then verify live (see §6)
 ```
@@ -163,9 +163,9 @@ review and promote — never auto-committed into `cards/`.
   CI); a full browser-based audit checks live geometry and contrast.
   Fix scope: count sync and guard-rule presence only — every aesthetic
   decision is documented in ARCHITECTURE.md §5 and human-reviewed.
-- 🗂 **Catalogue Auditor & Generator** — `cards/`, `cards.json`, sitemap
-  coherence (`python3 scripts/check-cards.py`), fragment-only enforcement,
-  and draft generation.
+- 🗂 **Catalogue Auditor & Generator** — `cards/`, `cards.json`, `tools/`,
+  sitemap coherence (`python3 scripts/check-cards.py`), fragment-only
+  enforcement, and draft generation. Canonical URLs are `tools/<slug>.html`.
 - 🔍 **SEO & Metadata Scanner** — every top-level page's title/description/
   canonical/OG/twitter/theme-color and hreflang drift
   (`python3 scripts/scan-seo.py`); advisory only.
