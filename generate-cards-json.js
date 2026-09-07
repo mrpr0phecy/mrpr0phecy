@@ -287,7 +287,18 @@ const saasKillerList = [
   'text-diff-checker',
   'css-box-shadow-generator',
   'css-grid-layout-generator',
-  'robots-sitemap-generator'
+  'robots-sitemap-generator',
+  // 2026-09-07 — ten high-intent browser utilities for developers and makers
+  'css-border-radius-generator',
+  'css-flexbox-playground',
+  'css-filter-generator',
+  'favicon-svg-icon-generator',
+  'sql-formatter-query-helper',
+  'mock-data-generator',
+  'html-table-generator',
+  'curl-command-builder',
+  'email-subject-line-tester',
+  'css-animation-generator'
 ];
 
 // 2026-09-05 — ten survival & emergency-readiness tools. Matched exactly
