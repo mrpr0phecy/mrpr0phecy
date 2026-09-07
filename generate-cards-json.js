@@ -301,7 +301,8 @@ const gapFillMap = {
   'rainwater-harvest-calculator': 'Home & DIY',
   'flesch-reading-ease': 'Writing & Language',
   'uk-alcohol-units-calculator': 'Health & Fitness',
-  'mortgage-overpayment-calculator': 'Finance & Money'
+  'mortgage-overpayment-calculator': 'Finance & Money',
+  'rental-yield-calculator': 'Finance & Money'
 };
 
 const sportsList = [
