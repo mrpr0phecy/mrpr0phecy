@@ -13,9 +13,10 @@ const musicList = ['audio-tone-frequency-generator', 'audio-bpm-tapper', 'binaur
 const healthList = ['sleep-circadian-rem-calculator', 'crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'targetheartrate', 'tdee', 'vo2max', 'waisthip', 'waterintake'];
 const financeList = ['fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'interest', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'splitbill', 'studentloan', 'subscription', 'tax'];
 const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'element-hall', 'energy-watt-exchange', 'statistics-illusion-gallery', 'thermal-wall-simulator', 'structural-beam-stress', 'pipe-flow-simulator', 'room-acoustics-simulator', 'daylight-room-simulator', 'moisture-capillary-simulator'];
-const slList = ['second-life-surnames-guide', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
-const mathList = ['mental-math-sprint-trainer', 'algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
+const slList = ['second-life-surnames-guide', 'raycast-pocket-dungeon', 'polyhedral-dice-3d-roller', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
+const mathList = ['mental-math-sprint-trainer', 'function-terrain-3d-explorer', 'klein-bottle-mobius-lab', 'algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
+  'dna-helix-3d-builder', 'molecule-3d-viewer',
   'van-de-graaff-electrostatic-generator',
   'gravitational-n-body-galaxy-collision',
   'optomechanical-laser-tweezer',
@@ -318,7 +319,7 @@ const survivalList = [
   'cold-water-ice-drowning-rescue'
 ];
 
-const interactiveArtList = ['3d-spirograph-nebula', 
+const interactiveArtList = ['3d-spirograph-nebula', 'heightmap-3d-sculptor', 
   'pixel-collaborative-infinite-mural',
   'chrono-garden-l-system-botany',
   'harmonic-orbit-gravitational-soundscape',
@@ -418,6 +419,7 @@ const aiList = [
 ];
 
 const astronomyList = [
+  'planet-ring-designer-3d',
   'telescope-eyepiece-calculator',
   'telescope-limiting-resolver',
   'telescope-collimation-check',
@@ -461,6 +463,7 @@ const homeDIYList = [
 
 const demosList = [
   'logic-detective-puzzle-club',
+  'impossible-object-viewer', 'hypercube-4d-explorer', 'starfield-warp-drive',
   'monte-carlo-pi-estimator',
   'conways-game-of-life',
   'mandelbrot-set-explorer',
