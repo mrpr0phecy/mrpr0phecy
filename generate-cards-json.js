@@ -294,7 +294,12 @@ const gapFillMap = {
   'ics-event-builder': 'Productivity & Lifestyle',
   'nato-phonetic-speller': 'Writing & Language',
   'wind-chill-calculator': 'Science & Engineering',
-  'cors-header-builder': 'SaaS & Business Killers'
+  'cors-header-builder': 'SaaS & Business Killers',
+  'csv-json-converter': 'SaaS & Business Killers',
+  'heat-index-calculator': 'Science & Engineering',
+  'tap-drill-size-chart': 'Home & DIY',
+  'rainwater-harvest-calculator': 'Home & DIY',
+  'flesch-reading-ease': 'Writing & Language'
 };
 
 const sportsList = [
