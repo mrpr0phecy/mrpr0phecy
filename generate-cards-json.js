@@ -304,7 +304,8 @@ const gapFillMap = {
   'mortgage-overpayment-calculator': 'Finance & Money',
   'rental-yield-calculator': 'Finance & Money',
   'stripe-paypal-fee-calculator': 'Finance & Money',
-  'css-specificity-calculator': 'SaaS & Business Killers'
+  'css-specificity-calculator': 'SaaS & Business Killers',
+  'json-flatten-unflatten': 'SaaS & Business Killers'
 };
 
 const sportsList = [
