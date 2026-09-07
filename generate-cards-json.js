@@ -317,7 +317,8 @@ const gapFillMap = {
   'meat-internal-temperature-guide': 'Culinary & Food Science',
   'nanoid-generator': 'SaaS & Business Killers',
   'srt-subtitle-time-shifter': 'SaaS & Business Killers',
-  'skip-hire-volume-calculator': 'Home & DIY'
+  'skip-hire-volume-calculator': 'Home & DIY',
+  'html-to-markdown-converter': 'Writing & Language'
 };
 
 const sportsList = [
