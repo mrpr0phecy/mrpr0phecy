@@ -311,7 +311,8 @@ const gapFillMap = {
   'running-split-pace-calculator': 'Sports',
   'led-watt-equivalent-calculator': 'Home & DIY',
   'dew-point-calculator': 'Science & Engineering',
-  'pro-rata-salary-calculator': 'Finance & Money'
+  'pro-rata-salary-calculator': 'Finance & Money',
+  'waist-to-height-ratio': 'Health & Fitness'
 };
 
 const sportsList = [
