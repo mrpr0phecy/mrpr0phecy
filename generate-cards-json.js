@@ -244,7 +244,12 @@ const gapFillMap = {
   'scientific-notation-sigfig-calculator': 'Mathematics',
   'prime-number-checker': 'Mathematics',
   'sales-commission-calculator': 'Finance & Money',
-  'keyword-density-word-frequency': 'Writing & Language'
+  'keyword-density-word-frequency': 'Writing & Language',
+  'cagr-annual-growth-calculator': 'Finance & Money',
+  'apr-apy-converter': 'Finance & Money',
+  'hmrc-mileage-allowance-calculator': 'Finance & Money',
+  'battery-runtime-mah-calculator': 'Science & Engineering',
+  'led-current-limiting-resistor': 'Science & Engineering'
 };
 
 const sportsList = [
