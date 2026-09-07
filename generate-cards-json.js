@@ -184,7 +184,12 @@ const gapFillMap = {
   'car-care-tracker': 'Home & DIY',
   'roman-numeral-converter': 'Mathematics',
   'age-calculator-exact': 'Productivity & Lifestyle',
-  'business-days-working-days-calculator': 'Productivity & Lifestyle'
+  'business-days-working-days-calculator': 'Productivity & Lifestyle',
+  'isbn-10-13-converter': 'Productivity & Lifestyle',
+  'iban-validator-formatter': 'Finance & Money',
+  'luhn-check-digit-validator': 'Finance & Money',
+  'number-to-words-cheque-writer': 'Writing & Language',
+  'gcf-lcm-prime-factor-calculator': 'Mathematics'
 };
 
 const sportsList = [

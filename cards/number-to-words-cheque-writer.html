@@ -1,0 +1,125 @@
+<h2 id="n2wd-title" style="margin-top:0;color:var(--accent);">✍️ Number to Words (Cheque Writer)</h2>
+
+<form aria-describedby="n2wd-desc" onsubmit="event.preventDefault();">
+  <p id="n2wd-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Spell out a number in British or American English, including the cheque / check form with fractional currency. Handles values from 0 to 999,999,999,999.99. Nothing is sent off this device.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;">
+    <div>
+      <label for="n2wd-num" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Amount</label>
+      <input id="n2wd-num" type="text" inputmode="decimal" value="1234.56" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+    </div>
+    <div>
+      <label for="n2wd-style" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">English</label>
+      <select id="n2wd-style" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="gb">British (and)</option>
+        <option value="us">American</option>
+      </select>
+    </div>
+    <div>
+      <label for="n2wd-cur" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Currency words</label>
+      <select id="n2wd-cur" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="pound|pounds|pence">Pounds</option>
+        <option value="dollar|dollars|cents">Dollars</option>
+        <option value="euro|euros|cents">Euros</option>
+        <option value="none|none|">No currency</option>
+      </select>
+    </div>
+  </div>
+</form>
+<div id="n2wd-err" role="alert" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.4);color:#ffb8b8;font-size:.82rem;"></div>
+<div id="n2wd-out" style="margin-top:14px;">
+  <div style="font-size:.72rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;font-weight:800;">Words</div>
+  <div id="n2wd-words" style="margin:6px 0 12px;font-size:1.05rem;font-weight:700;color:var(--text);"></div>
+  <div style="font-size:.72rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;font-weight:800;">Cheque line</div>
+  <div id="n2wd-cheque" style="margin-top:6px;padding:12px;border-radius:8px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);color:#91f7ff;font-weight:700;"></div>
+  <button type="button" id="n2wd-copy" style="margin-top:10px;padding:8px 12px;background:rgba(45,212,255,.14);color:var(--accent);border:1px solid rgba(45,212,255,.4);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;">Copy cheque line</button>
+</div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  var TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  var lastCheque = '';
+
+  function under100(n, british) {
+    if (n < 20) return ONES[n];
+    var t = TENS[Math.floor(n / 10)], o = ONES[n % 10];
+    return o ? t + '-' + o : t;
+  }
+  function under1000(n, british) {
+    if (n < 100) return under100(n, british);
+    var h = Math.floor(n / 100), r = n % 100;
+    var head = ONES[h] + ' hundred';
+    if (!r) return head;
+    return head + (british ? ' and ' : ' ') + under100(r, british);
+  }
+  function toWords(n, british) {
+    if (n === 0) return 'zero';
+    var scales = [['', 1], [' thousand', 1000], [' million', 1000000], [' billion', 1000000000]];
+    var parts = [];
+    for (var i = scales.length - 1; i >= 0; i--) {
+      var cap = scales[i][1];
+      if (n >= cap) {
+        var chunk = Math.floor(n / cap);
+        n %= cap;
+        parts.push(under1000(chunk, british) + scales[i][0]);
+      }
+    }
+    if (parts.length === 1) return parts[0];
+    var last = parts.pop();
+    if (british && !/hundred|thousand|million|billion/.test(last.split(' ').slice(-1)[0]) && last.indexOf('hundred') === -1) {
+      return parts.join(', ') + ' and ' + last;
+    }
+    return parts.join(', ') + ' ' + last;
+  }
+  function run() {
+    var raw = $('n2wd-num').value.trim().replace(/,/g, '');
+    if (!raw) { $('n2wd-err').style.display = 'none'; $('n2wd-words').textContent = ''; $('n2wd-cheque').textContent = ''; return; }
+    if (!/^-?\d+(\.\d{1,2})?$/.test(raw) && !/^-?\d+\.$/.test(raw)) {
+      $('n2wd-err').style.display = 'block';
+      $('n2wd-err').textContent = 'Enter a number with up to two decimal places.';
+      return;
+    }
+    var neg = raw.charAt(0) === '-';
+    var abs = neg ? raw.slice(1) : raw;
+    var bits = abs.split('.');
+    var whole = Number(bits[0] || '0');
+    var frac = bits[1] ? bits[1].padEnd(2, '0').slice(0, 2) : '00';
+    if (whole > 999999999999) {
+      $('n2wd-err').style.display = 'block';
+      $('n2wd-err').textContent = 'That is larger than 999,999,999,999.';
+      return;
+    }
+    $('n2wd-err').style.display = 'none';
+    var british = $('n2wd-style').value === 'gb';
+    var words = (neg ? 'minus ' : '') + toWords(whole, british);
+    $('n2wd-words').textContent = words.charAt(0).toUpperCase() + words.slice(1);
+    var cur = $('n2wd-cur').value.split('|');
+    var unit = whole === 1 ? cur[0] : cur[1];
+    var cheque;
+    if (cur[0] === 'none') {
+      cheque = words + (frac !== '00' ? ' point ' + frac.split('').map(function (d) { return ONES[Number(d)]; }).join(' ') : '') + ' only';
+    } else {
+      cheque = words + ' ' + unit + (frac === '00' ? ' only' : ' and ' + frac + '/100 ' + cur[2]);
+    }
+    cheque = cheque.charAt(0).toUpperCase() + cheque.slice(1);
+    lastCheque = cheque;
+    $('n2wd-cheque').textContent = cheque;
+  }
+  ['n2wd-num', 'n2wd-style', 'n2wd-cur'].forEach(function (id) {
+    $(id).addEventListener('input', run);
+    $(id).addEventListener('change', run);
+  });
+  $('n2wd-copy').addEventListener('click', function () {
+    if (!lastCheque) return;
+    var btn = this;
+    function done() { btn.textContent = '✓ Copied'; setTimeout(function () { btn.textContent = 'Copy cheque line'; }, 1400); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(lastCheque).then(done);
+    else done();
+  });
+  run();
+})();
+</script>
