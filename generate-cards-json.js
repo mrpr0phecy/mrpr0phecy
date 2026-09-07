@@ -326,7 +326,8 @@ const gapFillMap = {
   'dividend-yield-calculator': 'Finance & Money',
   'downlight-spacing-calculator': 'Home & DIY',
   'blood-pressure-category-guide': 'Health & Fitness',
-  'turkey-thaw-cook-time': 'Culinary & Food Science'
+  'turkey-thaw-cook-time': 'Culinary & Food Science',
+  'rice-water-ratio-calculator': 'Culinary & Food Science'
 };
 
 const sportsList = [
