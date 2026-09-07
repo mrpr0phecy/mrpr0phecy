@@ -1,0 +1,300 @@
+<h2 id="hm3-title" style="margin-top:0;color:var(--accent);">⛰️ Heightmap 3D Sculptor</h2>
+<p id="hm3-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">Paint mountains with your pointer on the map (left) and watch a living 3D island grow (right) — with beaches, forests, snowcaps, animated water and erosion. Or generate procedural islands, ridges and craters.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;">
+  <button type="button" data-hm3-b="raise" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:800;font-size:.8rem;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--accent);">⛰️ Raise</button>
+  <button type="button" data-hm3-b="dig" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">🕳️ Dig</button>
+  <button type="button" data-hm3-b="smooth" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">🌊 Smooth</button>
+  <button type="button" data-hm3-b="flat" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">🧱 Flatten</button>
+  <span style="width:1px;height:22px;background:rgba(255,255,255,.15);"></span>
+  <button type="button" data-hm3-g="island" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(125,255,106,.4);background:rgba(125,255,106,.08);color:#7dff6a;">🏝️ Island</button>
+  <button type="button" data-hm3-g="ridge" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(125,255,106,.4);background:rgba(125,255,106,.08);color:#7dff6a;">🏔️ Ridges</button>
+  <button type="button" data-hm3-g="crater" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(125,255,106,.4);background:rgba(125,255,106,.08);color:#7dff6a;">☄️ Crater</button>
+  <button type="button" id="hm3-erode" style="padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--text);">🌧️ Erode</button>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:start;">
+  <div style="flex:0 1 200px;min-width:150px;">
+    <canvas id="hm3-map" width="192" height="192" style="width:100%;aspect-ratio:1;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:10px;display:block;touch-action:none;cursor:crosshair;" role="application" aria-label="Paintable heightmap. Drag to sculpt terrain."></canvas>
+    <div style="font-size:.75rem;color:var(--text-secondary);margin-top:4px;">🖌️ paint here → 3D updates live</div>
+  </div>
+  <div style="flex:1 1 300px;min-width:240px;">
+    <canvas id="hm3-cv" width="600" height="330" style="width:100%;height:330px;background:#04070d;border:1px solid rgba(45,212,255,.3);border-radius:12px;display:block;touch-action:none;cursor:grab;" role="img" aria-label="3D terrain"></canvas>
+  </div>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;align-items:end;">
+  <div><label for="hm3-size" style="display:block;font-size:.78rem;color:var(--text-secondary);">Brush size: <b id="hm3-sizev" style="color:var(--accent);">18</b></label><input id="hm3-size" type="range" min="4" max="40" value="18" style="width:130px;accent-color:var(--accent);"></div>
+  <div><label for="hm3-sea" style="display:block;font-size:.78rem;color:var(--text-secondary);">Sea level: <b id="hm3-seav" style="color:var(--accent);">35%</b></label><input id="hm3-sea" type="range" min="0" max="70" value="35" style="width:130px;accent-color:#2dd4ff;"></div>
+  <label style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;padding-bottom:4px;"><input id="hm3-spin" type="checkbox" checked style="accent-color:var(--accent);"> spin</label>
+  <label style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;padding-bottom:4px;"><input id="hm3-wire" type="checkbox" style="accent-color:var(--accent);"> wireframe</label>
+  <span id="hm3-stats" style="font-size:.78rem;color:var(--text-secondary);padding-bottom:4px;"></span>
+</div>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var cv = $("hm3-cv"), ctx = cv.getContext("2d");
+  var map = $("hm3-map"), mctx = map.getContext("2d");
+  var W = 600, H = 330, DPR = 1;
+  function fit(){
+    DPR = Math.min(1.5, window.devicePixelRatio || 1);
+    W = Math.round(cv.clientWidth || 600); H = 330;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    render();
+  }
+  window.addEventListener("resize", fit);
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var spinning = !reduced;
+  var N = 96, hgt = new Float32Array(N * N);
+  var brush = "raise", sea = 0.35, waterT = 0;
+  var az = 0.7, el = 0.85, zoom = 1;
+  // ---------- procedural generation (seeded value noise) ----------
+  var seed = 7;
+  function rnd(){ seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+  function noise2(x, y){
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    function h(a, b){ var s = Math.sin(a * 127.1 + b * 311.7 + seed * 0.13) * 43758.5453; return s - Math.floor(s); }
+    var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    return h(xi, yi) * (1 - u) * (1 - v) + h(xi + 1, yi) * u * (1 - v) + h(xi, yi + 1) * (1 - u) * v + h(xi + 1, yi + 1) * u * v;
+  }
+  function fbm(x, y){
+    var f = 0, amp = 0.5, fr = 1;
+    for (var o = 0; o < 4; o++) { f += amp * noise2(x * fr, y * fr); amp *= 0.5; fr *= 2.1; }
+    return f;
+  }
+  function generate(kind){
+    seed = Math.floor(Math.random() * 100000) + 1;
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) {
+      var nx = x / N, ny = y / N;
+      var dc = Math.hypot(nx - 0.5, ny - 0.5) * 2; // 0 centre .. ~1.4 corner
+      var v;
+      if (kind === "island") {
+        v = fbm(nx * 5, ny * 5) * 1.15 - Math.max(0, dc - 0.55) * 1.1 - 0.08;
+      } else if (kind === "ridge") {
+        v = (1 - Math.abs(fbm(nx * 6, ny * 6) * 2 - 1)) * 0.9 - dc * 0.25;
+      } else { // crater
+        var ring = Math.exp(-Math.pow((dc - 0.42) * 6, 2)) * 0.55;
+        var bowl = dc < 0.42 ? -(0.42 - dc) * 1.1 : 0;
+        v = 0.42 + ring + bowl + (fbm(nx * 9, ny * 9) - 0.5) * 0.12;
+      }
+      hgt[y * N + x] = Math.max(0, Math.min(1, v));
+    }
+    paintMap(); stats(); if (!spinning) render();
+  }
+  // ---------- painting ----------
+  function paintAt(mx, my){
+    var r = +$("hm3-size").value / 2;
+    var cx = mx / 192 * N, cy = my / 192 * N;
+    var strength = brush === "smooth" ? 0.35 : 0.06;
+    var x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(N - 1, Math.ceil(cx + r));
+    var y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(N - 1, Math.ceil(cy + r));
+    var flatTarget = -1;
+    if (brush === "flat") flatTarget = hgt[Math.round(cy) * N + Math.round(cx)] || 0;
+    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+      var d = Math.hypot(x - cx, y - cy);
+      if (d > r) continue;
+      var fall = 0.5 + 0.5 * Math.cos(d / r * Math.PI); // smooth falloff
+      var i = y * N + x;
+      if (brush === "raise") hgt[i] = Math.min(1, hgt[i] + strength * fall);
+      else if (brush === "dig") hgt[i] = Math.max(0, hgt[i] - strength * fall);
+      else if (brush === "flat") hgt[i] += (flatTarget - hgt[i]) * 0.25 * fall;
+      else { // smooth: blend toward neighbour average
+        var s = 0, c = 0;
+        for (var oy = -1; oy <= 1; oy++) for (var ox = -1; ox <= 1; ox++) {
+          var xx = x + ox, yy = y + oy;
+          if (xx >= 0 && yy >= 0 && xx < N && yy < N) { s += hgt[yy * N + xx]; c++; }
+        }
+        hgt[i] += (s / c - hgt[i]) * 0.5 * fall;
+      }
+    }
+    paintMap(); stats(); if (!spinning) render();
+  }
+  var painting = false;
+  function mapPos(e){
+    var r = map.getBoundingClientRect();
+    return [(e.clientX - r.left) / r.width * 192, (e.clientY - r.top) / r.height * 192];
+  }
+  map.addEventListener("pointerdown", function(e){ painting = true; map.setPointerCapture(e.pointerId); var p = mapPos(e); paintAt(p[0], p[1]); });
+  map.addEventListener("pointermove", function(e){ if (!painting) return; var p = mapPos(e); paintAt(p[0], p[1]); });
+  map.addEventListener("pointerup", function(){ painting = false; });
+  function paintMap(){
+    var img = mctx.createImageData(N, N);
+    for (var i = 0; i < N * N; i++) {
+      var v = hgt[i], o = i * 4;
+      if (v < sea) { // water blues
+        var d = 1 - v / sea;
+        img.data[o] = 10 + d * 10; img.data[o+1] = 40 + d * 30; img.data[o+2] = 90 + d * 90;
+      } else { // green -> brown -> white
+        var t = (v - sea) / (1 - sea);
+        if (t < 0.4) { img.data[o] = 40 + t*100; img.data[o+1] = 130 + t*60; img.data[o+2] = 60; }
+        else if (t < 0.75) { var k = (t-0.4)/0.35; img.data[o] = 80+k*80; img.data[o+1] = 154-k*50; img.data[o+2] = 60-k*10; }
+        else { var k2 = (t-0.75)/0.25; img.data[o] = 160+k2*95; img.data[o+1] = 104+k2*151; img.data[o+2] = 50+k2*205; }
+      }
+      img.data[o+3] = 255;
+    }
+    // draw scaled up (N=96 -> 192 canvas)
+    var tmp = document.createElement("canvas"); tmp.width = N; tmp.height = N;
+    tmp.getContext("2d").putImageData(img, 0, 0);
+    mctx.imageSmoothingEnabled = true;
+    mctx.drawImage(tmp, 0, 0, 192, 192);
+  }
+  function stats(){
+    var peak = 0, land = 0;
+    for (var i = 0; i < N * N; i++) { if (hgt[i] > peak) peak = hgt[i]; if (hgt[i] >= sea) land++; }
+    $("hm3-stats").textContent = "⛰ peak " + Math.round(peak * 8848) + " m · 🏝 land " + Math.round(land / (N * N) * 100) + "%";
+  }
+  // ---------- 3D terrain ----------
+  var G = 60; // render grid
+  function Hf(gx, gy){
+    var x = Math.min(N - 1, Math.round(gx / G * (N - 1))), y = Math.min(N - 1, Math.round(gy / G * (N - 1)));
+    return hgt[y * N + x];
+  }
+  function project(x, y, z){
+    var ca = Math.cos(az), sa = Math.sin(az);
+    var x1 = x * ca - z * sa, z1 = x * sa + z * ca, y1 = y;
+    var ce = Math.cos(el), se = Math.sin(el);
+    var y2 = y1 * ce - z1 * se, z2 = y1 * se + z1 * ce;
+    var q = 4.5 / (4.5 + z2);
+    var S = Math.min(W, H) * 0.62 * zoom;
+    return [W / 2 + x1 * S * q, H / 2 + y2 * S * q, z2];
+  }
+  function terrainColor(h, slope, light){
+    var r, g, b;
+    if (h < sea) { var d = 1 - h / Math.max(0.01, sea); r = 30 + d*10; g = 110 - d*50; b = 130 - d*40; }
+    else {
+      var t = (h - sea) / Math.max(0.01, 1 - sea);
+      if (t < 0.08) { r = 210; g = 190; b = 130; }                    // beach
+      else if (t < 0.45) { var k = (t-0.08)/0.37; r = 60+k*30; g = 150-k*30; b = 70-k*20; }  // grass
+      else if (t < 0.75) { var k2 = (t-0.45)/0.3; r = 90+k2*60; g = 120-k2*20; b = 50+k2*40; } // rock
+      else { var k3 = (t-0.75)/0.25; r = 150+k3*105; g = 100+k3*155; b = 90+k3*165; }          // snow
+      if (slope > 0.55 && t < 0.75) { r = r*0.6+70*0.4; g = g*0.6+62*0.4; b = b*0.6+55*0.4; }  // cliffs
+    }
+    var f = Math.max(0.25, Math.min(1.2, light));
+    return "rgb(" + Math.round(r*f) + "," + Math.round(g*f) + "," + Math.round(b*f) + ")";
+  }
+  function render(){
+    ctx.fillStyle = "#04070d"; ctx.fillRect(0, 0, W, H);
+    var wire = $("hm3-wire").checked;
+    // sky glow
+    var sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#0a1628"); sky.addColorStop(0.6, "#04070d"); sky.addColorStop(1, "#04070d");
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    var P = [];
+    for (var gy = 0; gy <= G; gy++) {
+      P[gy] = [];
+      for (var gx = 0; gx <= G; gx++) {
+        var h = Hf(gx, gy);
+        P[gy][gx] = project(gx / G * 2 - 1, (h - sea) * 1.15 - 0.25, gy / G * 2 - 1);
+      }
+    }
+    var quads = [];
+    for (var qy = 0; qy < G; qy++) for (var qx = 0; qx < G; qx++) {
+      var a = P[qy][qx], b = P[qy][qx+1], c = P[qy+1][qx+1], d = P[qy+1][qx];
+      // face normal via cross of screen-independent edges: use height gradient
+      var hx = Hf(qx+1, qy) - Hf(qx, qy), hz = Hf(qx, qy+1) - Hf(qx, qy);
+      var slope = Math.hypot(hx, hz) * G * 0.5;
+      // rotate normal into view for lambert: approximate with rotated gradient
+      var ca = Math.cos(az), sa = Math.sin(az);
+      var nx = -hx * G * ca - -hz * G * sa, nz = -hx * G * sa + -hz * G * ca;
+      var light = 0.72 + (-nx * 0.4 + -nz * 0.3) * 2 + 0.15;
+      var hAvg = (Hf(qx,qy) + Hf(qx+1,qy) + Hf(qx,qy+1) + Hf(qx+1,qy+1)) / 4;
+      quads.push({ z: (a[2]+b[2]+c[2]+d[2])/4, pts: [a,b,c,d], h: hAvg, slope: slope, light: light });
+    }
+    quads.sort(function(x, y){ return x.z - y.z; });
+    for (var i = quads.length - 1; i >= 0; i--) {
+      var Q = quads[i];
+      ctx.beginPath();
+      ctx.moveTo(Q.pts[0][0], Q.pts[0][1]);
+      for (var k = 1; k < 4; k++) ctx.lineTo(Q.pts[k][0], Q.pts[k][1]);
+      ctx.closePath();
+      if (wire) {
+        ctx.strokeStyle = terrainColor(Q.h, Q.slope, Q.light);
+        ctx.lineWidth = 0.7; ctx.stroke();
+      } else {
+        ctx.fillStyle = terrainColor(Q.h, Q.slope, Q.light);
+        ctx.fill();
+      }
+    }
+    if (!wire) {
+      // water surface: translucent quads where terrain below sea
+      var wob = spinning ? Math.sin(waterT * 2.2) * 0.012 : 0;
+      for (var w2 = quads.length - 1; w2 >= 0; w2--) {
+        var WQ = quads[w2];
+        if (WQ.h >= sea) continue;
+        var depth = Math.min(1, (sea - WQ.h) * 3);
+        // lift quad to sea level in screen space (approx: shift up by height diff)
+        var lift = (sea - WQ.h) * 1.15 * Math.min(W, H) * 0.62 * 0.9;
+        ctx.beginPath();
+        ctx.moveTo(WQ.pts[0][0], WQ.pts[0][1] - lift + wob * H);
+        for (var k2 = 1; k2 < 4; k2++) ctx.lineTo(WQ.pts[k2][0], WQ.pts[k2][1] - lift + wob * H);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(35,140,220," + (0.35 + depth * 0.35).toFixed(2) + ")";
+        ctx.fill();
+      }
+    }
+  }
+  var bb = document.querySelectorAll("[data-hm3-b]");
+  for (var bi = 0; bi < bb.length; bi++) (function(btn){
+    btn.addEventListener("click", function(){
+      brush = btn.getAttribute("data-hm3-b");
+      for (var j = 0; j < bb.length; j++) {
+        var on = bb[j] === btn;
+        bb[j].style.cssText = "padding:8px 13px;border-radius:8px;cursor:pointer;font-weight:" + (on ? "800" : "700") + ";font-size:.8rem;border:1px solid " + (on ? "rgba(45,212,255,.4)" : "rgba(255,255,255,.18)") + ";background:" + (on ? "rgba(45,212,255,.12)" : "rgba(255,255,255,.06)") + ";color:" + (on ? "var(--accent)" : "var(--text)") + ";";
+      }
+    });
+  })(bb[bi]);
+  var gb = document.querySelectorAll("[data-hm3-g]");
+  for (var gi = 0; gi < gb.length; gi++) (function(btn){
+    btn.addEventListener("click", function(){ generate(btn.getAttribute("data-hm3-g")); });
+  })(gb[gi]);
+  $("hm3-erode").addEventListener("click", function(){
+    // simple thermal erosion: 6 iterations
+    for (var it = 0; it < 6; it++) {
+      for (var y = 1; y < N - 1; y++) for (var x = 1; x < N - 1; x++) {
+        var i = y * N + x, h0 = hgt[i], flow = 0;
+        var nb = [hgt[i-1], hgt[i+1], hgt[i-N], hgt[i+N]];
+        for (var k = 0; k < 4; k++) { var dd = h0 - nb[k]; if (dd > 0.035) flow += (dd - 0.035) * 0.12; }
+        if (flow > 0) {
+          hgt[i] -= flow;
+          var share = flow / 4;
+          hgt[i-1] += share; hgt[i+1] += share; hgt[i-N] += share; hgt[i+N] += share;
+        }
+      }
+    }
+    paintMap(); stats(); if (!spinning) render();
+  });
+  $("hm3-size").addEventListener("input", function(){ $("hm3-sizev").textContent = this.value; });
+  $("hm3-sea").addEventListener("input", function(){
+    sea = +this.value / 100;
+    $("hm3-seav").textContent = this.value + "%";
+    paintMap(); stats(); if (!spinning) render();
+  });
+  $("hm3-spin").checked = spinning;
+  $("hm3-spin").addEventListener("change", function(){ spinning = this.checked; if (spinning) requestAnimationFrame(frame); });
+  $("hm3-wire").addEventListener("change", function(){ if (!spinning) render(); });
+  var dragging = false, lx = 0, ly = 0;
+  cv.addEventListener("pointerdown", function(e){ dragging = true; lx = e.clientX; ly = e.clientY; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", function(e){
+    if (!dragging) return;
+    az += (e.clientX - lx) * 0.009; el = Math.max(0.15, Math.min(1.45, el + (e.clientY - ly) * 0.007));
+    lx = e.clientX; ly = e.clientY;
+    if (!spinning) render();
+  });
+  cv.addEventListener("pointerup", function(){ dragging = false; });
+  cv.addEventListener("wheel", function(e){ e.preventDefault(); zoom = Math.max(0.4, Math.min(2.5, zoom * (e.deltaY > 0 ? 0.93 : 1.07))); if (!spinning) render(); }, { passive: false });
+  var last = 0;
+  function frame(ts){
+    if (!spinning) return;
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    waterT += dt;
+    if (!dragging) az += dt * 0.25;
+    render();
+    requestAnimationFrame(frame);
+  }
+  generate("island");
+  fit();
+  if (spinning) requestAnimationFrame(frame);
+})();
+</script>
