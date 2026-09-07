@@ -331,7 +331,8 @@ const gapFillMap = {
   'beaufort-wind-scale': 'Science & Engineering',
   'clock-angle-calculator': 'Mathematics',
   'radians-degrees-converter': 'Mathematics',
-  'ieee-754-converter': 'SaaS & Business Killers'
+  'ieee-754-converter': 'SaaS & Business Killers',
+  'guitar-fret-calculator': 'Music & Audio'
 };
 
 const sportsList = [
