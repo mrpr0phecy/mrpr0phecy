@@ -337,7 +337,8 @@ const gapFillMap = {
   'loan-amortization-schedule': 'Finance & Money',
   'sphere-cylinder-cone-volume': 'Mathematics',
   'scrabble-score-calculator': 'Productivity & Lifestyle',
-  'markdown-table-generator': 'Writing & Language'
+  'markdown-table-generator': 'Writing & Language',
+  'ltv-mortgage-calculator': 'Finance & Money'
 };
 
 const sportsList = [
