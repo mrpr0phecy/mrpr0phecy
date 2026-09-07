@@ -199,7 +199,12 @@ const gapFillMap = {
   'sunrise-sunset-calculator': 'Astronomy & Space',
   'screen-ppi-calculator': 'SaaS & Business Killers',
   'tire-size-comparison-calculator': 'Productivity & Lifestyle',
-  'iso-week-number-finder': 'Productivity & Lifestyle'
+  'iso-week-number-finder': 'Productivity & Lifestyle',
+  'overnight-shift-duration-calculator': 'Productivity & Lifestyle',
+  'character-limit-platform-counter': 'Writing & Language',
+  'random-number-dice-coin-generator': 'Productivity & Lifestyle',
+  'jet-lag-sleep-shift-planner': 'Health & Fitness',
+  'clothing-size-converter': 'Productivity & Lifestyle'
 };
 
 const sportsList = [

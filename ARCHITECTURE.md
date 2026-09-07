@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 709 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 714 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -48,8 +48,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 709 tools
-│   └── <tool-name>.html    709 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 714 tools
+│   └── <tool-name>.html    714 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 │
 ├── listen.html             Product B: music hub — the main entry point
@@ -133,7 +133,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 709 cards.** They share one
+2. **Element IDs must be globally unique across all 714 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -187,7 +187,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (709 tools)
+### Categories (714 tools)
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
@@ -758,7 +758,7 @@ All ten were added to `saasKillerList` in `generate-cards-json.js` (the category
 is 11 → **21**). `sitemap.xml` regeneration now carries an explicit `EXCLUDE`
 set for `404.html`, `hokidea.html` and `indexbeta.html` — re-running the §6
 script without it silently adds all three to the sitemap. Tool count is now
-**654** and the sitemap has **709** URLs (updated across README, ARCHITECTURE,
+**654** and the sitemap has **714** URLs (updated across README, ARCHITECTURE,
 INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html, tool.html, donate.html,
 sponsor.html).
 
@@ -799,7 +799,7 @@ home with **no smoke alarm at all** still score "Needs work", because good habit
 elsewhere offset it. Nothing compensates for not being woken up, so `alarm ===
 'none'` now floors the risk at 60 ("Genuinely risky") regardless of the rest.
 
-At that point, the tool count reached **664** across **27 categories**, and the sitemap had **709**
+At that point, the tool count reached **664** across **27 categories**, and the sitemap had **714**
 URLs (updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS,
 index.html including its JSON-LD `ItemList`, 404.html, tool.html, donate.html,
 sponsor.html, plus the `KNOWN_CATEGORIES` set in `scripts/check-cards.py` and a
