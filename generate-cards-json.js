@@ -303,7 +303,8 @@ const gapFillMap = {
   'uk-alcohol-units-calculator': 'Health & Fitness',
   'mortgage-overpayment-calculator': 'Finance & Money',
   'rental-yield-calculator': 'Finance & Money',
-  'stripe-paypal-fee-calculator': 'Finance & Money'
+  'stripe-paypal-fee-calculator': 'Finance & Money',
+  'css-specificity-calculator': 'SaaS & Business Killers'
 };
 
 const sportsList = [
