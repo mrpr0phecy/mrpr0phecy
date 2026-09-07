@@ -284,7 +284,12 @@ const gapFillMap = {
   'html-css-minifier': 'SaaS & Business Killers',
   'ascii-hex-binary-text-converter': 'Writing & Language',
   'uk-postcode-formatter': 'Productivity & Lifestyle',
-  'fiscal-quarter-finder': 'Productivity & Lifestyle'
+  'fiscal-quarter-finder': 'Productivity & Lifestyle',
+  'keyboard-key-tester': 'Productivity & Lifestyle',
+  'gitignore-template-builder': 'SaaS & Business Killers',
+  'diceware-passphrase-generator': 'SaaS & Business Killers',
+  'tabata-interval-timer': 'Health & Fitness',
+  'lumen-lux-calculator': 'Science & Engineering'
 };
 
 const sportsList = [
