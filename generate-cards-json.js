@@ -308,7 +308,8 @@ const gapFillMap = {
   'json-flatten-unflatten': 'SaaS & Business Killers',
   'quadratic-equation-solver': 'Mathematics',
   'pythagoras-triangle-solver': 'Mathematics',
-  'running-split-pace-calculator': 'Sports'
+  'running-split-pace-calculator': 'Sports',
+  'led-watt-equivalent-calculator': 'Home & DIY'
 };
 
 const sportsList = [
