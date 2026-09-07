@@ -229,7 +229,12 @@ const gapFillMap = {
   'calorie-deficit-weight-loss-timeline': 'Health & Fitness',
   'protein-daily-intake-calculator': 'Health & Fitness',
   'a1c-average-glucose-converter': 'Health & Fitness',
-  'mean-arterial-pressure-calculator': 'Health & Fitness'
+  'mean-arterial-pressure-calculator': 'Health & Fitness',
+  'hyperfocal-depth-of-field-calculator': 'SaaS & Business Killers',
+  'crop-factor-35mm-equivalent': 'SaaS & Business Killers',
+  'nd-filter-exposure-calculator': 'SaaS & Business Killers',
+  'bytes-kb-mb-gb-converter': 'SaaS & Business Killers',
+  'download-time-calculator': 'SaaS & Business Killers'
 };
 
 const sportsList = [
