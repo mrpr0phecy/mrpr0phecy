@@ -358,7 +358,8 @@ const gapFillMap = {
   'seven-wonders-hall': 'Museum & Collection',
   'roman-coin-denominations': 'Museum & Collection',
   'latin-date-kalends-nones': 'Museum & Collection',
-  'hominin-timeline-hall': 'Museum & Collection'
+  'hominin-timeline-hall': 'Museum & Collection',
+  'uk-hallmark-decoder': 'Museum & Collection'
 };
 
 const sportsList = [
