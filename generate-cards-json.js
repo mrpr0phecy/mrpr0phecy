@@ -348,7 +348,8 @@ const gapFillMap = {
   'dewey-decimal-classifier': 'Museum & Collection',
   'messier-catalogue-hall': 'Museum & Collection',
   'conservation-lux-hours': 'Museum & Collection',
-  'museum-tombstone-label': 'Museum & Collection'
+  'museum-tombstone-label': 'Museum & Collection',
+  'pigment-cabinet-of-colour': 'Museum & Collection'
 };
 
 const sportsList = [
