@@ -224,7 +224,12 @@ const gapFillMap = {
   'yeast-fresh-instant-converter': 'Culinary & Food Science',
   'air-fryer-oven-conversion': 'Culinary & Food Science',
   'ev-charging-cost-calculator': 'Productivity & Lifestyle',
-  'horsepower-kw-torque-converter': 'Productivity & Lifestyle'
+  'horsepower-kw-torque-converter': 'Productivity & Lifestyle',
+  'intermittent-fasting-window-planner': 'Health & Fitness',
+  'calorie-deficit-weight-loss-timeline': 'Health & Fitness',
+  'protein-daily-intake-calculator': 'Health & Fitness',
+  'a1c-average-glucose-converter': 'Health & Fitness',
+  'mean-arterial-pressure-calculator': 'Health & Fitness'
 };
 
 const sportsList = [
