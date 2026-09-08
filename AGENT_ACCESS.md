@@ -115,7 +115,7 @@ One GitHub Pages site, **two deliberately separate products**:
 
 | Product | Entry point | What it is |
 |---|---|---|
-| **A — The Most Useful Site In The World** | `index.html` | **708** self-contained offline browser tools, indexed by `cards/cards.json` |
+| **A — The Most Useful Site In The World** | `index.html` | **1165** self-contained offline browser tools, indexed by `cards/cards.json` |
 | **B — MrProphecy** | `listen.html` | UK hip hop / animated soundscapes from Luton; YouTube + SoundCloud |
 
 **Never mix them**: no music players/banners in the catalogue or cards; no tool

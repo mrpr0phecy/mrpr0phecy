@@ -26,10 +26,22 @@ A number immediately followed (within a short window of words) by tool/card/
 utility/calculator, or one of the exact template phrases below. Version
 strings, prices, years, pixel sizes and colour values are never touched — the
 patterns are deliberately narrow and every replacement is shown with --check.
+
+Pattern history
+---------------
+Originally the only pattern was `<number> <words> <noun>`, which silently
+missed three real categories of claim and let drift ship undetected for
+months: numbers wrapped in inline markup (`<b>708</b>`, `<strong>1164+</strong>`,
+`**708**`), JSON-LD `"numberOfItems": N` where no noun ever follows, and
+anaphoric count references ("708 of them", "alongside the other 1164"). All
+three now have their own rules. The window between the number and the noun
+also tolerates a single punctuation mark (`,` or `.`) per word and a longer
+maximum word length, which `"708 free, ad-free browser tools"` requires.
 """
 from __future__ import annotations
 
 import argparse
+import glob
 import os
 import re
 import sys
@@ -37,10 +49,13 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARDS = os.path.join(ROOT, "cards")
 
-# Files that carry a user- or agent-visible tool count.
-TARGETS = [
+# Files that carry a user- or agent-visible tool count. The fixed-name set is
+# for top-level docs and pages; the per-directory globs cover guides/, blog/
+# and launch/ whose sub-pages each have their own count claim in the footer.
+TARGETS_TOP = [
     "index.html", "404.html", "tool.html", "donate.html", "sponsor.html",
     "README.md", "AGENTS.md", "ARCHITECTURE.md", "AGENT_ACCESS.md", "INCOME.md",
+    "STRATEGY.md", "CONTRIBUTING.md",
     # Content and AI-facing pages salvaged from arena/01a05fea + 01a078f8.
     # changelog.html is deliberately absent: its entries are past-tense
     # history ("+10 tools, 23 categories, 562 total") and rewriting them
@@ -49,6 +64,31 @@ TARGETS = [
     "help.html", "legal.html", "new.html", "popular.html", "press.html",
     "sitemap.html", "tools.html", "tools-index.html", "use-case.html",
 ]
+TARGETS_GLOB = [
+    "guides/*.html", "blog/*.html", "launch/index.html",
+]
+# Anything matching these globs is excluded from rewriting: board records
+# (BRANCHES.md, BOARD.md, DECISIONS.md) document dated events; the changelog
+# (already excluded from TARGETS) records past releases. Manual
+# `<!-- historical-count -->` markers cover one-off cases.
+EXCLUDE_PATTERNS = ["staff/", "changelog.html"]
+
+
+def _collect_targets() -> list[str]:
+    out = []
+    for name in TARGETS_TOP:
+        if os.path.exists(os.path.join(ROOT, name)):
+            out.append(name)
+    for pat in TARGETS_GLOB:
+        for path in sorted(glob.glob(os.path.join(ROOT, pat))):
+            rel = os.path.relpath(path, ROOT)
+            if any(rel.startswith(ex) for ex in EXCLUDE_PATTERNS):
+                continue
+            out.append(rel)
+    return out
+
+
+TARGETS = _collect_targets()
 
 # Past-tense narrative must never be rewritten: "the catalogue was not 500
 # distinct tools" is a true statement about history, and syncing it to 644
@@ -57,6 +97,7 @@ TARGETS = [
 HISTORY_ANCHOR = {
     "ARCHITECTURE.md": "## 9. Current state and known work",
     "INCOME.md": None,
+    "STRATEGY.md": "## What to do next, in order",
 }
 
 # A line carrying this marker is exempt: it is deliberately quoting a past or
@@ -78,9 +119,42 @@ KNOWN_STALE = r"\d{3,4}"
 # The word window lets "644 free offline browser tools" match while stopping
 # well short of running into unrelated prose.
 NOUN = r"(?:tools?|cards?|utilities|utility|calculators?)"
-FILLER = r"(?:[a-z][a-z-]{0,11}\s+){0,4}"
+# Allow comma or period after a word so "708 free, ad-free browser tools"
+# still parses as three words instead of stopping at the comma.
+FILLER = r"(?:[a-z][a-z-]{0,15}[.,]?\s+){0,4}"
+# A "bridge" is markup or markdown emphasis between the number and the word
+# window. Without this, `<b>708</b><span>Free tools</span>` and
+# `**708** self-contained browser tools` are silently invisible to the
+# check — which is how the donate page shipped saying "708" for weeks.
+# The structure is: any number of tag/em spans, then optional whitespace,
+# then 0–4 words. Each piece starts with a character class the previous
+# piece can't consume, so there is no backtracking ambiguity.
+TAG_OR_MARK = r"(?:<\/?[a-z][^>]*>|\*\*|__)"
+BRIDGE = rf"(?:{TAG_OR_MARK})*"
+GAP = rf"{BRIDGE}\s*{FILLER}"
 CLAIM = re.compile(
-    rf"(?<![\d.])({KNOWN_STALE})(\+?)(\s+{FILLER}){NOUN}\b",
+    rf"(?<![\d.])({KNOWN_STALE})(\+?)({GAP}){NOUN}\b",
+    re.IGNORECASE,
+)
+
+# JSON-LD puts the number on the far side of the key, so the noun never
+# follows it and CLAIM cannot see it. This rule is what fixes tools.html's
+# "numberOfItems": 562 and index.html's CollectionPage count.
+JSONLD_NO = re.compile(r'("numberOfItems"\s*:\s*)(\d{3,4})(?=\s*[,}])')
+
+# "708 of them" and "alongside the other 1164" — count claims where the
+# noun is replaced by an anaphor. Both appear in the live site copy.
+OF_THEM = re.compile(r"(?<![\d.])(\d{3,4})(?=\s+of\s+them\b)", re.IGNORECASE)
+ALONGSIDE_OTHER = re.compile(
+    r"(?<![\d.])(alongside\s+the\s+other\s+)(\d{3,4})\b", re.IGNORECASE
+)
+# "All 708 share one DOM" — a count claim with no recognisable noun. The
+# number still describes the catalogue (every card shares the catalogue's
+# DOM), so the count is the same and the claim is stale when the catalogue
+# size changes. The pattern is narrow on purpose — "share" and "DOM" are
+# not otherwise a count-trigger.
+SHARE_ONE_DOM = re.compile(
+    r"(?<![\d.])(all\s+|every\s+card\s+|every\s+tool\s+)?(\d{3,4})(?=\s+(?:share|shares|sharing)\s+one\s+DOM\b)",
     re.IGNORECASE,
 )
 
@@ -92,27 +166,98 @@ def true_count() -> int:
     return len([f for f in os.listdir(CARDS) if f.endswith(".html")])
 
 
+def _is_exempt(text: str, start: int, end: int) -> bool:
+    line_start = text.rfind("\n", 0, start) + 1
+    line_end = text.find("\n", end)
+    if line_end == -1:
+        line_end = len(text)
+    line = text[line_start:line_end]
+    if EXEMPT in line:
+        return True
+    # Don't touch lines that look like dated narrative ("…on 2026-09-07…").
+    # These are the kind of sentence the docstring warns about rewriting.
+    if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", line):
+        return True
+    return False
+
+
+def _plausible(n: int) -> bool:
+    return 200 <= n <= 1500
+
+
 def fix_text(text: str, n: int) -> tuple[str, list[str]]:  # noqa: C901
     """Rewrite every stale count claim. Returns (new_text, descriptions)."""
     changes: list[str] = []
 
-    def repl(m: re.Match) -> str:
-        line_start = text.rfind("\n", 0, m.start()) + 1
-        line_end = text.find("\n", m.end())
-        line = text[line_start:line_end if line_end != -1 else len(text)]
-        if EXEMPT in line:
+    def claim_repl(m: re.Match) -> str:
+        if _is_exempt(text, m.start(), m.end()):
             return m.group(0)
         found = m.group(1)
         if found == str(n):
             return m.group(0)
-        # Only rewrite plausible catalogue sizes, never arbitrary 3-digit
-        # numbers that happen to precede the word "tools".
-        if not (200 <= int(found) <= 1500):
+        if not _plausible(int(found)):
             return m.group(0)
         changes.append(f"{m.group(0).strip()!r} -> {n}")
         return str(n) + m.group(2) + m.group(3) + m.group(0)[m.end(3) - m.start():]
 
-    return CLAIM.sub(repl, text), changes
+    def jsonld_repl(m: re.Match) -> str:
+        if _is_exempt(text, m.start(), m.end()):
+            return m.group(0)
+        found = m.group(2)
+        if found == str(n):
+            return m.group(0)
+        if not _plausible(int(found)):
+            return m.group(0)
+        changes.append(f"{m.group(0).strip()!r} -> {n}")
+        return m.group(1) + str(n)
+
+    def of_them_repl(m: re.Match) -> str:
+        if _is_exempt(text, m.start(), m.end()):
+            return m.group(0)
+        found = m.group(1)
+        if found == str(n):
+            return m.group(0)
+        if not _plausible(int(found)):
+            return m.group(0)
+        changes.append(f"{m.group(0).strip()!r} -> {n}")
+        return str(n) + m.group(0)[len(m.group(1)):]
+
+    def alongside_repl(m: re.Match) -> str:
+        if _is_exempt(text, m.start(), m.end()):
+            return m.group(0)
+        found = m.group(2)
+        if found == str(n):
+            return m.group(0)
+        if not _plausible(int(found)):
+            return m.group(0)
+        changes.append(f"{m.group(0).strip()!r} -> {n}")
+        return m.group(1) + str(n)
+
+    def share_dom_repl(m: re.Match) -> str:
+        if _is_exempt(text, m.start(), m.end()):
+            return m.group(0)
+        found = m.group(2)
+        if found == str(n):
+            return m.group(0)
+        if not _plausible(int(found)):
+            return m.group(0)
+        changes.append(f"{m.group(0).strip()!r} -> {n}")
+        prefix = m.group(1) or ""
+        return prefix + str(n) + m.group(0)[len(prefix) + len(m.group(2)):]
+
+    # Apply each pattern in turn. Order matters: CLAIM may match a span
+    # that JSONLD_NO would otherwise rewrite (it doesn't here, but be safe
+    # and run them independently).
+    new = text
+    for pat, repl in (
+        (CLAIM, claim_repl),
+        (JSONLD_NO, jsonld_repl),
+        (OF_THEM, of_them_repl),
+        (ALONGSIDE_OTHER, alongside_repl),
+        (SHARE_ONE_DOM, share_dom_repl),
+    ):
+        new = pat.sub(repl, new)
+    return new, changes
 
 
 def main() -> int:
