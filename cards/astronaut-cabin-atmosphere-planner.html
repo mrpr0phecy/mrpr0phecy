@@ -1,0 +1,75 @@
+<h2 id="acap-title" style="margin-top:0;color:var(--accent);">🫧 Spacecraft Cabin Atmosphere Planner</h2>
+
+<form aria-describedby="acap-desc acap-note" onsubmit="event.preventDefault();">
+  <p id="acap-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Convert cabin pressure and gas fractions into oxygen, carbon-dioxide, water-vapour and inert-gas partial pressures. Compare oxygen availability across mixed-pressure habitat concepts.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;">
+    <div><label for="acap-pressure" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Total cabin pressure (kPa)</label><input id="acap-pressure" type="number" min="0.1" max="500" step="0.01" value="101.325" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="acap-o2" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Oxygen fraction (%)</label><input id="acap-o2" type="number" min="0" max="100" step="0.01" value="20.946" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="acap-co2" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Carbon dioxide (ppm)</label><input id="acap-co2" type="number" min="0" max="1000000" step="1" value="1000" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="acap-water" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Water vapour fraction (%)</label><input id="acap-water" type="number" min="0" max="100" step="0.01" value="1.50" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+  </div>
+
+  <div id="acap-presets-label" style="color:var(--text-secondary);font-size:.75rem;margin-bottom:6px;">Illustrative atmosphere presets</div>
+  <div role="group" aria-labelledby="acap-presets-label" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="acap-preset" data-p="101.325" data-o="20.946" style="padding:6px 9px;border-radius:5px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;">Earth sea level</button>
+    <button type="button" class="acap-preset" data-p="70.3" data-o="30" style="padding:6px 9px;border-radius:5px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;">70.3 kPa / 30% O₂</button>
+    <button type="button" class="acap-preset" data-p="34.5" data-o="100" data-c="0" data-w="0" style="padding:6px 9px;border-radius:5px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;">34.5 kPa / pure O₂</button>
+  </div>
+
+  <div id="acap-error" role="alert" style="display:none;color:#ff7b8b;margin:8px 0;font-size:.82rem;"></div>
+  <div aria-live="polite" style="background:rgba(0,0,0,.28);border:1px solid rgba(45,212,255,.22);border-radius:10px;padding:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;">
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">O₂ partial pressure</div><strong id="acap-po2" style="display:block;color:var(--accent);font-size:1.28rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">CO₂ partial pressure</div><strong id="acap-pco2" style="display:block;color:#ffd166;font-size:1.12rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Water partial pressure</div><strong id="acap-ph2o" style="display:block;color:var(--text);font-size:1.12rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Inert balance</div><strong id="acap-inert" style="display:block;color:var(--text);font-size:1.12rem;">—</strong></div>
+    </div>
+    <div style="height:1px;background:rgba(255,255,255,.1);margin:13px 0;"></div>
+    <div id="acap-equivalent" style="font-size:.84rem;color:var(--text-secondary);line-height:1.55;">—</div>
+    <div id="acap-target" style="font-size:.75rem;color:var(--text-secondary);margin-top:5px;">—</div>
+  </div>
+  <button id="acap-reset" type="reset" style="margin-top:10px;padding:8px 14px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;">Reset atmosphere</button>
+</form>
+
+<p id="acap-note" class="small" style="color:var(--text-secondary);font-size:.72rem;line-height:1.5;margin-top:10px;">
+  Dalton-law arithmetic, not a life-support controller. It does not model alveolar gases, decompression, flammability, contaminants or individual physiology. Never infer breathing safety from oxygen partial pressure alone; certified sensors and flight rules take precedence.
+</p>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var ids = ['acap-pressure','acap-o2','acap-co2','acap-water'];
+  function run() {
+    var p = Number($('acap-pressure').value), o2 = Number($('acap-o2').value), co2 = Number($('acap-co2').value), water = Number($('acap-water').value);
+    var co2pct = co2 / 10000, inert = 100 - o2 - co2pct - water;
+    var bad = [p,o2,co2,water].some(function (x) { return !isFinite(x) || x < 0; }) || p <= 0 || o2 > 100 || water > 100 || co2 > 1000000 || inert < 0;
+    $('acap-error').style.display = bad ? 'block' : 'none';
+    $('acap-error').textContent = bad ? 'Pressure must be positive and gas fractions cannot add to more than 100%.' : '';
+    if (bad) return;
+    var po2 = p * o2 / 100, pco2 = p * co2 / 1000000, ph2o = p * water / 100;
+    var seaEquivalent = po2 / 101.325 * 100, targetO2 = 101.325 * 0.20946 / p * 100;
+    $('acap-po2').textContent = po2.toFixed(2) + ' kPa';
+    $('acap-pco2').textContent = pco2.toFixed(4) + ' kPa';
+    $('acap-ph2o').textContent = ph2o.toFixed(2) + ' kPa';
+    $('acap-inert').textContent = inert.toFixed(3) + '% · ' + (p * inert / 100).toFixed(2) + ' kPa';
+    $('acap-equivalent').textContent = 'The dry-gas oxygen partial pressure equals ' + seaEquivalent.toFixed(2) + '% O₂ at 101.325 kPa. This is a gas-law comparison, not a physiological equivalence.';
+    $('acap-target').textContent = 'At ' + p.toFixed(3) + ' kPa, matching sea-level dry oxygen partial pressure would require ' + targetO2.toFixed(2) + '% O₂.';
+  }
+  ids.forEach(function (id) { $(id).addEventListener('input', run); });
+  card.querySelectorAll('.acap-preset').forEach(function (button) {
+    button.addEventListener('click', function () {
+      $('acap-pressure').value = button.dataset.p;
+      $('acap-o2').value = button.dataset.o;
+      if (button.dataset.c !== undefined) $('acap-co2').value = button.dataset.c;
+      if (button.dataset.w !== undefined) $('acap-water').value = button.dataset.w;
+      run();
+    });
+  });
+  $('acap-reset').addEventListener('click', function () { setTimeout(run, 0); });
+  run();
+})();
+</script>

@@ -1,0 +1,63 @@
+<h2 id="ardl-title" style="margin-top:0;color:var(--accent);">☢️ Astronaut Radiation Dose Ledger</h2>
+
+<form aria-describedby="ardl-desc ardl-note" onsubmit="event.preventDefault();">
+  <p id="ardl-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Combine prior dose, mission duration, a measured or assumed daily rate, shielding reduction and one-off events. Compare the total with a value you choose without pretending that one universal career limit exists.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;">
+    <div><label for="ardl-prior" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Prior recorded dose (mSv)</label><input id="ardl-prior" type="number" min="0" step="0.01" value="0" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="ardl-days" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Mission duration (days)</label><input id="ardl-days" type="number" min="0.01" max="20000" step="0.1" value="180" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="ardl-rate" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Unshielded daily rate (mSv/day)</label><input id="ardl-rate" type="number" min="0" step="0.001" value="0.60" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="ardl-shield" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Modelled shielding reduction (%)</label><input id="ardl-shield" type="number" min="0" max="100" step="1" value="20" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="ardl-event" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Event / EVA dose (mSv)</label><input id="ardl-event" type="number" min="0" step="0.01" value="0" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="ardl-medical" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Other recorded dose (mSv)</label><input id="ardl-medical" type="number" min="0" step="0.01" value="0" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="ardl-compare" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">User comparison value (mSv)</label><input id="ardl-compare" type="number" min="0.01" step="1" value="250" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+  </div>
+
+  <div id="ardl-error" role="alert" style="display:none;color:#ff7b8b;margin:8px 0;font-size:.82rem;"></div>
+  <div aria-live="polite" style="background:rgba(0,0,0,.28);border:1px solid rgba(45,212,255,.22);border-radius:10px;padding:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;">
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Mission increment</div><strong id="ardl-mission" style="display:block;color:var(--accent);font-size:1.3rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Cumulative ledger</div><strong id="ardl-total" style="display:block;color:var(--text);font-size:1.3rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Shielding avoided</div><strong id="ardl-avoided" style="display:block;color:#55e6a5;font-size:1.1rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Average during mission</div><strong id="ardl-average" style="display:block;color:#ffd166;font-size:1.1rem;">—</strong></div>
+    </div>
+    <div style="height:8px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden;margin:14px 0 6px;"><div id="ardl-bar" style="height:100%;width:0;background:var(--accent);border-radius:5px;"></div></div>
+    <div id="ardl-comparison" style="font-size:.82rem;color:var(--text-secondary);line-height:1.5;">—</div>
+    <div id="ardl-background" style="font-size:.75rem;color:var(--text-secondary);margin-top:5px;">—</div>
+  </div>
+  <button id="ardl-reset" type="reset" style="margin-top:10px;padding:8px 14px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;">Reset ledger</button>
+</form>
+
+<p id="ardl-note" class="small" style="color:var(--text-secondary);font-size:.72rem;line-height:1.5;margin-top:10px;">
+  Educational bookkeeping only. Dose rate and shielding response depend on spectrum, geometry, tissue and detector; agency limits are individual and programme-specific. The background comparison uses the worldwide average natural exposure of about 2.4 mSv/year only as scale.
+</p>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var ids = ['ardl-prior','ardl-days','ardl-rate','ardl-shield','ardl-event','ardl-medical','ardl-compare'];
+  function run() {
+    var n = ids.map(function (id) { return Number($(id).value); });
+    var bad = n.some(function (x) { return !isFinite(x) || x < 0; }) || n[1] <= 0 || n[3] > 100 || n[6] <= 0;
+    $('ardl-error').style.display = bad ? 'block' : 'none';
+    $('ardl-error').textContent = bad ? 'Use non-negative doses, a positive duration and comparison value, and shielding from 0 to 100%.' : '';
+    if (bad) return;
+    var unshielded = n[1] * n[2], nominal = unshielded * (1 - n[3] / 100);
+    var mission = nominal + n[4] + n[5], total = n[0] + mission, pct = total / n[6] * 100;
+    $('ardl-mission').textContent = mission.toFixed(2) + ' mSv';
+    $('ardl-total').textContent = total.toFixed(2) + ' mSv';
+    $('ardl-avoided').textContent = (unshielded - nominal).toFixed(2) + ' mSv';
+    $('ardl-average').textContent = (mission / n[1]).toFixed(3) + ' mSv/day';
+    $('ardl-bar').style.width = Math.min(100, pct).toFixed(1) + '%';
+    $('ardl-bar').style.background = pct > 100 ? '#ff7b8b' : (pct > 75 ? '#ffd166' : 'var(--accent)');
+    $('ardl-comparison').textContent = 'The cumulative ledger is ' + pct.toFixed(1) + '% of your ' + n[6].toFixed(1) + ' mSv comparison value. This is a comparison, not a safety classification.';
+    $('ardl-background').textContent = 'Scale only: ' + total.toFixed(2) + ' mSv is about ' + (total / 2.4).toFixed(1) + ' years of average natural background exposure.';
+  }
+  ids.forEach(function (id) { $(id).addEventListener('input', run); });
+  $('ardl-reset').addEventListener('click', function () { setTimeout(run, 0); });
+  run();
+})();
+</script>
