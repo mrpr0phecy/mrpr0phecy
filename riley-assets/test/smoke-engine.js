@@ -295,6 +295,32 @@ check('corpse tumbles and rises', gc && Math.abs(gc.lean - lean0) > 0.05, gc ? {
 pump(40);
 check('corpse cleaned up', global.__T.info().n === 0 || global.__T.info().es >= 0, global.__T.info().n);
 
+console.log('--- spawn-in grace + arena rope ---');
+global.__T.wave(3);
+pump(4);
+const gIdx = global.__T.info().n > 0 ? 0 : -1;
+const grace = gIdx >= 0 ? global.__T.spawnGrace(0) : -1;
+check('a queued spawn materialises with a grace window', grace > 0 || global.__T.info().n === 0, { grace, n: global.__T.info().n });
+/* while materialising it must be harmless even if it is inside your hitbox */
+global.__T.hurtAll(); pump(30); global.__T.clearShots();
+global.__T.setInv(0);
+const lR = global.__T.info().lives;
+global.__T.place('grunt', 0.3, 0.1);
+const gg = global.__T.lastEnemy();
+gg.spawnT = 0.4; gg.actKind = 'lunge'; gg.actT = 0.3; gg.tele = 0; gg.vx = 0; gg.vz = 0;
+for (let i = 0; i < 12; i++) { gg.x = global.__R().x + 0.3; gg.z = global.__R().z + 0.05; gg.spawnT = Math.max(gg.spawnT, 0.05); pump(1); }
+check('materialising goblin cannot hurt you', global.__T.info().lives === lR, { lR, now: global.__T.info().lives });
+global.__T.god(true);
+/* rope: past the arena the world pulls you back */
+const farSpot = global.__T.tp(0, -(16.5 + 30));   /* ARENA_R + 30 — well past the rope */
+pump(3);
+const rR = global.__R();
+check('out of the arena you are dragged back', rR.rope > 0.1 && rR.vz > 0.5, { rope: +rR.rope.toFixed(2), vz: +rR.vz.toFixed(2), d: farSpot.d });
+global.__T.tp(0, 0);
+pump(20);
+check('back inside, the rope lets go', global.__R().rope < 0.05, global.__R().rope);
+
+
 console.log('--- pause-menu camera sliders drive CAMSET ---');
 global.RileyGame.state;                    /* no-op read: overlay must not need play state */
 global.__T.camSet('sens', 1); global.__T.camSet('invertY', 0);

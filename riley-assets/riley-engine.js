@@ -1082,7 +1082,7 @@ function newRiley() {
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: Math.PI, run: 0, air: 0, ground: true,
     dashT: 0, dashCd: 0, dashDX: 0, dashDZ: 0, dashing: false, jumpBuf: 0, coyote: 0,
     kbx: 0, kbz: 0, kbT: 0,
-    inv: 0, dodgeT: 0, hitT: 0, shootCd: 0, shootAnim: 0, ph: 0,
+    inv: 0, dodgeT: 0, hitT: 0, rope: 0, shootCd: 0, shootAnim: 0, ph: 0,
     mo: 0, landT: 0, tilt: 0,
     mana: 0, manaMax: 100, charge: 0, charging: false, fireHeldT: 0,
     novaFx: 0, sideFlip: 1, meleeT: 0, meleeCd: 0, meleeWin: 0, meleeN: 0
@@ -1207,6 +1207,19 @@ function stepPlayer(inp) {
     ringBurst(R.x, R.y + 0.1, R.z, [120, 220, 255], 4);
     sfx('djump');
   }
+
+  /* arena rope: this is a siege, not an open-field chase. Beyond the rope the
+     ground pulls you back toward the fight, so "run into the hills and snipe
+     them one at a time" stops being the optimal (and boring) strategy. */
+  var ropeR = ARENA_R + 17;
+  var cD = Math.hypot(R.x, R.z);
+  if (cD > ropeR) {
+    var over = Math.min(1, (cD - ropeR) / 15);
+    R.vx -= (R.x / cD) * over * 30 * fr;
+    R.vz -= (R.z / cD) * over * 30 * fr;
+    if (R.rope < 0.05) { showBanner('BACK TO THE ARENA', 'THE TIDE WAITS FOR NO ONE'); sfx('low'); }
+    R.rope = Math.min(1, R.rope + fr * 3);
+  } else R.rope = Math.max(0, R.rope - fr * 4);
 
   /* gravity: lighter near the apex so the arc reads, harder when you let go */
   R.vy -= (GRAV - (Math.abs(R.vy) < 3.5 ? 12 : 0)) * fr;
@@ -1594,6 +1607,7 @@ function gobCol(k) {
   if (k === 'brute') return { skin: [196, 110, 58], skinD: [150, 82, 44], belly: [236, 172, 110], eye: [255, 232, 70], ear: [208, 122, 64], cloth: [72, 46, 32], accent: [255, 120, 60] };
   return { skin: [128, 178, 68], skinD: [92, 136, 54], belly: [176, 220, 116], eye: [255, 74, 58], ear: [142, 192, 80], cloth: [52, 70, 110], accent: [255, 214, 94] };
 }
+var SPAWN_T = 0.42;                  /* materialise time: visible, harmless */
 function newGob(k, x, y, z, idx) {
   var t = EN_K[k];
   var g = A.spawnGenome(bestiary, k, tickRand, game.wave);
@@ -1605,7 +1619,7 @@ function newGob(k, x, y, z, idx) {
     sc: t.sc, shade: k === 'boss' ? 1 : rnd2(0.88, 1.16), elite: false,
     yaw: Math.atan2(R.x - x, R.z - z), run: 0, ph: rnd2(0, 9),
     hitT: 0, dead: false, tele: 0, actT: 0, actCd: rnd2(0.6, 2.2), actKind: 'none',
-    stun: 0, slamCd: 6, recT: 0, spitT: 0, dieT: 0, dieSpin: 0, dieSunk: 0,
+    stun: 0, slamCd: 6, recT: 0, spitT: 0, spawnT: SPAWN_T, dieT: 0, dieSpin: 0,
     spitCd: rnd2(0.8, 2.2), roarT: 5, enrage: false,
     spd: t.spd * rnd2(0.88, 1.12),
     dmgTaken: 0, dmgDealt: 0, kills: 0, lifeSec: 0, hitsTaken: 0, gemsStolen: 0,
@@ -1769,7 +1783,7 @@ function updateEnemies(dtU) {
   }
   /* brains — corpses are bodies now, they don't think (and skipping them keeps
      a kill from spending AI work for half a second) */
-  for (var i = 0; i < enemies.length; i++) if (!enemies[i].dead) updateEnemyBrain(enemies[i]);
+  for (var i = 0; i < enemies.length; i++) if (!enemies[i].dead && enemies[i].spawnT <= 0) updateEnemyBrain(enemies[i]);
 
   enemyGrid.clear();
   for (var i2 = 0; i2 < enemies.length; i2++) {
@@ -1779,6 +1793,14 @@ function updateEnemies(dtU) {
   for (var i3 = 0; i3 < enemies.length; i3++) {
     var e3 = enemies[i3];
     if (e3.dead) { updateCorpse(e3, dtU); continue; }
+    /* materialising: rooted, harmless, still hurtable — you can absolutely
+       snipe a goblin out of the portal, which is the reward for watching them */
+    if (e3.spawnT > 0) {
+      e3.spawnT -= dtU;
+      e3.vx *= 0.55; e3.vz *= 0.55;
+      e3.run += dtU * 2;
+      continue;
+    }
     e3.hitT = Math.max(0, e3.hitT - dtU);
     e3.stun = Math.max(0, e3.stun - dtU);
     e3.recT = Math.max(0, e3.recT - dtU);
@@ -2152,6 +2174,16 @@ function placeGoblin(k, px, pz, elite) {
   } else pt = { x: px, y: world.heightAt(px, pz), z: pz };
   var g = newGob(k, pt.x, pt.y, pt.z, 0);
   if (k === 'boss') { g.hp = g.hpMax = 34 + Math.max(0, game.wave - 5) * 6; g.enrage = false; }
+  else {
+    /* the tide hardens: +hp and +pace per wave, both capped, so wave 12 is a
+       threat without wave 30 becoming a wall of unkillable tanks. Seeded off
+       game.wave — every host composes the same army. */
+    var wsc = 1 + Math.min(0.45, Math.max(0, game.wave - 1) * 0.05);
+    var ssc = 1 + Math.min(0.2, Math.max(0, game.wave - 1) * 0.022);
+    g.hp = g.hpMax = Math.max(1, Math.round(g.hpMax * wsc * 10) / 10);
+    g.spd *= ssc;
+    g.sc = Math.round(g.sc * (1 + Math.min(0.6, Math.max(0, game.wave - 1) * 0.05)));
+  }
   /* elites (wave 4+): tougher, quicker, worth 2.5x — seeded roll so every
      host spawns the same army */
   if (elite !== false && k !== 'boss' && game.wave >= 4 && tickRand() < 0.16) elite = true;
@@ -2372,6 +2404,11 @@ function updateHUD() {
     if (bw !== hudCache.bossW) { bb.querySelector('i').style.width = bw + '%'; hudCache.bossW = bw; }
   } else if (hudCache.bossVis !== false) { bb.style.display = 'none'; hudCache.bossVis = false; }
   el('hurtVig').classList.toggle('low', game.lives === 1 && state === 'play');
+  var rv = el('ropeVig');
+  if (rv && R) {
+    var rop = clamp(R.rope, 0, 1);
+    rv.style.opacity = rop > 0.02 ? (0.25 + rop * 0.6).toFixed(2) : '0';
+  }
   var mb = el('manaBar');
   if (mb && R) {
     var pct = Math.round(R.mana / R.manaMax * 100);
@@ -2600,6 +2637,12 @@ function drawGoblin(e) {
     pRol = e.lean; pPit = e.lean * 0.55;
     ky = kz = 1 - (1 - fd) * 0.3; kx = 1 - (1 - fd) * 0.18;
     cy -= (1 - fd) * 0.42;                        /* sinks into the ground */
+  } else if (e.spawnT > 0) {
+    var sf = 1 - clamp(e.spawnT / SPAWN_T, 0, 1);          /* 0 → 1 */
+    var pop = sf < 0.82 ? sf / 0.82 : 1 + (1 - (sf - 0.82) / 0.18) * 0.12;
+    kx = kz = 0.35 + pop * 0.7; ky = 0.12 + pop * 0.95;
+    cy -= (1 - pop) * e.h * 0.35;
+    pRol = (1 - sf) * 2.2 * (e.id % 2 ? 1 : -1);
   } else {
     if (e.flinch > 0) { kx = 1 + e.flinch * 0.16; ky = 1 - e.flinch * 0.2; kz = 1 + e.flinch * 0.16; }
     pRol = e.lean * 0.8;
@@ -2804,6 +2847,12 @@ function render() {
     if (ee.dead) continue;
     if (ee.elite) {
       haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h * 0.55, ee.rz, ee.r * 1.5, 255, 214, 94, 0.34 + 0.12 * Math.sin(time * 4 + ee.ph));
+    }
+    /* spawn-in: a rising portal ring so nothing appears inside your hitbox
+       without you having seen it coming */
+    if (ee.spawnT > 0) {
+      var sfp = 1 - ee.spawnT / SPAWN_T;
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + 0.06, ee.rz, ee.r * (0.6 + sfp * 2.4), 150, 240, 200, 0.22 + sfp * 0.5);
     }
     /* lock-on: a gold ring at the feet + a soft glow, so the target is
      identifiable from the corner of your eye without looking for the reticle */
@@ -3755,6 +3804,7 @@ window.__R = function () {
     vx: R ? R.vx : 0, vy: R ? R.vy : 0, vz: R ? R.vz : 0,
     lean: R ? R.lean : 0, mo: R ? R.mo : 0, meleeN: R ? R.meleeN : 0,
     meleeT: R ? R.meleeT : 0, meleeCd: R ? R.meleeCd : 0, dodgeT: R ? R.dodgeT : 0,
+    rope: R ? R.rope : 0, landT: R ? R.landT : 0,
     lastStand: !!game.lastStand,
     fx: fx.length, fps: lastFps,
     mana: R ? R.mana : 0, inv: R ? R.inv : 0,
@@ -3778,10 +3828,20 @@ if (SELFTEST) {
         hash: session ? session.worldHash : 0, tick: session ? session.tick : 0 };
     },
     god: function (b) { if (b) R.inv = 1e9; },
+    /* teleport (render pose resynced, so no 100u interpolation streak) */
+    tp: function (x, z) {
+      R.x = x; R.z = z; R.y = groundY(x, z); R.vx = 0; R.vz = 0; R.vy = 0;
+      R.ground = true; syncPrev(R);
+      return { x: R.x, z: R.z, y: R.y, d: Math.hypot(R.x, R.z) };
+    },
+    spawnGrace: function (i) { var e = enemies[i || 0]; return e ? e.spawnT : -1; },
+    /* place: an instantly *combat-ready* goblin at an offset from Riley — the
+       spawn-in grace is skipped so tests can exercise AI/attacks right away */
     place: function (k, dx, dz, elite) {
       var x = R.x + (dx !== undefined ? dx : Math.sin(R.yaw) * 6);
       var z = R.z + (dz !== undefined ? dz : Math.cos(R.yaw) * 6);
       var g = placeGoblin(k, x, z, elite);
+      if (g) g.spawnT = 0;
       return g && { x: x, y: g.y, z: z, elite: g.elite, hp: g.hp, hpMax: g.hpMax };
     },
     drop: function (kind) {

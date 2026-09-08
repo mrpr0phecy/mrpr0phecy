@@ -75,6 +75,7 @@ const IDS = [
   'pScore',
   'pWave',
   'reticle',
+  'ropeVig',
   'seedInput',
   'seedLine',
   'stCombo',
@@ -94,6 +95,7 @@ const IDS = [
   'tglOrbit',
   'vignette',
 ];
+
 
 
 
