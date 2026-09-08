@@ -306,11 +306,8 @@ function makeBrain(species, genome) {
         if (l > 1) { mvx /= l; mvz /= l; }
         act = l > 0.12 ? 'move' : 'idle';
       }
-      /* strafe direction slowly flips (individual habit + learned side) */
-      if (Math.abs(mvz) > 0.1) {
-        var side = mvz > 0 ? 1 : -1;
-        if (side !== this.lastSide && Math.random() < 0.002) this.lastSide = side; /* rare spontaneous flip */
-      }
+      /* NOTE: strafe side-flipping is done by the engine (deterministic
+         per-instance timer) — the net itself stays a pure function */
       this.mem = clamp(this.mem * 0.9 + (act === 'attack' ? 0.1 : 0), 0, 1);
       return { mvx: mvx, mvz: mvz, act: act, atk: atk, panic: panic, o: o };
     },
