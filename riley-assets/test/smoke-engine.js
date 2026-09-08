@@ -200,6 +200,36 @@ pump(40);
 const livesA = global.__T.info().lives;
 check('spitter projectile hits player (lives drop)', livesA < livesB, { livesB, livesA });
 
+console.log('--- power-ups, elites, boss slam ---');
+global.__T.god(true); /* keep the player alive while exercising mechanics */
+global.__T.wave(4);   /* elites roll from wave 4 */
+pump(30);
+const el1 = global.__T.place('grunt', 5, 0, true);
+check('forced elite: flagged + tougher', el1.elite === true && el1.hp >= 3, el1);
+const el2 = global.__T.place('grunt', -5, 0, false);
+check('forced normal: not elite', el2.elite === false && el2.hp < 2.6, el2);
+const manaB = global.__R().mana;
+global.__T.drop('surge');
+pump(25);
+const rb = global.__R();
+check('surge collected: mana topped up + regen buff',
+  (rb.mana > manaB + 35 || manaB >= 99.9) && global.__T.buffs().regen > 0,
+  { manaB, mana: rb.mana, buffs: global.__T.buffs() });
+global.__T.drop('bolt');
+pump(25);
+check('bolt collected: damage buff active', global.__T.buffs().dmg > 0, global.__T.buffs());
+
+console.log('--- boss slam ---');
+global.__T.wave(5);
+pump(30);
+check('boss alive for slam test', global.__T.info().boss === true, global.__T.info());
+const armed = global.__T.slam();
+check('slam armed on boss', armed === true, armed);
+const bs0 = global.__T.bossState();
+pump(5);
+const bs1 = global.__T.bossState();
+check('slam executed and cleared', !!bs0 && bs0.act === 'slam' && !!bs1 && bs1.act !== 'slam', { bs0, bs1 });
+
 console.log('--- mouse-assist aim + zoom ---');
 pump(30);
 const A = global.__T.aim();
@@ -242,6 +272,20 @@ function hashAtFrame(n) {
 const h1 = hashAtFrame(600);
 const h2 = hashAtFrame(600);
 check('deterministic sim (hash equal)', h1 === h2 && h1 !== 0, { h1, h2 });
+
+console.log('--- 40s combat fuzz (waves, elites, power-ups, bosses) ---');
+global.__T.god(true);
+for (let i = 0; i < 40 * 60; i++) {
+  if (i % 12 === 0) global.__T.fire();
+  const T0 = global.__T.info();
+  if (i % 60 === 0 && T0.n > 0 && T0.wv === 'combat') global.__T.hurtAll();
+  pump(1);
+}
+const Tf = global.__T.info();
+check('fuzz: sim survived 40s of combat', Tf.state === 'play', Tf);
+check('fuzz: waves advanced to 3+', Tf.wave >= 3, Tf);
+check('fuzz: killed goblins across waves', Tf.kills > 20, Tf);
+check('fuzz: score accumulated', Tf.score > 1000, Tf);
 
 console.log('--- selftest render: unique colours ---');
 pump(10);
