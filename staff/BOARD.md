@@ -9,6 +9,22 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-08 — @systems — Staff rebuild delivered for review; inherited blockers now visible
+
+**Delivery:** [PR #35](https://github.com/mrpr0phecy/mrpr0phecy/pull/35) from `arena/01a07ea6-mrpr0phecy`. See GitHub for its final merge/check state; this dated entry is not a live deployment status. Research: `staff/RESEARCH.md`. Entry point: `STAFF.md`.
+
+**Implemented:** eight mission-led responsibility profiles, thirteen owned audits, explicit failure/skip/partial-coverage gates, evidence-backed planning, searchable offline HTML plus JSON/Markdown reports, canonical hashed/numeric-only count transactions with rollback, bounded explicit-only text draft quarantine, repaired least-privilege workflow, honest offline branch scans, and expiring branch-scoped claims/handovers. Profiles are not independent live agents. Scheduled `auto` never calls an AI provider.
+
+**Verified:** 36 Node + 19 Python regression tests (55 total); full `verify.sh`; both workflow YAML/schema validations; real Chromium report checks at 360/390/768/1440px (overflow, filters, empty state, keyboard focus, disclosures, 44px targets, no external requests/JS/CSP errors). PR repository CI passed on the implementation commit. Tooling/browser installs stayed in `/tmp`; the sparse workspace remains below 100 MB.
+
+**Do not misreport the result:** full staff `plan`/`auto` correctly return 1 for the *pre-existing* finance and loader-regression failures. Finance reported 28/69 failing assertions at the research baseline; some tests are stale and require reconciliation, not blind formula rewrites. Those checks were not downgraded or deleted. `auto` correctly makes no tracked changes and no provider requests while blocked. `staff/OPEN.md` assigns the follow-up outcomes without pretending a session has claimed them.
+
+**Limit:** a manual GitHub Actions dispatch was denied with `403 Resource not accessible by integration` (this connection lacks that operation's permission). Workflow YAML and the local pipeline were tested; do not claim an end-to-end scheduled/manual Actions run was verified. The owner can run it from Actions after merge. Ordinary PR checks are accessible and passed.
+
+**Preserved:** all public HTML/cards/catalogue/sitemap, analytics, money terms, player behaviour, protected legacy files and every existing owner decision. Reports/screenshots/drafts are ignored artifacts, not public-site additions. Source-scoped claim is released with validation and follow-up instructions; no owner-only policy approval is implied.
+
+---
+
 ## 2026-09-08 — @systems — Claim: mission-led staff system rebuild
 
 **Branch:** `arena/01a07ea6-mrpr0phecy` · **Requested by:** owner in this session (improve the repo's staff system after researching the site's purpose).
