@@ -43,7 +43,7 @@ const stats = {
   frames: 0, shots: 0, swings: 0, dashes: 0, jumps: 0,
   camBlockSum: 0, camBlockMax: 0, distMax: 0, distMin: 99,
   stuckFrames: 0, hurtAt: -999, deaths: 0,
-  waveTimes: [], waveStart: 0, lastWave: 1, stuck: []
+  waveTimes: [], waveStart: 0, lastWave: 1, stuck: [], lensFrames: 0
 };
 let prevLives = global.__T.info().lives;
 
@@ -107,6 +107,11 @@ for (let f = 0; f < SECONDS * 60; f++) {
   if (held['Space'] && f % 30 === 0) stats.jumps++;
 
   /* ---- measure ---- */
+  /* the lens-hide rule must be an artifact-killer, not a crowd-flicker: if a
+     goblin is being hidden on a large share of frames the framing is wrong */
+  let hid = 0;
+  for (let q = 0; q < list.length; q++) if (global.__T.lensHide(list[q].i)) hid++;
+  if (hid) stats.lensFrames++;
   const cam = global.__T.cam();
   stats.camBlockSum += cam.block; stats.camBlockMax = Math.max(stats.camBlockMax, cam.block);
   const pd = Math.hypot(r.camX - r.x, r.camY - r.y, r.camZ - r.z);
@@ -141,6 +146,8 @@ console.log('  dashes            ', stats.dashes, ' smacks attempted', stats.swi
 console.log('  cam occluded avg  ', (avgBlock * 100).toFixed(1) + '%  peak ' + (stats.camBlockMax * 100).toFixed(0) + '%');
 console.log('  cam distance      ', stats.distMin.toFixed(1) + ' … ' + stats.distMax.toFixed(1), '(rig must stay inside the 13u budget)');
 console.log('  wedged on geometry  ', stats.stuck.length ? stats.stuck.length + '\u00d7 ' + JSON.stringify(stats.stuck.slice(0, 4)) : 'never');
+const lensPct = stats.frames ? stats.lensFrames / stats.frames : 0;
+console.log('  goblin hidden in lens', (lensPct * 100).toFixed(1) + '% of frames (a few is right, many is a broken rig)');
 const wt = stats.waveTimes;
 if (wt.length) {
   console.log('  wave times (s)    ', wt.slice(0, 12).map(w => (w.frames / 60).toFixed(1)).join('  '));
@@ -155,6 +162,7 @@ expect('bot killed goblins', fin.kills >= SECONDS * 0.12, fin.kills);
 expect('camera never left its budget', stats.distMax <= 13, { distMax: +stats.distMax.toFixed(2) });
 expect('camera is not buried most of the time', avgBlock < 0.35, { avg: +avgBlock.toFixed(2) });
 expect('no permanent stuck spots', stats.stuck.length <= 3, stats.stuck.length);
+expect('the lens-hide is rare, not constant', lensPct < 0.12, { pct: +(lensPct * 100).toFixed(1) });
 if (wt.length > 2) {
   const over = wt.filter(w => w.frames / 60 > 75);
   expect('no wave drags past 75s for a weak player', over.length === 0, over.map(w => ({ wave: w.wave, s: +(w.frames / 60).toFixed(1) })));

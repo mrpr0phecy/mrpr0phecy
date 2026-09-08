@@ -456,6 +456,66 @@ check('a projectile hit still lands with the ward up', global.__T.info().lives <
 check('the ward survived the fake attacker', global.__T.info().tick > tickW, global.__T.info().tick);
 pump(30);
 
+/* wrapped: this file is one long top-level scope, and ids are plentiful */
+(function () {
+console.log('--- camera trucks around a body on the sightline ---');
+global.__T.god(true);
+global.__T.hurtAll();
+pump(40);
+global.__T.clearShots();
+function parkOnSight(kind, t) {
+  const rr = global.__R();
+  const gx = rr.x + (rr.camX - rr.x) * t, gz = rr.z + (rr.camZ - rr.z) * t;
+  global.__T.place(kind, gx - rr.x, gz - rr.z);
+  const e = global.__T.lastEnemy();
+  if (e) { e.x = gx; e.z = gz; e.stun = 9999; e.spd = 0; e.actKind = 'none'; e.spawnT = 0; }
+  return e;
+}
+const idx = () => global.__T.info().n - 1;
+const bp_e = parkOnSight('boss', 0.55);
+check('a GOBLIN KING was parked on the sightline', !!bp_e && bp_e.k === 'boss', bp_e && bp_e.k);
+pump(40);
+const bp_push = Math.abs(global.__T.cam().body);
+check('a body over her face shoves the rig sideways', bp_push > 0.18, { body: bp_push });
+check('the rig never leaves the reach budget', global.__T.cam().dist <= 12.6, global.__T.cam().dist);
+check('and the push stays bounded', bp_push <= 0.95, { body: bp_push });
+if (bp_e) { bp_e.x += 9; bp_e.z += 9; bp_e.stun = 9999; }
+pump(60);
+check('the rig settles back once the way is clear', Math.abs(global.__T.cam().body) < 0.1, { body: global.__T.cam().body });
+/* a short grunt at that distance is genuinely below the boom, not in front of
+   her face — pushing for it is how a camera ends up wobbling in every brawl */
+global.__T.hurtAll();
+pump(25);
+const gr = parkOnSight('grunt', 0.55);
+pump(35);
+if (gr) check('a grunt under the boom leaves the framing alone', Math.abs(global.__T.cam().body) < 0.12, { body: global.__T.cam().body });
+global.__T.hurtAll();
+pump(25);
+const rr0 = global.__R();
+for (let i2 = 0; i2 < 4; i2++) {
+  global.__T.place('runner', Math.sin(i2 * 1.57) * 0.8, Math.cos(i2 * 1.57) * 0.8);
+  const e = global.__T.lastEnemy();
+  if (e) { e.stun = 9999; e.spd = 0; e.actKind = 'none'; }
+}
+pump(35);
+check('bodies hugging her leave the framing alone', Math.abs(global.__T.cam().body) < 0.12, { body: global.__T.cam().body, n: global.__T.info().n });
+
+console.log('--- nothing paints the lens from the inside ---');
+const rr1 = global.__R();
+global.__T.place('grunt', rr1.camX - rr1.x, rr1.camZ - rr1.z);
+const inLens = global.__T.lastEnemy();
+if (inLens) {
+  inLens.x = rr1.camX; inLens.z = rr1.camZ; inLens.y = rr1.camY - 0.6; inLens.stun = 9999; inLens.spawnT = 0;
+  pump(4);
+  const li = global.__T.info().n - 1;
+  check('a goblin inside the camera is not drawn', global.__T.lensHide(li) === true, global.__T.cam());
+  inLens.x = rr1.x + 1.3; inLens.z = rr1.z + 1.3; inLens.y = rr1.y;
+  pump(2);
+  check('a goblin at arm\'s length is drawn', global.__T.lensHide(global.__T.info().n - 1) === false, null);
+}
+global.__T.god(false);
+})();
+
 console.log('--- keys while typing in the seed field ---');
 const muteBefore = H.els['btnMute'].textContent;   /* the fake DOM's own default, whatever it is */
 H.emit('keydown', { code: 'KeyM', target: { tagName: 'INPUT' } });

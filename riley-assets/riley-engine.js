@@ -613,6 +613,8 @@ var camCollideD = 7.2;                         /* collision-safe boom length */
 var camLift = 0;                               /* pivot lift while the boom clips */
 var camRoll = 0, camRollT = 0;                 /* banking into strafes */
 var camShoulder = 0;                           /* over-the-shoulder offset (u) */
+var camBodyT = 0;                              /* lateral truck to clear a body (u) */
+var ddxC = 0, ddyC = 0, ddzC = 1;              /* this frame's look axis (render only) */
 var camPivX = 0, camPivY = 0, camPivZ = 0;      /* smoothed orbit centre */
 var camKickY = 0, camKickP = 0, camKickR = 0;  /* impact offsets (decay to 0) */
 var camAutoT = 0;                              /* auto-frame spin-up (0..1) */
@@ -706,6 +708,64 @@ function boomHit(px, py, pz, dx, dy, dz, maxD, lift, pad) {
   }
   return 0;
 }
+/* Goblin bodies are soft occluders too. A 2-hp grunt must never be able to
+   fill the screen, and "camera clips through the crowd" is the single most
+   common complaint about third-person arenas. Returns the signed lateral
+   slide (world units) the boom needs to get around the nearest body — the rig
+   *trucks* sideways with the target, so Riley stays centred and the body
+   slides out of frame instead of the camera zooming to her nose. */
+var BODY_PUSH_MAX = 0.9;
+/* Bodies are soft occluders too. A brute parked between the lens and Riley
+   hides the one thing you must never lose sight of, and "the camera clips
+   through the crowd" is the standard complaint about third-person arenas.
+   Test the line of sight to her chest, and return the lateral slide that gets
+   it clear. The rig *trucks* with its target, so Riley stays centred while the
+   body slides out of frame — instead of the camera slamming into first person,
+   or wobbling every time a runner brushes past her hip (the last metre next to
+   Riley is deliberately ignored: that is a hug, not an occlusion). */
+function bodyPush(ex, ey, ez, tx, ty, tz, maxD) {
+  var sdx = tx - ex, sdz = tz - ez;
+  var sl = Math.hypot(sdx, sdz);
+  if (sl < 1.6) return 0;
+  var dx = sdx / sl, dz = sdz / sl;
+  var sdy = (ty - ey) / sl;
+  var push = 0, i;
+  for (i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (e.dead) continue;
+    var ex2 = e.x - ex, ez2 = e.z - ez;
+    var proj = ex2 * dx + ez2 * dz;
+    if (proj < 0.45 || proj > maxD - 1.05) continue;
+    var rad = e.r + 0.34 + (e.k === 'boss' ? 0.5 : 0);
+    var lat = ex2 * -dz + ez2 * dx;
+    var over = rad - Math.abs(lat);
+    if (over < 0.2) continue;                            /* deadband: no crowd jitter */
+    var yAt = ey + sdy * proj;
+    var vy = yAt - (e.y + e.h * 0.5);
+    var vHalf = e.h + 0.9;
+    if (Math.abs(vy) > vHalf) continue;
+    var vw = 1 - Math.abs(vy) / vHalf;
+    var need = clamp(over * 0.9, 0.16, 0.8) * (0.6 + 0.4 * (proj / maxD)) * vw;
+    need *= (lat >= 0 ? -1 : 1);
+    if (Math.abs(need) > Math.abs(push)) push = need;
+  }
+  return clamp(push, -BODY_PUSH_MAX, BODY_PUSH_MAX);
+}
+/* A goblin that has been shoved into the lens would otherwise paint the inside
+   of a torso over the whole screen. At that range there is nothing behind it
+   the player needs either, so it is simply not drawn — the classic "hide
+   actors between the camera and the player" trick, and far cheaper per frame
+   than a per-actor alpha pass. Uses the interpolated render position and the
+   render camera, so it can never feed back into the sim. */
+function lensHide(e) {
+  var hx = e.rx - camX, hy = e.ry + e.h * 0.55 - camY, hz = e.rz - camZ;
+  var d = Math.hypot(hx, hy, hz);
+  var lim = 0.8 + e.r * 0.75;
+  if (d > lim) return false;
+  /* and only what is in front of the lens — anything behind it is not on the
+     screen, so there is nothing to hide */
+  return (hx * -ddxC + hy * -ddyC + hz * -ddzC) > -0.15;
+}
 function boomSolve(px, py, pz, dx, dy, dz, wantD) {
   var LIFTS = [0, 0.5, 1.15, 2.0], bestLift = 0, bestD = -1;
   for (var li = 0; li < LIFTS.length; li++) {
@@ -752,7 +812,7 @@ function camSnapToPlayer() {
   camYawTarget = camYaw = R.yaw;
   camPitchTarget = camPitch = 0.34;
   camDistTarget = camDist = clamp(CAMSET.zoom, CAM_DIST_MIN, CAM_DIST_MAX);
-  camCollideD = camDist; camLift = 0; camRoll = camRollT = 0; camShoulder = 0;
+  camCollideD = camDist; camLift = 0; camRoll = camRollT = 0; camShoulder = 0; camBodyT = 0;
   camAutoT = 0; camBlockT = 0; camKickY = camKickP = camKickR = 0;
   lookY = R.y + 1.16;
   camPivX = R.x; camPivY = lookY; camPivZ = R.z;
@@ -833,6 +893,9 @@ function updateCamera(dtC, lookAt) {
   if (R.dashing) wantD *= 1.05;
   if (aiming && !locked) wantD *= 0.8;                 /* in over the shoulder */
   if (locked) wantD += clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) * 0.15, 0, 2.2);
+  /* a GOBLIN KING is 1.85u of chest in your face at the default distance:
+     give the arena a floor so the boss reads as a silhouette, not a wall */
+  if (game.boss && !aiming) wantD = Math.max(wantD, 8.6);
   wantD = clamp(wantD, CAM_DIST_MIN, CAM_DIST_MAX);
   camDist = damp(camDist, wantD, 9, dtC);
 
@@ -847,6 +910,16 @@ function updateCamera(dtC, lookAt) {
   camShoulder = damp(camShoulder, (aiming || locked) ? (locked ? 0.6 : 0.42) : 0, 5.5, dtC);
   px += Math.cos(camYaw) * camShoulder;
   pz += -Math.sin(camYaw) * camShoulder;
+  /* truck around a goblin that has put itself between the lens and Riley */
+  var cp0 = Math.cos(camPitch), ddx0 = Math.sin(camYaw) * cp0, ddz0 = Math.cos(camYaw) * cp0;
+  var bpEy = camPivY + 0.16 + Math.sin(camPitch) * camDist + camLift;
+  var bpEx = px - ddx0 * camDist, bpEz = pz - ddz0 * camDist;
+  camBodyT = damp(camBodyT, bodyPush(bpEx, bpEy, bpEz, lx, ly + 1.0, lz, camDist), 6.5, dtC);
+  if (camBodyT) {
+    var bll = Math.hypot(ddx0, ddz0) || 1;
+    px += (-ddz0 / bll) * camBodyT;
+    pz += (ddx0 / bll) * camBodyT;
+  }
   /* bank into the strafe / turn: tiny, but it sells momentum */
   var lat = R.vx * Math.cos(camYaw) - R.vz * Math.sin(camYaw);
   camRollT = -clamp(lat / 9, -1, 1) * 0.04 - clamp(angDiff(camYaw, camYawTarget) * 0.6, -0.03, 0.03);
@@ -858,6 +931,7 @@ function updateCamera(dtC, lookAt) {
 
   var cp = Math.cos(camPitch), sp = Math.sin(camPitch);
   var ddx = Math.sin(camYaw) * cp, ddy = sp, ddz = Math.cos(camYaw) * cp;
+  ddxC = ddx; ddyC = ddy; ddzC = ddz;
 
   /* ---- occlusion: lift, then shorten, then let FOV widen ---- */
   var pivY = camPivY + 0.16;
@@ -2772,6 +2846,7 @@ function drawRileyGlow() {
 }
 function drawGoblin(e) {
   if (e.hitT > 0 && !e.dead && Math.floor(time * 26) % 2 === 0) return;
+  if (lensHide(e)) return;          /* corpses too: a dead face in the lens is the same artifact */
   /* whole-body deformation (render clock only, never feeds the sim) */
   var cx = e.rx, cy = e.ry + e.h * 0.5, cz = e.rz, pYaw = 0, pPit = 0, pRol = 0, kx = 1, ky = 1, kz = 1;
   if (e.dead) {
@@ -4033,8 +4108,9 @@ if (SELFTEST) {
       out.sort(function (a, b) { return a.d - b.d; });
       return out;
     },
+    lensHide: function (i) { var e = enemies[i | 0]; return e ? lensHide(e) : null; },
     cam: function () {
-      return { block: +camBlockT.toFixed(3), lift: +camLift.toFixed(2), dist: +camDist.toFixed(2),
+      return { block: +camBlockT.toFixed(3), lift: +camLift.toFixed(2), dist: +camDist.toFixed(2), body: +camBodyT.toFixed(2),
         fov: +camFov.toFixed(3), roll: +camRoll.toFixed(3), shake: +game.shake.toFixed(3),
         kick: +Math.hypot(camKickY, camKickP, camKickR).toFixed(3), shoulder: +camShoulder.toFixed(2) };
     },
