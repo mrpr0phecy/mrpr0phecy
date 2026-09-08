@@ -419,6 +419,18 @@ const aiList = [
 ];
 
 const astronomyList = [
+  // Crew-facing mission planning tools. Keep explicit so regeneration cannot
+  // silently drop them into the default Productivity category.
+  'astronaut-crew-consumables-planner',
+  'astronaut-eva-timeline-consumables',
+  'astronaut-radiation-dose-ledger',
+  'astronaut-spacecraft-power-eclipse-budget',
+  'astronaut-cabin-atmosphere-planner',
+  'astronaut-microgravity-translation',
+  'astronaut-artificial-gravity-calculator',
+  'astronaut-deep-space-communications',
+  'astronaut-rocket-equation-delta-v',
+  'astronaut-hohmann-transfer-planner',
   'planet-ring-designer-3d',
   'telescope-eyepiece-calculator',
   'telescope-limiting-resolver',

@@ -1,0 +1,67 @@
+<h2 id="aspe-title" style="margin-top:0;color:var(--accent);">🔋 Spacecraft Power &amp; Eclipse Budget</h2>
+
+<form aria-describedby="aspe-desc aspe-note" onsubmit="event.preventDefault();">
+  <p id="aspe-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Balance solar generation, sunlit and eclipse loads, orbital timing and usable battery depth. See both the eclipse survival margin and whether each orbit finishes with an energy surplus.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:12px;">
+    <div><label for="aspe-solar" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Solar array output (W)</label><input id="aspe-solar" type="number" min="0" step="1" value="3000" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="aspe-sunload" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Sunlit load (W)</label><input id="aspe-sunload" type="number" min="0" step="1" value="1800" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="aspe-eclipseload" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Eclipse load (W)</label><input id="aspe-eclipseload" type="number" min="0" step="1" value="1500" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="aspe-sunmins" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Sunlight per orbit (min)</label><input id="aspe-sunmins" type="number" min="0.1" step="0.1" value="58" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="aspe-eclipsemins" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Eclipse per orbit (min)</label><input id="aspe-eclipsemins" type="number" min="0" step="0.1" value="35" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="aspe-loss" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Generation losses (%)</label><input id="aspe-loss" type="number" min="0" max="100" step="1" value="15" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="aspe-battery" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Battery nameplate (Wh)</label><input id="aspe-battery" type="number" min="0.1" step="1" value="2000" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+    <div><label for="aspe-dod" style="display:block;color:var(--text-secondary);font-size:.76rem;margin-bottom:4px;">Allowed depth of discharge (%)</label><input id="aspe-dod" type="number" min="0.1" max="100" step="1" value="60" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);color:var(--text);"></div>
+  </div>
+
+  <div id="aspe-error" role="alert" style="display:none;color:#ff7b8b;margin:8px 0;font-size:.82rem;"></div>
+  <div aria-live="polite" style="background:rgba(0,0,0,.28);border:1px solid rgba(45,212,255,.22);border-radius:10px;padding:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;">
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Net energy / orbit</div><strong id="aspe-net" style="display:block;font-size:1.25rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Eclipse energy draw</div><strong id="aspe-draw" style="display:block;color:var(--accent);font-size:1.15rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Usable battery</div><strong id="aspe-usable" style="display:block;color:var(--text);font-size:1.15rem;">—</strong></div>
+      <div><div style="font-size:.72rem;color:var(--text-secondary);">Battery margin</div><strong id="aspe-margin" style="display:block;font-size:1.15rem;">—</strong></div>
+    </div>
+    <div style="height:1px;background:rgba(255,255,255,.1);margin:13px 0;"></div>
+    <div id="aspe-summary" style="font-size:.82rem;color:var(--text-secondary);line-height:1.55;">—</div>
+    <div id="aspe-detail" style="font-size:.75rem;color:var(--text-secondary);margin-top:5px;">—</div>
+  </div>
+  <button id="aspe-reset" type="reset" style="margin-top:10px;padding:8px 14px;border-radius:6px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;">Reset budget</button>
+</form>
+
+<p id="aspe-note" class="small" style="color:var(--text-secondary);font-size:.72rem;line-height:1.5;margin-top:10px;">
+  First-pass energy arithmetic only. It omits battery charge/discharge efficiency, degradation, peak current, thermal limits, pointing, seasonal beta angle and redundancy. Use qualified power-system analysis for flight decisions.
+</p>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var ids = ['aspe-solar','aspe-sunload','aspe-eclipseload','aspe-sunmins','aspe-eclipsemins','aspe-loss','aspe-battery','aspe-dod'];
+  function wh(n) { return Math.abs(n) >= 1000 ? (n / 1000).toFixed(2) + ' kWh' : n.toFixed(1) + ' Wh'; }
+  function run() {
+    var n = ids.map(function (id) { return Number($(id).value); });
+    var bad = n.some(function (x) { return !isFinite(x) || x < 0; }) || n[3] <= 0 || n[5] > 100 || n[6] <= 0 || n[7] <= 0 || n[7] > 100;
+    $('aspe-error').style.display = bad ? 'block' : 'none';
+    $('aspe-error').textContent = bad ? 'Enter non-negative loads and times, a positive battery, and percentages in range.' : '';
+    if (bad) return;
+    var generated = n[0] * n[3] / 60 * (1 - n[5] / 100);
+    var sunUse = n[1] * n[3] / 60, eclipseUse = n[2] * n[4] / 60;
+    var net = generated - sunUse - eclipseUse, usable = n[6] * n[7] / 100, margin = usable - eclipseUse;
+    var period = n[3] + n[4], cycles = 1440 / period, minBattery = eclipseUse / (n[7] / 100);
+    $('aspe-net').textContent = (net >= 0 ? '+' : '−') + wh(Math.abs(net));
+    $('aspe-net').style.color = net >= 0 ? '#55e6a5' : '#ff7b8b';
+    $('aspe-draw').textContent = wh(eclipseUse);
+    $('aspe-usable').textContent = wh(usable);
+    $('aspe-margin').textContent = (margin >= 0 ? '+' : '−') + wh(Math.abs(margin));
+    $('aspe-margin').style.color = margin >= 0 ? '#55e6a5' : '#ff7b8b';
+    $('aspe-summary').textContent = (margin >= 0 ? 'The modelled eclipse fits inside the allowed battery depth. ' : 'The modelled eclipse exceeds usable battery energy. ') + (net >= 0 ? 'The full orbit also closes with an energy surplus.' : 'Generation does not replace all energy used during the orbit.');
+    $('aspe-detail').textContent = 'Generated ' + wh(generated) + ', consumed ' + wh(sunUse + eclipseUse) + ' per ' + period.toFixed(1) + '-minute orbit (' + cycles.toFixed(2) + ' cycles/day). Minimum nameplate for this eclipse at the selected depth: ' + wh(minBattery) + '.';
+  }
+  ids.forEach(function (id) { $(id).addEventListener('input', run); });
+  $('aspe-reset').addEventListener('click', function () { setTimeout(run, 0); });
+  run();
+})();
+</script>
