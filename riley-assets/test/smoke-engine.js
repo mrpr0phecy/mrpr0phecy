@@ -456,6 +456,137 @@ check('a projectile hit still lands with the ward up', global.__T.info().lives <
 check('the ward survived the fake attacker', global.__T.info().tick > tickW, global.__T.info().tick);
 pump(30);
 
+/* wrapped: this file is one long top-level scope, and ids are plentiful */
+(function () {
+console.log('--- camera trucks around a body on the sightline ---');
+global.__T.god(true);
+global.__T.hurtAll();
+pump(40);
+global.__T.clearShots();
+function parkOnSight(kind, t) {
+  const rr = global.__R();
+  const gx = rr.x + (rr.camX - rr.x) * t, gz = rr.z + (rr.camZ - rr.z) * t;
+  global.__T.place(kind, gx - rr.x, gz - rr.z);
+  const e = global.__T.lastEnemy();
+  if (e) { e.x = gx; e.z = gz; e.stun = 9999; e.spd = 0; e.actKind = 'none'; e.spawnT = 0; }
+  return e;
+}
+const idx = () => global.__T.info().n - 1;
+const bp_e = parkOnSight('boss', 0.55);
+check('a GOBLIN KING was parked on the sightline', !!bp_e && bp_e.k === 'boss', bp_e && bp_e.k);
+pump(40);
+const bp_push = Math.abs(global.__T.cam().body);
+check('a body over her face shoves the rig sideways', bp_push > 0.18, { body: bp_push });
+check('the rig never leaves the reach budget', global.__T.cam().dist <= 12.6, global.__T.cam().dist);
+check('and the push stays bounded', bp_push <= 0.95, { body: bp_push });
+if (bp_e) { bp_e.x += 9; bp_e.z += 9; bp_e.stun = 9999; }
+pump(60);
+check('the rig settles back once the way is clear', Math.abs(global.__T.cam().body) < 0.1, { body: global.__T.cam().body });
+/* a short grunt at that distance is genuinely below the boom, not in front of
+   her face — pushing for it is how a camera ends up wobbling in every brawl */
+global.__T.hurtAll();
+pump(25);
+const gr = parkOnSight('grunt', 0.55);
+pump(35);
+if (gr) check('a grunt under the boom leaves the framing alone', Math.abs(global.__T.cam().body) < 0.12, { body: global.__T.cam().body });
+global.__T.hurtAll();
+pump(25);
+const rr0 = global.__R();
+for (let i2 = 0; i2 < 4; i2++) {
+  global.__T.place('runner', Math.sin(i2 * 1.57) * 0.8, Math.cos(i2 * 1.57) * 0.8);
+  const e = global.__T.lastEnemy();
+  if (e) { e.stun = 9999; e.spd = 0; e.actKind = 'none'; }
+}
+pump(35);
+check('bodies hugging her leave the framing alone', Math.abs(global.__T.cam().body) < 0.12, { body: global.__T.cam().body, n: global.__T.info().n });
+
+console.log('--- nothing paints the lens from the inside ---');
+const rr1 = global.__R();
+global.__T.place('grunt', rr1.camX - rr1.x, rr1.camZ - rr1.z);
+const inLens = global.__T.lastEnemy();
+if (inLens) {
+  inLens.x = rr1.camX; inLens.z = rr1.camZ; inLens.y = rr1.camY - 0.6; inLens.stun = 9999; inLens.spawnT = 0;
+  pump(4);
+  const li = global.__T.info().n - 1;
+  check('a goblin inside the camera is not drawn', global.__T.lensHide(li) === true, global.__T.cam());
+  inLens.x = rr1.x + 1.3; inLens.z = rr1.z + 1.3; inLens.y = rr1.y;
+  pump(2);
+  check('a goblin at arm\'s length is drawn', global.__T.lensHide(global.__T.info().n - 1) === false, null);
+}
+global.__T.god(false);
+})();
+
+console.log('--- goblins rob the floor: theft, chase, recovery ---');
+(function () {
+  global.RileyGame.toTitle();
+  global.RileyGame.start();
+  global.__T.god(true);
+  global.__T.wave(1);
+  pump(6);
+  global.__T.hurtAll();
+  global.__T.clearShots();
+  pump(50);                                  /* let the corpses splice out */
+  global.__T.clearShots();
+  const pk0 = global.__T.info().pk;
+  /* out past the gem magnet's reach, or Riley vacuums it before anyone can
+     be tempted — the theft only exists for loot she has not reached yet */
+  global.__T.place('grunt', 12, 0);
+  const thief = global.__T.lastEnemy();
+  check('a grunt is standing away from Riley', !!thief, thief && thief.k);
+  global.__T.drop('gem', 12.3, 0.3);
+  check('a gem is on the floor', global.__T.info().pk > pk0, { pk: global.__T.info().pk, pk0 });
+  pump(34);                          /* past the 0.38s grace on fresh loot */
+  const stole = global.__T.enemies().some(x => x.steal > 0);
+  check('a goblin pocketed it', stole, global.__T.enemies().map(x => x.steal));
+  const pkStolen = global.__T.info().pk;
+  global.__T.hurtAll();
+  pump(8);
+  check('killing the thief drops the loot back', global.__T.info().pk > pkStolen, { before: pkStolen, after: global.__T.info().pk });
+  check('nobody is carrying anything after a wipe', global.__T.enemies().every(x => x.steal === 0), global.__T.enemies().map(x => x.steal));
+  /* and if you let it reach the rim, that is your score gone */
+  global.__T.nextWave();
+  pump(70);
+  global.__T.clearShots();
+  const carrier = global.__T.lastEnemy();
+  check('a runner exists to be made a thief', !!carrier, carrier && carrier.k);
+  if (carrier) {
+    global.__T.tp(0, 0);
+    carrier.gemsStolen = 2; carrier.stolen = ['gem', 'gem'];
+    carrier.x = 0; carrier.z = 30;           /* past ARENA_R (16.5) + the 12.5 rim */
+    carrier.stun = 0; carrier.spawnT = 0; carrier.actKind = 'none';
+    const sc0 = global.__T.info().score;
+    pump(6);
+    check('a thief at the far rim escapes with the loot', carrier.gemsStolen === 0, carrier.gemsStolen);
+    check('and the score pays for it', global.__T.info().score < sc0, { sc0, now: global.__T.info().score });
+  }
+  global.__T.god(false);
+  pump(20);
+  /* and they eat the scenery when nobody is watching it */
+  global.__T.hurtAll();
+  pump(40);
+  global.__T.clearShots();
+  const cB = global.__T.nearCrystal();
+  check('a crystal stands within reach of the arena', !!cB && cB.d < 30, cB);
+  if (cB && cB.alive !== false) {
+    global.__T.place('grunt', cB.x - global.__R().x + 0.5, cB.z - global.__R().z);
+    const chewer = global.__T.lastEnemy();
+    if (chewer) { chewer.spd = 0; chewer.stun = 0; chewer.actKind = 'none'; chewer.spawnT = 0; chewer.recT = 0; }
+    const crB = global.__T.info().crystals, pkB = global.__T.info().pk;
+    pump(40);
+    /* separation can nudge the pinned goblin out of chewing range, and the
+       chew decays when it is — allow two windows before calling it broken */
+    check('a goblin at a crystal starts chewing it', global.__T.crystal(cB.i).gnaw > 0.05, { gnaw: global.__T.crystal(cB.i).gnaw });
+    pump(240);
+    check('the crystal is gone', global.__T.info().crystals < crB, { before: crB, after: global.__T.info().crystals });
+    check('the gnaw counter moved', global.__T.info().gnawed > 0, global.__T.info().gnawed);
+    /* the shard either landed on the floor for someone to take, or a goblin is
+       already running off with it — either way it is in play, not deleted */
+    const shard = global.__T.pkList().some(p => Math.hypot(p.x - cB.x, p.z - cB.z) < 3);
+    check('and it left a shard to fight over', shard || global.__T.info().snatched > 0,
+      { shard: shard, snatched: global.__T.info().snatched, pk: global.__T.info().pk });
+  }
+})();
+
 console.log('--- keys while typing in the seed field ---');
 const muteBefore = H.els['btnMute'].textContent;   /* the fake DOM's own default, whatever it is */
 H.emit('keydown', { code: 'KeyM', target: { tagName: 'INPUT' } });

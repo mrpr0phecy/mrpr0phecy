@@ -65,6 +65,7 @@ function rankFor() {
 }
 
 var game = { score: 0, wave: 1, lives: 5, maxLives: 5, kills: 0, combo: 0, combot: 0,
+  snatched: 0, recovered: 0, lost: 0, gnawed: 0,
   comboBest: 0, boss: false, shake: 0, shakeT: 0, shakeAmp: 0, bannerT: 0, spawnQueue: [], spawnT: 0,
   waveState: 'idle', clearT: 0, accentT: 0, slowT: 0, slowK: 1, lastStand: false,
   boonOffer: null, boonN: {}, boonsTaken: 0 };
@@ -613,6 +614,9 @@ var camCollideD = 7.2;                         /* collision-safe boom length */
 var camLift = 0;                               /* pivot lift while the boom clips */
 var camRoll = 0, camRollT = 0;                 /* banking into strafes */
 var camShoulder = 0;                           /* over-the-shoulder offset (u) */
+var camBodyT = 0;                              /* lateral truck to clear a body (u) */
+var _qThief = [], _qGnaw = [];                 /* scratch: who is near the loot */
+var ddxC = 0, ddyC = 0, ddzC = 1;              /* this frame's look axis (render only) */
 var camPivX = 0, camPivY = 0, camPivZ = 0;      /* smoothed orbit centre */
 var camKickY = 0, camKickP = 0, camKickR = 0;  /* impact offsets (decay to 0) */
 var camAutoT = 0;                              /* auto-frame spin-up (0..1) */
@@ -706,6 +710,64 @@ function boomHit(px, py, pz, dx, dy, dz, maxD, lift, pad) {
   }
   return 0;
 }
+/* Goblin bodies are soft occluders too. A 2-hp grunt must never be able to
+   fill the screen, and "camera clips through the crowd" is the single most
+   common complaint about third-person arenas. Returns the signed lateral
+   slide (world units) the boom needs to get around the nearest body — the rig
+   *trucks* sideways with the target, so Riley stays centred and the body
+   slides out of frame instead of the camera zooming to her nose. */
+var BODY_PUSH_MAX = 0.9;
+/* Bodies are soft occluders too. A brute parked between the lens and Riley
+   hides the one thing you must never lose sight of, and "the camera clips
+   through the crowd" is the standard complaint about third-person arenas.
+   Test the line of sight to her chest, and return the lateral slide that gets
+   it clear. The rig *trucks* with its target, so Riley stays centred while the
+   body slides out of frame — instead of the camera slamming into first person,
+   or wobbling every time a runner brushes past her hip (the last metre next to
+   Riley is deliberately ignored: that is a hug, not an occlusion). */
+function bodyPush(ex, ey, ez, tx, ty, tz, maxD) {
+  var sdx = tx - ex, sdz = tz - ez;
+  var sl = Math.hypot(sdx, sdz);
+  if (sl < 1.6) return 0;
+  var dx = sdx / sl, dz = sdz / sl;
+  var sdy = (ty - ey) / sl;
+  var push = 0, i;
+  for (i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (e.dead) continue;
+    var ex2 = e.x - ex, ez2 = e.z - ez;
+    var proj = ex2 * dx + ez2 * dz;
+    if (proj < 0.45 || proj > maxD - 1.05) continue;
+    var rad = e.r + 0.34 + (e.k === 'boss' ? 0.5 : 0);
+    var lat = ex2 * -dz + ez2 * dx;
+    var over = rad - Math.abs(lat);
+    if (over < 0.2) continue;                            /* deadband: no crowd jitter */
+    var yAt = ey + sdy * proj;
+    var vy = yAt - (e.y + e.h * 0.5);
+    var vHalf = e.h + 0.9;
+    if (Math.abs(vy) > vHalf) continue;
+    var vw = 1 - Math.abs(vy) / vHalf;
+    var need = clamp(over * 0.9, 0.16, 0.8) * (0.6 + 0.4 * (proj / maxD)) * vw;
+    need *= (lat >= 0 ? -1 : 1);
+    if (Math.abs(need) > Math.abs(push)) push = need;
+  }
+  return clamp(push, -BODY_PUSH_MAX, BODY_PUSH_MAX);
+}
+/* A goblin that has been shoved into the lens would otherwise paint the inside
+   of a torso over the whole screen. At that range there is nothing behind it
+   the player needs either, so it is simply not drawn — the classic "hide
+   actors between the camera and the player" trick, and far cheaper per frame
+   than a per-actor alpha pass. Uses the interpolated render position and the
+   render camera, so it can never feed back into the sim. */
+function lensHide(e) {
+  var hx = e.rx - camX, hy = e.ry + e.h * 0.55 - camY, hz = e.rz - camZ;
+  var d = Math.hypot(hx, hy, hz);
+  var lim = 0.8 + e.r * 0.75;
+  if (d > lim) return false;
+  /* and only what is in front of the lens — anything behind it is not on the
+     screen, so there is nothing to hide */
+  return (hx * -ddxC + hy * -ddyC + hz * -ddzC) > -0.15;
+}
 function boomSolve(px, py, pz, dx, dy, dz, wantD) {
   var LIFTS = [0, 0.5, 1.15, 2.0], bestLift = 0, bestD = -1;
   for (var li = 0; li < LIFTS.length; li++) {
@@ -752,7 +814,7 @@ function camSnapToPlayer() {
   camYawTarget = camYaw = R.yaw;
   camPitchTarget = camPitch = 0.34;
   camDistTarget = camDist = clamp(CAMSET.zoom, CAM_DIST_MIN, CAM_DIST_MAX);
-  camCollideD = camDist; camLift = 0; camRoll = camRollT = 0; camShoulder = 0;
+  camCollideD = camDist; camLift = 0; camRoll = camRollT = 0; camShoulder = 0; camBodyT = 0;
   camAutoT = 0; camBlockT = 0; camKickY = camKickP = camKickR = 0;
   lookY = R.y + 1.16;
   camPivX = R.x; camPivY = lookY; camPivZ = R.z;
@@ -833,6 +895,9 @@ function updateCamera(dtC, lookAt) {
   if (R.dashing) wantD *= 1.05;
   if (aiming && !locked) wantD *= 0.8;                 /* in over the shoulder */
   if (locked) wantD += clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) * 0.15, 0, 2.2);
+  /* a GOBLIN KING is 1.85u of chest in your face at the default distance:
+     give the arena a floor so the boss reads as a silhouette, not a wall */
+  if (game.boss && !aiming) wantD = Math.max(wantD, 8.6);
   wantD = clamp(wantD, CAM_DIST_MIN, CAM_DIST_MAX);
   camDist = damp(camDist, wantD, 9, dtC);
 
@@ -847,6 +912,16 @@ function updateCamera(dtC, lookAt) {
   camShoulder = damp(camShoulder, (aiming || locked) ? (locked ? 0.6 : 0.42) : 0, 5.5, dtC);
   px += Math.cos(camYaw) * camShoulder;
   pz += -Math.sin(camYaw) * camShoulder;
+  /* truck around a goblin that has put itself between the lens and Riley */
+  var cp0 = Math.cos(camPitch), ddx0 = Math.sin(camYaw) * cp0, ddz0 = Math.cos(camYaw) * cp0;
+  var bpEy = camPivY + 0.16 + Math.sin(camPitch) * camDist + camLift;
+  var bpEx = px - ddx0 * camDist, bpEz = pz - ddz0 * camDist;
+  camBodyT = damp(camBodyT, bodyPush(bpEx, bpEy, bpEz, lx, ly + 1.0, lz, camDist), 6.5, dtC);
+  if (camBodyT) {
+    var bll = Math.hypot(ddx0, ddz0) || 1;
+    px += (-ddz0 / bll) * camBodyT;
+    pz += (ddx0 / bll) * camBodyT;
+  }
   /* bank into the strafe / turn: tiny, but it sells momentum */
   var lat = R.vx * Math.cos(camYaw) - R.vz * Math.sin(camYaw);
   camRollT = -clamp(lat / 9, -1, 1) * 0.04 - clamp(angDiff(camYaw, camYawTarget) * 0.6, -0.03, 0.03);
@@ -858,6 +933,7 @@ function updateCamera(dtC, lookAt) {
 
   var cp = Math.cos(camPitch), sp = Math.sin(camPitch);
   var ddx = Math.sin(camYaw) * cp, ddy = sp, ddz = Math.cos(camYaw) * cp;
+  ddxC = ddx; ddyC = ddy; ddzC = ddz;
 
   /* ---- occlusion: lift, then shorten, then let FOV widen ---- */
   var pivY = camPivY + 0.16;
@@ -1630,6 +1706,8 @@ function newGob(k, x, y, z, idx) {
     spitCd: rnd2(0.8, 2.2), roarT: 5, enrage: false,
     spd: t.spd * rnd2(0.88, 1.12),
     dmgTaken: 0, dmgDealt: 0, kills: 0, lifeSec: 0, hitsTaken: 0, gemsStolen: 0,
+    /* theft: a goblin that grabs an uncollected gem runs for a portal with it */
+    stolen: null, stealT: 0,
     aiPhase: (idx || 0) % 8, sideT: rnd2(2, 5), side: 1,
     mvx: 0, mvz: 0, mAct: 'idle',
     /* render-only feel: squash/pop on hit, death lean, telegraph dip */
@@ -1797,6 +1875,42 @@ function updateEnemies(dtU) {
     var e = enemies[i2];
     if (!e.dead) enemyGrid.insert(e.x, e.z, e);
   }
+  /* Goblins are thieves: loot left on the floor gets picked up and run for a
+     portal with, which turns "vacuum the gems" into a decision — take yours
+     now, or shoot the one who takes them. Kill a thief and it hands everything
+     back with a finder's bonus. Driven from the pickup side and through the
+     enemy grid, so the cost follows how much loot is lying about, not how many
+     goblins are on the field; a goblin mid-wind-up never breaks its attack to
+     grab, and one that is staggered cannot grab either. */
+  if (pickups.length && frame % 2 === 0) {
+    for (var pi = pickups.length - 1; pi >= 0; pi--) {
+      var pk = pickups[pi];
+      if (pk.gr > 0) continue;
+      enemyGrid.query(pk.x, pk.z, _qThief);
+      var pdP = Math.hypot(pk.x - R.x, pk.z - R.z);
+      for (var qi = 0; qi < _qThief.length; qi++) {
+        var te = _qThief[qi];
+        if (te.dead || te.gemsStolen >= 3 || te.spawnT > 0 || te.stun > 0 || te.tele > 0) continue;
+        if (te.k === 'spitter' || te.k === 'brute' || te.k === 'boss') continue;
+        /* quick fingers, but only from a goblin who has a better claim on it
+           than you do: out-muscle it by getting there first */
+        var td = Math.hypot(te.x - pk.x, te.z - pk.z);
+        if (td > 2.2 || td > pdP * 0.85) continue;
+        if (Math.abs(te.y - pk.y) > 1.9) continue;
+        if (!te.stolen) te.stolen = [];
+        te.stolen.push(pk.k);
+        te.gemsStolen++;
+        game.snatched++;
+        te.stealT = 0.7;
+        te.vy = Math.max(te.vy, 3.4);                /* a hop of pure delight */
+        pickups.splice(pi, 1);
+        popText(pk.x, pk.y + 0.75, pk.z, 'SNATCHED!', false, '#ffd75e');
+        ringBurst(pk.x, pk.y + 0.1, pk.z, [255, 214, 94], 3);
+        sfxGated('coin');
+        break;
+      }
+    }
+  }
   for (var i3 = 0; i3 < enemies.length; i3++) {
     var e3 = enemies[i3];
     if (e3.dead) { updateCorpse(e3, dtU); continue; }
@@ -1881,8 +1995,37 @@ function updateEnemies(dtU) {
       var fx3 = Math.sin(e3.yaw), fz3 = Math.cos(e3.yaw);
       var sx3 = Math.cos(e3.yaw), sz3 = -Math.sin(e3.yaw);
       var speed = e3.spd * (e3.k === 'boss' && e3.enrage ? 1.45 : 1) *
-        (e3.recT > 0 ? 0.55 : 1);
+        (e3.recT > 0 ? 0.55 : 1) * (e3.gemsStolen > 0 ? 1.14 : 1);
       if (e3.mAct === 'flee') { mvx = -fx3 * speed; mvz = -fz3 * speed; }
+      else if (e3.gemsStolen > 0) {
+        /* carrying: head for the rim, not for her — this is the run you chase */
+        var ffx = e3.x - R.x, ffz = e3.z - R.z, fl = Math.hypot(ffx, ffz) || 1;
+        mvx = ffx / fl * speed; mvz = ffz / fl * speed;
+      }
+      else if (e3.gemsStolen === 0 && pickups.length && e3.spawnT <= 0) {
+        /* Goblins sniff out loot. A grunt with empty pockets detours for
+           anything lying about that he has a better claim on than she does —
+           which is what makes an uncollected gem across the arena a reason to
+           hurry, instead of decoration. Skipped while materialising or already
+           carrying, so it never overrides an attack or a thief's escape run. */
+        var lgx = 0, lgz = 0, lBest = 1e9, lHas = false;
+        for (var li2 = 0; li2 < pickups.length; li2++) {
+          var pl = pickups[li2];
+          if (pl.gr > 0) continue;
+          var ldx = pl.x - e3.x, ldz = pl.z - e3.z, ld2 = ldx * ldx + ldz * ldz;
+          if (ld2 > 64) continue;                          /* 8u of nose */
+          var lpx = pl.x - R.x, lpz = pl.z - R.z;
+          if (ld2 > (lpx * lpx + lpz * lpz) * 0.72) continue;
+          if (ld2 < lBest) { lBest = ld2; lgx = ldx; lgz = ldz; lHas = true; }
+        }
+        mvx = (e3.mvx * fx3 + e3.mvz * sx3) * speed;
+        mvz = (e3.mvx * fz3 + e3.mvz * sz3) * speed;
+        if (lHas) {
+          var lgl = Math.hypot(lgx, lgz) || 1;
+          mvx = mvx * 0.3 + lgx / lgl * speed * 0.7;
+          mvz = mvz * 0.3 + lgz / lgl * speed * 0.7;
+        }
+      }
       else {
         mvx = (e3.mvx * fx3 + e3.mvz * sx3) * speed;
         mvz = (e3.mvx * fz3 + e3.mvz * sz3) * speed;
@@ -1930,6 +2073,16 @@ function updateEnemies(dtU) {
     /* world boundary */
     var ed = Math.hypot(e3.x, e3.z);
     if (ed > WORLD / 2 - 2) { e3.x = e3.x / ed * (WORLD / 2 - 2); e3.z = e3.z / ed * (WORLD / 2 - 2); }
+    if (e3.stealT > 0) e3.stealT -= dtU;
+    if (e3.gemsStolen > 0 && ed > ARENA_R + 12.5) {
+      /* gone. Cheap, but it stings — the whole point of leaving loot on the
+         floor is that the floor is occupied */
+      game.score = Math.max(0, game.score - 12 * e3.gemsStolen);
+      game.lost += e3.gemsStolen;
+      popText(e3.x, e3.y + e3.h + 1.2, e3.z, 'LOOT GONE!', true, '#ff8a6a');
+      sfx('low');
+      e3.gemsStolen = 0; e3.stolen = null;
+    }
 
     /* contact with Riley: only an ACTIVE lunge hurts. Idle crowding just
        bumps both apart — telegraphed attacks you can actually dodge,
@@ -2053,6 +2206,18 @@ function killGob(e, smash) {
     game.lives++;
     popText(e.x, e.y + e.h + 1.7, e.z, '♥ +1 LIFE', true, '#ff8a9a');
     sfx('heal');
+  }
+  if (e.gemsStolen > 0 && e.stolen) {
+    /* drop the swag, plus a finder's bonus for chasing it down */
+    for (var gi = 0; gi < e.stolen.length; gi++) {
+      spawnPickup(e.stolen[gi], e.x + (gi - 0.5) * 0.5, e.y + 1.15, e.z + gi * 0.22);
+    }
+    game.score += 25 * e.gemsStolen;
+    game.recovered += e.gemsStolen;
+    popText(e.x, e.y + e.h + 1.5, e.z, 'LOOT BACK ×' + e.gemsStolen, true, '#ffd75e');
+    sfx('coin');
+    ringBurst(e.x, e.y + 0.2, e.z, [255, 214, 94], 5);
+    e.gemsStolen = 0; e.stolen = null;
   }
   popText(e.x, e.y + e.h + 0.7, e.z, '+' + pts, false, smash ? '#9fe8ff' : '#ffe9a8');
   if (smash) {
@@ -2299,7 +2464,7 @@ var B = newBoons();
 function newBoons() {
   return {
     dmg: 1, spd: 1, cast: 1, regen: 1, pierce: 0, reach: 0, dashCd: 1,
-    magnet: 3.4, jumpK: 1, thorns: 0, comboT: 4
+    magnet: 2.6, jumpK: 1, thorns: 0, comboT: 4
   };
 }
 function dashCdMax() { return DASH_CD * B.dashCd; }
@@ -2419,12 +2584,15 @@ var POWER_META = {
 };
 function spawnPickup(kind, x, y, z) {
   if (pickups.length > 48) return;
-  pickups.push({ k: kind, x: x, y: y, z: z, vy: rnd2(3, 5), ph: rnd2(0, TAU), life: kind === 'heart' || POWER_META[kind] ? 16 : 14, mag: 0 });
+  /* gr: a moment where only she can pick it up. Loot that can be intercepted
+     before it even lands reads as the game stealing from the player. */
+  pickups.push({ k: kind, x: x, y: y, z: z, vy: rnd2(3, 5), ph: rnd2(0, TAU), life: kind === 'heart' || POWER_META[kind] ? 16 : 14, mag: 0, gr: 0.38 });
 }
 function updatePickups(dtP) {
   for (var i = pickups.length - 1; i >= 0; i--) {
     var p = pickups[i];
     p.life -= dtP;
+    if (p.gr > 0) p.gr -= dtP;
     if (p.life <= 0) { pickups.splice(i, 1); continue; }
     p.vy -= 18 * dtP;
     p.y += p.vy * dtP;
@@ -2432,7 +2600,7 @@ function updatePickups(dtP) {
     if (p.y < gy + 0.4) { p.y = gy + 0.4; p.vy = 0; }
     p.ph += dtP * 3;
     var dx = R.x - p.x, dz = R.z - p.z, d = Math.hypot(dx, dz);
-    if (d < B.magnet) { p.mag = Math.min(1, p.mag + dtP * 3); var pull = p.mag * 14; p.x += dx / (d || 1) * pull * dtP; p.z += dz / (d || 1) * pull * dtP; }
+    if (d < B.magnet) { p.mag = Math.min(1, p.mag + dtP * 2.1); var pull = p.mag * 11; p.x += dx / (d || 1) * pull * dtP; p.z += dz / (d || 1) * pull * dtP; }
     if (d < 0.9 && Math.abs(p.y - (R.y + 0.9)) < 1.6) { collectPickup(p); pickups.splice(i, 1); }
   }
 }
@@ -2772,6 +2940,7 @@ function drawRileyGlow() {
 }
 function drawGoblin(e) {
   if (e.hitT > 0 && !e.dead && Math.floor(time * 26) % 2 === 0) return;
+  if (lensHide(e)) return;          /* corpses too: a dead face in the lens is the same artifact */
   /* whole-body deformation (render clock only, never feeds the sim) */
   var cx = e.rx, cy = e.ry + e.h * 0.5, cz = e.rz, pYaw = 0, pPit = 0, pRol = 0, kx = 1, ky = 1, kz = 1;
   if (e.dead) {
@@ -2859,6 +3028,20 @@ function drawGoblin(e) {
   }
   bodyXform = null;
 }
+/* the prize, held overhead and wobbling: you have to be able to pick the right
+   goblin out of a crowd at a glance, or the theft is just a lost pickup */
+function drawThiefLoot(e) {
+  if (!e.gemsStolen || e.dead) return;
+  var by = e.ry + e.h + 0.52 + Math.sin(time * 4 + e.ph) * 0.08 + (e.stealT > 0 ? e.stealT * 0.55 : 0);
+  for (var i = 0; i < e.gemsStolen; i++) {
+    var a = time * 2.4 + i * 2.1 + e.ph;
+    var rad = 0.2 + e.gemsStolen * 0.035;
+    C.limb2(MM, e.rx + Math.cos(a) * rad, by + Math.sin(a * 1.7) * 0.06, e.rz + Math.sin(a) * rad,
+      a, 0, 0, 0, 0.62, 0.4, 0, 0, 0, 0.15, 0.15, 0.15);
+    instPart('box', '', MM, e.stolen && e.stolen[i] === 'heart' ? [255, 120, 150] :
+      (e.stolen && e.stolen[i] !== 'gem' ? [200, 140, 255] : [255, 214, 94]));
+  }
+}
 function drawGoblinGlow() {
   drawInstanced('box', 'g', [255, 220, 100]);            /* eyes */
   drawInstanced('box', 'g2', [255, 70, 50]);             /* boss eyes */
@@ -2945,8 +3128,18 @@ function render() {
     var c = world.crystals[ci];
     if (!c.alive) continue;
     var pu = 1 + 0.08 * Math.sin(time * 2.4 + c.ph);
-    C.limb2(MM, c.x, c.y, c.z, c.ph, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.9 * c.s * pu, 0.9 * c.s * pu, 0.9 * c.s * pu);
-    instPart('cone', 'crystal', MM, [140, 220, 255]);
+    /* being chewed: it shakes, and the colour walks from ice to ember so the
+       last half-second is legible from across the arena */
+    var jx = 0, jz = 0, cg = [140, 220, 255];
+    if (c.gnaw > 0) {
+      var jf = Math.min(1, c.gnaw / 2.1);
+      jx = Math.sin(time * 34 + c.ph) * 0.06 * jf;
+      jz = Math.cos(time * 29 + c.ph) * 0.06 * jf;
+      cg = [140 + 115 * jf | 0, 220 - 60 * jf | 0, 255 - 150 * jf | 0];
+      pu += jf * 0.05;
+    }
+    C.limb2(MM, c.x + jx, c.y, c.z + jz, c.ph, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.9 * c.s * pu, 0.9 * c.s * pu, 0.9 * c.s * pu);
+    instPart('cone', 'crystal', MM, cg);
   }
   drawInstanced('cone', 'crystal', [60, 160, 255], 1);
   for (var cj = 0; cj < world.crystals.length; cj++) {
@@ -2982,6 +3175,7 @@ function render() {
   haloN = 0;
   /* enemies */
   for (var ei2 = 0; ei2 < enemies.length; ei2++) { var eg = enemies[ei2]; if (!eg.dead || eg.dieT > 0) drawGoblin(eg); }
+  for (var ei3 = 0; ei3 < enemies.length; ei3++) drawThiefLoot(enemies[ei3]);
   drawGoblinGlow();
   /* elite auras + attack telegraphs (one additive pass) */
   for (var et = 0; et < enemies.length; et++) {
@@ -3184,8 +3378,44 @@ function updateCrystals(dtC) {
       continue;
     }
     /* walk-up shatter */
-    if (Math.abs(c.x - R.x) < 1.1 && Math.abs(c.z - R.z) < 1.1 && Math.abs(c.y - R.y) < 2.2) shatterCrystal(c, true);
+    if (Math.abs(c.x - R.x) < 1.1 && Math.abs(c.z - R.z) < 1.1 && Math.abs(c.y - R.y) < 2.2) { shatterCrystal(c, true); continue; }
+    /* Goblins eat the scenery. A crystal nobody is standing next to is mana the
+       tide will nibble away: two seconds of chewing and it is gone, which turns
+       the arena into ground worth defending instead of flat floor to clear.
+       The shard it leaves is a race you can still win — and a goblin at your
+       crystal is a goblin beside a gem, which is where theft actually starts. */
+    var chewer = null;
+    enemyGrid.query(c.x, c.z, _qGnaw);
+    for (var gi = 0; gi < _qGnaw.length; gi++) {
+      var ge = _qGnaw[gi];
+      if (ge.dead || ge.spawnT > 0 || ge.stun > 0 || ge.recT > 0) continue;
+      if (Math.abs(ge.x - c.x) > 1.3 || Math.abs(ge.z - c.z) > 1.3) continue;
+      if (Math.abs(ge.y - c.y) > 2) continue;
+      chewer = ge; break;
+    }
+    if (chewer) {
+      var wasG = c.gnaw || 0;
+      c.gnaw = wasG + dtC;
+      if (wasG < 0.05 && c.gnaw >= 0.05) {
+        sfxGated('low');
+        popText(c.x, c.y + 2.2, c.z, 'EY!', false, '#ffd75e');
+      }
+      if (c.gnaw >= 2.1) gnawCrystal(c);
+    } else if (c.gnaw) c.gnaw = Math.max(0, c.gnaw - dtC * 0.6);
   }
+}
+function gnawCrystal(c) {
+  c.alive = false;
+  c.gnaw = 0;
+  /* deliberately NOT shatterCrystal: they got the prize, not you */
+  c.respawn = 26 + tickRand() * 10;
+  game.gnawed++;
+  burst(c.x, c.y + 1.1 * c.s, c.z, [255, 150, 90], 20, 7, 1.4, 0.28, 0.6);
+  ringBurst(c.x, c.y + 0.2, c.z, [255, 190, 120], 4);
+  popText(c.x, c.y + 2.3, c.z, 'GNAWED!', false, '#ff8a6a');
+  sfx('hit');
+  game.shake = Math.max(game.shake, 0.16);
+  spawnPickup('gem', c.x, c.y + 0.7, c.z);
 }
 function updateFxVisual(dtF) {
   if (zoomPulse > 0) zoomPulse = Math.max(0, zoomPulse - dtF * 2.6);
@@ -3991,7 +4221,8 @@ if (SELFTEST) {
       return { state: state, wave: game.wave, wv: game.waveState, q: game.spawnQueue ? game.spawnQueue.length : 0,
         n: enemies.length, es: eShots.length, score: game.score, kills: game.kills,
         combo: game.combo, lives: game.lives, boss: game.boss, iq: A.iqAvg(bestiary),
-        crystals: world.crystals.filter(function (c) { return c.alive; }).length,
+        crystals: world.crystals.filter(function (c) { return c.alive; }).length, pk: pickups.length,
+        snatched: game.snatched, recovered: game.recovered, lost: game.lost, gnawed: game.gnawed,
         hash: session ? session.worldHash : 0, tick: session ? session.tick : 0 };
     },
     god: function (b) { if (b) R.inv = 1e9; },
@@ -4007,7 +4238,26 @@ if (SELFTEST) {
       return { x: R.x, z: R.z, y: R.y, d: Math.hypot(R.x, R.z) };
     },
     spawnGrace: function (i) { var e = enemies[i || 0]; return e ? e.spawnT : -1; },
+    pkList: function () {
+      return pickups.map(function (p) { return { k: p.k, x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2) }; });
+    },
     heldKeys: function () { var out = []; for (var k in keys) if (keys[k]) out.push(k); return out; },
+    crystal: function (i) {
+      var c = world.crystals[i || 0];
+      return c && { x: c.x, y: c.y, z: c.z, alive: c.alive, gnaw: +(c.gnaw || 0).toFixed(2), s: c.s };
+    },
+    /* the arena-lip crystal nearest Riley — the one the tide can actually reach */
+    nearCrystal: function () {
+      var bi = -1, bd = 1e9;
+      for (var i = 0; i < world.crystals.length; i++) {
+        var c = world.crystals[i];
+        if (!c.alive) continue;
+        var d = Math.hypot(c.x - R.x, c.z - R.z);
+        if (d < bd) { bd = d; bi = i; }
+      }
+      var cc = bi < 0 ? null : world.crystals[bi];
+      return cc && { i: bi, x: cc.x, y: cc.y, z: cc.z, gnaw: +(cc.gnaw || 0).toFixed(2), d: +bd.toFixed(2) };
+    },
     take: function (id) {
       for (var i = 0; i < BOONS.length; i++) if (BOONS[i].id === id) return !!applyBoon(BOONS[i]);
       return false;
@@ -4028,13 +4278,14 @@ if (SELFTEST) {
         if (e.dead) continue;
         out.push({ i: i, k: e.k, x: +e.x.toFixed(2), z: +e.z.toFixed(2), y: +e.y.toFixed(2),
           hp: +e.hp.toFixed(2), tele: +e.tele.toFixed(2), act: e.actKind, spawn: +e.spawnT.toFixed(2),
-          elite: !!e.elite, d: +Math.hypot(e.x - R.x, e.z - R.z).toFixed(2) });
+          elite: !!e.elite, steal: e.gemsStolen, d: +Math.hypot(e.x - R.x, e.z - R.z).toFixed(2) });
       }
       out.sort(function (a, b) { return a.d - b.d; });
       return out;
     },
+    lensHide: function (i) { var e = enemies[i | 0]; return e ? lensHide(e) : null; },
     cam: function () {
-      return { block: +camBlockT.toFixed(3), lift: +camLift.toFixed(2), dist: +camDist.toFixed(2),
+      return { block: +camBlockT.toFixed(3), lift: +camLift.toFixed(2), dist: +camDist.toFixed(2), body: +camBodyT.toFixed(2),
         fov: +camFov.toFixed(3), roll: +camRoll.toFixed(3), shake: +game.shake.toFixed(3),
         kick: +Math.hypot(camKickY, camKickP, camKickR).toFixed(3), shoulder: +camShoulder.toFixed(2) };
     },
@@ -4047,8 +4298,8 @@ if (SELFTEST) {
       if (g) g.spawnT = 0;
       return g && { x: x, y: g.y, z: z, elite: g.elite, hp: g.hp, hpMax: g.hpMax };
     },
-    drop: function (kind) {
-      spawnPickup(kind, R.x + 0.6, R.y + 0.5, R.z);
+    drop: function (kind, dx, dz) {
+      spawnPickup(kind, R.x + (dx === undefined ? 0.6 : dx), R.y + 0.5, R.z + (dz === undefined ? 0 : dz));
       return true;
     },
     buffs: function () {
