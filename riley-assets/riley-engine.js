@@ -1075,6 +1075,8 @@ function buffMul() {
     regen: buffs.regen > 0 ? 2.5 : 1
   };
 }
+var DASH_CD = 0.52;        /* the HUD reads this to draw the charge bar */
+var JUMP_V = 13.8, JUMP_V2 = 12.6, GRAV = 42;
 function newRiley() {
   var r = {
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: Math.PI, run: 0, air: 0, ground: true,
@@ -1159,7 +1161,7 @@ function stepPlayer(inp) {
     var dd0 = walking ? mvx : aimX, dd1 = walking ? mvz : aimZ;
     var dl = Math.hypot(dd0, dd1) || 1;
     R.dashDX = dd0 / dl; R.dashDZ = dd1 / dl;
-    R.dashing = true; R.dashT = 0.17; R.dashCd = 0.52;
+    R.dashing = true; R.dashT = 0.17; R.dashCd = DASH_CD;
     R.inv = Math.max(R.inv, 0.3); R.dodgeT = 0.34;   /* the perfect-dodge window */
     R.vy = Math.max(R.vy, R.ground ? 0 : 1.2);       /* air-dash holds you up */
     burst(R.x, R.y + 0.7, R.z, [130, 210, 255], 12, 5, 1.5, 0.3, 0.4);
@@ -1197,17 +1199,17 @@ function stepPlayer(inp) {
   /* jump / double jump */
   if (inp.jump) R.jumpBuf = 0.14;
   if (R.jumpBuf > 0 && (R.ground || R.coyote > 0)) {
-    R.vy = 13.8; R.ground = false; R.coyote = 0; R.jumpBuf = 0; R.air = 1;
+    R.vy = JUMP_V; R.ground = false; R.coyote = 0; R.jumpBuf = 0; R.air = 1;
     ringBurst(R.x, R.y + 0.05, R.z, [220, 235, 255], 3);
     sfx('jump');
   } else if (R.jumpBuf > 0 && R.air === 1) {
-    R.vy = 12.6; R.air = 2; R.jumpBuf = 0;
+    R.vy = JUMP_V2; R.air = 2; R.jumpBuf = 0;
     ringBurst(R.x, R.y + 0.1, R.z, [120, 220, 255], 4);
     sfx('djump');
   }
 
   /* gravity: lighter near the apex so the arc reads, harder when you let go */
-  R.vy -= (42 - (Math.abs(R.vy) < 3.5 ? 12 : 0)) * fr;
+  R.vy -= (GRAV - (Math.abs(R.vy) < 3.5 ? 12 : 0)) * fr;
   if (R.vy < -36) R.vy = -36;
   if (!R.ground && R.vy < 0 && !inp.jump) R.vy -= 11 * fr; /* variable jump height */
   var fallSpd = R.vy;
@@ -1781,7 +1783,8 @@ function updateEnemies(dtU) {
     e3.stun = Math.max(0, e3.stun - dtU);
     e3.recT = Math.max(0, e3.recT - dtU);
     e3.flinch = Math.max(0, e3.flinch - dtU * 5);
-    e3.lean = damp(e3.lean, clamp(e3.mvx, -1, 1) * 0.14, 7, dtU);
+    e3.popY = damp(e3.popY, 0, 9, dtU);
+    e3.lean = damp(e3.lean, clamp(e3.mvx, -1, 1) * 0.14 + (e3.recT > 0 ? 0.22 : 0), 7, dtU);
     e3.lifeSec += dtU;
     /* spitter wind-up expires here (per frame, not on the 8Hz brain tick) */
     if (e3.spitT > 0) {
@@ -1953,6 +1956,9 @@ function damageGob(e, d, sx2, sz2) {
   if (e.dead) return false;
   e.hp -= d;
   e.hitT = 0.13;
+  /* squash + hop: the body answers the hit before the number does */
+  e.flinch = Math.max(e.flinch, clamp(d / 3, 0.35, 1));
+  e.popY = Math.min(0.22, e.popY + 0.1 * clamp(d / 3, 0.4, 1));
   e.dmgTaken = Math.min(1, e.dmgTaken + 0.5);
   e.hitsTaken++;
   /* heavy hits stagger the big brutes — charged shots + nova have a window */
@@ -1987,7 +1993,6 @@ function updateCorpse(e, dtU) {
   }
   e.lean += e.dieSpin * dtU * (0.4 + f);
   e.run = e.lean;                        /* reuse: limbs follow the tumble */
-  e.popY = (1 - f) * 0.5;                /* sinks as it fades */
   e.shade = 0.25 + 0.75 * f * f;
   e.hitT = 0; e.stun = 0; e.tele = 0; e.actT = 0; e.spitT = 0;
   e.dashing = false;
@@ -2343,7 +2348,7 @@ function updateBuffBar() {
 }
 /* HUD writes are cached — stepSim calls updateHUD 60x/s and only changed
  * values touch the DOM (score tween stays per-tick for smoothness) */
-var hudCache = { hearts: '', wave: '', bossW: -1, bossVis: null, nova: null };
+var hudCache = { hearts: '', wave: '', bossW: -1, bossVis: null, nova: null, dash: -1, smack: null };
 function updateHUD() {
   var h = '';
   for (var i = 0; i < game.maxLives; i++) h += i < game.lives ? '♥' : '🖤';
@@ -2377,8 +2382,28 @@ function updateHUD() {
     if (spanTxt !== hudCache.nova) { mb.querySelector('span').textContent = spanTxt; hudCache.nova = spanTxt; }
   }
   updateBuffBar();
+  /* ability kit: dash charge + smack chain. The dash is the movement *and*
+     the defensive button, so you should never have to look at the ground to
+     know whether it is lit. */
+  if (R) {
+    var dF = 1 - clamp(R.dashCd / DASH_CD, 0, 1);
+    var kd = el('kitDash');
+    if (kd) {
+      kd.style.setProperty('--f', Math.round(dF * 100) + '%');
+      kd.classList.toggle('ready', dF >= 1);
+    }
+    var ks = el('kitSmack');
+    if (ks) {
+      var ch = R.meleeN | 0;
+      ks.style.setProperty('--f', Math.round((ch / 3) * 100) + '%');
+      ks.classList.toggle('ready', ch === 0 || R.meleeCd <= 0);
+      var lbl = ch === 2 ? 'CLEAVE!' : 'SMACK';
+      if (lbl !== hudCache.smack) { ks.firstChild.textContent = lbl; hudCache.smack = lbl; }
+      ks.classList.toggle('c2', ch === 2);
+    }
+  }
 }
-function resetHudCache() { hudCache.hearts = ''; hudCache.wave = ''; hudCache.bossW = -1; hudCache.bossVis = null; hudCache.nova = null; }
+function resetHudCache() { hudCache.dash = -1; hudCache.smack = null; hudCache.hearts = ''; hudCache.wave = ''; hudCache.bossW = -1; hudCache.bossVis = null; hudCache.nova = null; }
 function updateCombo() {
   var c = el('comboCtr'), f = el('comboFill');
   if (game.combo > 1) {
@@ -2485,6 +2510,14 @@ function updateOffscreenArrows() {
  * box & sphere centre on the origin; cyl/cone bases sit at local y=0. */
 function drawRileyChar(o) {
   if (o.hitT > 0 && Math.floor(time * 26) % 2 === 0) return;
+  /* bank the whole body into the strafe / turn, squash on landing, pop on the
+     double jump — one premultiplied transform, so the rig reads as a body
+     rather than a pile of boxes being moved independently */
+  var ln = o.lean || 0, land = o.landT > 0 ? clamp(o.landT / 0.22, 0, 1) : 0;
+  if (Math.abs(ln) > 0.008 || land > 0.01) {
+    bodyPush(o.rx, o.ry + 0.72, o.rz, 0, 0, ln * 1.15,
+      1 + land * 0.14, 1 - land * 0.16, 1 + land * 0.14);
+  }
   var skin = [255, 210, 180], robe = [56, 58, 176], robeD = [40, 42, 134],
     gold = [255, 214, 94], hat = [88, 60, 214], boot = [96, 58, 38], wood = [128, 80, 46];
   var moving = Math.abs(o.vx) > 0.5 || Math.abs(o.vz) > 0.5;
@@ -2550,6 +2583,7 @@ function drawRileyChar(o) {
     var aa = Math.random() * TAU;
     fxPush({ x: o.x + Math.cos(aa) * 0.7, y: o.y + rnd2(0.3, 1.6), z: o.z + Math.sin(aa) * 0.7, vx: 0, vy: rnd2(0.5, 1), vz: 0, life: 0.5, max: 0.5, s: 0.09, pr: 150, pg: 200, pb: 255, pa: 0.7, grav: 0 });
   }
+  bodyXform = null;
 }
 function drawRileyGlow() {
   drawInstanced('box', 'g4', [80, 220, 255]);            /* glasses */
@@ -2638,6 +2672,7 @@ function drawGoblin(e) {
   if (e.k === 'boss' && Math.random() < 0.3) {
     fxPush({ x: bx + rnd2(-0.5, 0.5), y: by + rnd2(0.3, e.h), z: bz + rnd2(-0.5, 0.5), vx: 0, vy: rnd2(0.4, 1), vz: 0, life: 0.6, max: 0.6, s: 0.12, pr: 255, pg: 200, pb: 90, pa: 0.55, grav: 0 });
   }
+  bodyXform = null;
 }
 function drawGoblinGlow() {
   drawInstanced('box', 'g', [255, 220, 100]);            /* eyes */
@@ -2769,6 +2804,13 @@ function render() {
     if (ee.dead) continue;
     if (ee.elite) {
       haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h * 0.55, ee.rz, ee.r * 1.5, 255, 214, 94, 0.34 + 0.12 * Math.sin(time * 4 + ee.ph));
+    }
+    /* lock-on: a gold ring at the feet + a soft glow, so the target is
+     identifiable from the corner of your eye without looking for the reticle */
+    if (lockOn === ee) {
+      var lg = 0.5 + 0.25 * Math.sin(time * 7);
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + 0.07, ee.rz, ee.r * 2.3, 255, 214, 94, 0.3 * lg);
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h * 1.05, ee.rz, ee.r * 1.1, 255, 230, 140, 0.24 * lg);
     }
     /* lunge windup: rising red flare at the feet — dodge window made visible */
     if (ee.tele > 0) {
@@ -3288,6 +3330,7 @@ function setupTouch() {
   bindBtn('tbJump', function (v) { jumpHeld = v; });
   bindBtn('tbDash', function (v) { dashHeld = v; });
   bindBtn('tbNova', function (v) { novaHeld = v; });
+  bindBtn('tbSmack', function (v) { if (v) meleePulse = 0.05; });
 }
 window.addEventListener('touchstart', function () { if (!isTouch) setupTouch(); }, { passive: true });
 window.addEventListener('pointerdown', function (e) { if (e.pointerType === 'touch' && !isTouch) setupTouch(); }, { passive: true });
@@ -3769,6 +3812,10 @@ if (SELFTEST) {
     /* the live view basis (rows of the view matrix). Tests use this to pin
        "D strafes toward the right edge of the screen" — the sign of the
        strafe basis against the projection is otherwise invisible headless. */
+    /* bodyXform must never outlive one entity's draw — a leaked transform
+       warps every goblin after it. Cheap to assert, impossible to see in a
+       headless test otherwise. */
+    bodyIdle: function () { return bodyXform === null; },
     basis: function () {
       return { right: [VM[0], VM[4], VM[8]], up: [VM[1], VM[5], VM[9]],
         /* row 2 of a GL view matrix is the camera's BACKWARD axis; negate so

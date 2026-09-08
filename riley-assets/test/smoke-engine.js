@@ -375,6 +375,11 @@ check('camera sits behind, not in front', behindDot < 0, { behindDot });
 global.__T.key('KeyW', false);
 pump(20);
 
+console.log('--- per-entity body transform never leaks between draws ---');
+let leaked = 0;
+for (let i = 0; i < 90; i++) { if (global.__T.info().n < 2) global.__T.place('grunt', 3, 2); pump(1); if (!global.__T.bodyIdle()) leaked++; }
+check('bodyXform always released after a frame', leaked === 0, leaked);
+
 console.log('--- selftest render: unique colours ---');
 pump(10);
 const shot = global.__shot();

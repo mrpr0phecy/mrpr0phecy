@@ -54,12 +54,15 @@ const IDS = [
   'hintBar',
   'hud',
   'hudHearts',
+  'hudKit',
   'hudScore',
   'hudWave',
   'hurtVig',
   'iqLine',
   'joy',
   'joyKnob',
+  'kitDash',
+  'kitSmack',
   'manaBar',
   'mob',
   'noGL',
@@ -84,12 +87,15 @@ const IDS = [
   'tbDash',
   'tbJump',
   'tbNova',
+  'tbSmack',
   'tglFrame',
   'tglInvY',
   'tglLock',
   'tglOrbit',
   'vignette',
 ];
+
+
 
 
 
