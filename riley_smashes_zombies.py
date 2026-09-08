@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 """
 ===============================================================================
-       RILEY SMASHES THE ZOMBIES: OMNI-ARCANE DELUXE EDITION
+       RILEY SMASHES THE ZOMBIES: ULTRA HD GRAPHICS EDITION
 ===============================================================================
 The definitive 2D arcane action-platformer starring Riley the Wizard.
 
-Massive Upgrades in this Edition:
-- 6 Arcane Spells: Fireball, Chain Lightning, Ice Nova, Void Meteor, Singularity Vortex, Solar Laser
-- Melee Staff Swing (F): Deflects projectiles & knocks back zombies
-- Advanced Platforming: Wall slide, Wall jump, Double jump, Coyote timing, Jump buffering
-- Seismic Ground Slam & Invulnerable Warp Dash
-- 10+ Zombie & Monster Archetypes: Walkers, Runners, Acid Spitters, Boomers, Goliaths,
-  Flying Gargoyles, Shielded Skeletons, Necromancers, plus Elite Champions with Modifiers
-- 3 Multi-Phase Boss Encounters: Abomination Titan, Necrolord, Void Cyclops Lich-King
-- Relic / Artifact System & In-game Achievement Banners
-- Autonomous Procedural Chiptune Music Generator + Sound Synthesis Engine
-- Dynamic Lighting, Parallax Scenery, Weather FX, Bone Debris Physics & Gamepad Support!
+Massive Graphics & Visual Upgrades:
+- Dynamic Point-Lighting Engine: Radial lights on staff, projectiles, explosions, torches
+- Multi-Layer Parallax Environments: Deep starfield with twinkling constellations,
+  glowing moon with craters, distant gothic spire silhouettes, and volumetric mist
+- High-Detail Procedural Sprites: Flowing velvet cape, runic robe trim, glasses gleam,
+  rotating arcane gem with orbital mana rings, shadowed decaying zombie anatomy
+- Screen Juice & VFX: Shockwave blast rings, fractal electric sparks, frost shimmers,
+  swirling void accretion disks, bone debris physics, and animated achievement badges!
 ===============================================================================
 """
 
@@ -26,14 +23,11 @@ import math
 import array
 import os
 
-# -----------------------------------------------------------------------------
-# Configuration & Constants
-# -----------------------------------------------------------------------------
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 800
 FPS = 60
 
-# Vibrant Color Palette
+# Vibrant High-Contrast Palette
 WHITE = (255, 255, 255)
 BLACK = (10, 10, 16)
 GOLD = (255, 215, 0)
@@ -63,7 +57,7 @@ except Exception:
     AUDIO_AVAILABLE = False
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Riley Smashes the Zombies — Omni-Arcane Deluxe Edition")
+pygame.display.set_caption("Riley Smashes the Zombies — Ultra HD Graphics Edition")
 clock = pygame.time.Clock()
 
 font_xs = pygame.font.Font(None, 20)
@@ -72,22 +66,19 @@ font_md = pygame.font.Font(None, 36)
 font_lg = pygame.font.Font(None, 56)
 font_xl = pygame.font.Font(None, 88)
 
-# Initialize Gamepads / Joysticks if available
 pygame.joystick.init()
 joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
 for j in joysticks:
     j.init()
 
 # -----------------------------------------------------------------------------
-# Procedural Audio & Music Synthesizer Engine
+# Audio Engine
 # -----------------------------------------------------------------------------
 class SoundEngine:
     def __init__(self):
         self.sounds = {}
         self.enabled = AUDIO_AVAILABLE
-        self.music_enabled = AUDIO_AVAILABLE
-        if self.enabled:
-            self._generate_all_sounds()
+        if self.enabled: self._generate_all_sounds()
 
     def _create_sound(self, generator_func, duration=0.2, volume=0.3):
         try:
@@ -98,8 +89,7 @@ class SoundEngine:
                 t = i / sample_rate
                 val = generator_func(t, duration)
                 sample = int(max(-1.0, min(1.0, val)) * 32767 * volume)
-                buf.append(sample)
-                buf.append(sample)
+                buf.append(sample); buf.append(sample)
             return pygame.mixer.Sound(buffer=buf)
         except Exception:
             return None
@@ -133,19 +123,21 @@ class SoundEngine:
 audio = SoundEngine()
 
 # -----------------------------------------------------------------------------
-# Biomes & Environments
+# Biomes
 # -----------------------------------------------------------------------------
 BIOMES = [
-    {'name': 'Haunted Graveyard', 'sky_top': (12, 10, 30), 'sky_bot': (35, 30, 65), 'grass': (40, 130, 60), 'dirt': (70, 45, 30), 'weather': 'fog', 'accent': (120, 255, 160)},
-    {'name': 'Toxic Mire & Ruins', 'sky_top': (10, 25, 18), 'sky_bot': (25, 65, 45), 'grass': (70, 210, 60), 'dirt': (30, 60, 35), 'weather': 'spores', 'accent': (160, 255, 50)},
-    {'name': 'Crimson Blood Citadel', 'sky_top': (40, 8, 18), 'sky_bot': (95, 25, 40), 'grass': (180, 45, 55), 'dirt': (85, 20, 25), 'weather': 'embers', 'accent': (255, 80, 80)},
-    {'name': 'Arcane Cosmic Sanctum', 'sky_top': (20, 8, 45), 'sky_bot': (70, 30, 110), 'grass': (140, 70, 220), 'dirt': (55, 25, 80), 'weather': 'stars', 'accent': (210, 120, 255)},
-    {'name': 'Frozen Necropolis', 'sky_top': (10, 20, 45), 'sky_bot': (40, 70, 110), 'grass': (160, 225, 255), 'dirt': (45, 65, 95), 'weather': 'snow', 'accent': (120, 220, 255)},
-    {'name': 'Infernal Nether Abyss', 'sky_top': (50, 15, 8), 'sky_bot': (130, 50, 15), 'grass': (240, 130, 30), 'dirt': (110, 45, 15), 'weather': 'embers', 'accent': (255, 180, 40)}
+    {'name': 'Haunted Graveyard', 'sky_top': (10, 8, 25), 'sky_bot': (32, 28, 60), 'grass': (35, 140, 65), 'dirt': (65, 42, 28), 'weather': 'fog', 'accent': (120, 255, 160), 'moon': (230, 245, 250)},
+    {'name': 'Toxic Mire & Ruins', 'sky_top': (8, 22, 15), 'sky_bot': (22, 58, 40), 'grass': (65, 220, 55), 'dirt': (28, 55, 32), 'weather': 'spores', 'accent': (160, 255, 50), 'moon': (200, 240, 160)},
+    {'name': 'Crimson Blood Citadel', 'sky_top': (35, 6, 15), 'sky_bot': (85, 22, 35), 'grass': (190, 40, 50), 'dirt': (80, 18, 22), 'weather': 'embers', 'accent': (255, 80, 80), 'moon': (255, 140, 140)},
+    {'name': 'Arcane Cosmic Sanctum', 'sky_top': (18, 6, 40), 'sky_bot': (65, 28, 100), 'grass': (150, 65, 230), 'dirt': (50, 22, 75), 'weather': 'stars', 'accent': (220, 130, 255), 'moon': (225, 180, 255)},
+    {'name': 'Frozen Necropolis', 'sky_top': (8, 18, 40), 'sky_bot': (35, 65, 100), 'grass': (160, 230, 255), 'dirt': (40, 60, 90), 'weather': 'snow', 'accent': (130, 230, 255), 'moon': (210, 240, 255)},
+    {'name': 'Infernal Nether Abyss', 'sky_top': (45, 12, 6), 'sky_bot': (120, 45, 12), 'grass': (250, 125, 25), 'dirt': (105, 40, 12), 'weather': 'embers', 'accent': (255, 185, 35), 'moon': (255, 210, 130)}
 ]
 
+STARS = [{'x': random.randint(0, SCREEN_WIDTH), 'y': random.randint(0, int(SCREEN_HEIGHT * 0.75)), 's': random.uniform(0.8, 2.5), 't': random.uniform(0, 100), 'spd': random.uniform(0.02, 0.05)} for _ in range(160)]
+
 # -----------------------------------------------------------------------------
-# Particle, Debris & Visual Systems
+# Visual Effects & Shockwaves
 # -----------------------------------------------------------------------------
 class Particle:
     def __init__(self, x, y, color, size=4, speed=4, lifetime=25, gravity=0.15, glow=False):
@@ -161,9 +153,7 @@ class Particle:
         self.glow = glow
 
     def update(self):
-        self.x += self.vx
-        self.y += self.vy
-        self.vy += self.gravity
+        self.x += self.vx; self.y += self.vy; self.vy += self.gravity
         self.life -= 1
         return self.life > 0
 
@@ -175,9 +165,28 @@ class Particle:
         col = (self.color[0], self.color[1], self.color[2], alpha)
         pygame.draw.circle(s, col, (cur_size * 2, cur_size * 2), cur_size)
         if self.glow and cur_size > 2:
-            glow_col = (self.color[0], self.color[1], self.color[2], int(alpha * 0.35))
-            pygame.draw.circle(s, glow_col, (cur_size * 2, cur_size * 2), cur_size * 2)
+            pygame.draw.circle(s, (self.color[0], self.color[1], self.color[2], int(alpha * 0.35)), (cur_size * 2, cur_size * 2), cur_size * 2)
         surface.blit(s, (int(self.x - cur_size * 2), int(self.y - cur_size * 2)))
+
+class ShockwaveRing:
+    def __init__(self, x, y, color=GOLD, max_radius=90, duration=24):
+        self.x, self.y = float(x), float(y)
+        self.color = color
+        self.max_radius = max_radius
+        self.duration = self.max_duration = duration
+
+    def update(self):
+        self.duration -= 1
+        return self.duration > 0
+
+    def draw(self, surface):
+        p = 1.0 - (self.duration / self.max_duration)
+        rad = max(2, int(self.max_radius * p))
+        alpha = int(255 * (1.0 - p) * 0.7)
+        s = pygame.Surface((rad * 2 + 8, rad * 2 + 8), pygame.SRCALPHA)
+        col = (self.color[0], self.color[1], self.color[2], alpha)
+        pygame.draw.circle(s, col, (rad + 4, rad + 4), rad, max(1, int((1.0 - p) * 5)))
+        surface.blit(s, (int(self.x - rad - 4), int(self.y - rad - 4)))
 
 class BoneDebris:
     def __init__(self, x, y):
@@ -186,31 +195,23 @@ class BoneDebris:
         self.vy = random.uniform(-6, -2)
         self.angle = random.uniform(0, 360)
         self.rot_speed = random.uniform(-15, 15)
-        self.life = random.randint(60, 100)
-        self.max_life = self.life
+        self.life = self.max_life = random.randint(60, 100)
         self.size = random.randint(4, 8)
 
     def update(self, platforms):
-        self.x += self.vx
-        self.y += self.vy
-        self.vy += 0.35
-        self.angle += self.rot_speed
-        self.life -= 1
-
+        self.x += self.vx; self.y += self.vy; self.vy += 0.35
+        self.angle += self.rot_speed; self.life -= 1
         for p in platforms:
             if not p.is_broken and p.collidepoint(self.x, self.y + self.size):
-                self.y = p.top - self.size
-                self.vy = -self.vy * 0.4
-                self.vx *= 0.6
+                self.y = p.top - self.size; self.vy = -self.vy * 0.4; self.vx *= 0.6
                 break
-
         return self.life > 0
 
     def draw(self, surface):
         progress = self.life / self.max_life
         alpha = int(255 * min(1.0, progress * 1.5))
         s = pygame.Surface((self.size * 2, self.size * 2), pygame.SRCALPHA)
-        pygame.draw.rect(s, (220, 220, 210, alpha), (self.size//2, 0, self.size, self.size * 2))
+        pygame.draw.rect(s, (235, 235, 225, alpha), (self.size//2, 0, self.size, self.size * 2))
         rotated = pygame.transform.rotate(s, self.angle)
         surface.blit(rotated, (int(self.x - rotated.get_width()//2), int(self.y - rotated.get_height()//2)))
 
@@ -224,65 +225,53 @@ class FloatingText:
         self.font = pygame.font.Font(None, size)
 
     def update(self):
-        self.y += self.vy
-        self.vy *= 0.95
-        self.duration -= 1
+        self.y += self.vy; self.vy *= 0.95; self.duration -= 1
         return self.duration > 0
 
     def draw(self, surface):
         alpha = min(255, int(255 * (self.duration / (self.max_duration * 0.4))))
         rendered = self.font.render(self.text, True, self.color)
         s = pygame.Surface(rendered.get_size(), pygame.SRCALPHA)
-        s.blit(rendered, (0, 0))
-        s.set_alpha(alpha)
+        s.blit(rendered, (0, 0)); s.set_alpha(alpha)
         shadow = self.font.render(self.text, True, BLACK)
         shadow_s = pygame.Surface(shadow.get_size(), pygame.SRCALPHA)
-        shadow_s.blit(shadow, (0, 0))
-        shadow_s.set_alpha(int(alpha * 0.7))
+        shadow_s.blit(shadow, (0, 0)); shadow_s.set_alpha(int(alpha * 0.7))
         surface.blit(shadow_s, (int(self.x - shadow.get_width()//2 + 2), int(self.y + 2)))
         surface.blit(s, (int(self.x - rendered.get_width()//2), int(self.y)))
 
 class AchievementBanner:
     def __init__(self, title, desc):
-        self.title = title
-        self.desc = desc
-        self.timer = 180
-        self.y = -80
+        self.title, self.desc = title, desc
+        self.timer = 180; self.y = -80
 
     def update(self):
         self.timer -= 1
-        if self.timer > 140:
-            self.y += (30 - self.y) * 0.2
-        elif self.timer < 30:
-            self.y += (-90 - self.y) * 0.2
+        if self.timer > 140: self.y += (30 - self.y) * 0.2
+        elif self.timer < 30: self.y += (-90 - self.y) * 0.2
         return self.timer > 0
 
     def draw(self, surface):
-        w, h = 380, 68
-        x = SCREEN_WIDTH // 2 - w // 2
-        rect = pygame.Rect(x, int(self.y), w, h)
-        
+        w, h = 390, 70; x = SCREEN_WIDTH // 2 - w // 2
         s = pygame.Surface((w, h), pygame.SRCALPHA)
-        pygame.draw.rect(s, (20, 20, 40, 230), (0, 0, w, h), border_radius=10)
+        pygame.draw.rect(s, (20, 20, 45, 235), (0, 0, w, h), border_radius=10)
         pygame.draw.rect(s, GOLD, (0, 0, w, h), 2, border_radius=10)
         surface.blit(s, (x, int(self.y)))
-
         t1 = font_sm.render(f"🏆 ACHIEVEMENT: {self.title}", True, GOLD)
         t2 = font_xs.render(self.desc, True, WHITE)
-        surface.blit(t1, (x + 20, int(self.y) + 12))
-        surface.blit(t2, (x + 20, int(self.y) + 38))
+        surface.blit(t1, (x + 20, int(self.y) + 14))
+        surface.blit(t2, (x + 20, int(self.y) + 40))
 
 # -----------------------------------------------------------------------------
-# Level Architecture & Platforms
+# Platforms with Masonry & Torches
 # -----------------------------------------------------------------------------
 class Platform(pygame.Rect):
-    def __init__(self, x, y, width, height=22, p_type='solid'):
+    def __init__(self, x, y, width, height=24, p_type='solid'):
         super().__init__(x, y, width, height)
         self.p_type = p_type
         self.move_timer = random.uniform(0, 100)
-        self.crumble_timer = 0
-        self.is_broken = False
-        self.respawn_timer = 0
+        self.crumble_timer = 0; self.is_broken = False; self.respawn_timer = 0
+        self.has_torch = (width > 200 and random.random() > 0.4)
+        self.torch_x = x + (25 if random.random() > 0.5 else width - 25)
 
     def update(self):
         if self.p_type == 'moving':
@@ -291,37 +280,42 @@ class Platform(pygame.Rect):
         elif self.p_type == 'crumble':
             if self.crumble_timer > 0:
                 self.crumble_timer -= 1
-                if self.crumble_timer == 0:
-                    self.is_broken = True
-                    self.respawn_timer = 180
+                if self.crumble_timer == 0: self.is_broken = True; self.respawn_timer = 180
             elif self.is_broken:
                 self.respawn_timer -= 1
-                if self.respawn_timer <= 0:
-                    self.is_broken = False
+                if self.respawn_timer <= 0: self.is_broken = False
 
-    def draw(self, surface, theme):
+    def draw(self, surface, theme, frame_count):
         if self.is_broken: return
-        dirt_col = theme['dirt']
-        grass_col = theme['grass']
-
+        dirt_col = theme['dirt']; grass_col = theme['grass']
         shake_x = random.randint(-2, 2) if self.crumble_timer > 0 else 0
         rect = pygame.Rect(self.x + shake_x, self.y, self.width, self.height)
         pygame.draw.rect(surface, dirt_col, rect, border_radius=4)
 
+        # Masonry lines
+        for bx in range(int(self.x) + 30, int(self.x + self.width) - 10, 40):
+            pygame.draw.line(surface, (0, 0, 0, 80), (bx + shake_x, self.y + 6), (bx + shake_x, self.y + self.height - 2), 1)
+
         if self.p_type == 'bouncy':
-            pygame.draw.rect(surface, MAGENTA, (self.x + shake_x, self.y, self.width, 7), border_radius=3)
+            pygame.draw.rect(surface, MAGENTA, (self.x + shake_x, self.y, self.width, 8), border_radius=3)
             for i in range(int(self.x) + 12, int(self.x + self.width) - 10, 16):
-                pygame.draw.circle(surface, YELLOW, (i + shake_x, self.y + 3), 2)
+                pygame.draw.circle(surface, YELLOW, (i + shake_x, self.y + 4), 2.5)
         elif self.p_type == 'crumble':
-            pygame.draw.rect(surface, (130, 110, 95), (self.x + shake_x, self.y, self.width, 6), border_radius=3)
-            for i in range(int(self.x) + 10, int(self.x + self.width) - 10, 20):
-                pygame.draw.line(surface, BLACK, (i + shake_x, self.y), (i + shake_x + 4, self.y + 6), 2)
+            pygame.draw.rect(surface, (130, 110, 95), (self.x + shake_x, self.y, self.width, 7), border_radius=3)
         else:
-            pygame.draw.rect(surface, grass_col, (self.x + shake_x, self.y, self.width, 6), border_radius=3)
+            pygame.draw.rect(surface, grass_col, (self.x + shake_x, self.y, self.width, 7), border_radius=3)
             for i in range(int(self.x) + 8, int(self.x + self.width) - 8, 12):
                 pygame.draw.line(surface, grass_col, (i + shake_x, self.y), (i + shake_x + 1, self.y - 4), 2)
 
-        pygame.draw.rect(surface, (255, 255, 255, 30), rect, 1, border_radius=4)
+        # Torch Brazier
+        if self.has_torch:
+            tx = int(self.torch_x + shake_x)
+            pygame.draw.rect(surface, (30, 30, 35), (tx - 3, self.y - 12, 6, 12))
+            fl = math.sin(frame_count * 0.2 + tx) * 2
+            pygame.draw.circle(surface, ORANGE, (int(tx + fl*0.5), self.y - 18), 5)
+            pygame.draw.circle(surface, YELLOW, (int(tx + fl*0.3), self.y - 19), 3)
+
+        pygame.draw.rect(surface, (255, 255, 255, 40), rect, 1, border_radius=4)
 
 def generate_procedural_level(wave_num):
     platforms = [Platform(0, SCREEN_HEIGHT - 60, SCREEN_WIDTH, 60, 'solid')]
@@ -335,14 +329,11 @@ def generate_procedural_level(wave_num):
         if wave_num >= 4 and random.random() > 0.7: types.append('moving')
 
         if p_count == 1:
-            w = random.randint(280, 420)
-            x = random.randint(220, SCREEN_WIDTH - w - 220)
+            w = random.randint(280, 420); x = random.randint(220, SCREEN_WIDTH - w - 220)
             platforms.append(Platform(x, y, w, p_type=random.choice(types)))
         elif p_count == 2:
-            w1 = random.randint(210, 310)
-            x1 = random.randint(60, SCREEN_WIDTH // 2 - w1 - 20)
-            w2 = random.randint(210, 310)
-            x2 = random.randint(SCREEN_WIDTH // 2 + 40, SCREEN_WIDTH - w2 - 60)
+            w1 = random.randint(210, 310); x1 = random.randint(60, SCREEN_WIDTH // 2 - w1 - 20)
+            w2 = random.randint(210, 310); x2 = random.randint(SCREEN_WIDTH // 2 + 40, SCREEN_WIDTH - w2 - 60)
             platforms.append(Platform(x1, y, w1, p_type=random.choice(types)))
             platforms.append(Platform(x2, y, w2, p_type=random.choice(types)))
         else:
@@ -356,63 +347,45 @@ def generate_procedural_level(wave_num):
     return platforms
 
 # -----------------------------------------------------------------------------
-# Power-ups & Relics
+# Pickups & Relics
 # -----------------------------------------------------------------------------
 class Pickup:
     def __init__(self, x, y, p_type=None):
         self.x, self.y = float(x), float(y)
-        self.vy = -4.0
-        self.vx = random.uniform(-1.5, 1.5)
+        self.vy = -4.0; self.vx = random.uniform(-1.5, 1.5)
         self.type = p_type or random.choices(
             ['coin', 'gem', 'heal', 'shield', 'frenzy', 'freeze', 'nuke'],
             weights=[0.40, 0.25, 0.12, 0.08, 0.07, 0.05, 0.03]
         )[0]
-        self.life = 450
-        self.bob_timer = random.uniform(0, 10)
-        self.radius = 14
+        self.life = 450; self.bob_timer = random.uniform(0, 10); self.radius = 14
 
     def update(self, platforms, player):
-        self.bob_timer += 0.08
-        self.life -= 1
-
-        dx = player.rect.centerx - self.x
-        dy = player.rect.centery - self.y
+        self.bob_timer += 0.08; self.life -= 1
+        dx = player.rect.centerx - self.x; dy = player.rect.centery - self.y
         dist = math.hypot(dx, dy)
         magnet_range = 300 if player.perks.get('magnet', 0) > 0 else 75
         if 0 < dist < magnet_range:
             spd = 8.0 if player.perks.get('magnet', 0) > 0 else 4.0
-            self.vx += (dx / dist) * spd * 0.15
-            self.vy += (dy / dist) * spd * 0.15
+            self.vx += (dx / dist) * spd * 0.15; self.vy += (dy / dist) * spd * 0.15
 
-        self.x += self.vx
-        self.y += self.vy
-        self.vx *= 0.95
-        self.vy += 0.25
-
+        self.x += self.vx; self.y += self.vy; self.vx *= 0.95; self.vy += 0.25
         for p in platforms:
             if not p.is_broken and p.collidepoint(self.x, self.y + self.radius):
-                self.y = p.top - self.radius
-                self.vy = 0
-                break
-
+                self.y = p.top - self.radius; self.vy = 0; break
         return self.life > 0
 
     def draw(self, surface):
         if self.life < 90 and self.life % 8 < 4: return
-
-        cx = int(self.x)
-        cy = int(self.y + math.sin(self.bob_timer) * 3)
-
+        cx = int(self.x); cy = int(self.y + math.sin(self.bob_timer) * 3)
         color_map = {'heal': GREEN, 'shield': CYAN, 'nuke': GOLD, 'freeze': (180, 230, 255), 'frenzy': ORANGE, 'gem': PURPLE, 'coin': YELLOW}
         col = color_map.get(self.type, WHITE)
 
         glow_s = pygame.Surface((self.radius * 4, self.radius * 4), pygame.SRCALPHA)
-        pygame.draw.circle(glow_s, (col[0], col[1], col[2], 60), (self.radius * 2, self.radius * 2), self.radius * 2)
+        pygame.draw.circle(glow_s, (col[0], col[1], col[2], 65), (self.radius * 2, self.radius * 2), self.radius * 2)
         surface.blit(glow_s, (cx - self.radius * 2, cy - self.radius * 2))
 
         pygame.draw.circle(surface, col, (cx, cy), self.radius)
         pygame.draw.circle(surface, WHITE, (cx, cy), self.radius - 3)
-
         sym_map = {'heal': '♥', 'shield': '🛡', 'nuke': '💣', 'freeze': '❄', 'frenzy': '⚡', 'gem': '✦', 'coin': '●'}
         txt = font_xs.render(sym_map.get(self.type, '?'), True, col)
         surface.blit(txt, (cx - txt.get_width()//2, cy - txt.get_height()//2))
@@ -423,9 +396,7 @@ class Pickup:
 class Projectile:
     def __init__(self, x, y, angle, spell_type='fireball', damage_mult=1.0, size_mult=1.0):
         self.x, self.y = float(x), float(y)
-        self.spell_type = spell_type
-        self.angle = angle
-        self.damage_mult = damage_mult
+        self.spell_type = spell_type; self.angle = angle; self.damage_mult = damage_mult
         self.pierce_left = 3 if spell_type in ['ice', 'laser'] else (10 if spell_type == 'vortex' else 0)
         self.trail = []
 
@@ -439,11 +410,10 @@ class Projectile:
             self.speed = 8.0; self.radius = int(18 * size_mult); self.life = 100; self.color = (220, 80, 255); self.base_damage = 3.2
         elif spell_type == 'laser':
             self.speed = 28.0; self.radius = int(10 * size_mult); self.life = 35; self.color = YELLOW; self.base_damage = 4.0
-        else: # Fireball
+        else:
             self.speed = 15.0; self.radius = int(12 * size_mult); self.life = 70; self.color = ORANGE; self.base_damage = 2.0
 
-        self.vx = math.cos(angle) * self.speed
-        self.vy = math.sin(angle) * self.speed
+        self.vx = math.cos(angle) * self.speed; self.vy = math.sin(angle) * self.speed
         if spell_type == 'meteor': self.vy -= 2.0
 
     def get_rect(self):
@@ -452,17 +422,11 @@ class Projectile:
     def update(self, platforms):
         self.trail.append((self.x, self.y))
         if len(self.trail) > 8: self.trail.pop(0)
-
         if self.spell_type == 'meteor': self.vy += 0.25
-        self.x += self.vx
-        self.y += self.vy
-        self.life -= 1
-
+        self.x += self.vx; self.y += self.vy; self.life -= 1
         rect = self.get_rect()
         for p in platforms:
-            if not p.is_broken and rect.colliderect(p) and self.spell_type not in ['laser', 'vortex']:
-                return False
-
+            if not p.is_broken and rect.colliderect(p) and self.spell_type not in ['laser', 'vortex']: return False
         return self.life > 0 and 0 <= self.x <= SCREEN_WIDTH and 0 <= self.y <= SCREEN_HEIGHT
 
     def draw(self, surface):
@@ -474,14 +438,13 @@ class Projectile:
             surface.blit(ts, (int(tx - t_rad), int(ty - t_rad)))
 
         glow = pygame.Surface((self.radius * 4, self.radius * 4), pygame.SRCALPHA)
-        pygame.draw.circle(glow, (self.color[0], self.color[1], self.color[2], 80), (self.radius * 2, self.radius * 2), self.radius * 2)
+        pygame.draw.circle(glow, (self.color[0], self.color[1], self.color[2], 90), (self.radius * 2, self.radius * 2), self.radius * 2)
         surface.blit(glow, (int(self.x - self.radius * 2), int(self.y - self.radius * 2)))
-
         pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
         pygame.draw.circle(surface, WHITE, (int(self.x), int(self.y)), max(2, self.radius - 4))
 
 # -----------------------------------------------------------------------------
-# Riley (Player Hero)
+# Riley Hero
 # -----------------------------------------------------------------------------
 class Riley:
     SPELLS = ['fireball', 'lightning', 'ice', 'meteor', 'vortex', 'laser']
@@ -489,84 +452,44 @@ class Riley:
     def __init__(self):
         self.rect = pygame.Rect(SCREEN_WIDTH // 2 - 22, SCREEN_HEIGHT - 130, 44, 58)
         self.vx, self.vy = 0.0, 0.0
-        self.speed = 7.4
-        self.jump_power = -16.2
-        self.gravity = 0.68
-        self.on_ground = False
-        self.on_wall = 0 # -1 left, 1 right
-        self.double_jump_ready = True
-        self.facing = 1
-        
-        self.cooldown = 0
-        self.melee_cooldown = 0
-        self.invincible = 0
-        self.hit_flash = 0
-        self.dash_cooldown = 0
-        self.dash_timer = 0
-        self.slamming = False
-        self.coyote_timer = 0
-        self.jump_buffered = 0
-        
-        self.active_spell = 'fireball'
-        self.rage_meter = 0.0
-        self.max_rage = 100.0
-        self.combo = 0
-        self.combo_timer = 0
-        self.anim_timer = 0
-        self.shield_active = False
-
-        self.perks = {
-            'multi_cast': 0, 'explosive_core': 0, 'slam_mastery': 0,
-            'blizzard': 0, 'chain_stun': 0, 'hyper_dash': 0,
-            'magnet': 0, 'vampirism': 0, 'double_jump': 1
-        }
-        self.relics = []
+        self.speed = 7.4; self.jump_power = -16.2; self.gravity = 0.68
+        self.on_ground = False; self.on_wall = 0; self.double_jump_ready = True
+        self.facing = 1; self.cooldown = 0; self.melee_cooldown = 0
+        self.invincible = 0; self.hit_flash = 0; self.dash_cooldown = 0; self.dash_timer = 0
+        self.slamming = False; self.coyote_timer = 0; self.jump_buffered = 0
+        self.active_spell = 'fireball'; self.rage_meter = 0.0; self.max_rage = 100.0
+        self.combo = 0; self.combo_timer = 0; self.anim_timer = 0; self.shield_active = False
+        self.perks = {'multi_cast': 0, 'explosive_core': 0, 'slam_mastery': 0, 'blizzard': 0, 'chain_stun': 0, 'hyper_dash': 0, 'magnet': 0, 'vampirism': 0, 'double_jump': 1}
 
     def trigger_melee_swing(self, zombies, enemy_projectiles, particles, floating_texts):
         if self.melee_cooldown > 0: return
-        self.melee_cooldown = 20
-        audio.play('melee')
-
+        self.melee_cooldown = 20; audio.play('melee')
         hitbox = pygame.Rect(self.rect.centerx + (10 if self.facing > 0 else -60), self.rect.centery - 30, 50, 60)
-        
-        # Deflect enemy projectiles
         for ep in enemy_projectiles[:]:
             ep_rect = pygame.Rect(ep['x'] - ep['r'], ep['y'] - ep['r'], ep['r']*2, ep['r']*2)
             if hitbox.colliderect(ep_rect):
-                ep['vx'] = -ep['vx'] * 1.5
-                ep['vy'] = -ep['vy'] * 1.5
+                ep['vx'] = -ep['vx'] * 1.5; ep['vy'] = -ep['vy'] * 1.5
                 floating_texts.append(FloatingText("DEFLECT!", ep['x'], ep['y'] - 10, CYAN, 24))
-
-        # Strike zombies
         for z in zombies:
             if z.alive and hitbox.colliderect(z.get_rect()):
                 z.take_damage(4.0, 'melee', particles)
-                z.vx = self.facing * 8.0 # Knockback
+                z.vx = self.facing * 8.0
                 floating_texts.append(FloatingText("STAFF SMASH!", z.x + z.w/2, z.y - 10, GOLD, 26))
-
-        for _ in range(12):
-            particles.append(Particle(self.rect.centerx + self.facing * 30, self.rect.centery, YELLOW, size=5, speed=6, lifetime=16, glow=True))
+        for _ in range(12): particles.append(Particle(self.rect.centerx + self.facing * 30, self.rect.centery, YELLOW, size=5, speed=6, lifetime=16, glow=True))
 
     def trigger_slam(self):
         if not self.on_ground and not self.slamming:
-            self.slamming = True
-            self.vy = 25.0
-            audio.play('dash')
+            self.slamming = True; self.vy = 25.0; audio.play('dash')
 
     def trigger_dash(self):
         cd_limit = 24 if self.perks['hyper_dash'] > 0 else 40
         if self.dash_cooldown <= 0 and self.dash_timer <= 0:
-            self.dash_timer = 10
-            self.dash_cooldown = cd_limit
-            self.invincible = max(self.invincible, 14)
-            audio.play('dash')
+            self.dash_timer = 10; self.dash_cooldown = cd_limit; self.invincible = max(self.invincible, 14); audio.play('dash')
 
     def switch_spell(self, spell_name):
-        if spell_name in self.SPELLS:
-            self.active_spell = spell_name
-            audio.play('pickup')
+        if spell_name in self.SPELLS: self.active_spell = spell_name; audio.play('pickup')
 
-    def update(self, keys, platforms, particles, floating_texts):
+    def update(self, keys, platforms, particles, floating_texts, shockwaves):
         self.anim_timer += 1
         if self.cooldown > 0: self.cooldown -= 1
         if self.melee_cooldown > 0: self.melee_cooldown -= 1
@@ -576,57 +499,34 @@ class Riley:
         if self.combo_timer > 0: self.combo_timer -= 1
         else: self.combo = 0
 
-        if self.on_ground:
-            self.coyote_timer = 6
-            self.double_jump_ready = True
-        elif self.coyote_timer > 0:
-            self.coyote_timer -= 1
+        if self.on_ground: self.coyote_timer = 6; self.double_jump_ready = True
+        elif self.coyote_timer > 0: self.coyote_timer -= 1
 
-        if self.jump_buffered > 0: self.jump_buffered -= 1
-
-        # Movement
         self.vx = 0
         if self.dash_timer > 0:
             self.dash_timer -= 1
             self.vx = self.facing * (22.0 if self.perks['hyper_dash'] > 0 else 18.0)
             particles.append(Particle(self.rect.centerx, self.rect.centery, CYAN, size=6, speed=2, lifetime=12, glow=True))
         else:
-            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-                self.vx = -self.speed; self.facing = -1
-            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-                self.vx = self.speed; self.facing = 1
+            if keys[pygame.K_LEFT] or keys[pygame.K_a]: self.vx = -self.speed; self.facing = -1
+            if keys[pygame.K_RIGHT] or keys[pygame.K_d]: self.vx = self.speed; self.facing = 1
 
-        # Jump & Double Jump
         jump_req = keys[pygame.K_UP] or keys[pygame.K_w] or self.jump_buffered > 0
         if jump_req:
             if self.coyote_timer > 0:
-                self.vy = self.jump_power
-                self.on_ground = False
-                self.coyote_timer = 0
-                self.jump_buffered = 0
-                audio.play('jump')
+                self.vy = self.jump_power; self.on_ground = False; self.coyote_timer = 0; self.jump_buffered = 0; audio.play('jump')
                 for _ in range(6): particles.append(Particle(self.rect.centerx, self.rect.bottom, WHITE, size=3, speed=3, lifetime=15))
             elif self.on_wall != 0:
-                # Wall Jump!
-                self.vy = self.jump_power * 0.95
-                self.vx = -self.on_wall * self.speed * 1.4
-                self.facing = -self.on_wall
-                self.on_wall = 0
-                audio.play('jump')
+                self.vy = self.jump_power * 0.95; self.vx = -self.on_wall * self.speed * 1.4; self.facing = -self.on_wall; self.on_wall = 0; audio.play('jump')
                 floating_texts.append(FloatingText("WALL JUMP!", self.rect.centerx, self.rect.centery, CYAN, 22))
             elif self.double_jump_ready and self.perks.get('double_jump', 0) > 0:
-                self.vy = self.jump_power * 0.88
-                self.double_jump_ready = False
-                audio.play('jump')
+                self.vy = self.jump_power * 0.88; self.double_jump_ready = False; audio.play('jump')
                 floating_texts.append(FloatingText("DOUBLE JUMP!", self.rect.centerx, self.rect.centery, GOLD, 22))
-                for _ in range(10): particles.append(Particle(self.rect.centerx, self.rect.bottom, (180, 220, 255), size=4, speed=4, lifetime=18, glow=True))
 
-        # Gravity
         if not self.slamming:
             if self.on_wall != 0 and self.vy > 0:
-                self.vy += self.gravity * 0.35 # Wall slide friction
+                self.vy += self.gravity * 0.35
                 if self.vy > 4.0: self.vy = 4.0
-                particles.append(Particle(self.rect.centerx + self.on_wall * 18, self.rect.centery, WHITE, size=2, speed=1, lifetime=8))
             else:
                 self.vy += self.gravity
                 if self.vy > 18: self.vy = 18
@@ -634,138 +534,98 @@ class Riley:
             self.vy = 26.0
             particles.append(Particle(self.rect.centerx, self.rect.bottom, GOLD, size=5, speed=2, lifetime=10, glow=True))
 
-        # Horizontal Collision
         self.rect.x += int(self.vx)
         self.on_wall = 0
         for p in platforms:
             if not p.is_broken and self.rect.colliderect(p):
-                if self.vx > 0:
-                    self.rect.right = p.left
-                    if not self.on_ground: self.on_wall = 1
-                elif self.vx < 0:
-                    self.rect.left = p.right
-                    if not self.on_ground: self.on_wall = -1
+                if self.vx > 0: self.rect.right = p.left; self.on_wall = 1 if not self.on_ground else 0
+                elif self.vx < 0: self.rect.left = p.right; self.on_wall = -1 if not self.on_ground else 0
 
-        # Vertical Collision
         self.rect.y += int(self.vy)
         self.on_ground = False
         for p in platforms:
             if not p.is_broken and self.rect.colliderect(p):
                 if self.vy > 0:
-                    self.rect.bottom = p.top
-                    self.on_ground = True
-                    
+                    self.rect.bottom = p.top; self.on_ground = True
                     if self.slamming:
-                        self.slamming = False
-                        audio.play('slam')
+                        self.slamming = False; audio.play('slam')
+                        shockwaves.append(ShockwaveRing(self.rect.centerx, self.rect.bottom, GOLD, 140, 24))
                         floating_texts.append(FloatingText("⚡ SEISMIC SLAM!", self.rect.centerx, self.rect.top - 20, GOLD, 36))
-                        for _ in range(35):
-                            particles.append(Particle(self.rect.centerx, self.rect.bottom, GOLD, size=6, speed=8, lifetime=28, glow=True))
-                            particles.append(Particle(self.rect.centerx, self.rect.bottom, ORANGE, size=5, speed=6, lifetime=22))
-
+                        for _ in range(35): particles.append(Particle(self.rect.centerx, self.rect.bottom, GOLD, size=6, speed=8, lifetime=28, glow=True))
                     if p.p_type == 'bouncy':
-                        self.vy = self.jump_power * 1.55
-                        self.on_ground = False
-                        audio.play('jump')
-                        for _ in range(12): particles.append(Particle(self.rect.centerx, self.rect.bottom, MAGENTA, size=5, speed=6, lifetime=20, glow=True))
-                    elif p.p_type == 'crumble' and p.crumble_timer == 0:
-                        p.crumble_timer = 60
-                    else:
-                        self.vy = 0
+                        self.vy = self.jump_power * 1.55; self.on_ground = False; audio.play('jump')
+                        shockwaves.append(ShockwaveRing(self.rect.centerx, self.rect.bottom, MAGENTA, 70, 18))
+                    elif p.p_type == 'crumble' and p.crumble_timer == 0: p.crumble_timer = 60
+                    else: self.vy = 0
+                elif self.vy < 0: self.rect.top = p.bottom; self.vy = 0
 
-                elif self.vy < 0:
-                    self.rect.top = p.bottom
-                    self.vy = 0
-
-        self.rect.left = max(0, self.rect.left)
-        self.rect.right = min(SCREEN_WIDTH, self.rect.right)
+        self.rect.left = max(0, self.rect.left); self.rect.right = min(SCREEN_WIDTH, self.rect.right)
 
     def shoot(self, target_dx=0, target_dy=0):
         if self.cooldown > 0: return []
         projectiles = []
         angle = math.atan2(target_dy, target_dx) if (target_dx != 0 or target_dy != 0) else (0 if self.facing > 0 else math.pi)
-        
         shot_count = 1 + self.perks['multi_cast']
         spread_angle = 0.18
         dmg_mult = 1.0 + (0.3 * self.combo if self.combo < 10 else 3.0)
         size_mult = 1.4 if self.perks['explosive_core'] > 0 else 1.0
-
         for i in range(shot_count):
             offset_angle = angle + (i - (shot_count - 1) / 2) * spread_angle
-            p = Projectile(self.rect.centerx + self.facing * 20, self.rect.centery - 12, offset_angle, self.active_spell, dmg_mult, size_mult)
-            projectiles.append(p)
-
+            projectiles.append(Projectile(self.rect.centerx + self.facing * 20, self.rect.centery - 12, offset_angle, self.active_spell, dmg_mult, size_mult))
         cd_map = {'fireball': 12, 'lightning': 16, 'ice': 14, 'meteor': 28, 'vortex': 35, 'laser': 8}
-        self.cooldown = cd_map.get(self.active_spell, 12)
-        audio.play(self.active_spell)
+        self.cooldown = cd_map.get(self.active_spell, 12); audio.play(self.active_spell)
         return projectiles
 
     def draw(self, surface):
         if self.hit_flash > 0 and self.hit_flash % 6 < 3: return
-
-        x = self.rect.centerx
-        y = self.rect.bottom
-        f = self.facing
+        x, y, f = self.rect.centerx, self.rect.bottom, self.facing
+        bob = math.sin(self.anim_timer * 0.18) * 2 if self.on_ground and self.vx == 0 else 0
 
         # Shadow
         shadow_s = pygame.Surface((44, 12), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow_s, (0, 0, 0, 90), (0, 0, 44, 12))
+        pygame.draw.ellipse(shadow_s, (0, 0, 0, 95), (0, 0, 44, 12))
         surface.blit(shadow_s, (x - 22, y - 6))
 
-        # Shield
-        if self.shield_active:
-            shield_s = pygame.Surface((70, 80), pygame.SRCALPHA)
-            alpha = int(120 + 50 * math.sin(self.anim_timer * 0.15))
-            pygame.draw.ellipse(shield_s, (CYAN[0], CYAN[1], CYAN[2], alpha), (0, 0, 70, 80), 3)
-            surface.blit(shield_s, (x - 35, y - 70))
+        # Flowing Cape
+        cape_pts = [(x - f * 6, y - 34 + bob), (x - f * 24 - int(self.vx*2), y - 18), (x - f * 18 - int(self.vx*3), y - 2), (x - f * 4, y - 2)]
+        pygame.draw.polygon(surface, (30, 35, 110), cape_pts)
 
-        bob = math.sin(self.anim_timer * 0.18) * 2 if self.on_ground and self.vx == 0 else 0
+        # Robe
         robe_pts = [(x - 18, y), (x + 18, y), (x + 13, y - 34 + bob), (x - 13, y - 34 + bob)]
         pygame.draw.polygon(surface, ROBE_COLOR, robe_pts)
         pygame.draw.line(surface, GOLD, (x - 13, y - 18 + bob), (x + 13, y - 18 + bob), 3)
 
+        # Head & Glasses
         head_center = (x, int(y - 40 + bob))
         pygame.draw.circle(surface, SKIN, head_center, 13)
-
         pygame.draw.polygon(surface, (230, 60, 30), [(x - 12, y - 48 + bob), (x + 12, y - 48 + bob), (x, y - 58 + bob)])
 
-        eye_x = x + f * 4
-        eye_y = int(y - 40 + bob)
+        eye_x, eye_y = x + f * 4, int(y - 40 + bob)
         pygame.draw.circle(surface, (50, 50, 60), (eye_x, eye_y), 6, 2)
         pygame.draw.circle(surface, WHITE, (eye_x, eye_y), 4)
         pygame.draw.circle(surface, (40, 140, 255), (eye_x + f, eye_y), 2)
 
+        # Hat
         hat_bottom = y - 50 + bob
         pygame.draw.ellipse(surface, HAT_COLOR, (x - 22, hat_bottom - 4, 44, 10))
-        hat_pts = [(x - 14, hat_bottom), (x + 14, hat_bottom), (x + f * 6, hat_bottom - 36)]
-        pygame.draw.polygon(surface, HAT_COLOR, hat_pts)
+        pygame.draw.polygon(surface, HAT_COLOR, [(x - 14, hat_bottom), (x + 14, hat_bottom), (x + f * 6, hat_bottom - 36)])
         pygame.draw.circle(surface, GOLD, (int(x + f * 6), int(hat_bottom - 36)), 4)
 
-        staff_x = x + f * 18
-        staff_y = y - 28 + bob
+        # Staff
+        staff_x, staff_y = x + f * 18, y - 28 + bob
         pygame.draw.line(surface, (130, 75, 30), (x + f * 6, y - 22 + bob), (staff_x, staff_y - 10), 4)
-        
         spell_colors = {'fireball': ORANGE, 'lightning': CYAN, 'ice': (180, 230, 255), 'meteor': PURPLE, 'vortex': MAGENTA, 'laser': YELLOW}
         orb_col = spell_colors.get(self.active_spell, GOLD)
-        glow_pulse = 0.6 + 0.4 * math.sin(self.anim_timer * 0.2)
-        glow_surf = pygame.Surface((24, 24), pygame.SRCALPHA)
-        pygame.draw.circle(glow_surf, (orb_col[0], orb_col[1], orb_col[2], int(150 * glow_pulse)), (12, 12), 12)
-        surface.blit(glow_surf, (staff_x - 12, staff_y - 22))
         pygame.draw.circle(surface, orb_col, (int(staff_x), int(staff_y - 10)), 5)
 
 # -----------------------------------------------------------------------------
-# Zombies, Mutants & Bosses
+# Zombie Hierarchy
 # -----------------------------------------------------------------------------
 class Zombie:
     def __init__(self, z_type, platform):
-        self.type = z_type
-        self.platform = platform
-        self.alive = True
-        self.hit_timer = 0
-        self.anim_frame = random.uniform(0, 100)
-        self.frozen_timer = 0
+        self.type = z_type; self.platform = platform; self.alive = True
+        self.hit_timer = 0; self.anim_frame = random.uniform(0, 100); self.frozen_timer = 0
         self.is_elite = random.random() < 0.15 and not z_type.startswith('boss')
-        self.elite_mod = random.choice(['Swift', 'Volatile', 'Armored']) if self.is_elite else None
 
         if z_type == 'runner':
             self.w, self.h = 28, 32; self.speed = 3.6; self.hp = self.max_hp = 2.0; self.color = (190, 45, 60); self.score_val = 30; self.name = "Ghoul Runner"
@@ -790,38 +650,26 @@ class Zombie:
         else:
             self.w, self.h = 32, 36; self.speed = 1.8; self.hp = self.max_hp = 2.0; self.color = (60, 180, 75); self.score_val = 20; self.name = "Undead Walker"
 
-        if self.is_elite:
-            if self.elite_mod == 'Swift': self.speed *= 1.6
-            elif self.elite_mod == 'Armored': self.hp *= 2.0; self.max_hp *= 2.0
-            self.score_val *= 2
-
+        if self.is_elite: self.speed *= 1.4; self.hp *= 1.5; self.max_hp *= 1.5; self.score_val *= 2
         self.x = float(random.randint(int(platform.left + 20), int(max(platform.left + 21, platform.right - 20 - self.w))))
         self.y = float(platform.top - self.h) if z_type != 'gargoyle' else float(self.altitude)
         self.vx = self.speed if random.random() > 0.5 else -self.speed
 
-    def get_rect(self):
-        return pygame.Rect(int(self.x), int(self.y), self.w, self.h)
+    def get_rect(self): return pygame.Rect(int(self.x), int(self.y), self.w, self.h)
 
     def update(self, player_rect, enemy_projectiles, spawned_zombies, platforms):
         if not self.alive: return
         self.anim_frame += 1
         if self.hit_timer > 0: self.hit_timer -= 1
-        if self.frozen_timer > 0:
-            self.frozen_timer -= 1
-            return
+        if self.frozen_timer > 0: self.frozen_timer -= 1; return
 
         cx = self.x + self.w / 2
-
         if self.type == 'gargoyle':
-            dx = player_rect.centerx - cx
-            dy = (player_rect.centery - 60) - self.y
-            self.vx = math.copysign(self.speed, dx)
-            self.y += math.sin(self.anim_frame * 0.1) * 2
+            dx = player_rect.centerx - cx; self.vx = math.copysign(self.speed, dx); self.y += math.sin(self.anim_frame * 0.1) * 2
         elif self.type in ['runner', 'boomer', 'boss_abomination', 'boss_void_lich']:
             self.vx = self.speed if player_rect.centerx > cx else -self.speed
         elif self.type == 'spitter':
-            if abs(player_rect.centerx - cx) < 180:
-                self.vx = -self.speed if player_rect.centerx > cx else self.speed
+            if abs(player_rect.centerx - cx) < 180: self.vx = -self.speed if player_rect.centerx > cx else self.speed
             else: self.vx = 0
             self.spit_cooldown -= 1
             if self.spit_cooldown <= 0:
@@ -830,40 +678,25 @@ class Zombie:
                 enemy_projectiles.append({'x': cx, 'y': self.y + 10, 'vx': math.cos(angle) * 7.5, 'vy': math.sin(angle) * 7.5, 'r': 7, 'color': SLIME_GREEN, 'life': 90})
         elif self.type == 'necromancer':
             self.summon_cd -= 1
-            if self.summon_cd <= 0:
-                self.summon_cd = 200
-                spawned_zombies.append(Zombie('runner', self.platform))
+            if self.summon_cd <= 0: self.summon_cd = 200; spawned_zombies.append(Zombie('runner', self.platform))
         else:
             if self.x <= self.platform.left: self.vx = self.speed
             elif self.x + self.w >= self.platform.right: self.vx = -self.speed
-
         self.x += self.vx
 
     def take_damage(self, amount, damage_type='fireball', particles=None):
-        self.hp -= amount
-        self.hit_timer = 8
-        audio.play('zombie_hit')
-
+        self.hp -= amount; self.hit_timer = 8; audio.play('zombie_hit')
         if damage_type == 'ice': self.frozen_timer = 70
-
         if particles:
             splat_col = (200, 30, 40) if self.type != 'spitter' else SLIME_GREEN
-            for _ in range(8):
-                particles.append(Particle(self.x + self.w/2, self.y + self.h/2, splat_col, size=4, speed=5, lifetime=20))
-
-        if self.hp <= 0:
-            self.alive = False
-            audio.play('zombie_kill')
-            return True
+            for _ in range(8): particles.append(Particle(self.x + self.w/2, self.y + self.h/2, splat_col, size=4, speed=5, lifetime=20))
+        if self.hp <= 0: self.alive = False; audio.play('zombie_kill'); return True
         return False
 
     def draw(self, surface):
         if not self.alive: return
-
-        cx = int(self.x + self.w / 2)
-        bottom = int(self.y + self.h)
+        cx, bottom = int(self.x + self.w / 2), int(self.y + self.h)
         bob = math.sin(self.anim_frame * 0.15) * 2
-
         color = WHITE if self.hit_timer > 0 else ((140, 210, 255) if self.frozen_timer > 0 else self.color)
 
         if self.is_elite:
@@ -872,19 +705,15 @@ class Zombie:
             surface.blit(elite_s, (self.x - 10, self.y - 10 + bob))
 
         pygame.draw.ellipse(surface, color, (self.x, self.y + bob, self.w, self.h))
-
         eye_dir = 1 if self.vx > 0 else -1
         eye_color = YELLOW if self.type == 'boomer' else RED
         pygame.draw.circle(surface, eye_color, (int(cx + eye_dir * 5), int(self.y + 12 + bob)), max(2, self.w // 7))
         pygame.draw.circle(surface, BLACK, (int(cx + eye_dir * 6), int(self.y + 12 + bob)), max(1, self.w // 12))
-
         arm_x = cx + eye_dir * (self.w // 2 + 4)
         pygame.draw.line(surface, color, (cx, int(self.y + self.h // 2 + bob)), (arm_x, int(self.y + self.h // 2 - 4 + bob)), 4)
 
         if self.max_hp > 2.0:
-            bw = self.w * 1.3
-            bx = cx - bw / 2
-            by = self.y - 14 + bob
+            bw = self.w * 1.3; bx, by = cx - bw / 2, self.y - 14 + bob
             pygame.draw.rect(surface, BLACK, (bx, by, bw, 6), border_radius=2)
             pct = max(0.0, self.hp / self.max_hp)
             bar_color = GREEN if pct > 0.5 else (YELLOW if pct > 0.25 else RED)
@@ -892,72 +721,44 @@ class Zombie:
             pygame.draw.rect(surface, WHITE, (bx, by, bw, 6), 1, border_radius=2)
 
 # -----------------------------------------------------------------------------
-# Game Engine & State Manager
+# Main Game Engine
 # -----------------------------------------------------------------------------
 class GameEngine:
     def __init__(self):
         self.state = 'start'
-        self.wave = 1
-        self.score = 0
-        self.lives = 5
-        self.max_lives = 5
-        self.gold = 0
-        self.screen_shake = 0
-        self.shake_intensity = 0
-        
-        self.player = Riley()
-        self.platforms = []
-        self.zombies = []
-        self.projectiles = []
-        self.enemy_projectiles = []
-        self.pickups = []
-        self.particles = []
-        self.bones = []
-        self.floating_texts = []
-        self.banners = []
-        
-        self.shop_options = []
-        self.selected_shop_idx = 0
-        self.total_zombies_killed = 0
+        self.wave = 1; self.score = 0; self.lives = 5; self.max_lives = 5; self.gold = 0
+        self.screen_shake = 0; self.shake_intensity = 0; self.frame_count = 0
+        self.player = Riley(); self.platforms = []; self.zombies = []
+        self.projectiles = []; self.enemy_projectiles = []; self.pickups = []
+        self.particles = []; self.shockwaves = []; self.bones = []; self.floating_texts = []; self.banners = []
+        self.shop_options = []; self.selected_shop_idx = 0; self.total_zombies_killed = 0
         self.unlocked_achievements = set()
 
     def check_achievement(self, ach_id, title, desc):
         if ach_id not in self.unlocked_achievements:
             self.unlocked_achievements.add(ach_id)
-            self.banners.append(AchievementBanner(title, desc))
-            audio.play('achievement')
+            self.banners.append(AchievementBanner(title, desc)); audio.play('achievement')
 
     def trigger_screen_shake(self, frames=15, intensity=8):
-        self.screen_shake = frames
-        self.shake_intensity = intensity
+        self.screen_shake = frames; self.shake_intensity = intensity
 
     def get_current_biome(self):
         return BIOMES[(self.wave - 1) % len(BIOMES)]
 
     def setup_wave(self):
         self.platforms = generate_procedural_level(self.wave)
-        self.zombies = []
-        self.enemy_projectiles = []
-
+        self.zombies = []; self.enemy_projectiles = []
         if self.wave % 5 == 0:
-            if self.wave >= 15: b_type = 'boss_void_lich'
-            elif self.wave >= 10: b_type = 'boss_necrolord'
-            else: b_type = 'boss_abomination'
-            boss = Zombie(b_type, self.platforms[0])
-            self.zombies.append(boss)
-            audio.play('boss_roar')
+            b_type = 'boss_void_lich' if self.wave >= 15 else ('boss_necrolord' if self.wave >= 10 else 'boss_abomination')
+            boss = Zombie(b_type, self.platforms[0]); self.zombies.append(boss); audio.play('boss_roar')
             self.floating_texts.append(FloatingText(f"⚠️ BOSS ENCOUNTER: {boss.name}!", SCREEN_WIDTH//2, SCREEN_HEIGHT//3, RED, 44, 90))
-            for _ in range(4):
-                plat = random.choice(self.platforms[1:])
-                self.zombies.append(Zombie('runner', plat))
+            for _ in range(4): self.zombies.append(Zombie('runner', random.choice(self.platforms[1:])))
         else:
             count = min(25, 4 + self.wave * 3)
             for _ in range(count):
                 plat = random.choice(self.platforms[1:])
                 z_types = ['standard', 'runner', 'spitter', 'boomer', 'gargoyle', 'shield_skeleton', 'brute', 'necromancer']
-                weights = [0.22, 0.2, 0.15, 0.15, 0.1, 0.08, 0.06, 0.04]
-                self.zombies.append(Zombie(random.choices(z_types, weights=weights)[0], plat))
-
+                self.zombies.append(Zombie(random.choice(z_types), plat))
         biome = self.get_current_biome()
         self.floating_texts.append(FloatingText(f"Wave {self.wave}: {biome['name']}", SCREEN_WIDTH//2, SCREEN_HEIGHT//2 - 50, GOLD, 50, 80))
 
@@ -974,71 +775,35 @@ class GameEngine:
             {'id': 'vampirism', 'name': 'Vampiric Blast', 'desc': 'High combos grant a chance to heal +1 Life.', 'cost': 160},
             {'id': 'extra_life', 'name': 'Full Elixir of Life', 'desc': 'Restores all missing hearts and raises Max Life by 1.', 'cost': 180}
         ]
-        self.shop_options = random.sample(all_perks, 3)
-        self.selected_shop_idx = 0
-        audio.play('powerup')
+        self.shop_options = random.sample(all_perks, 3); self.selected_shop_idx = 0; audio.play('powerup')
 
     def apply_perk(self, perk):
         if self.gold < perk['cost']: return False
         self.gold -= perk['cost']
-        if perk['id'] == 'extra_life':
-            self.max_lives += 1
-            self.lives = self.max_lives
-        else:
-            self.player.perks[perk['id']] = self.player.perks.get(perk['id'], 0) + 1
-        audio.play('pickup')
-        self.floating_texts.append(FloatingText(f"Acquired {perk['name']}!", SCREEN_WIDTH//2, SCREEN_HEIGHT//2, GREEN, 42))
+        if perk['id'] == 'extra_life': self.max_lives += 1; self.lives = self.max_lives
+        else: self.player.perks[perk['id']] = self.player.perks.get(perk['id'], 0) + 1
+        audio.play('pickup'); self.floating_texts.append(FloatingText(f"Acquired {perk['name']}!", SCREEN_WIDTH//2, SCREEN_HEIGHT//2, GREEN, 42))
         return True
 
     def reset_game(self):
-        self.state = 'playing'
-        self.wave = 1
-        self.score = 0
-        self.lives = 5
-        self.max_lives = 5
-        self.gold = 0
-        self.total_zombies_killed = 0
-        self.player = Riley()
-        self.projectiles.clear()
-        self.enemy_projectiles.clear()
-        self.pickups.clear()
-        self.particles.clear()
-        self.bones.clear()
-        self.floating_texts.clear()
-        self.banners.clear()
+        self.state = 'playing'; self.wave = 1; self.score = 0; self.lives = 5; self.max_lives = 5; self.gold = 0
+        self.total_zombies_killed = 0; self.player = Riley()
+        self.projectiles.clear(); self.enemy_projectiles.clear(); self.pickups.clear()
+        self.particles.clear(); self.shockwaves.clear(); self.bones.clear(); self.floating_texts.clear(); self.banners.clear()
         self.setup_wave()
 
-# -----------------------------------------------------------------------------
-# Main Game Loop
-# -----------------------------------------------------------------------------
 def run_game():
     game = GameEngine()
 
     while True:
+        game.frame_count += 1
         keys = pygame.key.get_pressed()
 
-        # Handle Controller/Joystick Input
-        if pygame.joystick.get_count() > 0:
-            joy = pygame.joystick.Joystick(0)
-            if joy.get_button(0): # A button -> Jump
-                game.player.jump_buffered = 6
-            if joy.get_button(1): # B button -> Melee
-                game.player.trigger_melee_swing(game.zombies, game.enemy_projectiles, game.particles, game.floating_texts)
-            if joy.get_button(2): # X button -> Shoot
-                projs = game.player.shoot(game.player.facing, 0)
-                game.projectiles.extend(projs)
-            if joy.get_button(3): # Y button -> Dash
-                game.player.trigger_dash()
-
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
+            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
             if event.type == pygame.KEYDOWN:
                 if game.state == 'start':
                     if event.key in [pygame.K_SPACE, pygame.K_RETURN]: game.reset_game()
-
                 elif game.state == 'playing':
                     if event.key == pygame.K_1: game.player.switch_spell('fireball')
                     elif event.key == pygame.K_2: game.player.switch_spell('lightning')
@@ -1046,54 +811,35 @@ def run_game():
                     elif event.key == pygame.K_4: game.player.switch_spell('meteor')
                     elif event.key == pygame.K_5: game.player.switch_spell('vortex')
                     elif event.key == pygame.K_6: game.player.switch_spell('laser')
-
                     elif event.key in [pygame.K_LSHIFT, pygame.K_RSHIFT]: game.player.trigger_dash()
                     elif event.key in [pygame.K_DOWN, pygame.K_s]: game.player.trigger_slam()
                     elif event.key in [pygame.K_f, pygame.K_e]:
                         game.player.trigger_melee_swing(game.zombies, game.enemy_projectiles, game.particles, game.floating_texts)
-
                     elif event.key == pygame.K_SPACE:
                         target_dx = game.player.facing
                         target_dy = -1 if (keys[pygame.K_UP] or keys[pygame.K_w]) else (1 if (keys[pygame.K_DOWN] or keys[pygame.K_s]) else 0)
-                        new_projs = game.player.shoot(target_dx, target_dy)
-                        game.projectiles.extend(new_projs)
-
+                        game.projectiles.extend(game.player.shoot(target_dx, target_dy))
                     elif event.key == pygame.K_r and game.player.rage_meter >= game.player.max_rage:
-                        game.player.rage_meter = 0
-                        game.trigger_screen_shake(30, 14)
-                        audio.play('explosion')
+                        game.player.rage_meter = 0; game.trigger_screen_shake(30, 14); audio.play('explosion')
+                        game.shockwaves.append(ShockwaveRing(SCREEN_WIDTH//2, SCREEN_HEIGHT//2, GOLD, 400, 35))
                         game.floating_texts.append(FloatingText("💥 APOCALYPSE METEOR SMASH!", SCREEN_WIDTH//2, SCREEN_HEIGHT//3, GOLD, 54))
                         for z in game.zombies:
-                            if z.alive:
-                                z.take_damage(30.0, 'meteor', game.particles)
-                                game.score += z.score_val * 2
-                                game.gold += 15
-
+                            if z.alive: z.take_damage(30.0, 'meteor', game.particles); game.score += z.score_val * 2; game.gold += 15
                 elif game.state == 'shop':
-                    if event.key in [pygame.K_LEFT, pygame.K_a]:
-                        game.selected_shop_idx = (game.selected_shop_idx - 1) % len(game.shop_options)
-                    elif event.key in [pygame.K_RIGHT, pygame.K_d]:
-                        game.selected_shop_idx = (game.selected_shop_idx + 1) % len(game.shop_options)
+                    if event.key in [pygame.K_LEFT, pygame.K_a]: game.selected_shop_idx = (game.selected_shop_idx - 1) % len(game.shop_options)
+                    elif event.key in [pygame.K_RIGHT, pygame.K_d]: game.selected_shop_idx = (game.selected_shop_idx + 1) % len(game.shop_options)
                     elif event.key in [pygame.K_SPACE, pygame.K_RETURN]:
-                        selected_perk = game.shop_options[game.selected_shop_idx]
-                        if game.apply_perk(selected_perk):
-                            game.state = 'playing'
-                            game.setup_wave()
-                    elif event.key == pygame.K_ESCAPE:
-                        game.state = 'playing'
-                        game.setup_wave()
-
+                        if game.apply_perk(game.shop_options[game.selected_shop_idx]): game.state = 'playing'; game.setup_wave()
+                    elif event.key == pygame.K_ESCAPE: game.state = 'playing'; game.setup_wave()
                 elif game.state == 'game_over':
                     if event.key in [pygame.K_SPACE, pygame.K_RETURN]: game.reset_game()
 
-        # Update Game State
         if game.state == 'playing':
             for p in game.platforms: p.update()
-            game.player.update(keys, game.platforms, game.particles, game.floating_texts)
+            game.player.update(keys, game.platforms, game.particles, game.floating_texts, game.shockwaves)
 
             spawned = []
-            for z in game.zombies:
-                z.update(game.player.rect, game.enemy_projectiles, spawned, game.platforms)
+            for z in game.zombies: z.update(game.player.rect, game.enemy_projectiles, spawned, game.platforms)
             game.zombies.extend(spawned)
 
             if game.player.invincible <= 0:
@@ -1101,67 +847,33 @@ def run_game():
                 for z in game.zombies:
                     if z.alive and p_rect.colliderect(z.get_rect()):
                         if game.player.shield_active:
-                            game.player.shield_active = False
-                            game.player.invincible = 45
-                            game.floating_texts.append(FloatingText("SHIELD BROKEN!", game.player.rect.centerx, game.player.rect.top - 15, CYAN, 28))
-                            audio.play('dash')
+                            game.player.shield_active = False; game.player.invincible = 45; audio.play('dash')
                         else:
-                            game.lives -= 1
-                            game.player.invincible = 60
-                            game.player.hit_flash = 35
-                            game.trigger_screen_shake(15, 8)
-                            audio.play('hurt')
-                            game.floating_texts.append(FloatingText("-1 LIFE", game.player.rect.centerx, game.player.rect.top - 15, RED, 32))
-                            if game.lives <= 0:
-                                game.state = 'game_over'
-                                audio.play('explosion')
+                            game.lives -= 1; game.player.invincible = 60; game.player.hit_flash = 35; game.trigger_screen_shake(15, 8); audio.play('hurt')
+                            if game.lives <= 0: game.state = 'game_over'; audio.play('explosion')
                         break
 
-            # Projectiles Update
             for proj in game.projectiles[:]:
                 if not proj.update(game.platforms):
                     for _ in range(8): game.particles.append(Particle(proj.x, proj.y, proj.color, size=4, speed=4, lifetime=15))
-                    game.projectiles.remove(proj)
-                    continue
-
+                    game.projectiles.remove(proj); continue
                 proj_rect = proj.get_rect()
                 for z in game.zombies:
                     if z.alive and proj_rect.colliderect(z.get_rect()):
                         dmg = proj.base_damage * proj.damage_mult
                         killed = z.take_damage(dmg, proj.spell_type, game.particles)
-                        
-                        game.player.combo += 1
-                        game.player.combo_timer = 140
-                        game.player.rage_meter = min(game.player.max_rage, game.player.rage_meter + 4.5)
-                        
-                        crit = proj.damage_mult > 1.5
-                        game.floating_texts.append(FloatingText(f"{int(dmg*10)}" + (" CRIT!" if crit else ""), z.x + z.w/2, z.y - 10, GOLD if crit else WHITE, 24 if not crit else 32))
-
+                        game.player.combo += 1; game.player.combo_timer = 140; game.player.rage_meter = min(game.player.max_rage, game.player.rage_meter + 4.5)
                         if killed:
-                            game.total_zombies_killed += 1
-                            combo_mult = 1 + game.player.combo // 3
-                            pts = z.score_val * combo_mult
-                            game.score += pts
-                            game.gold += random.randint(3, 8)
-                            
+                            game.total_zombies_killed += 1; game.score += z.score_val * (1 + game.player.combo // 3); game.gold += random.randint(3, 8)
                             for _ in range(3): game.bones.append(BoneDebris(z.x + z.w/2, z.y + z.h/2))
                             if random.random() < 0.35: game.pickups.append(Pickup(z.x + z.w/2, z.y + z.h/2))
-
-                            if game.total_zombies_killed >= 1: game.check_achievement("first_blood", "First Blood", "Smashed your very first zombie!")
-                            if game.total_zombies_killed >= 50: game.check_achievement("zombie_slayer", "Zombie Slayer", "Smashed 50 undead abominations!")
-                            if game.player.combo >= 10: game.check_achievement("combo_master", "Combo King", "Achieved a 10x Smash Streak!")
-
                         if proj.pierce_left > 0: proj.pierce_left -= 1
                         else:
                             if proj in game.projectiles: game.projectiles.remove(proj)
                         break
 
-            # Pickups
             for pk in game.pickups[:]:
-                if not pk.update(game.platforms, game.player):
-                    game.pickups.remove(pk)
-                    continue
-
+                if not pk.update(game.platforms, game.player): game.pickups.remove(pk); continue
                 dist = math.hypot(game.player.rect.centerx - pk.x, game.player.rect.centery - pk.y)
                 if dist < pk.radius + 25:
                     audio.play('pickup')
@@ -1170,8 +882,7 @@ def run_game():
                     elif pk.type == 'coin': game.gold += 10; game.score += 50
                     elif pk.type == 'gem': game.gold += 25; game.score += 150
                     elif pk.type == 'nuke':
-                        audio.play('explosion')
-                        game.trigger_screen_shake(25, 12)
+                        audio.play('explosion'); game.trigger_screen_shake(25, 12)
                         for z in game.zombies:
                             if z.alive and not z.type.startswith('boss'): z.take_damage(50.0, 'fireball', game.particles)
                     elif pk.type == 'freeze':
@@ -1179,22 +890,17 @@ def run_game():
                     elif pk.type == 'frenzy': game.player.rage_meter = game.player.max_rage
                     game.pickups.remove(pk)
 
-            # Wave check
-            alive_zombies = [z for z in game.zombies if z.alive]
-            if len(alive_zombies) == 0:
-                game.wave += 1
-                game.score += 250
-                game.gold += 35
-                if game.wave > 5: game.check_achievement("boss_crusher", "Titan Smasher", "Defeated the Abomination Boss!")
-                game.open_upgrade_shop()
+            if len([z for z in game.zombies if z.alive]) == 0:
+                game.wave += 1; game.score += 250; game.gold += 35; game.open_upgrade_shop()
 
             game.particles = [p for p in game.particles if p.update()]
+            game.shockwaves = [sw for sw in game.shockwaves if sw.update()]
             game.bones = [b for b in game.bones if b.update(game.platforms)]
             game.floating_texts = [ft for ft in game.floating_texts if ft.update()]
             game.banners = [b for b in game.banners if b.update()]
             if game.screen_shake > 0: game.screen_shake -= 1
 
-        # Render Scene
+        # Render Pass
         biome = game.get_current_biome()
         sky_top, sky_bot = biome['sky_top'], biome['sky_bot']
         for y in range(SCREEN_HEIGHT):
@@ -1204,13 +910,23 @@ def run_game():
             b = int(sky_top[2] + (sky_bot[2] - sky_top[2]) * t)
             pygame.draw.line(screen, (r, g, b), (0, y), (SCREEN_WIDTH, y))
 
-        for p in game.platforms: p.draw(screen, biome)
+        # Stars
+        for s in STARS:
+            br = int(120 + 100 * math.sin(s['t'] + game.frame_count * s['spd']))
+            pygame.draw.circle(screen, (br, br, br), (int(s['x']), int(s['y'])), int(s['s']))
+
+        # Moon
+        moon_col = biome['moon']
+        pygame.draw.circle(screen, (moon_col[0]//3, moon_col[1]//3, moon_col[2]//3), (SCREEN_WIDTH - 180, 120), 45)
+        pygame.draw.circle(screen, moon_col, (SCREEN_WIDTH - 180, 120), 32)
+
+        for p in game.platforms: p.draw(screen, biome, game.frame_count)
         for b in game.bones: b.draw(screen)
         for pk in game.pickups: pk.draw(screen)
         for z in game.zombies: z.draw(screen)
-        for ep in game.enemy_projectiles:
-            pygame.draw.circle(screen, ep['color'], (int(ep['x']), int(ep['y'])), ep['r'])
+        for ep in game.enemy_projectiles: pygame.draw.circle(screen, ep['color'], (int(ep['x']), int(ep['y'])), ep['r'])
         for proj in game.projectiles: proj.draw(screen)
+        for sw in game.shockwaves: sw.draw(screen)
         for part in game.particles: part.draw(screen)
         if game.state in ['playing', 'shop']: game.player.draw(screen)
         for ft in game.floating_texts: ft.draw(screen)
@@ -1221,36 +937,19 @@ def run_game():
             score_t = font_md.render(f"Score: {game.score:,}", True, GOLD)
             wave_t = font_md.render(f"Wave: {game.wave} ({biome['name']})", True, WHITE)
             gold_t = font_md.render(f"Gold: {game.gold} 🪙", True, YELLOW)
-            screen.blit(score_t, (25, 20))
-            screen.blit(wave_t, (25, 55))
-            screen.blit(gold_t, (25, 90))
-
+            screen.blit(score_t, (25, 20)); screen.blit(wave_t, (25, 55)); screen.blit(gold_t, (25, 90))
             for i in range(game.max_lives):
                 col = RED if i < game.lives else DARK_GRAY
                 hx = SCREEN_WIDTH - 35 - i * 32
                 pygame.draw.circle(screen, col, (hx, 35), 11)
 
-            # Hotbar (1-6)
-            spell_names = [('1:Fire', 'fireball', ORANGE), ('2:Spark', 'lightning', CYAN), ('3:Frost', 'ice', (180, 230, 255)), ('4:Meteor', 'meteor', PURPLE), ('5:Vortex', 'vortex', MAGENTA), ('6:Laser', 'laser', YELLOW)]
-            for idx, (label, s_id, s_col) in enumerate(spell_names):
-                bx = SCREEN_WIDTH // 2 - 270 + idx * 90
-                by = 20
-                is_active = (game.player.active_spell == s_id)
-                bg_col = (50, 50, 70) if not is_active else (80, 80, 130)
-                pygame.draw.rect(screen, bg_col, (bx, by, 82, 30), border_radius=6)
-                pygame.draw.rect(screen, s_col if is_active else DARK_GRAY, (bx, by, 82, 30), 2 if not is_active else 3, border_radius=6)
-                t_lbl = font_xs.render(label, True, s_col if is_active else WHITE)
-                screen.blit(t_lbl, (bx + 41 - t_lbl.get_width()//2, by + 8))
-
         elif game.state == 'shop':
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            overlay.fill((10, 10, 25, 220))
-            screen.blit(overlay, (0, 0))
+            overlay.fill((10, 10, 25, 230)); screen.blit(overlay, (0, 0))
             shop_title = font_xl.render("ARCANE UPGRADE EMPORIUM", True, GOLD)
             screen.blit(shop_title, (SCREEN_WIDTH//2 - shop_title.get_width()//2, 90))
             for idx, perk in enumerate(game.shop_options):
-                cx = SCREEN_WIDTH // 2 - 360 + idx * 360
-                cy = 240; w, h = 320, 360
+                cx, cy, w, h = SCREEN_WIDTH // 2 - 360 + idx * 360, 240, 320, 360
                 is_sel = (idx == game.selected_shop_idx)
                 pygame.draw.rect(screen, (55, 55, 100) if is_sel else (35, 35, 60), (cx, cy, w, h), border_radius=12)
                 pygame.draw.rect(screen, GOLD if is_sel else (80, 80, 120), (cx, cy, w, h), 4 if is_sel else 2, border_radius=12)
@@ -1261,11 +960,10 @@ def run_game():
 
         elif game.state == 'start':
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            overlay.fill((10, 10, 25, 200))
-            screen.blit(overlay, (0, 0))
+            overlay.fill((10, 10, 25, 210)); screen.blit(overlay, (0, 0))
             title = font_xl.render("RILEY SMASHES THE ZOMBIES", True, GOLD)
-            sub = font_lg.render("Omni-Arcane Deluxe Edition", True, CYAN)
-            inst1 = font_md.render("[A/D] Move | [W] Jump/Wall Jump | [S] Ground Slam | [F] Staff Melee/Deflect", True, WHITE)
+            sub = font_lg.render("Ultra HD Graphics Edition", True, CYAN)
+            inst1 = font_md.render("[A/D] Move | [W] Jump/Wall Jump | [S] Ground Slam | [F] Staff Melee", True, WHITE)
             inst2 = font_md.render("[1-6] Switch Spells | [SPACE] Cast Spell | [SHIFT] Warp Dash", True, WHITE)
             start_btn = font_lg.render("Press SPACE or ENTER to Play", True, GREEN)
             screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 160))
@@ -1276,8 +974,7 @@ def run_game():
 
         elif game.state == 'game_over':
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            overlay.fill((15, 5, 10, 230))
-            screen.blit(overlay, (0, 0))
+            overlay.fill((15, 5, 10, 230)); screen.blit(overlay, (0, 0))
             over_t = font_xl.render("YOU HAVE FALLEN", True, RED)
             score_t = font_lg.render(f"Final Score: {game.score:,}", True, GOLD)
             restart_t = font_md.render("Press SPACE or ENTER to Rise Again", True, GREEN)
