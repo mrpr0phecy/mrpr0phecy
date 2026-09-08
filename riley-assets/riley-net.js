@@ -24,14 +24,17 @@ var clamp = C.clamp;
 var TICK_RATE = 60;
 var MAX_PLAYERS = 8;
 
-/* Input layout (3 bytes):
+/* Input layout (3 bytes) — the wire format, frozen since v1:
  *   byte0: moveX +8        (0..16, -8..8 quantised)
  *   byte1: moveY +8
- *   byte2: flags  bit0 fire, bit1 jump, bit2 dash, bit3 nova, bit4 up, bit5 down,
- *                 bit6 aimX+, bit7 aimY+  (aim assist direction nibble later) */
-var F = { FIRE: 1, JUMP: 2, DASH: 4, NOVA: 8, UP: 16, DOWN: 32, AIMX: 64, AIMY: 128 };
+ *   byte2: flags  bit0 fire, bit1 jump, bit2 dash, bit3 nova, bit4 melee, bit5 lock,
+ *                 bit6 aimX+, bit7 aimY+  (aim assist direction nibble later)
+ * bits 4/5 were reserved as "up/down" in the first draft and nothing ever set
+ * them, so claiming them for melee / lock-on costs no bytes and breaks no
+ * stored replay. */
+var F = { FIRE: 1, JUMP: 2, DASH: 4, NOVA: 8, MELEE: 16, LOCK: 32, AIMX: 64, AIMY: 128 };
 
-function makeInput() { return { x: 0, y: 0, fire: false, jump: false, dash: false, nova: false, up: false, down: false, aimX: false, aimY: false }; }
+function makeInput() { return { x: 0, y: 0, fire: false, jump: false, dash: false, nova: false, melee: false, lock: false, aimX: false, aimY: false }; }
 
 function encodeInput(inp) {
   var f = 0;
@@ -39,8 +42,8 @@ function encodeInput(inp) {
   if (inp.jump) f |= F.JUMP;
   if (inp.dash) f |= F.DASH;
   if (inp.nova) f |= F.NOVA;
-  if (inp.up) f |= F.UP;
-  if (inp.down) f |= F.DOWN;
+  if (inp.melee) f |= F.MELEE;
+  if (inp.lock) f |= F.LOCK;
   if (inp.aimX) f |= F.AIMX;
   if (inp.aimY) f |= F.AIMY;
   return [clamp(Math.round(inp.x) + 8, 0, 16), clamp(Math.round(inp.y) + 8, 0, 16), f & 0xFF];
@@ -50,13 +53,13 @@ function decodeInput(b) {
   inp.x = b[0] - 8; inp.y = b[1] - 8;
   inp.fire = !!(b[2] & F.FIRE); inp.jump = !!(b[2] & F.JUMP);
   inp.dash = !!(b[2] & F.DASH); inp.nova = !!(b[2] & F.NOVA);
-  inp.up = !!(b[2] & F.UP); inp.down = !!(b[2] & F.DOWN);
+  inp.melee = !!(b[2] & F.MELEE); inp.lock = !!(b[2] & F.LOCK);
   inp.aimX = !!(b[2] & F.AIMX); inp.aimY = !!(b[2] & F.AIMY);
   return inp;
 }
 function inputEquals(a, b) {
   return a.x === b.x && a.y === b.y && a.fire === b.fire && a.jump === b.jump &&
-    a.dash === b.dash && a.nova === b.nova && a.up === b.up && a.down === b.down &&
+    a.dash === b.dash && a.nova === b.nova && a.melee === b.melee && a.lock === b.lock &&
     a.aimX === b.aimX && a.aimY === b.aimY;
 }
 

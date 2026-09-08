@@ -844,6 +844,16 @@ function updateCamera(dtC, lookAt) {
   var ey = pivY + camLift + ddy * useD;
   var gh = world.heightAt(ex, ez) + 0.42;
   if (ey < gh) ey = gh;
+  /* Lead + shoulder + occlusion lift all push the rig away from Riley; pull it
+     back on the eye→player line so the reach you configured is the reach you
+     get (and so nothing can ever fling the camera across the map again). */
+  var rdx = ex - lx, rdy = ey - ly, rdz = ez - lz;
+  var rd = Math.hypot(rdx, rdy, rdz);
+  if (rd > CAM_DIST_MAX) {
+    var rsc = CAM_DIST_MAX / rd;
+    ex = lx + rdx * rsc; ez = lz + rdz * rsc; ey = ly + rdy * rsc;
+    if (ey < gh) ey = gh;
+  }
   camX = ex; camY = ey; camZ = ez;
 
   /* ---- look-at: head framed, leaning into the fight ---- */
@@ -866,10 +876,11 @@ function updateCamera(dtC, lookAt) {
 
   var sh = game.shake;
   if (sh > 0.001) {
+    visT += dtC * (1 + sh * 1.5);
     var ss = sh * sh * 0.3 * CAMSET.shake;
-    var n1 = Math.sin(time * 39.7) * Math.cos(time * 24.3);
-    var n2 = Math.sin(time * 47.1 + 1.7);
-    var n3 = Math.cos(time * 33.9 + 0.4);
+    var n1 = Math.sin(visT * 39.7) * Math.cos(visT * 24.3);
+    var n2 = Math.sin(visT * 47.1 + 1.7);
+    var n3 = Math.cos(visT * 33.9 + 0.4);
     eye[0] = camX + n1 * ss;
     eye[1] = camY + n2 * ss * 0.7;
     eye[2] = camZ + n3 * ss;
@@ -890,6 +901,7 @@ function updateCamera(dtC, lookAt) {
   camFloorY = world.heightAt(camX, camZ);
 }
 var camFloorY = 0;
+var visT = 0;                    /* render clock — shake keeps moving in hit-stop */
 
 /* build the camera's prop-collision list from the instanced props (trunks
  * and boulders only — canopies and runes are above/behind the boom anyway) */
@@ -1040,9 +1052,10 @@ function newRiley() {
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: Math.PI, run: 0, air: 0, ground: true,
     dashT: 0, dashCd: 0, dashDX: 0, dashDZ: 0, dashing: false, jumpBuf: 0, coyote: 0,
     kbx: 0, kbz: 0, kbT: 0,
-    inv: 0, hitT: 0, shootCd: 0, shootAnim: 0, ph: 0,
+    inv: 0, dodgeT: 0, hitT: 0, shootCd: 0, shootAnim: 0, ph: 0,
+    mo: 0, landT: 0, tilt: 0,
     mana: 0, manaMax: 100, charge: 0, charging: false, fireHeldT: 0,
-    novaFx: 0, sideFlip: 1, meleeT: 0, meleeN: 0, landT: 0, tilt: 0
+    novaFx: 0, sideFlip: 1, meleeT: 0, meleeCd: 0, meleeWin: 0, meleeN: 0
   };
   /* render-state (interpolated between fixed sim poses) */
   r.prx = r.pry = r.prz = 0; r.pryaw = r.yaw;
@@ -1061,9 +1074,11 @@ function pollInput(mv) {
   if (jumpNow) inp.jump = true;
   if (dashNow) inp.dash = true;
   if (novaNow) inp.nova = true;
+  if (meleeNow) inp.melee = true;
   return inp;
 }
-var fireNow = false, jumpNow = false, dashNow = false, novaNow = false;
+var fireNow = false, jumpNow = false, dashNow = false, novaNow = false, meleeNow = false;
+var meleePulse = 0;                /* one-frame melee taps from a key / button */
 
 function stepPlayer(inp) {
   /* inp comes through the netcode session — identical path in future MP */
@@ -1071,30 +1086,43 @@ function stepPlayer(inp) {
   var ml = Math.hypot(mvx, mvz);
   if (ml > 1) { mvx /= ml; mvz /= ml; }
   var walking = ml > 0.05;
+  var fr = dt;                                  /* sim tick (always 1/60) */
+  var faceTarget = 0;
 
-  R.jumpBuf = Math.max(0, R.jumpBuf - dt);
-  R.coyote = Math.max(0, R.coyote - dt);
-  if (R.ground) R.coyote = 0.1;
-  R.inv = Math.max(0, R.inv - dt);
-  R.hitT = Math.max(0, R.hitT - dt);
-  R.dashCd = Math.max(0, R.dashCd - dt);
-  R.shootCd = Math.max(0, R.shootCd - dt);
-  R.shootAnim = Math.max(0, R.shootAnim - dt);
-  R.kbT = Math.max(0, R.kbT - dt);
-  if (R.novaFx > 0) R.novaFx -= dt;
+  R.jumpBuf = Math.max(0, R.jumpBuf - fr);
+  R.coyote = Math.max(0, R.coyote - fr);
+  if (R.ground) R.coyote = 0.12;
+  R.inv = Math.max(0, R.inv - fr);
+  R.dodgeT = Math.max(0, R.dodgeT - fr);
+  R.hitT = Math.max(0, R.hitT - fr);
+  R.dashCd = Math.max(0, R.dashCd - fr);
+  R.shootCd = Math.max(0, R.shootCd - fr);
+  R.shootAnim = Math.max(0, R.shootAnim - fr);
+  R.meleeCd = Math.max(0, R.meleeCd - fr);
+  R.meleeT = Math.max(0, R.meleeT - fr);
+  R.meleeWin = Math.max(0, R.meleeWin - fr);
+  if (R.meleeWin <= 0) R.meleeN = 0;
+  R.landT = Math.max(0, R.landT - fr);
+  R.kbT = Math.max(0, R.kbT - fr);
+  if (R.novaFx > 0) R.novaFx -= fr;
   /* buff timers */
-  if (buffs.dmg > 0) buffs.dmg = Math.max(0, buffs.dmg - dt);
-  if (buffs.spd > 0) buffs.spd = Math.max(0, buffs.spd - dt);
-  if (buffs.regen > 0) buffs.regen = Math.max(0, buffs.regen - dt);
+  if (buffs.dmg > 0) buffs.dmg = Math.max(0, buffs.dmg - fr);
+  if (buffs.spd > 0) buffs.spd = Math.max(0, buffs.spd - fr);
+  if (buffs.regen > 0) buffs.regen = Math.max(0, buffs.regen - fr);
+  /* last stand: on the last heart the wizard hits back harder — a comeback
+     mechanic, and it makes the final heart a real fight instead of a wait */
+  game.lastStand = game.lives === 1 && state === 'play';
 
   /* face the aim point while firing / locked; otherwise face movement */
   var aimX = aim.x - R.x, aimZ = aim.z - R.z;
   var al = Math.hypot(aimX, aimZ) || 1;
   aimX /= al; aimZ /= al;
-  if (lockOn || inp.fire || R.charging || R.shootAnim > 0) {
-    R.yaw = angLerp(R.yaw, Math.atan2(aimX, aimZ), clamp(dt * 18, 0, 1));
+  if (lockOn || inp.fire || R.charging || R.shootAnim > 0 || R.meleeT > 0) {
+    faceTarget = Math.atan2(aimX, aimZ);
+    R.yaw = angLerp(R.yaw, faceTarget, 1 - Math.exp(-fr * 20));
   } else if (walking) {
-    R.yaw = angLerp(R.yaw, Math.atan2(mvx, mvz), clamp(dt * 14, 0, 1));
+    faceTarget = Math.atan2(mvx, mvz);
+    R.yaw = angLerp(R.yaw, faceTarget, 1 - Math.exp(-fr * 15));
   }
 
   /* dash */
@@ -1103,55 +1131,66 @@ function stepPlayer(inp) {
     var dd0 = walking ? mvx : aimX, dd1 = walking ? mvz : aimZ;
     var dl = Math.hypot(dd0, dd1) || 1;
     R.dashDX = dd0 / dl; R.dashDZ = dd1 / dl;
-    R.dashing = true; R.dashT = 0.16; R.dashCd = 0.58; R.inv = Math.max(R.inv, 0.28);
+    R.dashing = true; R.dashT = 0.17; R.dashCd = 0.52;
+    R.inv = Math.max(R.inv, 0.3); R.dodgeT = 0.34;   /* the perfect-dodge window */
+    R.vy = Math.max(R.vy, R.ground ? 0 : 1.2);       /* air-dash holds you up */
     burst(R.x, R.y + 0.7, R.z, [130, 210, 255], 12, 5, 1.5, 0.3, 0.4);
     camKick(0, 0.018, 0);
+    if (R.meleeT > 0) { R.meleeT = 0; R.dashCd = 0.3; }  /* dash cancels a swing */
   }
   if (R.dashing) {
-    R.dashT -= dt;
-    R.vx = R.dashDX * 26; R.vz = R.dashDZ * 26;
+    R.dashT -= fr;
+    R.vx = R.dashDX * 27; R.vz = R.dashDZ * 27;
     ringBurst(R.x, R.y + 0.3, R.z, [150, 220, 255], 2);
     if (R.dashT <= 0) { R.dashing = false; }
   } else {
-    /* acceleration-based movement: snappy on ground, floaty control in air */
-    var walkSpd = 9 * buffMul().spd;
+    /* acceleration-based movement: snappy on ground, floaty control in air.
+       exp() damping = the same feel at any tick rate, and it never overshoots
+       (min(1, k*dt) both overshoots and dies on a stutter frame). */
+    var walkSpd = 9 * buffMul().spd * (game.lastStand ? 1.07 : 1);
+    /* momentum: a straight run builds to a jog, strafing stays honest */
+    if (walking && R.ground && Math.abs(angDiff(R.yaw, Math.atan2(mvx, mvz))) < 0.5) {
+      R.mo = Math.min(1, R.mo + fr * 1.6);
+    } else R.mo = Math.max(0, R.mo - fr * 2.4);
+    walkSpd *= 1 + R.mo * 0.14;
     var tvx = mvx * walkSpd, tvz = mvz * walkSpd;
-    var k = R.ground ? 16 : 6.5;
-    R.vx += (tvx - R.vx) * Math.min(1, dt * k);
-    R.vz += (tvz - R.vz) * Math.min(1, dt * k);
+    var k = R.ground ? (walking ? 15 : 19) : 7.5;
+    var a = 1 - Math.exp(-fr * k);
+    R.vx += (tvx - R.vx) * a;
+    R.vz += (tvz - R.vz) * a;
     /* knockback impulse decays out of the velocity over ~0.3s */
     if (R.kbT > 0) {
-      R.vx += R.kbx * dt * 34; R.vz += R.kbz * dt * 34;
-      var kdec = Math.max(0, 1 - dt * 3.4);
+      R.vx += R.kbx * fr * 34; R.vz += R.kbz * fr * 34;
+      var kdec = Math.exp(-fr * 3.4);
       R.kbx *= kdec; R.kbz *= kdec;
     } else { R.kbx = 0; R.kbz = 0; }
   }
 
   /* jump / double jump */
-  if (inp.jump) R.jumpBuf = 0.12;
+  if (inp.jump) R.jumpBuf = 0.14;
   if (R.jumpBuf > 0 && (R.ground || R.coyote > 0)) {
-    R.vy = 13.6; R.ground = false; R.coyote = 0; R.jumpBuf = 0; R.air = 1;
+    R.vy = 13.8; R.ground = false; R.coyote = 0; R.jumpBuf = 0; R.air = 1;
     ringBurst(R.x, R.y + 0.05, R.z, [220, 235, 255], 3);
     sfx('jump');
   } else if (R.jumpBuf > 0 && R.air === 1) {
-    R.vy = 12.4; R.air = 2; R.jumpBuf = 0;
+    R.vy = 12.6; R.air = 2; R.jumpBuf = 0;
     ringBurst(R.x, R.y + 0.1, R.z, [120, 220, 255], 4);
     sfx('djump');
   }
 
-  /* gravity */
-  R.vy -= 42 * dt;
+  /* gravity: lighter near the apex so the arc reads, harder when you let go */
+  R.vy -= (42 - (Math.abs(R.vy) < 3.5 ? 12 : 0)) * fr;
   if (R.vy < -36) R.vy = -36;
-  if (!R.ground && R.vy < 0 && !inp.jump) R.vy -= 10 * dt; /* variable jump height */
+  if (!R.ground && R.vy < 0 && !inp.jump) R.vy -= 11 * fr; /* variable jump height */
   var fallSpd = R.vy;
   var wasAir = !R.ground;
 
   /* integrate with sub-stepped ground collision (60Hz tick, 2 substeps) */
   var sub = 2;
   for (var s = 0; s < sub; s++) {
-    R.x += R.vx * dt / sub;
-    R.z += R.vz * dt / sub;
-    R.y += R.vy * dt / sub;
+    R.x += R.vx * fr / sub;
+    R.z += R.vz * fr / sub;
+    R.y += R.vy * fr / sub;
     R.ground = false;
     var gy = groundY(R.x, R.z);
     if (R.vy <= 2 && R.y <= gy) { R.y = gy; R.vy = 0; R.ground = true; R.air = 0; }
@@ -1169,34 +1208,67 @@ function stepPlayer(inp) {
   if (wasAir && R.ground && fallSpd < -13) {
     ringBurst(R.x, R.y + 0.06, R.z, [220, 235, 255], 3);
     burst(R.x, R.y + 0.05, R.z, [180, 200, 230], 8, 4, 0.8, 0.1, 0.3);
+    R.landT = 0.22;
+    /* slam: a *committed* drop (from a hill, a double jump, a nova launch)
+       becomes a shockwave. Free on landing, so it rewards using the terrain
+       instead of staying flat-footed in the middle of the arena. */
+    if (fallSpd < -21) {
+      var sr = 3.6, hits = 0;
+      for (var li = 0; li < enemies.length; li++) {
+        var le = enemies[li];
+        if (le.dead) continue;
+        var ldx = le.x - R.x, ldz = le.z - R.z, ld = Math.hypot(ldx, ldz);
+        if (ld < sr && Math.abs(le.y - R.y) < 2.6) {
+          var lnl = ld || 1;
+          le.vx += ldx / lnl * 13; le.vz += ldz / lnl * 13; le.vy = Math.max(le.vy, 4.2);
+          damageGob(le, 2 * buffMul().dmg, ldx, ldz);
+          hits++;
+        }
+      }
+      ringBurst(R.x, R.y + 0.1, R.z, [255, 230, 160], 5);
+      burst(R.x, R.y + 0.1, R.z, [200, 210, 240], 14, 7, 1.6, 0.2, 0.5);
+      shake(0.28); camKick(0, -0.03, 0);
+      sfx('smash');
+      if (hits) { R.mana = Math.min(R.manaMax, R.mana + 6 * hits); doHitStop(0.04); }
+    }
   }
   if (R.ground && walking && !R.dashing) {
-    R.run += dt * 9;
-    if (Math.floor(R.run / Math.PI) !== Math.floor((R.run - dt * 9) / Math.PI) && Math.random() < 0.6) {
+    R.run += fr * (9 + R.mo * 2.2);
+    if (Math.floor(R.run / Math.PI) !== Math.floor((R.run - fr * 9) / Math.PI) && rnd2(0, 1) < 0.6) {
       fxPush({ x: R.x + rnd2(-0.15, 0.15), y: R.y + 0.03, z: R.z + rnd2(-0.15, 0.15), vx: 0, vy: rnd2(0.6, 1.3), vz: 0, life: 0.5, max: 0.5, s: rnd2(0.05, 0.09), pr: 200, pg: 210, pb: 230, pa: 0.35, grav: 0.5 });
     }
   } else if (R.ground) {
-    R.run *= Math.max(0, 1 - dt * 6);
+    R.run *= Math.exp(-fr * 6);
   }
+  /* body lean: bank into the turn / strafe (render-only, but derived from
+     sim velocity so every host agrees) */
+  var latV = R.vx * Math.cos(R.yaw) - R.vz * Math.sin(R.yaw);
+  R.lean = damp(R.lean, clamp(latV / 11, -1, 1) * (R.ground ? 0.26 : 0.14), R.ground ? 9 : 4, fr);
 
   /* fire: quick shots while held; charge after 0.24s of holding */
   if (inp.fire) {
-    R.fireHeldT += dt;
+    R.fireHeldT += fr;
     if (R.fireHeldT > 0.24) {
       R.charging = true;
-      R.charge += dt;
-      if (Math.random() < 0.5) {
+      R.charge += fr;
+      if (rnd2(0, 1) < 0.5) {
         var cx = R.x + aimX * 0.7, cz = R.z + aimZ * 0.7;
         fxPush({ x: cx + rnd2(-0.3, 0.3), y: R.y + 1 + rnd2(-0.2, 0.3), z: cz + rnd2(-0.3, 0.3), vx: 0, vy: 0, vz: 0, life: 0.3, max: 0.3, s: rnd2(0.06, 0.14), pr: 255, pg: 210, pb: 110, pa: 0.8, grav: 0 });
       }
     } else if (R.shootCd <= 0 && R.fireHeldT > 0.005) {
-      if (!tryMelee()) fireShot();
+      /* point-blank auto-smash stays (it saves newbies), but never over a
+         real shot: if the reticle is holding a goblin further than arm's
+         reach, fire the bolt you actually aimed at */
+      var nearB = nearMeleeTarget();
+      if (nearB) meleeSwing(nearB); else fireShot();
     }
   } else {
     if (R.charging) releaseCharge();
     R.charge = 0; R.charging = false; R.fireHeldT = 0;
   }
-  R.mana = Math.min(R.manaMax, R.mana + dt * 4.2);
+  /* dedicated melee: right mouse / F — always a swing, never a shot */
+  if (inp.melee && R.meleeCd <= 0) meleeSwing(null);
+  R.mana = Math.min(R.manaMax, R.mana + fr * 4.2 * (buffs.regen > 0 ? 2.5 : 1));
 
   /* nova */
   if (inp.nova && R.mana >= R.manaMax) castNova();
@@ -1206,28 +1278,104 @@ function rnd2(a, b) { return a + (tickRand ? tickRand() : Math.random()) * (b - 
 /* ================================================================
  * 9. combat
  * ================================================================ */
-function tryMelee() {
-  var hit = false;
+/* Who is close enough to smack right now? Used by the fire button so that
+   standing in a goblin's armpit and clicking gives you a staff butt instead
+   of a point-blank bolt — but a *real* aimed shot always wins. */
+function nearMeleeTarget() {
+  var best = null, bd = 1e9;
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     if (e.dead) continue;
     var dx = e.x - R.x, dz = e.z - R.z, d = Math.hypot(dx, dz);
-    if (d < e.r + 1.55 && Math.abs(e.y - R.y) < 2.2) {
-      var face = Math.sin(R.yaw) * (dx / (d || 1)) + Math.cos(R.yaw) * (dz / (d || 1));
-      if (face > 0.05 || d < 1.1) {
-        damageGob(e, 2 * buffMul().dmg, dx, dz);
-        hit = true;
-      }
+    if (d > e.r + 1.7 || Math.abs(e.y - R.y) > 2.2) continue;
+    var face = Math.sin(R.yaw) * (dx / (d || 1)) + Math.cos(R.yaw) * (dz / (d || 1));
+    if (face < 0.1 && d > 1.05) continue;
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+
+/* ---------------------------------------------------------------------------
+ * MELEE — a 3-hit chain: smack, smack, SPIN.
+ *
+ *   * the chain only advances when a swing *connects*, so mashing into thin
+ *     air costs you a longer recovery instead of extending the window;
+ *   * the finisher is a 360° cleave that launches everything nearby — that is
+ *     the panic button when the tide closes in, and the reason you sometimes
+ *     want to be caught rather than shooting from the rim;
+ *   * every hit feeds mana, so aggressive play keeps the nova lit.
+ * ------------------------------------------------------------------------- */
+function nearestMelee(range) {
+  var best = null, bd = 1e9;
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (e.dead) continue;
+    var d = Math.hypot(e.x - R.x, e.z - R.z);
+    if (d > range + e.r || Math.abs(e.y - R.y) > 2.3) continue;
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+function meleeSwing(prefetch) {
+  if (R.meleeCd > 0 || state !== 'play') return false;
+  var n = R.meleeN | 0;
+  var fin = n === 2;
+  var reach = fin ? 2.5 : 2.0;
+  var arc = fin ? 3.2 : 1.2;                       /* half-angle, radians */
+  var dmg = (fin ? 4.5 : 2.2) * buffMul().dmg * (game.lastStand ? 1.25 : 1);
+  /* soft lock: turn to meet whoever is closest before the swing lands. A combo
+     that drops because your aim was 3 degrees off feels broken, not hard. */
+  if (!fin) {
+    var t0 = prefetch || nearestMelee(reach);
+    if (t0) R.yaw = Math.atan2(t0.x - R.x, t0.z - R.z);
+  }
+  var step = fin ? 1.6 : 2.1;
+  R.vx += Math.sin(R.yaw) * step; R.vz += Math.cos(R.yaw) * step;
+  if (fin && R.ground) R.vy = Math.max(R.vy, 2.2);
+  var hits = 0, hx = 0, hz = 0;
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (e.dead) continue;
+    var dx = e.x - R.x, dz = e.z - R.z, d = Math.hypot(dx, dz);
+    if (d > e.r + reach || Math.abs(e.y - R.y) > 2.3) continue;
+    if (!fin && Math.abs(angDiff(Math.atan2(dx, dz), R.yaw)) > arc && d > 1.05) continue;
+    if (prefetch && e !== prefetch && d > 1.3) continue;   /* auto-smash stays single target */
+    damageGob(e, dmg, dx, dz);
+    var nl = d || 1;
+    if (fin) {
+      e.vx = dx / nl * 16; e.vz = dz / nl * 16;
+      e.vy = Math.max(e.vy, 5.2);
+      e.stun = Math.max(e.stun || 0, 0.34);
+    } else {
+      /* jabs must NOT launch: damageGob's flat knockback would slide the target
+         out of reach and kill the chain. Hold them on the end of the stick. */
+      e.vx = dx / nl * 2.2; e.vz = dz / nl * 2.2;
+      e.vy = Math.max(e.vy, 0.4);
     }
+    if (!hits) { hx = dx; hz = dz; }
+    hits++;
+    if (!fin && hits >= 1) break;
   }
-  if (hit) {
-    R.shootCd = 0.28; R.shootAnim = 0.22;
-    ringBurst(R.x + Math.sin(R.yaw), R.y + 1, R.z + Math.cos(R.yaw), [255, 210, 90], 5);
-    shake(0.20); camKick(rnd2(-0.02, 0.02), -0.03, rnd2(-0.02, 0.02));
+  R.meleeT = fin ? 0.3 : 0.19;
+  R.shootAnim = Math.max(R.shootAnim, 0.16);
+  if (hits) {
+    R.meleeCd = fin ? 0.44 : 0.2;
+    R.meleeWin = 0.62;                       /* keep tapping to keep chaining */
+    R.meleeN = fin ? 0 : n + 1;
+    R.mana = Math.min(R.manaMax, R.mana + (fin ? 10 : 3.5));
+    var cx2 = R.x + (hx / (Math.hypot(hx, hz) || 1)) * 0.9;
+    var cz2 = R.z + (hz / (Math.hypot(hx, hz) || 1)) * 0.9;
+    ringBurst(cx2, R.y + 1.05, cz2, fin ? [255, 170, 70] : [255, 210, 90], fin ? 6 : 4);
+    shake(fin ? 0.34 : 0.2);
+    camKick(rnd2(-0.025, 0.025), fin ? -0.05 : -0.028, rnd2(-0.03, 0.03) + (fin ? 0.05 : 0));
     sfx('smash');
-    return true;
+    if (fin) { doHitStop(0.055); if (hits > 1) popText(R.x, R.y + 2, R.z, hits + ' CLEAVE', false, '#ffd27a'); }
+  } else {
+    R.meleeCd = 0.34;                        /* whiff punish: on yourself */
+    R.meleeN = 0;
+    sfx('shoot');
   }
-  return false;
+  return hits > 0;
 }
 function shotAimDir() {
   var ax = aim.x - R.x, az = aim.z - R.z;
@@ -1818,7 +1966,23 @@ function killGob(e, smash) {
 }
 function gobbyCol(k) { return gobCol(k); }
 function hitRiley(e) {
-  if (R.inv > 0 || state !== 'play' || e.dead) return;
+  if (R.inv > 0 || state !== 'play' || e.dead) {
+    /* A swallowed hit is not free: if it was swallowed by a *dash*, time
+       crawls for half a second and the mana barrel refills — the game's
+       reward for reading an attack instead of mashing away. */
+    if (R.dodgeT > 0 && state === 'play' && !e.dead && R.inv > 0) {
+      R.dodgeT = 0;
+      game.slowT = Math.max(game.slowT, 0.55); game.slowK = 0.35;
+      R.mana = Math.min(R.manaMax, R.mana + 30);
+      game.score += 40 + game.combo * 5;
+      popText(R.x, R.y + 2.1, R.z, 'PERFECT DODGE', true, '#7fd8ff');
+      burst(R.x, R.y + 1, R.z, [130, 220, 255], 16, 6, 2.2, 0.2, 0.5);
+      ringBurst(R.x, R.y + 0.4, R.z, [120, 210, 255], 4);
+      sfx('pop'); sfx('djump');
+      shake(0.18);
+    }
+    return;
+  }
   var dx = R.x - e.x, dz = R.z - e.z, d = Math.hypot(dx, dz) || 1;
   /* knockback: impulse blended into the movement model (survives the
      acceleration lerp that would otherwise eat it on the next tick) */
@@ -2763,7 +2927,7 @@ var keys = {};
 var finePointer = !!(window.matchMedia && window.matchMedia('(pointer:fine)').matches);
 var mouseX = Ww / 2, mouseY = Hh / 2;
 var mouseFire = false, tapPulse = 0;
-var jumpHeld = false, dashHeld = false, novaHeld = false;
+var jumpHeld = false, dashHeld = false, novaHeld = false, meleeHeld = false;
 var moveStickActive = false, moveStickX = 0, moveStickY = 0;
 var aimStickActive = false, aimStickX = 0, aimStickY = 0;
 var isTouch = false;
@@ -2771,7 +2935,7 @@ var downX = 0, downY = 0, downT = 0, dragLookActive = false;
 
 /* ---- gamepad (standard mapping: L-stick move, R-stick aim, A/B/X/Y) ---- */
 var gpMove = [0, 0], gpAiming = false, gpFire = false;
-var gpJumpEdge = false, gpDashEdge = false, gpNovaEdge = false, gpPad = false;
+var gpJumpEdge = false, gpDashEdge = false, gpNovaEdge = false, gpMeleeEdge = false, gpPad = false;
 function gpDead(v) { return Math.abs(v) < 0.18 ? 0 : v; }
 function pollGamepad(rawDt) {
   var hadPad = gpPad;
@@ -2801,14 +2965,15 @@ function pollGamepad(rawDt) {
   gpJumpEdge = edge(1);
   gpDashEdge = edge(2);
   gpNovaEdge = edge(3);
+  gpMeleeEdge = edge(5);                      /* RB = smack; LB = zoom in */
   if (down(4)) camDistTarget = clamp(camDistTarget - 0.12, CAM_DIST_MIN, CAM_DIST_MAX);
-  if (down(5)) camDistTarget = clamp(camDistTarget + 0.12, CAM_DIST_MIN, CAM_DIST_MAX);
+  if (edge(6)) camDistTarget = clamp(camDistTarget + 0.12, CAM_DIST_MIN, CAM_DIST_MAX);
   if (edge(8)) { if (lockOn) lockOn = null; else cycleLockOn(); } /* select / lock-on */
   if (edge(9)) {                                                          /* start: pause */
     if (state === 'play') pauseGame();
     else if (state === 'pause') resumeGame();
   }
-  gpPrev = { 0: down(0), 1: down(1), 2: down(2), 3: down(3), 4: down(4), 5: down(5), 9: down(9) };
+  gpPrev = { 0: down(0), 1: down(1), 2: down(2), 3: down(3), 4: down(4), 5: down(5), 6: down(6), 9: down(9) };
 }
 var gpPrev = {};
 function updateGpHint() {
@@ -2827,9 +2992,16 @@ function moveVec() {
   if (gpMove[0] !== 0 || gpMove[1] !== 0) { sr = gpMove[0]; su = gpMove[1]; }
   var l = Math.hypot(sr, su);
   if (l > 1) { sr /= l; su /= l; }
-  /* camera-relative */
-  var fd = [Math.sin(camYaw), Math.cos(camYaw)];
-  var rt = [Math.cos(camYaw), -Math.sin(camYaw)];
+  /* Camera-relative, using the *view's own* right row: m4Look builds
+     right = cross(up, -forward), which at camYaw=0 (looking +Z) is world -X.
+     The old basis was its mirror, so A/D were swapped — and any "fix" to the
+     mouse X sign would only have moved the bug. */
+  var yw = camYaw;
+  /* Locked on? orbit the target instead of the camera: W closes, S creates
+     space, A/D circle — the classic action-game strafe. */
+  if (CAMSET.orbit && lockOn && !lockOn.dead) yw = Math.atan2(lockOn.x - R.x, lockOn.z - R.z);
+  var fd = [Math.sin(yw), Math.cos(yw)];
+  var rt = [-Math.cos(yw), Math.sin(yw)];
   return [rt[0] * sr + fd[0] * su, rt[1] * sr + fd[1] * su];
 }
 document.addEventListener('keydown', function (e) {
@@ -2845,13 +3017,14 @@ document.addEventListener('keydown', function (e) {
     if (state === 'play') pauseGame();
     else if (state === 'pause') resumeGame();
   }
-  if (e.code === 'Tab' || e.code === 'KeyT' || e.code === 'KeyC') {
+  if (e.code === 'Tab' || e.code === 'KeyZ') {
     e.preventDefault();
     if (state === 'play') {
       if (lockOn) lockOn = null;
       else cycleLockOn();
     }
   }
+  if (e.code === 'KeyC') meleePulse = 0.05;
   if (e.code === 'KeyR' && state === 'play') resetCamera(true);
   if (e.code === 'KeyV' && state === 'play') {
     CAMSET.autoFrame = CAMSET.autoFrame ? 0 : 1;
@@ -2900,8 +3073,10 @@ canvas.addEventListener('pointerdown', function (e) {
       dragMovedAcc = 0;
     }
   } else if (e.button === 2) {
-    dashHeld = true;
-    setTimeout(function () { dashHeld = false; }, 40);
+    /* right mouse = the staff butt. Deliberately NOT the dash: aiming and
+       clicking were fighting for the same finger before. */
+    meleeHeld = true;
+    setTimeout(function () { meleeHeld = false; }, 40);
   }
 });
 var dragMovedAcc = 0;
@@ -2944,8 +3119,10 @@ function pollInputLive() {
   jumpNow = keys['Space'] || jumpHeld || gpJumpEdge;
   dashNow = keys['ShiftLeft'] || keys['ShiftRight'] || dashHeld || gpDashEdge;
   novaNow = keys['KeyQ'] || keys['KeyE'] || novaHeld || gpNovaEdge;
-  gpJumpEdge = false; gpDashEdge = false; gpNovaEdge = false;
-  if (tapPulse > 0) tapPulse -= dt;
+  meleeNow = meleeHeld || meleePulse > 0 || keys['KeyC'] || gpMeleeEdge;
+  gpJumpEdge = false; gpDashEdge = false; gpNovaEdge = false; gpMeleeEdge = false;
+  if (tapPulse > 0) tapPulse -= FIXED;
+  if (meleePulse > 0) meleePulse -= FIXED;
 }
 
 /* touch */
@@ -3343,7 +3520,11 @@ window.RileyGame = {
 window.__R = function () {
   return { state: state, wave: game.wave, score: game.score, lives: game.lives,
     x: R ? R.x : 0, y: R ? R.y : 0, z: R ? R.z : 0, yaw: R ? R.yaw : 0,
-    ground: R ? R.ground : false, fx: fx.length, fps: lastFps,
+    vx: R ? R.vx : 0, vy: R ? R.vy : 0, vz: R ? R.vz : 0,
+    lean: R ? R.lean : 0, mo: R ? R.mo : 0, meleeN: R ? R.meleeN : 0,
+    meleeT: R ? R.meleeT : 0, meleeCd: R ? R.meleeCd : 0, dodgeT: R ? R.dodgeT : 0,
+    lastStand: !!game.lastStand,
+    fx: fx.length, fps: lastFps,
     mana: R ? R.mana : 0, inv: R ? R.inv : 0,
     kbx: R ? R.kbx : 0, kbz: R ? R.kbz : 0, kbT: R ? R.kbT : 0,
     buffs: { dmg: buffs.dmg, spd: buffs.spd, regen: buffs.regen },
@@ -3396,6 +3577,17 @@ if (SELFTEST) {
     hurtAll: function () { for (var i = enemies.length - 1; i >= 0; i--) if (!enemies[i].dead) damageGob(enemies[i], 99, Math.sin(i + 1), Math.cos(i + 1)); },
     nextWave: function () { waveClear(); game.clearT = 0.01; },
     wave: function (n) { startWave(n); },
+    /* the live view basis (rows of the view matrix). Tests use this to pin
+       "D strafes toward the right edge of the screen" — the sign of the
+       strafe basis against the projection is otherwise invisible headless. */
+    basis: function () {
+      return { right: [VM[0], VM[4], VM[8]], up: [VM[1], VM[5], VM[9]],
+        /* row 2 of a GL view matrix is the camera's BACKWARD axis; negate so
+           the hook reads like the world (fwd = where the camera looks) */
+        fwd: [-VM[2], -VM[6], -VM[10]],
+        yaw: camYaw, pitch: camPitch, dist: camDist, fov: camFov,
+        eye: [eye[0], eye[1], eye[2]], ctr: [ctr[0], ctr[1], ctr[2]], kick: Math.hypot(camKickY, camKickP, camKickR) };
+    },
     camBelow: function () { return world.heightAt(camX, camZ) - camY; },
     aim: function () {
       return { x: aim.x, y: aim.y, z: aim.z, lock: aim.lock ? aim.lock.k : null,
@@ -3405,7 +3597,12 @@ if (SELFTEST) {
     resetCam: function () { resetCamera(true); return true; },
     lock: function (k) { if (k === null) { lockOn = null; return null; } cycleLockOn(); return lockOn ? lockOn.k : null; },
     setLock: function (i) { lockOn = enemies[i] || null; return !!lockOn; },
-    camSet: function (k, v) { if (k in CAMSET) { CAMSET[k] = v; return CAMSET[k]; } return null; },
+    camSet: function (k, v) { if (!(k in CAMSET)) return null; CAMSET[k] = v; saveCamSet(); return CAMSET[k]; },
+    camGet: function () { return JSON.parse(JSON.stringify(CAMSET)); },
+    /* combat taps for the headless tests (keys can't express a 1-frame pulse) */
+    swing: function () { return meleeSwing(null); },
+    dashDodge: function () { R.inv = Math.max(R.inv, 0.3); R.dodgeT = 0.34; return true; },
+    slow: function () { return { t: game.slowT, k: game.slowK }; },
     eyeDist: function () { return Math.hypot(eye[0] - R.rx, eye[1] - R.ry, eye[2] - R.rz); },
     zoomMax: function () { return CAM_DIST_MAX; },
     zoomMin: function () { return CAM_DIST_MIN; },

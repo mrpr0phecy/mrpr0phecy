@@ -1,123 +1,12 @@
-/* Headless smoke for riley-engine.js — fake DOM + fake WebGL1.
- * Boots the game, steps the sim (with input), spawns + kills enemies,
- * runs render frames. Catches wiring/runtime errors that --check misses. */
+/* Headless smoke for riley-engine.js — boots the game on the shared fake-DOM
+ * rig, steps the sim with input, spawns + kills enemies, runs render frames.
+ * Catches wiring/runtime errors that --check misses, and pins the behaviour
+ * of the camera + combat invariants (see the labelled sections below).
+ */
 'use strict';
-const fs = require('fs');
-const path = require('path');
-
-/* ---------------- fake DOM ---------------- */
-function makeEl(id) {
-  const children = [];
-  const el = {
-    id, style: {}, children, classList: {
-      _s: new Set(),
-      add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); },
-      contains(c) { return this._s.has(c); },
-      toggle(c, f) { if (f === undefined) { this._s.has(c) ? this._s.delete(c) : this._s.add(c); } else if (f) this._s.add(c); else this._s.delete(c); }
-    },
-    textContent: '', nodeValue: '',
-    firstChild: { nodeValue: '' },
-    querySelector(sel) { return el._q(sel); },
-    _q(sel) {
-      if (!el._qmap) el._qmap = {};
-      if (!el._qmap[sel]) el._qmap[sel] = makeEl(id + sel);
-      return el._qmap[sel];
-    },
-    appendChild(c) { children.push(c); return c; },
-    removeChild(c) { const i = children.indexOf(c); if (i >= 0) children.splice(i, 1); return c; },
-    parentNode: null,
-    addEventListener() {}, removeEventListener() {}, setPointerCapture() {},
-    getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; },
-    clientWidth: 100, clientHeight: 100,
-    width: 800, height: 450,
-    getContext() { return null; },
-    requestPointerLock() {},
-    classList2: null
-  };
-  return el;
-}
-const elements = {};
-['cv', 'hudHearts', 'hudScore', 'hudWave', 'bossBar', 'hurtVig', 'manaBar', 'comboCtr', 'comboFill',
-  'banner', 'reticle', 'ovTitle', 'ovOver', 'ovPause', 'seedInput', 'seedLine', 'bestLine', 'bestLine2',
-  'iqLine', 'btnPlay', 'btnPause', 'btnResume', 'btnRestart', 'btnNewWorld', 'btnQuitTitle', 'btnQuit2',
-  'btnAgain', 'btnMute', 'btnPurge', 'noGL', 'mob', 'hintBar', 'joy', 'joyKnob', 'aim', 'aimKnob',
-  'tbJump', 'tbDash', 'tbNova', 'fps']
-  .forEach(id => { elements[id] = makeEl(id); });
-
-const listeners = {};
-global.window = global;
-global.document = {
-  getElementById(id) { return elements[id] || makeEl(id); },
-  createElement() { return makeEl('div'); },
-  addEventListener(t, cb) { (listeners[t] = listeners[t] || []).push(cb); },
-  body: makeEl('body')
-};
-global.location = { search: '?selftest=1' };
-global.innerWidth = 800; global.innerHeight = 450;
-global.devicePixelRatio = 1;
-global.localStorage = { _d: {}, getItem(k) { return this._d[k] || null; }, setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } };
-global.performance = { now: () => tNow * 1000 };
-let tNow = 0;
-global.matchMedia = () => ({ matches: true });
-let rafQ = [];
-global.requestAnimationFrame = cb => { rafQ.push(cb); };
-global.cancelAnimationFrame = () => {};
-global.Image = class { set src(v) { /* no onload — flat colours */ } };
-global.addEventListener = (t, cb) => { (listeners[t] = listeners[t] || []).push(cb); };
-global.setTimeout = (cb) => 0;
-global.AudioContext = undefined; global.webkitAudioContext = undefined;
-
-/* ---------------- fake WebGL ---------------- */
-const GL = {
-  TRIANGLES: 4, ARRAY_BUFFER: 34962, FLOAT: 5126, UNSIGNED_BYTE: 5121,
-  STATIC_DRAW: 35044, DYNAMIC_DRAW: 35048,
-  COLOR_BUFFER_BIT: 16384, DEPTH_BUFFER_BIT: 256,
-  SRC_ALPHA: 304, ONE: 1, ONE_MINUS_SRC_ALPHA: 771,
-  TEXTURE_2D: 3553, TEXTURE_MIN_FILTER: 10241, TEXTURE_MAG_FILTER: 10240,
-  LINEAR_MIPMAP_LINEAR: 9987, LINEAR: 9729, REPEAT: 10497,
-  RGBA: 6408, UNPACK_FLIP_Y_WEBGL: 37440,
-  VERTEX_SHADER: 35633, FRAGMENT_SHADER: 35632, COMPILE_STATUS: 35713,
-  LINK_STATUS: 35714, VERTEX_ATTRIB_ARRAY_ENABLED: 43,
-  UNPACK_ALIGNMENT: 3317
-};
-let progN = 0, bufN = 0, texN = 0, drawCalls = 0, drawCounts = [];
-function fakeUniformLoc() { return { _name: 'u' + Math.random() }; }
-const gl = new Proxy({}, {
-  get(t, prop) {
-    if (prop in t) return t[prop];
-    if (prop === 'createShader') return () => ({ type: 0 });
-    if (prop === 'shaderSource' || prop === 'compileShader' || prop === 'linkProgram' || prop === 'attachShader' || prop === 'useProgram' || prop === 'deleteShader' || prop === 'deleteProgram' || prop === 'bindTexture' || prop === 'activeTexture' || prop === 'texParameteri' || prop === 'generateMipmap' || prop === 'pixelStorei') return () => {};
-    if (prop === 'getShaderParameter' || prop === 'getProgramParameter') return () => true;
-    if (prop === 'getShaderInfoLog' || prop === 'getProgramInfoLog') return () => '';
-    if (prop === 'createProgram') return () => ({ id: ++progN });
-    if (prop === 'getUniformLocation') return () => fakeUniformLoc();
-    if (prop === 'createBuffer') return () => ({ id: ++bufN });
-    if (prop === 'bindBuffer' || prop === 'bufferData' || prop === 'enableVertexAttribArray' || prop === 'disableVertexAttribArray' || prop === 'vertexAttribPointer' || prop === 'enable' || prop === 'disable' || prop === 'depthMask' || prop === 'blendFunc' || prop === 'viewport' || prop === 'clearColor' || prop === 'clear' || prop === 'uniform1f' || prop === 'uniform3f' || prop === 'uniform1i' || prop === 'texImage2D') return () => {};
-    if (prop === 'uniformMatrix4fv') return (loc, _, m) => { if (!m || m.length !== 16) throw new Error('uniformMatrix4fv bad matrix'); };
-    if (prop === 'drawArrays') return (m, f, n) => { drawCalls++; if (n < 0) throw new Error('drawArrays negative'); drawCounts.push(n); };
-    if (prop === 'createTexture') return () => ({ id: ++texN });
-    if (prop === 'getExtension') return (n) => (n === 'ANGLE_instanced_arrays' ? fakeInst : null);
-    return () => {};
-  },
-  set(t, prop, v) { t[prop] = v; return true; }
-});
-const fakeInst = {
-  vertexAttribDivisorANGLE() {},
-  drawArraysInstancedANGLE(mode, first, count, prim) { drawCalls++; if (count < 0 || prim < 0) throw new Error('bad instanced draw'); drawCounts.push(count * prim); }
-};
-elements['cv'].getContext = (t) => (t === 'webgl' || t === 'experimental-webgl') ? gl : (t === '2d' ? { drawImage() {}, getImageData() { return { data: new Uint8Array(4) }; } } : null);
-
-/* ---------------- load modules in order ---------------- */
-const dir = path.join(__dirname, '..');
-function load(f) {
-  const code = fs.readFileSync(path.join(dir, f), 'utf8');
-  (0, eval)(code);
-}
-load('riley-core.js');
-load('riley-world.js');
-load('riley-ai.js');
-load('riley-net.js');
-load('riley-engine.js');
+const H = require('./harness.js').boot();
+const elements = H.els;
+global.__H = H;                     /* used by the camera bench + dev probes */
 
 /* ---------------- drive ---------------- */
 let fails = 0;
@@ -125,6 +14,7 @@ function check(name, cond, extra) {
   if (cond) console.log('  ok  ' + name);
   else { fails++; console.log('  FAIL ' + name + (extra !== undefined ? ' :: ' + JSON.stringify(extra) : '')); }
 }
+
 console.log('--- boot ---');
 check('window.RileyGame exposed', !!global.RileyGame);
 check('state=title', global.RileyGame.state === 'title', global.RileyGame.state);
@@ -135,14 +25,7 @@ global.RileyGame.start();
 check('state=play', global.RileyGame.state === 'play', global.RileyGame.state);
 check('session created', !!(global.RileyGame.session));
 
-function pump(nFrames, perFrame) {
-  for (let i = 0; i < nFrames; i++) {
-    tNow += 1 / 60;
-    if (perFrame) perFrame(i);
-    const q = rafQ; rafQ = [];
-    for (const cb of q) cb(tNow * 1000);
-  }
-}
+const pump = (nFrames, perFrame) => H.pump(nFrames, perFrame);
 
 console.log('--- 3s of idle sim (wave 1 spawns) ---');
 pump(180);
@@ -271,6 +154,80 @@ pump(40);
 const z1 = global.__T.zoom(99);
 check('zoom out clamps at engine max', z1 === global.__T.zoomMax(), { z1, max: global.__T.zoomMax() });
 
+console.log('--- movement matches the screen (regression: mirrored strafe basis) ---');
+function velDot(key, axis) {
+  global.__T.key(key, true);
+  pump(18);
+  const r = global.__R(), b = global.__T.basis();
+  const v = axis === 'right' ? r.vx * b.right[0] + r.vz * b.right[2]
+    : r.vx * b.fwd[0] + r.vz * b.fwd[2];
+  global.__T.key(key, false); pump(40);
+  return { v: +v.toFixed(2), sp: +Math.hypot(r.vx, r.vz).toFixed(2) };
+}
+const mD = velDot('KeyD', 'right'), mA = velDot('KeyA', 'right');
+const mW = velDot('KeyW', 'fwd'), mS = velDot('KeyS', 'fwd');
+check('D strafes toward the right edge', mD.v > 4 && mD.sp > 7, mD);
+check('A strafes toward the left edge', mA.v < -4, mA);
+check('W runs into the screen', mW.v > 4, mW);
+check('S backs up', mS.v < -4, mS);
+const prR = global.__proj(global.__R().x + global.__T.basis().right[0] * 4, global.__R().y + 1, global.__R().z + global.__T.basis().right[2] * 4);
+const prC = global.__proj(global.__R().x, global.__R().y + 1, global.__R().z);
+check('projection agrees with the view basis', prR && prC && prR[0] > prC[0], { prR, prC });
+
+console.log('--- melee chain: two jabs, then a cleave ---');
+global.__T.wave(1); pump(12); global.__T.hurtAll(); global.__T.clearShots(); pump(6);
+global.__T.setInv(1e9);
+/* brutes (5 hp) so the jabs can't one-shot the test subject */
+const rr0 = global.__R(), fxx = Math.sin(rr0.yaw), fzz = Math.cos(rr0.yaw);
+global.__T.place('brute', fxx * 1.25 + fzz * 0.55, fzz * 1.25 - fxx * 0.55);
+const gA = global.__T.lastEnemy();
+global.__T.place('brute', fxx * 1.25 - fzz * 0.55, fzz * 1.25 + fxx * 0.55);
+const gB = global.__T.lastEnemy();
+const hpA = gA.hp, hpB = gB.hp;
+check('swing 1 connects', global.__T.swing() === true, null);
+const hurtA = hpA - gA.hp, hurtB = hpB - gB.hp;
+check('swing 1 hurt exactly one brute', (hurtA > 0) !== (hurtB > 0), { hurtA, hurtB });
+check('chain advanced to 2', global.__R().meleeN === 1, global.__R().meleeN);
+pump(14);
+global.__T.swing();
+check('chain advanced to 3', global.__R().meleeN === 2, global.__R().meleeN);
+pump(14);
+global.__T.swing();
+check('cleave hit both brutes', gA.hp < hpA && gB.hp < hpB, { a: gA.hp, b: gB.hp });
+check('chain reset after finisher', global.__R().meleeN === 0, global.__R().meleeN);
+pump(3);
+check('cleave launched them', (gA.dead || gA.vy > 1) && (gB.dead || gB.vy > 1), { a: gA.vy, b: gB.vy });
+/* whiff recovery: swinging at nothing must cost you more than hitting */
+for (let i = 0; i < 6; i++) { global.__T.hurtAll(); pump(20); global.__T.clearShots(); }
+const cdBefore = global.__R().meleeCd;
+const nearN = global.__T.info().n;
+global.__T.swing();
+check('whiff is punished with a longer recovery than a jab', cdBefore === 0 && global.__R().meleeCd > 0.3, { cdBefore, after: global.__R().meleeCd, nearN });
+check('whiff does not advance the chain', global.__R().meleeN === 0, global.__R().meleeN);
+global.__T.hurtAll(); pump(20); global.__T.clearShots();
+
+console.log('--- perfect dodge: dash i-frames pay out ---');
+global.__T.wave(2); pump(20); global.__T.hurtAll(); global.__T.clearShots(); pump(10);
+global.__T.setInv(0);
+const livesD = global.__T.info().lives, scoreD = global.__T.info().score;
+global.__T.place('grunt', 0.4, 0.1);
+const gd = global.__T.lastEnemy();
+global.__T.dashDodge();
+gd.actKind = 'lunge'; gd.actT = 0.3; gd.tele = 0;
+pump(3);
+check('dodged hit costs no heart', global.__T.info().lives === livesD, { livesD, now: global.__T.info().lives });
+check('perfect dodge scored', global.__T.info().score > scoreD, { scoreD, now: global.__T.info().score });
+const sl = global.__T.slow();
+check('perfect dodge hit the brakes (slow-mo)', sl.t > 0 && sl.k < 1, sl);
+/* and a plain (non-dodge) hit still hurts */
+pump(60);
+global.__T.setInv(0);
+const livesE = global.__T.info().lives;
+gd.x = global.__R().x + 0.2; gd.z = global.__R().z; gd.actKind = 'lunge'; gd.actT = 0.3; gd.tele = 0; gd.vx = 0; gd.vz = 0;
+pump(3);
+check('untimed contact still hurts (dodge is not immunity)', global.__T.info().lives < livesE, { livesE, now: global.__T.info().lives });
+global.__T.god(true);
+
 console.log('--- camera sanity (never under ground) ---');
 let below = 0, far = 0, samples = 0;
 for (let i = 0; i < 60; i++) {
@@ -333,7 +290,7 @@ pump(20);
 console.log('--- selftest render: unique colours ---');
 pump(10);
 const shot = global.__shot();
-check('render produced frames', drawCalls > 50, { drawCalls });
+check('render produced frames', H.stats().drawCalls > 50, H.stats());
 
 console.log(fails ? '\n' + fails + ' FAILURES' : '\nALL ENGINE SMOKE CHECKS PASS');
 process.exit(fails ? 1 : 0);
