@@ -18,6 +18,11 @@ canvas#cv{display:block;position:absolute;inset:0;width:100%;height:100%}
 .hud{position:absolute;z-index:10;font-weight:700;text-shadow:0 2px 6px rgba(0,0,0,.8)}
 #hudTop{top:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:0 14px}
 #hudHearts{font-size:22px;letter-spacing:3px;color:#ff6b7a;-webkit-text-stroke:.6px #2a0a10;filter:drop-shadow(0 2px 3px rgba(0,0,0,.8))}
+#manaBar{margin-top:6px;width:150px;height:11px;background:rgba(6,10,24,.6);border:1px solid rgba(120,200,255,.35);border-radius:7px;overflow:hidden;position:relative}
+#manaBar i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#4fb8ff,#a06bff);transition:width .12s linear;box-shadow:0 0 10px rgba(120,160,255,.6)}
+#manaBar.full i{background:linear-gradient(90deg,#7fe8ff,#c79bff);animation:manaPulse .9s ease-in-out infinite}
+#manaBar span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;letter-spacing:3px;color:#dff0ff;text-shadow:0 1px 2px #000;font-weight:700}
+@keyframes manaPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.5)}}
 #hudMid{text-align:center;position:absolute;left:50%;top:12px;transform:translateX(-50%)}
 #hudScore{font-size:28px;color:#fff;letter-spacing:1px;line-height:1}
 #hudScore small{display:block;font-size:9px;color:#ffd75e;letter-spacing:4px;font-weight:700}
@@ -77,6 +82,7 @@ canvas#cv{display:block;position:absolute;inset:0;width:100%;height:100%}
 #tbJump{right:26%;bottom:26%;width:86px;height:86px;border-color:rgba(140,255,190,.7);font-size:13px;background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.34),rgba(22,120,80,.62))}
 #tbFire{right:7%;bottom:14%;width:106px;height:106px;color:#ffe9a8;border-color:rgba(255,215,94,.75);font-size:15px;background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.36),rgba(160,95,18,.66))}
 #tbDash{right:30%;bottom:60%;width:62px;height:62px;font-size:10px}
+#tbNova{right:6%;bottom:52%;width:70px;height:70px;font-size:11px;color:#e6d5ff;border-color:rgba(180,140,255,.8);background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.34),rgba(90,50,170,.7))}
 #hintBar{position:absolute;bottom:8px;left:0;right:0;text-align:center;color:#5f7da8;font-size:11.5px;letter-spacing:1px;z-index:10;pointer-events:none;text-shadow:0 1px 4px #000}
 #comboFill{display:block;width:90px;height:3px;border-radius:3px;background:linear-gradient(90deg,#ffd75e,#ff9f43);margin:7px auto 0;opacity:0;transition:opacity .2s;box-shadow:0 0 10px rgba(255,215,94,.7)}
 #hurtVig{position:absolute;inset:0;z-index:8;pointer-events:none;opacity:0;transition:opacity .45s;background:radial-gradient(ellipse at 50% 55%,rgba(255,0,40,0) 42%,rgba(255,20,50,.4) 100%)}
@@ -91,7 +97,10 @@ canvas#cv{display:block;position:absolute;inset:0;width:100%;height:100%}
 <canvas id="cv"></canvas>
 
 <div class="hud" id="hudTop">
-  <div id="hudHearts">♥♥♥♥♥</div>
+  <div id="hudLeft">
+    <div id="hudHearts">♥♥♥♥♥</div>
+    <div id="manaBar"><i></i><span>MAGIC</span></div>
+  </div>
   <div id="hudMid">
     <div id="hudScore">0<small>SCORE</small></div>
     <div id="hudWave">WAVE 1</div>
@@ -110,8 +119,10 @@ canvas#cv{display:block;position:absolute;inset:0;width:100%;height:100%}
   <div class="controls">
     <span class="k"><b>W A S D</b> move</span>
     <span class="k"><b>SPACE</b> fireball</span>
+    <span class="k"><b>SPACE hold</b> charge blast</span>
     <span class="k"><b>W</b>×2 double jump</span>
     <span class="k"><b>SHIFT</b> dash</span>
+    <span class="k"><b>Q / E</b> arcane nova</span>
     <span class="k"><b>P</b> pause</span>
     <span class="k"><b>M</b> mute</span>
   </div>
@@ -152,6 +163,7 @@ canvas#cv{display:block;position:absolute;inset:0;width:100%;height:100%}
   <div id="tLeft"><div id="joy"><div id="joyKnob"></div></div></div>
   <div id="tRight">
     <button class="tbtn" id="tbDash">DASH</button>
+    <button class="tbtn" id="tbNova">NOVA</button>
     <button class="tbtn" id="tbJump">JUMP</button>
     <button class="tbtn" id="tbFire">FIRE</button>
   </div>
@@ -585,7 +597,8 @@ var R=null;
 function newRiley(){
   return {x:0,y:0,z:0,vx:0,vy:0,vz:0,yaw:Math.PI,run:0,air:0,ground:true,
     dashT:0,dashCd:0,dashDX:0,dashDZ:0,dashing:false,jumpBuf:0,coyote:0,
-    inv:0,hitT:0,shootCd:0,vy2:0,jumpFx:false,ph:0};
+    inv:0,hitT:0,shootCd:0,vy2:0,jumpFx:false,ph:0,
+    mana:0,manaMax:100,charge:0,charging:false,novaFx:0};
 }
 function findGroundY(x,y,z){
   var best=-99;
@@ -617,6 +630,31 @@ function groundShadow(x,y,z,r,alpha){
 function drawRiley(o){
   // o = character state {x,y,z,yaw,run,ground,hitT,dashing,air}
   var flash=o.hitT>0&&(Math.floor(time*26)%2===0);
+  // NOVA shockwave disc
+  if(o.novaFx>0){
+    var t=1-o.novaFx/.6;
+    var rad=1+t*11;
+    var gy=findGroundY(o.x,o.y+2,o.z);var ny=(gy>-90?gy:o.y)+.05;
+    limb(MM,o.x,ny,o.z,0,-Math.PI/2,0,0,0,0,0,0,0,rad*1.2,1,rad*1.2);
+    gl.useProgram(solidProg);
+    gl.bindBuffer(gl.ARRAY_BUFFER,GEO.disc.v);
+    gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
+    gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);
+    gl.enableVertexAttribArray(0);gl.enableVertexAttribArray(1);
+    gl.uniformMatrix4fv(solidU.uM,false,MM);
+    gl.uniform3f(solidU.uCol,0.3,0.6,1);
+    gl.uniform3f(solidU.uGlow,0.4,0.7,1);
+    gl.uniform1f(solidU.uA,(1-t)*.5);
+    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+    gl.depthMask(false);
+    gl.drawArrays(gl.TRIANGLES,0,GEO.disc.n);
+    gl.depthMask(true);gl.disable(gl.BLEND);
+  }
+  // NOVA-ready aura sparkle
+  if(o.mana>=o.manaMax&&Math.random()<.4){
+    var aa=rnd(0,TAU);
+    fxPush({x:o.x+Math.cos(aa)*.7,y:o.y+rnd(.3,1.6),z:o.z+Math.sin(aa)*.7,vx:0,vy:rnd(.5,1),vz:0,life:.5,max:.5,s:.09,pr:150,pg:200,pb:255,pa:.7,grav:0});
+  }
   groundShadow(o.x,o.y,o.z,1,0.95);
   if(flash)return;
   var skin=[255,210,180],robe=[46,48,158],robeD=[34,36,120],trim=[120,120,200],
@@ -714,7 +752,7 @@ function moveVec(){
   if(l>1){ix/=l;iz/=l}
   return [ix,iz];
 }
-var touchX=0,touchZ=0,jumpHeld=false,fireHeld=false,dashHeld=false;
+var touchX=0,touchZ=0,jumpHeld=false,fireHeld=false,dashHeld=false,novaHeld=false;
 
 /* ---------------- camera ---------------- */
 var camYaw=0,camYawTarget=Math.PI,camDist=12,camH=5.2,camHCur=5.2;
@@ -867,14 +905,36 @@ function update(dtU){
     camX=camZ=0;camY=camHCur;
   }
   // face idle keeps last yaw; camera target yaw follows riley facing
-  // shooting
+  // shooting — tap to fire, hold to charge a big blast
   var shootKey=(keys['Space']||fireHeld);
-  if(shootKey)fireShot();
+  R.mana=Math.min(R.manaMax,R.mana+dtU*3.2); // slow passive regen
+  if(shootKey){
+    R.charge+=dtU;
+    if(R.charge>0.28){
+      R.charging=true;
+      if(walking){var wa=Math.atan2(mv[0],mv[1]);R.yaw=angLerp(R.yaw,wa,clamp(dtU*10,0,1));}
+      // charge sparkle at wand
+      if(Math.random()<.5){
+        var cx=R.x+Math.sin(R.yaw)*.7,cz=R.z+Math.cos(R.yaw)*.7;
+        fxPush({x:cx+rnd(-.3,.3),y:R.y+1+rnd(-.2,.3),z:cz+rnd(-.3,.3),vx:0,vy:0,vz:0,life:.3,max:.3,s:rnd(.06,.14),pr:255,pg:210,pb:110,pa:.8,grav:0});
+      }
+    }else{
+      // quick tap fire
+      fireShot();
+    }
+  }else{
+    if(R.charging){releaseCharge();}
+    R.charge=0;R.charging=false;
+  }
+  // arcane nova (Q/E or nova button) — spends full magic meter
+  if((keys['KeyQ']||keys['KeyE']||novaHeld)&&R.mana>=R.manaMax){castNova();}
+  if(R.novaFx>0)R.novaFx-=dtU;
   // anim
   R.ph+=dtU;
   // combo timer
   if(game.combo>0){game.combot-=dtU;if(game.combot<=0){game.combo=0;updateCombo()}}
   updateEnemies(dtU);
+  updatePickups(dtU);
   updateFx(dtU);
   if(game.shake>0)game.shake-=dtU;
   if(bannerEl&&bannerEl.style.opacity==='1'&&game.bannerT<=0&&state==='play')bannerEl.style.opacity='0';
@@ -889,6 +949,39 @@ function fireShot(){
   shots.push({x:sx,y:sy,z:sz,vx:Math.sin(R.yaw)*22,vy:1.5,vz:Math.cos(R.yaw)*22,life:1.4,r:.14});
   burst(sx,sy,sz,[255,200,80],6,3,0,.16,.3);
   sfx('shoot');
+}
+function releaseCharge(){
+  var pw=clamp((R.charge-0.28)/0.72,0,1); // 0..1 over ~0.72s
+  if(pw<0.12){fireShot();return}
+  R.shootCd=.32;
+  var tier=pw>=0.85?2:1;
+  var sx=R.x+Math.sin(R.yaw)*.8,sy=R.y+1.0,sz=R.z+Math.cos(R.yaw)*.8;
+  var dmg=tier===2?6:3;
+  var rad=tier===2?.42:.3;
+  shots.push({x:sx,y:sy,z:sz,vx:Math.sin(R.yaw)*26,vy:1.2,vz:Math.cos(R.yaw)*26,life:1.8,r:rad,big:true,dmg:dmg,pierce:tier===2?3:1,col:tier===2?[180,120,255]:[255,140,60]});
+  burst(sx,sy,sz,tier===2?[190,130,255]:[255,170,70],tier===2?22:14,7,0,.28,.5);
+  ringBurst(sx,sy,sz,tier===2?[200,150,255]:[255,180,90],4);
+  game.shake=tier===2?.35:.2;doHitStop(tier===2?.05:0);
+  sfx(tier===2?'boss':'smash');
+}
+function castNova(){
+  R.mana=0;R.novaFx=.6;
+  game.shake=.6;doHitStop(.06);
+  // expanding shockwave rings + damage everything on screen scaled by distance
+  for(var ri=0;ri<3;ri++)ringBurst(R.x,R.y+.4,R.z,[150,210,255],6+ri*3);
+  burst(R.x,R.y+.8,R.z,[170,140,255],46,12,1.5,.4,.9);
+  burst(R.x,R.y+.8,R.z,[120,220,255],30,9,1.2,.3,.8);
+  sfx('nova');
+  for(var i=0;i<enemies.length;i++){
+    var e=enemies[i];if(e.dead)continue;
+    var d=Math.hypot(e.x-R.x,e.z-R.z);
+    if(d<12){
+      var dmg=e.k==='boss'?4:8;
+      var dx=(e.x-R.x)/(d||1),dz=(e.z-R.z)/(d||1);
+      e.vx+=dx*16;e.vz+=dz*16;e.vy=Math.max(e.vy,5);
+      damageGob(e,dmg,dx,dz);
+    }
+  }
 }
 function updateFx(dtF){
   for(var i=fx.length-1;i>=0;i--){
@@ -906,24 +999,28 @@ function updateFx(dtF){
     s.life-=dtF;
     if(s.life<=0){shots.splice(j,1);continue}
     s.x+=s.vx*dtF;s.y+=s.vy*dtF;s.z+=s.vz*dtF;
-    fxPush({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,life:.12,max:.12,s:s.r*4,pr:255,pg:170,pb:60,pa:.55,grav:0});
+    var tcol=s.col||[255,170,60];
+    fxPush({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,life:.12,max:.12,s:s.r*4,pr:tcol[0],pg:tcol[1],pb:tcol[2],pa:.55,grav:0});
     // vs platforms / enemies
     var consumed=false;
     for(var k=0;k<platforms.length;k++){
       var p=platforms[k];
       if(s.x>p.x0&&s.x<p.x1&&s.y>p.y0&&s.y<p.y1&&s.z>p.z0&&s.z<p.z1){
-        burst(s.x,s.y,s.z,[255,160,60],8,3,1,.16,.3);
+        burst(s.x,s.y,s.z,tcol,8,3,1,.16,.3);
         consumed=true;break;
       }
     }
     if(!consumed){
+      if(s.hitSet===undefined)s.hitSet=[];
       for(var m2=0;m2<enemies.length;m2++){
         var en=enemies[m2];
-        if(en.dead)continue;
-        var hr=en.r+.32;
+        if(en.dead||s.hitSet.indexOf(en)>=0)continue;
+        var hr=en.r+.32+(s.big?.2:0);
         if(s.x>en.x-hr&&s.x<en.x+hr&&s.z>en.z-hr&&s.z<en.z+hr&&s.y>en.y&&s.y<en.y+en.h+.2){
-          damageGob(en,1,s.vx,s.vz);
-          consumed=true;break;
+          damageGob(en,s.dmg||1,s.vx,s.vz);
+          if(R)R.mana=Math.min(R.manaMax,R.mana+(s.big?7:4));
+          if(s.pierce&&s.pierce>1){s.hitSet.push(en);s.pierce--;}
+          else{consumed=true;break;}
         }
       }
     }
@@ -931,6 +1028,57 @@ function updateFx(dtF){
   }
 }
 var shots=[];
+var pickups=[];
+function spawnPickup(kind,x,y,z){
+  // kind: 'gem' (magic+score) or 'heart' (life)
+  pickups.push({k:kind,x:x,y:y+.4,z:z,vy:rnd(3,5),ph:rnd(0,TAU),life:14,got:false,mag:0});
+}
+function updatePickups(dtP){
+  for(var i=pickups.length-1;i>=0;i--){
+    var p=pickups[i];
+    p.life-=dtP;
+    if(p.life<=0){pickups.splice(i,1);continue}
+    // gentle gravity + bob settle
+    p.vy-=18*dtP;
+    p.y+=p.vy*dtP;
+    var gy=findGroundY(p.x,p.y+2,p.z);
+    if(gy>-90&&p.y<gy+.4){p.y=gy+.4;p.vy=0;}
+    if(p.y<-16){pickups.splice(i,1);continue}
+    p.ph+=dtP*3;
+    // magnet toward Riley when close
+    var dx=R.x-p.x,dz=R.z-p.z,d=Math.hypot(dx,dz);
+    if(d<3.4){p.mag=Math.min(1,p.mag+dtP*3);var pull=p.mag*14;p.x+=dx/(d||1)*pull*dtP;p.z+=dz/(d||1)*pull*dtP;}
+    if(d<.9&&Math.abs((p.y)-(R.y+.9))<1.6){collectPickup(p);pickups.splice(i,1);}
+  }
+}
+function collectPickup(p){
+  if(p.k==='heart'){
+    if(R){} // heart heals
+    if(game.lives<game.maxLives){game.lives++;sfx('heal');popText(p.x,p.y+.6,p.z,'♥ +1',true,'#ff8a9a');updateHUD();}
+    else {game.score+=50;popText(p.x,p.y+.6,p.z,'+50',false,'#ff8a9a');}
+    burst(p.x,p.y,p.z,[255,120,150],14,5,1,.2,.5);
+  }else{
+    R.mana=Math.min(R.manaMax,R.mana+18);
+    game.score+=15;
+    popText(p.x,p.y+.6,p.z,'+15',false,'#a9d8ff');
+    burst(p.x,p.y,p.z,[120,190,255],12,5,1,.16,.45);
+    ringBurst(p.x,p.y,p.z,[160,220,255],3);
+    sfx('coin');
+  }
+}
+function drawPickups(){
+  for(var i=0;i<pickups.length;i++){
+    var p=pickups[i];
+    var y=p.y+Math.sin(p.ph)*.12;
+    var col=p.k==='heart'?[255,90,120]:[110,190,255];
+    var glow=p.k==='heart'?[255,120,150]:[150,220,255];
+    groundShadow(p.x,p.y,p.z,.28,.5);
+    limb(MM,p.x,y,p.z,p.ph*1.4,0,0,0,.5,.5,0,0,0,.32,.32,.32);
+    drawSolid(p.k==='heart'?GEO.sphereL:GEO.cone,MM,col,1,glow);
+    // sparkle trail
+    if(Math.random()<.3)fxPush({x:p.x+rnd(-.15,.15),y:y+rnd(0,.2),z:p.z+rnd(-.15,.15),vx:0,vy:rnd(.3,.8),vz:0,life:.5,max:.5,s:.08,pr:glow[0],pg:glow[1],pb:glow[2],pa:.7,grav:0});
+  }
+}
 function updateHUD(){
   var h='';
   for(var i=0;i<game.maxLives;i++)h+=i<game.lives?'♥':'🖤';
@@ -949,6 +1097,13 @@ function updateHUD(){
     bb.querySelector('i').style.width=Math.max(0,be.hp/be.hpMax*100)+'%';
   }else bb.style.display='none';
   el('hurtVig').classList.toggle('low',game.lives===1&&state==='play');
+  var mb=el('manaBar');
+  if(mb&&R){
+    var pct=R.mana/R.manaMax*100;
+    mb.querySelector('i').style.width=pct+'%';
+    mb.classList.toggle('full',R.mana>=R.manaMax);
+    mb.querySelector('span').textContent=R.mana>=R.manaMax?'NOVA READY':'MAGIC';
+  }
 }
 function updateCombo(){
   var c=el('comboCtr'),f=el('comboFill');
@@ -981,7 +1136,7 @@ function startGame(){
   game.score=0;game.wave=1;game.lives=game.maxLives=5;game.kills=0;shownScore=0;
   game.combo=0;game.comboBest=0;game.starT=0;game.boss=false;game.shake=0;
   game.waveState='idle';game.clearT=0;game.spawnQueue=[];
-  shots.length=0;fx.length=0;enemies.length=0;eShots.length=0;
+  shots.length=0;fx.length=0;enemies.length=0;eShots.length=0;pickups.length=0;
   hide('ovTitle');hide('ovOver');hide('ovPause');
   el('bossBar').style.display='none';
   genWorld();
@@ -1202,6 +1357,17 @@ function killGob(e,smash){
     game.shake=.15;
     sfx('kill');
     for(var w=0;w<6;w++)fxPush({x:e.x+rnd(-.18,.18),y:e.y+e.h*rnd(.2,.9),z:e.z+rnd(-.18,.18),vx:rnd(-1,1),vy:rnd(1.4,3.4),vz:rnd(-1,1),life:.7,max:.7,s:rnd(.09,.16),pr:c.skin[0],pg:c.skin[1],pb:c.skin[2],pa:.75,grav:-.9});
+  }
+  // drops: gems fuel the magic meter, hearts occasionally restore life
+  if(e.k==='boss'){
+    for(var gi=0;gi<6;gi++)spawnPickup('gem',e.x+rnd(-1.2,1.2),e.y+e.h*.5,e.z+rnd(-1.2,1.2));
+    spawnPickup('heart',e.x,e.y+e.h*.5,e.z);
+    spawnPickup('heart',e.x+rnd(-1,1),e.y+e.h*.5,e.z+rnd(-1,1));
+  }else{
+    if(Math.random()<(e.k==='brute'?.85:e.k==='spitter'?.6:.42))
+      spawnPickup('gem',e.x,e.y+e.h*.5,e.z);
+    if(game.lives<game.maxLives&&Math.random()<.06)
+      spawnPickup('heart',e.x,e.y+e.h*.5,e.z);
   }
   var isBoss=e.k==='boss';
   if(isBoss){
@@ -1469,7 +1635,7 @@ function popText(x,y,z,txt,big,col){
 function titleScene(){
   genWorld();
   resetRiley();
-  enemies.length=0;eShots.length=0;shots.length=0;
+  enemies.length=0;eShots.length=0;shots.length=0;pickups.length=0;
   game.waveState='idle';game.boss=false;game.spawnQueue=[];
   el('bossBar').style.display='none';
   var spots2=[[-9,8],[9,-6],[0,-11]];
@@ -1497,6 +1663,7 @@ function render(){
   drawStars();
   drawMotes();
   renderWorld();
+  drawPickups();
   renderEnemies();
   {
     if(state==='play'||state==='over'||state==='pause'){
@@ -1507,8 +1674,10 @@ function render(){
   }
   for(var i=0;i<shots.length;i++){
     var s=shots[i];
-    limb(MM,s.x,s.y,s.z,0,0,0,0,0,0,0,0,0,s.r*2,s.r*2,s.r*2);
-    drawSolid(GEO.sphereL,MM,[255,190,90],1,[255,150,50]);
+    var sc=s.big?s.r*2.4:s.r*2;
+    limb(MM,s.x,s.y,s.z,0,time*6,0,0,0,0,0,0,0,sc,sc,sc);
+    var col=s.col||[255,190,90];
+    drawSolid(GEO.sphereL,MM,col,1,[Math.min(255,col[0]*1.2),Math.min(255,col[1]*1.1),Math.min(255,col[2]+40)]);
   }
   drawGlowList(fx,PVM);
 }
@@ -1670,6 +1839,7 @@ function sfx(n){
     case 'spit':tone(620,940,.08,'triangle',.04);break;
     case 'heal':tone(520,780,.12,'sine',.06);tone(780,1040,.16,'sine',.06,.1);break;
     case 'pop':tone(1150,2300,.06,'sine',.03);break;
+    case 'nova':tone(180,1400,.5,'sawtooth',.09);tone(90,700,.6,'triangle',.08,.02);noise(.5,.1,400,3000);tone(1200,300,.4,'sine',.05,.05);break;
   }
 }
 addEventListener('pointerdown',function(){audioInit()},true);
@@ -1702,6 +1872,7 @@ function setupTouch(){
   bindBtn('tbJump',function(v){jumpHeld=v});
   bindBtn('tbFire',function(v){fireHeld=v});
   bindBtn('tbDash',function(v){dashHeld=v});
+  bindBtn('tbNova',function(v){novaHeld=v});
 }
 if('ontouchstart' in window||navigator.maxTouchPoints>0){setupTouch()}
 window.addEventListener('touchstart',function(){if(!isTouch)setupTouch()},{once:true});
