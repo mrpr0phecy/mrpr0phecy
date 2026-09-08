@@ -740,7 +740,11 @@ function bodyPush(ex, ey, ez, tx, ty, tz, maxD) {
     if (e.dead) continue;
     var ex2 = e.x - ex, ez2 = e.z - ez;
     var proj = ex2 * dx + ez2 * dz;
-    if (proj < 0.45 || proj > maxD - 1.05) continue;
+    /* the "last metre next to Riley is a hug, not an occlusion" guard must be
+       measured on the eye→Riley segment (sl), not the boom (maxD): the boom is
+       longer than sl by cos(pitch) plus lead, so a grunt standing half a metre
+       behind her was being counted as an occluder and wobbling the lens. */
+    if (proj < 0.45 || proj > sl - 1.05) continue;
     var rad = e.r + 0.34 + (e.k === 'boss' ? 0.5 : 0);
     var lat = ex2 * -dz + ez2 * dx;
     var over = rad - Math.abs(lat);
@@ -751,7 +755,11 @@ function bodyPush(ex, ey, ez, tx, ty, tz, maxD) {
     if (Math.abs(vy) > vHalf) continue;
     var vw = 1 - Math.abs(vy) / vHalf;
     var need = clamp(over * 0.9, 0.16, 0.8) * (0.6 + 0.4 * (proj / maxD)) * vw;
-    need *= (lat >= 0 ? -1 : 1);
+    /* a body dead-centre on the sightline has no natural side, and letting the
+       sign ride on sub-millimetre float noise flips the truck direction every
+       frame — the lens jitters in place instead of sliding around the body */
+    var side = lat >= 0.01 ? 1 : (lat <= -0.01 ? -1 : 1);
+    need *= -side;
     if (Math.abs(need) > Math.abs(push)) push = need;
   }
   return clamp(push, -BODY_PUSH_MAX, BODY_PUSH_MAX);

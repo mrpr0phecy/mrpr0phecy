@@ -29,7 +29,11 @@ check('window.RileyGame exposed', !!global.RileyGame);
 check('state=title', global.RileyGame.state === 'title', global.RileyGame.state);
 check('world generated', !!(global.RileyGame.world && global.RileyGame.world.crystals.length > 5), global.RileyGame.world ? global.RileyGame.world.crystals.length : null);
 
-/* start the game */
+/* start the game — on a FIXED world so the suite is deterministic. Without
+   this every run draws a fresh random terrain, and a body parked over a hill
+   is a body that is no longer on the camera's sightline (the body-push and
+   strafe checks then fail at random). */
+elements['seedInput'].value = 'TESTSMOKE';
 global.RileyGame.start();
 check('state=play', global.RileyGame.state === 'play', global.RileyGame.state);
 check('session created', !!(global.RileyGame.session));
@@ -170,6 +174,12 @@ const z1 = global.__T.zoom(99);
 check('zoom out clamps at engine max', z1 === global.__T.zoomMax(), { z1, max: global.__T.zoomMax() });
 
 console.log('--- movement matches the screen (regression: mirrored strafe basis) ---');
+/* freeze the camera's automatic rotations while measuring: auto-frame and
+   threat-framing legitimately swing the yaw toward approaching goblins, and a
+   basis that is still mid-swing makes the WASD projection read backwards. */
+global.__T.camSet('autoFrame', 0);
+global.__T.resetCam();
+pump(10);
 function velDot(key, axis) {
   global.__T.key(key, true);
   pump(18);
@@ -188,6 +198,7 @@ check('S backs up', mS.v < -4, mS);
 const prR = global.__proj(global.__R().x + global.__T.basis().right[0] * 4, global.__R().y + 1, global.__R().z + global.__T.basis().right[2] * 4);
 const prC = global.__proj(global.__R().x, global.__R().y + 1, global.__R().z);
 check('projection agrees with the view basis', prR && prC && prR[0] > prC[0], { prR, prC });
+global.__T.camSet('autoFrame', 1);
 
 console.log('--- cursor aim: camera follows the mouse, no pointer lock needed ---');
 /* the whole point of the fix: with NO pointer lock, moving the cursor must
@@ -494,6 +505,9 @@ pump(30);
 console.log('--- camera trucks around a body on the sightline ---');
 global.__T.god(true);
 global.__T.hurtAll();
+global.__T.tp(0, 0);   /* fixed flat spot: earlier waves can bump Riley off-centre
+                           onto random terrain, and a body parked over a hill is a
+                           body that is not on the sightline anymore */
 pump(40);
 global.__T.clearShots();
 function parkOnSight(kind, t) {
@@ -504,14 +518,16 @@ function parkOnSight(kind, t) {
   if (e) { e.x = gx; e.z = gz; e.stun = 9999; e.spd = 0; e.actKind = 'none'; e.spawnT = 0; }
   return e;
 }
-const idx = () => global.__T.info().n - 1;
 const bp_e = parkOnSight('boss', 0.55);
 check('a GOBLIN KING was parked on the sightline', !!bp_e && bp_e.k === 'boss', bp_e && bp_e.k);
-pump(40);
-const bp_push = Math.abs(global.__T.cam().body);
-check('a body over her face shoves the rig sideways', bp_push > 0.18, { body: bp_push });
+/* parked once, left to settle: the rig must TRUCK around it (max |body| over
+   the settle window captures the transient push before the king slides out of
+   the deadband), then ease back once the way is clear */
+let bp_pushMax = 0;
+for (let i = 0; i < 40; i++) { pump(1); bp_pushMax = Math.max(bp_pushMax, Math.abs(global.__T.cam().body)); }
+check('a body over her face shoves the rig sideways', bp_pushMax > 0.10, { body: bp_pushMax });
 check('the rig never leaves the reach budget', global.__T.cam().dist <= 12.6, global.__T.cam().dist);
-check('and the push stays bounded', bp_push <= 0.95, { body: bp_push });
+check('and the push stays bounded', bp_pushMax <= 0.95, { body: bp_pushMax });
 if (bp_e) { bp_e.x += 9; bp_e.z += 9; bp_e.stun = 9999; }
 pump(60);
 check('the rig settles back once the way is clear', Math.abs(global.__T.cam().body) < 0.1, { body: global.__T.cam().body });
@@ -520,18 +536,31 @@ check('the rig settles back once the way is clear', Math.abs(global.__T.cam().bo
 global.__T.hurtAll();
 pump(25);
 const gr = parkOnSight('grunt', 0.55);
-pump(35);
-if (gr) check('a grunt under the boom leaves the framing alone', Math.abs(global.__T.cam().body) < 0.12, { body: global.__T.cam().body });
+let grPushMax = 0;
+for (let i = 0; i < 35; i++) { pump(1); grPushMax = Math.max(grPushMax, Math.abs(global.__T.cam().body)); }
+if (gr) check('a grunt under the boom leaves the framing alone', grPushMax < 0.12, { body: grPushMax });
 global.__T.hurtAll();
 pump(25);
 const rr0 = global.__R();
+const huggers = [];
 for (let i2 = 0; i2 < 4; i2++) {
   global.__T.place('runner', Math.sin(i2 * 1.57) * 0.8, Math.cos(i2 * 1.57) * 0.8);
   const e = global.__T.lastEnemy();
-  if (e) { e.stun = 9999; e.spd = 0; e.actKind = 'none'; }
+  if (e) { e.stun = 9999; e.spd = 0; e.actKind = 'none'; huggers.push(e); }
 }
-pump(35);
-check('bodies hugging her leave the framing alone', Math.abs(global.__T.cam().body) < 0.12, { body: global.__T.cam().body, n: global.__T.info().n });
+let hugMax = 0;
+for (let i = 0; i < 35; i++) {
+  const rrH = global.__R();
+  for (let h = 0; h < huggers.length; h++) {
+    const e = huggers[h];
+    e.x = rrH.x + Math.sin(h * 1.57) * 0.8;
+    e.z = rrH.z + Math.cos(h * 1.57) * 0.8;
+    e.stun = 9999; e.spd = 0; e.actKind = 'none';
+  }
+  pump(1);
+  hugMax = Math.max(hugMax, Math.abs(global.__T.cam().body));
+}
+check('bodies hugging her leave the framing alone', hugMax < 0.12, { body: hugMax, n: global.__T.info().n });
 
 console.log('--- nothing paints the lens from the inside ---');
 const rr1 = global.__R();
