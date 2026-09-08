@@ -2134,7 +2134,7 @@ function startGame() {
   var si = el('seedInput');
   var want = si ? String(si.value || '').trim().toUpperCase() : '';
   seedStr = want || ('RLY-' + Math.floor(Math.random() * 900000 + 100000));
-  el('seedLine').textContent = 'WORLD ' + seedStr + ' · ' + '';
+  el('seedLine').textContent = 'WORLD ' + seedStr + ' · ' + world.realm.n;
   buildWorld(seedStr);
   fogCur = fogTarget.slice();
   fogTarget = world.realm.fog.slice();
