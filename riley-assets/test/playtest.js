@@ -143,6 +143,8 @@ console.log('  wave reached      ', fin.wave, '(' + fin.state + ')');
 console.log('  kills / score     ', fin.kills, '/', fin.score, ' lives left', fin.lives + '/' + global.__R().maxLives);
 console.log('  hits taken        ', stats.deaths, '(combo best ×' + Math.max(1, fin.combo) + ')');
 console.log('  dashes            ', stats.dashes, ' smacks attempted', stats.swings);
+console.log('  loot snatched       ', fin.snatched, 'recovered', fin.recovered, 'run off with', fin.lost,
+  '(a tide with nothing to steal is a tide with nothing to chase)');
 console.log('  cam occluded avg  ', (avgBlock * 100).toFixed(1) + '%  peak ' + (stats.camBlockMax * 100).toFixed(0) + '%');
 console.log('  cam distance      ', stats.distMin.toFixed(1) + ' … ' + stats.distMax.toFixed(1), '(rig must stay inside the 13u budget)');
 console.log('  wedged on geometry  ', stats.stuck.length ? stats.stuck.length + '\u00d7 ' + JSON.stringify(stats.stuck.slice(0, 4)) : 'never');
@@ -162,6 +164,7 @@ expect('bot killed goblins', fin.kills >= SECONDS * 0.12, fin.kills);
 expect('camera never left its budget', stats.distMax <= 13, { distMax: +stats.distMax.toFixed(2) });
 expect('camera is not buried most of the time', avgBlock < 0.35, { avg: +avgBlock.toFixed(2) });
 expect('no permanent stuck spots', stats.stuck.length <= 3, stats.stuck.length);
+expect('the thieves actually work', fin.snatched > 0, fin.snatched);
 expect('the lens-hide is rare, not constant', lensPct < 0.12, { pct: +(lensPct * 100).toFixed(1) });
 if (wt.length > 2) {
   const over = wt.filter(w => w.frames / 60 > 75);

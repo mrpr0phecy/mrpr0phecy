@@ -516,6 +516,77 @@ if (inLens) {
 global.__T.god(false);
 })();
 
+console.log('--- goblins rob the floor: theft, chase, recovery ---');
+(function () {
+  global.RileyGame.toTitle();
+  global.RileyGame.start();
+  global.__T.god(true);
+  global.__T.wave(1);
+  pump(6);
+  global.__T.hurtAll();
+  global.__T.clearShots();
+  pump(50);                                  /* let the corpses splice out */
+  global.__T.clearShots();
+  const pk0 = global.__T.info().pk;
+  /* out past the gem magnet's reach, or Riley vacuums it before anyone can
+     be tempted — the theft only exists for loot she has not reached yet */
+  global.__T.place('grunt', 12, 0);
+  const thief = global.__T.lastEnemy();
+  check('a grunt is standing away from Riley', !!thief, thief && thief.k);
+  global.__T.drop('gem', 12.3, 0.3);
+  check('a gem is on the floor', global.__T.info().pk > pk0, { pk: global.__T.info().pk, pk0 });
+  pump(34);                          /* past the 0.38s grace on fresh loot */
+  const stole = global.__T.enemies().some(x => x.steal > 0);
+  check('a goblin pocketed it', stole, global.__T.enemies().map(x => x.steal));
+  const pkStolen = global.__T.info().pk;
+  global.__T.hurtAll();
+  pump(8);
+  check('killing the thief drops the loot back', global.__T.info().pk > pkStolen, { before: pkStolen, after: global.__T.info().pk });
+  check('nobody is carrying anything after a wipe', global.__T.enemies().every(x => x.steal === 0), global.__T.enemies().map(x => x.steal));
+  /* and if you let it reach the rim, that is your score gone */
+  global.__T.nextWave();
+  pump(70);
+  global.__T.clearShots();
+  const carrier = global.__T.lastEnemy();
+  check('a runner exists to be made a thief', !!carrier, carrier && carrier.k);
+  if (carrier) {
+    global.__T.tp(0, 0);
+    carrier.gemsStolen = 2; carrier.stolen = ['gem', 'gem'];
+    carrier.x = 0; carrier.z = 30;           /* past ARENA_R (16.5) + the 12.5 rim */
+    carrier.stun = 0; carrier.spawnT = 0; carrier.actKind = 'none';
+    const sc0 = global.__T.info().score;
+    pump(6);
+    check('a thief at the far rim escapes with the loot', carrier.gemsStolen === 0, carrier.gemsStolen);
+    check('and the score pays for it', global.__T.info().score < sc0, { sc0, now: global.__T.info().score });
+  }
+  global.__T.god(false);
+  pump(20);
+  /* and they eat the scenery when nobody is watching it */
+  global.__T.hurtAll();
+  pump(40);
+  global.__T.clearShots();
+  const cB = global.__T.nearCrystal();
+  check('a crystal stands within reach of the arena', !!cB && cB.d < 30, cB);
+  if (cB && cB.alive !== false) {
+    global.__T.place('grunt', cB.x - global.__R().x + 0.5, cB.z - global.__R().z);
+    const chewer = global.__T.lastEnemy();
+    if (chewer) { chewer.spd = 0; chewer.stun = 0; chewer.actKind = 'none'; chewer.spawnT = 0; chewer.recT = 0; }
+    const crB = global.__T.info().crystals, pkB = global.__T.info().pk;
+    pump(40);
+    /* separation can nudge the pinned goblin out of chewing range, and the
+       chew decays when it is — allow two windows before calling it broken */
+    check('a goblin at a crystal starts chewing it', global.__T.crystal(cB.i).gnaw > 0.05, { gnaw: global.__T.crystal(cB.i).gnaw });
+    pump(240);
+    check('the crystal is gone', global.__T.info().crystals < crB, { before: crB, after: global.__T.info().crystals });
+    check('the gnaw counter moved', global.__T.info().gnawed > 0, global.__T.info().gnawed);
+    /* the shard either landed on the floor for someone to take, or a goblin is
+       already running off with it — either way it is in play, not deleted */
+    const shard = global.__T.pkList().some(p => Math.hypot(p.x - cB.x, p.z - cB.z) < 3);
+    check('and it left a shard to fight over', shard || global.__T.info().snatched > 0,
+      { shard: shard, snatched: global.__T.info().snatched, pk: global.__T.info().pk });
+  }
+})();
+
 console.log('--- keys while typing in the seed field ---');
 const muteBefore = H.els['btnMute'].textContent;   /* the fake DOM's own default, whatever it is */
 H.emit('keydown', { code: 'KeyM', target: { tagName: 'INPUT' } });

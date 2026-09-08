@@ -225,6 +225,19 @@ function generate(seedInput) {
 
   /* ---------- convert to typed arrays ---------- */
   function toArr(a) { return new Float32Array(a); }
+  /* Three arcane crystals on the arena lip. Everything else the world offers is
+     out in the wilderness, which makes the bowl a flat place to stand; these
+     put a resource you can *lose* next to the fight — goblins chew what nobody
+     is standing beside, so mana becomes a thing you defend, and shattering one
+     first is a real choice rather than a chore on the way back. */
+  for (var ci2 = 0; ci2 < 3; ci2++) {
+    var ca = ci2 * (Math.PI * 2 / 3) + rand() * 0.85;
+    var crr = ARENA_R + 0.9 + rand() * 1.7;
+    var cx2 = Math.cos(ca) * crr, cz2 = Math.sin(ca) * crr;
+    crystals.push({ x: cx2, z: cz2, y: heightAt(cx2, cz2), r: 0.55, alive: true,
+      ph: rand() * Math.PI * 2, s: 0.9 + rand() * 0.5 });
+  }
+
   return {
     seed: seedStr,
     realm: realm,
