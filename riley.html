@@ -1462,7 +1462,7 @@ function renderWorld(){
   }
 }
 function render(){
-  gl.viewport(0,0,W,H);
+  gl.viewport(0,0,BW,BH);
   gl.depthMask(true);
   gl.clearColor(theme().fog[0]/255,theme().fog[1]/255,theme().fog[2]/255,1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
@@ -1483,17 +1483,37 @@ function render(){
   }
   drawGlowList(fx,PVM);
 }
-var W=innerWidth,H=innerHeight;
-function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}
+var W=innerWidth,H=innerHeight,BW=W,BH=H,renderScale=1;
+function resize(){
+  W=innerWidth;H=innerHeight;
+  var dpr=Math.min(window.devicePixelRatio||1,2);
+  BW=Math.max(1,Math.round(W*dpr*renderScale));
+  BH=Math.max(1,Math.round(H*dpr*renderScale));
+  canvas.width=BW;canvas.height=BH;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+}
 resize();addEventListener('resize',resize);
 
 /* ---------------- main loop ---------------- */
+var acc=0,FIXED=1/120,qualityT=0,lowStreak=0,hiStreak=0;
+function adaptQuality(){
+  // Nudge render scale to hold ~60fps without a stutter budget.
+  qualityT+=dt;
+  if(qualityT<0.55)return;
+  qualityT=0;
+  if(lastFps>0&&lastFps<48){lowStreak++;hiStreak=0}
+  else if(lastFps>=58){hiStreak++;lowStreak=0}
+  else {lowStreak=0;hiStreak=0}
+  if(lowStreak>=2&&renderScale>0.62){renderScale=Math.max(0.6,renderScale-0.1);resize();lowStreak=0}
+  else if(hiStreak>=4&&renderScale<1){renderScale=Math.min(1,renderScale+0.1);resize();hiStreak=0}
+}
 function loop(tms){
   requestAnimationFrame(loop);
   var t=tms/1000;
   dt=clamp(t-lastT,0.001,0.05);lastT=t;
   fpsT+=dt;fpsN++;
   if(fpsT>=0.5){lastFps=Math.round(fpsN/fpsT);fpsN=0;fpsT=0}
+  adaptQuality();
   if(state==='title'){
     time+=dt;
     titleA+=dt*.12;
@@ -1509,7 +1529,15 @@ function loop(tms){
     updateFx(dt);
     render();
   } else if(state==='play'||state==='pause'){
-    if(state==='play')update(dt);
+    if(state==='play'){
+      // Fixed-timestep physics for rock-solid feel on any refresh rate.
+      acc+=dt;
+      var steps=0;
+      var savedDt=dt;
+      while(acc>=FIXED&&steps<6){dt=FIXED;update(FIXED);acc-=FIXED;steps++;}
+      if(steps===6)acc=0; // avoid spiral of death after a hitch
+      dt=savedDt;
+    }
     else updateFx(dt);
     updateCamera(camYawTarget,R.x,R.y,R.z,dt);
     render();
@@ -1688,11 +1716,11 @@ function __shot(){
 window.__shot=__shot;
 window.__gpu=function(){
   try{
-    var buf=new Uint8Array(W*H*4);
-    gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+    var buf=new Uint8Array(BW*BH*4);
+    gl.readPixels(0,0,BW,BH,gl.RGBA,gl.UNSIGNED_BYTE,buf);
     var out=[];
-    for(var y=0;y<H;y+=6){for(var x=0;x<W;x+=6){
-      var i=(y*W+x)*4;
+    for(var y=0;y<BH;y+=6){for(var x=0;x<BW;x+=6){
+      var i=(y*BW+x)*4;
       out.push((buf[i]>>4)<<8|(buf[i+1]>>4)<<4|(buf[i+2]>>4));
     }}
     var map={};
