@@ -586,8 +586,10 @@ var CAMSET = {
   autoFrame: 1,   /* swing behind Riley while running                        0/1    */
   lockCam: 1,     /* hold the frame on the locked goblin                      0/1    */
   orbit: 1,       /* locked: A/D circle the target instead of the camera      0/1    */
-  zoom: 7.2,      /* boom length in units                                    3.4-12.5 */
-  invertY: 0
+  zoom: 8.2,      /* boom length in units                                    3.4-12.5 */
+  invertY: 0,
+  aimMode: 0      /* 0 = cursor-steer (default, never needs pointer lock)    0/1
+                     1 = pointer-lock aim (classic FPS look, click canvas)      */
 };
 try {
   var _cs = JSON.parse(localStorage.getItem('riley3d.camset') || 'null');
@@ -597,10 +599,11 @@ function saveCamSet() {
   try { localStorage.setItem('riley3d.camset', JSON.stringify(CAMSET)); } catch (e) {}
 }
 
-var camYaw = 0, camPitch = 0.34;
-var camYawTarget = 0, camPitchTarget = 0.34;
+var CAM_PITCH_HOME = 0.40;                     /* home tilt: player + fight clearly framed */
+var camYaw = 0, camPitch = CAM_PITCH_HOME;
+var camYawTarget = 0, camPitchTarget = CAM_PITCH_HOME;
 var CAM_PIT_MIN = -0.42, CAM_PIT_MAX = 1.26;
-var camDist = 7.2, camDistTarget = 7.2;        /* wheel zooms CAM_DIST_MIN..MAX */
+var camDist = 8.2, camDistTarget = 8.2;        /* wheel zooms CAM_DIST_MIN..MAX */
 var CAM_DIST_MIN = 3.4, CAM_DIST_MAX = 12.5;
 var camX = 0, camY = 6, camZ = 8;
 var camFov = 0.98;
@@ -803,7 +806,7 @@ var camSwiftT = 0;      /* >0 right after "re-centre": the swing is quicker */
 function resetCamera(soft) {
   if (!R) return;
   camYawTarget = R.yaw;
-  camPitchTarget = 0.34;
+  camPitchTarget = CAM_PITCH_HOME;
   camDistTarget = clamp(CAMSET.zoom, CAM_DIST_MIN, CAM_DIST_MAX);
   lastAimT = time - 99;         /* auto-frame/lock gates open immediately */
   if (!soft) { camYaw = camYawTarget; camPitch = camPitchTarget; camSwiftT = 0; }
@@ -812,11 +815,11 @@ function resetCamera(soft) {
 /* place the rig instantly behind Riley (run start; no fly-in from the title) */
 function camSnapToPlayer() {
   camYawTarget = camYaw = R.yaw;
-  camPitchTarget = camPitch = 0.34;
+  camPitchTarget = camPitch = CAM_PITCH_HOME;
   camDistTarget = camDist = clamp(CAMSET.zoom, CAM_DIST_MIN, CAM_DIST_MAX);
   camCollideD = camDist; camLift = 0; camRoll = camRollT = 0; camShoulder = 0; camBodyT = 0;
   camAutoT = 0; camBlockT = 0; camKickY = camKickP = camKickR = 0;
-  lookY = R.y + 1.16;
+  lookY = R.y + 1.30;
   camPivX = R.x; camPivY = lookY; camPivZ = R.z;
   var cp = Math.cos(camPitch);
   camX = R.x - Math.sin(camYaw) * cp * camDist;
@@ -833,6 +836,30 @@ function updateCamera(dtC, lookAt) {
   var aiming = camAiming();
   var locked = !!(lockOn && !lockOn.dead);
   var manual = pointerLocked || dragLookActive || gpAiming;
+  /* --- cursor steering ---
+   * The robust default: the camera turns to follow the mouse cursor, exactly
+   * like a virtual joystick centred on the screen. No pointer lock, no drag,
+   * no browser gesture/cooldown roulette — move the cursor, the camera turns;
+   * park it centre and the camera holds. Left-click fires. This is what keeps
+   * the game playable when requestPointerLock is refused (which every browser
+   * does at some point), and it means the camera can never be "stuck". */
+  var curActive = false;
+  if (state === 'play' && !pointerLocked && !dragLookActive && !gpAiming &&
+      finePointer && !isTouch && CAMSET.aimMode === 0) {
+    var cnx = mouseX / Ww * 2 - 1, cny = mouseY / Hh * 2 - 1;
+    var cmag = Math.hypot(cnx, cny);
+    var CDZ = 0.14;                                  /* centre dead zone */
+    if (cmag > CDZ) {
+      var ck = (cmag - CDZ) / (1 - CDZ) / cmag;      /* 0 at the zone edge → 1 at the rim */
+      var cax = cnx * ck, cay = cny * ck;
+      var cr = 1.2 + CAMSET.sens * 1.4;              /* rad/s at full deflection */
+      camYawTarget -= cax * cr * dtC;
+      camPitchTarget = clamp(camPitchTarget + cay * cr * 0.72 * dtC * (CAMSET.invertY ? -1 : 1), CAM_PIT_MIN, CAM_PIT_MAX);
+      lastAimT = time;
+      curActive = true;
+    }
+  }
+  manual = manual || curActive;
   var nearThreat = 1e9;
   for (var ci = 0; ci < enemies.length; ci++) {
     var ce = enemies[ci];
@@ -877,7 +904,28 @@ function updateCamera(dtC, lookAt) {
       if (spd > 3.0 && Math.abs(off) > 0.5 && nearThreat > 7.5) {
         camAutoT = Math.min(1, camAutoT + dtC * 1.7);
         camYawTarget = rateTo(camYawTarget, wantYaw, (0.8 + Math.abs(off) * 1.2) * camAutoT * camAutoT, dtC);
-      } else camAutoT = Math.max(0, camAutoT - dtC * 3);
+      } else {
+        camAutoT = Math.max(0, camAutoT - dtC * 3);
+        /* threat framing: standing still with a goblin in your blind spot is
+           the #1 "I got hit by something I never saw" moment. If the player
+           has been hands-off for a beat, ease the camera toward the most
+           off-screen nearby threat so the danger is shown, never a surprise.
+           Measured from the lens (eye → goblin vs the look axis), so a goblin
+           already framed between the camera and Riley never triggers a swing. */
+        if (spd <= 3.0 && nearThreat < 9) {
+          var tBest = 0, tWant = 0, tFound = false;
+          for (var ti = 0; ti < enemies.length; ti++) {
+            var te = enemies[ti];
+            if (te.dead) continue;
+            var tdT = Math.hypot(te.x - camX, te.z - camZ);
+            if (tdT > 16) continue;
+            var taT = Math.atan2(te.x - camX, te.z - camZ);
+            var offT = Math.abs(angDiff(taT, camYaw));
+            if (offT > 1.0 && offT > tBest) { tBest = offT; tWant = taT; tFound = true; }
+          }
+          if (tFound) camYawTarget = rateTo(camYawTarget, tWant, 1.5, dtC);
+        }
+      }
     } else camAutoT = 0;
   }
 
@@ -891,7 +939,7 @@ function updateCamera(dtC, lookAt) {
 
   /* ---- desired boom length ---- */
   var wantD = camDistTarget;
-  wantD *= 1 + spdF * 0.08;                            /* breathe out as you run */
+  wantD *= 1 + spdF * 0.05;                            /* breathe out as you run */
   if (R.dashing) wantD *= 1.05;
   if (aiming && !locked) wantD *= 0.8;                 /* in over the shoulder */
   if (locked) wantD += clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) * 0.15, 0, 2.2);
@@ -903,8 +951,8 @@ function updateCamera(dtC, lookAt) {
 
   /* ---- orbit pivot ---- */
   /* jump: hang with you going up, plant instantly on landing */
-  lookY = damp(lookY, ly + 1.16, R.vy > 0.5 ? 4.8 : 15, dtC);
-  var leadT = locked ? 0.05 : 0.115;                   /* lead, but never while duelling */
+  lookY = damp(lookY, ly + 1.30, R.vy > 0.5 ? 4.8 : 15, dtC);
+  var leadT = locked ? 0.05 : 0.08;                    /* lead, but never while duelling */
   var px = lx + R.vx * leadT, pz = lz + R.vz * leadT;
   if (R.dashing) { px += R.dashDX * 0.85; pz += R.dashDZ * 0.85; }
   /* shoulder only while engaging, and it eases in — an always-on side offset
@@ -998,7 +1046,7 @@ function updateCamera(dtC, lookAt) {
 
   m4LookRoll(VM, eye[0], eye[1], eye[2], ctr[0], ctr[1], ctr[2], camRoll + camKickR);
   /* FOV: dash punch, nova bloom, charge focus, aim-in narrow, widen if buried */
-  var fovT = 0.98 + CAMSET.fov * 0.02 + (R.dashing ? 0.09 : 0) + spdF * 0.045 +
+  var fovT = 0.98 + CAMSET.fov * 0.02 + (R.dashing ? 0.09 : 0) + spdF * 0.03 +
     (R.novaFx > 0 ? 0.10 : 0) - (R.charging ? chargePct() * 0.06 : 0) +
     (aiming && !locked ? -0.03 : 0) + camBlockT * 0.08 + Math.abs(camKickP) * 0.3;
   camFov = damp(camFov, fovT, 6.5, dtC);
@@ -1159,7 +1207,7 @@ function buffMul() {
   };
 }
 var DASH_CD = 0.52;        /* the HUD reads this to draw the charge bar */
-var JUMP_V = 13.8, JUMP_V2 = 12.6, GRAV = 42;
+var JUMP_V = 14.4, JUMP_V2 = 13.2, GRAV = 42;
 function newRiley() {
   var r = {
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: Math.PI, run: 0, air: 0, ground: true,
@@ -1253,21 +1301,21 @@ function stepPlayer(inp) {
   }
   if (R.dashing) {
     R.dashT -= fr;
-    R.vx = R.dashDX * 27; R.vz = R.dashDZ * 27;
+    R.vx = R.dashDX * 29; R.vz = R.dashDZ * 29;
     ringBurst(R.x, R.y + 0.3, R.z, [150, 220, 255], 2);
     if (R.dashT <= 0) { R.dashing = false; }
   } else {
     /* acceleration-based movement: snappy on ground, floaty control in air.
        exp() damping = the same feel at any tick rate, and it never overshoots
        (min(1, k*dt) both overshoots and dies on a stutter frame). */
-    var walkSpd = 9 * buffMul().spd * (game.lastStand ? 1.07 : 1);
+    var walkSpd = 10.2 * buffMul().spd * (game.lastStand ? 1.07 : 1);
     /* momentum: a straight run builds to a jog, strafing stays honest */
     if (walking && R.ground && Math.abs(angDiff(R.yaw, Math.atan2(mvx, mvz))) < 0.5) {
       R.mo = Math.min(1, R.mo + fr * 1.6);
     } else R.mo = Math.max(0, R.mo - fr * 2.4);
     walkSpd *= 1 + R.mo * 0.14;
     var tvx = mvx * walkSpd, tvz = mvz * walkSpd;
-    var k = R.ground ? (walking ? 15 : 19) : 7.5;
+    var k = R.ground ? (walking ? 17 : 22) : 9.5;
     var a = 1 - Math.exp(-fr * k);
     R.vx += (tvx - R.vx) * a;
     R.vz += (tvz - R.vz) * a;
@@ -1394,7 +1442,7 @@ function stepPlayer(inp) {
   }
   /* dedicated melee: right mouse / F — always a swing, never a shot */
   if (inp.melee && R.meleeCd <= 0) meleeSwing(null);
-  R.mana = Math.min(R.manaMax, R.mana + fr * 4.2 * ((buffs.regen > 0 ? 2.5 : 1) * B.regen));
+  R.mana = Math.min(R.manaMax, R.mana + fr * 4.8 * ((buffs.regen > 0 ? 2.5 : 1) * B.regen));
 
   /* nova */
   if (inp.nova && R.mana >= R.manaMax) castNova();
@@ -1536,7 +1584,7 @@ function shotAimDir() {
   return { x: ax, y: ay, z: az };
 }
 function fireShot() {
-  R.shootCd = 0.16 * B.cast; R.shootAnim = 0.14;
+  R.shootCd = 0.14 * B.cast; R.shootAnim = 0.14;
   var d = shotAimDir();
   var sx = R.x + d.x * 0.7, sy = R.y + 1.05, sz = R.z + d.z * 0.7;
   var dm = buffMul().dmg;
@@ -2502,7 +2550,7 @@ function pickBoon(i) {
   game.boonOffer = null;
   hide('ovPick');
   state = 'play';
-  if (finePointer) { try { canvas.requestPointerLock(); } catch (e) {} }
+  if (CAMSET.aimMode === 1 && finePointer && !isTouch) { try { canvas.requestPointerLock(); } catch (e) {} }
   applyBoon(b);
   showBanner(b.n, '+ ' + b.d);
   popText(R.x, R.y + 2.1, R.z, b.ico + ' ' + b.n, true, '#ffe9a8');
@@ -3194,13 +3242,15 @@ function render() {
      identifiable from the corner of your eye without looking for the reticle */
     if (lockOn === ee) {
       var lg = 0.5 + 0.25 * Math.sin(time * 7);
-      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + 0.07, ee.rz, ee.r * 2.3, 255, 214, 94, 0.3 * lg);
-      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h * 1.05, ee.rz, ee.r * 1.1, 255, 230, 140, 0.24 * lg);
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + 0.07, ee.rz, ee.r * 2.6, 255, 214, 94, 0.45 * lg);
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h * 1.05, ee.rz, ee.r * 1.15, 255, 230, 140, 0.34 * lg);
     }
     /* lunge windup: rising red flare at the feet — dodge window made visible */
     if (ee.tele > 0) {
       var tg = 1 - ee.tele / 0.3;
       haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h * 0.45, ee.rz, ee.r * (1.4 + tg * 0.8), 255, 80, 60, 0.22 + tg * 0.42);
+      /* head-height flare too, so the telegraph reads without looking down */
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h + 0.5, ee.rz, 0.22 + tg * 0.12, 255, 100, 70, 0.35 + tg * 0.5);
     }
     if (ee.k === 'boss' && ee.actKind === 'slam' && ee.actT > 0) {
       var st = 1 - ee.actT / 0.5; /* 0 → 1 as the pound lands */
@@ -3624,6 +3674,7 @@ document.addEventListener('keydown', function (e) {
   }
   if (e.code === 'KeyC') meleePulse = 0.05;
   if (e.code === 'KeyR' && state === 'play') resetCamera(true);
+  if (e.code === 'KeyL' && state === 'play') { toggleAimMode(); }
   if (e.code === 'KeyV' && state === 'play') {
     CAMSET.autoFrame = CAMSET.autoFrame ? 0 : 1;
     CAMSET.lockCam = CAMSET.lockCam ? 0 : 1;
@@ -3643,6 +3694,11 @@ window.addEventListener('blur', function () {
 });
 document.addEventListener('pointerlockchange', function () {
   pointerLocked = document.pointerLockElement === canvas;
+  if (!pointerLocked) {
+    /* re-centre the steering anchor: coming out of a lock must never fling
+       the camera toward wherever the cursor happens to be sitting */
+    mouseX = Ww / 2; mouseY = Hh / 2;
+  }
 });
 function lookDelta(mx, my, k) {
   var sens = k * CAMSET.sens;
@@ -3665,10 +3721,17 @@ canvas.addEventListener('pointerdown', function (e) {
   if (e.button === 0) {
     if (pointerLocked) {
       mouseFire = true;
-    } else if (finePointer) {
+    } else if (CAMSET.aimMode === 1 && finePointer) {
+      /* pointer-lock aim (opt-in): click the arena to grab the cursor. If the
+         browser refuses, the cursor-steer path below still works — a failed
+         lock is never a dead camera. */
       try { canvas.requestPointerLock(); } catch (err) {}
       dragLookActive = true;
       dragMovedAcc = 0;
+    } else {
+      /* cursor aim (default): left-click simply fires at the cursor. */
+      mouseFire = true;
+      tapPulse = 0.07;
     }
   } else if (e.button === 2) {
     /* right mouse = the staff butt. Deliberately NOT the dash: aiming and
@@ -3981,13 +4044,20 @@ function startGame() {
   frame = 0;
   acc = 0;
   audioInit();
-  if (finePointer && !isTouch) { try { canvas.requestPointerLock(); } catch (e) {} }
+  /* grab the cursor only in pointer-lock aim mode — cursor mode needs the
+     pointer free, and an eager lock there is exactly what made controls feel
+     stuck on browsers that refuse or throttle the request */
+  if (CAMSET.aimMode === 1 && finePointer && !isTouch) { try { canvas.requestPointerLock(); } catch (e) {} }
+  /* drop focus from whatever button started the run so Space can't re-click
+     it mid-fight (a hidden focused button eats the jump key) */
+  try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
   tickRand = C.mulberry32(runSeedNum ^ 0x7A7A);
   startWave(1);
   updateHUD();
 }
 function endGame() {
   state = 'over';
+  try { if (document.pointerLockElement === canvas) document.exitPointerLock(); } catch (e) {}
   var isBest = game.score > best;
   if (isBest) {
     best = game.score;
@@ -4044,6 +4114,26 @@ var CAM_TGL = [
   { id: 'tglOrbit', key: 'orbit' },
   { id: 'tglInvY', key: 'invertY' }
 ];
+/* AIM MODE — cursor steer vs pointer lock. Two dials on the same game:
+   cursor mode never asks the browser for anything (nothing can refuse, so the
+   camera can never stick), lock mode is the classic FPS look. Both persist. */
+function aimModeLabel() { return CAMSET.aimMode === 1 ? 'LOCK AIM' : 'CURSOR AIM'; }
+function toggleAimMode() {
+  CAMSET.aimMode = CAMSET.aimMode === 1 ? 0 : 1;
+  saveCamSet();
+  camUiRefresh();
+  sfxGated('pop');
+  /* switching to lock mode is when we *try* to grab the pointer; switching
+     back is when we make sure it is free again */
+  if (CAMSET.aimMode === 1 && state === 'play' && finePointer && !isTouch) {
+    try { canvas.requestPointerLock(); } catch (e) {}
+  } else if (CAMSET.aimMode === 0) {
+    try { if (document.pointerLockElement === canvas) document.exitPointerLock(); } catch (e) {}
+    mouseX = Ww / 2; mouseY = Hh / 2;
+  }
+  showBanner('AIM: ' + aimModeLabel(),
+    CAMSET.aimMode === 1 ? 'CLICK CANVAS TO LOCK · MOUSE LOOKS' : 'CAMERA FOLLOWS YOUR CURSOR · CLICK TO CAST');
+}
 function camUiRefresh() {
   var i, r;
   for (i = 0; i < CAM_UI.length; i++) {
@@ -4056,6 +4146,8 @@ function camUiRefresh() {
     var b = el(CAM_TGL[i].id);
     if (b) { b.classList.toggle('on', !!CAMSET[CAM_TGL[i].key]); b.setAttribute('aria-pressed', CAMSET[CAM_TGL[i].key] ? 'true' : 'false'); }
   }
+  var ab = el('tglAim');
+  if (ab) { ab.classList.toggle('on', CAMSET.aimMode === 1); ab.textContent = aimModeLabel(); }
 }
 function camUiBind() {
   CAM_UI.forEach(function (r) {
@@ -4092,6 +4184,9 @@ function camUiBind() {
 function pauseGame() {
   if (state !== 'play') return;
   state = 'pause';
+  /* a pause menu you cannot click because the cursor is still locked is not
+     a menu — hand the pointer back and let resume re-grab it if lock mode */
+  try { if (document.pointerLockElement === canvas) document.exitPointerLock(); } catch (e) {}
   camUiRefresh();
   el('pScore').textContent = Math.round(game.score);
   el('pWave').textContent = game.wave;
@@ -4105,7 +4200,7 @@ function resumeGame() {
   if (state !== 'pause') return;
   state = 'play';
   hide('ovPause');
-  if (finePointer && !isTouch) { try { canvas.requestPointerLock(); } catch (e) {} }
+  if (CAMSET.aimMode === 1 && finePointer && !isTouch) { try { canvas.requestPointerLock(); } catch (e) {} }
 }
 function titleScene() {
   if (!world) buildWorld(seedStr || 'RILEY');
@@ -4160,6 +4255,7 @@ el('btnPurge').onclick = function () {
   purgeBestiary();
   el('bestLine2').textContent = '🧠 Goblin memories purged';
 };
+el('tglAim').onclick = toggleAimMode;
 /* buff bar rows (⚡ damage · ☄ speed · ✦ mana surge) */
 makeBuffRow('⚡', '#ffd75e', 'dmg');
 makeBuffRow('☄', '#7fe4ff', 'spd');
@@ -4203,7 +4299,7 @@ window.__R = function () {
     dashCd: R ? R.dashCd : 0, shootCd: R ? R.shootCd : 0, charge: R ? R.charge : 0,
     rope: R ? R.rope : 0, landT: R ? R.landT : 0, maxLives: game.maxLives,
     lastStand: !!game.lastStand,
-    fx: fx.length, fps: lastFps,
+    fx: fx.length, fps: lastFps, shots: shots.length,
     mana: R ? R.mana : 0, inv: R ? R.inv : 0,
     kbx: R ? R.kbx : 0, kbz: R ? R.kbz : 0, kbT: R ? R.kbT : 0,
     buffs: { dmg: buffs.dmg, spd: buffs.spd, regen: buffs.regen },

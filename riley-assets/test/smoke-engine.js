@@ -189,6 +189,39 @@ const prR = global.__proj(global.__R().x + global.__T.basis().right[0] * 4, glob
 const prC = global.__proj(global.__R().x, global.__R().y + 1, global.__R().z);
 check('projection agrees with the view basis', prR && prC && prR[0] > prC[0], { prR, prC });
 
+console.log('--- cursor aim: camera follows the mouse, no pointer lock needed ---');
+/* the whole point of the fix: with NO pointer lock, moving the cursor must
+   steer the camera (dead zone in the middle), and a left click must fire. */
+global.__T.camSet('aimMode', 0);
+global.document.pointerLockElement = null;
+global.__T.god(true);
+global.__T.hurtAll();
+pump(10);
+global.__T.clearShots();
+H.emit('mousemove', { clientX: 400, clientY: 225, movementX: 0, movementY: 0 });  /* centre: hold */
+pump(20);
+const cy0 = global.__R().camYaw;
+pump(20);
+check('cursor centred holds the camera still', Math.abs(global.__R().camYaw - cy0) < 0.02, { cy0, now: global.__R().camYaw });
+H.emit('mousemove', { clientX: 799, clientY: 225, movementX: 0, movementY: 0 });  /* right edge: turn */
+pump(20);
+const cy1 = global.__R().camYaw;
+check('cursor at the right edge turns the camera', cy1 < cy0 - 0.03, { cy0, cy1 });
+/* click-to-fire in cursor mode */
+H.emit('mousemove', { clientX: 400, clientY: 225, movementX: 0, movementY: 0 });
+pump(8);
+const shotsBefore = global.__R().shots;
+H.elEmit('cv', 'pointerdown', { pointerType: 'mouse', button: 0, clientX: 400, clientY: 225 });
+pump(2);
+H.emit('pointerup', { pointerType: 'mouse', button: 0 });
+const shotsAfter = global.__R().shots;
+check('a left click fires a bolt (cursor aim)', shotsAfter > shotsBefore, { shotsBefore, shotsAfter });
+/* aim-mode toggle flips the scheme and persists */
+H.elClick('tglAim');
+check('aim mode toggles to pointer-lock', global.__T.camGet().aimMode === 1, global.__T.camGet().aimMode);
+H.elClick('tglAim');
+check('aim mode toggles back to cursor', global.__T.camGet().aimMode === 0, global.__T.camGet().aimMode);
+
 console.log('--- melee chain: two jabs, then a cleave ---');
 global.__T.wave(1); pump(12); global.__T.hurtAll(); global.__T.clearShots(); pump(6);
 global.__T.setInv(1e9);
