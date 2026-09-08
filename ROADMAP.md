@@ -1,10 +1,13 @@
 # Roadmap
 
-A small, owner-led backlog for improving the existing site. This replaces the
-old multi-agent staff board: use one fresh development conversation at a time,
-finish a reviewable change, run the checks, and push it before starting another.
+Owner-led product ideas, not the current operational work queue. Coordinate
+implementation through [STAFF.md](STAFF.md); current measured blockers and
+owner dependencies are in [staff/OPEN.md](staff/OPEN.md) and the generated
+staff report. Prefer one small, reviewable change at a time.
 
-Last reviewed: 2026-09-04.
+The ideas below were last reviewed on 2026-09-04; some implementations have
+since landed. Recheck the actual code and GitHub evidence before claiming an
+item. This historical list does not override current staff decisions.
 
 ## Now — safety and correctness
 

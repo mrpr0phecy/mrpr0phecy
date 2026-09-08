@@ -23,21 +23,30 @@ traps that have already cost people time.
 
 Start there whether you are a human or an AI agent.
 
-## AI Developer staff
+## Site Staff / AI Developer
 
-The repo runs an automated AI Developer facility
-([`.github/workflows/ai-developer.yml`](.github/workflows/ai-developer.yml),
-Mon & Thu 06:00 UTC or on-demand via *Actions → Run workflow*). Its staff —
-including the **Visual Design Expert** who curates the two design languages
-(ARCHITECTURE.md §5) — is registered in [`scripts/ai-staff.json`](scripts/ai-staff.json).
+**[STAFF.md](STAFF.md)** is the operations entry point: the site's purpose,
+accountable specialist profiles, work claims, handovers and binding decisions.
+The permanent **AI Developer** workflow runs Mon & Thu 06:00 UTC or on demand.
+It gathers evidence, prioritises useful work and can propose verified numeric
+count maintenance — not unreviewed generated tools.
 
 ```bash
-node scripts/ai-developer.js staff    # meet the staff
-node scripts/ai-developer.js audit    # run every staff audit
-node scripts/ai-developer.js auto     # audit + safe fixes (+ generation when AI_API_KEY is set)
+node scripts/ai-developer.js staff    # missions, responsibilities, review limits
+node scripts/ai-developer.js plan     # read-only audits + actionable priorities
+python3 staff/scan.py --mine          # cached branch and working-tree overlaps
 ```
 
-More in [AGENTS.md §8](AGENTS.md).
+Open `ai-developer/reports/latest.html` for the searchable offline dashboard;
+JSON/Markdown evidence is saved alongside it and uploaded as Actions artifacts
+even on failed checks. No API key is needed. Profiles are **not** separate live
+agents; inherited failing tests are reported honestly rather than hidden.
+Scheduled auto mode never calls a provider; optional drafts require an explicit
+brief, model, key, passing gates and human review.
+
+[Staff operating guide](staff/README.md) ·
+[Automation setup](docs/AI-DEVELOPER-SETUP.md) ·
+[Research and rationale](staff/RESEARCH.md)
 
 ## Money & monetisation
 
@@ -51,8 +60,8 @@ money-related.
 |---|---|
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
-| Tools | 708, indexed by `cards/cards.json` |
-| Add a tool | Write `cards/<name>.html`, run `node generate-cards-json.js`, bump the count in `index.html` |
+| Tool inventory | Derived from `cards/cards.json`; not a growth target |
+| Add a tool | Follow ARCHITECTURE.md; generate the index, sync counts with `scripts/sync-counts.py`, regenerate the sitemap and verify |
 
 ## Local preview
 

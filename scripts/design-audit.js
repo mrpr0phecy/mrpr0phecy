@@ -12,7 +12,7 @@
  *
  * Usage:
  *   node scripts/design-audit.js            # text report, exit 0 if no FAIL
- *   node scripts/design-audit.js --strict   # exit 1 on FAIL (used by CI)
+ *   node scripts/design-audit.js --strict   # compatibility flag; FAIL always exits 1
  *   node scripts/design-audit.js --json     # machine-readable summary
  *
  * Conventions checked (keep the hub pages in line with them):
@@ -33,9 +33,11 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const args = new Set(process.argv.slice(2));
 const JSON_OUT = args.has('--json');
-const STRICT = args.has('--strict');
+// --strict is retained for existing callers; failures are always failures.
 
 const counts = { pass: 0, fail: 0, warn: 0 };
+const findings = [];
+let section = '';
 
 function read(rel) {
   return fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -49,26 +51,22 @@ function cardCount() {
   }
 }
 
-function check(name, ok, detail) {
-  if (JSON_OUT) return;
-  if (ok) {
-    counts.pass += 1;
-    console.log(`  PASS  ${name}`);
-  } else {
-    counts.fail += 1;
-    console.log(`  FAIL  ${name}${detail ? ` — ${detail}` : ''}`);
-  }
+function check(name, ok, detail = '') {
+  const status = ok ? 'pass' : 'fail';
+  counts[status] += 1;
+  findings.push({ section, name, status, detail });
+  if (!JSON_OUT) console.log(`  ${status.toUpperCase()}  ${name}${detail && !ok ? ` — ${detail}` : ''}`);
 }
 
-function warn(name, detail) {
-  if (JSON_OUT) return;
+function warn(name, detail = '') {
   counts.warn += 1;
-  console.log(`  WARN  ${name}${detail ? ` — ${detail}` : ''}`);
+  findings.push({ section, name, status: 'warn', detail });
+  if (!JSON_OUT) console.log(`  WARN  ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
 function banner(title) {
-  if (JSON_OUT) return;
-  console.log(`\n── ${title}`);
+  section = title;
+  if (!JSON_OUT) console.log(`\n── ${title}`);
 }
 
 /** Top-level CSS-rule scan: does a rule whose selector matches `selRe`
@@ -112,11 +110,6 @@ check('sticky bar buttons >= 40px', ruleHas(s, /\.sticky-action-btn\s*\{/, ['wid
 check('category pills >= 40px', ruleHas(s, /\.cat-pill\s*\{/, ['min-height: 40px']));
 check('dock pills >= 40px', ruleHas(s, /\.dock-pill\s*\{/, ['min-height: 40px']));
 check('no-results state is class-based', s.includes('class="no-results"'));
-check('music spotlight is class-based', s.includes('class="music-spotlight"'));
-check(`hero count claims ${N}+`, s.includes(`id="heroToolCount">${N}+`));
-check(`search placeholder claims ${N}+`, s.includes(`Search ${N}+ free tools`));
-check(`category 'all' count claims ${N}`, s.includes(`id="count-all">${N}<`));
-check(`results text claims ${N}`, s.includes(`Showing all <strong>${N}</strong> tools`));
 
 banner('Product A · tool.html (standalone viewer)');
 s = read('tool.html');
@@ -132,11 +125,10 @@ check('resource box class-based', s.includes('class="resource-box"'));
 banner('Product A · 404.html');
 s = read('404.html');
 check('token #2dd4ff', s.includes('#2dd4ff'));
-check('Inter webfont linked', s.includes('family=Inter'));
+if (s.includes('fonts.googleapis.com')) warn('404.html requests an external font', 'Prefer the existing system font stack when next reviewing this page; no automatic aesthetic edits.');
 check('guard color-scheme', /color-scheme:\s*dark/.test(s));
 check('guard :focus-visible', /:focus-visible\s*\{/.test(s));
 check('guard reduced-motion', s.includes('@media (prefers-reduced-motion: reduce)'));
-check(`CTA claims ${N} free tools`, s.includes(`${N} free offline browser tools`));
 
 banner('Product A · donate.html');
 s = read('donate.html');
@@ -145,23 +137,7 @@ check('guard color-scheme', /color-scheme:\s*dark/.test(s));
 check('guard :focus-visible', /:focus-visible\s*\{/.test(s));
 check('guard reduced-motion', s.includes('@media(prefers-reduced-motion:reduce)'));
 check('topbar links >= 40px', ruleHas(s, /\.topbar a\s*\{/, ['min-height:40px']));
-// donate.html is a money page, so a stale count there is an owner-consent fix
-// and stays advisory — but the warning has to be earned. Scan the page for the
-// counts it actually claims and only warn when one of them disagrees.
-{
-  const donateCounts = new Set();
-  [
-    /(\d{3,4})\s+(?:free,\s+)?(?:free\s+|offline\s+)?(?:ad-free\s+)?(?:browser\s+)?tools?/gi,
-    /<b>(\d{3,4})<\/b>/g
-  ].forEach((re) => {
-    let m;
-    while ((m = re.exec(s)) !== null) donateCounts.add(Number(m[1]));
-  });
-  const stale = [...donateCounts].filter((n) => n !== N);
-  if (stale.length) {
-    warn('donate.html tool count is stale', `says ${stale.join(', ')}, catalogue is ${N} — money page, fix only with owner consent`);
-  }
-}
+// Tool-count drift belongs to scripts/sync-counts.py, not to aesthetic checks.
 
 banner('Product A · cards/card.css (shared fragment hardening)');
 s = read('cards/card.css');
@@ -192,7 +168,9 @@ if (JSON_OUT) {
   const summary = {
     audit: 'design-audit (Visual Design Expert · static subset)',
     cards: N,
-    pass: 0, fail: counts.fail, warn: counts.warn,
+    pass: counts.pass, fail: counts.fail, warn: counts.warn,
+    findings,
+    limitations: ['Static token/guard checks only; no live contrast, layout, playback or keyboard measurement.'],
     ok: counts.fail === 0,
   };
   console.log(JSON.stringify(summary));
@@ -205,4 +183,4 @@ if (JSON_OUT) {
   }
 }
 
-process.exit(counts.fail > 0 && (STRICT || process.env.CI) ? 1 : 0);
+process.exit(counts.fail > 0 ? 1 : 0);

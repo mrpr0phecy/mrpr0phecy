@@ -9,6 +9,18 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-08 — @systems — Claim: mission-led staff system rebuild
+
+**Branch:** `arena/01a07ea6-mrpr0phecy` · **Requested by:** owner in this session (improve the repo's staff system after researching the site's purpose).
+
+**Scope:** `staff/`, AI Developer configuration/orchestrator, its workflow, staff audits/tests and onboarding. Research includes the live tools/music entry points, current check output, GitHub PR/run history and the standing decisions. The workflow contains an unresolved conflict marker; the orchestrator drops audit/fix failures; staff coordination describes work that has since landed. These are operational defects, not grounds to remove the permanent facility.
+
+**Approach:** one mission-led roster, evidence-backed planning and reporting, strict failure propagation, bounded human-reviewed drafts, transactional deterministic count fixes, and honest branch/working-tree collision reporting. Preserve both public products, analytics placement, monetisation, existing tools and owner-only decisions. No claim that a named specialist is a separate running agent.
+
+**Collision check:** existing `python3 staff/scan.py --mine` reports no overlap at the starting commit. Its shallow-history and dirty-tree limitations will be covered by regression tests in this work.
+
+---
+
 ## 2026-09-03 — @manager — Coherence pass: PR #9 merged (644 tools), two security fixes shipped, network policy D-009, branch dispositions
 
 **Merged today:** PR #8 (manager pass) and **PR #9 — 82 new tools, catalogue now 644**. PR #9

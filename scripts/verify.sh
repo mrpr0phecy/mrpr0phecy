@@ -17,6 +17,7 @@
 #   9. tool-count claims      — scripts/sync-counts.py --check
 #  10. sitemap freshness      — scripts/build-sitemap.py --check
 #  11. card accessibility     — scripts/check-a11y.py
+#  12. staff facility          — configuration and isolated regression tests
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -28,25 +29,25 @@ ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
 note() { printf '  \033[33mNOTE\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAILS=$((FAILS+1)); }
 
-section "1/11 catalogue consistency (check-cards.py)"
+section "1/12 catalogue consistency (check-cards.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-cards.py; then ok "catalogue coherent"; else fail "catalogue incoherent"; fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "2/11 placeholder IDs in *.html"
+section "2/12 placeholder IDs in *.html"
 # Hard placeholders anywhere; YOUR_ only inside URLs/attributes (demo text
 # like 'YOUR_SYSTEM_PROMPT' in the prompt-injection lab is legitimate content).
 PH="dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|(src|href)=['\"][^'\"]*YOUR_"
-HITS=$(grep -rlE "$PH" --include='*.html' . 2>/dev/null || true)
+HITS=$(grep -rlE "$PH" --include='*.html' --exclude-dir=ai-developer --exclude-dir=.git . 2>/dev/null || true)
 if [ -n "$HITS" ]; then fail "placeholder IDs found: $(echo "$HITS" | tr '\n' ' ')"; else ok "none"; fi
 
-section "3/11 target=_blank links without rel=noopener"
-BAD=$(grep -rn --include='*.html' -E '<a [^>]*target="_blank"' . 2>/dev/null | grep -v 'noopener' || true)
+section "3/12 target=_blank links without rel=noopener"
+BAD=$(grep -rn --include='*.html' --exclude-dir=ai-developer --exclude-dir=.git -E '<a [^>]*target="_blank"' . 2>/dev/null | grep -v 'noopener' || true)
 if [ -n "$BAD" ]; then fail "$(echo "$BAD" | head -5)"; else ok "all covered"; fi
 
-section "4/11 sitemap.xml"
+section "4/12 sitemap.xml"
 if python3 - <<'PY' 2>/dev/null
 import xml.etree.ElementTree as E
 root = E.parse('sitemap.xml').getroot()
@@ -56,40 +57,53 @@ PY
 then ok "parses, entries: $(python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))")"
 else fail "missing or empty"; fi
 
-section "5/11 top-level SEO scan (scan-seo.py)"
+section "5/12 top-level SEO scan (scan-seo.py)"
 if python3 scripts/scan-seo.py; then ok "no missing <title>"; else fail "see warnings above"; fi
 
-section "6/11 sensitive strings in tracked files"
+section "6/12 sensitive strings in tracked files"
 # Patterns are assembled at runtime so this script does not match itself.
 P1="gh""o_"; P2="gh""p_"; P3="github""_pat_"; P4="gh""s_"
-if grep -rnE "$P1|$P2|$P3|$P4" --exclude-dir=.git . 2>/dev/null | grep -v '^Binary' | head -5 | grep -q .; then
+if grep -rnE "$P1|$P2|$P3|$P4" --exclude-dir=.git --exclude-dir=ai-developer . 2>/dev/null | grep -v '^Binary' | head -5 | grep -q .; then
   fail "possible token in repo — scrub immediately"
 else
   ok "none"
 fi
 
-section "7/11 git state"
+section "7/12 git state"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   note "uncommitted changes present — commit before pushing"; NOTES=$((NOTES+1))
 else
   ok "working tree clean"
 fi
 
-section "8/11 card JavaScript syntax (check-card-js.py)"
+section "8/12 card JavaScript syntax (check-card-js.py)"
 if command -v node >/dev/null 2>&1; then
   if python3 scripts/check-card-js.py --all; then ok "every card's JS parses"; else fail "a card would be dead in production"; fi
 else
   note "node not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "9/11 tool-count claims (sync-counts.py)"
+section "9/12 tool-count claims (sync-counts.py)"
 if python3 scripts/sync-counts.py --check; then ok "every claim matches the catalogue"; else fail "stale tool counts — run: python3 scripts/sync-counts.py"; fi
 
-section "10/11 sitemap freshness (build-sitemap.py)"
+section "10/12 sitemap freshness (build-sitemap.py)"
 if python3 scripts/build-sitemap.py --check; then ok "sitemap matches tracked indexable pages"; else fail "sitemap stale — run: python3 scripts/build-sitemap.py"; fi
 
-section "11/11 card accessibility (check-a11y.py)"
+section "11/12 card accessibility (check-a11y.py)"
 if python3 scripts/check-a11y.py; then ok "labels resolve, images have alt, _blank is safe"; else fail "accessibility regressions in cards/"; fi
+
+section "12/12 staff facility configuration and regression tests"
+if command -v node >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+  if node scripts/ai-developer.js check \
+    && node --test scripts/tests/staff-*.test.js \
+    && python3 -m unittest discover -s staff/tests -p 'test_*.py'; then
+    ok "staff gates, safe fixes, draft quarantine, reports and coordination tested"
+  else
+    fail "staff facility regression — inspect the failing test"
+  fi
+else
+  fail "Node 22+ and Python 3 are required to verify the staff facility"
+fi
 
 if [ "$LIVE" = "1" ]; then
   section "live site (Pages, 30-60s after push)"

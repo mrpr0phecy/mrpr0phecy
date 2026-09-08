@@ -2,8 +2,9 @@
 
 Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
+Staff coordination and measured work priorities: [STAFF.md](STAFF.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-09-07. **ARCHITECTURE.md is authoritative if anything here
+Last updated: 2026-09-08. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
 ---
@@ -174,41 +175,51 @@ Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
 **mrpr0phecy** — ask before deleting, restructuring, or anything touching
 opensourcenews.html, monetisation or YouTube channel behaviour.
 
-## 9. AI Developer staff & the Visual Design Expert
+## 9. Site Staff / AI Developer facility
 
-`.github/workflows/ai-developer.yml` runs **Mon & Thu 06:00 UTC** (or on
-demand: Actions → AI Developer → *Run workflow*). Its brain is
-`scripts/ai-developer.js`; the staff roster lives in
-`scripts/ai-staff.json`; reports and generated drafts go to `ai-developer/`
-(gitignored, never committed). Modes: `auto | audit | generate | fix`,
-optional `category` focus (a staff id/tag such as `visual-design`, or a
-tool-category for generation) and `max_tools`. Requires the `AI_API_KEY`
-repository secret for generation; without it the run audits + fixes only.
+Start with **[STAFF.md](STAFF.md)** and **[staff/README.md](staff/README.md)**.
+Research and the rationale are in `staff/RESEARCH.md`; owner rulings remain
+in `staff/DECISIONS.md`. This is the one staff area, not a second product.
 
-Facility rule: **an edit must pass the staff audits before it is proposed.**
-Deterministic fixes (tool-count claims in `index.html`/`404.html`) may be
-applied directly and re-verified with `bash scripts/verify.sh`; anything else
-(including generated card drafts) lands in `ai-developer/` for a human to
-review and promote — never auto-committed into `cards/`.
+```bash
+node scripts/ai-developer.js staff   # mission, profiles, scopes and review limits
+node scripts/ai-developer.js check   # validate config and workflow contracts
+node scripts/ai-developer.js plan    # read-only checks + owned priorities
+python3 staff/scan.py --mine         # cached refs + staged/unstaged/untracked paths
+# Use --fetch explicitly when a current remote snapshot is needed.
+```
 
-**Meet the staff** (`node scripts/ai-developer.js staff`):
+The eight entries in `scripts/ai-staff.json` are **responsibility profiles,
+not independently running agents**. They cover delivery, catalogue/discovery,
+reliability, privacy, visual design/accessibility, SEO/content, music and
+financial correctness. `scripts/ai-audits.json` owns executable check definitions;
+`scripts/ai-config.json` owns validated limits. No duplicate prose roster.
+The Visual Design Expert still protects ARCHITECTURE.md §5's two design
+languages; static checks never substitute for browser geometry/contrast tests.
 
-- 🎨 **Visual Design Expert** — guardianship of the two design languages:
-  Product A *cyan terminal* (`index.html`, `tool.html`, `404.html`,
-  `donate.html`, `cards/card.css`) and Product B *neon night`
-  (`listen.html`). Audit-first, token-respecting, measurable (contrast AA,
-  390px overflow, ≥40px touch targets, focus visibility, reduced motion).
-  Runs `node scripts/design-audit.js` (zero-dependency static subset for
-  CI); a full browser-based audit checks live geometry and contrast.
-  Fix scope: count sync and guard-rule presence only — every aesthetic
-  decision is documented in ARCHITECTURE.md §5 and human-reviewed.
-- 🗂 **Catalogue Auditor & Generator** — `cards/`, `cards.json`, sitemap
-  coherence (`python3 scripts/check-cards.py`), fragment-only enforcement,
-  and draft generation.
-- 🔍 **SEO & Metadata Scanner** — every top-level page's title/description/
-  canonical/OG/twitter/theme-color and hreflang drift
-  (`python3 scripts/scan-seo.py`); advisory only.
+Operational runs write `ai-developer/reports/latest.html` (offline dashboard),
+`latest.json` (structured evidence) and `latest.md` (handoff). Reports/drafts
+are gitignored and uploaded by Actions even when checks fail. **Do not claim
+the facility is healthy because ordinary verify.sh passes**: inherited finance
+and loader-test failures are deliberately surfaced as separate staff blockers.
 
-If you are an agent taking on design work here: introduce yourself with
-`node scripts/ai-developer.js staff` (or read `scripts/ai-staff.json`),
-then read ARCHITECTURE.md §5 and run the audits before touching anything.
+The permanent `.github/workflows/ai-developer.yml` still runs **Mon & Thu
+06:00 UTC**, plus manual dispatch. Modes: `audit | plan | auto | fix | generate`.
+
+- `audit`/`plan` are read-only. `--focus` narrows a report, never a mutation gate.
+- `auto`/`fix` run all staff checks, then only eligible canonical numeric count
+  fixes. Clean-tree/index + source-hash checks protect existing work. Failed
+  post-fix checks roll back; concurrent human edits are preserved for recovery.
+- **`auto` never calls an AI provider**, even when a key exists. Only explicit
+  `generate`, with a useful brief, `AI_API_KEY`, `AI_MODEL`, and passing gates,
+  can request drafts. At most three requests; no silent retries/free-tier claims.
+- Drafts are **`.html.txt` quarantine**, never executed, auto-promoted or
+  auto-merged. A successful run can propose only verified count maintenance
+  through a single human-reviewed draft PR. Owner-only policy stays owner-only.
+
+Claim a scope with `python3 staff/coordinate.py claim ...`, then release/block
+with a summary, validation evidence and explicit next steps. Claims expire,
+are branch-scoped and are **not distributed locks or owner approval**. Never
+rewrite another session's board entry. Unknown shallow ancestry is reported
+as tree-only evidence, not a safe-to-push guarantee. See
+[the setup guide](docs/AI-DEVELOPER-SETUP.md) for commands, gates and recovery.
