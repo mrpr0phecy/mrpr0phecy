@@ -22,6 +22,10 @@ const IDS = [
   'banner',
   'bestLine',
   'bestLine2',
+  'boon0',
+  'boon1',
+  'boon2',
+  'boonBar',
   'bossBar',
   'btnAgain',
   'btnDaily',
@@ -69,6 +73,7 @@ const IDS = [
   'offArrows',
   'ovOver',
   'ovPause',
+  'ovPick',
   'ovTitle',
   'pCombo',
   'pKills',
@@ -95,6 +100,7 @@ const IDS = [
   'tglOrbit',
   'vignette',
 ];
+
 
 
 

@@ -34,7 +34,13 @@ global.RileyGame.start();
 check('state=play', global.RileyGame.state === 'play', global.RileyGame.state);
 check('session created', !!(global.RileyGame.session));
 
-const pump = (nFrames, perFrame) => H.pump(nFrames, perFrame);
+/* Between waves the game holds in 'pick' state until a boon is chosen. The
+ * suite is about combat, not menus, so the shared pump resolves the pick.
+ * Sections that care about the pick itself use H.pump directly. */
+const pump = (nFrames, perFrame) => H.pump(nFrames, (i) => {
+  if (global.RileyGame.state === 'pick') global.__T.pick(i % 3);
+  if (perFrame) perFrame(i);
+});
 
 console.log('--- 3s of idle sim (wave 1 spawns) ---');
 pump(180);
@@ -357,6 +363,48 @@ for (let i = 0; i < 60; i++) {
 }
 check('camera never under terrain', below === 0, { below, samples });
 check('camera stays in tight range (regression: no 50u flyaway)', far === 0, { far, samples });
+
+console.log('--- boons: the tide pauses for a pick ---');
+global.RileyGame.toTitle();
+global.RileyGame.start();
+global.__T.god(true);
+pump(6);
+const tickIdle = global.__T.info().tick;
+global.__T.nextWave();                    /* fires waveClear → the offer */
+check('wave clear offers a boon', global.RileyGame.state === 'pick', global.RileyGame.state);
+const offer = global.__T.offer();
+check('three distinct boons on offer', Array.isArray(offer) && offer.length === 3 && new Set(offer).size === 3, offer);
+const tickFrozen = global.__T.info().tick;
+H.pump(40);                               /* deliberately NOT auto-picking */
+check('the sim holds while you choose', global.__T.info().tick === tickFrozen && global.RileyGame.state === 'pick', { tick: global.__T.info().tick, at: tickFrozen });
+check('nothing can be picked twice', global.__T.pick(9) === null, null);
+const picked = global.__T.pick(1);
+check('picking applies a boon and resumes play', !!picked && global.RileyGame.state === 'play', { picked, state: global.RileyGame.state });
+check('the boon count advanced', global.__T.boonN() === 1, global.__T.boonN());
+H.pump(6);
+check('the sim moves again', global.__T.info().tick > tickFrozen, { tick: global.__T.info().tick, at: tickFrozen });
+/* each capped boon stops showing up once taken three times */
+const seenIds = {};
+for (let w = 0; w < 8; w++) {
+  if (w % 3 === 0) global.__T.hurtAll();
+  for (let i = 0; i < 400; i++) {
+    if (global.RileyGame.state === 'pick') {
+      (global.__T.offer() || []).forEach(id => { seenIds[id] = (seenIds[id] || 0) + 1; });
+      global.__T.pick(0);
+      break;
+    }
+    H.pump(1);
+    if (i % 20 === 0) global.__T.hurtAll();
+  }
+  pump(30);
+}
+check('repeat offers stack instead of re-offering capped boons', (seenIds['heart'] || 0) <= 3 && (seenIds['power'] || 0) >= 0, seenIds);
+check('boons taken accumulate across waves', global.__T.boonN() >= 4, global.__T.boonN());
+global.RileyGame.toTitle();
+global.RileyGame.start();
+check('a new run resets the boons', global.__T.boonN() === 0 && global.__T.boons().cast === 1 && global.__T.boons().dmg === 1, { n: global.__T.boonN(), b: global.__T.boons() });
+check('the pick overlay is closed on a fresh run', global.RileyGame.state === 'play', global.RileyGame.state);
+pump(30);
 
 console.log('--- determinism: same seed twice => same worldHash ---');
 const seed = 'TESTSEED42';

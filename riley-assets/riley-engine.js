@@ -66,7 +66,8 @@ function rankFor() {
 
 var game = { score: 0, wave: 1, lives: 5, maxLives: 5, kills: 0, combo: 0, combot: 0,
   comboBest: 0, boss: false, shake: 0, shakeT: 0, shakeAmp: 0, bannerT: 0, spawnQueue: [], spawnT: 0,
-  waveState: 'idle', clearT: 0, accentT: 0, slowT: 0, slowK: 1, lastStand: false };
+  waveState: 'idle', clearT: 0, accentT: 0, slowT: 0, slowK: 1, lastStand: false,
+  boonOffer: null, boonN: {}, boonsTaken: 0 };
 var shownScore = 0;
 
 /* world */
@@ -1069,10 +1070,12 @@ function updateAim() {
 var buffs = { dmg: 0, spd: 0, regen: 0 };
 var BUFF_MAX = { dmg: 9, spd: 9, regen: 6 };
 function buffMul() {
+  /* pickups give the temporary buffs, boons (12b) the permanent ones, and
+     every damage/speed number in the game goes through this one door */
   return {
-    dmg: buffs.dmg > 0 ? 1.35 : 1,
-    spd: buffs.spd > 0 ? 1.22 : 1,
-    regen: buffs.regen > 0 ? 2.5 : 1
+    dmg: (buffs.dmg > 0 ? 1.35 : 1) * B.dmg * (game.lastStand ? 1.25 : 1),
+    spd: (buffs.spd > 0 ? 1.22 : 1) * B.spd,
+    regen: (buffs.regen > 0 ? 2.5 : 1) * B.regen
   };
 }
 var DASH_CD = 0.52;        /* the HUD reads this to draw the charge bar */
@@ -1161,7 +1164,7 @@ function stepPlayer(inp) {
     var dd0 = walking ? mvx : aimX, dd1 = walking ? mvz : aimZ;
     var dl = Math.hypot(dd0, dd1) || 1;
     R.dashDX = dd0 / dl; R.dashDZ = dd1 / dl;
-    R.dashing = true; R.dashT = 0.17; R.dashCd = DASH_CD;
+    R.dashing = true; R.dashT = 0.17; R.dashCd = dashCdMax();
     R.inv = Math.max(R.inv, 0.3); R.dodgeT = 0.34;   /* the perfect-dodge window */
     R.vy = Math.max(R.vy, R.ground ? 0 : 1.2);       /* air-dash holds you up */
     burst(R.x, R.y + 0.7, R.z, [130, 210, 255], 12, 5, 1.5, 0.3, 0.4);
@@ -1199,11 +1202,11 @@ function stepPlayer(inp) {
   /* jump / double jump */
   if (inp.jump) R.jumpBuf = 0.14;
   if (R.jumpBuf > 0 && (R.ground || R.coyote > 0)) {
-    R.vy = JUMP_V; R.ground = false; R.coyote = 0; R.jumpBuf = 0; R.air = 1;
+    R.vy = JUMP_V * B.jumpK; R.ground = false; R.coyote = 0; R.jumpBuf = 0; R.air = 1;
     ringBurst(R.x, R.y + 0.05, R.z, [220, 235, 255], 3);
     sfx('jump');
   } else if (R.jumpBuf > 0 && R.air === 1) {
-    R.vy = JUMP_V2; R.air = 2; R.jumpBuf = 0;
+    R.vy = JUMP_V2 * B.jumpK; R.air = 2; R.jumpBuf = 0;
     ringBurst(R.x, R.y + 0.1, R.z, [120, 220, 255], 4);
     sfx('djump');
   }
@@ -1311,7 +1314,7 @@ function stepPlayer(inp) {
   }
   /* dedicated melee: right mouse / F — always a swing, never a shot */
   if (inp.melee && R.meleeCd <= 0) meleeSwing(null);
-  R.mana = Math.min(R.manaMax, R.mana + fr * 4.2 * (buffs.regen > 0 ? 2.5 : 1));
+  R.mana = Math.min(R.manaMax, R.mana + fr * 4.2 * ((buffs.regen > 0 ? 2.5 : 1) * B.regen));
 
   /* nova */
   if (inp.nova && R.mana >= R.manaMax) castNova();
@@ -1363,9 +1366,9 @@ function meleeSwing(prefetch) {
   if (R.meleeCd > 0 || state !== 'play') return false;
   var n = R.meleeN | 0;
   var fin = n === 2;
-  var reach = fin ? 2.5 : 2.0;
+  var reach = (fin ? 2.5 : 2.0) + B.reach;
   var arc = fin ? 3.2 : 1.2;                       /* half-angle, radians */
-  var dmg = (fin ? 4.5 : 2.2) * buffMul().dmg * (game.lastStand ? 1.25 : 1);
+  var dmg = (fin ? 4.5 : 2.2) * buffMul().dmg;
   /* soft lock: turn to meet whoever is closest before the swing lands. A combo
      that drops because your aim was 3 degrees off feels broken, not hard. */
   if (!fin) {
@@ -1453,7 +1456,7 @@ function shotAimDir() {
   return { x: ax, y: ay, z: az };
 }
 function fireShot() {
-  R.shootCd = 0.16; R.shootAnim = 0.14;
+  R.shootCd = 0.16 * B.cast; R.shootAnim = 0.14;
   var d = shotAimDir();
   var sx = R.x + d.x * 0.7, sy = R.y + 1.05, sz = R.z + d.z * 0.7;
   var dm = buffMul().dmg;
@@ -1469,7 +1472,7 @@ function chargePct() { return R ? clamp((R.charge - CHARGE_T) / CHARGE_SPAN, 0, 
 function releaseCharge() {
   var pw = chargePct();
   if (pw < 0.12) { fireShot(); return; }
-  R.shootCd = 0.3; R.shootAnim = 0.28;
+  R.shootCd = 0.3 * B.cast; R.shootAnim = 0.28;
   var tier = pw >= 0.85 ? 2 : 1;
   var dm = buffMul().dmg;
   var d = shotAimDir();
@@ -1478,7 +1481,7 @@ function releaseCharge() {
   shots.push({
     x: sx, y: sy, z: sz, vx: ax * 27, vy: d.y, vz: az * 27, life: 1.8,
     r: (tier === 2 ? 0.42 : 0.3) * (dm > 1 ? 1.15 : 1), big: true, dmg: (tier === 2 ? 6 : 3) * dm,
-    pierce: tier === 2 ? 3 : 1, col: tier === 2 ? [180, 120, 255] : [255, 140, 60], hitSet: null
+    pierce: (tier === 2 ? 3 : 1) + B.pierce, col: tier === 2 ? [180, 120, 255] : [255, 140, 60], hitSet: null
   });
   burst(sx, sy, sz, tier === 2 ? [190, 130, 255] : [255, 170, 70], tier === 2 ? 22 : 14, 7, 0, 0.28, 0.5);
   ringBurst(sx, sy, sz, tier === 2 ? [200, 150, 255] : [255, 180, 90], 4);
@@ -2033,7 +2036,7 @@ function killGob(e, smash) {
   }
   var c = gobbyCol(e.k);
   game.combo = Math.min(99, game.combo + 1);
-  game.combot = 4;
+  game.combot = B.comboT;
   game.comboBest = Math.max(game.comboBest, game.combo);
   var pts = e.sc * Math.max(1, game.combo - 0);
   game.score += pts;
@@ -2119,6 +2122,12 @@ function hitRiley(e) {
   var kYaw = angDiff(camYaw, Math.atan2(-(dx / d), -(dz / d)));
   camKick(clamp(kYaw, -0.5, 0.5) * 0.055, -0.05, kYaw > 0 ? -0.03 : 0.03);
   if (!e.dead && e.brain) e.brain.reward('hit');
+  if (B.thorns > 0 && !e.dead) {
+    /* spirit ward: the hit costs them too. A goblin that dies to the ward
+       halfway through its own lunge never lands — best free kill in the game */
+    damageGob(e, 1.4 * B.thorns * buffMul().dmg, -dx, -dz);
+    ringBurst(e.x, e.y + e.h * 0.6, e.z, [180, 255, 220], 4);
+  }
   e.dmgDealt += 1;
   hurt();
   e.vx -= dx / d * 7; e.vz -= dz / d * 7;
@@ -2245,6 +2254,114 @@ function startWave(n) {
   game.clearT = 0;
   updateHUD();
 }
+/* ================================================================
+ * 12b. boons — one pick between every wave
+ *
+ * Why this exists: the tide is the same fight 20 times over unless the run
+ * *changes shape*. A pick after each clear costs two seconds and turns a
+ * shooter into a build: do you take the third pierce on your charged blast or
+ * the extra heart? Gaps you could never close, or a nova you can throw twice
+ * as often? Every boon is a multiplier on the sim's own constants, so the
+ * fixed tick and the netcode hash stay honest: the offer is drawn from
+ * tickRand (seeded) and the pick is, effectively, an input.
+ * ================================================================ */
+var BOONS = [
+  { id: 'power', ico: '⚡', n: 'HEAVY WAND', d: '+15% damage on everything', k: 'dmg', mul: 1.15, rep: 1 },
+  { id: 'haste', ico: '✦', n: 'QUICK WAND', d: 'cast 14% faster', k: 'cast', mul: 0.86, rep: 1 },
+  { id: 'wind', ico: '☄', n: 'WIND RUNNERS', d: '+10% move speed', k: 'spd', mul: 1.1, rep: 1 },
+  { id: 'surge', ico: '✧', n: 'DEEP WELL', d: '+45% mana regen', k: 'regen', mul: 1.45, rep: 1 },
+  { id: 'focus', ico: '◈', n: 'FOCUSED CHARGE', d: 'charged bolts punch through +1 goblin', k: 'pierce', add: 1, rep: 1 },
+  { id: 'cleave', ico: '⌇', n: 'WIDE STAFF', d: 'melee reach and cleave radius +', k: 'reach', add: 0.5, rep: 1 },
+  { id: 'blinker', ico: '⇉', n: 'SHORT BLINK', d: 'dash recovers 20% faster', k: 'dashCd', mul: 0.8, rep: 1 },
+  { id: 'heart', ico: '♥', n: 'SECOND WIND', d: '+1 max heart, and heal one', k: 'lives', add: 1, max: 3 },
+  { id: 'greed', ico: '⊛', n: 'GOBLIN GREED', d: 'gems fly to you from further away', k: 'magnet', add: 2.2, rep: 1 },
+  { id: 'feather', ico: '⌃', n: 'FEATHER STEP', d: 'jump higher — better angles, bigger landings', k: 'jumpK', mul: 1.07, rep: 1 },
+  { id: 'thorns', ico: '⚔', n: 'SPIRIT WARD', d: 'what hits you gets shocked back', k: 'thorns', add: 1, max: 3 },
+  { id: 'breath', ico: '⌛', n: "WARRIOR'S BREATH", d: 'combo timer lasts 50% longer', k: 'comboT', mul: 1.5, rep: 1 }
+];
+var B = newBoons();
+function newBoons() {
+  return {
+    dmg: 1, spd: 1, cast: 1, regen: 1, pierce: 0, reach: 0, dashCd: 1,
+    magnet: 3.4, jumpK: 1, thorns: 0, comboT: 4
+  };
+}
+function dashCdMax() { return DASH_CD * B.dashCd; }
+function offerBoons() {
+  /* three distinct offers; capped boons drop out of the pool once taken */
+  var pool = [];
+  for (var i = 0; i < BOONS.length; i++) {
+    var b = BOONS[i];
+    if (b.max !== undefined && (game.boonN[b.id] | 0) >= b.max) continue;
+    pool.push(b);
+  }
+  var offer = [];
+  for (var j = 0; j < 3 && pool.length; j++) {
+    var k = Math.floor(tickRand() * pool.length);
+    offer.push(pool[k]);
+    pool.splice(k, 1);
+  }
+  game.boonOffer = offer;
+  return offer;
+}
+function pickBoon(i) {
+  if (state !== 'pick' || !game.boonOffer || !game.boonOffer[i]) return null;
+  var b = game.boonOffer[i];
+  if (b.k === 'lives') { game.maxLives++; game.lives = Math.min(game.maxLives, game.lives + 1); }
+  else if (b.add !== undefined) B[b.k] += b.add;
+  else B[b.k] *= b.mul;
+  game.boonN[b.id] = (game.boonN[b.id] | 0) + 1;
+  game.boonsTaken++;
+  game.boonOffer = null;
+  hide('ovPick');
+  state = 'play';
+  if (finePointer) { try { canvas.requestPointerLock(); } catch (e) {} }
+  showBanner(b.n, '+ ' + b.d);
+  popText(R.x, R.y + 2.1, R.z, b.ico + ' ' + b.n, true, '#ffe9a8');
+  sfx('power');
+  burst(R.x, R.y + 1, R.z, [255, 220, 120], 20, 7, 1.8, 0.25, 0.6);
+  updateBoonBar(true);
+  return b.id;
+}
+function showOffer() {
+  if (!game.boonOffer || !game.boonOffer.length) { state = 'play'; return; }
+  for (var i = 0; i < 3; i++) {
+    var btn = el('boon' + i), b = game.boonOffer[i];
+    if (!btn) continue;
+    if (b) {
+      btn.classList.remove('hide');
+      btn.querySelector('.bi').textContent = b.ico;
+      btn.querySelector('.bn').textContent = b.n;
+      btn.querySelector('.bd').textContent = b.d;
+      var have = game.boonN[b.id] | 0;
+      btn.querySelector('.bx').textContent = have ? 'owned ×' + have : '';
+      btn._boon = b.id;
+    } else btn.classList.add('hide');
+  }
+  show('ovPick');
+  state = 'pick';
+  /* the pointer has to come back: you cannot click a card with the cursor
+     hidden, and a run that stalls because someone can't dismiss a menu is
+     worse than a run that stalls because they died */
+  mouseFire = false;
+  try { if (document.pointerLockElement === canvas) document.exitPointerLock(); } catch (e) {}
+}
+var boonBarN = -1;
+function updateBoonBar(force) {
+  var bb = el('boonBar');
+  if (!bb) return;
+  if (!force && game.boonsTaken === boonBarN) return;
+  boonBarN = game.boonsTaken;
+  if (!game.boonsTaken) { bb.textContent = ''; return; }
+  var h = '';
+  for (var i = 0; i < BOONS.length; i++) {
+    var n = game.boonN[BOONS[i].id] | 0;
+    if (!n) continue;
+    h += '<span title="' + BOONS[i].n + ': ' + BOONS[i].d + '">' + BOONS[i].ico + (n > 1 ? '&times;' + n : '') + '</span>';
+  }
+  bb.innerHTML = h;
+}
+
 function waveClear() {
   game.waveState = 'clear';
   game.clearT = 2.6;
@@ -2257,6 +2374,8 @@ function waveClear() {
   /* the goblin army remembers: persist champions between sessions */
   saveBestiary();
   updateHUD();
+  offerBoons();
+  showOffer();
 }
 function nextWave() {
   if (state !== 'play') { game.waveState = 'idle'; return; }
@@ -2290,7 +2409,7 @@ function updatePickups(dtP) {
     if (p.y < gy + 0.4) { p.y = gy + 0.4; p.vy = 0; }
     p.ph += dtP * 3;
     var dx = R.x - p.x, dz = R.z - p.z, d = Math.hypot(dx, dz);
-    if (d < 3.4) { p.mag = Math.min(1, p.mag + dtP * 3); var pull = p.mag * 14; p.x += dx / (d || 1) * pull * dtP; p.z += dz / (d || 1) * pull * dtP; }
+    if (d < B.magnet) { p.mag = Math.min(1, p.mag + dtP * 3); var pull = p.mag * 14; p.x += dx / (d || 1) * pull * dtP; p.z += dz / (d || 1) * pull * dtP; }
     if (d < 0.9 && Math.abs(p.y - (R.y + 0.9)) < 1.6) { collectPickup(p); pickups.splice(i, 1); }
   }
 }
@@ -2423,7 +2542,7 @@ function updateHUD() {
      the defensive button, so you should never have to look at the ground to
      know whether it is lit. */
   if (R) {
-    var dF = 1 - clamp(R.dashCd / DASH_CD, 0, 1);
+    var dF = 1 - clamp(R.dashCd / dashCdMax(), 0, 1);
     var kd = el('kitDash');
     if (kd) {
       kd.style.setProperty('--f', Math.round(dF * 100) + '%');
@@ -2447,7 +2566,7 @@ function updateCombo() {
     c.style.opacity = 1;
     c.firstChild.nodeValue = '×' + game.combo;
     f.style.opacity = 1;
-    f.style.width = Math.max(4, game.combot / 4 * 90) + 'px';
+    f.style.width = Math.max(4, game.combot / B.comboT * 90) + 'px';
   } else { c.style.opacity = 0; f.style.opacity = 0; }
 }
 function updateReticle() {
@@ -3108,7 +3227,7 @@ function loop(tms) {
     time += rawDt;
     updateCamera(rawDt, { x: 0, y: 0, z: 0 });
     render();
-  } else if (state === 'play' || state === 'pause') {
+  } else if (state === 'play' || state === 'pause' || state === 'pick') {
     if (state === 'play') {
       updateAim();
       if (hitStop > 0) {
@@ -3224,6 +3343,12 @@ document.addEventListener('keydown', function (e) {
   keys[e.code] = true;
   if (state === 'title' && (e.code === 'Space' || e.code === 'Enter')) { startGame(); return; }
   if (state === 'over' && e.code === 'Space') { startGame(); return; }
+  if (state === 'pick') {
+    var bi = e.code === 'Digit1' || e.code === 'Numpad1' ? 0 : e.code === 'Digit2' || e.code === 'Numpad2' ? 1 :
+      e.code === 'Digit3' || e.code === 'Numpad3' ? 2 : -1;
+    if (bi >= 0) { e.preventDefault(); pickBoon(bi); return; }
+    if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); pickBoon(0); return; }
+  }
   if (e.code === 'KeyM') toggleMute();
   if (e.code === 'KeyN') toggleMusic();
   if (e.code === 'KeyP') {
@@ -3568,6 +3693,11 @@ function resetRiley() {
 }
 function startGame() {
   if (NOGL) return;
+  B = newBoons();
+  game.boonN = {}; game.boonsTaken = 0; game.boonOffer = null;
+  hide('ovPick');
+  if (state === 'pick') state = 'play';
+  updateBoonBar(true);
   hide('ovTitle'); hide('ovOver'); hide('ovPause');
   game.score = 0; game.wave = 1; game.lives = game.maxLives = 5; game.kills = 0; shownScore = 0;
   game.combo = 0; game.comboBest = 0; game.boss = false; game.shake = 0;
@@ -3790,6 +3920,12 @@ if (NOGL) {
   requestAnimationFrame(loop);
 }
 camUiBind();
+for (var _bi = 0; _bi < 3; _bi++) {
+  (function (idx) {
+    var btn = el('boon' + idx);
+    if (btn) btn.onclick = function () { pickBoon(idx); };
+  })(_bi);
+}
 window.RileyGame = {
   get state() { return state; },
   get world() { return world; },
@@ -3828,6 +3964,11 @@ if (SELFTEST) {
         hash: session ? session.worldHash : 0, tick: session ? session.tick : 0 };
     },
     god: function (b) { if (b) R.inv = 1e9; },
+    /* boons */
+    offer: function () { return game.boonOffer ? game.boonOffer.map(function (b) { return b.id; }) : null; },
+    pick: function (i) { return pickBoon(i === undefined ? 0 : i); },
+    boons: function () { return JSON.parse(JSON.stringify(B)); },
+    boonN: function () { return game.boonsTaken; },
     /* teleport (render pose resynced, so no 100u interpolation streak) */
     tp: function (x, z) {
       R.x = x; R.z = z; R.y = groundY(x, z); R.vx = 0; R.vz = 0; R.vy = 0;
