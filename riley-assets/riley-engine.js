@@ -38,6 +38,31 @@ var hitStop = 0;
 var best = 0;
 try { best = +(localStorage.getItem('riley3d.best') || 0); } catch (e) {}
 
+/* all-time stats (persisted): the goblin ledger */
+var runStats = { games: 0, kills: 0, bestWave: 0, bestCombo: 0 };
+try {
+  var _rs = JSON.parse(localStorage.getItem('riley3d.stats') || 'null');
+  if (_rs && typeof _rs === 'object') runStats = _rs;
+} catch (e) {}
+function saveRunStats() {
+  try { localStorage.setItem('riley3d.stats', JSON.stringify(runStats)); } catch (e) {}
+}
+function refreshTitleStats() {
+  var line = el('statsLine');
+  if (!line) return;
+  line.textContent = runStats.games > 0
+    ? ('RUNS ' + runStats.games + ' · GHOULS ' + runStats.kills + ' · BEST WAVE ' + runStats.bestWave)
+    : 'YOUR FIRST TIDE IS WAITING';
+}
+function rankFor() {
+  var w = game.wave, s = game.score;
+  if (w >= 12 || s >= 20000) return ['S', 'THE TIDE BREAKS ON YOU'];
+  if (w >= 8 || s >= 10000) return ['A', 'THE GOBLINS WHISPER YOUR NAME'];
+  if (w >= 5 || s >= 4000) return ['B', 'A RESPECTABLE SLAUGHTER'];
+  if (w >= 3 || s >= 1200) return ['C', 'THE TIDE WILL RETURN'];
+  return ['D', 'THE GOBLINS REMEMBER HOW YOU FELL'];
+}
+
 var game = { score: 0, wave: 1, lives: 5, maxLives: 5, kills: 0, combo: 0, combot: 0,
   comboBest: 0, boss: false, shake: 0, bannerT: 0, spawnQueue: [], spawnT: 0,
   waveState: 'idle', clearT: 0, accentT: 0 };
@@ -100,17 +125,27 @@ function makeProg(vs, fs, attrs) {
 }
 function uni(p, names) { var u = {}; names.forEach(function (n) { u[n] = gl.getUniformLocation(p, n); }); return u; }
 
-/* --- P_STATIC: world-space verts with pos/norm/uv/col (terrain, water) --- */
+/* --- P_STATIC: world-space verts with pos/norm/uv/col (terrain, water) ---
+ * uWater>0.5 => gentle GPU-side wave displacement (water plane only). */
 var VS_STATIC =
   'attribute vec3 aP;attribute vec3 aN;attribute vec2 aUV;attribute vec3 aC;'+
-  'uniform mat4 uV,uPV;varying vec3 vN;varying vec2 vUV;varying vec3 vC;varying float vD;'+
-  'void main(){gl_Position=uPV*vec4(aP,1.0);vN=aN;vUV=aUV;vC=aC;vD=-(uV*vec4(aP,1.0)).z;}';
-/* --- P_INST: per-instance matrix+colour (props, characters, shots) --- */
+  'uniform mat4 uV,uPV;uniform float uTime,uWater;'+
+  'varying vec3 vN;varying vec2 vUV;varying vec3 vC;varying float vD;'+
+  'void main(){vec3 p=aP;'+
+  'if(uWater>0.5){p.y+=sin(aP.x*0.35+uTime*1.1)*0.085+sin(aP.z*0.42-uTime*0.83)*0.085;'+
+  'p.y+=sin((aP.x+aP.z)*0.21+uTime*0.52)*0.05;}'+
+  'gl_Position=uPV*vec4(p,1.0);vN=aN;vUV=aUV;vC=aC;vD=-(uV*vec4(p,1.0)).z;}';
+/* --- P_INST: per-instance matrix+colour (props, characters, shots) ---
+ * uSway>0 => wind: local verts sway with a per-instance phase (leaves). */
 var VS_INST =
   'attribute vec3 aP;attribute vec3 aN;attribute vec2 aUV;'+
   'attribute vec4 aM0;attribute vec4 aM1;attribute vec4 aM2;attribute vec4 aM3;attribute vec3 aC;'+
-  'uniform mat4 uV,uPV;varying vec3 vN;varying vec2 vUV;varying vec3 vC;varying float vD;'+
-  'void main(){mat4 M=mat4(aM0,aM1,aM2,aM3);vec4 wp=M*vec4(aP,1.0);gl_Position=uPV*wp;'+
+  'uniform mat4 uV,uPV;uniform float uTime,uSway;'+
+  'varying vec3 vN;varying vec2 vUV;varying vec3 vC;varying float vD;'+
+  'void main(){vec3 lp=aP;'+
+  'if(uSway>0.01){float ph=dot(aC,vec3(12.9898,78.233,37.719))*6.28318;'+
+  'lp.x+=sin(uTime*1.5+ph)*0.055*aP.y;lp.z+=cos(uTime*1.2+ph)*0.045*aP.y;}'+
+  'mat4 M=mat4(aM0,aM1,aM2,aM3);vec4 wp=M*vec4(lp,1.0);gl_Position=uPV*wp;'+
   'vN=mat3(M[0].xyz,M[1].xyz,M[2].xyz)*aN;vUV=aUV;vC=aC;vD=-(uV*wp).z;}';
 var FS_MAIN =
   'precision mediump float;varying vec3 vN;varying vec2 vUV;varying vec3 vC;varying float vD;'+
@@ -136,9 +171,9 @@ var FS_GLOW =
   'else gl_FragColor=vec4(vC.rgb,a);}';
 
 var pStat = makeProg(VS_STATIC, FS_MAIN, ['aP', 'aN', 'aUV', 'aC']);
-var uStat = uni(pStat, ['uV', 'uPV', 'uL', 'uFogC', 'uGlow', 'uFN', 'uFF', 'uAlpha', 'uTexOn', 'uTex']);
+var uStat = uni(pStat, ['uV', 'uPV', 'uL', 'uFogC', 'uGlow', 'uFN', 'uFF', 'uAlpha', 'uTexOn', 'uTex', 'uTime', 'uWater']);
 var pInst = makeProg(VS_INST, FS_MAIN, ['aP', 'aN', 'aUV', 'aM0', 'aM1', 'aM2', 'aM3', 'aC']);
-var uInst = uni(pInst, ['uV', 'uPV', 'uL', 'uFogC', 'uGlow', 'uFN', 'uFF', 'uAlpha', 'uTexOn', 'uTex']);
+var uInst = uni(pInst, ['uV', 'uPV', 'uL', 'uFogC', 'uGlow', 'uFN', 'uFF', 'uAlpha', 'uTexOn', 'uTex', 'uTime', 'uSway']);
 var pGlow = makeProg(VS_GLOW, FS_GLOW, ['aP', 'aU', 'aC']);
 var uGlow = uni(pGlow, ['uPV', 'uR', 'uUp', 'uMode', 'uTex']);
 
@@ -384,6 +419,8 @@ function drawInstanced(geoKey, texKey, glowCol, alpha) {
   gl.uniform1f(uInst.uFF, 170);
   gl.uniform3f(uInst.uGlow, glowCol ? glowCol[0] / 255 : 0, glowCol ? glowCol[1] / 255 : 0, glowCol ? glowCol[2] / 255 : 0);
   gl.uniform1f(uInst.uAlpha, alpha === undefined ? 1 : alpha);
+  gl.uniform1f(uInst.uTime, time);
+  gl.uniform1f(uInst.uSway, 0);
   var hasTex = texKey && TEX[texKey];
   gl.uniform1f(uInst.uTexOn, hasTex ? 1 : 0);
   if (hasTex) gl.bindTexture(gl.TEXTURE_2D, TEX[texKey]);
@@ -409,9 +446,9 @@ var camR = [0, 0, 1], camUp = [0, 1, 0];
 var fxBuf = gl.createBuffer();
 var FX_CAP = 1400;
 var fxData = new Float32Array(FX_CAP * 36);
-function fillQuads(list, out) {
-  var o = 0;
-  for (var i = 0; i < list.length; i++) {
+function fillQuads(list, out, len) {
+  var o = 0, ln = len === undefined ? list.length : len;
+  for (var i = 0; i < ln; i++) {
     var f = list[i], t = f.life / f.max, s = f.s * (0.5 + 0.5 * t);
     var a = f.pa * Math.min(1, t * 2.5);
     for (var k = 0; k < 6; k++) {
@@ -426,9 +463,10 @@ function fillQuads(list, out) {
   }
   return o;
 }
-function drawGlowList(list, mode) {
-  if (!list.length) return;
-  var o = fillQuads(list, fxData);
+function drawGlowList(list, mode, len) {
+  var ln = len === undefined ? list.length : len;
+  if (!ln) return;
+  var o = fillQuads(list, fxData, ln);
   gl.useProgram(pGlow);
   gl.bindBuffer(gl.ARRAY_BUFFER, fxBuf);
   gl.bufferData(gl.ARRAY_BUFFER, fxData.subarray(0, o), gl.DYNAMIC_DRAW);
@@ -444,7 +482,7 @@ function drawGlowList(list, mode) {
   if (mode) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
   else { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); }
   gl.depthMask(false);
-  gl.drawArrays(gl.TRIANGLES, 0, list.length * 6);
+  gl.drawArrays(gl.TRIANGLES, 0, ln * 6);
   gl.depthMask(true);
   gl.disable(gl.BLEND);
 }
@@ -452,7 +490,24 @@ function fxPush(p) {
   if (fx.length > FX_CAP - 6) fx.shift();
   fx.push(p);
 }
+/* pre-allocated billboard scratch — static glow sets (stars, torches, halos)
+ * refill fixed object slots each frame instead of allocating new ones */
+function makeGlowScratch(n) {
+  var a = new Array(n), i;
+  for (i = 0; i < n; i++) a[i] = { x: 0, y: 0, z: 0, s: 0, pr: 0, pg: 0, pb: 0, pa: 0, life: 1, max: 1 };
+  return a;
+}
+var starScratch = makeGlowScratch(160), starN = 0;
+var glowScratch = makeGlowScratch(80), glowN = 0;
+var haloScratch = makeGlowScratch(32), haloN = 0;
+function glowAddInto(list, n, x, y, z, s, r, g, b, a) {
+  if (n >= list.length) return;
+  var o = list[n];
+  o.x = x; o.y = y; o.z = z; o.s = s; o.pr = r; o.pg = g; o.pb = b; o.pa = a; o.life = 1; o.max = 1;
+  return n + 1;
+}
 function burst(x, y, z, color, n, spd, grav, size, life) {
+  n = Math.max(1, Math.round(n * fxScale));
   for (var i = 0; i < n; i++) {
     var a = tickRand ? tickRand() * TAU : Math.random() * TAU;
     var e = (tickRand ? tickRand() : Math.random()) * 2 - 1;
@@ -587,8 +642,9 @@ function updateAim() {
     aim.x = ax; aim.z = az; aim.y = world.heightAt(ax, az);
     return;
   }
-  var nx = pointerLocked ? 0 : (mouseX / Ww * 2 - 1);
-  var ny = pointerLocked ? 0 : -(mouseY / Hh * 2 - 1);
+  var centerAim = pointerLocked || gpAiming;
+  var nx = centerAim ? 0 : (mouseX / Ww * 2 - 1);
+  var ny = centerAim ? 0 : -(mouseY / Hh * 2 - 1);
   var f = 1 / Math.tan(camFov / 2), asp = Ww / Hh;
   var fx = -VM[8], fy = -VM[9], fz = -VM[10];  /* forward = -col2 */
   var rx = VM[0], ry = VM[1], rz = VM[2];      /* right  =  col0 */
@@ -623,10 +679,21 @@ function updateAim() {
 /* ================================================================
  * 8. player
  * ================================================================ */
+/* temporary power-up buffs: seconds remaining on each (damage / speed / mana regen) */
+var buffs = { dmg: 0, spd: 0, regen: 0 };
+var BUFF_MAX = { dmg: 9, spd: 9, regen: 6 };
+function buffMul() {
+  return {
+    dmg: buffs.dmg > 0 ? 1.35 : 1,
+    spd: buffs.spd > 0 ? 1.22 : 1,
+    regen: buffs.regen > 0 ? 2.5 : 1
+  };
+}
 function newRiley() {
   return {
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: Math.PI, run: 0, air: 0, ground: true,
     dashT: 0, dashCd: 0, dashDX: 0, dashDZ: 0, dashing: false, jumpBuf: 0, coyote: 0,
+    kbx: 0, kbz: 0, kbT: 0,
     inv: 0, hitT: 0, shootCd: 0, shootAnim: 0, ph: 0,
     mana: 0, manaMax: 100, charge: 0, charging: false, fireHeldT: 0,
     novaFx: 0, sideFlip: 1
@@ -663,7 +730,12 @@ function stepPlayer(inp) {
   R.dashCd = Math.max(0, R.dashCd - dt);
   R.shootCd = Math.max(0, R.shootCd - dt);
   R.shootAnim = Math.max(0, R.shootAnim - dt);
+  R.kbT = Math.max(0, R.kbT - dt);
   if (R.novaFx > 0) R.novaFx -= dt;
+  /* buff timers */
+  if (buffs.dmg > 0) buffs.dmg = Math.max(0, buffs.dmg - dt);
+  if (buffs.spd > 0) buffs.spd = Math.max(0, buffs.spd - dt);
+  if (buffs.regen > 0) buffs.regen = Math.max(0, buffs.regen - dt);
 
   /* face the aim point (mouse-assist) while firing, else face movement */
   var aimX = aim.x - R.x, aimZ = aim.z - R.z;
@@ -690,7 +762,18 @@ function stepPlayer(inp) {
     ringBurst(R.x, R.y + 0.3, R.z, [150, 220, 255], 2);
     if (R.dashT <= 0) { R.dashing = false; }
   } else {
-    R.vx = mvx * 9; R.vz = mvz * 9;
+    /* acceleration-based movement: snappy on ground, floaty control in air */
+    var walkSpd = 9 * buffMul().spd;
+    var tvx = mvx * walkSpd, tvz = mvz * walkSpd;
+    var k = R.ground ? 16 : 6.5;
+    R.vx += (tvx - R.vx) * Math.min(1, dt * k);
+    R.vz += (tvz - R.vz) * Math.min(1, dt * k);
+    /* knockback impulse decays out of the velocity over ~0.3s */
+    if (R.kbT > 0) {
+      R.vx += R.kbx * dt * 34; R.vz += R.kbz * dt * 34;
+      var kdec = Math.max(0, 1 - dt * 3.4);
+      R.kbx *= kdec; R.kbz *= kdec;
+    } else { R.kbx = 0; R.kbz = 0; }
   }
 
   /* jump / double jump */
@@ -771,20 +854,23 @@ function fireShot() {
   R.shootCd = 0.22; R.shootAnim = 0.16;
   var ax = Math.sin(R.yaw), az = Math.cos(R.yaw);
   var sx = R.x + ax * 0.7, sy = R.y + 1.05, sz = R.z + az * 0.7;
-  shots.push({ x: sx, y: sy, z: sz, vx: ax * 24, vy: 1.6, vz: az * 24, life: 1.5, r: 0.14, big: false, dmg: 1, pierce: 1, col: [255, 190, 90], hitSet: null });
+  var dm = buffMul().dmg;
+  var col = dm > 1 ? [255, 226, 130] : [255, 190, 90];
+  shots.push({ x: sx, y: sy, z: sz, vx: ax * 24, vy: 1.6, vz: az * 24, life: 1.5, r: 0.14 + (dm > 1 ? 0.03 : 0), big: false, dmg: dm, pierce: 1, col: col, hitSet: null });
   burst(sx, sy, sz, [255, 200, 80], 5, 3, 0, 0.14, 0.25);
-  sfx('shoot');
+  sfxGated('shoot');
 }
 function releaseCharge() {
   var pw = clamp((R.charge - 0.28) / 0.72, 0, 1);
   if (pw < 0.12) { fireShot(); return; }
   R.shootCd = 0.3; R.shootAnim = 0.28;
   var tier = pw >= 0.85 ? 2 : 1;
+  var dm = buffMul().dmg;
   var ax = Math.sin(R.yaw), az = Math.cos(R.yaw);
   var sx = R.x + ax * 0.8, sy = R.y + 1.05, sz = R.z + az * 0.8;
   shots.push({
     x: sx, y: sy, z: sz, vx: ax * 27, vy: 1.2, vz: az * 27, life: 1.8,
-    r: tier === 2 ? 0.42 : 0.3, big: true, dmg: tier === 2 ? 6 : 3,
+    r: (tier === 2 ? 0.42 : 0.3) * (dm > 1 ? 1.15 : 1), big: true, dmg: (tier === 2 ? 6 : 3) * dm,
     pierce: tier === 2 ? 3 : 1, col: tier === 2 ? [180, 120, 255] : [255, 140, 60], hitSet: null
   });
   burst(sx, sy, sz, tier === 2 ? [190, 130, 255] : [255, 170, 70], tier === 2 ? 22 : 14, 7, 0, 0.28, 0.5);
@@ -805,7 +891,7 @@ function castNova() {
     if (e.dead) continue;
     var d = Math.hypot(e.x - R.x, e.z - R.z);
     if (d < 13) {
-      var dmg = e.k === 'boss' ? 5 : 8;
+      var dmg = (e.k === 'boss' ? 5 : 8) * buffMul().dmg;
       var dx = (e.x - R.x) / (d || 1), dz = (e.z - R.z) / (d || 1);
       e.vx += dx * 15; e.vz += dz * 15; e.vy = Math.max(e.vy, 5);
       damageGob(e, dmg, dx, dz);
@@ -920,9 +1006,10 @@ function newGob(k, x, y, z, idx) {
     id: gobId,
     x: x, y: y, z: z, vx: 0, vy: 0, vz: 0, k: k,
     hp: t.hp, hpMax: t.hp, r: t.r, h: t.h, s: t.s * (k === 'boss' ? 1 : rnd2(0.88, 1.14)),
-    sc: t.sc, shade: k === 'boss' ? 1 : rnd2(0.88, 1.16),
+    sc: t.sc, shade: k === 'boss' ? 1 : rnd2(0.88, 1.16), elite: false,
     yaw: Math.atan2(R.x - x, R.z - z), run: 0, ph: rnd2(0, 9),
     hitT: 0, dead: false, tele: 0, actT: 0, actCd: rnd2(0.6, 2.2), actKind: 'none',
+    stun: 0, slamCd: 6,
     spitCd: rnd2(0.8, 2.2), roarT: 5, enrage: false,
     spd: t.spd * rnd2(0.88, 1.12),
     dmgTaken: 0, dmgDealt: 0, kills: 0, lifeSec: 0, hitsTaken: 0, gemsStolen: 0,
@@ -967,17 +1054,24 @@ function updateEnemyBrain(e) {
   e.dmgTaken = Math.max(0, e.dmgTaken - 0.12);
   var spec = EN_K[e.k];
   var d = sen.dist;
-  /* attack execution */
-  e.actCd -= dt;
-  if (act.act === 'attack' && e.actCd <= 0) {
+  /* attack execution (stunned goblins can't act).
+     NOTE: this path runs at a staggered 8 Hz, so cooldown timers are
+     decremented by dt*8 — one real second per second of game time. */
+  e.actCd -= dt * 8;
+  if (act.act === 'attack' && e.actCd <= 0 && e.stun <= 0) {
     if (e.k === 'spitter') {
       if (d > spec.range[0] && d < spec.range[1]) {
-        e.yaw = Math.atan2(R.x - e.x, R.z - e.z);
-        var ld = Math.max(d, 2);
-        eShots.push({ x: e.x + (R.x - e.x) / d * 0.5, y: e.y + e.h * 0.85, z: e.z + (R.z - e.z) / d * 0.5,
-          vx: (R.x - e.x) / d * 8.5, vy: (R.y + 0.8 - e.y - e.h * 0.85) / ld * 8.5 + 0.9, vz: (R.z - e.z) / d * 8.5,
+        /* lead the shot: aim where Riley is heading, not where he stands */
+        var BL = 8.5;
+        var leadT = d / BL;
+        var tdx = (R.x + R.vx * leadT * 0.85) - e.x;
+        var tdz = (R.z + R.vz * leadT * 0.85) - e.z;
+        var td = Math.hypot(tdx, tdz) || 0.001;
+        e.yaw = Math.atan2(tdx, tdz);
+        eShots.push({ x: e.x + tdx / td * 0.5, y: e.y + e.h * 0.85, z: e.z + tdz / td * 0.5,
+          vx: tdx / td * BL, vy: (R.y + 0.8 - e.y - e.h * 0.85) / Math.max(d, 2) * BL + 0.9, vz: tdz / td * BL,
           life: 2.6, r: 0.2, col: [170, 90, 255], from: e });
-        sfx('spit');
+        sfxGated('spit');
         e.actCd = spec.spitCd;
       } else e.actCd = 0.3;
     } else if (e.k === 'brute') {
@@ -994,7 +1088,7 @@ function updateEnemyBrain(e) {
         e.yaw = Math.atan2(R.x - e.x, R.z - e.z);
         var boost = e.k === 'boss' ? (e.enrage ? 26 : 21) : spec.lunge * (e.enrage ? 1.4 : 1);
         e.vx = (R.x - e.x) / d * boost; e.vz = (R.z - e.z) / d * boost;
-        e.actCd = spec.lungeCd * (e.k === 'boss' ? (e.enrage ? 0.55 : 0.8) : 1);
+        e.actCd = spec.lungeCd * (e.k === 'boss' ? (e.enrage ? 0.7 : 0.8) : 1);
         sfx(e.k === 'boss' ? 'roar' : 'pop');
         if (e.k === 'boss' && game.shake < 0.5) game.shake = 0.3;
       } else e.actCd = 0.2;
@@ -1008,9 +1102,9 @@ function updateEnemyBrain(e) {
       popText(e.x, e.y + e.h + 1.2, e.z, 'ENRAGED!', true, '#ff5e5e');
       e.brain.reward('panic');
     }
-    e.roarT -= dt;
+    e.roarT -= dt * 8;
     if (e.roarT <= 0 && e.hp < e.hpMax * 0.8) {
-      e.roarT = 8;
+      e.roarT = 9;
       var nm = Math.min(2 + Math.floor(game.wave / 5), 4);
       for (var m = 0; m < nm; m++) {
         var a = tickRand() * TAU, rr = rnd2(2.5, 4.5);
@@ -1021,6 +1115,16 @@ function updateEnemyBrain(e) {
       }
       popText(e.x, e.y + e.h + 1.4, e.z, 'COME, MINIONS!', true, '#9fe8ff');
       sfx('roar');
+    }
+    /* enrage: ground-pound AoE slam when the player camps close */
+    if (e.enrage && e.stun <= 0) {
+      e.slamCd -= dt * 8;
+      if (e.slamCd <= 0 && d < spec.melee + 1.8 && e.actKind !== 'slam' && e.actKind !== 'smash') {
+        e.actKind = 'slam'; e.actT = 0.5;
+        e.slamCd = 5 + tickRand() * 3;
+        e.yaw = Math.atan2(R.x - e.x, R.z - e.z);
+        sfx('low');
+      }
     }
   }
 }
@@ -1052,6 +1156,7 @@ function updateEnemies(dtU) {
     var e3 = enemies[i3];
     if (e3.dead) continue;
     e3.hitT = Math.max(0, e3.hitT - dtU);
+    e3.stun = Math.max(0, e3.stun - dtU);
     e3.lifeSec += dtU;
     /* deterministic strafe side-flip (kept out of the net for lockstep) */
     e3.sideT -= dtU;
@@ -1063,7 +1168,11 @@ function updateEnemies(dtU) {
 
     /* steering from the net output */
     var mvx = 0, mvz = 0;
-    if (e3.tele > 0) {
+    if (e3.stun > 0) {
+      /* staggered: rooted in place, wobbly */
+      e3.vx *= Math.max(0, 1 - dtU * 8);
+      e3.vz *= Math.max(0, 1 - dtU * 8);
+    } else if (e3.tele > 0) {
       e3.tele -= dtU;
       e3.actT -= dtU;
       e3.vx *= Math.max(0, 1 - dtU * 2.5);
@@ -1083,6 +1192,21 @@ function updateEnemies(dtU) {
         var face = (rdx / rd) * fx2 + (rdz / rd) * fz2;
         if (rd < spec.melee + 1.4 && face > -0.3) hitRiley(e3);
         /* hits other goblins? no — friendly. hits player handled above */
+        e3.actKind = 'none';
+      }
+    } else if (e3.actKind === 'slam' && e3.actT > 0) {
+      /* boss ground-pound: 0.5s telegraph, then a wide radial shockwave */
+      e3.actT -= dtU;
+      e3.vx *= Math.max(0, 1 - dtU * 6);
+      e3.vz *= Math.max(0, 1 - dtU * 6);
+      if (e3.actT <= 0) {
+        sfx('smash');
+        ringBurst(e3.x, e3.y + 0.2, e3.z, [255, 120, 60], 9);
+        ringBurst(e3.x, e3.y + 0.2, e3.z, [255, 214, 94], 6);
+        burst(e3.x, e3.y + 0.3, e3.z, [255, 150, 80], 16, 6, 2, 0.24, 0.5);
+        game.shake = Math.max(game.shake, 0.55);
+        if (Math.hypot(R.x - e3.x, R.z - e3.z) < 4.8) hitRiley(e3);
+        e3.actKind = 'none';
       }
     } else if (e3.actKind === 'lunge' && e3.actT > 0) {
       e3.actT -= dtU;
@@ -1096,10 +1220,21 @@ function updateEnemies(dtU) {
         mvx = (e3.mvx * fx3 + e3.mvz * sx3) * speed;
         mvz = (e3.mvx * fz3 + e3.mvz * sz3) * speed;
       }
-      /* keep off very steep slopes */
+      /* terrain steering: slow on steep ground, steer around hills on the
+         gentler side (deterministic — derived from world + facing only) */
       if (e3.mAct === 'move' || e3.mAct === 'idle') {
         var aheadX = e3.x + fx3, aheadZ = e3.z + fz3;
-        if (world.slopeAt(aheadX, aheadZ) > 0.95) { mvx *= 0.3; mvz *= 0.3; }
+        var slA = world.slopeAt(aheadX, aheadZ);
+        if (slA > 0.95) { mvx *= 0.3; mvz *= 0.3; }
+        else if (slA > 0.7) {
+          var side1 = world.slopeAt(e3.x + sx3 * 1.7, e3.z + sz3 * 1.7);
+          var side2 = world.slopeAt(e3.x - sx3 * 1.7, e3.z - sz3 * 1.7);
+          var side = side1 <= side2 ? 1 : -1;
+          mvx += sx3 * side * 0.75;
+          mvz += sz3 * side * 0.75;
+          var nl = Math.hypot(mvx, mvz);
+          if (nl > 1) { mvx /= nl; mvz /= nl; }
+        }
       }
       e3.vx += (mvx - e3.vx) * Math.min(1, dtU * 7);
       e3.vz += (mvz - e3.vz) * Math.min(1, dtU * 7);
@@ -1178,11 +1313,16 @@ function damageGob(e, d, sx2, sz2) {
   e.hitT = 0.13;
   e.dmgTaken = Math.min(1, e.dmgTaken + 0.5);
   e.hitsTaken++;
+  /* heavy hits stagger the big brutes — charged shots + nova have a window */
+  if (d >= 3 && (e.k === 'brute' || e.k === 'boss')) {
+    e.stun = e.k === 'boss' ? 0.3 : 0.45;
+    fxPush({ x: e.x, y: e.y + e.h + 0.2, z: e.z, vx: 0, vy: 1.2, vz: 0, life: 0.4, max: 0.4, s: 0.16, pr: 255, pg: 240, pb: 160, pa: 0.9, grav: 0 });
+  }
   var dx = 0, dz = 0;
   if (sx2 !== undefined) { var l = Math.hypot(sx2, sz2) || 1; dx = sx2 / l; dz = sz2 / l; }
   e.vx += dx * 9; e.vz += dz * 9; e.vy = Math.max(e.vy, 1.6);
   e.brain.reward('hurt');
-  sfx('hit');
+  sfxGated('hit');
   if (e.hp <= 0) killGob(e, false);
   return true;
 }
@@ -1198,7 +1338,7 @@ function killGob(e, smash) {
   game.kills++;
   if (game.combo > 1 && (game.combo % 5 === 0 || game.combo === 3)) {
     popText(e.x, e.y + e.h + 1, e.z, 'COMBO ×' + game.combo, true, '#ffd75e');
-    sfx('coin');
+    sfxGated('coin');
   }
   if (game.combo % 20 === 0 && game.lives < game.maxLives) {
     game.lives++;
@@ -1223,9 +1363,13 @@ function killGob(e, smash) {
     for (var gi = 0; gi < 6; gi++) spawnPickup('gem', e.x + rnd2(-1.2, 1.2), e.y + e.h * 0.5, e.z + rnd2(-1.2, 1.2));
     spawnPickup('heart', e.x, e.y + e.h * 0.5, e.z);
     spawnPickup('heart', e.x + rnd2(-1, 1), e.y + e.h * 0.5, e.z + rnd2(-1, 1));
+    spawnPickup(powerType(), e.x + rnd2(-1.6, 1.6), e.y + e.h * 0.5, e.z + rnd2(-1.6, 1.6));
   } else {
     if (tickRand() < (e.k === 'brute' ? 0.85 : e.k === 'spitter' ? 0.6 : 0.42)) spawnPickup('gem', e.x, e.y + e.h * 0.5, e.z);
-    if (game.lives < game.maxLives && tickRand() < 0.06) spawnPickup('heart', e.x, e.y + e.h * 0.5, e.z);
+    var heartCh = e.elite ? 0.5 : (game.lives < game.maxLives ? 0.06 : 0);
+    if (heartCh > 0 && tickRand() < heartCh) spawnPickup('heart', e.x, e.y + e.h * 0.5, e.z);
+    var powCh = e.elite ? 0.2 : 0.045;
+    if (tickRand() < powCh) spawnPickup(powerType(), e.x + rnd2(-0.4, 0.4), e.y + e.h * 0.5, e.z + rnd2(-0.4, 0.4));
   }
   var isBoss = e.k === 'boss';
   if (isBoss) {
@@ -1246,7 +1390,10 @@ function gobbyCol(k) { return gobCol(k); }
 function hitRiley(e) {
   if (R.inv > 0 || state !== 'play' || e.dead) return;
   var dx = R.x - e.x, dz = R.z - e.z, d = Math.hypot(dx, dz) || 1;
-  R.vx = dx / d * 13; R.vz = dz / d * 13; R.vy = 8;
+  /* knockback: impulse blended into the movement model (survives the
+     acceleration lerp that would otherwise eat it on the next tick) */
+  R.kbx = dx / d * 1.0; R.kbz = dz / d * 1.0; R.kbT = 0.3;
+  R.vx = dx / d * 10; R.vz = dz / d * 10; R.vy = 8;
   R.dashing = false; R.dashT = 0;
   if (e.k === 'boss') { game.shake = 0.8; R.vx *= 1.5; R.vz *= 1.5; }
   else game.shake = 0.4;
@@ -1292,7 +1439,7 @@ function waveCompose() {
   for (i = q.length - 1; i > 0; i--) { var j = Math.floor(tickRand() * (i + 1)); var t2 = q[i]; q[i] = q[j]; q[j] = t2; }
   return { boss: false, q: q };
 }
-function placeGoblin(k, px, pz) {
+function placeGoblin(k, px, pz, elite) {
   var pt = null;
   if (px === undefined) {
     if (k === 'boss') {
@@ -1304,9 +1451,26 @@ function placeGoblin(k, px, pz) {
   } else pt = { x: px, y: world.heightAt(px, pz), z: pz };
   var g = newGob(k, pt.x, pt.y, pt.z, 0);
   if (k === 'boss') { g.hp = g.hpMax = 34 + Math.max(0, game.wave - 5) * 6; g.enrage = false; }
+  /* elites (wave 4+): tougher, quicker, worth 2.5x — seeded roll so every
+     host spawns the same army */
+  if (elite !== false && k !== 'boss' && game.wave >= 4 && tickRand() < 0.16) elite = true;
+  if (elite) {
+    g.elite = true;
+    g.hp = g.hpMax = Math.ceil(g.hpMax * 1.6);
+    g.sc = Math.round(g.sc * 2.5);
+    g.spd *= 1.18;
+    g.shade = 1.3;
+    g.r *= 1.07;
+  }
   burst(g.x, g.y + 0.1, g.z, gobCol(k).skin, 10, 4, 0.6, 0.18, 0.35);
-  ringBurst(g.x, g.y + 0.15, g.z, [220, 220, 255], 2.4);
-  sfx(k === 'boss' ? 'boss' : k === 'brute' ? 'roar' : 'pop');
+  if (elite) {
+    ringBurst(g.x, g.y + 0.15, g.z, [255, 214, 94], 3);
+    popText(g.x, g.y + g.h + 1.2, g.z, 'ELITE', true, '#ffd75e');
+    sfx('coin');
+  } else ringBurst(g.x, g.y + 0.15, g.z, [220, 220, 255], 2.4);
+  if (k === 'boss') sfx('boss');
+  else if (k === 'brute') sfx('roar');
+  else sfxGated('pop');
   if (k === 'boss') game.shake = 0.7;
   enemies.push(g);
   if (k === 'boss') game.boss = true;
@@ -1369,9 +1533,18 @@ function nextWave() {
 /* ================================================================
  * 13. pickups
  * ================================================================ */
+function powerType() {
+  var r = tickRand();
+  return r < 0.4 ? 'bolt' : (r < 0.75 ? 'swift' : 'surge');
+}
+var POWER_META = {
+  bolt:  { col: [255, 214, 94],  label: '⚡ DAMAGE UP' },
+  swift: { col: [120, 230, 255], label: '☄ SPEED UP' },
+  surge: { col: [200, 140, 255], label: '✦ MANA SURGE' }
+};
 function spawnPickup(kind, x, y, z) {
-  if (pickups.length > 40) return;
-  pickups.push({ k: kind, x: x, y: y, z: z, vy: rnd2(3, 5), ph: rnd2(0, TAU), life: 14, mag: 0 });
+  if (pickups.length > 48) return;
+  pickups.push({ k: kind, x: x, y: y, z: z, vy: rnd2(3, 5), ph: rnd2(0, TAU), life: kind === 'heart' || POWER_META[kind] ? 16 : 14, mag: 0 });
 }
 function updatePickups(dtP) {
   for (var i = pickups.length - 1; i >= 0; i--) {
@@ -1389,17 +1562,28 @@ function updatePickups(dtP) {
   }
 }
 function collectPickup(p) {
+  var meta = POWER_META[p.k];
   if (p.k === 'heart') {
     if (game.lives < game.maxLives) { game.lives++; sfx('heal'); popText(p.x, p.y + 0.6, p.z, '♥ +1', true, '#ff8a9a'); }
     else { game.score += 50; popText(p.x, p.y + 0.6, p.z, '+50', false, '#ff8a9a'); }
     burst(p.x, p.y, p.z, [255, 120, 150], 14, 5, 1, 0.2, 0.5);
+  } else if (meta) {
+    /* power-ups: refresh the buff timer (or start it) */
+    if (p.k === 'bolt') { buffs.dmg = BUFF_MAX.dmg; }
+    else if (p.k === 'swift') { buffs.spd = BUFF_MAX.spd; }
+    else { R.mana = Math.min(R.manaMax, R.mana + 40); buffs.regen = BUFF_MAX.regen; }
+    game.score += 25;
+    popText(p.x, p.y + 0.7, p.z, meta.label, true, '#' + (p.k === 'bolt' ? 'ffd75e' : p.k === 'swift' ? '7fe4ff' : 'd29aff'));
+    burst(p.x, p.y, p.z, meta.col, 20, 6, 1.2, 0.22, 0.6);
+    ringBurst(p.x, p.y, p.z, meta.col, 4);
+    sfx('power');
   } else {
     R.mana = Math.min(R.manaMax, R.mana + 18);
     game.score += 15;
     popText(p.x, p.y + 0.6, p.z, '+15', false, '#a9d8ff');
     burst(p.x, p.y, p.z, [120, 190, 255], 12, 5, 1, 0.16, 0.45);
     ringBurst(p.x, p.y, p.z, [160, 220, 255], 3);
-    sfx('coin');
+    sfxGated('coin');
   }
   updateHUD();
 }
@@ -1435,29 +1619,64 @@ function showBanner(wv, nm) {
   requestAnimationFrame(function () { bannerEl.querySelector('.wv').style.transform = 'scale(1)'; });
   game.bannerT = 1.7;
 }
+/* buff bar rows (built once; shown/hidden + refilled per tick) */
+var buffRows = [];
+function makeBuffRow(icon, color, key) {
+  var row = document.createElement('div');
+  row.className = 'buffRow';
+  row.style.display = 'none';
+  var ic = document.createElement('span');
+  ic.textContent = icon;
+  ic.style.color = color;
+  var bar = document.createElement('i');
+  bar.style.background = color;
+  bar.style.boxShadow = '0 0 8px ' + color;
+  row.appendChild(ic);
+  row.appendChild(bar);
+  el('buffBar').appendChild(row);
+  buffRows.push({ row: row, bar: bar, key: key });
+}
+function updateBuffBar() {
+  for (var i = 0; i < buffRows.length; i++) {
+    var r = buffRows[i], t = buffs[r.key];
+    if (t > 0) {
+      if (r.row.style.display === 'none') r.row.style.display = 'flex';
+      r.bar.style.width = Math.round(t / BUFF_MAX[r.key] * 100) + '%';
+    } else if (r.row.style.display !== 'none') r.row.style.display = 'none';
+  }
+}
+/* HUD writes are cached — stepSim calls updateHUD 60x/s and only changed
+ * values touch the DOM (score tween stays per-tick for smoothness) */
+var hudCache = { hearts: '', wave: '', bossW: -1, bossVis: null, nova: null };
 function updateHUD() {
   var h = '';
   for (var i = 0; i < game.maxLives; i++) h += i < game.lives ? '♥' : '🖤';
-  el('hudHearts').textContent = h;
+  if (h !== hudCache.hearts) { el('hudHearts').textContent = h; hudCache.hearts = h; }
   shownScore += (game.score - shownScore) * Math.min(1, dt * 9);
   if (Math.abs(game.score - shownScore) < 1) shownScore = game.score;
   el('hudScore').firstChild.nodeValue = Math.round(shownScore);
-  el('hudWave').textContent = 'WAVE ' + game.wave;
+  var wt = 'WAVE ' + game.wave;
+  if (wt !== hudCache.wave) { el('hudWave').textContent = wt; hudCache.wave = wt; }
   var bb = el('bossBar'), be = null;
   for (var j = 0; j < enemies.length; j++) if (enemies[j].k === 'boss' && !enemies[j].dead) { be = enemies[j]; break; }
   if (be) {
-    bb.style.display = 'block';
-    bb.querySelector('i').style.width = Math.max(0, be.hp / be.hpMax * 100) + '%';
-  } else bb.style.display = 'none';
+    if (hudCache.bossVis !== true) { bb.style.display = 'block'; hudCache.bossVis = true; hudCache.bossW = -1; }
+    var bw = Math.round(Math.max(0, be.hp / be.hpMax * 100));
+    if (bw !== hudCache.bossW) { bb.querySelector('i').style.width = bw + '%'; hudCache.bossW = bw; }
+  } else if (hudCache.bossVis !== false) { bb.style.display = 'none'; hudCache.bossVis = false; }
   el('hurtVig').classList.toggle('low', game.lives === 1 && state === 'play');
   var mb = el('manaBar');
   if (mb && R) {
-    var pct = R.mana / R.manaMax * 100;
+    var pct = Math.round(R.mana / R.manaMax * 100);
     mb.querySelector('i').style.width = pct + '%';
-    mb.classList.toggle('full', R.mana >= R.manaMax);
-    mb.querySelector('span').textContent = R.mana >= R.manaMax ? 'NOVA READY' : 'MAGIC';
+    var nova = R.mana >= R.manaMax;
+    mb.classList.toggle('full', nova);
+    var spanTxt = nova ? 'NOVA READY' : 'MAGIC';
+    if (spanTxt !== hudCache.nova) { mb.querySelector('span').textContent = spanTxt; hudCache.nova = spanTxt; }
   }
+  updateBuffBar();
 }
+function resetHudCache() { hudCache.hearts = ''; hudCache.wave = ''; hudCache.bossW = -1; hudCache.bossVis = null; hudCache.nova = null; }
 function updateCombo() {
   var c = el('comboCtr'), f = el('comboFill');
   if (game.combo > 1) {
@@ -1468,11 +1687,11 @@ function updateCombo() {
   } else { c.style.opacity = 0; f.style.opacity = 0; }
 }
 function updateReticle() {
-  var showRet = state === 'play' && finePointer;
+  var showRet = state === 'play' && (finePointer || gpAiming);
   if (!showRet) { reticleEl.classList.remove('on'); document.body.classList.remove('aiming'); return; }
   reticleEl.classList.add('on');
   document.body.classList.add('aiming');
-  if (pointerLocked) {
+  if (pointerLocked || gpAiming) {
     reticleEl.style.left = (Ww / 2) + 'px';
     reticleEl.style.top = (Hh / 2) + 'px';
   } else {
@@ -1652,7 +1871,7 @@ function resize() {
 resize();
 addEventListener('resize', resize);
 
-function drawStaticVBO(vbo, n, texKey, alpha, glowCol) {
+function drawStaticVBO(vbo, n, texKey, alpha, glowCol, water) {
   gl.useProgram(pStat);
   gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 44, 0);
@@ -1667,6 +1886,8 @@ function drawStaticVBO(vbo, n, texKey, alpha, glowCol) {
   gl.uniform1f(uStat.uFF, 170);
   gl.uniform3f(uStat.uGlow, glowCol ? glowCol[0] / 255 : 0, glowCol ? glowCol[1] / 255 : 0, glowCol ? glowCol[2] / 255 : 0);
   gl.uniform1f(uStat.uAlpha, alpha === undefined ? 1 : alpha);
+  gl.uniform1f(uStat.uTime, time);
+  gl.uniform1f(uStat.uWater, water ? 1 : 0);
   var hasTex = texKey && TEX[texKey];
   gl.uniform1f(uStat.uTexOn, hasTex ? 1 : 0);
   if (hasTex) gl.bindTexture(gl.TEXTURE_2D, TEX[texKey]);
@@ -1679,20 +1900,19 @@ function render() {
   gl.depthMask(true);
   gl.clearColor(fogCur[0] / 255, fogCur[1] / 255, fogCur[2] / 255, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  /* stars */
-  (function () {
-    var list = [];
-    for (var i = 0; i < stars.length; i++) {
-      var s = stars[i], tw = 0.25 + 0.45 * Math.abs(Math.sin(time * s.sp + s.ph));
-      list.push({ x: s.x, y: s.y, z: s.z, s: s.s, pr: 255, pg: 255, pb: 255, pa: tw, life: 1, max: 1 });
-    }
-    drawGlowList(list, 0);
-  })();
+  /* stars (refill pre-allocated slots — no per-frame allocation) */
+  starN = 0;
+  for (var i = 0; i < stars.length && starN < starScratch.length; i++) {
+    var s0 = stars[i];
+    var tw = 0.25 + 0.45 * Math.abs(Math.sin(time * s0.sp + s0.ph));
+    starN = glowAddInto(starScratch, starN, s0.x, s0.y, s0.z, s0.s, 255, 255, 255, tw);
+  }
+  drawGlowList(starScratch, 0, starN);
   /* terrain + water */
   for (var i2 = 0; i2 < worldVBOs.length; i2++) {
     var w = worldVBOs[i2];
-    if (w.water) drawStaticVBO(w.vbo, w.n, w.tex, 0.72, [w.key === 'water' ? world.realm.water[0] * 0.12 : 0, world.realm.water[1] * 0.12, world.realm.water[2] * 0.12]);
-    else drawStaticVBO(w.vbo, w.n, w.tex);
+    if (w.water) drawStaticVBO(w.vbo, w.n, w.tex, 0.72, [world.realm.water[0] * 0.12, world.realm.water[1] * 0.12, world.realm.water[2] * 0.12], true);
+    else drawStaticVBO(w.vbo, w.n, w.tex, undefined, undefined, false);
   }
   /* props */
   for (var i3 = 0; i3 < propDraws.length; i3++) {
@@ -1700,16 +1920,14 @@ function render() {
     drawPropInstanced(pd);
   }
   /* static glows (torches, runes) */
-  (function () {
-    var list = [];
-    var acc = accentRGB();
-    for (var i = 0; i < world.glowPoints.length; i++) {
-      var gp = world.glowPoints[i];
-      var a = 0.5 + 0.25 * Math.sin(time * 2.2 + gp.ph);
-      list.push({ x: gp.x, y: gp.y, z: gp.z, s: gp.r * (0.9 + 0.1 * Math.sin(time * 3.1 + gp.ph)), pr: acc[0], pg: acc[1], pb: acc[2], pa: a, life: 1, max: 1 });
-    }
-    drawGlowList(list, 0);
-  })();
+  glowN = 0;
+  var acc = accentRGB();
+  for (var i = 0; i < world.glowPoints.length && glowN < glowScratch.length; i++) {
+    var gp = world.glowPoints[i];
+    var a = 0.5 + 0.25 * Math.sin(time * 2.2 + gp.ph);
+    glowN = glowAddInto(glowScratch, glowN, gp.x, gp.y, gp.z, gp.r * (0.9 + 0.1 * Math.sin(time * 3.1 + gp.ph)), acc[0], acc[1], acc[2], a);
+  }
+  drawGlowList(glowScratch, 0, glowN);
   /* crystals */
   instBegin();
   for (var ci = 0; ci < world.crystals.length; ci++) {
@@ -1737,14 +1955,35 @@ function render() {
   for (var pi = 0; pi < pickups.length; pi++) {
     var p = pickups[pi];
     var py = p.y + Math.sin(p.ph) * 0.12;
-    var col = p.k === 'heart' ? [255, 90, 120] : [110, 190, 255];
-    C.limb2(MM, p.x, py, p.z, p.ph * 1.4, 0, 0, 0, 0.5, 0.5, 0, 0, 0, 0.32, 0.32, 0.32);
+    var pmeta = POWER_META[p.k];
+    var col = p.k === 'heart' ? [255, 90, 120] : (pmeta ? pmeta.col : [110, 190, 255]);
+    var psz = pmeta ? 0.4 : (p.k === 'heart' ? 0.32 : 0.3);
+    C.limb2(MM, p.x, py, p.z, p.ph * 1.4, 0, 0, 0, 0.5, 0.5, 0, 0, 0, psz, psz, psz);
     instPart(p.k === 'heart' ? 'sphereL' : 'cone', p.k === 'heart' ? '' : 'crystal', MM, col);
-    if (Math.random() < 0.25) fxPush({ x: p.x + rnd2(-0.15, 0.15), y: py + rnd2(0, 0.2), z: p.z + rnd2(-0.15, 0.15), vx: 0, vy: rnd2(0.3, 0.8), vz: 0, life: 0.5, max: 0.5, s: 0.08, pr: 150, pg: 220, pb: 255, pa: 0.7, grav: 0 });
+    if (pmeta) {
+      /* powers get a soft halo so they read as rare */
+      haloN = glowAddInto(haloScratch, haloN, p.x, py + 0.35, p.z, 0.75, col[0], col[1], col[2], 0.5 + 0.2 * Math.sin(p.ph * 2));
+    }
+    if (Math.random() < 0.25) fxPush({ x: p.x + rnd2(-0.15, 0.15), y: py + rnd2(0, 0.2), z: p.z + rnd2(-0.15, 0.15), vx: 0, vy: rnd2(0.3, 0.8), vz: 0, life: 0.5, max: 0.5, s: 0.08, pr: col[0], pg: col[1], pb: col[2], pa: 0.7, grav: 0 });
   }
+  if (haloN) drawGlowList(haloScratch, 0, haloN);
+  haloN = 0;
   /* enemies */
   for (var ei2 = 0; ei2 < enemies.length; ei2++) if (!enemies[ei2].dead) drawGoblin(enemies[ei2]);
   drawGoblinGlow();
+  /* elite auras + boss slam telegraph (one additive pass) */
+  for (var et = 0; et < enemies.length; et++) {
+    var ee = enemies[et];
+    if (ee.dead) continue;
+    if (ee.elite) {
+      haloN = glowAddInto(haloScratch, haloN, ee.x, ee.y + ee.h * 0.55, ee.z, ee.r * 1.5, 255, 214, 94, 0.34 + 0.12 * Math.sin(time * 4 + ee.ph));
+    }
+    if (ee.k === 'boss' && ee.actKind === 'slam' && ee.actT > 0) {
+      var st = 1 - ee.actT / 0.5; /* 0 → 1 as the pound lands */
+      haloN = glowAddInto(haloScratch, haloN, ee.x, world.heightAt(ee.x, ee.z) + 0.12, ee.z, 4.8 * (0.25 + 0.75 * st), 255, 120, 60, 0.16 + 0.4 * st);
+    }
+  }
+  if (haloN) { drawGlowList(haloScratch, 0, haloN); haloN = 0; }
   /* mouse-assist aim marker on the ground (gold when locked on a goblin) */
   if (state === 'play') {
     drawGlowList([{ x: aim.x, y: aim.y + 0.07, z: aim.z,
@@ -1805,6 +2044,8 @@ function drawPropInstanced(pd) {
   gl.uniform1f(uInst.uFF, 170);
   gl.uniform3f(uInst.uGlow, 0, 0, 0);
   gl.uniform1f(uInst.uAlpha, 1);
+  gl.uniform1f(uInst.uTime, time);
+  gl.uniform1f(uInst.uSway, pd.key === 'leaf' ? 1 : 0); /* wind on the foliage */
   var hasTex = pd.tex && TEX[pd.tex];
   gl.uniform1f(uInst.uTexOn, hasTex ? 1 : 0);
   if (hasTex) gl.bindTexture(gl.TEXTURE_2D, TEX[pd.tex]);
@@ -1892,6 +2133,8 @@ function updateFxVisual(dtF) {
 }
 var acc = 0, FIXED = 1 / 60;
 var lastFps = 0, fpsN = 0, fpsT = 0, qualityT = 0, lowStreak = 0, hiStreak = 0;
+var fxScale = 1; /* particle counts scale with render quality on weak GPUs */
+function setFxScale() { fxScale = renderScale >= 0.95 ? 1 : (renderScale >= 0.8 ? 0.75 : 0.5); }
 function adaptQuality(rawDt) {
   qualityT += rawDt;
   if (qualityT < 0.55) return;
@@ -1899,8 +2142,19 @@ function adaptQuality(rawDt) {
   if (lastFps > 0 && lastFps < 48) { lowStreak++; hiStreak = 0; }
   else if (lastFps >= 58) { hiStreak++; lowStreak = 0; }
   else { lowStreak = 0; hiStreak = 0; }
-  if (lowStreak >= 2 && renderScale > 0.62) { renderScale = Math.max(0.6, renderScale - 0.1); resize(); lowStreak = 0; }
-  else if (hiStreak >= 4 && renderScale < 1) { renderScale = Math.min(1, renderScale + 0.1); resize(); hiStreak = 0; }
+  if (lowStreak >= 2 && renderScale > 0.62) { renderScale = Math.max(0.6, renderScale - 0.1); resize(); setFxScale(); lowStreak = 0; }
+  else if (hiStreak >= 4 && renderScale < 1) { renderScale = Math.min(1, renderScale + 0.1); resize(); setFxScale(); hiStreak = 0; }
+}
+var fpsShown = -1;
+function updateFpsEl() {
+  if (lastFps <= 0) return;
+  if (lastFps === fpsShown) return;
+  fpsShown = lastFps;
+  var f = el('fps');
+  if (f) {
+    f.textContent = fpsShown + ' FPS';
+    f.style.color = fpsShown < 30 ? 'rgba(255,140,120,.8)' : (fpsShown < 48 ? 'rgba(255,214,120,.6)' : 'rgba(180,220,255,.5)');
+  }
 }
 function loop(tms) {
   requestAnimationFrame(loop);
@@ -1910,8 +2164,10 @@ function loop(tms) {
   lastT = t;
   dt = rawDt;
   fpsT += rawDt; fpsN++;
-  if (fpsT >= 0.5) { lastFps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
+  if (fpsT >= 0.5) { lastFps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; updateFpsEl(); }
   adaptQuality(rawDt);
+  pollGamepad(rawDt);
+  musicTick();
   updateFxVisual(rawDt);
   if (state === 'title') {
     time += rawDt;
@@ -1953,6 +2209,52 @@ var aimStickActive = false, aimStickX = 0, aimStickY = 0;
 var isTouch = false;
 var downX = 0, downY = 0, downT = 0, dragLookActive = false;
 
+/* ---- gamepad (standard mapping: L-stick move, R-stick aim, A/B/X/Y) ---- */
+var gpMove = [0, 0], gpAiming = false, gpFire = false;
+var gpJumpEdge = false, gpDashEdge = false, gpNovaEdge = false, gpPad = false;
+function gpDead(v) { return Math.abs(v) < 0.18 ? 0 : v; }
+function pollGamepad(rawDt) {
+  var hadPad = gpPad;
+  gpPad = false;
+  var pads = null;
+  try { pads = (typeof navigator !== 'undefined' && navigator.getGamepads) ? navigator.getGamepads() : null; } catch (e) { pads = null; }
+  var pad = null;
+  if (pads) for (var i = 0; i < pads.length; i++) if (pads[i] && pads[i].connected) { pad = pads[i]; break; }
+  if (!pad) { gpMove[0] = 0; gpMove[1] = 0; gpAiming = false; gpFire = false; return; }
+  gpPad = true;
+  if (hadPad !== gpPad) updateGpHint();
+  gpMove[0] = gpDead(pad.axes[0] || 0);
+  gpMove[1] = gpDead(pad.axes[1] || 0);
+  var rx = gpDead(pad.axes[2] || 0), ry = gpDead(pad.axes[3] || 0);
+  gpAiming = (rx !== 0 || ry !== 0);
+  if (gpAiming) {
+    camYawTarget -= rx * 2.4 * rawDt;
+    camPitchTarget = clamp(camPitchTarget + ry * 1.8 * rawDt, -0.02, 0.95);
+    lastAimT = time;
+  }
+  var b = pad.buttons || [];
+  function down(idx) { return !!(b[idx] && b[idx].pressed); }
+  var prev = gpPrev; /* read current state, replace below */
+  function edge(idx) { return down(idx) && !prev[idx]; }
+  gpFire = down(0);
+  gpJumpEdge = edge(1);
+  gpDashEdge = edge(2);
+  gpNovaEdge = edge(3);
+  if (down(4)) camDistTarget = clamp(camDistTarget - 0.08, 5.2, 11.5);   /* LB zoom in */
+  if (down(5)) camDistTarget = clamp(camDistTarget + 0.08, 5.2, 11.5);   /* RB zoom out */
+  if (edge(9)) {                                                          /* start: pause */
+    if (state === 'play') pauseGame();
+    else if (state === 'pause') resumeGame();
+  }
+  gpPrev = { 0: down(0), 1: down(1), 2: down(2), 3: down(3), 4: down(4), 5: down(5), 9: down(9) };
+}
+var gpPrev = {};
+function updateGpHint() {
+  var h = el('gpHint');
+  if (!h) return;
+  h.style.display = gpPad ? 'block' : 'none';
+}
+
 function moveVec() {
   var sr = 0, su = 0;
   if (keys['KeyW'] || keys['ArrowUp']) su += 1;
@@ -1960,6 +2262,7 @@ function moveVec() {
   if (keys['KeyA'] || keys['ArrowLeft']) sr -= 1;
   if (keys['KeyD'] || keys['ArrowRight']) sr += 1;
   if (moveStickActive) { sr = moveStickX; su = moveStickY; }
+  if (gpMove[0] !== 0 || gpMove[1] !== 0) { sr = gpMove[0]; su = gpMove[1]; }
   var l = Math.hypot(sr, su);
   if (l > 1) { sr /= l; su /= l; }
   /* camera-relative */
@@ -1975,6 +2278,7 @@ document.addEventListener('keydown', function (e) {
   if (state === 'title' && (e.code === 'Space' || e.code === 'Enter')) { startGame(); return; }
   if (state === 'over' && e.code === 'Space') { startGame(); return; }
   if (e.code === 'KeyM') toggleMute();
+  if (e.code === 'KeyN') toggleMusic();
   if (e.code === 'KeyP') {
     if (state === 'play') pauseGame();
     else if (state === 'pause') resumeGame();
@@ -2053,10 +2357,11 @@ canvas.addEventListener('wheel', function (e) {
 }, { passive: false });
 
 function pollInputLive() {
-  fireNow = mouseFire || tapPulse > 0 || keys['KeyF'] || (aimStickActive);
-  jumpNow = keys['Space'] || jumpHeld;
-  dashNow = keys['ShiftLeft'] || keys['ShiftRight'] || dashHeld;
-  novaNow = keys['KeyQ'] || keys['KeyE'] || novaHeld;
+  fireNow = mouseFire || tapPulse > 0 || keys['KeyF'] || (aimStickActive) || gpFire;
+  jumpNow = keys['Space'] || jumpHeld || gpJumpEdge;
+  dashNow = keys['ShiftLeft'] || keys['ShiftRight'] || dashHeld || gpDashEdge;
+  novaNow = keys['KeyQ'] || keys['KeyE'] || novaHeld || gpNovaEdge;
+  gpJumpEdge = false; gpDashEdge = false; gpNovaEdge = false;
   if (tapPulse > 0) tapPulse -= dt;
 }
 
@@ -2106,18 +2411,108 @@ window.addEventListener('touchstart', function () { if (!isTouch) setupTouch(); 
 window.addEventListener('pointerdown', function (e) { if (e.pointerType === 'touch' && !isTouch) setupTouch(); }, { passive: true });
 
 /* ================================================================
- * 19. audio (procedural)
+ * 19. audio (procedural sfx + generative music)
  * ================================================================ */
-var AC = null, noiseBuf = null, muted = false;
+var AC = null, noiseBuf = null, muted = false, masterGain = null, musicGain = null;
+var masterVol = 0.8;
+try { masterVol = clamp(+(localStorage.getItem('riley3d.vol') || 0.8), 0, 1); } catch (e) {}
 function audioInit() {
-  if (AC || muted) return;
+  if (AC) return;
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = AC.createGain();
+    masterGain.gain.value = muted ? 0 : masterVol;
+    masterGain.connect(AC.destination);
+    musicGain = AC.createGain();
+    musicGain.gain.value = MUS.on ? 0.5 : 0;
+    musicGain.connect(masterGain);
     var len = Math.floor(AC.sampleRate * 0.6), nb = AC.createBuffer(1, len, AC.sampleRate);
     var d = nb.getChannelData(0);
     for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     noiseBuf = nb;
+    MUS.nextT = 0; /* reschedule from "now" on first unlock */
   } catch (e) { AC = null; }
+}
+/* ---- generative score: drone + pentatonic arp, intensity follows the fight ---- */
+var MUS = {
+  on: true, nextT: 0, step: 0, drone: null,
+  roots: [55, 43.65, 65.41, 49],              /* A1  F1  C2  G1  — Am / F  / C  / G */
+  scale: [220, 261.63, 293.66, 329.63, 392, 440, 523.25],  /* A minor pentatonic */
+  arp: [0, 2, 4, 3, 5, 4, 2, 1]
+};
+try { MUS.on = localStorage.getItem('riley3d.mus') !== '0'; } catch (e) {}
+function musicIntensity() {
+  if (state === 'over') return 0.3;
+  if (state !== 'play') return 0.35;
+  return game.boss ? 1 : Math.min(1, 0.5 + (game.wave - 1) * 0.06);
+}
+function mTone(f0, f1, dur, type, vol, t) {
+  if (!AC || !musicGain) return;
+  try {
+    var o = AC.createOscillator(), g = AC.createGain(), f = AC.createBiquadFilter();
+    o.type = type || 'triangle';
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    f.type = 'lowpass'; f.frequency.value = 2600; f.Q.value = 0.4;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(f); f.connect(g); g.connect(musicGain);
+    o.start(t); o.stop(t + dur + 0.05);
+  } catch (e) {}
+}
+function startDrone() {
+  if (!AC || !musicGain || MUS.drone) return;
+  try {
+    var g = AC.createGain(); g.gain.value = 0.05;
+    var f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 320; f.Q.value = 0.5;
+    var o1 = AC.createOscillator(); o1.type = 'sine'; o1.frequency.value = 55;
+    var o2 = AC.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 82.5;
+    var g2 = AC.createGain(); g2.gain.value = 0.4;
+    o1.connect(f); o2.connect(g2); g2.connect(f); f.connect(g); g.connect(musicGain);
+    o1.start(); o2.start();
+    MUS.drone = { o1: o1, o2: o2, g: g };
+  } catch (e) {}
+}
+function musicTick() {
+  if (!AC || !MUS.on) return;
+  if (!MUS.drone) startDrone();
+  if (MUS.nextT < AC.currentTime - 0.5) MUS.nextT = AC.currentTime + 0.06; /* resync after tab-sleep */
+  var intns = musicIntensity();
+  var stepDur = state === 'play' && game.boss ? 0.27 : 0.33;
+  while (MUS.nextT < AC.currentTime + 0.4) {
+    var step = MUS.step, t = MUS.nextT;
+    var beat = step % 8, bar = Math.floor(step / 8) % 4;
+    var root = MUS.roots[bar];
+    if (beat === 0) {
+      /* drone glides to the bar root */
+      if (MUS.drone) {
+        MUS.drone.o1.frequency.setTargetAtTime(root, t, 0.6);
+        MUS.drone.o2.frequency.setTargetAtTime(root * 1.5, t, 0.6);
+      }
+      mTone(root * 2, root * 2, 0.5, 'sine', 0.05 * intns, t);
+    }
+    if (beat === 4) mTone(root * 2, root * 2, 0.35, 'sine', 0.04 * intns, t);
+    /* arpeggio: every 8th at full intensity, every other 8th otherwise */
+    if (intns > 0.6 || beat % 2 === 0) {
+      var ni = MUS.arp[beat];
+      var f = MUS.scale[ni] * (beat === 6 ? 1.5 : 1);
+      mTone(f, f, 0.26, 'triangle', (0.02 + 0.022 * intns) * (state === 'play' ? 1 : 0.55), t);
+      if (intns > 0.75 && beat === 2) mTone(f * 2, f * 2, 0.14, 'sine', 0.016, t);
+    }
+    if (state === 'play' && game.boss && beat === 3) {
+      mTone(root * 3, root * 2.9, 0.18, 'sawtooth', 0.014, t); /* tension pulse */
+    }
+    MUS.nextT += stepDur;
+    MUS.step = (step + 1) % 32;
+  }
+}
+/* sfx rate gate: spammy one-shots (shots, hits, coins) max ~6 per 150ms */
+var sfxGateT = 0, sfxGateN = 0;
+function sfxGated(n) {
+  if (time - sfxGateT > 0.15) { sfxGateT = time; sfxGateN = 0; }
+  if (sfxGateN >= 6) return;
+  sfxGateN++;
+  sfx(n);
 }
 function tone(f0, f1, dur, type, vol, delay) {
   if (!AC || muted) return;
@@ -2129,7 +2524,7 @@ function tone(f0, f1, dur, type, vol, delay) {
     o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(AC.destination);
+    o.connect(g); g.connect(masterGain);
     o.start(t); o.stop(t + dur + 0.03);
   } catch (e) {}
 }
@@ -2143,9 +2538,19 @@ function noiseS(dur, vol, f0, f1, delay) {
     f.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
     var g = AC.createGain(); g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f); f.connect(g); g.connect(AC.destination);
+    src.connect(f); f.connect(g); g.connect(masterGain);
     src.start(t); src.stop(t + dur + 0.03);
   } catch (e) {}
+}
+function applyMute() {
+  if (masterGain) masterGain.gain.value = muted ? 0 : masterVol;
+}
+function toggleMusic() {
+  MUS.on = !MUS.on;
+  if (musicGain) musicGain.gain.value = MUS.on ? 0.5 : 0;
+  try { localStorage.setItem('riley3d.mus', MUS.on ? '1' : '0'); } catch (e) {}
+  var b = el('btnMusic');
+  if (b) b.textContent = MUS.on ? '🎵' : '⊘';
 }
 function sfx(n) {
   switch (n) {
@@ -2168,11 +2573,13 @@ function sfx(n) {
     case 'pop': tone(1150, 2300, 0.06, 'sine', 0.03); break;
     case 'nova': tone(180, 1400, 0.5, 'sawtooth', 0.09); tone(90, 700, 0.6, 'triangle', 0.08, 0.02); noiseS(0.5, 0.1, 400, 3000); tone(1200, 300, 0.4, 'sine', 0.05, 0.05); break;
     case 'crystal': tone(1200, 2400, 0.14, 'sine', 0.07); tone(1800, 3200, 0.2, 'sine', 0.05, 0.06); noiseS(0.12, 0.04, 3000, 1200); break;
+    case 'power': tone(440, 1320, 0.2, 'triangle', 0.06); tone(660, 1980, 0.24, 'sine', 0.04, 0.05); noiseS(0.14, 0.03, 1400, 3400, 0.03); break;
   }
 }
 function toggleMute() {
   muted = !muted;
   el('btnMute').textContent = muted ? '🔇' : '🔊';
+  applyMute();
 }
 addEventListener('pointerdown', function () { audioInit(); }, true);
 
@@ -2192,6 +2599,8 @@ function startGame() {
   game.combo = 0; game.comboBest = 0; game.boss = false; game.shake = 0;
   game.waveState = 'idle'; game.clearT = 0; game.spawnQueue = [];
   shots.length = 0; fx.length = 0; enemies.length = 0; eShots.length = 0; pickups.length = 0;
+  buffs.dmg = 0; buffs.spd = 0; buffs.regen = 0;
+  resetHudCache();
   var si = el('seedInput');
   var want = si ? String(si.value || '').trim().toUpperCase() : '';
   seedStr = want || ('RLY-' + Math.floor(Math.random() * 900000 + 100000));
@@ -2219,11 +2628,22 @@ function startGame() {
 }
 function endGame() {
   state = 'over';
-  if (game.score > best) {
+  var isBest = game.score > best;
+  if (isBest) {
     best = game.score;
     try { localStorage.setItem('riley3d.best', best); } catch (e) {}
   }
-  el('bestLine2').textContent = best > 0 ? '🏆 NEW BEST! ' + best : '';
+  el('bestLine2').textContent = isBest && best > 0 ? '🏆 NEW BEST! ' + best : '';
+  runStats.games++;
+  runStats.kills += game.kills;
+  runStats.bestWave = Math.max(runStats.bestWave, game.wave);
+  runStats.bestCombo = Math.max(runStats.bestCombo, game.comboBest);
+  saveRunStats();
+  var rk = rankFor();
+  var rkEl = el('stRank');
+  rkEl.textContent = rk[0];
+  rkEl.style.color = rk[0] === 'S' ? '#ffd75e' : rk[0] === 'A' ? '#7fe4ff' : rk[0] === 'B' ? '#7dffa8' : rk[0] === 'C' ? '#cfd8ff' : '#8b96b8';
+  el('stRankFlavor').textContent = rk[1];
   el('stScore').textContent = game.score;
   el('stWave').textContent = game.wave;
   el('stKills').textContent = game.kills;
@@ -2239,11 +2659,18 @@ function toTitle() {
   state = 'title';
   show('ovTitle'); hide('ovOver'); hide('ovPause');
   fx.length = 0;
+  resetHudCache();
+  el('bossBar').style.display = 'none';
+  refreshTitleStats();
   titleScene();
 }
 function pauseGame() {
   if (state !== 'play') return;
   state = 'pause';
+  el('pScore').textContent = Math.round(game.score);
+  el('pWave').textContent = game.wave;
+  el('pKills').textContent = game.kills;
+  el('pCombo').textContent = '×' + Math.max(1, game.comboBest);
   show('ovPause');
   reticleEl.classList.remove('on');
   document.body.classList.remove('aiming');
@@ -2261,7 +2688,7 @@ function titleScene() {
   R = newRiley();
   R.yaw = titleA + Math.PI;
   enemies.length = 0; eShots.length = 0; shots.length = 0; pickups.length = 0;
-  game.waveState = 'idle'; game.boss = false; game.spawnQueue = 0;
+  game.waveState = 'idle'; game.boss = false; game.spawnQueue = [];
   el('bossBar').style.display = 'none';
   var spots = [[-9, 8, 'grunt'], [9, -6, 'runner'], [0, -11, 'spitter']];
   for (var i = 0; i < spots.length; i++) {
@@ -2293,13 +2720,27 @@ el('btnQuitTitle').onclick = function () { resumeGame(); toTitle(); };
 el('btnQuit2').onclick = toTitle;
 el('btnAgain').onclick = startGame;
 el('btnMute').onclick = toggleMute;
+el('btnMusic').onclick = toggleMusic;
+el('btnMusic').textContent = MUS.on ? '🎵' : '⊘';
+el('btnDaily').onclick = function () {
+  /* daily world: everyone who clicks today fights the same goblin army */
+  var d = new Date();
+  var s = 'DAILY-' + d.getUTCFullYear() + ('0' + (d.getUTCMonth() + 1)).slice(-2) + ('0' + d.getUTCDate()).slice(-2);
+  el('seedInput').value = s;
+  startGame();
+};
 el('btnPurge').onclick = function () {
   purgeBestiary();
   el('bestLine2').textContent = '🧠 Goblin memories purged';
 };
+/* buff bar rows (⚡ damage · ☄ speed · ✦ mana surge) */
+makeBuffRow('⚡', '#ffd75e', 'dmg');
+makeBuffRow('☄', '#7fe4ff', 'spd');
+makeBuffRow('✦', '#d29aff', 'regen');
 if (best > 0) el('bestLine').textContent = '🏆 BEST SCORE: ' + best;
 var iq = A.iqAvg(bestiary);
 if (iq > 0) el('iqLine').textContent = '🧠 GOBLIN IQ ' + iq + ' — the army remembers you';
+refreshTitleStats();
 if (seedStr) el('seedInput').placeholder = seedStr;
 
 if (NOGL) {
@@ -2324,6 +2765,9 @@ window.__R = function () {
     x: R ? R.x : 0, y: R ? R.y : 0, z: R ? R.z : 0, yaw: R ? R.yaw : 0,
     ground: R ? R.ground : false, fx: fx.length, fps: lastFps,
     mana: R ? R.mana : 0, inv: R ? R.inv : 0,
+    kbx: R ? R.kbx : 0, kbz: R ? R.kbz : 0, kbT: R ? R.kbT : 0,
+    buffs: { dmg: buffs.dmg, spd: buffs.spd, regen: buffs.regen },
+    eliteN: enemies.filter(function (e) { return e.elite && !e.dead; }).length,
     camX: camX, camY: camY, camZ: camZ, camYaw: camYaw, camPitch: camPitch,
     locked: pointerLocked, seed: world ? world.seed : '' };
 };
@@ -2337,11 +2781,32 @@ if (SELFTEST) {
         hash: session ? session.worldHash : 0, tick: session ? session.tick : 0 };
     },
     god: function (b) { if (b) R.inv = 1e9; },
-    place: function (k, dx, dz) {
+    place: function (k, dx, dz, elite) {
       var x = R.x + (dx !== undefined ? dx : Math.sin(R.yaw) * 6);
       var z = R.z + (dz !== undefined ? dz : Math.cos(R.yaw) * 6);
-      var g = placeGoblin(k, x, z);
-      return g && { x: x, y: g.y, z: z };
+      var g = placeGoblin(k, x, z, elite);
+      return g && { x: x, y: g.y, z: z, elite: g.elite, hp: g.hp, hpMax: g.hpMax };
+    },
+    drop: function (kind) {
+      spawnPickup(kind, R.x + 0.6, R.y + 0.5, R.z);
+      return true;
+    },
+    buffs: function () {
+      return { dmg: buffs.dmg, spd: buffs.spd, regen: buffs.regen };
+    },
+    slam: function () {
+      for (var i = 0; i < enemies.length; i++) {
+        var e = enemies[i];
+        if (e.k === 'boss' && !e.dead) { e.actKind = 'slam'; e.actT = 0.02; e.stun = 0; return true; }
+      }
+      return false;
+    },
+    bossState: function () {
+      for (var i = 0; i < enemies.length; i++) {
+        var e = enemies[i];
+        if (e.k === 'boss' && !e.dead) return { act: e.actKind, hp: e.hp, enrage: e.enrage, stun: e.stun };
+      }
+      return null;
     },
     fire: function () { fireShot(); },
     hurtAll: function () { for (var i = enemies.length - 1; i >= 0; i--) if (!enemies[i].dead) damageGob(enemies[i], 99, Math.sin(i + 1), Math.cos(i + 1)); },

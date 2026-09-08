@@ -71,12 +71,14 @@ function forward(g, x, out, hbuf) {
 /* ---------------- species archetypes ----------------
  * Hand-tuned bases so wave-1 behaviour is sane, then evolution takes over.
  * Biases are set on the action layer (w2 bias column) + key input weights. */
+/* cooldowns (lungeCd / spitCd / smashCd) are in REAL seconds — the engine
+ * decrements them at a staggered 8 Hz by dt*8. */
 var SPECIES = {
-  grunt:  { hp: 2, spd: 5.0, sc: 10, r: 0.42, h: 1.05, s: 0.85, melee: 1.9, lunge: 13, lungeCd: 2.2 },
-  runner: { hp: 1, spd: 7.2, sc: 15, r: 0.34, h: 0.85, s: 0.7,  melee: 1.5, lunge: 17, lungeCd: 1.6 },
-  spitter:{ hp: 2, spd: 3.4, sc: 25, r: 0.44, h: 1.1,  s: 0.85, range: [7, 16], spitCd: 2.0 },
-  brute:  { hp: 5, spd: 2.9, sc: 50, r: 0.56, h: 1.4,  s: 1.25, melee: 2.4, smash: 10, smashCd: 2.6 },
-  boss:   { hp: 42, spd: 3.4, sc: 500, r: 0.75, h: 1.85, s: 1.7, melee: 3.0, lunge: 22, lungeCd: 2.2 }
+  grunt:  { hp: 2, spd: 5.0, sc: 10, r: 0.42, h: 1.05, s: 0.85, melee: 1.9, lunge: 13, lungeCd: 1.7 },
+  runner: { hp: 1, spd: 7.2, sc: 15, r: 0.34, h: 0.85, s: 0.7,  melee: 1.5, lunge: 17, lungeCd: 1.2 },
+  spitter:{ hp: 2, spd: 3.4, sc: 25, r: 0.44, h: 1.1,  s: 0.85, range: [7, 16], spitCd: 2.2 },
+  brute:  { hp: 5, spd: 2.9, sc: 50, r: 0.56, h: 1.4,  s: 1.25, melee: 2.4, smash: 10, smashCd: 3.4 },
+  boss:   { hp: 42, spd: 3.4, sc: 500, r: 0.75, h: 1.85, s: 1.7, melee: 3.0, lunge: 22, lungeCd: 2.0 }
 };
 var SPECIES_LIST = ['grunt', 'runner', 'spitter', 'brute', 'boss'];
 
