@@ -542,88 +542,160 @@ var PM = new Float32Array(16), VM = new Float32Array(16), PVM = new Float32Array
 var LIGHT = [0.5, 0.85, 0.35];
 var fogCur = [12, 17, 46], fogTarget = [12, 17, 46];
 
-var camYaw = 0, camPitch = 0.5;
-var camYawTarget = 0, camPitchTarget = 0.5;
-var camDist = 7.5, camDistTarget = 7.5;   /* Zelda-tight; wheel zooms 5.2..11.5 */
+var camYaw = 0, camPitch = 0.38;
+var camYawTarget = 0, camPitchTarget = 0.38;
+var camDist = 8.2, camDistTarget = 8.2;   /* wheel zooms 4.6..14 */
+var CAM_DIST_MIN = 4.6, CAM_DIST_MAX = 14;
 var camX = 0, camY = 6, camZ = 8;
-var camFov = 1.12;
+var camFov = 1.05;
 var eye = [0, 0, 0], ctr = [0, 0, 0];
+var lookY = 1.15;                         /* lagged look-height (jump lag) */
 var lastAimT = -10;                    // last manual mouse-look input
-var aim = { x: 0, y: 0, z: 0, lock: null };  /* mouse-assist aim point (Zelda cursor) */
+var aim = { x: 0, y: 0, z: 0, lock: null };  /* mouse-assist aim point */
+var lockOn = null;                     /* sticky combat lock */
 var pointerLocked = false;
-var dragLook = false, dragMoved = 0;   // trackpad drag-orbit fallback
+var dragLook = false, dragMoved = 0;
+var camCollideD = 8.2;                 /* last collision-safe distance */
 
 function camDir() { return [Math.sin(camYaw), 0, Math.cos(camYaw)]; }
 
-/* Raycast player->camera against the terrain; return the safe distance
- * along the ray (a fraction of maxD — never a squared distance). */
-function camGroundDist(px, py, pz, dx, dy, dz) {
-  var maxD = camDist + 2;
-  var steps = 24, safe = maxD;
+function nearestLivingEnemy(px, pz, maxD) {
+  var bestE = null, bd = maxD || 28;
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (!e || e.dead) continue;
+    var d = Math.hypot(e.x - px, e.z - pz);
+    if (d < bd) { bd = d; bestE = e; }
+  }
+  return bestE;
+}
+function cycleLockOn() {
+  if (state !== 'play' || !R) return;
+  var cand = [];
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (e && !e.dead && Math.hypot(e.x - R.x, e.z - R.z) < 32) cand.push(e);
+  }
+  if (!cand.length) { lockOn = null; return; }
+  cand.sort(function (a, b) {
+    return Math.hypot(a.x - R.x, a.z - R.z) - Math.hypot(b.x - R.x, b.z - R.z);
+  });
+  if (!lockOn) { lockOn = cand[0]; return; }
+  var idx = cand.indexOf(lockOn);
+  lockOn = cand[(idx + 1) % cand.length];
+}
+function clearLockIfDead() {
+  if (lockOn && lockOn.dead) lockOn = nearestLivingEnemy(R.x, R.z, 18);
+}
+
+/* Sphere-cast player->camera vs heightfield. Pulls in tightly, never under dirt. */
+function camGroundDist(px, py, pz, dx, dy, dz, maxD) {
+  var steps = 36, safe = maxD, pad = 0.55;
   for (var i = 1; i <= steps; i++) {
-    var t = i / steps; /* fraction 0..1 */
+    var t = i / steps;
     var d = t * maxD;
-    var y = py + dy * d;
-    var x = px + dx * d, z = pz + dz * d;
-    if (y - 0.34 < world.heightAt(x, z)) { safe = Math.max(0.9, d * 0.86); break; }
+    var x = px + dx * d, y = py + dy * d, z = pz + dz * d;
+    if (y - pad < world.heightAt(x, z)) { safe = Math.max(1.15, d * 0.78); break; }
   }
   return safe;
 }
 function updateCamera(dtC, lookAt) {
-  /* lookAt = {x,y,z, yawTarget override for touch auto-follow} */
   var lx = lookAt.x, ly = lookAt.y, lz = lookAt.z;
+  var spd = Math.hypot(R.vx, R.vz);
+  clearLockIfDead();
+
   if (state === 'title') {
-    titleA += dtC * 0.12;
+    titleA += dtC * 0.18;
     camYawTarget = titleA;
-    camPitchTarget = 0.30;
+    camPitchTarget = 0.28;
+    camDistTarget = 11.5;
   } else if (state === 'play' || state === 'pause') {
-    if (touchAutoCam) { camYawTarget = R.yaw + Math.PI; } /* camera behind on mobile */
-    else if (!pointerLocked && !dragLookActive) {
-      /* Zelda auto-follow: when the mouse hasn't steered recently, the camera
-         gently rotates to sit behind your walking direction */
-      if (!mouseFire && !R.charging && time - lastAimT > 1.6) {
-        camYawTarget = angLerp(camYawTarget, R.yaw + Math.PI, clamp(dtC * 2.2, 0, 1));
-      }
+    /* combat lock: orbit so the target stays framed, player on screen */
+    if (lockOn && !lockOn.dead) {
+      var toTx = lockOn.x - lx, toTz = lockOn.z - lz;
+      var want = Math.atan2(toTx, toTz) + Math.PI;
+      camYawTarget = angLerp(camYawTarget, want, clamp(dtC * 3.4, 0, 1));
+      camPitchTarget = lerp(camPitchTarget, 0.32, clamp(dtC * 2.2, 0, 1));
+    } else if (touchAutoCam) {
+      /* mobile: sit behind walk heading, lag so it doesn't whip */
+      if (spd > 1.4) camYawTarget = angLerp(camYawTarget, R.yaw + Math.PI, clamp(dtC * 2.6, 0, 1));
+    } else if (!pointerLocked && !dragLookActive && !mouseFire && !R.charging && time - lastAimT > 2.2) {
+      /* idle auto-frame only after a long pause, never while aiming */
+      if (spd > 2.5) camYawTarget = angLerp(camYawTarget, R.yaw + Math.PI, clamp(dtC * 1.15, 0, 1));
     }
   }
-  camDist = lerp(camDist, camDistTarget, clamp(dtC * 5, 0, 1));
-  camYaw = angLerp(camYaw, camYawTarget, clamp(dtC * 8, 0, 1));
-  camPitch = lerp(camPitch, camPitchTarget, clamp(dtC * 10, 0, 1));
+
+  /* yaw/pitch: snappy mouse (already on *Target), camera itself critically damped */
+  var yawK = pointerLocked || dragLookActive || gpAiming ? 18 : 10;
+  var pitK = 14;
+  camYaw = angLerp(camYaw, camYawTarget, clamp(dtC * yawK, 0, 1));
+  camPitch = lerp(camPitch, camPitchTarget, clamp(dtC * pitK, 0, 1));
+  camPitch = clamp(camPitch, -0.08, 1.05);
+  camDist = lerp(camDist, camDistTarget, clamp(dtC * 7, 0, 1));
 
   var cp = Math.cos(camPitch), sp = Math.sin(camPitch);
   var ddx = Math.sin(camYaw) * cp, ddy = sp, ddz = Math.cos(camYaw) * cp;
-  var tx = lx + R.vx * 0.06, tz = lz + R.vz * 0.06;
-  var headY = ly + 1.35;
-  var safeD = camGroundDist(tx, headY, tz, -ddx, -ddy, -ddz);
-  var ex = tx - ddx * safeD, ey = headY + ddy * safeD, ez = tz - ddz * safeD;
-  /* hard floor: never under the terrain */
-  var gh = world.heightAt(ex, ez) + 0.36;
+
+  /* look-ahead along velocity so you see where you're going, not where you were */
+  var lead = clamp(spd * 0.11, 0, 1.6);
+  var tx = lx + R.vx * 0.08, tz = lz + R.vz * 0.08;
+  if (R.dashing) { tx += R.dashDX * 1.15; tz += R.dashDZ * 1.15; }
+  else { tx += Math.sin(camYaw) * 0; }
+
+  /* jump lag: look height follows slowly going up, snaps down on landing */
+  var wantLookY = ly + 1.22;
+  if (R.vy > 0.5) lookY = lerp(lookY, wantLookY, clamp(dtC * 3.2, 0, 1));
+  else lookY = lerp(lookY, wantLookY, clamp(dtC * 9, 0, 1));
+  var headY = lookY + 0.18;
+
+  /* slight shoulder offset so the character isn't glued to screen center */
+  var shx = Math.cos(camYaw) * 0.55, shz = -Math.sin(camYaw) * 0.55;
+  tx += shx; tz += shz;
+
+  var wantD = camDist + lead * 0.15;
+  var safeD = camGroundDist(tx, headY, tz, -ddx, -ddy, -ddz, wantD + 1.4);
+  /* collision pulls in fast, eases out slow (no popping through hills) */
+  if (safeD < camCollideD) camCollideD = lerp(camCollideD, safeD, clamp(dtC * 22, 0, 1));
+  else camCollideD = lerp(camCollideD, safeD, clamp(dtC * 4.5, 0, 1));
+  var useD = Math.min(wantD, camCollideD);
+
+  var ex = tx - ddx * useD, ey = headY + ddy * useD, ez = tz - ddz * useD;
+  var gh = world.heightAt(ex, ez) + 0.42;
   if (ey < gh) ey = gh;
-  camX = lerp(camX, ex, clamp(dtC * 8, 0, 1));
-  camY = lerp(camY, ey, clamp(dtC * 8, 0, 1));
-  camZ = lerp(camZ, ez, clamp(dtC * 8, 0, 1));
-  var gh2 = world.heightAt(camX, camZ) + 0.28;
+
+  /* critically damped follow — high enough to stick, low enough to not jitter */
+  var followK = R.dashing ? 14 : 11;
+  camX = lerp(camX, ex, clamp(dtC * followK, 0, 1));
+  camY = lerp(camY, ey, clamp(dtC * followK, 0, 1));
+  camZ = lerp(camZ, ez, clamp(dtC * followK, 0, 1));
+  var gh2 = world.heightAt(camX, camZ) + 0.38;
   if (camY < gh2) camY = gh2;
 
-  /* look point stays on Riley — the cursor, not the camera, drifts.
-     A small lead only while dashing so you don't get left behind. */
-  ctr[0] = tx + (R.dashing ? R.dashDX * 0.9 : 0);
-  ctr[1] = ly + 1.2;
-  ctr[2] = tz + (R.dashing ? R.dashDZ * 0.9 : 0);
+  ctr[0] = tx + (lockOn ? (lockOn.x - lx) * 0.12 : 0);
+  ctr[1] = lookY;
+  ctr[2] = tz + (lockOn ? (lockOn.z - lz) * 0.12 : 0);
+  if (lockOn && !lockOn.dead) {
+    ctr[0] = lerp(tx, lockOn.x, 0.22);
+    ctr[1] = lerp(lookY, lockOn.y + lockOn.h * 0.55, 0.18);
+    ctr[2] = lerp(tz, lockOn.z, 0.22);
+  }
 
   var sh = game.shake;
   if (sh > 0) {
-    var ss = sh * 0.4;
-    eye[0] = camX + (Math.random() * 2 - 1) * ss;
-    eye[1] = camY + (Math.random() * 2 - 1) * ss;
-    eye[2] = camZ + (Math.random() * 2 - 1) * ss;
+    var ss = Math.min(sh, 0.85) * 0.22;
+    var n1 = Math.sin(time * 47.1) * Math.cos(time * 31.7);
+    var n2 = Math.sin(time * 53.3 + 1.7);
+    var n3 = Math.cos(time * 41.9 + 0.4);
+    eye[0] = camX + n1 * ss;
+    eye[1] = camY + n2 * ss * 0.7;
+    eye[2] = camZ + n3 * ss;
   } else { eye[0] = camX; eye[1] = camY; eye[2] = camZ; }
 
   C.m4Look(VM, eye[0], eye[1], eye[2], ctr[0], ctr[1], ctr[2]);
-  var spdF = clamp(Math.hypot(R.vx, R.vz) / 9, 0, 1);
-  var fovT = 1.05 + (R.dashing ? 0.07 : 0) + spdF * 0.012;
-  camFov = lerp(camFov, fovT, clamp(dtC * 6, 0, 1));
-  C.m4Persp(PM, camFov, Ww / Hh, 0.1, 480);
+  var spdF = clamp(spd / 9, 0, 1);
+  var fovT = 0.98 + (R.dashing ? 0.09 : 0) + spdF * 0.04;
+  camFov = lerp(camFov, fovT, clamp(dtC * 5, 0, 1));
+  C.m4Persp(PM, camFov, Ww / Hh, 0.12, 480);
   C.m4mul(PVM, PM, VM);
   camR[0] = VM[0]; camR[1] = VM[4]; camR[2] = VM[8];
   camUp[0] = VM[1]; camUp[1] = VM[5]; camUp[2] = VM[9];
@@ -636,6 +708,11 @@ var touchAutoCam = false;
 function updateAim() {
   aim.lock = null;
   if (state !== 'play' || !world) return;
+  if (lockOn && !lockOn.dead) {
+    aim.lock = lockOn;
+    aim.x = lockOn.x; aim.z = lockOn.z; aim.y = lockOn.y + lockOn.h * 0.55;
+    return;
+  }
   if (isTouch && aimStickActive) {
     var l = Math.hypot(aimStickX, aimStickY) || 1;
     var ax = R.x + (aimStickX / l) * 9, az = R.z + (aimStickY / l) * 9;
@@ -737,14 +814,14 @@ function stepPlayer(inp) {
   if (buffs.spd > 0) buffs.spd = Math.max(0, buffs.spd - dt);
   if (buffs.regen > 0) buffs.regen = Math.max(0, buffs.regen - dt);
 
-  /* face the aim point (mouse-assist) while firing, else face movement */
+  /* face the aim point while firing / locked; otherwise face movement */
   var aimX = aim.x - R.x, aimZ = aim.z - R.z;
   var al = Math.hypot(aimX, aimZ) || 1;
   aimX /= al; aimZ /= al;
-  if (inp.fire || R.charging || R.shootAnim > 0) {
-    R.yaw = angLerp(R.yaw, Math.atan2(aimX, aimZ), clamp(dt * 16, 0, 1));
+  if (lockOn || inp.fire || R.charging || R.shootAnim > 0) {
+    R.yaw = angLerp(R.yaw, Math.atan2(aimX, aimZ), clamp(dt * 18, 0, 1));
   } else if (walking) {
-    R.yaw = angLerp(R.yaw, Math.atan2(mvx, mvz), clamp(dt * 12, 0, 1));
+    R.yaw = angLerp(R.yaw, Math.atan2(mvx, mvz), clamp(dt * 14, 0, 1));
   }
 
   /* dash */
@@ -753,7 +830,7 @@ function stepPlayer(inp) {
     var dd0 = walking ? mvx : aimX, dd1 = walking ? mvz : aimZ;
     var dl = Math.hypot(dd0, dd1) || 1;
     R.dashDX = dd0 / dl; R.dashDZ = dd1 / dl;
-    R.dashing = true; R.dashT = 0.19; R.dashCd = 0.72; R.inv = Math.max(R.inv, 0.22);
+    R.dashing = true; R.dashT = 0.16; R.dashCd = 0.58; R.inv = Math.max(R.inv, 0.28);
     burst(R.x, R.y + 0.7, R.z, [130, 210, 255], 12, 5, 1.5, 0.3, 0.4);
   }
   if (R.dashing) {
@@ -779,18 +856,19 @@ function stepPlayer(inp) {
   /* jump / double jump */
   if (inp.jump) R.jumpBuf = 0.12;
   if (R.jumpBuf > 0 && (R.ground || R.coyote > 0)) {
-    R.vy = 14.8; R.ground = false; R.coyote = 0; R.jumpBuf = 0; R.air = 1;
+    R.vy = 13.6; R.ground = false; R.coyote = 0; R.jumpBuf = 0; R.air = 1;
     ringBurst(R.x, R.y + 0.05, R.z, [220, 235, 255], 3);
     sfx('jump');
   } else if (R.jumpBuf > 0 && R.air === 1) {
-    R.vy = 13.2; R.air = 2; R.jumpBuf = 0;
+    R.vy = 12.4; R.air = 2; R.jumpBuf = 0;
     ringBurst(R.x, R.y + 0.1, R.z, [120, 220, 255], 4);
     sfx('djump');
   }
 
   /* gravity */
-  R.vy -= 39 * dt;
-  if (R.vy < -40) R.vy = -40;
+  R.vy -= 42 * dt;
+  if (R.vy < -36) R.vy = -36;
+  if (!R.ground && R.vy < 0 && !inp.jump) R.vy -= 10 * dt; /* variable jump height */
   var fallSpd = R.vy;
   var wasAir = !R.ground;
 
@@ -802,7 +880,11 @@ function stepPlayer(inp) {
     R.y += R.vy * dt / sub;
     R.ground = false;
     var gy = groundY(R.x, R.z);
-    if (R.vy <= 0 && R.y <= gy) { R.y = gy; R.vy = 0; R.ground = true; R.air = 0; }
+    if (R.vy <= 2 && R.y <= gy) { R.y = gy; R.vy = 0; R.ground = true; R.air = 0; }
+    else if (R.ground === false && R.y < gy + 0.12 && R.vy > 0 && world.slopeAt(R.x, R.z) > 0.85) {
+      /* bonk steep lips instead of tunneling up them */
+      R.vy = Math.min(R.vy, 2);
+    }
   }
   /* world boundary: soft push-back (the bowl makes this cosmetic) */
   var d = Math.hypot(R.x, R.z);
@@ -834,7 +916,7 @@ function stepPlayer(inp) {
         fxPush({ x: cx + rnd2(-0.3, 0.3), y: R.y + 1 + rnd2(-0.2, 0.3), z: cz + rnd2(-0.3, 0.3), vx: 0, vy: 0, vz: 0, life: 0.3, max: 0.3, s: rnd2(0.06, 0.14), pr: 255, pg: 210, pb: 110, pa: 0.8, grav: 0 });
       }
     } else if (R.shootCd <= 0 && R.fireHeldT > 0.04) {
-      fireShot();
+      if (!tryMelee()) fireShot();
     }
   } else {
     if (R.charging) releaseCharge();
@@ -850,13 +932,48 @@ function rnd2(a, b) { return a + (tickRand ? tickRand() : Math.random()) * (b - 
 /* ================================================================
  * 9. combat
  * ================================================================ */
+function tryMelee() {
+  var hit = false;
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (e.dead) continue;
+    var dx = e.x - R.x, dz = e.z - R.z, d = Math.hypot(dx, dz);
+    if (d < e.r + 1.55 && Math.abs(e.y - R.y) < 2.2) {
+      var face = Math.sin(R.yaw) * (dx / (d || 1)) + Math.cos(R.yaw) * (dz / (d || 1));
+      if (face > 0.05 || d < 1.1) {
+        damageGob(e, 2 * buffMul().dmg, dx, dz);
+        hit = true;
+      }
+    }
+  }
+  if (hit) {
+    R.shootCd = 0.28; R.shootAnim = 0.22;
+    ringBurst(R.x + Math.sin(R.yaw), R.y + 1, R.z + Math.cos(R.yaw), [255, 210, 90], 5);
+    game.shake = Math.max(game.shake, 0.18);
+    sfx('smash');
+    return true;
+  }
+  return false;
+}
+function shotAimDir() {
+  var ax = aim.x - R.x, az = aim.z - R.z;
+  var l = Math.hypot(ax, az);
+  if (l < 0.35) { ax = Math.sin(R.yaw); az = Math.cos(R.yaw); l = 1; }
+  ax /= l; az /= l;
+  var ay = 0;
+  if (aim.lock) {
+    var dy = (aim.y - (R.y + 1.05));
+    ay = clamp(dy / Math.max(l, 2) * 22, -8, 10);
+  } else ay = 1.2;
+  return { x: ax, y: ay, z: az };
+}
 function fireShot() {
-  R.shootCd = 0.22; R.shootAnim = 0.16;
-  var ax = Math.sin(R.yaw), az = Math.cos(R.yaw);
-  var sx = R.x + ax * 0.7, sy = R.y + 1.05, sz = R.z + az * 0.7;
+  R.shootCd = 0.16; R.shootAnim = 0.14;
+  var d = shotAimDir();
+  var sx = R.x + d.x * 0.7, sy = R.y + 1.05, sz = R.z + d.z * 0.7;
   var dm = buffMul().dmg;
   var col = dm > 1 ? [255, 226, 130] : [255, 190, 90];
-  shots.push({ x: sx, y: sy, z: sz, vx: ax * 24, vy: 1.6, vz: az * 24, life: 1.5, r: 0.14 + (dm > 1 ? 0.03 : 0), big: false, dmg: dm, pierce: 1, col: col, hitSet: null });
+  shots.push({ x: sx, y: sy, z: sz, vx: d.x * 28, vy: d.y, vz: d.z * 28, life: 1.5, r: 0.16 + (dm > 1 ? 0.03 : 0), big: false, dmg: dm, pierce: 1, col: col, hitSet: null });
   burst(sx, sy, sz, [255, 200, 80], 5, 3, 0, 0.14, 0.25);
   sfxGated('shoot');
 }
@@ -933,7 +1050,7 @@ function updateShots(dtF) {
       for (var m = 0; m < enemies.length; m++) {
         var en = enemies[m];
         if (en.dead || s.hitSet.indexOf(en) >= 0) continue;
-        var hr = en.r + 0.34 + (s.big ? 0.2 : 0);
+        var hr = en.r + 0.55 + (s.big ? 0.28 : 0);
         if (s.x > en.x - hr && s.x < en.x + hr && s.z > en.z - hr && s.z < en.z + hr && s.y > en.y && s.y < en.y + en.h + 0.2) {
           damageGob(en, s.dmg, s.vx, s.vz);
           R.mana = Math.min(R.manaMax, R.mana + (s.big ? 7 : 4));
@@ -1034,19 +1151,7 @@ function enemySensor(e) {
   return {
     dist: d,
     sinA: Math.sin(rel), cosA: Math.cos(rel),
-    pSpeed: Math.hypot(R.vx, R.vz),
-    dy: R.y - e.y,
-    hpFrac: e.hp / e.hpMax,
-    dmgTaken: e.dmgTaken,
-    threat: threat,
-    time: e.lifeSec,
-    atkRange: atkRange,
-    rangeNear: spec.range ? spec.range[0] : 0,
-    rangeFar: spec.range ? spec.range[1] : 20
-  };
-}
-function updateEnemyBrain(e) {
-  /* brains tick at 8 Hz, staggered — plenty smart, very cheap */
+  t, very cheap */
   if (frame % 8 !== e.aiPhase) return;
   var sen = enemySensor(e);
   var act = e.brain.tick(sen);
@@ -2240,8 +2345,9 @@ function pollGamepad(rawDt) {
   gpJumpEdge = edge(1);
   gpDashEdge = edge(2);
   gpNovaEdge = edge(3);
-  if (down(4)) camDistTarget = clamp(camDistTarget - 0.08, 5.2, 11.5);   /* LB zoom in */
-  if (down(5)) camDistTarget = clamp(camDistTarget + 0.08, 5.2, 11.5);   /* RB zoom out */
+  if (down(4)) camDistTarget = clamp(camDistTarget - 0.12, CAM_DIST_MIN, CAM_DIST_MAX);
+  if (down(5)) camDistTarget = clamp(camDistTarget + 0.12, CAM_DIST_MIN, CAM_DIST_MAX);
+  if (edge(8)) { if (lockOn) lockOn = null; else cycleLockOn(); } /* select / lock-on */
   if (edge(9)) {                                                          /* start: pause */
     if (state === 'play') pauseGame();
     else if (state === 'pause') resumeGame();
@@ -2283,6 +2389,13 @@ document.addEventListener('keydown', function (e) {
     if (state === 'play') pauseGame();
     else if (state === 'pause') resumeGame();
   }
+  if (e.code === 'Tab' || e.code === 'KeyT' || e.code === 'KeyC') {
+    e.preventDefault();
+    if (state === 'play') {
+      if (lockOn) lockOn = null;
+      else cycleLockOn();
+    }
+  }
 });
 document.addEventListener('keyup', function (e) { keys[e.code] = false; });
 window.addEventListener('blur', function () {
@@ -2296,12 +2409,12 @@ document.addEventListener('pointerlockchange', function () {
 });
 document.addEventListener('mousemove', function (e) {
   if (pointerLocked) {
-    camYawTarget -= e.movementX * 0.0021;
-    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0017, -0.02, 0.95);
+    camYawTarget -= e.movementX * 0.0028;
+    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0022, -0.08, 1.05);
     lastAimT = time;
   } else if (dragLookActive) {
-    camYawTarget -= e.movementX * 0.0025;
-    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.002, -0.02, 0.95);
+    camYawTarget -= e.movementX * 0.0032;
+    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0024, -0.08, 1.05);
     lastAimT = time;
   }
   mouseX = e.clientX; mouseY = e.clientY;
@@ -2353,7 +2466,7 @@ canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 /* mouse-wheel dolly (Zelda zoom) */
 canvas.addEventListener('wheel', function (e) {
   e.preventDefault();
-  camDistTarget = clamp(camDistTarget + e.deltaY * 0.0045, 5.2, 11.5);
+  camDistTarget = clamp(camDistTarget + e.deltaY * 0.006, CAM_DIST_MIN, CAM_DIST_MAX);
 }, { passive: false });
 
 function pollInputLive() {
@@ -2612,10 +2725,13 @@ function startGame() {
   makeSession();
   camYawTarget = R.yaw + Math.PI;
   camYaw = camYawTarget;
-  camPitchTarget = 0.5; camPitch = 0.5;
+  camPitchTarget = 0.36; camPitch = 0.36;
+  camDistTarget = 8.2; camDist = 8.2; camCollideD = 8.2;
+  lookY = R.y + 1.22;
+  lockOn = null;
   camX = R.x - Math.sin(camYaw) * camDist;
   camZ = R.z - Math.cos(camYaw) * camDist;
-  camY = R.y + 4.5;
+  camY = R.y + 3.8;
   lastAimT = -10;
   state = 'play';
   frame = 0;
@@ -2817,7 +2933,7 @@ if (SELFTEST) {
       return { x: aim.x, y: aim.y, z: aim.z, lock: aim.lock ? aim.lock.k : null,
         dist: Math.hypot(aim.x - R.x, aim.z - R.z) };
     },
-    zoom: function (d) { camDistTarget = clamp(camDistTarget + d, 5.2, 11.5); return camDistTarget; },
+    zoom: function (d) { camDistTarget = clamp(camDistTarget + d, CAM_DIST_MIN, CAM_DIST_MAX); return camDistTarget; },
     shatter: function () {
       var best2 = null, bd = 99;
       for (var i = 0; i < world.crystals.length; i++) {
@@ -2851,6 +2967,17 @@ window.__shot = function () {
     x.drawImage(canvas, 0, 0);
     var d = x.getImageData(0, 0, Ww, Hh).data;
     var unique = 0, map = {};
+    for (var y = 0; y < Hh; y += 4) for (var xx = 0; xx < Ww; xx += 4) {
+      var i = (y * Ww + xx) * 4;
+      var key = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+      if (!map[key]) { map[key] = 1; unique++; }
+    }
+    return { unique: unique };
+  } catch (e) { return { err: e.message }; }
+};
+})();
+
+  var unique = 0, map = {};
     for (var y = 0; y < Hh; y += 4) for (var xx = 0; xx < Ww; xx += 4) {
       var i = (y * Ww + xx) * 4;
       var key = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
