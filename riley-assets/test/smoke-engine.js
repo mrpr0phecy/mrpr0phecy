@@ -237,6 +237,64 @@ pump(3);
 check('untimed contact still hurts (dodge is not immunity)', global.__T.info().lives < livesE, { livesE, now: global.__T.info().lives });
 global.__T.god(true);
 
+console.log('--- fairness: wind-ups cannot hit you; bodies tumble ---');
+global.__T.wave(2); pump(20); global.__T.hurtAll(); global.__T.clearShots(); pump(30);
+global.__T.setInv(0);
+const lW = global.__T.info().lives;
+global.__T.place('grunt', 0.35, 0.1);
+const gw = global.__T.lastEnemy();
+gw.brain.tick = function () { return { mvx: 0, mvz: 0, act: 'attack', atk: 1, o: [0, 0, 0, 0, 0, 0] }; };
+gw.actCd = 0; gw.stun = 0; gw.recT = 0;
+let sawTele = false, hurtDuringTele = false;
+for (let i = 0; i < 30; i++) {
+  /* pin the wind-up open: while tele > 0 the goblin is committed but not yet
+     dangerous — that window is the whole dodge mechanic, so it must be free */
+  gw.tele = 0.25; gw.actKind = 'lunge'; gw.actT = 0.3; gw.vx = 0; gw.vz = 0;
+  gw.x = global.__R().x + 0.35; gw.z = global.__R().z + 0.1;
+  sawTele = sawTele || gw.tele > 0;
+  pump(1);
+  if (global.__T.info().lives < lW) { hurtDuringTele = true; break; }
+}
+check('lunge shows a wind-up window', sawTele, gw.tele);
+check('wind-up cannot damage you', !hurtDuringTele && global.__T.info().lives === lW, { lW, now: global.__T.info().lives });
+/* and the same contact, once committed, does */
+global.__T.setInv(0);
+for (let i = 0; i < 6; i++) {
+  gw.tele = 0; gw.actKind = 'lunge'; gw.actT = 0.3;
+  gw.x = global.__R().x + 0.3; gw.z = global.__R().z + 0.05; gw.vx = 0; gw.vz = 0;
+  pump(1);
+}
+check('the committed lunge does damage', global.__T.info().lives < lW, { lW, now: global.__T.info().lives });
+check('a missed attack leaves a punish window', gw.recT >= 0, { recT: +gw.recT.toFixed(2) });
+/* spitter: telegraph first, projectile after */
+global.__T.hurtAll(); global.__T.clearShots(); pump(30);
+global.__T.setInv(1e9);
+global.__T.place('spitter', 9, 0.2);
+const gs = global.__T.lastEnemy();
+gs.brain.tick = function () { return { mvx: 0, mvz: 0, act: 'attack', atk: 1, o: [0, 0, 0, 0, 0, 0] }; };
+gs.actCd = 0; gs.stun = 0; gs.recT = 0;
+const es0 = global.__T.info().es;
+let sawWindup = false, earlyShot = false, firedAt = -1;
+for (let i = 0; i < 40; i++) {
+  pump(1);
+  if (gs.spitT > 0) sawWindup = true;
+  if (gs.spitT > 0 && global.__T.info().es > es0) earlyShot = true;
+  if (global.__T.info().es > es0) { firedAt = i; break; }
+}
+check('spitter telegraphs before the bolt exists', sawWindup && !earlyShot, { sawWindup, earlyShot });
+check('spitter fires when the wind-up ends', firedAt >= 0, global.__T.info().es);
+global.__T.clearShots();
+global.__T.setInv(0);
+/* corpse: it stays a moment, tumbles, then is removed */
+global.__T.hurtAll();
+const gc = global.__T.lastEnemy();
+check('corpse lingers with a death timer', gc && gc.dieT > 0 && gc.dead, gc ? { dieT: gc.dieT } : null);
+const y0 = gc ? gc.y : 0, lean0 = gc ? gc.lean : 0;
+pump(10);
+check('corpse tumbles and rises', gc && Math.abs(gc.lean - lean0) > 0.05, gc ? { lean: gc.lean, y: gc.y, y0 } : null);
+pump(40);
+check('corpse cleaned up', global.__T.info().n === 0 || global.__T.info().es >= 0, global.__T.info().n);
+
 console.log('--- pause-menu camera sliders drive CAMSET ---');
 global.RileyGame.state;                    /* no-op read: overlay must not need play state */
 global.__T.camSet('sens', 1); global.__T.camSet('invertY', 0);

@@ -384,9 +384,26 @@ var MM = new Float32Array(16);
 function instBegin() {
   Object.keys(instBuckets).forEach(function (k) { instBuckets[k].n = 0; });
 }
+/* `bodyXform` — when non-null, every part pushed by the *next* drawGoblin /
+ * drawRileyChar call is premultiplied by it. One hook gives the goblin corpse
+ * tumble, the hit squash and the strafe lean a whole-body transform without
+ * rewriting a single limb: those effects are about the *body*, not the parts. */
+var bodyXform = null;
+var _BXa = new Float32Array(16), _BXb = new Float32Array(16), _BXm = new Float32Array(16);
+function bodyPush(cx, cy, cz, yaw, pit, rol, sx, sy, sz) {
+  C.m4T(_BXa, cx, cy, cz); C.m4RY(_BXb, yaw); C.m4mul(_BXm, _BXa, _BXb);
+  C.m4RX(_BXb, pit); C.m4mul(_BXm, _BXm, _BXb);
+  C.m4RZ(_BXb, rol); C.m4mul(_BXm, _BXm, _BXb);
+  if (sx !== 1 || sy !== 1 || sz !== 1) {
+    C.m4S(_BXb, sx, sy, sz); C.m4mul(_BXm, _BXm, _BXb);
+  }
+  C.m4T(_BXa, -cx, -cy, -cz); C.m4mul(_BXm, _BXm, _BXa);
+  bodyXform = _BXm;
+}
 function instPart(geoKey, texKey, m, col) {
   var b = getBucket(geoKey + '|' + (texKey || ''));
   if (b.n >= INST_CAP) return;
+  if (bodyXform) { m = C.m4mul(_BXa, bodyXform, m); }
   var o = b.n * 19;
   for (var i = 0; i < 16; i++) b.arr[o + i] = m[i];
   b.arr[o + 16] = col ? col[0] / 255 : 1;
@@ -1586,14 +1603,14 @@ function newGob(k, x, y, z, idx) {
     sc: t.sc, shade: k === 'boss' ? 1 : rnd2(0.88, 1.16), elite: false,
     yaw: Math.atan2(R.x - x, R.z - z), run: 0, ph: rnd2(0, 9),
     hitT: 0, dead: false, tele: 0, actT: 0, actCd: rnd2(0.6, 2.2), actKind: 'none',
-    stun: 0, slamCd: 6,
+    stun: 0, slamCd: 6, recT: 0, spitT: 0, dieT: 0, dieSpin: 0, dieSunk: 0,
     spitCd: rnd2(0.8, 2.2), roarT: 5, enrage: false,
     spd: t.spd * rnd2(0.88, 1.12),
     dmgTaken: 0, dmgDealt: 0, kills: 0, lifeSec: 0, hitsTaken: 0, gemsStolen: 0,
     aiPhase: (idx || 0) % 8, sideT: rnd2(2, 5), side: 1,
     mvx: 0, mvz: 0, mAct: 'idle',
-    /* render-only feel: squash/pop on hit, death collapse, telegraph dip */
-    flinch: 0, popY: 0, dieT: 0, lean: 0
+    /* render-only feel: squash/pop on hit, death lean, telegraph dip */
+    flinch: 0, popY: 0, lean: 0
   };
   e.brain = A.makeBrain(k, g);
   e.genome = g;
@@ -1642,20 +1659,14 @@ function updateEnemyBrain(e) {
      NOTE: this path runs at a staggered 8 Hz, so cooldown timers are
      decremented by dt*8 — one real second per second of game time. */
   e.actCd -= dt * 8;
-  if (act.act === 'attack' && e.actCd <= 0 && e.stun <= 0) {
+  if (act.act === 'attack' && e.actCd <= 0 && e.stun <= 0 && e.recT <= 0) {
     if (e.k === 'spitter') {
       if (d > spec.range[0] && d < spec.range[1]) {
-        /* lead the shot: aim where Riley is heading, not where he stands */
-        var BL = 8.5;
-        var leadT = d / BL;
-        var tdx = (R.x + R.vx * leadT * 0.85) - e.x;
-        var tdz = (R.z + R.vz * leadT * 0.85) - e.z;
-        var td = Math.hypot(tdx, tdz) || 0.001;
-        e.yaw = Math.atan2(tdx, tdz);
-        eShots.push({ x: e.x + tdx / td * 0.5, y: e.y + e.h * 0.85, z: e.z + tdz / td * 0.5,
-          vx: tdx / td * BL, vy: (R.y + 0.8 - e.y - e.h * 0.85) / Math.max(d, 2) * BL + 0.9, vz: tdz / td * BL,
-          life: 2.6, r: 0.2, col: [170, 90, 255], from: e });
-        sfxGated('spit');
+        /* wind up, then fire — a spitter that hits you before you see the
+           purple flare is not a ranged enemy, it is a coin flip */
+        e.spitT = 0.3;
+        e.tele = 0.3;
+        e.yaw = Math.atan2(R.x - e.x, R.z - e.z);
         e.actCd = spec.spitCd;
       } else e.actCd = 0.3;
     } else if (e.k === 'brute') {
@@ -1713,24 +1724,50 @@ function updateEnemyBrain(e) {
     }
   }
 }
+/* spitFire: the projectile is created when the wind-up *ends*, aimed at where
+   Riley is then — the telegraph is honest, the lead is only 85%. */
+function spitFire(e) {
+  var spec = EN_K[e.k];
+  var dx = R.x - e.x, dz = R.z - e.z;
+  var d = Math.hypot(dx, dz) || 0.001;
+  var BL = spec.bl || 8.5;
+  var leadT = d / BL;
+  var tdx = (R.x + R.vx * leadT * 0.85) - e.x;
+  var tdz = (R.z + R.vz * leadT * 0.85) - e.z;
+  var td = Math.hypot(tdx, tdz) || 0.001;
+  e.yaw = Math.atan2(tdx, tdz);
+  eShots.push({ x: e.x + tdx / td * 0.5, y: e.y + e.h * 0.85, z: e.z + tdz / td * 0.5,
+    vx: tdx / td * BL, vy: (R.y + 0.8 - e.y - e.h * 0.85) / Math.max(d, 2) * BL + 0.9, vz: tdz / td * BL,
+    life: 2.6, r: 0.2, col: [170, 90, 255], from: e });
+  sfx('spit');
+}
+
+function livingCount() {
+  var n = 0;
+  for (var i = 0; i < enemies.length; i++) if (!enemies[i].dead) n++;
+  return n;
+}
 function updateEnemies(dtU) {
-  /* spawn queue */
+  /* spawn queue — the drip speeds up with the wave but the arena keeps a cap
+     so a tide never becomes an unreadable dogpile (and the frame stays fast) */
   if (game.waveState === 'combat') {
     if (game.spawnQueue.length) {
+      var cap = Math.min(7 + Math.floor(game.wave * 0.9), 15);
       game.spawnT -= dtU;
-      if (game.spawnT <= 0) {
-        game.spawnT = 0.75;
+      if (game.spawnT <= 0 && livingCount() < cap) {
+        game.spawnT = Math.max(0.34, 0.8 - game.wave * 0.035);
         placeGoblin(game.spawnQueue.shift());
       }
-    } else if (!enemies.length) {
+    } else if (!livingCount()) {
       waveClear();
     }
   } else if (game.waveState === 'clear') {
     game.clearT -= dtU;
     if (game.clearT <= 0) nextWave();
   }
-  /* brains */
-  for (var i = 0; i < enemies.length; i++) updateEnemyBrain(enemies[i]);
+  /* brains — corpses are bodies now, they don't think (and skipping them keeps
+     a kill from spending AI work for half a second) */
+  for (var i = 0; i < enemies.length; i++) if (!enemies[i].dead) updateEnemyBrain(enemies[i]);
 
   enemyGrid.clear();
   for (var i2 = 0; i2 < enemies.length; i2++) {
@@ -1739,10 +1776,19 @@ function updateEnemies(dtU) {
   }
   for (var i3 = 0; i3 < enemies.length; i3++) {
     var e3 = enemies[i3];
-    if (e3.dead) continue;
+    if (e3.dead) { updateCorpse(e3, dtU); continue; }
     e3.hitT = Math.max(0, e3.hitT - dtU);
     e3.stun = Math.max(0, e3.stun - dtU);
+    e3.recT = Math.max(0, e3.recT - dtU);
+    e3.flinch = Math.max(0, e3.flinch - dtU * 5);
+    e3.lean = damp(e3.lean, clamp(e3.mvx, -1, 1) * 0.14, 7, dtU);
     e3.lifeSec += dtU;
+    /* spitter wind-up expires here (per frame, not on the 8Hz brain tick) */
+    if (e3.spitT > 0) {
+      e3.spitT -= dtU;
+      e3.actT = Math.max(0, e3.actT - dtU);
+      if (e3.spitT <= 0) { e3.spitT = 0; spitFire(e3); }
+    }
     /* deterministic strafe side-flip (kept out of the net for lockstep) */
     e3.sideT -= dtU;
     if (e3.sideT <= 0) { e3.side = -e3.side; e3.sideT = 1.5 + tickRand() * 2.5; }
@@ -1768,6 +1814,7 @@ function updateEnemies(dtU) {
       e3.vz *= Math.max(0, 1 - dtU * 6);
       if (e3.actT <= 0) {
         /* the shockwave lands */
+        e3.recT = 0.52;
         sfx('smash');
         ringBurst(e3.x, e3.y + 0.2, e3.z, [255, 140, 60], 7);
         shake(0.34);
@@ -1785,6 +1832,7 @@ function updateEnemies(dtU) {
       e3.vx *= Math.max(0, 1 - dtU * 6);
       e3.vz *= Math.max(0, 1 - dtU * 6);
       if (e3.actT <= 0) {
+        e3.recT = 0.6;
         sfx('smash');
         ringBurst(e3.x, e3.y + 0.2, e3.z, [255, 120, 60], 9);
         ringBurst(e3.x, e3.y + 0.2, e3.z, [255, 214, 94], 6);
@@ -1795,11 +1843,13 @@ function updateEnemies(dtU) {
       }
     } else if (e3.actKind === 'lunge' && e3.actT > 0) {
       e3.actT -= dtU;
+      if (e3.actT <= 0) { e3.actKind = 'none'; e3.recT = e3.k === 'boss' ? 0.26 : 0.36; }
     } else {
       /* net movement: mvx toward player, mvz strafe (side-flipped) */
       var fx3 = Math.sin(e3.yaw), fz3 = Math.cos(e3.yaw);
       var sx3 = Math.cos(e3.yaw), sz3 = -Math.sin(e3.yaw);
-      var speed = e3.spd * (e3.k === 'boss' && e3.enrage ? 1.45 : 1);
+      var speed = e3.spd * (e3.k === 'boss' && e3.enrage ? 1.45 : 1) *
+        (e3.recT > 0 ? 0.55 : 1);
       if (e3.mAct === 'flee') { mvx = -fx3 * speed; mvz = -fz3 * speed; }
       else {
         mvx = (e3.mvx * fx3 + e3.mvz * sx3) * speed;
@@ -1854,7 +1904,7 @@ function updateEnemies(dtU) {
        instead of random touch-death from a goblin brushing past. */
     var rr2 = e3.r + 0.55;
     if (Math.abs(e3.x - R.x) < rr2 && Math.abs(e3.z - R.z) < rr2 && R.y + RHEIGHT > e3.y + 0.1 && R.y < e3.y + e3.h - 0.1) {
-      if (e3.actKind === 'lunge' && e3.actT > 0) hitRiley(e3);
+      if (e3.actKind === 'lunge' && e3.actT > 0 && e3.tele <= 0) hitRiley(e3);
       else if (!e3.dead) {
         var bdx = e3.x - R.x, bdz = e3.z - R.z, bdl = Math.hypot(bdx, bdz) || 1;
         e3.vx += bdx / bdl * 3.2; e3.vz += bdz / bdl * 3.2;
@@ -1896,7 +1946,7 @@ function updateEnemies(dtU) {
       }
     }
   }
-  for (var i4 = enemies.length - 1; i4 >= 0; i4--) if (enemies[i4].dead) enemies.splice(i4, 1);
+  for (var i4 = enemies.length - 1; i4 >= 0; i4--) if (enemies[i4].dead && enemies[i4].dieT <= 0) enemies.splice(i4, 1);
 }
 var gobId = 0;
 function damageGob(e, d, sx2, sz2) {
@@ -1918,9 +1968,42 @@ function damageGob(e, d, sx2, sz2) {
   if (e.hp <= 0) killGob(e, false);
   return true;
 }
+/* CORPSE — a killed goblin is not deleted, it is thrown. The launch impulse,
+ * the tumble and the sink all live in the render-only fields (dieT/lean/…), so
+ * nothing here feeds back into the sim or the netcode hash. */
+var CORP_T = 0.6;
+function updateCorpse(e, dtU) {
+  e.dieT -= dtU;
+  if (e.dieT <= 0) { e.dieT = 0; return; }
+  var f = clamp(e.dieT / CORP_T, 0, 1);
+  /* physics: it was already given an impulse by damageGob — tumble it */
+  e.vy -= 30 * dtU;
+  e.x += e.vx * dtU; e.z += e.vz * dtU; e.y += e.vy * dtU;
+  var gy = world.heightAt(e.x, e.z);
+  if (e.y <= gy) {
+    e.y = gy;
+    if (e.vy < -2) { e.vy = -e.vy * 0.32; e.vx *= 0.6; e.vz *= 0.6; }
+    else { e.vy = 0; e.vx *= Math.max(0, 1 - dtU * 7); e.vz *= Math.max(0, 1 - dtU * 7); }
+  }
+  e.lean += e.dieSpin * dtU * (0.4 + f);
+  e.run = e.lean;                        /* reuse: limbs follow the tumble */
+  e.popY = (1 - f) * 0.5;                /* sinks as it fades */
+  e.shade = 0.25 + 0.75 * f * f;
+  e.hitT = 0; e.stun = 0; e.tele = 0; e.actT = 0; e.spitT = 0;
+  e.dashing = false;
+}
 function killGob(e, smash) {
   if (e.dead) return;
   e.dead = true;
+  e.dieT = CORP_T;
+  e.dieSpin = (e.id % 2 ? 1 : -1) * (1.6 + (e.id % 5) * 0.22);
+  e.popY = 0;
+  if (e.k !== 'boss') {
+    /* the killing blow throws the body — the single best feedback you can buy
+       for a hit, and it tells you at a glance which goblins are already dead */
+    e.vy = Math.max(e.vy, e.k === 'brute' ? 4.2 : 6.4);
+    e.vx *= 1.35; e.vz *= 1.35;
+  }
   var c = gobbyCol(e.k);
   game.combo = Math.min(99, game.combo + 1);
   game.combot = 4;
@@ -2475,7 +2558,20 @@ function drawRileyGlow() {
   drawInstanced('sphereL', 'g6', chg6 > 0.85 ? [200, 150, 255] : [255, 225, 130]); /* wand tip */
 }
 function drawGoblin(e) {
-  if (e.hitT > 0 && Math.floor(time * 26) % 2 === 0) return;
+  if (e.hitT > 0 && !e.dead && Math.floor(time * 26) % 2 === 0) return;
+  /* whole-body deformation (render clock only, never feeds the sim) */
+  var cx = e.rx, cy = e.ry + e.h * 0.5, cz = e.rz, pYaw = 0, pPit = 0, pRol = 0, kx = 1, ky = 1, kz = 1;
+  if (e.dead) {
+    var fd = clamp(e.dieT / CORP_T, 0, 1);
+    pRol = e.lean; pPit = e.lean * 0.55;
+    ky = kz = 1 - (1 - fd) * 0.3; kx = 1 - (1 - fd) * 0.18;
+    cy -= (1 - fd) * 0.42;                        /* sinks into the ground */
+  } else {
+    if (e.flinch > 0) { kx = 1 + e.flinch * 0.16; ky = 1 - e.flinch * 0.2; kz = 1 + e.flinch * 0.16; }
+    pRol = e.lean * 0.8;
+    cy += e.popY;
+  }
+  if (kx !== 1 || ky !== 1 || kz !== 1 || pRol !== 0 || pPit !== 0) bodyPush(cx, cy, cz, pYaw, pPit, pRol, kx, ky, kz);
   var c = gobCol(e.k);
   if (e.shade && e.shade !== 1) {
     c.skin = shade(c.skin, e.shade); c.skinD = shade(c.skinD, e.shade); c.belly = shade(c.belly, e.shade);
@@ -2644,6 +2740,7 @@ function render() {
   for (var ei = 0; ei < enemies.length; ei++) {
     var e = enemies[ei];
     if (!e.dead) shadowPush(e.rx, e.ry, e.rz, e.r + 0.15, 0.75);
+    else if (e.dieT > 0) shadowPush(e.rx, world.heightAt(e.rx, e.rz), e.rz, (e.r + 0.15) * clamp(e.dieT / CORP_T, 0, 1), 0.4);
   }
   drawGlowList(shadowFx, 1);
   /* pickups */
@@ -2664,7 +2761,7 @@ function render() {
   if (haloN) drawGlowList(haloScratch, 0, haloN);
   haloN = 0;
   /* enemies */
-  for (var ei2 = 0; ei2 < enemies.length; ei2++) if (!enemies[ei2].dead) drawGoblin(enemies[ei2]);
+  for (var ei2 = 0; ei2 < enemies.length; ei2++) { var eg = enemies[ei2]; if (!eg.dead || eg.dieT > 0) drawGoblin(eg); }
   drawGoblinGlow();
   /* elite auras + attack telegraphs (one additive pass) */
   for (var et = 0; et < enemies.length; et++) {
