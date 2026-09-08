@@ -430,6 +430,29 @@ function makeStars(){
     var a=rnd(0,TAU),y=rnd(8,90),r=rnd(180,330);
     stars.push({x:Math.cos(a)*r,y:y,z:Math.sin(a)*r,s:rnd(1.4,3.4),ph:rnd(0,TAU),sp:rnd(.6,2)});
   }
+  makeMotes();
+}
+var motes=[];
+function makeMotes(){
+  motes=[];
+  var ac=theme().accent;
+  for(var i=0;i<46;i++){
+    var a=rnd(0,TAU),r=rnd(2,ARENA-1);
+    motes.push({x:Math.cos(a)*r,y:rnd(.4,7),z:Math.sin(a)*r,s:rnd(.06,.16),ph:rnd(0,TAU),sp:rnd(.3,.9),drift:rnd(.2,.6),
+      pr:ac[0],pg:ac[1],pb:ac[2]});
+  }
+}
+function drawMotes(){
+  var tmp=[];
+  for(var i=0;i<motes.length;i++){
+    var m=motes[i];
+    var y=m.y+Math.sin(time*m.sp+m.ph)*.5;
+    var x=m.x+Math.cos(time*m.drift+m.ph)*.6;
+    var z=m.z+Math.sin(time*m.drift*1.1+m.ph)*.6;
+    var tw=.35+.4*Math.abs(Math.sin(time*m.sp*1.5+m.ph));
+    tmp.push({x:x,y:y,z:z,life:1,max:1,s:m.s*3.2,pr:m.pr,pg:m.pg,pb:m.pb,pa:tw*.55,grav:0});
+  }
+  drawGlowList(tmp,PVM);
 }
 function drawStars(){
   // shimmering stars each frame are fx billboards with big life; cheaper: build & draw here directly
@@ -443,6 +466,8 @@ function drawStars(){
 
 /* ---------------- game state ---------------- */
 var game={score:0,wave:1,lives:5,maxLives:5,kills:0,combo:0,combot:0,comboBest:0,starT:0,boss:false,shake:0,bannerT:0,spawnQueue:[],spawnT:0,waveState:'idle',clearT:0};
+var hitStop=0;
+function doHitStop(s){if(s>hitStop)hitStop=s;}
 var shownScore=0;
 var best=0;
 try{best=+(localStorage.getItem('riley3d.best')||0)}catch(e){}
@@ -694,7 +719,7 @@ var touchX=0,touchZ=0,jumpHeld=false,fireHeld=false,dashHeld=false;
 /* ---------------- camera ---------------- */
 var camYaw=0,camYawTarget=Math.PI,camDist=12,camH=5.2,camHCur=5.2;
 var camFov=1.06;
-var camX=0,camY=0,camZ=0;
+var camX=0,camY=0,camZ=0,laX=0,laZ=0;
 var eye=[0,0,0],ctr=[0,0,0];
 function updateCamera(caYaw,cx,cy,cz,dtC){
   camYaw=angLerp(camYaw,caYaw,clamp(dtC*3.6,0,1));
@@ -705,7 +730,10 @@ function updateCamera(caYaw,cx,cy,cz,dtC){
   camZ=lerp(camZ,ez,clamp(dtC*6,0,1));
   camX=clamp(camX,-32,32);camZ=clamp(camZ,-32,32);
   eye[0]=camX;eye[1]=camY;eye[2]=camZ;
-  ctr[0]=cx;ctr[1]=cy+1.35;ctr[2]=cz;
+  // look-ahead: nudge the focus toward Riley's motion for a livelier action cam
+  laX=lerp(laX,clamp(R.vx*.12,-2.2,2.2),clamp(dtC*3,0,1));
+  laZ=lerp(laZ,clamp(R.vz*.12,-2.2,2.2),clamp(dtC*3,0,1));
+  ctr[0]=cx+laX;ctr[1]=cy+1.35;ctr[2]=cz+laZ;
   var sh=game.shake;
   if(sh>0){
     var ss=sh*0.42;
@@ -935,7 +963,7 @@ function updateCombo(){
 function hurt(){
   game.lives--;game.combo=0;game.comboBest=Math.max(game.comboBest,game.combo);
   updateCombo();
-  R.inv=1.4;R.hitT=.4;game.shake=.5;
+  R.inv=1.4;R.hitT=.4;game.shake=.5;doHitStop(.08);
   sfx('hurt');
   var hv=el('hurtVig');
   hv.classList.add('on');
@@ -1165,7 +1193,7 @@ function killGob(e,smash){
   if(smash){
     burst(e.x,e.y+e.h*.5,e.z,[160,230,255],18,9,2.6,.3,.6);
     ringBurst(e.x,e.y+.2,e.z,[200,240,255],4);
-    game.shake=.22;
+    game.shake=.22;doHitStop(.05);
     sfx('smash');
     for(var w2=0;w2<8;w2++)fxPush({x:e.x+rnd(-.2,.2),y:e.y+e.h*rnd(.2,1),z:e.z+rnd(-.2,.2),vx:rnd(-1.2,1.2),vy:rnd(2,4.5),vz:rnd(-1.2,1.2),life:.8,max:.8,s:rnd(.1,.18),pr:190,pg:240,pb:255,pa:.8,grav:-1.2});
   }else{
@@ -1177,7 +1205,7 @@ function killGob(e,smash){
   }
   var isBoss=e.k==='boss';
   if(isBoss){
-    game.shake=1;game.boss=false;
+    game.shake=1;game.boss=false;doHitStop(.22);
     burst(e.x,e.y+e.h*.6,e.z,[255,120,50],40,11,3,.5,1);
     ringBurst(e.x,e.y+.2,e.z,[255,214,94],6);
     popText(e.x,e.y+e.h+1.4,e.z,'GOBLIN KING DOWN!',true,'#ffd75e');
@@ -1467,6 +1495,7 @@ function render(){
   gl.clearColor(theme().fog[0]/255,theme().fog[1]/255,theme().fog[2]/255,1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   drawStars();
+  drawMotes();
   renderWorld();
   renderEnemies();
   {
@@ -1530,13 +1559,20 @@ function loop(tms){
     render();
   } else if(state==='play'||state==='pause'){
     if(state==='play'){
-      // Fixed-timestep physics for rock-solid feel on any refresh rate.
-      acc+=dt;
-      var steps=0;
-      var savedDt=dt;
-      while(acc>=FIXED&&steps<6){dt=FIXED;update(FIXED);acc-=FIXED;steps++;}
-      if(steps===6)acc=0; // avoid spiral of death after a hitch
-      dt=savedDt;
+      if(hitStop>0){
+        // Brief freeze-frame on big impacts — makes hits land with weight.
+        hitStop-=dt;
+        var sd=dt;dt=Math.min(dt,1/60);updateFx(dt);dt=sd;
+        acc=0;
+      }else{
+        // Fixed-timestep physics for rock-solid feel on any refresh rate.
+        acc+=dt;
+        var steps=0;
+        var savedDt=dt;
+        while(acc>=FIXED&&steps<6){dt=FIXED;update(FIXED);acc-=FIXED;steps++;}
+        if(steps===6)acc=0; // avoid spiral of death after a hitch
+        dt=savedDt;
+      }
     }
     else updateFx(dt);
     updateCamera(camYawTarget,R.x,R.y,R.z,dt);
