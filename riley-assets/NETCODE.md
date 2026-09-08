@@ -18,7 +18,7 @@ a finished multiplayer feature.
 2. **Inputs are tiny.** One 3-byte packet per player per tick:
    - byte 0: move X quantised to −8…8
    - byte 1: move Y quantised to −8…8
-   - byte 2: flags — fire, jump, dash, nova, up, down, aimX, aimY
+   - byte 2: flags — fire, jump, dash, nova, melee, lock, aimX, aimY
 
 3. **Every packet is checksummed.** Tick packets carry an FNV-1a checksum of
    their input bytes (`encodeTick` / `decodeTick`).
