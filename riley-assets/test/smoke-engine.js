@@ -406,6 +406,48 @@ check('a new run resets the boons', global.__T.boonN() === 0 && global.__T.boons
 check('the pick overlay is closed on a fresh run', global.RileyGame.state === 'play', global.RileyGame.state);
 pump(30);
 
+console.log('--- spirit ward: it answers the toucher, never the thrower ---');
+global.__T.god(false);
+global.__T.wave(1);
+pump(10);
+global.__T.clearShots();
+check('no ward until it is taken', (global.__T.boons().thorns | 0) === 0, global.__T.boons().thorns);
+global.__T.place('grunt', 1.1, 0.4);
+const ward0 = global.__T.enemies();
+const wi = ward0.length ? ward0[0].i : -1;
+global.__T.setInv(0);
+const livesW = global.__T.info().lives;
+check('a grunt was placed in reaching distance', wi >= 0 && ward0[0].d < 1.6, ward0[0]);
+global.__T.touch(wi);
+pump(2);
+check('the touch hurts Riley', global.__T.info().lives < livesW, global.__T.info().lives);
+let wcur = global.__T.enemies().find(e => e.i === wi);
+check('and hurts nobody else', !wcur || wcur.hp === ward0[0].hp, wcur && wcur.hp);
+check('boons can be granted by id', global.__T.take('thorns') && global.__T.boons().thorns === 1, global.__T.boons());
+if (wcur) {
+  const hpB = wcur.hp;
+  global.__T.setInv(0);
+  global.__T.touch(wi);
+  pump(2);
+  wcur = global.__T.enemies().find(e => e.i === wi);
+  check('with the ward up, the goblin is hit back', !wcur || wcur.hp < hpB, { hpB, after: wcur && wcur.hp });
+}
+/* the crash this is really here for: a spitter bolt hands hitRiley a stand-in
+   object, and ward code that trusted "every attacker is a goblin" threw */
+/* the touches threw Riley around, and a bolt aimed at a mid-air target misses
+   by design — settle her first, clear the field, then throw one bolt */
+global.__T.hurtAll();
+pump(60);
+global.__T.clearShots();
+const tickW = global.__T.info().tick;
+const livesP = global.__T.info().lives;
+global.__T.setInv(0);
+global.__T.spitHit();
+pump(30);
+check('a projectile hit still lands with the ward up', global.__T.info().lives < livesP, { livesP, now: global.__T.info().lives });
+check('the ward survived the fake attacker', global.__T.info().tick > tickW, global.__T.info().tick);
+pump(30);
+
 console.log('--- determinism: same seed twice => same worldHash ---');
 const seed = 'TESTSEED42';
 global.RileyGame.toTitle();

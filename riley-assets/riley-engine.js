@@ -861,7 +861,11 @@ function updateCamera(dtC, lookAt) {
 
   /* ---- occlusion: lift, then shorten, then let FOV widen ---- */
   var pivY = camPivY + 0.16;
-  var sol = boomSolve(camPivX, pivY, camPivZ, -ddx, -ddy, -ddz, wantD + 1.4);
+  /* The boom runs from the pivot to the eye, and the eye sits *above* the
+     pivot (ddy is the look direction's +y, so the boom's y is +ddy). Passing
+     -ddy here sampled the hillside instead of the air and pinned the rig at
+     max lift nearly everywhere — the classic "why does this camera float". */
+  var sol = boomSolve(camPivX, pivY, camPivZ, -ddx, ddy, -ddz, wantD + 1.4);
   camLift = damp(camLift, sol.lift, 13, dtC);
   var safeD = Math.min(wantD, sol.d || wantD);
   if (safeD < camCollideD) camCollideD = damp(camCollideD, safeD, 22, dtC);   /* pull in fast */
@@ -1994,7 +1998,7 @@ function damageGob(e, d, sx2, sz2) {
   var dx = 0, dz = 0;
   if (sx2 !== undefined) { var l = Math.hypot(sx2, sz2) || 1; dx = sx2 / l; dz = sz2 / l; }
   e.vx += dx * 9; e.vz += dz * 9; e.vy = Math.max(e.vy, 1.6);
-  e.brain.reward('hurt');
+  if (e.brain) e.brain.reward('hurt');
   sfxGated('hit');
   if (e.hp <= 0) killGob(e, false);
   return true;
@@ -2122,7 +2126,9 @@ function hitRiley(e) {
   var kYaw = angDiff(camYaw, Math.atan2(-(dx / d), -(dz / d)));
   camKick(clamp(kYaw, -0.5, 0.5) * 0.055, -0.05, kYaw > 0 ? -0.03 : 0.03);
   if (!e.dead && e.brain) e.brain.reward('hit');
-  if (B.thorns > 0 && !e.dead) {
+  /* e.brain is what separates a real goblin from the throwaway proxy a
+     spitter's bolt hands us — the ward only shocks what actually touched her */
+  if (B.thorns > 0 && !e.dead && e.brain) {
     /* spirit ward: the hit costs them too. A goblin that dies to the ward
        halfway through its own lunge never lands — best free kill in the game */
     damageGob(e, 1.4 * B.thorns * buffMul().dmg, -dx, -dz);
@@ -2177,8 +2183,18 @@ function placeGoblin(k, px, pz, elite) {
     if (k === 'boss') {
       pt = { x: world.bossSpawn.x, y: world.bossSpawn.y, z: world.bossSpawn.z };
     } else {
-      var sp = world.spawns[Math.floor(tickRand() * world.spawns.length)];
-      pt = { x: sp.x + rnd2(-1.2, 1.2), y: sp.y, z: sp.z + rnd2(-1.2, 1.2) };
+      /* Arrive from a near portal more often than a far one. A uniform pick
+         means a third of the waves open with a 40u jog across the bowl before
+         anything can be hit, and a jog is not a fight. The ^1.6 keeps the far
+         rim in the hat so the tide still comes from strange angles. */
+      var sp = world.spawns, order = [];
+      for (var si = 0; si < sp.length; si++) {
+        var sdx = sp[si].x - R.x, sdz = sp[si].z - R.z;
+        order.push({ i: si, d: sdx * sdx + sdz * sdz });
+      }
+      order.sort(function (a, b) { return a.d - b.d; });
+      var pickSp = sp[order[Math.min(order.length - 1, Math.floor(Math.pow(tickRand(), 1.6) * order.length))].i];
+      pt = { x: pickSp.x + rnd2(-1.2, 1.2), y: pickSp.y, z: pickSp.z + rnd2(-1.2, 1.2) };
     }
   } else pt = { x: px, y: world.heightAt(px, pz), z: pz };
   var g = newGob(k, pt.x, pt.y, pt.z, 0);
@@ -2304,18 +2320,25 @@ function offerBoons() {
   game.boonOffer = offer;
   return offer;
 }
-function pickBoon(i) {
-  if (state !== 'pick' || !game.boonOffer || !game.boonOffer[i]) return null;
-  var b = game.boonOffer[i];
+/* Applying is separate from choosing, so a test (or a future shop) can grant a
+   specific boon without having to beat the draw. */
+function applyBoon(b) {
+  if (!b) return null;
   if (b.k === 'lives') { game.maxLives++; game.lives = Math.min(game.maxLives, game.lives + 1); }
   else if (b.add !== undefined) B[b.k] += b.add;
   else B[b.k] *= b.mul;
   game.boonN[b.id] = (game.boonN[b.id] | 0) + 1;
   game.boonsTaken++;
+  return b;
+}
+function pickBoon(i) {
+  if (state !== 'pick' || !game.boonOffer || !game.boonOffer[i]) return null;
+  var b = game.boonOffer[i];
   game.boonOffer = null;
   hide('ovPick');
   state = 'play';
   if (finePointer) { try { canvas.requestPointerLock(); } catch (e) {} }
+  applyBoon(b);
   showBanner(b.n, '+ ' + b.d);
   popText(R.x, R.y + 2.1, R.z, b.ico + ' ' + b.n, true, '#ffe9a8');
   sfx('power');
@@ -3940,7 +3963,8 @@ window.__R = function () {
     vx: R ? R.vx : 0, vy: R ? R.vy : 0, vz: R ? R.vz : 0,
     lean: R ? R.lean : 0, mo: R ? R.mo : 0, meleeN: R ? R.meleeN : 0,
     meleeT: R ? R.meleeT : 0, meleeCd: R ? R.meleeCd : 0, dodgeT: R ? R.dodgeT : 0,
-    rope: R ? R.rope : 0, landT: R ? R.landT : 0,
+    dashCd: R ? R.dashCd : 0, shootCd: R ? R.shootCd : 0, charge: R ? R.charge : 0,
+    rope: R ? R.rope : 0, landT: R ? R.landT : 0, maxLives: game.maxLives,
     lastStand: !!game.lastStand,
     fx: fx.length, fps: lastFps,
     mana: R ? R.mana : 0, inv: R ? R.inv : 0,
@@ -3976,6 +4000,36 @@ if (SELFTEST) {
       return { x: R.x, z: R.z, y: R.y, d: Math.hypot(R.x, R.z) };
     },
     spawnGrace: function (i) { var e = enemies[i || 0]; return e ? e.spawnT : -1; },
+    take: function (id) {
+      for (var i = 0; i < BOONS.length; i++) if (BOONS[i].id === id) return !!applyBoon(BOONS[i]);
+      return false;
+    },
+    /* the contact branch of a goblin's attack, on demand — what the 8 Hz
+       brain eventually does when a lunge lands, without waiting on its dice */
+    touch: function (i) {
+      var e = enemies[i || 0];
+      if (!e || e.dead) return false;
+      hitRiley(e);
+      return true;
+    },
+    /* compact live view of the field, for the headless playtest bot */
+    enemies: function () {
+      var out = [];
+      for (var i = 0; i < enemies.length; i++) {
+        var e = enemies[i];
+        if (e.dead) continue;
+        out.push({ i: i, k: e.k, x: +e.x.toFixed(2), z: +e.z.toFixed(2), y: +e.y.toFixed(2),
+          hp: +e.hp.toFixed(2), tele: +e.tele.toFixed(2), act: e.actKind, spawn: +e.spawnT.toFixed(2),
+          elite: !!e.elite, d: +Math.hypot(e.x - R.x, e.z - R.z).toFixed(2) });
+      }
+      out.sort(function (a, b) { return a.d - b.d; });
+      return out;
+    },
+    cam: function () {
+      return { block: +camBlockT.toFixed(3), lift: +camLift.toFixed(2), dist: +camDist.toFixed(2),
+        fov: +camFov.toFixed(3), roll: +camRoll.toFixed(3), shake: +game.shake.toFixed(3),
+        kick: +Math.hypot(camKickY, camKickP, camKickR).toFixed(3), shoulder: +camShoulder.toFixed(2) };
+    },
     /* place: an instantly *combat-ready* goblin at an offset from Riley — the
        spawn-in grace is skipped so tests can exercise AI/attacks right away */
     place: function (k, dx, dz, elite) {
