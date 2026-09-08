@@ -200,15 +200,33 @@ pump(40);
 const livesA = global.__T.info().lives;
 check('spitter projectile hits player (lives drop)', livesA < livesB, { livesB, livesA });
 
+console.log('--- mouse-assist aim + zoom ---');
+pump(30);
+const A = global.__T.aim();
+const groundAt = global.__R().y; /* sanity only */
+check('aim point on/near terrain', Math.abs(A.y - groundAt) < 2.2 || A.lock, A);
+check('aim point in front within range', A.dist > 0.5 && A.dist < 65, A);
+const z0 = global.__T.zoom(-3);
+check('zoom in accepted', z0 < 7.5, z0);
+pump(40);
+const z1 = global.__T.zoom(99);
+check('zoom out clamps at 11.5', z1 === 11.5, z1);
+
 console.log('--- camera sanity (never under ground) ---');
-let below = 0, samples = 0;
+let below = 0, far = 0, samples = 0;
 for (let i = 0; i < 60; i++) {
   const cb = global.__T.camBelow(); /* ground - camY: positive => camera inside terrain */
   if (cb > 0.001) below++;
+  const r = global.__R();
+  const dist = Math.hypot(r.camX - r.x, r.camY - r.y, r.camZ - r.z);
+  /* regression: the old raycast squared the distance and flung the camera
+     ~50u away whenever terrain sat behind the player */
+  if (dist > 13) far++;
   samples++;
   pump(1);
 }
 check('camera never under terrain', below === 0, { below, samples });
+check('camera stays in tight range (regression: no 50u flyaway)', far === 0, { far, samples });
 
 console.log('--- determinism: same seed twice => same worldHash ---');
 const seed = 'TESTSEED42';
