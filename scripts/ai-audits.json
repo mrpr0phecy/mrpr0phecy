@@ -1,87 +1,19 @@
 {
-  "$comment": "Audit definitions for the automated checker (scripts/ai-developer.js, .github/workflows/ai-developer.yml). Each entry is a domain: the files it covers, the standards it enforces, and the command that checks them. Configuration, not a roster.",
-  "workflow": ".github/workflows/ai-developer.yml",
-  "runner": "scripts/ai-developer.js",
-  "schedule": "Mon & Thu 06:00 UTC · manual dispatch (auto | audit | generate | fix)",
-  "rule": "Audits must pass before the checker proposes changes. Generated drafts go to ai-developer/ (gitignored) for a human to review; nothing is auto-committed into cards/.",
+  "version": 2,
+  "description": "Executable checks only. Responsibility profiles live in ai-staff.json; execution limits live in ai-config.json. Each check has exactly one accountable owner.",
   "audits": [
-    {
-      "id": "visual-design",
-      "domain": "Visual design",
-      "profile": "Guardian of the site's two design languages — Product A 'cyan terminal' (index.html, tool.html, 404.html, donate.html, cards/card.css) and Product B 'neon night' (listen.html). Works audit-first: objective checks (WCAG contrast AA, 390px overflow, >=40px touch targets, visible focus, reduced-motion) before any aesthetic change; refines inside the established design tokens rather than restyling for its own sake; never touches content, SEO metadata, monetisation or the never-do list (AGENTS.md §3). Documents every decision in ARCHITECTURE.md §5.",
-      "owns": [
-        "index.html",
-        "listen.html",
-        "tool.html",
-        "404.html",
-        "donate.html",
-        "cards/card.css",
-        "ARCHITECTURE.md §5"
-      ],
-      "standards": [
-        "design tokens in :root, theme-aware colour-scheme: dark",
-        "contrast >= 4.5:1 for body text; primary CTA red AA-compliant (#e6002e)",
-        "no horizontal overflow at 360-390px; grid children min-width:0",
-        "touch targets >= 40px in page chrome, >= 44px on touch devices for card widgets",
-        ":focus-visible outline, ::selection tint, prefers-reduced-motion respected",
-        "scroll-margin-top under sticky navs; no decorative inline styles on hub pages"
-      ],
-      "auditCmd": [
-        "node",
-        "scripts/design-audit.js"
-      ],
-      "fixScope": [
-        "count sync (index.html, 404.html)",
-        "guard-rule presence — anything else is advisory, human-reviewed"
-      ],
-      "tags": [
-        "design",
-        "ui",
-        "ux",
-        "visual"
-      ]
-    },
-    {
-      "id": "catalogue",
-      "domain": "Catalogue",
-      "profile": "Keeps Product A's 500+ tool catalogue coherent: every cards/*.html indexed, fragments only, titles/descriptions present, categories valid, 'Search N' claims true, sitemap complete.",
-      "owns": [
-        "cards/",
-        "cards/cards.json",
-        "sitemap.xml",
-        "generate-cards-json.js"
-      ],
-      "auditCmd": [
-        "python3",
-        "scripts/check-cards.py"
-      ],
-      "fixScope": [
-        "regenerate cards.json after adding cards (node generate-cards-json.js)"
-      ],
-      "tags": [
-        "catalogue",
-        "cards",
-        "tools"
-      ]
-    },
-    {
-      "id": "seo",
-      "domain": "SEO & metadata",
-      "profile": "Scans every top-level *.html for required metadata: title, lang, description, canonical, theme-color, Open Graph and Twitter cards; flags hreflang drift.",
-      "owns": [
-        "all top-level *.html metadata"
-      ],
-      "auditCmd": [
-        "python3",
-        "scripts/scan-seo.py"
-      ],
-      "fixScope": [
-        "advisory only"
-      ],
-      "tags": [
-        "seo",
-        "metadata"
-      ]
-    }
+    {"id":"staff-integrity","owner":"delivery","title":"Staff configuration & workflow integrity","product":"shared","gate":"blocking","priority":"P0","command":["node","scripts/ai-developer.js","check"],"timeoutMs":30000,"why":"A broken or contradictory facility cannot safely coordinate changes.","remediation":"Repair invalid configuration, missing references or workflow integrity errors; run the staff regression suite."},
+    {"id":"catalogue","owner":"catalogue","title":"Catalogue coherence","product":"tools","gate":"blocking","priority":"P1","command":["python3","scripts/check-cards.py"],"timeoutMs":30000,"why":"A tool that is missing from the index cannot be discovered.","remediation":"Reconcile card fragments and index metadata without deleting existing tools; use the canonical generator."},
+    {"id":"counts","owner":"catalogue","title":"Measured public tool counts","product":"tools","gate":"blocking","priority":"P1","command":["python3","scripts/sync-counts.py","--check"],"timeoutMs":30000,"why":"Published catalogue figures must come from current data.","remediation":"Use python3 scripts/sync-counts.py; never hand-edit counts or rewrite historical entries."},
+    {"id":"sitemap","owner":"catalogue","title":"Crawlable route inventory","product":"tools","gate":"blocking","priority":"P1","command":["python3","scripts/build-sitemap.py","--check"],"timeoutMs":30000,"why":"Generated discovery routes must match the tracked indexable pages.","remediation":"Review the indexable page set and regenerate with python3 scripts/build-sitemap.py."},
+    {"id":"card-js","owner":"reliability","title":"Card JavaScript syntax","product":"tools","gate":"blocking","priority":"P0","command":["python3","scripts/check-card-js.py","--all"],"timeoutMs":180000,"why":"A syntax error can leave a rendered tool completely inert.","remediation":"Fix the reported script blocks; preserve the shared-DOM IIFE boundary and test the actual tool."},
+    {"id":"loader-regressions","owner":"reliability","title":"Real loader & retry regression tests","product":"tools","gate":"blocking","priority":"P1","command":["node","--test","scripts/tests/card-errors.test.js","scripts/tests/lazy-loader.test.js"],"timeoutMs":30000,"why":"Load, retry and scroll behaviours need executable regression coverage.","remediation":"Reconcile tests with the shipped loader, distinguish stale extraction from a runtime defect, and prove loading/retry behaviour in a browser."},
+    {"id":"egress","owner":"privacy","title":"Card network-exception audit","product":"tools","gate":"blocking","priority":"P0","command":["python3","scripts/check-egress.py"],"timeoutMs":30000,"why":"User inputs must not silently leave the device. This static scanner is a subset, not a privacy certification.","remediation":"Make new network use local or obtain a reviewed, visible exception; inspect dynamic URLs and offline failure states manually."},
+    {"id":"product-boundaries","owner":"privacy","title":"Product separation & claim review","product":"shared","gate":"advisory","priority":"P1","command":["node","scripts/staff/site-audit.js","boundaries"],"timeoutMs":30000,"why":"Existing cross-promotion and absolute claims must be surfaced without silently reversing owner policy.","remediation":"Review the reported links/claims against CONSTRAINTS.md and staff/DECISIONS.md. Escalate policy conflicts to the owner."},
+    {"id":"design","owner":"visual-design","title":"Design tokens & accessibility guards","product":"shared","gate":"blocking","priority":"P1","command":["node","scripts/design-audit.js","--strict"],"timeoutMs":30000,"why":"Protect the two established design languages; static checks do not measure live geometry or full contrast.","remediation":"Restore the reported token or guard without restyling unrelated pages; verify keyboard access, contrast and 360–390px layouts manually."},
+    {"id":"a11y","owner":"visual-design","title":"Labels, image text & safe links","product":"tools","gate":"blocking","priority":"P1","command":["python3","scripts/check-a11y.py"],"timeoutMs":30000,"why":"Broken label associations and unsafe links undermine otherwise useful tools.","remediation":"Repair the reported associations, alternative text and rel attributes; test keyboard and screen-reader names."},
+    {"id":"seo","owner":"seo","title":"Page metadata scan","product":"shared","gate":"blocking","priority":"P2","command":["python3","scripts/scan-seo.py"],"timeoutMs":30000,"why":"Missing titles block this check; incomplete metadata remains visible as advisory findings.","remediation":"Fix missing titles first, then prioritise indexable pages with missing canonical/social metadata. Do not enrich deliberate noindex scratch pages blindly."},
+    {"id":"music-experience","owner":"music","title":"Listener entry-point contract","product":"music","gate":"blocking","priority":"P1","command":["node","scripts/staff/site-audit.js","music"],"timeoutMs":30000,"why":"The music hub needs an identifiable artist, canonical route and an intentional player-loading contract.","remediation":"Restore the music-hub contract using verified IDs in ARCHITECTURE.md §4. Manually verify playback; the static audit never counts views or plays music."},
+    {"id":"finance","owner":"finance","title":"Financial arithmetic & honest claims","product":"tools","gate":"blocking","priority":"P1","command":["node","scripts/check-finance.js"],"timeoutMs":60000,"why":"Previously unwired financial tests must be visible, including stale tests that need reconciliation.","remediation":"Triage each assertion against the current card, repair genuine formula defects with sourced test vectors, and update stale test extraction only with evidence."}
   ]
 }

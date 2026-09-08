@@ -1,54 +1,140 @@
 name: AI Developer
+
 on:
   schedule:
     - cron: '0 6 * * 1,4'
   workflow_dispatch:
     inputs:
       task:
-        description: 'Task type'
-        required: false
-        default: 'auto'
+        description: 'Staff task (auto never calls an AI provider)'
+        required: true
+        default: auto
         type: choice
-        options: [auto, audit, generate, fix]
-      category:
-        description: 'Category focus (empty=auto)'
+        options: [auto, audit, plan, fix, generate]
+      focus:
+        description: 'Staff id or tools/music/shared (read-only focus; all gates run before changes)'
         required: false
-        default: ''
+        type: string
+      category:
+        description: 'Exact catalogue category for draft generation only'
+        required: false
+        type: string
+      brief:
+        description: 'Reviewed user need for generate mode; no secrets or personal data'
+        required: false
         type: string
       max_tools:
-        description: 'Max tools to generate'
+        description: 'Draft request budget, 1–3 (explicit generate mode only)'
         required: false
-        default: '3'
+        default: '1'
         type: string
+
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+# One maintenance proposal at a time; never interrupt a half-written report.
+concurrency:
+  group: site-staff-maintenance
+  cancel-in-progress: false
+
 jobs:
-  ai-develop:
+  assess:
+    name: Staff evidence & safe maintenance
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      propose_changes: ${{ steps.staff.outputs.propose_changes }}
+      source_sha: ${{ steps.source.outputs.sha }}
     steps:
-<<<<<<< HEAD
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
-      - name: Run AI Developer
+      - name: Record source revision
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Run staff facility
+        id: staff
         env:
-          AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'gemini' }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_TASK: ${{ github.event.inputs.task || 'auto' }}
-          AI_CATEGORY: ${{ github.event.inputs.category || '' }}
-          AI_MAX_TOOLS: ${{ github.event.inputs.max_tools || '3' }}
+          AI_TASK: ${{ inputs.task || 'auto' }}
+          AI_FOCUS: ${{ inputs.focus || '' }}
+          AI_CATEGORY: ${{ inputs.category || '' }}
+          AI_BRIEF: ${{ inputs.brief || '' }}
+          AI_MAX_TOOLS: ${{ inputs.max_tools || '1' }}
+          AI_PROVIDER: ${{ vars.AI_PROVIDER || secrets.AI_PROVIDER || 'gemini' }}
+          AI_MODEL: ${{ vars.AI_MODEL || '' }}
+          # A scheduled run or a dispatch on a non-default branch receives no provider key.
+          AI_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.task == 'generate' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && secrets.AI_API_KEY || '' }}
         run: node scripts/ai-developer.js
-      - name: Create PR
-        uses: peter-evans/create-pull-request@v8
+      - name: Package verified numeric-only edits
+        if: steps.staff.outputs.propose_changes == 'true'
+        run: git diff --binary > ai-developer/counts.patch
+      - name: Upload evidence even when a check fails
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: site-staff-report
+          path: |
+            ai-developer/reports/
+            ai-developer/drafts/*.html.txt
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload verified count patch
+        if: steps.staff.outputs.propose_changes == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: site-staff-count-fix
+          path: |
+            ai-developer/counts.patch
+            ai-developer/reports/latest.md
+          if-no-files-found: error
+          retention-days: 2
+
+  propose:
+    name: Propose verified count maintenance
+    needs: assess
+    if: needs.assess.outputs.propose_changes == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only this job can write. It receives a verified count patch, never executable AI output.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: site-staff-count-fix
+          path: ai-developer/proposal
+      - name: Reject stale proposals and recheck the patch
+        env:
+          EXPECTED_SHA: ${{ needs.assess.outputs.source_sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_SHA" ]; then
+            echo "The default branch moved after the audit. Rerun the facility; no stale proposal will be applied." >&2
+            exit 1
+          fi
+          git apply --check ai-developer/proposal/counts.patch
+          git apply ai-developer/proposal/counts.patch
+          bash scripts/verify.sh
+      - name: Open or update one human-reviewed maintenance PR
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: 'AI Developer: automated improvements'
-          branch: ai-developer/${{ github.run_id }}
-          delete-branch: true
-          title: 'AI Developer: New tools & improvements'
-          body: |
-            Automated AI Developer run. Review before merging.
-          labels: ai-generated, automated
+          base: ${{ github.event.repository.default_branch }}
+          branch: ai-developer/maintenance
+          delete-branch: false
+          draft: true
+          commit-message: 'Sync measured catalogue counts after staff verification'
+          title: 'Staff maintenance: verified catalogue count sync'
+          body-path: ai-developer/proposal/reports/latest.md

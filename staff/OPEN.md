@@ -1,29 +1,39 @@
-# OPEN — the work queue
+# OPEN — human work queue
 
-What needs doing, who owns it, what it waits on. Update your items when you
-claim, progress, or finish them (and say so on [`BOARD.md`](BOARD.md)).
-Anything whose owner is **OWNER** needs the owner's decision — @manager
-collects and relays those; do not act on them unilaterally.
+Reviewed against commit `26c61904d9a1cc193cbdf6dfb6b599fade0b4f9e` on
+2026-09-08. This is a prioritisation aid, **not** a claim that an agent is
+currently working. File-scope claims under `claims/` show reservations; fresh
+`node scripts/ai-developer.js plan` output supplies measured findings.
 
-| # | Item | Owner | Waits on | Status |
+The old queue described pre-salvage branches, missing files and old catalogue
+counts. Those descriptions are no longer reliable current status. Their
+context is preserved in `BOARD.md`, Git history and the linked GitHub issues;
+none is silently declared accepted merely because a similarly named file now
+exists. See [RESEARCH.md](RESEARCH.md).
+
+| ID | Outcome | Accountable profile | Evidence / acceptance | State |
 |---|---|---|---|---|
-| 1a | **FIX qrtool locally** (Class A egress, D-009): replace api.qrserver/qrcode-monkey generation with the vendored qrcode-generator already in wifi-qr-generator.html; keep logo overlay. Same for any other Class A card. | @design | nothing | **urgent** |
-| 1 | **Triage the divergent catalogue branch** (now 136 added, was 130 — branch grew overnight): cherry-pick genuinely good new tools through the full quality bar (AGENTS.md §5 + card anatomy §3), **restore every deleted card**, re-run `generate-cards-json.js` + sitemap + counts. Full inventory + acceptance checklist: **issue #7**. | @manager | nothing | in progress — inventory refreshed 2026-09-03 |
-| 2 | **One `help.html`** — merge the two stranded versions (site-mechanics answers + privacy/money/legal answers + client-side search), `FAQPage` JSON-LD in sync, claims per D-002. General rule from D-004 applies. | @content | #1 landing first (avoid catalogue collisions) | open |
-| 3 | **Risk-notice system** per proposed D-003: `RISK_NOTICES` tables in `index.html` + `tool.html` for medical/finance/engineering/legal tools. Rebuild from the stranded @legal branch design; then D-003 becomes binding. | @systems | nothing | open |
-| 4 | **17 `<label for=…>` associations** point at nothing (button groups) — convert to radio inputs or `aria-labelledby`. Known since 2026-08-31. | @systems | nothing | open |
-| 5a | **Adopt @seo structured-data work** (per-tool JSON-LD, breadcrumbs, ?category= deep-links from `01a0605e`) and **@systems index.html perf work** (lazy-load fix, timer purge from `01a0629f`) — after rebase, minus D-006/D-007 violations. | @seo/@systems | rebases | open |
-| 5 | **Salvage review of remaining stranded branches**: `01a05fea` (CONTRIBUTING, issue/PR templates, CODEOWNERS, security.txt), `01a0622c` (finance-card fixes + FINANCE.md), `01a05df2` (Second Life script), `01a062bc` (legal.html, LEGAL.md, RISK_NOTICES). Pull the good, drop the contradictory. | @manager | D-006/D-007 landed (done) | open |
-| 6 | **Language pages**: thin machine-translated hreflang cluster — enrich with genuinely localised content or consolidate (owner question). | OWNER | owner decision | pending |
-| 7 | **`sw.js`**: enable (network-first HTML, cache-first cards) or delete. Large win for a 562-tool offline site, but rollout wants care. | OWNER | owner decision | pending |
-| 8 | **`indexbeta.html`, `hokidea.html`, four unlinked CV files, `substitutions/`, `system/`, `digitaldetoxcardshtml/`**: ship-or-delete decisions. | OWNER | owner decision | pending |
-| 9 | **`AI_API_KEY` repository secret**: without it the facility's `generate` mode is skipped (audit + fix still run). Owner to add a key (Gemini or OpenAI) if draft generation is wanted. | OWNER | owner decision | pending |
-| 11 | **Owner batch 2 (collected by @manager):** license choice (LICENSE file), embed-licensing monetisation idea (@finance), in-browser-AI strategy (R&D #12), Second Life script home, Class B/C network exceptions confirmation. | OWNER | @manager to batch-ask | pending |
-| 10 | **Docs count refresh after #1 lands**: README/AGENTS/AGENT_ACCESS/ARCHITECTURE category table to the new real count. | @manager | #1 | pending |
+| STAFF-01 | Trustworthy finance tools **and** tests aligned to the shipped implementation | `finance` | `node scripts/check-finance.js` reported **28 failing assertions out of 69** at the research baseline. Some are stale extraction/assumption checks; others report numeric disagreements. Classify each, source the assumptions and reproduce actual defects before fixing. Acceptance: documented test vectors, aligned tests and reviewed browser behaviour. | Unclaimed · P1 blocking |
+| STAFF-02 | Reliable catalogue loading/retry with executable regression coverage | `reliability` | Both existing `card-errors.test.js` and `lazy-loader.test.js` fail at baseline. Reconcile source extraction with current `index.html`, then test retry/scroll/error behaviour. Acceptance: both suites pass without removing coverage, plus browser evidence. | Unclaimed · P1 blocking |
+| STAFF-03 | Product boundaries and privacy copy match standing decisions | `privacy` | `node scripts/staff/site-audit.js boundaries` reports existing tool-side music links and analytics/claim combinations for contextual review. Do not automatically remove navigation, expand/reduce analytics or reinterpret owner policy. | Unclaimed · P1 review; owner escalation where needed |
+| STAFF-04 | Design remains accessible without unnecessary external assets | `visual-design` | Static design guards pass at baseline; `404.html` requests an external font despite the documented system-font preference. Review on the next scoped design change, with keyboard, contrast and 360–390px geometry evidence. | Unclaimed · P2 review |
+| STAFF-05 | Complete, honest metadata on useful indexable pages | `seo` | Use the current SEO report. Some warnings concern deliberate scratch/noindex pages; prioritise real public routes rather than mechanically filling every field. Acceptance: unique accurate metadata, valid canonical/social URLs, no unreviewed hreflang changes. | Unclaimed · P2 review |
+| STAFF-06 | A verified listener journey, not manufactured engagement | `music` | Static music-hub checks do not play a video. Manually verify click-to-play, dismissal/keyboard behaviour and outbound destinations when touching Product B. Preserve the verified handle/ID table. | Unclaimed · manual validation |
+| STAFF-07 | Improvements chosen from real needs, not small categories or invented demand | `catalogue` + `seo` | Use owner-supplied Search Console/feedback and reproducible user problems. No traffic, revenue, watch hours or demand was measured in the staff rebuild. The provider receives an explicit reviewed brief only. | Awaiting real demand evidence; no new tracking authorised |
 
-## Notes
+## Claiming and finishing work
 
-- **Claimed = posted.** Claim an item by posting to `BOARD.md` *and* setting
-  yourself as owner in the table.
-- Items needing the owner are collected by @manager and asked in one batch —
-  never pester the owner individually.
+Use `python3 staff/coordinate.py claim …` and post context to `BOARD.md`.
+Release or block with validation results and explicit next steps. Do not turn
+an unclaimed profile assignment into “in progress” without a real session.
+One focused change at a time is preferable to competing edits of shared pages.
+
+## Owner dependencies are not staff permissions
+
+`CONSTRAINTS.md` and `DECISIONS.md` remain the sources for owner-only calls:
+analytics placement, monetisation, protected-file/legacy cleanup, catalogue
+retirement, translated-cluster strategy and service-worker enablement. A
+provider key/model is optional; its absence does not prevent audits or safe
+maintenance. Configure it only if human-reviewed draft generation is wanted.
+
+The staff system must **not** decide those questions just to empty its queue.

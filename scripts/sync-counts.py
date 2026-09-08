@@ -42,6 +42,8 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
+import json
 import os
 import re
 import sys
@@ -141,6 +143,13 @@ CLAIM = re.compile(
 # follows it and CLAIM cannot see it. This rule is what fixes tools.html's
 # "numberOfItems": 562 and index.html's CollectionPage count.
 JSONLD_NO = re.compile(r'("numberOfItems"\s*:\s*)(\d{3,4})(?=\s*[,}])')
+
+# Named chrome can show a bare number with no following noun (count-all).
+# Keep this in the canonical synchroniser, rather than a second design fixer.
+CHROME_COUNT = re.compile(
+    r"""(\bid\s*=\s*["'](?:heroToolCount|count-all)["'][^>]*>\s*)(\d{3,4})\b""",
+    re.IGNORECASE,
+)
 
 # "708 of them" and "alongside the other 1164" — count claims where the
 # noun is replaced by an anaphor. Both appear in the live site copy.
@@ -252,6 +261,7 @@ def fix_text(text: str, n: int) -> tuple[str, list[str]]:  # noqa: C901
     for pat, repl in (
         (CLAIM, claim_repl),
         (JSONLD_NO, jsonld_repl),
+        (CHROME_COUNT, jsonld_repl),
         (OF_THEM, of_them_repl),
         (ALONGSIDE_OTHER, alongside_repl),
         (SHARE_ONE_DOM, share_dom_repl),
@@ -262,13 +272,17 @@ def fix_text(text: str, n: int) -> tuple[str, list[str]]:  # noqa: C901
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--check", action="store_true",
-                    help="report drift and exit 1; do not write")
+    modes = ap.add_mutually_exclusive_group()
+    modes.add_argument("--check", action="store_true",
+                       help="report drift and exit 1; do not write")
+    modes.add_argument("--plan", action="store_true",
+                       help="emit a JSON edit plan with source hashes; do not write")
     args = ap.parse_args()
 
     n = true_count()
     total = 0
     stale_files = 0
+    plan = []
 
     for name in TARGETS:
         path = os.path.join(ROOT, name)
@@ -289,6 +303,14 @@ def main() -> int:
             continue
         stale_files += 1
         total += len(changes)
+        if args.plan:
+            plan.append({
+                "path": name,
+                "beforeSha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "after": new,
+                "claims": len(changes),
+            })
+            continue
         verb = "STALE" if args.check else "fixed"
         print(f"  {verb} {name}: {len(changes)} claim(s)")
         for c in changes[:6]:
@@ -298,6 +320,10 @@ def main() -> int:
         if not args.check:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(new)
+
+    if args.plan:
+        print(json.dumps({"count": n, "changes": plan}, ensure_ascii=False))
+        return 0
 
     if not total:
         print(f"counts OK — every claim matches the catalogue ({n} tools).")

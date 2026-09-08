@@ -11,7 +11,7 @@ Thanks for the PR! A few quick checks before review:
 
 ## What this PR does
 
-<!-- One or two sentences. If the change is large, link to a long-form note in AGENTS.md instead of pasting the full story here. -->
+<!-- One or two sentences. If the change is large, link to its research/rationale and staff board entry instead of pasting the full story here. -->
 
 ## Why
 
@@ -54,7 +54,13 @@ Thanks for the PR! A few quick checks before review:
 
 ## Agent session handoff (if applicable)
 
-<!-- If you are an AI agent appending to AGENTS.md, paste the handoff prose here so the reviewer can spot-check it. -->
+<!-- Link the branch-scoped staff/claims record and staff/BOARD.md entry. A released claim is not proof of review or deployment. -->
+
+- User outcome and accountable staff profile:
+- Commands/browser checks actually run:
+- Known inherited failures or checks not run (do not imply they passed):
+- Owner-only decisions touched and explicit approval, if applicable:
+- Next steps / merge and deployment evidence:
 
 ## Verify run (paste the last 10 lines of `bash scripts/verify.sh`)
 
