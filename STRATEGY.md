@@ -23,7 +23,7 @@ That is not a business, it is a set of lottery tickets. The owner's brief was
 explicit: *"if it didn't have to rely on sponsors that may never show up, even
 better."* That is the correct instinct and this document acts on it.
 
-**The strategic error was treating 1164 tools as inventory to sell advertising
+**The strategic error was treating 1165 tools as inventory to sell advertising
 against, when they are a product people would pay to use.**
 
 ### The numbers that prove it
@@ -41,7 +41,7 @@ Meanwhile, published competitor pricing for embeddable calculators:
 | Outgrow | Calculator builder | **$22–$115/month** |
 | Involve.me | Calculator funnels | **$29–$129/month** |
 
-We have **562**. Eight of those competitors' calculators cost more per year than
+We have **1165**. Eight of those competitors' calculators cost more per year than
 our entire 35-tool finance category. **Four £299 licences beat a year of
 plausible sponsorship, and they renew.**
 
@@ -69,7 +69,7 @@ an advert, so the free tier is a customer-acquisition channel, not a leak.
 |---|---|---|
 | Single tool | **£99/yr** | One calculator, one site, no credit |
 | **Category** | **£299/yr** | e.g. all 35 finance tools, your logo, 3 sites |
-| Full white-label | **£899/yr** | All 562, unlimited sites, self-host option |
+| Full white-label | **£899/yr** | All 1165, unlimited sites, self-host option |
 
 Live at **`embed.html`**.
 
