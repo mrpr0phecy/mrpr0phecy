@@ -18,7 +18,7 @@ a finished multiplayer feature.
 2. **Inputs are tiny.** One 3-byte packet per player per tick:
    - byte 0: move X quantised to −8…8
    - byte 1: move Y quantised to −8…8
-   - byte 2: flags — fire, jump, dash, nova, up, down, aimX, aimY
+   - byte 2: flags — fire, jump, dash, nova, melee, lock, aimX, aimY
 
 3. **Every packet is checksummed.** Tick packets carry an FNV-1a checksum of
    their input bytes (`encodeTick` / `decodeTick`).
@@ -63,6 +63,11 @@ a finished multiplayer feature.
 - Entity lists used for `worldHash` must be in **stable id order**
   (spawn index), and every hashed entity needs the same 4 fields
   `[x, y, z, hp]`.
+- Menus that freeze the tick must not consume it: the between-wave boon pick
+  sets `state = 'pick'`, the loop renders but never steps, and the chosen boon
+  is applied as a multiplier on existing tick constants (`buffMul()` is the one
+  door for damage/speed/regen). A run with the same seed and the same picks in
+  the same order hashes identically — do not move boon state into wall time.
 - Keep inputs ≤ 3 bytes. If a future action doesn't fit, add a second
   packet type — don't widen the 60 Hz path.
 - `test/smoke-pure.js` (module unit checks) and `test/smoke-engine.js`

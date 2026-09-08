@@ -1,123 +1,13 @@
-/* Headless smoke for riley-engine.js — fake DOM + fake WebGL1.
- * Boots the game, steps the sim (with input), spawns + kills enemies,
- * runs render frames. Catches wiring/runtime errors that --check misses. */
+/* Headless smoke for riley-engine.js — boots the game on the shared fake-DOM
+ * rig, steps the sim with input, spawns + kills enemies, runs render frames.
+ * Catches wiring/runtime errors that --check misses, and pins the behaviour
+ * of the camera + combat invariants (see the labelled sections below).
+ */
 'use strict';
-const fs = require('fs');
 const path = require('path');
-
-/* ---------------- fake DOM ---------------- */
-function makeEl(id) {
-  const children = [];
-  const el = {
-    id, style: {}, children, classList: {
-      _s: new Set(),
-      add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); },
-      contains(c) { return this._s.has(c); },
-      toggle(c, f) { if (f === undefined) { this._s.has(c) ? this._s.delete(c) : this._s.add(c); } else if (f) this._s.add(c); else this._s.delete(c); }
-    },
-    textContent: '', nodeValue: '',
-    firstChild: { nodeValue: '' },
-    querySelector(sel) { return el._q(sel); },
-    _q(sel) {
-      if (!el._qmap) el._qmap = {};
-      if (!el._qmap[sel]) el._qmap[sel] = makeEl(id + sel);
-      return el._qmap[sel];
-    },
-    appendChild(c) { children.push(c); return c; },
-    removeChild(c) { const i = children.indexOf(c); if (i >= 0) children.splice(i, 1); return c; },
-    parentNode: null,
-    addEventListener() {}, removeEventListener() {}, setPointerCapture() {},
-    getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; },
-    clientWidth: 100, clientHeight: 100,
-    width: 800, height: 450,
-    getContext() { return null; },
-    requestPointerLock() {},
-    classList2: null
-  };
-  return el;
-}
-const elements = {};
-['cv', 'hudHearts', 'hudScore', 'hudWave', 'bossBar', 'hurtVig', 'manaBar', 'comboCtr', 'comboFill',
-  'banner', 'reticle', 'ovTitle', 'ovOver', 'ovPause', 'seedInput', 'seedLine', 'bestLine', 'bestLine2',
-  'iqLine', 'btnPlay', 'btnPause', 'btnResume', 'btnRestart', 'btnNewWorld', 'btnQuitTitle', 'btnQuit2',
-  'btnAgain', 'btnMute', 'btnPurge', 'noGL', 'mob', 'hintBar', 'joy', 'joyKnob', 'aim', 'aimKnob',
-  'tbJump', 'tbDash', 'tbNova', 'fps']
-  .forEach(id => { elements[id] = makeEl(id); });
-
-const listeners = {};
-global.window = global;
-global.document = {
-  getElementById(id) { return elements[id] || makeEl(id); },
-  createElement() { return makeEl('div'); },
-  addEventListener(t, cb) { (listeners[t] = listeners[t] || []).push(cb); },
-  body: makeEl('body')
-};
-global.location = { search: '?selftest=1' };
-global.innerWidth = 800; global.innerHeight = 450;
-global.devicePixelRatio = 1;
-global.localStorage = { _d: {}, getItem(k) { return this._d[k] || null; }, setItem(k, v) { this._d[k] = String(v); }, removeItem(k) { delete this._d[k]; } };
-global.performance = { now: () => tNow * 1000 };
-let tNow = 0;
-global.matchMedia = () => ({ matches: true });
-let rafQ = [];
-global.requestAnimationFrame = cb => { rafQ.push(cb); };
-global.cancelAnimationFrame = () => {};
-global.Image = class { set src(v) { /* no onload — flat colours */ } };
-global.addEventListener = (t, cb) => { (listeners[t] = listeners[t] || []).push(cb); };
-global.setTimeout = (cb) => 0;
-global.AudioContext = undefined; global.webkitAudioContext = undefined;
-
-/* ---------------- fake WebGL ---------------- */
-const GL = {
-  TRIANGLES: 4, ARRAY_BUFFER: 34962, FLOAT: 5126, UNSIGNED_BYTE: 5121,
-  STATIC_DRAW: 35044, DYNAMIC_DRAW: 35048,
-  COLOR_BUFFER_BIT: 16384, DEPTH_BUFFER_BIT: 256,
-  SRC_ALPHA: 304, ONE: 1, ONE_MINUS_SRC_ALPHA: 771,
-  TEXTURE_2D: 3553, TEXTURE_MIN_FILTER: 10241, TEXTURE_MAG_FILTER: 10240,
-  LINEAR_MIPMAP_LINEAR: 9987, LINEAR: 9729, REPEAT: 10497,
-  RGBA: 6408, UNPACK_FLIP_Y_WEBGL: 37440,
-  VERTEX_SHADER: 35633, FRAGMENT_SHADER: 35632, COMPILE_STATUS: 35713,
-  LINK_STATUS: 35714, VERTEX_ATTRIB_ARRAY_ENABLED: 43,
-  UNPACK_ALIGNMENT: 3317
-};
-let progN = 0, bufN = 0, texN = 0, drawCalls = 0, drawCounts = [];
-function fakeUniformLoc() { return { _name: 'u' + Math.random() }; }
-const gl = new Proxy({}, {
-  get(t, prop) {
-    if (prop in t) return t[prop];
-    if (prop === 'createShader') return () => ({ type: 0 });
-    if (prop === 'shaderSource' || prop === 'compileShader' || prop === 'linkProgram' || prop === 'attachShader' || prop === 'useProgram' || prop === 'deleteShader' || prop === 'deleteProgram' || prop === 'bindTexture' || prop === 'activeTexture' || prop === 'texParameteri' || prop === 'generateMipmap' || prop === 'pixelStorei') return () => {};
-    if (prop === 'getShaderParameter' || prop === 'getProgramParameter') return () => true;
-    if (prop === 'getShaderInfoLog' || prop === 'getProgramInfoLog') return () => '';
-    if (prop === 'createProgram') return () => ({ id: ++progN });
-    if (prop === 'getUniformLocation') return () => fakeUniformLoc();
-    if (prop === 'createBuffer') return () => ({ id: ++bufN });
-    if (prop === 'bindBuffer' || prop === 'bufferData' || prop === 'enableVertexAttribArray' || prop === 'disableVertexAttribArray' || prop === 'vertexAttribPointer' || prop === 'enable' || prop === 'disable' || prop === 'depthMask' || prop === 'blendFunc' || prop === 'viewport' || prop === 'clearColor' || prop === 'clear' || prop === 'uniform1f' || prop === 'uniform3f' || prop === 'uniform1i' || prop === 'texImage2D') return () => {};
-    if (prop === 'uniformMatrix4fv') return (loc, _, m) => { if (!m || m.length !== 16) throw new Error('uniformMatrix4fv bad matrix'); };
-    if (prop === 'drawArrays') return (m, f, n) => { drawCalls++; if (n < 0) throw new Error('drawArrays negative'); drawCounts.push(n); };
-    if (prop === 'createTexture') return () => ({ id: ++texN });
-    if (prop === 'getExtension') return (n) => (n === 'ANGLE_instanced_arrays' ? fakeInst : null);
-    return () => {};
-  },
-  set(t, prop, v) { t[prop] = v; return true; }
-});
-const fakeInst = {
-  vertexAttribDivisorANGLE() {},
-  drawArraysInstancedANGLE(mode, first, count, prim) { drawCalls++; if (count < 0 || prim < 0) throw new Error('bad instanced draw'); drawCounts.push(count * prim); }
-};
-elements['cv'].getContext = (t) => (t === 'webgl' || t === 'experimental-webgl') ? gl : (t === '2d' ? { drawImage() {}, getImageData() { return { data: new Uint8Array(4) }; } } : null);
-
-/* ---------------- load modules in order ---------------- */
-const dir = path.join(__dirname, '..');
-function load(f) {
-  const code = fs.readFileSync(path.join(dir, f), 'utf8');
-  (0, eval)(code);
-}
-load('riley-core.js');
-load('riley-world.js');
-load('riley-ai.js');
-load('riley-net.js');
-load('riley-engine.js');
+const H = require('./harness.js').boot();
+const elements = H.els;
+global.__H = H;                     /* used by the camera bench + dev probes */
 
 /* ---------------- drive ---------------- */
 let fails = 0;
@@ -125,6 +15,15 @@ function check(name, cond, extra) {
   if (cond) console.log('  ok  ' + name);
   else { fails++; console.log('  FAIL ' + name + (extra !== undefined ? ' :: ' + JSON.stringify(extra) : '')); }
 }
+
+console.log('--- page contract: every id the engine asks for exists in riley.html ---');
+const htmlSrc = require('fs').readFileSync(path.join(__dirname, '..', '..', 'riley.html'), 'utf8');
+const pageIds = new Set([...htmlSrc.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+const missing = require('./harness.js').IDS.filter(id => !pageIds.has(id));
+check('all HUD ids present in the page', missing.length === 0, missing);
+const unused = require('./harness.js').IDS.filter(id => !global.__H.els[id]);
+check('harness ids all instantiated', unused.length === 0, unused);
+
 console.log('--- boot ---');
 check('window.RileyGame exposed', !!global.RileyGame);
 check('state=title', global.RileyGame.state === 'title', global.RileyGame.state);
@@ -135,14 +34,13 @@ global.RileyGame.start();
 check('state=play', global.RileyGame.state === 'play', global.RileyGame.state);
 check('session created', !!(global.RileyGame.session));
 
-function pump(nFrames, perFrame) {
-  for (let i = 0; i < nFrames; i++) {
-    tNow += 1 / 60;
-    if (perFrame) perFrame(i);
-    const q = rafQ; rafQ = [];
-    for (const cb of q) cb(tNow * 1000);
-  }
-}
+/* Between waves the game holds in 'pick' state until a boon is chosen. The
+ * suite is about combat, not menus, so the shared pump resolves the pick.
+ * Sections that care about the pick itself use H.pump directly. */
+const pump = (nFrames, perFrame) => H.pump(nFrames, (i) => {
+  if (global.RileyGame.state === 'pick') global.__T.pick(i % 3);
+  if (perFrame) perFrame(i);
+});
 
 console.log('--- 3s of idle sim (wave 1 spawns) ---');
 pump(180);
@@ -271,6 +169,193 @@ pump(40);
 const z1 = global.__T.zoom(99);
 check('zoom out clamps at engine max', z1 === global.__T.zoomMax(), { z1, max: global.__T.zoomMax() });
 
+console.log('--- movement matches the screen (regression: mirrored strafe basis) ---');
+function velDot(key, axis) {
+  global.__T.key(key, true);
+  pump(18);
+  const r = global.__R(), b = global.__T.basis();
+  const v = axis === 'right' ? r.vx * b.right[0] + r.vz * b.right[2]
+    : r.vx * b.fwd[0] + r.vz * b.fwd[2];
+  global.__T.key(key, false); pump(40);
+  return { v: +v.toFixed(2), sp: +Math.hypot(r.vx, r.vz).toFixed(2) };
+}
+const mD = velDot('KeyD', 'right'), mA = velDot('KeyA', 'right');
+const mW = velDot('KeyW', 'fwd'), mS = velDot('KeyS', 'fwd');
+check('D strafes toward the right edge', mD.v > 4 && mD.sp > 7, mD);
+check('A strafes toward the left edge', mA.v < -4, mA);
+check('W runs into the screen', mW.v > 4, mW);
+check('S backs up', mS.v < -4, mS);
+const prR = global.__proj(global.__R().x + global.__T.basis().right[0] * 4, global.__R().y + 1, global.__R().z + global.__T.basis().right[2] * 4);
+const prC = global.__proj(global.__R().x, global.__R().y + 1, global.__R().z);
+check('projection agrees with the view basis', prR && prC && prR[0] > prC[0], { prR, prC });
+
+console.log('--- melee chain: two jabs, then a cleave ---');
+global.__T.wave(1); pump(12); global.__T.hurtAll(); global.__T.clearShots(); pump(6);
+global.__T.setInv(1e9);
+/* brutes (5 hp) so the jabs can't one-shot the test subject */
+const rr0 = global.__R(), fxx = Math.sin(rr0.yaw), fzz = Math.cos(rr0.yaw);
+global.__T.place('brute', fxx * 1.25 + fzz * 0.55, fzz * 1.25 - fxx * 0.55);
+const gA = global.__T.lastEnemy();
+global.__T.place('brute', fxx * 1.25 - fzz * 0.55, fzz * 1.25 + fxx * 0.55);
+const gB = global.__T.lastEnemy();
+const hpA = gA.hp, hpB = gB.hp;
+check('swing 1 connects', global.__T.swing() === true, null);
+const hurtA = hpA - gA.hp, hurtB = hpB - gB.hp;
+check('swing 1 hurt exactly one brute', (hurtA > 0) !== (hurtB > 0), { hurtA, hurtB });
+check('chain advanced to 2', global.__R().meleeN === 1, global.__R().meleeN);
+pump(14);
+global.__T.swing();
+check('chain advanced to 3', global.__R().meleeN === 2, global.__R().meleeN);
+pump(14);
+global.__T.swing();
+check('cleave hit both brutes', gA.hp < hpA && gB.hp < hpB, { a: gA.hp, b: gB.hp });
+check('chain reset after finisher', global.__R().meleeN === 0, global.__R().meleeN);
+pump(3);
+check('cleave launched them', (gA.dead || gA.vy > 1) && (gB.dead || gB.vy > 1), { a: gA.vy, b: gB.vy });
+/* whiff recovery: swinging at nothing must cost you more than hitting */
+for (let i = 0; i < 6; i++) { global.__T.hurtAll(); pump(20); global.__T.clearShots(); }
+const cdBefore = global.__R().meleeCd;
+const nearN = global.__T.info().n;
+global.__T.swing();
+check('whiff is punished with a longer recovery than a jab', cdBefore === 0 && global.__R().meleeCd > 0.3, { cdBefore, after: global.__R().meleeCd, nearN });
+check('whiff does not advance the chain', global.__R().meleeN === 0, global.__R().meleeN);
+global.__T.hurtAll(); pump(20); global.__T.clearShots();
+
+console.log('--- perfect dodge: dash i-frames pay out ---');
+global.__T.wave(2); pump(20); global.__T.hurtAll(); global.__T.clearShots(); pump(10);
+global.__T.setInv(0);
+const livesD = global.__T.info().lives, scoreD = global.__T.info().score;
+global.__T.place('grunt', 0.4, 0.1);
+const gd = global.__T.lastEnemy();
+global.__T.dashDodge();
+gd.actKind = 'lunge'; gd.actT = 0.3; gd.tele = 0;
+pump(3);
+check('dodged hit costs no heart', global.__T.info().lives === livesD, { livesD, now: global.__T.info().lives });
+check('perfect dodge scored', global.__T.info().score > scoreD, { scoreD, now: global.__T.info().score });
+const sl = global.__T.slow();
+check('perfect dodge hit the brakes (slow-mo)', sl.t > 0 && sl.k < 1, sl);
+/* and a plain (non-dodge) hit still hurts. Use a FRESH goblin, not the one
+   from the dodge: Riley is still shooting (KeyF held by earlier sections) and
+   had eaten the poor thing before this line ran, so the check failed because
+   there was nobody left to touch her. */
+pump(60);
+global.__T.clearShots();
+global.__T.setInv(0);
+const livesE = global.__T.info().lives;
+global.__T.place('grunt', 0.2, 0);
+const gd2 = global.__T.lastEnemy();
+check('the fresh goblin is alive', !!gd2 && !gd2.dead, gd2 && gd2.dead);
+gd2.actKind = 'lunge'; gd2.actT = 0.3; gd2.tele = 0; gd2.recT = 0; gd2.stun = 0; gd2.spawnT = 0;
+gd2.x = global.__R().x + 0.2; gd2.z = global.__R().z; gd2.vx = 0; gd2.vz = 0;
+pump(3);
+check('untimed contact still hurts (dodge is not immunity)', global.__T.info().lives < livesE, { livesE, now: global.__T.info().lives });
+global.__T.god(true);
+
+console.log('--- fairness: wind-ups cannot hit you; bodies tumble ---');
+global.__T.wave(2); pump(20); global.__T.hurtAll(); global.__T.clearShots(); pump(30);
+global.__T.setInv(0);
+const lW = global.__T.info().lives;
+global.__T.place('grunt', 0.35, 0.1);
+const gw = global.__T.lastEnemy();
+gw.brain.tick = function () { return { mvx: 0, mvz: 0, act: 'attack', atk: 1, o: [0, 0, 0, 0, 0, 0] }; };
+gw.actCd = 0; gw.stun = 0; gw.recT = 0;
+let sawTele = false, hurtDuringTele = false;
+for (let i = 0; i < 30; i++) {
+  /* pin the wind-up open: while tele > 0 the goblin is committed but not yet
+     dangerous — that window is the whole dodge mechanic, so it must be free */
+  gw.tele = 0.25; gw.actKind = 'lunge'; gw.actT = 0.3; gw.vx = 0; gw.vz = 0;
+  gw.x = global.__R().x + 0.35; gw.z = global.__R().z + 0.1;
+  sawTele = sawTele || gw.tele > 0;
+  pump(1);
+  if (global.__T.info().lives < lW) { hurtDuringTele = true; break; }
+}
+check('lunge shows a wind-up window', sawTele, gw.tele);
+check('wind-up cannot damage you', !hurtDuringTele && global.__T.info().lives === lW, { lW, now: global.__T.info().lives });
+/* and the same contact, once committed, does */
+global.__T.setInv(0);
+for (let i = 0; i < 6; i++) {
+  gw.tele = 0; gw.actKind = 'lunge'; gw.actT = 0.3;
+  gw.x = global.__R().x + 0.3; gw.z = global.__R().z + 0.05; gw.vx = 0; gw.vz = 0;
+  pump(1);
+}
+check('the committed lunge does damage', global.__T.info().lives < lW, { lW, now: global.__T.info().lives });
+check('a missed attack leaves a punish window', gw.recT >= 0, { recT: +gw.recT.toFixed(2) });
+/* spitter: telegraph first, projectile after */
+global.__T.hurtAll(); global.__T.clearShots(); pump(30);
+global.__T.setInv(1e9);
+global.__T.place('spitter', 9, 0.2);
+const gs = global.__T.lastEnemy();
+gs.brain.tick = function () { return { mvx: 0, mvz: 0, act: 'attack', atk: 1, o: [0, 0, 0, 0, 0, 0] }; };
+gs.actCd = 0; gs.stun = 0; gs.recT = 0;
+const es0 = global.__T.info().es;
+let sawWindup = false, earlyShot = false, firedAt = -1;
+for (let i = 0; i < 40; i++) {
+  pump(1);
+  if (gs.spitT > 0) sawWindup = true;
+  if (gs.spitT > 0 && global.__T.info().es > es0) earlyShot = true;
+  if (global.__T.info().es > es0) { firedAt = i; break; }
+}
+check('spitter telegraphs before the bolt exists', sawWindup && !earlyShot, { sawWindup, earlyShot });
+check('spitter fires when the wind-up ends', firedAt >= 0, global.__T.info().es);
+global.__T.clearShots();
+global.__T.setInv(0);
+/* corpse: it stays a moment, tumbles, then is removed */
+global.__T.hurtAll();
+const gc = global.__T.lastEnemy();
+check('corpse lingers with a death timer', gc && gc.dieT > 0 && gc.dead, gc ? { dieT: gc.dieT } : null);
+const y0 = gc ? gc.y : 0, lean0 = gc ? gc.lean : 0;
+pump(10);
+check('corpse tumbles and rises', gc && Math.abs(gc.lean - lean0) > 0.05, gc ? { lean: gc.lean, y: gc.y, y0 } : null);
+pump(40);
+check('corpse cleaned up', global.__T.info().n === 0 || global.__T.info().es >= 0, global.__T.info().n);
+
+console.log('--- spawn-in grace + arena rope ---');
+global.__T.wave(3);
+pump(4);
+const gIdx = global.__T.info().n > 0 ? 0 : -1;
+const grace = gIdx >= 0 ? global.__T.spawnGrace(0) : -1;
+check('a queued spawn materialises with a grace window', grace > 0 || global.__T.info().n === 0, { grace, n: global.__T.info().n });
+/* while materialising it must be harmless even if it is inside your hitbox */
+global.__T.hurtAll(); pump(30); global.__T.clearShots();
+global.__T.setInv(0);
+const lR = global.__T.info().lives;
+global.__T.place('grunt', 0.3, 0.1);
+const gg = global.__T.lastEnemy();
+gg.spawnT = 0.4; gg.actKind = 'lunge'; gg.actT = 0.3; gg.tele = 0; gg.vx = 0; gg.vz = 0;
+for (let i = 0; i < 12; i++) { gg.x = global.__R().x + 0.3; gg.z = global.__R().z + 0.05; gg.spawnT = Math.max(gg.spawnT, 0.05); pump(1); }
+check('materialising goblin cannot hurt you', global.__T.info().lives === lR, { lR, now: global.__T.info().lives });
+global.__T.god(true);
+/* rope: past the arena the world pulls you back */
+const farSpot = global.__T.tp(0, -(16.5 + 30));   /* ARENA_R + 30 — well past the rope */
+pump(3);
+const rR = global.__R();
+check('out of the arena you are dragged back', rR.rope > 0.1 && rR.vz > 0.5, { rope: +rR.rope.toFixed(2), vz: +rR.vz.toFixed(2), d: farSpot.d });
+global.__T.tp(0, 0);
+pump(20);
+check('back inside, the rope lets go', global.__R().rope < 0.05, global.__R().rope);
+
+
+console.log('--- pause-menu camera sliders drive CAMSET ---');
+global.RileyGame.state;                    /* no-op read: overlay must not need play state */
+global.__T.camSet('sens', 1); global.__T.camSet('invertY', 0);
+const slid = H.elSlide('camSens', 55);
+check('look-speed slider is wired', slid > 0 && Math.abs(global.__T.camGet().sens - 0.55) < 1e-6, { slid, cam: global.__T.camGet().sens });
+check('slider label updated', global.__H.els['camSensV'].textContent === '55%', global.__H.els['camSensV'].textContent);
+H.elSlide('camDist', 45);
+check('camera-distance slider moves the boom', Math.abs(global.__T.camGet().zoom - 4.5) < 1e-6 && global.__R().camDist > 3.3, global.__T.camGet().zoom);
+H.elSlide('camShake', 0);
+check('shake can be turned fully off', global.__T.camGet().shake === 0, global.__T.camGet().shake);
+const tgl = H.elClick('tglInvY');
+check('invert-y toggle flips and persists', tgl > 0 && global.__T.camGet().invertY === 1, global.__T.camGet().invertY);
+check('button reflects state', global.__H.els['tglInvY'].classList.contains('on') === true);
+const stored = JSON.parse(global.localStorage.getItem('riley3d.camset') || 'null');
+check('settings saved to localStorage', stored && stored.invertY === 1 && Math.abs(stored.sens - 0.55) < 1e-6, stored);
+H.elClick('tglInvY');
+check('toggling back restores', global.__T.camGet().invertY === 0, global.__T.camGet().invertY);
+global.__T.camSet('sens', 1); global.__T.camSet('smooth', 0.35); global.__T.camSet('fov', 0);
+global.__T.camSet('shake', 1); global.__T.camSet('zoom', 7.2); global.__T.camSet('orbit', 1);
+global.__T.camSet('autoFrame', 1); global.__T.camSet('lockCam', 1);
+
 console.log('--- camera sanity (never under ground) ---');
 let below = 0, far = 0, samples = 0;
 for (let i = 0; i < 60; i++) {
@@ -286,6 +371,108 @@ for (let i = 0; i < 60; i++) {
 }
 check('camera never under terrain', below === 0, { below, samples });
 check('camera stays in tight range (regression: no 50u flyaway)', far === 0, { far, samples });
+
+console.log('--- boons: the tide pauses for a pick ---');
+global.RileyGame.toTitle();
+global.RileyGame.start();
+global.__T.god(true);
+pump(6);
+const tickIdle = global.__T.info().tick;
+global.__T.nextWave();                    /* fires waveClear → the offer */
+check('wave clear offers a boon', global.RileyGame.state === 'pick', global.RileyGame.state);
+const offer = global.__T.offer();
+check('three distinct boons on offer', Array.isArray(offer) && offer.length === 3 && new Set(offer).size === 3, offer);
+const tickFrozen = global.__T.info().tick;
+H.pump(40);                               /* deliberately NOT auto-picking */
+check('the sim holds while you choose', global.__T.info().tick === tickFrozen && global.RileyGame.state === 'pick', { tick: global.__T.info().tick, at: tickFrozen });
+check('nothing can be picked twice', global.__T.pick(9) === null, null);
+const picked = global.__T.pick(1);
+check('picking applies a boon and resumes play', !!picked && global.RileyGame.state === 'play', { picked, state: global.RileyGame.state });
+check('the boon count advanced', global.__T.boonN() === 1, global.__T.boonN());
+H.pump(6);
+check('the sim moves again', global.__T.info().tick > tickFrozen, { tick: global.__T.info().tick, at: tickFrozen });
+/* each capped boon stops showing up once taken three times */
+const seenIds = {};
+for (let w = 0; w < 8; w++) {
+  if (w % 3 === 0) global.__T.hurtAll();
+  for (let i = 0; i < 400; i++) {
+    if (global.RileyGame.state === 'pick') {
+      (global.__T.offer() || []).forEach(id => { seenIds[id] = (seenIds[id] || 0) + 1; });
+      global.__T.pick(0);
+      break;
+    }
+    H.pump(1);
+    if (i % 20 === 0) global.__T.hurtAll();
+  }
+  pump(30);
+}
+check('repeat offers stack instead of re-offering capped boons', (seenIds['heart'] || 0) <= 3 && (seenIds['power'] || 0) >= 0, seenIds);
+check('boons taken accumulate across waves', global.__T.boonN() >= 4, global.__T.boonN());
+global.RileyGame.toTitle();
+global.RileyGame.start();
+check('a new run resets the boons', global.__T.boonN() === 0 && global.__T.boons().cast === 1 && global.__T.boons().dmg === 1, { n: global.__T.boonN(), b: global.__T.boons() });
+check('the pick overlay is closed on a fresh run', global.RileyGame.state === 'play', global.RileyGame.state);
+pump(30);
+
+console.log('--- spirit ward: it answers the toucher, never the thrower ---');
+global.__T.god(false);
+global.__T.wave(1);
+pump(10);
+global.__T.clearShots();
+check('no ward until it is taken', (global.__T.boons().thorns | 0) === 0, global.__T.boons().thorns);
+global.__T.place('grunt', 1.1, 0.4);
+const ward0 = global.__T.enemies();
+const wi = ward0.length ? ward0[0].i : -1;
+global.__T.setInv(0);
+const livesW = global.__T.info().lives;
+check('a grunt was placed in reaching distance', wi >= 0 && ward0[0].d < 1.6, ward0[0]);
+global.__T.touch(wi);
+pump(2);
+check('the touch hurts Riley', global.__T.info().lives < livesW, global.__T.info().lives);
+let wcur = global.__T.enemies().find(e => e.i === wi);
+check('and hurts nobody else', !wcur || wcur.hp === ward0[0].hp, wcur && wcur.hp);
+check('boons can be granted by id', global.__T.take('thorns') && global.__T.boons().thorns === 1, global.__T.boons());
+if (wcur) {
+  const hpB = wcur.hp;
+  global.__T.setInv(0);
+  global.__T.touch(wi);
+  pump(2);
+  wcur = global.__T.enemies().find(e => e.i === wi);
+  check('with the ward up, the goblin is hit back', !wcur || wcur.hp < hpB, { hpB, after: wcur && wcur.hp });
+}
+/* the crash this is really here for: a spitter bolt hands hitRiley a stand-in
+   object, and ward code that trusted "every attacker is a goblin" threw */
+/* the touches threw Riley around, and a bolt aimed at a mid-air target misses
+   by design — settle her first, clear the field, then throw one bolt */
+global.__T.hurtAll();
+pump(60);
+global.__T.clearShots();
+const tickW = global.__T.info().tick;
+const livesP = global.__T.info().lives;
+global.__T.setInv(0);
+global.__T.spitHit();
+pump(30);
+check('a projectile hit still lands with the ward up', global.__T.info().lives < livesP, { livesP, now: global.__T.info().lives });
+check('the ward survived the fake attacker', global.__T.info().tick > tickW, global.__T.info().tick);
+pump(30);
+
+console.log('--- keys while typing in the seed field ---');
+const muteBefore = H.els['btnMute'].textContent;   /* the fake DOM's own default, whatever it is */
+H.emit('keydown', { code: 'KeyM', target: { tagName: 'INPUT' } });
+check('typing a letter into the seed box does not mute', H.els['btnMute'].textContent === muteBefore, H.els['btnMute'].textContent);
+H.emit('keydown', { code: 'Space', target: { tagName: 'INPUT' } });
+check('typing spaces does not jump', global.__T.heldKeys().indexOf('Space') < 0, global.__T.heldKeys());
+H.emit('keydown', { code: 'KeyN', target: { tagName: 'INPUT' } });
+check('music is still on after seed typing', global.__T.heldKeys().indexOf('KeyN') < 0, global.__T.heldKeys());
+H.emit('keydown', { code: 'Space' });
+check('the same key outside a field still works', global.__T.heldKeys().indexOf('Space') >= 0, global.__T.heldKeys());
+H.emit('keyup', { code: 'Space' });
+H.emit('keydown', { code: 'KeyM' });
+H.emit('keyup', { code: 'KeyM' });
+check('M still mutes when nothing is focused', H.els['btnMute'].textContent === '\ud83d\udd07', H.els['btnMute'].textContent);
+H.emit('keydown', { code: 'KeyM' });
+H.emit('keyup', { code: 'KeyM' });
+check('and unmutes again', H.els['btnMute'].textContent === '\ud83d\udd0a', H.els['btnMute'].textContent);
 
 console.log('--- determinism: same seed twice => same worldHash ---');
 const seed = 'TESTSEED42';
@@ -330,10 +517,15 @@ check('camera sits behind, not in front', behindDot < 0, { behindDot });
 global.__T.key('KeyW', false);
 pump(20);
 
+console.log('--- per-entity body transform never leaks between draws ---');
+let leaked = 0;
+for (let i = 0; i < 90; i++) { if (global.__T.info().n < 2) global.__T.place('grunt', 3, 2); pump(1); if (!global.__T.bodyIdle()) leaked++; }
+check('bodyXform always released after a frame', leaked === 0, leaked);
+
 console.log('--- selftest render: unique colours ---');
 pump(10);
 const shot = global.__shot();
-check('render produced frames', drawCalls > 50, { drawCalls });
+check('render produced frames', H.stats().drawCalls > 50, H.stats());
 
 console.log(fails ? '\n' + fails + ' FAILURES' : '\nALL ENGINE SMOKE CHECKS PASS');
 process.exit(fails ? 1 : 0);
