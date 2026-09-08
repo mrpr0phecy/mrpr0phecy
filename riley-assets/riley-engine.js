@@ -436,8 +436,8 @@ function drawInstanced(geoKey, texKey, glowCol, alpha) {
   gl.uniformMatrix4fv(uInst.uV, false, VM);
   gl.uniform3f(uInst.uL, LIGHT[0], LIGHT[1], LIGHT[2]);
   gl.uniform3f(uInst.uFogC, fogCur[0] / 255, fogCur[1] / 255, fogCur[2] / 255);
-  gl.uniform1f(uInst.uFN, 30);
-  gl.uniform1f(uInst.uFF, 170);
+  gl.uniform1f(uInst.uFN, 42);
+  gl.uniform1f(uInst.uFF, 195);
   gl.uniform3f(uInst.uGlow, glowCol ? glowCol[0] / 255 : 0, glowCol ? glowCol[1] / 255 : 0, glowCol ? glowCol[2] / 255 : 0);
   gl.uniform1f(uInst.uAlpha, alpha === undefined ? 1 : alpha);
   gl.uniform1f(uInst.uTime, time);
@@ -3124,8 +3124,8 @@ function drawStaticVBO(vbo, n, texKey, alpha, glowCol, water) {
   gl.uniformMatrix4fv(uStat.uV, false, VM);
   gl.uniform3f(uStat.uL, LIGHT[0], LIGHT[1], LIGHT[2]);
   gl.uniform3f(uStat.uFogC, fogCur[0] / 255, fogCur[1] / 255, fogCur[2] / 255);
-  gl.uniform1f(uStat.uFN, 30);
-  gl.uniform1f(uStat.uFF, 170);
+  gl.uniform1f(uStat.uFN, 42);
+  gl.uniform1f(uStat.uFF, 195);
   gl.uniform3f(uStat.uGlow, glowCol ? glowCol[0] / 255 : 0, glowCol ? glowCol[1] / 255 : 0, glowCol ? glowCol[2] / 255 : 0);
   gl.uniform1f(uStat.uAlpha, alpha === undefined ? 1 : alpha);
   gl.uniform1f(uStat.uTime, time);
@@ -3257,6 +3257,12 @@ function render() {
       haloN = glowAddInto(haloScratch, haloN, ee.rx, world.heightAt(ee.rx, ee.rz) + 0.12, ee.rz, 4.8 * (0.25 + 0.75 * st), 255, 120, 60, 0.16 + 0.4 * st);
     }
   }
+  /* a soft halo at Riley's feet: in a crowd of green goblins the one blue
+     ring is always *you* — the anchor that stops "where am I?" mid-brawl */
+  if (R && (state === 'play' || state === 'over' || state === 'pause')) {
+    haloN = glowAddInto(haloScratch, haloN, R.rx, R.ry + 0.06, R.rz, 0.78 + 0.05 * Math.sin(time * 3.2),
+      130, 205, 255, 0.34 + 0.08 * Math.sin(time * 2.6));
+  }
   if (haloN) { drawGlowList(haloScratch, 0, haloN); haloN = 0; }
   /* mouse-assist aim marker on the ground (gold when locked on a goblin) */
   if (state === 'play') {
@@ -3316,8 +3322,8 @@ function drawPropInstanced(pd) {
   gl.uniformMatrix4fv(uInst.uV, false, VM);
   gl.uniform3f(uInst.uL, LIGHT[0], LIGHT[1], LIGHT[2]);
   gl.uniform3f(uInst.uFogC, fogCur[0] / 255, fogCur[1] / 255, fogCur[2] / 255);
-  gl.uniform1f(uInst.uFN, 30);
-  gl.uniform1f(uInst.uFF, 170);
+  gl.uniform1f(uInst.uFN, 42);
+  gl.uniform1f(uInst.uFF, 195);
   gl.uniform3f(uInst.uGlow, 0, 0, 0);
   gl.uniform1f(uInst.uAlpha, 1);
   gl.uniform1f(uInst.uTime, time);
