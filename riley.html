@@ -1,2128 +1,380 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="description" content="Riley 3D: Goblin Smasher — a free offline WebGL wizard action-adventure. Charged fireballs, an arcane NOVA blast, magic gems, goblin waves and bosses across shifting magical realms. No downloads, no tracking.">
-<title>Riley 3D: Goblin Smasher — free WebGL magical action game</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>RILEY — Goblin Tide</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%}
-body{background:#05060f;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#eaf6ff;-webkit-user-select:none;user-select:none;touch-action:none}
-#wrap{position:fixed;inset:0}
-canvas#cv{display:block;position:absolute;inset:0;width:100%;height:100%}
-body.aiming canvas#cv{cursor:none}
-#reticle{position:absolute;z-index:9;width:30px;height:30px;margin:-15px 0 0 -15px;pointer-events:none;display:none;transition:opacity .15s}
-#reticle.on{display:block}
-#reticle::before,#reticle::after{content:"";position:absolute;left:50%;top:50%;background:rgba(180,225,255,.9);box-shadow:0 0 6px rgba(120,200,255,.9)}
-#reticle::before{width:2px;height:30px;transform:translate(-50%,-50%)}
-#reticle::after{width:30px;height:2px;transform:translate(-50%,-50%)}
-#reticle span{position:absolute;inset:0;border:2px solid rgba(150,215,255,.75);border-radius:50%;box-shadow:0 0 8px rgba(120,200,255,.6),inset 0 0 6px rgba(120,200,255,.4)}
-#reticle.lock span{border-color:rgba(255,120,120,.95);box-shadow:0 0 10px rgba(255,90,90,.8)}
-#reticle.lock::before,#reticle.lock::after{background:rgba(255,150,150,.95)}
-#noGL{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:30px;background:#0a0d1f;z-index:60}
-#noGL b{display:block;font-size:22px;color:#ffd75e;margin-bottom:10px}
-#noGL p{max-width:520px;line-height:1.6;color:#9fb6d8}
+  /* ============================================================
+     RILEY — Goblin Tide
+     Thin shell around riley-assets/ (core → world → ai → net → engine).
+     All game logic lives in the modules; this page is presentation.
+     ============================================================ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #0a0d1f;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #cv { position: fixed; inset: 0; display: block; touch-action: none; cursor: crosshair; }
+  body.aiming #cv { cursor: none; }
 
-.hud{position:absolute;z-index:10;font-weight:700;text-shadow:0 2px 6px rgba(0,0,0,.8)}
-#hudTop{top:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:0 14px}
-#hudHearts{font-size:22px;letter-spacing:3px;color:#ff6b7a;-webkit-text-stroke:.6px #2a0a10;filter:drop-shadow(0 2px 3px rgba(0,0,0,.8))}
-#manaBar{margin-top:6px;width:150px;height:11px;background:rgba(6,10,24,.6);border:1px solid rgba(120,200,255,.35);border-radius:7px;overflow:hidden;position:relative}
-#manaBar i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#4fb8ff,#a06bff);transition:width .12s linear;box-shadow:0 0 10px rgba(120,160,255,.6)}
-#manaBar.full i{background:linear-gradient(90deg,#7fe8ff,#c79bff);animation:manaPulse .9s ease-in-out infinite}
-#manaBar span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;letter-spacing:3px;color:#dff0ff;text-shadow:0 1px 2px #000;font-weight:700}
-@keyframes manaPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.5)}}
-#hudMid{text-align:center;position:absolute;left:50%;top:12px;transform:translateX(-50%)}
-#hudScore{font-size:28px;color:#fff;letter-spacing:1px;line-height:1}
-#hudScore small{display:block;font-size:9px;color:#ffd75e;letter-spacing:4px;font-weight:700}
-#hudWave{font-size:13px;color:#9fe8ff;background:rgba(6,10,24,.6);border:1px solid rgba(120,200,255,.25);padding:3px 12px;border-radius:999px;margin-top:6px;display:inline-block}
-#hudRight{display:flex;gap:8px;position:absolute;right:14px;top:12px}
-#hudRight button{cursor:pointer;background:rgba(6,10,24,.6);border:1px solid rgba(120,200,255,.28);color:#cfeaff;font-size:15px;width:38px;height:34px;border-radius:9px;font-weight:700}
-#hudRight button:hover{background:rgba(40,90,150,.55)}
-#comboCtr{position:absolute;top:92px;left:50%;transform:translateX(-50%);font-size:24px;color:#ffd75e;letter-spacing:1px;opacity:0;transition:opacity .2s;z-index:10;text-shadow:0 2px 8px #000,0 0 16px rgba(255,215,94,.6)}
-#comboCtr small{display:block;font-size:10px;color:#9fe8ff;letter-spacing:3px;text-align:center}
-#bossBar{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;width:min(560px,74vw);height:18px;background:rgba(5,8,20,.6);border:1px solid rgba(255,80,80,.5);border-radius:11px;overflow:hidden;display:none;z-index:10}
-#bossBar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff2e63,#ff9f43);border-radius:11px;transition:width .12s linear}
-#bossBar b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:2px;color:#fff;text-shadow:0 1px 3px #000}
+  .hide { display: none !important; }
 
-.pop{position:absolute;z-index:9;pointer-events:none;font-weight:800;font-size:22px;color:#fff;text-shadow:0 0 12px rgba(255,215,94,.9),0 2px 4px #000;transform:translate(-50%,-50%);will-change:transform,opacity}
-.pop.big{font-size:42px;color:#ffd75e;text-shadow:0 0 20px rgba(255,215,94,.95),0 3px 6px #000}
-@keyframes popFly{0%{transform:translate(-50%,-50%) scale(.4);opacity:0}18%{transform:translate(-50%,-75%) scale(1.18);opacity:1}100%{transform:translate(-50%,-170%) scale(1);opacity:0}}
+  /* ---------- floating score popups (engine appends .pop) ---------- */
+  .pop {
+    position: fixed; z-index: 40; pointer-events: none;
+    transform: translate(-50%, -50%);
+    font-weight: 700; font-size: 15px; letter-spacing: .04em;
+    color: #ffe9a8; text-shadow: 0 2px 6px rgba(0,0,0,.8), 0 0 14px rgba(255,200,80,.35);
+    animation: popfly .95s cubic-bezier(.2,.7,.3,1) forwards;
+    white-space: nowrap;
+  }
+  .pop.big { font-size: 26px; letter-spacing: .08em; }
+  @keyframes popfly {
+    0%   { opacity: 0; margin-top: 12px; scale: .6; }
+    18%  { opacity: 1; scale: 1.12; }
+    30%  { scale: 1; }
+    100% { opacity: 0; margin-top: -58px; scale: .96; }
+  }
 
-#banner{position:absolute;top:24%;left:0;right:0;text-align:center;pointer-events:none;opacity:0;transition:opacity .25s;z-index:9}
-#banner .wv{display:inline-block;font-size:clamp(36px,6.4vw,68px);font-weight:900;color:#fff;text-shadow:0 0 26px rgba(120,200,255,.8),0 0 60px rgba(45,160,255,.5),0 4px 12px #000;transform:scale(.5);transition:transform .4s cubic-bezier(.2,2.4,.4,1)}
-#banner .nm{display:block;font-size:clamp(12px,2vw,17px);letter-spacing:6px;color:#ffe9a8;text-transform:uppercase;margin-top:2px;text-shadow:0 2px 6px #000}
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+  #hudHearts {
+    position: absolute; top: 14px; left: 16px;
+    font-size: 24px; letter-spacing: 3px;
+    color: #ff6b81; text-shadow: 0 2px 4px rgba(0,0,0,.7), 0 0 18px rgba(255,80,110,.5);
+    font-family: Georgia, serif;
+  }
+  #manaBar {
+    position: absolute; top: 48px; left: 16px; width: 190px;
+    height: 14px; border-radius: 8px; overflow: hidden;
+    background: rgba(10,14,34,.65); border: 1px solid rgba(140,190,255,.35);
+    box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  }
+  #manaBar i {
+    display: block; height: 100%; width: 0%;
+    background: linear-gradient(90deg, #3f6cff, #7fb2ff 60%, #bfe0ff);
+    transition: width .15s ease-out;
+  }
+  #manaBar.full { border-color: #9fd4ff; box-shadow: 0 0 14px rgba(140,200,255,.8); animation: manaPulse 1.1s ease-in-out infinite; }
+  #manaBar.full i { background: linear-gradient(90deg, #6f8cff, #a8d4ff 55%, #ffffff); }
+  @keyframes manaPulse { 0%,100% { box-shadow: 0 0 10px rgba(140,200,255,.5); } 50% { box-shadow: 0 0 22px rgba(160,215,255,.95); } }
+  #manaBar span {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; letter-spacing: .22em; color: #dceaff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.8);
+  }
+  #btnPause {
+    position: absolute; top: 12px; right: 16px;
+    width: 40px; height: 40px; border-radius: 12px;
+    font: 800 15px/1 inherit; color: #dceaff; cursor: pointer;
+    background: rgba(16,24,56,.6); border: 1px solid rgba(150,190,255,.35);
+    pointer-events: auto;
+  }
+  #btnPause:hover { background: rgba(40,56,110,.75); }
+  #hudWave {
+    position: absolute; top: 62px; right: 18px; text-align: right;
+    font-size: 15px; font-weight: 700; letter-spacing: .28em; color: #9fe8ff;
+    text-shadow: 0 2px 6px rgba(0,0,0,.8);
+  }
+  #hudScore {
+    position: absolute; top: 84px; right: 18px; text-align: right;
+    font-size: 30px; font-weight: 700; letter-spacing: .06em; color: #fff;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 8px rgba(0,0,0,.85), 0 0 20px rgba(160,200,255,.35);
+  }
+  #bossBar {
+    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    width: min(460px, 60vw); height: 12px; display: none;
+    background: rgba(20,8,10,.7); border: 1px solid rgba(255,120,90,.6); border-radius: 7px; overflow: hidden;
+    box-shadow: 0 0 18px rgba(255,90,60,.4);
+  }
+  #bossBar i {
+    display: block; height: 100%; width: 100%;
+    background: linear-gradient(90deg, #ff5e3a, #ffb347);
+    transition: width .2s ease-out;
+  }
+  #bossBar::after {
+    content: "GOBLIN KING"; position: absolute; left: 0; right: 0; top: -18px;
+    font-size: 10px; font-weight: 700; letter-spacing: .3em; text-align: center; color: #ffc9a8;
+    text-shadow: 0 1px 3px #000;
+  }
+  #comboCtr {
+    position: absolute; right: 22px; bottom: 110px; width: 110px; text-align: center;
+    font-size: 44px; font-weight: 800; color: #ffd75e;
+    text-shadow: 0 3px 10px rgba(0,0,0,.85), 0 0 26px rgba(255,190,60,.6);
+    opacity: 0; transition: opacity .18s;
+    transform: rotate(6deg);
+  }
+  #comboFill {
+    height: 5px; margin-top: 2px; border-radius: 3px;
+    background: #ffd75e; box-shadow: 0 0 10px rgba(255,200,80,.8);
+    opacity: 0; transition: opacity .18s;
+  }
 
-.ov{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at 50% 40%,rgba(5,8,22,.22) 0%,rgba(4,6,18,.82) 100%);transition:opacity .4s}
-.ov.hide{opacity:0;pointer-events:none}
-.brand{font-size:clamp(54px,11vw,122px);font-weight:900;line-height:.92;letter-spacing:2px;background:linear-gradient(180deg,#fff 8%,#8ce8ff 42%,#3f8bff 58%,#ffd75e 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 8px 30px rgba(45,190,255,.4));font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif}
-.brand em{display:block;font-style:normal;font-size:clamp(15px,3.2vw,33px);letter-spacing:.52em;margin-left:.52em;color:#ffd75e;-webkit-text-fill-color:#ffd75e;font-weight:800;filter:drop-shadow(0 2px 10px rgba(255,120,30,.5))}
-.tag{margin-top:10px;font-size:clamp(12.5px,2vw,16.5px);color:#bfe9ff;letter-spacing:.5px;text-shadow:0 2px 8px #000;padding:0 16px}
-.controls{margin-top:24px;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:860px;padding:0 14px}
-.controls .k{background:rgba(9,15,38,.72);border:1px solid rgba(130,190,255,.3);border-radius:9px;padding:7px 10px;font-size:12px;color:#d8f2ff}
-.controls .k b{display:inline-block;min-width:22px;background:#182448;border:1px solid #3b5aa0;border-bottom:3px solid #0e1834;border-radius:6px;padding:0 6px;margin-right:5px;color:#fff;font-size:11.5px;text-align:center}
-.btn{cursor:pointer;margin-top:30px;font-size:clamp(19px,3.2vw,26px);font-weight:800;letter-spacing:2px;color:#06131f;padding:14px 56px;border:none;border-radius:999px;background:linear-gradient(180deg,#ffd75e,#ffab1f);box-shadow:0 6px 0 #a35f00,0 18px 44px rgba(255,176,32,.45),inset 0 2px 0 rgba(255,255,255,.7);transition:transform .12s,box-shadow .12s;text-transform:uppercase}
-.btn:hover{transform:translateY(-2px) scale(1.03)}
-.btn:active{transform:translateY(3px);box-shadow:0 2px 0 #a35f00,0 8px 24px rgba(255,176,32,.4)}
-.btn.alt{background:linear-gradient(180deg,#43d5ff,#1284e0);color:#fff;box-shadow:0 5px 0 #0a4a86,0 14px 34px rgba(60,200,255,.35),inset 0 2px 0 rgba(255,255,255,.55);font-size:clamp(15px,2.6vw,18px);margin-top:14px;padding:11px 38px}
-.btn.alt2{background:linear-gradient(180deg,#8fb0d8,#48658f);color:#fff;box-shadow:0 5px 0 #24354e}
-.panel{background:rgba(7,11,30,.86);border:1px solid rgba(120,190,255,.28);border-radius:20px;padding:26px 32px;max-width:min(660px,94vw);box-shadow:0 24px 90px rgba(0,0,0,.7)}
-.panel h2{font-size:clamp(28px,6vw,46px);letter-spacing:1px;margin-bottom:4px;color:#fff}
-.panel h2 small{display:block;font-size:12px;color:#ffd75e;letter-spacing:4px;margin-top:6px;font-weight:600}
-.statrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:20px 0 6px}
-.statrow .st{min-width:112px;flex:1;background:rgba(22,34,74,.6);border:1px solid rgba(120,190,255,.16);border-radius:12px;padding:11px 6px}
-.statrow .st i{font-style:normal;font-size:10px;letter-spacing:2px;color:#8fb6dd;display:block}
-.statrow .st b{font-size:clamp(19px,4vw,27px);color:#fff;display:block;margin-top:2px}
-.statrow .st b.gold{color:#ffd75e}
-.rowbtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
-#bestLine{font-size:12px;color:#9fe8ff;letter-spacing:2px;margin-top:12px;min-height:16px}
-#bestLine2{font-size:12px;color:#9fe8ff;letter-spacing:2px;margin-top:8px;min-height:16px}
-.hintline{margin-top:16px;font-size:12.5px;color:#86a8cc;line-height:1.9;padding:0 20px}
-.keycap{display:inline-block;background:#131c3a;border:1px solid #33518f;border-bottom:3px solid #0c142c;border-radius:5px;padding:0 6px;font-size:11px;color:#cfdfff;min-width:18px;margin:0 2px}
+  /* ---------- reticle ---------- */
+  #reticle {
+    position: fixed; z-index: 35; width: 46px; height: 46px;
+    margin: -23px 0 0 -23px; pointer-events: none; display: none;
+  }
+  #reticle.on { display: block; }
+  #reticle::before {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.85);
+    box-shadow: 0 0 8px rgba(160,220,255,.6), inset 0 0 6px rgba(160,220,255,.35);
+    transition: transform .12s, border-color .12s, box-shadow .12s;
+  }
+  #reticle::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px;
+    margin: -2px 0 0 -2px; border-radius: 50%; background: #fff;
+  }
+  #reticle.lock::before {
+    transform: scale(1.25);
+    border-color: #ffd75e;
+    box-shadow: 0 0 16px rgba(255,210,90,.9), inset 0 0 10px rgba(255,210,90,.5);
+  }
 
-#mob{position:absolute;inset:0;z-index:11;pointer-events:none;display:none}
-#mob.on{display:block}
-#tLeft{position:absolute;left:0;bottom:0;width:42%;height:60%;z-index:1}
-#tRight{position:absolute;right:0;bottom:0;width:52%;height:66%;z-index:1}
-#joy{position:absolute;left:22px;bottom:26px;width:132px;height:132px;border:2px solid rgba(160,220,255,.45);border-radius:50%;background:rgba(50,110,190,.13);pointer-events:auto;box-shadow:inset 0 0 24px rgba(120,200,255,.12)}
-#joyKnob{position:absolute;width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.65),rgba(120,200,255,.75));left:38px;top:38px;box-shadow:0 0 16px rgba(120,200,255,.5);pointer-events:none}
-#aim{position:absolute;right:22px;bottom:26px;width:132px;height:132px;border:2px solid rgba(255,200,120,.5);border-radius:50%;background:rgba(190,120,40,.12);pointer-events:auto;box-shadow:inset 0 0 24px rgba(255,190,90,.14)}
-#aimKnob{position:absolute;width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.6),rgba(255,180,90,.8));left:38px;top:38px;box-shadow:0 0 16px rgba(255,190,90,.5);pointer-events:none}
-.stickLbl{position:absolute;bottom:6px;font-size:9px;letter-spacing:2px;color:rgba(200,220,255,.55);text-align:center;pointer-events:none;font-weight:700}
-#joyLbl{left:22px;width:132px}
-#aimLbl{right:22px;width:132px;color:rgba(255,215,150,.6)}
-.tbtn{position:absolute;pointer-events:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#eaf6ff;background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.3),rgba(25,45,95,.55));border:2px solid rgba(160,220,255,.55);box-shadow:0 5px 0 rgba(0,0,0,.5),inset 0 -8px 12px rgba(0,0,0,.22)}
-.tbtn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.5)}
-#tbJump{right:172px;bottom:40px;width:80px;height:80px;border-color:rgba(140,255,190,.7);font-size:13px;background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.34),rgba(22,120,80,.62))}
-#tbDash{right:180px;bottom:130px;width:62px;height:62px;font-size:10px}
-#tbNova{right:100px;bottom:168px;width:66px;height:66px;font-size:11px;color:#e6d5ff;border-color:rgba(180,140,255,.8);background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.34),rgba(90,50,170,.7))}
-#hintBar{position:absolute;bottom:8px;left:0;right:0;text-align:center;color:#5f7da8;font-size:11.5px;letter-spacing:1px;z-index:10;pointer-events:none;text-shadow:0 1px 4px #000}
-#comboFill{display:block;width:90px;height:3px;border-radius:3px;background:linear-gradient(90deg,#ffd75e,#ff9f43);margin:7px auto 0;opacity:0;transition:opacity .2s;box-shadow:0 0 10px rgba(255,215,94,.7)}
-#hurtVig{position:absolute;inset:0;z-index:8;pointer-events:none;opacity:0;transition:opacity .45s;background:radial-gradient(ellipse at 50% 55%,rgba(255,0,40,0) 42%,rgba(255,20,50,.4) 100%)}
-#hurtVig.on{opacity:1;transition:opacity .06s}
-#hurtVig.low{opacity:0;transition:none;animation:lowPulse 1.1s ease-in-out infinite}
-@keyframes lowPulse{0%,100%{opacity:.12}50%{opacity:.5}}
-@media (max-width:820px){.controls{display:none}}
+  /* ---------- wave banner ---------- */
+  #banner {
+    position: fixed; z-index: 32; top: 26%; left: 0; right: 0;
+    text-align: center; pointer-events: none; opacity: 0;
+    transition: opacity .45s ease;
+  }
+  #banner .wv {
+    display: block; font-size: 54px; font-weight: 800; letter-spacing: .2em; color: #fff;
+    text-shadow: 0 4px 18px rgba(0,0,0,.9), 0 0 42px rgba(140,220,255,.55);
+    transition: transform .3s cubic-bezier(.2,1.6,.4,1);
+  }
+  #banner .nm {
+    display: block; margin-top: 6px; font-size: 14px; font-weight: 700;
+    letter-spacing: .5em; color: #9fe8ff; text-shadow: 0 2px 8px rgba(0,0,0,.9);
+  }
+
+  /* ---------- damage vignette ---------- */
+  #hurtVig {
+    position: fixed; inset: 0; z-index: 29; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 52%, rgba(255,30,50,.55) 100%);
+    transition: opacity .55s ease-out;
+  }
+  #hurtVig.on { opacity: 1; transition: opacity .05s; }
+  #hurtVig.low { animation: lowPulse 1.4s ease-in-out infinite; }
+  @keyframes lowPulse {
+    0%, 100% { opacity: 0; }
+    50% { opacity: .55; background: radial-gradient(ellipse at center, transparent 58%, rgba(255,20,60,.5) 100%); }
+  }
+
+  /* ---------- hint bar ---------- */
+  #hintBar {
+    position: fixed; z-index: 31; bottom: 18px; left: 0; right: 0; text-align: center;
+    font-size: 12px; font-weight: 700; letter-spacing: .24em; color: rgba(220,238,255,.75);
+    text-shadow: 0 1px 4px rgba(0,0,0,.9); pointer-events: none;
+  }
+
+  /* ---------- overlays (title / pause / over) ---------- */
+  .ov {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 30%, rgba(10,14,40,.55) 0%, rgba(6,8,22,.82) 78%);
+    backdrop-filter: blur(2px);
+    text-align: center; color: #eaf2ff;
+  }
+  .logo {
+    font-size: 84px; font-weight: 800; letter-spacing: .12em; line-height: 1;
+    background: linear-gradient(180deg, #fff 18%, #ffd75e 52%, #ff8c42 92%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 6px 22px rgba(255,170,60,.35));
+  }
+  .tag {
+    margin-top: 10px; font-size: 13px; font-weight: 700; letter-spacing: .52em;
+    color: #9fe8ff; text-shadow: 0 2px 8px rgba(0,0,0,.8);
+  }
+  .stats { margin-top: 22px; font-size: 13px; letter-spacing: .14em; color: #b9c8e8; line-height: 2; min-height: 22px; }
+  .stats b { color: #ffd75e; }
+  #bestLine2 { color: #7dffa8; min-height: 18px; }
+
+  .seedRow { margin-top: 20px; display: flex; gap: 10px; align-items: center; }
+  #seedInput {
+    width: 220px; padding: 11px 14px; font: 700 14px/1 monospace; letter-spacing: .18em;
+    color: #eaf2ff; text-transform: uppercase;
+    background: rgba(14,20,48,.85); border: 1px solid rgba(140,190,255,.4); border-radius: 10px;
+    outline: none; -webkit-user-select: text; user-select: text;
+  }
+  #seedInput:focus { border-color: #9fd4ff; box-shadow: 0 0 14px rgba(140,200,255,.35); }
+
+  .btn {
+    display: inline-block; margin-top: 26px; padding: 14px 46px;
+    font: 800 19px/1 inherit; letter-spacing: .3em; color: #241303;
+    background: linear-gradient(180deg, #ffe9a8, #ffb347 55%, #ff8c42);
+    border: 0; border-radius: 14px; cursor: pointer;
+    box-shadow: 0 5px 0 #a34d1c, 0 10px 26px rgba(255,150,60,.35);
+    transition: transform .08s, box-shadow .08s, filter .15s;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #a34d1c, 0 6px 14px rgba(255,150,60,.3); }
+  .btn.ghost {
+    background: rgba(20,28,64,.9); color: #cfe2ff;
+    box-shadow: 0 5px 0 rgba(8,12,30,.9), 0 8px 18px rgba(0,0,0,.4);
+    border: 1px solid rgba(140,190,255,.35);
+    font-size: 14px; padding: 11px 26px; margin-top: 14px;
+  }
+  .btnRow { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  .controls {
+    margin-top: 26px; display: grid; grid-template-columns: auto auto; gap: 7px 18px;
+    font-size: 12.5px; letter-spacing: .06em; color: #93a6cc; text-align: left;
+  }
+  .controls kbd {
+    display: inline-block; min-width: 24px; padding: 3px 7px; margin-right: 4px;
+    font: 700 11px/1 monospace; color: #dceaff; text-align: center;
+    background: rgba(30,42,88,.9); border: 1px solid rgba(140,190,255,.4);
+    border-bottom-width: 3px; border-radius: 6px;
+  }
+  .controls .c { color: #b9c8e8; }
+
+  .panelTitle { font-size: 34px; font-weight: 800; letter-spacing: .3em; color: #fff; text-shadow: 0 3px 14px rgba(0,0,0,.9), 0 0 30px rgba(140,220,255,.4); }
+  .bigStats { margin-top: 18px; display: flex; gap: 34px; }
+  .bigStats .st { text-align: center; }
+  .bigStats .st b { display: block; font-size: 40px; font-weight: 800; color: #ffd75e; text-shadow: 0 3px 12px rgba(0,0,0,.9); font-variant-numeric: tabular-nums; }
+  .bigStats .st span { font-size: 11px; font-weight: 700; letter-spacing: .3em; color: #93a6cc; }
+
+  #noGL {
+    position: fixed; inset: 0; z-index: 90; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: #0a0d1f; color: #cfe2ff; text-align: center; padding: 30px;
+  }
+  #noGL h2 { font-size: 26px; letter-spacing: .1em; }
+
+  /* ---------- touch controls ---------- */
+  #mob { position: fixed; inset: 0; z-index: 45; pointer-events: none; display: none; }
+  #mob.on { display: block; }
+  .stick {
+    position: absolute; bottom: 34px; width: 132px; height: 132px; border-radius: 50%;
+    background: rgba(16,24,56,.4); border: 2px solid rgba(150,190,255,.3);
+    pointer-events: auto; touch-action: none;
+  }
+  #joy { left: 26px; } #aim { right: 26px; }
+  .knob {
+    position: absolute; left: 40px; top: 40px; width: 52px; height: 52px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(220,240,255,.9), rgba(120,160,255,.55));
+    box-shadow: 0 4px 14px rgba(0,0,0,.5);
+  }
+  .tbtn {
+    position: absolute; pointer-events: auto; touch-action: none;
+    width: 66px; height: 66px; border-radius: 50%;
+    font-size: 11px; font-weight: 800; letter-spacing: .1em; color: #eaf2ff;
+    background: rgba(16,24,56,.55); border: 2px solid rgba(150,190,255,.4);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tbtn:active { background: rgba(120,160,255,.5); }
+  #tbJump { right: 130px; bottom: 96px; }
+  #tbDash { right: 40px; bottom: 178px; }
+  #tbNova { right: 196px; bottom: 190px; width: 54px; height: 54px; border-color: rgba(255,210,110,.55); color: #ffe9a8; }
 </style>
 </head>
 <body>
-<div id="wrap">
 <canvas id="cv"></canvas>
 
-<div class="hud" id="hudTop">
-  <div id="hudLeft">
-    <div id="hudHearts">♥♥♥♥♥</div>
-    <div id="manaBar"><i></i><span>MAGIC</span></div>
-  </div>
-  <div id="hudMid">
-    <div id="hudScore">0<small>SCORE</small></div>
-    <div id="hudWave">WAVE 1</div>
-    <div id="comboFill"></div>
-  </div>
-  <div id="hudRight"><button id="btnMute" title="Mute (M)">🔊</button><button id="btnPause" title="Pause (P)">⏸</button></div>
-</div>
-<div id="comboCtr">×2<small>COMBO</small></div>
-<div id="bossBar"><i></i><b>GOBLIN KING</b></div>
+<!-- damage vignette -->
 <div id="hurtVig"></div>
-<div id="reticle"><span></span></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="hudHearts">♥♥♥♥♥</div>
+  <div id="manaBar"><i></i><span>MAGIC</span></div>
+  <button id="btnPause" title="pause (P)">II</button>
+  <div id="hudWave">WAVE 1</div>
+  <div id="hudScore">0</div>
+  <div id="bossBar"><i></i></div>
+  <div id="comboCtr">×0</div>
+  <div id="comboFill"></div>
+</div>
+
+<!-- aim reticle -->
+<div id="reticle"></div>
+
+<!-- wave banner -->
 <div id="banner"><span class="wv">WAVE 1</span><span class="nm"></span></div>
 
-<div class="ov" id="ovTitle">
-  <div class="brand">RILEY&nbsp;3D<em>GOBLIN SMASHER</em></div>
-  <div class="tag">A free, offline 3D wizard action-adventure — charged spells, an arcane NOVA blast &amp; shifting magical realms. Raw WebGL, zero downloads, zero tracking.</div>
-  <div class="controls">
-    <span class="k"><b>W A S D</b> move</span>
-    <span class="k"><b>MOUSE</b> aim</span>
-    <span class="k"><b>CLICK</b> cast · hold to charge</span>
-    <span class="k"><b>SPACE</b> jump / double jump</span>
-    <span class="k"><b>SHIFT</b> / right-click dash</span>
-    <span class="k"><b>Q / E</b> arcane nova</span>
-    <span class="k"><b>P</b> pause · <b>M</b> mute</span>
-  </div>
-  <button class="btn" id="btnPlay">▶ &nbsp;PLAY</button>
-  <div id="bestLine"></div>
-  <div class="hintline">Smash goblin waves · grab glowing <span class="keycap">gems</span> to charge your magic · unleash the <span class="keycap">NOVA</span> when it's full.<br>Chain kills for combos · every 5th wave a <span class="keycap">GOBLIN KING</span> drops in · don't fall into the void!</div>
-</div>
+<!-- hint -->
+<div id="hintBar">CLICK TO LOOK · MOVE MOUSE TO AIM</div>
 
-<div class="ov hide" id="ovPause">
-  <div class="panel">
-    <h2>PAUSED<small>Riley needs a snack break</small></h2>
-    <div class="rowbtns">
-      <button class="btn alt" id="btnResume">Resume</button>
-      <button class="btn alt" id="btnRestart">Restart</button>
-      <button class="btn alt alt2" id="btnQuitTitle">Quit to Title</button>
-    </div>
-  </div>
-</div>
-
-<div class="ov hide" id="ovOver">
-  <div class="panel">
-    <h2>GAME OVER<small>The goblins got Riley!</small></h2>
-    <div class="statrow">
-      <div class="st"><i>SCORE</i><b class="gold" id="stScore">0</b></div>
-      <div class="st"><i>WAVE</i><b id="stWave">1</b></div>
-      <div class="st"><i>GOBLINS</i><b id="stKills">0</b></div>
-      <div class="st"><i>BEST COMBO</i><b id="stCombo">×1</b></div>
-    </div>
-    <div id="bestLine2"></div>
-    <div class="rowbtns">
-      <button class="btn alt" id="btnAgain">↻ Play Again</button>
-      <button class="btn alt alt2" id="btnQuit2">Title</button>
-    </div>
-  </div>
-</div>
-
+<!-- touch controls -->
 <div id="mob">
-  <div id="tLeft"><div id="joy"><div id="joyKnob"></div></div><div class="stickLbl" id="joyLbl">MOVE</div></div>
-  <div id="tRight">
-    <div id="aim"><div id="aimKnob"></div></div><div class="stickLbl" id="aimLbl">AIM · FIRE</div>
-    <button class="tbtn" id="tbJump">JUMP</button>
-    <button class="tbtn" id="tbDash">DASH</button>
-    <button class="tbtn" id="tbNova">NOVA</button>
+  <div class="stick" id="joy"><div class="knob" id="joyKnob"></div></div>
+  <div class="stick" id="aim"><div class="knob" id="aimKnob"></div></div>
+  <div class="tbtn" id="tbJump">JUMP</div>
+  <div class="tbtn" id="tbDash">DASH</div>
+  <div class="tbtn" id="tbNova">✦</div>
+</div>
+
+<!-- title -->
+<div class="ov" id="ovTitle">
+  <div class="logo">RILEY</div>
+  <div class="tag">GOBLIN TIDE</div>
+  <div class="stats">
+    <div id="bestLine"></div>
+    <div id="iqLine"></div>
+    <div id="seedLine"></div>
+    <div id="bestLine2"></div>
+  </div>
+  <div class="seedRow">
+    <input id="seedInput" maxlength="18" placeholder="RANDOM" autocomplete="off" spellcheck="false">
+  </div>
+  <button class="btn" id="btnPlay">PLAY</button>
+  <div class="controls">
+    <span><kbd>MOUSE</kbd><span class="c">look</span></span>
+    <span><kbd>W A S D</kbd><span class="c">move</span></span>
+    <span><kbd>CLICK</kbd><span class="c">cast (hold to charge)</span></span>
+    <span><kbd>SPACE</kbd><span class="c">jump / double jump</span></span>
+    <span><kbd>SHIFT</kbd><span class="c">dash</span></span>
+    <span><kbd>Q / E</kbd><span class="c">nova (full mana)</span></span>
+  </div>
+  <div class="stats" style="margin-top:18px; opacity:.55; font-size:11px;">the goblins learn from every run</div>
+  <div><button class="btn ghost" id="btnPurge">FORGET THE GOBLINS</button></div>
+</div>
+
+<!-- pause -->
+<div class="ov hide" id="ovPause">
+  <div class="panelTitle">PAUSED</div>
+  <div class="btnRow">
+    <button class="btn" id="btnResume">RESUME</button>
+  </div>
+  <div class="btnRow">
+    <button class="btn ghost" id="btnRestart">RESTART</button>
+    <button class="btn ghost" id="btnNewWorld">NEW WORLD</button>
+    <button class="btn ghost" id="btnQuitTitle">QUIT</button>
+  </div>
+  <div><button class="btn ghost" id="btnMute" style="margin-top:26px;">🔊</button></div>
+</div>
+
+<!-- game over -->
+<div class="ov hide" id="ovOver">
+  <div class="panelTitle" style="color:#ff8c7a; text-shadow:0 3px 14px rgba(0,0,0,.9), 0 0 34px rgba(255,80,60,.45);">THE TIDE TAKES YOU</div>
+  <div class="bigStats">
+    <div class="st"><b id="stScore">0</b><span>SCORE</span></div>
+    <div class="st"><b id="stWave">1</b><span>WAVE</span></div>
+    <div class="st"><b id="stKills">0</b><span>GHOULS</span></div>
+    <div class="st"><b id="stCombo">×1</b><span>BEST COMBO</span></div>
+  </div>
+  <div class="btnRow">
+    <button class="btn" id="btnAgain">RISE AGAIN</button>
+    <button class="btn ghost" id="btnQuit2">TITLE</button>
   </div>
 </div>
-<div id="hintBar">Riley 3D · desktop: <b>WASD</b> move · <b>mouse</b> aim · <b>click</b> cast · <b>Space</b> jump · <b>Shift</b> dash</div>
 
-<div id="noGL"><div><b>😢 WebGL isn't available here</b><p>Riley 3D needs WebGL. Your browser is blocking it, or this device is too old — try recent Chrome, Edge, Firefox or Safari.</p></div></div>
+<!-- no webgl -->
+<div id="noGL">
+  <h2>YOUR BROWSER CAN'T SEE THE MAGIC</h2>
+  <div>Riley needs WebGL. Try a current version of Chrome, Firefox, Safari or Edge.</div>
 </div>
 
-<script>
-(function(){'use strict';
-/* ================= Riley 3D: Goblin Smasher =================
-   Self-contained WebGL action-platformer. No frameworks, no
-   external assets: every mesh, effect and sound is generated. */
-var TAU=Math.PI*2;
-function clamp(v,a,b){return v<a?a:(v>b?b:v)}
-function lerp(a,b,t){return a+(b-a)*t}
-function rnd(a,b){return a+Math.random()*(b-a)}
-function irnd(a,b){return a+Math.floor(Math.random()*(b-a+1))}
-function angLerp(a,b,t){var d=(b-a)%TAU;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;return a+d*t}
-function sign(v){return v<0?-1:1}
-
-/* ---------------- matrix math (column-major) ---------------- */
-function m4ident(o){o[0]=1;o[1]=0;o[2]=0;o[3]=0;o[4]=0;o[5]=1;o[6]=0;o[7]=0;o[8]=0;o[9]=0;o[10]=1;o[11]=0;o[12]=0;o[13]=0;o[14]=0;o[15]=1;return o}
-function m4mul(o,a,b){
-  var a0=a[0],a1=a[1],a2=a[2],a3=a[3],a4=a[4],a5=a[5],a6=a[6],a7=a[7],a8=a[8],a9=a[9],a10=a[10],a11=a[11],a12=a[12],a13=a[13],a14=a[14],a15=a[15];
-  for(var c=0;c<4;c++){
-    var b0=b[c*4],b1=b[c*4+1],b2=b[c*4+2],b3=b[c*4+3];
-    o[c*4]=a0*b0+a4*b1+a8*b2+a12*b3;
-    o[c*4+1]=a1*b0+a5*b1+a9*b2+a13*b3;
-    o[c*4+2]=a2*b0+a6*b1+a10*b2+a14*b3;
-    o[c*4+3]=a3*b0+a7*b1+a11*b2+a15*b3;
-  }
-  return o;
-}
-function m4T(o,x,y,z){m4ident(o);o[12]=x;o[13]=y;o[14]=z;return o}
-function m4S(o,x,y,z){m4ident(o);o[0]=x;o[5]=y;o[10]=z;return o}
-function m4RX(o,a){var c=Math.cos(a),s=Math.sin(a);m4ident(o);o[5]=c;o[6]=s;o[9]=-s;o[10]=c;return o}
-function m4RY(o,a){var c=Math.cos(a),s=Math.sin(a);m4ident(o);o[0]=c;o[2]=-s;o[8]=s;o[10]=c;return o}
-function m4RZ(o,a){var c=Math.cos(a),s=Math.sin(a);m4ident(o);o[0]=c;o[1]=s;o[4]=-s;o[5]=c;return o}
-var T1=new Float32Array(16),T2=new Float32Array(16),T3=new Float32Array(16);
-// Limb/part: M = T(x,y,z)*RY(yaw)*T(piv)*RX(pitch)*RZ(roll)*T(geo)*S
-// piv = rotation pivot in the yawed local frame; geo = geometry offset from pivot.
-function limb(out,x,y,z,yaw,pivX,pivY,pivZ,pitch,roll,geoX,geoY,geoZ,sx,sy,sz){
-  m4T(T1,x,y,z);m4RY(T2,yaw);m4mul(T3,T1,T2);
-  m4T(T2,pivX,pivY,pivZ);m4mul(T1,T3,T2);
-  m4RX(T2,pitch);m4mul(T3,T1,T2);
-  m4RZ(T2,roll);m4mul(T1,T3,T2);
-  m4T(T2,geoX,geoY,geoZ);m4mul(T3,T1,T2);
-  m4S(T2,sx,sy,sz);m4mul(out,T3,T2);
-  return out;
-}
-function m4Persp(o,fov,asp,n,f){
-  var g=1/Math.tan(fov/2);
-  o[0]=g/asp;o[1]=0;o[2]=0;o[3]=0;o[4]=0;o[5]=g;o[6]=0;o[7]=0;
-  o[8]=0;o[9]=0;o[10]=(n+f)/(n-f);o[11]=-1;o[12]=0;o[13]=0;o[14]=2*n*f/(n-f);o[15]=0;
-  return o;
-}
-function m4Look(o,ex,ey,ez,cx,cy,cz){
-  // forward f = target-eye; backward b = -f (view row2); right = up x b; up' = b x right
-  var fx=cx-ex,fy=cy-ey,fz=cz-ez,l=Math.hypot(fx,fy,fz);fx/=l;fy/=l;fz/=l;
-  var bx=-fx,by=-fy,bz=-fz;
-  var ux=0,uy=1,uz=0;
-  var rx=uy*bz-uz*by,ry=uz*bx-ux*bz,rz=ux*by-uy*bx;
-  l=Math.hypot(rx,ry,rz);rx/=l;ry/=l;rz/=l;
-  var qx=by*rz-bz*ry,qy=bz*rx-bx*rz,qz=bx*ry-by*rx;
-  o[0]=rx;o[1]=ry;o[2]=rz;o[3]=0;
-  o[4]=qx;o[5]=qy;o[6]=qz;o[7]=0;
-  o[8]=bx;o[9]=by;o[10]=bz;o[11]=0;
-  o[12]=-(rx*ex+ry*ey+rz*ez);
-  o[13]=-(qx*ex+qy*ey+qz*ez);
-  o[14]=-(bx*ex+by*ey+bz*ez);
-  o[15]=1;
-  return o;
-}
-
-/* ---------------- WebGL ---------------- */
-var canvas=document.getElementById('cv');
-var SELFTEST=/[?&]selftest=1/.test(location.search);
-var gl=canvas.getContext('webgl',{antialias:true,alpha:false,preserveDrawingBuffer:SELFTEST});
-if(!gl)gl=canvas.getContext('experimental-webgl',{antialias:true,preserveDrawingBuffer:SELFTEST});
-if(!gl){document.getElementById('noGL').style.display='flex';throw new Error('no webgl')}
-function makeShader(type,src){
-  var s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
-  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));
-  return s;
-}
-function makeProg(vs,fs,attrs){
-  var p=gl.createProgram();
-  gl.attachShader(p,makeShader(gl.VERTEX_SHADER,vs));
-  gl.attachShader(p,makeShader(gl.FRAGMENT_SHADER,fs));
-  for(var i=0;i<attrs.length;i++)gl.bindAttribLocation(p,i,attrs[i]);
-  gl.linkProgram(p);
-  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
-  return p;
-}
-function uni(p,names){var u={};names.forEach(function(n){u[n]=gl.getUniformLocation(p,n)});return u}
-
-var SOLID_VS='attribute vec3 aP;attribute vec3 aN;uniform mat4 uV,uPV,uM;varying vec3 vN;varying float vD;'+
-'void main(){vec4 wp=uM*vec4(aP,1.0);gl_Position=uPV*wp;vN=normalize(mat3(uM[0].xyz,uM[1].xyz,uM[2].xyz)*aN);vD=-(uV*wp).z;}';
-var SOLID_FS='precision mediump float;varying vec3 vN;varying float vD;uniform vec3 uCol,uGlow,uFogC,uL;uniform float uA,uFN,uFF;'+
-'void main(){vec3 n=normalize(vN);float b=max(dot(n,normalize(uL)),0.0)*0.82+0.34+max(n.y,0.0)*0.06;vec3 c=uCol*b+uGlow;c=mix(c,uFogC,clamp((vD-uFN)/(uFF-uFN),0.0,1.0));gl_FragColor=vec4(c,uA);}';
-'void main(){vec3 c=uCol;c=mix(c,uFogC,clamp((vD-uFN)/(uFF-uFN),0.0,1.0));gl_FragColor=vec4(c,uA);}';
-var GLOW_VS='attribute vec3 aP;attribute vec2 aU;attribute vec4 aC;uniform mat4 uPV;varying vec2 vU;varying vec4 vC;'+
-'void main(){gl_Position=uPV*vec4(aP,1.0);vU=aU;vC=aC;}';
-var GLOW_FS='precision mediump float;varying vec2 vU;varying vec4 vC;'+
-'void main(){float d=length(vU);float a=vC.a*pow(smoothstep(1.2,0.0,d),1.55);gl_FragColor=vec4(vC.rgb,a);}';
-
-var solidProg=makeProg(SOLID_VS,SOLID_FS,['aP','aN']);
-var solidU=uni(solidProg,['uV','uPV','uM','uCol','uGlow','uFogC','uL','uA','uFN','uFF']);
-var glowProg=makeProg(GLOW_VS,GLOW_FS,['aP','aU','aC']);
-var glowU=uni(glowProg,['uPV']);
-var LIGHT=[0.5,0.85,0.35];
-gl.enable(gl.DEPTH_TEST);
-gl.depthFunc(gl.LEQUAL);
-
-/* geometry: unit shapes as pos+nrm (interleaved float6) triangle soup */
-var GEO={};
-function geoVbo(data){
-  var v=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,v);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);
-  return {v:v,n:data.length/6};
-}
-function cubeData(){
-  var a=[],h=.5,z=h,n=0;
-  function q(p1,p2,p3,p4,nx){a.push(p1.concat(nx),p2.concat(nx),p3.concat(nx),p1.concat(nx),p3.concat(nx),p4.concat(nx))}
-  q([-h,-h,h],[h,-h,h],[h,h,h],[-h,h,h],[0,0,1]);
-  q([h,-h,-h],[-h,-h,-h],[-h,h,-h],[h,h,-h],[0,0,-1]);
-  q([h,-h,-h],[h,-h,h],[h,h,h],[h,h,-h],[1,0,0]);
-  q([-h,-h,h],[-h,-h,-h],[-h,h,-h],[-h,h,h],[-1,0,0]);
-  q([-h,h,h],[h,h,h],[h,h,-h],[-h,h,-h],[0,1,0]);
-  q([-h,-h,-h],[h,-h,-h],[h,-h,h],[-h,-h,h],[0,-1,0]);
-  return new Float32Array(a.length*6)&&(function(){var f=new Float32Array(a.length*6);for(var i=0;i<a.length;i++){f[i*6]=a[i][0];f[i*6+1]=a[i][1];f[i*6+2]=a[i][2];f[i*6+3]=a[i][3];f[i*6+4]=a[i][4];f[i*6+5]=a[i][5]}return f})();
-}
-GEO.cube=geoVbo(cubeData());
-GEO.disc=geoVbo((function(){
-  var a=[],N=20;
-  for(var i=0;i<N;i++){
-    var t1=i/N*TAU,t2=(i+1)/N*TAU;
-    a.push([0,0,0,0,1,0],[Math.cos(t2),0,Math.sin(t2),0,1,0],[Math.cos(t1),0,Math.sin(t1),0,1,0]);
-  }
-  var f=new Float32Array(a.length*6);for(var j=0;j<a.length;j++){f[j*6]=a[j][0];f[j*6+1]=a[j][1];f[j*6+2]=a[j][2];f[j*6+3]=a[j][3];f[j*6+4]=a[j][4];f[j*6+5]=a[j][5]}
-  return f;
-})());
-function sphereData(seg,rings){
-  var a=[];
-  for(var iy=0;iy<rings;iy++){
-    var t1=iy/rings*Math.PI,t2=(iy+1)/rings*Math.PI;
-    for(var ix=0;ix<seg;ix++){
-      var u1=ix/seg*TAU,u2=(ix+1)/seg*TAU;
-      var p1=[Math.sin(t1)*Math.cos(u1),Math.cos(t1),Math.sin(t1)*Math.sin(u1)];
-      var p2=[Math.sin(t1)*Math.cos(u2),Math.cos(t1),Math.sin(t1)*Math.sin(u2)];
-      var p3=[Math.sin(t2)*Math.cos(u2),Math.cos(t2),Math.sin(t2)*Math.sin(u2)];
-      var p4=[Math.sin(t2)*Math.cos(u1),Math.cos(t2),Math.sin(t2)*Math.sin(u1)];
-      a.push(p1.concat(p1),p2.concat(p2),p3.concat(p3),p1.concat(p1),p3.concat(p3),p4.concat(p4));
-    }
-  }
-  var f=new Float32Array(a.length*6);for(var j=0;j<a.length;j++){f[j*6]=a[j][0];f[j*6+1]=a[j][1];f[j*6+2]=a[j][2];f[j*6+3]=a[j][3];f[j*6+4]=a[j][4];f[j*6+5]=a[j][5]}
-  return f;
-}
-GEO.sphere=geoVbo(sphereData(12,8));
-GEO.sphereL=geoVbo(sphereData(8,6));
-function latData(sides,closed){
-  var a=[];
-  for(var i=0;i<sides;i++){
-    var t1=i/sides*TAU,t2=(i+1)/sides*TAU;
-    var x1=Math.cos(t1)*.5,z1=Math.sin(t1)*.5,x2=Math.cos(t2)*.5,z2=Math.sin(t2)*.5;
-    function n(x,z){var l=Math.hypot(x,.6,z);return [x/l,.6/l,z/l]}
-    a.push([x1,0,z1].concat(n(x1,z1)),[x2,0,z2].concat(n(x2,z2)),[x2,1,z2].concat(n(x2,z2)));
-    a.push([x1,0,z1].concat(n(x1,z1)),[x2,1,z2].concat(n(x2,z2)),[x1,1,z1].concat(n(x1,z1)));
-    if(closed){a.push([0,0,0,0,-1,0],[x2,0,z2,0,-1,0],[x1,0,z1,0,-1,0]);a.push([0,1,0,0,1,0],[x1,1,z1,0,1,0],[x2,1,z2,0,1,0])}
-  }
-  var f=new Float32Array(a.length*6);for(var j=0;j<a.length;j++){f[j*6]=a[j][0];f[j*6+1]=a[j][1];f[j*6+2]=a[j][2];f[j*6+3]=a[j][3];f[j*6+4]=a[j][4];f[j*6+5]=a[j][5]}
-  return f;
-}
-GEO.cyl=geoVbo(latData(8,true));
-GEO.cyl6=geoVbo(latData(6,true));
-function coneData(sides){
-  var a=[];
-  for(var i=0;i<sides;i++){
-    var t1=i/sides*TAU,t2=(i+1)/sides*TAU;
-    var x1=Math.cos(t1),z1=Math.sin(t1),x2=Math.cos(t2),z2=Math.sin(t2);
-    function n(x,z){var l=Math.hypot(x,.5,z);return [x/l,.5/l,z/l]}
-    a.push([x1*0.5,0,z1*0.5].concat(n(x1,z1)),[x2*0.5,0,z2*0.5].concat(n(x2,z2)),[0,1,0].concat(n(0,0)));
-    a.push([0,0,0,0,-1,0],[x2*0.5,0,z2*0.5,0,-1,0],[x1*0.5,0,z1*0.5,0,-1,0]);
-  }
-  var f=new Float32Array(a.length*6);for(var j=0;j<a.length;j++){f[j*6]=a[j][0];f[j*6+1]=a[j][1];f[j*6+2]=a[j][2];f[j*6+3]=a[j][3];f[j*6+4]=a[j][4];f[j*6+5]=a[j][5]}
-  return f;
-}
-GEO.cone=geoVbo(coneData(8));
-
-var PM=new Float32Array(16),VM=new Float32Array(16),PVM=new Float32Array(16);
-function drawSolid(geo,m,col,alpha,glowCol){
-  if(alpha===undefined)alpha=1;
-  gl.useProgram(solidProg);
-  gl.bindBuffer(gl.ARRAY_BUFFER,geo.v);
-  gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
-  gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);
-  gl.enableVertexAttribArray(0);gl.enableVertexAttribArray(1);
-  gl.uniformMatrix4fv(solidU.uM,false,m);
-  gl.uniform3f(solidU.uCol,col[0]/255,col[1]/255,col[2]/255);
-  gl.uniform3f(solidU.uGlow,glowCol?glowCol[0]/255:0,glowCol?glowCol[1]/255:0,glowCol?glowCol[2]/255:0);
-  gl.uniform1f(solidU.uA,alpha);
-  if(alpha<1){gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA)}
-  gl.drawArrays(gl.TRIANGLES,0,geo.n);
-  if(alpha<1)gl.disable(gl.BLEND);
-}
-function frameUniforms(pv,v,fogN,fogF,fogC){
-  gl.useProgram(solidProg);
-  gl.uniformMatrix4fv(solidU.uPV,false,pv);
-  gl.uniformMatrix4fv(solidU.uV,false,v);
-  gl.uniform3f(solidU.uL,LIGHT[0],LIGHT[1],LIGHT[2]);
-  gl.uniform3f(solidU.uFogC,fogC[0]/255,fogC[1]/255,fogC[2]/255);
-  gl.uniform1f(solidU.uFN,fogN);
-  gl.uniform1f(solidU.uFF,fogF);
-}
-/* ---------------- billboard fx ---------------- */
-var fx=[],stars=[];
-var fxBuf=gl.createBuffer();
-var fxData=new Float32Array(1200*54);
-function fxPush(p){
-  if(fx.length>900)fx.shift();
-  fx.push(p);
-}
-function burst(x,y,z,color,n,spd,grav,size,life){
-  for(var i=0;i<n;i++){
-    var a=rnd(0,TAU),e=rnd(-.6,.6);
-    var l=life||rnd(.4,.9);
-    fxPush({x:x,y:y,z:z,vx:Math.cos(a)*Math.cos(e)*rnd(spd*.3,spd),vy:Math.sin(e)*rnd(spd*.3,spd)+rnd(0,spd*.5),vz:Math.sin(a)*Math.cos(e)*rnd(spd*.3,spd),life:l,max:l,s:size||rnd(.12,.45),pr:color[0],pg:color[1],pb:color[2],pa:.9,grav:grav===undefined?3:grav});
-  }
-}
-function ringBurst(x,y,z,color,spd){
-  for(var i=0;i<10;i++){
-    var a=i/10*TAU;var l=.45;
-    fxPush({x:x,y:y,z:z,vx:Math.cos(a)*spd,vy:0,vz:Math.sin(a)*spd,life:l,max:l,s:.1,pr:color[0],pg:color[1],pb:color[2],pa:.95,grav:0});
-  }
-}
-// camera right/up for billboards
-var camR=[0,0,1],camUp=[0,1,0];
-function fillQuads(list,out){
-  var o=0;
-  for(var i=0;i<list.length;i++){
-    var f=list[i],t=f.life/f.max,s=f.s*(0.4+0.6*t);
-    var a=f.pa*t;
-    for(var k=0;k<6;k++){
-      var cx=k===0||k===3||k===5?-1:1;
-      var cy=k<3?1:-1;
-      out[o++]=f.x+camR[0]*cx*s+camUp[0]*cy*s;
-      out[o++]=f.y+camR[1]*cx*s+camUp[1]*cy*s;
-      out[o++]=f.z+camR[2]*cx*s+camUp[2]*cy*s;
-      out[o++]=cx*.92;out[o++]=cy*.92;
-      out[o++]=f.pr;out[o++]=f.pg;out[o++]=f.pb;out[o++]=a;
-    }
-  }
-  return o;
-}
-function drawGlowList(list,pv){
-  if(!list.length)return;
-  var o=fillQuads(list,fxData);
-  gl.useProgram(glowProg);
-  gl.bindBuffer(gl.ARRAY_BUFFER,fxBuf);
-  gl.bufferData(gl.ARRAY_BUFFER,fxData.subarray(0,o),gl.DYNAMIC_DRAW);
-  gl.vertexAttribPointer(0,3,gl.FLOAT,false,36,0);
-  gl.vertexAttribPointer(1,2,gl.FLOAT,false,36,12);
-  gl.vertexAttribPointer(2,4,gl.FLOAT,false,36,20);
-  gl.enableVertexAttribArray(0);gl.enableVertexAttribArray(1);gl.enableVertexAttribArray(2);
-  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
-  gl.depthMask(false);
-  gl.uniformMatrix4fv(glowU.uPV,false,pv);
-  gl.drawArrays(gl.TRIANGLES,0,list.length*6);
-  gl.depthMask(true);
-  gl.disable(gl.BLEND);
-}
-function makeStars(){
-  stars=[];
-  for(var i=0;i<110;i++){
-    var a=rnd(0,TAU),y=rnd(8,90),r=rnd(180,330);
-    stars.push({x:Math.cos(a)*r,y:y,z:Math.sin(a)*r,s:rnd(1.4,3.4),ph:rnd(0,TAU),sp:rnd(.6,2)});
-  }
-  makeMotes();
-}
-var motes=[];
-function makeMotes(){
-  motes=[];
-  var ac=theme().accent;
-  for(var i=0;i<46;i++){
-    var a=rnd(0,TAU),r=rnd(2,ARENA-1);
-    motes.push({x:Math.cos(a)*r,y:rnd(.4,7),z:Math.sin(a)*r,s:rnd(.06,.16),ph:rnd(0,TAU),sp:rnd(.3,.9),drift:rnd(.2,.6),
-      pr:ac[0],pg:ac[1],pb:ac[2]});
-  }
-}
-function drawMotes(){
-  var tmp=[];
-  for(var i=0;i<motes.length;i++){
-    var m=motes[i];
-    var y=m.y+Math.sin(time*m.sp+m.ph)*.5;
-    var x=m.x+Math.cos(time*m.drift+m.ph)*.6;
-    var z=m.z+Math.sin(time*m.drift*1.1+m.ph)*.6;
-    var tw=.35+.4*Math.abs(Math.sin(time*m.sp*1.5+m.ph));
-    tmp.push({x:x,y:y,z:z,life:1,max:1,s:m.s*3.2,pr:m.pr,pg:m.pg,pb:m.pb,pa:tw*.55,grav:0});
-  }
-  drawGlowList(tmp,PVM);
-}
-function drawStars(){
-  // shimmering stars each frame are fx billboards with big life; cheaper: build & draw here directly
-  var tmp=[];
-  for(var i=0;i<stars.length;i++){
-    var s=stars[i],tw=.28+.5*Math.abs(Math.sin(time*s.sp+s.ph));
-    tmp.push({x:s.x,y:s.y,z:s.z,life:1,max:1,s:s.s,pr:255,pg:255,pb:255,pa:tw,grav:0});
-  }
-  drawGlowList(tmp,PVM);
-}
-
-/* ---------------- game state ---------------- */
-var game={score:0,wave:1,lives:5,maxLives:5,kills:0,combo:0,combot:0,comboBest:0,starT:0,boss:false,shake:0,bannerT:0,spawnQueue:[],spawnT:0,waveState:'idle',clearT:0};
-var hitStop=0;
-function doHitStop(s){if(s>hitStop)hitStop=s;}
-var shownScore=0;
-var best=0;
-try{best=+(localStorage.getItem('riley3d.best')||0)}catch(e){}
-var state='title';
-var Tgod=false;
-var time=0,dt=1/60,lastT=performance.now();
-var keys={};
-var footT=0;
-function el(id){return document.getElementById(id)}
-function show(id){el(id).classList.remove('hide')}
-function hide(id){el(id).classList.add('hide')}
-function $(sel){return document.querySelector(sel)}
-
-/* ---------------- themes & world ---------------- */
-var THEMES=[
-  {n:'STARFALL GROVE',fog:[12,17,46],grass:[52,168,102],grass2:[42,138,88],dirt:[72,56,120],wood:[96,70,50],hill:[30,34,88],accent:[120,255,220]},
-  {n:'CRIMSON CINDERS',fog:[36,10,26],grass:[212,80,66],grass2:[168,60,62],dirt:[86,36,42],wood:[74,48,34],hill:[52,16,38],accent:[255,170,90]},
-  {n:'MISTY MARSH',fog:[9,28,22],grass:[76,180,96],grass2:[56,152,84],dirt:[44,86,58],wood:[62,86,52],hill:[22,48,34],accent:[150,255,160]},
-  {n:'AMBER TWILIGHT',fog:[44,22,10],grass:[228,160,54],grass2:[188,126,44],dirt:[106,68,32],wood:[86,62,42],hill:[64,32,18],accent:[255,214,110]},
-  {n:'VOID HALLOWS',fog:[14,8,32],grass:[92,66,186],grass2:[70,52,154],dirt:[42,30,88],wood:[50,42,62],hill:[26,15,54],accent:[190,140,255]},
-  {n:'EMBER DEPTHS',fog:[24,8,7],grass:[214,62,38],grass2:[172,50,34],dirt:[82,28,22],wood:[64,38,28],hill:[36,12,10],accent:[255,120,60]},
-];
-function theme(){return THEMES[(game.wave-1)%THEMES.length]}
-
-var platforms=[],deco=[];
-var ARENA=26.5;
-var MM=new Float32Array(16);
-function decoBox(x,y0,z,w,h,d,col,glow){
-  limb(MM,x,y0+h/2,z,0,0,0,0,0,0,0,0,0,w,h,d);
-  deco.push({g:GEO.cube,m:new Float32Array(MM),c:col,gl:glow||null});
-}
-function decoGeo(g,x,y,z,sx,sy,sz,col,yaw,pitch,roll,ox,oy,oz,glow){
-  limb(MM,x,y,z,yaw||0,pitch||0,roll||0,ox||0,oy||0,oz||0,sx,sy,sz);
-  deco.push({g:g,m:new Float32Array(MM),c:col,gl:glow||null});
-}
-function solidBox(cx,cz,yBot,yTop,w,d){
-  var b={cx:cx,cz:cz,x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,y0:yBot,y1:yTop};
-  platforms.push(b);return b;
-}
-function genWorld(){
-  platforms=[];deco=[];fx.length=0;
-  var th=theme();
-  // ---- centre island
-  solidBox(0,0,-2.6,0,24,24);
-  decoBox(0,-2.6,0,24,2.6,24,[th.dirt[0]*.8,th.dirt[1]*.8,th.dirt[2]*.8],null);
-  decoBox(0,-0.12,0,24.6,0.5,24.6,[th.dirt[0],th.dirt[1],th.dirt[2]],null);
-  decoBox(0,0.02,0,25.2,0.42,25.2,[th.grass[0],th.grass[1],th.grass[2]],null);
-  // decorative rim glow (accent ring)
-  decoGeo(GEO.cyl6,0,-0.12,0,26.2,0.18,26.2,[th.accent[0],th.accent[1],th.accent[2]],0,0,0,0,0,0,[th.accent[0]*.5,th.accent[1]*.5,th.accent[2]*.5]);
-  // rings of floating islands
-  var rings=[
-    {n:8,r:15.6,y:2.6,w:5.2,trees:true},
-    {n:6,r:20.4,y:4.6,w:4.2,trees:true},
-    {n:3,r:23.2,y:6.0,w:2.7,trees:false},
-  ];
-  for(var r=0;r<rings.length;r++){
-    var rg=rings[r],count=rg.n+(game.wave>=3?Math.min(2,r):0);
-    for(var i=0;i<count;i++){
-      var a=i/count*TAU+(r%2===0?0.22:0)+rnd(-.15,.15);
-      var px=Math.cos(a)*rg.r,pz=Math.sin(a)*rg.r;
-      var w=rg.w*(1+(Math.random()-.5)*.5),d=rg.w*(1+(Math.random()-.5)*.5);
-      solidBox(px,pz,rg.y-1.4,rg.y,w,d);
-      decoBox(px,rg.y-.7,pz,w+.5,1.4,d+.5,[th.dirt[0]*.85,th.dirt[1]*.85,th.dirt[2]*.85],null);
-      decoBox(px,rg.y-.06,pz,w+.9,.34,d+.9,[th.dirt[0],th.dirt[1],th.dirt[2]],null);
-      decoBox(px,rg.y+.02,pz,w+.26,.34,d+.26,[th.grass[0],th.grass[1],th.grass[2]],null);
-      if(rg.trees&&Math.random()<.45){
-        addTree(px+rnd(-w*.25,w*.25),rg.y,pz+rnd(-d*.25,d*.25),th,rnd(.7,1.15));
-      }
-      if(Math.random()<.3){ // sparkle node on island
-        decoGeo(GEO.sphereL,px+rnd(-w*.3,w*.3),rg.y+.45,pz+rnd(-d*.3,d*.3),.12,.12,.12,[0,0,0],0,0,0,0,0,0,[th.accent[0],th.accent[1],th.accent[2]]);
-      }
-    }
-  }
-  // boundary posts
-  for(var p=0;p<20;p++){
-    var pa=p/20*TAU;
-    var bx=Math.cos(pa)*(ARENA+.4),bz=Math.sin(pa)*(ARENA+.4);
-    var h=2.2;
-    limb(MM,bx,h/2,bz,0,0,0,0,0,0,0,0,0,.13,h,.13);
-    deco.push({g:GEO.cyl,m:new Float32Array(MM),c:[36,48,104],gl:null});
-    limb(MM,bx,h+.22,bz,0,0,0,0,0,0,0,0,0,.16,.16,.16);
-    deco.push({g:GEO.sphereL,m:new Float32Array(MM),c:[0,0,0],gl:[90,220,255]});
-  }
-  // mountains far away
-  for(var m=0;m<9;m++){
-    var ma=m/9*TAU+rnd(-.12,.12),mr=rnd(140,175);
-    var mx=Math.cos(ma)*mr,mz=Math.sin(ma)*mr,mh=rnd(30,50);
-    decoGeo(GEO.cone,mx,mh*.14,mz,30,mh*.86,30,[th.hill[0]*.55,th.hill[1]*.55,th.hill[2]*.7],0,0,0,0,0,0,null);
-    decoGeo(GEO.cone,mx,mh*.55,mz,20,mh*.5,20,[th.hill[0],th.hill[1],th.hill[2]],0,0,0,0,0,0,null);
-    decoGeo(GEO.cone,mx,mh*.85,mz,7.5,3.5,7.5,[226,230,246],0,0,0,0,0,0,null);
-  }
-  // centre island little trees + mushrooms (deco only)
-  var spots=[];
-  for(var s=0;s<5;s++){
-    var sa=rnd(0,TAU),sr=rnd(3,10);
-    var sx=Math.cos(sa)*sr,sz=Math.sin(sa)*sr;
-    if(Math.random()<.5)addTree(sx,0,sz,th,rnd(.6,1.1));else addMushroom(sx,0,sz,th);
-  }
-  makeStars();
-}
-function addTree(x,y,z,th,s){
-  var h=(1.5+Math.random())*s;
-  decoGeo(GEO.cyl,x,y+h*.3,z,.18*s,h*.65*s,.18*s,[th.wood[0],th.wood[1],th.wood[2]],0,0,0,0,0,0,null);
-  decoGeo(GEO.cone,x,y+h*.62*s,z,h*.62*s,h*.6*s,h*.62*s,[th.grass2[0],th.grass2[1],th.grass2[2]],0,0,0,0,0,0,null);
-  decoGeo(GEO.cone,x,y+h*.9*s,z,h*.4*s,h*.5*s,h*.4*s,[th.grass[0],th.grass[1],th.grass[2]],0,0,0,0,0,0,null);
-}
-function addMushroom(x,y,z,th){
-  decoGeo(GEO.cyl,x,y+.16,z,.08,.3,.08,[230,230,240],0,0,0,0,0,0,null);
-  decoGeo(GEO.sphereL,x,y+.36,z,.22,.16,.22,[th.accent[0]*.5,th.accent[1]*.5,th.accent[2]*.5],0,0,0,0,0,0,[th.accent[0]*.4,th.accent[1]*.4,th.accent[2]*.4]);
-}
-
-/* ---------------- Riley ---------------- */
-var RAY=.52,RHEIGHT=1.7;
-var R=null;
-function newRiley(){
-  return {x:0,y:0,z:0,vx:0,vy:0,vz:0,yaw:Math.PI,run:0,air:0,ground:true,
-    dashT:0,dashCd:0,dashDX:0,dashDZ:0,dashing:false,jumpBuf:0,coyote:0,
-    inv:0,hitT:0,shootCd:0,vy2:0,jumpFx:false,ph:0,
-    mana:0,manaMax:100,charge:0,charging:false,novaFx:0,shootAnim:0,wantAutoFire:false};
-}
-function findGroundY(x,y,z){
-  var best=-99;
-  for(var i=0;i<platforms.length;i++){
-    var p=platforms[i];
-    if(x+RAY>p.x0&&x-RAY<p.x1&&z+RAY>p.z0&&z-RAY<p.z1&&p.y1<=y+.1&&p.y1>best)best=p.y1;
-  }
-  return best;
-}
-function groundShadow(x,y,z,r,alpha){
-  var gy=findGroundY(x,y,z);
-  if(gy<-90||y-gy>6)return;
-  limb(MM,x,gy+.03,z,0,-Math.PI/2,0,0,0,0,0,0,0,r*1.2,1,r*1.2);
-  gl.useProgram(solidProg);
-  gl.bindBuffer(gl.ARRAY_BUFFER,GEO.disc.v);
-  gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
-  gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);
-  gl.enableVertexAttribArray(0);gl.enableVertexAttribArray(1);
-  gl.uniformMatrix4fv(solidU.uM,false,MM);
-  gl.uniform3f(solidU.uCol,0,0,0);
-  gl.uniform3f(solidU.uGlow,0,0,0);
-  gl.uniform1f(solidU.uA,alpha*(1-clamp((y-gy)/5,0,.85)));
-  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-  gl.depthMask(false);
-  gl.drawArrays(gl.TRIANGLES,0,GEO.disc.n);
-  gl.depthMask(true);
-  gl.disable(gl.BLEND);
-}
-function drawRiley(o){
-  // o = character state {x,y,z,yaw,run,ground,hitT,dashing,air}
-  var flash=o.hitT>0&&(Math.floor(time*26)%2===0);
-  // NOVA shockwave disc
-  if(o.novaFx>0){
-    var t=1-o.novaFx/.6;
-    var rad=1+t*11;
-    var gy=findGroundY(o.x,o.y+2,o.z);var ny=(gy>-90?gy:o.y)+.05;
-    limb(MM,o.x,ny,o.z,0,-Math.PI/2,0,0,0,0,0,0,0,rad*1.2,1,rad*1.2);
-    gl.useProgram(solidProg);
-    gl.bindBuffer(gl.ARRAY_BUFFER,GEO.disc.v);
-    gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
-    gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);
-    gl.enableVertexAttribArray(0);gl.enableVertexAttribArray(1);
-    gl.uniformMatrix4fv(solidU.uM,false,MM);
-    gl.uniform3f(solidU.uCol,0.3,0.6,1);
-    gl.uniform3f(solidU.uGlow,0.4,0.7,1);
-    gl.uniform1f(solidU.uA,(1-t)*.5);
-    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
-    gl.depthMask(false);
-    gl.drawArrays(gl.TRIANGLES,0,GEO.disc.n);
-    gl.depthMask(true);gl.disable(gl.BLEND);
-  }
-  // NOVA-ready aura sparkle
-  if(o.mana>=o.manaMax&&Math.random()<.4){
-    var aa=rnd(0,TAU);
-    fxPush({x:o.x+Math.cos(aa)*.7,y:o.y+rnd(.3,1.6),z:o.z+Math.sin(aa)*.7,vx:0,vy:rnd(.5,1),vz:0,life:.5,max:.5,s:.09,pr:150,pg:200,pb:255,pa:.7,grav:0});
-  }
-  groundShadow(o.x,o.y,o.z,1,0.95);
-  if(flash)return;
-  var skin=[255,210,180],robe=[46,48,158],robeD=[34,36,120],trim=[120,120,200],
-      gold=[255,214,94],hat=[76,52,198],red=[226,64,42],boot=[86,52,34],wood=[120,74,42];
-  var moving=o.run!==0;
-  var walk=Math.sin(o.run);
-  var bob=moving&&o.ground?Math.abs(walk)*.05:Math.sin(time*3)*.02;
-  var legSwing=(moving&&o.ground)?walk*.85:(o.air?0:0);
-  var armSwing=(moving&&o.ground)?-walk*.7:(o.air?-0.4:0.15);
-  var yaw=o.yaw;
-  var bx=o.x,by=o.y,bz=o.z;
-  var inflate=o.dashing?1.08:1;
-  // cape
-  limb(MM,bx,by+1.16,bz-0.14,yaw,0,0,0,-0.25+(o.dashing?0.2:0),Math.sin(o.run*.5)*.12,0,0.06,-0.2,0.62,0.44,0.07);
-  drawSolid(GEO.cube,MM,[64,44,160],1,null);
-  // robe main (two stacked boxes, lower flared)
-  limb(MM,bx,by+.66,bz,yaw,0,0,0,0,0,0,0,.07,0.34,0.48,0.4);
-  drawSolid(GEO.cube,MM,[robeD[0],robeD[1],robeD[2]],1,null);
-  limb(MM,bx,by+1.08,bz,yaw,0,0,0,0,0,0,0,.34,0.4,0.36,0.32);
-  drawSolid(GEO.cube,MM,[robe[0],robe[1],robe[2]],1,null);
-  limb(MM,bx,by+.86,bz,yaw,0,0,0,0,0,0,0,.02,0.1,0.5,0.42);
-  drawSolid(GEO.cube,MM,gold,1,null);
-  // legs + boots (articulated at hip)
-  var hipY=.72;
-  for(var s=-1;s<=1;s+=2){
-    var px2=bx+s*.15;
-    limb(MM,px2,by+hipY,bz,yaw,0,0,0,legSwing,0,0,-.28,0,.13,.56,.13);
-    drawSolid(GEO.cube,MM,robeD,1,null);
-    limb(MM,px2,by+hipY,bz,yaw,0,0,0,legSwing,0,0,-.58,.03,.19,.15,.28);
-    drawSolid(GEO.cube,MM,boot,1,null);
-  }
-  // arms
-  var armY=1.2;
-  limb(MM,bx-.36,by+armY,bz,yaw,0,0,0,armSwing,0,-.36,-.22,0,.13,.46,.13);
-  drawSolid(GEO.cube,MM,robe,1,null);
-  limb(MM,bx+.36,by+armY,bz,yaw,0,0,0,armSwing-.55,-.2,.36,-.24,0,.13,.46,.13);
-  drawSolid(GEO.cube,MM,robe,1,null);
-  // head
-  limb(MM,bx,by+1.44+bob*.6,bz,yaw,0,0,0,0,0,0,0,.2,0.26,0.26,0.26);
-  drawSolid(GEO.sphereL,MM,skin,1,null);
-  // hair fringe
-  limb(MM,bx,by+1.56+bob*.6,bz+0.13,yaw,-.3,0,0,0,.1,0.1,0.2,0.24,0.05,0.14);
-  drawSolid(GEO.cube,MM,red,1,null);
-  // eyes + glasses (front = +z local)
-  limb(MM,bx-.1,by+1.47+bob*.6,bz+.21,yaw,0,0,0,0,0,0,0,.02,0.13,.09,.04);
-  drawSolid(GEO.cube,MM,[255,255,255],1,null);
-  limb(MM,bx+.1,by+1.47+bob*.6,bz+.21,yaw,0,0,0,0,0,0,0,.02,0.13,.09,.04);
-  drawSolid(GEO.cube,MM,[255,255,255],1,null);
-  limb(MM,bx-.1,by+1.47+bob*.6,bz+.26,yaw,0,0,0,0,0,0,0,.02,0.16,.09,.045);
-  drawSolid(GEO.cube,MM,[60,170,255],1,[80,220,255]);
-  limb(MM,bx+.1,by+1.47+bob*.6,bz+.26,yaw,0,0,0,0,0,0,0,.02,0.16,.09,.045);
-  drawSolid(GEO.cube,MM,[60,170,255],1,[80,220,255]);
-  // hat
-  limb(MM,bx,by+1.6+bob*.6,bz,yaw,0,0,0,-.1,0,0,0,.05,0.5,.16,.16);
-  drawSolid(GEO.cyl,MM,[hat[0]*.7,hat[1]*.7,hat[2]*.7],1,null);
-  limb(MM,bx,by+1.72+bob*.6,bz,yaw,.18,0,0,0,0,0,0,.05,0.24,0.24,0.24);
-  drawSolid(GEO.cone,MM,hat,1,null);
-  // hat star
-  limb(MM,bx,by+1.98+bob*.6,bz,yaw,0,0,0,0,0,0,0,.02,0.1,0.1,0.1);
-  drawSolid(GEO.sphereL,MM,[0,0,0],1,gold);
-  // wand (right hand) pointing forward-up
-  var handX=bx+Math.cos(yaw)*.36,handZ=bz-Math.sin(yaw)*.36;
-  // draw wand attached to right arm local instead: simpler part in local frame
-  // right forearm angled forward holding wand
-  limb(MM,bx+.36,by+armY,bz,yaw,0,0,0,armSwing-.55,-.2,.36,-.26,0,.13,.42,.13);
-  drawSolid(GEO.cube,MM,[robe[0],robe[1],robe[2]],1,null);
-  // wand shaft from hand forward
-  var tipY=by+.55, tipZ=.5;
-  limb(MM,bx+.36,by+armY-.18,bz,yaw,0,0,0,-1.1,0,0,.45,.3,.05,.3,.05);
-  drawSolid(GEO.cube,MM,wood,1,null);
-  // tip light — compute approx world pos of wand tip
-  var wy=bx+.36+Math.sin(yaw)*.5, wzz=bz+Math.cos(yaw)*.5;
-  var chg=o.charging?clamp((o.charge-0.28)/0.72,0,1):0;
-  var tipScale=.1+chg*.24+(o.shootAnim>0?.12:0);
-  var tipCol=chg>.85?[200,150,255]:gold;
-  var tipGlow=chg>.85?[200,150,255]:[255,225,130];
-  limb(MM,wy,by+1.0,wzz,yaw,0,0,0,0,0,0,0,tipScale,tipScale,tipScale);
-  drawSolid(GEO.sphereL,MM,tipCol,1,tipGlow);
-  if(Math.random()<(.08+chg*.6)){
-    fxPush({x:wy+rnd(-chg*.2,chg*.2),y:by+.95,z:wzz,vx:rnd(-.2,.2),vy:rnd(.2,.6),vz:rnd(-.2,.2),life:.5,max:.5,s:.08+chg*.08,pr:tipGlow[0],pg:tipGlow[1],pb:tipGlow[2],pa:.7,grav:0});
-  }
-}
-function drawRileyStanding(x,y,z,yaw){
-  R.drawX=x;R.drawY=y;R.drawZ=z;R.drawYaw=yaw;R.drawMode=1;
-}
-// Riley is drawn with its real state in drawChar below; state used also on title via temp.
-
-/* ---------------- input ---------------- */
-// Camera-aligned ground basis (screen-right = +right, screen-up = -depth), refreshed each frame.
-var camFwdX=0,camFwdZ=-1,camRightX=1,camRightZ=0;
-function moveVec(){
-  var sr=0,su=0; // screen right / up intent
-  if(keys['KeyW']||keys['ArrowUp'])su+=1;
-  if(keys['KeyS']||keys['ArrowDown'])su-=1;
-  if(keys['KeyA']||keys['ArrowLeft'])sr-=1;
-  if(keys['KeyD']||keys['ArrowRight'])sr+=1;
-  if(moveStickActive){sr=moveStickX;su=moveStickY}
-  var l=Math.hypot(sr,su);
-  if(l>1){sr/=l;su/=l}
-  // map screen intent onto the camera's ground plane
-  var ix=camRightX*sr+camFwdX*su;
-  var iz=camRightZ*sr+camFwdZ*su;
-  return [ix,iz];
-}
-/* ---------------- aiming ---------------- */
-// Screen point -> world position on the horizontal plane y=planeY (unproject via inverse PV).
-var INV=new Float32Array(16);
-function m4inv(o,m){
-  var a00=m[0],a01=m[1],a02=m[2],a03=m[3],a10=m[4],a11=m[5],a12=m[6],a13=m[7],
-      a20=m[8],a21=m[9],a22=m[10],a23=m[11],a30=m[12],a31=m[13],a32=m[14],a33=m[15];
-  var b00=a00*a11-a01*a10,b01=a00*a12-a02*a10,b02=a00*a13-a03*a10,b03=a01*a12-a02*a11,
-      b04=a01*a13-a03*a11,b05=a02*a13-a03*a12,b06=a20*a31-a21*a30,b07=a20*a32-a22*a30,
-      b08=a20*a33-a23*a30,b09=a21*a32-a22*a31,b10=a21*a33-a23*a31,b11=a22*a33-a23*a32;
-  var det=b00*b11-b01*b10+b02*b09+b03*b08-b04*b07+b05*b06;
-  if(!det)return null;det=1/det;
-  o[0]=(a11*b11-a12*b10+a13*b09)*det;o[1]=(a02*b10-a01*b11-a03*b09)*det;
-  o[2]=(a31*b05-a32*b04+a33*b03)*det;o[3]=(a22*b04-a21*b05-a23*b03)*det;
-  o[4]=(a12*b08-a10*b11-a13*b07)*det;o[5]=(a00*b11-a02*b08+a03*b07)*det;
-  o[6]=(a32*b02-a30*b05-a33*b01)*det;o[7]=(a20*b05-a22*b02+a23*b01)*det;
-  o[8]=(a10*b10-a11*b08+a13*b06)*det;o[9]=(a01*b08-a00*b10-a03*b06)*det;
-  o[10]=(a30*b04-a31*b02+a33*b00)*det;o[11]=(a21*b02-a20*b04-a23*b00)*det;
-  o[12]=(a11*b07-a10*b09-a12*b06)*det;o[13]=(a00*b09-a01*b07+a02*b06)*det;
-  o[14]=(a31*b01-a30*b03-a32*b00)*det;o[15]=(a20*b03-a21*b01+a22*b00)*det;
-  return o;
-}
-function unproj(inv,nx,ny,nz){
-  var x=inv[0]*nx+inv[4]*ny+inv[8]*nz+inv[12];
-  var y=inv[1]*nx+inv[5]*ny+inv[9]*nz+inv[13];
-  var z=inv[2]*nx+inv[6]*ny+inv[10]*nz+inv[14];
-  var w=inv[3]*nx+inv[7]*ny+inv[11]*nz+inv[15];
-  if(!w)w=1e-6;return [x/w,y/w,z/w];
-}
-function screenToGround(mx,my,planeY){
-  var inv=m4inv(INV,PVM);if(!inv)return null;
-  var nx=(mx/W)*2-1,ny=-((my/H)*2-1);
-  var p0=unproj(inv,nx,ny,-1),p1=unproj(inv,nx,ny,1);
-  var dy=p1[1]-p0[1];if(Math.abs(dy)<1e-5)return null;
-  var t=(planeY-p0[1])/dy;
-  return [p0[0]+(p1[0]-p0[0])*t,p0[2]+(p1[2]-p0[2])*t];
-}
-function nearestEnemy(maxD){
-  var best=null,bd=maxD*maxD;
-  for(var i=0;i<enemies.length;i++){var e=enemies[i];if(e.dead)continue;
-    var dx=e.x-R.x,dz=e.z-R.z,d=dx*dx+dz*dz;if(d<bd){bd=d;best=e}}
-  return best;
-}
-// Returns [dirx,dirz,active,autoFire]
-function getAimDir(mv){
-  var dx,dz,l;
-  if(aimStickActive){l=Math.hypot(aimStickX,aimStickY)||1;
-    return [(camRightX*aimStickX+camFwdX*aimStickY)/l,(camRightZ*aimStickX+camFwdZ*aimStickY)/l,true,true]}
-  if(finePointer&&pointerAim){
-    var g=screenToGround(mouseX,mouseY,R.y+1.0);
-    if(g){dx=g[0]-R.x;dz=g[1]-R.z;l=Math.hypot(dx,dz);
-      if(l>0.35){
-        // gentle aim-assist: snap toward a nearby enemy close to the cursor line
-        var e=nearestEnemy(24);
-        if(e){var edx=e.x-R.x,edz=e.z-R.z,el2=Math.hypot(edx,edz)||1;
-          var dot=(dx/l)*(edx/el2)+(dz/l)*(edz/el2);
-          if(dot>0.9){dx=lerp(dx/l,edx/el2,.5);dz=lerp(dz/l,edz/el2,.5);l=Math.hypot(dx,dz)||1}}
-        return [dx/l,dz/l,true,false]}}
-  }
-  // keyboard / gamepad: soft-lock to the nearest enemy so aiming is forgiving
-  var en=nearestEnemy(26);
-  if(en){dx=en.x-R.x;dz=en.z-R.z;l=Math.hypot(dx,dz)||1;return [dx/l,dz/l,true,false]}
-  if(mv&&(Math.abs(mv[0])>.05||Math.abs(mv[1])>.05)){l=Math.hypot(mv[0],mv[1]);return [mv[0]/l,mv[1]/l,false,false]}
-  return [Math.sin(R.yaw),Math.cos(R.yaw),false,false];
-}
-// input state
-var touchX=0,touchZ=0,jumpHeld=false,fireHeld=false,dashHeld=false,novaHeld=false;
-var mouseX=0,mouseY=0,pointerAim=false,finePointer=false,mouseFire=false;
-var moveStickActive=false,moveStickX=0,moveStickY=0;
-var aimStickActive=false,aimStickX=0,aimStickY=0;
-var curAimX=0,curAimZ=1;
-
-/* ---------------- camera ---------------- */
-var camYaw=0,camYawTarget=Math.PI,camDist=12.5,camH=6.6,camHCur=6.6;
-var camFov=1.06;
-var camX=0,camY=0,camZ=0,laX=0,laZ=0;
-var eye=[0,0,0],ctr=[0,0,0];
-function updateCamera(caYaw,cx,cy,cz,dtC){
-  camYaw=angLerp(camYaw,caYaw,clamp(dtC*3.6,0,1));
-  camHCur=lerp(camHCur,camH,clamp(dtC*3,0,1));
-  var ex=cx-Math.sin(camYaw)*camDist,ez=cz-Math.cos(camYaw)*camDist;
-  camX=lerp(camX,ex,clamp(dtC*6,0,1));
-  camY=lerp(camY,cy+camHCur,clamp(dtC*6,0,1));
-  camZ=lerp(camZ,ez,clamp(dtC*6,0,1));
-  camX=clamp(camX,-32,32);camZ=clamp(camZ,-32,32);
-  eye[0]=camX;eye[1]=camY;eye[2]=camZ;
-  // look-ahead: subtle nudge toward Riley's motion — gentle so aiming stays readable
-  laX=lerp(laX,clamp(R.vx*.07,-1.3,1.3),clamp(dtC*2.4,0,1));
-  laZ=lerp(laZ,clamp(R.vz*.07,-1.3,1.3),clamp(dtC*2.4,0,1));
-  ctr[0]=cx+laX;ctr[1]=cy+1.25;ctr[2]=cz+laZ;
-  var sh=game.shake;
-  if(sh>0){
-    var ss=sh*0.42;
-    eye[0]+=(Math.random()*2-1)*ss;eye[1]+=(Math.random()*2-1)*ss;eye[2]+=(Math.random()*2-1)*ss;
-  }
-  m4Look(VM,eye[0],eye[1],eye[2],ctr[0],ctr[1],ctr[2],0,1,0);
-  var spdF=clamp(Math.hypot(R.vx,R.vz)/9,0,1);
-  var fovT=1.06+(R.dashing?.06:0)+spdF*.014;
-  camFov=lerp(camFov,fovT,clamp(dtC*6,0,1));
-  m4Persp(PM,camFov,W/H,0.1,460);
-  m4mul(PVM,PM,VM);
-  // right & up of camera for billboards: rows of VM
-  camR[0]=VM[0];camR[1]=VM[4];camR[2]=VM[8];
-  camUp[0]=VM[1];camUp[1]=VM[5];camUp[2]=VM[9];
-  // ground-plane basis for camera-relative movement (screen right / screen "up"=into scene)
-  camFwdX=Math.sin(camYaw);camFwdZ=Math.cos(camYaw);
-  camRightX=-Math.cos(camYaw);camRightZ=Math.sin(camYaw);
-  frameUniforms(PVM,VM,8,150,theme().fog);
-}
-var titleA=0;
-
-/* ---------------- physics ---------------- */
-function physStep(){
-  R.x+=R.vx*dt;
-  for(var i=0;i<platforms.length;i++){
-    var p=platforms[i];
-    var yo=R.y+RHEIGHT>p.y0&&R.y<p.y1;
-    if(yo&&R.x+RAY>p.x0&&R.x-RAY<p.x1&&R.z+RAY>p.z0&&R.z-RAY<p.z1){
-      if(R.vx>=0)R.x=p.x0-RAY;else R.x=p.x1+RAY;
-      R.vx=0;
-    }
-  }
-  R.z+=R.vz*dt;
-  for(var j=0;j<platforms.length;j++){
-    var q=platforms[j];
-    var yo2=R.y+RHEIGHT>q.y0&&R.y<q.y1;
-    if(yo2&&R.x+RAY>q.x0&&R.x-RAY<q.x1&&R.z+RAY>q.z0&&R.z-RAY<q.z1){
-      if(R.vz>=0)R.z=q.z0-RAY;else R.z=q.z1+RAY;
-      R.vz=0;
-    }
-  }
-  var prevY=R.y;
-  R.y+=R.vy*dt;
-  R.ground=false;
-  for(var k=0;k<platforms.length;k++){
-    var s=platforms[k];
-    if(R.x+RAY>s.x0&&R.x-RAY<s.x1&&R.z+RAY>s.z0&&R.z-RAY<s.z1){
-      if(R.vy<=0&&prevY>=s.y1-.001&&R.y<=s.y1+.001){
-        R.y=s.y1;R.vy=0;R.ground=true;R.air=0;
-      } else if(R.vy>0&&prevY+RHEIGHT<=s.y0+.001&&R.y+RHEIGHT>=s.y0){
-        R.y=s.y0-RHEIGHT;R.vy=0;
-      }
-    }
-  }
-  var d=Math.hypot(R.x,R.z);
-  if(d>ARENA){R.x=R.x/d*ARENA;R.z=R.z/d*ARENA}
-}
-
-/* ---------------- update ---------------- */
-function update(dtU){
-  time+=dtU;
-  var mv=moveVec();
-  var walking=Math.abs(mv[0])>.05||Math.abs(mv[1])>.05;
-  if(game.bannerT>0)game.bannerT-=dtU;
-  R.jumpBuf=Math.max(0,R.jumpBuf-dtU);
-  R.coyote=Math.max(0,R.coyote-dtU);
-  if(R.ground)R.coyote=.1;
-  R.inv=Math.max(0,R.inv-dtU);if(Tgod)R.inv=1e9;R.hitT=Math.max(0,R.hitT-dtU);
-  R.dashCd=Math.max(0,R.dashCd-dtU);
-  R.shootCd=Math.max(0,R.shootCd-dtU);
-  // resolve aim once per step (mouse / aim-stick / soft-lock)
-  var aim=getAimDir(mv);
-  var aimX=aim[0],aimZ=aim[1],aiming=aim[2],autoFire=aim[3];
-  curAimX=lerp(curAimX,aimX,clamp(dtU*18,0,1));
-  curAimZ=lerp(curAimZ,aimZ,clamp(dtU*18,0,1));
-  var al=Math.hypot(curAimX,curAimZ)||1;curAimX/=al;curAimZ/=al;
-  // dash input — dash toward movement, else toward aim
-  if((keys['ShiftLeft']||keys['ShiftRight']||dashHeld)&&R.dashCd<=0&&!R.dashing){
-    sfx('dash');
-    var dd=[0,0];
-    if(walking){dd[0]=mv[0];dd[1]=mv[1]}
-    else {dd[0]=curAimX;dd[1]=curAimZ}
-    var dl=Math.hypot(dd[0],dd[1])||1;dd[0]/=dl;dd[1]/=dl;
-    R.dashDX=dd[0];R.dashDZ=dd[1];R.dashing=true;R.dashT=.2;R.dashCd=.8;
-    burst(R.x,R.y+.7,R.z,[130,210,255],12,5,1.5,.3,.4);
-    R.vy=Math.max(R.vy,0);
-  }
-  if(R.dashing){
-    R.dashT-=dtU;
-    R.vx=R.dashDX*27;R.vz=R.dashDZ*27;R.vy=Math.max(R.vy,0);
-    if(R.dashT<=0){R.dashing=false;R.vx=0;R.vz=0}
-    ringBurst(R.x,R.y+.3,R.z,[150,220,255],2);
-  }
-  // jump — Space (kept off movement keys to avoid confusion)
-  var jumpKey=keys['Space']||jumpHeld;
-  if(jumpKey)R.jumpBuf=.12;
-  if(R.jumpBuf>0&&(R.ground||R.coyote>0)){
-    R.vy=14.6;R.ground=false;R.coyote=0;R.jumpBuf=0;R.air=1;
-    ringBurst(R.x,R.y+.05,R.z,[220,235,255],3);
-    sfx('jump');
-  } else if(R.jumpBuf>0&&R.air===1){
-    R.vy=13;R.air=2;R.jumpBuf=0;
-    ringBurst(R.x,R.y+.1,R.z,[120,220,255],4);
-    sfx('djump');
-  }
-  // move
-  var spd=9;
-  if(!R.dashing){
-    R.vx=mv[0]*spd;R.vz=mv[1]*spd;
-    // face the aim direction while aiming/firing, otherwise face movement
-    var faceAim=aiming||R.charging||R.shootAnim>0;
-    if(faceAim){
-      R.yaw=angLerp(R.yaw,Math.atan2(curAimX,curAimZ),clamp(dtU*16,0,1));
-    } else if(walking){
-      R.yaw=angLerp(R.yaw,Math.atan2(mv[0],mv[1]),clamp(dtU*12,0,1));
-    }
-    if(walking)R.run+=dtU*9; else if(R.ground)R.run*=Math.max(0,1-dtU*6);
-  }
-  R.shootAnim=Math.max(0,R.shootAnim-dtU);
-  R.wantAutoFire=autoFire;
-  // gravity
-  R.vy-=39*dtU;
-  if(R.vy<-40)R.vy=-40;
-  var fallSpd=R.vy;
-  var wasAir=!R.ground;
-  physStep();
-  if(wasAir&&R.ground&&fallSpd<-13){
-    ringBurst(R.x,R.y+.06,R.z,[220,235,255],3);
-    burst(R.x,R.y+.05,R.z,[180,200,230],8,4,.8,.1,.3);
-  }
-  if(R.ground&&walking&&!R.dashing){
-    footT-=dtU;
-    if(footT<=0){
-      footT=.36;
-      fxPush({x:R.x+rnd(-.15,.15),y:R.y+.03,z:R.z+rnd(-.15,.15),vx:0,vy:rnd(.6,1.3),vz:0,life:.5,max:.5,s:rnd(.05,.09),pr:200,pg:210,pb:230,pa:.35,grav:.5});
-    }
-  }
-  // fell off
-  if(R.y<-16){
-    hurt();
-    R.x=0;R.z=0;R.y=0;R.vx=R.vy=R.vz=0;R.dashing=false;
-    burst(0,.5,0,[255,90,120],20,7,3,.4,.7);
-    game.shake=.5;
-    camX=camZ=0;camY=camHCur;
-  }
-  // shooting — hold to charge a big blast, release/tap for quick fire.
-  // Fire = mouse button / F / fire button. Aim-stick auto-fires while held.
-  var shootKey=(mouseFire||fireHeld||keys['KeyF']||(R.wantAutoFire&&aimStickActive));
-  R.mana=Math.min(R.manaMax,R.mana+dtU*3.2); // slow passive regen
-  if(shootKey){
-    R.charge+=dtU;
-    if(R.charge>0.28){
-      R.charging=true;
-      // charge sparkle at wand
-      if(Math.random()<.5){
-        var cx=R.x+curAimX*.7,cz=R.z+curAimZ*.7;
-        fxPush({x:cx+rnd(-.3,.3),y:R.y+1+rnd(-.2,.3),z:cz+rnd(-.3,.3),vx:0,vy:0,vz:0,life:.3,max:.3,s:rnd(.06,.14),pr:255,pg:210,pb:110,pa:.8,grav:0});
-      }
-    }else{
-      // quick tap fire
-      fireShot();
-    }
-  }else{
-    if(R.charging){releaseCharge();}
-    R.charge=0;R.charging=false;
-  }
-  // arcane nova (Q/E or nova button) — spends full magic meter
-  if((keys['KeyQ']||keys['KeyE']||novaHeld)&&R.mana>=R.manaMax){castNova();}
-  if(R.novaFx>0)R.novaFx-=dtU;
-  // anim
-  R.ph+=dtU;
-  // combo timer
-  if(game.combo>0){game.combot-=dtU;if(game.combot<=0){game.combo=0;updateCombo()}}
-  updateEnemies(dtU);
-  updatePickups(dtU);
-  updateFx(dtU);
-  if(game.shake>0)game.shake-=dtU;
-  if(bannerEl&&bannerEl.style.opacity==='1'&&game.bannerT<=0&&state==='play')bannerEl.style.opacity='0';
-  updateHUD();
-}
-var bannerEl=el('banner');
-var reticleEl=el('reticle');
-function updateReticle(){
-  var showRet=state==='play'&&finePointer&&pointerAim&&!isTouch;
-  document.body.classList.toggle('aiming',showRet);
-  if(!showRet){reticleEl.classList.remove('on');return}
-  reticleEl.classList.add('on');
-  reticleEl.style.left=mouseX+'px';reticleEl.style.top=mouseY+'px';
-  // turn red when a valid target sits under/near the aim
-  var g=screenToGround(mouseX,mouseY,R.y+1.0);
-  var lock=false;
-  if(g){for(var i=0;i<enemies.length;i++){var e=enemies[i];if(e.dead)continue;
-    if(Math.hypot(e.x-g[0],e.z-g[1])<e.r+.9){lock=true;break}}}
-  reticleEl.classList.toggle('lock',lock);
-}
-function fireShot(){
-  if(R.shootCd>0)return;
-  R.shootCd=.24;R.shootAnim=.18;
-  // spawn fireball along aim, slightly up
-  var ax=curAimX,az=curAimZ;
-  var sx=R.x+ax*.7,sy=R.y+1.0,sz=R.z+az*.7;
-  shots.push({x:sx,y:sy,z:sz,vx:ax*22,vy:1.5,vz:az*22,life:1.4,r:.14});
-  burst(sx,sy,sz,[255,200,80],6,3,0,.16,.3);
-  sfx('shoot');
-}
-function releaseCharge(){
-  var pw=clamp((R.charge-0.28)/0.72,0,1); // 0..1 over ~0.72s
-  if(pw<0.12){fireShot();return}
-  R.shootCd=.32;R.shootAnim=.3;
-  var tier=pw>=0.85?2:1;
-  var ax=curAimX,az=curAimZ;
-  var sx=R.x+ax*.8,sy=R.y+1.0,sz=R.z+az*.8;
-  var dmg=tier===2?6:3;
-  var rad=tier===2?.42:.3;
-  shots.push({x:sx,y:sy,z:sz,vx:ax*26,vy:1.2,vz:az*26,life:1.8,r:rad,big:true,dmg:dmg,pierce:tier===2?3:1,col:tier===2?[180,120,255]:[255,140,60]});
-  burst(sx,sy,sz,tier===2?[190,130,255]:[255,170,70],tier===2?22:14,7,0,.28,.5);
-  ringBurst(sx,sy,sz,tier===2?[200,150,255]:[255,180,90],4);
-  game.shake=tier===2?.35:.2;doHitStop(tier===2?.05:0);
-  sfx(tier===2?'boss':'smash');
-}
-function castNova(){
-  R.mana=0;R.novaFx=.6;
-  game.shake=.6;doHitStop(.06);
-  // expanding shockwave rings + damage everything on screen scaled by distance
-  for(var ri=0;ri<3;ri++)ringBurst(R.x,R.y+.4,R.z,[150,210,255],6+ri*3);
-  burst(R.x,R.y+.8,R.z,[170,140,255],46,12,1.5,.4,.9);
-  burst(R.x,R.y+.8,R.z,[120,220,255],30,9,1.2,.3,.8);
-  sfx('nova');
-  for(var i=0;i<enemies.length;i++){
-    var e=enemies[i];if(e.dead)continue;
-    var d=Math.hypot(e.x-R.x,e.z-R.z);
-    if(d<12){
-      var dmg=e.k==='boss'?4:8;
-      var dx=(e.x-R.x)/(d||1),dz=(e.z-R.z)/(d||1);
-      e.vx+=dx*16;e.vz+=dz*16;e.vy=Math.max(e.vy,5);
-      damageGob(e,dmg,dx,dz);
-    }
-  }
-}
-function updateFx(dtF){
-  for(var i=fx.length-1;i>=0;i--){
-    var f=fx[i];
-    f.life-=dtF;
-    if(f.life<=0){fx.splice(i,1);continue}
-    f.vy-=f.grav*dtF;
-    f.x+=f.vx*dtF;f.y+=f.vy*dtF;f.z+=f.vz*dtF;
-    if(f.grav>0&&f.y<0&&f.vy<0){f.vy=0;f.grav=0}
-  }
-  if(state!=='play')return; // freeze shots when paused or over
-  // shots
-  for(var j=shots.length-1;j>=0;j--){
-    var s=shots[j];
-    s.life-=dtF;
-    if(s.life<=0){shots.splice(j,1);continue}
-    s.x+=s.vx*dtF;s.y+=s.vy*dtF;s.z+=s.vz*dtF;
-    var tcol=s.col||[255,170,60];
-    fxPush({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,life:.12,max:.12,s:s.r*4,pr:tcol[0],pg:tcol[1],pb:tcol[2],pa:.55,grav:0});
-    // vs platforms / enemies
-    var consumed=false;
-    for(var k=0;k<platforms.length;k++){
-      var p=platforms[k];
-      if(s.x>p.x0&&s.x<p.x1&&s.y>p.y0&&s.y<p.y1&&s.z>p.z0&&s.z<p.z1){
-        burst(s.x,s.y,s.z,tcol,8,3,1,.16,.3);
-        consumed=true;break;
-      }
-    }
-    if(!consumed){
-      if(s.hitSet===undefined)s.hitSet=[];
-      for(var m2=0;m2<enemies.length;m2++){
-        var en=enemies[m2];
-        if(en.dead||s.hitSet.indexOf(en)>=0)continue;
-        var hr=en.r+.32+(s.big?.2:0);
-        if(s.x>en.x-hr&&s.x<en.x+hr&&s.z>en.z-hr&&s.z<en.z+hr&&s.y>en.y&&s.y<en.y+en.h+.2){
-          damageGob(en,s.dmg||1,s.vx,s.vz);
-          if(R)R.mana=Math.min(R.manaMax,R.mana+(s.big?7:4));
-          if(s.pierce&&s.pierce>1){s.hitSet.push(en);s.pierce--;}
-          else{consumed=true;break;}
-        }
-      }
-    }
-    if(consumed){shots.splice(j,1);continue}
-  }
-}
-var shots=[];
-var pickups=[];
-function spawnPickup(kind,x,y,z){
-  // kind: 'gem' (magic+score) or 'heart' (life)
-  pickups.push({k:kind,x:x,y:y+.4,z:z,vy:rnd(3,5),ph:rnd(0,TAU),life:14,got:false,mag:0});
-}
-function updatePickups(dtP){
-  for(var i=pickups.length-1;i>=0;i--){
-    var p=pickups[i];
-    p.life-=dtP;
-    if(p.life<=0){pickups.splice(i,1);continue}
-    // gentle gravity + bob settle
-    p.vy-=18*dtP;
-    p.y+=p.vy*dtP;
-    var gy=findGroundY(p.x,p.y+2,p.z);
-    if(gy>-90&&p.y<gy+.4){p.y=gy+.4;p.vy=0;}
-    if(p.y<-16){pickups.splice(i,1);continue}
-    p.ph+=dtP*3;
-    // magnet toward Riley when close
-    var dx=R.x-p.x,dz=R.z-p.z,d=Math.hypot(dx,dz);
-    if(d<3.4){p.mag=Math.min(1,p.mag+dtP*3);var pull=p.mag*14;p.x+=dx/(d||1)*pull*dtP;p.z+=dz/(d||1)*pull*dtP;}
-    if(d<.9&&Math.abs((p.y)-(R.y+.9))<1.6){collectPickup(p);pickups.splice(i,1);}
-  }
-}
-function collectPickup(p){
-  if(p.k==='heart'){
-    if(R){} // heart heals
-    if(game.lives<game.maxLives){game.lives++;sfx('heal');popText(p.x,p.y+.6,p.z,'♥ +1',true,'#ff8a9a');updateHUD();}
-    else {game.score+=50;popText(p.x,p.y+.6,p.z,'+50',false,'#ff8a9a');}
-    burst(p.x,p.y,p.z,[255,120,150],14,5,1,.2,.5);
-  }else{
-    R.mana=Math.min(R.manaMax,R.mana+18);
-    game.score+=15;
-    popText(p.x,p.y+.6,p.z,'+15',false,'#a9d8ff');
-    burst(p.x,p.y,p.z,[120,190,255],12,5,1,.16,.45);
-    ringBurst(p.x,p.y,p.z,[160,220,255],3);
-    sfx('coin');
-  }
-}
-function drawPickups(){
-  for(var i=0;i<pickups.length;i++){
-    var p=pickups[i];
-    var y=p.y+Math.sin(p.ph)*.12;
-    var col=p.k==='heart'?[255,90,120]:[110,190,255];
-    var glow=p.k==='heart'?[255,120,150]:[150,220,255];
-    groundShadow(p.x,p.y,p.z,.28,.5);
-    limb(MM,p.x,y,p.z,p.ph*1.4,0,0,0,.5,.5,0,0,0,.32,.32,.32);
-    drawSolid(p.k==='heart'?GEO.sphereL:GEO.cone,MM,col,1,glow);
-    // sparkle trail
-    if(Math.random()<.3)fxPush({x:p.x+rnd(-.15,.15),y:y+rnd(0,.2),z:p.z+rnd(-.15,.15),vx:0,vy:rnd(.3,.8),vz:0,life:.5,max:.5,s:.08,pr:glow[0],pg:glow[1],pb:glow[2],pa:.7,grav:0});
-  }
-}
-function updateHUD(){
-  var h='';
-  for(var i=0;i<game.maxLives;i++)h+=i<game.lives?'♥':'🖤';
-  el('hudHearts').textContent=h;
-  shownScore+=(game.score-shownScore)*Math.min(1,dt*9);
-  if(Math.abs(game.score-shownScore)<1)shownScore=game.score;
-  el('hudScore').firstChild.nodeValue=Math.round(shownScore);
-  el('hudWave').textContent='WAVE '+game.wave;
-  var bb=el('bossBar'),be=null;
-  for(var j=0;j<enemies.length;j++){
-    var e=enemies[j];
-    if(e.k==='boss'&&!e.dead){be=e;break}
-  }
-  if(be){
-    bb.style.display='block';
-    bb.querySelector('i').style.width=Math.max(0,be.hp/be.hpMax*100)+'%';
-  }else bb.style.display='none';
-  el('hurtVig').classList.toggle('low',game.lives===1&&state==='play');
-  var mb=el('manaBar');
-  if(mb&&R){
-    var pct=R.mana/R.manaMax*100;
-    mb.querySelector('i').style.width=pct+'%';
-    mb.classList.toggle('full',R.mana>=R.manaMax);
-    mb.querySelector('span').textContent=R.mana>=R.manaMax?'NOVA READY':'MAGIC';
-  }
-}
-function updateCombo(){
-  var c=el('comboCtr'),f=el('comboFill');
-  if(game.combo>1){
-    c.style.opacity=1;c.firstChild.nodeValue='×'+game.combo;
-    f.style.opacity=1;
-    f.style.width=Math.max(4,game.combot/4*90)+'px';
-  }else{
-    c.style.opacity=0;f.style.opacity=0;
-  }
-}
-function hurt(){
-  game.lives--;game.combo=0;game.comboBest=Math.max(game.comboBest,game.combo);
-  updateCombo();
-  R.inv=1.4;R.hitT=.4;game.shake=.5;doHitStop(.08);
-  sfx('hurt');
-  var hv=el('hurtVig');
-  hv.classList.add('on');
-  setTimeout(function(){hv.classList.remove('on')},70);
-  updateHUD();
-  if(game.lives<=0)endGame();
-}
-
-/* ---------------- game flow ---------------- */
-function resetRiley(){
-  R=newRiley();R.x=0;R.z=0;R.y=0;R.ground=true;
-}
-function startGame(){
-  hide('ovTitle');hide('ovOver');hide('ovPause');
-  game.score=0;game.wave=1;game.lives=game.maxLives=5;game.kills=0;shownScore=0;
-  game.combo=0;game.comboBest=0;game.starT=0;game.boss=false;game.shake=0;
-  game.waveState='idle';game.clearT=0;game.spawnQueue=[];
-  shots.length=0;fx.length=0;enemies.length=0;eShots.length=0;pickups.length=0;
-  hide('ovTitle');hide('ovOver');hide('ovPause');
-  el('bossBar').style.display='none';
-  genWorld();
-  resetRiley();
-  camYaw=Math.PI;camYawTarget=Math.PI;
-  camX=R.x-Math.sin(camYaw)*camDist;camZ=R.z-Math.cos(camYaw)*camDist;camY=R.y+camH;
-  state='play';
-  audioInit();
-  startWave(1);
-}
-function showBanner(wv,nm){
-  bannerEl.querySelector('.wv').textContent=wv;
-  bannerEl.querySelector('.nm').textContent=nm;
-  bannerEl.style.opacity=1;
-  bannerEl.querySelector('.wv').style.transform='scale(.5)';
-  requestAnimationFrame(function(){bannerEl.querySelector('.wv').style.transform='scale(1)'});
-  game.bannerT=1.6;
-}
-function endGame(){
-  state='over';
-  if(game.score>best){
-    best=game.score;
-    try{localStorage.setItem('riley3d.best',best)}catch(e){}
-  }
-  el('bestLine2').textContent=best>0?'🏆 NEW BEST! '+best:'';
-  el('stScore').textContent=game.score;
-  el('stWave').textContent=game.wave;
-  el('stKills').textContent=game.kills;
-  el('stCombo').textContent='×'+Math.max(1,game.comboBest);
-  el('bossBar').style.display='none';
-  show('ovOver');
-  if(reticleEl){reticleEl.classList.remove('on');document.body.classList.remove('aiming')}
-  if(bannerEl.style.opacity==='1')bannerEl.style.opacity='0';
-}
-function toTitle(){
-  state='title';
-  show('ovTitle');hide('ovOver');hide('ovPause');
-  fx.length=0;
-  titleScene();
-}
-
-/* ---------------- goblins & waves ---------------- */
-var enemies=[],eShots=[];
-var EN_K={
-  grunt:{hp:1,spd:4.6,sc:10,r:.42,h:1.0,s:.8},
-  spitter:{hp:2,spd:3.1,sc:25,r:.44,h:1.05,s:.85,range:15},
-  brute:{hp:4,spd:2.8,sc:50,r:.55,h:1.35,s:1.2},
-  boss:{hp:40,spd:3.2,sc:500,r:.72,h:1.8,s:1.65}
-};
-function gobCol(k){
-  if(k==='grunt')return{skin:[96,180,72],skinD:[70,140,54],belly:[150,216,118],eye:[255,235,110],ear:[114,202,88],cloth:[78,64,46],accent:[255,255,255]};
-  if(k==='spitter')return{skin:[124,92,200],skinD:[90,66,156],belly:[176,146,230],eye:[140,255,120],ear:[132,100,210],cloth:[56,40,92],accent:[150,255,190]};
-  if(k==='brute')return{skin:[196,110,58],skinD:[150,82,44],belly:[236,172,110],eye:[255,232,70],ear:[208,122,64],cloth:[72,46,32],accent:[255,120,60]};
-  return{skin:[128,178,68],skinD:[92,136,54],belly:[176,220,116],eye:[255,74,58],ear:[142,192,80],cloth:[52,70,110],accent:[255,214,94]};
-}
-function newGob(k,x,y,z){
-  var t=EN_K[k];
-  return{x:x,y:y,z:z,vx:0,vy:0,vz:0,k:k,hp:t.hp,hpMax:t.hp,r:t.r,h:t.h,
-    s:t.s*(k==='boss'?1:rnd(.88,1.14)),sc:t.sc,shade:k==='boss'?1:rnd(.88,1.16),
-    yaw:Math.atan2(R.x-x,R.z-z),run:0,ph:rnd(0,9),hitT:0,dead:false,tele:0,
-    lungeT:0,lungeCd:rnd(1,2.5),roarT:3,spitCd:rnd(.6,2.4),enrage:false,rise:.5,
-    spd:t.spd*(.85+Math.random()*.3)};
-}
-function enemyGround(e){
-  for(var i=0;i<platforms.length;i++){
-    var p=platforms[i];
-    if(e.x+e.r>p.x0&&e.x-e.r<p.x1&&e.z+e.r>p.z0&&e.z-e.r<p.z1){
-      if(e.y+e.h>p.y0&&e.y<p.y1+0.02)return p;
-      if(Math.abs(e.y-p.y1)<0.06)return p;
-    }
-  }
-  return null;
-}
-function entStep(e){
-  var r=e.r,h=e.h,pl=platforms;
-  e.x+=e.vx*dt;
-  for(var i=0;i<pl.length;i++){var p=pl[i];
-    if(e.y+h>p.y0&&e.y<p.y1&&e.x+r>p.x0&&e.x-r<p.x1&&e.z+r>p.z0&&e.z-r<p.z1){
-      if(e.vx>=0)e.x=p.x0-r;else e.x=p.x1+r;e.vx=0;}}
-  e.z+=e.vz*dt;
-  for(var j=0;j<pl.length;j++){var q=pl[j];
-    if(e.y+h>q.y0&&e.y<q.y1&&e.x+r>q.x0&&e.x-r<q.x1&&e.z+r>q.z0&&e.z-r<q.z1){
-      if(e.vz>=0)e.z=q.z0-r;else e.z=q.z1+r;e.vz=0;}}
-  var prevY=e.y;
-  e.y+=e.vy*dt;
-  for(var k=0;k<pl.length;k++){var s=pl[k];
-    if(e.x+r>s.x0&&e.x-r<s.x1&&e.z+r>s.z0&&e.z-r<s.z1){
-      if(e.vy<=0&&prevY>=s.y1-.001&&e.y<=s.y1+.001){e.y=s.y1;e.vy=0;}
-      else if(e.vy>0&&prevY+h<=s.y0+.001&&e.y+h>=s.y0){e.y=s.y0-h;e.vy=0;}}}
-  var dd=Math.hypot(e.x,e.z);
-  if(dd>ARENA+1.5){e.x=e.x/dd*(ARENA+1.5);e.z=e.z/dd*(ARENA+1.5)}
-  e.run+=Math.hypot(e.vx,e.vz)*dt*2.8;
-}
-function waveCompose(){
-  var q=[],w=game.wave,i;
-  if(w%5===0){
-    var extra=Math.min(2+Math.floor(w/5),8);
-    for(i=0;i<extra;i++)q.push('grunt');
-    return {boss:true,q:q};
-  }
-  var ng=Math.min(3+Math.floor(w*1.25),14);
-  var ns=w>=2?Math.min(Math.floor((w-1)/2),5):0;
-  var nb=w>=3?Math.min(Math.floor((w-2)/3),3):0;
-  for(i=0;i<ng;i++)q.push('grunt');
-  for(i=0;i<ns;i++)q.push('spitter');
-  for(i=0;i<nb;i++)q.push('brute');
-  // shuffle
-  for(i=q.length-1;i>0;i--){var j2=irnd(0,i),t=q[i];q[i]=q[j2];q[j2]=t}
-  return {boss:false,q:q};
-}
-function pickSpawnPt(){
-  for(var t=0;t<60;t++){
-    var p=platforms[irnd(0,platforms.length-1)];
-    if(p.x1-p.x0<3||p.y1<-.5)continue;
-    var x=rnd(p.x0+1.5,p.x1-1.5),z=rnd(p.z0+1.5,p.z1-1.5),y=p.y1;
-    if(p.y1>0.2&&Math.hypot(x,z)>8.5)continue;
-    if(Math.hypot(x-R.x,z-R.z)<5.5)continue;
-    var ok=true;
-    for(var i=0;i<enemies.length;i++){var e=enemies[i];
-      if(Math.hypot(x-e.x,z-e.z)<1.7){ok=false;break}}
-    if(ok)return{x:x,y:y,z:z};
-  }
-  var a=rnd(0,TAU),rr=rnd(2,8);
-  return{x:Math.cos(a)*rr,y:0,z:Math.sin(a)*rr};
-}
-function placeGoblin(k,px,pz){
-  var pt=null;
-  if(px===undefined){
-    if(k==='boss'){
-      var a2=rnd(0,TAU),rr2=rnd(6,9);
-      pt={x:Math.cos(a2)*rr2,y:0,z:Math.sin(a2)*rr2};
-    }else pt=pickSpawnPt();
-  }else pt={x:px,y:0,z:pz};
-  if(k==='boss'&&pt.y<0.4)pt.y=0;
-  else if(pt.y===undefined||Math.abs(pt.y)<0.001)pt.y=0;
-  var g=newGob(k,pt.x,pt.y,pt.z);
-  if(k==='boss'){g.hp=g.hpMax=30+Math.max(0,game.wave-5)*5;g.enrage=false;}
-  if(pt.y>-2){
-    burst(g.x,g.y+.1,g.z,gobCol(k).skin,10,4,.6,.18,.35);
-  }
-  ringBurst(g.x,g.y+.15,g.z,[220,220,255],2.4);
-  sfx(k==='boss'?'boss':k==='brute'?'roar':'pop');
-  if(k==='boss'){game.shake=.7}
-  enemies.push(g);
-  if(k==='boss')game.boss=true;
-  return g;
-}
-function startWave(n){
-  if(state!=='play'){game.waveState='idle';return}
-  game.wave=n;game.boss=false;
-  var th=theme();
-  genWorld();
-  enemies=[];eShots=[];
-  var gy=findGroundY(R.x,R.y+12,R.z);
-  if(gy<-90||gy<R.y-5){R.x=0;R.z=0;R.y=0;R.vx=R.vy=R.vz=0}
-  else R.y=gy;
-  R.dashing=false;R.inv=Math.max(R.inv,.3);
-  var comp=waveCompose();
-  if(comp.boss){
-    var b=placeGoblin('boss');
-    showBanner('⚠ GOBLIN KING','WAVE '+n+' — DEFEAT THE KING');
-  }else{
-    showBanner('WAVE '+n,th.n);
-  }
-  sfx('wave');
-  game.spawnQueue=comp.q;game.spawnT=.5;game.waveState='combat';game.clearT=0;
-  updateHUD();
-}
-function waveClear(){
-  game.waveState='clear';game.clearT=2.6;game.boss=false;
-  var bonus=100*game.wave;
-  game.score+=bonus;
-  sfx('clear');
-  popText(R.x,R.y+1.8,R.z,'WAVE CLEAR  +'+bonus,true,'#9fe8ff');
-  if(game.lives<game.maxLives){game.lives++;sfx('heal');updateHUD()}
-}
-function nextWave(){
-  if(state!=='play'){game.waveState='idle';return}
-  startWave(game.wave+1);
-}
-function damageGob(e,d,sx2,sz2){
-  if(e.dead)return false;
-  e.hp-=d;e.hitT=.13;
-  var dx=0,dz=0;
-  if(sx2!==undefined){var l=Math.hypot(sx2,sz2)||1;dx=sx2/l;dz=sz2/l}
-  e.vx+=dx*10;e.vz+=dz*10;e.vy=Math.max(e.vy,1.5);
-  sfx('hit');
-  if(e.k==='boss'){burst(e.x,e.y+e.h*.6,e.z,gobCol('boss').accent,10,4,1,.22,.4)}
-  if(e.hp<=0)killGob(e,false);
-  return true;
-}
-function killGob(e,smash){
-  if(e.dead)return;e.dead=true;
-  var c=gobCol(e.k);
-  game.combo=Math.min(99,game.combo+1);game.combot=4;
-  game.comboBest=Math.max(game.comboBest,game.combo);
-  var pts=e.sc*Math.max(1,game.combo-0);game.score+=pts;
-  game.kills++;
-  if(game.combo>1&&(game.combo%5===0||game.combo===3)){
-    popText(e.x,e.y+e.h+1,e.z,'COMBO ×'+game.combo,true,'#ffd75e');
-    sfx('coin');
-  }
-  if(game.combo%20===0&&game.lives<game.maxLives){
-    game.lives++;
-    popText(e.x,e.y+e.h+1.7,e.z,'♥ +1 LIFE',true,'#ff8a9a');
-    sfx('heal');
-    updateHUD();
-  }
-  popText(e.x,e.y+e.h+.7,e.z,'+'+pts,false,smash?'#9fe8ff':'#ffe9a8');
-  if(smash){
-    burst(e.x,e.y+e.h*.5,e.z,[160,230,255],18,9,2.6,.3,.6);
-    ringBurst(e.x,e.y+.2,e.z,[200,240,255],4);
-    game.shake=.22;doHitStop(.05);
-    sfx('smash');
-    for(var w2=0;w2<8;w2++)fxPush({x:e.x+rnd(-.2,.2),y:e.y+e.h*rnd(.2,1),z:e.z+rnd(-.2,.2),vx:rnd(-1.2,1.2),vy:rnd(2,4.5),vz:rnd(-1.2,1.2),life:.8,max:.8,s:rnd(.1,.18),pr:190,pg:240,pb:255,pa:.8,grav:-1.2});
-  }else{
-    burst(e.x,e.y+e.h*.5,e.z,c.skin,16,6,2,.34,.55);
-    burst(e.x,e.y+e.h*.4,e.z,[255,220,90],10,5,1.5,.16,.4);
-    game.shake=.15;
-    sfx('kill');
-    for(var w=0;w<6;w++)fxPush({x:e.x+rnd(-.18,.18),y:e.y+e.h*rnd(.2,.9),z:e.z+rnd(-.18,.18),vx:rnd(-1,1),vy:rnd(1.4,3.4),vz:rnd(-1,1),life:.7,max:.7,s:rnd(.09,.16),pr:c.skin[0],pg:c.skin[1],pb:c.skin[2],pa:.75,grav:-.9});
-  }
-  // drops: gems fuel the magic meter, hearts occasionally restore life
-  if(e.k==='boss'){
-    for(var gi=0;gi<6;gi++)spawnPickup('gem',e.x+rnd(-1.2,1.2),e.y+e.h*.5,e.z+rnd(-1.2,1.2));
-    spawnPickup('heart',e.x,e.y+e.h*.5,e.z);
-    spawnPickup('heart',e.x+rnd(-1,1),e.y+e.h*.5,e.z+rnd(-1,1));
-  }else{
-    if(Math.random()<(e.k==='brute'?.85:e.k==='spitter'?.6:.42))
-      spawnPickup('gem',e.x,e.y+e.h*.5,e.z);
-    if(game.lives<game.maxLives&&Math.random()<.06)
-      spawnPickup('heart',e.x,e.y+e.h*.5,e.z);
-  }
-  var isBoss=e.k==='boss';
-  if(isBoss){
-    game.shake=1;game.boss=false;doHitStop(.22);
-    burst(e.x,e.y+e.h*.6,e.z,[255,120,50],40,11,3,.5,1);
-    ringBurst(e.x,e.y+.2,e.z,[255,214,94],6);
-    popText(e.x,e.y+e.h+1.4,e.z,'GOBLIN KING DOWN!',true,'#ffd75e');
-    sfx('clear');
-  }
-  updateHUD();updateCombo();
-}
-function hitRiley(e){
-  if(R.inv>0||state!=='play'||e.dead)return;
-  var dx=R.x-e.x,dz=R.z-e.z,d=Math.hypot(dx,dz)||1;
-  R.vx=dx/d*13;R.vz=dz/d*13;R.vy=8;R.dashing=false;R.dashT=0;
-  if(e.k==='boss'){game.shake=.8;R.vx*=1.5;R.vz*=1.5}
-  else game.shake=.4;
-  sfx('hurt');
-  hurt();
-  e.vx-=dx/d*7;e.vz-=dz/d*7;
-}
-function updateGobBrain(e){
-  var dx=R.x-e.x,dz=R.z-e.z,d=Math.hypot(dx,dz)||0.001;
-  var ground=enemyGround(e);
-  var sameGround=ground&&Math.abs(e.y-R.y)<1.1;
-  var wantY=Math.atan2(dx,dz);
-  if(d>0.5)e.yaw=angLerp(e.yaw,wantY,clamp(dt*7,0,1));
-  if(e.tele>0){e.tele-=dt;e.lungeT-=dt;e.vx*=Math.max(0,1-dt*3);e.vz*=Math.max(0,1-dt*3);return}
-  var mvx=0,mvz=0;
-  var meleeR=e.k==='brute'?2.3:(e.k==='boss'?2.8:1.7);
-  var wantChase=false;
-  if(e.k==='spitter'){
-    var rg=enemyGround({x:R.x,y:R.y,z:R.z,r:.2,h:.2});
-    var sameTarg=rg&&Math.abs(rg.y1-R.y)<.7;
-    wantChase=(sameGround&&d>9)||(d>9&&R.y-e.y>-.3&&R.y-e.y<2.5&&sameTarg===false&&d>8&&!sameGround);
-    if(!sameGround&&d<EN_K.spitter.range&&d>2){
-      e.spitCd-=dt;
-      if(e.spitCd<=0){
-        e.spitCd=2.1;e.yaw=wantY;
-        var ld=Math.max(d,2);
-        eShots.push({x:e.x+dx/d*.5,y:e.y+e.h*.85,z:e.z+dz/d*.5,vx:dx/d*8.5,vy:(R.y+.8-e.y-e.h*.85)/ld*8.5+.8,vz:dz/d*8.5,life:2.6,r:.2,col:[170,90,255],from:e});
-        sfx('spit');
-        burst(e.x+dx/d*.5,e.y+e.h*.85,e.z+dz/d*.5,[170,90,255],4,2,0,.1,.25);
-      }
-    }
-  }else if(e.k==='brute'||e.k==='boss'){
-    var enraged=e.k==='boss'&&e.enrage;
-    wantChase=sameGround&&d>meleeR;
-    if(!sameGround&&d>meleeR)wantChase=false;
-    e.lungeCd-=dt;
-    if(sameGround&&d<5.5&&e.lungeCd<=0&&d>meleeR*.7){
-      e.lungeCd=enraged?1.6:2.6;
-      e.tele=.42;e.vx=dx/d*(enraged?24:18);e.vz=dz/d*(enraged?24:18);
-      sfx(e.k==='boss'?'roar':'low');
-      if(e.k==='boss'&&game.shake<.5)game.shake=.35;
-      return;
-    }
-    if(e.k==='boss'){
-      e.roarT-=dt;
-      if(e.roarT<=0&&e.hp<e.hpMax*.75){
-        e.roarT=7;
-        var nm=Math.min(1+Math.floor(game.wave/5),3);
-        for(var m=0;m<nm;m++){
-          var a=rnd(0,TAU),rr=rnd(3,4.5);
-          var g=newGob('grunt',e.x+Math.cos(a)*rr,0,e.z+Math.sin(a)*rr);
-          enemies.push(g);
-          ringBurst(g.x,g.y+.1,g.z,[180,240,255],2);
-        }
-        popText(e.x,e.y+e.h+1.4,e.z,'COME, MINIONS!',true,'#9fe8ff');
-        sfx('roar');game.shake=.4;
-      }
-    }
-  }else{
-    wantChase=sameGround&&d>meleeR;
-  }
-  if(wantChase){
-    var spd=e.spd*(e.k==='boss'&&e.enrage?1.45:1);
-    mvx=dx/d*spd;mvz=dz/d*spd;
-  }else{
-    e.run*=Math.max(0,1-dt*5);
-  }
-  e.vx+=(mvx-e.vx)*Math.min(1,dt*7);
-  e.vz+=(mvz-e.vz)*Math.min(1,dt*7);
-}
-function updateEnemies(dtU){
-  if(game.waveState==='combat'){
-    if(game.spawnQueue.length){
-      game.spawnT-=dtU;
-      if(game.spawnT<=0){game.spawnT=.8;placeGoblin(game.spawnQueue.shift());}
-    }else if(!enemies.length&&game.waveState==='combat'){
-      waveClear();
-    }
-  }else if(game.waveState==='clear'){
-    game.clearT-=dtU;
-    if(game.clearT<=0)nextWave();
-  }
-  for(var i=enemies.length-1;i>=0;i--){
-    var e=enemies[i];
-    if(e.dead)continue;
-    e.hitT=Math.max(0,e.hitT-dtU);
-    if(e.k==='boss'&&!e.enrage&&e.hp<=e.hpMax*.5){e.enrage=true;sfx('boss');popText(e.x,e.y+e.h+1.2,e.z,'ENRAGED!',true,'#ff5e5e')}
-    updateGobBrain(e);
-    e.vy-=26*dtU;
-    if(e.vy<-32)e.vy=-32;
-    entStep(e);
-    // contact with Riley
-    var rr=e.r+.55;
-    if(Math.abs(e.x-R.x)<rr&&Math.abs(e.z-R.z)<rr&&R.y+RHEIGHT>e.y+.1&&R.y<e.y+e.h-.1)hitRiley(e);
-    if(e.y<-18){e.dead=true;if(e.k==='boss')game.boss=false}
-  }
-  // soft separation
-  for(var a=0;a<enemies.length;a++){
-    var e1=enemies[a];if(e1.dead)continue;
-    for(var b=a+1;b<enemies.length;b++){
-      var e2=enemies[b];if(e2.dead)continue;
-      var ddx=e2.x-e1.x,ddz=e2.z-e1.z,dd=Math.hypot(ddx,ddz),minD=e1.r+e2.r;
-      if(dd<minD&&dd>0.0001){
-        var push=(minD-dd)/2;
-        e1.x-=ddx/dd*push*.6;e1.z-=ddz/dd*push*.6;
-        e2.x+=ddx/dd*push*.6;e2.z+=ddz/dd*push*.6;
-      }
-    }
-  }
-  // dash smash
-  if(R.dashing&&enemies.length){
-    for(var q=0;q<enemies.length;q++){
-      var en=enemies[q];if(en.dead)continue;
-      var qr=en.r+.7;
-      if(Math.abs(en.x-R.x)<qr&&Math.abs(en.z-R.z)<qr&&R.y+RHEIGHT>en.y&&R.y<en.y+en.h){
-        if(en.k==='grunt'||en.k==='spitter')killGob(en,true);
-        else{
-          damageGob(en,1,0,0);
-          R.dashing=false;R.dashT=0;game.shake=.3;
-        }
-      }
-    }
-  }
-  enemies=enemies.filter(function(e){return !e.dead});
-  // enemy projectiles
-  for(var j=eShots.length-1;j>=0;j--){
-    var s=eShots[j];
-    s.life-=dtU;
-    if(s.life<=0){eShots.splice(j,1);continue}
-    s.vy-=4*dtU;
-    s.x+=s.vx*dtU;s.y+=s.vy*dtU;s.z+=s.vz*dtU;
-    fxPush({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,life:.14,max:.14,s:s.r*3.4,pr:s.col[0],pg:s.col[1],pb:s.col[2],pa:.6,grav:0});
-    var gone=false;
-    for(var k=0;k<platforms.length;k++){
-      var p=platforms[k];
-      if(s.x>p.x0&&s.x<p.x1&&s.y>p.y0&&s.y<p.y1&&s.z>p.z0&&s.z<p.z1){
-        burst(s.x,s.y,s.z,[s.col[0],s.col[1],s.col[2]],8,3,1,.14,.3);
-        eShots.splice(j,1);gone=true;break;
-      }
-    }
-    if(gone)continue;
-    if(Math.abs(s.x-R.x)<.75&&Math.abs(s.z-R.z)<.75&&Math.abs(s.y-(R.y+.8))<1.35&&R.inv<=0&&state==='play'){
-      eShots.splice(j,1);
-      burst(s.x,s.y,s.z,[170,90,255],12,5,1,.2,.4);
-      hitRiley({x:s.x-s.vx*.08,y:s.y,z:s.z-s.vz*.08,k:'spitter',dead:false});
-    }
-  }
-}
-function shArr(a,f){return[Math.min(255,a[0]*f)|0,Math.min(255,a[1]*f)|0,Math.min(255,a[2]*f)|0]}
-function drawGoblin(e){
-  var flash=e.hitT>0&&(Math.floor(time*26)%2===0);
-  var c=gobCol(e.k);
-  if(e.shade&&e.shade!==1){
-    c.skin=shArr(c.skin,e.shade);c.skinD=shArr(c.skinD,e.shade);c.belly=shArr(c.belly,e.shade);
-    c.eye=shArr(c.eye,e.shade);c.ear=shArr(c.ear,e.shade);c.cloth=shArr(c.cloth,e.shade);
-  }
-  if(e.k==='boss'&&e.enrage&&Math.floor(time*12)%2===0)c.eye=[255,60,50];
-  groundShadow(e.x,e.y,e.z,e.r+0.15,.8);
-  if(flash)return;
-  var s=e.s,yaw=e.yaw;
-  var bx=e.x,by=e.y,bz=e.z;
-  var moving=Math.hypot(e.vx,e.vz)>1;
-  var swing=Math.sin(e.run);
-  var bob2=moving?Math.abs(Math.cos(e.run))*.04*Math.min(1,e.r*2):0;
-  var legA=moving?swing*.8:0;
-  var h=e.h;
-  limb(MM,bx,by+h*.42,bz,yaw,0,0,0,0,0,0,0,.1,h*.16,.2,.14);
-  drawSolid(GEO.cube,MM,c.belly,1,null);
-  // legs
-  for(var s2=-1;s2<=1;s2+=2){
-    limb(MM,bx+s2*e.r*.5,by+h*.42,bz,yaw,0,0,0,legA*s2*.6+(e.k==='brute'?-0.2:0),0,0,-h*.36,0,.1,h*.38,.1);
-    drawSolid(GEO.cube,MM,c.skinD,1,null);
-  }
-  // arms
-  var armSw=moving?swing*.5:Math.sin(time*2+e.ph)*.08;
-  limb(MM,bx-s*e.r*1.15,by+h*.66,bz,yaw,0,0,0,armSw+.4,0,-s*.3,-h*.1,0,.08,.3,.08);
-  drawSolid(GEO.cube,MM,c.skin,1,null);
-  limb(MM,bx+s*e.r*1.15,by+h*.66,bz,yaw,0,0,0,-armSw+.4,0,s*.3,-h*.1,0,.08,.3,.08);
-  drawSolid(GEO.cube,MM,c.skin,1,null);
-  // club for brute (left arm already drawn at +x side; attach club near right hand)
-  if(e.k==='brute'){
-    var cw=Math.sin(time*3+e.ph)*.3;
-    limb(MM,bx-s*e.r*1.15,by+h*.7,bz,yaw,0,0,0,cw-.5,0,-s*.4,-h*.12,.06,.7,.06);
-    drawSolid(GEO.cube,MM,[96,70,44],1,null);
-    limb(MM,bx-s*e.r*1.15,by+h*.14,bz,yaw,0,0,0,cw-.5,0,-s*.3,-h*.05,.09,.22,.09);
-    drawSolid(GEO.cube,MM,[60,44,30],1,null);
-  }
-  // head
-  limb(MM,bx,by+h*.88+bob2,bz,yaw,0,0,0,0,0,0,0,.1,e.k==='boss'?.22:.2,.1);
-  drawSolid(GEO.sphereL,MM,c.skin,1,null);
-  // ears
-  limb(MM,bx-.17,by+h*.93+bob2,bz,yaw,0,0,0,0,0,-.14,.0,0,.1,.26,.1);
-  drawSolid(GEO.cone,MM,c.ear,1,null);
-  limb(MM,bx+.17,by+h*.93+bob2,bz,yaw,0,0,0,0,0,.14,0,0,.1,.26,.1);
-  drawSolid(GEO.cone,MM,c.ear,1,null);
-  // brow ridge
-  limb(MM,bx,by+h*.98+bob2,bz+.06,yaw,-.2,0,0,0,0,0,0,.1,.1,.09);
-  drawSolid(GEO.cube,MM,c.skinD,1,null);
-  // eyes
-  limb(MM,bx-.07,by+h*.94+bob2,bz+.1,yaw,0,0,0,0,0,0,0,.01,.05,.05,.01);
-  drawSolid(GEO.cube,MM,[0,0,0],1,c.eye);
-  limb(MM,bx+.07,by+h*.94+bob2,bz+.1,yaw,0,0,0,0,0,0,0,.01,.05,.05,.01);
-  drawSolid(GEO.cube,MM,[0,0,0],1,c.eye);
-  // teeth
-  limb(MM,bx,by+h*.8+bob2,bz+.1,yaw,-.15,0,0,0,0,0,0,.1,.06,.04);
-  drawSolid(GEO.cube,MM,[255,250,235],1,null);
-  // spitter staff
-  if(e.k==='spitter'){
-    limb(MM,bx+e.r*.8,by+h*.75,bz,yaw,0,0,0,-1.1,0,0,.55,0,.045,.9,.045);
-    drawSolid(GEO.cube,MM,c.cloth,1,null);
-    limb(MM,bx+e.r*.8,by+h*1.5,bz,yaw,0,0,0,-1.1,0,0,.6,0,.1,.1,.1);
-    drawSolid(GEO.sphereL,MM,[0,0,0],1,[190,120,255]);
-  }
-  // boss: crown + cape + golden trim
-  if(e.k==='boss'){
-    limb(MM,bx,by+h*.99+bob2,bz-.12,yaw,0,0,0,.1,0,0,-.14,0,.12,.42,.12);
-    drawSolid(GEO.cube,MM,c.cloth,1,null);
-    limb(MM,bx,by+h*.99+bob2,bz,yaw,0,0,0,.06,0,0,0,.06,.14,.14,.14);
-    drawSolid(GEO.cone,MM,[255,214,94],1,null);
-    limb(MM,bx,by+h*1.06+bob2,bz,yaw,0,0,0,.06,0,0,0,.06,.03,.05,.03);
-    drawSolid(GEO.cube,MM,[255,60,50],1,[255,90,80]);
-  }
-}
-function renderEnemies(){
-  for(var i=0;i<enemies.length;i++){
-    var e=enemies[i];
-    if(!e.dead)drawGoblin(e);
-  }
-  for(var j=0;j<eShots.length;j++){
-    var s=eShots[j];
-    limb(MM,s.x,s.y,s.z,0,0,0,0,0,0,0,0,0,s.r*2,s.r*2,s.r*2);
-    drawSolid(GEO.sphereL,MM,[s.col[0],s.col[1],s.col[2]],.9,[Math.min(255,s.col[0]*1.5),Math.min(255,s.col[1]*1.5),Math.min(255,s.col[2]*1.5)]);
-  }
-}
-function popText(x,y,z,txt,big,col){
-  var p=document.createElement('div');
-  p.className='pop'+(big?' big':'');
-  p.textContent=txt;
-  if(col)p.style.color=col;
-  document.body.appendChild(p);
-  var sx=0,sy=0;
-  var m=PVM,w=m[3]*x+m[7]*y+m[11]*z+m[15];
-  if(Math.abs(w)>0.0001){
-    sx=((m[0]*x+m[4]*y+m[8]*z+m[12])/w*.5+.5)*innerWidth;
-    sy=(1-((m[1]*x+m[5]*y+m[9]*z+m[13])/w*.5+.5))*innerHeight;
-  }
-  p.style.left=sx+'px';p.style.top=sy+'px';
-  setTimeout(function(){if(p.parentNode)p.parentNode.removeChild(p)},980);
-}
-
-function titleScene(){
-  genWorld();
-  resetRiley();
-  enemies.length=0;eShots.length=0;shots.length=0;pickups.length=0;
-  game.waveState='idle';game.boss=false;game.spawnQueue=[];
-  el('bossBar').style.display='none';
-  var spots2=[[-9,8],[9,-6],[0,-11]];
-  for(var i2=0;i2<spots2.length;i2++){
-    var g2=newGob(i2===1?'spitter':'grunt',spots2[i2][0],0,spots2[i2][1]);
-    g2.yaw=Math.atan2(-spots2[i2][0],-spots2[i2][1]);
-    g2.spd=0;
-    enemies.push(g2);
-  }
-}
-
-/* ---------------- render ---------------- */
-var MM2=new Float32Array(16);
-function renderWorld(){
-  for(var i=0;i<deco.length;i++){
-    var d=deco[i];
-    drawSolid(d.g,d.m,d.c,1,d.gl||null);
-  }
-}
-function render(){
-  gl.viewport(0,0,BW,BH);
-  gl.depthMask(true);
-  gl.clearColor(theme().fog[0]/255,theme().fog[1]/255,theme().fog[2]/255,1);
-  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  drawStars();
-  drawMotes();
-  renderWorld();
-  drawPickups();
-  renderEnemies();
-  {
-    if(state==='play'||state==='over'||state==='pause'){
-      if(R)drawRiley(R);
-    } else if(state==='title'){
-      drawRiley({x:0,y:0,z:0,yaw:Math.PI,run:time*2,ground:true,hitT:0,air:0,dashing:false});
-    }
-  }
-  for(var i=0;i<shots.length;i++){
-    var s=shots[i];
-    var sc=s.big?s.r*2.4:s.r*2;
-    limb(MM,s.x,s.y,s.z,0,time*6,0,0,0,0,0,0,0,sc,sc,sc);
-    var col=s.col||[255,190,90];
-    drawSolid(GEO.sphereL,MM,col,1,[Math.min(255,col[0]*1.2),Math.min(255,col[1]*1.1),Math.min(255,col[2]+40)]);
-  }
-  drawGlowList(fx,PVM);
-}
-var W=innerWidth,H=innerHeight,BW=W,BH=H,renderScale=1;
-function resize(){
-  W=innerWidth;H=innerHeight;
-  var dpr=Math.min(window.devicePixelRatio||1,2);
-  BW=Math.max(1,Math.round(W*dpr*renderScale));
-  BH=Math.max(1,Math.round(H*dpr*renderScale));
-  canvas.width=BW;canvas.height=BH;
-  canvas.style.width=W+'px';canvas.style.height=H+'px';
-}
-resize();addEventListener('resize',resize);
-
-/* ---------------- main loop ---------------- */
-var acc=0,FIXED=1/120,qualityT=0,lowStreak=0,hiStreak=0;
-function adaptQuality(){
-  // Nudge render scale to hold ~60fps without a stutter budget.
-  qualityT+=dt;
-  if(qualityT<0.55)return;
-  qualityT=0;
-  if(lastFps>0&&lastFps<48){lowStreak++;hiStreak=0}
-  else if(lastFps>=58){hiStreak++;lowStreak=0}
-  else {lowStreak=0;hiStreak=0}
-  if(lowStreak>=2&&renderScale>0.62){renderScale=Math.max(0.6,renderScale-0.1);resize();lowStreak=0}
-  else if(hiStreak>=4&&renderScale<1){renderScale=Math.min(1,renderScale+0.1);resize();hiStreak=0}
-}
-function loop(tms){
-  requestAnimationFrame(loop);
-  var t=tms/1000;
-  dt=clamp(t-lastT,0.001,0.05);lastT=t;
-  fpsT+=dt;fpsN++;
-  if(fpsT>=0.5){lastFps=Math.round(fpsN/fpsT);fpsN=0;fpsT=0}
-  adaptQuality();
-  if(state==='title'){
-    time+=dt;
-    titleA+=dt*.12;
-    var ax=Math.sin(titleA)*15.5,az=Math.cos(titleA)*15.5;
-    eye[0]=ax;eye[1]=5.6;eye[2]=az;
-    ctr[0]=0;ctr[1]=1.3;ctr[2]=0;
-    m4Look(VM,eye[0],eye[1],eye[2],ctr[0],ctr[1],ctr[2],0,1,0);
-    m4Persp(PM,1.06,W/H,0.1,460);
-    m4mul(PVM,PM,VM);
-    camR[0]=VM[0];camR[1]=VM[4];camR[2]=VM[8];
-    camUp[0]=VM[1];camUp[1]=VM[5];camUp[2]=VM[9];
-    camFwdX=Math.sin(camYaw);camFwdZ=Math.cos(camYaw);
-    camRightX=-Math.cos(camYaw);camRightZ=Math.sin(camYaw);
-    frameUniforms(PVM,VM,8,150,theme().fog);
-    updateFx(dt);
-    render();
-  } else if(state==='play'||state==='pause'){
-    if(state==='play'){
-      if(hitStop>0){
-        // Brief freeze-frame on big impacts — makes hits land with weight.
-        hitStop-=dt;
-        var sd=dt;dt=Math.min(dt,1/60);updateFx(dt);dt=sd;
-        acc=0;
-      }else{
-        // Fixed-timestep physics for rock-solid feel on any refresh rate.
-        acc+=dt;
-        var steps=0;
-        var savedDt=dt;
-        while(acc>=FIXED&&steps<6){dt=FIXED;update(FIXED);acc-=FIXED;steps++;}
-        if(steps===6)acc=0; // avoid spiral of death after a hitch
-        dt=savedDt;
-      }
-    }
-    else updateFx(dt);
-    updateCamera(camYawTarget,R.x,R.y,R.z,dt);
-    updateReticle();
-    render();
-  } else if(state==='over'){
-    updateFx(dt);
-    render();
-  }
-}
-requestAnimationFrame(loop);
-
-/* ---------------- ui events ---------------- */
-document.addEventListener('keydown',function(e){
-  audioInit();
-  if(e.code==='Space')e.preventDefault();
-  keys[e.code]=true;
-  if(state==='title'&&(e.code==='Space'||e.code==='Enter')){startGame();return}
-  if(state==='over'&&e.code==='Space'){startGame();return}
-  if(e.code==='KeyM'){muted=!muted;el('btnMute').textContent=muted?'🔇':'🔊'}
-  if(e.code==='KeyP'||e.code==='Escape'){
-    if(state==='play'){state='pause';show('ovPause')}
-    else if(state==='pause'){state='play';hide('ovPause')}
-  }
-});
-document.addEventListener('keyup',function(e){keys[e.code]=false});
-window.addEventListener('blur',function(){keys={};mouseFire=false;fireHeld=false;jumpHeld=false;dashHeld=false;novaHeld=false});
-
-/* ---------------- mouse / pointer aim + cast (desktop) ---------------- */
-finePointer=window.matchMedia&&window.matchMedia('(pointer:fine)').matches;
-function updateMouse(e){mouseX=e.clientX;mouseY=e.clientY;pointerAim=true;
-  if(e.pointerType==='mouse'||e.pointerType===undefined)finePointer=true;}
-canvas.addEventListener('pointermove',function(e){if(e.pointerType==='touch')return;updateMouse(e)});
-canvas.addEventListener('pointerdown',function(e){
-  if(e.pointerType==='touch')return;
-  audioInit();updateMouse(e);
-  if(state==='title'){startGame();return}
-  if(state==='over'){startGame();return}
-  if(state!=='play')return;
-  if(e.button===0){mouseFire=true;}
-  else if(e.button===2){ // right-click = dash toward cursor
-    dashHeld=true;setTimeout(function(){dashHeld=false},30);
-  }
-});
-window.addEventListener('pointerup',function(e){if(e.pointerType==='touch')return;if(e.button===0)mouseFire=false;});
-canvas.addEventListener('contextmenu',function(e){e.preventDefault()});
-// hovering the canvas hides the OS cursor; a custom reticle is drawn instead
-canvas.addEventListener('pointerenter',function(e){if(e.pointerType!=='touch'){finePointer=true;}});
-function clearReticle(){if(reticleEl){reticleEl.classList.remove('on');document.body.classList.remove('aiming')}mouseFire=false;}
-function pauseGame(){if(state==='play'){state='pause';show('ovPause');clearReticle()}}
-function resumeGame(){if(state==='pause'){state='play';hide('ovPause')}}
-el('btnPlay').onclick=startGame;
-el('btnPause').onclick=pauseGame;
-el('btnResume').onclick=resumeGame;
-el('btnRestart').onclick=function(){resumeGame();startGame()};
-el('btnQuitTitle').onclick=function(){resumeGame();toTitle()};
-el('btnQuit2').onclick=toTitle;
-el('btnAgain').onclick=startGame;
-el('btnMute').onclick=function(){muted=!muted;el('btnMute').textContent=muted?'🔇':'🔊'};
-var muted=false;
-
-/* ---------------- procedural audio ---------------- */
-var AC=null,noiseBuf=null;
-function audioInit(){
-  if(AC||muted)return;
-  try{
-    AC=new (window.AudioContext||window.webkitAudioContext)();
-    var len=Math.floor(AC.sampleRate*.6),nb=AC.createBuffer(1,len,AC.sampleRate);
-    var d=nb.getChannelData(0);
-    for(var i=0;i<len;i++)d[i]=Math.random()*2-1;
-    noiseBuf=nb;
-  }catch(e){AC=null}
-}
-function tone(f0,f1,dur,type,vol,delay){
-  if(!AC||muted)return;
-  try{
-    var t=AC.currentTime+(delay||0);
-    var o=AC.createOscillator(),g=AC.createGain();
-    o.type=type||'sine';
-    o.frequency.setValueAtTime(f0,t);
-    o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t+dur);
-    g.gain.setValueAtTime(vol,t);
-    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
-    o.connect(g);g.connect(AC.destination);
-    o.start(t);o.stop(t+dur+.03);
-  }catch(e){}
-}
-function noise(dur,vol,f0,f1,delay){
-  if(!AC||muted||!noiseBuf)return;
-  try{
-    var t=AC.currentTime+(delay||0);
-    var src=AC.createBufferSource();src.buffer=noiseBuf;src.loop=true;
-    var f=AC.createBiquadFilter();f.type='bandpass';
-    f.frequency.setValueAtTime(f0,t);
-    f.frequency.exponentialRampToValueAtTime(Math.max(60,f1),t+dur);
-    var g=AC.createGain();g.gain.setValueAtTime(vol,t);
-    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
-    src.connect(f);f.connect(g);g.connect(AC.destination);
-    src.start(t);src.stop(t+dur+.03);
-  }catch(e){}
-}
-function sfx(n){
-  switch(n){
-    case 'shoot':tone(900,130,.09,'square',.04);noise(.05,.02,2400,700);break;
-    case 'dash':noise(.16,.06,2200,260);tone(520,190,.14,'sine',.03);break;
-    case 'jump':tone(290,540,.12,'triangle',.06);break;
-    case 'djump':tone(400,800,.14,'triangle',.06);break;
-    case 'hit':noise(.2,.14,900,130);tone(230,60,.22,'sawtooth',.08);break;
-    case 'kill':tone(330,60,.16,'square',.07);noise(.13,.08,700,160);tone(1700,110,.09,'square',.03,.02);break;
-    case 'smash':noise(.18,.18,1600,180);tone(720,40,.2,'sawtooth',.1);break;
-    case 'wave':tone(392,392,.1,'square',.06);tone(523,523,.1,'square',.06,.11);tone(659,659,.16,'square',.08,.22);break;
-    case 'boss':tone(96,58,.55,'sawtooth',.12);tone(146,108,.55,'sawtooth',.09,.06);noise(.4,.05,300,90);break;
-    case 'roar':tone(150,85,.3,'sawtooth',.08);noise(.28,.05,550,140);break;
-    case 'low':tone(190,80,.28,'sawtooth',.1);break;
-    case 'clear':tone(523,523,.09,'square',.07);tone(659,659,.09,'square',.07,.09);tone(784,784,.09,'square',.07,.18);tone(1046,1046,.32,'square',.09,.27);break;
-    case 'hurt':tone(320,70,.3,'sawtooth',.1);noise(.18,.09,750,90);break;
-    case 'coin':tone(990,1980,.09,'sine',.05);break;
-    case 'spit':tone(620,940,.08,'triangle',.04);break;
-    case 'heal':tone(520,780,.12,'sine',.06);tone(780,1040,.16,'sine',.06,.1);break;
-    case 'pop':tone(1150,2300,.06,'sine',.03);break;
-    case 'nova':tone(180,1400,.5,'sawtooth',.09);tone(90,700,.6,'triangle',.08,.02);noise(.5,.1,400,3000);tone(1200,300,.4,'sine',.05,.05);break;
-  }
-}
-addEventListener('pointerdown',function(){audioInit()},true);
-
-/* ---------------- touch ---------------- */
-var isTouch=false;
-// Generic draggable stick. onMove(nx,ny) with y already flipped so up=+.
-function makeStick(padId,knobId,onMove,onEnd){
-  var pad=el(padId),knob=el(knobId),activeId=null;
-  var kc=(pad.clientWidth-knob.clientWidth)/2; // knob centre offset
-  function move(cx,cy){
-    var r=pad.getBoundingClientRect();
-    var dx=cx-(r.left+r.width/2),dy=cy-(r.top+r.height/2);
-    var l=Math.hypot(dx,dy),max=r.width/2-8;
-    if(l>max){dx=dx/l*max;dy=dy/l*max}
-    knob.style.left=(kc+dx)+'px';knob.style.top=(kc+dy)+'px';
-    onMove(dx/max,-dy/max);
-  }
-  pad.addEventListener('pointerdown',function(e){e.preventDefault();activeId=e.pointerId;pad.setPointerCapture(e.pointerId);move(e.clientX,e.clientY)});
-  pad.addEventListener('pointermove',function(e){if(activeId===e.pointerId)move(e.clientX,e.clientY)});
-  function up(e){if(activeId===e.pointerId){activeId=null;knob.style.left=kc+'px';knob.style.top=kc+'px';onEnd()}}
-  pad.addEventListener('pointerup',up);pad.addEventListener('pointercancel',up);
-}
-function setupTouch(){
-  if(isTouch)return;
-  isTouch=true;finePointer=false;
-  el('mob').classList.add('on');
-  el('hintBar').style.display='none';
-  // left = move
-  makeStick('joy','joyKnob',function(nx,ny){
-    moveStickActive=true;moveStickX=nx;moveStickY=ny;
-  },function(){moveStickActive=false;moveStickX=0;moveStickY=0;});
-  // right = aim; pushing it fires (auto-fire handled in update)
-  makeStick('aim','aimKnob',function(nx,ny){
-    var l=Math.hypot(nx,ny);
-    if(l>0.28){aimStickActive=true;aimStickX=nx;aimStickY=ny;}
-    else {aimStickActive=false;}
-  },function(){aimStickActive=false;aimStickX=0;aimStickY=0;});
-  function bindBtn(id,setter){
-    var b=el(id);
-    b.addEventListener('pointerdown',function(e){e.preventDefault();setter(true)});
-    b.addEventListener('pointerup',function(e){setter(false)});
-    b.addEventListener('pointercancel',function(e){setter(false)});
-  }
-  bindBtn('tbJump',function(v){jumpHeld=v});
-  bindBtn('tbDash',function(v){dashHeld=v});
-  bindBtn('tbNova',function(v){novaHeld=v});
-}
-// Activate on-screen sticks only on real touch use (many laptops report
-// touch support but are driven by a mouse — don't show the overlay for them).
-window.addEventListener('touchstart',function(){if(!isTouch)setupTouch()},{passive:true});
-window.addEventListener('pointerdown',function(e){if(e.pointerType==='touch'&&!isTouch)setupTouch()},{passive:true});
-
-/* ---------------- expose for tests ---------------- */
-window.__R=function(){return{state:state,wave:game.wave,score:game.score,lives:game.lives,
-  x:R?R.x:0,y:R?R.y:0,z:R?R.z:0,yaw:R?R.yaw:0,ground:R?R.ground:false,px:platforms.length,fx:fx.length,fps:lastFps,
-  camX:camX,camY:camY,camZ:camZ,camYaw:camYaw}};
-if(SELFTEST){
-  window.__T={
-    info:function(){return{state:state,wave:game.wave,wv:game.waveState,q:game.spawnQueue.length,
-      n:enemies.length,es:eShots.length,score:game.score,kills:game.kills,combo:game.combo,lives:game.lives,boss:game.boss}},
-    god:function(b){Tgod=!!b},
-    place:function(k,dx,dz){
-      var x=R.x+(dx!==undefined?dx:Math.sin(R.yaw)*6),z=R.z+(dz!==undefined?dz:Math.cos(R.yaw)*6);
-      var gy=findGroundY(x,R.y+12,z);
-      var y=gy<-90?0:gy;
-      return placeGoblin(k,x,z)&&{x:x,y:y,z:z,gy:gy};
-    },
-    aim:function(){var e=null,bd=1e9;
-      for(var i=0;i<enemies.length;i++){var en=enemies[i],d=Math.hypot(en.x-R.x,en.z-R.z);if(d<bd){bd=d;e=en}}
-      if(!e)return false;
-      R.yaw=Math.atan2(e.x-R.x,e.z-R.z);return true},
-    fire:function(){fireShot()},
-    hurtAll:function(){for(var i=enemies.length-1;i>=0;i--)if(!enemies[i].dead)damageGob(enemies[i],1,Math.sin(i+1),Math.cos(i+1))},
-    nextWave:function(){waveClear();game.clearT=0;nextWave()},
-    wave:function(n){startWave(n)}
-  };
-}
-var lastFps=0,fpsN=0,fpsT=0;
-function __shot(){
-  try{
-    var c=document.createElement('canvas');c.width=W;c.height=H;
-    var x=c.getContext('2d',{willReadFrequently:true});
-    x.drawImage(canvas,0,0);
-    var d=x.getImageData(0,0,W,H).data;
-    var unique=0,map={},cx=0,cy=0;
-    for(var y=0;y<H;y+=4){for(var xx=0;xx<W;xx+=4){
-      var i=(y*W+xx)*4;
-      var key=((d[i]>>4)<<8)|((d[i+1]>>4)<<4)|(d[i+2]>>4);
-      if(!map[key]){map[key]=1;unique++}
-      if(xx>W*0.3&&xx<W*0.7&&y>H*0.55&&y<H*0.95){cx+=d[i];cy+=d[i+1]}
-    }}
-    var n=(W*0.4*H*0.4)/16;
-    return{unique:unique,lowLum:false,midAvgR:cx/n,midAvgG:cy/n};
-  }catch(e){return{err:e.message}}
-}
-window.__shot=__shot;
-window.__gpu=function(){
-  try{
-    var buf=new Uint8Array(BW*BH*4);
-    gl.readPixels(0,0,BW,BH,gl.RGBA,gl.UNSIGNED_BYTE,buf);
-    var out=[];
-    for(var y=0;y<BH;y+=6){for(var x=0;x<BW;x+=6){
-      var i=(y*BW+x)*4;
-      out.push((buf[i]>>4)<<8|(buf[i+1]>>4)<<4|(buf[i+2]>>4));
-    }}
-    var map={};
-    out.forEach(function(k){map[k]=(map[k]||0)+1});
-    return Object.entries(map).sort(function(a,b){return b[1]-a[1]}).slice(0,6)
-      .map(function(e){var k=+e[0];return {c:[(k>>8)<<4,(k>>4&15)<<4,(k&15)<<4],n:e[1]}});
-  }catch(e){return {err:e.message}}
-};
-window.__proj=function(wx,wy,wz){
-  var m=PVM;
-  var x=m[0]*wx+m[4]*wy+m[8]*wz+m[12];
-  var y=m[1]*wx+m[5]*wy+m[9]*wz+m[13];
-  var w=m[3]*wx+m[7]*wy+m[11]*wz+m[15];
-  if(Math.abs(w)<1e-6)return null;
-  return [Math.round((x/w*0.5+0.5)*W),Math.round((1-(y/w*0.5+0.5))*H)];
-};
-window.__box=function(sx,sy,bw,bh){  try{
-    var c=document.createElement('canvas');c.width=W;c.height=H;
-    var x=c.getContext('2d',{willReadFrequently:true});
-    x.drawImage(canvas,0,0);
-    var d=x.getImageData(Math.max(0,sx-bw/2),Math.max(0,sy-bh/2),bw,bh).data;
-    var n=d.length/4,skin=0,hat=0,bright=0;
-    for(var i=0;i<n;i++){
-      var r=d[i*4],g=d[i*4+1],b=d[i*4+2];
-      if(r>170&&g>140&&b>110)bright++;
-      if(r>200&&g>150&&g<240&&b<220)skin++;
-      if(b>r+60&&b>100)hat++;
-    }
-    return{n:n,bright:bright,skin:skin,hat:hat,avgR:d[0],avgG:d[1],avgB:d[2]};
-  }catch(e){return{err:e.message}}
-};
-
-/* boot */
-titleScene();
-if(best>0)el('bestLine').textContent='🏆 BEST SCORE: '+best;
-})();
-</script>
+<script src="riley-assets/riley-core.js"></script>
+<script src="riley-assets/riley-world.js"></script>
+<script src="riley-assets/riley-ai.js"></script>
+<script src="riley-assets/riley-net.js"></script>
+<script src="riley-assets/riley-engine.js"></script>
 </body>
 </html>

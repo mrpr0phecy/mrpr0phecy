@@ -135,6 +135,7 @@ function generate(seedInput) {
 
   var treeCount = 0, rockCount = 0, miscCount = 0, treeCap = 230, rockCap = 150, miscCap = 150;
   var crystals = [];
+  var glowPoints = []; /* {x,y,z,r,ph} — light billboards the engine draws */
   /* jittered lattice placement so nothing is too dense */
   for (var jz = 0; jz < 26; jz++) {
     for (var jx = 0; jx < 26; jx++) {
@@ -179,6 +180,7 @@ function generate(seedInput) {
         if (td > ARENA_R + 1 && td < ARENA_R + 7) {
           addCyl('wood', px2, h, pz2, 0.12, 2.1, 0.12, 0, [128, 96, 60]);
           addCone('ember', px2, h + 2.12, pz2, 0.22, 0.3, 0.22, 0, [255, 180, 70]);
+          glowPoints.push({ x: px2, y: h + 2.3, z: pz2, r: 1.15, ph: rand() * TAU });
         }
       }
     }
@@ -190,6 +192,7 @@ function generate(seedInput) {
     var bh = heightAt(bx2, bz2);
     addCyl('wood', bx2, bh, bz2, 0.14, 2.6, 0.14, 0, [96, 70, 50]);
     addCone('ember', bx2, bh + 2.62, bz2, 0.26, 0.34, 0.26, 0, realm.accent);
+    glowPoints.push({ x: bx2, y: bh + 2.8, z: bz2, r: 1.3, ph: pp * 0.7 });
     if (pp % 4 === 0) addCyl('stone', bx2 + Math.cos(pa) * 0.4, bh, bz2 + Math.sin(pa) * 0.4, 0.5, 0.5, 0.5, 0, mix(realm.rock, [255, 255, 255], 0.1));
   }
   /* distant mountains (big baked cones) */
@@ -243,7 +246,8 @@ function generate(seedInput) {
     },
     crystals: crystals,
     spawns: spawns,
-    bossSpawn: bossSpawn
+    bossSpawn: bossSpawn,
+    glowPoints: glowPoints
   };
 }
 
