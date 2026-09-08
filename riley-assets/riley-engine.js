@@ -64,8 +64,8 @@ function rankFor() {
 }
 
 var game = { score: 0, wave: 1, lives: 5, maxLives: 5, kills: 0, combo: 0, combot: 0,
-  comboBest: 0, boss: false, shake: 0, bannerT: 0, spawnQueue: [], spawnT: 0,
-  waveState: 'idle', clearT: 0, accentT: 0 };
+  comboBest: 0, boss: false, shake: 0, shakeT: 0, shakeAmp: 0, bannerT: 0, spawnQueue: [], spawnT: 0,
+  waveState: 'idle', clearT: 0, accentT: 0, slowT: 0, slowK: 1, lastStand: false };
 var shownScore = 0;
 
 /* world */
@@ -357,6 +357,7 @@ function buildWorld(seed) {
   });
   /* static glow points: torch embers + arena runes */
   world.crystals.forEach(function (c) { c.respawn = 0; });
+  buildCamBlockers(world);
   buildStars();
 }
 var stars = [];
@@ -536,30 +537,75 @@ function shadowPush(x, y, z, r, alpha) {
   shadowFx.push({ x: x, y: gy + 0.04, z: z, s: r, pa: alpha * (1 - clamp((y - gy) / 6, 0, 0.8)), pr: 4, pg: 6, pb: 10, life: 1, max: 1 });
 }
 /* ================================================================
- * 7. camera — pointer-lock mouse look + terrain raycast clamp
+ * 7. camera — orbit rig: terrain+prop occlusion by *lifting* the pivot,
+ *    spring-damped follow, velocity auto-frame, lock-on framing, kick/shake
+ *
+ * Why it is built this way (every rule below fixes a concrete feel bug):
+ *  - One source of truth: a pivot Riley orbits, plus (yaw, pitch, distance).
+ *    Auto-frame, lock-on, aim-in, death and hits only write *desired* values
+ *    and the rig springs toward them, so nothing ever teleports.
+ *  - Smoothing uses `1 - exp(-k*dt)`, never `clamp(k*dt,0,1)`: the same feel
+ *    at 30/60/144 Hz instead of "snaps at 144, mushy at 30".
+ *  - Occlusion lifts the orbit centre over terrain first and shortens the
+ *    boom only as a last resort, with a hard floor. The old rig collapsed to
+ *    1.15u the moment the ground behind you rose a metre — the lens sat
+ *    inside Riley's skull for as long as you stood near a slope.
+ *  - Manual look always wins: `lastAimT` gates every automatic rotation for
+ *    a beat after you touch the mouse/stick, so the camera never fights you.
  * ================================================================ */
 var PM = new Float32Array(16), VM = new Float32Array(16), PVM = new Float32Array(16);
 var LIGHT = [0.5, 0.85, 0.35];
 var fogCur = [12, 17, 46], fogTarget = [12, 17, 46];
 
-var camYaw = 0, camPitch = 0.38;
-var camYawTarget = 0, camPitchTarget = 0.38;
-var camDist = 8.2, camDistTarget = 8.2;   /* wheel zooms 4.6..14 */
-var CAM_DIST_MIN = 4.6, CAM_DIST_MAX = 14;
+/* --- camera settings (persisted; sliders live in the pause menu) --- */
+var CAMSET = { sens: 1.0, smooth: 0.35, fov: 0, shake: 1.0, autoFrame: 1, lockCam: 1, zoom: 7.2, invertY: 0 };
+try {
+  var _cs = JSON.parse(localStorage.getItem('riley3d.camset') || 'null');
+  if (_cs && typeof _cs === 'object') { for (var _ck in CAMSET) if (typeof _cs[_ck] === 'number') CAMSET[_ck] = _cs[_ck]; }
+} catch (e) {}
+function saveCamSet() {
+  try { localStorage.setItem('riley3d.camset', JSON.stringify(CAMSET)); } catch (e) {}
+}
+
+var camYaw = 0, camPitch = 0.34;
+var camYawTarget = 0, camPitchTarget = 0.34;
+var CAM_PIT_MIN = -0.42, CAM_PIT_MAX = 1.26;
+var camDist = 7.2, camDistTarget = 7.2;        /* wheel zooms CAM_DIST_MIN..MAX */
+var CAM_DIST_MIN = 3.4, CAM_DIST_MAX = 12.5;
 var camX = 0, camY = 6, camZ = 8;
-var camFov = 1.05;
+var camFov = 0.98;
 var eye = [0, 0, 0], ctr = [0, 0, 0];
-var lookY = 1.15;                         /* lagged look-height (jump lag) */
-var lastAimT = -10;                    // last manual mouse-look input
-var aim = { x: 0, y: 0, z: 0, lock: null };  /* mouse-assist aim point */
-var lockOn = null;                     /* sticky combat lock */
+var lookY = 1.15;                              /* lagged look-height (jump lag) */
+var lastAimT = -10;                            /* last manual mouse-look input */
+var aim = { x: 0, y: 0, z: 0, lock: null, assist: null, dot: 0 };
+var lockOn = null;                             /* sticky combat lock */
 var pointerLocked = false;
-var dragLook = false, dragMoved = 0;
-var camCollideD = 8.2;                 /* last collision-safe distance */
+var camCollideD = 7.2;                         /* collision-safe boom length */
+var camLift = 0;                               /* pivot lift while the boom clips */
+var camRoll = 0, camRollT = 0;                 /* banking into strafes */
+var camShoulder = 0;                           /* over-the-shoulder offset (u) */
+var camPivX = 0, camPivY = 0, camPivZ = 0;      /* smoothed orbit centre */
+var camKickY = 0, camKickP = 0, camKickR = 0;  /* impact offsets (decay to 0) */
+var camAutoT = 0;                              /* auto-frame spin-up (0..1) */
+var camBlockT = 0;                             /* 0..1 occlusion strength */
+var camBlockers = [];                          /* solid props that hide the view */
+var titleA = 0;
+var touchAutoCam = false;
 
 /* shortest signed angle a → b */
 function angDiff(a, b) { var d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
 function camDir() { return [Math.sin(camYaw), 0, Math.cos(camYaw)]; }
+/* frame-rate independent exponential approach */
+function damp(cur, tgt, k, dt) { return cur + (tgt - cur) * (1 - Math.exp(-k * dt)); }
+/* approach at a bounded angular rate (rad/s): can neither whip nor overshoot */
+function rateTo(cur, tgt, maxRate, dt) {
+  var d = angDiff(cur, tgt), m = maxRate * dt;
+  return cur + (d > m ? m : (d < -m ? -m : d));
+}
+/* true while the player is the one pointing the gun */
+function camAiming() {
+  return !!(mouseFire || gpFire || (R && R.charging) || (pointerLocked && time - lastAimT < 0.8));
+}
 
 function nearestLivingEnemy(px, pz, maxD) {
   var bestE = null, bd = maxD || 28;
@@ -576,162 +622,309 @@ function cycleLockOn() {
   var cand = [];
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
-    if (e && !e.dead && Math.hypot(e.x - R.x, e.z - R.z) < 32) cand.push(e);
+    if (e && !e.dead && Math.hypot(e.x - R.x, e.z - R.z) < 34) cand.push(e);
   }
   if (!cand.length) { lockOn = null; return; }
-  cand.sort(function (a, b) {
-    return Math.hypot(a.x - R.x, a.z - R.z) - Math.hypot(b.x - R.x, b.z - R.z);
-  });
-  if (!lockOn) { lockOn = cand[0]; return; }
-  var idx = cand.indexOf(lockOn);
-  lockOn = cand[(idx + 1) % cand.length];
+  if (!lockOn) {
+    /* first press: nearest — the thing you can actually hit */
+    var nd = 1e9, pick = cand[0];
+    for (var q = 0; q < cand.length; q++) {
+      var dq = Math.hypot(cand[q].x - R.x, cand[q].z - R.z);
+      if (dq < nd) { nd = dq; pick = cand[q]; }
+    }
+    lockOn = pick;
+  } else {
+    /* further presses: cycle *around* Riley, so each Tab is the next goblin
+       you would want to look at, not the one already under your feet */
+    var base = Math.atan2(lockOn.x - R.x, lockOn.z - R.z);
+    cand.sort(function (a, b) {
+      var aa = angDiff(base, Math.atan2(a.x - R.x, a.z - R.z));
+      var bb = angDiff(base, Math.atan2(b.x - R.x, b.z - R.z));
+      var la = aa < 0 ? -aa : aa, lb = bb < 0 ? -bb : bb;
+      return (la - lb) || (Math.hypot(a.x - R.x, a.z - R.z) - Math.hypot(b.x - R.x, b.z - R.z));
+    });
+    for (var c2 = 0; c2 < cand.length; c2++) if (cand[c2] !== lockOn) { lockOn = cand[c2]; break; }
+  }
+  if (lockOn) { lastAimT = time - 0.5; sfxGated('pop'); }
 }
 function clearLockIfDead() {
-  if (lockOn && lockOn.dead) lockOn = nearestLivingEnemy(R.x, R.z, 18);
+  if (lockOn && (lockOn.dead || Math.hypot(lockOn.x - R.x, lockOn.z - R.z) > 46)) lockOn = null;
 }
 
-/* Sphere-cast player->camera vs heightfield. Pulls in tightly, never under dirt. */
-function camGroundDist(px, py, pz, dx, dy, dz, maxD) {
-  var steps = 48, safe = maxD, pad = 0.55;
-  for (var i = 1; i <= steps; i++) {
-    var t = i / steps;
-    var d = t * maxD;
-    var x = px + dx * d, y = py + dy * d, z = pz + dz * d;
-    if (y - pad < world.heightAt(x, z)) { safe = Math.max(1.15, d * 0.78); break; }
+/* ---- occlusion --------------------------------------------------
+ * How far back the boom can reach for a given pivot lift. 0 = clear.
+ * Heightfield sampling is exact for hills; solid props use an analytic
+ * ray/cylinder test so the lens never sits inside a trunk. */
+function boomHit(px, py, pz, dx, dy, dz, maxD, lift, pad) {
+  var STEPS = 16, i, t;
+  for (i = 1; i <= STEPS; i++) {
+    t = maxD * i / STEPS;
+    var x = px + dx * t, z = pz + dz * t;
+    if (py + dy * t + lift - pad < world.heightAt(x, z)) return t;
   }
-  return safe;
+  for (i = 0; i < camBlockers.length; i++) {
+    var b = camBlockers[i];
+    var ox = px - b.x, oz = pz - b.z;
+    var reach = maxD + b.r + 2;
+    if (ox * ox + oz * oz > reach * reach) continue;
+    var rx = b.x - px, rz = b.z - pz;
+    var proj = rx * dx + rz * dz;
+    if (proj < -b.r || proj > maxD + b.r) continue;
+    var perp = Math.abs(rx * dz - rz * dx);
+    if (perp > b.r) continue;
+    var yc = py + dy * proj + lift;
+    if (yc > b.y - pad && yc < b.y + b.h) return Math.max(0.6, proj - b.r);
+  }
+  return 0;
 }
+function boomSolve(px, py, pz, dx, dy, dz, wantD) {
+  var LIFTS = [0, 0.5, 1.15, 2.0], bestLift = 0, bestD = -1;
+  for (var li = 0; li < LIFTS.length; li++) {
+    var hit = boomHit(px, py, pz, dx, dy, dz, wantD, LIFTS[li], 0.34);
+    if (!hit) return { lift: LIFTS[li], d: wantD };
+    if (hit > bestD) { bestD = hit; bestLift = LIFTS[li]; }
+  }
+  return { lift: bestLift, d: Math.max(CAM_DIST_MIN * 0.7, bestD - 0.45) };
+}
+
+/* View matrix with a roll angle (C.m4Look is up-fixed). Rolling the view's
+ * right/up rows keeps every consumer of VM (billboards, aim unprojection)
+ * reading the same rows as before. */
+function m4LookRoll(o, ex, ey, ez, cx, cy, cz, roll) {
+  C.m4Look(o, ex, ey, ez, cx, cy, cz);
+  if (!roll) return o;
+  var c = Math.cos(roll), s = Math.sin(roll);
+  var a0 = o[0], a4 = o[4], a8 = o[8], a12 = o[12];
+  var b1 = o[1], b5 = o[5], b9 = o[9], b13 = o[13];
+  o[0] = c * a0 + s * b1; o[4] = c * a4 + s * b5; o[8] = c * a8 + s * b9; o[12] = c * a12 + s * b13;
+  o[1] = c * b1 - s * a0; o[5] = c * b5 - s * a4; o[9] = c * b9 - s * a8; o[13] = c * b13 - s * a12;
+  return o;
+}
+
+/* ---------- impact language for the rig ---------- */
+function camKick(yaw, pitch, roll) { camKickY += yaw; camKickP += pitch; camKickR += roll; }
+function shake(amp) { if (amp > game.shake) game.shake = amp; }
+var zoomPulse = 0;      /* wheel activity — briefly widens the reticle ring */
+var camSwiftT = 0;      /* >0 right after "re-centre": the swing is quicker */
+/* R (and the pause button): ask the rig to get behind Riley. It *swings*
+   there under the same damping as everything else — an instant snap of the
+   whole world is exactly the nauseating thing people quit over. */
+function resetCamera(soft) {
+  if (!R) return;
+  camYawTarget = R.yaw;
+  camPitchTarget = 0.34;
+  camDistTarget = clamp(CAMSET.zoom, CAM_DIST_MIN, CAM_DIST_MAX);
+  lastAimT = time - 99;         /* auto-frame/lock gates open immediately */
+  if (!soft) { camYaw = camYawTarget; camPitch = camPitchTarget; camSwiftT = 0; }
+  else camSwiftT = 1;
+}
+/* place the rig instantly behind Riley (run start; no fly-in from the title) */
+function camSnapToPlayer() {
+  camYawTarget = camYaw = R.yaw;
+  camPitchTarget = camPitch = 0.34;
+  camDistTarget = camDist = clamp(CAMSET.zoom, CAM_DIST_MIN, CAM_DIST_MAX);
+  camCollideD = camDist; camLift = 0; camRoll = camRollT = 0; camShoulder = 0;
+  camAutoT = 0; camBlockT = 0; camKickY = camKickP = camKickR = 0;
+  lookY = R.y + 1.16;
+  camPivX = R.x; camPivY = lookY; camPivZ = R.z;
+  var cp = Math.cos(camPitch);
+  camX = R.x - Math.sin(camYaw) * cp * camDist;
+  camZ = R.z - Math.cos(camYaw) * cp * camDist;
+  camY = lookY + 0.16 + Math.sin(camPitch) * camDist;
+  if (world) { var gh = world.heightAt(camX, camZ) + 0.42; if (camY < gh) camY = gh; }
+  lastAimT = -10;
+}
+
 function updateCamera(dtC, lookAt) {
   var lx = lookAt.x, ly = lookAt.y, lz = lookAt.z;
   var spd = Math.hypot(R.vx, R.vz);
+  var spdF = clamp(spd / 9, 0, 1);
+  var aiming = camAiming();
+  var locked = !!(lockOn && !lockOn.dead);
+  var manual = pointerLocked || dragLookActive || gpAiming;
+  var nearThreat = 1e9;
+  for (var ci = 0; ci < enemies.length; ci++) {
+    var ce = enemies[ci];
+    if (ce.dead) continue;
+    var cd = Math.hypot(ce.x - lx, ce.z - lz);
+    if (cd < nearThreat) nearThreat = cd;
+  }
   clearLockIfDead();
+  locked = !!(lockOn && !lockOn.dead);
 
   if (state === 'title') {
-    titleA += dtC * 0.18;
+    titleA += dtC * 0.15;
     camYawTarget = titleA;
-    camPitchTarget = 0.28;
-    camDistTarget = 11.5;
+    camPitchTarget = 0.30 + Math.sin(titleA * 0.7) * 0.05;
+    camDistTarget = 10.5;
+  } else if (state === 'over') {
+    /* the fall: slow orbit in close, looking down at where Riley went down */
+    camYawTarget += dtC * 0.24;
+    camPitchTarget = damp(camPitchTarget, 0.68, 1.6, dtC);
+    camDistTarget = damp(camDistTarget, 6.6, 1.6, dtC);
   } else if (state === 'play' || state === 'pause') {
-    /* combat lock: swing the camera BEHIND the player along the
-       player→target line so BOTH stay framed.
-       (the old code added π here and ended up looking away from the
-        locked target — the lock-on was literally unusable) */
-    if (lockOn && !lockOn.dead) {
-      var toTx = lockOn.x - lx, toTz = lockOn.z - lz;
-      var want = Math.atan2(toTx, toTz);
-      /* slight over-the-shoulder offset on whichever side the camera is
-         already coming from — no long-way-round swings.
-         Manual mouse/gamepad input suspends the auto-follow for a beat —
-         the lock must frame the fight, never fight the player. */
-      if (time - lastAimT > 1.2) {
-        want += 0.15 * (angDiff(want, camYawTarget) >= 0 ? 1 : -1);
-        camYawTarget = angLerp(camYawTarget, want, clamp(dtC * 3.6, 0, 1));
-        camPitchTarget = lerp(camPitchTarget, 0.34, clamp(dtC * 2.2, 0, 1));
+    if (locked && CAMSET.lockCam) {
+      /* combat lock: sit BEHIND Riley on the player→target line so both he
+         and the goblin he is fighting stay framed, easing off a dead-ahead
+         line so he doesn't mask the target. Manual look suspends the follow
+         for a beat: the lock frames the fight, it never fights the player.
+         (the pre-2026 build added π here and stared at empty ground.) */
+      var want = Math.atan2(lockOn.x - lx, lockOn.z - lz);
+      if (time - lastAimT > 0.5) {
+        var side = angDiff(want, camYawTarget) >= 0 ? 1 : -1;
+        want += 0.17 * side;
+        camYawTarget = damp(camYawTarget, want, 3.2, dtC);
+        var dyT = (ly + 1.0) - (lockOn.y + lockOn.h * 0.6);
+        camPitchTarget = damp(camPitchTarget, clamp(0.30 + dyT * 0.045, -0.02, 0.6), 2.6, dtC);
       }
-    } else if (touchAutoCam) {
-      /* mobile: settle BEHIND the walking heading (was +π — face-cam bug
-         that showed Riley's face while goblins attacked from behind) */
-      if (spd > 1.4) camYawTarget = angLerp(camYawTarget, R.yaw, clamp(dtC * 2.6, 0, 1));
-    } else if (!pointerLocked && !dragLookActive && !mouseFire && !R.charging && time - lastAimT > 2.6) {
-      /* gentle auto-frame BEHIND the walk heading — only while travelling
-         calmly. Never in combat, never while aiming: the camera must never
-         fight the player. */
-      if (spd > 3.5) {
-        var calm = true;
-        for (var ce = 0; ce < enemies.length; ce++) {
-          var ec2 = enemies[ce];
-          if (!ec2.dead && Math.hypot(ec2.x - lx, ec2.z - lz) < 18) { calm = false; break; }
-        }
-        if (calm) camYawTarget = angLerp(camYawTarget, R.yaw, clamp(dtC * 1.4, 0, 1));
-      }
-    }
+    } else if (CAMSET.autoFrame && !aiming && !manual && time - lastAimT > 0.9) {
+      /* auto-frame: pull behind the *velocity* so you see where you're going,
+         not where you were. Rate-limited (it can never whip), and it stays
+         out of the way while a goblin is on top of you. */
+      var wantYaw = Math.atan2(R.vx, R.vz);
+      var off = angDiff(camYawTarget, wantYaw);
+      if (spd > 3.0 && Math.abs(off) > 0.5 && nearThreat > 7.5) {
+        camAutoT = Math.min(1, camAutoT + dtC * 1.7);
+        camYawTarget = rateTo(camYawTarget, wantYaw, (0.8 + Math.abs(off) * 1.2) * camAutoT * camAutoT, dtC);
+      } else camAutoT = Math.max(0, camAutoT - dtC * 3);
+    } else camAutoT = 0;
   }
 
-  /* yaw/pitch: snappy mouse (already on *Target), camera itself critically damped */
-  var yawK = pointerLocked || dragLookActive || gpAiming ? 18 : (lockOn ? 9 : 10);
-  var pitK = 14;
-  camYaw = angLerp(camYaw, camYawTarget, clamp(dtC * yawK, 0, 1));
-  camPitch = lerp(camPitch, camPitchTarget, clamp(dtC * pitK, 0, 1));
-  camPitch = clamp(camPitch, -0.30, 1.18);
-  camDist = lerp(camDist, camDistTarget, clamp(dtC * 7, 0, 1));
+  /* look responsiveness: tight under manual control, softer for auto-framing */
+  camSwiftT = damp(camSwiftT, 0, 3, dtC);
+  var lookK = manual ? (30 - CAMSET.smooth * 22) : 11;
+  lookK *= 1 + camSwiftT * 1.4;
+  camYaw = damp(camYaw, camYawTarget, lookK, dtC);
+  camPitchTarget = clamp(camPitchTarget, CAM_PIT_MIN, CAM_PIT_MAX);
+  camPitch = damp(camPitch, camPitchTarget, lookK, dtC);
+
+  /* ---- desired boom length ---- */
+  var wantD = camDistTarget;
+  wantD *= 1 + spdF * 0.08;                            /* breathe out as you run */
+  if (R.dashing) wantD *= 1.05;
+  if (aiming && !locked) wantD *= 0.8;                 /* in over the shoulder */
+  if (locked) wantD += clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) * 0.15, 0, 2.2);
+  wantD = clamp(wantD, CAM_DIST_MIN, CAM_DIST_MAX);
+  camDist = damp(camDist, wantD, 9, dtC);
+
+  /* ---- orbit pivot ---- */
+  /* jump: hang with you going up, plant instantly on landing */
+  lookY = damp(lookY, ly + 1.16, R.vy > 0.5 ? 4.8 : 15, dtC);
+  var leadT = locked ? 0.05 : 0.115;                   /* lead, but never while duelling */
+  var px = lx + R.vx * leadT, pz = lz + R.vz * leadT;
+  if (R.dashing) { px += R.dashDX * 0.85; pz += R.dashDZ * 0.85; }
+  /* shoulder only while engaging, and it eases in — an always-on side offset
+     is what makes an orbit camera feel like it forever drifts off-centre */
+  camShoulder = damp(camShoulder, (aiming || locked) ? (locked ? 0.6 : 0.42) : 0, 5.5, dtC);
+  px += Math.cos(camYaw) * camShoulder;
+  pz += -Math.sin(camYaw) * camShoulder;
+  /* bank into the strafe / turn: tiny, but it sells momentum */
+  var lat = R.vx * Math.cos(camYaw) - R.vz * Math.sin(camYaw);
+  camRollT = -clamp(lat / 9, -1, 1) * 0.04 - clamp(angDiff(camYaw, camYawTarget) * 0.6, -0.03, 0.03);
+  camRoll = damp(camRoll, camRollT, 6, dtC);
+  var pivK = R.dashing ? 13 : 10;
+  camPivX = damp(camPivX, px, pivK, dtC);
+  camPivZ = damp(camPivZ, pz, pivK, dtC);
+  camPivY = damp(camPivY, lookY, 9, dtC);
 
   var cp = Math.cos(camPitch), sp = Math.sin(camPitch);
   var ddx = Math.sin(camYaw) * cp, ddy = sp, ddz = Math.cos(camYaw) * cp;
 
-  /* look-ahead along velocity so you see where you're going, not where you were */
-  var lead = clamp(spd * 0.11, 0, 1.6);
-  var tx = lx + R.vx * 0.08, tz = lz + R.vz * 0.08;
-  if (R.dashing && !lockOn) { tx += R.dashDX * 1.15; tz += R.dashDZ * 1.15; }
-
-  /* jump lag: look height follows slowly going up, snaps down on landing */
-  var wantLookY = ly + 1.22;
-  if (R.vy > 0.5) lookY = lerp(lookY, wantLookY, clamp(dtC * 3.2, 0, 1));
-  else lookY = lerp(lookY, wantLookY, clamp(dtC * 9, 0, 1));
-  var headY = lookY + 0.18;
-
-  /* slight shoulder offset so the character isn't glued to screen center */
-  var shx = Math.cos(camYaw) * 0.55, shz = -Math.sin(camYaw) * 0.55;
-  tx += shx; tz += shz;
-
-  var wantD = camDist + lead * 0.15;
-  /* lock-on breathes out with target range so both fighter + goblin frame */
-  if (lockOn && !lockOn.dead) wantD += clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) * 0.16, 0, 2.6);
-  var safeD = camGroundDist(tx, headY, tz, -ddx, -ddy, -ddz, wantD + 1.4);
-  /* collision pulls in fast, eases out slow (no popping through hills) */
-  if (safeD < camCollideD) camCollideD = lerp(camCollideD, safeD, clamp(dtC * 22, 0, 1));
-  else camCollideD = lerp(camCollideD, safeD, clamp(dtC * 4.5, 0, 1));
+  /* ---- occlusion: lift, then shorten, then let FOV widen ---- */
+  var pivY = camPivY + 0.16;
+  var sol = boomSolve(camPivX, pivY, camPivZ, -ddx, -ddy, -ddz, wantD + 1.4);
+  camLift = damp(camLift, sol.lift, 13, dtC);
+  var safeD = Math.min(wantD, sol.d || wantD);
+  if (safeD < camCollideD) camCollideD = damp(camCollideD, safeD, 22, dtC);   /* pull in fast */
+  else camCollideD = damp(camCollideD, safeD, 5.5, dtC);                      /* ease out slow */
   var useD = Math.min(wantD, camCollideD);
+  camBlockT = damp(camBlockT, useD < wantD - 0.4 ? clamp((wantD - useD) * 0.45, 0, 1) : 0, 8, dtC);
 
-  var ex = tx - ddx * useD, ey = headY + ddy * useD, ez = tz - ddz * useD;
+  var ex = camPivX - ddx * useD, ez = camPivZ - ddz * useD;
+  var ey = pivY + camLift + ddy * useD;
   var gh = world.heightAt(ex, ez) + 0.42;
   if (ey < gh) ey = gh;
+  camX = ex; camY = ey; camZ = ez;
 
-  /* critically damped follow — high enough to stick, low enough to not jitter */
-  var followK = R.dashing ? 14 : (lockOn && !lockOn.dead ? 8.5 : 11);
-  camX = lerp(camX, ex, clamp(dtC * followK, 0, 1));
-  camY = lerp(camY, ey, clamp(dtC * followK, 0, 1));
-  camZ = lerp(camZ, ez, clamp(dtC * followK, 0, 1));
-  var gh2 = world.heightAt(camX, camZ) + 0.38;
-  if (camY < gh2) camY = gh2;
-
-  ctr[0] = tx + (lockOn ? (lockOn.x - lx) * 0.12 : 0);
-  ctr[1] = lookY;
-  ctr[2] = tz + (lockOn ? (lockOn.z - lz) * 0.12 : 0);
-  if (lockOn && !lockOn.dead) {
-    ctr[0] = lerp(tx, lockOn.x, 0.22);
-    ctr[1] = lerp(lookY, lockOn.y + lockOn.h * 0.55, 0.18);
-    ctr[2] = lerp(tz, lockOn.z, 0.22);
+  /* ---- look-at: head framed, leaning into the fight ---- */
+  ctr[0] = camPivX; ctr[2] = camPivZ; ctr[1] = pivY + camLift * 0.45 + 0.06;
+  if (locked) {
+    var fr = clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) / 13, 0.25, 1);
+    ctr[0] = lerp(camPivX, lockOn.x, 0.24 * fr);
+    ctr[1] = lerp(ctr[1], lockOn.y + lockOn.h * 0.72, 0.2 * fr);
+    ctr[2] = lerp(camPivZ, lockOn.z, 0.24 * fr);
+  } else if (aiming) {
+    ctr[0] += (aim.x - camPivX) * 0.05; ctr[2] += (aim.z - camPivZ) * 0.05;
   }
 
+  /* ---- impact: kicks decay out of the orientation, never persist ---- */
+  camKickY = damp(camKickY, 0, 8.5, dtC);
+  camKickP = damp(camKickP, 0, 8.5, dtC);
+  camKickR = damp(camKickR, 0, 6.5, dtC);
+  camYaw += camKickY;
+  camPitch = clamp(camPitch + camKickP, CAM_PIT_MIN - 0.14, CAM_PIT_MAX + 0.14);
+
   var sh = game.shake;
-  if (sh > 0) {
-    var ss = Math.min(sh, 0.85) * 0.22;
-    var n1 = Math.sin(time * 47.1) * Math.cos(time * 31.7);
-    var n2 = Math.sin(time * 53.3 + 1.7);
-    var n3 = Math.cos(time * 41.9 + 0.4);
+  if (sh > 0.001) {
+    var ss = sh * sh * 0.3 * CAMSET.shake;
+    var n1 = Math.sin(time * 39.7) * Math.cos(time * 24.3);
+    var n2 = Math.sin(time * 47.1 + 1.7);
+    var n3 = Math.cos(time * 33.9 + 0.4);
     eye[0] = camX + n1 * ss;
     eye[1] = camY + n2 * ss * 0.7;
     eye[2] = camZ + n3 * ss;
+    camKickR += n3 * ss * 0.1;
   } else { eye[0] = camX; eye[1] = camY; eye[2] = camZ; }
 
-  C.m4Look(VM, eye[0], eye[1], eye[2], ctr[0], ctr[1], ctr[2]);
-  var spdF = clamp(spd / 9, 0, 1);
-  /* FOV juice: dash punch, nova bloom, charge focus */
-  var fovT = 0.98 + (R.dashing ? 0.09 : 0) + spdF * 0.04 +
-    (R.novaFx > 0 ? 0.10 : 0) - (R.charging ? clamp((R.charge - 0.28) / 0.72, 0, 1) * 0.05 : 0);
-  camFov = lerp(camFov, fovT, clamp(dtC * 5, 0, 1));
+  m4LookRoll(VM, eye[0], eye[1], eye[2], ctr[0], ctr[1], ctr[2], camRoll + camKickR);
+  /* FOV: dash punch, nova bloom, charge focus, aim-in narrow, widen if buried */
+  var fovT = 0.98 + CAMSET.fov * 0.02 + (R.dashing ? 0.09 : 0) + spdF * 0.045 +
+    (R.novaFx > 0 ? 0.10 : 0) - (R.charging ? clamp((R.charge - 0.28) / 0.72, 0, 1) * 0.06 : 0) +
+    (aiming && !locked ? -0.03 : 0) + camBlockT * 0.08 + Math.abs(camKickP) * 0.3;
+  camFov = damp(camFov, fovT, 6.5, dtC);
   C.m4Persp(PM, camFov, Ww / Hh, 0.12, 480);
   C.m4mul(PVM, PM, VM);
   camR[0] = VM[0]; camR[1] = VM[4]; camR[2] = VM[8];
   camUp[0] = VM[1]; camUp[1] = VM[5]; camUp[2] = VM[9];
+  /* the ground the rig is standing on, for anything that needs it */
+  camFloorY = world.heightAt(camX, camZ);
 }
-var titleA = 0;
-var touchAutoCam = false;
+var camFloorY = 0;
 
-/* Mouse-assist aim (the Zelda cursor): unproject the screen point to a
- * world ray, then ray-march against enemy hitboxes and the terrain. */
+/* build the camera's prop-collision list from the instanced props (trunks
+ * and boulders only — canopies and runes are above/behind the boom anyway) */
+function buildCamBlockers(w) {
+  camBlockers.length = 0;
+  var keys = ['bark', 'rock', 'stone'], i, k;
+  for (k = 0; k < keys.length; k++) {
+    var arr = w.props[keys[k]];
+    if (!arr || !arr.length) continue;
+    for (i = 0; i + 18 < arr.length; i += 19) {
+      var sx = Math.hypot(arr[i], arr[i + 1], arr[i + 2]);
+      var sy = Math.hypot(arr[i + 4], arr[i + 5], arr[i + 6]);
+      var sz = Math.hypot(arr[i + 8], arr[i + 9], arr[i + 10]);
+      var r = Math.max(sx, sz) * 0.55 + 0.18;
+      var h = Math.max(0.8, sy);
+      if (r < 0.2 || r > 3.2) continue;
+      camBlockers.push({ x: arr[i + 12], y: arr[i + 13], z: arr[i + 14], r: r, h: h });
+    }
+  }
+}
+
+/* Mouse-assist aim (the Zelda cursor): unproject the screen point to a world
+ * ray, then test it *analytically* against enemy capsules and the
+ * heightfield. The old fixed 1.4u march stepped straight over goblins at
+ * range, which is why shots sometimes passed through a model for no reason. */
+function raySphereT(ox, oy, oz, dx, dy, dz, cx, cy, cz, r) {
+  var mx = cx - ox, my = cy - oy, mz = cz - oz;
+  var b = mx * dx + my * dy + mz * dz;
+  if (b <= 0) return -1;
+  var disc = b * b - (mx * mx + my * my + mz * mz - r * r);
+  if (disc < 0) return -1;
+  return b - Math.sqrt(disc);
+}
 function updateAim() {
-  aim.lock = null;
+  aim.lock = null; aim.assist = null; aim.dot = 0;
   if (state !== 'play' || !world) return;
   if (lockOn && !lockOn.dead) {
     aim.lock = lockOn;
@@ -755,33 +948,80 @@ function updateAim() {
   var dx = fx + rx * sx2 + ux * sy2, dy = fy + ry * sx2 + uy * sy2, dz = fz + rz * sx2 + uz * sy2;
   var dl = Math.hypot(dx, dy, dz) || 1;
   dx /= dl; dy /= dl; dz /= dl;
-  var px = camX, py = camY, pz = camZ;
-  /* start the march at the player: enemies between the camera and Riley
-     (i.e. behind him) must never become the aim target */
-  var tMin = Math.hypot(R.x - px, R.y - py, R.z - pz) * 0.85;
-  for (var i = 1; i <= 44; i++) {
-    var t = i * 1.4;
-    if (t < tMin) continue;
-    var qx = px + dx * t, qy = py + dy * t, qz = pz + dz * t;
-    if (qy < -30) break;
-    for (var e = 0; e < enemies.length; e++) {
-      var en = enemies[e];
-      if (en.dead) continue;
-      if (Math.abs(qx - en.x) < en.r + 0.5 && Math.abs(qz - en.z) < en.r + 0.5 &&
-          qy > en.y - 0.3 && qy < en.y + en.h + 0.5) {
-        aim.x = en.x; aim.z = en.z; aim.y = world.heightAt(en.x, en.z);
-        aim.lock = en;
-        return;
+  var ox = camX, oy = camY, oz = camZ;
+  /* never target anything between the camera and Riley — goblins at his back
+     are what the offscreen arrows are for */
+  var tMin = Math.max(1.0, Math.hypot(R.x - ox, R.y - oy, R.z - oz) * 0.82);
+
+  /* 1. heightfield: accelerating march + bisection => exact ground mark */
+  var tHit = 0, t = tMin, step = 0.7, prevT = tMin, MAXT = 52;
+  for (var i = 0; i < 70; i++, t += step) {
+    if (t > MAXT) { tHit = MAXT; break; }
+    var qx = ox + dx * t, qy = oy + dy * t, qz = oz + dz * t;
+    if (qy < -34) break;
+    if (qy <= world.heightAt(qx, qz)) {
+      var lo = prevT, hi = t;
+      for (var bI = 0; bI < 7; bI++) {
+        var mid = (lo + hi) * 0.5;
+        var mx2 = ox + dx * mid, my2 = oy + dy * mid, mz2 = oz + dz * mid;
+        if (my2 <= world.heightAt(mx2, mz2)) hi = mid; else lo = mid;
       }
+      tHit = hi; break;
     }
-    if (qy <= world.heightAt(qx, qz) + 0.05) {
-      aim.x = qx; aim.z = qz; aim.y = world.heightAt(qx, qz);
-      return;
+    prevT = t; step = Math.min(2.6, step * 1.22);
+  }
+  if (!tHit) tHit = MAXT;
+
+  /* 2. enemies: two stacked spheres per goblin = a capsule, exact hit test */
+  var bestE = null, bestT = tHit;
+  for (var e = 0; e < enemies.length; e++) {
+    var en = enemies[e];
+    if (en.dead) continue;
+    var rr = en.r + 0.42;
+    var t1 = raySphereT(ox, oy, oz, dx, dy, dz, en.x, en.y + en.h * 0.36, en.z, rr);
+    var t2 = raySphereT(ox, oy, oz, dx, dy, dz, en.x, en.y + en.h * 0.86, en.z, rr * 0.82);
+    var tt = t1 > tMin ? t1 : 1e9;
+    if (t2 > tMin && t2 < tt) tt = t2;
+    if (tt < bestT) { bestT = tt; bestE = en; }
+  }
+  if (bestE) {
+    aim.x = bestE.x; aim.z = bestE.z;
+    aim.y = world.heightAt(bestE.x, bestE.z) + bestE.h * 0.5;
+    aim.lock = bestE;
+    return;
+  }
+  var hx = ox + dx * tHit, hz = oz + dz * tHit;
+  aim.x = hx; aim.z = hz; aim.y = world.heightAt(hx, hz);
+
+  /* 3. soft aim assist: a goblin's chest inside a distance-scaled cone of the
+     firing line gets pulled *toward*, never teleported to — a hard snap reads
+     as the game taking the mouse away from you */
+  var bestA = null, bestScore = 0;
+  var hdx = hx - R.x, hdz = hz - R.z;
+  var hl = Math.hypot(hdx, hdz);
+  if (hl > 0.5) {
+    hdx /= hl; hdz /= hl;
+    for (var a2 = 0; a2 < enemies.length; a2++) {
+      var ea = enemies[a2];
+      if (ea.dead) continue;
+      var adx = ea.x - R.x, adz = ea.z - R.z;
+      var ad = Math.hypot(adx, adz);
+      if (ad < 1.3 || ad > 30) continue;
+      var cosA = (adx / ad) * hdx + (adz / ad) * hdz;
+      var tol = 0.978 - clamp(ad / 30, 0, 1) * 0.012;   /* ~12° near, 9° far */
+      if (cosA < tol) continue;
+      var sc = (cosA - tol) / (1 - tol) - ad / 260;
+      if (sc > bestScore) { bestScore = sc; bestA = ea; aim.dot = cosA; }
     }
   }
-  aim.x = px + dx * 62; aim.z = pz + dz * 62; aim.y = py + dy * 62;
+  if (bestA) {
+    aim.assist = bestA;
+    var w = clamp(bestScore * 0.9, 0, 1) * 0.7;
+    aim.x = lerp(aim.x, bestA.x, w);
+    aim.z = lerp(aim.z, bestA.z, w);
+    aim.y = lerp(aim.y, world.heightAt(bestA.x, bestA.z) + bestA.h * 0.45, w);
+  }
 }
-
 /* ================================================================
  * 8. player
  * ================================================================ */
@@ -796,14 +1036,18 @@ function buffMul() {
   };
 }
 function newRiley() {
-  return {
+  var r = {
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: Math.PI, run: 0, air: 0, ground: true,
     dashT: 0, dashCd: 0, dashDX: 0, dashDZ: 0, dashing: false, jumpBuf: 0, coyote: 0,
     kbx: 0, kbz: 0, kbT: 0,
     inv: 0, hitT: 0, shootCd: 0, shootAnim: 0, ph: 0,
     mana: 0, manaMax: 100, charge: 0, charging: false, fireHeldT: 0,
-    novaFx: 0, sideFlip: 1
+    novaFx: 0, sideFlip: 1, meleeT: 0, meleeN: 0, landT: 0, tilt: 0
   };
+  /* render-state (interpolated between fixed sim poses) */
+  r.prx = r.pry = r.prz = 0; r.pryaw = r.yaw;
+  r.rx = r.x; r.ry = r.y; r.rz = r.z; r.ryaw = r.yaw;
+  return r;
 }
 function groundY(x, z) { return world.heightAt(x, z); }
 
@@ -861,6 +1105,7 @@ function stepPlayer(inp) {
     R.dashDX = dd0 / dl; R.dashDZ = dd1 / dl;
     R.dashing = true; R.dashT = 0.16; R.dashCd = 0.58; R.inv = Math.max(R.inv, 0.28);
     burst(R.x, R.y + 0.7, R.z, [130, 210, 255], 12, 5, 1.5, 0.3, 0.4);
+    camKick(0, 0.018, 0);
   }
   if (R.dashing) {
     R.dashT -= dt;
@@ -978,7 +1223,7 @@ function tryMelee() {
   if (hit) {
     R.shootCd = 0.28; R.shootAnim = 0.22;
     ringBurst(R.x + Math.sin(R.yaw), R.y + 1, R.z + Math.cos(R.yaw), [255, 210, 90], 5);
-    game.shake = Math.max(game.shake, 0.18);
+    shake(0.20); camKick(rnd2(-0.02, 0.02), -0.03, rnd2(-0.02, 0.02));
     sfx('smash');
     return true;
   }
@@ -1042,14 +1287,15 @@ function releaseCharge() {
   });
   burst(sx, sy, sz, tier === 2 ? [190, 130, 255] : [255, 170, 70], tier === 2 ? 22 : 14, 7, 0, 0.28, 0.5);
   ringBurst(sx, sy, sz, tier === 2 ? [200, 150, 255] : [255, 180, 90], 4);
-  game.shake = Math.max(game.shake, tier === 2 ? 0.35 : 0.18);
-  if (tier === 2) doHitStop(0.04);
+  shake(tier === 2 ? 0.42 : 0.2);
+  camKick(0, tier === 2 ? -0.055 : -0.026, 0);
+  if (tier === 2) doHitStop(0.045);
   sfx(tier === 2 ? 'boss' : 'smash');
 }
 function castNova() {
   R.mana = 0; R.novaFx = 0.6;
   R.inv = Math.max(R.inv, 0.7); /* brief invulnerability — nova is the panic button */
-  game.shake = 0.6; doHitStop(0.06);
+  shake(0.75); doHitStop(0.07); camKick(0, -0.06, 0.02);
   for (var ri = 0; ri < 3; ri++) ringBurst(R.x, R.y + 0.4, R.z, [150, 210, 255], 6 + ri * 3);
   burst(R.x, R.y + 0.8, R.z, [170, 140, 255], 40, 12, 1.5, 0.4, 0.9);
   burst(R.x, R.y + 0.8, R.z, [120, 220, 255], 26, 9, 1.2, 0.3, 0.8);
@@ -1182,10 +1428,14 @@ function newGob(k, x, y, z, idx) {
     spd: t.spd * rnd2(0.88, 1.12),
     dmgTaken: 0, dmgDealt: 0, kills: 0, lifeSec: 0, hitsTaken: 0, gemsStolen: 0,
     aiPhase: (idx || 0) % 8, sideT: rnd2(2, 5), side: 1,
-    mvx: 0, mvz: 0, mAct: 'idle'
+    mvx: 0, mvz: 0, mAct: 'idle',
+    /* render-only feel: squash/pop on hit, death collapse, telegraph dip */
+    flinch: 0, popY: 0, dieT: 0, lean: 0
   };
   e.brain = A.makeBrain(k, g);
   e.genome = g;
+  e.prx = e.x; e.pry = e.y; e.prz = e.z; e.pryaw = e.yaw;
+  e.rx = e.x; e.ry = e.y; e.rz = e.z; e.ryaw = e.yaw;
   return e;
 }
 function enemySensor(e) {
@@ -1281,6 +1531,7 @@ function updateEnemyBrain(e) {
         var a = tickRand() * TAU, rr = rnd2(2.5, 4.5);
         var g = newGob(tickRand() < 0.5 ? 'grunt' : 'runner', e.x + Math.cos(a) * rr, 0, e.z + Math.sin(a) * rr, enemies.length + m);
         g.y = world.heightAt(g.x, g.z);
+        syncPrev(g);
         enemies.push(g);
         ringBurst(g.x, g.y + 0.1, g.z, [180, 240, 255], 2);
       }
@@ -1356,7 +1607,7 @@ function updateEnemies(dtU) {
         /* the shockwave lands */
         sfx('smash');
         ringBurst(e3.x, e3.y + 0.2, e3.z, [255, 140, 60], 7);
-        game.shake = Math.max(game.shake, 0.3);
+        shake(0.34);
         var fx2 = Math.sin(e3.yaw), fz2 = Math.cos(e3.yaw);
         var rdx = R.x - e3.x, rdz = R.z - e3.z;
         var rd = Math.hypot(rdx, rdz) || 1;
@@ -1375,7 +1626,7 @@ function updateEnemies(dtU) {
         ringBurst(e3.x, e3.y + 0.2, e3.z, [255, 120, 60], 9);
         ringBurst(e3.x, e3.y + 0.2, e3.z, [255, 214, 94], 6);
         burst(e3.x, e3.y + 0.3, e3.z, [255, 150, 80], 16, 6, 2, 0.24, 0.5);
-        game.shake = Math.max(game.shake, 0.55);
+        shake(0.6); camKick(0, -0.06, 0);
         if (Math.hypot(R.x - e3.x, R.z - e3.z) < 4.8) hitRiley(e3);
         e3.actKind = 'none';
       }
@@ -1527,13 +1778,13 @@ function killGob(e, smash) {
   if (smash) {
     burst(e.x, e.y + e.h * 0.5, e.z, [160, 230, 255], 18, 9, 2.6, 0.3, 0.6);
     ringBurst(e.x, e.y + 0.2, e.z, [200, 240, 255], 4);
-    game.shake = Math.max(game.shake, 0.22);
+    shake(0.26);
     doHitStop(0.05);
     sfx('smash');
   } else {
     burst(e.x, e.y + e.h * 0.5, e.z, c.skin, 16, 6, 2, 0.34, 0.55);
     burst(e.x, e.y + e.h * 0.4, e.z, [255, 220, 90], 10, 5, 1.5, 0.16, 0.4);
-    game.shake = Math.max(game.shake, 0.14);
+    shake(0.14);
     sfx('kill');
   }
   /* drops */
@@ -1551,9 +1802,10 @@ function killGob(e, smash) {
   }
   var isBoss = e.k === 'boss';
   if (isBoss) {
-    game.shake = 1;
+    shake(1);
     game.boss = false;
     doHitStop(0.22);
+    camKick(0.02, -0.09, 0.04);
     burst(e.x, e.y + e.h * 0.6, e.z, [255, 120, 50], 40, 11, 3, 0.5, 1);
     ringBurst(e.x, e.y + 0.2, e.z, [255, 214, 94], 6);
     popText(e.x, e.y + e.h + 1.4, e.z, 'GOBLIN KING DOWN!', true, '#ffd75e');
@@ -1573,8 +1825,10 @@ function hitRiley(e) {
   R.kbx = dx / d * 1.0; R.kbz = dz / d * 1.0; R.kbT = 0.3;
   R.vx = dx / d * 10; R.vz = dz / d * 10; R.vy = 8;
   R.dashing = false; R.dashT = 0;
-  if (e.k === 'boss') { game.shake = 0.8; R.vx *= 1.5; R.vz *= 1.5; }
-  else game.shake = 0.4;
+  if (e.k === 'boss') { shake(0.9); R.vx *= 1.5; R.vz *= 1.5; }
+  else shake(0.45);
+  var kYaw = angDiff(camYaw, Math.atan2(-(dx / d), -(dz / d)));
+  camKick(clamp(kYaw, -0.5, 0.5) * 0.055, -0.05, kYaw > 0 ? -0.03 : 0.03);
   if (!e.dead && e.brain) e.brain.reward('hit');
   e.dmgDealt += 1;
   hurt();
@@ -1586,8 +1840,10 @@ function hurt() {
   game.comboBest = Math.max(game.comboBest, game.combo);
   updateCombo();
   R.inv = 1.4; R.hitT = 0.4;
-  game.shake = Math.max(game.shake, 0.5);
-  doHitStop(0.08);
+  shake(0.6);
+  /* the camera flinches *away* from the hit — you feel which side it came
+     from before your eyes even find the goblin */
+  doHitStop(0.09);
   sfx('hurt');
   var hv = el('hurtVig');
   hv.classList.add('on');
@@ -1649,7 +1905,7 @@ function placeGoblin(k, px, pz, elite) {
   if (k === 'boss') sfx('boss');
   else if (k === 'brute') sfx('roar');
   else sfxGated('pop');
-  if (k === 'boss') game.shake = 0.7;
+  if (k === 'boss') { shake(0.7); camKick(0, -0.05, 0); }
   enemies.push(g);
   if (k === 'boss') game.boss = true;
   return g;
@@ -1919,7 +2175,7 @@ function updateOffscreenArrows() {
   var m = PVM, n = 0;
   for (var c = 0; c < cand.length && n < OFF_MAX; c++) {
     var t = cand[c];
-    var wx = t.x, wy = t.y + t.h * 0.5, wz = t.z;
+    var wx = t.rx, wy = t.ry + t.h * 0.5, wz = t.rz;
     var cx = m[0] * wx + m[4] * wy + m[8] * wz + m[12];
     var cy = m[1] * wx + m[5] * wy + m[9] * wz + m[13];
     var w = m[3] * wx + m[7] * wy + m[11] * wz + m[15];
@@ -1964,7 +2220,7 @@ function drawRileyChar(o) {
   var bob = (moving && o.ground) ? Math.abs(walk) * 0.05 : Math.sin(time * 3) * 0.02;
   var legSwing = (moving && o.ground) ? walk * 0.8 : (o.air ? -0.35 : 0);
   var armSwing = (moving && o.ground) ? -walk * 0.65 : (o.air ? -0.4 : 0.15);
-  var yaw = o.yaw, bx = o.x, by = o.y, bz = o.z;
+  var yaw = o.ryaw !== undefined ? o.ryaw : o.yaw, bx = o.rx, by = o.ry, bz = o.rz;
   /* cape */
   C.limb2(MM, bx, by + 1.18, bz - 0.2, yaw, 0, 0, 0, -0.22, Math.sin(o.run * 0.5) * 0.1, 0, 0, 0, 0.5, 0.64, 0.08);
   instPart('box', 'cloth', MM, [72, 50, 176]);
@@ -2036,7 +2292,7 @@ function drawGoblin(e) {
     c.skin = shade(c.skin, e.shade); c.skinD = shade(c.skinD, e.shade); c.belly = shade(c.belly, e.shade);
     c.ear = shade(c.ear, e.shade); c.cloth = shade(c.cloth, e.shade);
   }
-  var s = Math.max(e.r, 0.42) * 2, yaw = e.yaw, bx = e.x, by = e.y, bz = e.z, h = e.h;
+  var s = Math.max(e.r, 0.42) * 2, yaw = e.ryaw, bx = e.rx, by = e.ry, bz = e.rz, h = e.h;
   var moving = Math.hypot(e.vx, e.vz) > 1;
   var swing = Math.sin(e.run);
   var bob2 = moving ? Math.abs(Math.cos(e.run)) * 0.04 * Math.min(1, e.r * 2) : 0;
@@ -2195,10 +2451,10 @@ function render() {
   }
   /* shadows (soft round, one draw) */
   shadowFx.length = 0;
-  if (R) shadowPush(R.x, R.y, R.z, 0.62, 0.85);
+  if (R) shadowPush(R.rx, R.ry, R.rz, 0.62, 0.85);
   for (var ei = 0; ei < enemies.length; ei++) {
     var e = enemies[ei];
-    if (!e.dead) shadowPush(e.x, e.y, e.z, e.r + 0.15, 0.75);
+    if (!e.dead) shadowPush(e.rx, e.ry, e.rz, e.r + 0.15, 0.75);
   }
   drawGlowList(shadowFx, 1);
   /* pickups */
@@ -2226,16 +2482,16 @@ function render() {
     var ee = enemies[et];
     if (ee.dead) continue;
     if (ee.elite) {
-      haloN = glowAddInto(haloScratch, haloN, ee.x, ee.y + ee.h * 0.55, ee.z, ee.r * 1.5, 255, 214, 94, 0.34 + 0.12 * Math.sin(time * 4 + ee.ph));
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h * 0.55, ee.rz, ee.r * 1.5, 255, 214, 94, 0.34 + 0.12 * Math.sin(time * 4 + ee.ph));
     }
     /* lunge windup: rising red flare at the feet — dodge window made visible */
     if (ee.tele > 0) {
       var tg = 1 - ee.tele / 0.3;
-      haloN = glowAddInto(haloScratch, haloN, ee.x, ee.y + ee.h * 0.45, ee.z, ee.r * (1.4 + tg * 0.8), 255, 80, 60, 0.22 + tg * 0.42);
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, ee.ry + ee.h * 0.45, ee.rz, ee.r * (1.4 + tg * 0.8), 255, 80, 60, 0.22 + tg * 0.42);
     }
     if (ee.k === 'boss' && ee.actKind === 'slam' && ee.actT > 0) {
       var st = 1 - ee.actT / 0.5; /* 0 → 1 as the pound lands */
-      haloN = glowAddInto(haloScratch, haloN, ee.x, world.heightAt(ee.x, ee.z) + 0.12, ee.z, 4.8 * (0.25 + 0.75 * st), 255, 120, 60, 0.16 + 0.4 * st);
+      haloN = glowAddInto(haloScratch, haloN, ee.rx, world.heightAt(ee.rx, ee.rz) + 0.12, ee.rz, 4.8 * (0.25 + 0.75 * st), 255, 120, 60, 0.16 + 0.4 * st);
     }
   }
   if (haloN) { drawGlowList(haloScratch, 0, haloN); haloN = 0; }
@@ -2330,9 +2586,44 @@ function worldHash() {
   }
   return N.worldHash(ents);
 }
+/* Snapshot the *pre-step* transform of every rendered entity so the frame
+ * draw can interpolate between the last two fixed states. Without this the
+ * whole world visibly crawls on any display whose refresh != 60 Hz, because
+ * the sim publishes one pose per 1/60 s while frames arrive faster. */
+function snapshotPrev() {
+  if (R) { R.prx = R.x; R.pry = R.y; R.prz = R.z; R.pryaw = R.yaw; }
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    e.prx = e.x; e.pry = e.y; e.prz = e.z; e.pryaw = e.yaw;
+  }
+}
+/* re-baseline an entity that was teleported (spawn, wave reset) so the
+ * interpolator never drags it in from the origin */
+function syncPrev(o) {
+  o.prx = o.x; o.pry = o.y; o.prz = o.z; o.pryaw = o.yaw;
+  o.rx = o.x; o.ry = o.y; o.rz = o.z; o.ryaw = o.yaw;
+}
+function syncRender(a) {
+  if (R) {
+    R.rx = R.prx + (R.x - R.prx) * a;
+    R.ry = R.pry + (R.y - R.pry) * a;
+    R.rz = R.prz + (R.z - R.prz) * a;
+    R.ryaw = angLerp(R.pryaw, R.yaw, a);
+  }
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    e.rx = e.prx + (e.x - e.prx) * a;
+    e.ry = e.pry + (e.y - e.pry) * a;
+    e.rz = e.prz + (e.z - e.prz) * a;
+    e.ryaw = angLerp(e.pryaw, e.yaw, a);
+  }
+}
 function stepSim() {
+  var pdt = dt;          /* presentation clock — the sim must never read it */
+  dt = FIXED;            /* the sim tick clock: 1/60 s, always, at any fps */
   frame++;
   tickRand = N.simRng(runSeedNum, frame);
+  snapshotPrev();
   /* raw controls -> input -> session -> sim (the MP path) */
   pollInputLive();
   var mv = moveVec();
@@ -2352,11 +2643,13 @@ function stepSim() {
   /* combo / timers */
   if (game.combo > 0) { game.combot -= FIXED; if (game.combot <= 0) { game.combo = 0; updateCombo(); } }
   if (game.shake > 0) game.shake -= FIXED;
+  if (game.shakeT > 0) { game.shakeT -= FIXED; if (game.shakeT < 0) game.shakeT = 0; }
   if (game.bannerT > 0) {
     game.bannerT -= FIXED;
     if (game.bannerT <= 0 && bannerEl && bannerEl.style.opacity === '1' && state === 'play') bannerEl.style.opacity = '0';
   }
   updateHUD();
+  dt = pdt;
 }
 function updateCrystals(dtC) {
   for (var i = 0; i < world.crystals.length; i++) {
@@ -2376,6 +2669,7 @@ function updateCrystals(dtC) {
   }
 }
 function updateFxVisual(dtF) {
+  if (zoomPulse > 0) zoomPulse = Math.max(0, zoomPulse - dtF * 2.6);
   for (var i = fx.length - 1; i >= 0; i--) {
     var f = fx[i];
     f.life -= dtF;
@@ -2426,6 +2720,13 @@ function loop(tms) {
   pollGamepad(rawDt);
   musicTick();
   updateFxVisual(rawDt);
+  /* slow-motion (perfect dodges, nova, boss deaths): the *render* clock keeps
+     running at full speed so the camera stays silky, while sim ticks are fed
+     at a reduced rate. Each tick is still exactly 1/60 s of sim time, so the
+     determinism contract holds at any refresh rate or time scale. */
+  if (game.slowT > 0) { game.slowT -= rawDt; if (game.slowT <= 0) { game.slowT = 0; game.slowK = 1; } }
+  var ts = game.slowT > 0 ? game.slowK : 1;
+  var alpha = 1;
   if (state === 'title') {
     time += rawDt;
     updateCamera(rawDt, { x: 0, y: 0, z: 0 });
@@ -2434,21 +2735,23 @@ function loop(tms) {
     if (state === 'play') {
       updateAim();
       if (hitStop > 0) {
-        hitStop -= rawDt;
-        acc = 0;
+        hitStop -= rawDt;   /* hold the pose (and acc) — freeze frame, not a pop */
       } else {
-        acc += rawDt;
+        acc += rawDt * ts;
         var steps = 0;
-        while (acc >= FIXED && steps < 4) { stepSim(); acc -= FIXED; steps++; }
-        if (steps === 4) acc = 0;
+        while (acc >= FIXED && steps < 5) { stepSim(); acc -= FIXED; steps++; }
+        if (steps === 5) acc = 0;
       }
     }
-    updateCamera(rawDt, { x: R.x, y: R.y, z: R.z });
+    alpha = clamp(acc / FIXED, 0, 1);
+    syncRender(alpha);
+    updateCamera(rawDt, { x: R.rx, y: R.ry, z: R.rz });
     updateReticle();
     render();
   } else if (state === 'over') {
     time += rawDt;
-    updateCamera(rawDt, { x: R.x, y: R.y, z: R.z });
+    syncRender(1);
+    updateCamera(rawDt, { x: R.rx, y: R.ry, z: R.rz });
     render();
   }
 }
@@ -2485,8 +2788,9 @@ function pollGamepad(rawDt) {
   var rx = gpDead(pad.axes[2] || 0), ry = gpDead(pad.axes[3] || 0);
   gpAiming = (rx !== 0 || ry !== 0);
   if (gpAiming) {
-    camYawTarget -= rx * 2.4 * rawDt;
-    camPitchTarget = clamp(camPitchTarget + ry * 1.8 * rawDt, -0.30, 1.18);
+    var gpk = 85 * CAMSET.sens;
+    camYawTarget -= rx * gpk * rawDt;
+    camPitchTarget = clamp(camPitchTarget + ry * gpk * 0.75 * rawDt * (CAMSET.invertY ? -1 : 1), CAM_PIT_MIN, CAM_PIT_MAX);
     lastAimT = time;
   }
   var b = pad.buttons || [];
@@ -2548,12 +2852,16 @@ document.addEventListener('keydown', function (e) {
       else cycleLockOn();
     }
   }
-  if (e.code === 'KeyR' && state === 'play') {
-    /* snap the camera back behind Riley */
-    camYawTarget = R.yaw;
-    camPitchTarget = 0.36;
-    lastAimT = time;
+  if (e.code === 'KeyR' && state === 'play') resetCamera(true);
+  if (e.code === 'KeyV' && state === 'play') {
+    CAMSET.autoFrame = CAMSET.autoFrame ? 0 : 1;
+    CAMSET.lockCam = CAMSET.lockCam ? 0 : 1;
+    saveCamSet();
+    showBanner(CAMSET.autoFrame ? 'CAMERA: AUTO-FRAME ON' : 'CAMERA: FREE LOOK',
+      'LOCK ' + (CAMSET.lockCam ? 'ON' : 'OFF') + ' · ' + (CAMSET.autoFrame ? 'CAM SWINGS BEHIND AS YOU RUN' : 'CAM ONLY MOVES WHEN YOU DO'));
   }
+  if (e.code === 'BracketLeft' && state === 'play') camDistTarget = clamp(camDistTarget - 0.9, CAM_DIST_MIN, CAM_DIST_MAX);
+  if (e.code === 'BracketRight' && state === 'play') camDistTarget = clamp(camDistTarget + 0.9, CAM_DIST_MIN, CAM_DIST_MAX);
 });
 document.addEventListener('keyup', function (e) { keys[e.code] = false; });
 window.addEventListener('blur', function () {
@@ -2565,16 +2873,15 @@ window.addEventListener('blur', function () {
 document.addEventListener('pointerlockchange', function () {
   pointerLocked = document.pointerLockElement === canvas;
 });
+function lookDelta(mx, my, k) {
+  var sens = k * CAMSET.sens;
+  camYawTarget -= mx * 0.0028 * sens;
+  camPitchTarget = clamp(camPitchTarget + my * 0.0022 * sens * (CAMSET.invertY ? -1 : 1), CAM_PIT_MIN, CAM_PIT_MAX);
+  lastAimT = time;
+}
 document.addEventListener('mousemove', function (e) {
-  if (pointerLocked) {
-    camYawTarget -= e.movementX * 0.0028;
-    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0022, -0.30, 1.18);
-    lastAimT = time;
-  } else if (dragLookActive) {
-    camYawTarget -= e.movementX * 0.0032;
-    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0024, -0.30, 1.18);
-    lastAimT = time;
-  }
+  if (pointerLocked) lookDelta(e.movementX, e.movementY, 1);
+  else if (dragLookActive) lookDelta(e.movementX, e.movementY, 1.15);
   mouseX = e.clientX; mouseY = e.clientY;
 });
 canvas.addEventListener('pointerdown', function (e) {
@@ -2624,7 +2931,12 @@ canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 /* mouse-wheel dolly (Zelda zoom) */
 canvas.addEventListener('wheel', function (e) {
   e.preventDefault();
-  camDistTarget = clamp(camDistTarget + e.deltaY * 0.006, CAM_DIST_MIN, CAM_DIST_MAX);
+  if (state !== 'play') return;
+  var d = e.deltaY;
+  if (e.deltaMode === 1) d *= 16;            /* line-mode mice */
+  camDistTarget = clamp(camDistTarget + d * 0.0075, CAM_DIST_MIN, CAM_DIST_MAX);
+  CAMSET.zoom = camDistTarget; saveCamSet();
+  zoomPulse = 0.35;
 }, { passive: false });
 
 function pollInputLive() {
@@ -2881,17 +3193,9 @@ function startGame() {
   fogTarget = world.realm.fog.slice();
   resetRiley();
   makeSession();
-  /* camera starts BEHIND Riley, looking where he looks (was +π: face-cam) */
-  camYawTarget = R.yaw;
-  camYaw = camYawTarget;
-  camPitchTarget = 0.36; camPitch = 0.36;
-  camDistTarget = 8.2; camDist = 8.2; camCollideD = 8.2;
-  lookY = R.y + 1.22;
   lockOn = null;
-  camX = R.x - Math.sin(camYaw) * camDist;
-  camZ = R.z - Math.cos(camYaw) * camDist;
-  camY = R.y + 3.8;
-  lastAimT = -10;
+  /* camera starts BEHIND Riley, looking where he looks (was +π: face-cam) */
+  camSnapToPlayer();
   state = 'play';
   frame = 0;
   acc = 0;
@@ -2970,6 +3274,7 @@ function titleScene() {
     var g = newGob(spots[i][2], spots[i][0], 0, spots[i][1], i);
     g.y = world.heightAt(g.x, g.z);
     g.yaw = Math.atan2(-spots[i][0], -spots[i][1]);
+    syncPrev(g);
     enemies.push(g);
   }
   /* title goblins idle-wander via cheap fake brains */
@@ -3044,7 +3349,11 @@ window.__R = function () {
     buffs: { dmg: buffs.dmg, spd: buffs.spd, regen: buffs.regen },
     eliteN: enemies.filter(function (e) { return e.elite && !e.dead; }).length,
     camX: camX, camY: camY, camZ: camZ, camYaw: camYaw, camPitch: camPitch,
-    locked: pointerLocked, seed: world ? world.seed : '' };
+    camDist: camDist, camLift: camLift, camRoll: camRoll, camFov: camFov,
+    camEye: [eye[0], eye[1], eye[2]], camCtr: [ctr[0], ctr[1], ctr[2]],
+    camPiv: [camPivX, camPivY, camPivZ], camBlockT: camBlockT, camShoulder: camShoulder,
+    locked: pointerLocked, seed: world ? world.seed : '',
+    lockOn: lockOn ? lockOn.k : null, aimAssist: aim.assist ? aim.assist.id : null };
 };
 if (SELFTEST) {
   window.__T = {
@@ -3093,6 +3402,11 @@ if (SELFTEST) {
         dist: Math.hypot(aim.x - R.x, aim.z - R.z) };
     },
     zoom: function (d) { camDistTarget = clamp(camDistTarget + d, CAM_DIST_MIN, CAM_DIST_MAX); return camDistTarget; },
+    resetCam: function () { resetCamera(true); return true; },
+    lock: function (k) { if (k === null) { lockOn = null; return null; } cycleLockOn(); return lockOn ? lockOn.k : null; },
+    setLock: function (i) { lockOn = enemies[i] || null; return !!lockOn; },
+    camSet: function (k, v) { if (k in CAMSET) { CAMSET[k] = v; return CAMSET[k]; } return null; },
+    eyeDist: function () { return Math.hypot(eye[0] - R.rx, eye[1] - R.ry, eye[2] - R.rz); },
     zoomMax: function () { return CAM_DIST_MAX; },
     zoomMin: function () { return CAM_DIST_MIN; },
     key: function (code, down) { keys[code] = !!down; },
