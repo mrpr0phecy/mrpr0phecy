@@ -1206,7 +1206,7 @@ function buffMul() {
     regen: (buffs.regen > 0 ? 2.5 : 1) * B.regen
   };
 }
-var DASH_CD = 0.52;        /* the HUD reads this to draw the charge bar */
+var DASH_CD = 0.46;        /* the HUD reads this to draw the charge bar */
 var JUMP_V = 14.4, JUMP_V2 = 13.2, GRAV = 42;
 function newRiley() {
   var r = {
@@ -1595,7 +1595,7 @@ function fireShot() {
 }
 /* charge curve, in one place: hold 0.24s to start charging, the bolt reaches
    tier 1 at CHARGE_T and full (tier 2) at CHARGE_T + CHARGE_SPAN. */
-var CHARGE_T = 0.28, CHARGE_SPAN = 0.72;
+var CHARGE_T = 0.24, CHARGE_SPAN = 0.62;
 function chargePct() { return R ? clamp((R.charge - CHARGE_T) / CHARGE_SPAN, 0, 1) : 0; }
 function releaseCharge() {
   var pw = chargePct();
@@ -2966,7 +2966,7 @@ function drawRileyChar(o) {
   /* wand + tip (hand sits at ~(0.36, 1.22, 0.22) local) */
   C.limb2(MM, bx + 0.36, by + 1.22, bz + 0.22, yaw, 0, 0, 0, -1.15, 0, 0, 0, 0.12, 0.05, 0.05, 0.36);
   instPart('box', '', MM, wood);
-  var chg = o.charging ? clamp((o.charge - 0.28) / 0.72, 0, 1) : 0;
+  var chg = o.charging ? chargePct() : 0;
   var tipScale = 0.1 + chg * 0.24 + (o.shootAnim > 0 ? 0.12 : 0);
   C.limb2(MM, bx + 0.36, by + 1.3, bz + 0.36, yaw, 0, 0, 0, 0, 0, 0, 0, 0, tipScale, tipScale, tipScale);
   instPart('sphereL', 'g6', MM, chg > 0.85 ? [200, 150, 255] : gold);
