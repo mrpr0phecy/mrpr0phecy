@@ -4,6 +4,7 @@
  * of the camera + combat invariants (see the labelled sections below).
  */
 'use strict';
+const path = require('path');
 const H = require('./harness.js').boot();
 const elements = H.els;
 global.__H = H;                     /* used by the camera bench + dev probes */
@@ -14,6 +15,14 @@ function check(name, cond, extra) {
   if (cond) console.log('  ok  ' + name);
   else { fails++; console.log('  FAIL ' + name + (extra !== undefined ? ' :: ' + JSON.stringify(extra) : '')); }
 }
+
+console.log('--- page contract: every id the engine asks for exists in riley.html ---');
+const htmlSrc = require('fs').readFileSync(path.join(__dirname, '..', '..', 'riley.html'), 'utf8');
+const pageIds = new Set([...htmlSrc.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+const missing = require('./harness.js').IDS.filter(id => !pageIds.has(id));
+check('all HUD ids present in the page', missing.length === 0, missing);
+const unused = require('./harness.js').IDS.filter(id => !global.__H.els[id]);
+check('harness ids all instantiated', unused.length === 0, unused);
 
 console.log('--- boot ---');
 check('window.RileyGame exposed', !!global.RileyGame);
@@ -227,6 +236,27 @@ gd.x = global.__R().x + 0.2; gd.z = global.__R().z; gd.actKind = 'lunge'; gd.act
 pump(3);
 check('untimed contact still hurts (dodge is not immunity)', global.__T.info().lives < livesE, { livesE, now: global.__T.info().lives });
 global.__T.god(true);
+
+console.log('--- pause-menu camera sliders drive CAMSET ---');
+global.RileyGame.state;                    /* no-op read: overlay must not need play state */
+global.__T.camSet('sens', 1); global.__T.camSet('invertY', 0);
+const slid = H.elSlide('camSens', 55);
+check('look-speed slider is wired', slid > 0 && Math.abs(global.__T.camGet().sens - 0.55) < 1e-6, { slid, cam: global.__T.camGet().sens });
+check('slider label updated', global.__H.els['camSensV'].textContent === '55%', global.__H.els['camSensV'].textContent);
+H.elSlide('camDist', 45);
+check('camera-distance slider moves the boom', Math.abs(global.__T.camGet().zoom - 4.5) < 1e-6 && global.__R().camDist > 3.3, global.__T.camGet().zoom);
+H.elSlide('camShake', 0);
+check('shake can be turned fully off', global.__T.camGet().shake === 0, global.__T.camGet().shake);
+const tgl = H.elClick('tglInvY');
+check('invert-y toggle flips and persists', tgl > 0 && global.__T.camGet().invertY === 1, global.__T.camGet().invertY);
+check('button reflects state', global.__H.els['tglInvY'].classList.contains('on') === true);
+const stored = JSON.parse(global.localStorage.getItem('riley3d.camset') || 'null');
+check('settings saved to localStorage', stored && stored.invertY === 1 && Math.abs(stored.sens - 0.55) < 1e-6, stored);
+H.elClick('tglInvY');
+check('toggling back restores', global.__T.camGet().invertY === 0, global.__T.camGet().invertY);
+global.__T.camSet('sens', 1); global.__T.camSet('smooth', 0.35); global.__T.camSet('fov', 0);
+global.__T.camSet('shake', 1); global.__T.camSet('zoom', 7.2); global.__T.camSet('orbit', 1);
+global.__T.camSet('autoFrame', 1); global.__T.camSet('lockCam', 1);
 
 console.log('--- camera sanity (never under ground) ---');
 let below = 0, far = 0, samples = 0;

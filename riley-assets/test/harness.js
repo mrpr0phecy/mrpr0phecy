@@ -17,47 +17,80 @@ const path = require('path');
  * new HUD node does not have to be registered here — but keep the list in
  * step with riley.html so typos in the page surface as a missing node. */
 const IDS = [
+  'aim',
+  'aimKnob',
+  'banner',
+  'bestLine',
+  'bestLine2',
+  'bossBar',
+  'btnAgain',
+  'btnDaily',
+  'btnMusic',
+  'btnMute',
+  'btnNewWorld',
+  'btnPause',
+  'btnPlay',
+  'btnPurge',
+  'btnQuit2',
+  'btnQuitTitle',
+  'btnRestart',
+  'btnResume',
+  'buffBar',
+  'camDist',
+  'camDistV',
+  'camFov',
+  'camFovV',
+  'camSens',
+  'camSensV',
+  'camShake',
+  'camShakeV',
+  'camSmooth',
+  'camSmoothV',
+  'comboCtr',
+  'comboFill',
   'cv',
+  'fps',
+  'gpHint',
+  'hintBar',
+  'hud',
   'hudHearts',
   'hudScore',
   'hudWave',
-  'bossBar',
   'hurtVig',
-  'manaBar',
-  'comboCtr',
-  'comboFill',
-  'banner',
-  'reticle',
-  'ovTitle',
-  'ovOver',
-  'ovPause',
-  'seedInput',
-  'seedLine',
-  'bestLine',
-  'bestLine2',
   'iqLine',
-  'btnPlay',
-  'btnPause',
-  'btnResume',
-  'btnRestart',
-  'btnNewWorld',
-  'btnQuitTitle',
-  'btnQuit2',
-  'btnAgain',
-  'btnMute',
-  'btnPurge',
-  'noGL',
-  'mob',
-  'hintBar',
   'joy',
   'joyKnob',
-  'aim',
-  'aimKnob',
-  'tbJump',
+  'manaBar',
+  'mob',
+  'noGL',
+  'offArrows',
+  'ovOver',
+  'ovPause',
+  'ovTitle',
+  'pCombo',
+  'pKills',
+  'pScore',
+  'pWave',
+  'reticle',
+  'seedInput',
+  'seedLine',
+  'stCombo',
+  'stKills',
+  'stRank',
+  'stRankFlavor',
+  'stScore',
+  'stWave',
+  'statsLine',
   'tbDash',
+  'tbJump',
   'tbNova',
-  'fps'
+  'tglFrame',
+  'tglInvY',
+  'tglLock',
+  'tglOrbit',
+  'vignette',
 ];
+
 
 
 function boot(opts) {
@@ -72,11 +105,20 @@ function boot(opts) {
   function makeEl(id) {
     const children = [];
     const el = {
-      id, style: {}, children, classList: {
+      id, classList: {
         _s: new Set(),
-        add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); },
+        add() { for (const c of arguments) this._s.add(c); },
+        remove() { for (const c of arguments) this._s.delete(c); },
         contains(c) { return this._s.has(c); },
-        toggle(c, f) { if (f === undefined) { this._s.has(c) ? this._s.delete(c) : this._s.add(c); } else if (f) this._s.add(c); else this._s.delete(c); }
+        toggle(c, f) { if (f === undefined) { this._s.has(c) ? this._s.delete(c) : this._s.add(c); } else if (f) this._s.add(c); else this._s.delete(c); return this._s.has(c); }
+      },
+      /* style is a plain object plus the two CSSOM calls the engine uses —
+         without setProperty the fake DOM silently hides real crashes */
+      style: {
+        _v: {},
+        setProperty(k, v) { this._v[k] = v; },
+        getPropertyValue(k) { return this._v[k] === undefined ? '' : this._v[k]; },
+        removeProperty(k) { delete this._v[k]; }
       },
       textContent: '', nodeValue: '', value: '',
       firstChild: { nodeValue: '' },
@@ -89,8 +131,12 @@ function boot(opts) {
       appendChild(c) { children.push(c); return c; },
       removeChild(c) { const i = children.indexOf(c); if (i >= 0) children.splice(i, 1); return c; },
       parentNode: null,
+      attrs: {},
+      setAttribute(a, v) { el.attrs[a] = String(v); },
+      getAttribute(a) { return el.attrs[a] === undefined ? null : el.attrs[a]; },
+      removeAttribute(a) { delete el.attrs[a]; },
       addEventListener(t, cb) { (listeners[t + ':' + id] = listeners[t + ':' + id] || []).push(cb); },
-      removeEventListener() {}, setPointerCapture() {},
+      removeEventListener() {}, setPointerCapture() {}, focus() {}, blur() {}, click() {},
       getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; },
       clientWidth: 100, clientHeight: 100,
       width: 800, height: 450,
@@ -186,7 +232,22 @@ function boot(opts) {
     stats() { return { drawCalls, draws: drawCounts.length, progs: progN, bufs: bufN, texs: texN }; },
     resetDraws() { drawCalls = 0; drawCounts.length = 0; },
     /* dispatch a window/document event the engine registered */
-    emit(type, ev) { const L = listeners[type] || []; for (const cb of L.slice()) cb(ev); }
+    emit(type, ev) { const L = listeners[type] || []; for (const cb of L.slice()) cb(ev); },
+    /* same for a per-element listener (addEventListener on a node), e.g. a
+       range input the player drags */
+    elEmit(id, type, ev) {
+      const L = listeners[type + ':' + id] || [];
+      for (const cb of L.slice()) cb(ev || { target: els[id], preventDefault() {} });
+      return L.length;
+    },
+    elClick(id) {
+      const b = els[id];
+      if (!b) return 0;
+      if (typeof b.onclick === 'function') { b.onclick({ target: b, preventDefault() {} }); return 1; }
+      return this.elEmit(id, 'click', { target: b, preventDefault() {} });
+    },
+    /* set a range input the way a drag would, then fire 'input' */
+    elSlide(id, value) { const b = els[id]; if (!b) return 0; b.value = String(value); return this.elEmit(id, 'input', { target: b, preventDefault() {} }); }
   };
 }
 

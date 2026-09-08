@@ -165,8 +165,8 @@
     box-shadow: 0 0 8px rgba(160,220,255,.6), inset 0 0 6px rgba(160,220,255,.35);
     transition: transform .12s, border-color .12s, box-shadow .12s;
   }
-  #reticle::after {
-    content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px;
+  #reticle i {
+    position: absolute; left: 50%; top: 50%; width: 4px; height: 4px;
     margin: -2px 0 0 -2px; border-radius: 50%; background: #fff;
   }
   #reticle.lock::before {
@@ -174,6 +174,28 @@
     border-color: #ffd75e;
     box-shadow: 0 0 16px rgba(255,210,90,.9), inset 0 0 10px rgba(255,210,90,.5);
   }
+  /* charge ring: the reticle closes as the bolt swells — you can watch your
+     crosshair instead of a bar. --chg is written by the engine each frame. */
+  #reticle::after {
+    content: ""; position: absolute; inset: -7px; border-radius: 50%;
+    background: conic-gradient(from -90deg, rgba(255,190,80,0) 0deg,
+      rgba(255,190,80,0) var(--chg, 0deg), transparent 0deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    opacity: 0; transition: opacity .1s;
+  }
+  #reticle.chg::after {
+    opacity: 1;
+    background: conic-gradient(from -90deg, #ffd75e 0deg, #ffb347 var(--chg, 0deg), rgba(255,255,255,.06) var(--chg, 0deg));
+  }
+  #reticle.chg::before { transform: scale(calc(0.86 + var(--pulse, 0) * 0.12)); border-color: rgba(255,225,140,.95); }
+  #reticle.max::before {
+    transform: scale(1.18);
+    border-color: #c88cff;
+    box-shadow: 0 0 22px rgba(190,120,255,.95), inset 0 0 12px rgba(190,120,255,.6);
+    animation: retMax .5s ease-in-out infinite alternate;
+  }
+  @keyframes retMax { to { transform: scale(1.3); } }
 
   /* ---------- wave banner ---------- */
   #banner {
@@ -210,6 +232,41 @@
     font-size: 12px; font-weight: 700; letter-spacing: .24em; color: rgba(220,238,255,.75);
     text-shadow: 0 1px 4px rgba(0,0,0,.9); pointer-events: none;
   }
+
+
+  /* ---------- pause-menu settings (camera feel is personal: expose it) ---------- */
+  .setWrap {
+    margin: 22px auto 0; width: min(520px, 86vw);
+    display: grid; grid-template-columns: 118px 1fr 52px; gap: 8px 12px;
+    align-items: center; text-align: left;
+  }
+  .setHead {
+    grid-column: 1 / -1; font-size: 11px; font-weight: 800; letter-spacing: .32em;
+    color: #9fe8ff; margin-bottom: 2px; text-shadow: 0 2px 8px rgba(0,0,0,.8);
+  }
+  .setWrap label { font-size: 10px; font-weight: 700; letter-spacing: .14em; color: rgba(220,238,255,.8); }
+  .setWrap input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 3px;
+    background: rgba(160,220,255,.28); outline: none; cursor: pointer;
+  }
+  .setWrap input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 15px; height: 15px; border-radius: 50%;
+    background: #ffe9a8; box-shadow: 0 0 10px rgba(255,210,90,.8); cursor: grab;
+  }
+  .setWrap input[type=range]::-moz-range-thumb {
+    width: 15px; height: 15px; border: 0; border-radius: 50%;
+    background: #ffe9a8; box-shadow: 0 0 10px rgba(255,210,90,.8);
+  }
+  .setVal { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: #ffe9a8; text-align: right; }
+  .tglRow { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .tgl {
+    font: inherit; font-size: 10px; font-weight: 800; letter-spacing: .16em; cursor: pointer;
+    padding: 7px 11px; border-radius: 8px; color: rgba(210,230,255,.72);
+    background: rgba(18,26,54,.72); border: 1px solid rgba(150,200,255,.22);
+    transition: color .12s, border-color .12s, background .12s;
+  }
+  .tgl:hover { border-color: rgba(180,225,255,.5); }
+  .tgl.on { color: #0a0d1f; background: #9fe8ff; border-color: #d6f4ff; }
 
   /* ---------- overlays (title / pause / over) ---------- */
   .ov {
@@ -341,7 +398,7 @@
 </div>
 
 <!-- aim reticle -->
-<div id="reticle"></div>
+<div id="reticle"><i></i></div>
 
 <!-- offscreen threat arrows -->
 <div id="offArrows"></div>
@@ -350,7 +407,7 @@
 <div id="banner"><span class="wv">WAVE 1</span><span class="nm"></span></div>
 
 <!-- hint -->
-<div id="hintBar">CLICK TO LOOK · WASD MOVE · TAB LOCK-ON · WHEEL ZOOM · R RE-CENTER CAM</div>
+<div id="hintBar">CLICK TO LOOK · WASD MOVE · TAB LOCK-ON · RMB SMACK · WHEEL ZOOM · R RE-CENTRE · V CAM MODE</div>
 
 <!-- fps -->
 <div id="fps"></div>
@@ -380,17 +437,19 @@
     <button class="btn ghost" id="btnDaily" style="margin-top:0;">DAILY WORLD</button>
   </div>
   <button class="btn" id="btnPlay">PLAY</button>
-  <div class="gpHint" id="gpHint">🎮 GAMEPAD READY — STICKS MOVE/AIM · A FIRE · B JUMP · X DASH · Y NOVA</div>
+  <div class="gpHint" id="gpHint">🎮 GAMEPAD READY — STICKS MOVE/AIM · A CAST · B JUMP · X DASH · Y NOVA · RB SMACK</div>
   <div class="controls">
     <span><kbd>MOUSE</kbd><span class="c">orbit camera (click canvas to lock)</span></span>
     <span><kbd>WHEEL</kbd><span class="c">zoom</span></span>
     <span><kbd>W A S D</kbd><span class="c">move relative to camera</span></span>
     <span><kbd>TAB</kbd><span class="c">lock on / cycle goblins</span></span>
-    <span><kbd>R</kbd><span class="c">snap camera behind Riley</span></span>
+    <span><kbd>R · V</kbd><span class="c">re-centre cam · camera mode</span></span>
     <span><kbd>CLICK</kbd><span class="c">cast (hold to charge)</span></span>
-    <span><kbd>SPACE</kbd><span class="c">jump / double jump</span></span>
-    <span><kbd>SHIFT</kbd><span class="c">dash</span></span>
+    <span><kbd>RMB / C</kbd><span class="c">staff smack — 3-hit cleave</span></span>
+    <span><kbd>SPACE</kbd><span class="c">jump / double jump (hold = higher)</span></span>
+    <span><kbd>SHIFT</kbd><span class="c">dash · dodge through a wind-up</span></span>
     <span><kbd>Q / E</kbd><span class="c">nova (full mana)</span></span>
+    <span><kbd>PAUSE</kbd><span class="c">camera &amp; feel sliders</span></span>
     <span><kbd>M · N</kbd><span class="c">sound / music</span></span>
   </div>
   <div class="stats" style="margin-top:18px; opacity:.55; font-size:11px;">the goblins learn from every run</div>
@@ -412,6 +471,31 @@
     <button class="btn ghost" id="btnNewWorld">NEW WORLD</button>
     <button class="btn ghost" id="btnQuitTitle">QUIT</button>
   </div>
+  <div class="setWrap">
+    <div class="setHead">CAMERA &amp; FEEL</div>
+    <label for="camSens">LOOK SPEED</label>
+    <input type="range" id="camSens" min="35" max="240" step="5">
+    <span class="setVal" id="camSensV">100</span>
+    <label for="camSmooth">SMOOTHING</label>
+    <input type="range" id="camSmooth" min="0" max="100" step="2">
+    <span class="setVal" id="camSmoothV">35</span>
+    <label for="camFov">FIELD OF VIEW</label>
+    <input type="range" id="camFov" min="-12" max="18" step="1">
+    <span class="setVal" id="camFovV">0</span>
+    <label for="camDist">CAMERA DIST</label>
+    <input type="range" id="camDist" min="34" max="125" step="1">
+    <span class="setVal" id="camDistV">7.2</span>
+    <label for="camShake">SCREEN SHAKE</label>
+    <input type="range" id="camShake" min="0" max="180" step="5">
+    <span class="setVal" id="camShakeV">100</span>
+    <div class="tglRow">
+      <button class="tgl" id="tglFrame" title="camera swings behind you as you run">AUTO-FRAME</button>
+      <button class="tgl" id="tglLock" title="camera stays on the locked goblin">LOCK CAMERA</button>
+      <button class="tgl" id="tglOrbit" title="while locked: A/D orbit the target">ORBIT STRAFE</button>
+      <button class="tgl" id="tglInvY" title="flip vertical look">INVERT Y</button>
+    </div>
+  </div>
+  
   <div class="btnRow" style="margin-top:26px;">
     <button class="btn ghost" id="btnMute">🔊</button>
     <button class="btn ghost" id="btnMusic" title="toggle music (N)">🎵</button>

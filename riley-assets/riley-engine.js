@@ -7,8 +7,9 @@
  *   4. enemies    — neural-net brains (RileyAI), evolved per run & persisted
  *   5. netcode    — RileyNet solo session drives every sim tick (determinism)
  *
- * Exposes window.RileyGame = { start, destroy, session, world } and test
- * hooks on ?selftest=1. Loaded after riley-core/world/ai/net.
+ * Exposes window.RileyGame = { state, world, session, start, toTitle } for the
+ * card shell and ?selftest=1 hooks on window.__R / window.__T.
+ * Loaded after riley-core/world/ai/net.
  */
 (function () {
 'use strict';
@@ -558,7 +559,17 @@ var LIGHT = [0.5, 0.85, 0.35];
 var fogCur = [12, 17, 46], fogTarget = [12, 17, 46];
 
 /* --- camera settings (persisted; sliders live in the pause menu) --- */
-var CAMSET = { sens: 1.0, smooth: 0.35, fov: 0, shake: 1.0, autoFrame: 1, lockCam: 1, zoom: 7.2, invertY: 0 };
+var CAMSET = {
+  sens: 1.0,      /* look gain multiplier                            0.35 … 2.4  */
+  smooth: 0.35,   /* 0 = snappy, 1 = butter                      0 … 1    */
+  fov: 0,         /* base FOV bias in "units" of 0.02 rad                     -12 … 18 */
+  shake: 1.0,     /* screen-shake amount (0 = none — motion sickness off)   0 … 1.8  */
+  autoFrame: 1,   /* swing behind Riley while running                        0/1    */
+  lockCam: 1,     /* hold the frame on the locked goblin                      0/1    */
+  orbit: 1,       /* locked: A/D circle the target instead of the camera      0/1    */
+  zoom: 7.2,      /* boom length in units                                    3.4-12.5 */
+  invertY: 0
+};
 try {
   var _cs = JSON.parse(localStorage.getItem('riley3d.camset') || 'null');
   if (_cs && typeof _cs === 'object') { for (var _ck in CAMSET) if (typeof _cs[_ck] === 'number') CAMSET[_ck] = _cs[_ck]; }
@@ -890,7 +901,7 @@ function updateCamera(dtC, lookAt) {
   m4LookRoll(VM, eye[0], eye[1], eye[2], ctr[0], ctr[1], ctr[2], camRoll + camKickR);
   /* FOV: dash punch, nova bloom, charge focus, aim-in narrow, widen if buried */
   var fovT = 0.98 + CAMSET.fov * 0.02 + (R.dashing ? 0.09 : 0) + spdF * 0.045 +
-    (R.novaFx > 0 ? 0.10 : 0) - (R.charging ? clamp((R.charge - 0.28) / 0.72, 0, 1) * 0.06 : 0) +
+    (R.novaFx > 0 ? 0.10 : 0) - (R.charging ? chargePct() * 0.06 : 0) +
     (aiming && !locked ? -0.03 : 0) + camBlockT * 0.08 + Math.abs(camKickP) * 0.3;
   camFov = damp(camFov, fovT, 6.5, dtC);
   C.m4Persp(PM, camFov, Ww / Hh, 0.12, 480);
@@ -1419,8 +1430,12 @@ function fireShot() {
   burst(sx, sy, sz, [255, 200, 80], 5, 3, 0, 0.14, 0.25);
   sfxGated('shoot');
 }
+/* charge curve, in one place: hold 0.24s to start charging, the bolt reaches
+   tier 1 at CHARGE_T and full (tier 2) at CHARGE_T + CHARGE_SPAN. */
+var CHARGE_T = 0.28, CHARGE_SPAN = 0.72;
+function chargePct() { return R ? clamp((R.charge - CHARGE_T) / CHARGE_SPAN, 0, 1) : 0; }
 function releaseCharge() {
-  var pw = clamp((R.charge - 0.28) / 0.72, 0, 1);
+  var pw = chargePct();
   if (pw < 0.12) { fireShot(); return; }
   R.shootCd = 0.3; R.shootAnim = 0.28;
   var tier = pw >= 0.85 ? 2 : 1;
@@ -2302,7 +2317,17 @@ function updateReticle() {
     reticleEl.style.left = mouseX + 'px';
     reticleEl.style.top = mouseY + 'px';
   }
-  reticleEl.classList.toggle('lock', !!aim.lock);
+  var lockedOn = !!aim.lock;
+  reticleEl.classList.toggle('lock', lockedOn);
+  /* charge: the ring closes and goes gold as the bolt swells, and the reticle
+     is the only place you can watch that build without looking at a bar */
+  var chg = R && R.charging ? chargePct() : 0;
+  reticleEl.classList.toggle('chg', chg > 0);
+  reticleEl.classList.toggle('max', chg >= 0.85);
+  if (chg > 0) reticleEl.style.setProperty('--chg', (chg * 360).toFixed(0) + 'deg');
+  /* the ring breathes on wheel / melee activity so the reticle is not dead */
+  var pulse = clamp(zoomPulse, 0, 1) + (R && R.meleeT > 0 ? 0.5 : 0);
+  reticleEl.style.setProperty('--pulse', pulse.toFixed(3));
 }
 
 /* ---------- offscreen threat markers ----------
@@ -2446,7 +2471,7 @@ function drawRileyChar(o) {
 function drawRileyGlow() {
   drawInstanced('box', 'g4', [80, 220, 255]);            /* glasses */
   drawInstanced('sphereL', 'g5', [255, 235, 160]);       /* hat star */
-  var chg6 = (R && R.charging) ? clamp((R.charge - 0.28) / 0.72, 0, 1) : 0;
+  var chg6 = (R && R.charging) ? chargePct() : 0;
   drawInstanced('sphereL', 'g6', chg6 > 0.85 ? [200, 150, 255] : [255, 225, 130]); /* wand tip */
 }
 function drawGoblin(e) {
@@ -3420,9 +3445,75 @@ function toTitle() {
   refreshTitleStats();
   titleScene();
 }
+/* ---- the camera panel in the pause overlay -------------------------------
+   Camera feel is the single most subjective thing in a third-person game:
+   the numbers that feel great to whoever built it feel like motion sickness
+   to the next person. So every dial in CAMSET is exposed here, applies live,
+   and persists (localStorage), and shake has a real zero for people who need
+   it. Bound once at boot; refreshed on every pause so it shows current state
+   (the wheel and V change it too). */
+var CAM_UI = [
+  { id: 'camSens', key: 'sens', scale: 100, fmt: function (v) { return Math.round(v * 100) + '%'; } },
+  { id: 'camSmooth', key: 'smooth', scale: 100, fmt: function (v) { return Math.round(v * 100) + '%'; } },
+  { id: 'camFov', key: 'fov', scale: 1, fmt: function (v) { return (v > 0 ? '+' : '') + Math.round(v); } },
+  { id: 'camDist', key: 'zoom', scale: 10, fmt: function (v) { return v.toFixed(1) + 'u'; } },
+  { id: 'camShake', key: 'shake', scale: 100, fmt: function (v) { return v <= 0.001 ? 'OFF' : Math.round(v * 100) + '%'; } }
+];
+var CAM_TGL = [
+  { id: 'tglFrame', key: 'autoFrame' },
+  { id: 'tglLock', key: 'lockCam' },
+  { id: 'tglOrbit', key: 'orbit' },
+  { id: 'tglInvY', key: 'invertY' }
+];
+function camUiRefresh() {
+  var i, r;
+  for (i = 0; i < CAM_UI.length; i++) {
+    r = CAM_UI[i];
+    var sl = el(r.id), lab = el(r.id + 'V');
+    if (sl) sl.value = String(Math.round(CAMSET[r.key] * r.scale));
+    if (lab) lab.textContent = r.fmt(CAMSET[r.key]);
+  }
+  for (i = 0; i < CAM_TGL.length; i++) {
+    var b = el(CAM_TGL[i].id);
+    if (b) { b.classList.toggle('on', !!CAMSET[CAM_TGL[i].key]); b.setAttribute('aria-pressed', CAMSET[CAM_TGL[i].key] ? 'true' : 'false'); }
+  }
+}
+function camUiBind() {
+  CAM_UI.forEach(function (r) {
+    var sl = el(r.id);
+    if (!sl || sl._camBound) return;
+    sl._camBound = 1;
+    sl.addEventListener('input', function () {
+      CAMSET[r.key] = (+sl.value) / r.scale;
+      if (r.key === 'zoom') camDistTarget = clamp(CAMSET.zoom, CAM_DIST_MIN, CAM_DIST_MAX);
+      if (r.key === 'sens') lastAimT = time - 5;    /* don't fight the auto-frame */
+      saveCamSet();
+      camUiRefresh();
+    });
+  });
+  CAM_TGL.forEach(function (t) {
+    var b = el(t.id);
+    if (!b || b._camBound) return;
+    b._camBound = 1;
+    b.onclick = function () {
+      CAMSET[t.key] = CAMSET[t.key] ? 0 : 1;
+      saveCamSet();
+      camUiRefresh();
+      sfxGated('pop');
+      if (t.key === 'autoFrame' || t.key === 'lockCam') {
+        showBanner('CAMERA ' + (CAMSET[t.key] ? 'ON' : 'OFF'), t.id === 'tglFrame'
+          ? (CAMSET.autoFrame ? 'CAM SWINGS BEHIND AS YOU RUN' : 'CAM ONLY MOVES WHEN YOU DO')
+          : (CAMSET.lockCam ? 'CAM FRAMES YOUR LOCKED TARGET' : 'LOCK ONLY MOVES YOUR AIM'));
+      }
+    };
+  });
+  camUiRefresh();
+}
+
 function pauseGame() {
   if (state !== 'play') return;
   state = 'pause';
+  camUiRefresh();
   el('pScore').textContent = Math.round(game.score);
   el('pWave').textContent = game.wave;
   el('pKills').textContent = game.kills;
@@ -3509,6 +3600,7 @@ if (NOGL) {
   lastT = performance.now() / 1000;
   requestAnimationFrame(loop);
 }
+camUiBind();
 window.RileyGame = {
   get state() { return state; },
   get world() { return world; },
