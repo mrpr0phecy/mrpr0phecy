@@ -78,6 +78,9 @@ canvas#cv{display:block;position:absolute;inset:0;width:100%;height:100%}
 #tbFire{right:7%;bottom:14%;width:106px;height:106px;color:#ffe9a8;border-color:rgba(255,215,94,.75);font-size:15px;background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.36),rgba(160,95,18,.66))}
 #tbDash{right:30%;bottom:60%;width:62px;height:62px;font-size:10px}
 #hintBar{position:absolute;bottom:8px;left:0;right:0;text-align:center;color:#5f7da8;font-size:11.5px;letter-spacing:1px;z-index:10;pointer-events:none;text-shadow:0 1px 4px #000}
+#comboFill{display:block;width:90px;height:3px;border-radius:3px;background:linear-gradient(90deg,#ffd75e,#ff9f43);margin:7px auto 0;opacity:0;transition:opacity .2s;box-shadow:0 0 10px rgba(255,215,94,.7)}
+#hurtVig{position:absolute;inset:0;z-index:8;pointer-events:none;opacity:0;transition:opacity .45s;background:radial-gradient(ellipse at 50% 55%,rgba(255,0,40,0) 42%,rgba(255,20,50,.4) 100%)}
+#hurtVig.on{opacity:1;transition:opacity .06s}
 @media (max-width:820px){.controls{display:none}}
 </style>
 </head>
@@ -90,11 +93,13 @@ canvas#cv{display:block;position:absolute;inset:0;width:100%;height:100%}
   <div id="hudMid">
     <div id="hudScore">0<small>SCORE</small></div>
     <div id="hudWave">WAVE 1</div>
+    <div id="comboFill"></div>
   </div>
   <div id="hudRight"><button id="btnMute" title="Mute (M)">🔊</button><button id="btnPause" title="Pause (P)">⏸</button></div>
 </div>
 <div id="comboCtr">×2<small>COMBO</small></div>
 <div id="bossBar"><i></i><b>GOBLIN KING</b></div>
+<div id="hurtVig"></div>
 <div id="banner"><span class="wv">WAVE 1</span><span class="nm"></span></div>
 
 <div class="ov" id="ovTitle">
@@ -442,6 +447,7 @@ var state='title';
 var Tgod=false;
 var time=0,dt=1/60,lastT=performance.now();
 var keys={};
+var footT=0;
 function el(id){return document.getElementById(id)}
 function show(id){el(id).classList.remove('hide')}
 function hide(id){el(id).classList.add('hide')}
@@ -684,6 +690,7 @@ var touchX=0,touchZ=0,jumpHeld=false,fireHeld=false,dashHeld=false;
 
 /* ---------------- camera ---------------- */
 var camYaw=0,camYawTarget=Math.PI,camDist=12,camH=5.2,camHCur=5.2;
+var camFov=1.06;
 var camX=0,camY=0,camZ=0;
 var eye=[0,0,0],ctr=[0,0,0];
 function updateCamera(caYaw,cx,cy,cz,dtC){
@@ -696,8 +703,16 @@ function updateCamera(caYaw,cx,cy,cz,dtC){
   camX=clamp(camX,-32,32);camZ=clamp(camZ,-32,32);
   eye[0]=camX;eye[1]=camY;eye[2]=camZ;
   ctr[0]=cx;ctr[1]=cy+1.35;ctr[2]=cz;
+  var sh=game.shake;
+  if(sh>0){
+    var ss=sh*0.42;
+    eye[0]+=(Math.random()*2-1)*ss;eye[1]+=(Math.random()*2-1)*ss;eye[2]+=(Math.random()*2-1)*ss;
+  }
   m4Look(VM,eye[0],eye[1],eye[2],ctr[0],ctr[1],ctr[2],0,1,0);
-  m4Persp(PM,1.06,W/H,0.1,460);
+  var spdF=clamp(Math.hypot(R.vx,R.vz)/9,0,1);
+  var fovT=1.06+(R.dashing?.06:0)+spdF*.014;
+  camFov=lerp(camFov,fovT,clamp(dtC*6,0,1));
+  m4Persp(PM,camFov,W/H,0.1,460);
   m4mul(PVM,PM,VM);
   // right & up of camera for billboards: rows of VM
   camR[0]=VM[0];camR[1]=VM[4];camR[2]=VM[8];
@@ -772,7 +787,6 @@ function update(dtU){
     ringBurst(R.x,R.y+.3,R.z,[150,220,255],2);
   }
   // jump
-  var wantJump=(keys['Space']||keys['KeyW']||keys['ArrowUp']||jumpHeld||fireHeld)?false:false;
   var jumpKey=keys['KeyW']||keys['ArrowUp']||jumpHeld;
   if(jumpKey)R.jumpBuf=.12;
   if(R.jumpBuf>0&&(R.ground||R.coyote>0)){
@@ -799,7 +813,20 @@ function update(dtU){
   // gravity
   R.vy-=39*dtU;
   if(R.vy<-40)R.vy=-40;
+  var fallSpd=R.vy;
+  var wasAir=!R.ground;
   physStep();
+  if(wasAir&&R.ground&&fallSpd<-13){
+    ringBurst(R.x,R.y+.06,R.z,[220,235,255],3);
+    burst(R.x,R.y+.05,R.z,[180,200,230],8,4,.8,.1,.3);
+  }
+  if(R.ground&&walking&&!R.dashing){
+    footT-=dtU;
+    if(footT<=0){
+      footT=.36;
+      fxPush({x:R.x+rnd(-.15,.15),y:R.y+.03,z:R.z+rnd(-.15,.15),vx:0,vy:rnd(.6,1.3),vz:0,life:.5,max:.5,s:rnd(.05,.09),pr:200,pg:210,pb:230,pa:.35,grav:.5});
+    }
+  }
   // fell off
   if(R.y<-16){
     hurt();
@@ -889,15 +916,23 @@ function updateHUD(){
   }else bb.style.display='none';
 }
 function updateCombo(){
-  var c=el('comboCtr');
-  if(game.combo>1){c.style.opacity=1;c.firstChild.nodeValue='×'+game.combo}
-  else c.style.opacity=0;
+  var c=el('comboCtr'),f=el('comboFill');
+  if(game.combo>1){
+    c.style.opacity=1;c.firstChild.nodeValue='×'+game.combo;
+    f.style.opacity=1;
+    f.style.width=Math.max(4,game.combot/4*90)+'px';
+  }else{
+    c.style.opacity=0;f.style.opacity=0;
+  }
 }
 function hurt(){
   game.lives--;game.combo=0;game.comboBest=Math.max(game.comboBest,game.combo);
   updateCombo();
   R.inv=1.4;R.hitT=.4;game.shake=.5;
   sfx('hurt');
+  var hv=el('hurtVig');
+  hv.classList.add('on');
+  setTimeout(function(){hv.classList.remove('on')},70);
   updateHUD();
   if(game.lives<=0)endGame();
 }
@@ -948,11 +983,8 @@ function endGame(){
 function toTitle(){
   state='title';
   show('ovTitle');hide('ovOver');hide('ovPause');
-  fx.length=0;shots.length=0;enemies.length=0;eShots.length=0;
-  game.waveState='idle';game.boss=false;
-  el('bossBar').style.display='none';
-  genWorld();
-  resetRiley();
+  fx.length=0;
+  titleScene();
 }
 
 /* ---------------- goblins & waves ---------------- */
@@ -1121,11 +1153,13 @@ function killGob(e,smash){
     ringBurst(e.x,e.y+.2,e.z,[200,240,255],4);
     game.shake=.22;
     sfx('smash');
+    for(var w2=0;w2<8;w2++)fxPush({x:e.x+rnd(-.2,.2),y:e.y+e.h*rnd(.2,1),z:e.z+rnd(-.2,.2),vx:rnd(-1.2,1.2),vy:rnd(2,4.5),vz:rnd(-1.2,1.2),life:.8,max:.8,s:rnd(.1,.18),pr:190,pg:240,pb:255,pa:.8,grav:-1.2});
   }else{
     burst(e.x,e.y+e.h*.5,e.z,c.skin,16,6,2,.34,.55);
     burst(e.x,e.y+e.h*.4,e.z,[255,220,90],10,5,1.5,.16,.4);
     game.shake=.15;
     sfx('kill');
+    for(var w=0;w<6;w++)fxPush({x:e.x+rnd(-.18,.18),y:e.y+e.h*rnd(.2,.9),z:e.z+rnd(-.18,.18),vx:rnd(-1,1),vy:rnd(1.4,3.4),vz:rnd(-1,1),life:.7,max:.7,s:rnd(.09,.16),pr:c.skin[0],pg:c.skin[1],pb:c.skin[2],pa:.75,grav:-.9});
   }
   var isBoss=e.k==='boss';
   if(isBoss){
@@ -1385,6 +1419,21 @@ function popText(x,y,z,txt,big,col){
   setTimeout(function(){if(p.parentNode)p.parentNode.removeChild(p)},980);
 }
 
+function titleScene(){
+  genWorld();
+  resetRiley();
+  enemies.length=0;eShots.length=0;shots.length=0;
+  game.waveState='idle';game.boss=false;game.spawnQueue=[];
+  el('bossBar').style.display='none';
+  var spots2=[[-9,8],[9,-6],[0,-11]];
+  for(var i2=0;i2<spots2.length;i2++){
+    var g2=newGob(i2===1?'spitter':'grunt',spots2[i2][0],0,spots2[i2][1]);
+    g2.yaw=Math.atan2(-spots2[i2][0],-spots2[i2][1]);
+    g2.spd=0;
+    enemies.push(g2);
+  }
+}
+
 /* ---------------- render ---------------- */
 var MM2=new Float32Array(16);
 function renderWorld(){
@@ -1427,6 +1476,7 @@ function loop(tms){
   fpsT+=dt;fpsN++;
   if(fpsT>=0.5){lastFps=Math.round(fpsN/fpsT);fpsN=0;fpsT=0}
   if(state==='title'){
+    time+=dt;
     titleA+=dt*.12;
     var ax=Math.sin(titleA)*15.5,az=Math.cos(titleA)*15.5;
     eye[0]=ax;eye[1]=5.6;eye[2]=az;
@@ -1657,10 +1707,7 @@ window.__box=function(sx,sy,bw,bh){  try{
 };
 
 /* boot */
-makeStars();
-genWorld();
-R=newRiley();
-R.y=0;R.ground=true;
+titleScene();
 if(best>0)el('bestLine').textContent='🏆 BEST SCORE: '+best;
 })();
 </script>
