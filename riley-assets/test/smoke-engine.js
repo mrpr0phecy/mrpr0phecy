@@ -200,6 +200,35 @@ pump(40);
 const livesA = global.__T.info().lives;
 check('spitter projectile hits player (lives drop)', livesA < livesB, { livesB, livesA });
 
+console.log('--- fair contact: idle bump vs active lunge ---');
+global.__T.setInv(0);
+global.__T.wave(2);
+pump(20);
+global.__T.hurtAll();
+pump(10);
+global.__T.clearShots();
+const l0 = global.__T.info().lives;
+const p2 = global.__T.place('grunt', 0.3, 0.2);
+check('grunt placed overlapping player', !!p2, p2);
+const g2 = global.__T.lastEnemy();
+if (g2) {
+  /* neuter the brain: idle forever, never attacks */
+  g2.brain.tick = function () { return { mvx: 0, mvz: 0, act: 'idle', atk: 0, panic: 0, o: [0, 0, 0, 0, 0, 0] }; };
+  g2.actKind = 'none'; g2.tele = 0; g2.stun = 0; g2.actCd = 99;
+  g2.vx = 0; g2.vz = 0;
+  pump(30);
+  check('idle crowding: no damage (bump only)', global.__T.info().lives === l0, { l0, l1: global.__T.info().lives });
+  /* the same goblin actively lunging MUST hurt on contact */
+  const rp = global.__R();
+  g2.x = rp.x + 0.2; g2.z = rp.z; g2.vx = 0; g2.vz = 0;
+  g2.actKind = 'lunge'; g2.actT = 0.3; g2.tele = 0;
+  global.__T.setInv(0);
+  pump(3);
+  check('active lunge contact damages', global.__T.info().lives < l0, { l0, l1: global.__T.info().lives });
+  global.__T.hurtAll();
+  global.__T.clearShots();
+}
+
 console.log('--- power-ups, elites, boss slam ---');
 global.__T.god(true); /* keep the player alive while exercising mechanics */
 global.__T.wave(4);   /* elites roll from wave 4 */
@@ -240,7 +269,7 @@ const z0 = global.__T.zoom(-3);
 check('zoom in accepted', z0 < 7.5, z0);
 pump(40);
 const z1 = global.__T.zoom(99);
-check('zoom out clamps at 11.5', z1 === 11.5, z1);
+check('zoom out clamps at engine max', z1 === global.__T.zoomMax(), { z1, max: global.__T.zoomMax() });
 
 console.log('--- camera sanity (never under ground) ---');
 let below = 0, far = 0, samples = 0;
@@ -286,6 +315,20 @@ check('fuzz: sim survived 40s of combat', Tf.state === 'play', Tf);
 check('fuzz: waves advanced to 3+', Tf.wave >= 3, Tf);
 check('fuzz: killed goblins across waves', Tf.kills > 20, Tf);
 check('fuzz: score accumulated', Tf.score > 1000, Tf);
+
+console.log('--- camera: auto-frame follows BEHIND the walker (regression: face-cam) ---');
+global.__T.key('KeyW', true);
+for (let i = 0; i < 300; i++) { /* keep the field clear so auto-frame engages */
+  if (i % 3 === 0) global.__T.hurtAll();
+  pump(1);
+}
+const rc = global.__R();
+const lookDot = Math.sin(rc.camYaw) * Math.sin(rc.yaw) + Math.cos(rc.camYaw) * Math.cos(rc.yaw);
+check('camera looks along walk direction (behind Riley)', lookDot > 0.9, { camYaw: rc.camYaw, yaw: rc.yaw, lookDot });
+const behindDot = (rc.camX - rc.x) * Math.sin(rc.yaw) + (rc.camZ - rc.z) * Math.cos(rc.yaw);
+check('camera sits behind, not in front', behindDot < 0, { behindDot });
+global.__T.key('KeyW', false);
+pump(20);
 
 console.log('--- selftest render: unique colours ---');
 pump(10);

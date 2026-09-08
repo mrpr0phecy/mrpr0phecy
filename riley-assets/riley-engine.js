@@ -372,7 +372,7 @@ function buildStars() {
 /* ================================================================
  * 5. instance renderer (one draw call per geometry)
  * ================================================================ */
-var INST_CAP = 700;
+var INST_CAP = 900;
 var instBuckets = {};
 function getBucket(key) {
   if (!instBuckets[key]) instBuckets[key] = { arr: new Float32Array(INST_CAP * 19), n: 0, vbo: gl.createBuffer() };
@@ -557,6 +557,8 @@ var pointerLocked = false;
 var dragLook = false, dragMoved = 0;
 var camCollideD = 8.2;                 /* last collision-safe distance */
 
+/* shortest signed angle a → b */
+function angDiff(a, b) { var d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
 function camDir() { return [Math.sin(camYaw), 0, Math.cos(camYaw)]; }
 
 function nearestLivingEnemy(px, pz, maxD) {
@@ -590,7 +592,7 @@ function clearLockIfDead() {
 
 /* Sphere-cast player->camera vs heightfield. Pulls in tightly, never under dirt. */
 function camGroundDist(px, py, pz, dx, dy, dz, maxD) {
-  var steps = 36, safe = maxD, pad = 0.55;
+  var steps = 48, safe = maxD, pad = 0.55;
   for (var i = 1; i <= steps; i++) {
     var t = i / steps;
     var d = t * maxD;
@@ -610,27 +612,47 @@ function updateCamera(dtC, lookAt) {
     camPitchTarget = 0.28;
     camDistTarget = 11.5;
   } else if (state === 'play' || state === 'pause') {
-    /* combat lock: orbit so the target stays framed, player on screen */
+    /* combat lock: swing the camera BEHIND the player along the
+       player→target line so BOTH stay framed.
+       (the old code added π here and ended up looking away from the
+        locked target — the lock-on was literally unusable) */
     if (lockOn && !lockOn.dead) {
       var toTx = lockOn.x - lx, toTz = lockOn.z - lz;
-      var want = Math.atan2(toTx, toTz) + Math.PI;
-      camYawTarget = angLerp(camYawTarget, want, clamp(dtC * 3.4, 0, 1));
-      camPitchTarget = lerp(camPitchTarget, 0.32, clamp(dtC * 2.2, 0, 1));
+      var want = Math.atan2(toTx, toTz);
+      /* slight over-the-shoulder offset on whichever side the camera is
+         already coming from — no long-way-round swings.
+         Manual mouse/gamepad input suspends the auto-follow for a beat —
+         the lock must frame the fight, never fight the player. */
+      if (time - lastAimT > 1.2) {
+        want += 0.15 * (angDiff(want, camYawTarget) >= 0 ? 1 : -1);
+        camYawTarget = angLerp(camYawTarget, want, clamp(dtC * 3.6, 0, 1));
+        camPitchTarget = lerp(camPitchTarget, 0.34, clamp(dtC * 2.2, 0, 1));
+      }
     } else if (touchAutoCam) {
-      /* mobile: sit behind walk heading, lag so it doesn't whip */
-      if (spd > 1.4) camYawTarget = angLerp(camYawTarget, R.yaw + Math.PI, clamp(dtC * 2.6, 0, 1));
-    } else if (!pointerLocked && !dragLookActive && !mouseFire && !R.charging && time - lastAimT > 2.2) {
-      /* idle auto-frame only after a long pause, never while aiming */
-      if (spd > 2.5) camYawTarget = angLerp(camYawTarget, R.yaw + Math.PI, clamp(dtC * 1.15, 0, 1));
+      /* mobile: settle BEHIND the walking heading (was +π — face-cam bug
+         that showed Riley's face while goblins attacked from behind) */
+      if (spd > 1.4) camYawTarget = angLerp(camYawTarget, R.yaw, clamp(dtC * 2.6, 0, 1));
+    } else if (!pointerLocked && !dragLookActive && !mouseFire && !R.charging && time - lastAimT > 2.6) {
+      /* gentle auto-frame BEHIND the walk heading — only while travelling
+         calmly. Never in combat, never while aiming: the camera must never
+         fight the player. */
+      if (spd > 3.5) {
+        var calm = true;
+        for (var ce = 0; ce < enemies.length; ce++) {
+          var ec2 = enemies[ce];
+          if (!ec2.dead && Math.hypot(ec2.x - lx, ec2.z - lz) < 18) { calm = false; break; }
+        }
+        if (calm) camYawTarget = angLerp(camYawTarget, R.yaw, clamp(dtC * 1.4, 0, 1));
+      }
     }
   }
 
   /* yaw/pitch: snappy mouse (already on *Target), camera itself critically damped */
-  var yawK = pointerLocked || dragLookActive || gpAiming ? 18 : 10;
+  var yawK = pointerLocked || dragLookActive || gpAiming ? 18 : (lockOn ? 9 : 10);
   var pitK = 14;
   camYaw = angLerp(camYaw, camYawTarget, clamp(dtC * yawK, 0, 1));
   camPitch = lerp(camPitch, camPitchTarget, clamp(dtC * pitK, 0, 1));
-  camPitch = clamp(camPitch, -0.08, 1.05);
+  camPitch = clamp(camPitch, -0.30, 1.18);
   camDist = lerp(camDist, camDistTarget, clamp(dtC * 7, 0, 1));
 
   var cp = Math.cos(camPitch), sp = Math.sin(camPitch);
@@ -639,8 +661,7 @@ function updateCamera(dtC, lookAt) {
   /* look-ahead along velocity so you see where you're going, not where you were */
   var lead = clamp(spd * 0.11, 0, 1.6);
   var tx = lx + R.vx * 0.08, tz = lz + R.vz * 0.08;
-  if (R.dashing) { tx += R.dashDX * 1.15; tz += R.dashDZ * 1.15; }
-  else { tx += Math.sin(camYaw) * 0; }
+  if (R.dashing && !lockOn) { tx += R.dashDX * 1.15; tz += R.dashDZ * 1.15; }
 
   /* jump lag: look height follows slowly going up, snaps down on landing */
   var wantLookY = ly + 1.22;
@@ -653,6 +674,8 @@ function updateCamera(dtC, lookAt) {
   tx += shx; tz += shz;
 
   var wantD = camDist + lead * 0.15;
+  /* lock-on breathes out with target range so both fighter + goblin frame */
+  if (lockOn && !lockOn.dead) wantD += clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) * 0.16, 0, 2.6);
   var safeD = camGroundDist(tx, headY, tz, -ddx, -ddy, -ddz, wantD + 1.4);
   /* collision pulls in fast, eases out slow (no popping through hills) */
   if (safeD < camCollideD) camCollideD = lerp(camCollideD, safeD, clamp(dtC * 22, 0, 1));
@@ -664,7 +687,7 @@ function updateCamera(dtC, lookAt) {
   if (ey < gh) ey = gh;
 
   /* critically damped follow — high enough to stick, low enough to not jitter */
-  var followK = R.dashing ? 14 : 11;
+  var followK = R.dashing ? 14 : (lockOn && !lockOn.dead ? 8.5 : 11);
   camX = lerp(camX, ex, clamp(dtC * followK, 0, 1));
   camY = lerp(camY, ey, clamp(dtC * followK, 0, 1));
   camZ = lerp(camZ, ez, clamp(dtC * followK, 0, 1));
@@ -693,7 +716,9 @@ function updateCamera(dtC, lookAt) {
 
   C.m4Look(VM, eye[0], eye[1], eye[2], ctr[0], ctr[1], ctr[2]);
   var spdF = clamp(spd / 9, 0, 1);
-  var fovT = 0.98 + (R.dashing ? 0.09 : 0) + spdF * 0.04;
+  /* FOV juice: dash punch, nova bloom, charge focus */
+  var fovT = 0.98 + (R.dashing ? 0.09 : 0) + spdF * 0.04 +
+    (R.novaFx > 0 ? 0.10 : 0) - (R.charging ? clamp((R.charge - 0.28) / 0.72, 0, 1) * 0.05 : 0);
   camFov = lerp(camFov, fovT, clamp(dtC * 5, 0, 1));
   C.m4Persp(PM, camFov, Ww / Hh, 0.12, 480);
   C.m4mul(PVM, PM, VM);
@@ -731,8 +756,12 @@ function updateAim() {
   var dl = Math.hypot(dx, dy, dz) || 1;
   dx /= dl; dy /= dl; dz /= dl;
   var px = camX, py = camY, pz = camZ;
+  /* start the march at the player: enemies between the camera and Riley
+     (i.e. behind him) must never become the aim target */
+  var tMin = Math.hypot(R.x - px, R.y - py, R.z - pz) * 0.85;
   for (var i = 1; i <= 44; i++) {
     var t = i * 1.4;
+    if (t < tMin) continue;
     var qx = px + dx * t, qy = py + dy * t, qz = pz + dz * t;
     if (qy < -30) break;
     for (var e = 0; e < enemies.length; e++) {
@@ -915,14 +944,14 @@ function stepPlayer(inp) {
         var cx = R.x + aimX * 0.7, cz = R.z + aimZ * 0.7;
         fxPush({ x: cx + rnd2(-0.3, 0.3), y: R.y + 1 + rnd2(-0.2, 0.3), z: cz + rnd2(-0.3, 0.3), vx: 0, vy: 0, vz: 0, life: 0.3, max: 0.3, s: rnd2(0.06, 0.14), pr: 255, pg: 210, pb: 110, pa: 0.8, grav: 0 });
       }
-    } else if (R.shootCd <= 0 && R.fireHeldT > 0.04) {
+    } else if (R.shootCd <= 0 && R.fireHeldT > 0.005) {
       if (!tryMelee()) fireShot();
     }
   } else {
     if (R.charging) releaseCharge();
     R.charge = 0; R.charging = false; R.fireHeldT = 0;
   }
-  R.mana = Math.min(R.manaMax, R.mana + dt * 3.2);
+  R.mana = Math.min(R.manaMax, R.mana + dt * 4.2);
 
   /* nova */
   if (inp.nova && R.mana >= R.manaMax) castNova();
@@ -960,11 +989,31 @@ function shotAimDir() {
   var l = Math.hypot(ax, az);
   if (l < 0.35) { ax = Math.sin(R.yaw); az = Math.cos(R.yaw); l = 1; }
   ax /= l; az /= l;
-  var ay = 0;
-  if (aim.lock) {
-    var dy = (aim.y - (R.y + 1.05));
-    ay = clamp(dy / Math.max(l, 2) * 22, -8, 10);
-  } else ay = 1.2;
+  var ty = aim.y, hd = l, snapped = !!aim.lock;
+  if (!aim.lock) {
+    /* soft aim assist: if a goblin chest sits within ~6.5° of the firing
+       line, snap the shot at it — quick shots land at rush angles now */
+    var bestE = null, bestCos = 0.9936;
+    for (var i = 0; i < enemies.length; i++) {
+      var e = enemies[i];
+      if (e.dead) continue;
+      var dx = e.x - R.x, dz = e.z - R.z, d = Math.hypot(dx, dz);
+      if (d < 1.4 || d > 34) continue;
+      var cosA = (dx / d) * ax + (dz / d) * az;
+      if (cosA > bestCos) { bestCos = cosA; bestE = e; }
+    }
+    if (bestE) {
+      ax = bestE.x - R.x; az = bestE.z - R.z;
+      hd = Math.hypot(ax, az) || 1;
+      ax /= hd; az /= hd;
+      ty = bestE.y + bestE.h * 0.6;
+      snapped = true;
+    }
+  }
+  /* shots fly straight (no gravity): slope the velocity so it arrives at
+     the aim height — flat shots no longer dive into the dirt short */
+  var ay = (ty - (R.y + 1.05)) / Math.max(hd, 2) * 28;
+  ay = snapped ? clamp(ay, -9, 11) : clamp(ay, -6, 3.5);
   return { x: ax, y: ay, z: az };
 }
 function fireShot() {
@@ -983,10 +1032,11 @@ function releaseCharge() {
   R.shootCd = 0.3; R.shootAnim = 0.28;
   var tier = pw >= 0.85 ? 2 : 1;
   var dm = buffMul().dmg;
-  var ax = Math.sin(R.yaw), az = Math.cos(R.yaw);
+  var d = shotAimDir();
+  var ax = d.x, az = d.z;
   var sx = R.x + ax * 0.8, sy = R.y + 1.05, sz = R.z + az * 0.8;
   shots.push({
-    x: sx, y: sy, z: sz, vx: ax * 27, vy: 1.2, vz: az * 27, life: 1.8,
+    x: sx, y: sy, z: sz, vx: ax * 27, vy: d.y, vz: az * 27, life: 1.8,
     r: (tier === 2 ? 0.42 : 0.3) * (dm > 1 ? 1.15 : 1), big: true, dmg: (tier === 2 ? 6 : 3) * dm,
     pierce: tier === 2 ? 3 : 1, col: tier === 2 ? [180, 120, 255] : [255, 140, 60], hitSet: null
   });
@@ -998,6 +1048,7 @@ function releaseCharge() {
 }
 function castNova() {
   R.mana = 0; R.novaFx = 0.6;
+  R.inv = Math.max(R.inv, 0.7); /* brief invulnerability — nova is the panic button */
   game.shake = 0.6; doHitStop(0.06);
   for (var ri = 0; ri < 3; ri++) ringBurst(R.x, R.y + 0.4, R.z, [150, 210, 255], 6 + ri * 3);
   burst(R.x, R.y + 0.8, R.z, [170, 140, 255], 40, 12, 1.5, 0.4, 0.9);
@@ -1053,7 +1104,7 @@ function updateShots(dtF) {
         var hr = en.r + 0.55 + (s.big ? 0.28 : 0);
         if (s.x > en.x - hr && s.x < en.x + hr && s.z > en.z - hr && s.z < en.z + hr && s.y > en.y && s.y < en.y + en.h + 0.2) {
           damageGob(en, s.dmg, s.vx, s.vz);
-          R.mana = Math.min(R.manaMax, R.mana + (s.big ? 7 : 4));
+          R.mana = Math.min(R.manaMax, R.mana + (s.big ? 8 : 5));
           if (s.pierce > 1) { s.hitSet.push(en); s.pierce--; }
           else { consumed = true; break; }
         }
@@ -1151,7 +1202,22 @@ function enemySensor(e) {
   return {
     dist: d,
     sinA: Math.sin(rel), cosA: Math.cos(rel),
-  t, very cheap */
+    pSpeed: Math.hypot(R.vx, R.vz),
+    dy: (R.y + 1.0) - (e.y + e.h * 0.55),
+    hpFrac: e.hp / e.hpMax,
+    dmgTaken: e.dmgTaken,
+    threat: threat,
+    time: e.lifeSec,
+    side: e.side,
+    atkRange: atkRange,
+    rangeNear: spec.range ? spec.range[0] : 0,
+    rangeFar: spec.range ? spec.range[1] : 99
+  };
+}
+/* Neural brains tick at a staggered 8 Hz — each goblin thinks on its own
+ * frame phase (e.aiPhase), so 60 enemies still cost only ~8 net evals per
+ * tick. Cooldown timers below are decremented by dt*8 to compensate. */
+function updateEnemyBrain(e) {
   if (frame % 8 !== e.aiPhase) return;
   var sen = enemySensor(e);
   var act = e.brain.tick(sen);
@@ -1369,10 +1435,17 @@ function updateEnemies(dtU) {
     var ed = Math.hypot(e3.x, e3.z);
     if (ed > WORLD / 2 - 2) { e3.x = e3.x / ed * (WORLD / 2 - 2); e3.z = e3.z / ed * (WORLD / 2 - 2); }
 
-    /* contact with Riley */
+    /* contact with Riley: only an ACTIVE lunge hurts. Idle crowding just
+       bumps both apart — telegraphed attacks you can actually dodge,
+       instead of random touch-death from a goblin brushing past. */
     var rr2 = e3.r + 0.55;
     if (Math.abs(e3.x - R.x) < rr2 && Math.abs(e3.z - R.z) < rr2 && R.y + RHEIGHT > e3.y + 0.1 && R.y < e3.y + e3.h - 0.1) {
-      hitRiley(e3);
+      if (e3.actKind === 'lunge' && e3.actT > 0) hitRiley(e3);
+      else if (!e3.dead) {
+        var bdx = e3.x - R.x, bdz = e3.z - R.z, bdl = Math.hypot(bdx, bdz) || 1;
+        e3.vx += bdx / bdl * 3.2; e3.vz += bdz / bdl * 3.2;
+        R.vx -= bdx / bdl * 2.4; R.vz -= bdz / bdl * 2.4;
+      }
     }
     /* fell somewhere weird (shouldn't happen on heightfield) */
     if (e3.y < -20) e3.dead = true;
@@ -1761,6 +1834,12 @@ function updateHUD() {
   if (Math.abs(game.score - shownScore) < 1) shownScore = game.score;
   el('hudScore').firstChild.nodeValue = Math.round(shownScore);
   var wt = 'WAVE ' + game.wave;
+  if (state === 'play' && game.waveState === 'combat') {
+    var aliveN = 0;
+    for (var k2 = 0; k2 < enemies.length; k2++) if (!enemies[k2].dead) aliveN++;
+    var leftN = aliveN + game.spawnQueue.length;
+    if (leftN > 0) wt += ' · ' + leftN + ' LEFT';
+  }
   if (wt !== hudCache.wave) { el('hudWave').textContent = wt; hudCache.wave = wt; }
   var bb = el('bossBar'), be = null;
   for (var j = 0; j < enemies.length; j++) if (enemies[j].k === 'boss' && !enemies[j].dead) { be = enemies[j]; break; }
@@ -1804,6 +1883,72 @@ function updateReticle() {
     reticleEl.style.top = mouseY + 'px';
   }
   reticleEl.classList.toggle('lock', !!aim.lock);
+}
+
+/* ---------- offscreen threat markers ----------
+ * In a 360° arena fight the #1 frustration is damage from goblins you
+ * can't see. Pool of edge arrows: nearest threats first, boss/elite in
+ * red, opacity falls off with distance. Pure DOM, one transform/frame. */
+var OFF_MAX = 6;
+var offArrows = [];
+(function buildOffArrows() {
+  var host = document.getElementById('offArrows');
+  if (!host) return;
+  for (var i = 0; i < OFF_MAX; i++) {
+    var d = document.createElement('div');
+    d.className = 'oa';
+    host.appendChild(d);
+    offArrows.push(d);
+  }
+})();
+function hideOffArrows() {
+  for (var i = 0; i < offArrows.length; i++) offArrows[i].style.display = 'none';
+}
+function updateOffscreenArrows() {
+  if (!offArrows.length || !R) return;
+  if (state !== 'play') { hideOffArrows(); return; }
+  var cand = [];
+  for (var e = 0; e < enemies.length; e++) {
+    var en = enemies[e];
+    if (!en.dead) cand.push(en);
+  }
+  if (!cand.length) { hideOffArrows(); return; }
+  cand.sort(function (a, b) {
+    return Math.hypot(a.x - R.x, a.z - R.z) - Math.hypot(b.x - R.x, b.z - R.z);
+  });
+  var m = PVM, n = 0;
+  for (var c = 0; c < cand.length && n < OFF_MAX; c++) {
+    var t = cand[c];
+    var wx = t.x, wy = t.y + t.h * 0.5, wz = t.z;
+    var cx = m[0] * wx + m[4] * wy + m[8] * wz + m[12];
+    var cy = m[1] * wx + m[5] * wy + m[9] * wz + m[13];
+    var w = m[3] * wx + m[7] * wy + m[11] * wz + m[15];
+    var dirX, dirY;
+    var onScreen = false;
+    if (w > 0.05) {
+      var nx = cx / w, ny = cy / w;
+      if (nx > -0.92 && nx < 0.92 && ny > -0.9 && ny < 0.9) onScreen = true;
+      dirX = nx; dirY = -ny;
+    } else {
+      /* behind the camera: project onto the camera right/up basis */
+      var relX = wx - camX, relY = wy - camY, relZ = wz - camZ;
+      dirX = relX * camR[0] + relY * camR[1] + relZ * camR[2];
+      dirY = -(relX * camUp[0] + relY * camUp[1] + relZ * camUp[2]);
+    }
+    if (onScreen) continue;
+    var dl = Math.hypot(dirX, dirY) || 1;
+    dirX /= dl; dirY /= dl;
+    var ax2 = Ww / 2 + dirX * (Ww / 2 - 52);
+    var ay2 = Hh / 2 + dirY * (Hh / 2 - 52);
+    var d3 = Math.hypot(t.x - R.x, t.z - R.z);
+    var elA = offArrows[n];
+    elA.style.display = 'block';
+    elA.style.transform = 'translate(' + (ax2 - 7) + 'px,' + (ay2 - 6) + 'px) rotate(' + (Math.atan2(dirY, dirX) + Math.PI / 2) + 'rad)';
+    elA.style.opacity = String(clamp(1.3 - d3 / 46, 0.3, 0.95));
+    elA.className = 'oa' + (t.k === 'boss' || t.elite ? ' oa-hot' : '');
+    n++;
+  }
+  for (var r3 = n; r3 < offArrows.length; r3++) offArrows[r3].style.display = 'none';
 }
 /* ================================================================
  * 15. character rendering (instanced)
@@ -2076,12 +2221,17 @@ function render() {
   /* enemies */
   for (var ei2 = 0; ei2 < enemies.length; ei2++) if (!enemies[ei2].dead) drawGoblin(enemies[ei2]);
   drawGoblinGlow();
-  /* elite auras + boss slam telegraph (one additive pass) */
+  /* elite auras + attack telegraphs (one additive pass) */
   for (var et = 0; et < enemies.length; et++) {
     var ee = enemies[et];
     if (ee.dead) continue;
     if (ee.elite) {
       haloN = glowAddInto(haloScratch, haloN, ee.x, ee.y + ee.h * 0.55, ee.z, ee.r * 1.5, 255, 214, 94, 0.34 + 0.12 * Math.sin(time * 4 + ee.ph));
+    }
+    /* lunge windup: rising red flare at the feet — dodge window made visible */
+    if (ee.tele > 0) {
+      var tg = 1 - ee.tele / 0.3;
+      haloN = glowAddInto(haloScratch, haloN, ee.x, ee.y + ee.h * 0.45, ee.z, ee.r * (1.4 + tg * 0.8), 255, 80, 60, 0.22 + tg * 0.42);
     }
     if (ee.k === 'boss' && ee.actKind === 'slam' && ee.actT > 0) {
       var st = 1 - ee.actT / 0.5; /* 0 → 1 as the pound lands */
@@ -2124,6 +2274,8 @@ function render() {
   }
   /* fx on top */
   drawGlowList(fx, 0);
+  /* offscreen threat arrows (DOM) */
+  updateOffscreenArrows();
 }
 function drawPropInstanced(pd) {
   var geo = pd.geo;
@@ -2334,7 +2486,7 @@ function pollGamepad(rawDt) {
   gpAiming = (rx !== 0 || ry !== 0);
   if (gpAiming) {
     camYawTarget -= rx * 2.4 * rawDt;
-    camPitchTarget = clamp(camPitchTarget + ry * 1.8 * rawDt, -0.02, 0.95);
+    camPitchTarget = clamp(camPitchTarget + ry * 1.8 * rawDt, -0.30, 1.18);
     lastAimT = time;
   }
   var b = pad.buttons || [];
@@ -2396,6 +2548,12 @@ document.addEventListener('keydown', function (e) {
       else cycleLockOn();
     }
   }
+  if (e.code === 'KeyR' && state === 'play') {
+    /* snap the camera back behind Riley */
+    camYawTarget = R.yaw;
+    camPitchTarget = 0.36;
+    lastAimT = time;
+  }
 });
 document.addEventListener('keyup', function (e) { keys[e.code] = false; });
 window.addEventListener('blur', function () {
@@ -2410,11 +2568,11 @@ document.addEventListener('pointerlockchange', function () {
 document.addEventListener('mousemove', function (e) {
   if (pointerLocked) {
     camYawTarget -= e.movementX * 0.0028;
-    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0022, -0.08, 1.05);
+    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0022, -0.30, 1.18);
     lastAimT = time;
   } else if (dragLookActive) {
     camYawTarget -= e.movementX * 0.0032;
-    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0024, -0.08, 1.05);
+    camPitchTarget = clamp(camPitchTarget + e.movementY * 0.0024, -0.30, 1.18);
     lastAimT = time;
   }
   mouseX = e.clientX; mouseY = e.clientY;
@@ -2723,7 +2881,8 @@ function startGame() {
   fogTarget = world.realm.fog.slice();
   resetRiley();
   makeSession();
-  camYawTarget = R.yaw + Math.PI;
+  /* camera starts BEHIND Riley, looking where he looks (was +π: face-cam) */
+  camYawTarget = R.yaw;
   camYaw = camYawTarget;
   camPitchTarget = 0.36; camPitch = 0.36;
   camDistTarget = 8.2; camDist = 8.2; camCollideD = 8.2;
@@ -2934,6 +3093,12 @@ if (SELFTEST) {
         dist: Math.hypot(aim.x - R.x, aim.z - R.z) };
     },
     zoom: function (d) { camDistTarget = clamp(camDistTarget + d, CAM_DIST_MIN, CAM_DIST_MAX); return camDistTarget; },
+    zoomMax: function () { return CAM_DIST_MAX; },
+    zoomMin: function () { return CAM_DIST_MIN; },
+    key: function (code, down) { keys[code] = !!down; },
+    setInv: function (v) { if (R) R.inv = v; },
+    lastEnemy: function () { return enemies.length ? enemies[enemies.length - 1] : null; },
+    clearShots: function () { eShots.length = 0; shots.length = 0; },
     shatter: function () {
       var best2 = null, bd = 99;
       for (var i = 0; i < world.crystals.length; i++) {
@@ -2967,17 +3132,6 @@ window.__shot = function () {
     x.drawImage(canvas, 0, 0);
     var d = x.getImageData(0, 0, Ww, Hh).data;
     var unique = 0, map = {};
-    for (var y = 0; y < Hh; y += 4) for (var xx = 0; xx < Ww; xx += 4) {
-      var i = (y * Ww + xx) * 4;
-      var key = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
-      if (!map[key]) { map[key] = 1; unique++; }
-    }
-    return { unique: unique };
-  } catch (e) { return { err: e.message }; }
-};
-})();
-
-  var unique = 0, map = {};
     for (var y = 0; y < Hh; y += 4) for (var xx = 0; xx < Ww; xx += 4) {
       var i = (y * Ww + xx) * 4;
       var key = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
