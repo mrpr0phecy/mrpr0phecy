@@ -3360,6 +3360,13 @@ function moveVec() {
   return [rt[0] * sr + fd[0] * su, rt[1] * sr + fd[1] * su];
 }
 document.addEventListener('keydown', function (e) {
+  /* Typing a world seed must not cast spells. While a form field has the
+     caret, only Enter (start this world) and Escape (hand it back) are game
+     input; every other key belongs to the text box. Before this, M/N/Space
+     typed into the seed field muted the audio and hurled Riley around. */
+  var tgt = e.target;
+  if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' ||
+      tgt.isContentEditable) && e.code !== 'Enter' && e.code !== 'NumpadEnter' && e.code !== 'Escape') return;
   audioInit();
   if (e.code === 'Space') e.preventDefault();
   if (keys[e.code]) return;
@@ -4000,6 +4007,7 @@ if (SELFTEST) {
       return { x: R.x, z: R.z, y: R.y, d: Math.hypot(R.x, R.z) };
     },
     spawnGrace: function (i) { var e = enemies[i || 0]; return e ? e.spawnT : -1; },
+    heldKeys: function () { var out = []; for (var k in keys) if (keys[k]) out.push(k); return out; },
     take: function (id) {
       for (var i = 0; i < BOONS.length; i++) if (BOONS[i].id === id) return !!applyBoon(BOONS[i]);
       return false;

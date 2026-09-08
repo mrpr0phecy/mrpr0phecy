@@ -234,11 +234,19 @@ check('dodged hit costs no heart', global.__T.info().lives === livesD, { livesD,
 check('perfect dodge scored', global.__T.info().score > scoreD, { scoreD, now: global.__T.info().score });
 const sl = global.__T.slow();
 check('perfect dodge hit the brakes (slow-mo)', sl.t > 0 && sl.k < 1, sl);
-/* and a plain (non-dodge) hit still hurts */
+/* and a plain (non-dodge) hit still hurts. Use a FRESH goblin, not the one
+   from the dodge: Riley is still shooting (KeyF held by earlier sections) and
+   had eaten the poor thing before this line ran, so the check failed because
+   there was nobody left to touch her. */
 pump(60);
+global.__T.clearShots();
 global.__T.setInv(0);
 const livesE = global.__T.info().lives;
-gd.x = global.__R().x + 0.2; gd.z = global.__R().z; gd.actKind = 'lunge'; gd.actT = 0.3; gd.tele = 0; gd.vx = 0; gd.vz = 0;
+global.__T.place('grunt', 0.2, 0);
+const gd2 = global.__T.lastEnemy();
+check('the fresh goblin is alive', !!gd2 && !gd2.dead, gd2 && gd2.dead);
+gd2.actKind = 'lunge'; gd2.actT = 0.3; gd2.tele = 0; gd2.recT = 0; gd2.stun = 0; gd2.spawnT = 0;
+gd2.x = global.__R().x + 0.2; gd2.z = global.__R().z; gd2.vx = 0; gd2.vz = 0;
 pump(3);
 check('untimed contact still hurts (dodge is not immunity)', global.__T.info().lives < livesE, { livesE, now: global.__T.info().lives });
 global.__T.god(true);
@@ -447,6 +455,24 @@ pump(30);
 check('a projectile hit still lands with the ward up', global.__T.info().lives < livesP, { livesP, now: global.__T.info().lives });
 check('the ward survived the fake attacker', global.__T.info().tick > tickW, global.__T.info().tick);
 pump(30);
+
+console.log('--- keys while typing in the seed field ---');
+const muteBefore = H.els['btnMute'].textContent;   /* the fake DOM's own default, whatever it is */
+H.emit('keydown', { code: 'KeyM', target: { tagName: 'INPUT' } });
+check('typing a letter into the seed box does not mute', H.els['btnMute'].textContent === muteBefore, H.els['btnMute'].textContent);
+H.emit('keydown', { code: 'Space', target: { tagName: 'INPUT' } });
+check('typing spaces does not jump', global.__T.heldKeys().indexOf('Space') < 0, global.__T.heldKeys());
+H.emit('keydown', { code: 'KeyN', target: { tagName: 'INPUT' } });
+check('music is still on after seed typing', global.__T.heldKeys().indexOf('KeyN') < 0, global.__T.heldKeys());
+H.emit('keydown', { code: 'Space' });
+check('the same key outside a field still works', global.__T.heldKeys().indexOf('Space') >= 0, global.__T.heldKeys());
+H.emit('keyup', { code: 'Space' });
+H.emit('keydown', { code: 'KeyM' });
+H.emit('keyup', { code: 'KeyM' });
+check('M still mutes when nothing is focused', H.els['btnMute'].textContent === '\ud83d\udd07', H.els['btnMute'].textContent);
+H.emit('keydown', { code: 'KeyM' });
+H.emit('keyup', { code: 'KeyM' });
+check('and unmutes again', H.els['btnMute'].textContent === '\ud83d\udd0a', H.els['btnMute'].textContent);
 
 console.log('--- determinism: same seed twice => same worldHash ---');
 const seed = 'TESTSEED42';

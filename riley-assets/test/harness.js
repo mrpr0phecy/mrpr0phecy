@@ -245,8 +245,13 @@ function boot(opts) {
     setNow(v) { tNow = v; },
     stats() { return { drawCalls, draws: drawCounts.length, progs: progN, bufs: bufN, texs: texN }; },
     resetDraws() { drawCalls = 0; drawCounts.length = 0; },
-    /* dispatch a window/document event the engine registered */
-    emit(type, ev) { const L = listeners[type] || []; for (const cb of L.slice()) cb(ev); },
+    /* dispatch a window/document event the engine registered. Real events
+       always carry preventDefault/stopPropagation and a target, so fake ones
+       do too — otherwise a test that forgets them fails inside game code. */
+    emit(type, ev) {
+      const e = Object.assign({ preventDefault() {}, stopPropagation() {}, target: null }, ev || {});
+      const L = listeners[type] || []; for (const cb of L.slice()) cb(e);
+    },
     /* same for a per-element listener (addEventListener on a node), e.g. a
        range input the player drags */
     elEmit(id, type, ev) {
