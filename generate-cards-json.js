@@ -185,7 +185,17 @@ const categoryMap = {
   'gratitude-constellation-stargazer': 'Wellbeing & Community',
   'joyful-zen-sand-garden-raker': 'Interactive Art & Living Worlds',
   'laugh-laboratory-chuckle-box': 'Wellbeing & Community',
-  'uplifting-affirmation-origami-fortune': 'Wellbeing & Community'
+  'uplifting-affirmation-origami-fortune': 'Wellbeing & Community',
+  'brachistochrone-tautochrone-gravity-race': 'Science & Engineering',
+  'polarization-birefringence-stress-lab': 'Science & Engineering',
+  'quantum-superposition-bloch-sphere': 'Science & Engineering',
+  'bioluminescence-luciferin-cascade-lab': 'Science & Engineering',
+  'stochastic-resonance-signal-in-noise': 'Science & Engineering',
+  'metamaterial-negative-refraction-cloak': 'Science & Engineering',
+  'sound-chladni-resonance-harmonizer': 'Science & Engineering',
+  'quantum-tunneling-nuclear-fusion-sun': 'Science & Engineering',
+  'time-dilation-lorentz-light-clock': 'Science & Engineering',
+  'mycelium-slime-mold-network-solver': 'Science & Engineering'
 };
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone

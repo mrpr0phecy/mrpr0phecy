@@ -1,0 +1,234 @@
+<h2 id="msm-title" style="margin-top:0;color:var(--accent);">🍄 Physarum Slime Mold &amp; Mycelium Biocomputer Maze Solver</h2>
+
+<form aria-describedby="msm-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="msm-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    The single-celled organism <i>Physarum polycephalum</i> (slime mold) and fungal mycelium have no brain or neurons, yet they solve complex mathematical mazes, Steiner tree networks, and traveling salesperson routing puzzles. Explore biological computation as thousands of protoplasmic foraging streams optimize nutrient networks in real-time.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="msm-scenario-select" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Network Puzzle:</label>
+        <select id="msm-scenario-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="tokyo">🗾 Tokyo Metro Network Optimization</option>
+          <option value="maze">🧩 Shortest Path Maze Solver</option>
+          <option value="steiner">📐 Minimal Steiner Tree (4 Nodes)</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="msm-mold-color" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Mold Bio-Luminescence:</label>
+        <select id="msm-mold-color" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="#ffd700">💛 Golden Physarum Slime</option>
+          <option value="#39ff14">💚 Fluorescent Bioluminescent Mold</option>
+          <option value="#2dd4ff">💙 Neon Cyan Mycelium Hyphae</option>
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;gap:8px;">
+        <button type="button" id="msm-seed-food-btn" style="flex:1;padding:9px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.12);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+          🌾 Drop Oat Flake
+        </button>
+        <button type="button" id="msm-reset-btn" style="padding:9px 12px;background:rgba(45,212,255,0.15);color:var(--accent);border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:700;">
+          🔄 Inoculate
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Petri Dish Canvas Stage -->
+<div style="position:relative;width:100%;height:380px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#050a12;border:3px solid #1e293b;box-shadow:inset 0 0 50px rgba(0,0,0,0.9);">
+  <canvas id="msm-canvas" width="600" height="380" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+  <div id="msm-guide" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(8,16,30,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;">
+    🍄 <b>Biological Intelligence:</b> Click anywhere in the petri dish to place nutrient oat flakes. Watch foraging veins fuse and prune redundant links into optimal routing networks!
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('msm-canvas');
+  var ctx = canvas.getContext('2d');
+  var scenarioSelect = document.getElementById('msm-scenario-select');
+  var colorSelect = document.getElementById('msm-mold-color');
+  var seedBtn = document.getElementById('msm-seed-food-btn');
+  var resetBtn = document.getElementById('msm-reset-btn');
+  var guide = document.getElementById('msm-guide');
+
+  var numAgents = 1400;
+  var agents = [];
+  var foods = [];
+  var trailsCanvas = document.createElement('canvas');
+  var trailsCtx = trailsCanvas.getContext('2d');
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      trailsCanvas.width = canvas.width;
+      trailsCanvas.height = canvas.height;
+      loadScenario();
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function loadScenario() {
+    var w = canvas.width;
+    var h = canvas.height;
+    var cx = w / 2;
+    var cy = h / 2;
+    var sc = scenarioSelect.value;
+
+    foods = [];
+    trailsCtx.fillStyle = '#050a12';
+    trailsCtx.fillRect(0, 0, w, h);
+
+    if (sc === 'tokyo') {
+      // Tokyo central hub and surrounding stations
+      foods.push({ x: cx, y: cy, label: "Tokyo Central", radius: 12 });
+      foods.push({ x: cx - 120, y: cy - 40, label: "Shinjuku", radius: 10 });
+      foods.push({ x: cx - 100, y: cy + 60, label: "Shibuya", radius: 10 });
+      foods.push({ x: cx + 110, y: cy - 60, label: "Ueno", radius: 10 });
+      foods.push({ x: cx + 90, y: cy + 70, label: "Shinagawa", radius: 10 });
+      foods.push({ x: cx - 50, y: cy - 100, label: "Ikebukuro", radius: 10 });
+      guide.innerHTML = "🗾 <b>Tokyo Railway Benchmark:</b> In 2010, researchers placed oat flakes in the layout of Tokyo cities. Slime mold recreated the human-engineered Tokyo subway system in 26 hours!";
+    } else if (sc === 'maze') {
+      foods.push({ x: 80, y: 80, label: "Start", radius: 12 });
+      foods.push({ x: w - 80, y: h - 80, label: "Exit", radius: 12 });
+      guide.innerHTML = "🧩 <b>Shortest Path Maze Solver:</b> Chemotactic waves explore dead ends, find the exit, then contract all dead-end pseudopodia to lock into the exact shortest geodesic line!";
+    } else {
+      // 4-Point Steiner Minimal Tree
+      foods.push({ x: cx - 140, y: cy - 80, label: "A", radius: 10 });
+      foods.push({ x: cx + 140, y: cy - 80, label: "B", radius: 10 });
+      foods.push({ x: cx - 140, y: cy + 80, label: "C", radius: 10 });
+      foods.push({ x: cx + 140, y: cy + 80, label: "D", radius: 10 });
+      guide.innerHTML = "📐 <b>Steiner Minimal Tree:</b> Connects 4 nodes with minimum total wire length by forming 120° Fermat-Torricelli junctions!";
+    }
+
+    // Spawn agents near foods
+    agents = [];
+    for (var i = 0; i < numAgents; i++) {
+      var f = foods[i % foods.length];
+      agents.push({
+        x: f.x + (Math.random() - 0.5) * 25,
+        y: f.y + (Math.random() - 0.5) * 25,
+        angle: Math.random() * Math.PI * 2,
+        speed: 1.5 + Math.random() * 1.5
+      });
+    }
+  }
+
+  function updateAgents() {
+    var w = canvas.width;
+    var h = canvas.height;
+
+    for (var i = 0; i < agents.length; i++) {
+      var a = agents[i];
+
+      // Steer toward nearest food node
+      var closestFood = null;
+      var minDist = 9999;
+      for (var fIdx = 0; fIdx < foods.length; fIdx++) {
+        var fd = foods[fIdx];
+        var d = Math.hypot(fd.x - a.x, fd.y - a.y);
+        if (d < minDist) {
+          minDist = d;
+          closestFood = fd;
+        }
+      }
+
+      if (closestFood && minDist > 15) {
+        var targetAngle = Math.atan2(closestFood.y - a.y, closestFood.x - a.x);
+        var diff = targetAngle - a.angle;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        a.angle += diff * 0.08 + (Math.random() - 0.5) * 0.4;
+      } else {
+        a.angle += (Math.random() - 0.5) * 0.6;
+      }
+
+      a.x += Math.cos(a.angle) * a.speed;
+      a.y += Math.sin(a.angle) * a.speed;
+
+      if (a.x < 10) { a.x = 10; a.angle = Math.PI - a.angle; }
+      if (a.x > w - 10) { a.x = w - 10; a.angle = Math.PI - a.angle; }
+      if (a.y < 10) { a.y = 10; a.angle = -a.angle; }
+      if (a.y > h - 10) { a.y = h - 10; a.angle = -a.angle; }
+    }
+  }
+
+  function render() {
+    updateAgents();
+    var w = canvas.width;
+    var h = canvas.height;
+    var moldColor = colorSelect.value;
+
+    // Decay trails buffer
+    trailsCtx.fillStyle = 'rgba(5, 10, 18, 0.035)';
+    trailsCtx.fillRect(0, 0, w, h);
+
+    // Deposit agent trails
+    trailsCtx.fillStyle = moldColor;
+    for (var i = 0; i < agents.length; i++) {
+      var a = agents[i];
+      trailsCtx.fillRect(a.x, a.y, 2, 2);
+    }
+
+    // Render onto display canvas
+    ctx.drawImage(trailsCanvas, 0, 0);
+
+    // Draw Food Nodes (Oat Flakes)
+    foods.forEach(function(f) {
+      ctx.save();
+      ctx.fillStyle = '#ff9500';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(f.label, f.x, f.y - f.radius - 4);
+      ctx.restore();
+    });
+
+    requestAnimationFrame(render);
+  }
+
+  // Add food on click
+  canvas.addEventListener('click', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    foods.push({
+      x: mx,
+      y: my,
+      label: "Oat #" + (foods.length + 1),
+      radius: 10
+    });
+  });
+
+  seedBtn.addEventListener('click', function() {
+    var rx = 80 + Math.random() * (canvas.width - 160);
+    var ry = 80 + Math.random() * (canvas.height - 160);
+    foods.push({
+      x: rx,
+      y: ry,
+      label: "Oat #" + (foods.length + 1),
+      radius: 10
+    });
+  });
+
+  resetBtn.addEventListener('click', loadScenario);
+  scenarioSelect.addEventListener('change', loadScenario);
+
+  resizeCanvas();
+  render();
+})();
+</script>

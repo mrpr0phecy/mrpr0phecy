@@ -1,0 +1,205 @@
+<h2 id="qts-title" style="margin-top:0;color:var(--accent);">☀️ Quantum Tunneling: Why the Sun Actually Shines</h2>
+
+<form aria-describedby="qts-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="qts-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    According to classical physics, the Sun should not shine! Its core temperature (15 million Kelvin) provides only ~1 keV of kinetic energy—ten times too weak to overcome the 1,000 keV electrostatic Coulomb repulsion barrier between protons. Fusion only occurs because quantum protons act as waves that <b>tunnel directly through</b> the energy barrier.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <label for="qts-temp-slider" style="color:var(--accent);font-size:0.85rem;font-weight:700;">Solar Core Temp (T):</label>
+          <span id="qts-temp-val" style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:700;">15.0 Million K</span>
+        </div>
+        <input type="range" id="qts-temp-slider" min="5" max="35" value="15" style="width:100%;accent-color:var(--accent);" />
+      </div>
+
+      <div>
+        <label for="qts-view-mode" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Physics View:</label>
+        <select id="qts-view-mode" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="quantum">🌊 Quantum Wave Packet (Tunneling)</option>
+          <option value="classical">⚾ Classical Newtonian Particle (Bounces Off)</option>
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button type="button" id="qts-fire-btn" style="width:100%;padding:9px 12px;background:linear-gradient(135deg, #ffd700, #ff9500);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <span>⚡</span> <span>Launch Proton at Barrier</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Readout -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;">
+      <div><span style="color:var(--text-secondary);">Proton Kinetic Energy: </span><b id="qts-energy-label" style="color:#2dd4ff;">1.29 keV</b></div>
+      <div><span style="color:var(--text-secondary);">Coulomb Barrier Peak: </span><b style="color:#ff007a;">~1,000.0 keV</b></div>
+      <div><span style="color:var(--text-secondary);">Gamow Tunnel Probability: </span><b id="qts-prob-label" style="color:#39ff14;">~1 in 10²⁸</b></div>
+    </div>
+  </div>
+</form>
+
+<!-- Canvas Stage -->
+<div style="position:relative;width:100%;height:380px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#030612;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 50px rgba(0,0,0,0.8);">
+  <canvas id="qts-canvas" width="600" height="380" style="width:100%;height:100%;display:block;"></canvas>
+  <div id="qts-flash" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);pointer-events:none;transition:opacity 0.4s ease;"></div>
+  <div id="qts-guide" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(8,16,30,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;">
+    ☀️ <b>The Magic of the Gamow Peak:</b> In a classical universe, protons would bounce off the barrier forever (a dead dark Sun). In quantum mechanics, the wavefunction decays exponentially through the wall and fuses on the inside, generating sunlight!
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('qts-canvas');
+  var ctx = canvas.getContext('2d');
+  var tempSlider = document.getElementById('qts-temp-slider');
+  var tempVal = document.getElementById('qts-temp-val');
+  var viewMode = document.getElementById('qts-view-mode');
+  var fireBtn = document.getElementById('qts-fire-btn');
+  var energyLabel = document.getElementById('qts-energy-label');
+  var probLabel = document.getElementById('qts-prob-label');
+  var flashOverlay = document.getElementById('qts-flash');
+  var guide = document.getElementById('qts-guide');
+
+  var waveX = 40;
+  var isLaunching = false;
+  var fusionTriggered = false;
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function triggerFusionFlash() {
+    flashOverlay.style.display = 'block';
+    flashOverlay.style.opacity = '1';
+    setTimeout(function() {
+      flashOverlay.style.opacity = '0';
+      setTimeout(function() { flashOverlay.style.display = 'none'; }, 400);
+    }, 100);
+  }
+
+  function render() {
+    var w = canvas.width;
+    var h = canvas.height;
+    var temp = parseFloat(tempSlider.value);
+    var mode = viewMode.value;
+
+    tempVal.textContent = temp.toFixed(1) + ' Million K';
+    var kEv = (temp * 0.086).toFixed(2);
+    energyLabel.textContent = kEv + ' keV';
+
+    var expExponent = Math.max(12, Math.floor(40 - temp));
+    probLabel.textContent = '~1 in 10^' + expExponent;
+
+    ctx.fillStyle = '#030612';
+    ctx.fillRect(0, 0, w, h);
+
+    var cx = w / 2;
+    var cy = h * 0.65;
+
+    // Draw Coulomb Potential Energy Barrier Curve
+    ctx.strokeStyle = '#ff007a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    var barrierW = 120;
+    var barrierH = 180;
+
+    for (var x = 0; x < w; x += 4) {
+      var dist = Math.abs(x - cx);
+      var pot = (dist < 20) ? -40 : (barrierH / (1 + Math.pow(dist / 40, 2)));
+      var py = cy - pot;
+      if (x === 0) ctx.moveTo(x, py); else ctx.lineTo(x, py);
+    }
+    ctx.stroke();
+
+    // Potential Barrier Labels
+    ctx.fillStyle = '#ff007a';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText('COULOMB REPULSION WALL (1,000 keV)', cx - 110, cy - barrierH - 8);
+
+    ctx.fillStyle = '#39ff14';
+    ctx.fillText('Nuclear Well (Strong Force)', cx - 65, cy + 55);
+
+    // Kinetic energy line of the incoming proton
+    var eLevelY = cy - (temp * 1.5);
+    ctx.strokeStyle = '#2dd4ff';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, eLevelY);
+    ctx.lineTo(w, eLevelY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#2dd4ff';
+    ctx.fillText('Thermal Kinetic Energy E (' + kEv + ' keV)', 14, eLevelY - 6);
+
+    // Update Projectile
+    if (isLaunching) {
+      waveX += 4;
+
+      if (mode === 'classical') {
+        // Classical bounces off at classical turning point
+        if (waveX >= cx - 60) {
+          isLaunching = false;
+          waveX = 40;
+          guide.innerHTML = "⚾ <b>Classical Bounced:</b> The particle did not have 1,000 keV of energy to crest the wall, so it reflects backward with 100% certainty.";
+        }
+      } else {
+        // Quantum wave packet tunnels through!
+        if (waveX >= cx + 70) {
+          isLaunching = false;
+          waveX = 40;
+          triggerFusionFlash();
+          guide.innerHTML = "🌟 <b>QUANTUM FUSION SUCCESS!</b> The proton wave packet tunneled through the Coulomb wall, locked into the nuclear potential well, and released pure starlight!";
+        }
+      }
+    }
+
+    // Draw Packet
+    if (mode === 'quantum') {
+      // Quantum Wave Packet (Sinusoid enclosed in Gaussian envelope)
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (var dx = -50; dx <= 50; dx += 2) {
+        var px = waveX + dx;
+        var env = Math.exp(-Math.pow(dx / 18, 2));
+
+        // Attenuate heavily inside the barrier!
+        if (px > cx - 50 && px < cx + 50) {
+          env *= Math.exp(-(px - (cx - 50)) / 15);
+        }
+
+        var py = eLevelY + Math.sin(dx * 0.4) * 25 * env;
+        if (dx === -50) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    } else {
+      // Classical Particle (Glowing Red Sphere)
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.arc(waveX, eLevelY, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  fireBtn.addEventListener('click', function() {
+    waveX = 40;
+    isLaunching = true;
+  });
+
+  tempSlider.addEventListener('input', render);
+  viewMode.addEventListener('change', render);
+
+  render();
+})();
+</script>

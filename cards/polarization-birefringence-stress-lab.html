@@ -1,0 +1,273 @@
+<h2 id="pbs-title" style="margin-top:0;color:var(--accent);">🌈 Photoelasticity &amp; Birefringence: See Hidden Stress in Glass</h2>
+
+<form aria-describedby="pbs-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="pbs-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Transparent plastics and tempered glass appear perfectly clear to our eyes, yet conceal massive internal structural stresses. When placed between crossed polarizers, anisotropic stress splits light into two perpendicular rays (birefringence), transforming invisible stress lines into vibrant chromatic rainbow fringe contours.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="pbs-specimen" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Test Specimen:</label>
+        <select id="pbs-specimen" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="ruler">📏 Flexed Polycarbonate Ruler</option>
+          <option value="notch">🏗️ Notched Beam Under Load</option>
+          <option value="drop">💧 Prince Rupert's Glass Drop</option>
+          <option value="calcite">💎 Calcite Double-Refraction</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="pbs-filter-angle" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Analyzer Angle (Crossed):</label>
+        <select id="pbs-filter-angle" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="90" selected>Crossed Polarizers (90° - Dark Field)</option>
+          <option value="0">Parallel Polarizers (0° - Bright Field)</option>
+          <option value="45">Partial Polarization (45°)</option>
+        </select>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <label for="pbs-load-slider" style="color:var(--accent);font-size:0.85rem;font-weight:700;">Applied Load / Force:</label>
+          <span id="pbs-load-val" style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:700;">60 N</span>
+        </div>
+        <input type="range" id="pbs-load-slider" min="0" max="100" value="60" style="width:100%;accent-color:var(--accent);" />
+      </div>
+    </div>
+
+    <!-- Physics Indicator Bar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,0.3);padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);font-size:0.8rem;flex-wrap:wrap;gap:8px;">
+      <div><span style="color:var(--text-secondary);">Principal Stress Difference (σ₁ - σ₂): </span><b id="pbs-stress-num" style="color:#2dd4ff;">42.8 MPa</b></div>
+      <div><span style="color:var(--text-secondary);">Phase Retardation (δ): </span><b id="pbs-retard-num" style="color:#ffd700;">3.2 λ</b></div>
+    </div>
+  </div>
+</form>
+
+<!-- Canvas Stage -->
+<div style="position:relative;width:100%;height:380px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#030712;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 50px rgba(0,0,0,0.8);">
+  <canvas id="pbs-canvas" width="600" height="380" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+  <div id="pbs-guide" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(10,18,32,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;">
+    🌈 <b>Photoelasticity in Action:</b> Drag the load slider to watch stress fringes multiply. Each color band corresponds to an exact contour of equal principal stress difference!
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('pbs-canvas');
+  var ctx = canvas.getContext('2d');
+  var specSelect = document.getElementById('pbs-specimen');
+  var angleSelect = document.getElementById('pbs-filter-angle');
+  var loadSlider = document.getElementById('pbs-load-slider');
+  var loadVal = document.getElementById('pbs-load-val');
+  var stressNum = document.getElementById('pbs-stress-num');
+  var retardNum = document.getElementById('pbs-retard-num');
+  var guide = document.getElementById('pbs-guide');
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // Michel-Lévy Interference Color Map Approximation
+  function getPhotoelasticColor(retardation, polAngle) {
+    if (polAngle === 0) {
+      // Parallel polarizers (bright field inverted)
+      retardation += 0.5;
+    } else if (polAngle === 45) {
+      retardation += 0.25;
+    }
+
+    var r = (retardation % 1.0);
+    var order = Math.floor(retardation);
+
+    var cR, cG, cB;
+    // Chromatic wavelength interference orders
+    var redWave = Math.sin(r * Math.PI * 2);
+    var greenWave = Math.sin((r + 0.33) * Math.PI * 2);
+    var blueWave = Math.sin((r + 0.66) * Math.PI * 2);
+
+    var intensity = Math.pow(Math.sin(retardation * Math.PI), 2);
+    if (polAngle === 0) intensity = Math.pow(Math.cos(retardation * Math.PI), 2);
+
+    cR = Math.floor(128 + 127 * redWave);
+    cG = Math.floor(128 + 127 * greenWave);
+    cB = Math.floor(128 + 127 * blueWave);
+
+    // Fade saturation at higher orders (white of higher order)
+    if (order > 3) {
+      cR = Math.floor(cR * 0.7 + 180 * 0.3);
+      cG = Math.floor(cG * 0.7 + 180 * 0.3);
+      cB = Math.floor(cB * 0.7 + 180 * 0.3);
+    }
+
+    return 'rgb(' + cR + ',' + cG + ',' + cB + ')';
+  }
+
+  function render() {
+    var w = canvas.width;
+    var h = canvas.height;
+    var spec = specSelect.value;
+    var angle = parseInt(angleSelect.value, 10);
+    var load = parseFloat(loadSlider.value);
+
+    loadVal.textContent = load + ' N';
+    var maxStress = (load * 0.75).toFixed(1);
+    var maxRetard = (load * 0.055).toFixed(1);
+    stressNum.textContent = maxStress + ' MPa';
+    retardNum.textContent = maxRetard + ' λ';
+
+    // Polarizer light table background
+    var bgGrad = ctx.createLinearGradient(0, 0, w, h);
+    if (angle === 90) {
+      bgGrad.addColorStop(0, '#0a0d14');
+      bgGrad.addColorStop(1, '#05070a');
+    } else if (angle === 0) {
+      bgGrad.addColorStop(0, '#e2e8f0');
+      bgGrad.addColorStop(1, '#cbd5e1');
+    } else {
+      bgGrad.addColorStop(0, '#334155');
+      bgGrad.addColorStop(1, '#1e293b');
+    }
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    var cx = w / 2;
+    var cy = h / 2 - 15;
+
+    if (spec === 'ruler') {
+      // Flexed Polycarbonate Ruler
+      guide.innerHTML = "📏 <b>Bending Stress:</b> Top surface experiences high compression, bottom experiences high tension. The center 'neutral axis' remains black (zero stress difference)!";
+
+      var rw = 380, rh = 70;
+      var bend = (load / 100) * 35;
+
+      for (var y = -rh / 2; y <= rh / 2; y += 2) {
+        var distFromNeutral = Math.abs(y) / (rh / 2);
+        var stress = distFromNeutral * (load * 0.08);
+
+        ctx.strokeStyle = getPhotoelasticColor(stress, angle);
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (var x = -rw / 2; x <= rw / 2; x += 10) {
+          var sag = (1 - Math.pow(x / (rw / 2), 2)) * bend;
+          var px = cx + x;
+          var py = cy + y + sag;
+          if (x === -rw / 2) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+
+      // Ruler Outline
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - rw / 2, cy - rh / 2, rw, rh);
+
+    } else if (spec === 'notch') {
+      // Notched Beam with Stress Singularity at notch apex
+      guide.innerHTML = "🏗️ <b>Stress Concentration Singularity:</b> Sharp corners create intense localized stress peaks. Notice how rainbow fringes pack densely around the notch apex!";
+
+      var bw = 340, bh = 100;
+      var notchDepth = 35;
+
+      for (var x = cx - bw / 2; x <= cx + bw / 2; x += 3) {
+        for (var y = cy - bh / 2; y <= cy + bh / 2; y += 3) {
+          // Inside notch cutout check
+          var inNotch = (Math.abs(x - cx) < 20 && y > cy + bh / 2 - notchDepth && y > cy + bh / 2 - (20 - Math.abs(x - cx)) * 1.75);
+          if (inNotch) continue;
+
+          var distToApex = Math.hypot(x - cx, y - (cy + bh / 2 - notchDepth));
+          var baseStress = (Math.abs(y - cy) / (bh / 2)) * (load * 0.03);
+          var notchStressConcentration = (load * 0.08) / Math.max(8, distToApex);
+
+          var totalStress = baseStress + notchStressConcentration;
+          ctx.fillStyle = getPhotoelasticColor(totalStress, angle);
+          ctx.fillRect(x, y, 3, 3);
+        }
+      }
+
+      // Beam Contour
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - bw / 2, cy - bh / 2, bw, bh);
+
+    } else if (spec === 'drop') {
+      // Prince Rupert's Drop
+      guide.innerHTML = "💧 <b>Prince Rupert's Drop:</b> Molten glass dropped in water freezes the exterior instantly, creating astronomical compressive outer stress (outer rainbow shell) balanced by tensile inner core!";
+
+      for (var r = 70; r >= 5; r -= 2) {
+        var dropStress = (Math.abs(r - 40) / 40) * (load * 0.09) + 0.5;
+        ctx.fillStyle = getPhotoelasticColor(dropStress, angle);
+        ctx.beginPath();
+        // Teardrop shape
+        ctx.arc(cx - 30, cy, r, Math.PI * 0.5, Math.PI * 1.5);
+        ctx.quadraticCurveTo(cx + 80, cy - r * 0.4, cx + 160, cy);
+        ctx.quadraticCurveTo(cx + 80, cy + r * 0.4, cx - 30, cy + r);
+        ctx.fill();
+      }
+
+    } else if (spec === 'calcite') {
+      // Calcite Double Refraction
+      guide.innerHTML = "💎 <b>Birefringence (Double Refraction):</b> Calcite crystal has two distinct indices of refraction ($n_o = 1.658, n_e = 1.486$), splitting a single beam into two polarized rays!";
+
+      // Crystal rhomboid
+      ctx.fillStyle = 'rgba(45, 212, 255, 0.15)';
+      ctx.strokeStyle = '#2dd4ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 100, cy + 50);
+      ctx.lineTo(cx + 60, cy + 50);
+      ctx.lineTo(cx + 100, cy - 50);
+      ctx.lineTo(cx - 60, cy - 50);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Incident ray splitting into Ordinary and Extraordinary rays
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx - 180, cy);
+      ctx.lineTo(cx - 80, cy);
+      ctx.stroke();
+
+      // Ray 1: Ordinary Ray (Straight)
+      ctx.strokeStyle = '#ff007a';
+      ctx.beginPath();
+      ctx.moveTo(cx - 80, cy);
+      ctx.lineTo(cx + 80, cy - 20);
+      ctx.lineTo(cx + 180, cy - 20);
+      ctx.stroke();
+      ctx.fillStyle = '#ff007a';
+      ctx.font = '11px sans-serif';
+      ctx.fillText('Extraordinary Ray (e-ray)', cx + 90, cy - 26);
+
+      // Ray 2: Extraordinary Ray (Refracted)
+      ctx.strokeStyle = '#39ff14';
+      ctx.beginPath();
+      ctx.moveTo(cx - 80, cy);
+      ctx.lineTo(cx + 80, cy + 20);
+      ctx.lineTo(cx + 180, cy + 20);
+      ctx.stroke();
+      ctx.fillStyle = '#39ff14';
+      ctx.fillText('Ordinary Ray (o-ray)', cx + 90, cy + 34);
+    }
+
+    ctx.restore();
+    requestAnimationFrame(render);
+  }
+
+  [specSelect, angleSelect, loadSlider].forEach(function(el) {
+    el.addEventListener('input', render);
+    el.addEventListener('change', render);
+  });
+
+  render();
+})();
+</script>

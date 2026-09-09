@@ -1,0 +1,180 @@
+<h2 id="tdl-title" style="margin-top:0;color:var(--accent);">⏳ Einstein's Light Clock &amp; Relativistic Time Dilation</h2>
+
+<form aria-describedby="tdl-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="tdl-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Albert Einstein derived special relativity with an astonishingly simple thought experiment: a "light clock" bouncing a photon between two mirrors. Because the speed of light $c$ is constant for all observers, a moving clock's photon must travel a longer diagonal path—proving that <b>time itself physically slows down for moving objects!</b>
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <label for="tdl-vel-slider" style="color:var(--accent);font-size:0.85rem;font-weight:700;">Spacecraft Velocity (v):</label>
+          <span id="tdl-vel-val" style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:700;">0.80 c (80% Light Speed)</span>
+        </div>
+        <input type="range" id="tdl-vel-slider" min="0" max="99" value="80" style="width:100%;accent-color:var(--accent);" />
+      </div>
+
+      <div>
+        <label for="tdl-years-input" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Ship Journey Duration (Years):</label>
+        <input type="number" id="tdl-years-input" min="1" max="50" value="5" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;" />
+      </div>
+    </div>
+
+    <!-- Live Lorentz & Twin Paradox Telemetry -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;">
+      <div><span style="color:var(--text-secondary);">Lorentz Factor (γ): </span><b id="tdl-gamma-val" style="color:#2dd4ff;">1.67x</b></div>
+      <div><span style="color:var(--text-secondary);">Ship Astronaut Aging: </span><b id="tdl-ship-age" style="color:#ffd700;">5.0 Years</b></div>
+      <div><span style="color:var(--text-secondary);">Earth Time Elapsed: </span><b id="tdl-earth-age" style="color:#39ff14;">8.33 Years</b></div>
+    </div>
+  </div>
+</form>
+
+<!-- Canvas Stage -->
+<div style="position:relative;width:100%;height:380px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#030713;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 50px rgba(0,0,0,0.8);">
+  <canvas id="tdl-canvas" width="600" height="380" style="width:100%;height:100%;display:block;"></canvas>
+  <div id="tdl-guide" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(8,16,30,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;">
+    📐 <b>The Pythagorean Proof:</b> The moving photon must travel the diagonal hypotenuse ($c t'$), which is longer than the vertical leg ($c t$). Since $c$ is fixed, $t'$ must be larger—time dilates!
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('tdl-canvas');
+  var ctx = canvas.getContext('2d');
+  var velSlider = document.getElementById('tdl-vel-slider');
+  var velVal = document.getElementById('tdl-vel-val');
+  var yearsInput = document.getElementById('tdl-years-input');
+  var gammaVal = document.getElementById('tdl-gamma-val');
+  var shipAge = document.getElementById('tdl-ship-age');
+  var earthAge = document.getElementById('tdl-earth-age');
+
+  var time = 0;
+  var photonEarthY = 0;
+  var photonShipX = 0;
+  var photonShipY = 0;
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function render() {
+    var w = canvas.width;
+    var h = canvas.height;
+    var v = parseFloat(velSlider.value) / 100; // 0.00 to 0.99 c
+    velVal.textContent = v.toFixed(2) + ' c (' + (v * 100).toFixed(0) + '% Light Speed)';
+
+    var gamma = 1 / Math.sqrt(Math.max(0.01, 1 - v * v));
+    gammaVal.textContent = gamma.toFixed(2) + 'x';
+
+    var shipYrs = parseFloat(yearsInput.value) || 5;
+    var earthYrs = shipYrs * gamma;
+    shipAge.textContent = shipYrs.toFixed(1) + ' Years';
+    earthAge.textContent = earthYrs.toFixed(2) + ' Years';
+
+    ctx.fillStyle = '#030713';
+    ctx.fillRect(0, 0, w, h);
+
+    var splitX = w * 0.38;
+    var topMirrorY = 70;
+    var botMirrorY = 280;
+    var mirrorH = botMirrorY - topMirrorY;
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(splitX, 20); ctx.lineTo(splitX, h - 50);
+    ctx.stroke();
+
+    // === CLOCK 1: Stationary Earth Observer ===
+    ctx.fillStyle = '#2dd4ff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('STATIONARY OBSERVER', 25, 45);
+
+    // Mirrors
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(40, topMirrorY - 8, 80, 8);
+    ctx.fillRect(40, botMirrorY, 80, 8);
+
+    // Earth photon bounce cycle
+    time += 0.05;
+    var earthPhase = (time % 2);
+    var ey = (earthPhase < 1) ? (topMirrorY + earthPhase * mirrorH) : (botMirrorY - (earthPhase - 1) * mirrorH);
+
+    // Vertical beam
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(80, topMirrorY); ctx.lineTo(80, botMirrorY);
+    ctx.stroke();
+
+    // Glowing Earth Photon
+    ctx.fillStyle = '#2dd4ff';
+    ctx.beginPath();
+    ctx.arc(80, ey, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // === CLOCK 2: Relativistic Moving Spacecraft ===
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText('RELATIVISTIC SPACECRAFT (v = ' + v.toFixed(2) + 'c)', splitX + 25, 45);
+
+    // Diagonal Triangle path visualization
+    var triStartX = splitX + 40;
+    var triMidX = splitX + 40 + (v * 160);
+    var triEndX = splitX + 40 + (v * 320);
+
+    // Moving Ship Mirrors
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(triStartX - 20, topMirrorY - 8, 40, 8);
+    ctx.fillRect(triMidX - 20, botMirrorY, 40, 8);
+    ctx.fillRect(triEndX - 20, topMirrorY - 8, 40, 8);
+
+    // Diagonal photon path
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(triStartX, topMirrorY);
+    ctx.lineTo(triMidX, botMirrorY);
+    ctx.lineTo(triEndX, topMirrorY);
+    ctx.stroke();
+
+    // Moving Photon Position (Time dilated by gamma!)
+    var shipTime = (time / gamma) % 2;
+    var sx, sy;
+    if (shipTime < 1) {
+      sx = triStartX + shipTime * (triMidX - triStartX);
+      sy = topMirrorY + shipTime * mirrorH;
+    } else {
+      var p2 = shipTime - 1;
+      sx = triMidX + p2 * (triEndX - triMidX);
+      sy = botMirrorY - p2 * mirrorH;
+    }
+
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Geometry labels
+    ctx.fillStyle = 'rgba(230, 250, 255, 0.7)';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('Hypotenuse: c·Δt\'', (triStartX + triMidX) / 2 - 40, (topMirrorY + botMirrorY) / 2);
+    ctx.fillText('Distance: v·Δt\'', (triStartX + triMidX) / 2, botMirrorY + 24);
+
+    requestAnimationFrame(render);
+  }
+
+  velSlider.addEventListener('input', render);
+  yearsInput.addEventListener('input', render);
+
+  render();
+})();
+</script>
