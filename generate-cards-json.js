@@ -173,6 +173,21 @@ const aquariumList = [
   'aquarium-feeding-vacation-planner'
 ];
 
+// Explicit slug → category map for tools added after 2026-09-05.
+// Checked before every substring list so nothing can steal these.
+const categoryMap = {
+  'joy-spark-micro-celebrations': 'Wellbeing & Community',
+  'interactive-wind-chime-sanctuary': 'Interactive Art & Living Worlds',
+  'serotonin-secret-kindness-generator': 'Wellbeing & Community',
+  'generative-joy-kaleidoscope': 'Interactive Art & Living Worlds',
+  'daily-awe-and-wonder-expeditioner': 'Astronomy & Space',
+  'pocket-pet-joy-companion': 'Interactive Art & Living Worlds',
+  'gratitude-constellation-stargazer': 'Wellbeing & Community',
+  'joyful-zen-sand-garden-raker': 'Interactive Art & Living Worlds',
+  'laugh-laboratory-chuckle-box': 'Wellbeing & Community',
+  'uplifting-affirmation-origami-fortune': 'Wellbeing & Community'
+};
+
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
 // Ten tools added to fill genuine gaps found by auditing the existing 552-card
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
@@ -982,6 +997,7 @@ const importedSalvageMap = {
 };
 
 function getCategory(name) {
+  if (categoryMap[name]) return categoryMap[name];
   if (importedSalvageMap[name]) return importedSalvageMap[name];
   if (imported05a89Map[name]) return imported05a89Map[name];
   if (gapFillMap[name]) return gapFillMap[name];

@@ -1,0 +1,402 @@
+<h2 id="ofo-title" style="margin-top:0;color:var(--accent);">🌸 Origami Fortune &amp; Uplifting Destiny Weaver</h2>
+
+<form aria-describedby="ofo-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="ofo-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Relive the tactile magic of schoolyard origami fortune tellers (cootie catchers). Pick a vibrant outer flap, watch the paper chatterbox fold and pinch in real-time with crisp paper sounds, choose your inner number, and unveil an empowering affirmation of courage and joy.
+  </p>
+
+  <!-- Controls -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px;margin-bottom:10px;">
+      <div>
+        <label for="ofo-theme-deck" style="display:block;color:var(--accent);font-size:0.8rem;font-weight:700;margin-bottom:4px;">Affirmation Theme:</label>
+        <select id="ofo-theme-deck" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="joy">✨ Pure Delight &amp; Daily Joy</option>
+          <option value="courage">🦁 Unshakeable Courage &amp; Grit</option>
+          <option value="calm">🌊 Deep Peace &amp; Release</option>
+          <option value="worth">💖 Radical Self-Acceptance</option>
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;gap:8px;">
+        <button type="button" id="ofo-reset-btn" style="flex:1;padding:8px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.12);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+          🔄 Fold Fresh Origami
+        </button>
+        <button type="button" id="ofo-sound-btn" style="padding:8px 12px;background:rgba(45,212,255,0.15);color:var(--accent);border:1px solid rgba(45,212,255,0.3);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+          🔊 Sound: ON
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Origami Stage -->
+<div style="position:relative;width:100%;height:420px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#0d1117;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 50px rgba(0,0,0,0.8);display:flex;flex-direction:column;align-items:center;justify-content:center;">
+  <canvas id="ofo-canvas" width="600" height="420" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+
+  <!-- Step Guide Banner -->
+  <div id="ofo-step-guide" style="position:absolute;top:14px;background:rgba(10,18,32,0.85);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);color:#fff;padding:6px 16px;border-radius:20px;font-size:0.85rem;font-weight:700;pointer-events:none;">
+    Step 1: Pick an outer colored corner flap!
+  </div>
+
+  <!-- Final Unfolded Fortune Reveal Modal -->
+  <div id="ofo-fortune-modal" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%, -50%);width:85%;max-width:440px;background:rgba(15,23,42,0.95);backdrop-filter:blur(10px);border:2px solid var(--premium, #ffd700);border-radius:14px;padding:22px;text-align:center;box-shadow:0 10px 35px rgba(0,0,0,0.8);z-index:10;">
+    <div style="font-size:2.5rem;margin-bottom:6px;">✨📜✨</div>
+    <div style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">
+      YOUR DESTINY &amp; AFFIRMATION
+    </div>
+    <div id="ofo-fortune-quote" style="font-size:1.05rem;font-weight:700;color:#fff;line-height:1.6;margin-bottom:14px;"></div>
+    <div id="ofo-fortune-action" style="font-size:0.85rem;color:var(--accent);line-height:1.5;margin-bottom:16px;"></div>
+    <button type="button" id="ofo-modal-play-again" style="padding:10px 24px;background:linear-gradient(135deg, #ffd700, #ff9500);color:#000;font-weight:800;border:none;border-radius:8px;cursor:pointer;font-size:0.9rem;">
+      🌸 Fold Another Fortune
+    </button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('ofo-canvas');
+  var ctx = canvas.getContext('2d');
+  var themeSelect = document.getElementById('ofo-theme-deck');
+  var resetBtn = document.getElementById('ofo-reset-btn');
+  var soundBtn = document.getElementById('ofo-sound-btn');
+  var stepGuide = document.getElementById('ofo-step-guide');
+  var fortuneModal = document.getElementById('ofo-fortune-modal');
+  var fortuneQuote = document.getElementById('ofo-fortune-quote');
+  var fortuneAction = document.getElementById('ofo-fortune-action');
+  var playAgainBtn = document.getElementById('ofo-modal-play-again');
+
+  var audioCtx = null;
+  var soundEnabled = true;
+
+  var step = 1; // 1: pick color, 2: chattering, 3: pick number, 4: reveal
+  var chatterProgress = 0;
+  var chatterCount = 0;
+  var chatterMax = 4;
+  var chatterAxis = 'horizontal'; // 'horizontal' or 'vertical'
+  var chosenColor = null;
+  var chosenNumber = null;
+
+  var decks = {
+    joy: [
+      { num: 1, quote: "Joy is not a luxury to be earned; it is your natural state of being.", action: "Micro-Spark: Take 60 seconds right now to notice 3 colors around you that bring you delight." },
+      { num: 2, quote: "You are allowed to be happy before everything is completely figured out.", action: "Micro-Spark: Give yourself permission to pause and smile right now." },
+      { num: 3, quote: "Your laughter is medicine for the people who love you.", action: "Micro-Spark: Share a silly memory with someone today." },
+      { num: 4, quote: "Good surprises are making their way toward you in unexpected ways.", action: "Micro-Spark: Look forward to one small delicious thing today." },
+      { num: 5, quote: "The world is full of beauty waiting for you to slow down and notice it.", action: "Micro-Spark: Feel the warmth of your hands and take a full deep breath." },
+      { num: 6, quote: "Your presence is a unique gift that nobody else can replicate.", action: "Micro-Spark: Celebrate one thing you love about your personality." },
+      { num: 7, quote: "Playfulness is the highest form of intelligence and creativity.", action: "Micro-Spark: Do something completely non-productive purely for fun." },
+      { num: 8, quote: "Every single sunrise brings a clean slate of unlimited possibilities.", action: "Micro-Spark: Forgive yourself for anything you left undone yesterday." }
+    ],
+    courage: [
+      { num: 1, quote: "You don't have to feel brave to take a brave step.", action: "Micro-Spark: Do that one small 2-minute task you've been postponing." },
+      { num: 2, quote: "You have survived every single difficult challenge you ever faced.", action: "Micro-Spark: Stand tall and drop your shoulders." },
+      { num: 3, quote: "Doubt is just a passenger; it doesn't get to steer the wheel.", action: "Micro-Spark: Trust your gut on that decision." },
+      { num: 4, quote: "Your voice matters, even when it trembles.", action: "Micro-Spark: Speak your genuine boundary with kindness." },
+      { num: 5, quote: "Small acts of consistency build mountains of confidence.", action: "Micro-Spark: Honor the effort you put in today." },
+      { num: 6, quote: "Fear shrinks the moment you take one clear step into it.", action: "Micro-Spark: Send that message or take that step." },
+      { num: 7, quote: "You are stronger and far more resourceful than you think.", action: "Micro-Spark: Remember a time you triumphed against odds." },
+      { num: 8, quote: "The future belongs to those who dare to begin before they feel ready.", action: "Micro-Spark: Start now with what you have." }
+    ],
+    calm: [
+      { num: 1, quote: "Peace is found in this single breath, right here and now.", action: "Micro-Spark: Inhale for 4 seconds, exhale for 6 seconds." },
+      { num: 2, quote: "You do not have to carry the weight of things you cannot control.", action: "Micro-Spark: Physically release the tension in your jaw and forehead." },
+      { num: 3, quote: "Stillness is not wasted time; it is where your energy replenishes.", action: "Micro-Spark: Close your eyes for 20 seconds of silence." },
+      { num: 4, quote: "This storm is passing; your inner sky remains boundless and clear.", action: "Micro-Spark: Remind yourself that feelings are weather, you are the sky." },
+      { num: 5, quote: "You are safe in this present moment.", action: "Micro-Spark: Ground yourself by feeling your feet on the floor." },
+      { num: 6, quote: "Let go of what was, accept what is, and trust what comes next.", action: "Micro-Spark: Release a long sigh of relief." },
+      { num: 7, quote: "Quiet minds create profound clarity.", action: "Micro-Spark: Step away from screens for a 5-minute pause." },
+      { num: 8, quote: "Gentleness toward yourself changes everything.", action: "Micro-Spark: Speak to yourself as you would to a beloved friend." }
+    ],
+    worth: [
+      { num: 1, quote: "Your worth was established the moment you were born; it cannot be diminished.", action: "Micro-Spark: Place your hand on your heart and thank your body for supporting you." },
+      { num: 2, quote: "You do not need to perform or produce to earn rest and dignity.", action: "Micro-Spark: Take a restful break without feeling guilty." },
+      { num: 3, quote: "You are worthy of the same boundless kindness you give to others.", action: "Micro-Spark: Treat yourself to something comforting." },
+      { num: 4, quote: "Your boundaries are an act of deep self-respect.", action: "Micro-Spark: Say yes only to what truly aligns with your peace." },
+      { num: 5, quote: "You are evolving beautifully, at your own natural pace.", action: "Micro-Spark: Stop comparing your chapter 3 to someone else's chapter 20." },
+      { num: 6, quote: "You bring warmth and light to more people than you realize.", action: "Micro-Spark: Believe the good things people say about you." },
+      { num: 7, quote: "Imperfection is human and relatable; perfection is an illusion.", action: "Micro-Spark: Embrace your quirky uniqueness." },
+      { num: 8, quote: "You are enough, exactly as you are today.", action: "Micro-Spark: Repeat silently: I am whole, capable, and worthy." }
+    ]
+  };
+
+  function getAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playPaperRustle() {
+    if (!soundEnabled) return;
+    var ctxAudio = getAudio(); if (!ctxAudio) return;
+    var now = ctxAudio.currentTime;
+
+    // Filtered noise pulse for realistic paper crease
+    var bufferSize = ctxAudio.sampleRate * 0.15;
+    var buf = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.4;
+    }
+
+    var src = ctxAudio.createBufferSource();
+    src.buffer = buf;
+
+    var filter = ctxAudio.createBiquadFilter();
+    filter.type = 'bandpass';
+    if (filter.frequency && filter.frequency.setValueAtTime) {
+      filter.frequency.setValueAtTime(2200, now);
+    } else if (filter.frequency) {
+      filter.frequency.value = 2200;
+    }
+
+    var g = ctxAudio.createGain();
+    g.gain.setValueAtTime(0.25, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(ctxAudio.destination);
+
+    src.start(now);
+  }
+
+  function playHarmonicChime(freq) {
+    if (!soundEnabled) return;
+    var ctxAudio = getAudio(); if (!ctxAudio) return;
+    var now = ctxAudio.currentTime;
+    [freq, freq * 1.5, freq * 2].forEach(function(f, idx) {
+      var osc = ctxAudio.createOscillator();
+      var g = ctxAudio.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now + idx * 0.08);
+      g.gain.setValueAtTime(0.12, now + idx * 0.08);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 1.2);
+      osc.connect(g);
+      g.connect(ctxAudio.destination);
+      osc.start(now + idx * 0.08);
+      osc.stop(now + idx * 0.08 + 1.25);
+    });
+  }
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // Flap geometry & Drawing
+  var flapColors = [
+    { name: 'Ruby Courage', color: '#ff007a', label: 'RUBY', x: -1, y: -1, code: 0 },
+    { name: 'Sapphire Peace', color: '#2dd4ff', label: 'SAPPHIRE', x: 1, y: -1, code: 1 },
+    { name: 'Amber Joy', color: '#ffd700', label: 'AMBER', x: -1, y: 1, code: 2 },
+    { name: 'Emerald Growth', color: '#39ff14', label: 'EMERALD', x: 1, y: 1, code: 3 }
+  ];
+
+  var innerNumbers = [
+    { num: 1, angle: -Math.PI * 0.75 },
+    { num: 2, angle: -Math.PI * 0.5 },
+    { num: 3, angle: -Math.PI * 0.25 },
+    { num: 4, angle: 0 },
+    { num: 5, angle: Math.PI * 0.25 },
+    { num: 6, angle: Math.PI * 0.5 },
+    { num: 7, angle: Math.PI * 0.75 },
+    { num: 8, angle: Math.PI }
+  ];
+
+  function render() {
+    var w = canvas.width;
+    var h = canvas.height;
+    var cx = w / 2;
+    var cy = h / 2;
+
+    // Dark cozy mat background
+    var grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, w * 0.6);
+    grad.addColorStop(0, '#1e293b');
+    grad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Soft mat shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 25, 140, 45, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    var size = 120;
+    var pinch = (step === 2) ? Math.sin(chatterProgress * Math.PI) * 0.4 : 0;
+    var scaleX = 1 + (chatterAxis === 'horizontal' ? pinch : -pinch * 0.5);
+    var scaleY = 1 + (chatterAxis === 'vertical' ? pinch : -pinch * 0.5);
+    ctx.scale(scaleX, scaleY);
+
+    if (step === 1) {
+      // Step 1: Closed Outer 4-corner pyramid flaps
+      flapColors.forEach(function(fl) {
+        ctx.save();
+        ctx.fillStyle = fl.color;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(fl.x * size, 0);
+        ctx.lineTo(fl.x * size, fl.y * size);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, fl.y * size);
+        ctx.lineTo(fl.x * size, fl.y * size);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(fl.label, fl.x * size * 0.55, fl.y * size * 0.55);
+
+        ctx.restore();
+      });
+    } else {
+      // Step 2 & 3: Inside 8-triangle number flaps
+      for (var i = 0; i < 8; i++) {
+        var a1 = (i / 8) * Math.PI * 2;
+        var a2 = ((i + 1) / 8) * Math.PI * 2;
+        var midA = (a1 + a2) / 2;
+
+        ctx.save();
+        ctx.fillStyle = (i % 2 === 0) ? '#f8fafc' : '#e2e8f0';
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.5;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a1) * size * 1.15, Math.sin(a1) * size * 1.15);
+        ctx.lineTo(Math.cos(a2) * size * 1.15, Math.sin(a2) * size * 1.15);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Number
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        var nr = size * 0.7;
+        ctx.fillText(String(i + 1), Math.cos(midA) * nr, Math.sin(midA) * nr + 7);
+
+        ctx.restore();
+      }
+    }
+
+    // Center crease folds
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-size, 0); ctx.lineTo(size, 0);
+    ctx.moveTo(0, -size); ctx.lineTo(0, size);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Chattering Animation Loop
+    if (step === 2) {
+      chatterProgress += 0.08;
+      if (chatterProgress >= 1) {
+        chatterProgress = 0;
+        chatterCount++;
+        chatterAxis = (chatterAxis === 'horizontal') ? 'vertical' : 'horizontal';
+        playPaperRustle();
+
+        if (chatterCount >= chatterMax) {
+          step = 3;
+          stepGuide.textContent = "Step 2: Pick a number inside to reveal your fortune!";
+        }
+      }
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Handle Clicks
+  canvas.addEventListener('click', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var cx = canvas.width / 2;
+    var cy = canvas.height / 2;
+    var mx = (e.clientX - rect.left) * (canvas.width / rect.width) - cx;
+    var my = (e.clientY - rect.top) * (canvas.height / rect.height) - cy;
+
+    if (step === 1) {
+      // Pick Outer Flap
+      var codeX = mx > 0 ? 1 : -1;
+      var codeY = my > 0 ? 1 : -1;
+      var picked = flapColors.find(function(f) { return f.x === codeX && f.y === codeY; });
+      if (picked) {
+        chosenColor = picked;
+        step = 2;
+        chatterCount = 0;
+        chatterProgress = 0;
+        chatterMax = picked.label.length; // Chatters out letters of the color!
+        stepGuide.textContent = "🌸 Counting out " + picked.label + "...";
+        playPaperRustle();
+      }
+    } else if (step === 3) {
+      // Pick Inner Number
+      var angle = Math.atan2(my, mx);
+      if (angle < 0) angle += Math.PI * 2;
+      var numIndex = Math.floor((angle / (Math.PI * 2)) * 8);
+      var pickedNum = numIndex + 1;
+
+      chosenNumber = pickedNum;
+      revealFortune(pickedNum);
+    }
+  });
+
+  function revealFortune(num) {
+    step = 4;
+    var curDeck = decks[themeSelect.value] || decks.joy;
+    var entry = curDeck.find(function(d) { return d.num === num; }) || curDeck[0];
+
+    fortuneQuote.textContent = '"' + entry.quote + '"';
+    fortuneAction.textContent = entry.action;
+    fortuneModal.style.display = 'block';
+
+    playPaperRustle();
+    playHarmonicChime(528);
+  }
+
+  function resetOrigami() {
+    step = 1;
+    chatterProgress = 0;
+    chatterCount = 0;
+    fortuneModal.style.display = 'none';
+    stepGuide.textContent = "Step 1: Pick an outer colored corner flap!";
+  }
+
+  resetBtn.addEventListener('click', resetOrigami);
+  playAgainBtn.addEventListener('click', resetOrigami);
+  themeSelect.addEventListener('change', resetOrigami);
+
+  soundBtn.addEventListener('click', function() {
+    soundEnabled = !soundEnabled;
+    soundBtn.textContent = soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
+    soundBtn.style.color = soundEnabled ? 'var(--accent)' : 'var(--text-secondary)';
+  });
+
+  resetOrigami();
+  render();
+})();
+</script>
