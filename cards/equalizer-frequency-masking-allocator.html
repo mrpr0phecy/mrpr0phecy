@@ -1,0 +1,173 @@
+<h2 id="fma-title" style="margin-top:0;color:var(--accent);">🎛️ Hip Hop EQ Frequency Masking &amp; Pocket Allocator</h2>
+
+<form aria-describedby="fma-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="fma-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Muddy hip hop mixes happen when competing instruments fight for the same acoustic frequency space. Select any common mix conflict pair to visualize precise complementary boost &amp; notch carving curves (Kick vs 808, Vocal vs Sample, Mud cleanup).
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="fma-conflict-select" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Mix Clash / Conflict Pair:</label>
+        <select id="fma-conflict-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="kick-808" selected>💥 Kick Drum vs. 808 Sub-Bass</option>
+          <option value="vocal-sample">🎤 Lead Rap Vocal vs. Sample Melody</option>
+          <option value="snare-hats">🥁 Snare Snap vs. Hi-Hat Sizzle</option>
+          <option value="low-mud">🧹 Low-End Rumble &amp; 300Hz Boxy Mud</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="fma-carve-depth" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Carve Depth (dB Cut):</label>
+        <select id="fma-carve-depth" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="mild">-2.5 dB (Subtle &amp; Transparent)</option>
+          <option value="standard" selected>-4.0 dB (Standard Production Cut)</option>
+          <option value="aggressive">-6.5 dB (Heavy Surgical Pocket)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- EQ Allocation Rules Cards -->
+    <div id="fma-eq-cards" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;"></div>
+  </div>
+</form>
+
+<!-- Frequency Spectrum Visualizer Canvas -->
+<div style="position:relative;width:100%;height:300px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#030612;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 40px rgba(0,0,0,0.9);">
+  <canvas id="fma-canvas" width="600" height="300" style="width:100%;height:100%;display:block;"></canvas>
+  <div id="fma-tip" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(8,16,30,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;"></div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('fma-canvas');
+  var ctx = canvas.getContext('2d');
+  var conflictSelect = document.getElementById('fma-conflict-select');
+  var depthSelect = document.getElementById('fma-carve-depth');
+  var eqCards = document.getElementById('fma-eq-cards');
+  var tip = document.getElementById('fma-tip');
+
+  var conflicts = {
+    'kick-808': {
+      tip: '💥 <b>Kick & 808 Frequency Separation:</b> Let the Kick dominate the punchy 60-90Hz thump while high-passing its sub-rumble below 30Hz. Give the 808 the deep 30-55Hz sub-weight, but cut the 808 around 75Hz where the kick strikes!',
+      instA: { name: 'Kick Drum', color: '#ff007a', boost: '75 Hz (+3 dB)', cut: 'Below 30 Hz (HPF)' },
+      instB: { name: '808 Sub-Bass', color: '#2dd4ff', boost: '40 Hz (+2 dB)', cut: '75 Hz (-4 dB notch)' }
+    },
+    'vocal-sample': {
+      tip: '🎤 <b>Vocal vs. Sample Carve:</b> Sample chops naturally crowd 1 kHz - 3.5 kHz. Cut a 2.5 kHz pocket into the sample melody track so the lead vocal cuts through like glass without boosting extreme vocal volume.',
+      instA: { name: 'Lead Rap Vocal', color: '#ffd700', boost: '3.2 kHz (Presence)', cut: '300 Hz (Boxiness)' },
+      instB: { name: 'Sample / Melody', color: '#39ff14', boost: 'High Air (12 kHz)', cut: '2.5 kHz (-4 dB Pocket)' }
+    },
+    'snare-hats': {
+      tip: '🥁 <b>Snare Snap vs Hat Sizzle:</b> Snare body lives at 200Hz with crack at 4-5kHz. Hi-Hats live at 8kHz-16kHz. High-pass hi-hats above 400Hz to eliminate ghost low-end clutter.',
+      instA: { name: 'Snare / Clap', color: '#ff9500', boost: '200 Hz & 4.5 kHz', cut: 'Above 10 kHz (gentle)' },
+      instB: { name: 'Hi-Hats', color: '#00ffaa', boost: '10-14 kHz (Crisp)', cut: 'Below 450 Hz (HPF)' }
+    },
+    'low-mud': {
+      tip: '🧹 <b>Low-End Mud & Cleanliness:</b> 250Hz - 400Hz is the "cardboard box" frequency zone. Dip non-bass instruments (guitars, keys, synth pads) in this range to let the mix breathe.',
+      instA: { name: 'Master Low Clean', color: '#c77dff', boost: 'None', cut: 'Sub 25 Hz (Clean DC/Sub)' },
+      instB: { name: 'Pad & Synth Mud', color: '#2dd4ff', boost: 'Air 8 kHz', cut: '320 Hz (-3.5 dB Mud cut)' }
+    }
+  };
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function update() {
+    var conf = conflicts[conflictSelect.value];
+    tip.innerHTML = conf.tip;
+
+    eqCards.innerHTML = '';
+
+    var card1 = document.createElement('div');
+    card1.style.background = 'rgba(0,0,0,0.3)';
+    card1.style.padding = '8px 10px';
+    card1.style.borderRadius = '6px';
+    card1.style.borderLeft = '3px solid ' + conf.instA.color;
+    card1.innerHTML = '<div style="color:var(--text-secondary);">' + conf.instA.name + ' Boost:</div><b style="color:' + conf.instA.color + ';">' + conf.instA.boost + '</b>';
+
+    var card2 = document.createElement('div');
+    card2.style.background = 'rgba(0,0,0,0.3)';
+    card2.style.padding = '8px 10px';
+    card2.style.borderRadius = '6px';
+    card2.style.borderLeft = '3px solid ' + conf.instB.color;
+    card2.innerHTML = '<div style="color:var(--text-secondary);">' + conf.instB.name + ' Complementary Cut:</div><b style="color:' + conf.instB.color + ';">' + conf.instB.cut + '</b>';
+
+    eqCards.appendChild(card1);
+    eqCards.appendChild(card2);
+
+    renderCurves(conf);
+  }
+
+  function renderCurves(conf) {
+    var w = canvas.width;
+    var h = canvas.height;
+    ctx.fillStyle = '#030612';
+    ctx.fillRect(0, 0, w, h);
+
+    // Grid lines (Logarithmic Frequency scale 20Hz - 20kHz)
+    var freqs = [30, 60, 120, 250, 500, 1000, 2000, 5000, 10000, 20000];
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '9px sans-serif';
+
+    freqs.forEach(function(f) {
+      var logX = ((Math.log10(f) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20))) * (w - 60) + 30;
+      ctx.beginPath();
+      ctx.moveTo(logX, 20);
+      ctx.lineTo(logX, h - 35);
+      ctx.stroke();
+      ctx.fillText(f >= 1000 ? (f/1000) + 'k' : f + 'Hz', logX - 8, h - 22);
+    });
+
+    var midY = h / 2 - 10;
+
+    // Draw Spectrum Curve A
+    ctx.strokeStyle = conf.instA.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (var x = 30; x <= w - 30; x += 3) {
+      var norm = (x - 30) / (w - 60);
+      var offset = Math.sin(norm * Math.PI * 3) * 20 * (1 - norm);
+      var y = midY - offset;
+      if (x === 30) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Draw Spectrum Curve B (Carved complementary pocket)
+    ctx.strokeStyle = conf.instB.color;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    for (var x2 = 30; x2 <= w - 30; x2 += 3) {
+      var norm2 = (x2 - 30) / (w - 60);
+      var offset2 = Math.cos(norm2 * Math.PI * 2.5) * 25 * norm2;
+      var y2 = midY + offset2;
+      if (x2 === 30) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Legend
+    ctx.fillStyle = conf.instA.color;
+    ctx.fillText('— ' + conf.instA.name, 40, 30);
+    ctx.fillStyle = conf.instB.color;
+    ctx.fillText('--- ' + conf.instB.name + ' (Carved Pocket)', 180, 30);
+  }
+
+  [conflictSelect, depthSelect].forEach(function(el) {
+    el.addEventListener('change', update);
+  });
+
+  update();
+})();
+</script>

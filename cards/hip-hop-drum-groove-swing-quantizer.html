@@ -1,0 +1,297 @@
+<h2 id="sgq-title" style="margin-top:0;color:var(--accent);">🥁 MPC &amp; SP Swing Groove Quantize Calculator</h2>
+
+<form aria-describedby="sgq-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="sgq-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    The secret to head-nodding hip hop bounce lies in micro-timing: Roger Linn's legendary MPC 16th-note swing formula, J Dilla's unquantized lazy pocket, and modern Drill swing offsets. Calculate exact millisecond tick delays and hear the groove live in the 16-step drum machine.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="sgq-groove-preset" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Groove Template:</label>
+        <select id="sgq-groove-preset" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="58" selected>Roger Linn MPC 58% (Classic Boom-Bap)</option>
+          <option value="66">MPC 66% (Heavy Triplet Shuffle)</option>
+          <option value="50">Strict 50% (Mechanical Grid)</option>
+          <option value="dilla">J Dilla 'Drunk' Pocket (Unquantized Drag)</option>
+          <option value="drill">UK Drill Offset &amp; Sliding Skips</option>
+        </select>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <label for="sgq-tempo-slider" style="color:var(--accent);font-size:0.85rem;font-weight:700;">Beat Tempo (BPM):</label>
+          <span id="sgq-tempo-val" style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:700;">90.0 BPM</span>
+        </div>
+        <input type="range" id="sgq-tempo-slider" min="60" max="160" value="90" style="width:100%;accent-color:var(--accent);" />
+      </div>
+
+      <div>
+        <label for="sgq-ppq-select" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">DAW / Sampler PPQ:</label>
+        <select id="sgq-ppq-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="96">MPC60 / SP-1200 (96 PPQ)</option>
+          <option value="480">Pro Tools / Logic (480 PPQ)</option>
+          <option value="960" selected>Ableton / FL Studio (960 PPQ)</option>
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button type="button" id="sgq-play-btn" style="width:100%;padding:9px 12px;background:linear-gradient(135deg, #2dd4ff, #00ffaa);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <span>▶</span> <span id="sgq-play-txt">PLAY DRUM LOOP</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Micro-Timing Telemetry -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;">
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;border-left:3px solid #2dd4ff;">
+        <div style="color:var(--text-secondary);">16th Note Grid (ms):</div>
+        <b id="sgq-grid-ms" style="color:#2dd4ff;font-size:0.95rem;">166.67 ms</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;border-left:3px solid #ffd700;">
+        <div style="color:var(--text-secondary);">Swing Note Delay (ms):</div>
+        <b id="sgq-delay-ms" style="color:#ffd700;font-size:0.95rem;">+26.67 ms</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;border-left:3px solid #39ff14;">
+        <div style="color:var(--text-secondary);">MIDI Shift Ticks:</div>
+        <b id="sgq-ticks-label" style="color:#39ff14;font-size:0.95rem;">+153 Ticks</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;border-left:3px solid #ff007a;">
+        <div style="color:var(--text-secondary);">Swing Ratio:</div>
+        <b id="sgq-ratio-label" style="color:#ff007a;font-size:0.95rem;">58% : 42%</b>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- 16-Step Visualizer Canvas -->
+<div style="position:relative;width:100%;height:320px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#030612;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 50px rgba(0,0,0,0.9);">
+  <canvas id="sgq-canvas" width="600" height="320" style="width:100%;height:100%;display:block;"></canvas>
+  <div id="sgq-tip" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(8,16,30,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;">
+    🥁 <b>Roger Linn MPC Swing:</b> Even-numbered 16th notes are delayed by a percentage of the beat interval, creating the signature human head-nod pocket without sounding sloppy!
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('sgq-canvas');
+  var ctx = canvas.getContext('2d');
+  var presetSelect = document.getElementById('sgq-groove-preset');
+  var tempoSlider = document.getElementById('sgq-tempo-slider');
+  var tempoVal = document.getElementById('sgq-tempo-val');
+  var ppqSelect = document.getElementById('sgq-ppq-select');
+  var playBtn = document.getElementById('sgq-play-btn');
+  var playTxt = document.getElementById('sgq-play-txt');
+  var gridMs = document.getElementById('sgq-grid-ms');
+  var delayMs = document.getElementById('sgq-delay-ms');
+  var ticksLabel = document.getElementById('sgq-ticks-label');
+  var ratioLabel = document.getElementById('sgq-ratio-label');
+  var tip = document.getElementById('sgq-tip');
+
+  var isPlaying = false;
+  var currentStep = 0;
+  var timerId = null;
+  var audioCtx = null;
+
+  // Drum Pattern (16 Steps): 1 = Trigger, 0 = Rest
+  var pattern = {
+    kick:  [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+    snare: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    hihat: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  };
+
+  function getAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playDrumSound(type) {
+    var actx = getAudio(); if (!actx) return;
+    var now = actx.currentTime;
+
+    if (type === 'kick') {
+      var osc = actx.createOscillator();
+      var gain = actx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(45, now + 0.06);
+      gain.gain.setValueAtTime(0.8, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.start(now);
+      osc.stop(now + 0.36);
+    } else if (type === 'snare') {
+      // Noise burst + tone
+      var osc = actx.createOscillator();
+      var oscGain = actx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(190, now);
+      oscGain.gain.setValueAtTime(0.4, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.connect(oscGain);
+      oscGain.connect(actx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } else if (type === 'hihat') {
+      var osc = actx.createOscillator();
+      var gain = actx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(7500, now);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    }
+  }
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function calculate() {
+    var bpm = parseFloat(tempoSlider.value);
+    tempoVal.textContent = bpm.toFixed(1) + ' BPM';
+
+    var sixteenthMs = (60000 / bpm) / 4;
+    var preset = presetSelect.value;
+    var swingPct = 50;
+    var shiftMs = 0;
+
+    if (preset === '58') {
+      swingPct = 58;
+      shiftMs = sixteenthMs * ((58 - 50) / 50);
+      tip.innerHTML = "🥁 <b>MPC 58%:</b> The golden standard for 90s NYC boom-bap (Premier, Pete Rock, Large Professor).";
+    } else if (preset === '66') {
+      swingPct = 66;
+      shiftMs = sixteenthMs * ((66 - 50) / 50);
+      tip.innerHTML = "🪘 <b>MPC 66% Triplet Swing:</b> Creates a bouncy, rolling shuffle groove ideal for Southern bounce and neo-soul.";
+    } else if (preset === '50') {
+      swingPct = 50;
+      shiftMs = 0;
+      tip.innerHTML = "🤖 <b>Strict 50% Quantize:</b> Rigid robotic precision. Clean for four-on-the-floor, but lacks human swing.";
+    } else if (preset === 'dilla') {
+      swingPct = 62;
+      shiftMs = sixteenthMs * 0.28;
+      tip.innerHTML = "🍩 <b>J Dilla 'Drunk' Pocket:</b> Off-grid micro-drag on the hi-hats paired with a slightly rushed snare for that iconic head-nod feeling.";
+    } else if (preset === 'drill') {
+      swingPct = 54;
+      shiftMs = sixteenthMs * 0.15;
+      tip.innerHTML = "🇬🇧 <b>UK Drill Sliding Hats:</b> Syncopated off-beat hat skips with accented velocities pushing against an 808 glide.";
+    }
+
+    var ppq = parseInt(ppqSelect.value, 10);
+    var ticksPer16th = ppq / 4;
+    var swingTicks = Math.round(ticksPer16th * ((swingPct - 50) / 50));
+
+    gridMs.textContent = sixteenthMs.toFixed(2) + ' ms';
+    delayMs.textContent = (shiftMs >= 0 ? '+' : '') + shiftMs.toFixed(2) + ' ms';
+    ticksLabel.textContent = (swingTicks >= 0 ? '+' : '') + swingTicks + ' Ticks';
+    ratioLabel.textContent = swingPct + '% : ' + (100 - swingPct) + '%';
+  }
+
+  function stepSequencer() {
+    if (!isPlaying) return;
+
+    if (pattern.kick[currentStep]) playDrumSound('kick');
+    if (pattern.snare[currentStep]) playDrumSound('snare');
+    if (pattern.hihat[currentStep]) playDrumSound('hihat');
+
+    currentStep = (currentStep + 1) % 16;
+
+    // Calculate dynamic swing step delay for next step
+    var bpm = parseFloat(tempoSlider.value);
+    var base16th = (60000 / bpm) / 4;
+    var preset = presetSelect.value;
+    var swingFactor = (preset === '58') ? 0.16 : (preset === '66') ? 0.32 : (preset === 'dilla') ? 0.25 : 0;
+
+    var nextDelay = (currentStep % 2 === 1) ? (base16th * (1 + swingFactor)) : (base16th * (1 - swingFactor));
+    timerId = setTimeout(stepSequencer, Math.max(20, nextDelay));
+  }
+
+  function render() {
+    calculate();
+    var w = canvas.width;
+    var h = canvas.height;
+
+    ctx.fillStyle = '#030612';
+    ctx.fillRect(0, 0, w, h);
+
+    // Render 16 Step Drum Grid
+    var tracks = [
+      { name: "KICK", color: "#2dd4ff", pat: pattern.kick, y: 55 },
+      { name: "SNARE", color: "#ff007a", pat: pattern.snare, y: 125 },
+      { name: "HI-HAT", color: "#ffd700", pat: pattern.hihat, y: 195 }
+    ];
+
+    var stepW = (w - 100) / 16;
+
+    tracks.forEach(function(tr) {
+      // Track Name
+      ctx.fillStyle = tr.color;
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(tr.name, 14, tr.y + 16);
+
+      // 16 Step Pads
+      for (var s = 0; s < 16; s++) {
+        var px = 85 + s * stepW;
+        var isActive = tr.pat[s];
+        var isCurrent = (currentStep === s && isPlaying);
+
+        // Pad background
+        ctx.fillStyle = isActive ? tr.color : 'rgba(255,255,255,0.06)';
+        if (isCurrent) ctx.fillStyle = '#ffffff';
+
+        ctx.beginPath();
+        ctx.roundRect(px, tr.y, stepW - 4, 28, 4);
+        ctx.fill();
+
+        // Downbeat border highlight
+        if (s % 4 === 0) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+    });
+
+    requestAnimationFrame(render);
+  }
+
+  playBtn.addEventListener('click', function() {
+    getAudio();
+    isPlaying = !isPlaying;
+    if (isPlaying) {
+      playTxt.textContent = 'STOP DRUM LOOP';
+      playBtn.style.background = '#ff007a';
+      currentStep = 0;
+      stepSequencer();
+    } else {
+      playTxt.textContent = 'PLAY DRUM LOOP';
+      playBtn.style.background = 'linear-gradient(135deg, #2dd4ff, #00ffaa)';
+      clearTimeout(timerId);
+    }
+  });
+
+  [presetSelect, tempoSlider, ppqSelect].forEach(function(el) {
+    el.addEventListener('input', calculate);
+    el.addEventListener('change', calculate);
+  });
+
+  calculate();
+  render();
+})();
+</script>

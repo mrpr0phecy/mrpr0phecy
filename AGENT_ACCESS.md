@@ -88,7 +88,7 @@ cd r
 # Tool work (everything except the photos):
 git sparse-checkout set --no-cone '/*' '!/images/'
 
-# Music work (omit the 1201 cards too):
+# Music work (omit the 1211 cards too):
 # git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 git config user.name  mrpr0phecy
@@ -115,7 +115,7 @@ One GitHub Pages site, **two deliberately separate products**:
 
 | Product | Entry point | What it is |
 |---|---|---|
-| **A — The Most Useful Site In The World** | `index.html` | **1201** self-contained offline browser tools, indexed by `cards/cards.json` |
+| **A — The Most Useful Site In The World** | `index.html` | **1211** self-contained offline browser tools, indexed by `cards/cards.json` |
 | **B — MrProphecy** | `listen.html` | UK hip hop / animated soundscapes from Luton; YouTube + SoundCloud |
 
 **Never mix them**: no music players/banners in the catalogue or cards; no tool
@@ -136,7 +136,7 @@ and what earns: **[INCOME.md](INCOME.md)**.
 
 1. Write `cards/<tool-name>.html` — an **HTML fragment** (no `<!doctype>`,
    `<head>`, `<body>`). All element IDs must carry a short unique per-tool
-   prefix (`xyz-…`) because all 1201 cards share one DOM. Wrap all JS in an
+   prefix (`xyz-…`) because all 1211 cards share one DOM. Wrap all JS in an
    IIFE. Inline styles + the CSS variables from `index.html` only. No network
    calls. Start from an existing card.
 2. `node generate-cards-json.js` — rebuilds `cards/cards.json`.

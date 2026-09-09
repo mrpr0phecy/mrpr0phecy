@@ -1,0 +1,198 @@
+<h2 id="rvp-title" style="margin-top:0;color:var(--accent);">🌌 Reverb Pre-Delay &amp; RT60 Decay BPM Calculator</h2>
+
+<form aria-describedby="rvp-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="rvp-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Uncalculated reverb washes out hip hop vocals and turns snappy snares into a muddy blur. Calculate tempo-synced pre-delay (giving the upfront vocal clarity before reverb begins) and precise decay times (RT60) that naturally evaporate before the next downbeat.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <label for="rvp-bpm-slider" style="color:var(--accent);font-size:0.85rem;font-weight:700;">Beat Tempo (BPM):</label>
+          <span id="rvp-bpm-val" style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:700;">140.0 BPM</span>
+        </div>
+        <input type="range" id="rvp-bpm-slider" min="60" max="180" value="140" style="width:100%;accent-color:var(--accent);" />
+      </div>
+
+      <div>
+        <label for="rvp-preset-select" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Hip Hop Reverb Space:</label>
+        <select id="rvp-preset-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="tight-vocal" selected>🎤 Tight Rap Vocal Chamber (1/16th Pre-Delay)</option>
+          <option value="snare-plate">🥁 Boom-Bap Snare Plate (1/32nd Pre-Delay)</option>
+          <option value="trap-space">🛸 Atmospheric Trap Lush Ambience (1 Bar)</option>
+          <option value="adlib-delay">🗣️ Adlib Echo &amp; Ghost Reverb (2 Bars)</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="rvp-predelay-note" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Pre-Delay Division:</label>
+        <select id="rvp-predelay-note" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="64th">1/64 Note (Ultra-Fast Snap)</option>
+          <option value="32nd">1/32 Note (Snare Snap Space)</option>
+          <option value="16th" selected>1/16 Note (Clear Vocal Separation)</option>
+          <option value="8th">1/8 Note (Slapback Reverb Feel)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Calculated Millisecond Telemetry -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;">
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;border-left:3px solid #ff007a;">
+        <div style="color:var(--text-secondary);">Optimal Pre-Delay:</div>
+        <b id="rvp-out-predelay" style="color:#ff007a;font-size:1rem;">107.14 ms</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;border-left:3px solid #2dd4ff;">
+        <div style="color:var(--text-secondary);">Decay RT60 (1 Bar):</div>
+        <b id="rvp-out-1bar" style="color:#2dd4ff;font-size:1rem;">1.714 s</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;border-left:3px solid #ffd700;">
+        <div style="color:var(--text-secondary);">Decay RT60 (2 Beats):</div>
+        <b id="rvp-out-2beats" style="color:#ffd700;font-size:1rem;">857.14 ms</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;border-left:3px solid #39ff14;">
+        <div style="color:var(--text-secondary);">Total Space Tail:</div>
+        <b id="rvp-out-total" style="color:#39ff14;font-size:1rem;">1.821 s</b>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Visual Decay Envelope Canvas -->
+<div style="position:relative;width:100%;height:280px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#030612;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 40px rgba(0,0,0,0.9);">
+  <canvas id="rvp-canvas" width="600" height="280" style="width:100%;height:100%;display:block;"></canvas>
+  <div id="rvp-tip" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(8,16,30,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;"></div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('rvp-canvas');
+  var ctx = canvas.getContext('2d');
+  var bpmSlider = document.getElementById('rvp-bpm-slider');
+  var bpmVal = document.getElementById('rvp-bpm-val');
+  var presetSelect = document.getElementById('rvp-preset-select');
+  var predelayNote = document.getElementById('rvp-predelay-note');
+
+  var outPredelay = document.getElementById('rvp-out-predelay');
+  var out1Bar = document.getElementById('rvp-out-1bar');
+  var out2Beats = document.getElementById('rvp-out-2beats');
+  var outTotal = document.getElementById('rvp-out-total');
+  var tip = document.getElementById('rvp-tip');
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function calculate() {
+    var bpm = parseFloat(bpmSlider.value) || 140;
+    bpmVal.textContent = bpm.toFixed(1) + ' BPM';
+
+    var beatMs = 60000 / bpm;
+    var preMs = 0;
+    var note = predelayNote.value;
+
+    if (note === '64th') preMs = beatMs / 16;
+    else if (note === '32nd') preMs = beatMs / 8;
+    else if (note === '16th') preMs = beatMs / 4;
+    else if (note === '8th') preMs = beatMs / 2;
+
+    var oneBeatMs = beatMs;
+    var twoBeatsMs = beatMs * 2;
+    var oneBarMs = beatMs * 4;
+    var twoBarsMs = beatMs * 8;
+
+    var pVal = presetSelect.value;
+    var selectedDecayMs = oneBarMs;
+
+    if (pVal === 'tight-vocal') {
+      selectedDecayMs = twoBeatsMs;
+      tip.innerHTML = '🎤 <b>Tight Vocal Chamber:</b> Keeps the rap vocal right in front of the listener while adding subtle depth that fades out before the next vocal syllable.';
+    } else if (pVal === 'snare-plate') {
+      selectedDecayMs = oneBeatMs;
+      tip.innerHTML = '🥁 <b>Boom-Bap Snare Plate:</b> A short 1-beat reverb decay gives the snare crack maximum weight without leaking over the 808 or kick drum.';
+    } else if (pVal === 'trap-space') {
+      selectedDecayMs = oneBarMs;
+      tip.innerHTML = '🛸 <b>Atmospheric Trap Space:</b> 1 full bar of ambient decay creates wide eerie space for background vocal chops and spooky pads.';
+    } else {
+      selectedDecayMs = twoBarsMs;
+      tip.innerHTML = '🗣️ <b>Adlib Ghost Echo:</b> 2 full bars of reverb wash lets background vocal adlibs drift into infinite space while the main vocal stays dry and punchy.';
+    }
+
+    outPredelay.textContent = preMs.toFixed(2) + ' ms';
+    out1Bar.textContent = (oneBarMs / 1000).toFixed(3) + ' s';
+    out2Beats.textContent = twoBeatsMs.toFixed(2) + ' ms';
+    outTotal.textContent = ((preMs + selectedDecayMs) / 1000).toFixed(3) + ' s';
+
+    renderCanvas(preMs, selectedDecayMs);
+  }
+
+  function renderCanvas(preMs, decayMs) {
+    var w = canvas.width;
+    var h = canvas.height;
+    ctx.fillStyle = '#030612';
+    ctx.fillRect(0, 0, w, h);
+
+    // Title
+    ctx.fillStyle = '#2dd4ff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText('REVERB TIMING ENVELOPE: PRE-DELAY GAP & RT60 DECAY', 30, 25);
+
+    var baseY = h - 50;
+    var startX = 50;
+    var preW = Math.min(120, Math.max(30, (preMs / 300) * 150));
+    var decayW = Math.min(w - 200, Math.max(100, (decayMs / 3000) * (w - 180)));
+
+    // Dry Audio Transient Hit
+    ctx.fillStyle = '#ff007a';
+    ctx.fillRect(startX, baseY - 120, 16, 120);
+    ctx.font = '10px sans-serif';
+    ctx.fillText('DRY VOCAL / TRANSIENT', startX - 10, baseY - 128);
+
+    // Pre-Delay Gap (Dotted Yellow Line)
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(startX + 16, baseY);
+    ctx.lineTo(startX + 16 + preW, baseY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText('Pre-Delay (' + preMs.toFixed(1) + 'ms)', startX + 22, baseY + 18);
+
+    // Reverb RT60 Exponential Decay Tail
+    ctx.beginPath();
+    ctx.moveTo(startX + 16 + preW, baseY);
+    ctx.lineTo(startX + 16 + preW, baseY - 90);
+    ctx.quadraticCurveTo(startX + 16 + preW + decayW * 0.4, baseY - 30, startX + 16 + preW + decayW, baseY);
+    ctx.closePath();
+
+    var grad = ctx.createLinearGradient(startX + 16 + preW, 0, startX + 16 + preW + decayW, 0);
+    grad.addColorStop(0, 'rgba(45, 212, 255, 0.5)');
+    grad.addColorStop(1, 'rgba(45, 212, 255, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.strokeStyle = '#2dd4ff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#2dd4ff';
+    ctx.fillText('Reverb Decay Tail RT60 (' + (decayMs/1000).toFixed(2) + 's)', startX + 30 + preW, baseY - 70);
+  }
+
+  [bpmSlider, presetSelect, predelayNote].forEach(function(el) {
+    el.addEventListener('input', calculate);
+    el.addEventListener('change', calculate);
+  });
+
+  calculate();
+})();
+</script>

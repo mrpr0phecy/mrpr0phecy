@@ -195,7 +195,17 @@ const categoryMap = {
   'sound-chladni-resonance-harmonizer': 'Science & Engineering',
   'quantum-tunneling-nuclear-fusion-sun': 'Science & Engineering',
   'time-dilation-lorentz-light-clock': 'Science & Engineering',
-  'mycelium-slime-mold-network-solver': 'Science & Engineering'
+  'mycelium-slime-mold-network-solver': 'Science & Engineering',
+  '808-sub-bass-tuner-calculator': 'Music & Audio',
+  'vinyl-sample-pitch-tempo-shifter': 'Music & Audio',
+  'hip-hop-drum-groove-swing-quantizer': 'Music & Audio',
+  'vocal-compression-sidechain-calculator': 'Music & Audio',
+  'multisyllabic-rhyme-cadence-flow-builder': 'Music & Audio',
+  'sample-chop-cue-point-calculator': 'Music & Audio',
+  'equalizer-frequency-masking-allocator': 'Music & Audio',
+  'reverb-pre-delay-decay-calculator': 'Music & Audio',
+  'trap-drill-hihat-roll-pattern-generator': 'Music & Audio',
+  'lofi-saturation-bitcrush-texture-lab': 'Music & Audio'
 };
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
