@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233ec6ff'/%3E%3Cstop offset='1' stop-color='%23f0c14b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='url(%23g)' stroke-width='5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3C/svg%3E">
+<title>SupaViewer — open-source in-browser virtual world viewer</title>
+<meta name="description" content="SupaViewer is a free, open-source Second Life-style viewer that runs in your browser. Walk, fly, chat and build in a local sandbox region. No install, no account.">
+<link rel="canonical" href="https://www.themostusefulsiteintheworld.com/supaviewer.html">
+<meta name="theme-color" content="#0c1018">
+<meta name="color-scheme" content="dark">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Most Useful Site in the World">
+<meta property="og:title" content="SupaViewer — in-browser virtual world viewer">
+<meta property="og:description" content="A free, open-source Second Life-style viewer in your browser. Walk, fly, chat and build in a local sandbox. No install.">
+<meta property="og:url" content="https://www.themostusefulsiteintheworld.com/supaviewer.html">
+<meta property="og:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SupaViewer — in-browser virtual world viewer">
+<meta name="twitter:description" content="A free, open-source Second Life-style viewer in your browser. Walk, fly, chat and build in a local sandbox. No install.">
+<meta name="twitter:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"SupaViewer","url":"https://www.themostusefulsiteintheworld.com/supaviewer.html","description":"Open-source in-browser virtual world viewer with a local sandbox region.","applicationCategory":"GameApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and WebGL","offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"},"license":"https://github.com/mrpr0phecy/mrpr0phecy/blob/main/LICENSE"}</script>
+<style>
+:root{
+  --bg:#0c1018; --panel:rgba(12,16,24,.92); --line:rgba(255,255,255,.12);
+  --txt:#e8eef5; --dim:#9aa6b4; --accent:#3ec6ff; --gold:#f0c14b; --danger:#ff6b6b;
+  --ok:#7dffb3; --shadow:0 12px 40px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+canvas#sv-canvas{display:block;width:100%;height:100%;touch-action:none}
+h1.sv-vh{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0,0,0,0);white-space:nowrap;border:0
+}
+.sv-ui{position:fixed;z-index:20;pointer-events:none}
+.sv-ui *{pointer-events:auto}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* loading / login */
+#sv-loading,#sv-login{
+  position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,rgba(8,12,20,.55),rgba(8,12,20,.82));
+  pointer-events:auto
+}
+#sv-loading[hidden],#sv-login[hidden],#sv-hud[hidden],#sv-touch[hidden],
+.sv-panel[hidden],#sv-login-err[hidden],#sv-boot-err[hidden]{display:none!important}
+.sv-card{
+  width:min(420px,calc(100vw - 28px));background:var(--panel);
+  border:1px solid var(--line);border-radius:18px;padding:28px 26px 22px;
+  box-shadow:var(--shadow);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)
+}
+.sv-mark{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.sv-logo{
+  width:42px;height:42px;border-radius:12px;
+  background:conic-gradient(from 210deg,#3ec6ff,#7dffb3,#f0c14b,#3ec6ff);
+  display:grid;place-items:center;font-weight:900;color:#041018;letter-spacing:-.04em
+}
+.sv-mark h2{font-size:1.35rem;letter-spacing:-.03em;font-weight:800}
+.sv-mark p{color:var(--dim);font-size:.82rem}
+.sv-lede{color:var(--dim);font-size:.92rem;margin:12px 0 18px;line-height:1.45}
+.sv-field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.sv-field label{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:700}
+.sv-field input,.sv-field select{
+  background:#070b12;border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-height:44px
+}
+.sv-go{
+  width:100%;min-height:48px;border:0;border-radius:999px;margin-top:8px;
+  background:linear-gradient(90deg,#3ec6ff,#7ae0ff);color:#041018;font-weight:800
+}
+.sv-go:hover{filter:brightness(1.06)}
+.sv-fine{margin-top:14px;font-size:.75rem;color:var(--dim);line-height:1.4}
+.sv-fine a{color:var(--accent)}
+#sv-login-err,#sv-boot-err{color:var(--danger);font-size:.85rem;margin:8px 0}
+.sv-spin{width:46px;height:46px;border-radius:50%;border:3px solid #234;border-top-color:var(--accent);animation:svspin 1s linear infinite;margin:0 auto 14px}
+@keyframes svspin{to{transform:rotate(360deg)}}
+
+/* HUD */
+#sv-hud{position:fixed;inset:0;z-index:20;pointer-events:none}
+#sv-top{
+  position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;gap:10px;
+  padding:10px 12px;background:linear-gradient(#0c1018ee,#0c101800);pointer-events:auto
+}
+.sv-chip{
+  display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+  font-size:.78rem;color:var(--dim);letter-spacing:.04em
+}
+.sv-chip b{color:var(--txt);font-weight:700}
+.sv-tools{display:flex;gap:6px;flex-wrap:wrap}
+.sv-tools button,.sv-icon{
+  min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--line);
+  background:rgba(8,12,20,.72);color:var(--txt);font-size:.78rem;font-weight:700
+}
+.sv-tools button:hover{border-color:var(--accent);color:var(--accent)}
+
+#sv-chat{
+  position:absolute;left:12px;bottom:12px;width:min(420px,calc(100vw - 24px));
+  pointer-events:auto
+}
+#sv-chat-log{
+  max-height:160px;overflow:auto;padding:8px 10px;margin-bottom:6px;
+  background:rgba(8,12,20,.55);border:1px solid var(--line);border-radius:12px;
+  font-size:.82rem;line-height:1.35
+}
+.sv-line{margin:2px 0;word-wrap:break-word}
+.sv-line-sys{color:#9ad7ff}
+.sv-line-obj{color:#c9f5c0}
+.sv-who{color:var(--gold);font-weight:700;margin-right:6px}
+#sv-chat-form{display:flex;gap:6px}
+#sv-chat-input{
+  flex:1;min-height:44px;min-width:0;border-radius:10px;border:1px solid var(--line);
+  background:rgba(8,12,20,.85);padding:0 12px
+}
+
+#sv-radar{
+  position:absolute;right:12px;bottom:12px;width:148px;height:148px;pointer-events:auto
+}
+#sv-minimap{
+  width:148px;height:148px;border-radius:12px;border:1px solid var(--line);
+  background:#0b1c28;display:block
+}
+.sv-radar-cap{font-size:.68rem;color:var(--dim);text-align:center;margin-top:4px}
+
+.sv-panel{
+  position:absolute;top:56px;right:12px;width:min(320px,calc(100vw - 24px));
+  max-height:calc(100vh - 80px);overflow:auto;pointer-events:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:14px;box-shadow:var(--shadow)
+}
+.sv-panel h2{font-size:.95rem;margin-bottom:10px}
+.sv-panel p,.sv-panel li{color:var(--dim);font-size:.82rem;line-height:1.4}
+.sv-panel ul{margin:0 0 10px 16px}
+.sv-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+.sv-grid3 button,.sv-row button{
+  min-height:40px;border-radius:8px;border:1px solid var(--line);background:#121826
+}
+.sv-row{display:flex;gap:8px;margin-top:8px}
+.sv-row button{flex:1}
+.sv-inv-item{
+  display:block;width:100%;text-align:left;background:transparent;border:0;
+  padding:8px 6px;min-height:40px;border-radius:8px;color:var(--txt)
+}
+.sv-inv-item:hover{background:rgba(62,198,255,.12)}
+#sv-people-list{list-style:none;margin:0;padding:0}
+#sv-people-list li{padding:8px 0;border-bottom:1px solid var(--line);color:var(--txt);font-size:.85rem}
+.sv-colors{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sv-colors label{font-size:.75rem;color:var(--dim);display:flex;flex-direction:column;gap:4px}
+input[type=color]{width:100%;height:36px;border:0;background:transparent}
+#sv-worldmap{width:100%;height:220px;border-radius:8px;background:#102030}
+
+#sv-touch{position:fixed;inset:0;z-index:18;pointer-events:none}
+#sv-stick{
+  pointer-events:auto;position:absolute;left:18px;bottom:86px;width:110px;height:110px;
+  border-radius:50%;border:1px solid var(--line);background:rgba(8,12,20,.35)
+}
+#sv-stick-knob{
+  width:44px;height:44px;border-radius:50%;background:rgba(62,198,255,.85);
+  position:absolute;left:33px;top:33px
+}
+.sv-touch-btns{pointer-events:auto;position:absolute;right:18px;bottom:170px;display:flex;flex-direction:column;gap:8px}
+.sv-touch-btns button{
+  min-width:64px;min-height:48px;border-radius:12px;border:1px solid var(--line);
+  background:rgba(8,12,20,.6);font-weight:800
+}
+
+@media(max-width:720px){
+  #sv-radar{display:none}
+  #sv-chat{width:calc(100vw - 24px)}
+  #sv-chat-log{max-height:100px}
+  .sv-chip span:nth-child(n+4){display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .sv-spin{animation:none}
+  *{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<h1 class="sv-vh">SupaViewer — open-source in-browser virtual world viewer</h1>
+<canvas id="sv-canvas" aria-label="Virtual world viewport"></canvas>
+
+<div id="sv-loading">
+  <div class="sv-card" style="text-align:center">
+    <div class="sv-spin" aria-hidden="true"></div>
+    <h2>Baking Supa Sandbox…</h2>
+    <p class="sv-lede">Terrain, water, welcome area. This stays on your device.</p>
+    <p id="sv-boot-err" hidden></p>
+  </div>
+</div>
+
+<div id="sv-login" hidden>
+  <form class="sv-card" id="sv-login-form" autocomplete="off">
+    <div class="sv-mark">
+      <div class="sv-logo" aria-hidden="true">S</div>
+      <div>
+        <h2>SupaViewer</h2>
+        <p>v0 · standalone sandbox</p>
+      </div>
+    </div>
+    <p class="sv-lede">An unofficial, open-source virtual world viewer in your browser. Not affiliated with Linden Lab. Grid login is disabled on purpose — browsers cannot speak LLUDP, and this page will not take a Second Life password.</p>
+    <div class="sv-field">
+      <label for="sv-name">Display name</label>
+      <input id="sv-name" name="name" maxlength="31" placeholder="Resident" autocomplete="nickname">
+    </div>
+    <div class="sv-field">
+      <label for="sv-grid">Grid</label>
+      <select id="sv-grid">
+        <option value="sandbox" selected>Supa Sandbox (local)</option>
+        <option value="osgrid">OSGrid — needs gateway</option>
+        <option value="agni">Second Life (Agni) — disabled</option>
+        <option value="aditi">Second Life Beta (Aditi) — disabled</option>
+      </select>
+    </div>
+    <p id="sv-grid-blurb" class="sv-fine">A 256 m region that lives in this tab. No account.</p>
+    <p id="sv-login-err" hidden></p>
+    <button class="sv-go" type="submit">Enter world</button>
+    <p class="sv-fine">MIT licensed · <a href="supaviewer/README.md">docs</a> · <a href="https://github.com/mrpr0phecy/mrpr0phecy" target="_blank" rel="noopener noreferrer">source</a> · <a href="index.html">tools</a></p>
+  </form>
+</div>
+
+<div id="sv-hud" hidden>
+  <div id="sv-top">
+    <div class="sv-chip">
+      <span><b id="sv-region">Supa Sandbox</b></span>
+      <span id="sv-coords">128.0, 128.0, 22.0</span>
+      <span id="sv-clock">12:00</span>
+      <span id="sv-mode">WALK</span>
+      <span id="sv-fps">0 fps</span>
+      <span>near <b id="sv-nearby">nobody</b></span>
+    </div>
+    <div class="sv-tools">
+      <button type="button" data-sv-panel="sv-panel-inv" title="Inventory (I)">Inventory</button>
+      <button type="button" data-sv-panel="sv-panel-people" title="People (P)">People</button>
+      <button type="button" data-sv-panel="sv-panel-build" title="Build (B)">Build</button>
+      <button type="button" data-sv-panel="sv-panel-appear">Me</button>
+      <button type="button" data-sv-panel="sv-panel-map">Map</button>
+      <button type="button" data-sv-panel="sv-panel-help" title="Help (H)">Help</button>
+      <button type="button" id="sv-logout">Leave</button>
+    </div>
+  </div>
+
+  <div id="sv-chat">
+    <div id="sv-chat-log" aria-live="polite"></div>
+    <form id="sv-chat-form" autocomplete="off">
+      <input id="sv-chat-input" maxlength="1023" placeholder="Say something, or /help" aria-label="Local chat">
+      <button class="sv-icon" type="submit">Say</button>
+    </form>
+  </div>
+
+  <div id="sv-radar">
+    <canvas id="sv-minimap" width="148" height="148" aria-label="Mini-map"></canvas>
+    <div class="sv-radar-cap">radar · you are the chevron</div>
+  </div>
+
+  <aside id="sv-panel-inv" class="sv-panel" hidden>
+    <h2>Inventory</h2>
+    <p>Demo folders on this device. Real grid inventory needs the gateway.</p>
+    <div id="sv-inv-tree"></div>
+  </aside>
+
+  <aside id="sv-panel-people" class="sv-panel" hidden>
+    <h2>Nearby</h2>
+    <ul id="sv-people-list"></ul>
+  </aside>
+
+  <aside id="sv-panel-build" class="sv-panel" hidden>
+    <h2>Build</h2>
+    <p>Rez a prim in front of you. Click an object to select. Selected: <b id="sv-selected">nothing selected</b></p>
+    <div class="sv-grid3">
+      <button type="button" data-sv-rez="box">Box</button>
+      <button type="button" data-sv-rez="cylinder">Cyl</button>
+      <button type="button" data-sv-rez="sphere">Sphere</button>
+      <button type="button" data-sv-rez="torus">Torus</button>
+      <button type="button" data-sv-rez="prism">Prism</button>
+      <button type="button" data-sv-rez="ring">Ring</button>
+    </div>
+    <div class="sv-field"><label for="sv-build-name">Name</label><input id="sv-build-name"></div>
+    <div class="sv-field"><label for="sv-build-color">Colour</label><input id="sv-build-color" type="color" value="#c8b48a"></div>
+    <div class="sv-colors">
+      <label>X <input id="sv-build-sx" type="number" min="0.01" max="64" step="0.05" value="0.5"></label>
+      <label>Y <input id="sv-build-sy" type="number" min="0.01" max="64" step="0.05" value="0.5"></label>
+      <label>Z <input id="sv-build-sz" type="number" min="0.01" max="64" step="0.05" value="0.5"></label>
+    </div>
+    <div class="sv-row">
+      <button type="button" id="sv-build-apply">Apply</button>
+      <button type="button" id="sv-build-del">Delete</button>
+    </div>
+  </aside>
+
+  <aside id="sv-panel-appear" class="sv-panel" hidden>
+    <h2>Appearance</h2>
+    <p>Classic prim body. Saved in this browser only.</p>
+    <div class="sv-colors">
+      <label>Skin <input id="sv-skin" type="color" value="#c68642"></label>
+      <label>Hair <input id="sv-hair" type="color" value="#2a1a12"></label>
+      <label>Shirt <input id="sv-shirt" type="color" value="#3d7ea6"></label>
+      <label>Pants <input id="sv-pants" type="color" value="#243044"></label>
+    </div>
+    <div class="sv-field"><label for="sv-height">Height scale</label><input id="sv-height" type="number" min="0.8" max="1.25" step="0.01" value="1"></div>
+    <button class="sv-go" type="button" id="sv-appear-apply">Wear</button>
+  </aside>
+
+  <aside id="sv-panel-map" class="sv-panel" hidden>
+    <h2>Region map</h2>
+    <canvas id="sv-worldmap" width="280" height="220" aria-label="Region map"></canvas>
+    <p style="margin-top:8px">Supa Sandbox · 256 × 256 m · water at 20 m</p>
+  </aside>
+
+  <aside id="sv-panel-help" class="sv-panel" hidden>
+    <h2>Help</h2>
+    <ul>
+      <li>W A S D — move · Shift — run</li>
+      <li>F — fly · E / C — up / down</li>
+      <li>Space — jump or stand</li>
+      <li>Drag — orbit · scroll — zoom · M — mouselook</li>
+      <li>Double-click ground — teleport</li>
+      <li>Click a prim — touch / sit</li>
+      <li>B build · I inventory · Enter chat</li>
+      <li>/help /fly /sit /tp x y z /who /clear</li>
+    </ul>
+    <p>Docs: <a href="supaviewer/README.md">README</a>, <a href="supaviewer/PROTOCOL.md">protocol</a>, <a href="supaviewer/ROADMAP.md">roadmap</a>.</p>
+  </aside>
+</div>
+
+<div id="sv-touch" hidden>
+  <div id="sv-stick" aria-label="Move stick"><div id="sv-stick-knob"></div></div>
+  <div class="sv-touch-btns">
+    <button type="button" id="sv-btn-fly">FLY</button>
+    <button type="button" id="sv-btn-jump">JUMP</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="supaviewer/js/protocol.js"></script>
+<script src="supaviewer/js/viewer.js"></script>
+<script>
+window.addEventListener('load', function () {
+  if (window.SV && typeof SV.boot === 'function') SV.boot();
+});
+</script>
+</body>
+</html>
