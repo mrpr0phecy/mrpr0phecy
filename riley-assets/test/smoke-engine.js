@@ -203,7 +203,7 @@ global.__T.camSet('autoFrame', 1);
 console.log('--- cursor aim: camera follows the mouse, no pointer lock needed ---');
 /* the whole point of the fix: with NO pointer lock, moving the cursor must
    steer the camera (dead zone in the middle), and a left click must fire. */
-global.__T.camSet('aimMode', 0);
+global.__T.camSet('ctl', 1);
 global.document.pointerLockElement = null;
 global.__T.god(true);
 global.__T.hurtAll();
@@ -229,9 +229,90 @@ const shotsAfter = global.__R().shots;
 check('a left click fires a bolt (cursor aim)', shotsAfter > shotsBefore, { shotsBefore, shotsAfter });
 /* aim-mode toggle flips the scheme and persists */
 H.elClick('tglAim');
-check('aim mode toggles to pointer-lock', global.__T.camGet().aimMode === 1, global.__T.camGet().aimMode);
+check('control scheme toggles to ZELDA', global.__T.camGet().ctl === 0, global.__T.camGet().ctl);
 H.elClick('tglAim');
-check('aim mode toggles back to cursor', global.__T.camGet().aimMode === 0, global.__T.camGet().aimMode);
+check('control scheme toggles back to CURSOR', global.__T.camGet().ctl === 1, global.__T.camGet().ctl);
+
+console.log('--- ZELDA scheme (default): follow-cam, Z-target, face-to-aim, no pointer needed ---');
+global.__T.camSet('ctl', 0);
+global.document.pointerLockElement = null;
+H.emit('pointerlockchange', {});
+global.__T.god(true);
+global.__T.hurtAll(); global.__T.clearShots();
+global.__T.lock(null);
+pump(10);
+/* 1a. a pure strafe holds the camera: A alone must NOT start the lens
+       chasing its own tail (movement is camera-relative, so following a
+       strafe is an infinite spin) */
+global.__T.resetCam(); pump(30);
+const zy0 = global.__R().camYaw;
+global.__T.key('KeyA', true);
+for (let i = 0; i < 150; i++) { if (i % 5 === 0) global.__T.hurtAll(); pump(1); }
+const zStrafe = Math.abs(global.__R().camYaw - zy0);
+check('a pure strafe leaves the camera where it was (no tail-chasing spin)', zStrafe < 0.2, { zy0, now: global.__R().camYaw, zStrafe });
+global.__T.key('KeyA', false); pump(30);
+/* 1b. W+A is a curved run: the lens leans into the bend, unprompted, at a
+       rate you could live with (a wide arc, not a spin) */
+const zy1a = global.__R().camYaw;
+global.__T.key('KeyW', true); global.__T.key('KeyA', true);
+for (let i = 0; i < 150; i++) { if (i % 5 === 0) global.__T.hurtAll(); pump(1); }
+const zr = global.__R();
+const zTurn = Math.atan2(Math.sin(zr.camYaw - zy1a), Math.cos(zr.camYaw - zy1a));
+const zTotal = zr.camYaw - zy1a;
+check('W+A: the follow-cam turns into the run without mouse input', Math.abs(zTotal) > 0.35, { zy1a, now: zr.camYaw, zTotal });
+check('W+A: the follow is a gentle arc, not a spin (< 1.8 rad/s)', Math.abs(zTotal) / 2.5 < 1.8, { rate: Math.abs(zTotal) / 2.5 });
+/* and it keeps up: the camera stays roughly behind the run (W+A is a 45°
+   diagonal off the camera, so "behind" here is within that diagonal) */
+const zvel = Math.atan2(zr.vx, zr.vz);
+const zBehind = Math.abs(Math.atan2(Math.sin(zvel - zr.camYaw), Math.cos(zvel - zr.camYaw)));
+check('W+A: the lens stays behind the runner (within the diagonal)', zBehind < 1.1, { zBehind, zvel, camYaw: zr.camYaw, zTurn });
+global.__T.key('KeyW', false); global.__T.key('KeyA', false); pump(30);
+/* 2. the cursor position does NOT steer the camera in this scheme */
+H.emit('mousemove', { clientX: 799, clientY: 225, movementX: 0, movementY: 0 });
+const zy1 = global.__R().camYaw; pump(30);
+check('cursor parked at the screen edge does not turn the camera', Math.abs(global.__R().camYaw - zy1) < 0.03, { zy1, now: global.__R().camYaw });
+H.emit('mousemove', { clientX: 400, clientY: 225, movementX: 0, movementY: 0 });
+/* 3. Z-target: TAB locks the goblin in front, TAB again releases, X cycles */
+global.__T.place('grunt', 5, 4); global.__T.place('runner', -4, 6); pump(3);
+H.emit('keydown', { code: 'Tab' }); H.emit('keyup', { code: 'Tab' });
+const zl0 = global.__R().lockOn;
+check('TAB locks a goblin', !!zl0, zl0);
+H.emit('keydown', { code: 'KeyX' }); H.emit('keyup', { code: 'KeyX' });
+check('X cycles to another goblin without dropping the lock', !!global.__R().lockOn, global.__R().lockOn);
+H.emit('keydown', { code: 'Tab' }); H.emit('keyup', { code: 'Tab' });
+check('TAB again releases', global.__R().lockOn === null, global.__R().lockOn);
+/* 4. a kill hands the lock to the next goblin instead of dropping you out */
+H.emit('keydown', { code: 'Tab' }); H.emit('keyup', { code: 'Tab' });
+const zEn = global.__T.enemies();
+if (zEn.length >= 2) {
+  /* kill the locked one only */
+  const lockedK = global.__R().lockOn;
+  const victim = zEn.find(e => e.k === lockedK);
+  global.__T.setLock(victim.i);
+  global.__T.hurtOne(victim.i);
+  pump(3);
+  check('lock re-targets the next goblin after a kill', !!global.__R().lockOn, global.__R().lockOn);
+} else check('lock re-targets the next goblin after a kill', false, zEn);
+global.__T.lock(null);
+/* 5. facing IS aiming: with a goblin ahead, a click fires toward it, and
+      holding fire with nothing around never freezes your turning */
+global.__T.hurtAll(); pump(4); global.__T.clearShots();
+global.__T.place('grunt', 0, 6); pump(2);
+const zaim = global.__T.aim();
+check('un-locked aim snaps to the goblin in the facing cone', zaim.lock === 'grunt' || zaim.dist > 3, zaim);
+const zsb = global.__R().shots;
+H.elEmit('cv', 'pointerdown', { pointerType: 'mouse', button: 0, clientX: 400, clientY: 225 });
+pump(2);
+H.emit('pointerup', { pointerType: 'mouse', button: 0 });
+check('a click casts without any pointer lock', global.__R().shots > zsb, { before: zsb, after: global.__R().shots });
+global.__T.hurtAll(); pump(4);
+global.__T.key('KeyF', true); global.__T.key('KeyD', true);
+const zyaw0 = global.__R().yaw; pump(40);
+const zyaw1 = global.__R().yaw;
+global.__T.key('KeyF', false); global.__T.key('KeyD', false); pump(10);
+check('holding fire with no target does not freeze your facing', Math.abs(Math.atan2(Math.sin(zyaw1 - zyaw0), Math.cos(zyaw1 - zyaw0))) > 0.3, { zyaw0, zyaw1 });
+check('no crosshair in ZELDA mode (aim marker is the target)', !global.__H.els['reticle'].classList.contains('on'), null);
+global.__T.god(false);
 
 console.log('--- melee chain: two jabs, then a cleave ---');
 global.__T.wave(1); pump(12); global.__T.hurtAll(); global.__T.clearShots(); pump(6);
@@ -719,6 +800,27 @@ console.log('--- selftest render: unique colours ---');
 pump(10);
 const shot = global.__shot();
 check('render produced frames', H.stats().drawCalls > 50, H.stats());
+
+console.log('--- every body that is built is drawn (regression: invisible Riley + goblins) ---');
+/* The instanced renderer batches parts into (geometry|tag) buckets. For a
+   long time only the glow-tagged buckets (eyes, glasses, wand tip) were ever
+   flushed: the player saw floating eyes over an empty arena. Pin both halves:
+   nothing is left in a bucket after a frame, and the plain body buckets that
+   Riley and a goblin are made of are part of the frame's draw list. */
+if (global.__T.info().n < 1) global.__T.place('grunt', 3, 2);
+pump(2);
+const left = global.__T.unflushed();
+check('no bucket still holds instances after render', left.length === 0, left);
+const drawn = global.__T.lastFlush();
+const has = (k) => drawn.some(d => d.indexOf(k + ':') === 0);
+check('plain box bucket (limbs, torsos) was flushed', has('box|'), drawn);
+check('cloth bucket (Riley\'s robe) was flushed', has('box|cloth'), drawn);
+check('sphereL bucket (heads) was flushed', has('sphereL|'), drawn);
+check('cyl bucket (hat brim) was flushed', has('cyl|'), drawn);
+check('cone bucket (hat, ears) was flushed', has('cone|'), drawn);
+/* and the glow buckets still get their tint pass */
+check('goblin eye bucket was flushed', has('box|g'), drawn);
+check('glasses bucket was flushed', has('box|g4'), drawn);
 
 console.log(fails ? '\n' + fails + ' FAILURES' : '\nALL ENGINE SMOKE CHECKS PASS');
 process.exit(fails ? 1 : 0);

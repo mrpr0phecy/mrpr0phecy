@@ -376,7 +376,7 @@ function buildStars() {
 /* ================================================================
  * 5. instance renderer (one draw call per geometry)
  * ================================================================ */
-var INST_CAP = 900;
+var INST_CAP = 1400;
 var instBuckets = {};
 function getBucket(key) {
   if (!instBuckets[key]) instBuckets[key] = { arr: new Float32Array(INST_CAP * 19), n: 0, vbo: gl.createBuffer() };
@@ -385,6 +385,51 @@ function getBucket(key) {
 var MM = new Float32Array(16);
 function instBegin() {
   Object.keys(instBuckets).forEach(function (k) { instBuckets[k].n = 0; });
+}
+/* Emissive tint per bucket. The `g*` texture keys are not textures at all —
+ * they are bucket tags so that eyes / glasses / the wand tip get their own
+ * glow colour in one draw. Every other bucket is plain lit geometry.
+ *
+ * THE BUG THIS REPLACES: only the glow buckets were ever flushed. Every body
+ * part pushed into a plain bucket (`box|`, `box|cloth`, `sphereL|`, `cyl|`,
+ * `cone|`, `sphere|`, and the pickup gems in `cone|crystal` after the crystal
+ * pass) was filled each frame and never drawn — the player saw floating eyes,
+ * glasses and a wand tip, and no Riley, no goblins, no loot. */
+var INST_GLOW = {
+  'box|g': [255, 220, 100],       /* goblin eyes */
+  'box|g2': [255, 70, 50],        /* boss eyes */
+  'sphereL|g3': [190, 120, 255],  /* spitter orb */
+  'box|g4': [80, 220, 255],       /* Riley's glasses */
+  'sphereL|g5': [255, 235, 160],  /* hat star */
+  'sphereL|g6': [255, 225, 130],  /* wand tip */
+  'cone|crystal': [60, 160, 255]  /* mana crystals + gems */
+};
+/* draw EVERY bucket that has instances this frame — the one place bodies are
+ * flushed, so a new part can never be forgotten again */
+var lastFlush = [];               /* [key:n, ...] of the most recent frame (test hook) */
+function instFlushAll() {
+  var chgMax = !!(R && R.charging && chargePct() > 0.85);
+  lastFlush.length = 0;
+  for (var k in instBuckets) {
+    var b = instBuckets[k];
+    if (!b.n) continue;
+    lastFlush.push(k + ':' + b.n);
+    var bar = k.indexOf('|');
+    var glow = INST_GLOW[k] || null;
+    if (k === 'sphereL|g6' && chgMax) glow = [200, 150, 255];
+    drawInstanced(k.slice(0, bar), k.slice(bar + 1), glow, 1);
+  }
+}
+/* Attribute layout for the two non-instanced programs. The instanced passes
+ * leave attribs 3..7 enabled with divisor 1, and WebGL attrib state is
+ * global, not per-program: without this reset the terrain's per-vertex colour
+ * (attrib 3) was being read with divisor 1 from frame two onward, i.e. one
+ * flat colour per chunk. */
+function attribsPlain(n) {
+  for (var i = 0; i < 8; i++) {
+    if (i < n) gl.enableVertexAttribArray(i); else gl.disableVertexAttribArray(i);
+    if (i >= 3) ext.vertexAttribDivisorANGLE(i, 0);
+  }
 }
 /* `bodyXform` — when non-null, every part pushed by the *next* drawGoblin /
  * drawRileyChar call is premultiplied by it. One hook gives the goblin corpse
@@ -418,20 +463,15 @@ function drawInstanced(geoKey, texKey, glowCol, alpha) {
   if (!b || !b.n) return;
   var geo = GEO[geoKey];
   gl.useProgram(pInst);
+  attribsInst();
   gl.bindBuffer(gl.ARRAY_BUFFER, geo.v);
-  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
-  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
-  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
+  gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
   gl.bindBuffer(gl.ARRAY_BUFFER, b.vbo);
   gl.bufferData(gl.ARRAY_BUFFER, b.arr.subarray(0, b.n * 19), gl.DYNAMIC_DRAW);
-  for (var i = 0; i < 4; i++) {
-    gl.enableVertexAttribArray(3 + i);
-    gl.vertexAttribPointer(3 + i, 4, gl.FLOAT, false, 76, i * 16);
-    ext.vertexAttribDivisorANGLE(3 + i, 1);
-  }
-  gl.enableVertexAttribArray(7);
+  for (var i = 0; i < 4; i++) gl.vertexAttribPointer(3 + i, 4, gl.FLOAT, false, 76, i * 16);
   gl.vertexAttribPointer(7, 3, gl.FLOAT, false, 76, 64);
-  ext.vertexAttribDivisorANGLE(7, 1);
   gl.uniformMatrix4fv(uInst.uPV, false, PVM);
   gl.uniformMatrix4fv(uInst.uV, false, VM);
   gl.uniform3f(uInst.uL, LIGHT[0], LIGHT[1], LIGHT[2]);
@@ -448,6 +488,14 @@ function drawInstanced(geoKey, texKey, glowCol, alpha) {
   if (alpha !== undefined && alpha < 1) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
   gl.drawArraysInstancedANGLE(gl.TRIANGLES, 0, geo.n, b.n);
   if (alpha !== undefined && alpha < 1) gl.disable(gl.BLEND);
+  b.n = 0;                                    /* flushed: the bucket is empty again */
+}
+/* instanced layout: 0..2 per-vertex, 3..7 per-instance */
+function attribsInst() {
+  for (var i = 0; i < 8; i++) {
+    gl.enableVertexAttribArray(i);
+    if (i >= 3) ext.vertexAttribDivisorANGLE(i, 1);
+  }
 }
 var ext = gl.getExtension('ANGLE_instanced_arrays');
 if (!ext) {
@@ -491,10 +539,10 @@ function drawGlowList(list, mode, len) {
   gl.useProgram(pGlow);
   gl.bindBuffer(gl.ARRAY_BUFFER, fxBuf);
   gl.bufferData(gl.ARRAY_BUFFER, fxData.subarray(0, o), gl.DYNAMIC_DRAW);
+  attribsPlain(3);
   gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 36, 0);
   gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 36, 12);
   gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 36, 20);
-  gl.enableVertexAttribArray(0); gl.enableVertexAttribArray(1); gl.enableVertexAttribArray(2);
   gl.uniformMatrix4fv(uGlow.uPV, false, PVM);
   gl.uniform3fv(uGlow.uR, camR);
   gl.uniform3fv(uGlow.uUp, camUp);
@@ -520,9 +568,12 @@ function makeGlowScratch(n) {
 }
 var starScratch = makeGlowScratch(160), starN = 0;
 var glowScratch = makeGlowScratch(80), glowN = 0;
-var haloScratch = makeGlowScratch(32), haloN = 0;
+var haloScratch = makeGlowScratch(128), haloN = 0;
 function glowAddInto(list, n, x, y, z, s, r, g, b, a) {
-  if (n >= list.length) return;
+  /* full: drop the halo, keep the count. Returning undefined here used to
+     poison the counter, and the very next halo crashed the frame on a wave
+     that spawned more goblins than there were slots. */
+  if (n >= list.length) return n;
   var o = list[n];
   o.x = x; o.y = y; o.z = z; o.s = s; o.pr = r; o.pg = g; o.pb = b; o.pa = a; o.life = 1; o.max = 1;
   return n + 1;
@@ -588,8 +639,15 @@ var CAMSET = {
   orbit: 1,       /* locked: A/D circle the target instead of the camera      0/1    */
   zoom: 8.2,      /* boom length in units                                    3.4-12.5 */
   invertY: 0,
-  aimMode: 0      /* 0 = cursor-steer (default, never needs pointer lock)    0/1
-                     1 = pointer-lock aim (classic FPS look, click canvas)      */
+  ctl: 0          /* control scheme                                            0/1
+                     0 = ZELDA  — the camera follows behind you on its own, TAB
+                         Z-targets, attacks home on the target / where you face,
+                         and the mouse only orbits the camera while the browser
+                         has it captured (click to grab, Esc to release). The
+                         game is fully playable if pointer lock is refused.
+                     1 = CURSOR — legacy: the camera turns toward wherever the
+                         cursor sits and shots fly at the cursor. Never needs
+                         pointer lock; some trackpad users prefer it.          */
 };
 try {
   var _cs = JSON.parse(localStorage.getItem('riley3d.camset') || 'null');
@@ -640,8 +698,13 @@ function rateTo(cur, tgt, maxRate, dt) {
 }
 /* true while the player is the one pointing the gun */
 function camAiming() {
+  /* ZELDA: only a *committed* aim (a charge, a gamepad trigger) pulls the
+     lens in over the shoulder. Every cast is a click there, and the boom
+     pumping in and out on each one read as camera hiccups. */
+  if (zeldaCtl()) return !!((R && R.charging) || gpFire);
   return !!(mouseFire || gpFire || (R && R.charging) || (pointerLocked && time - lastAimT < 0.8));
 }
+function zeldaCtl() { return CAMSET.ctl !== 1; }
 
 function nearestLivingEnemy(px, pz, maxD) {
   var bestE = null, bd = maxD || 28;
@@ -683,8 +746,45 @@ function cycleLockOn() {
   }
   if (lockOn) { lastAimT = time - 0.5; sfxGated('pop'); }
 }
+/* Z-target the goblin you would look at first: nearest, with a preference for
+   the ones already in front of the camera (locking onto something behind you
+   swings the whole world round — fine when you asked for it with a cycle, a
+   shock when you just pressed the button once). */
+function lockNearest() {
+  var pick = null, bs = 1e9;
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (!e || e.dead) continue;
+    var dx = e.x - R.x, dz = e.z - R.z, d = Math.hypot(dx, dz);
+    if (d > 34) continue;
+    var ahead = (dx / (d || 1)) * Math.sin(camYaw) + (dz / (d || 1)) * Math.cos(camYaw);
+    var sc = d * (ahead > 0.2 ? 1 : 1.9);
+    if (sc < bs) { bs = sc; pick = e; }
+  }
+  lockOn = pick;
+  if (lockOn) { lastAimT = time - 0.5; sfxGated('pop'); }
+  return lockOn;
+}
+function toggleLock() {
+  if (state !== 'play' || !R) return;
+  if (lockOn) { lockOn = null; return; }
+  /* nothing to target: Z with an empty field re-centres the camera behind
+     you (the other thing that button has always done) */
+  if (!lockNearest()) resetCamera(true);
+}
 function clearLockIfDead() {
-  if (lockOn && (lockOn.dead || Math.hypot(lockOn.x - R.x, lockOn.z - R.z) > 46)) lockOn = null;
+  if (!lockOn) return;
+  if (lockOn.dead || Math.hypot(lockOn.x - R.x, lockOn.z - R.z) > 46) {
+    /* the target died: in a Zelda dungeon the lock drops, in an arena with
+       nine more goblins that is nine more button presses — hand the lock to
+       the next nearest goblin if one is close enough to be the same fight */
+    var wasDead = lockOn.dead;
+    lockOn = null;
+    if (wasDead && zeldaCtl()) {
+      var nxt = nearestLivingEnemy(R.x, R.z, 15);
+      if (nxt) { lockOn = nxt; lastAimT = Math.min(lastAimT, time - 0.5); }
+    }
+  }
 }
 
 /* ---- occlusion --------------------------------------------------
@@ -843,7 +943,10 @@ function updateCamera(dtC, lookAt) {
   var spdF = clamp(spd / 9, 0, 1);
   var aiming = camAiming();
   var locked = !!(lockOn && !lockOn.dead);
-  var manual = pointerLocked || dragLookActive || gpAiming;
+  /* "manual" = the player is steering the lens right now. In ZELDA mode a
+     captured pointer is not steering by itself — the mouse only counts while
+     it is moving, so the follow-cam resumes the moment you let go of it. */
+  var manual = (pointerLocked && (!zeldaCtl() || time - lastAimT < 0.5)) || dragLookActive || gpAiming;
   /* --- cursor steering ---
    * The robust default: the camera turns to follow the mouse cursor, exactly
    * like a virtual joystick centred on the screen. No pointer lock, no drag,
@@ -853,7 +956,7 @@ function updateCamera(dtC, lookAt) {
    * does at some point), and it means the camera can never be "stuck". */
   var curActive = false;
   if (state === 'play' && !pointerLocked && !dragLookActive && !gpAiming &&
-      finePointer && !isTouch && CAMSET.aimMode === 0) {
+      finePointer && !isTouch && CAMSET.ctl === 1) {
     var cnx = mouseX / Ww * 2 - 1, cny = mouseY / Hh * 2 - 1;
     var cmag = Math.hypot(cnx, cny);
     var CDZ = 0.14;                                  /* centre dead zone */
@@ -903,15 +1006,30 @@ function updateCamera(dtC, lookAt) {
         var dyT = (ly + 1.0) - (lockOn.y + lockOn.h * 0.6);
         camPitchTarget = damp(camPitchTarget, clamp(0.30 + dyT * 0.045, -0.02, 0.6), 2.6, dtC);
       }
-    } else if (CAMSET.autoFrame && !aiming && !manual && time - lastAimT > 0.9) {
+    } else if (CAMSET.autoFrame && !aiming && !manual && time - lastAimT > (zeldaCtl() ? 0.6 : 0.9)) {
       /* auto-frame: pull behind the *velocity* so you see where you're going,
          not where you were. Rate-limited (it can never whip), and it stays
-         out of the way while a goblin is on top of you. */
+         out of the way while a goblin is on top of you.
+         ZELDA scheme: this is THE camera — nobody is steering it with a
+         cursor, so it follows sooner, from smaller angles, and keeps
+         following through a fight (a goblin next to you never freezes it). */
       var wantYaw = Math.atan2(R.vx, R.vz);
       var off = angDiff(camYawTarget, wantYaw);
-      if (spd > 3.0 && Math.abs(off) > 0.5 && nearThreat > 7.5) {
-        camAutoT = Math.min(1, camAutoT + dtC * 1.7);
-        camYawTarget = rateTo(camYawTarget, wantYaw, (0.8 + Math.abs(off) * 1.2) * camAutoT * camAutoT, dtC);
+      var zc = zeldaCtl();
+      /* ZELDA: the lens only settles in behind a *committed* run — W held.
+         Movement is camera-relative, so if a pure strafe (A/D alone) were
+         followed the lens would chase its own tail forever: every degree it
+         turns re-aims the strafe by a degree. Strafe = camera holds (you
+         circle what is in front of you); W+A / W+D = the run curves and the
+         lens leans into the bend, like steering. */
+      var fwdIn = lastMv[1];                            /* +1 = W, -1 = S */
+      var engage = zc ? (spd > 2.2 && fwdIn > 0.3 && Math.abs(off) > 0.12 && nearThreat > 2.6)
+                      : (spd > 3.0 && Math.abs(off) > 0.5 && nearThreat > 7.5);
+      if (engage) {
+        camAutoT = Math.min(1, camAutoT + dtC * (zc ? 3.0 : 1.7));
+        var fr = zc ? Math.min(1.6, 0.9 + Math.abs(off) * 0.8) * fwdIn : (0.8 + Math.abs(off) * 1.2);
+        camYawTarget = rateTo(camYawTarget, wantYaw, fr * camAutoT * camAutoT, dtC);
+        if (zc) camPitchTarget = damp(camPitchTarget, CAM_PITCH_HOME, 0.9, dtC);
       } else {
         camAutoT = Math.max(0, camAutoT - dtC * 3);
         /* threat framing: standing still with a goblin in your blind spot is
@@ -950,7 +1068,7 @@ function updateCamera(dtC, lookAt) {
   wantD *= 1 + spdF * 0.05;                            /* breathe out as you run */
   if (R.dashing) wantD *= 1.05;
   if (aiming && !locked) wantD *= 0.8;                 /* in over the shoulder */
-  if (locked) wantD += clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) * 0.15, 0, 2.2);
+  if (locked) wantD += clamp(Math.hypot(lockOn.x - lx, lockOn.z - lz) * 0.15, 0, zeldaCtl() ? 1.3 : 2.2);
   /* a GOBLIN KING is 1.85u of chest in your face at the default distance:
      give the arena a floor so the boss reads as a silhouette, not a wall */
   if (game.boss && !aiming) wantD = Math.max(wantD, 8.6);
@@ -1112,6 +1230,38 @@ function updateAim() {
     var l = Math.hypot(aimStickX, aimStickY) || 1;
     var ax = R.x + (aimStickX / l) * 9, az = R.z + (aimStickY / l) * 9;
     aim.x = ax; aim.z = az; aim.y = world.heightAt(ax, az);
+    return;
+  }
+  if (zeldaCtl() && !gpAiming) {
+    /* ZELDA aim: no cursor in the world. Not locked on → the shot goes at
+       the goblin nearest the direction you are facing (a generous cone,
+       closer wins), otherwise dead ahead. Aiming is *where you stand and
+       face*, exactly like a sword. If you have just orbited the camera by
+       hand, "facing" is where you looked — the mouse is a camera, and a
+       camera you turned toward something should be able to hit it. */
+    var fyaw = (pointerLocked && time - lastAimT < 1.2) ? camYaw : R.yaw;
+    var fx0 = Math.sin(fyaw), fz0 = Math.cos(fyaw);
+    var bestZ = null, bestS = 1e9;
+    for (var zi = 0; zi < enemies.length; zi++) {
+      var ze = enemies[zi];
+      if (ze.dead) continue;
+      var zdx = ze.x - R.x, zdz = ze.z - R.z, zd = Math.hypot(zdx, zdz);
+      if (zd > 30 || zd < 0.3) continue;
+      var zcos = (zdx / zd) * fx0 + (zdz / zd) * fz0;
+      /* ~70° half-cone close in, narrowing with range so a far goblin at
+         the edge of the screen never steals a shot from the one ahead */
+      var tol = zd < 4 ? 0.34 : (zd < 12 ? 0.6 : 0.82);
+      if (zcos < tol) continue;
+      var zsc = zd * (1.6 - zcos);
+      if (zsc < bestS) { bestS = zsc; bestZ = ze; }
+    }
+    if (bestZ) {
+      aim.x = bestZ.x; aim.z = bestZ.z; aim.y = world.heightAt(bestZ.x, bestZ.z) + bestZ.h * 0.5;
+      aim.assist = bestZ; aim.dot = 1;
+    } else {
+      var rx0 = R.x + fx0 * 9, rz0 = R.z + fz0 * 9;
+      aim.x = rx0; aim.z = rz0; aim.y = world.heightAt(rx0, rz0) + 0.9;
+    }
     return;
   }
   var centerAim = pointerLocked || gpAiming;
@@ -1286,12 +1436,20 @@ function stepPlayer(inp) {
   var aimX = aim.x - R.x, aimZ = aim.z - R.z;
   var al = Math.hypot(aimX, aimZ) || 1;
   aimX /= al; aimZ /= al;
-  if (lockOn || inp.fire || R.charging || R.shootAnim > 0 || R.meleeT > 0) {
+  var zc = zeldaCtl();
+  /* ZELDA: locked on → you always face the target (strafing around it),
+     shots/swings turn you at whatever they hit, otherwise you face where
+     you run. A bare "fire held" with nothing to hit must NOT pin your
+     facing: aim there is derived from facing, and the two would deadlock
+     (you could never turn while holding the button). */
+  var faceAim = lockOn || R.charging || R.shootAnim > 0 || R.meleeT > 0 ||
+    (inp.fire && (!zc || aim.assist || aim.lock));
+  if (faceAim) {
     faceTarget = Math.atan2(aimX, aimZ);
     R.yaw = angLerp(R.yaw, faceTarget, 1 - Math.exp(-fr * 20));
   } else if (walking) {
     faceTarget = Math.atan2(mvx, mvz);
-    R.yaw = angLerp(R.yaw, faceTarget, 1 - Math.exp(-fr * 15));
+    R.yaw = angLerp(R.yaw, faceTarget, 1 - Math.exp(-fr * (zc ? 18 : 15)));
   }
 
   /* dash */
@@ -2558,7 +2716,7 @@ function pickBoon(i) {
   game.boonOffer = null;
   hide('ovPick');
   state = 'play';
-  if (CAMSET.aimMode === 1 && finePointer && !isTouch) { try { canvas.requestPointerLock(); } catch (e) {} }
+  regrabPointer();
   applyBoon(b);
   showBanner(b.n, '+ ' + b.d);
   popText(R.x, R.y + 2.1, R.z, b.ico + ' ' + b.n, true, '#ffe9a8');
@@ -2817,7 +2975,9 @@ function updateCombo() {
   } else { c.style.opacity = 0; f.style.opacity = 0; }
 }
 function updateReticle() {
-  var showRet = state === 'play' && (finePointer || gpAiming);
+  /* ZELDA has no crosshair: the gold ground marker under the target is the
+     aim, the same way the Z-target arrow is in the games it borrows from */
+  var showRet = state === 'play' && (finePointer || gpAiming) && !(zeldaCtl() && !gpAiming);
   if (!showRet) { reticleEl.classList.remove('on'); document.body.classList.remove('aiming'); return; }
   reticleEl.classList.add('on');
   document.body.classList.add('aiming');
@@ -2988,12 +3148,6 @@ function drawRileyChar(o) {
   }
   bodyXform = null;
 }
-function drawRileyGlow() {
-  drawInstanced('box', 'g4', [80, 220, 255]);            /* glasses */
-  drawInstanced('sphereL', 'g5', [255, 235, 160]);       /* hat star */
-  var chg6 = (R && R.charging) ? chargePct() : 0;
-  drawInstanced('sphereL', 'g6', chg6 > 0.85 ? [200, 150, 255] : [255, 225, 130]); /* wand tip */
-}
 function drawGoblin(e) {
   if (e.hitT > 0 && !e.dead && Math.floor(time * 26) % 2 === 0) return;
   if (lensHide(e)) return;          /* corpses too: a dead face in the lens is the same artifact */
@@ -3098,11 +3252,6 @@ function drawThiefLoot(e) {
       (e.stolen && e.stolen[i] !== 'gem' ? [200, 140, 255] : [255, 214, 94]));
   }
 }
-function drawGoblinGlow() {
-  drawInstanced('box', 'g', [255, 220, 100]);            /* eyes */
-  drawInstanced('box', 'g2', [255, 70, 50]);             /* boss eyes */
-  drawInstanced('sphereL', 'g3', [190, 120, 255]);       /* spitter orb */
-}
 /*__END__*/
 function shade(c, f) { return [Math.min(255, c[0] * f) | 0, Math.min(255, c[1] * f) | 0, Math.min(255, c[2] * f) | 0]; }
 
@@ -3123,11 +3272,12 @@ addEventListener('resize', resize);
 
 function drawStaticVBO(vbo, n, texKey, alpha, glowCol, water) {
   gl.useProgram(pStat);
+  attribsPlain(4);
   gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 44, 0);
-  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 44, 12);
-  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 44, 24);
-  gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 44, 32);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 44, 0);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 44, 12);
+  gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 44, 24);
+  gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 44, 32);
   gl.uniformMatrix4fv(uStat.uPV, false, PVM);
   gl.uniformMatrix4fv(uStat.uV, false, VM);
   gl.uniform3f(uStat.uL, LIGHT[0], LIGHT[1], LIGHT[2]);
@@ -3227,12 +3377,27 @@ function render() {
     }
     if (Math.random() < 0.25) fxPush({ x: p.x + rnd2(-0.15, 0.15), y: py + rnd2(0, 0.2), z: p.z + rnd2(-0.15, 0.15), vx: 0, vy: rnd2(0.3, 0.8), vz: 0, life: 0.5, max: 0.5, s: 0.08, pr: col[0], pg: col[1], pb: col[2], pa: 0.7, grav: 0 });
   }
-  if (haloN) drawGlowList(haloScratch, 0, haloN);
-  haloN = 0;
-  /* enemies */
+  /* (pickup halos stay queued and go out with the rest after the bodies) */
+  /* enemies (bodies are batched and flushed with everything else below) */
   for (var ei2 = 0; ei2 < enemies.length; ei2++) { var eg = enemies[ei2]; if (!eg.dead || eg.dieT > 0) drawGoblin(eg); }
   for (var ei3 = 0; ei3 < enemies.length; ei3++) drawThiefLoot(enemies[ei3]);
-  drawGoblinGlow();
+  /* enemy shots */
+  for (var es = 0; es < eShots.length; es++) {
+    var s = eShots[es];
+    C.limb2(MM, s.x, s.y, s.z, 0, 0, 0, 0, 0, 0, 0, 0, 0, s.r * 2, s.r * 2, s.r * 2);
+    instPart('sphere', '', MM, s.col);
+  }
+  /* Riley */
+  if (R && (state === 'play' || state === 'over' || state === 'pause' || state === 'pick' || state === 'title')) drawRileyChar(R);
+  /* player shots */
+  for (var sh = 0; sh < shots.length; sh++) {
+    var s2 = shots[sh];
+    var sc = s2.big ? s2.r * 2.4 : s2.r * 2;
+    C.limb2(MM, s2.x, s2.y, s2.z, 0, time * 6, 0, 0, 0, 0, 0, 0, sc, sc, sc);
+    instPart('sphere', '', MM, s2.col);
+  }
+  /* ---- every batched body, in one pass: Riley, goblins, loot, shots ---- */
+  instFlushAll();
   /* elite auras + attack telegraphs (one additive pass) */
   for (var et = 0; et < enemies.length; et++) {
     var ee = enemies[et];
@@ -3279,26 +3444,6 @@ function render() {
       pr: aim.lock ? 255 : 190, pg: aim.lock ? 205 : 225, pb: aim.lock ? 90 : 255,
       pa: 0.85, life: 1, max: 1 }], 0);
   }
-  /* enemy shots */
-  for (var es = 0; es < eShots.length; es++) {
-    var s = eShots[es];
-    C.limb2(MM, s.x, s.y, s.z, 0, 0, 0, 0, 0, 0, 0, 0, 0, s.r * 2, s.r * 2, s.r * 2);
-    instPart('sphere', '', MM, s.col);
-  }
-  /* Riley */
-  if (state === 'play' || state === 'over' || state === 'pause') {
-    if (R) drawRileyChar(R);
-  } else if (state === 'title' && R) {
-    drawRileyChar(R);
-  }
-  drawRileyGlow();
-  /* player shots */
-  for (var sh = 0; sh < shots.length; sh++) {
-    var s2 = shots[sh];
-    var sc = s2.big ? s2.r * 2.4 : s2.r * 2;
-    C.limb2(MM, s2.x, s2.y, s2.z, 0, time * 6, 0, 0, 0, 0, 0, 0, sc, sc, sc);
-    instPart('sphere', '', MM, s2.col);
-  }
   /* NOVA shockwave */
   if (R && R.novaFx > 0) {
     var nt = 1 - R.novaFx / 0.6;
@@ -3313,19 +3458,14 @@ function render() {
 function drawPropInstanced(pd) {
   var geo = pd.geo;
   gl.useProgram(pInst);
+  attribsInst();
   gl.bindBuffer(gl.ARRAY_BUFFER, geo.v);
-  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
-  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
-  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
+  gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
   gl.bindBuffer(gl.ARRAY_BUFFER, pd.vbo);
-  for (var i = 0; i < 4; i++) {
-    gl.enableVertexAttribArray(3 + i);
-    gl.vertexAttribPointer(3 + i, 4, gl.FLOAT, false, 76, i * 16);
-    ext.vertexAttribDivisorANGLE(3 + i, 1);
-  }
-  gl.enableVertexAttribArray(7);
+  for (var i = 0; i < 4; i++) gl.vertexAttribPointer(3 + i, 4, gl.FLOAT, false, 76, i * 16);
   gl.vertexAttribPointer(7, 3, gl.FLOAT, false, 76, 64);
-  ext.vertexAttribDivisorANGLE(7, 1);
   gl.uniformMatrix4fv(uInst.uPV, false, PVM);
   gl.uniformMatrix4fv(uInst.uV, false, VM);
   gl.uniform3f(uInst.uL, LIGHT[0], LIGHT[1], LIGHT[2]);
@@ -3631,6 +3771,7 @@ function updateGpHint() {
   h.style.display = gpPad ? 'block' : 'none';
 }
 
+var lastMv = [0, 0];               /* this tick's raw (strafe, forward) stick, for the follow-cam */
 function moveVec() {
   var sr = 0, su = 0;
   if (keys['KeyW'] || keys['ArrowUp']) su += 1;
@@ -3641,6 +3782,7 @@ function moveVec() {
   if (gpMove[0] !== 0 || gpMove[1] !== 0) { sr = gpMove[0]; su = gpMove[1]; }
   var l = Math.hypot(sr, su);
   if (l > 1) { sr /= l; su /= l; }
+  lastMv[0] = sr; lastMv[1] = su;
   /* Camera-relative, using the *view's own* right row: m4Look builds
      right = cross(up, -forward), which at camYaw=0 (looking +Z) is world -X.
      The old basis was its mirror, so A/D were swapped — and any "fix" to the
@@ -3682,10 +3824,13 @@ document.addEventListener('keydown', function (e) {
   if (e.code === 'Tab' || e.code === 'KeyZ') {
     e.preventDefault();
     if (state === 'play') {
-      if (lockOn) lockOn = null;
-      else cycleLockOn();
+      /* Z-target: press = lock the goblin in front of you, press again =
+         release. X cycles to the next goblin without dropping the lock. */
+      toggleLock();
     }
   }
+  if (e.code === 'KeyX' && state === 'play') { e.preventDefault(); if (lockOn) cycleLockOn(); else toggleLock(); }
+  if (e.code === 'Escape' && state === 'play' && lockOn && !pointerLocked) lockOn = null;
   if (e.code === 'KeyC') meleePulse = 0.05;
   if (e.code === 'KeyR' && state === 'play') resetCamera(true);
   if (e.code === 'KeyL' && state === 'play') { toggleAimMode(); }
@@ -3706,13 +3851,27 @@ window.addEventListener('blur', function () {
   jumpHeld = false; dashHeld = false; novaHeld = false;
   if (state === 'play') pauseGame();
 });
+var lockNoRetry = false;        /* browser said no: stop asking on every click */
 document.addEventListener('pointerlockchange', function () {
+  var was = pointerLocked;
   pointerLocked = document.pointerLockElement === canvas;
+  lockNoRetry = false;
+  /* left the lock while still playing = the player pressed Esc: respect
+     that and stop re-grabbing after every menu until they click again */
+  if (was && !pointerLocked && state === 'play') wantPointer = false;
+  if (pointerLocked) wantPointer = true;
   if (!pointerLocked) {
     /* re-centre the steering anchor: coming out of a lock must never fling
        the camera toward wherever the cursor happens to be sitting */
     mouseX = Ww / 2; mouseY = Hh / 2;
   }
+});
+document.addEventListener('pointerlockerror', function () {
+  /* refused (iframe without the permission, or the post-Esc cooldown). Back
+     off for a moment so a fast clicker doesn't hammer the browser; ZELDA
+     mode does not need the lock to be playable. */
+  lockNoRetry = true;
+  setTimeout(function () { lockNoRetry = false; }, 1500);
 });
 function lookDelta(mx, my, k) {
   var sens = k * CAMSET.sens;
@@ -3735,15 +3894,16 @@ canvas.addEventListener('pointerdown', function (e) {
   if (e.button === 0) {
     if (pointerLocked) {
       mouseFire = true;
-    } else if (CAMSET.aimMode === 1 && finePointer) {
-      /* pointer-lock aim (opt-in): click the arena to grab the cursor. If the
-         browser refuses, the cursor-steer path below still works — a failed
-         lock is never a dead camera. */
-      try { canvas.requestPointerLock(); } catch (err) {}
-      dragLookActive = true;
-      dragMovedAcc = 0;
+    } else if (zeldaCtl() && finePointer) {
+      /* ZELDA: the click is the attack — always. It also asks the browser
+         for the pointer so the mouse can orbit the camera; if that is
+         refused (or the user presses Esc) nothing is lost: the auto-frame
+         camera and Z-targeting carry the game on their own. */
+      mouseFire = true;
+      tapPulse = 0.07;
+      if (!lockNoRetry) { try { canvas.requestPointerLock(); } catch (err) {} }
     } else {
-      /* cursor aim (default): left-click simply fires at the cursor. */
+      /* CURSOR: left-click simply fires at the cursor. */
       mouseFire = true;
       tapPulse = 0.07;
     }
@@ -4058,10 +4218,11 @@ function startGame() {
   frame = 0;
   acc = 0;
   audioInit();
-  /* grab the cursor only in pointer-lock aim mode — cursor mode needs the
-     pointer free, and an eager lock there is exactly what made controls feel
-     stuck on browsers that refuse or throttle the request */
-  if (CAMSET.aimMode === 1 && finePointer && !isTouch) { try { canvas.requestPointerLock(); } catch (e) {} }
+  /* ZELDA: the click that started the run doubles as the mouse-orbit grab
+     (a user gesture is required; this is one). If the browser refuses, the
+     game is still fully playable — the camera frames itself. CURSOR mode
+     needs the pointer free and never asks. */
+  regrabPointer();
   /* drop focus from whatever button started the run so Space can't re-click
      it mid-fight (a hidden focused button eats the jump key) */
   try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
@@ -4131,22 +4292,23 @@ var CAM_TGL = [
 /* AIM MODE — cursor steer vs pointer lock. Two dials on the same game:
    cursor mode never asks the browser for anything (nothing can refuse, so the
    camera can never stick), lock mode is the classic FPS look. Both persist. */
-function aimModeLabel() { return CAMSET.aimMode === 1 ? 'LOCK AIM' : 'CURSOR AIM'; }
+function aimModeLabel() { return CAMSET.ctl === 1 ? 'CURSOR AIM' : 'ZELDA'; }
 function toggleAimMode() {
-  CAMSET.aimMode = CAMSET.aimMode === 1 ? 0 : 1;
+  CAMSET.ctl = CAMSET.ctl === 1 ? 0 : 1;
   saveCamSet();
   camUiRefresh();
   sfxGated('pop');
-  /* switching to lock mode is when we *try* to grab the pointer; switching
-     back is when we make sure it is free again */
-  if (CAMSET.aimMode === 1 && state === 'play' && finePointer && !isTouch) {
-    try { canvas.requestPointerLock(); } catch (e) {}
-  } else if (CAMSET.aimMode === 0) {
+  if (CAMSET.ctl === 1) {
+    /* cursor mode steers by cursor position: the pointer must be free */
     try { if (document.pointerLockElement === canvas) document.exitPointerLock(); } catch (e) {}
     mouseX = Ww / 2; mouseY = Hh / 2;
+    lockOn = null;
+  } else {
+    wantPointer = true;
+    if (state === 'play') regrabPointer();
   }
-  showBanner('AIM: ' + aimModeLabel(),
-    CAMSET.aimMode === 1 ? 'CLICK CANVAS TO LOCK · MOUSE LOOKS' : 'CAMERA FOLLOWS YOUR CURSOR · CLICK TO CAST');
+  showBanner('CONTROLS: ' + aimModeLabel(),
+    CAMSET.ctl === 1 ? 'CAMERA FOLLOWS YOUR CURSOR · CLICK TO CAST' : 'CAMERA FOLLOWS YOU · TAB TARGETS · CLICK ATTACKS');
 }
 function camUiRefresh() {
   var i, r;
@@ -4161,7 +4323,7 @@ function camUiRefresh() {
     if (b) { b.classList.toggle('on', !!CAMSET[CAM_TGL[i].key]); b.setAttribute('aria-pressed', CAMSET[CAM_TGL[i].key] ? 'true' : 'false'); }
   }
   var ab = el('tglAim');
-  if (ab) { ab.classList.toggle('on', CAMSET.aimMode === 1); ab.textContent = aimModeLabel(); }
+  if (ab) { ab.classList.toggle('on', CAMSET.ctl === 1); ab.textContent = aimModeLabel(); }
 }
 function camUiBind() {
   CAM_UI.forEach(function (r) {
@@ -4214,7 +4376,14 @@ function resumeGame() {
   if (state !== 'pause') return;
   state = 'play';
   hide('ovPause');
-  if (CAMSET.aimMode === 1 && finePointer && !isTouch) { try { canvas.requestPointerLock(); } catch (e) {} }
+  regrabPointer();
+}
+/* ask for the pointer again after a menu — only in ZELDA mode, only on a
+   fine pointer, only when the user has not opted out with Esc this run */
+var wantPointer = true;
+function regrabPointer() {
+  if (!zeldaCtl() || !finePointer || isTouch || !wantPointer || lockNoRetry) return;
+  try { canvas.requestPointerLock(); } catch (e) {}
 }
 function titleScene() {
   if (!world) buildWorld(seedStr || 'RILEY');
@@ -4431,6 +4600,7 @@ if (SELFTEST) {
     },
     fire: function () { fireShot(); },
     hurtAll: function () { for (var i = enemies.length - 1; i >= 0; i--) if (!enemies[i].dead) damageGob(enemies[i], 99, Math.sin(i + 1), Math.cos(i + 1)); },
+    hurtOne: function (i) { var e = enemies[i]; if (e && !e.dead) { damageGob(e, 99, 1, 0); return true; } return false; },
     nextWave: function () { waveClear(); game.clearT = 0.01; },
     wave: function (n) { startWave(n); },
     /* the live view basis (rows of the view matrix). Tests use this to pin
@@ -4440,11 +4610,25 @@ if (SELFTEST) {
        warps every goblin after it. Cheap to assert, impossible to see in a
        headless test otherwise. */
     bodyIdle: function () { return bodyXform === null; },
+    /* instance buckets that still hold parts after a render = bodies that
+       were built and never drawn. The 2026-09 "no sprites" bug was exactly
+       this: only the glow-tagged buckets were flushed. */
+    unflushed: function () {
+      var out = [];
+      for (var k in instBuckets) if (instBuckets[k].n > 0) out.push(k + ':' + instBuckets[k].n);
+      return out;
+    },
+    /* draw-call signature of one frame: which buckets got flushed, how many
+       instances each — a body is only on the screen if its bucket is here */
+    lastFlush: function () { return lastFlush.slice(); },
     basis: function () {
-      return { right: [VM[0], VM[4], VM[8]], up: [VM[1], VM[5], VM[9]],
-        /* row 2 of a GL view matrix is the camera's BACKWARD axis; negate so
-           the hook reads like the world (fwd = where the camera looks) */
-        fwd: [-VM[2], -VM[6], -VM[10]],
+      /* C.m4Look writes the basis vectors as *contiguous triples*: VM[0..2]
+         right, VM[4..6] up, VM[8..10] back (the same slots updateAim reads).
+         The old stride-4 read here returned a forward vector with its X
+         mirrored — the playtest bot has been steering half-wrong since it
+         was written, which is why it kept running to the world's edge. */
+      return { right: [VM[0], VM[1], VM[2]], up: [VM[4], VM[5], VM[6]],
+        fwd: [-VM[8], -VM[9], -VM[10]],
         yaw: camYaw, pitch: camPitch, dist: camDist, fov: camFov,
         eye: [eye[0], eye[1], eye[2]], ctr: [ctr[0], ctr[1], ctr[2]], kick: Math.hypot(camKickY, camKickP, camKickR) };
     },
