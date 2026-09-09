@@ -1,0 +1,133 @@
+<!-- cards/text-diff-checker.html -->
+<h2 id="txtdiff-title" style="margin-top:0;color:var(--accent);">🔍 Text Diff Checker</h2>
+
+<div class="txtdiff-container" style="font-family:inherit;color:var(--text);">
+  <p id="txtdiff-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Compare two blocks of text line by line and see exactly what was added, removed or left alone. Useful for contract revisions, config files, essay drafts and copy-paste sanity checks. Runs entirely offline.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="txtdiff-a" style="display:block;margin-bottom:4px;color:var(--accent);font-size:0.85rem;font-weight:600;">Original</label>
+      <textarea id="txtdiff-a" rows="8" placeholder="Paste the original text…" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.25);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.6;resize:vertical;box-sizing:border-box;"></textarea>
+    </div>
+    <div>
+      <label for="txtdiff-b" style="display:block;margin-bottom:4px;color:var(--accent);font-size:0.85rem;font-weight:600;">Changed</label>
+      <textarea id="txtdiff-b" rows="8" placeholder="Paste the revised text…" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(57,255,20,0.25);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.6;resize:vertical;box-sizing:border-box;"></textarea>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;">
+    <label style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:0.85rem;cursor:pointer;">
+      <input type="checkbox" id="txtdiff-case" style="accent-color:var(--accent);"> Ignore case
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:0.85rem;cursor:pointer;">
+      <input type="checkbox" id="txtdiff-space" checked style="accent-color:var(--accent);"> Ignore leading/trailing spaces
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:0.85rem;cursor:pointer;">
+      <input type="checkbox" id="txtdiff-blank" style="accent-color:var(--accent);"> Ignore blank lines
+    </label>
+  </div>
+
+  <button type="button" id="txtdiff-go" style="width:100%;padding:12px;border-radius:8px;border:none;background:var(--accent);color:#000;font-weight:700;font-size:1rem;cursor:pointer;margin-bottom:16px;">🔍 Compare</button>
+
+  <div id="txtdiff-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;"></div>
+
+  <div id="txtdiff-out" style="max-height:420px;overflow:auto;border-radius:10px;border:1px solid rgba(45,212,255,0.15);background:rgba(0,0,0,0.3);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.8rem;line-height:1.7;"></div>
+</div>
+
+<script>
+(function(){
+  var nodes = document.querySelectorAll('.txtdiff-container');
+  var root = nodes[nodes.length-1];
+  if(!root) return;
+  var $ = function(id){ return root.querySelector('#'+id); };
+
+  function esc(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function normalise(line){
+    var out = line;
+    if ($('txtdiff-space').checked) out = out.trim();
+    if ($('txtdiff-case').checked) out = out.toLowerCase();
+    return out;
+  }
+
+  // Classic Longest Common Subsequence table over lines.
+  function lcs(a, b){
+    var n = a.length, m = b.length;
+    var table = [];
+    for (var i=0;i<=n;i++) table.push(new Uint32Array(m+1));
+    for (var i2=n-1;i2>=0;i2--){
+      for (var j=m-1;j>=0;j--){
+        table[i2][j] = a[i2] === b[j] ? table[i2+1][j+1] + 1 : Math.max(table[i2+1][j], table[i2][j+1]);
+      }
+    }
+    return table;
+  }
+
+  function stat(label, value, colour){
+    return '<div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:12px;border:1px solid '+colour+'33;text-align:center;">'+
+      '<div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:4px;">'+label+'</div>'+
+      '<div style="font-size:1.35rem;font-weight:700;color:'+colour+';">'+value+'</div></div>';
+  }
+
+  function row(sign, numA, numB, text, bg, colour){
+    return '<div style="display:flex;gap:0;background:'+bg+';">'+
+      '<span style="flex:0 0 46px;text-align:right;padding:2px 8px;color:rgba(230,250,255,0.35);user-select:none;">'+(numA||'')+'</span>'+
+      '<span style="flex:0 0 46px;text-align:right;padding:2px 8px;color:rgba(230,250,255,0.35);user-select:none;">'+(numB||'')+'</span>'+
+      '<span style="flex:0 0 18px;color:'+colour+';user-select:none;">'+sign+'</span>'+
+      '<span style="flex:1;padding:2px 8px 2px 0;white-space:pre-wrap;word-break:break-word;color:'+colour+';">'+(esc(text) || '&nbsp;')+'</span></div>';
+  }
+
+  function compare(){
+    var rawA = $('txtdiff-a').value.split('\n');
+    var rawB = $('txtdiff-b').value.split('\n');
+    if ($('txtdiff-blank').checked){
+      rawA = rawA.filter(function(l){ return l.trim() !== ''; });
+      rawB = rawB.filter(function(l){ return l.trim() !== ''; });
+    }
+    var a = rawA.map(normalise), b = rawB.map(normalise);
+
+    if (a.length * b.length > 4000000){
+      $('txtdiff-out').innerHTML = '<div style="padding:14px;color:#ffa500;">Those blocks are very large — trim them to a few thousand lines each and try again.</div>';
+      return;
+    }
+
+    var table = lcs(a, b);
+    var i = 0, j = 0, html = '', added = 0, removed = 0, same = 0;
+    while (i < a.length && j < b.length){
+      if (a[i] === b[j]){
+        html += row(' ', i+1, j+1, rawA[i], 'transparent', 'rgba(230,250,255,0.75)');
+        same++; i++; j++;
+      } else if (table[i+1][j] >= table[i][j+1]){
+        html += row('−', i+1, '', rawA[i], 'rgba(255,64,129,0.12)', '#ff4081');
+        removed++; i++;
+      } else {
+        html += row('+', '', j+1, rawB[j], 'rgba(57,255,20,0.10)', '#39ff14');
+        added++; j++;
+      }
+    }
+    while (i < a.length){ html += row('−', i+1, '', rawA[i], 'rgba(255,64,129,0.12)', '#ff4081'); removed++; i++; }
+    while (j < b.length){ html += row('+', '', j+1, rawB[j], 'rgba(57,255,20,0.10)', '#39ff14'); added++; j++; }
+
+    if (!html) html = '<div style="padding:14px;color:var(--text-secondary);">Both boxes are empty — paste some text to compare.</div>';
+    else if (added === 0 && removed === 0) html = '<div style="padding:14px;color:#39ff14;">✅ Identical — no differences found.</div>' + html;
+
+    $('txtdiff-out').innerHTML = html;
+    var total = added + removed + same;
+    var pct = total ? Math.round(same / total * 100) : 100;
+    $('txtdiff-stats').innerHTML =
+      stat('Added', added, '#39ff14') +
+      stat('Removed', removed, '#ff4081') +
+      stat('Unchanged', same, 'var(--accent)') +
+      stat('Similarity', pct + '%', '#ffd700');
+  }
+
+  $('txtdiff-go').addEventListener('click', compare);
+  $('txtdiff-a').addEventListener('input', compare);
+  $('txtdiff-b').addEventListener('input', compare);
+  compare();
+})();
+</script>
