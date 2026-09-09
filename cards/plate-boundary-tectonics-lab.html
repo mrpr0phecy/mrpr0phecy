@@ -1,0 +1,355 @@
+<h2 id="tct-title" style="margin-top:0;color:var(--accent);">🌍 Plate Boundaries — Tectonics Lab</h2>
+
+<form aria-describedby="tct-desc" onsubmit="event.preventDefault();">
+  <p id="tct-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Four boundary types, four very different landscapes: spreading ridges, subduction volcanoes, Himalaya-scale
+    collisions and stick-slip transform faults — with earthquakes and mantle convection driving it all.
+  </p>
+
+  <div style="background:#050a12;border:1px solid rgba(45,212,255,.3);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="tct-canvas" width="760" height="430" style="width:100%;height:auto;display:block;background:#060d18;border-radius:6px;" role="img" aria-label="Animated tectonic cross-sections: divergent ridge, subduction zone, continental collision and transform fault"></canvas>
+    <div id="tct-status" style="font-size:0.72rem;color:var(--accent);margin-top:6px;padding:0 4px;min-height:3em;font-family:ui-monospace,monospace;"></div>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="tct-mode" data-m="0" style="padding:5px 10px;border-radius:5px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.72rem;font-weight:bold;cursor:pointer;">Divergent</button>
+    <button type="button" class="tct-mode" data-m="1" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">Subduction</button>
+    <button type="button" class="tct-mode" data-m="2" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">Collision</button>
+    <button type="button" class="tct-mode" data-m="3" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">Transform</button>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="tct-play" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.75rem;font-weight:bold;cursor:pointer;">⏸ Pause</button>
+    <label for="tct-speed" style="display:flex;align-items:center;gap:8px;font-size:0.72rem;color:var(--text-secondary);">
+      <span>Plate speed</span>
+      <input type="range" id="tct-speed" min="5" max="30" value="12" style="width:120px;">
+      <span id="tct-speed-val" style="color:var(--accent);font-family:ui-monospace,monospace;">1.2×</span>
+    </label>
+    <span id="tct-quakes" style="margin-left:auto;font-size:0.72rem;color:#ffd166;font-family:ui-monospace,monospace;">earthquakes: 0</span>
+  </div>
+
+  <details style="margin-bottom:6px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.8rem;">📖 Key facts</summary>
+    <div class="small" style="color:var(--text-secondary);font-size:0.78rem;line-height:1.5;margin-top:8px;">
+      <p style="margin:0 0 8px;">Earth's lithosphere is broken into ~15 major plates riding on the slowly flowing mantle
+      (a few cm/yr — fingernail speed).GPS confirms the motions. Three boundary types do almost all the work:
+      <b>divergent</b> (plates apart — new crust, shallow quakes, ridges &amp; rifts), <b>convergent</b> (one plate sinks
+      or two crumple — trenches, volcanic arcs, the deepest earthquakes, the tallest mountains), and
+      <b>transform</b> (plates sliding past — shallow, violent strike-slip quakes like San Francisco 1906).</p>
+      <p style="margin:0;">The magnetic stripes in the divergent view are real: as lava cools through the Curie point it
+      freezes the Earth's magnetic field direction — flipped many times in history — giving stripe pairs that proved
+      seafloor spreading in the 1960s. Ring of Fire = subduction zones around the Pacific.</p>
+    </div>
+  </details>
+</form>
+
+<script>
+(function(){
+  'use strict';
+  var cv = document.getElementById('tct-canvas');
+  if (!cv || cv.__tctInit) return;
+  cv.__tctInit = true;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var statusEl = document.getElementById('tct-status');
+  var playBtn = document.getElementById('tct-play');
+  var sSpd = document.getElementById('tct-speed'), vSpd = document.getElementById('tct-speed-val');
+  var quakeEl = document.getElementById('tct-quakes');
+  var modeBtns = Array.prototype.slice.call(document.querySelectorAll('.tct-mode'));
+
+  var CAPTIONS = [
+    'DIVERGENT — plates pull apart; hot mantle rises and melts, welding new oceanic crust onto both plates. The mirror-image magnetic stripes record every flip of Earth\u2019s field. Example: Mid-Atlantic Ridge · East African Rift.',
+    'SUBDUCTION — dense oceanic lithosphere dives beneath the continent. Water baked out of the slab melts the mantle above, feeding a chain of explosive volcanoes. Examples: Andes · Japan · Cascades. Quakes trace the sinking slab.',
+    'COLLISION — two buoyant continents cannot subduct, so the crust thickens, folds and thrusts skyward. Example: India ramming Asia → the Himalaya and Everest, still rising ~4 mm/yr.',
+    'TRANSFORM — plates grind past each other. Friction makes them stick; elastic stress builds for decades, then snaps in seconds (elastic rebound). Example: San Andreas Fault · Alpine Fault.'
+  ];
+  var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var playing = !(mq && mq.matches), dirty = true;
+  var mode = 0, t = 0, quakes = 0, scroll = 0, mt = 6, stress = 20, slip = 0, shake = 0, puffT = 0;
+  var puff = [], dots = [];
+  function speed(){ return +sSpd.value/10; }
+
+  var SLAB = [];
+  (function(){
+    var key = [[-30,110],[340,110],[400,128],[450,205],[480,275],[500,345],[512,415]];
+    for (var i=0;i<key.length-1;i++){
+      var a=key[i], b=key[i+1];
+      for (var s=0;s<12;s++){
+        var f=s/12, mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+        var fx = (1-f)*(1-f)*a[0] + 2*(1-f)*f*mx + f*f*b[0];
+        var fy = (1-f)*(1-f)*a[1] + 2*(1-f)*f*my + f*f*b[1];
+        SLAB.push([fx,fy]);
+      }
+    }
+    SLAB.push(key[key.length-1]);
+  })();
+  function slabAt(f){ return SLAB[Math.min(SLAB.length-1, Math.max(0, Math.round(f*(SLAB.length-1))))]; }
+
+  function label(txt,x,y,color,align){
+    ctx.font='600 10px ui-monospace,monospace'; ctx.textAlign=align||'left';
+    ctx.fillStyle='rgba(5,10,18,.65)';
+    var w2=ctx.measureText(txt).width;
+    ctx.fillRect(align==='center'?x-w2/2-3:(align==='right'?x-w2-3:x-3), y-10, w2+6, 13);
+    ctx.fillStyle=color||'rgba(230,250,255,.85)';
+    ctx.fillText(txt,x,y);
+  }
+  function arrow(x1,y1,x2,y2,color,w2){
+    var a=Math.atan2(y2-y1,x2-x1), hd=7;
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w2||2; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-hd*Math.cos(a-0.45),y2-hd*Math.sin(a-0.45));
+    ctx.lineTo(x2-hd*Math.cos(a+0.45),y2-hd*Math.sin(a+0.45));
+    ctx.closePath(); ctx.fill();
+  }
+  function addDot(x,y,deep){ dots.push({x:x,y:y,life:1,deep:deep}); quakes++; quakeEl.textContent='earthquakes: '+quakes; }
+
+  function mantle(){
+    var mg = ctx.createLinearGradient(0,150,0,H);
+    mg.addColorStop(0,'#5a2e18'); mg.addColorStop(1,'#2e1206');
+    ctx.fillStyle = mg; ctx.fillRect(0,150,W,H-150);
+  }
+  function convection(y0, flip){
+    ctx.save(); ctx.strokeStyle='rgba(255,150,80,.5)'; ctx.lineWidth=2.5;
+    ctx.setLineDash([8,10]); ctx.lineDashOffset = -t*24*(flip?-1:1);
+    ctx.beginPath(); ctx.ellipse(0,y0,85,55,0,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+    arrow(flip?-8:8, y0-55, flip?8:-8, y0-55, 'rgba(255,170,90,.7)', 1.5);
+  }
+
+  function renderDiv(){
+    var seaL = 58;
+    ctx.fillStyle='#123a5e'; ctx.fillRect(0,seaL,W,110-seaL);
+    mantle();
+    /* crust stripes */
+    var off = scroll % 26;
+    for (var k=0;k<15;k++){
+      var d = k*26 + off;
+      [['L',380-d],['R',380+d]].forEach(function(sd){
+        var x0 = sd[1];
+        if (x0 > -26 && x0 < W){
+          ctx.fillStyle = (k%2) ? '#6b4f3a' : '#816049';
+          ctx.fillRect(x0, 110, 24, 26);
+        }
+      });
+    }
+    /* ridge */
+    ctx.fillStyle='#0a1626';
+    ctx.beginPath(); ctx.moveTo(362,110); ctx.lineTo(380,124); ctx.lineTo(398,110); ctx.closePath(); ctx.fill();
+    var pg = ctx.createRadialGradient(380,150,2,380,150,40);
+    pg.addColorStop(0,'rgba(255,120,40,'+(0.5+0.3*Math.sin(t*3))+')'); pg.addColorStop(1,'rgba(255,120,40,0)');
+    ctx.fillStyle=pg; ctx.beginPath(); ctx.arc(380,150,40,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#ff7a28'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(380,150); ctx.lineTo(380,126); ctx.stroke();
+    /* dots */
+    dots.forEach(function(d){ ctx.fillStyle='rgba(255,220,120,'+d.life+')'; ctx.beginPath(); ctx.arc(d.x,d.y,d.deep?3:2,0,Math.PI*2); ctx.fill(); });
+    convection(285, false); convection(285, true);
+    arrow(300,96,240,96,'rgba(140,220,255,.85)',2.5); arrow(460,96,520,96,'rgba(140,220,255,.85)',2.5);
+    label('plates spread apart (2–10 cm/yr)',380,84,'rgba(140,220,255,.9)','center');
+    label('mid-ocean ridge',380,146,'rgba(255,170,90,.95)','center');
+    label('new crust — magnetic stripes',150,132,'rgba(230,250,255,.8)');
+    label('older crust →',40,124,'rgba(230,250,255,.55)');
+    label('mantle convection',380,300,'rgba(255,170,90,.7)','center');
+  }
+
+  function renderSub(){
+    ctx.fillStyle='#123a5e'; ctx.fillRect(0,58,W,52);
+    mantle();
+    /* continent */
+    ctx.beginPath();
+    ctx.moveTo(428,95); ctx.lineTo(760,95); ctx.lineTo(760,170); ctx.lineTo(560,170);
+    ctx.quadraticCurveTo(520,170,505,150); ctx.lineTo(470,150); ctx.lineTo(445,122); ctx.closePath();
+    ctx.fillStyle='#5f5138'; ctx.fill();
+    /* mountains */
+    ctx.fillStyle='#7a6a4a';
+    [[600,70],[660,52],[715,74]].forEach(function(m){
+      ctx.beginPath(); ctx.moveTo(m[0]-30,95); ctx.lineTo(m[0],95-m[1]); ctx.lineTo(m[0]+30,95); ctx.closePath(); ctx.fill();
+    });
+    /* volcano */
+    ctx.fillStyle='#4a3b30';
+    ctx.beginPath(); ctx.moveTo(538,95); ctx.lineTo(562,52); ctx.lineTo(586,95); ctx.closePath(); ctx.fill();
+    if (puff.length){
+      puff.forEach(function(p){
+        ctx.fillStyle='rgba(200,200,210,'+p.life*0.7+')';
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+      });
+    }
+    /* slab */
+    ctx.lineCap='round';
+    ctx.strokeStyle='#57544e'; ctx.lineWidth=17;
+    ctx.beginPath(); SLAB.forEach(function(p,i){ i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); }); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=2;
+    ctx.setLineDash([9,13]); ctx.lineDashOffset = -scroll*2;
+    ctx.beginPath(); SLAB.forEach(function(p,i){ i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); }); ctx.stroke();
+    ctx.setLineDash([]);
+    /* trench water */
+    ctx.fillStyle='#0d2c4a';
+    ctx.beginPath(); ctx.moveTo(380,80); ctx.lineTo(428,80); ctx.lineTo(445,122); ctx.lineTo(428,140); ctx.closePath(); ctx.fill();
+    /* melting + feed */
+    var pa = 0.55+0.35*Math.sin(t*2.5);
+    ctx.fillStyle='rgba(255,110,40,'+pa+')';
+    ctx.beginPath(); ctx.ellipse(470,235,14,9,0.5,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(495,280,11,7,0.6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,110,40,'+(pa*0.8)+')'; ctx.lineWidth=2; ctx.setLineDash([4,5]);
+    ctx.beginPath(); ctx.moveTo(485,230); ctx.quadraticCurveTo(540,170,560,100); ctx.stroke(); ctx.setLineDash([]);
+    /* quake dots */
+    dots.forEach(function(d){ ctx.fillStyle='rgba(255,220,120,'+d.life+')'; ctx.beginPath(); ctx.arc(d.x,d.y,3,0,Math.PI*2); ctx.fill(); });
+    arrow(120,92,190,92,'rgba(140,220,255,.85)',2.5);
+    label('oceanic plate ≈7 cm/yr',150,72,'rgba(140,220,255,.9)','center');
+    label('TRENCH',405,70,'rgba(160,210,255,.95)','center');
+    label('volcanic arc',562,44,'rgba(255,170,90,.95)','center');
+    label('water bakes out → partial melting',470,255,'rgba(255,150,80,.9)','center');
+    label('subducting slab',300,132,'rgba(230,250,255,.8)','center');
+    label('deep quakes (Wadati–Benioff)',515,360,'rgba(255,220,120,.85)','center');
+  }
+
+  function renderCol(){
+    mantle();
+    var cxr = 380, off = Math.min(70, scroll*0.5);
+    ctx.fillStyle='#5f5138';
+    ctx.fillRect(0,110,340+off,40);
+    ctx.fillRect(420-off,110,W-(420-off),40);
+    /* crumple zone */
+    ctx.fillStyle='#7a6a4a';
+    var hs=[0.55,1,0.75,0.95,0.6];
+    for (var m2=0;m2<5;m2++){
+      var h2 = mt*hs[m2], mx = cxr-120+m2*60;
+      ctx.beginPath(); ctx.moveTo(mx-44,110); ctx.lineTo(mx,110-h2); ctx.lineTo(mx+44,110); ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle='rgba(40,30,20,.6)'; ctx.lineWidth=1.5;
+    for (m2=0;m2<5;m2++){
+      var mx2 = cxr-120+m2*60;
+      ctx.beginPath(); ctx.arc(mx2,110-mt*hs[m2]*0.4, mt*0.35, 0.4, Math.PI-0.4); ctx.stroke();
+    }
+    /* thrust arrows */
+    arrow(300,86,340,86,'rgba(140,220,255,.85)',2.5); arrow(460,86,420,86,'rgba(140,220,255,.85)',2.5);
+    ctx.fillStyle='#123a5e'; ctx.fillRect(0,40,190,70); ctx.fillRect(570,40,190,70);
+    dots.forEach(function(d){ ctx.fillStyle='rgba(255,220,120,'+d.life+')'; ctx.beginPath(); ctx.arc(d.x,d.y,2.5,0,Math.PI*2); ctx.fill(); });
+    label('India-type continent',150,132,'rgba(230,250,255,.8)','center');
+    label('Asia-type continent',610,132,'rgba(230,250,255,.8)','center');
+    label('crust thickens — no subduction',380,110-Math.min(90,mt)-14,'rgba(255,213,100,.95)','center');
+    label('≈ '+(mt*0.1).toFixed(1)+' km elevation',380,300,'rgba(255,213,100,.8)','center');
+  }
+
+  function renderTra(){
+    ctx.fillStyle='#20351f'; ctx.fillRect(0,0,W,215);
+    ctx.fillStyle='#2a4426'; ctx.fillRect(0,215,W,215);
+    var off = slip;
+    /* fences/features offset */
+    ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=3;
+    for (var f=0; f<5; f++){
+      var fy = 40 + f*38;
+      if (fy < 200){ ctx.beginPath(); ctx.moveTo(60-off*0.5,fy); ctx.lineTo(300-off*0.5,fy); ctx.stroke(); }
+      else { ctx.beginPath(); ctx.moveTo(460+off*0.5,fy+30); ctx.lineTo(700+off*0.5,fy+30); ctx.stroke(); }
+    }
+    /* road */
+    ctx.fillStyle='rgba(230,230,230,.75)';
+    ctx.fillRect(368-off,0,24,200);
+    ctx.fillRect(368+off,230,24,200);
+    /* fault */
+    ctx.strokeStyle='#ffd166'; ctx.lineWidth=3; ctx.setLineDash([12,8]);
+    ctx.lineDashOffset = -t*30;
+    ctx.beginPath(); ctx.moveTo(0,215); ctx.lineTo(W,215); ctx.stroke(); ctx.setLineDash([]);
+    /* block motion arrows */
+    arrow(120,180,200,180,'rgba(140,220,255,.85)',2.5);
+    arrow(640,250,560,250,'rgba(140,220,255,.85)',2.5);
+    label('Pacific-style plate →',160,166,'rgba(140,220,255,.9)','center');
+    label('← North-American-style plate',600,238,'rgba(140,220,255,.9)','center');
+    label('FAULT — locked (sticking)',380,207,'rgba(255,213,100,.95)','center');
+    /* stress meter */
+    var mx=560,my=36;
+    ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fillRect(mx,my,160,14);
+    ctx.fillStyle = stress>75?'#ff5a5a':(stress>45?'#ffd166':'#52b788');
+    ctx.fillRect(mx,my,160*stress/100,14);
+    ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.strokeRect(mx,my,160,14);
+    label('elastic stress '+Math.round(stress)+'%',mx+80,my-6,'rgba(230,250,255,.85)','center');
+    /* epicenter rings */
+    if (shake > 0){
+      var ra = (0.5-shake)*500;
+      ctx.strokeStyle='rgba(255,120,90,'+(shake*1.4)+')'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(380,215,ra,0,Math.PI*2); ctx.stroke();
+    }
+    if (stress > 75) label('⚠ about to slip…',380,130,'rgba(255,120,90,.95)','center');
+  }
+
+  function render(){
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random()-0.5)*7*shake, (Math.random()-0.5)*7*shake);
+    ctx.clearRect(-10,-10,W+20,H+20);
+    ctx.fillStyle='#060d18'; ctx.fillRect(-10,-10,W+20,H+20);
+    if (mode===0) renderDiv();
+    else if (mode===1) renderSub();
+    else if (mode===2) renderCol();
+    else renderTra();
+    ctx.restore();
+    statusEl.textContent = CAPTIONS[mode];
+    modeBtns.forEach(function(b){
+      var on = +b.getAttribute('data-m') === mode;
+      b.style.background = on ? 'rgba(45,212,255,.2)' : 'rgba(255,255,255,.06)';
+      b.style.borderColor = on ? 'var(--accent)' : 'rgba(255,255,255,.15)';
+      b.style.color = on ? 'var(--accent)' : '#fff';
+    });
+  }
+
+  function step(dt){
+    var sp = speed();
+    t += dt*sp;
+    scroll += dt*sp*6;
+    shake = Math.max(0, shake - dt*1.6);
+    var dotTick = (step.d = (step.d||0) + dt);
+    if (dotTick > 0.9){
+      step.d = 0;
+      if (mode===0) addDot(380+(Math.random()*70-35), 114+Math.random()*20, false);
+      else if (mode===1){ var pp = slabAt(0.25+Math.random()*0.7); addDot(pp[0]+(Math.random()*10-5), pp[1]+(Math.random()*8-4), pp[1]>200); }
+      else if (mode===2) addDot(380+(Math.random()*220-110), 120+Math.random()*30, false);
+    }
+    for (var i=dots.length-1;i>=0;i--){ dots[i].life -= dt*0.5; if (dots[i].life<=0) dots.splice(i,1); }
+    if (mode===1){
+      puffT += dt;
+      if (puffT > 0.28){ puffT=0; puff.push({x:562+(Math.random()*8-4), y:54, r:5+Math.random()*5, life:1, vy:26+Math.random()*20}); }
+      for (i=puff.length-1;i>=0;i--){
+        var p2=puff[i]; p2.y-=p2.vy*dt*sp; p2.x+=Math.sin(t+i)*8*dt; p2.r+=6*dt; p2.life-=dt*0.4;
+        if (p2.life<=0) puff.splice(i,1);
+      }
+    }
+    if (mode===2){
+      mt = Math.min(90, mt + dt*sp*2.2);
+      if (mt>=90 && Math.random()<dt*0.4) addDot(380+(Math.random()*200-100), 130, false);
+    }
+    if (mode===3){
+      stress = Math.min(100, stress + dt*sp*5.5);
+      if (stress >= 100){
+        stress = 14; shake = 0.55; quakes++; quakeEl.textContent='earthquakes: '+quakes;
+        slip += (slip > 90 ? -slip : 12);
+      }
+    }
+  }
+
+  var last = 0;
+  function tick(now){
+    if (!cv.isConnected) return;
+    if (playing){
+      var dt = last ? Math.min(0.05,(now-last)/1000) : 0.016;
+      last = now;
+      step(dt); render();
+    } else if (dirty){ render(); dirty=false; last=now; }
+    requestAnimationFrame(tick);
+  }
+
+  modeBtns.forEach(function(b){
+    b.addEventListener('click', function(){
+      mode = +b.getAttribute('data-m'); dirty = true;
+      if (!playing) render();
+    });
+  });
+  sSpd.addEventListener('input', function(){ vSpd.textContent = (+sSpd.value/10).toFixed(1)+'×'; dirty=true; });
+  playBtn.addEventListener('click', function(){
+    playing = !playing;
+    playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+    dirty = true;
+  });
+
+  render();
+  requestAnimationFrame(tick);
+})();
+</script>

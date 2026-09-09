@@ -1,0 +1,276 @@
+<h2 id="phs-title" style="margin-top:0;color:var(--accent);">🌿 Photosynthesis — Leaf Cross-Section Lab</h2>
+
+<form aria-describedby="phs-desc" onsubmit="event.preventDefault();">
+  <p id="phs-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Zoom into a leaf: light hits chloroplasts, CO₂ slips in through stomata, water arrives from the roots —
+    and sugars plus the oxygen you're breathing come out. Drive it with light and CO₂ and find the limiting factor.
+  </p>
+
+  <div style="background:#050a12;border:1px solid rgba(45,212,255,.3);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="phs-canvas" width="760" height="430" style="width:100%;height:auto;display:block;background:#0a1a12;border-radius:6px;" role="img" aria-label="Leaf cross-section with photons, carbon dioxide, water, oxygen and sugar particles moving between cells"></canvas>
+    <div id="phs-status" style="font-size:0.72rem;color:var(--accent);margin-top:6px;padding:0 4px;font-family:ui-monospace,monospace;min-height:1.4em;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="phs-light" style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-secondary);margin-bottom:2px;"><span>Light intensity</span><span id="phs-light-val" style="font-family:ui-monospace,monospace;color:var(--accent);">70%</span></label>
+      <input type="range" id="phs-light" min="0" max="100" value="70" style="width:100%;">
+    </div>
+    <div>
+      <label for="phs-co2" style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-secondary);margin-bottom:2px;"><span>CO₂ concentration</span><span id="phs-co2-val" style="font-family:ui-monospace,monospace;color:var(--accent);">60%</span></label>
+      <input type="range" id="phs-co2" min="0" max="100" value="60" style="width:100%;">
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="phs-play" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.75rem;font-weight:bold;cursor:pointer;">⏸ Pause</button>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-secondary);cursor:pointer;padding:4px 6px;"><input type="checkbox" id="phs-labels" checked> labels</label>
+    <span id="phs-counts" style="margin-left:auto;font-size:0.7rem;color:var(--text-secondary);font-family:ui-monospace,monospace;"></span>
+  </div>
+
+  <div style="background:#0a1420;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px;margin-bottom:12px;text-align:center;">
+    <span style="font-family:ui-monospace,monospace;font-size:0.85rem;color:#e8f5e9;">6 CO₂&nbsp;+&nbsp;6 H₂O&nbsp;+&nbsp;<span style="color:#ffd166;">light</span>&nbsp;→&nbsp;C₆H₁₂O₆&nbsp;+&nbsp;6 O₂</span>
+  </div>
+
+  <details style="margin-bottom:6px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.8rem;">📖 Key facts</summary>
+    <div class="small" style="color:var(--text-secondary);font-size:0.78rem;line-height:1.5;margin-top:8px;">
+      <p style="margin:0 0 8px;">Photosynthesis runs in two stages inside chloroplasts. In the <b>light reactions</b>
+      (thylakoid membranes) chlorophyll absorbs red and blue light — reflecting green, which is why leaves look green —
+      and uses that energy to split water, releasing O₂ and charging ATP/NADPH. In the <b>Calvin cycle</b> (stroma)
+      that energy fixes CO₂ into sugar. Light-dependent and light-independent — exactly what the sliders show:
+      starve either input and the whole pipeline slows.</p>
+      <p style="margin:0;">Leaves balance photosynthesis against water loss: stomata open to let CO₂ in also let water
+      vapour escape (transpiration), so plants close them in drought — cutting CO₂ supply. Photosynthesis stores
+      ~120 billion tonnes of carbon a year and produced the oxygen in Earth's atmosphere over ~2 billion years
+      (the Great Oxidation Event).</p>
+    </div>
+  </details>
+</form>
+
+<script>
+(function(){
+  'use strict';
+  var cv = document.getElementById('phs-canvas');
+  if (!cv || cv.__phsInit) return;
+  cv.__phsInit = true;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var sL = document.getElementById('phs-light'), vL = document.getElementById('phs-light-val');
+  var sC = document.getElementById('phs-co2'), vC = document.getElementById('phs-co2-val');
+  var playBtn = document.getElementById('phs-play');
+  var labBox = document.getElementById('phs-labels');
+  var statusEl = document.getElementById('phs-status');
+  var countsEl = document.getElementById('phs-counts');
+
+  var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var playing = !(mq && mq.matches), dirty = true;
+  var STOMA_X = 380;
+  var chloros = [], chloroFlash = {}, counts = {co2:0, o2:0, sug:0};
+  var photons = [], co2p = [], h2op = [], o2p = [], sugp = [];
+  var t = 0, acc = {};
+
+  /* pre-render leaf anatomy */
+  var bg = document.createElement('canvas');
+  bg.width = W; bg.height = H;
+  (function paintBG(){
+    var b = bg.getContext('2d');
+    b.fillStyle = '#0c2416'; b.fillRect(0,0,W,H);
+    /* cuticle + upper epidermis */
+    b.fillStyle = 'rgba(210,230,200,.5)'; b.fillRect(0,50,W,6);
+    b.fillStyle = 'rgba(160,200,150,.35)'; b.fillRect(0,56,W,20);
+    /* palisade cells */
+    for (var i=0;i<12;i++){
+      var x = 8 + i*63;
+      b.fillStyle = '#2e6b3e';
+      b.beginPath();
+      if (b.roundRect) b.roundRect(x,76,55,120,16); else b.rect(x,76,55,120);
+      b.fill();
+      b.strokeStyle = '#57a06b'; b.lineWidth = 2; b.stroke();
+      for (var c=0;c<3;c++){
+        var cxx = x+14+((i*7+c*11)%26), cyy = 96+c*38;
+        chloros.push({x:cxx, y:cyy});
+        b.fillStyle = '#1c5a30';
+        b.beginPath(); b.ellipse(cxx, cyy, 11, 6, -0.4, 0, Math.PI*2); b.fill();
+        b.strokeStyle = '#2f7f4f'; b.lineWidth = 1;
+        for (var s=-1;s<=1;s++){ b.beginPath(); b.moveTo(cxx-7, cyy+s*2.4); b.lineTo(cxx+7, cyy+s*2.4-1); b.stroke(); }
+      }
+    }
+    /* spongy mesophyll: irregular cells with air gaps */
+    b.fillStyle = '#2a6238';
+    var sponge = [[20,250,30],[85,230,26],[150,265,32],[215,240,26],[280,265,30],[340,235,26],[410,260,32],[475,235,26],[540,265,30],[605,240,28],[670,260,30],[725,235,24],[55,300,28],[190,310,26],[320,305,30],[455,310,28],[585,305,30],[700,305,26]];
+    sponge.forEach(function(s2){
+      b.beginPath(); b.arc(s2[0], s2[1], s2[2], 0, Math.PI*2); b.fill();
+      b.strokeStyle = '#57a06b'; b.stroke();
+    });
+    sponge.forEach(function(s3, idx){
+      if (idx%3) return;
+      chloros.push({x:s3[0], y:s3[1]});
+      b.fillStyle = '#1c5a30';
+      b.beginPath(); b.ellipse(s3[0], s3[1], 9, 5, 0.3, 0, Math.PI*2); b.fill();
+    });
+    /* lower epidermis with stoma gap */
+    b.fillStyle = 'rgba(160,200,150,.35)';
+    b.fillRect(0,330,W,20);
+    b.clearRect(STOMA_X-16, 330, 32, 20);
+    b.fillStyle = 'rgba(160,200,150,.5)';
+    b.beginPath(); b.ellipse(STOMA_X-22, 340, 10, 13, 0, 0, Math.PI*2); b.fill();
+    b.beginPath(); b.ellipse(STOMA_X+22, 340, 10, 13, 0, 0, Math.PI*2); b.fill();
+    /* vein */
+    b.fillStyle = '#14532d'; b.fillRect(0,205,150,52);
+    for (var vx=0; vx<6; vx++){
+      b.fillStyle = '#3b82c4'; b.beginPath(); b.arc(18+vx*22, 220, 8, 0, Math.PI*2); b.fill();
+      b.fillStyle = '#d99a3b'; b.beginPath(); b.arc(18+vx*22, 242, 7, 0, Math.PI*2); b.fill();
+    }
+  })();
+
+  function lightF(){ var L = +sL.value; return L/(L+25); }
+  function co2F(){ var C = +sC.value; return C/(C+30); }
+  function rate(){ return 20 * lightF() * co2F(); }
+
+  function target(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  function step(dt){
+    t += dt;
+    var L = +sL.value, C = +sC.value;
+    vL.textContent = L+'%'; vC.textContent = C+'%';
+    /* photons */
+    acc.ph = (acc.ph||0) + dt*(L/100*11);
+    while (acc.ph >= 1){ acc.ph--; var tgt = target(chloros); photons.push({x:30, y:20, tx:tgt.x, ty:tgt.y, sp:150+Math.random()*60}); }
+    /* CO2 */
+    acc.c = (acc.c||0) + dt*(C/100*7);
+    while (acc.c >= 1){ acc.c--; co2p.push({x:STOMA_X+(Math.random()*120-60), y:H-6, ph:0, tx:0, ty:0}); }
+    /* water */
+    acc.w = (acc.w||0) + dt*2.6;
+    while (acc.w >= 1){ acc.w--; var cell = target(chloros); h2op.push({x:20, y:228, tx:cell.x, ty:cell.y, sp:70}); }
+    /* outputs */
+    acc.o = (acc.o||0) + dt*rate()*0.9;
+    while (acc.o >= 1){ acc.o--; var src = target(chloros); o2p.push({x:src.x, y:src.y, ph:0}); }
+    acc.s = (acc.s||0) + dt*rate()*0.35;
+    while (acc.s >= 1){ acc.s--; var src2 = target(chloros); sugp.push({x:src2.x, y:src2.y, ph:0}); }
+
+    var i, p;
+    for (i=photons.length-1;i>=0;i--){
+      p = photons[i];
+      var dx = p.tx-p.x, dy = p.ty-p.y, dl = Math.hypot(dx,dy);
+      if (dl < 5){ chloroFlash[tx2k(p.tx,p.ty)] = 1; photons.splice(i,1); continue; }
+      p.x += dx/dl*p.sp*dt; p.y += dy/dl*p.sp*dt;
+    }
+    for (i=co2p.length-1;i>=0;i--){
+      p = co2p[i];
+      if (p.ph === 0){
+        p.tx = STOMA_X; p.ty = 352;
+        p.x += (p.tx-p.x)*dt*2.4; p.y += (p.ty-p.y)*dt*2.4;
+        if (Math.hypot(p.tx-p.x, p.ty-p.y) < 6){ p.ph = 1; var cc = target(chloros); p.tx = cc.x; p.ty = cc.y; }
+      } else {
+        p.x += (p.tx-p.x)*dt*1.8; p.y += (p.ty-p.y)*dt*1.8;
+        if (Math.hypot(p.tx-p.x, p.ty-p.y) < 6){ counts.co2++; co2p.splice(i,1); }
+      }
+    }
+    for (i=h2op.length-1;i>=0;i--){
+      p = h2op[i];
+      p.x += (p.tx-p.x)*dt*1.6; p.y += (p.ty-p.y)*dt*1.6;
+      if (Math.hypot(p.tx-p.x, p.ty-p.y) < 6) h2op.splice(i,1);
+    }
+    for (i=o2p.length-1;i>=0;i--){
+      p = o2p[i];
+      if (p.ph === 0){
+        p.x += (STOMA_X-p.x)*dt*2.0; p.y += (352-p.y)*dt*2.0;
+        if (Math.hypot(STOMA_X-p.x, 352-p.y) < 6) p.ph = 1;
+      } else {
+        p.y += 90*dt; p.x += (p.x-STOMA_X)*dt*0.8;
+        if (p.y > H+8){ counts.o2++; o2p.splice(i,1); }
+      }
+    }
+    for (i=sugp.length-1;i>=0;i--){
+      p = sugp[i];
+      if (p.ph === 0){
+        p.x += (60-p.x)*dt*1.7; p.y += (242-p.y)*dt*1.7;
+        if (Math.hypot(60-p.x, 242-p.y) < 8){ p.ph = 1; }
+      } else {
+        p.x -= 120*dt;
+        if (p.x < -10){ counts.sug++; sugp.splice(i,1); }
+      }
+    }
+    for (var k in chloroFlash){ chloroFlash[k] -= dt*2.6; if (chloroFlash[k] <= 0) delete chloroFlash[k]; }
+    countsEl.textContent = 'CO₂ fixed: '+counts.co2+' · O₂ released: '+counts.o2+' · sugars built: ~'+counts.sug;
+    var lfv = lightF() < co2F();
+    statusEl.textContent = (L===0)
+      ? 'Night: no light → photosynthesis stops; the leaf only respires (O₂ in, CO₂ out).'
+      : 'Rate '+(rate()*50|0)+' (relative) · limiting factor: '+(lfv?'LIGHT':'CO₂')+' — raise the other one and nothing improves until you fix this one.';
+  }
+  function tx2k(x,y){ return Math.round(x)+'_'+Math.round(y); }
+
+  function drawArrow2(x,y,label2,color){
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, 3.4, 0, Math.PI*2); ctx.fill();
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    ctx.drawImage(bg,0,0);
+    /* sun */
+    var sg = ctx.createRadialGradient(30,18,2,30,18,46);
+    sg.addColorStop(0,'rgba(255,240,170,.9)'); sg.addColorStop(1,'rgba(255,240,170,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(30,18,46,0,Math.PI*2); ctx.fill();
+    /* photons */
+    photons.forEach(function(p){ ctx.fillStyle='rgba(255,232,130,.95)'; ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2); ctx.fill(); });
+    /* chloroplast flashes */
+    for (var k in chloroFlash){
+      var parts = k.split('_');
+      ctx.fillStyle = 'rgba(220,255,170,'+(chloroFlash[k]*0.8)+')';
+      ctx.beginPath(); ctx.arc(+parts[0], +parts[1], 10, 0, Math.PI*2); ctx.fill();
+    }
+    /* particles */
+    co2p.forEach(function(p){ drawArrow2(p.x,p.y,'','rgba(170,170,190,.95)'); });
+    h2op.forEach(function(p){ drawArrow2(p.x,p.y,'','rgba(96,165,250,.95)'); });
+    o2p.forEach(function(p){ ctx.fillStyle='rgba(103,232,249,.95)'; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); });
+    sugp.forEach(function(p){ ctx.fillStyle='rgba(251,191,36,.95)'; ctx.beginPath(); ctx.arc(p.x,p.y,3.4,0,Math.PI*2); ctx.fill(); });
+    /* flow labels near vein */
+    ctx.font='600 9px ui-monospace,monospace'; ctx.textAlign='left';
+    ctx.fillStyle='rgba(96,165,250,.9)'; ctx.fillText('H₂O up (xylem)', 12, 210);
+    ctx.fillStyle='rgba(251,191,36,.9)'; ctx.fillText('sugar away (phloem)', 12, 258);
+
+    if (labBox.checked){
+      ctx.font='600 10px ui-monospace,monospace';
+      function lb(txt,x,y,color,align){
+        ctx.fillStyle='rgba(5,15,9,.7)';
+        var w2 = ctx.measureText(txt).width;
+        var x0 = align==='center' ? x-w2/2-3 : x-3;
+        ctx.fillRect(x0, y-10, w2+6, 13);
+        ctx.fillStyle = color; ctx.textAlign = align||'left'; ctx.fillText(txt,x,y);
+      }
+      lb('cuticle', 700, 60, 'rgba(210,230,200,.9)');
+      lb('upper epidermis', 640, 88, 'rgba(210,230,200,.75)');
+      lb('palisade cells — most chloroplasts', 380, 120, 'rgba(87,160,107,.95)', 'center');
+      lb('spongy layer + air spaces (CO₂ diffuses here)', 380, 300, 'rgba(87,160,107,.9)', 'center');
+      lb('vein: xylem & phloem', 160, 182, 'rgba(140,190,230,.9)');
+      lb('stoma — CO₂ in, O₂ out', STOMA_X+40, 415, 'rgba(103,232,249,.95)');
+      lb('guard cells', STOMA_X-70, 388, 'rgba(210,230,200,.7)');
+    }
+  }
+
+  var last = 0;
+  function tick(now){
+    if (!cv.isConnected) return;
+    if (playing){
+      var dt = last ? Math.min(0.05,(now-last)/1000) : 0.016;
+      last = now;
+      step(dt); render();
+    } else if (dirty){ render(); dirty = false; last = now; }
+    requestAnimationFrame(tick);
+  }
+
+  sL.addEventListener('input', function(){ dirty = true; });
+  sC.addEventListener('input', function(){ dirty = true; });
+  labBox.addEventListener('change', function(){ dirty = true; });
+  playBtn.addEventListener('click', function(){
+    playing = !playing;
+    playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+    dirty = true;
+  });
+
+  render();
+  requestAnimationFrame(tick);
+})();
+</script>

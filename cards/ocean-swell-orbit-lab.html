@@ -1,0 +1,214 @@
+<h2 id="swv-title" style="margin-top:0;color:var(--accent);">🌊 Ocean Waves — The Secret Orbital Motion</h2>
+
+<form aria-describedby="swv-desc" onsubmit="event.preventDefault();">
+  <p id="swv-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Water in a swell doesn't travel — each parcel runs in a circle while the wave <i>shape</i> races on.
+    Watch the orbit shrink with depth, then shallow the water until orbits squash and the wave breaks.
+  </p>
+
+  <div style="background:#050a12;border:1px solid rgba(45,212,255,.3);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="swv-canvas" width="760" height="430" style="width:100%;height:auto;display:block;background:#04101c;border-radius:6px;" role="img" aria-label="Cross-section of a water wave showing particles moving in circular orbits that shrink with depth"></canvas>
+    <div id="swv-status" style="font-size:0.72rem;color:var(--accent);margin-top:6px;padding:0 4px;font-family:ui-monospace,monospace;min-height:1.4em;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="swv-l" style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-secondary);margin-bottom:2px;"><span>Wavelength λ</span><span id="swv-l-val" style="font-family:ui-monospace,monospace;color:var(--accent);">10 m</span></label>
+      <input type="range" id="swv-l" min="60" max="160" value="100" style="width:100%;">
+    </div>
+    <div>
+      <label for="swv-d" style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-secondary);margin-bottom:2px;"><span>Water depth</span><span id="swv-d-val" style="font-family:ui-monospace,monospace;color:var(--accent);">18 m</span></label>
+      <input type="range" id="swv-d" min="20" max="210" value="180" style="width:100%;">
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="swv-play" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.75rem;font-weight:bold;cursor:pointer;">⏸ Pause</button>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-secondary);cursor:pointer;padding:4px 6px;"><input type="checkbox" id="swv-wind" checked> wind feeding energy</label>
+    <span id="swv-read" style="margin-left:auto;font-size:0.7rem;color:var(--text-secondary);font-family:ui-monospace,monospace;"></span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;">
+    <div style="background:#0a1420;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;">Wave speed</div>
+      <div id="swv-c" style="font-size:0.95rem;color:var(--accent);font-family:ui-monospace,monospace;font-weight:bold;">—</div>
+    </div>
+    <div style="background:#0a1420;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;">Regime</div>
+      <div id="swv-reg" style="font-size:0.95rem;color:#ffd166;font-weight:bold;">deep water</div>
+    </div>
+  </div>
+
+  <details style="margin-bottom:6px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.8rem;">📖 Key facts</summary>
+    <div class="small" style="color:var(--text-secondary);font-size:0.78rem;line-height:1.5;margin-top:8px;">
+      <p style="margin:0 0 8px;">A deep-water swell is a <b>partitioned circle dance</b>: each parcel loops forward at
+      the crest, backward in the trough, and barely at all near the seabed — orbit radius decays as e^(−kz), so at
+      depth λ/2 it's ~4% of the surface value. That's why submarines dive to escape storms. The deep-water speed
+      formula is beautifully simple: <b>c = 1.25√λ</b> (λ in metres, c in m/s) — long swells outrun short chop, which
+      is why big clean surf arrives first, hours ahead of the storm that made it.</p>
+      <p style="margin:0;">Run the depth slider down: once depth &lt; λ/2 the orbits flatten into ellipses, speed
+      depends only on depth (c = √(gd)), the front slows before the back → wavelength shrinks, height grows, crest
+      outpaces its base and the wave <b>breaks</b> when depth ≈ 1.3 × wave height. Tsunamis are the extreme shallow
+      case: in 4,000 m ocean they're ordinary-looking waves moving at √(9.81×4000) ≈ 200 m/s — jet speed.</p>
+    </div>
+  </details>
+</form>
+
+<script>
+(function(){
+  'use strict';
+  var cv = document.getElementById('swv-canvas');
+  if (!cv || cv.__swvInit) return;
+  cv.__swvInit = true;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var SURF = 96;
+  var sL = document.getElementById('swv-l'), vL = document.getElementById('swv-l-val');
+  var sD = document.getElementById('swv-d'), vD = document.getElementById('swv-d-val');
+  var playBtn = document.getElementById('swv-play');
+  var windBox = document.getElementById('swv-wind');
+  var statusEl = document.getElementById('swv-status');
+  var readEl = document.getElementById('swv-read');
+  var oC = document.getElementById('swv-c'), oR = document.getElementById('swv-reg');
+  var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var playing = !(mq && mq.matches), dirty = true;
+  var t = 0;
+  var trail = [];
+  var HL_X = 372, HL_S = 42;
+
+  function render(){
+    var L = +sL.value, dpx = +sD.value;
+    var k = 2*Math.PI/L, A = 12;
+    var sh = Math.sinh(k*dpx) || 1e-6;
+    var om = Math.sqrt(200*k);
+    t += playing ? 0.016 : 0;
+    var phase = k*HL_X - om*t;
+    var seaY = SURF + dpx;
+
+    ctx.clearRect(0,0,W,H);
+    /* sky */
+    var sky = ctx.createLinearGradient(0,0,0,SURF-20);
+    sky.addColorStop(0,'#0a1830'); sky.addColorStop(1,'#16355c');
+    ctx.fillStyle = sky; ctx.fillRect(0,0,W,seaY);
+    /* wind */
+    if (windBox.checked){
+      ctx.strokeStyle='rgba(200,230,255,.4)'; ctx.lineWidth=1.6;
+      for (var wa=0; wa<5; wa++){
+        var wy = 14+wa*11, wx = ((t*80 + wa*180) % (W+80)) - 40;
+        ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(wx+34, wy); ctx.lineTo(wx+26, wy-4);
+        ctx.moveTo(wx+34, wy); ctx.lineTo(wx+26, wy+4); ctx.stroke();
+      }
+    }
+    /* seabed */
+    var sand = ctx.createLinearGradient(0,seaY,0,H);
+    sand.addColorStop(0,'#3d3423'); sand.addColorStop(1,'#241e12');
+    ctx.fillStyle = sand; ctx.fillRect(0,seaY,W,H-seaY);
+    ctx.strokeStyle='rgba(255,220,150,.4)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,seaY); ctx.lineTo(W,seaY); ctx.stroke();
+
+    /* particle field */
+    var cols = Math.floor(W/20), brk = dpx < 1.3*2*A;
+    ctx.strokeStyle='rgba(120,190,255,.14)'; ctx.lineWidth=1;
+    for (var ci=0; ci<=cols; ci++){
+      var x0 = ci*20+10;
+      ctx.beginPath();
+      for (var ri=0; ri<=Math.ceil(dpx/16); ri++){
+        var s2 = ri*16; if (s2 > dpx) s2 = dpx;
+        var ax = A*Math.cosh(k*(dpx-s2))/sh, ay = A*Math.sinh(k*(dpx-s2))/sh;
+        var ph = k*x0 - om*t;
+        var px = x0 + ax*Math.cos(ph);
+        var py = SURF + s2 + ay*Math.sin(ph);
+        ri ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+      }
+      ctx.stroke();
+    }
+    var surfPts = [];
+    for (ci=0; ci<=cols; ci++){
+      var x02 = ci*20+10;
+      for (ri=0; ri<=Math.ceil(dpx/16); ri++){
+        var s3 = Math.min(dpx, ri*16);
+        var ax2 = A*Math.cosh(k*(dpx-s3))/sh, ay2 = A*Math.sinh(k*(dpx-s3))/sh;
+        var ph2 = k*x02 - om*t;
+        var px2 = x02 + ax2*Math.cos(ph2), py2 = SURF + s3 + ay2*Math.sin(ph2);
+        var hot = (Math.abs(x02-HL_X)<10 && s3===HL_S);
+        if (ri===0 || hot){
+          ctx.fillStyle = hot ? 'rgba(255,213,100,.95)' : 'rgba(140,200,255,.55)';
+          ctx.beginPath(); ctx.arc(px2, py2, hot?3.4:1.7, 0, Math.PI*2); ctx.fill();
+        }
+        if (ri===0) surfPts.push([px2,py2]);
+      }
+    }
+    /* surface line */
+    ctx.strokeStyle='rgba(160,215,255,.85)'; ctx.lineWidth=2.4;
+    ctx.beginPath(); surfPts.forEach(function(p,i){ i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); }); ctx.stroke();
+    /* foam at breaking crests */
+    if (brk){
+      ctx.fillStyle='rgba(255,255,255,.85)';
+      surfPts.forEach(function(p){ if (p[1] < SURF-6){ ctx.beginPath(); ctx.arc(p[0],p[1]-2,3,0,Math.PI*2); ctx.fill(); } });
+    }
+    /* highlighted orbit + trail */
+    var hax = A*Math.cosh(k*(dpx-HL_S))/sh, hay = A*Math.sinh(k*(dpx-HL_S))/sh;
+    ctx.strokeStyle='rgba(255,213,100,.5)'; ctx.lineWidth=1.4; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.ellipse(HL_X, SURF+HL_S, hax, hay, 0, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    var hx = HL_X + hax*Math.cos(k*HL_X - om*t), hy = SURF + HL_S + hay*Math.sin(k*HL_X - om*t);
+    trail.push([hx,hy]); if (trail.length > 36) trail.shift();
+    ctx.strokeStyle='rgba(255,213,100,.35)';
+    ctx.beginPath(); trail.forEach(function(p,i){ i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); }); ctx.stroke();
+    ctx.fillStyle='#ffd166'; ctx.beginPath(); ctx.arc(hx,hy,4.4,0,Math.PI*2); ctx.fill();
+    /* propagation arrow at crest */
+    var crestX = ((om*t/k) % L + L) % L;
+    for (var cc=crestX; cc<W-30; cc+=L){
+      arrow(cc, SURF-A-14, cc+26, SURF-A-14, 'rgba(160,215,255,.6)', 1.8);
+    }
+    /* depth lambda/2 marker */
+    if (L/2 < dpx){
+      var my2 = SURF + L/2;
+      ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.setLineDash([6,6]);
+      ctx.beginPath(); ctx.moveTo(0,my2); ctx.lineTo(W,my2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='rgba(230,250,255,.45)'; ctx.font='600 10px ui-monospace,monospace'; ctx.textAlign='left';
+      ctx.fillText('depth λ/2 — orbits ~4% of surface (storm-proof submarine depth)', 10, my2-5);
+    }
+    /* readouts */
+    var Lm = L/10, dm = dpx/10;
+    vL.textContent = Lm.toFixed(1)+' m';
+    vD.textContent = dm.toFixed(1)+' m';
+    var cDeep = 1.25*Math.sqrt(Lm), cSh = Math.sqrt(9.81*dm);
+    var reg, cTxt;
+    if (dm > Lm/2){ reg='deep water'; cTxt = cDeep.toFixed(1)+' m/s'; oC.style.color='var(--accent)'; }
+    else if (dm < Lm/20){ reg='shallow water'; cTxt = cSh.toFixed(1)+' m/s'; oC.style.color='#ffb37a'; }
+    else { reg='transitional'; cTxt = '~'+((cDeep+cSh)/2).toFixed(1)+' m/s'; oC.style.color='#7ee08a'; }
+    oR.textContent = reg;
+    oR.style.color = reg==='deep water' ? '#7ee08a' : (reg==='shallow water' ? '#ffb37a' : '#ffd166');
+    readEl.textContent = 'T = '+(Lm/cDeep).toFixed(1)+' s period · c=1.25√λ deep, √(gd) shallow';
+    statusEl.textContent = brk
+      ? '💥 BREAKING — depth < ~1.3 × wave height: the crest outruns the base, orbits fail, and the wave collapses into surf. Energy hits the shore.'
+      : 'Each dot loops in place while the waveform glides right. The yellow parcel traces its orbit — notice water ends where it started.';
+    function arrow(x1,y1,x2,y2,color,w2){
+      var an=Math.atan2(y2-y1,x2-x1), hd=7;
+      ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w2;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x2,y2);
+      ctx.lineTo(x2-hd*Math.cos(an-0.45),y2-hd*Math.sin(an-0.45));
+      ctx.lineTo(x2-hd*Math.cos(an+0.45),y2-hd*Math.sin(an+0.45));
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  playBtn.addEventListener('click', function(){
+    playing = !playing;
+    playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+  });
+  sL.addEventListener('input', function(){ trail = []; if(!playing) render(); });
+  sD.addEventListener('input', function(){ trail = []; if(!playing) render(); });
+  windBox.addEventListener('change', function(){ if(!playing) render(); });
+
+  (function loop(){
+    if (!cv.isConnected) return;
+    if (playing){ render(); }
+    else if (dirty){ render(); dirty = false; }
+    requestAnimationFrame(loop);
+  })();
+  render();
+})();
+</script>

@@ -1,0 +1,237 @@
+<h2 id="rbw-title" style="margin-top:0;color:var(--accent);">🌈 How Rainbows Form — Raindrop Ray Lab</h2>
+
+<form aria-describedby="rbw-desc" onsubmit="event.preventDefault();">
+  <p id="rbw-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    A real ray trace: sunlight enters a raindrop, bends (refracts), bounces once (or twice) off the back,
+    and comes back at ~42° — split into colours because each wavelength bends a different amount.
+  </p>
+
+  <div style="background:#050a12;border:1px solid rgba(45,212,255,.3);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="rbw-canvas" width="760" height="420" style="width:100%;height:auto;display:block;background:#03060c;border-radius:6px;" role="img" aria-label="Diagram of sunlight refracting and reflecting inside a raindrop, plus the resulting rainbow arc"></canvas>
+    <div id="rbw-readout" style="font-size:0.72rem;color:var(--accent);margin-top:6px;padding:0 4px;font-family:ui-monospace,monospace;min-height:1.4em;"></div>
+  </div>
+
+  <div style="margin-bottom:10px;">
+    <label for="rbw-b" style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);margin-bottom:2px;">
+      <span>Where the ray strikes the drop (impact parameter)</span><span id="rbw-b-val" style="color:var(--accent);font-family:ui-monospace,monospace;">0.86</span>
+    </label>
+    <input type="range" id="rbw-b" min="15" max="97" value="86" style="width:100%;">
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+    <button type="button" class="rbw-mode" data-m="1" style="padding:5px 10px;border-radius:5px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.72rem;font-weight:bold;cursor:pointer;">White ray</button>
+    <button type="button" class="rbw-mode" data-m="2" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">7 colours (primary)</button>
+    <button type="button" class="rbw-mode" data-m="3" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">Secondary bow (2 bounces)</button>
+  </div>
+
+  <details style="margin-bottom:6px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.8rem;">📖 What you are seeing &amp; key facts</summary>
+    <div class="small" style="color:var(--text-secondary);font-size:0.78rem;line-height:1.5;margin-top:8px;">
+      <p style="margin:0 0 8px;">Each colour bends by a slightly different amount because the refractive index of water
+      rises for shorter wavelengths (red n≈1.331, violet n≈1.343). For one internal reflection the total turn-around
+      angle has a <b>minimum near 138°</b> — rays pile up at that angle (a caustic) and spread out by colour there:
+      <b>180° − 138° = 42°</b> back toward the Sun's direction. Violet bends more, so it sits <i>inside</i> the bow
+      (40.6°) and red outside (42.4°).</p>
+      <p style="margin:0 0 8px;">Try sliding the impact parameter: near 0.86 the outgoing rays crowd together — that
+      crowding <b>is</b> the rainbow. Move to ~0.95 with two internal reflections and you get the dimmer
+      <b>secondary bow at ~51°</b> with the colours reversed. The dark gap between the two is
+      <b>Alexander's band</b> (named ~200 AD).</p>
+      <p style="margin:0;">No two people see the same rainbow: it is centred on the shadow of <i>your</i> head
+      (the antisolar point), so walk toward it and it walks too. Full circles appear from aircraft; Moonbows are the
+      same physics 1/1000 as bright.</p>
+    </div>
+  </details>
+</form>
+
+<script>
+(function(){
+  'use strict';
+  var cv = document.getElementById('rbw-canvas');
+  if (!cv || cv.__rbwInit) return;
+  cv.__rbwInit = true;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var sB = document.getElementById('rbw-b'), vB = document.getElementById('rbw-b-val');
+  var ro = document.getElementById('rbw-readout');
+  var modeBtns = Array.prototype.slice.call(document.querySelectorAll('.rbw-mode'));
+  var mode = 1, dirty = true;
+
+  var CX = 225, CY = 215, S = 128;
+  var COLORS = [
+    ['#ff4b4b', 656], ['#ff9d2e', 610], ['#ffe95e', 570],
+    ['#4cd964', 530], ['#3fb9ff', 480], ['#8a6cff', 430], ['#c964ff', 405]
+  ];
+  function indexOfN(wl){ return 1.3428 - (wl - 405) * 4.58e-5; }
+
+  function refract(dx, dy, nx, ny, eta){
+    var cosI = -(dx*nx + dy*ny);
+    var k = 1 - eta*eta*(1 - cosI*cosI);
+    if (k < 0) return null;
+    var cosT = Math.sqrt(k);
+    return [eta*dx + (eta*cosI - cosT)*nx, eta*dy + (eta*cosI - cosT)*ny];
+  }
+  function trace(b, n, nRefl){
+    var px = -Math.sqrt(Math.max(1e-6, 1-b*b)), py = b;
+    var pts = [[px, py]];
+    var dx = 1, dy = 0;
+    var t = refract(dx, dy, -px, -py, 1/n);
+    if (!t) return null;
+    dx = t[0]; dy = t[1];
+    for (var i=0; i<=nRefl; i++){
+      var pd = px*dx + py*dy;
+      var s = -pd + Math.sqrt(Math.max(0, pd*pd + 1 - (px*px + py*py)));
+      px += s*dx; py += s*dy;
+      pts.push([px, py]);
+      var nx = px, ny = py;
+      if (i < nRefl){
+        var dn = dx*nx + dy*ny;
+        dx -= 2*dn*nx; dy -= 2*dn*ny;
+      } else {
+        var t2 = refract(dx, dy, -nx, -ny, n);
+        if (t2){ dx = t2[0]; dy = t2[1]; }
+        else { var dn2 = dx*nx + dy*ny; dx -= 2*dn2*nx; dy -= 2*dn2*ny; }
+      }
+    }
+    var dev = Math.acos(Math.max(-1, Math.min(1, dx)))*180/Math.PI;
+    return {pts: pts, dx: dx, dy: dy, dev: dev};
+  }
+  function sx(p){ return CX + p[0]*S; }
+  function sy(p){ return CY - p[1]*S; }
+
+  function drawPath(tr, color, width, alpha){
+    ctx.save();
+    ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+    ctx.shadowColor = color; ctx.shadowBlur = width > 2 ? 6 : 0;
+    ctx.beginPath();
+    var i, p;
+    ctx.moveTo(-10, sy(tr.pts[0]));
+    ctx.lineTo(sx(tr.pts[0]), sy(tr.pts[0]));
+    for (i=1; i<tr.pts.length; i++){ p = tr.pts[i]; ctx.lineTo(sx(p), sy(p)); }
+    ctx.stroke();
+    ctx.beginPath();
+    var last = tr.pts[tr.pts.length-1];
+    ctx.moveTo(sx(last), sy(last));
+    ctx.lineTo(sx(last) + tr.dx*420, sy(last) - tr.dy*420);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function render(){
+    ctx.clearRect(0, 0, W, H);
+    var b = +sB.value/100;
+    vB.textContent = b.toFixed(2);
+
+    /* sun */
+    var sg = ctx.createRadialGradient(30, 60, 4, 30, 60, 90);
+    sg.addColorStop(0, 'rgba(255,240,180,.8)'); sg.addColorStop(1, 'rgba(255,240,180,0)');
+    ctx.fillStyle = sg; ctx.fillRect(0, 0, 200, 160);
+    ctx.fillStyle = '#fff3c4'; ctx.beginPath(); ctx.arc(30, 60, 16, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(230,250,255,.55)'; ctx.font = '600 10px system-ui,sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('SUNLIGHT', 12, 100);
+
+    /* drop */
+    var dg = ctx.createRadialGradient(CX-40, CY-45, 8, CX, CY, S);
+    dg.addColorStop(0, 'rgba(120,180,255,.18)'); dg.addColorStop(0.7, 'rgba(60,110,200,.10)'); dg.addColorStop(1, 'rgba(80,150,255,.22)');
+    ctx.fillStyle = dg;
+    ctx.beginPath(); ctx.arc(CX, CY, S, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,200,255,.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    var nRefl = mode === 3 ? 2 : 1;
+    var trs, mainTr;
+    if (mode === 1){
+      mainTr = trace(b, 1.336, 1);
+      trs = [[ '#ffffff', mainTr ]];
+    } else if (mode === 2){
+      trs = COLORS.map(function(c){ return [c[0], trace(b, indexOfN(c[1]), 1)]; });
+      mainTr = trace(b, 1.336, 1);
+    } else {
+      trs = COLORS.map(function(c){ return [c[0], trace(b, indexOfN(c[1]), 2)]; });
+      mainTr = trace(b, 1.336, 2);
+    }
+
+    /* incident white ray */
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-6, sy(mainTr.pts[0])); ctx.lineTo(sx(mainTr.pts[0]), sy(mainTr.pts[0])); ctx.stroke();
+
+    trs.forEach(function(pair){ if (pair[1]) drawPath(pair[1], pair[0], mode === 1 ? 3 : 2, mode === 1 ? 1 : 0.9); });
+
+    /* normals */
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1;
+    [mainTr.pts[0], mainTr.pts[1], mainTr.pts[mainTr.pts.length-1]].forEach(function(p, idx){
+      ctx.beginPath(); ctx.moveTo(CX, CY);
+      ctx.lineTo(CX + p[0]*(S+14), CY - p[1]*(S+14)); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    /* deviation arc */
+    var dev = mainTr.dev, bow = 180 - dev;
+    ctx.strokeStyle = 'rgba(255,213,100,.85)'; ctx.lineWidth = 1.6;
+    var a0 = 0, a1 = Math.atan2(mainTr.dy, mainTr.dx)*180/Math.PI;
+    var sweep = (mainTr.dy >= 0 ? 1 : -1) * dev;
+    ctx.beginPath(); ctx.arc(CX, CY, 62, -a0*RAD, -(a1*RAD), sweep < 0); ctx.stroke();
+    ctx.fillStyle = '#ffd166'; ctx.font = 'bold 11px ui-monospace,monospace'; ctx.textAlign = 'center';
+    ctx.fillText('turn ' + dev.toFixed(0) + '°', CX - 74, CY - 58);
+
+    /* observer eye along exit direction */
+    var ex = mainTr.dx, ey = -mainTr.dy;
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath(); ctx.arc(CX + ex*205, CY + ey*205, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(230,250,255,.75)'; ctx.font = '600 10px system-ui,sans-serif';
+    ctx.fillText('your eye', CX + ex*205, CY + ey*205 + 20);
+
+    /* ---- sky view panel ---- */
+    var px0 = 430;
+    ctx.fillStyle = 'rgba(8,16,34,.9)';
+    ctx.fillRect(px0, 8, W-px0-8, H-16);
+    ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.strokeRect(px0, 8, W-px0-8, H-16);
+    ctx.fillStyle = 'rgba(230,250,255,.5)'; ctx.textAlign = 'left'; ctx.font = '600 10px system-ui,sans-serif';
+    ctx.fillText('WHAT THE OBSERVER SEES', px0+12, 26);
+    ctx.fillText('☀️ sun is BEHIND you', px0+12, H-20);
+    /* ground */
+    ctx.fillStyle = '#0c2416'; ctx.fillRect(px0, 340, W-px0-8, H-340);
+    ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.beginPath(); ctx.moveTo(px0, 340); ctx.lineTo(W-8, 340); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,250,255,.7)'; ctx.fillText('👁', 556, 334);
+
+    var APX = 560, APY = 505, K = 3.35;
+    var show2 = mode === 3 || b > 0.9;
+    if (show2){
+      for (var c6 = COLORS.length-1; c6 >= 0; c6--){
+        var ang6 = 50.0 + (COLORS.length-1-c6)*(53.6-50.0)/6;
+        ctx.strokeStyle = COLORS[c6][0]; ctx.globalAlpha = 0.4; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(APX, APY, ang6*K, Math.PI, Math.PI*2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    for (var c = COLORS.length-1; c >= 0; c--){
+      var ang = 40.6 + c*(42.4-40.6)/6;
+      ctx.strokeStyle = COLORS[c][0]; ctx.globalAlpha = 0.85; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.arc(APX, APY, ang*K, Math.PI, Math.PI*2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(230,250,255,.75)'; ctx.font = 'bold 10px ui-monospace,monospace'; ctx.textAlign = 'left';
+    ctx.fillText('primary bow 42°', 662, 360-42.4*K+4);
+    if (show2) ctx.fillText('secondary 51°', 662, 360-52.5*K+4);
+
+    ro.textContent = 'deviation D = ' + dev.toFixed(1) + '°   →   rainbow angle = 180° − D = ' + bow.toFixed(1) + '°' +
+      (Math.abs(bow - 42) < 1.1 && mode !== 3 ? '   ★ caustic! rays crowd here — this is the bow' :
+       (Math.abs(bow - 51) < 1.5 && mode === 3 ? '   ★ secondary-bow caustic' : ''));
+  }
+  var RAD = Math.PI/180;
+
+  modeBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      mode = +btn.getAttribute('data-m');
+      modeBtns.forEach(function(x){
+        var on = x === btn;
+        x.style.background = on ? 'rgba(45,212,255,.2)' : 'rgba(255,255,255,.06)';
+        x.style.borderColor = on ? 'var(--accent)' : 'rgba(255,255,255,.15)';
+        x.style.color = on ? 'var(--accent)' : '#fff';
+      });
+      dirty = true; render();
+    });
+  });
+  sB.addEventListener('input', function(){ render(); });
+  render();
+})();
+</script>

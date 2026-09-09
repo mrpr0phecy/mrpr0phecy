@@ -1,0 +1,240 @@
+<h2 id="ghs-title" style="margin-top:0;color:var(--accent);">🌡️ Greenhouse Effect — Energy Balance Lab</h2>
+
+<form aria-describedby="ghs-desc" onsubmit="event.preventDefault();">
+  <p id="ghs-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Sunlight arrives easily, but the infrared Earth re-radiates gets intercepted by greenhouse gases.
+    Watch photons battle through the atmosphere and see why the surface must warm until the books balance.
+  </p>
+
+  <div style="background:#050a12;border:1px solid rgba(45,212,255,.3);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="ghs-canvas" width="760" height="400" style="width:100%;height:auto;display:block;background:#02040a;border-radius:6px;" role="img" aria-label="Simulation of sunlight reaching the ground and infrared heat escaping or being absorbed by greenhouse gas molecules"></canvas>
+    <div id="ghs-status" style="font-size:0.72rem;color:var(--accent);margin-top:6px;padding:0 4px;font-family:ui-monospace,monospace;min-height:1.4em;"></div>
+  </div>
+
+  <div style="margin-bottom:10px;">
+    <label for="ghs-g" style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);margin-bottom:2px;">
+      <span>Greenhouse gas concentration</span><span id="ghs-g-val" style="color:var(--accent);font-family:ui-monospace,monospace;">78% (Earth today)</span>
+    </label>
+    <input type="range" id="ghs-g" min="0" max="100" value="78" style="width:100%;">
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="ghs-pre" data-g="0" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">Airless Earth</button>
+    <button type="button" class="ghs-pre" data-g="78" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">Earth today</button>
+    <button type="button" class="ghs-pre" data-g="84" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">CO₂ doubled</button>
+    <button type="button" class="ghs-pre" data-g="100" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">Venus-like</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;">
+    <div style="background:#0a1420;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;">Surface temp</div>
+      <div id="ghs-temp" style="font-size:1rem;color:var(--accent);font-family:ui-monospace,monospace;font-weight:bold;">+15 °C</div>
+    </div>
+    <div style="background:#0a1420;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;">vs airless Earth</div>
+      <div id="ghs-delta" style="font-size:1rem;color:#ffd166;font-family:ui-monospace,monospace;font-weight:bold;">+33 °C</div>
+    </div>
+    <div style="background:#0a1420;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px;">
+      <div style="font-size:0.62rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;">IR escaping to space</div>
+      <div id="ghs-esc" style="font-size:1rem;color:var(--accent);font-family:ui-monospace,monospace;font-weight:bold;">61%</div>
+    </div>
+  </div>
+
+  <details style="margin-bottom:6px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.8rem;">📖 The physics &amp; honest caveats</summary>
+    <div class="small" style="color:var(--text-secondary);font-size:0.78rem;line-height:1.5;margin-top:8px;">
+      <p style="margin:0 0 8px;">Earth must radiate away as much energy as it absorbs. Viewed from space the planet
+      radiates at <b>−18 °C</b> — that's the "effective temperature". Greenhouse gases (H₂O, CO₂, CH₄, N₂O, O₃) are
+      transparent to visible sunlight but absorb outgoing infrared, re-emitting it in all directions — some straight
+      back down. The surface warms until the escaping flux balances incoming sunlight again. That natural effect is
+      worth <b>+33 °C</b>: without it Earth's average surface would be a frozen −18 °C instead of +15 °C.</p>
+      <p style="margin:0 0 8px;">Water vapour is the strongest greenhouse gas, but CO₂ is the <i>thermostat</i>:
+      warmer air holds more vapour, so CO₂ (which humans add directly, ~50 Gt CO₂-eq/yr) sets the temperature the
+      vapour amplifies. Methane is ~80× stronger per molecule over 20 years.</p>
+      <p style="margin:0;">This is a simplified single-layer toy model (real radiative transfer is spectral and
+      layer-by-layer). It reproduces Earth's +33 °C well, but "Venus-like" here shows only ~+35 °C where the real
+      Venus sits at +465 °C — its 90-bar CO₂ atmosphere and sulphuric clouds create a <b>runaway greenhouse</b> far
+      beyond any simple model. That gap is itself the lesson about tipping points.</p>
+    </div>
+  </details>
+</form>
+
+<script>
+(function(){
+  'use strict';
+  var cv = document.getElementById('ghs-canvas');
+  if (!cv || cv.__ghsInit) return;
+  cv.__ghsInit = true;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var GY = 330, BAND_T = 148, BAND_B = 248;
+  var sG = document.getElementById('ghs-g'), vG = document.getElementById('ghs-g-val');
+  var oT = document.getElementById('ghs-temp'), oD = document.getElementById('ghs-delta'), oE = document.getElementById('ghs-esc');
+  var statusEl = document.getElementById('ghs-status');
+  var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var playing = !(mq && mq.matches), dirty = true;
+
+  function seedRand(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var x=Math.imul(a^a>>>15,1|a); x=x+Math.imul(x^x>>>7,61|x)^x; return ((x^x>>>14)>>>0)/4294967296; }; }
+  var rnd = seedRand(99);
+  var mols = [];
+  for (var i=0;i<14;i++) mols.push({x:60+rnd()*640, y:BAND_T+14+rnd()*(BAND_B-BAND_T-28), ph:rnd()*6.28, pulse:0, label:i<5});
+
+  var solar = [], ir = [];
+  var counts = {inn:0, esc:0, back:0};
+
+  function tau(){ var g = +sG.value/100; return 1 - 0.5*g; }
+  function tSurf(){ return 255 * Math.pow(tau(), -0.25); }
+
+  function updateReadouts(){
+    var g = +sG.value;
+    var tk = tSurf(), tc = tk - 273.15;
+    vG.textContent = g + '%' + (g===0?' (airless)':(g<40?' (thin)':(g<82?' (Earth today)':(g<95?' (CO₂ doubled zone)':' (Venus-like)'))));
+    oT.textContent = (tc>=0?'+':'') + tc.toFixed(0) + ' °C';
+    oD.textContent = '+' + (tk-255).toFixed(0) + ' °C';
+    oE.textContent = Math.round(tau()*100) + '%';
+    statusEl.textContent = 'Balance rule: energy in = energy out. GHGs make escaping harder, so the surface warms until outflow matches sunlight again.';
+  }
+
+  function spawnSolar(){ solar.push({x:20+Math.random()*680, y:-8, vx:14, vy:62}); }
+  function spawnIR(x, y, dir, skip){ ir.push({x:x, y:y, vx:(Math.random()*26-13), vy:dir*-66, chk:!!skip}); }
+
+  function drawIR(p, hot){
+    var ln = Math.hypot(p.vx, p.vy)||1, ux = p.vx/ln, uy = p.vy/ln, px = -uy, py = ux;
+    ctx.strokeStyle = hot > 0 ? 'rgba(255,170,120,0.95)' : 'rgba(255,80,60,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var s=0; s<=8; s++){
+      var f = (s/8 - 0.5)*14;
+      var bx = p.x - ux*f + px*Math.sin(s*1.6)*2.6;
+      var by = p.y - uy*f + py*Math.sin(s*1.6)*2.6;
+      s ? ctx.lineTo(bx, by) : ctx.moveTo(bx, by);
+    }
+    ctx.stroke();
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    var g = +sG.value/100, tk = tSurf();
+    /* space */
+    ctx.fillStyle = '#02040a'; ctx.fillRect(0,0,W,GY);
+    ctx.fillStyle='rgba(200,220,255,.5)';
+    for (var s2=0;s2<30;s2++){ ctx.fillRect((s2*97)%W, (s2*53)%(GY-40), 1.3, 1.3); }
+    /* atmosphere band */
+    var bg = ctx.createLinearGradient(0,BAND_T,0,BAND_B);
+    bg.addColorStop(0,'rgba(90,160,255,0)');
+    bg.addColorStop(0.5,'rgba(90,160,255,'+(0.05+0.22*g)+')');
+    bg.addColorStop(1,'rgba(90,160,255,0)');
+    ctx.fillStyle = bg; ctx.fillRect(0,BAND_T,W,BAND_B-BAND_T);
+    /* molecules */
+    mols.forEach(function(m, idx){
+      if (idx >= Math.round(g*14)) return;
+      var jig = Math.sin(performance.now()*0.004 + m.ph)*2 + m.pulse*5;
+      ctx.strokeStyle = 'rgba(160,210,255,.7)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(m.x+jig, m.y, 4.5, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(m.x+jig+8, m.y-5, 3.4, 0, Math.PI*2); ctx.stroke();
+      if (m.pulse > 0){
+        ctx.strokeStyle='rgba(255,120,80,'+m.pulse+')';
+        ctx.beginPath(); ctx.arc(m.x+jig+4, m.y-2, 9+ (1-m.pulse)*10, 0, Math.PI*2); ctx.stroke();
+      }
+      if (m.label && idx < 3){
+        ctx.fillStyle='rgba(160,210,255,.65)'; ctx.font='600 9px system-ui,sans-serif'; ctx.textAlign='center';
+        ctx.fillText('CO₂', m.x+jig+4, m.y+16);
+      }
+    });
+    /* sun */
+    var sg = ctx.createRadialGradient(56,44,4,56,44,70);
+    sg.addColorStop(0,'rgba(255,240,170,.9)'); sg.addColorStop(1,'rgba(255,240,170,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(56,44,70,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff3c4'; ctx.beginPath(); ctx.arc(56,44,15,0,Math.PI*2); ctx.fill();
+    /* ground */
+    var heat = Math.max(0, Math.min(1, (tk-255)/55));
+    var gr = ctx.createLinearGradient(0,GY,0,H);
+    gr.addColorStop(0,'rgb('+Math.round(40+heat*200)+','+Math.round(90-heat*30)+','+Math.round(70-heat*40)+')');
+    gr.addColorStop(1,'#120a06');
+    ctx.fillStyle = gr; ctx.fillRect(0,GY,W,H-GY);
+    ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.beginPath(); ctx.moveTo(0,GY); ctx.lineTo(W,GY); ctx.stroke();
+    /* little Earth home */
+    ctx.fillStyle='#2a5b8f'; ctx.beginPath(); ctx.arc(70,GY+42,26,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3f7a3f';
+    ctx.beginPath(); ctx.ellipse(62,GY+34,10,6,-.4,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(80,GY+50,8,5,.5,0,Math.PI*2); ctx.fill();
+
+    /* photons */
+    solar.forEach(function(p){ ctx.fillStyle='rgba(255,225,120,.95)'; ctx.beginPath(); ctx.arc(p.x,p.y,2.4,0,Math.PI*2); ctx.fill(); });
+    ir.forEach(function(p){ drawIR(p, p.up); });
+    /* legend */
+    ctx.font='600 10px system-ui,sans-serif'; ctx.textAlign='left';
+    ctx.fillStyle='rgba(255,225,120,.95)'; ctx.fillRect(500,14,14,4);
+    ctx.fillStyle='rgba(230,250,255,.7)'; ctx.fillText('sunlight (visible) — GHGs ignore it', 520, 20);
+    ctx.strokeStyle='rgba(255,80,60,.9)'; ctx.lineWidth=2; ctx.beginPath();
+    for (var q=0;q<=8;q++){ var lx=500+q*1.7; q?ctx.lineTo(lx,34+Math.sin(q*1.6)*2.6):ctx.moveTo(lx,34+Math.sin(q*1.6)*2.6); }
+    ctx.stroke();
+    ctx.fillStyle='rgba(230,250,255,.7)'; ctx.fillText('infrared (heat) — GHGs absorb it', 520, 38);
+    updateReadouts();
+  }
+
+  function step(dt){
+    var tr = tau();
+    var acc1 = step.accS = (step.accS||0) + dt*9;
+    while (acc1 >= 1){ acc1 -= 1; spawnSolar(); }
+    step.accS = acc1;
+    var rate = 7 * Math.pow(tSurf()/288, 4);
+    var acc2 = step.accI = (step.accI||0) + dt*rate;
+    while (acc2 >= 1){ acc2 -= 1; spawnIR(50+Math.random()*660, GY-4, -1); }
+    step.accI = acc2;
+
+    var i, p;
+    for (i=solar.length-1;i>=0;i--){
+      p = solar[i]; p.x += p.vx*dt; p.y += p.vy*dt;
+      if (p.y >= GY-2){ solar.splice(i,1); counts.inn++; }
+    }
+    for (i=ir.length-1;i>=0;i--){
+      p = ir[i]; p.x += p.vx*dt; p.y += p.vy*dt;
+      if (!p.chk && p.y < BAND_B){
+        p.chk = true;
+        if (Math.random() > tr){
+          ir.splice(i,1);
+          var best = null, bd = 1e9;
+          mols.forEach(function(m){ var d = (m.x-p.x)*(m.x-p.x)+(m.y-p.y)*(m.y-p.y); if (d<bd){bd=d;best=m;} });
+          if (best){
+            best.pulse = 1;
+            (function(mol){
+              setTimeout(function(){ if (cv.isConnected){ mol.pulse = 0.4; spawnIR(mol.x, mol.y, Math.random()<0.5?-1:1); } }, 300);
+            })(best);
+          }
+          continue;
+        }
+      }
+      if (p.y < BAND_T-40 && p.up !== false && p.vy < 0 && p.y < 30){ ir.splice(i,1); counts.esc++; continue; }
+      if (p.y < 6 && p.vy < 0){ ir.splice(i,1); counts.esc++; continue; }
+      if (p.y >= GY-2 && p.vy > 0){ ir.splice(i,1); counts.back++; }
+      if (p.x < -20 || p.x > W+20){ ir.splice(i,1); }
+    }
+    mols.forEach(function(m){ if (m.pulse>0) m.pulse = Math.max(0, m.pulse - dt*2.4); });
+    if (ir.length > 130) ir.splice(0, ir.length-130);
+  }
+
+  var last = 0;
+  function tick(now){
+    if (!cv.isConnected) return;
+    if (playing){
+      var dt = last ? Math.min(0.05,(now-last)/1000) : 0.016;
+      last = now;
+      step(dt);
+      render();
+    } else if (dirty){ render(); dirty = false; last = now; }
+    requestAnimationFrame(tick);
+  }
+
+  sG.addEventListener('input', function(){ dirty = true; });
+  Array.prototype.slice.call(document.querySelectorAll('.ghs-pre')).forEach(function(b){
+    b.addEventListener('click', function(){
+      sG.value = b.getAttribute('data-g');
+      dirty = true; if (!playing) render();
+    });
+  });
+
+  render();
+  requestAnimationFrame(tick);
+})();
+</script>
