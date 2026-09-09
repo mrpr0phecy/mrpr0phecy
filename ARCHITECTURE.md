@@ -75,9 +75,12 @@ establish *which* site first.
 ├── beachsimulator.html, citysimulator.html, fightsimulator.html,
 │   aiwalker.html, animation.html, birdapp.html, clock.html,
 │   eternalbeffudlementmachine.html, slideshowtest.html, token.html,
-│   tool.html, indexbeta.html, hokidea.html
+│   tool.html, indexbeta.html, hokidea.html, supaviewer.html
 │                           Experiments and one-offs. Not linked from the
 │                           catalogue. Safe to ignore; ask before deleting.
+│                           `supaviewer.html` is SupaViewer, a standalone
+│                           in-browser virtual-world viewer (docs in
+│                           supaviewer/).
 │
 ├── manifest.json           PWA manifest
 ├── sw.js                   Service worker — present but NOT registered (§7)
