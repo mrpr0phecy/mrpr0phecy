@@ -3237,6 +3237,48 @@
                 padding: 34px 16px 28px;
             }
         }
+
+        /* ===== SINGLE-COLUMN CATALOGUE =====
+           One tool per row gives each interactive surface room to breathe and
+           keeps the load pipeline aligned with the user's reading position.
+           This final rule intentionally comes after the older responsive grid
+           rules so the layout cannot silently switch back to four columns. */
+        body:not(.reader-mode) .dashboard {
+            grid-template-columns: minmax(0, 1fr) !important;
+            max-width: 980px;
+            gap: 24px;
+            padding: 80px 20px 32px;
+        }
+
+        body:not(.reader-mode) .dashboard .card {
+            min-width: 0;
+        }
+
+        /* Keep the alternate directory view aligned with the same calm,
+           single-column reading rhythm. */
+        #directoryView {
+            max-width: 980px;
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+
+        .directory-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+        }
+
+        @media (max-width: 768px) {
+            body:not(.reader-mode) .dashboard {
+                gap: 16px;
+                padding: 60px 12px 24px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body:not(.reader-mode) .dashboard {
+                padding-left: 8px;
+                padding-right: 8px;
+            }
+        }
     </style>
 
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-G058FVW6Z2"></script>
@@ -4702,6 +4744,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             }
 
             updateBuildProgress(i, cardFiles.length);
+            // Placeholder batches can change the document height while the
+            // user is already reading. Sweep after every frame so the current
+            // viewport is never dependent on the next scroll event.
+            scheduleViewportSweep();
 
             if (i < cardFiles.length) {
                 requestAnimationFrame(step);
@@ -4819,15 +4865,17 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         }
     }
     
-    // Size the first fetch batch to the actual viewport instead of a fixed 6:
-    // fill the first two grid rows for however many columns fit, so nothing
-    // visible on load is left as a skeleton. Column math mirrors the CSS grid
-    // (auto-fill minmax(320/300/280px, 1fr), max-width 1400px).
+    // The catalogue is intentionally one card per row. Load the first
+    // viewport plus a comfortable look-ahead instead of deriving a batch from
+    // the old multi-column grid. The fallback sweep below runs again after
+    // layout settles, so a tool that grows after its script starts cannot leave
+    // the next visible card stuck on a skeleton.
     function computeInitialBatch() {
-        const w = window.innerWidth || 1280;
-        const minCol = w <= 768 ? 280 : (w <= 1024 ? 300 : 320);
-        const cols = w <= 480 ? 1 : Math.max(1, Math.floor((Math.min(w, 1400) - 32) / (minCol + 16)));
-        return Math.min(24, Math.max(CONFIG.INITIAL_LOAD, cols * 2 + 1));
+        const viewportHeight = window.innerHeight || 800;
+        const estimatedCardHeight = 320;
+        const lookAhead = 520;
+        const viewportCards = Math.ceil((viewportHeight + lookAhead) / estimatedCardHeight);
+        return Math.min(12, Math.max(CONFIG.INITIAL_LOAD, viewportCards));
     }
     
     function loadInitialCards() {
@@ -4846,7 +4894,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     
     const loadQueue = [];
     let activeLoads = 0;
-    const MAX_CONCURRENT_LOADS = 6;
+    // Four concurrent fetch/render jobs are enough to cover the visible
+    // one-column viewport while leaving the main thread responsive for the
+    // interactive tools themselves (especially canvas-heavy cards).
+    const MAX_CONCURRENT_LOADS = 4;
     const retryCounts = new Map();
 
     // A card hidden by the current search/category filter must never take a
@@ -5067,9 +5118,13 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             card.classList.add('loaded', 'visible');
             updateSiteStats();
             
-            // Auto-adjust card height
+            // Auto-adjust card height. Content can expand substantially after
+            // a tool's script paints (canvas, tables, result panels), so
+            // immediately re-check the viewport after the measurement rather
+            // than waiting for a user scroll.
             setTimeout(() => {
                 adjustCardHeight(card);
+                scheduleViewportSweep();
             }, 100);
             
         } catch (error) {
@@ -5316,10 +5371,16 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         if (scrollLoadActive) return;
         scrollLoadActive = true;
 
-        const viewportTop = -400;
-        const viewportBottom = window.innerHeight + 400;
-
-        let loaded = 0;
+        // The observer has a generous look-ahead for smooth scrolling, but
+        // this fallback always gives cards actually on screen first priority.
+        // That prevents a fast jump from waiting behind a queue of cards above
+        // the viewport and fixes the "it stops showing tools" failure mode.
+        const viewportTop = -80;
+        const viewportBottom = window.innerHeight + 120;
+        const lookAheadTop = -400;
+        const lookAheadBottom = window.innerHeight + 500;
+        const visible = [];
+        const lookAhead = [];
         const stillPending = [];
 
         for (let i = 0; i < pendingCards.length; i++) {
@@ -5329,23 +5390,33 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             // time instead of re-walking all 1200+ entries on every scroll.
             if (!cardName || loadedCards.has(cardName) || !card.isConnected) continue;
             stillPending.push(card);
-            if (loaded >= MAX_CONCURRENT_LOADS) continue;
             if (loadingCards.has(cardName) || card.classList.contains('loading-fallback')) continue;
             // Hidden by the active filter: skip, but keep it pending.
             if (isCardHidden(card)) continue;
 
             // No early "past the viewport" break here: filters reorder cards
             // with CSS `order`, so DOM position says nothing about where a
-            // card is on screen. The Set checks above keep this cheap.
+            // card is on screen.
             const rect = card.getBoundingClientRect();
             if (rect.width === 0 && rect.height === 0) continue;
 
+            const distance = Math.abs((rect.top + rect.bottom) / 2 - window.innerHeight / 2);
+            const candidate = { card, cardName, distance };
             if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
-                card.classList.add('loading-fallback');
-                loadCard(card, cardName);
-                loaded++;
+                visible.push(candidate);
+            } else if (rect.bottom >= lookAheadTop && rect.top <= lookAheadBottom) {
+                lookAhead.push(candidate);
             }
         }
+
+        visible.sort((a, b) => a.distance - b.distance);
+        lookAhead.sort((a, b) => a.distance - b.distance);
+        const candidates = visible.concat(lookAhead).slice(0, MAX_CONCURRENT_LOADS);
+
+        candidates.forEach(({ card, cardName }) => {
+            card.classList.add('loading-fallback');
+            loadCard(card, cardName);
+        });
 
         pendingCards = stillPending;
         scrollLoadActive = false;
