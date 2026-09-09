@@ -94,6 +94,7 @@ const IDS = [
   'tbJump',
   'tbNova',
   'tbSmack',
+  'tglAim',
   'tglFrame',
   'tglInvY',
   'tglLock',
