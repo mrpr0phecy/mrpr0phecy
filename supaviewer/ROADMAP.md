@@ -27,7 +27,18 @@ Standalone browser viewer + **Supa Sandbox** region.
 - [ ] Better Ruth-style avatar (classic body parts, not a capsule stack)
 - [ ] Particle set on the fountain / campfire
 
-## v0.2 — OpenSim via a local gateway
+## v0.2 — public Agni map (this drop)
+
+Walk the real Second Life grid without logging in.
+
+- [x] Agni enabled as **public map** (no password)
+- [x] Linden map tiles on the mini-map / 3×3 neighbour grid
+- [x] Region search via published caps (JSONP)
+- [x] Region crossing at the 256 m edge
+- [x] SLURL + maps.secondlife.com hand-off to the official viewer
+- [x] Honest HUD: PUBLIC MAP badge, SLT clock, ghost-mode people list
+
+## v0.3 — OpenSim via a local gateway
 
 - [ ] Documented Node/Python gateway: XML-RPC login, LLUDP circuit, cap relay
 - [ ] WebSocket binary transport into the page

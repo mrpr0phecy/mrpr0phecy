@@ -17,6 +17,7 @@
   };
 
   function heightAt(x, z) {
+    if (state.gridId === 'agni') return 20;
     var dx = x - 128, dz = z - 128;
     var r = Math.hypot(dx, dz);
     var h = 16.2;
@@ -47,7 +48,9 @@
     circuit: null, reduced: false,
     moveStick: { x: 0, y: 0, active: false },
     name: 'Resident',
-    appear: { skin: 0xc68642, hair: 0x2a1a12, shirt: 0x3d7ea6, pants: 0x243044, height: 1.0 }
+    appear: { skin: 0xc68642, hair: 0x2a1a12, shirt: 0x3d7ea6, pants: 0x243044, height: 1.0 },
+    gridId: 'sandbox', gx: 1000, gy: 1000, regionName: 'Supa Sandbox',
+    crossing: false, slNeighbors: null, slTileImg: null, slTex: null
   };
 
   function canvasTex(draw, w, h) {
@@ -287,6 +290,273 @@
     addPrim({ name: 'Campfire ring', shape: 'torus', x: 142, y: 118, z: heightAt(142, 118) + 0.2, size: { x: 1.6, y: 0.4, z: 1.6 }, color: 0x666666, rot: { x: Math.PI / 2, y: 0, z: 0 } });
     addPrim({ name: 'Flame', shape: 'cone', x: 142, y: 118, z: heightAt(142, 118) + 0.9, size: { x: 0.5, y: 1.1, z: 0.5 }, color: 0xff6622, emissive: 0xff4400, emissiveIntensity: 1.2, phantom: true });
     addPrim({ name: 'Info kiosk', shape: 'box', x: 114, y: 118, z: deckY + 1.4, size: { x: 0.8, y: 2.2, z: 0.8 }, color: 0xf0c14b, hover: 'Touch for a notecard', touch: 'SupaViewer v0. Walk (WASD), fly (F), build (B), inventory (I). This region is local — nothing is uploaded.' });
+  }
+
+  function clearWorldContent() {
+    while (state.prims.length) removePrim(state.prims[0]);
+    state.agents.forEach(function (a) { state.scene.remove(a); });
+    state.agents = [];
+    if (state.terrain) { state.scene.remove(state.terrain); state.terrain = null; }
+    if (state.waterMesh) { state.scene.remove(state.waterMesh); state.waterMesh = null; }
+    if (state.slNeighbors) { state.scene.remove(state.slNeighbors); state.slNeighbors = null; }
+    if (state.slTex && state.slTex.dispose) state.slTex.dispose();
+    state.slTex = null;
+    state.slTileImg = null;
+    state.selected = null;
+    state.sitting = null;
+  }
+
+  function seedAgniKiosk() {
+    addPrim({
+      name: 'Public map kiosk', shape: 'box',
+      x: 128, y: 120, z: 21.2,
+      size: { x: 1.1, y: 2.4, z: 0.35 },
+      color: 0xf0c14b,
+      hover: 'You are a ghost on the public Second Life map',
+      touch: 'Not logged in. Live avatars are invisible. Type /region Name to hop, /slurl to copy a teleport for the official viewer.'
+    });
+    addPrim({
+      name: 'Arrival pad', shape: 'cylinder',
+      x: 128, y: 128, z: 20.08,
+      size: { x: 4.2, y: 0.12, z: 4.2 },
+      color: 0x3ec6ff, emissive: 0x3ec6ff, emissiveIntensity: 0.55, phantom: true
+    });
+  }
+
+  function buildSlGround() {
+    var geo = new THREE.PlaneGeometry(REGION, REGION, 1, 1);
+    geo.rotateX(-Math.PI / 2);
+    var mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      color: 0x2a4a3a, roughness: 0.92, metalness: 0.04
+    }));
+    mesh.position.set(REGION / 2, 20, REGION / 2);
+    mesh.receiveShadow = true;
+    mesh.name = 'sl-ground';
+    mesh.userData.terrain = true;
+    state.scene.add(mesh);
+    state.terrain = mesh;
+    state.slNeighbors = new THREE.Group();
+    state.scene.add(state.slNeighbors);
+  }
+
+  function paintSlMinimap() {
+    var c = $('sv-minimap');
+    if (!c) return;
+    var g = c.getContext('2d');
+    var w = c.width, h = c.height;
+    g.fillStyle = '#0b1c28';
+    g.fillRect(0, 0, w, h);
+    if (state.slTileImg && state.slTileImg.complete) {
+      try { g.drawImage(state.slTileImg, 0, 0, w, h); } catch (e) {}
+    } else {
+      g.fillStyle = '#1a6a8a';
+      g.fillRect(0, 0, w, h);
+    }
+    if (!state.player) return;
+    function mapX(x) { return (x / REGION) * w; }
+    function mapY(z) { return h - (z / REGION) * h; }
+    g.fillStyle = '#ffdf5a';
+    state.agents.forEach(function (a) {
+      g.fillRect(mapX(a.position.x) - 1.5, mapY(a.position.z) - 1.5, 3, 3);
+    });
+    var p = state.player.position;
+    g.save();
+    g.translate(mapX(p.x), mapY(p.z));
+    g.rotate(-state.yaw);
+    g.fillStyle = '#3ec6ff';
+    g.beginPath(); g.moveTo(0, -6); g.lineTo(4, 5); g.lineTo(-4, 5); g.closePath(); g.fill();
+    g.restore();
+  }
+
+  function fillSlTileGrid() {
+    var wrap = $('sv-sl-tiles');
+    if (!wrap) return;
+    wrap.textContent = '';
+    var gy, gx, img;
+    for (gy = 1; gy >= -1; gy--) {
+      for (gx = -1; gx <= 1; gx++) {
+        img = document.createElement('img');
+        img.alt = (gx === 0 && gy === 0) ? (state.regionName || 'current region') : '';
+        img.src = SV.slgrid.TILE(state.gx + gx, state.gy + gy);
+        img.referrerPolicy = 'no-referrer';
+        img.addEventListener('error', function () { this.className = 'sv-void'; });
+        wrap.appendChild(img);
+      }
+    }
+    var cap = $('sv-sl-mapcap');
+    if (cap) {
+      cap.textContent = (state.regionName || 'Region') + ' · grid ' + state.gx + ', ' + state.gy +
+        ' · 256 × 256 m · public map, not logged in';
+    }
+  }
+
+  function applySlTexture(tex) {
+    if (!state.terrain || !tex) return;
+    if (state.slTex && state.slTex !== tex && state.slTex.dispose) state.slTex.dispose();
+    state.slTex = tex;
+    state.terrain.material.map = tex;
+    state.terrain.material.color.setHex(0xffffff);
+    state.terrain.material.needsUpdate = true;
+  }
+
+  function loadSlTiles() {
+    fillSlTileGrid();
+    if (!global.THREE || !SV.slgrid) return;
+    SV.slgrid.loadImage(SV.slgrid.TILE(state.gx, state.gy), false, function (err, img) {
+      if (!err && img) state.slTileImg = img;
+    });
+    SV.slgrid.loadTexture(state.gx, state.gy, THREE, function (err, tex) {
+      if (!err && tex) applySlTexture(tex);
+    });
+    if (!state.slNeighbors) return;
+    while (state.slNeighbors.children.length) {
+      var ch = state.slNeighbors.children[0];
+      state.slNeighbors.remove(ch);
+      if (ch.geometry) ch.geometry.dispose();
+    }
+    var ox, oy;
+    for (oy = -1; oy <= 1; oy++) {
+      for (ox = -1; ox <= 1; ox++) {
+        if (!ox && !oy) continue;
+        (function (dx, dy) {
+          SV.slgrid.loadTexture(state.gx + dx, state.gy + dy, THREE, function (err, tex) {
+            if (err || !tex || !state.slNeighbors) return;
+            var m = new THREE.Mesh(
+              new THREE.PlaneGeometry(REGION, REGION, 1, 1),
+              new THREE.MeshStandardMaterial({ map: tex, color: 0xffffff, roughness: 0.95 })
+            );
+            m.rotation.x = -Math.PI / 2;
+            m.position.set(REGION / 2 + dx * REGION, 19.85, REGION / 2 + dy * REGION);
+            m.receiveShadow = true;
+            state.slNeighbors.add(m);
+          });
+        })(ox, oy);
+      }
+    }
+  }
+
+  function currentSlurl() {
+    var p = state.player ? state.player.position : { x: 128, y: 22, z: 128 };
+    return SV.slgrid.SLURL(state.regionName || 'Da Boom', p.x, p.z, p.y);
+  }
+
+  function openInSecondLife() {
+    if (state.gridId !== 'agni') {
+      chatSys('Open in SL is for the public Agni map.');
+      return;
+    }
+    var p = state.player ? state.player.position : { x: 128, y: 22, z: 128 };
+    var web = SV.slgrid.MAPS(state.regionName || 'Da Boom', p.x, p.z, p.y);
+    try { window.location.href = currentSlurl(); } catch (e) {}
+    setTimeout(function () {
+      window.open(web, '_blank', 'noopener,noreferrer');
+    }, 400);
+    chatSys('Opening ' + (state.regionName || 'region') + ' in Second Life / maps.secondlife.com.');
+  }
+
+  function copySlurl() {
+    var u = currentSlurl();
+    var done = function () { chatSys('Copied ' + u); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(u).then(done, function () { chatSys(u); });
+    } else chatSys(u);
+  }
+
+  function teleportToRegion(name, lx, ly, lz) {
+    if (!SV.slgrid) { chatSys('Grid helpers missing.'); return; }
+    chatSys('Looking up ' + name + '…');
+    SV.slgrid.lookupName(name, function (err, rec) {
+      if (err || !rec) {
+        chatSys('Region not found on the public map: ' + name + '. Try Da Boom or Ahern.');
+        return;
+      }
+      state.gx = rec.x;
+      state.gy = rec.y;
+      state.regionName = rec.name || name;
+      unsit();
+      var x = lx == null ? 128 : clamp(lx, 1, REGION - 1);
+      var y = ly == null ? 128 : clamp(ly, 1, REGION - 1);
+      var z = lz == null ? 22 : lz;
+      if (state.player) state.player.position.set(x, z, y);
+      loadSlTiles();
+      chatSys('Arrived in ' + state.regionName + ' (' + state.gx + ', ' + state.gy + '). Ghost on the public map — not logged in.');
+      if ($('sv-region')) $('sv-region').textContent = state.regionName;
+    });
+  }
+
+  function tryRegionCross(dgx, dgy) {
+    if (state.crossing || state.gridId !== 'agni') return;
+    var ngx = state.gx + dgx, ngy = state.gy + dgy;
+    state.crossing = true;
+    function fail(msg) {
+      if (state.player) {
+        state.player.position.x = clamp(state.player.position.x, 1.2, REGION - 1.2);
+        state.player.position.z = clamp(state.player.position.z, 1.2, REGION - 1.2);
+      }
+      chatSys(msg || 'No region that way — void ocean.');
+      state.crossing = false;
+    }
+    function go(name) {
+      state.gx = ngx; state.gy = ngy;
+      state.regionName = name || ('Region ' + ngx + ',' + ngy);
+      if (state.player) {
+        if (dgx === 1) state.player.position.x = 1.4;
+        if (dgx === -1) state.player.position.x = REGION - 1.4;
+        if (dgy === 1) state.player.position.z = 1.4;
+        if (dgy === -1) state.player.position.z = REGION - 1.4;
+      }
+      loadSlTiles();
+      chatSys('Crossing into ' + state.regionName + ' (' + ngx + ', ' + ngy + ').');
+      state.crossing = false;
+    }
+    SV.slgrid.lookupXY(ngx, ngy, function (err, name) {
+      if (name) { go(name); return; }
+      SV.slgrid.loadImage(SV.slgrid.TILE(ngx, ngy), false, function (e2, img) {
+        if (!e2 && img && img.naturalWidth > 16) go('Region ' + ngx + ',' + ngy);
+        else fail();
+      });
+    });
+  }
+
+  function switchToAgni(startName) {
+    state.gridId = 'agni';
+    state.regionName = 'Da Boom';
+    state.gx = 1000; state.gy = 1000;
+    clearWorldContent();
+    buildSlGround();
+    seedAgniKiosk();
+    if (state.player) {
+      state.player.position.set(128, 20, 128);
+      state.scene.add(state.player);
+    } else spawnPlayer();
+    defaultInventory();
+    renderInventory();
+    if ($('sv-grid-badge')) $('sv-grid-badge').hidden = false;
+    if ($('sv-sl-mapwrap')) $('sv-sl-mapwrap').hidden = false;
+    if ($('sv-worldmap')) $('sv-worldmap').hidden = true;
+    if ($('sv-map-sandbox-cap')) $('sv-map-sandbox-cap').hidden = true;
+    teleportToRegion(startName || 'Da Boom', 128, 128, 22);
+  }
+
+  function switchToSandbox() {
+    state.gridId = 'sandbox';
+    state.regionName = 'Supa Sandbox';
+    state.gx = 0; state.gy = 0;
+    clearWorldContent();
+    buildTerrain();
+    seedRegion();
+    spawnNPCs();
+    if (state.player) {
+      var h = heightAt(128, 108);
+      state.player.position.set(128, h, 108);
+      state.scene.add(state.player);
+    } else spawnPlayer();
+    defaultInventory();
+    renderInventory();
+    if ($('sv-grid-badge')) $('sv-grid-badge').hidden = true;
+    if ($('sv-sl-mapwrap')) $('sv-sl-mapwrap').hidden = true;
+    if ($('sv-worldmap')) $('sv-worldmap').hidden = false;
+    if ($('sv-map-sandbox-cap')) $('sv-map-sandbox-cap').hidden = false;
   }
 
   function makeAvatar(opts) {
@@ -537,9 +807,13 @@
       });
       chatSys('You rez ' + it.name + '.');
     } else if (it.kind === 'landmark') {
-      unsit();
-      state.player.position.set(it.x, it.z, it.y);
-      chatSys('Teleporting to ' + it.name + '.');
+      if (it.region && state.gridId === 'agni') {
+        teleportToRegion(it.region, it.x, it.y, it.z);
+      } else {
+        unsit();
+        state.player.position.set(it.x, it.z, it.y);
+        chatSys('Teleporting to ' + it.name + '.');
+      }
     } else if (it.kind === 'notecard') {
       chatObj(it.name, it.body);
     }
@@ -561,13 +835,19 @@
         { kind: 'object', name: 'Glow orb', shape: 'sphere', color: 0x66ddff, size: { x: 0.4, y: 0.4, z: 0.4 } },
         { kind: 'object', name: 'Ring prim', shape: 'ring', color: 0xf0c14b, size: { x: 1, y: 0.3, z: 1 } }
       ]},
-      { name: 'Landmarks', items: [
-        { kind: 'landmark', name: 'Telehub', x: 128, y: 108, z: heightAt(128, 108) },
-        { kind: 'landmark', name: 'Pier end', x: 220, y: 128, z: WATER + 1.2 },
-        { kind: 'landmark', name: 'Cabin', x: 96, y: 142, z: heightAt(96, 142) }
-      ]},
+      { name: 'Landmarks', items: state.gridId === 'agni'
+        ? SV.slgrid.DESTINATIONS.map(function (d) {
+            return { kind: 'landmark', name: d.name, region: d.name, x: 128, y: 128, z: 22 };
+          })
+        : [
+          { kind: 'landmark', name: 'Telehub', x: 128, y: 108, z: heightAt(128, 108) },
+          { kind: 'landmark', name: 'Pier end', x: 220, y: 128, z: WATER + 1.2 },
+          { kind: 'landmark', name: 'Cabin', x: 96, y: 142, z: heightAt(96, 142) }
+        ]},
       { name: 'Notecards', items: [
-        { kind: 'notecard', name: 'Welcome to SupaViewer', body: 'This region is local. Your inventory is a demo folder. Real grid inventory needs the gateway in ROADMAP.md.' }
+        { kind: 'notecard', name: 'Welcome to SupaViewer', body: state.gridId === 'agni'
+          ? 'You are a ghost on the public Second Life map. Live avatars, IMs and inventory need a local gateway — this page never takes a password. Type /region Da Boom or /slurl.'
+          : 'This region is local. Your inventory is a demo folder. Real grid inventory needs the gateway in ROADMAP.md.' }
       ]}
     ];
   }
@@ -596,7 +876,7 @@
       var parts = text.slice(1).split(/\s+/);
       var cmd = (parts.shift() || '').toLowerCase();
       if (cmd === 'help') {
-        chatSys('Commands: /help /fly /sit /tp x y z /clear /say /me /who');
+        chatSys('Commands: /help /fly /sit /tp x y z /region Name /slurl /clear /say /me /who');
       } else if (cmd === 'fly') {
         state.flying = !state.flying;
         unsit();
@@ -604,6 +884,11 @@
       } else if (cmd === 'sit') {
         var bench = nearestSit();
         if (bench) sitOn(bench); else chatSys('Nothing to sit on nearby.');
+      } else if (cmd === 'region' && parts.length) {
+        if (state.gridId !== 'agni') chatSys('Switch grid to Second Life (Agni) — public map first.');
+        else teleportToRegion(parts.join(' '));
+      } else if (cmd === 'slurl') {
+        copySlurl();
       } else if (cmd === 'tp' && parts.length >= 2) {
         var x = clamp(+parts[0], 0, REGION), y = clamp(+parts[1], 0, REGION);
         var z = parts[2] != null ? +parts[2] : heightAt(x, y);
@@ -615,7 +900,11 @@
       } else if (cmd === 'me') {
         chatSay(state.name, '/me ' + parts.join(' '));
       } else if (cmd === 'who') {
-        chatSys('Nearby: You, ' + state.agents.map(function (a) { return a.userData.name; }).join(', '));
+        if (state.gridId === 'agni') {
+          chatSys('Public map: live Second Life residents are invisible without a login gateway. Nearby in this tab: You.');
+        } else {
+          chatSys('Nearby: You, ' + state.agents.map(function (a) { return a.userData.name; }).join(', '));
+        }
       } else if (cmd === 'say') {
         sayLocal(parts.join(' '));
       } else {
@@ -660,6 +949,11 @@
     var list = $('sv-people-list');
     if (!list || list.parentElement.hidden) return;
     list.textContent = '';
+    if (state.gridId === 'agni' && !state.agents.length) {
+      var note = document.createElement('li');
+      note.textContent = 'Ghost mode — live residents on Agni are not visible from the public map. You only.';
+      list.appendChild(note);
+    }
     var rows = [{ name: state.name + ' (you)', dist: 0 }].concat(state.agents.map(function (a) {
       return { name: a.userData.name, dist: a.position.distanceTo(state.player.position) };
     }));
@@ -672,6 +966,7 @@
   }
 
   function updateMinimap() {
+    if (state.gridId === 'agni') { paintSlMinimap(); return; }
     var c = $('sv-minimap');
     if (!c || !state.player) return;
     var g = c.getContext('2d');
@@ -864,8 +1159,9 @@
     login.addEventListener('submit', function (e) {
       e.preventDefault();
       var grid = $('sv-grid').value;
-      if (grid !== 'sandbox') {
-        $('sv-login-err').textContent = SV.GRID[grid] ? SV.GRID[grid].blurb : 'That grid is not available in v0.';
+      var meta = SV.GRID[grid];
+      if (!meta || !meta.enabled) {
+        $('sv-login-err').textContent = meta ? meta.blurb : 'That grid is not available.';
         $('sv-login-err').hidden = false;
         return;
       }
@@ -877,11 +1173,20 @@
         state.player.userData.parts.tag.material.map.needsUpdate = true;
       }
       saveAppear();
+      if (grid === 'agni') {
+        var start = ($('sv-start-region') && $('sv-start-region').value.replace(/^\s+|\s+$/g, '')) || 'Da Boom';
+        switchToAgni(start);
+      } else if (state.gridId === 'agni') {
+        switchToSandbox();
+      }
       enterWorld();
     });
     $('sv-grid').addEventListener('change', function () {
       var g = SV.GRID[this.value];
       $('sv-grid-blurb').textContent = g ? g.blurb : '';
+      var agni = this.value === 'agni';
+      if ($('sv-region-field')) $('sv-region-field').hidden = !agni;
+      if ($('sv-dest-chips')) $('sv-dest-chips').hidden = !agni;
     });
     $('sv-logout') && $('sv-logout').addEventListener('click', function () {
       $('sv-hud').hidden = true;
@@ -933,6 +1238,38 @@
       if (state.sitting) unsit();
       else if (state.onGround && !state.flying) state.velY = JUMP;
     });
+    if ($('sv-open-sl')) $('sv-open-sl').addEventListener('click', openInSecondLife);
+    if ($('sv-open-sl-map')) $('sv-open-sl-map').addEventListener('click', function () {
+      var p = state.player ? state.player.position : { x: 128, y: 22, z: 128 };
+      window.open(SV.slgrid.MAPS(state.regionName || 'Da Boom', p.x, p.z, p.y), '_blank', 'noopener,noreferrer');
+    });
+    if ($('sv-copy-slurl')) $('sv-copy-slurl').addEventListener('click', copySlurl);
+    if ($('sv-tp-form')) $('sv-tp-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = $('sv-tp-region') && $('sv-tp-region').value.replace(/^\s+|\s+$/g, '');
+      if (v) teleportToRegion(v);
+    });
+    var chips = $('sv-dest-chips');
+    var rlist = $('sv-region-list');
+    if (SV.slgrid && SV.slgrid.DESTINATIONS) {
+      SV.slgrid.DESTINATIONS.forEach(function (d) {
+        if (rlist) {
+          var opt = document.createElement('option');
+          opt.value = d.name;
+          rlist.appendChild(opt);
+        }
+        if (chips) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = d.name;
+          b.title = d.note || d.name;
+          b.addEventListener('click', function () {
+            if ($('sv-start-region')) $('sv-start-region').value = d.name;
+          });
+          chips.appendChild(b);
+        }
+      });
+    }
   }
 
   function toggleMouselook(force) {
@@ -1003,10 +1340,18 @@
       var sin = Math.sin(state.yaw), cos = Math.cos(state.yaw);
       var dx = (sin * fwd + cos * strafe) * speed * dt;
       var dz = (cos * fwd - sin * strafe) * speed * dt;
-      var nx = clamp(av.position.x + dx, 1, REGION - 1);
-      var nz = clamp(av.position.z + dz, 1, REGION - 1);
-      if (av.position.x + dx !== nx && (nx === 1 || nx === REGION - 1)) {
-        /* edge */
+      var nx = av.position.x + dx;
+      var nz = av.position.z + dz;
+      if (state.gridId === 'agni') {
+        var dgx = 0, dgy = 0;
+        if (nx < 0) dgx = -1;
+        else if (nx > REGION) dgx = 1;
+        if (nz < 0) dgy = -1;
+        else if (nz > REGION) dgy = 1;
+        if (dgx || dgy) { tryRegionCross(dgx, dgy); return; }
+      } else {
+        nx = clamp(nx, 1, REGION - 1);
+        nz = clamp(nz, 1, REGION - 1);
       }
       if (!collideXZ(nx, av.position.z, av.position.y)) av.position.x = nx;
       if (!collideXZ(av.position.x, nz, av.position.y)) av.position.z = nz;
@@ -1090,10 +1435,14 @@
     if (!av) return;
     var slx = av.position.x, sly = av.position.z, slz = av.position.y;
     $('sv-coords').textContent = slx.toFixed(1) + ', ' + sly.toFixed(1) + ', ' + slz.toFixed(1);
-    $('sv-region').textContent = 'Supa Sandbox';
-    var hour = (state.dayT * 24 + 6) % 24;
-    var hh = hour | 0, mm = ((hour - hh) * 60) | 0;
-    $('sv-clock').textContent = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+    $('sv-region').textContent = state.regionName || (state.gridId === 'agni' ? 'Agni' : 'Supa Sandbox');
+    if (state.gridId === 'agni' && SV.slgrid) {
+      $('sv-clock').textContent = SV.slgrid.sltClock();
+    } else {
+      var hour = (state.dayT * 24 + 6) % 24;
+      var hh = hour | 0, mm = ((hour - hh) * 60) | 0;
+      $('sv-clock').textContent = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+    }
     $('sv-mode').textContent = state.sitting ? 'SIT' : state.flying ? 'FLY' : state.onGround ? 'WALK' : 'FALL';
     var near = nearestAgent();
     $('sv-nearby').textContent = near.agent ? near.agent.userData.name + ' · ' + near.dist.toFixed(0) + ' m' : 'nobody';
@@ -1121,10 +1470,15 @@
     $('sv-hud').hidden = false;
     $('sv-touch').hidden = !('ontouchstart' in window);
     state.circuit.agentName = state.name;
-    state.circuit.system('You are in Supa Sandbox (256 m). This region is simulated in your browser.');
-    chatSys('Welcome, ' + state.name + '. Type /help — or just walk around.');
-    var n = state.agents[0];
-    if (n) setTimeout(function () { chatSay(n.userData.name, 'Hey. Welcome to the sandbox.'); }, 1200);
+    if (state.gridId === 'agni') {
+      state.circuit.system('Public map of Second Life (Agni). You are not logged in — live avatars, chat and inventory stay on the official viewer.');
+      chatSys('Welcome, ' + state.name + '. Walk off a region edge to cross. /region Name hops. /slurl copies a teleport for the official viewer.');
+    } else {
+      state.circuit.system('You are in Supa Sandbox (256 m). This region is simulated in your browser.');
+      chatSys('Welcome, ' + state.name + '. Type /help — or just walk around.');
+      var n = state.agents[0];
+      if (n) setTimeout(function () { chatSay(n.userData.name, 'Hey. Welcome to the sandbox.'); }, 1200);
+    }
   }
 
   function initThree() {
@@ -1184,9 +1538,23 @@
     defaultInventory();
     renderInventory();
     bindUI();
-    $('sv-loading').hidden = true;
-    $('sv-login').hidden = false;
-    $('sv-grid-blurb').textContent = SV.GRID.sandbox.blurb;
+    var params = {};
+    try {
+      window.location.search.replace(/[?&]+([^=&]+)=([^&]*)/g, function (_, k, v) {
+        params[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' '));
+      });
+    } catch (e) {}
+    if (params.grid && $('sv-grid') && SV.GRID[params.grid]) {
+      $('sv-grid').value = params.grid;
+      $('sv-grid').dispatchEvent(new Event('change'));
+    } else if ($('sv-grid')) {
+      $('sv-grid').dispatchEvent(new Event('change'));
+    }
+    if (params.region && $('sv-start-region')) $('sv-start-region').value = params.region;
+    if ($('sv-loading')) $('sv-loading').hidden = true;
+    if ($('sv-login')) $('sv-login').hidden = false;
+    var gsel = $('sv-grid') && SV.GRID[$('sv-grid').value];
+    if ($('sv-grid-blurb')) $('sv-grid-blurb').textContent = gsel ? gsel.blurb : SV.GRID.sandbox.blurb;
     loop();
   };
 })(window);

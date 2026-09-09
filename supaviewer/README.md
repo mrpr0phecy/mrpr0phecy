@@ -2,17 +2,18 @@
 
 **Open-source, standalone, in-browser virtual world viewer.**
 
-SupaViewer is a from-scratch WebGL viewer inspired by classic Second Life / OpenSimulator viewers (Firestorm, Cool VL, Alchemy). Version 0 runs entirely in your browser against a local sandbox region — no account, no install, no plugin.
+SupaViewer is a from-scratch WebGL viewer inspired by classic Second Life / OpenSimulator viewers (Firestorm, Cool VL, Alchemy). Version 0.2 can walk the **public Second Life (Agni) grid map** with no account, or a local sandbox region. No install, no plugin, no password.
 
 Live page (this repo): [`/supaviewer.html`](../supaviewer.html)
 
 > **Not affiliated with Linden Lab.** Second Life® is a trademark of Linden Research, Inc. SupaViewer is an independent, unofficial project. It does not send your password anywhere.
 
-## What works in v0
+## What works in v0.2
 
+- **Second Life (Agni) public map** — walk the real mainland as a ghost. Region search, edge crossings, SLURLs, official map tiles. No account.
 - 256 m × 256 m sandbox region (**Supa Sandbox**) with terrain, water, sky and a seeded welcome area
 - Walk, run, jump, fly, sit, third-person camera, mouselook
-- Nearby residents (simple agents), local chat, `/` commands
+- Nearby residents (sandbox agents), local chat, `/` commands (`/region`, `/slurl`)
 - Inventory, appearance, radar / mini-map, people list
 - Build: rez / select / move / tint / delete classic prims (box, cylinder, sphere, torus, prism, ring)
 - Touch and sit scripts on seeded objects
@@ -20,7 +21,7 @@ Live page (this repo): [`/supaviewer.html`](../supaviewer.html)
 
 ## What does not work yet (and why)
 
-Browsers cannot speak **LLUDP**. A real grid connection needs a local or hosted **WebSocket ↔ UDP/caps gateway**. Direct login to Second Life or OSGrid from this page is deliberately disabled so credentials never leave your machine. See [PROTOCOL.md](PROTOCOL.md) and [ROADMAP.md](ROADMAP.md).
+Browsers cannot speak **LLUDP**. A *logged-in* session (live avatars, IMs, inventory, mesh) needs a local or hosted **WebSocket ↔ UDP/caps gateway**. This page will never take a Second Life password. The public-map mode uses only Linden Lab's documented map tiles and region-name caps. See [PROTOCOL.md](PROTOCOL.md) and [ROADMAP.md](ROADMAP.md).
 
 ## Controls
 

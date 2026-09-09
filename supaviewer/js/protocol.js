@@ -36,11 +36,11 @@
     },
     agni: {
       id: 'agni',
-      name: 'Second Life (Agni)',
-      kind: 'lludp',
-      enabled: false,
+      name: 'Second Life (Agni) — public map',
+      kind: 'public-map',
+      enabled: true,
       login: 'https://login.agni.lindenlab.com/cgi-bin/login.cgi',
-      blurb: 'Disabled: browsers cannot speak LLUDP, and this page will not take your password.'
+      blurb: 'Walk the real Second Life mainland using Linden Lab public map tiles. You are a ghost on the grid — not logged in. Live avatars, chat and inventory need a local gateway. This page will not take a password.'
     },
     aditi: {
       id: 'aditi',
