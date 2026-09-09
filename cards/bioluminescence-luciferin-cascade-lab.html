@@ -1,0 +1,209 @@
+<h2 id="blc-title" style="margin-top:0;color:var(--accent);">✨ Bioluminescent Luciferin Chemical Cascade Lab</h2>
+
+<form aria-describedby="blc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="blc-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Bioluminescence is the miracle of "cold light"—producing near 100% luminous efficiency with zero thermal waste. Discover how enzyme Luciferase oxidizes substrate Luciferin using cellular ATP, agitate dinoflagellate sea tides with water shear stress, and compare deep-sea oceanic emission spectra.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="blc-species-select" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Organism Spectrum:</label>
+        <select id="blc-species-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="dino">🌊 Noctiluca Dinoflagellate (470nm Cyan)</option>
+          <option value="jelly">🪼 Crystal Jellyfish GFP (509nm Emerald)</option>
+          <option value="firefly">✨ Meadow Firefly (560nm Amber)</option>
+          <option value="dragonfish">🐉 Deep-Sea Dragonfish (705nm Red)</option>
+        </select>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <label for="blc-atp-slider" style="color:var(--accent);font-size:0.85rem;font-weight:700;">Cellular ATP Energy:</label>
+          <span id="blc-atp-val" style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:700;">80%</span>
+        </div>
+        <input type="range" id="blc-atp-slider" min="0" max="100" value="80" style="width:100%;accent-color:var(--accent);" />
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button type="button" id="blc-wave-btn" style="width:100%;padding:9px 12px;background:linear-gradient(135deg, #2dd4ff, #00ffaa);color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <span>🌊</span> <span>Trigger Ocean Shear Wave</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Chemical Equation Formula Box -->
+    <div style="background:rgba(0,0,0,0.35);padding:10px 14px;border-radius:8px;border-left:3px solid var(--accent);font-size:0.85rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div style="color:#fff;font-family:monospace;font-weight:700;">
+        LH₂ + ATP + O₂ <span style="color:#ffd700;">—[Luciferase]→</span> Oxyluciferin + AMP + PPi + <span id="blc-photon-tag" style="color:#2dd4ff;text-shadow:0 0 8px #2dd4ff;">hν (Photon)</span>
+      </div>
+      <div id="blc-photon-count" style="color:var(--premium, #ffd700);font-weight:700;font-size:0.8rem;">
+        ⚡ 0 Photons Emitted
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Canvas Stage -->
+<div style="position:relative;width:100%;height:380px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#01040a;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 50px rgba(0,0,0,0.9);">
+  <canvas id="blc-canvas" width="600" height="380" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+  <div id="blc-tip" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(6,12,24,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;">
+    ✨ <b>Swirl your cursor:</b> Mechanical shear stress opens calcium ion channels, triggering scintillon flash cascades in thousands of micro-plankton!
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('blc-canvas');
+  var ctx = canvas.getContext('2d');
+  var speciesSelect = document.getElementById('blc-species-select');
+  var atpSlider = document.getElementById('blc-atp-slider');
+  var atpVal = document.getElementById('blc-atp-val');
+  var waveBtn = document.getElementById('blc-wave-btn');
+  var photonTag = document.getElementById('blc-photon-tag');
+  var photonCountBadge = document.getElementById('blc-photon-count');
+  var tip = document.getElementById('blc-tip');
+
+  var totalPhotons = 0;
+  var plankton = [];
+  var numPlankton = 85;
+
+  var speciesData = {
+    dino: { name: "Noctiluca", color: '#2dd4ff', rgb: '45, 212, 255', wavelength: '470nm', desc: "Cyan-blue penetrates deepest into seawater, maximizing visibility for predator deterrence." },
+    jelly: { name: "Crystal Jelly", color: '#39ff14', rgb: '57, 255, 20', wavelength: '509nm', desc: "GFP absorbs blue photoprotein emissions and re-radiates green fluorescent light." },
+    firefly: { name: "Firefly", color: '#ffd700', rgb: '255, 215, 0', wavelength: '560nm', desc: "Warm yellow-green wavelengths cut through terrestrial dusk foliage for mating signals." },
+    dragonfish: { name: "Dragonfish", color: '#ff2a2a', rgb: '255, 42, 42', wavelength: '705nm', desc: "Deep red bioluminescence acts as a biological sniper scope: invisible to deep prey!" }
+  };
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      initPlankton();
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function initPlankton() {
+    plankton = [];
+    var w = canvas.width;
+    var h = canvas.height;
+    for (var i = 0; i < numPlankton; i++) {
+      plankton.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        radius: 3 + Math.random() * 4,
+        glow: 0,
+        decay: 0.03 + Math.random() * 0.02
+      });
+    }
+  }
+
+  function exciteAt(x, y, radius, energy) {
+    var atp = parseFloat(atpSlider.value) / 100;
+    for (var i = 0; i < plankton.length; i++) {
+      var p = plankton[i];
+      var d = Math.hypot(p.x - x, p.y - y);
+      if (d < radius) {
+        p.glow = Math.min(1.0, p.glow + energy * atp * (1 - d / radius));
+        totalPhotons += Math.floor(12 * p.glow);
+      }
+    }
+    photonCountBadge.textContent = '⚡ ' + totalPhotons + ' Photons Emitted';
+  }
+
+  function triggerWave() {
+    var w = canvas.width;
+    var h = canvas.height;
+    for (var stepX = 0; stepX < w; stepX += 40) {
+      (function(sx) {
+        setTimeout(function() {
+          exciteAt(sx, h / 2 + Math.sin(sx * 0.02) * (h * 0.3), 70, 0.95);
+        }, (sx / w) * 600);
+      })(stepX);
+    }
+  }
+
+  function render() {
+    var w = canvas.width;
+    var h = canvas.height;
+    var curSpec = speciesData[speciesSelect.value] || speciesData.dino;
+
+    atpVal.textContent = atpSlider.value + '%';
+    photonTag.style.color = curSpec.color;
+    photonTag.style.textShadow = '0 0 10px ' + curSpec.color;
+
+    // Dark oceanic abyss background
+    ctx.fillStyle = 'rgba(1, 4, 10, 0.18)';
+    ctx.fillRect(0, 0, w, h);
+
+    // Render Plankton Scintillons
+    for (var i = 0; i < plankton.length; i++) {
+      var p = plankton[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+
+      if (p.glow > 0.01) {
+        p.glow -= p.decay;
+
+        // Radiative Halo
+        ctx.save();
+        var haloRadius = p.radius * (4 + p.glow * 10);
+        var g = ctx.createRadialGradient(p.x, p.y, p.radius * 0.5, p.x, p.y, haloRadius);
+        g.addColorStop(0, 'rgba(' + curSpec.rgb + ', ' + p.glow + ')');
+        g.addColorStop(0.5, 'rgba(' + curSpec.rgb + ', ' + (p.glow * 0.3) + ')');
+        g.addColorStop(1, 'rgba(' + curSpec.rgb + ', 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, haloRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Core flash
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius * 0.75, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else {
+        // Resting dim cell
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Pointer agitation
+  canvas.addEventListener('mousemove', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    exciteAt(mx, my, 55, 0.7);
+  });
+
+  canvas.addEventListener('click', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    exciteAt(mx, my, 90, 1.0);
+  });
+
+  waveBtn.addEventListener('click', triggerWave);
+  speciesSelect.addEventListener('change', function() {
+    var s = speciesData[speciesSelect.value];
+    tip.innerHTML = '✨ <b>' + s.name + ' (' + s.wavelength + '):</b> ' + s.desc;
+  });
+
+  resizeCanvas();
+  render();
+})();
+</script>

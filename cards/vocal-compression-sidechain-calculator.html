@@ -1,0 +1,202 @@
+<h2 id="vsc-title" style="margin-top:0;color:var(--accent);">🎙️ Hip Hop Vocal &amp; Sidechain Compressor Calculator</h2>
+
+<form aria-describedby="vsc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="vsc-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Compressors that aren't mathematically timed to your beat either choke punchy transients or pump unnaturally. Calculate tempo-synced Attack, Release, and Hold times for kick-to-808 sidechain ducking, lead rap vocal dynamics, and 2-bus mix glue.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="vsc-comp-target" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Compression Target:</label>
+        <select id="vsc-comp-target" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="sidechain" selected>💥 Kick → 808 Sub Sidechain Ducking</option>
+          <option value="vocal-trap">🎤 Modern Trap / Drill Vocal (Aggressive)</option>
+          <option value="vocal-boombap">🎙️ Boom-Bap Storyteller Vocal (Dynamic)</option>
+          <option value="bus-glue">🎛️ Master 2-Bus Mix Glue (SSL Style)</option>
+        </select>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <label for="vsc-bpm-slider" style="color:var(--accent);font-size:0.85rem;font-weight:700;">Track BPM:</label>
+          <span id="vsc-bpm-val" style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:700;">140.0 BPM</span>
+        </div>
+        <input type="range" id="vsc-bpm-slider" min="60" max="190" value="140" style="width:100%;accent-color:var(--accent);" />
+      </div>
+
+      <div>
+        <label for="vsc-subdiv" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Release Musical Note:</label>
+        <select id="vsc-subdiv" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="16th" selected>1/16 Note (Tight &amp; Fast)</option>
+          <option value="8th">1/8 Note (Medium Breathing)</option>
+          <option value="32nd">1/32 Note (Ultra-Fast Duck)</option>
+          <option value="triplet">1/8 Triplet Groove</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Calculated Compression Settings Cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);font-size:0.8rem;">
+      <div style="background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;border-left:3px solid #ff007a;">
+        <div style="color:var(--text-secondary);">Recommended Attack:</div>
+        <b id="vsc-out-attack" style="color:#ff007a;font-size:1rem;">0.5 ms (Instant)</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;border-left:3px solid #2dd4ff;">
+        <div style="color:var(--text-secondary);">Calculated Release:</div>
+        <b id="vsc-out-release" style="color:#2dd4ff;font-size:1rem;">107.14 ms</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;border-left:3px solid #ffd700;">
+        <div style="color:var(--text-secondary);">Recommended Ratio:</div>
+        <b id="vsc-out-ratio" style="color:#ffd700;font-size:1rem;">6:1 to 8:1</b>
+      </div>
+      <div style="background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;border-left:3px solid #39ff14;">
+        <div style="color:var(--text-secondary);">Target Gain Reduction:</div>
+        <b id="vsc-out-gr" style="color:#39ff14;font-size:1rem;">-4 to -6 dB</b>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Compressor Gain Reduction Envelope Visualizer Canvas -->
+<div style="position:relative;width:100%;height:300px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#030612;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 40px rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;">
+  <canvas id="vsc-canvas" width="600" height="300" style="width:100%;height:100%;display:block;"></canvas>
+  <div id="vsc-tip" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(8,16,30,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;">
+    💥 <b>Kick/808 Sidechain Secret:</b> Set Attack to 0.1–0.5 ms so the kick transient hits cleanly without clipping. Set Release to exact 1/16th note (107ms @ 140BPM) so the 808 sub blooms immediately after the kick dies!
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('vsc-canvas');
+  var ctx = canvas.getContext('2d');
+  var targetSelect = document.getElementById('vsc-comp-target');
+  var bpmSlider = document.getElementById('vsc-bpm-slider');
+  var bpmVal = document.getElementById('vsc-bpm-val');
+  var subdivSelect = document.getElementById('vsc-subdiv');
+
+  var outAttack = document.getElementById('vsc-out-attack');
+  var outRelease = document.getElementById('vsc-out-release');
+  var outRatio = document.getElementById('vsc-out-ratio');
+  var outGr = document.getElementById('vsc-out-gr');
+  var tip = document.getElementById('vsc-tip');
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function calculate() {
+    var bpm = parseFloat(bpmSlider.value);
+    bpmVal.textContent = bpm.toFixed(1) + ' BPM';
+
+    var quarterMs = 60000 / bpm;
+    var sixteenthMs = quarterMs / 4;
+    var eighthMs = quarterMs / 2;
+    var thirtysecondMs = quarterMs / 8;
+    var tripletMs = (quarterMs * 2) / 3;
+
+    var subdiv = subdivSelect.value;
+    var baseReleaseMs = (subdiv === '16th') ? sixteenthMs :
+                        (subdiv === '8th') ? eighthMs :
+                        (subdiv === '32nd') ? thirtysecondMs : tripletMs;
+
+    var tgt = targetSelect.value;
+    var attackStr = "", releaseStr = "", ratioStr = "", grStr = "";
+
+    if (tgt === 'sidechain') {
+      attackStr = "0.2 - 0.5 ms (Instant)";
+      releaseStr = baseReleaseMs.toFixed(1) + " ms";
+      ratioStr = "6:1 to 10:1 (Hard Duck)";
+      grStr = "-6 to -10 dB Ducking";
+      tip.innerHTML = "💥 <b>Kick/808 Sidechain Secret:</b> Set Attack to instant (0.2ms) to duck the 808 precisely when the kick transient punches, releasing in exactly " + baseReleaseMs.toFixed(1) + "ms to avoid bass clash!";
+    } else if (tgt === 'vocal-trap') {
+      attackStr = "5.0 - 10.0 ms (Punchy Clamped)";
+      releaseStr = (sixteenthMs * 0.85).toFixed(1) + " ms (Fast Recovery)";
+      ratioStr = "4:1 to 6:1 (In-Your-Face)";
+      grStr = "-4 to -7 dB";
+      tip.innerHTML = "🎤 <b>Aggressive Trap Vocal:</b> Fast 5ms attack catches loud plosives while keeping the rap vocal glued firmly in front of the 808s and synths.";
+    } else if (tgt === 'vocal-boombap') {
+      attackStr = "25.0 - 35.0 ms (Preserve Dynamics)";
+      releaseStr = (eighthMs * 0.9).toFixed(1) + " ms (Musical Breathing)";
+      ratioStr = "2.5:1 to 4:1 (Smooth)";
+      grStr = "-2 to -4 dB (Gentle)";
+      tip.innerHTML = "🎙️ <b>Boom-Bap Storyteller Vocal:</b> Slower 30ms attack lets the initial consonant punch through naturally, maintaining natural vocal warmth and storytelling inflection.";
+    } else {
+      attackStr = "30.0 ms (Slow Pass Transients)";
+      releaseStr = (sixteenthMs * 0.6).toFixed(1) + " ms / Auto";
+      ratioStr = "2:1 to 4:1 (Mix Bus Glue)";
+      grStr = "-1 to -2.5 dB Max";
+      tip.innerHTML = "🎛️ <b>SSL Mix Bus Glue:</b> Slow 30ms attack lets drum transients punch through untouched, while the needle gently kisses 2dB of reduction to bond the whole beat together.";
+    }
+
+    outAttack.textContent = attackStr;
+    outRelease.textContent = releaseStr;
+    outRatio.textContent = ratioStr;
+    outGr.textContent = grStr;
+
+    renderCurve();
+  }
+
+  function renderCurve() {
+    var w = canvas.width;
+    var h = canvas.height;
+    ctx.fillStyle = '#030612';
+    ctx.fillRect(0, 0, w, h);
+
+    // Gain Reduction Envelope Visualizer
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    for (var y = 30; y < h - 40; y += 40) { ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 40, y); ctx.stroke(); }
+
+    ctx.fillStyle = '#ff007a';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText('DYNAMIC GAIN REDUCTION ENVELOPE (dB vs Time)', 40, 24);
+
+    // Draw Input Transient Pulse vs Compressor Duck Curve
+    var cx = w / 2;
+    var topY = 60;
+    var botY = 200;
+
+    // Input Spike
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(80, topY + 20);
+    ctx.lineTo(130, topY + 20);
+    ctx.lineTo(135, topY + 120); // kick transient
+    ctx.lineTo(150, topY + 20);
+    ctx.lineTo(320, topY + 20);
+    ctx.stroke();
+    ctx.fillStyle = '#2dd4ff';
+    ctx.fillText('Kick Transient Input', 90, topY + 15);
+
+    // Compressor Gain Reduction Response (Pink Duck Curve)
+    ctx.strokeStyle = '#ff007a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(80, botY);
+    ctx.lineTo(130, botY);
+    ctx.lineTo(138, botY - 90); // Attack clamp
+    ctx.quadraticCurveTo(200, botY - 40, 300, botY); // Tempo-synced release curve
+    ctx.lineTo(w - 80, botY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ff007a';
+    ctx.fillText('808 Duck & Release Curve (Synced)', 200, botY - 95);
+  }
+
+  [targetSelect, bpmSlider, subdivSelect].forEach(function(el) {
+    el.addEventListener('input', calculate);
+    el.addEventListener('change', calculate);
+  });
+
+  calculate();
+})();
+</script>

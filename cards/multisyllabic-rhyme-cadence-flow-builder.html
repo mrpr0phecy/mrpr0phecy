@@ -1,0 +1,244 @@
+<h2 id="mrf-title" style="margin-top:0;color:var(--accent);">🎤 Multi-Syllabic Rhyme &amp; Cadence Flow Architect</h2>
+
+<form aria-describedby="mrf-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="mrf-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Master the lyrical mechanics of golden era and modern technical rap. Map your syllables across a 16-slot 4/4 measure grid to lock your flow into the pocket, identify multi-syllabic vowel rhyme schemes, and explore complex internal slant rhymes.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="margin-bottom:12px;">
+      <label for="mrf-lyrics-input" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:6px;">
+        Enter Rap Lyrics / Bars (2-4 Lines):
+      </label>
+      <textarea id="mrf-lyrics-input" rows="3" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(0,0,0,0.3);color:#fff;font-size:0.95rem;line-height:1.6;resize:vertical;">I calculate the cadence when I formulate the matrix
+My thoughts are orchestrated while they operate the basics</textarea>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:12px;">
+      <div>
+        <label for="mrf-flow-preset" style="display:block;color:var(--accent);font-size:0.8rem;font-weight:700;margin-bottom:4px;">Flow Cadence Preset:</label>
+        <select id="mrf-flow-preset" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="custom">Custom Entered Lyrics</option>
+          <option value="rakim">Rakim / Nas 16th-Note Internal Pocket</option>
+          <option value="doom">MF DOOM Multi-Compound Rhyme Scheme</option>
+          <option value="migos">Migos / Trap Triplet Flow (Triplet Staccato)</option>
+        </select>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <label for="mrf-bpm-slider" style="color:var(--accent);font-size:0.8rem;font-weight:700;">Metronome BPM:</label>
+          <span id="mrf-bpm-val" style="color:var(--premium, #ffd700);font-size:0.8rem;font-weight:700;">90 BPM</span>
+        </div>
+        <input type="range" id="mrf-bpm-slider" min="60" max="150" value="90" style="width:100%;accent-color:var(--accent);" />
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button type="button" id="mrf-metro-btn" style="width:100%;padding:8px 12px;background:rgba(255,215,0,0.15);color:var(--premium, #ffd700);border:1px solid rgba(255,215,0,0.3);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:700;">
+          🔊 Metronome: OFF
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Cadence & Multi-Rhyme Grid Stage -->
+<div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+  <div style="color:var(--accent);font-weight:700;font-size:0.85rem;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+    <span>🎼 16-Slot Flow Bar Cadence Breakdown</span>
+    <span style="font-size:0.75rem;color:var(--text-secondary);">4/4 Measure (16th-note pocket)</span>
+  </div>
+
+  <div id="mrf-bars-container" style="display:flex;flex-direction:column;gap:10px;"></div>
+</div>
+
+<script>
+(function(){
+  var lyricsInput = document.getElementById('mrf-lyrics-input');
+  var flowPreset = document.getElementById('mrf-flow-preset');
+  var bpmSlider = document.getElementById('mrf-bpm-slider');
+  var bpmVal = document.getElementById('mrf-bpm-val');
+  var metroBtn = document.getElementById('mrf-metro-btn');
+  var barsContainer = document.getElementById('mrf-bars-container');
+
+  var audioCtx = null;
+  var isMetroPlaying = false;
+  var metroTimer = null;
+  var metroStep = 0;
+
+  var presets = {
+    custom: "I calculate the cadence when I formulate the matrix\nMy thoughts are orchestrated while they operate the basics",
+    rakim: "I take seven 'emcees' put 'em in a line\nAnd add seven more 'brothers' who think they can rhyme",
+    doom: "Living off borrowed time the clock tick faster\nThat'd be the hour they knock the slick blaster",
+    migos: "Rain drop, drop top\nSmokin' on cookie in the hot box"
+  };
+
+  var vowelColors = {
+    'a': '#ff007a',
+    'e': '#2dd4ff',
+    'i': '#ffd700',
+    'o': '#39ff14',
+    'u': '#c77dff',
+    'ay': '#ff9500',
+    'ee': '#00ffaa'
+  };
+
+  function getAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTick(isDownbeat) {
+    var actx = getAudio(); if (!actx) return;
+    var now = actx.currentTime;
+    var osc = actx.createOscillator();
+    var g = actx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(isDownbeat ? 880 : 440, now);
+    g.gain.setValueAtTime(0.2, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+    osc.connect(g);
+    g.connect(actx.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
+
+  function parseLineIntoSyllables(line) {
+    var words = line.trim().split(/\s+/);
+    var syllables = [];
+
+    words.forEach(function(word) {
+      // Basic syllable splitting regex for English phonemes
+      var clean = word.replace(/[^a-zA-Z']/g, '');
+      if (!clean) return;
+
+      var chunks = clean.match(/[^aeiouy]*[aeiouy]+(?:[^aeiouy]*$|[^aeiouy](?=[^aeiouy]))?/gi);
+      if (!chunks || chunks.length === 0) chunks = [clean];
+
+      chunks.forEach(function(syl) {
+        // Find dominant vowel for color coding
+        var vMatch = syl.toLowerCase().match(/[aeiouy]/);
+        var v = vMatch ? vMatch[0] : 'a';
+        syllables.push({ text: syl, vowel: v });
+      });
+    });
+
+    return syllables;
+  }
+
+  function updateFlowView() {
+    bpmVal.textContent = bpmSlider.value + ' BPM';
+    var text = lyricsInput.value;
+    var lines = text.split('\n').filter(function(l) { return l.trim().length > 0; });
+
+    barsContainer.innerHTML = '';
+
+    lines.forEach(function(line, lIdx) {
+      var syls = parseLineIntoSyllables(line);
+      var barRow = document.createElement('div');
+      barRow.style.background = 'rgba(0,0,0,0.3)';
+      barRow.style.borderRadius = '8px';
+      barRow.style.padding = '10px 12px';
+      barRow.style.border = '1px solid rgba(255,255,255,0.06)';
+
+      var barHeader = document.createElement('div');
+      barHeader.style.fontSize = '0.8rem';
+      barHeader.style.color = 'var(--text-secondary)';
+      barHeader.style.marginBottom = '8px';
+      barHeader.style.display = 'flex';
+      barHeader.style.justifyContent = 'space-between';
+      barHeader.innerHTML = '<span>Bar ' + (lIdx + 1) + ' (' + syls.length + ' syllables)</span><span style="color:var(--accent);">' + line + '</span>';
+      barRow.appendChild(barHeader);
+
+      // 16-slot grid
+      var grid = document.createElement('div');
+      grid.style.display = 'grid';
+      grid.style.gridTemplateColumns = 'repeat(16, 1fr)';
+      grid.style.gap = '4px';
+
+      for (var s = 0; s < 16; s++) {
+        var slot = document.createElement('div');
+        slot.style.padding = '6px 2px';
+        slot.style.borderRadius = '4px';
+        slot.style.textAlign = 'center';
+        slot.style.fontSize = '0.75rem';
+        slot.style.fontWeight = '700';
+        slot.style.minHeight = '28px';
+        slot.style.display = 'flex';
+        slot.style.flexDirection = 'column';
+        slot.style.justifyContent = 'center';
+
+        // Downbeat styling
+        if (s % 4 === 0) {
+          slot.style.border = '1px solid rgba(45,212,255,0.3)';
+          slot.style.background = 'rgba(45,212,255,0.06)';
+        } else {
+          slot.style.border = '1px solid rgba(255,255,255,0.05)';
+          slot.style.background = 'rgba(255,255,255,0.02)';
+        }
+
+        if (s < syls.length) {
+          var item = syls[s];
+          var col = vowelColors[item.vowel] || '#ffd700';
+          slot.style.color = '#fff';
+          slot.style.background = col + '25'; // 25 hex alpha
+          slot.style.border = '1px solid ' + col;
+          slot.textContent = item.text;
+        } else {
+          slot.style.color = 'rgba(255,255,255,0.2)';
+          slot.textContent = '·';
+        }
+
+        grid.appendChild(slot);
+      }
+      barRow.appendChild(grid);
+      barsContainer.appendChild(barRow);
+    });
+  }
+
+  function runMetronome() {
+    if (!isMetroPlaying) return;
+    playTick(metroStep % 4 === 0);
+    metroStep = (metroStep + 1) % 16;
+    var bpm = parseFloat(bpmSlider.value);
+    var interval = 60000 / bpm;
+    metroTimer = setTimeout(runMetronome, interval);
+  }
+
+  flowPreset.addEventListener('change', function() {
+    if (presets[flowPreset.value]) {
+      lyricsInput.value = presets[flowPreset.value];
+      updateFlowView();
+    }
+  });
+
+  lyricsInput.addEventListener('input', function() {
+    flowPreset.value = 'custom';
+    updateFlowView();
+  });
+
+  bpmSlider.addEventListener('input', updateFlowView);
+
+  metroBtn.addEventListener('click', function() {
+    getAudio();
+    isMetroPlaying = !isMetroPlaying;
+    if (isMetroPlaying) {
+      metroBtn.textContent = '🔊 Metronome: ON';
+      metroBtn.style.color = 'var(--success, #39ff14)';
+      metroStep = 0;
+      runMetronome();
+    } else {
+      metroBtn.textContent = '🔊 Metronome: OFF';
+      metroBtn.style.color = 'var(--premium, #ffd700)';
+      clearTimeout(metroTimer);
+    }
+  });
+
+  updateFlowView();
+})();
+</script>

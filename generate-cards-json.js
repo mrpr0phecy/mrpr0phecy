@@ -173,6 +173,41 @@ const aquariumList = [
   'aquarium-feeding-vacation-planner'
 ];
 
+// Explicit slug → category map for tools added after 2026-09-05.
+// Checked before every substring list so nothing can steal these.
+const categoryMap = {
+  'joy-spark-micro-celebrations': 'Wellbeing & Community',
+  'interactive-wind-chime-sanctuary': 'Interactive Art & Living Worlds',
+  'serotonin-secret-kindness-generator': 'Wellbeing & Community',
+  'generative-joy-kaleidoscope': 'Interactive Art & Living Worlds',
+  'daily-awe-and-wonder-expeditioner': 'Astronomy & Space',
+  'pocket-pet-joy-companion': 'Interactive Art & Living Worlds',
+  'gratitude-constellation-stargazer': 'Wellbeing & Community',
+  'joyful-zen-sand-garden-raker': 'Interactive Art & Living Worlds',
+  'laugh-laboratory-chuckle-box': 'Wellbeing & Community',
+  'uplifting-affirmation-origami-fortune': 'Wellbeing & Community',
+  'brachistochrone-tautochrone-gravity-race': 'Science & Engineering',
+  'polarization-birefringence-stress-lab': 'Science & Engineering',
+  'quantum-superposition-bloch-sphere': 'Science & Engineering',
+  'bioluminescence-luciferin-cascade-lab': 'Science & Engineering',
+  'stochastic-resonance-signal-in-noise': 'Science & Engineering',
+  'metamaterial-negative-refraction-cloak': 'Science & Engineering',
+  'sound-chladni-resonance-harmonizer': 'Science & Engineering',
+  'quantum-tunneling-nuclear-fusion-sun': 'Science & Engineering',
+  'time-dilation-lorentz-light-clock': 'Science & Engineering',
+  'mycelium-slime-mold-network-solver': 'Science & Engineering',
+  '808-sub-bass-tuner-calculator': 'Music & Audio',
+  'vinyl-sample-pitch-tempo-shifter': 'Music & Audio',
+  'hip-hop-drum-groove-swing-quantizer': 'Music & Audio',
+  'vocal-compression-sidechain-calculator': 'Music & Audio',
+  'multisyllabic-rhyme-cadence-flow-builder': 'Music & Audio',
+  'sample-chop-cue-point-calculator': 'Music & Audio',
+  'equalizer-frequency-masking-allocator': 'Music & Audio',
+  'reverb-pre-delay-decay-calculator': 'Music & Audio',
+  'trap-drill-hihat-roll-pattern-generator': 'Music & Audio',
+  'lofi-saturation-bitcrush-texture-lab': 'Music & Audio'
+};
+
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
 // Ten tools added to fill genuine gaps found by auditing the existing 552-card
 // catalogue. Exact filenames, mapped explicitly so no substring list can claim them.
@@ -982,6 +1017,7 @@ const importedSalvageMap = {
 };
 
 function getCategory(name) {
+  if (categoryMap[name]) return categoryMap[name];
   if (importedSalvageMap[name]) return importedSalvageMap[name];
   if (imported05a89Map[name]) return imported05a89Map[name];
   if (gapFillMap[name]) return gapFillMap[name];

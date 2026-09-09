@@ -1,0 +1,162 @@
+<h2 id="scc-title" style="margin-top:0;color:var(--accent);">✂️ Sample Chop Slice &amp; Bar Marker Calculator</h2>
+
+<form aria-describedby="scc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="scc-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Calculates exact mathematical slice cue points and sample frame offsets for 16-pad hardware samplers (MPC, SP-404, Maschine) and DAWs. Slice 1-bar, 2-bar, or 4-bar sample loops into clean musical chops with zero timing drift.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="scc-sample-bpm" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Sample Loop BPM:</label>
+        <input type="number" id="scc-sample-bpm" min="40" max="220" step="0.1" value="85.0" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;" />
+      </div>
+
+      <div>
+        <label for="scc-bar-count" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Loop Length (Bars):</label>
+        <select id="scc-bar-count" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="1">1 Bar (4 Beats)</option>
+          <option value="2">2 Bars (8 Beats)</option>
+          <option value="4" selected>4 Bars (16 Beats)</option>
+          <option value="8">8 Bars (32 Beats)</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="scc-pad-count" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Target Slices / Pads:</label>
+        <select id="scc-pad-count" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="16" selected>16 Slices (Full 4x4 Pad Bank)</option>
+          <option value="8">8 Slices (2 Beats per Chop)</option>
+          <option value="4">4 Slices (1 Bar per Chop)</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="scc-sample-rate" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Audio Sample Rate:</label>
+        <select id="scc-sample-rate" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="44100" selected>44,100 Hz (CD / MPC)</option>
+          <option value="48000">48,000 Hz (Video / Studio)</option>
+          <option value="96000">96,000 Hz (Hi-Res)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Summary Info -->
+    <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,0.3);padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);font-size:0.8rem;flex-wrap:wrap;gap:8px;">
+      <div><span style="color:var(--text-secondary);">Total Loop Duration: </span><b id="scc-total-dur" style="color:#2dd4ff;">11.294 s</b></div>
+      <div><span style="color:var(--text-secondary);">Duration per Slice: </span><b id="scc-slice-dur" style="color:#ffd700;">705.88 ms</b></div>
+      <div><span style="color:var(--text-secondary);">Total Sample Frames: </span><b id="scc-total-frames" style="color:#39ff14;">498,070</b></div>
+    </div>
+  </div>
+</form>
+
+<!-- 16-Pad Chop Table -->
+<div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+    <div style="font-weight:700;color:var(--accent);font-size:0.9rem;">
+      🎛️ 16-Pad Sample Slice Matrix &amp; Cue Markers
+    </div>
+    <button type="button" id="scc-copy-btn" style="padding:6px 14px;background:rgba(45,212,255,0.18);color:var(--accent);border:1px solid rgba(45,212,255,0.35);border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:700;">
+      📋 Copy Cue Table to Clipboard
+    </button>
+  </div>
+
+  <div id="scc-pads-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(125px, 1fr));gap:8px;max-height:260px;overflow-y:auto;padding-right:4px;"></div>
+</div>
+
+<script>
+(function(){
+  var bpmInput = document.getElementById('scc-sample-bpm');
+  var barSelect = document.getElementById('scc-bar-count');
+  var padSelect = document.getElementById('scc-pad-count');
+  var rateSelect = document.getElementById('scc-sample-rate');
+
+  var totalDur = document.getElementById('scc-total-dur');
+  var sliceDur = document.getElementById('scc-slice-dur');
+  var totalFrames = document.getElementById('scc-total-frames');
+  var padsGrid = document.getElementById('scc-pads-grid');
+  var copyBtn = document.getElementById('scc-copy-btn');
+
+  function calculate() {
+    var bpm = parseFloat(bpmInput.value) || 85;
+    var bars = parseInt(barSelect.value, 10) || 4;
+    var numSlices = parseInt(padSelect.value, 10) || 16;
+    var sampleRate = parseInt(rateSelect.value, 10) || 44100;
+
+    var beats = bars * 4;
+    var secondsPerBeat = 60 / bpm;
+    var totalSeconds = beats * secondsPerBeat;
+    var sliceSeconds = totalSeconds / numSlices;
+    var allFrames = Math.round(totalSeconds * sampleRate);
+    var framesPerSlice = Math.round(sliceSeconds * sampleRate);
+
+    totalDur.textContent = totalSeconds.toFixed(3) + ' s';
+    sliceDur.textContent = (sliceSeconds * 1000).toFixed(2) + ' ms';
+    totalFrames.textContent = allFrames.toLocaleString();
+
+    padsGrid.innerHTML = '';
+
+    for (var i = 0; i < numSlices; i++) {
+      var startSec = i * sliceSeconds;
+      var startFrame = Math.round(startSec * sampleRate);
+
+      var mins = Math.floor(startSec / 60);
+      var secs = (startSec % 60).toFixed(3);
+      var timeStr = (mins < 10 ? '0' : '') + mins + ':' + (parseFloat(secs) < 10 ? '0' : '') + secs;
+
+      var padCard = document.createElement('div');
+      padCard.style.background = 'rgba(0,0,0,0.3)';
+      padCard.style.border = '1px solid rgba(255,255,255,0.08)';
+      padCard.style.borderRadius = '8px';
+      padCard.style.padding = '8px 10px';
+      padCard.style.fontSize = '0.75rem';
+
+      var padHeader = document.createElement('div');
+      padHeader.style.display = 'flex';
+      padHeader.style.justifyContent = 'space-between';
+      padHeader.style.color = '#ffd700';
+      padHeader.style.fontWeight = '700';
+      padHeader.style.marginBottom = '4px';
+      padHeader.innerHTML = '<span>PAD ' + (i + 1) + '</span><span style="color:var(--accent);">' + timeStr + '</span>';
+
+      var frameInfo = document.createElement('div');
+      frameInfo.style.color = 'var(--text-secondary)';
+      frameInfo.textContent = 'Frame: ' + startFrame.toLocaleString();
+
+      padCard.appendChild(padHeader);
+      padCard.appendChild(frameInfo);
+      padsGrid.appendChild(padCard);
+    }
+  }
+
+  copyBtn.addEventListener('click', function() {
+    var rows = [];
+    var bpm = bpmInput.value;
+    var bars = barSelect.value;
+    var rate = rateSelect.value;
+    rows.push("Sample Chop Cues | BPM: " + bpm + " | Bars: " + bars + " | Rate: " + rate + " Hz");
+    rows.push("Pad\tTime (mm:ss.ms)\tSample Frame");
+
+    var pads = padsGrid.children;
+    for (var i = 0; i < pads.length; i++) {
+      var text = pads[i].innerText || pads[i].textContent || '';
+      var lines = text.split('\n').filter(function(l) { return l.trim().length > 0; });
+      rows.push(lines.join(' | '));
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(rows.join('\n'));
+    }
+    copyBtn.textContent = '✓ Copied Table!';
+    setTimeout(function() { copyBtn.textContent = '📋 Copy Cue Table to Clipboard'; }, 1800);
+  });
+
+  [bpmInput, barSelect, padSelect, rateSelect].forEach(function(el) {
+    el.addEventListener('input', calculate);
+    el.addEventListener('change', calculate);
+  });
+
+  calculate();
+})();
+</script>

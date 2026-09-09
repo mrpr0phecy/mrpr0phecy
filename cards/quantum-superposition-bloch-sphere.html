@@ -1,0 +1,301 @@
+<h2 id="qsb-title" style="margin-top:0;color:var(--accent);">⚛️ Quantum Superposition &amp; Bloch Sphere Intuition Engine</h2>
+
+<form aria-describedby="qsb-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="qsb-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Unlike a classical binary bit (which is strictly 0 or 1), a quantum qubit exists as a continuous vector pointing anywhere on the 3D Bloch Sphere. Apply quantum gates ($H$, $X$, $Z$, $S$), observe complex relative phases, and collapse the wave function with real-time statistical measurements.
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <!-- Quantum Gate Buttons -->
+    <div style="margin-bottom:12px;">
+      <div style="color:var(--accent);font-size:0.8rem;font-weight:700;margin-bottom:6px;">Apply Quantum Unitary Gate:</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="qsb-gate-h" style="flex:1;min-width:70px;padding:8px;background:rgba(45,212,255,0.15);color:var(--accent);border:1px solid rgba(45,212,255,0.35);border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem;">
+          H (Hadamard)
+        </button>
+        <button type="button" id="qsb-gate-x" style="flex:1;min-width:70px;padding:8px;background:rgba(255,0,122,0.15);color:#ff007a;border:1px solid rgba(255,0,122,0.35);border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem;">
+          X (Bit-Flip)
+        </button>
+        <button type="button" id="qsb-gate-z" style="flex:1;min-width:70px;padding:8px;background:rgba(255,215,0,0.15);color:var(--premium, #ffd700);border:1px solid rgba(255,215,0,0.35);border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem;">
+          Z (Phase-Flip)
+        </button>
+        <button type="button" id="qsb-gate-s" style="flex:1;min-width:70px;padding:8px;background:rgba(57,255,20,0.15);color:var(--success, #39ff14);border:1px solid rgba(57,255,20,0.35);border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem;">
+          S (π/2 Phase)
+        </button>
+        <button type="button" id="qsb-gate-reset" style="padding:8px 12px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.12);border-radius:6px;cursor:pointer;font-size:0.85rem;">
+          |0⟩ Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Measurement Actions -->
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+      <button type="button" id="qsb-measure-single" style="flex:1;padding:10px 14px;background:linear-gradient(135deg, #ffd700, #ff9500);color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span>⚡</span> <span>Single Shot Measure (Wavefunction Collapse)</span>
+      </button>
+
+      <button type="button" id="qsb-measure-1000" style="padding:10px 16px;background:rgba(45,212,255,0.18);color:var(--accent);border:1px solid rgba(45,212,255,0.4);border-radius:8px;cursor:pointer;font-weight:700;font-size:0.85rem;">
+        📊 1,000 Quantum Shots
+      </button>
+    </div>
+  </div>
+</form>
+
+<!-- 3D Bloch Sphere Stage -->
+<div style="position:relative;width:100%;height:380px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#02050e;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 50px rgba(0,0,0,0.8);">
+  <canvas id="qsb-canvas" width="600" height="380" style="width:100%;height:100%;display:block;cursor:grab;"></canvas>
+
+  <!-- Live Quantum State Box -->
+  <div style="position:absolute;top:12px;left:12px;background:rgba(10,18,32,0.85);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 12px;border-radius:8px;font-size:0.8rem;color:#fff;pointer-events:none;">
+    <div>State: <b id="qsb-state-str" style="color:var(--accent);">|ψ⟩ = 1.00|0⟩ + 0.00|1⟩</b></div>
+    <div>P(|0⟩): <span id="qsb-prob-0" style="color:#2dd4ff;font-weight:700;">100%</span> | P(|1⟩): <span id="qsb-prob-1" style="color:#ff007a;font-weight:700;">0%</span></div>
+  </div>
+
+  <!-- Measurement Flash Overlay -->
+  <div id="qsb-collapse-banner" style="display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(255,215,0,0.92);color:#000;font-weight:800;font-size:0.9rem;padding:6px 20px;border-radius:20px;box-shadow:0 4px 15px rgba(255,215,0,0.5);">
+    ⚡ COLLAPSED TO |0⟩
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('qsb-canvas');
+  var ctx = canvas.getContext('2d');
+  var gateH = document.getElementById('qsb-gate-h');
+  var gateX = document.getElementById('qsb-gate-x');
+  var gateZ = document.getElementById('qsb-gate-z');
+  var gateS = document.getElementById('qsb-gate-s');
+  var gateReset = document.getElementById('qsb-gate-reset');
+  var measureSingle = document.getElementById('qsb-measure-single');
+  var measure1000 = document.getElementById('qsb-measure-1000');
+  var stateStr = document.getElementById('qsb-state-str');
+  var prob0 = document.getElementById('qsb-prob-0');
+  var prob1 = document.getElementById('qsb-prob-1');
+  var collapseBanner = document.getElementById('qsb-collapse-banner');
+
+  // Quantum State: theta (0 to PI), phi (0 to 2*PI)
+  var theta = 0; // starts at |0> (North pole)
+  var phi = 0;
+  var targetTheta = 0;
+  var targetPhi = 0;
+
+  var rotX = 0.3;
+  var rotY = 0.4;
+  var isDragging = false;
+  var lastX = 0, lastY = 0;
+
+  var sphereRadius = 120;
+  var audioCtx = null;
+
+  function getAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playQuantumClick(freq) {
+    var ctxAudio = getAudio(); if (!ctxAudio) return;
+    var now = ctxAudio.currentTime;
+    var osc = ctxAudio.createOscillator();
+    var g = ctxAudio.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq || 520, now);
+    g.gain.setValueAtTime(0.2, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(g);
+    g.connect(ctxAudio.destination);
+    osc.start(now);
+    osc.stop(now + 0.16);
+  }
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function project3D(x, y, z) {
+    var cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+    var x1 = x * cosY + z * sinY;
+    var z1 = -x * sinY + z * cosY;
+
+    var cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+    var y2 = y * cosX - z1 * sinX;
+    var z2 = y * sinX + z1 * cosX;
+
+    var fov = 350;
+    var scale = fov / (fov + z2);
+    return {
+      x: canvas.width / 2 + x1 * scale,
+      y: canvas.height / 2 + y2 * scale,
+      z: z2,
+      scale: scale
+    };
+  }
+
+  function update() {
+    // Smooth spherical vector interpolation
+    theta += (targetTheta - theta) * 0.12;
+    phi += (targetPhi - phi) * 0.12;
+
+    var alpha = Math.cos(theta / 2);
+    var beta = Math.sin(theta / 2);
+    var p0 = Math.pow(alpha, 2);
+    var p1 = Math.pow(beta, 2);
+
+    prob0.textContent = (p0 * 100).toFixed(0) + '%';
+    prob1.textContent = (p1 * 100).toFixed(0) + '%';
+
+    var phaseSign = phi >= 0 ? '+' : '-';
+    stateStr.textContent = '|ψ⟩ = ' + alpha.toFixed(2) + '|0⟩ + ' + beta.toFixed(2) + 'e^(i' + (phi / Math.PI).toFixed(2) + 'π)|1⟩';
+  }
+
+  function render() {
+    update();
+    var w = canvas.width;
+    var h = canvas.height;
+
+    ctx.fillStyle = '#02050e';
+    ctx.fillRect(0, 0, w, h);
+
+    // Draw Bloch Sphere Wireframe
+    ctx.strokeStyle = 'rgba(45, 212, 255, 0.15)';
+    ctx.lineWidth = 1;
+
+    // Equator ring
+    ctx.beginPath();
+    for (var a = 0; a <= Math.PI * 2; a += 0.1) {
+      var p = project3D(Math.cos(a) * sphereRadius, 0, Math.sin(a) * sphereRadius);
+      if (a === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+    // Meridian ring
+    ctx.beginPath();
+    for (var a = 0; a <= Math.PI * 2; a += 0.1) {
+      var p = project3D(Math.cos(a) * sphereRadius, Math.sin(a) * sphereRadius, 0);
+      if (a === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+    // Axis Lines (X, Y, Z)
+    var zTop = project3D(0, -sphereRadius * 1.25, 0);
+    var zBot = project3D(0, sphereRadius * 1.25, 0);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.beginPath(); ctx.moveTo(zBot.x, zBot.y); ctx.lineTo(zTop.x, zTop.y); ctx.stroke();
+
+    ctx.fillStyle = '#2dd4ff';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('|0⟩ (North)', zTop.x + 8, zTop.y);
+    ctx.fillStyle = '#ff007a';
+    ctx.fillText('|1⟩ (South)', zBot.x + 8, zBot.y);
+
+    // Qubit State Vector
+    var stateX = sphereRadius * Math.sin(theta) * Math.cos(phi);
+    var stateY = -sphereRadius * Math.cos(theta); // -Y is up (|0>)
+    var stateZ = sphereRadius * Math.sin(theta) * Math.sin(phi);
+
+    var center = project3D(0, 0, 0);
+    var tip = project3D(stateX, stateY, stateZ);
+
+    // Arrow shaft
+    ctx.save();
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(tip.x, tip.y);
+    ctx.stroke();
+
+    // Arrow Tip Sphere
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, 7 * tip.scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    requestAnimationFrame(render);
+  }
+
+  // Gate Operations
+  gateH.addEventListener('click', function() {
+    targetTheta = Math.PI / 2;
+    targetPhi = 0;
+    playQuantumClick(600);
+  });
+
+  gateX.addEventListener('click', function() {
+    targetTheta = (targetTheta < Math.PI / 2) ? Math.PI : 0;
+    playQuantumClick(400);
+  });
+
+  gateZ.addEventListener('click', function() {
+    targetPhi = (targetPhi + Math.PI) % (Math.PI * 2);
+    playQuantumClick(700);
+  });
+
+  gateS.addEventListener('click', function() {
+    targetPhi = (targetPhi + Math.PI / 2) % (Math.PI * 2);
+    playQuantumClick(800);
+  });
+
+  gateReset.addEventListener('click', function() {
+    targetTheta = 0;
+    targetPhi = 0;
+    playQuantumClick(500);
+  });
+
+  // Single-Shot Measurement
+  measureSingle.addEventListener('click', function() {
+    var p0 = Math.pow(Math.cos(targetTheta / 2), 2);
+    var result = (Math.random() < p0) ? 0 : 1;
+    targetTheta = (result === 0) ? 0 : Math.PI;
+
+    collapseBanner.textContent = '⚡ MEASURED: COLLAPSED TO |' + result + '⟩';
+    collapseBanner.style.display = 'block';
+    playQuantumClick(result === 0 ? 880 : 330);
+    setTimeout(function() { collapseBanner.style.display = 'none'; }, 1800);
+  });
+
+  // 1,000 Shots
+  measure1000.addEventListener('click', function() {
+    var p0 = Math.pow(Math.cos(targetTheta / 2), 2);
+    var count0 = 0;
+    for (var i = 0; i < 1000; i++) {
+      if (Math.random() < p0) count0++;
+    }
+    var count1 = 1000 - count0;
+    collapseBanner.textContent = '📊 1,000 SHOTS: |0⟩: ' + count0 + ' | |1⟩: ' + count1;
+    collapseBanner.style.display = 'block';
+    playQuantumClick(750);
+    setTimeout(function() { collapseBanner.style.display = 'none'; }, 2500);
+  });
+
+  // Drag Rotation
+  canvas.addEventListener('mousedown', function(e) {
+    isDragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    rotY += (e.clientX - lastX) * 0.008;
+    rotX += (e.clientY - lastY) * 0.008;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  window.addEventListener('mouseup', function() { isDragging = false; });
+
+  render();
+})();
+</script>

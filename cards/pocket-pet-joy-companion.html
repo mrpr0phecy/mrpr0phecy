@@ -1,0 +1,603 @@
+<h2 id="ppc-title" style="margin-top:0;color:var(--accent);">🐾 Pip: The Pocket Joy &amp; Calming Companion</h2>
+
+<form aria-describedby="ppc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="ppc-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    Meet Pip, your zero-maintenance procedural companion designed to bring instant comfort and warmth. Pet Pip to hear soothing purrs, drop delicious treats, play bouncy ball fetch, or slow down and co-breathe through guided calming cycles.
+  </p>
+
+  <!-- Controls & Activities -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:12px;">
+      <button type="button" id="ppc-act-pet" style="padding:10px 12px;border-radius:8px;background:linear-gradient(135deg, #ff007a, #7928ca);color:#fff;font-weight:700;border:none;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span>💖</span> <span>Pet Pip</span>
+      </button>
+
+      <button type="button" id="ppc-act-feed" style="padding:10px 12px;border-radius:8px;background:rgba(255,255,255,0.06);color:var(--text);font-weight:600;border:1px solid rgba(255,255,255,0.12);cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span>🍓</span> <span>Drop Treat</span>
+      </button>
+
+      <button type="button" id="ppc-act-play" style="padding:10px 12px;border-radius:8px;background:rgba(255,255,255,0.06);color:var(--text);font-weight:600;border:1px solid rgba(255,255,255,0.12);cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span>🎾</span> <span>Play Ball</span>
+      </button>
+
+      <button type="button" id="ppc-act-breathe" style="padding:10px 12px;border-radius:8px;background:rgba(45,212,255,0.15);color:var(--accent);font-weight:700;border:1px solid rgba(45,212,255,0.3);cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span>🫁</span> <span>Co-Breathe</span>
+      </button>
+    </div>
+
+    <!-- Wardrobe & Sound row -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+      <div>
+        <label for="ppc-hat" style="display:block;color:var(--accent);font-size:0.8rem;font-weight:700;margin-bottom:4px;">Whimsical Hat:</label>
+        <select id="ppc-hat" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="none">✨ None (Au Naturel)</option>
+          <option value="crown">👑 Golden Royal Crown</option>
+          <option value="wizard">🧙 Wizard Hat of Magic</option>
+          <option value="flower">🌸 Sakura Flower Bloom</option>
+          <option value="party">🎉 Party Celebration Cone</option>
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button type="button" id="ppc-sound-btn" style="width:100%;padding:8px 12px;background:rgba(255,255,255,0.06);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.12);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+          🔊 Purr Audio: ON
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Canvas Stage -->
+<div style="position:relative;width:100%;height:380px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#091422;border:1px solid rgba(255,255,255,0.12);box-shadow:inset 0 0 40px rgba(0,0,0,0.7);">
+  <canvas id="ppc-canvas" width="600" height="380" style="width:100%;height:100%;display:block;cursor:pointer;"></canvas>
+
+  <!-- Speech Bubble -->
+  <div id="ppc-dialogue" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.92);backdrop-filter:blur(6px);color:#0f172a;padding:8px 16px;border-radius:20px;font-size:0.85rem;font-weight:700;box-shadow:0 4px 15px rgba(0,0,0,0.3);pointer-events:none;transition:all 0.25s ease;text-align:center;max-width:85%;">
+    *squeak* Hi there! I'm so happy you came to see me today! ✨
+  </div>
+
+  <div id="ppc-breath-guide" style="display:none;position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(10,25,40,0.85);backdrop-filter:blur(8px);border:1px solid var(--accent);color:var(--accent);padding:6px 18px;border-radius:20px;font-size:0.85rem;font-weight:800;pointer-events:none;">
+    Inhale gently... (4s)
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('ppc-canvas');
+  var ctx = canvas.getContext('2d');
+  var hatSelect = document.getElementById('ppc-hat');
+  var petBtn = document.getElementById('ppc-act-pet');
+  var feedBtn = document.getElementById('ppc-act-feed');
+  var playBtn = document.getElementById('ppc-act-play');
+  var breatheBtn = document.getElementById('ppc-act-breathe');
+  var soundBtn = document.getElementById('ppc-sound-btn');
+  var dialogue = document.getElementById('ppc-dialogue');
+  var breathGuide = document.getElementById('ppc-breath-guide');
+
+  var audioCtx = null;
+  var soundOn = true;
+
+  // Pip State & Physics
+  var pip = {
+    x: 300,
+    y: 240,
+    targetX: 300,
+    targetY: 240,
+    vx: 0,
+    vy: 0,
+    radius: 55,
+    squishX: 1.0,
+    squishY: 1.0,
+    eyeLookX: 0,
+    eyeLookY: 0,
+    isBlinking: false,
+    blinkTimer: 0,
+    earWiggle: 0,
+    tailAngle: 0,
+    tailVAngle: 0.1,
+    happiness: 80,
+    color: '#ffc6ff',
+    colorSecondary: '#e0aaff',
+    hat: 'none'
+  };
+
+  var toyBall = { active: false, x: 0, y: 0, vx: 0, vy: 0, radius: 14 };
+  var treats = [];
+  var hearts = [];
+  var mode = 'idle'; // 'idle', 'breathe', 'play'
+  var breathPhase = 0; // 0: inhale, 1: hold, 2: exhale, 3: rest
+  var breathTimer = 0;
+
+  var dialogues = [
+    "You are doing a fantastic job, even on days that feel slow. 💖",
+    "*purrrrr* Your hands give the absolute best head scratches! 🥰",
+    "Did you remember to drink some water today? Take a sip for me! 💧",
+    "I believe in you more than words can say! 🌟",
+    "Take a nice big stretch right now. You deserve comfort. 🌿",
+    "*happy wiggle* Having you around makes today wonderful! ✨"
+  ];
+
+  function getAudio() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playPurr() {
+    if (!soundOn) return;
+    var ctxAudio = getAudio();
+    if (!ctxAudio) return;
+    var now = ctxAudio.currentTime;
+
+    var osc = ctxAudio.createOscillator();
+    var mod = ctxAudio.createOscillator();
+    var modGain = ctxAudio.createGain();
+    var g = ctxAudio.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(65, now);
+
+    mod.type = 'sine';
+    mod.frequency.setValueAtTime(24, now); // 24Hz purr vibration
+    modGain.gain.setValueAtTime(25, now);
+
+    mod.connect(modGain);
+    modGain.connect(osc.frequency);
+
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.2, now + 0.1);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+
+    osc.connect(g);
+    g.connect(ctxAudio.destination);
+
+    mod.start(now);
+    osc.start(now);
+    mod.stop(now + 1.55);
+    osc.stop(now + 1.55);
+  }
+
+  function playMunch() {
+    if (!soundOn) return;
+    var ctxAudio = getAudio();
+    if (!ctxAudio) return;
+    var now = ctxAudio.currentTime;
+
+    [440, 587, 880].forEach(function(freq, idx) {
+      var osc = ctxAudio.createOscillator();
+      var g = ctxAudio.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+      g.gain.setValueAtTime(0.12, now + idx * 0.08);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 0.12);
+      osc.connect(g);
+      g.connect(ctxAudio.destination);
+      osc.start(now + idx * 0.08);
+      osc.stop(now + idx * 0.08 + 0.14);
+    });
+  }
+
+  function playChimeNote(freq) {
+    if (!soundOn) return;
+    var ctxAudio = getAudio();
+    if (!ctxAudio) return;
+    var now = ctxAudio.currentTime;
+    var osc = ctxAudio.createOscillator();
+    var g = ctxAudio.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.15, now + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
+    osc.connect(g);
+    g.connect(ctxAudio.destination);
+    osc.start(now);
+    osc.stop(now + 1.85);
+  }
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      pip.x = canvas.width / 2;
+      pip.y = canvas.height * 0.65;
+      pip.targetX = pip.x;
+      pip.targetY = pip.y;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function triggerPet(x, y) {
+    pip.squishX = 1.25;
+    pip.squishY = 0.8;
+    pip.earWiggle = 0.4;
+    pip.happiness = Math.min(100, pip.happiness + 5);
+    playPurr();
+
+    for (var i = 0; i < 5; i++) {
+      hearts.push({
+        x: (x || pip.x) + (Math.random() - 0.5) * 40,
+        y: (y || pip.y) - 20 + (Math.random() - 0.5) * 20,
+        vy: -1.5 - Math.random() * 2,
+        vx: (Math.random() - 0.5) * 1.5,
+        alpha: 1.0,
+        size: 14 + Math.random() * 8
+      });
+    }
+
+    dialogue.textContent = dialogues[Math.floor(Math.random() * dialogues.length)];
+  }
+
+  function dropTreat() {
+    var rx = canvas.width * 0.2 + Math.random() * (canvas.width * 0.6);
+    treats.push({
+      x: rx,
+      y: 10,
+      vy: 2.5,
+      emoji: ['🍓', '🍣', '🥞', '🍪', '🍎'][Math.floor(Math.random() * 5)]
+    });
+    dialogue.textContent = "*sniff sniff* Ooh, a delicious treat! 😋";
+  }
+
+  function throwBall() {
+    mode = 'play';
+    toyBall.active = true;
+    toyBall.x = canvas.width * 0.2;
+    toyBall.y = 80;
+    toyBall.vx = 5 + Math.random() * 4;
+    toyBall.vy = -3;
+    dialogue.textContent = "Yay, fetch! Watch me pounce! 🎾";
+  }
+
+  function toggleBreathing() {
+    if (mode === 'breathe') {
+      mode = 'idle';
+      breathGuide.style.display = 'none';
+      breatheBtn.style.background = 'rgba(45,212,255,0.15)';
+      dialogue.textContent = "Great breathing session! Feel how calm you are. 🧘";
+    } else {
+      mode = 'breathe';
+      breathGuide.style.display = 'block';
+      breatheBtn.style.background = 'var(--accent)';
+      breatheBtn.style.color = '#000';
+      breathPhase = 0;
+      breathTimer = 0;
+      dialogue.textContent = "Let's breathe together. Follow my body's rhythm.";
+    }
+  }
+
+  function update() {
+    // Squish spring return
+    pip.squishX += (1.0 - pip.squishX) * 0.12;
+    pip.squishY += (1.0 - pip.squishY) * 0.12;
+
+    // Blink timer
+    pip.blinkTimer++;
+    if (pip.blinkTimer > 180 && Math.random() < 0.05) {
+      pip.isBlinking = true;
+      if (pip.blinkTimer > 195) {
+        pip.isBlinking = false;
+        pip.blinkTimer = 0;
+      }
+    }
+
+    // Tail wagging
+    pip.tailAngle += pip.tailVAngle;
+    if (Math.abs(pip.tailAngle) > 0.4) pip.tailVAngle *= -1;
+
+    // Treats update
+    for (var tIdx = 0; tIdx < treats.length; tIdx++) {
+      var tr = treats[tIdx];
+      tr.y += tr.vy;
+      if (tr.y > canvas.height * 0.7) {
+        tr.vy = 0;
+        pip.targetX = tr.x;
+        // Check eating
+        if (Math.hypot(pip.x - tr.x, pip.y - tr.y) < 40) {
+          treats.splice(tIdx, 1);
+          playMunch();
+          pip.squishX = 1.2;
+          pip.squishY = 0.85;
+          dialogue.textContent = "*munch munch* That was so tasty! Thank you! 💖";
+          break;
+        }
+      }
+    }
+
+    // Toy Ball Physics
+    if (toyBall.active) {
+      toyBall.x += toyBall.vx;
+      toyBall.y += toyBall.vy;
+      toyBall.vy += 0.25; // gravity
+      if (toyBall.y > canvas.height * 0.72) {
+        toyBall.y = canvas.height * 0.72;
+        toyBall.vy *= -0.75;
+      }
+      if (toyBall.x < 20 || toyBall.x > canvas.width - 20) {
+        toyBall.vx *= -0.8;
+      }
+      pip.targetX = toyBall.x;
+      if (Math.hypot(pip.x - toyBall.x, pip.y - toyBall.y) < 35) {
+        toyBall.vx = (Math.random() - 0.5) * 8;
+        toyBall.vy = -5 - Math.random() * 3;
+        pip.squishY = 0.75;
+        playPurr();
+      }
+    }
+
+    // Breathing mode logic
+    if (mode === 'breathe') {
+      breathTimer++;
+      if (breathPhase === 0) { // Inhale (4s = 240 frames)
+        breathGuide.textContent = "Inhale slowly & gently... (4s)";
+        pip.squishX = 1.0 + (breathTimer / 240) * 0.35;
+        pip.squishY = 1.0 + (breathTimer / 240) * 0.35;
+        if (breathTimer >= 240) {
+          breathPhase = 1; breathTimer = 0;
+          playChimeNote(528);
+        }
+      } else if (breathPhase === 1) { // Hold (4s)
+        breathGuide.textContent = "Hold the breath gently... (4s)";
+        if (breathTimer >= 240) {
+          breathPhase = 2; breathTimer = 0;
+          playChimeNote(396);
+        }
+      } else if (breathPhase === 2) { // Exhale (4s)
+        breathGuide.textContent = "Exhale and release all tension... (4s)";
+        pip.squishX = 1.35 - (breathTimer / 240) * 0.35;
+        pip.squishY = 1.35 - (breathTimer / 240) * 0.35;
+        if (breathTimer >= 240) {
+          breathPhase = 3; breathTimer = 0;
+          playChimeNote(432);
+        }
+      } else { // Rest (2s)
+        breathGuide.textContent = "Rest in peace... (2s)";
+        if (breathTimer >= 120) {
+          breathPhase = 0; breathTimer = 0;
+          playChimeNote(528);
+        }
+      }
+    } else {
+      // Idle movement towards targetX
+      var dx = pip.targetX - pip.x;
+      pip.vx += (dx * 0.05 - pip.vx) * 0.15;
+      pip.x += pip.vx;
+    }
+  }
+
+  function render() {
+    update();
+    var w = canvas.width;
+    var h = canvas.height;
+
+    // Cozy Room Gradient Background
+    var bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#0f172a');
+    bg.addColorStop(0.65, '#1e293b');
+    bg.addColorStop(0.65, '#0f172a');
+    bg.addColorStop(1, '#020617');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Soft Floor Glow
+    ctx.fillStyle = 'rgba(45,212,255,0.06)';
+    ctx.beginPath();
+    ctx.ellipse(w / 2, h * 0.72, w * 0.45, 35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Shadow under Pip
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(pip.x, pip.y + pip.radius * 0.9, pip.radius * pip.squishX * 0.9, 14 * pip.squishY, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Render Toy Ball
+    if (toyBall.active) {
+      ctx.save();
+      ctx.fillStyle = '#ff007a';
+      ctx.beginPath();
+      ctx.arc(toyBall.x, toyBall.y, toyBall.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Render Treats
+    treats.forEach(function(tr) {
+      ctx.font = '24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(tr.emoji, tr.x, tr.y);
+    });
+
+    // DRAW PIP
+    ctx.save();
+    ctx.translate(pip.x, pip.y);
+
+    // Tail
+    ctx.save();
+    ctx.translate(-pip.radius * 0.7 * pip.squishX, pip.radius * 0.2);
+    ctx.rotate(pip.tailAngle - 0.5);
+    ctx.fillStyle = pip.color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 20, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Ears
+    [-1, 1].forEach(function(side) {
+      ctx.save();
+      ctx.translate(side * pip.radius * 0.55 * pip.squishX, -pip.radius * 0.75 * pip.squishY);
+      ctx.rotate(side * (0.3 + pip.earWiggle));
+      ctx.fillStyle = pip.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 14 * pip.squishX, 22 * pip.squishY, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner pink ear
+      ctx.fillStyle = '#ff70a6';
+      ctx.beginPath();
+      ctx.ellipse(0, 4, 8 * pip.squishX, 14 * pip.squishY, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // Body (Squishy procedural oval)
+    var bodyGrad = ctx.createRadialGradient(-10, -10, 5, 0, 0, pip.radius * 1.1);
+    bodyGrad.addColorStop(0, '#ffffff');
+    bodyGrad.addColorStop(0.3, pip.color);
+    bodyGrad.addColorStop(1, pip.colorSecondary);
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, pip.radius * pip.squishX, pip.radius * pip.squishY, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Blush Cheeks
+    ctx.fillStyle = 'rgba(255, 105, 180, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(-24 * pip.squishX, 10 * pip.squishY, 9, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(24 * pip.squishX, 10 * pip.squishY, 9, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes
+    [-1, 1].forEach(function(side) {
+      var eyeX = side * 18 * pip.squishX;
+      var eyeY = -4 * pip.squishY;
+
+      if (pip.isBlinking) {
+        ctx.strokeStyle = '#2d1537';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(eyeX, eyeY, 7, 0, Math.PI);
+        ctx.stroke();
+      } else {
+        // Eye White / Dark Iris
+        ctx.fillStyle = '#240046';
+        ctx.beginPath();
+        ctx.arc(eyeX, eyeY, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye Catchlight Sparkles
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(eyeX - 2 + pip.eyeLookX * 2, eyeY - 2 + pip.eyeLookY * 2, 3, 0, Math.PI * 2);
+        ctx.arc(eyeX + 3, eyeY + 3, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    // Cute Little Mouth
+    ctx.strokeStyle = '#240046';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(-5, 10 * pip.squishY, 5, 0.1, Math.PI - 0.1);
+    ctx.arc(5, 10 * pip.squishY, 5, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+
+    // Draw Hat
+    var hat = hatSelect.value;
+    if (hat === 'crown') {
+      ctx.fillStyle = '#ffd700';
+      ctx.strokeStyle = '#b8860b';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-18, -pip.radius * pip.squishY - 5);
+      ctx.lineTo(-14, -pip.radius * pip.squishY - 25);
+      ctx.lineTo(-5, -pip.radius * pip.squishY - 12);
+      ctx.lineTo(0, -pip.radius * pip.squishY - 30);
+      ctx.lineTo(5, -pip.radius * pip.squishY - 12);
+      ctx.lineTo(14, -pip.radius * pip.squishY - 25);
+      ctx.lineTo(18, -pip.radius * pip.squishY - 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (hat === 'wizard') {
+      ctx.fillStyle = '#7928ca';
+      ctx.beginPath();
+      ctx.moveTo(-25, -pip.radius * pip.squishY);
+      ctx.lineTo(25, -pip.radius * pip.squishY);
+      ctx.lineTo(0, -pip.radius * pip.squishY - 45);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('✨', -6, -pip.radius * pip.squishY - 12);
+    } else if (hat === 'flower') {
+      ctx.font = '28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🌸', 16, -pip.radius * pip.squishY);
+    } else if (hat === 'party') {
+      ctx.fillStyle = '#ff007a';
+      ctx.beginPath();
+      ctx.moveTo(-15, -pip.radius * pip.squishY);
+      ctx.lineTo(15, -pip.radius * pip.squishY);
+      ctx.lineTo(0, -pip.radius * pip.squishY - 35);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
+
+    // Render Hearts
+    var liveHearts = [];
+    for (var hIdx = 0; hIdx < hearts.length; hIdx++) {
+      var ht = hearts[hIdx];
+      ht.y += ht.vy;
+      ht.x += ht.vx;
+      ht.alpha -= 0.02;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, ht.alpha);
+      ctx.font = ht.size + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💖', ht.x, ht.y);
+      ctx.restore();
+      if (ht.alpha > 0.05) liveHearts.push(ht);
+    }
+    hearts = liveHearts;
+
+    requestAnimationFrame(render);
+  }
+
+  // Pointer Interactions
+  canvas.addEventListener('mousemove', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var dx = mx - pip.x;
+    var dy = my - pip.y;
+    var dist = Math.hypot(dx, dy);
+    pip.eyeLookX = Math.max(-1, Math.min(1, dx / 100));
+    pip.eyeLookY = Math.max(-1, Math.min(1, dy / 100));
+
+    if (dist < 70) {
+      triggerPet(mx, my);
+    }
+  });
+
+  canvas.addEventListener('click', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    triggerPet(mx, my);
+  });
+
+  petBtn.addEventListener('click', function() { triggerPet(); });
+  feedBtn.addEventListener('click', dropTreat);
+  playBtn.addEventListener('click', throwBall);
+  breatheBtn.addEventListener('click', toggleBreathing);
+
+  soundBtn.addEventListener('click', function() {
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? '🔊 Purr Audio: ON' : '🔇 Purr Audio: OFF';
+    soundBtn.style.color = soundOn ? 'var(--text)' : 'var(--text-secondary)';
+  });
+
+  requestAnimationFrame(render);
+})();
+</script>

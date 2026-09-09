@@ -1,0 +1,259 @@
+<h2 id="mnc-title" style="margin-top:0;color:var(--accent);">🔮 Metamaterials &amp; Negative Index Cloaking Device</h2>
+
+<form aria-describedby="mnc-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="mnc-desc" class="description" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.95rem;line-height:1.6;">
+    In standard materials, the refractive index is always positive ($n > 0$). But engineered <b>metamaterials</b> achieve negative permittivity ($\epsilon < 0$) and permeability ($\mu < 0$), reversing Snell's Law ($n < 0$) and bending light backward. Explore optical cloaking devices that channel light seamlessly around objects without casting any shadow!
+  </p>
+
+  <!-- Controls Grid -->
+  <div style="background:var(--bg-secondary, #141e28);border:1px solid var(--border-light, rgba(255,255,255,0.1));border-radius:var(--card-radius, 14px);padding:16px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:12px;margin-bottom:12px;">
+      <div>
+        <label for="mnc-optics-mode" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Metamaterial Device:</label>
+        <select id="mnc-optics-mode" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="cloak">🛡️ Invisibility Cloak (Transformation Optics)</option>
+          <option value="negative">🔄 Negative Index Slab (n = -1.5 Bending)</option>
+          <option value="positive">🪞 Standard Crown Glass (n = +1.5)</option>
+          <option value="superlens">🔬 Veselago Flat Superlens</option>
+        </select>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <label for="mnc-angle-slider" style="color:var(--accent);font-size:0.85rem;font-weight:700;">Light Ray Incidence Angle:</label>
+          <span id="mnc-angle-val" style="color:var(--premium, #ffd700);font-size:0.85rem;font-weight:700;">35°</span>
+        </div>
+        <input type="range" id="mnc-angle-slider" min="0" max="75" value="35" style="width:100%;accent-color:var(--accent);" />
+      </div>
+
+      <div>
+        <label for="mnc-ray-count" style="display:block;color:var(--accent);font-size:0.85rem;font-weight:700;margin-bottom:4px;">Beam Ray Density:</label>
+        <select id="mnc-ray-count" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.85rem;">
+          <option value="11" selected>Dense Wavefront (11 Rays)</option>
+          <option value="5">Sparse Rays (5 Rays)</option>
+          <option value="1">Single Probe Laser Ray</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Snell's Law Equation Box -->
+    <div style="background:rgba(0,0,0,0.35);padding:10px 14px;border-radius:8px;border-left:3px solid var(--accent);font-size:0.85rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div id="mnc-formula" style="color:#fff;font-family:monospace;font-weight:700;">
+        n₁ sin(θ₁) = n₂ sin(θ₂) → <span style="color:#ffd700;">θ₂ = -22.5° (Negative Angle!)</span>
+      </div>
+      <div id="mnc-index-status" style="color:var(--premium, #ffd700);font-weight:700;font-size:0.8rem;">
+        Refractive Index n = -1.50
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Canvas Stage -->
+<div style="position:relative;width:100%;height:380px;border-radius:var(--card-radius, 14px);overflow:hidden;background:#030713;border:1px solid rgba(255,255,255,0.15);box-shadow:inset 0 0 50px rgba(0,0,0,0.8);">
+  <canvas id="mnc-canvas" width="600" height="380" style="width:100%;height:100%;display:block;"></canvas>
+  <div id="mnc-guide" style="position:absolute;bottom:10px;left:14px;right:14px;background:rgba(8,16,30,0.88);backdrop-filter:blur(6px);border:1px solid rgba(45,212,255,0.3);padding:8px 14px;border-radius:8px;color:#fff;font-size:0.8rem;line-height:1.4;">
+    🛡️ <b>Invisibility Cloak:</b> Coordinate transformation maps space so electromagnetic wavefronts bend smoothly around the central chamber and recombine on the far side without phase distortion!
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('mnc-canvas');
+  var ctx = canvas.getContext('2d');
+  var modeSelect = document.getElementById('mnc-optics-mode');
+  var angleSlider = document.getElementById('mnc-angle-slider');
+  var angleVal = document.getElementById('mnc-angle-val');
+  var raySelect = document.getElementById('mnc-ray-count');
+  var formulaBox = document.getElementById('mnc-formula');
+  var indexStatus = document.getElementById('mnc-index-status');
+  var guide = document.getElementById('mnc-guide');
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function render() {
+    var w = canvas.width;
+    var h = canvas.height;
+    var mode = modeSelect.value;
+    var incAngleDeg = parseFloat(angleSlider.value);
+    var incAngle = (incAngleDeg * Math.PI) / 180;
+    var numRays = parseInt(raySelect.value, 10);
+
+    angleVal.textContent = incAngleDeg + '°';
+
+    ctx.fillStyle = '#030713';
+    ctx.fillRect(0, 0, w, h);
+
+    var cx = w / 2;
+    var cy = h / 2;
+
+    if (mode === 'cloak') {
+      formulaBox.innerHTML = 'Transformation Optics: <span style="color:#ffd700;">r\' = R₁ + r(R₂ - R₁)/R₂</span>';
+      indexStatus.textContent = 'Coordinate Transformation Cloak';
+      guide.innerHTML = '🛡️ <b>Invisibility Cloak:</b> Light waves flow around the central black void like water around a smooth pebble. Notice the flat unbroken wavefront exiting the right side!';
+
+      // Outer Cloak Ring
+      var rOuter = 110, rInner = 45;
+      ctx.fillStyle = 'rgba(45, 212, 255, 0.12)';
+      ctx.strokeStyle = '#2dd4ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rOuter, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Hidden Object Core
+      ctx.fillStyle = '#000000';
+      ctx.strokeStyle = '#ff007a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ff007a';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('HIDDEN OBJECT', cx, cy + 4);
+
+      // Ray Tracing around Cloak
+      for (var i = 0; i < numRays; i++) {
+        var yOffset = ((i - (numRays - 1) / 2) / ((numRays - 1) / 2 || 1)) * 90;
+        var startY = cy + yOffset;
+
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(40, startY);
+
+        if (Math.abs(yOffset) < rInner) {
+          // Bends smoothly around inner core
+          var sign = yOffset >= 0 ? 1 : -1;
+          ctx.lineTo(cx - rOuter + 10, startY);
+          ctx.quadraticCurveTo(cx, cy + sign * (rInner + 18), cx + rOuter - 10, startY);
+          ctx.lineTo(w - 40, startY);
+        } else if (Math.abs(yOffset) < rOuter) {
+          var sign = yOffset >= 0 ? 1 : -1;
+          ctx.lineTo(cx - rOuter + 5, startY);
+          ctx.quadraticCurveTo(cx, cy + sign * (rOuter - 10), cx + rOuter - 5, startY);
+          ctx.lineTo(w - 40, startY);
+        } else {
+          ctx.lineTo(w - 40, startY);
+        }
+        ctx.stroke();
+      }
+
+    } else if (mode === 'negative' || mode === 'positive') {
+      var n2 = (mode === 'negative') ? -1.5 : 1.5;
+      var theta2 = Math.asin((1.0 / n2) * Math.sin(incAngle));
+
+      formulaBox.innerHTML = 'n₁ sin(θ₁) = n₂ sin(θ₂) → <span style="color:#ffd700;">θ₂ = ' + (theta2 * 180 / Math.PI).toFixed(1) + '° ' + (n2 < 0 ? '(Bends Backward!)' : '') + '</span>';
+      indexStatus.textContent = 'Refractive Index n = ' + n2.toFixed(2);
+      guide.innerHTML = (n2 < 0) ?
+        '🔄 <b>Negative Refraction:</b> Notice how the light ray refracts to the SAME side of the surface normal! This violates intuition but obeys Maxwell\'s equations.' :
+        '🪞 <b>Standard Positive Refraction:</b> Normal glass refracts light across to the opposite side of the normal vector.';
+
+      // Slab
+      var slabX = cx - 70, slabW = 140;
+      ctx.fillStyle = (n2 < 0) ? 'rgba(157, 78, 221, 0.2)' : 'rgba(45, 212, 255, 0.15)';
+      ctx.strokeStyle = (n2 < 0) ? '#c77dff' : '#2dd4ff';
+      ctx.lineWidth = 2;
+      ctx.fillRect(slabX, 40, slabW, h - 80);
+      ctx.strokeRect(slabX, 40, slabW, h - 80);
+
+      // Surface Normal
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(slabX - 40, cy);
+      ctx.lineTo(slabX + 40, cy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Light Rays
+      for (var i = 0; i < numRays; i++) {
+        var spread = (i - (numRays - 1) / 2) * 16;
+        var hitY = cy + spread;
+        var hitX = slabX;
+
+        var startX = hitX - 140 * Math.cos(incAngle);
+        var startY = hitY - 140 * Math.sin(incAngle);
+
+        var internalDy = slabW * Math.tan(theta2);
+        var exitX = slabX + slabW;
+        var exitY = hitY + internalDy;
+
+        var finalX = exitX + 140 * Math.cos(incAngle);
+        var finalY = exitY + 140 * Math.sin(incAngle);
+
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(hitX, hitY);
+        ctx.lineTo(exitX, exitY);
+        ctx.lineTo(finalX, finalY);
+        ctx.stroke();
+      }
+    } else if (mode === 'superlens') {
+      formulaBox.innerHTML = 'Flat Superlens: <span style="color:#ffd700;">Sub-wavelength Evanescent Wave Amplification</span>';
+      indexStatus.textContent = 'Superlens (n = -1.0)';
+      guide.innerHTML = '🔬 <b>Veselago Superlens:</b> A flat slab of n = -1 material focuses diverging light into a perfect point BOTH inside the slab and beyond it, breaking Abbe\'s diffraction limit!';
+
+      var slabX = cx - 50, slabW = 100;
+      ctx.fillStyle = 'rgba(57, 255, 20, 0.15)';
+      ctx.strokeStyle = '#39ff14';
+      ctx.lineWidth = 2;
+      ctx.fillRect(slabX, 40, slabW, h - 80);
+      ctx.strokeRect(slabX, 40, slabW, h - 80);
+
+      var srcX = slabX - 80, srcY = cy;
+      var focusInsideX = slabX + 50, focusInsideY = cy;
+      var focusExitX = slabX + slabW + 80, focusExitY = cy;
+
+      // Source point
+      ctx.fillStyle = '#ff007a';
+      ctx.beginPath(); ctx.arc(srcX, srcY, 6, 0, Math.PI * 2); ctx.fill();
+
+      // Superlens Rays
+      for (var i = 0; i < numRays; i++) {
+        var rayAngle = ((i - (numRays - 1) / 2) / ((numRays - 1) / 2 || 1)) * 0.45;
+        var hitX = slabX;
+        var hitY = srcY + (slabX - srcX) * Math.tan(rayAngle);
+
+        var exitX = slabX + slabW;
+        var exitY = hitY - slabW * Math.tan(rayAngle);
+
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(srcX, srcY);
+        ctx.lineTo(hitX, hitY);
+        ctx.lineTo(exitX, exitY);
+        ctx.lineTo(focusExitX, focusExitY);
+        ctx.stroke();
+      }
+
+      // Focal points
+      ctx.fillStyle = '#39ff14';
+      ctx.beginPath(); ctx.arc(focusExitX, focusExitY, 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  [modeSelect, angleSlider, raySelect].forEach(function(el) {
+    el.addEventListener('input', render);
+    el.addEventListener('change', render);
+  });
+
+  render();
+})();
+</script>
