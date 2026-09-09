@@ -176,6 +176,7 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'geometric-size-illusion-lab': 'Mind-Blowing Demos',
   'joy-spark-micro-celebrations': 'Wellbeing & Community',
   'interactive-wind-chime-sanctuary': 'Interactive Art & Living Worlds',
   'serotonin-secret-kindness-generator': 'Wellbeing & Community',
