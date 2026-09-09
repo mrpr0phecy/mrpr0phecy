@@ -3829,6 +3829,8 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     const CONFIG = {
         INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() sizes it to the viewport
         INITIAL_STAGGER: 50,    // ms between first-batch fetch starts (was LOAD_DELAY: 100)
+        FETCH_TIMEOUT: 15000,   // ms before a card fetch is aborted and its slot freed
+        MAX_AUTO_RETRIES: 2,    // silent retries before the card shows its error/Retry UI
         GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
         GITHUB_PATH: 'cards',
         STICKY_THRESHOLD: 200
@@ -4791,6 +4793,14 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             // the scroll listener already exists in setupEventListeners(); it
             // calls onScrollLazyLoad(), which routes into the throttle below
             window.addEventListener('resize', onScrollLoad, { passive: true });
+            window.addEventListener('orientationchange', onScrollLoad, { passive: true });
+            window.addEventListener('load', onScrollLoad, { passive: true });
+            window.addEventListener('pageshow', onScrollLoad, { passive: true });
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') onScrollLoad();
+            });
+            // Fonts / images landing after first paint can shift the grid.
+            if (document.fonts && document.fonts.ready) document.fonts.ready.then(onScrollLoad).catch(() => {});
             buildPlaceholders(cardFiles, dashboard);
 
         } catch (error) {
@@ -4837,6 +4847,13 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     const loadQueue = [];
     let activeLoads = 0;
     const MAX_CONCURRENT_LOADS = 6;
+    const retryCounts = new Map();
+
+    // A card hidden by the current search/category filter must never take a
+    // fetch slot — but it must also not be dropped for good (see observer).
+    function isCardHidden(card) {
+        return card.style.display === 'none';
+    }
 
     function loadCard(card, cardName) {
         if (loadedCards.has(cardName) || loadingCards.has(cardName)) return;
@@ -4864,7 +4881,9 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     function processLoadQueue() {
         while (activeLoads < MAX_CONCURRENT_LOADS && loadQueue.length > 0) {
             const item = pickNearestQueued();
-            if (item && !loadedCards.has(item.cardName) && !loadingCards.has(item.cardName)) {
+            if (!item) continue;
+            if (isCardHidden(item.card)) { item.card.classList.remove('loading-fallback'); continue; }
+            if (!loadedCards.has(item.cardName) && !loadingCards.has(item.cardName)) {
                 activeLoads++;
                 executeLoadCard(item.card, item.cardName).finally(() => {
                     activeLoads--;
@@ -4872,6 +4891,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 });
             }
         }
+        // Once the pipeline drains, re-check the viewport: cards that just
+        // rendered change the layout, which can pull fresh placeholders on
+        // screen without any scroll event ever firing.
+        if (activeLoads === 0 && loadQueue.length === 0) scheduleViewportSweep();
     }
 
     // The animated waveform is now shown only on cards genuinely fetching —
@@ -4906,7 +4929,18 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         try {
             const meta = cardsMetaMap.get(cardName);
             const cardUrl = meta ? meta.path : `cards/${cardName}.html`;
-            const response = await fetch(cardUrl);
+            // A request that never settles used to hold one of the
+            // MAX_CONCURRENT_LOADS slots forever; six of those and the whole
+            // page stopped loading tools. Abort after FETCH_TIMEOUT so the
+            // slot is freed and the card can be retried.
+            const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = ctrl ? setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT) : null;
+            let response;
+            try {
+                response = await fetch(cardUrl, ctrl ? { signal: ctrl.signal } : undefined);
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -4924,11 +4958,22 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             loadedCards.add(cardName);
             
         } catch (error) {
+            const isAbort = error && error.name === 'AbortError';
             console.error(`Failed to load card ${cardName}:`, error);
+            retryCounts.set(cardName, (retryCounts.get(cardName) || 0) + 1);
+            if (retryCounts.get(cardName) <= CONFIG.MAX_AUTO_RETRIES) {
+                // Transient failure (timeout / flaky network): put the skeleton
+                // back and let the viewport sweep pick it up again shortly.
+                card.classList.remove('loading-fallback');
+                loadingCards.delete(cardName);
+                setTimeout(() => { if (!loadedCards.has(cardName)) scheduleViewportSweep(); }, isAbort ? 250 : 1500);
+                return;
+            }
             showCardError(card, cardName, error);
             // Do NOT add to loadedCards — allow retry via observer or scroll
         } finally {
             loadingCards.delete(cardName);
+            card.classList.remove('loading-fallback');
             
             if (observer) {
                 observer.unobserve(card);
@@ -5190,6 +5235,8 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             card.classList.remove('loaded', 'visible');
             loadedCards.delete(cardName);
             loadingCards.delete(cardName);
+            retryCounts.delete(cardName);
+            card.classList.remove('loading-fallback');
             loadCard(card, cardName);
         }
     }
@@ -5217,8 +5264,13 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         
         observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                if (entry.isIntersecting && !isSearching) {
+                // Previously gated on `!isSearching`, which silently discarded
+                // every intersection that happened while a search or category
+                // filter was active — those cards were never re-observed, so
+                // scrolling through filtered results left skeletons for good.
+                if (entry.isIntersecting) {
                     const card = entry.target;
+                    if (isCardHidden(card)) return;
                     const cardName = card.dataset.name;
                     
                     if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
@@ -5228,8 +5280,8 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             });
         }, {
             root: null,
-            rootMargin: '400px',
-            threshold: 0.1
+            rootMargin: '600px 0px',
+            threshold: 0
         });
         
         document.querySelectorAll('.card:not(.loaded)').forEach(card => {
@@ -5248,7 +5300,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     // getBoundingClientRect() in a loop every 3 seconds whether or not the
     // user had moved — forced synchronous layout, 1165 times, forever.
     function onScrollLoad() {
-        if (scrollRafPending || isSearching) return;
+        if (scrollRafPending) return;
         scrollRafPending = true;
         requestAnimationFrame(() => {
             scrollRafPending = false;
@@ -5256,43 +5308,46 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         });
     }
 
+    // Public entry point used everywhere a layout change may have revealed
+    // unloaded cards (filters, resize, tab focus, queue drained, bfcache).
+    function scheduleViewportSweep() { onScrollLoad(); }
+
     function scrollFallbackLoader() {
-        if (scrollLoadActive || isSearching) return;
+        if (scrollLoadActive) return;
         scrollLoadActive = true;
 
-        const viewportTop = window.scrollY - 300;
-        const viewportBottom = window.scrollY + window.innerHeight + 300;
+        const viewportTop = -400;
+        const viewportBottom = window.innerHeight + 400;
 
         let loaded = 0;
-        let pastViewport = 0;
+        const stillPending = [];
 
         for (let i = 0; i < pendingCards.length; i++) {
-            if (loaded >= MAX_CONCURRENT_LOADS) break;
             const card = pendingCards[i];
             const cardName = card.dataset.name;
-            // cheap Set checks first — no layout is forced for cards that are
-            // already loaded, loading, or already claimed by this fallback
-            if (!cardName || loadedCards.has(cardName) || loadingCards.has(cardName)) continue;
-            if (card.classList.contains('loading-fallback')) continue;
+            // Prune finished cards so the list — and this loop — shrinks over
+            // time instead of re-walking all 1200+ entries on every scroll.
+            if (!cardName || loadedCards.has(cardName) || !card.isConnected) continue;
+            stillPending.push(card);
+            if (loaded >= MAX_CONCURRENT_LOADS) continue;
+            if (loadingCards.has(cardName) || card.classList.contains('loading-fallback')) continue;
+            // Hidden by the active filter: skip, but keep it pending.
+            if (isCardHidden(card)) continue;
 
+            // No early "past the viewport" break here: filters reorder cards
+            // with CSS `order`, so DOM position says nothing about where a
+            // card is on screen. The Set checks above keep this cheap.
             const rect = card.getBoundingClientRect();
-            const cardTop = rect.top + window.scrollY;
-            const cardBottom = cardTop + rect.height;
+            if (rect.width === 0 && rect.height === 0) continue;
 
-            if (cardBottom >= viewportTop && cardTop <= viewportBottom) {
-                pastViewport = 0;
+            if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
                 card.classList.add('loading-fallback');
                 loadCard(card, cardName);
                 loaded++;
-            } else if (cardTop > viewportBottom) {
-                // DOM order tracks document order closely enough that once we
-                // are well clear of the bottom there is nothing left to find.
-                if (++pastViewport > 40) break;
-            } else {
-                pastViewport = 0;
             }
         }
 
+        pendingCards = stillPending;
         scrollLoadActive = false;
     }
     
@@ -5715,6 +5770,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         });
 
         renderDirectoryList(matchedNames);
+        // Anything beyond the first 12 that lands in the viewport (or is
+        // scrolled to later) is picked up by the sweep + observer, which no
+        // longer ignore cards while a filter is active.
+        scheduleViewportSweep();
 
         const resultsCountEl = document.getElementById('resultsCountText');
         const noResultsState = document.getElementById('noResultsState');
