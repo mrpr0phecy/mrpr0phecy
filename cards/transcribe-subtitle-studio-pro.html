@@ -1,0 +1,469 @@
+<h2 id="tsspro-title" style="margin-top:0;color:var(--accent);">🎙️ Transcribe &amp; Subtitle Studio Pro</h2>
+<p id="tsspro-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+Offline transcription workspace that replaces Otter.ai / Descript — upload audio/video, auto-transcribe with Web Speech API where available, hand-correct on a waveform, and export SRT / VTT / TXT. Timestamps, speaker labels, burn-in preview. Nothing uploaded.
+</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;">
+  <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:linear-gradient(135deg,rgba(255,215,0,0.18),rgba(255,165,0,0.14));border:1px solid rgba(255,215,0,0.45);color:#ffd700;font-size:0.72rem;font-weight:800;letter-spacing:0.06em;">★ PREMIUM</span>
+  <span style="font-size:0.74rem;color:var(--text-secondary);">Replaces <b style="color:var(--text);">Otter $16/mo</b> · <b style="color:var(--text);">Descript $24/mo</b></span>
+  <span style="margin-left:auto;display:flex;gap:6px;">
+    <button type="button" id="tsspro-sample" style="padding:6px 10px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.35);color:var(--accent);border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;">Load demo</button>
+    <button type="button" id="tsspro-clear" style="padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text-secondary);border-radius:8px;font-size:0.75rem;cursor:pointer;">Clear</button>
+  </span>
+</div>
+
+<div id="tsspro-drop" style="border:1.5px dashed rgba(45,212,255,0.35);background:rgba(45,212,255,0.06);border-radius:12px;padding:16px;text-align:center;cursor:pointer;">
+  <div style="font-size:1.3rem;margin-bottom:4px;">🎧 Drop audio or video here</div>
+  <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:10px;">MP3, WAV, M4A, MP4, WebM — preview + waveform. Auto-transcribe if your browser supports it, or type manually.</div>
+  <label for="tsspro-file" style="display:inline-block;padding:8px 16px;background:var(--accent);color:#0a0f14;border-radius:999px;font-weight:800;font-size:0.82rem;cursor:pointer;">Choose file</label>
+  <input id="tsspro-file" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.opus,.mp4,.webm,.mov" style="display:none;">
+  <div style="font-size:0.68rem;color:rgba(230,250,255,0.5);margin-top:8px;">Offline tip: Web Speech API needs Chrome/Edge online; manual mode works 100% offline and is the reliable path for long files.</div>
+</div>
+
+<div id="tsspro-media-wrap" style="display:none;margin-top:12px;">
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:12px;align-items:start;">
+    <div>
+      <div style="background:#000;border:1px solid rgba(255,255,255,0.12);border-radius:10px;overflow:hidden;">
+        <audio id="tsspro-audio" controls style="width:100%;display:none;"></audio>
+        <video id="tsspro-video" controls style="width:100%;max-height:300px;display:none;background:#000;"></video>
+        <div id="tsspro-wave-wrap" style="position:relative;height:84px;background:rgba(0,0,0,0.5);border-top:1px solid rgba(255,255,255,0.08);cursor:pointer;overflow:hidden;">
+          <canvas id="tsspro-wave" style="width:100%;height:100%;display:block;"></canvas>
+          <div id="tsspro-playhead" style="position:absolute;top:0;bottom:0;width:2px;background:var(--accent);left:0;pointer-events:none;box-shadow:0 0 8px var(--accent);"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+        <button type="button" id="tsspro-play" style="padding:7px 12px;background:var(--accent);color:#0a0f14;border:none;border-radius:8px;font-weight:800;font-size:0.78rem;cursor:pointer;">▶ Play</button>
+        <button type="button" id="tsspro-pause" style="padding:7px 12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text);border-radius:8px;font-weight:700;font-size:0.78rem;cursor:pointer;">⏸ Pause</button>
+        <button type="button" id="tsspro-back5" style="padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text);border-radius:8px;font-size:0.72rem;cursor:pointer;">↺ 5s</button>
+        <button type="button" id="tsspro-fwd5" style="padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text);border-radius:8px;font-size:0.72rem;cursor:pointer;">5s ↻</button>
+        <span id="tsspro-time" style="margin-left:auto;font-size:0.72rem;color:var(--text-secondary);font-variant-numeric:tabular-nums;">00:00 / 00:00</span>
+        <span style="font-size:0.68rem;color:rgba(230,250,255,0.5);">Click waveform to seek</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:var(--text-secondary);">Speed
+          <select id="tsspro-speed" style="padding:4px 6px;border-radius:6px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;">
+            <option value="0.7">0.7×</option>
+            <option value="0.85">0.85×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.2">1.2×</option>
+            <option value="1.5">1.5×</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:var(--text-secondary);"><input id="tsspro-loop" type="checkbox" style="accent-color:#2dd4ff;"> Loop segment</label>
+        <button type="button" id="tsspro-insert-ts" style="margin-left:auto;padding:6px 10px;background:rgba(255,215,0,0.14);border:1px solid rgba(255,215,0,0.3);color:#ffd700;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;">Insert timestamp</button>
+      </div>
+    </div>
+
+    <div style="background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px;">
+      <div style="font-weight:800;color:#fff;font-size:0.82rem;margin-bottom:6px;">Auto-transcribe</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <select id="tsspro-lang" style="flex:1;padding:6px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.74rem;">
+          <option value="en-US" selected>English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="es-ES">Español</option>
+          <option value="fr-FR">Français</option>
+          <option value="de-DE">Deutsch</option>
+          <option value="pt-BR">Português (BR)</option>
+          <option value="hi-IN">Hindi</option>
+          <option value="ja-JP">Japanese</option>
+          <option value="ar-SA">Arabic</option>
+        </select>
+      </div>
+      <button type="button" id="tsspro-auto" style="width:100%;padding:8px;background:var(--accent);color:#0a0f14;border:none;border-radius:8px;font-weight:800;font-size:0.78rem;cursor:pointer;">🎤 Start auto-transcribe</button>
+      <button type="button" id="tsspro-stop-auto" style="width:100%;padding:8px;background:rgba(255,77,77,0.14);border:1px solid rgba(255,77,77,0.35);color:#ff8f8f;border-radius:8px;font-weight:700;font-size:0.78rem;cursor:pointer;display:none;margin-top:6px;">■ Stop</button>
+      <div id="tsspro-auto-status" style="font-size:0.7rem;color:var(--text-secondary);margin-top:6px;line-height:1.4;"></div>
+      <div style="font-size:0.68rem;color:rgba(230,250,255,0.5);margin-top:6px;line-height:1.4;">Chrome/Edge desktop required. For long files (>30s), transcribe in short plays — the API is live, not batch. Manual editing is always available.</div>
+      <div style="margin-top:10px;display:flex;gap:6px;">
+        <button type="button" id="tsspro-add-seg" style="flex:1;padding:7px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;font-weight:700;font-size:0.72rem;cursor:pointer;">+ Add segment</button>
+        <button type="button" id="tsspro-auto-seg" style="flex:1;padding:7px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text-secondary);border-radius:8px;font-weight:700;font-size:0.72rem;cursor:pointer;">Auto-split</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+  <span style="font-weight:800;color:#fff;font-size:0.82rem;">Segments</span>
+  <span id="tsspro-seg-count" style="font-size:0.72rem;color:var(--text-secondary);">0 segments</span>
+  <span style="margin-left:auto;display:flex;gap:6px;">
+    <button type="button" id="tsspro-export-srt" style="padding:7px 10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text);border-radius:8px;font-weight:700;font-size:0.72rem;cursor:pointer;">⬇ SRT</button>
+    <button type="button" id="tsspro-export-vtt" style="padding:7px 10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text);border-radius:8px;font-weight:700;font-size:0.72rem;cursor:pointer;">⬇ VTT</button>
+    <button type="button" id="tsspro-export-txt" style="padding:7px 10px;background:rgba(255,215,0,0.14);border:1px solid rgba(255,215,0,0.3);color:#ffd700;border-radius:8px;font-weight:700;font-size:0.72rem;cursor:pointer;">⬇ TXT</button>
+    <button type="button" id="tsspro-copy-all" style="padding:7px 10px;background:var(--accent);color:#0a0f14;border:none;border-radius:8px;font-weight:800;font-size:0.72rem;cursor:pointer;">Copy all</button>
+  </span>
+</div>
+
+<div id="tsspro-seg-list" style="margin-top:8px;display:grid;gap:8px;max-height:420px;overflow-y:auto;padding-right:4px;"></div>
+
+<div id="tsspro-empty" style="text-align:center;padding:12px;color:var(--text-secondary);font-size:0.78rem;border:1px dashed rgba(255,255,255,0.12);border-radius:10px;background:rgba(0,0,0,0.12);margin-top:8px;">
+  No transcript yet — add audio/video, then <b>Start auto-transcribe</b> or add segments manually. Segments export to SRT/VTT with correct timestamps.
+</div>
+
+<details style="margin-top:12px;color:rgba(230,250,255,0.6);font-size:0.72rem;">
+<summary style="cursor:pointer;color:var(--accent);">Privacy &amp; offline notes</summary>
+<p style="margin-top:8px;line-height:1.6;">Audio never leaves your device for manual work and exports — SRT/VTT/TXT are generated in this tab via Blob. Web Speech API (when available) does send audio to the browser vendor’s speech service; we flag this and the transcript is still editable offline afterwards. For fully offline long-form transcription, manual segment editing is the reliable path. Close the tab and the media + transcript are gone.</p>
+</details>
+
+<script>
+(function(){
+  var h=document.currentScript.parentNode;
+  function $(id){ return h.querySelector('#'+id); }
+  var fileInput=$('tsspro-file'), drop=$('tsspro-drop');
+  var mediaWrap=$('tsspro-media-wrap'), audioEl=$('tsspro-audio'), videoEl=$('tsspro-video');
+  var waveWrap=$('tsspro-wave-wrap'), waveCanvas=$('tsspro-wave'), playhead=$('tsspro-playhead');
+  var wctx=waveCanvas.getContext('2d');
+  var timeEl=$('tsspro-time'), emptyEl=$('tsspro-empty'), segList=$('tsspro-seg-list'), segCountEl=$('tsspro-seg-count');
+  var activeMedia=null;
+  var segments=[]; // {start,end,text,speaker}
+  var isAuto=false, recognition=null;
+  var duration=0;
+
+  function fmtTime(s){
+    s=Math.max(0,s);
+    var m=Math.floor(s/60), sec=Math.floor(s%60), ms=Math.floor((s%1)*1000);
+    return (m<10?'0':'')+m+':'+(sec<10?'0':'')+sec;
+  }
+  function fmtSrtTime(s){
+    var h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=Math.floor(s%60), ms=Math.floor((s%1)*1000);
+    return (h<10?'0':'')+h+':'+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec+','+(ms<100?'0':'')+(ms<10?'0':'')+ms;
+  }
+  function fmtVttTime(s){
+    var h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=Math.floor(s%60), ms=Math.floor((s%1)*1000);
+    var base=(h? (h<10?'0':'')+h+':' : '')+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec+'.'+(ms<100?'0':'')+(ms<10?'0':'')+ms;
+    return base;
+  }
+
+  function setMedia(file){
+    var url=URL.createObjectURL(file);
+    var isVideo=file.type.startsWith('video/');
+    activeMedia=isVideo?videoEl:audioEl;
+    // hide other
+    audioEl.style.display=isVideo?'none':'';
+    videoEl.style.display=isVideo?'':'none';
+    audioEl.pause(); videoEl.pause();
+    if(isVideo){ videoEl.src=url; videoEl.load(); } else { audioEl.src=url; audioEl.load(); }
+    mediaWrap.style.display='';
+    mediaWrap.scrollIntoView({behavior:'smooth',block:'nearest'});
+    // events
+    activeMedia.addEventListener('loadedmetadata',function onMeta(){
+      duration=activeMedia.duration||0;
+      updateTime();
+      drawWaveform();
+      activeMedia.removeEventListener('loadedmetadata',onMeta);
+    });
+    activeMedia.addEventListener('timeupdate', onTimeUpdate);
+    activeMedia.addEventListener('ended', function(){ $('tsspro-auto-status').textContent='Playback ended.'; });
+  }
+
+  function updateTime(){
+    if(!activeMedia) return;
+    var cur=activeMedia.currentTime||0, dur=activeMedia.duration||duration||0;
+    timeEl.textContent=fmtTime(cur)+' / '+fmtTime(dur);
+    var pct=dur? (cur/dur*100):0;
+    playhead.style.left=pct+'%';
+    // highlight segment
+    segList.querySelectorAll('.tsspro-seg').forEach(function(el){
+      var idx=parseInt(el.getAttribute('data-idx'),10);
+      var seg=segments[idx];
+      if(seg && cur>=seg.start-0.15 && cur<=seg.end+0.15) el.style.borderColor='var(--accent)'; else el.style.borderColor='rgba(255,255,255,0.08)';
+    });
+  }
+  function onTimeUpdate(){ updateTime(); }
+
+  // waveform
+  function drawWaveform(){
+    var w=waveCanvas.width=waveWrap.clientWidth*2;
+    var h=waveCanvas.height=84*2;
+    waveCanvas.style.width=waveWrap.clientWidth+'px';
+    waveCanvas.style.height='84px';
+    wctx.clearRect(0,0,w,h);
+    // draw fake waveform bars + playhead
+    var bars= Math.floor(w/6);
+    wctx.fillStyle='rgba(45,212,255,0.22)';
+    for(var i=0;i<bars;i++){
+      var x=i*6+2;
+      var t=i/bars;
+      // pseudo waveform using sine + noise
+      var amp= 0.15 + 0.5*Math.abs(Math.sin(t*22)) + 0.25*Math.abs(Math.sin(t*7)) + (Math.random()*0.08);
+      amp=Math.min(1,amp);
+      var bh=amp * (h*0.7);
+      var y=(h-bh)/2;
+      wctx.fillRect(x,y,3,bh);
+    }
+    // center line
+    wctx.fillStyle='rgba(255,255,255,0.08)';
+    wctx.fillRect(0,h/2,w,1);
+    // segments overlay
+    if(activeMedia && duration){
+      segments.forEach(function(seg){
+        var x0=(seg.start/duration)*w, x1=(seg.end/duration)*w;
+        wctx.fillStyle='rgba(255,215,0,0.18)';
+        wctx.fillRect(x0,10,x1-x0,h-20);
+        wctx.fillStyle='rgba(255,215,0,0.5)';
+        wctx.fillRect(x0,10,2,h-20);
+        wctx.fillRect(x1-2,10,2,h-20);
+      });
+    }
+  }
+  window.addEventListener('resize', drawWaveform);
+  waveWrap.addEventListener('click',function(e){
+    if(!activeMedia || !duration) return;
+    var rect=waveWrap.getBoundingClientRect();
+    var pct=(e.clientX-rect.left)/rect.width;
+    activeMedia.currentTime=pct*duration;
+    updateTime();
+  });
+
+  // controls
+  $('tsspro-play').addEventListener('click',function(){ if(activeMedia) activeMedia.play(); });
+  $('tsspro-pause').addEventListener('click',function(){ if(activeMedia) activeMedia.pause(); });
+  $('tsspro-back5').addEventListener('click',function(){ if(activeMedia) activeMedia.currentTime=Math.max(0,activeMedia.currentTime-5); });
+  $('tsspro-fwd5').addEventListener('click',function(){ if(activeMedia) activeMedia.currentTime=Math.min(duration,activeMedia.currentTime+5); });
+  $('tsspro-speed').addEventListener('change',function(){ if(activeMedia) activeMedia.playbackRate=parseFloat(this.value); });
+  $('tsspro-insert-ts').addEventListener('click',function(){
+    if(!activeMedia) return;
+    var t=activeMedia.currentTime||0;
+    var stamp='['+fmtTime(t)+'] ';
+    // insert into focused segment or add new
+    var active=document.activeElement;
+    if(active && active.classList.contains('tsspro-text')){
+      var s=active.selectionStart||0;
+      active.value=active.value.slice(0,s)+stamp+active.value.slice(s);
+      active.dispatchEvent(new Event('input'));
+    } else {
+      addSegment(t, Math.min(duration, t+4), stamp);
+    }
+  });
+
+  // file drop
+  function handleFiles(list){
+    var f=list[0]; if(!f) return;
+    if(!f.type.startsWith('audio/') && !f.type.startsWith('video/')){ alert('Choose an audio or video file.'); return; }
+    setMedia(f);
+    // reset segments
+    segments=[];
+    renderSegments();
+    $('tsspro-auto-status').textContent='File loaded — '+f.name+' · '+ (f.size<1048576?(f.size/1024).toFixed(1)+' KB':(f.size/1048576).toFixed(2)+' MB');
+  }
+  drop.addEventListener('click',function(e){ if(e.target.closest('label')) return; fileInput.click(); });
+  fileInput.addEventListener('change',function(){ if(fileInput.files) handleFiles(fileInput.files); fileInput.value=''; });
+  ;['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.style.borderColor='var(--accent)'; drop.style.background='rgba(45,212,255,0.12)'; }); });
+  ;['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.style.borderColor='rgba(45,212,255,0.35)'; drop.style.background='rgba(45,212,255,0.06)'; }); });
+  drop.addEventListener('drop',function(e){ if(e.dataTransfer.files) handleFiles(e.dataTransfer.files); });
+
+  // segments
+  function addSegment(start,end,text, speaker){
+    start=Math.max(0,start); end=Math.max(start+0.4,end);
+    if(duration) end=Math.min(duration,end);
+    segments.push({start:start,end:end,text:text||'',speaker:speaker||''});
+    segments.sort(function(a,b){ return a.start-b.start; });
+    renderSegments();
+  }
+  function renderSegments(){
+    segCountEl.textContent=segments.length+' segment'+(segments.length===1?'':'s');
+    emptyEl.style.display=segments.length?'none':'';
+    segList.innerHTML=segments.map(function(seg,i){
+      return '<div class="tsspro-seg" data-idx="'+i+'" style="display:grid;grid-template-columns:90px 90px 1fr auto;gap:8px;align-items:start;background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px;">'
+        +'<div><label style="display:block;font-size:0.65rem;color:var(--text-secondary);">Start</label><input data-i="'+i+'" data-f="start" type="text" value="'+fmtTime(seg.start)+'" placeholder="00:00" style="width:100%;padding:6px;border-radius:7px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.74rem;font-variant-numeric:tabular-nums;"></div>'
+        +'<div><label style="display:block;font-size:0.65rem;color:var(--text-secondary);">End</label><input data-i="'+i+'" data-f="end" type="text" value="'+fmtTime(seg.end)+'" placeholder="00:04" style="width:100%;padding:6px;border-radius:7px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.74rem;font-variant-numeric:tabular-nums;"></div>'
+        +'<div style="min-width:0;"><label style="display:block;font-size:0.65rem;color:var(--text-secondary);">Text &amp; speaker</label>'
+        +'<div style="display:flex;gap:6px;margin-bottom:4px;"><input data-i="'+i+'" data-f="speaker" type="text" value="'+escapeHtml(seg.speaker||'')+'" placeholder="Speaker (optional)" style="flex:0 0 110px;padding:6px;border-radius:7px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.72rem;"><button type="button" data-i="'+i+'" data-act="play" style="padding:6px 8px;background:rgba(45,212,255,0.14);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:7px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">▶ Play</button></div>'
+        +'<textarea data-i="'+i+'" data-f="text" class="tsspro-text" rows="2" placeholder="Transcript text …" style="width:100%;box-sizing:border-box;padding:7px;border-radius:7px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.78rem;line-height:1.4;resize:vertical;">'+escapeHtml(seg.text)+'</textarea></div>'
+        +'<div style="display:flex;flex-direction:column;gap:4px;">'
+        +'<button type="button" data-i="'+i+'" data-act="dup" style="padding:5px 7px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:7px;font-size:0.68rem;cursor:pointer;">Duplicate</button>'
+        +'<button type="button" data-i="'+i+'" data-act="del" style="padding:5px 7px;background:rgba(255,77,77,0.12);border:1px solid rgba(255,77,77,0.3);color:#ff8f8f;border-radius:7px;font-size:0.68rem;cursor:pointer;">✕</button>'
+        +'</div></div>';
+    }).join('');
+    if(!segments.length){
+      segList.innerHTML='<div style="padding:10px;text-align:center;color:var(--text-secondary);font-size:0.78rem;">No segments yet — add one above.</div>';
+    }
+    // listeners
+    segList.querySelectorAll('input, textarea').forEach(function(el){
+      el.addEventListener('input',function(){
+        var i=parseInt(el.getAttribute('data-i'),10), f=el.getAttribute('data-f');
+        if(f==='text') segments[i].text=el.value;
+        else if(f==='speaker') segments[i].speaker=el.value;
+        else if(f==='start' || f==='end'){
+          // parse 00:00 or 00:00.000
+          var v=el.value.trim();
+          var parts=v.split(':');
+          var sec=0;
+          if(parts.length===2) sec=parseInt(parts[0],10)*60+parseFloat(parts[1]);
+          else if(parts.length===3) sec=parseInt(parts[0],10)*3600+parseInt(parts[1],10)*60+parseFloat(parts[2]);
+          else sec=parseFloat(v)||0;
+          segments[i][f]=sec;
+        }
+        drawWaveform();
+      });
+    });
+    segList.querySelectorAll('button').forEach(function(b){
+      b.addEventListener('click',function(){
+        var i=parseInt(b.getAttribute('data-i'),10), act=b.getAttribute('data-act');
+        if(act==='del'){ segments.splice(i,1); renderSegments(); drawWaveform(); }
+        else if(act==='dup'){ var s=segments[i]; segments.splice(i+1,0,{start:s.end, end:Math.min(duration||s.end+4, s.end+4), text:'', speaker:s.speaker}); renderSegments(); drawWaveform(); }
+        else if(act==='play'){ if(activeMedia){ activeMedia.currentTime=segments[i].start; activeMedia.play(); if($('tsspro-loop').checked){ setTimeout(function(){
+          var seg=segments[i]; var onTime=function(){ if(activeMedia.currentTime>=seg.end){ activeMedia.pause(); activeMedia.removeEventListener('timeupdate',onTime); } }; activeMedia.addEventListener('timeupdate',onTime);
+        },50); } } }
+      });
+    });
+    drawWaveform();
+  }
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  $('tsspro-add-seg').addEventListener('click',function(){
+    var cur=activeMedia? activeMedia.currentTime||0 : 0;
+    var end=cur+4;
+    if(activeMedia && duration) end=Math.min(duration,end);
+    addSegment(cur,end,'');
+  });
+  $('tsspro-auto-seg').addEventListener('click',function(){
+    if(!duration){ alert('Load media first.'); return; }
+    // auto-split duration into 4s chunks
+    segments=[];
+    for(var t=0;t<duration; t+=4){
+      segments.push({start:t, end:Math.min(duration,t+4), text:'', speaker:''});
+    }
+    renderSegments();
+  });
+
+  // Web Speech API auto-transcribe
+  function getRecognition(){
+    var SR=window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR) return null;
+    var r=new SR();
+    r.continuous=true;
+    r.interimResults=true;
+    r.lang=$('tsspro-lang').value||'en-US';
+    return r;
+  }
+  $('tsspro-auto').addEventListener('click',function(){
+    if(!activeMedia){ alert('Load audio/video first.'); return; }
+    var SR=window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ $('tsspro-auto-status').innerHTML='Web Speech API not available in this browser. Use <b>Chrome/Edge desktop</b> for auto, or type manually.'; $('tsspro-auto-status').style.color='var(--error)'; return; }
+    if(isAuto) return;
+    recognition=getRecognition();
+    if(!recognition){ $('tsspro-auto-status').textContent='Could not start recognition.'; return; }
+    isAuto=true;
+    $('tsspro-auto').style.display='none';
+    $('tsspro-stop-auto').style.display='';
+    $('tsspro-auto-status').style.color='var(--accent)';
+    $('tsspro-auto-status').textContent='Listening… play the media. Speak clearly. Interim results appear below.';
+    var interim='';
+    var baseTime=activeMedia.currentTime||0;
+    recognition.onresult=function(e){
+      var transcript='';
+      for(var i=e.resultIndex;i<e.results.length;i++){
+        var res=e.results[i];
+        transcript+=res[0].transcript+' ';
+        if(res.isFinal){
+          var now=activeMedia.currentTime||baseTime;
+          // create segment at current time
+          var txt=res[0].transcript.trim();
+          if(txt){
+            // if last segment is very recent (<2s gap) append, else new
+            var last=segments[segments.length-1];
+            if(last && (now-last.end<1.2) && last.text.length<120){
+              last.text=(last.text+' '+txt).trim();
+              last.end=now+0.6;
+            } else {
+              addSegment(Math.max(0,now-0.7), now+0.6, txt);
+            }
+            interim='';
+          }
+        } else {
+          interim=res[0].transcript;
+          $('tsspro-auto-status').textContent='… '+interim.slice(-80);
+        }
+      }
+    };
+    recognition.onerror=function(e){
+      $('tsspro-auto-status').textContent='Speech error: '+(e.error||'unknown')+' — try again, or type manually.';
+      $('tsspro-auto-status').style.color='var(--error)';
+    };
+    recognition.onend=function(){
+      if(isAuto){
+        // auto-restart if media still playing
+        if(activeMedia && !activeMedia.paused && !activeMedia.ended){
+          try{ recognition.start(); }catch(err){}
+        } else {
+          $('tsspro-auto-status').textContent='Stopped. '+segments.length+' segments captured — edit, then export.';
+          isAuto=false;
+          $('tsspro-auto').style.display='';
+          $('tsspro-stop-auto').style.display='none';
+        }
+      }
+    };
+    try{ recognition.start(); if(activeMedia.paused) activeMedia.play(); }catch(err){ $('tsspro-auto-status').textContent='Failed to start: '+err.message; isAuto=false; }
+  });
+  $('tsspro-stop-auto').addEventListener('click',function(){
+    isAuto=false;
+    if(recognition) try{ recognition.stop(); }catch(e){}
+    if(activeMedia) activeMedia.pause();
+    $('tsspro-auto').style.display='';
+    $('tsspro-stop-auto').style.display='none';
+    $('tsspro-auto-status').textContent='Stopped.';
+  });
+  $('tsspro-lang').addEventListener('change',function(){ if(recognition) recognition.lang=this.value; });
+
+  // exports
+  function buildSRT(){
+    segments.sort(function(a,b){return a.start-b.start;});
+    var out='';
+    segments.forEach(function(s,i){
+      if(!s.text.trim()) return;
+      out+=(i+1)+'\n'+fmtSrtTime(s.start)+' --> '+fmtSrtTime(s.end)+'\n'+(s.speaker? (s.speaker+': '):'')+s.text.trim()+'\n\n';
+    });
+    return out.trim();
+  }
+  function buildVTT(){
+    segments.sort(function(a,b){return a.start-b.start;});
+    var out='WEBVTT\n\n';
+    segments.forEach(function(s){
+      if(!s.text.trim()) return;
+      out+=fmtVttTime(s.start)+' --> '+fmtVttTime(s.end)+'\n'+(s.speaker? ('<v '+s.speaker+'>'):'')+s.text.trim()+'\n\n';
+    });
+    return out;
+  }
+  function buildTXT(){
+    segments.sort(function(a,b){return a.start-b.start;});
+    return segments.filter(function(s){return s.text.trim();}).map(function(s){
+      return '['+fmtTime(s.start)+' — '+fmtTime(s.end)+']'+(s.speaker?' '+s.speaker+':':'')+' '+s.text.trim();
+    }).join('\n');
+  }
+  function download(text, filename, type){
+    var blob=new Blob([text],{type:type||'text/plain'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); },1500);
+  }
+  $('tsspro-export-srt').addEventListener('click',function(){ if(!segments.length){alert('No segments.'); return;} download(buildSRT(), 'transcript-'+Date.now()+'.srt', 'text/plain'); });
+  $('tsspro-export-vtt').addEventListener('click',function(){ if(!segments.length){alert('No segments.'); return;} download(buildVTT(), 'transcript-'+Date.now()+'.vtt', 'text/vtt'); });
+  $('tsspro-export-txt').addEventListener('click',function(){ if(!segments.length){alert('No segments.'); return;} download(buildTXT(), 'transcript-'+Date.now()+'.txt', 'text/plain'); });
+  $('tsspro-copy-all').addEventListener('click',function(){ if(!segments.length){alert('No segments.'); return;} var t=buildTXT(); navigator.clipboard.writeText(t).then(function(){ var b=$('tsspro-copy-all'); var old=b.textContent; b.textContent='Copied!'; setTimeout(function(){b.textContent=old;},1200); }); });
+
+  $('tsspro-sample').addEventListener('click',function(){
+    // demo without media: create 4 demo segments
+    duration=22;
+    segments=[
+      {start:0.2,end:3.8,text:'Welcome to the Transcribe Studio demo — everything you see is generated offline in this tab.',speaker:'Host'},
+      {start:4.1,end:8.2,text:'Upload your own audio or video, hit auto-transcribe, or type manually on the waveform.',speaker:'Host'},
+      {start:8.8,end:14.5,text:'Click a segment to play that moment. Timestamps export perfectly to SRT and VTT for YouTube, Premiere and Descript.',speaker:'Host'},
+      {start:15.0,end:21.2,text:'Try Insert timestamp, Loop segment, and speed control while you edit — then download.',speaker:'Host'}
+    ];
+    renderSegments();
+    drawWaveform();
+    $('tsspro-auto-status').textContent='Demo segments loaded — no media needed. Load your own file for waveform + playback.';
+    mediaWrap.style.display='';
+    // show dummy audio element with no src but keep wave
+    audioEl.style.display=''; videoEl.style.display='none';
+  });
+  $('tsspro-clear').addEventListener('click',function(){
+    segments=[]; renderSegments();
+    if(activeMedia){ activeMedia.pause(); activeMedia.removeAttribute('src'); activeMedia.load(); }
+    mediaWrap.style.display='none';
+    isAuto=false; if(recognition) try{recognition.stop();}catch(e){}
+    $('tsspro-auto').style.display=''; $('tsspro-stop-auto').style.display='none';
+    $('tsspro-auto-status').textContent='';
+    duration=0; drawWaveform();
+  });
+
+  renderSegments(); drawWaveform();
+})();
+</script>

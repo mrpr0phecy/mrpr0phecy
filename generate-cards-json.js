@@ -301,7 +301,14 @@ const saasKillerList = [
   'html-table-generator',
   'curl-command-builder',
   'email-subject-line-tester',
-  'css-animation-generator'
+  'css-animation-generator',
+  // 2026-09-09 — five premium SaaS-killer pro tools (high willingness to pay, offline, no upload)
+  'pdf-toolkit-pro',
+  'resume-ats-scanner-pro',
+  'magic-background-eraser-pro',
+  'transcribe-subtitle-studio-pro',
+  'contract-sentinel-pro',
+  'clientflow-pro'
 ];
 
 // 2026-09-05 — ten survival & emergency-readiness tools. Matched exactly

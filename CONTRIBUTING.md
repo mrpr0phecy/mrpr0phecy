@@ -19,7 +19,7 @@ domain:
 
 | | Product | Entry | Don't mix |
 |---|---|---|---|
-| **A** | The Most Useful Site in the World — 1175 free browser tools | `index.html` | Never add music players/banners here |
+| **A** | The Most Useful Site in the World — 1181 free browser tools | `index.html` | Never add music players/banners here |
 | **B** | MrProphecy — UK hip-hop and animated soundscapes | `listen.html` | Never add tool links here |
 
 If your change touches both, you have probably misread the task. The
