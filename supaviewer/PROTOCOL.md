@@ -27,6 +27,8 @@ This is a map of how a *real* Second Life / OpenSimulator viewer talks to a grid
 
 v0 short-circuits the whole stack with `SV.protocol.LocalCircuit`: the “simulator” is a JavaScript object in the same page.
 
+v0.2 adds a **public-map** path that never logs in. The page walks Linden Lab's published map tiles and region-name caps (`js/grid.js`). You are a ghost on Agni: the layout is real, live avatars are not.
+
 ## Login (XML-RPC)
 
 Classic viewers POST `login_to_simulator` to a grid login URI, for example:
@@ -47,6 +49,18 @@ On success the login server returns:
 - inventory skeleton, money balance, buddy list, …
 
 **SupaViewer will not POST this from the browser.** Login servers do not send CORS headers, passwords must not be collected by a static page, and the next hop is UDP anyway. `SV.protocol.buildLoginXML()` exists so a *future local gateway* can reuse the same shape.
+
+## Public map (what v0.2 actually talks to)
+
+No password. Three Linden Lab URLs only:
+
+- Region name → grid cell: `https://cap.secondlife.com/cap/0/d661249b-2b5a-4436-966a-3d3b8d7a574f?var=…&sim_name=Da%20Boom`
+- Grid cell → name: `https://cap.secondlife.com/cap/0/b713fe80-283b-4585-af4d-a3b7d9a32492?var=…&grid_x=1000&grid_y=1000`
+- Map tile: `https://map.secondlife.com/map-1-{x}-{y}-objects.jpg`
+
+Caps are loaded as `<script>` tags (they assign a `var`, which is how the Map API was published). Tiles are drawn on the mini-map as ordinary images; WebGL ground textures try CORS, then a public proxy, then a plain plane. Walking off a region edge looks up the next cell and crosses if it exists.
+
+A SLURL (`secondlife://Region/x/y/z`) and `maps.secondlife.com` link hand you to the official viewer for a real login.
 
 ## After login
 
