@@ -19,7 +19,16 @@
     <meta name="theme-color" content="#0a0f14">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Inter loads non-blocking. The stylesheet used to sit on the render
+         critical path, so first paint waited on a Google Fonts RTT. Text now
+         paints immediately in the system stack and swaps to Inter when it
+         arrives (display=swap). <noscript> keeps the font for no-JS. -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
+    <!-- The card index gates the whole grid. Start downloading it in parallel
+         with the rest of the page instead of only after parsing finishes.
+         The JS fetch() below reuses this response from cache. -->
+    <link rel="preload" href="cards/cards.json" as="fetch" fetchpriority="high">
     <style>
         /* ===== CSS RESET & BASE ===== */
         :root {
@@ -1311,6 +1320,41 @@
             color: #ffffff;
             box-shadow: 0 0 14px rgba(0, 243, 255, 0.25);
             transform: translateY(-1px);
+        }
+
+        /* Featured-tools dock: one horizontally scrollable row at every
+           width (it wrapped to ~5 rows before, pushing the first card row
+           below the fold). The fade mask hints that the row continues;
+           `safe center` centres when it fits and stays reachable when it
+           doesn't (plain `center` would clip the first pills). */
+        .cyber-dock-container {
+            display: flex;
+            gap: 8px;
+            margin-top: 22px;
+            max-width: 960px;
+            margin-left: auto;
+            margin-right: auto;
+            flex-wrap: nowrap;
+            justify-content: flex-start;
+            justify-content: safe center;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x proximity;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+            padding: 4px 2px 8px;
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+        }
+        .cyber-dock-container::-webkit-scrollbar {
+            display: none;
+        }
+        .cyber-dock-container:focus-visible {
+            outline-offset: -2px;
+        }
+        .dock-pill {
+            flex: 0 0 auto;
+            scroll-snap-align: start;
         }
 
         .card:hover {
@@ -2968,19 +3012,6 @@
             transform: translateY(-1px);
         }
         /* ===== RESPONSIVE FIXES (batch audit) ===== */
-        @media (max-width: 700px) {
-            /* dock pills become a horizontal scroll strip instead of a tall wall */
-            .cyber-dock-container {
-                flex-wrap: nowrap !important;
-                justify-content: flex-start !important;
-                overflow-x: auto !important;
-                padding-bottom: 10px !important;
-                scrollbar-width: thin;
-            }
-            .cyber-dock-container .dock-pill {
-                flex-shrink: 0;
-            }
-        }
         @media (max-width: 640px) {
             /* standalone modal: icon-only actions on narrow screens */
             .standalone-modal {
@@ -3459,7 +3490,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             </div>
         </div>
 
-        <div class="cyber-dock-container" style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 22px;">
+        <!-- Featured tools: one horizontally scrollable row (was ~5 wrapped
+             rows) so the first card row of the catalogue starts inside the
+             initial viewport. Every pill is kept; the row scrolls. -->
+        <nav class="cyber-dock-container" aria-label="Featured tools" tabindex="0">
             <a href="tool.html?card=ai-agent-react-loop-simulator" class="dock-pill">
                 🔄 AI ReAct Loop
             </a>
@@ -3559,7 +3593,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             <a href="token.html" class="dock-pill" style="border-color:#ffd700;color:#ffd700;background:rgba(255,215,0,0.12);">
                 🔮 $MRPROPHECY
             </a>
-        </div>
+        </nav>
     </header>
     
     <!-- ===== INTERACTIVE CATEGORY & SEARCH CONTROLS BAR ===== -->
@@ -3689,8 +3723,36 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     </div>
 
     <!-- ===== CARD GRID ===== -->
-    <div id="dashboard" class="dashboard">
-        <!-- Cards will be loaded here dynamically -->
+    <!-- Static first-view skeletons: painted with the initial HTML so the
+         grid shape is visible the moment the header renders, instead of a
+         blank area while cards.json downloads. loadCardList() clears these
+         and builds the real placeholders. No ids and no data-* attributes,
+         so nothing can collide with real card names (shared-DOM rule). -->
+    <div id="dashboard" class="dashboard" aria-busy="true" aria-label="Tool catalogue">
+        <div class="card card-pending" aria-hidden="true">
+            <div class="card-header"><div class="card-header-info"><h3>Loading…</h3><span class="card-cat-badge">catalogue</span></div></div>
+            <div class="card-content"><div class="card-skeleton" aria-hidden="true"><div class="card-skeleton-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="card-skeleton-text">Preparing the tool catalogue</div></div></div>
+        </div>
+        <div class="card card-pending" aria-hidden="true">
+            <div class="card-header"><div class="card-header-info"><h3>Loading…</h3><span class="card-cat-badge">catalogue</span></div></div>
+            <div class="card-content"><div class="card-skeleton" aria-hidden="true"><div class="card-skeleton-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="card-skeleton-text">Fetching tool index</div></div></div>
+        </div>
+        <div class="card card-pending" aria-hidden="true">
+            <div class="card-header"><div class="card-header-info"><h3>Loading…</h3><span class="card-cat-badge">catalogue</span></div></div>
+            <div class="card-content"><div class="card-skeleton" aria-hidden="true"><div class="card-skeleton-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="card-skeleton-text">Fetching tool index</div></div></div>
+        </div>
+        <div class="card card-pending" aria-hidden="true">
+            <div class="card-header"><div class="card-header-info"><h3>Loading…</h3><span class="card-cat-badge">catalogue</span></div></div>
+            <div class="card-content"><div class="card-skeleton" aria-hidden="true"><div class="card-skeleton-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="card-skeleton-text">Fetching tool index</div></div></div>
+        </div>
+        <div class="card card-pending" aria-hidden="true">
+            <div class="card-header"><div class="card-header-info"><h3>Loading…</h3><span class="card-cat-badge">catalogue</span></div></div>
+            <div class="card-content"><div class="card-skeleton" aria-hidden="true"><div class="card-skeleton-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="card-skeleton-text">Fetching tool index</div></div></div>
+        </div>
+        <div class="card card-pending" aria-hidden="true">
+            <div class="card-header"><div class="card-header-info"><h3>Loading…</h3><span class="card-cat-badge">catalogue</span></div></div>
+            <div class="card-content"><div class="card-skeleton" aria-hidden="true"><div class="card-skeleton-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="card-skeleton-text">Fetching tool index</div></div></div>
+        </div>
     </div>
 
     <!-- ===== STANDALONE MAXIMISE MODAL ===== -->
@@ -3765,8 +3827,8 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     <script>
     // ===== CONFIGURATION =====
     const CONFIG = {
-        INITIAL_LOAD: 6,
-        LOAD_DELAY: 100,
+        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() sizes it to the viewport
+        INITIAL_STAGGER: 50,    // ms between first-batch fetch starts (was LOAD_DELAY: 100)
         GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
         GITHUB_PATH: 'cards',
         STICKY_THRESHOLD: 200
@@ -4703,6 +4765,13 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             
             const dashboard = document.getElementById('dashboard');
             
+            // The static first-view skeletons (markup) are the only thing in
+            // the grid while this fetch was in flight — clear them now that
+            // real placeholders follow. Also done before initIntersectionObserver()
+            // so the observer never sees the static cards.
+            dashboard.innerHTML = '';
+            dashboard.removeAttribute('aria-busy');
+            
             if (cardFiles.length === 0) {
                 dashboard.innerHTML = `
                     <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-secondary);">
@@ -4727,6 +4796,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         } catch (error) {
             console.error('Error loading card list:', error);
             const dashboard = document.getElementById('dashboard');
+            dashboard.removeAttribute('aria-busy');
             dashboard.innerHTML = `
                 <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--error);">
                     <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
@@ -4739,9 +4809,20 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         }
     }
     
+    // Size the first fetch batch to the actual viewport instead of a fixed 6:
+    // fill the first two grid rows for however many columns fit, so nothing
+    // visible on load is left as a skeleton. Column math mirrors the CSS grid
+    // (auto-fill minmax(320/300/280px, 1fr), max-width 1400px).
+    function computeInitialBatch() {
+        const w = window.innerWidth || 1280;
+        const minCol = w <= 768 ? 280 : (w <= 1024 ? 300 : 320);
+        const cols = w <= 480 ? 1 : Math.max(1, Math.floor((Math.min(w, 1400) - 32) / (minCol + 16)));
+        return Math.min(24, Math.max(CONFIG.INITIAL_LOAD, cols * 2 + 1));
+    }
+    
     function loadInitialCards() {
         const cards = document.querySelectorAll('.card:not(.loaded)');
-        const initialBatch = Array.from(cards).slice(0, CONFIG.INITIAL_LOAD);
+        const initialBatch = Array.from(cards).slice(0, computeInitialBatch());
         
         initialBatch.forEach((card, index) => {
             setTimeout(() => {
@@ -4749,7 +4830,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
                     loadCard(card, cardName);
                 }
-            }, index * CONFIG.LOAD_DELAY);
+            }, index * CONFIG.INITIAL_STAGGER);
         });
     }
     
