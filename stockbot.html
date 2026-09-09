@@ -102,6 +102,8 @@ td.g{color:var(--good)} td.r{color:var(--bad)} td.d{color:var(--dim)}
 #readyList li.ok{color:var(--good)} #readyList li.no{color:var(--dim)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:#555}
 li.ok .dot{background:var(--good)} li.no .dot{background:#555}
+#alpStatus .dot{background:#555}
+#alpStatus.on{color:var(--good)} #alpStatus.on .dot{background:var(--good)}
 #fatal{position:fixed;inset:0;z-index:99;display:none;align-items:center;justify-content:center;
   text-align:center;background:var(--bg);padding:24px;color:var(--bad);font-size:14px}
 #toast{position:fixed;bottom:210px;left:50%;transform:translateX(-50%);z-index:60;display:none;
@@ -231,6 +233,23 @@ li.ok .dot{background:var(--good)} li.no .dot{background:#555}
     </div>
     <p class="hint">Autopilot unlocks at readiness ≥ 60. On live symbols it polls for new prices; on loaded history it replays bar-by-bar so you can watch it trade.</p>
   </div>
+  <div class="sect"><h3>5 · Broker bridge (Alpaca paper)</h3>
+    <div class="row"><span>Bridge</span><span id="alpStatus"><span class="dot"></span>offline</span></div>
+    <label for="alpKey">Paper API key ID</label>
+    <input type="text" id="alpKey" autocomplete="off" spellcheck="false" placeholder="PK… (paper keys only)">
+    <label for="alpSecret">Paper secret key (kept in memory, never saved)</label>
+    <input type="password" id="alpSecret" autocomplete="off" placeholder="••••••••">
+    <div><button type="button" id="alpConnBtn">Connect</button><button type="button" id="alpForgetBtn" class="ghost">Forget keys</button></div>
+    <div class="row"><span>Paper equity</span><span id="alpEq">—</span></div>
+    <div class="row"><span>Buying power</span><span id="alpBP">—</span></div>
+    <div class="row"><span>US market</span><span id="alpClock">—</span></div>
+    <div class="row"><span>Broker positions</span><span id="alpPos">—</span></div>
+    <div class="row"><span>Broker fills</span><span id="alpFills">0</span></div>
+    <label style="font-size:11px"><input type="checkbox" id="route" style="width:auto"> Route autopilot signals to Alpaca paper as real paper orders</label>
+    <label style="font-size:11px"><input type="checkbox" id="ack2" style="width:auto"> I understand these execute on my Alpaca <strong>paper</strong> account (fake money, real order routing).</label>
+    <div><button type="button" id="alpFlatBtn" class="danger">Flatten all paper positions</button></div>
+    <p class="hint">The paper endpoint is hardcoded — this page cannot reach real money, even with live keys. Secret is never saved or exported. Routes US stocks (market hours) + BTC/ETH (24/7) on <strong>live</strong> symbols only; replays stay simulated. <a href="#" id="bridgeHelp">Setup guide</a></p>
+  </div>
   <div class="navline"><a href="/index.html">Tools</a> · <a href="/legal.html">Legal</a> · <a href="/help.html">Help</a></div>
   </div>
 </div>
@@ -299,6 +318,15 @@ li.ok .dot{background:var(--good)} li.no .dot{background:#555}
     </ol>
     <h4>How it learns (like Evolution Arena)</h4>
     <p>Each strategy is a genome: weights on trend, momentum, RSI, MACD, Bollinger, volume and volatility, plus stop-loss, take-profit and position size. Fitness is measured by backtesting on the <strong>train</strong> slice; the all-time champion, the hall of fame and every pattern lesson persist in your browser forever — that is the “never forgets” memory. Export the brain JSON to back it up or move it to another device.</p>
+    <h4>Broker bridge — real paper orders via Alpaca</h4>
+    <ol>
+      <li>Sign up free at <strong>alpaca.markets</strong> (paper trading is free worldwide, no brokerage account needed).</li>
+      <li>In the dashboard, switch to your <strong>Paper Trading</strong> account and generate paper API keys.</li>
+      <li>Paste the key ID + secret into section 5 above and press <strong>Connect</strong>.</li>
+      <li>Load a <strong>live</strong> US stock (e.g. AAPL) or BTC/ETH, train until readiness ≥ 60, tick both routing boxes, start autopilot.</li>
+      <li>Signals now execute as genuine paper orders through Alpaca's systems — fills appear in the Journal tagged ALPACA.</li>
+    </ol>
+    <p>Why not PayPal? PayPal is a payments app, not a broker: it offers no stock trading and no API for bots to trade with. Some brokers accept PayPal for <em>deposits</em>, but trading itself always happens through a broker's API — which is what this bridge uses, on the paper endpoint only.</p>
     <h4>Could it trade real money one day?</h4>
     <p>Honestly: this page alone never will, by design. Real automation would need a broker with an API, a server to hold the keys (never a browser page), and careful handling of UK tax and the FCA perimeter around investment activity. The realistic path is: months of profitable <em>paper</em> trading here → tiny-size live testing via a regulated broker's own tools → only then consider automation, ideally with professional advice. Anyone promising guaranteed bot profits is selling something.</p>
     <p class="hint"><a href="/index.html">Tools</a> · <a href="/listen.html">Music</a> · <a href="/donate.html">Donate</a> · <a href="/legal.html">Legal</a> · <a href="/help.html">Help &amp; Contact</a> · Data: Stooq (stocks, free) &amp; CoinGecko (crypto, free). Uploaded files never leave your device.</p>
@@ -328,11 +356,13 @@ var S={ // everything here persists — the "never forgets" memory
   gen:0, champ:null, champGen:0, champFit:-1e9, hof:[],
   mem:{pat:{},tradesSeen:0,wins:0,pnlSum:0},
   paper:{cash:10000,qty:0,avg:0,trades:[],eqHist:[],realized:0,ptr:-1},
+  broker:{keyId:'',secret:'',routed:false}, alpLog:[],
   fitHist:[], settings:{pop:24,mut:1,gens:50,split:70,obj:'balanced',cash0:10000,comm:0.001,slip:0.0005,minconf:0.6}
 };
 var savedAt=null;
 function persist(){return {v:1,gen:S.gen,champ:S.champ,champGen:S.champGen,champFit:S.champFit,
   hof:S.hof.slice(0,5),mem:S.mem,fitHist:S.fitHist.slice(-500),
+  broker:{keyId:S.broker.keyId,routed:false},alpLog:S.alpLog.slice(-200),
   paper:{cash:S.paper.cash,qty:S.paper.qty,avg:S.paper.avg,trades:S.paper.trades.slice(-500),
     eqHist:S.paper.eqHist.slice(-1000),realized:S.paper.realized,ptr:S.paper.ptr},
   settings:S.settings};}
@@ -341,6 +371,9 @@ function load(){
   try{var raw=localStorage.getItem(LSKEY);if(!raw)return false;var p=JSON.parse(raw);if(!p||p.v!==1)return false;
     S.gen=p.gen||0;S.champ=p.champ||null;S.champGen=p.champGen||0;S.champFit=(p.champFit==null?-1e9:p.champFit);
     S.hof=p.hof||[];S.mem=p.mem||S.mem;S.fitHist=p.fitHist||[];
+    if(p.broker&&p.broker.keyId)S.broker.keyId=String(p.broker.keyId).slice(0,64);
+    S.broker.secret='';S.broker.routed=false; // secret never persisted; routing re-armed each visit
+    if(p.alpLog)S.alpLog=p.alpLog;
     if(p.paper){S.paper.cash=p.paper.cash;S.paper.qty=p.paper.qty;S.paper.avg=p.paper.avg;
       S.paper.trades=p.paper.trades||[];S.paper.eqHist=p.paper.eqHist||[];S.paper.realized=p.paper.realized||0;S.paper.ptr=(p.paper.ptr==null?-1:p.paper.ptr);}
     if(p.settings){for(var k in S.settings){if(p.settings[k]!==undefined)S.settings[k]=p.settings[k];}}
@@ -683,6 +716,159 @@ function checkPaperStops(bar){
   else if(bar.h>=tpPx)paperSell(tpPx,1,'take-profit',bar.t);
 }
 
+/* ============================== Alpaca paper bridge ==============================
+   Paper endpoint is HARDCODED below. There is no setting for any other URL,
+   so this page cannot place real-money orders under any configuration. */
+var ALP_BASE='https://paper-api.alpaca.markets';
+var ALP={connected:false,account:null,positions:[],clock:null,clockAt:0,at:0,wasOpen:null};
+function alpHeaders(){return {'APCA-API-KEY-ID':S.broker.keyId,'APCA-API-SECRET-KEY':S.broker.secret,'Content-Type':'application/json'};}
+function alpCall(method,path,body){
+  var ctrl=null,timer=null;
+  try{if(window.AbortController){ctrl=new AbortController();timer=setTimeout(function(){ctrl.abort();},12000);}}catch(e){ctrl=null;}
+  var opts={method:method,headers:alpHeaders()};
+  if(ctrl)opts.signal=ctrl.signal;
+  if(body!==undefined)opts.body=JSON.stringify(body);
+  return fetch(ALP_BASE+'/v2'+path,opts).then(function(r){
+    if(timer)clearTimeout(timer);
+    return r.json().then(function(j){return {ok:r.ok,status:r.status,json:j};});
+  },function(e){if(timer)clearTimeout(timer);throw e;});
+}
+function alpRouteSymbol(){ // maps the loaded symbol to an Alpaca-tradable one, or null
+  if(D.key.indexOf('stooq:')===0){var s=D.key.slice(6);if(/\.us$/i.test(s))return {sym:s.slice(0,-3).toUpperCase(),cls:'stock'};return null;}
+  if(D.key==='cg:bitcoin')return {sym:'BTCUSD',cls:'crypto'};
+  if(D.key==='cg:ethereum')return {sym:'ETHUSD',cls:'crypto'};
+  return null;
+}
+function canRoute(){
+  return S.broker.routed&&$('ack2').checked&&ALP.connected&&D.live&&!!alpRouteSymbol()&&!!S.champ;
+}
+function alpPos(sym){
+  for(var i=0;i<ALP.positions.length;i++)if(ALP.positions[i].symbol===sym)return ALP.positions[i];
+  return null;
+}
+function alpEnsureFresh(){
+  var now=Date.now(),jobs=[];
+  if(!ALP.account||now-ALP.at>20000){
+    jobs.push(alpCall('GET','/account').then(function(r){
+      if(!r.ok)throw new Error((r.json&&r.json.message)||('account HTTP '+r.status));
+      ALP.account=r.json;ALP.at=Date.now();
+      return alpCall('GET','/positions');
+    }).then(function(r){ALP.positions=r.ok?r.json:[];}));
+  }
+  if(!ALP.clock||now-ALP.clockAt>60000){
+    jobs.push(alpCall('GET','/clock').then(function(r){if(r.ok){ALP.clock=r.json;ALP.clockAt=Date.now();}}));
+  }
+  return Promise.all(jobs);
+}
+function alpAwaitFill(id,tries){
+  return alpCall('GET','/orders/'+encodeURIComponent(id)).then(function(r){
+    if(!r.ok)throw new Error((r.json&&r.json.message)||'order lookup failed');
+    var o=r.json;
+    if(o.filled_avg_price&&(o.status==='filled'||o.status==='partially_filled'))
+      return {px:parseFloat(o.filled_avg_price),qty:parseFloat(o.filled_qty||'0'),id:id,status:o.status};
+    if(o.status==='canceled'||o.status==='cancelled'||o.status==='rejected'||o.status==='expired'||o.status==='stopped')
+      throw new Error('order '+o.status+(o.failed_at?': '+(r.json.message||''):'')); 
+    if(tries<=0)throw new Error('fill timeout — check Alpaca dashboard for order '+id);
+    return new Promise(function(res){setTimeout(res,1500);}).then(function(){return alpAwaitFill(id,tries-1);});
+  });
+}
+function alpLogFill(side,px,qty,conf,why,id){
+  S.alpLog.push({t:Date.now(),side:side,px:px,qty:qty,conf:conf,why:why,id:id});
+  if(S.alpLog.length>200)S.alpLog=S.alpLog.slice(-200);
+  save();renderAll();
+}
+function alpOpen(map,notional,sig){
+  var body={symbol:map.sym,notional:Math.round(notional*100)/100,side:'buy',type:'market',
+    time_in_force:map.cls==='crypto'?'gtc':'day'};
+  toast('ALPACA paper BUY '+map.sym+' ~$'+body.notional.toFixed(2)+'…');
+  alpCall('POST','/orders',body).then(function(r){
+    if(!r.ok)throw new Error((r.json&&r.json.message)||('order HTTP '+r.status));
+    return alpAwaitFill(r.json.id,5);
+  }).then(function(f){
+    alpLogFill('BUY',f.px,f.qty,sig.conf,'ALPACA · '+sig.why,f.id);
+    toast('ALPACA paper BUY filled @ $'+f.px.toFixed(2)+' (#'+String(f.id).slice(0,8)+')');
+    return alpEnsureFresh().then(renderAll);
+  }).catch(function(e){toast('Alpaca BUY failed: '+e.message);});
+}
+function alpClose(map,reason){
+  toast('ALPACA paper SELL '+map.sym+' ('+reason+')…');
+  alpCall('DELETE','/positions/'+encodeURIComponent(map.sym)).then(function(r){
+    if(!r.ok)throw new Error((r.json&&r.json.message)||('close HTTP '+r.status));
+    var oid=r.json&&r.json.id;
+    if(oid)return alpAwaitFill(oid,5);
+    return {px:lastPrice(),qty:0,id:'',status:'closed'};
+  }).then(function(f){
+    alpLogFill('SELL',f.px,f.qty,1,'ALPACA · '+reason,f.id);
+    toast('ALPACA paper SELL filled @ $'+f.px.toFixed(2));
+    return alpEnsureFresh().then(renderAll);
+  }).catch(function(e){toast('Alpaca SELL failed: '+e.message);});
+}
+function alpStep(bar,sig){ // routed execution path — live symbols only
+  var map=alpRouteSymbol();if(!map)return;
+  alpEnsureFresh().then(function(){
+    var open=ALP.clock?!!ALP.clock.is_open:true;
+    if(map.cls==='stock'&&!open){
+      if(ALP.wasOpen!==false){ALP.wasOpen=false;toast('US market closed — routing paused (orders resume at open).');}
+      return;
+    }
+    ALP.wasOpen=open;
+    var pos=alpPos(map.sym),qty=pos?parseFloat(pos.qty):0,entry=pos?parseFloat(pos.avg_entry_price):0;
+    if(qty>0&&S.champ){ // broker-side stop / target, monitored by the bot
+      var stopPx=entry*(1-S.champ.stop),tpPx=entry*(1+S.champ.tp);
+      if(bar.l<=stopPx){alpClose(map,'stop-loss');return;}
+      if(bar.h>=tpPx){alpClose(map,'take-profit');return;}
+    }
+    if(sig.side===1&&qty===0&&sig.conf>=S.settings.minconf){
+      var eq=ALP.account?parseFloat(ALP.account.equity):0;
+      if(!(eq>0)){toast('Alpaca equity unreadable — order skipped.');return;}
+      var not=eq*S.champ.maxPos*(0.5+0.5*sig.conf);
+      if(not<1){toast('Position size under $1 — order skipped.');return;}
+      if(not>eq)not=eq;
+      alpOpen(map,not,sig);
+    }else if(sig.side===-1&&qty>0){
+      alpClose(map,'signal: '+sig.why);
+    }
+  }).catch(function(e){toast('Alpaca error: '+e.message);});
+}
+function decideLive(bar,sig){ // single decision point for live data
+  if(canRoute()){alpStep(bar,sig);return;}
+  if(sig.side===1&&!(S.paper.qty>0)&&sig.conf>=S.settings.minconf){
+    if(paperBuy(bar.c,sig.conf,'SIM · '+sig.why+' ['+sig.key+']',bar.t))toast('PAPER BUY @ '+money(bar.c,D.currency)+' conf '+Math.round(sig.conf*100)+'%');
+  }else if(sig.side===-1&&(S.paper.qty>0)){
+    if(paperSell(bar.c,sig.conf,'SIM · '+sig.why+' ['+sig.key+']',bar.t))toast('PAPER SELL @ '+money(bar.c,D.currency));
+  }
+}
+function alpConnect(){
+  S.broker.keyId=$('alpKey').value.trim();S.broker.secret=$('alpSecret').value.trim();
+  if(!S.broker.keyId||!S.broker.secret){toast('Paste both paper key ID and secret key.');return;}
+  if(S.broker.keyId.indexOf('PK')!==0&&S.broker.keyId.indexOf('AK')!==0){/* key prefixes vary; don't hard-fail */}
+  toast('Connecting to Alpaca paper…');
+  alpCall('GET','/account').then(function(r){
+    if(!r.ok)throw new Error((r.json&&r.json.message)||('HTTP '+r.status+' — check keys are PAPER keys'));
+    ALP.account=r.json;ALP.connected=true;ALP.at=Date.now();
+    return alpCall('GET','/positions');
+  }).then(function(r){
+    ALP.positions=r.ok?r.json:[];
+    return alpCall('GET','/clock');
+  }).then(function(r){
+    if(r.ok){ALP.clock=r.json;ALP.clockAt=Date.now();}
+    save();renderAll();
+    toast('Connected — paper equity $'+parseFloat(ALP.account.equity).toLocaleString('en-GB',{maximumFractionDigits:2})+'.');
+  }).catch(function(e){
+    ALP.connected=false;S.broker.routed=false;var rt=$('route');if(rt)rt.checked=false;
+    renderAll();
+    var msg=String(e&&e.message||e);
+    if(msg.indexOf('fetch')>=0||msg.indexOf('Failed')>=0||msg.indexOf('Network')>=0||msg.indexOf('aborted')>=0)
+      toast('Alpaca unreachable — network blocked or paper-api.alpaca.markets down. Replays still work.');
+    else toast('Alpaca connect failed: '+msg);
+  });
+}
+function alpDisconnect(silent){
+  ALP.connected=false;ALP.account=null;ALP.positions=[];S.broker.routed=false;
+  var rt=$('route');if(rt)rt.checked=false;
+  if(!silent){save();renderAll();toast('Broker bridge disconnected.');}
+}
+
 /* ---- autopilot ---- */
 var autoOn=false,autoTimer=null,pollTimer=null;
 function readiness(){
@@ -748,9 +934,9 @@ function stepReplay(){
   checkPaperStops(bar);
   var sig=liveSignal(i);
   if(sig&&sig.side===1&&!(S.paper.qty>0)&&sig.conf>=S.settings.minconf){
-    if(paperBuy(bar.c,sig.conf,sig.why+' ['+sig.key+']',bar.t))toast('PAPER BUY @ '+money(bar.c,D.currency)+' conf '+Math.round(sig.conf*100)+'%');
+    if(paperBuy(bar.c,sig.conf,'SIM · '+sig.why+' ['+sig.key+']',bar.t))toast('PAPER BUY @ '+money(bar.c,D.currency)+' conf '+Math.round(sig.conf*100)+'%');
   }else if(sig&&sig.side===-1&&(S.paper.qty>0)){
-    if(paperSell(bar.c,sig.conf,sig.why+' ['+sig.key+']',bar.t))toast('PAPER SELL @ '+money(bar.c,D.currency));
+    if(paperSell(bar.c,sig.conf,'SIM · '+sig.why+' ['+sig.key+']',bar.t))toast('PAPER SELL @ '+money(bar.c,D.currency));
   }
   // memory learns from every replayed bar outcome too (1-bar forward check on next step)
   S.paper.ptr=i+1;
@@ -764,13 +950,7 @@ function pollLive(immediate){
     var n=D.candles.length,bar=D.candles[n-1];
     checkPaperStops(bar);
     var sig=liveSignal(n-1);
-    if(autoOn&&sig){
-      if(sig.side===1&&!(S.paper.qty>0)&&sig.conf>=S.settings.minconf){
-        if(paperBuy(bar.c,sig.conf,sig.why+' ['+sig.key+']',bar.t))toast('PAPER BUY @ '+money(bar.c,D.currency)+' conf '+Math.round(sig.conf*100)+'%');
-      }else if(sig.side===-1&&(S.paper.qty>0)){
-        if(paperSell(bar.c,sig.conf,sig.why+' ['+sig.key+']',bar.t))toast('PAPER SELL @ '+money(bar.c,D.currency));
-      }
-    }
+    if(autoOn&&sig)decideLive(bar,sig);
     save();renderAll();
   }
   function fail(e){toast('Live update failed: '+e.message+' — keeping last data.');renderAll();}
@@ -1004,6 +1184,19 @@ function renderAll(){
     return '<li class="'+(it.ok?'ok':'no')+'"><span class="dot"></span>'+esc(it.label)+'</li>';}).join('');
   var canAuto=r.score>=60&&$('ack').checked&&!!S.champ&&!training;
   if(!autoOn)$('autoBtn').disabled=!canAuto;
+  // broker bridge
+  var st=$('alpStatus');
+  st.className=ALP.connected?'on':'';
+  st.innerHTML='<span class="dot"></span>'+(ALP.connected?'paper online':'offline');
+  $('alpEq').textContent=ALP.account?('$'+parseFloat(ALP.account.equity).toLocaleString('en-GB',{maximumFractionDigits:2})):'—';
+  $('alpBP').textContent=ALP.account?('$'+parseFloat(ALP.account.buying_power).toLocaleString('en-GB',{maximumFractionDigits:2})):'—';
+  if(ALP.clock){var op=!!ALP.clock.is_open;$('alpClock').textContent=op?'OPEN':'CLOSED';$('alpClock').className=op?'pos':'neg';}
+  else{$('alpClock').textContent='—';$('alpClock').className='';}
+  $('alpPos').textContent=ALP.connected?String(ALP.positions.length):'—';
+  $('alpFills').textContent=String(S.alpLog.length);
+  var rt=$('route');rt.disabled=!ALP.connected;
+  if(!ALP.connected&&rt.checked){rt.checked=false;S.broker.routed=false;}
+  $('alpConnBtn').textContent=ALP.connected?'Disconnect':'Connect';
   // graphs
   drawMini($('fitGraph'),S.fitHist.slice(-120).map(function(h){return {a:h.best,b:h.med};}),function(v){return 'best '+v.toFixed(1);});
   var pe=S.paper.eqHist.slice(-200).map(function(v){return {a:v,b:null};});
@@ -1018,12 +1211,16 @@ function setRet(el,v,isMoney){
 }
 function fmtQty(q){if(q>=1000)return q.toLocaleString('en-GB',{maximumFractionDigits:1});if(q>=1)return q.toFixed(2);return q.toFixed(4);}
 function renderJournal(){
-  var tb=$('jBody'),rows=S.paper.trades.slice(-80).reverse();
+  var tb=$('jBody');
+  var sim=S.paper.trades.map(function(t){return {t:t.t||0,side:t.side,px:t.px,qty:t.qty,pnl:t.side==='SELL'?t.pnl:null,conf:t.conf,why:t.why||'',n:t.n,src:'SIM',cur:D.currency};});
+  var brk=S.alpLog.map(function(t){return {t:t.t||0,side:t.side,px:t.px,qty:t.qty,pnl:null,conf:t.conf,why:t.why||'',n:0,src:'ALPACA',cur:'$'};});
+  var rows=sim.concat(brk).sort(function(a,b){return b.t-a.t;}).slice(0,80);
   if(!rows.length){tb.innerHTML='<tr><td colspan="8" class="d">No paper trades yet — train the bot, then step bars or start autopilot.</td></tr>';return;}
   tb.innerHTML=rows.map(function(t){
-    var pnl=t.side==='SELL'?('<td class="'+(t.pnl>=0?'g':'r')+'">'+money(t.pnl,D.currency)+'</td>'):'<td class="d">—</td>';
-    return '<tr><td class="d">'+t.n+'</td><td>'+fmtDate(t.t)+'</td><td class="'+(t.side==='BUY'?'g':'r')+'">'+t.side+'</td><td>'+
-      money(t.px,D.currency)+'</td><td>'+fmtQty(t.qty)+'</td>'+pnl+'<td class="d">'+(t.conf!=null?Math.round(t.conf*100)+'%':'—')+'</td><td class="d">'+esc(t.why||'')+'</td></tr>';
+    var pnl=(t.pnl==null)?'<td class="d">—</td>':('<td class="'+(t.pnl>=0?'g':'r')+'">'+money(t.pnl,D.currency)+'</td>');
+    var tag=t.src==='ALPACA'?'ALPACA':'#'+t.n;
+    return '<tr><td class="d">'+tag+'</td><td>'+fmtDate(t.t)+'</td><td class="'+(t.side==='BUY'?'g':'r')+'">'+t.side+'</td><td>'+
+      money(t.px,t.cur)+'</td><td>'+fmtQty(t.qty)+'</td>'+pnl+'<td class="d">'+(t.conf!=null?Math.round(t.conf*100)+'%':'—')+'</td><td class="d">'+esc(t.why||'')+'</td></tr>';
   }).join('');
 }
 function renderLessons(){
@@ -1098,7 +1295,54 @@ function resetPaper(quiet){
   if(!quiet)save();
 }
 bind('autoBtn','click',function(){setAuto(!autoOn);});
-bind('replayBtn','click',function(){if(training)return;stepReplay();});
+bind('replayBtn','click',function(){
+  if(training)return;
+  if(S.broker.routed&&$('ack2').checked&&ALP.connected&&!D.live)
+    toast('Replay is always simulated — routing needs a live symbol + autopilot.');
+  stepReplay();
+});
+// broker bridge wiring
+bind('alpConnBtn','click',function(){if(ALP.connected)alpDisconnect(false);else alpConnect();});
+bind('alpForgetBtn','click',function(){
+  alpDisconnect(true);
+  S.broker.keyId='';S.broker.secret='';$('alpKey').value='';$('alpSecret').value='';
+  save();renderAll();toast('Keys forgotten.');
+});
+bind('alpFlatBtn','click',function(){
+  if(!ALP.connected){toast('Not connected.');return;}
+  if(this.getAttribute('data-arm')==='1'){
+    this.removeAttribute('data-arm');this.textContent='Flatten all paper positions';
+    alpCall('DELETE','/positions').then(function(r){
+      if(!r.ok)throw new Error((r.json&&r.json.message)||('HTTP '+r.status));
+      toast('Flatten requested — all paper positions closing.');
+      return alpEnsureFresh().then(renderAll);
+    }).catch(function(e){toast('Flatten failed: '+e.message);});
+    return;
+  }
+  this.setAttribute('data-arm','1');this.textContent='Sure? Click again to close ALL paper positions';
+  var self=this;setTimeout(function(){self.removeAttribute('data-arm');self.textContent='Flatten all paper positions';},4000);
+});
+bind('route','change',function(){
+  S.broker.routed=this.checked;
+  if(this.checked){
+    if(!ALP.connected){this.checked=false;S.broker.routed=false;toast('Connect to Alpaca paper first.');return;}
+    if(!D.live||!alpRouteSymbol())toast('Note: routing only fires on live US-stock or BTC/ETH symbols.');
+    else toast('Routing armed — live autopilot signals will place paper orders.');
+  }
+  save();renderAll();
+});
+bind('ack2','change',renderAll);
+$('alpKey').addEventListener('input',function(){S.broker.keyId=this.value.trim();save();});
+$('alpSecret').addEventListener('input',function(){S.broker.secret=this.value;/* memory only — never saved */});
+$('bridgeHelp').addEventListener('click',function(ev){
+  ev.preventDefault();
+  var btns=document.querySelectorAll('#dockTabs button');
+  for(var j=0;j<btns.length;j++)btns[j].classList.remove('on');
+  document.querySelector('#dockTabs button[data-tab="guide"]').classList.add('on');
+  var panes=document.querySelectorAll('.dockpane');
+  for(var k=0;k<panes.length;k++)panes[k].classList.remove('on');
+  $('pane-guide').classList.add('on');
+});
 bind('foldL','click',function(){$('controls').classList.toggle('min');this.textContent=$('controls').classList.contains('min')?'+':'–';setTimeout(drawChart,50);});
 bind('foldR','click',function(){$('readout').classList.toggle('min');this.textContent=$('readout').classList.contains('min')?'+':'–';setTimeout(drawChart,50);});
 // tabs
@@ -1120,7 +1364,8 @@ $('lBody').addEventListener('click',function(ev){
 });
 // brain export/import/wipe
 bind('exportBtn','click',function(){
-  var blob=new Blob([JSON.stringify(persist(),null,1)],{type:'application/json'});
+  var p=persist();p.broker={keyId:'',routed:false}; // keys never leave this browser via export
+  var blob=new Blob([JSON.stringify(p,null,1)],{type:'application/json'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='prophecy-trader-brain-gen'+S.gen+'.json';document.body.appendChild(a);a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
@@ -1160,7 +1405,12 @@ function syncSettingsUI(){
   $('comm').value=Math.round(S.settings.comm*10000);$('commVal').textContent=(S.settings.comm*100).toFixed(2)+'%';
   $('slip').value=Math.round(S.settings.slip*10000);$('slipVal').textContent=(S.settings.slip*100).toFixed(2)+'%';
   $('minconf').value=Math.round(S.settings.minconf*100);$('minconfVal').textContent=Math.round(S.settings.minconf*100)+'%';
+  $('alpKey').value=S.broker.keyId||'';
 }
+
+// Debug/testing handle (read-only except where noted)
+window.PT_DEBUG={S:S,getD:function(){return D;},setData:setData,alpRouteSymbol:alpRouteSymbol,
+  canRoute:canRoute,alpStep:alpStep,decideLive:decideLive,getALP:function(){return ALP;}};
 
 /* ============================== boot ============================== */
 try{
