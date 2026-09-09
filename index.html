@@ -1425,6 +1425,13 @@
             position: relative;
             width: 100%;
             animation: cardIn 0.3s ease both;
+            /* Skip rendering off-screen cards — including already-loaded
+               ones. Without this, every loaded tool's layout/style/paint
+               cost accumulates, so the page gets slower the further you
+               scroll. `auto` remembers each card's rendered size, so the
+               scrollbar barely moves when cards are skipped. */
+            content-visibility: auto;
+            contain-intrinsic-size: auto 340px;
         }
 
         .card::before {
@@ -1913,13 +1920,10 @@
            fragments share this DOM and several define their own global
            `.loading` spinner rules, which used to make whole cards rotate. */
         .card.card-pending {
-            /* Was `animation: pulse 1.5s infinite` — on all 1165 placeholders at
-               once, which alone is 1165 infinite animations. Instead let the
-               renderer skip them entirely. Containment is safe here because a
-               pending card holds nothing but a static skeleton; it is lifted
-               the moment card-pending is removed and real tool content lands. */
-            content-visibility: auto;
-            contain-intrinsic-size: auto 320px;
+            /* Was `animation: pulse 1.5s infinite` — on all 1223 placeholders
+               at once, which alone is 1223 infinite animations. Rendering
+               containment now lives on `.card` itself so it persists after
+               tools load; pending cards inherit it and need nothing extra. */
         }
         
         @keyframes pulse {
@@ -3959,16 +3963,17 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         const mainSearchInput = document.getElementById('mainSearchInput');
         const stickySearchInput = document.getElementById('stickySearchInput');
         
-        // Sync search inputs
+        // Sync search inputs. NOTE: no performSearch() here — the debounced
+        // 'input' listeners in setupEventListeners() already fire the search.
+        // Calling it here as well ran the full 1223-card filter pass twice
+        // per keystroke (once instantly, once debounced).
         if (mainSearchInput && stickySearchInput) {
             mainSearchInput.addEventListener('input', (e) => {
                 stickySearchInput.value = e.target.value;
-                performSearch(e.target.value);
             });
             
             stickySearchInput.addEventListener('input', (e) => {
                 mainSearchInput.value = e.target.value;
-                performSearch(e.target.value);
             });
         }
         
@@ -4744,10 +4749,11 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             }
 
             updateBuildProgress(i, cardFiles.length);
-            // Placeholder batches can change the document height while the
-            // user is already reading. Sweep after every frame so the current
-            // viewport is never dependent on the next scroll event.
-            scheduleViewportSweep();
+            // No viewport sweep here: every batch is observed immediately, so
+            // the IntersectionObserver already covers newly visible cards.
+            // Sweeping per batch re-ran getBoundingClientRect() over every
+            // pending placeholder on each of ~30 build frames (~20k forced
+            // layouts). One sweep after the build finishes (below) is enough.
 
             if (i < cardFiles.length) {
                 requestAnimationFrame(step);
@@ -4809,7 +4815,9 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             
             console.log(`Total active cards: ${cardFiles.length}`);
             allCards = cardFiles;
+            lastMatchedNames = [...allCards];
             updateSiteStats();
+            updateCategoryCounts();
             
             const dashboard = document.getElementById('dashboard');
             
@@ -4977,6 +4985,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             return;
         }
         
+        let transientRetry = false;
         try {
             const meta = cardsMetaMap.get(cardName);
             const cardUrl = meta ? meta.path : `cards/${cardName}.html`;
@@ -5013,8 +5022,11 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             console.error(`Failed to load card ${cardName}:`, error);
             retryCounts.set(cardName, (retryCounts.get(cardName) || 0) + 1);
             if (retryCounts.get(cardName) <= CONFIG.MAX_AUTO_RETRIES) {
-                // Transient failure (timeout / flaky network): put the skeleton
-                // back and let the viewport sweep pick it up again shortly.
+                // Transient failure (timeout / flaky network): stay observed
+                // so the observer AND the viewport sweep can both retry it.
+                // (The finally block used to unobserve here, which silently
+                // dropped the observer retry path for flaky cards.)
+                transientRetry = true;
                 card.classList.remove('loading-fallback');
                 loadingCards.delete(cardName);
                 setTimeout(() => { if (!loadedCards.has(cardName)) scheduleViewportSweep(); }, isAbort ? 250 : 1500);
@@ -5025,8 +5037,8 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         } finally {
             loadingCards.delete(cardName);
             card.classList.remove('loading-fallback');
-            
-            if (observer) {
+
+            if (!transientRetry && observer) {
                 observer.unobserve(card);
             }
         }
@@ -5515,6 +5527,11 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         if (btnViewCards) btnViewCards.addEventListener('click', () => setViewMode('cards'));
         if (btnViewDir) btnViewDir.addEventListener('click', () => setViewMode('directory'));
 
+        // Single delegated listener for directory "View Card" buttons —
+        // renderDirectoryList() no longer attaches one listener per row.
+        const dirGrid = document.getElementById('directoryGrid');
+        if (dirGrid) dirGrid.addEventListener('click', handleDirectoryGridClick);
+
         // Event delegation for card interactions
         document.addEventListener('click', handleCardClick);
         
@@ -5547,16 +5564,25 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             }
         });
         
-        // Window resize handler for responsive adjustments
+        // Window resize handler for responsive adjustments. Throttled to one
+        // pass per frame: adjustCardHeight() forces layout per card, and this
+        // used to run synchronously on every resize tick — twice (a second
+        // identical listener lived at the bottom of the script).
+        let resizeRafPending = false;
         window.addEventListener('resize', () => {
-            // Update grid layout in toolbox
-            if (toolboxMode === 'grid') {
-                updateGridLayout();
-            }
-            
-            // Adjust card heights
-            document.querySelectorAll('.card').forEach(card => {
-                adjustCardHeight(card);
+            if (resizeRafPending) return;
+            resizeRafPending = true;
+            requestAnimationFrame(() => {
+                resizeRafPending = false;
+                // Update grid layout in toolbox
+                if (toolboxMode === 'grid') {
+                    updateGridLayout();
+                }
+
+                // Adjust card heights
+                document.querySelectorAll('.card').forEach(card => {
+                    adjustCardHeight(card);
+                });
             });
         });
     }
@@ -5760,6 +5786,11 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     let currentSearchQuery = '';
     let currentSort = 'default';
     let currentViewMode = 'cards';
+    // Directory view is hidden most of the time, so filtering only records
+    // the match list and marks it dirty — the DOM is (re)built lazily when
+    // the user actually switches to directory view (see setViewMode).
+    let lastMatchedNames = [];
+    let directoryDirty = true;
 
     function performSearch(query) {
         currentSearchQuery = query;
@@ -5840,7 +5871,15 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             }
         });
 
-        renderDirectoryList(matchedNames);
+        // Rebuilding the (usually hidden) 1223-node directory list on every
+        // keystroke was the biggest filter jank. Only rebuild it when it is
+        // actually on screen; otherwise just remember the match list.
+        lastMatchedNames = matchedNames;
+        if (currentViewMode === 'directory') {
+            renderDirectoryList(matchedNames);
+        } else {
+            directoryDirty = true;
+        }
         // Anything beyond the first 12 that lands in the viewport (or is
         // scrolled to later) is picked up by the sweep + observer, which no
         // longer ignore cards while a filter is active.
@@ -5877,52 +5916,73 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         }
     }
 
+    // Chunked render: appending all 1223 directory rows at once blocked the
+    // main thread for ~1s. Batches of 200 across frames keep the view switch
+    // instant, and the token drops stale passes if filters change mid-render.
+    // "View Card" clicks are handled by one delegated listener (attached in
+    // setupEventListeners), not 1223 individual addEventListener calls.
+    let directoryRenderToken = 0;
+    const DIRECTORY_CHUNK = 200;
     function renderDirectoryList(names) {
         const dirGrid = document.getElementById('directoryGrid');
         if (!dirGrid) return;
+        const token = ++directoryRenderToken;
+        directoryDirty = false;
 
         dirGrid.innerHTML = '';
-        names.forEach(name => {
-            const meta = cardsMetaMap.get(name) || {};
-            const title = meta.title || name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            const desc = meta.description || 'Interactive tool on The Most Useful Site in the World.';
-            const cat = meta.category || 'Productivity & Lifestyle';
+        if (names.length === 0) return;
 
-            const card = document.createElement('div');
-            card.className = 'directory-card';
-            card.innerHTML = `
-                <div>
-                    <div class="directory-header">
-                        <h4 class="directory-title">${title}</h4>
-                        <span class="directory-cat-badge">${cat}</span>
+        let i = 0;
+        const step = () => {
+            if (token !== directoryRenderToken) return; // superseded
+            const frag = document.createDocumentFragment();
+            const end = Math.min(i + DIRECTORY_CHUNK, names.length);
+            for (; i < end; i++) {
+                const name = names[i];
+                const meta = cardsMetaMap.get(name) || {};
+                const title = meta.title || name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const desc = meta.description || 'Interactive tool on The Most Useful Site in the World.';
+                const cat = meta.category || 'Productivity & Lifestyle';
+
+                const card = document.createElement('div');
+                card.className = 'directory-card';
+                card.innerHTML = `
+                    <div>
+                        <div class="directory-header">
+                            <h4 class="directory-title">${title}</h4>
+                            <span class="directory-cat-badge">${cat}</span>
+                        </div>
+                        <p class="directory-desc">${desc}</p>
                     </div>
-                    <p class="directory-desc">${desc}</p>
-                </div>
-                <div class="directory-actions">
-                    <a href="tool.html?card=${encodeURIComponent(name)}" class="directory-open-link" target="_blank" rel="noopener">
-                        <span>Open Standalone</span> <span>↗</span>
-                    </a>
-                    <button type="button" class="dir-view-card-btn" data-card="${name}" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:0.75rem;padding:2px 6px;">
-                        View Card 🔲
-                    </button>
-                </div>
-            `;
-            dirGrid.appendChild(card);
-        });
+                    <div class="directory-actions">
+                        <a href="tool.html?card=${encodeURIComponent(name)}" class="directory-open-link" target="_blank" rel="noopener">
+                            <span>Open Standalone</span> <span>↗</span>
+                        </a>
+                        <button type="button" class="dir-view-card-btn" data-card="${name}" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:0.75rem;padding:2px 6px;">
+                            View Card 🔲
+                        </button>
+                    </div>
+                `;
+                frag.appendChild(card);
+            }
+            dirGrid.appendChild(frag);
+            if (i < names.length) requestAnimationFrame(step);
+        };
+        step();
+    }
 
-        dirGrid.querySelectorAll('.dir-view-card-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const cardName = btn.dataset.card;
-                setViewMode('cards');
-                const cardEl = document.querySelector(`.card[data-name="${cardName}"]`);
-                if (cardEl) {
-                    cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    if (!loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                        loadCard(cardEl, cardName);
-                    }
-                }
-            });
-        });
+    function handleDirectoryGridClick(e) {
+        const btn = e.target.closest('.dir-view-card-btn');
+        if (!btn) return;
+        const cardName = btn.dataset.card;
+        setViewMode('cards');
+        const cardEl = document.querySelector(`.card[data-name="${cardName}"]`);
+        if (cardEl) {
+            cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (!loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                loadCard(cardEl, cardName);
+            }
+        }
     }
 
     function setViewMode(mode) {
@@ -5937,6 +5997,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             if (dirView) dirView.style.display = 'block';
             if (btnCards) btnCards.classList.remove('active');
             if (btnDir) btnDir.classList.add('active');
+            // Lazily (re)build the list on first view and after any filter
+            // change. This also fixes the old bug where opening Directory
+            // before ever searching showed an empty list.
+            if (directoryDirty) renderDirectoryList(lastMatchedNames);
         } else {
             if (dashboard) dashboard.style.display = 'grid';
             if (dirView) dirView.style.display = 'none';
@@ -5946,9 +6010,12 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     }
     
     // ===== SITE STATS (footer + hero counters) =====
+    // O(1): this runs after every single card render, so it must not scan
+    // the DOM or the 1223-entry catalogue. loadedCards is the source of
+    // truth; category counts are computed once in updateCategoryCounts().
     function updateSiteStats() {
         const total = allCards.length;
-        const loaded = document.querySelectorAll('.card.loaded').length;
+        const loaded = loadedCards.size;
         const heroCount = document.getElementById('heroToolCount');
         if (heroCount) heroCount.textContent = total > 0 ? total + '+' : '350+';
         const totalEl = document.getElementById('footerTotalCards');
@@ -5956,26 +6023,32 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         if (totalEl) totalEl.textContent = total;
         if (loadedEl) loadedEl.textContent = loaded;
 
-        // Dynamically update category pill counts from cardsMetaMap
-        if (cardsMetaMap && cardsMetaMap.size > 0) {
-            const catCounts = {};
-            cardsMetaMap.forEach(meta => {
-                const cat = meta.category || 'Productivity & Lifestyle';
-                catCounts[cat] = (catCounts[cat] || 0) + 1;
-            });
-            const allCountEl = document.getElementById('count-all');
-            if (allCountEl) allCountEl.textContent = cardsMetaMap.size;
-            
-            document.querySelectorAll('.cat-pill').forEach(pill => {
-                const cat = pill.dataset.category;
-                if (cat && cat !== 'all') {
-                    const countBadge = pill.querySelector('.cat-count');
-                    if (countBadge && catCounts[cat] !== undefined) {
-                        countBadge.textContent = catCounts[cat];
-                    }
+    }
+
+    // Category pill counts only change when the catalogue loads, so compute
+    // them exactly once instead of inside updateSiteStats() (which used to
+    // re-walk all 1223 entries on every card render — ~1.5M wasted ops).
+    let categoryCountsDone = false;
+    function updateCategoryCounts() {
+        if (categoryCountsDone || !cardsMetaMap || cardsMetaMap.size === 0) return;
+        categoryCountsDone = true;
+        const catCounts = {};
+        cardsMetaMap.forEach(meta => {
+            const cat = meta.category || 'Productivity & Lifestyle';
+            catCounts[cat] = (catCounts[cat] || 0) + 1;
+        });
+        const allCountEl = document.getElementById('count-all');
+        if (allCountEl) allCountEl.textContent = cardsMetaMap.size;
+
+        document.querySelectorAll('.cat-pill').forEach(pill => {
+            const cat = pill.dataset.category;
+            if (cat && cat !== 'all') {
+                const countBadge = pill.querySelector('.cat-count');
+                if (countBadge && catCounts[cat] !== undefined) {
+                    countBadge.textContent = catCounts[cat];
                 }
-            });
-        }
+            }
+        });
     }
 
     // ===== UTILITY FUNCTIONS =====
@@ -6023,12 +6096,9 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
     }
     
     // ===== INITIALIZE =====
-    // Listen for window resize to adjust card heights
-    window.addEventListener('resize', () => {
-        document.querySelectorAll('.card').forEach(card => {
-            adjustCardHeight(card);
-        });
-    });
+    // (Resize-driven height adjustment lives in setupEventListeners() —
+    // the duplicate listener that used to be here doubled layout work on
+    // every resize tick.)
     
     // Make functions globally available for button onclick events
     window.retryLoadCard = retryLoadCard;
