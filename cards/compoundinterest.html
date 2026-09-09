@@ -269,66 +269,48 @@
    - Scoped with "ci" prefix (compound interest)
 */
 
-// Investment calculation functions
+// Investment calculation functions — single engine, correct for every
+// compounding frequency. Growth is simulated monthly using the equivalent
+// monthly growth factor for the nominal annual rate; contributions are added
+// monthly and stepped up once per year. (The previous version double-counted
+// contributions for non-monthly frequencies and discarded them entirely for
+// continuous compounding.)
 function ciCalculateFutureValue(principal, annualRate, years, frequency, monthlyContribution = 0, contributionIncrease = 0) {
+  const r = annualRate / 100;
+  let monthlyGrowth;
+  if (String(frequency) === 'continuous') {
+    monthlyGrowth = Math.exp(r / 12);                    // exact continuous growth
+  } else {
+    const f = parseInt(frequency, 10) || 12;
+    monthlyGrowth = Math.pow(1 + r / f, f / 12);         // equivalent monthly factor
+  }
+
   let total = principal;
-  let yearlyData = [];
-  
-  const periodicRate = annualRate / 100 / frequency;
-  const periods = years * frequency;
-  
-  // For regular contributions with compounding
+  const yearlyData = [];
+  let monthlyAmount = monthlyContribution;
+
   for (let year = 1; year <= years; year++) {
-    let yearStart = total;
+    const yearStart = total;
     let contributions = 0;
-    
-    // Calculate contributions for this year (with annual increase)
-    const annualContribution = monthlyContribution * 12 * Math.pow(1 + contributionIncrease / 100, year - 1);
-    
-    // Add contributions monthly with compounding
+
     for (let month = 1; month <= 12; month++) {
-      if (frequency === 12) { // Monthly compounding
-        total *= (1 + periodicRate);
-      }
-      
-      // Add monthly contribution
-      const monthlyAmount = annualContribution / 12;
-      total += monthlyAmount;
+      total = total * monthlyGrowth + monthlyAmount;
       contributions += monthlyAmount;
-      
-      // For other compounding frequencies, adjust accordingly
-      if (frequency !== 12) {
-        // Simplified: contributions added at end of compounding period
-      }
     }
-    
-    // Apply compounding for other frequencies
-    if (frequency !== 12) {
-      total = yearStart * Math.pow(1 + periodicRate, frequency) + annualContribution;
-    }
-    
-    const interest = total - yearStart - contributions;
-    
+
     yearlyData.push({
-      year,
+      year: year,
       balance: total,
       contributions: contributions,
-      interest: interest,
+      interest: total - yearStart - contributions,
       yearStart: yearStart
     });
+
+    // Annual contribution increase applies from the next year onwards
+    monthlyAmount *= (1 + contributionIncrease / 100);
   }
-  
-  // For continuous compounding
-  if (frequency === 'continuous') {
-    const e = Math.E;
-    total = principal * Math.pow(e, annualRate / 100 * years);
-    // Add contributions approximation for continuous
-    if (monthlyContribution > 0) {
-      total += monthlyContribution * 12 * years; // Simplified
-    }
-  }
-  
-  return { total, yearlyData };
+
+  return { total: total, yearlyData: yearlyData };
 }
 
 function ciCalculateInflationAdjusted(value, inflationRate, years) {
@@ -338,6 +320,9 @@ function ciCalculateInflationAdjusted(value, inflationRate, years) {
 function ciCalculateAfterTax(value, taxRate) {
   return value * (1 - taxRate / 100);
 }
+
+// Snapshot of the last completed calculation (used by ciExport)
+let ciLastCalc = null;
 
 // UI Update Functions
 function ciUpdateSlider(type, value) {
@@ -376,24 +361,22 @@ function ciCalculate() {
     const goal = parseFloat(document.querySelector('#ci-goal').value) || 100000;
     const contributionIncrease = parseFloat(document.querySelector('#ci-contribution-increase').value) || 3;
     
-    // Convert frequency to number for calculations (except 'continuous')
-    const freqNum = frequency === 'continuous' ? 12 : parseInt(frequency);
-    
-    // Calculate future value
+    // Calculate future value (pass the frequency through; 'continuous' is
+    // handled inside the engine)
     const result = ciCalculateFutureValue(
-      principal, 
-      annualRate, 
-      years, 
-      freqNum,
+      principal,
+      annualRate,
+      years,
+      frequency,
       monthlyContribution,
       contributionIncrease
     );
-    
+
     const futureValue = result.total;
     const yearlyData = result.yearlyData;
-    
-    // Calculate totals
-    const totalContributions = principal + (monthlyContribution * 12 * years);
+
+    // Totals — contributions include the annual increase (was flat before)
+    const totalContributions = principal + yearlyData.reduce((sum, y) => sum + y.contributions, 0);
     const totalInterest = futureValue - totalContributions;
     const realValue = ciCalculateInflationAdjusted(futureValue, inflationRate, years);
     const afterTax = ciCalculateAfterTax(futureValue, taxRate);
@@ -433,8 +416,8 @@ function ciCalculate() {
     ciUpdateChart(yearlyData);
     
     // Update comparison scenarios
-    const conservativeResult = ciCalculateFutureValue(principal, 4, years, freqNum, monthlyContribution, contributionIncrease);
-    const aggressiveResult = ciCalculateFutureValue(principal, 10, years, freqNum, monthlyContribution, contributionIncrease);
+    const conservativeResult = ciCalculateFutureValue(principal, 4, years, frequency, monthlyContribution, contributionIncrease);
+    const aggressiveResult = ciCalculateFutureValue(principal, 10, years, frequency, monthlyContribution, contributionIncrease);
     
     document.querySelector('#ci-compare-conservative').textContent = `£${conservativeResult.total.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
     document.querySelector('#ci-compare-current').textContent = `£${futureValue.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
@@ -444,9 +427,32 @@ function ciCalculate() {
     const status = document.querySelector('#ci-status');
     status.textContent = '✅ Calculation complete';
     status.style.color = '#39ff14';
-    
+
     // Update chart end label
     document.querySelector('#ci-chart-end').textContent = `Year ${years}`;
+
+    // Snapshot for export
+    ciLastCalc = {
+      inputs: {
+        principal: principal,
+        monthlyContribution: monthlyContribution,
+        annualRate: annualRate,
+        years: years,
+        frequency: frequency,
+        inflation: inflationRate,
+        taxRate: taxRate,
+        goal: goal,
+        contributionIncrease: contributionIncrease
+      },
+      results: {
+        futureValue: Math.round(futureValue * 100) / 100,
+        totalInterest: Math.round(totalInterest * 100) / 100,
+        totalContributions: Math.round(totalContributions * 100) / 100,
+        realValue: Math.round(realValue * 100) / 100,
+        afterTax: Math.round(afterTax * 100) / 100
+      },
+      yearlyData: yearlyData
+    };
     
   } catch (error) {
     console.error('Calculation error:', error);
@@ -572,9 +578,7 @@ function ciLoadScenario(type) {
 }
 
 function ciReset() {
-  if (!confirm('Reset all values to defaults?')) return;
-  
-  // Reset sliders
+  // Reset sliders (no blocking confirm — the action is fully reversible)
   document.querySelector('#ci-principal').value = 10000;
   document.querySelector('#ci-monthly-contribution').value = 100;
   document.querySelector('#ci-annual-rate').value = 7;
@@ -607,11 +611,14 @@ function ciReset() {
 }
 
 function ciExport() {
-  const yearlyData = [];
-  // Get current data if available
-  // This would need to store the data from the last calculation
-  
-  const exportData = {
+  // Prefer the full snapshot from the last calculation — includes the yearly
+  // schedule (previously exported with the schedule missing entirely)
+  const exportData = ciLastCalc ? {
+    timestamp: new Date().toISOString(),
+    parameters: ciLastCalc.inputs,
+    results: ciLastCalc.results,
+    yearlySchedule: ciLastCalc.yearlyData
+  } : {
     timestamp: new Date().toISOString(),
     parameters: {
       principal: document.querySelector('#ci-principal').value,
@@ -650,26 +657,36 @@ function ciExport() {
   }, 2000);
 }
 
-// Initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    // Set initial display values
-    ciUpdateSlider('principal', 10000);
-    ciUpdateSlider('monthly', 100);
-    ciUpdateSlider('rate', 7);
-    ciUpdateSlider('years', 20);
-    
-    // Calculate on load
-    setTimeout(ciCalculate, 500);
-    
-    // Add input listeners for auto-calculation
-    ['#ci-inflation', '#ci-tax-rate', '#ci-goal', '#ci-contribution-increase', '#ci-frequency'].forEach(selector => {
-      const input = document.querySelector(selector);
-      if (input) {
-        input.addEventListener('change', ciCalculate);
-      }
-    });
+// Initialize — the catalogue shell injects cards after DOMContentLoaded has
+// already fired, so run immediately in that case (otherwise the sliders were
+// never labelled and no calculation ran at all on tool.html).
+function ciInit() {
+  const principalEl = document.querySelector('#ci-principal');
+  if (!principalEl || principalEl.dataset.ciInit) return; // guard double init
+  principalEl.dataset.ciInit = '1';
+
+  // Set initial display values
+  ciUpdateSlider('principal', 10000);
+  ciUpdateSlider('monthly', 100);
+  ciUpdateSlider('rate', 7);
+  ciUpdateSlider('years', 20);
+
+  // Calculate on load
+  setTimeout(ciCalculate, 500);
+
+  // Add input listeners for auto-calculation
+  ['#ci-inflation', '#ci-tax-rate', '#ci-goal', '#ci-contribution-increase', '#ci-frequency'].forEach(selector => {
+    const input = document.querySelector(selector);
+    if (input) {
+      input.addEventListener('change', ciCalculate);
+    }
   });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', ciInit);
+} else {
+  ciInit();
 }
 </script>
 

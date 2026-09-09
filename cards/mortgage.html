@@ -1,6 +1,6 @@
 <h2 id="mortgage-title" style="margin-top:0;color:var(--accent);">🏠 Mortgage Calculator</h2>
 
-<form aria-describedby="mortgage-desc">
+<form aria-describedby="mortgage-desc" onsubmit="event.preventDefault();">
   <p id="mortgage-desc" class="small" style="color:var(--muted);margin-bottom:20px;">
     Calculate detailed mortgage payments with amortization schedules, extra payments analysis, and regional comparisons.
     <span style="color:var(--accent);display:block;margin-top:4px;">💰 Monthly payments • Total interest • Payoff time • Amortization schedule • Regional presets</span>
@@ -20,6 +20,7 @@
             <option value="USD">$ USD</option>
             <option value="EUR">€ EUR</option>
             <option value="CAD">$ CAD</option>
+            <option value="AUD">$ AUD</option>
             <option value="JPY">¥ JPY</option>
           </select>
           <input 
@@ -286,7 +287,7 @@
       <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;font-size:13px;">
         <div>Time saved: <span id="mc-savings-time" style="color:#39ff14;font-weight:600;">–</span></div>
         <div>Interest saved: <span id="mc-savings-interest" style="color:#39ff14;font-weight:600;">–</span></div>
-        <div>Total saved: <span id="mc-savings-total" style="color:#39ff14;font-weight:600;">–</span></div>
+        <div>New payoff: <span id="mc-savings-total" style="color:#39ff14;font-weight:600;">–</span></div>
       </div>
     </div>
   </div>
@@ -471,18 +472,28 @@ const mcPresets = {
   fr: { years: 20, rate: 3.8, down: 40000, currency: 'EUR', name: 'France' }
 };
 
-// Initialize on load
-document.addEventListener('DOMContentLoaded', function() {
+// Initialize on load. The catalogue shell injects cards into the page after
+// DOMContentLoaded has already fired, so run immediately in that case —
+// otherwise the listeners below are never attached on tool.html.
+function mcInit() {
+  const priceEl = document.getElementById('mortgage-price');
+  if (!priceEl || priceEl.dataset.mcInit) return; // guard against double init
+  priceEl.dataset.mcInit = '1';
+
   // Update down payment percentage
   mcUpdateDownPaymentPercent();
-  
+
   // Add event listeners
-  document.getElementById('mortgage-price').addEventListener('input', mcUpdateDownPaymentPercent);
+  priceEl.addEventListener('input', mcUpdateDownPaymentPercent);
   document.getElementById('mortgage-down').addEventListener('input', mcUpdateDownPaymentPercent);
   document.getElementById('mortgage-currency').addEventListener('change', mcUpdateCurrency);
-  
-  console.log('Mortgage Calculator initialized');
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mcInit);
+} else {
+  mcInit();
+}
 
 // Helper: Format currency
 function mcFormatCurrency(amount, currency = mcState.currency) {
@@ -491,11 +502,29 @@ function mcFormatCurrency(amount, currency = mcState.currency) {
     USD: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }),
     EUR: new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }),
     CAD: new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }),
+    AUD: new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }),
     JPY: new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 })
   };
-  
+
   const formatter = formatters[currency] || formatters.GBP;
   return formatter.format(amount);
+}
+
+// Compact axis formatting, e.g. £210k / ¥12M
+function mcFormatCompact(amount) {
+  const sym = { GBP: '£', USD: '$', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥' }[mcState.currency] || '';
+  const abs = Math.abs(amount);
+  if (abs >= 1e6) return sym + (amount / 1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) return sym + Math.round(amount / 1e3) + 'k';
+  return sym + Math.round(amount);
+}
+
+// Standard amortized monthly payment (0%-rate safe)
+function mcMonthlyPayment(principal, monthlyRate, months) {
+  if (months <= 0 || principal <= 0) return 0;
+  if (monthlyRate === 0) return principal / months;
+  const factor = Math.pow(1 + monthlyRate, months);
+  return (principal * monthlyRate * factor) / (factor - 1);
 }
 
 // Update down payment percentage
@@ -575,44 +604,47 @@ function mcCalculate(btn) {
   const extra = parseFloat(document.getElementById('mortgage-extra').value) || 0;
   const tax = parseFloat(document.getElementById('mc-property-tax').value) || 0;
   const insurance = parseFloat(document.getElementById('mc-insurance').value) || 0;
-  
+
+  // Validate inputs before doing any maths
+  const statusEl = document.getElementById('mc-status');
+  if (price <= 0 || years <= 0 || rate < 0) {
+    statusEl.textContent = '⚠️ Enter a property value, term and rate first';
+    statusEl.style.color = '#ffcc00';
+    return;
+  }
+  if (down >= price) {
+    statusEl.textContent = '⚠️ Down payment must be less than the property value';
+    statusEl.style.color = '#ffcc00';
+    return;
+  }
+
   // Calculate loan details
   const principal = Math.max(0, price - down);
   const months = years * 12;
   const monthlyRate = rate / 100 / 12;
-  
-  // Calculate monthly payment (amortization formula)
-  let monthlyPayment = 0;
+
+  // Monthly payment (0%-rate safe) and full amortization — this path works
+  // for every rate, including 0% with extra payments (previously skipped).
+  const monthlyPayment = mcMonthlyPayment(principal, monthlyRate, months);
   let totalPayment = 0;
   let totalInterest = 0;
   let payoffMonths = months;
-  
+
   if (months > 0 && principal > 0) {
-    if (monthlyRate === 0) {
-      // Simple division for 0% interest
-      monthlyPayment = principal / months;
-      totalInterest = 0;
-      totalPayment = principal;
-    } else {
-      // Standard amortization formula
-      const factor = Math.pow(1 + monthlyRate, months);
-      monthlyPayment = (principal * monthlyRate * factor) / (factor - 1);
-      
-      // Calculate with extra payments
-      const result = mcCalculateAmortization(principal, monthlyRate, months, extra);
-      payoffMonths = result.payoffMonths;
-      totalInterest = result.totalInterest;
-      totalPayment = result.totalPayment;
-    }
+    const result = mcCalculateAmortization(principal, monthlyRate, months, extra);
+    payoffMonths = result.payoffMonths;
+    totalInterest = result.totalInterest;
+    totalPayment = result.totalPayment;
   }
   
   // Add property tax and insurance (monthly)
   const monthlyTax = tax / 12;
   const monthlyInsurance = insurance / 12;
   const totalMonthly = monthlyPayment + extra + monthlyTax + monthlyInsurance;
-  
-  // Calculate total cost
-  const totalCost = principal + totalInterest + tax + insurance;
+
+  // Total cost over the (actual) loan life — annual tax & insurance accrue
+  // every year, not once (was previously understated for multi-year loans)
+  const totalCost = principal + totalInterest + (tax + insurance) * (payoffMonths / 12);
   
   // Format results
   const currency = mcState.currency;
@@ -636,32 +668,41 @@ function mcCalculate(btn) {
   document.getElementById('mc-status').textContent = 'Calculated';
   document.getElementById('mc-status').style.color = '#39ff14';
   
-  // Calculate amortization schedule
+  // Calculate amortization schedule (with metadata for the chart renderers)
   const amortizationData = mcGenerateAmortizationSchedule(principal, monthlyRate, months, extra);
+  amortizationData.meta = {
+    price: price,
+    down: down,
+    principal: principal,
+    monthlyPayment: monthlyPayment,
+    extra: extra,
+    months: months,
+    payoffMonths: payoffMonths
+  };
   mcState.amortizationData = amortizationData;
-  
+
   // Show savings if extra payments
   if (extra > 0) {
     const noExtraData = mcGenerateAmortizationSchedule(principal, monthlyRate, months, 0);
     const timeSaved = months - payoffMonths;
     const interestSaved = noExtraData.totalInterest - totalInterest;
-    
+
     document.getElementById('mc-savings-container').style.display = 'block';
     document.getElementById('mc-savings-time').textContent = `${Math.floor(timeSaved/12)}y ${timeSaved%12}m`;
     document.getElementById('mc-savings-interest').textContent = mcFormatCurrency(interestSaved, currency);
-    document.getElementById('mc-savings-total').textContent = mcFormatCurrency(interestSaved, currency);
+    document.getElementById('mc-savings-total').textContent = `${payoffYears}y ${payoffMonthsRemainder}m`;
   } else {
     document.getElementById('mc-savings-container').style.display = 'none';
   }
-  
+
   // Show tables and charts
   document.getElementById('mc-table-container').style.display = 'block';
   document.getElementById('mc-comparison-container').style.display = 'block';
-  
-  // Generate charts
-  mcGenerateChart(amortizationData);
-  mcGenerateAmortizationTable(amortizationData);
-  mcGenerateComparisonChart(principal, monthlyRate, months);
+
+  // Render charts and table (self-contained canvas — no external library)
+  mcRenderChart();
+  mcRenderTable();
+  mcRenderComparison();
   
   // Visual feedback
   btn.innerHTML = '✅ Calculated!';
@@ -727,16 +768,14 @@ function mcGenerateAmortizationSchedule(principal, monthlyRate, months, extra) {
     yearInterest += interest;
     yearPrincipal += principalPayment;
     
-    // Add to monthly schedule (store only every 12th month for performance)
-    if (month % 12 === 0 || month === 1 || balance <= 0) {
-      schedule.push({
-        month: month,
-        balance: balance > 0 ? balance : 0,
-        interest: interest,
-        principal: principalPayment,
-        cumulativeInterest: totalInterest
-      });
-    }
+    // Store every month — needed for the Monthly table view; charts decimate.
+    schedule.push({
+      month: month,
+      balance: balance > 0 ? balance : 0,
+      interest: interest,
+      principal: principalPayment,
+      cumulativeInterest: totalInterest
+    });
     
     // Yearly summary
     if (month % 12 === 0 || balance <= 0) {
@@ -762,207 +801,285 @@ function mcGenerateAmortizationSchedule(principal, monthlyRate, months, extra) {
   };
 }
 
-// Generate amortization chart
-function mcGenerateChart(data) {
-  const canvas = document.getElementById('mc-amortization-chart');
-  if (!canvas) return;
-  
-  const ctx = canvas.getContext('2d');
-  
-  // Destroy existing chart
-  if (mcState.chartInstance) {
-    mcState.chartInstance.destroy();
+// ---------------------------------------------------------------------------
+// Self-contained canvas charts. The card previously called Chart.js, which is
+// not loaded anywhere on the site (cards must not make network requests), so
+// every chart threw a ReferenceError and the toggle buttons were dead stubs.
+// These renderers draw directly to canvas with devicePixelRatio scaling.
+// ---------------------------------------------------------------------------
+
+function mcSetupCanvas(id) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return null;
+  const dpr = window.devicePixelRatio || 1;
+  const box = canvas.parentElement.getBoundingClientRect();
+  const w = Math.max(260, box.width);
+  const h = Math.max(160, box.height);
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext && canvas.getContext('2d');
+  if (!ctx) return null; // canvas unsupported — degrade gracefully
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx: ctx, w: w, h: h };
+}
+
+// Shared axes: 4 horizontal gridlines + compact currency ticks
+function mcDrawAxes(ctx, w, h, maxValue, pad) {
+  const gridColor = 'rgba(255,255,255,0.08)';
+  const tickColor = 'rgba(230,250,255,0.55)';
+  ctx.strokeStyle = gridColor;
+  ctx.fillStyle = tickColor;
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (h - pad.top - pad.bottom) * (1 - i / 4);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.fillText(mcFormatCompact(maxValue * i / 4), pad.left - 6, y + 4);
   }
-  
-  const labels = data.schedule.map(item => `Year ${Math.ceil(item.month / 12)}`);
-  const balances = data.schedule.map(item => item.balance);
-  const interest = data.schedule.map(item => item.cumulativeInterest);
-  
-  mcState.chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Loan Balance',
-          data: balances,
-          borderColor: 'rgba(45,212,255,1)',
-          backgroundColor: 'rgba(45,212,255,0.1)',
-          fill: true,
-          tension: 0.4
-        },
-        {
-          label: 'Cumulative Interest',
-          data: interest,
-          borderColor: 'rgba(57,255,20,1)',
-          backgroundColor: 'rgba(57,255,20,0.1)',
-          fill: true,
-          tension: 0.4
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: {
-            color: 'rgba(230,250,255,0.9)'
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: {
-            color: 'rgba(255,255,255,0.1)'
-          },
-          ticks: {
-            color: 'rgba(230,250,255,0.7)'
-          }
-        },
-        y: {
-          grid: {
-            color: 'rgba(255,255,255,0.1)'
-          },
-          ticks: {
-            color: 'rgba(230,250,255,0.7)',
-            callback: function(value) {
-              return mcFormatCurrency(value, mcState.currency);
-            }
-          }
-        }
-      }
+}
+
+// Smooth line chart with area fill. points = [{ label, value }, ...]
+function mcLineChart(id, points, color, fill) {
+  const setup = mcSetupCanvas(id);
+  if (!setup || points.length < 2) return;
+  const ctx = setup.ctx, w = setup.w, h = setup.h;
+  const pad = { left: 52, right: 12, top: 12, bottom: 26 };
+  const maxValue = Math.max.apply(null, points.map(p => p.value)) * 1.05 || 1;
+  mcDrawAxes(ctx, w, h, maxValue, pad);
+
+  const innerW = w - pad.left - pad.right;
+  const innerH = h - pad.top - pad.bottom;
+  const step = innerW / (points.length - 1);
+  const xy = points.map((p, i) => [pad.left + i * step, pad.top + innerH * (1 - p.value / maxValue)]);
+
+  // Area fill
+  ctx.beginPath();
+  ctx.moveTo(xy[0][0], pad.top + innerH);
+  xy.forEach(pt => ctx.lineTo(pt[0], pt[1]));
+  ctx.lineTo(xy[xy.length - 1][0], pad.top + innerH);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  xy.forEach((pt, i) => { i === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]); });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // X labels: first / middle / last
+  ctx.fillStyle = 'rgba(230,250,255,0.55)';
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.textAlign = 'left';   ctx.fillText(points[0].label, pad.left, h - 8);
+  ctx.textAlign = 'center'; ctx.fillText(points[Math.floor(points.length / 2)].label, pad.left + innerW / 2, h - 8);
+  ctx.textAlign = 'right';  ctx.fillText(points[points.length - 1].label, pad.left + innerW, h - 8);
+}
+
+// Stacked yearly bars: interest (red) + principal (cyan)
+function mcStackedChart(id, rows) {
+  const setup = mcSetupCanvas(id);
+  if (!setup || !rows.length) return;
+  const ctx = setup.ctx, w = setup.w, h = setup.h;
+  const pad = { left: 52, right: 12, top: 12, bottom: 26 };
+  const maxValue = Math.max.apply(null, rows.map(r => r.interest + r.principal)) * 1.05 || 1;
+  mcDrawAxes(ctx, w, h, maxValue, pad);
+
+  const innerW = w - pad.left - pad.right;
+  const innerH = h - pad.top - pad.bottom;
+  const slot = innerW / rows.length;
+  const barW = Math.max(2, Math.min(26, slot * 0.6));
+
+  rows.forEach((r, i) => {
+    const x = pad.left + i * slot + (slot - barW) / 2;
+    const total = r.interest + r.principal;
+    const intH = innerH * (r.interest / maxValue);
+    const prinH = innerH * (r.principal / maxValue);
+    const base = pad.top + innerH;
+    ctx.fillStyle = 'rgba(57,255,20,0.85)';
+    ctx.fillRect(x, base - prinH, barW, prinH);
+    ctx.fillStyle = 'rgba(255,77,77,0.85)';
+    ctx.fillRect(x, base - prinH - intH, barW, intH);
+    if (rows.length <= 15 || i % Math.ceil(rows.length / 10) === 0) {
+      ctx.fillStyle = 'rgba(230,250,255,0.55)';
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Y' + r.year, x + barW / 2, h - 8);
     }
+    void total;
   });
 }
 
-// Generate amortization table
-function mcGenerateAmortizationTable(data) {
-  const tbody = document.getElementById('mc-table-body');
-  if (!tbody) return;
-  
-  tbody.innerHTML = '';
-  
-  // Show only first 10 years for performance
-  const displayYears = data.yearlySummary.slice(0, 10);
-  
-  displayYears.forEach(yearData => {
-    const row = document.createElement('tr');
-    row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-    row.innerHTML = `
-      <td style="padding:10px;">Year ${yearData.year}</td>
-      <td style="padding:10px;text-align:right;">${mcFormatCurrency(yearData.balance, mcState.currency)}</td>
-      <td style="padding:10px;text-align:right;color:#ffcc00;">${mcFormatCurrency(yearData.principal, mcState.currency)}</td>
-      <td style="padding:10px;text-align:right;color:#39ff14;">${mcFormatCurrency(yearData.interest, mcState.currency)}</td>
-      <td style="padding:10px;text-align:right;color:rgba(230,250,255,0.7);">${mcFormatCurrency(yearData.cumulativeInterest, mcState.currency)}</td>
-    `;
-    tbody.appendChild(row);
+// Horizontal comparison bars
+function mcHBarChart(id, rows) {
+  const setup = mcSetupCanvas(id);
+  if (!setup || !rows.length) return;
+  const ctx = setup.ctx, w = setup.w, h = setup.h;
+  const padL = 92, padR = 78;
+  const maxValue = Math.max.apply(null, rows.map(r => r.interest)) * 1.05 || 1;
+  const innerW = w - padL - padR;
+  const slot = (h - 16) / rows.length;
+
+  rows.forEach((r, i) => {
+    const y = 8 + i * slot + slot * 0.18;
+    const barH = slot * 0.64;
+    const bw = innerW * (r.interest / maxValue);
+    ctx.fillStyle = r.color;
+    ctx.fillRect(padL, y, Math.max(2, bw), barH);
+    ctx.fillStyle = 'rgba(230,250,255,0.85)';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(r.label, padL - 8, y + barH / 2 + 4);
+    ctx.textAlign = 'left';
+    ctx.fillText(mcFormatCompact(r.interest) + ' · ' + r.payoff, padL + Math.max(2, bw) + 6, y + barH / 2 + 4);
   });
 }
 
-// Generate comparison chart
-function mcGenerateComparisonChart(principal, monthlyRate, months) {
-  const canvas = document.getElementById('mc-comparison-chart');
-  if (!canvas) return;
-  
-  const ctx = canvas.getContext('2d');
-  
-  // Destroy existing chart
-  if (mcState.comparisonChart) {
-    mcState.comparisonChart.destroy();
+// Render the amortization chart for the active chart type
+function mcRenderChart() {
+  const data = mcState.amortizationData;
+  if (!data) return;
+  const legend = document.getElementById('mc-chart-legend');
+
+  if (mcState.chartType === 'balance') {
+    // Decimate to <=90 points for a clean line
+    const stride = Math.max(1, Math.ceil(data.schedule.length / 90));
+    const pts = data.schedule.filter((_, i) => i % stride === 0 || i === data.schedule.length - 1)
+      .map(m => ({ label: m.month % 12 === 0 ? 'Y' + (m.month / 12) : (m.month === 1 ? 'Start' : 'M' + m.month), value: m.balance }));
+    mcLineChart('mc-amortization-chart', pts, 'rgba(45,212,255,1)', 'rgba(45,212,255,0.15)');
+    if (legend) {
+      legend.style.display = 'block';
+      legend.innerHTML = 'Balance falls from ' + mcFormatCompact(data.meta.principal) + ' to £0 over ' +
+        Math.ceil(data.meta.payoffMonths / 12) + ' years'.replace('£0', mcFormatCompact(0));
+    }
+  } else if (mcState.chartType === 'interest') {
+    mcStackedChart('mc-amortization-chart', data.yearlySummary);
+    if (legend) {
+      legend.style.display = 'block';
+      legend.innerHTML = '<span style="color:#39ff14;">■</span> Principal&nbsp; <span style="color:#ff4d4d;">■</span> Interest per year';
+    }
+  } else { // equity
+    const pts = data.schedule.filter((_, i) => i % 12 === 0 || i === data.schedule.length - 1)
+      .map(m => ({ label: 'Y' + Math.max(1, Math.round(m.month / 12)), value: data.meta.down + (data.meta.principal - m.balance) }));
+    if (pts.length > 0) pts[0].label = 'Y1';
+    mcLineChart('mc-amortization-chart', pts, 'rgba(157,78,221,1)', 'rgba(157,78,221,0.15)');
+    if (legend) {
+      legend.style.display = 'block';
+      legend.innerHTML = 'Equity = down payment + principal repaid (excl. price growth)';
+    }
   }
-  
-  // Calculate different scenarios
+}
+
+// Render the amortization table for the active table type
+function mcRenderTable() {
+  const data = mcState.amortizationData;
+  const tbody = document.getElementById('mc-table-body');
+  if (!data || !tbody) return;
+  const theadRow = document.querySelector('#mc-amortization-table thead tr');
+  tbody.innerHTML = '';
+  const cur = mcState.currency;
+
+  if (mcState.tableType === 'yearly') {
+    if (theadRow) theadRow.innerHTML = mcTableHead(['Year', 'Balance', 'Principal', 'Interest', 'Cumulative Interest']);
+    data.yearlySummary.slice(0, 10).forEach(y => {
+      tbody.appendChild(mcTableRow([
+        'Year ' + y.year,
+        mcFormatCurrency(y.balance, cur),
+        mcFormatCurrency(y.principal, cur),
+        mcFormatCurrency(y.interest, cur),
+        mcFormatCurrency(y.cumulativeInterest, cur)
+      ]));
+    });
+  } else if (mcState.tableType === 'monthly') {
+    if (theadRow) theadRow.innerHTML = mcTableHead(['Month', 'Balance', 'Principal', 'Interest', 'Cumulative Interest']);
+    data.schedule.slice(0, 24).forEach(m => {
+      tbody.appendChild(mcTableRow([
+        'M' + m.month,
+        mcFormatCurrency(m.balance, cur),
+        mcFormatCurrency(m.principal, cur),
+        mcFormatCurrency(m.interest, cur),
+        mcFormatCurrency(m.cumulativeInterest, cur)
+      ]));
+    });
+  } else { // summary
+    if (theadRow) theadRow.innerHTML = mcTableHead(['Metric', 'Value', '', '', '']);
+    const meta = data.meta;
+    const rows = [
+      ['Loan amount', mcFormatCurrency(meta.principal, cur)],
+      ['Monthly principal & interest', mcFormatCurrency(meta.monthlyPayment, cur)],
+      ['Extra monthly payment', mcFormatCurrency(meta.extra, cur)],
+      ['Total interest paid', mcFormatCurrency(data.totalInterest, cur)],
+      ['Total principal paid', mcFormatCurrency(data.totalPrincipal, cur)],
+      ['Total paid to lender', mcFormatCurrency(meta.principal + data.totalInterest, cur)],
+      ['Payoff time', Math.floor(meta.payoffMonths / 12) + 'y ' + (meta.payoffMonths % 12) + 'm']
+    ];
+    rows.forEach(r => {
+      tbody.appendChild(mcTableRow([r[0], r[1], '', '', '']));
+    });
+  }
+}
+
+function mcTableHead(cells) {
+  return cells.map((c, i) =>
+    '<th style="padding:10px;text-align:' + (i === 0 ? 'left' : 'right') + ';border-bottom:1px solid rgba(255,255,255,0.1);">' + c + '</th>').join('');
+}
+
+function mcTableRow(cells) {
+  const row = document.createElement('tr');
+  row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+  cells.forEach((c, i) => {
+    const td = document.createElement('td');
+    td.style.padding = '10px';
+    td.style.textAlign = i === 0 ? 'left' : 'right';
+    td.textContent = c;
+    row.appendChild(td);
+  });
+  return row;
+}
+
+// Render the extra-payment comparison chart
+function mcRenderComparison() {
+  const data = mcState.amortizationData;
+  if (!data) return;
+  const meta = data.meta;
+  const monthlyRate = data.monthlyRate != null ? data.monthlyRate
+    : (parseFloat(document.getElementById('mortgage-rate').value) || 0) / 100 / 12;
+
   const scenarios = [
-    { label: 'No Extra', extra: 0, color: 'rgba(45,212,255,0.8)' },
-    { label: '+£100/mo', extra: 100, color: 'rgba(57,255,20,0.8)' },
-    { label: '+£200/mo', extra: 200, color: 'rgba(255,204,0,0.8)' },
-    { label: '+£500/mo', extra: 500, color: 'rgba(157,78,221,0.8)' }
-  ];
-  
-  const data = scenarios.map(scenario => {
-    const result = mcCalculateAmortization(principal, monthlyRate, months, scenario.extra);
+    { label: 'No extra', extra: 0, color: 'rgba(45,212,255,0.75)' },
+    { label: '+100/mo', extra: 100, color: 'rgba(57,255,20,0.75)' },
+    { label: '+200/mo', extra: 200, color: 'rgba(255,204,0,0.75)' },
+    { label: '+500/mo', extra: 500, color: 'rgba(157,78,221,0.75)' }
+  ].map(s => {
+    const r = mcCalculateAmortization(meta.principal, monthlyRate, meta.months, s.extra);
     return {
-      label: scenario.label,
-      interest: result.totalInterest,
-      months: result.payoffMonths,
-      color: scenario.color
+      label: s.label,
+      color: s.color,
+      interest: r.totalInterest,
+      payoff: Math.floor(r.payoffMonths / 12) + 'y ' + (r.payoffMonths % 12) + 'm'
     };
   });
-  
-  // Update comparison display
-  const currentExtra = parseFloat(document.getElementById('mortgage-extra').value) || 0;
-  const currentResult = mcCalculateAmortization(principal, monthlyRate, months, currentExtra);
-  
-  document.getElementById('mc-comp-monthly').textContent = mcFormatCurrency(
-    (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1) + currentExtra,
-    mcState.currency
-  );
+
+  mcHBarChart('mc-comparison-chart', scenarios);
+
+  // Current-scenario summary tiles
+  const currentResult = mcCalculateAmortization(meta.principal, monthlyRate, meta.months, meta.extra);
+  document.getElementById('mc-comp-monthly').textContent = mcFormatCurrency(meta.monthlyPayment + meta.extra, mcState.currency);
   document.getElementById('mc-comp-interest').textContent = mcFormatCurrency(currentResult.totalInterest, mcState.currency);
-  document.getElementById('mc-comp-payoff').textContent = `${Math.floor(currentResult.payoffMonths/12)}y ${currentResult.payoffMonths%12}m`;
-  
-  mcState.comparisonChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: data.map(d => d.label),
-      datasets: [
-        {
-          label: 'Total Interest',
-          data: data.map(d => d.interest),
-          backgroundColor: data.map(d => d.color),
-          borderColor: data.map(d => d.color.replace('0.8', '1')),
-          borderWidth: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const scenario = data[context.dataIndex];
-              return [
-                `Interest: ${mcFormatCurrency(scenario.interest, mcState.currency)}`,
-                `Payoff: ${Math.floor(scenario.months/12)}y ${scenario.months%12}m`
-              ];
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: {
-            color: 'rgba(255,255,255,0.1)'
-          },
-          ticks: {
-            color: 'rgba(230,250,255,0.7)'
-          }
-        },
-        y: {
-          grid: {
-            color: 'rgba(255,255,255,0.1)'
-          },
-          ticks: {
-            color: 'rgba(230,250,255,0.7)',
-            callback: function(value) {
-              return mcFormatCurrency(value, mcState.currency);
-            }
-          }
-        }
-      }
-    }
-  });
+  document.getElementById('mc-comp-payoff').textContent = Math.floor(currentResult.payoffMonths / 12) + 'y ' + (currentResult.payoffMonths % 12) + 'm';
 }
 
-// Toggle chart type
+// Toggle chart type — now actually re-renders (was a dead stub)
 function mcToggleChart(type) {
   mcState.chartType = type;
-  
+
   // Update button styles
   ['balance', 'interest', 'equity'].forEach(t => {
     const btn = document.getElementById(`mc-chart-${t}`);
@@ -980,17 +1097,14 @@ function mcToggleChart(type) {
       }
     }
   });
-  
-  // Regenerate chart with new type
-  if (mcState.amortizationData) {
-    mcGenerateChart(mcState.amortizationData); // In full version, this would change chart data
-  }
+
+  if (mcState.amortizationData) mcRenderChart();
 }
 
-// Show table type
+// Show table type — now actually switches yearly/monthly/summary (was a stub)
 function mcShowTable(type) {
   mcState.tableType = type;
-  
+
   // Update button styles
   ['yearly', 'monthly', 'summary'].forEach(t => {
     const btn = document.getElementById(`mc-table-${t}`);
@@ -1008,12 +1122,16 @@ function mcShowTable(type) {
       }
     }
   });
-  
-  // Regenerate table with new type
-  if (mcState.amortizationData) {
-    mcGenerateAmortizationTable(mcState.amortizationData); // In full version, this would change table data
-  }
+
+  if (mcState.amortizationData) mcRenderTable();
 }
+
+// Re-render charts when the viewport size changes (canvas is not auto-scaling)
+window.addEventListener('resize', function() {
+  if (!mcState.amortizationData) return;
+  clearTimeout(mcState._mcResizeT);
+  mcState._mcResizeT = setTimeout(function() { mcRenderChart(); mcRenderComparison(); }, 150);
+});
 
 // Compare scenario
 function mcCompareScenario(scenario) {
@@ -1097,8 +1215,10 @@ function mcExport(btn) {
 
 // Reset calculator
 function mcReset(btn) {
-  // Reset inputs
-  document.querySelector('form').reset();
+  // Reset inputs — scoped to THIS card's form (all cards share one DOM, so
+  // document.querySelector('form') could wipe an unrelated tool's form)
+  const form = (btn && btn.closest('form')) || document.getElementById('mortgage-price').closest('form');
+  if (form) form.reset();
   
   // Reset currency
   mcState.currency = 'GBP';
@@ -1124,17 +1244,20 @@ function mcReset(btn) {
   document.getElementById('mc-table-container').style.display = 'none';
   document.getElementById('mc-comparison-container').style.display = 'none';
   
-  // Clear charts
-  if (mcState.chartInstance) {
-    mcState.chartInstance.destroy();
-    mcState.chartInstance = null;
-  }
-  
-  if (mcState.comparisonChart) {
-    mcState.comparisonChart.destroy();
-    mcState.comparisonChart = null;
-  }
-  
+  // Clear chart state and canvases
+  mcState.amortizationData = null;
+  mcState.comparisonData = null;
+  ['mc-amortization-chart', 'mc-comparison-chart'].forEach(id => {
+    const c = document.getElementById(id);
+    if (c) {
+      const ctx = c.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, c.width, c.height);
+    }
+  });
+  const legend = document.getElementById('mc-chart-legend');
+  if (legend) legend.style.display = 'none';
+
   // Clear table
   document.getElementById('mc-table-body').innerHTML = '';
   
