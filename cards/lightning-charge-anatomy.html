@@ -1,0 +1,322 @@
+<h2 id="ltn-title" style="margin-top:0;color:var(--accent);">⚡ Lightning — Storm Anatomy in 5 Steps</h2>
+
+<form aria-describedby="ltn-desc" onsubmit="event.preventDefault();">
+  <p id="ltn-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Follow a flash from charge separation to thunder: colliding ice makes charge, a stepped leader feels its way
+    down, a streamer connects, and a 30,000 A return stroke heats the air hotter than the Sun's surface.
+  </p>
+
+  <div style="background:#050a12;border:1px solid rgba(45,212,255,.3);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="ltn-canvas" width="760" height="430" style="width:100%;height:auto;display:block;background:#040814;border-radius:6px;" role="img" aria-label="Animated thunderstorm cross-section showing charge separation, stepped leader, streamers, return stroke and thunder"></canvas>
+    <div id="ltn-status" style="font-size:0.72rem;color:var(--accent);margin-top:6px;padding:0 4px;min-height:2.6em;font-family:ui-monospace,monospace;"></div>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="ltn-step" data-s="0" style="padding:5px 9px;border-radius:5px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.7rem;font-weight:bold;cursor:pointer;">1 Charge</button>
+    <button type="button" class="ltn-step" data-s="1" style="padding:5px 9px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.7rem;cursor:pointer;">2 Stepped leader</button>
+    <button type="button" class="ltn-step" data-s="2" style="padding:5px 9px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.7rem;cursor:pointer;">3 Streamers</button>
+    <button type="button" class="ltn-step" data-s="3" style="padding:5px 9px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.7rem;cursor:pointer;">4 Return stroke</button>
+    <button type="button" class="ltn-step" data-s="4" style="padding:5px 9px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.7rem;cursor:pointer;">5 Thunder</button>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="ltn-play" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.75rem;font-weight:bold;cursor:pointer;">⏸ Pause</button>
+    <button type="button" id="ltn-replay" style="padding:6px 12px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,.2);color:var(--text-secondary);font-size:0.75rem;cursor:pointer;">↻ Replay strike</button>
+    <label for="ltn-dist" style="display:flex;align-items:center;gap:8px;font-size:0.72rem;color:var(--text-secondary);margin-left:auto;">
+      <span>Storm distance</span>
+      <input type="range" id="ltn-dist" min="1" max="40" value="6" style="width:130px;">
+      <span id="ltn-dist-val" style="color:var(--accent);font-family:ui-monospace,monospace;">3.0 km</span>
+    </label>
+  </div>
+
+  <details style="margin-bottom:6px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.8rem;">📖 Key facts &amp; safety</summary>
+    <div class="small" style="color:var(--text-secondary);font-size:0.78rem;line-height:1.5;margin-top:8px;">
+      <p style="margin:0 0 8px;">A return stroke carries <b>~30,000 A</b> (a thousand times a hair-dryer) and heats the
+      channel to <b>~30,000 °C — five times the Sun's surface</b>. The channel's explosive expansion is thunder; light
+      reaches you instantly but sound crawls at ~1 km every 3 s, so <b>count seconds ÷ 3 = km</b> (÷ 5 for miles).
+      Most flashes never reach the ground at all — intra-cloud lightning is the most common kind.</p>
+      <p style="margin:0;"><b>30/30 rule:</b> if thunder follows lightning within 30 s, go indoors; wait 30 min after
+      the last thunder. Contrary to myth, lightning <i>can</i> strike the same place twice (the Empire State Building
+      is hit ~20× a year), and rubber-soled shoes protect you about as much as wishes.</p>
+    </div>
+  </details>
+</form>
+
+<script>
+(function(){
+  'use strict';
+  var cv = document.getElementById('ltn-canvas');
+  if (!cv || cv.__ltnInit) return;
+  cv.__ltnInit = true;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var statusEl = document.getElementById('ltn-status');
+  var playBtn = document.getElementById('ltn-play');
+  var replayBtn = document.getElementById('ltn-replay');
+  var sDist = document.getElementById('ltn-dist'), vDist = document.getElementById('ltn-dist-val');
+  var stepBtns = Array.prototype.slice.call(document.querySelectorAll('.ltn-step'));
+
+  var DUR = [4.5, 3.2, 2.2, 1.4, 1e9];
+  var STARTS = [0];
+  for (var i=0;i<4;i++) STARTS.push(STARTS[i]+DUR[i]);
+  var CAPTIONS = [
+    '1 · CHARGE SEPARATION — updrafts grind ice crystals past graupel (soft hail). Each collision hands over charge: + drifts to the cloud top, − piles up near the base. The ground answers with induced + charge.',
+    '2 · STEPPED LEADER — the negative charge sneaks down in invisible ~50 m steps, branching as it hunts the easiest path. Most forks are dead ends.',
+    '3 · UPWARD STREAMERS — positive sparks reach up from tall objects. The instant one touches the leader, the circuit closes.',
+    '4 · RETURN STROKE — ~30,000 A surges up the channel in ~100 millionths of a second, heating it to ~30,000 °C. This brilliant surge IS the lightning you see.',
+    '5 · THUNDER — the superheated channel explodes outward: a shockwave we hear as thunder. Sound lags light by ~3 s per km — count the gap and divide by 3.'
+  ];
+  var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var playing = !(mq && mq.matches), dirty = true, t = 0;
+
+  function seedRand(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var x=Math.imul(a^a>>>15,1|a); x=x+Math.imul(x^x>>>7,61|x)^x; return ((x^x>>>14)>>>0)/4294967296; }; }
+  var rnd = seedRand(7);
+  /* leader path */
+  var MAIN = [[395, 195]];
+  var x = 395, y = 195;
+  for (i=0;i<20;i++){ x += (rnd()*30-15); x = Math.max(330, Math.min(470, x)); y += 8.6; MAIN.push([x, y]); }
+  var BRANCHES = [];
+  [[4,4],[8,5],[12,4]].forEach(function(bp){
+    var st = MAIN[bp[0]], bx = st[0], by = st[1], pts = [st];
+    for (var j=0;j<bp[1];j++){ bx += (rnd()*34-10); by += 8; pts.push([bx,by]); }
+    BRANCHES.push(pts);
+  });
+  var GROUND_Y = 358;
+  var STREAMERS = [
+    {x:300, tip:GROUND_Y},
+    {x:Math.max(320, Math.min(480, MAIN[MAIN.length-1][0] + (rnd()*40-20))), tip:GROUND_Y},
+    {x:500, tip:GROUND_Y}
+  ];
+  var hitIdx = 0, best = 1e9;
+  STREAMERS.forEach(function(s, idx){ var d = Math.abs(s.x - MAIN[MAIN.length-1][0]); if (d < best){ best = d; hitIdx = idx; } });
+  var HITX = (STREAMERS[hitIdx].x + MAIN[MAIN.length-1][0])/2;
+
+  function step(){ 
+    for (var k=4;k>=0;k--){ if (t >= STARTS[k]) return k; }
+    return 0;
+  }
+  function fracIn(st){ return Math.max(0, Math.min(1, (t - STARTS[st]) / DUR[st])); }
+
+  function poly(pts, n, grow){
+    ctx.beginPath();
+    for (var i=0;i<Math.min(n, pts.length);i++){
+      var p = pts[i];
+      i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
+    }
+    if (grow && n < pts.length && n > 0){
+      var a = pts[n-1], b = pts[n], f = grow;
+      ctx.lineTo(a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f);
+    }
+    ctx.stroke();
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    var st = step(), f = fracIn(st);
+    var distKm = +sDist.value/2;
+    vDist.textContent = distKm.toFixed(1)+' km';
+
+    /* sky */
+    var sky = ctx.createLinearGradient(0,0,0,GROUND_Y);
+    sky.addColorStop(0,'#0a1224'); sky.addColorStop(1,'#182742');
+    ctx.fillStyle = sky; ctx.fillRect(0,0,W,GROUND_Y);
+    /* ground */
+    ctx.fillStyle = '#0d2818'; ctx.fillRect(0,GROUND_Y,W,H-GROUND_Y);
+    ctx.strokeStyle = 'rgba(120,220,140,.4)'; ctx.beginPath(); ctx.moveTo(0,GROUND_Y); ctx.lineTo(W,GROUND_Y); ctx.stroke();
+
+    /* tree, house, pole */
+    ctx.fillStyle = '#3a2a18'; ctx.fillRect(296,330,8,30);
+    ctx.fillStyle = '#1c4a28'; ctx.beginPath(); ctx.arc(300,322,16,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#3a3f4c'; ctx.fillRect(498,318,5,42); ctx.fillRect(490,318,21,4);
+    ctx.fillStyle = '#4a3a2a'; ctx.fillRect(430,330,44,30);
+    ctx.fillStyle = '#6a3535'; ctx.beginPath(); ctx.moveTo(424,330); ctx.lineTo(452,310); ctx.lineTo(480,330); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,220,120,.8)'; ctx.fillRect(446,340,10,10);
+
+    /* cloud */
+    function puff(px,py,pr,c){ ctx.fillStyle=c; ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill(); }
+    ctx.fillStyle = '#31415f'; ctx.fillRect(210,55,340,26);
+    puff(240,80,42,'#2c3a55'); puff(320,72,50,'#2c3a55'); puff(410,76,48,'#2c3a55'); puff(490,84,40,'#2c3a55');
+    puff(280,120,44,'#26344c'); puff(360,128,46,'#26344c'); puff(440,122,42,'#26344c');
+    puff(250,168,34,'#222f45'); puff(330,174,36,'#222f45'); puff(410,172,34,'#222f45'); puff(470,164,28,'#222f45');
+    /* anvil streaks */
+    ctx.fillStyle='rgba(160,180,215,.25)'; ctx.fillRect(150,48,470,10); ctx.fillRect(190,36,400,8);
+
+    /* updraft + colliding particles (step 1) */
+    ctx.strokeStyle='rgba(140,220,255,.35)'; ctx.lineWidth=2; ctx.setLineDash([5,6]);
+    ctx.beginPath(); ctx.moveTo(300,210); ctx.lineTo(300,100); ctx.moveTo(420,210); ctx.lineTo(420,100); ctx.stroke();
+    ctx.setLineDash([]);
+    if (st === 0){
+      for (var ip=0; ip<7; ip++){
+        var ph = (t*0.9 + ip*0.37) % 1;
+        ctx.fillStyle='rgba(235,245,255,.85)';
+        ctx.beginPath(); ctx.arc(295+ip*16, 200-ph*110, 2.6, 0, Math.PI*2); ctx.fill();
+        var ph2 = (t*0.55 + ip*0.53) % 1;
+        ctx.fillStyle='rgba(180,190,210,.7)';
+        ctx.beginPath(); ctx.arc(340+ip*14, 105+ph2*105, 3.4, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    /* charges */
+    function charges(alphaUp, alphaDn, alphaG){
+      ctx.font='bold 15px system-ui,sans-serif'; ctx.textAlign='center';
+      for (var q=0;q<6;q++){
+        ctx.globalAlpha=alphaUp; ctx.fillStyle='#ff8a8a';
+        ctx.fillText('+', 268+q*34, 88+((q%2)*12));
+      }
+      for (q=0;q<7;q++){
+        ctx.globalAlpha=alphaDn; ctx.fillStyle='#7ab8ff';
+        ctx.fillText('−', 262+q*32, 176+((q%2)*10));
+      }
+      ctx.globalAlpha=1;
+    }
+    if (st >= 1) charges(0.95, 0.95, 0.95);
+    else charges(f*1.1, f*0.9, 0);
+    if (st >= 1 || f > 0.45){
+      ctx.font='bold 16px system-ui,sans-serif'; ctx.fillStyle='#ffd166'; ctx.textAlign='center';
+      ctx.globalAlpha = st>=1?0.95:(f-0.45)*2;
+      for (var gq=0; gq<6; gq++) ctx.fillText('+', 330+gq*30, 348+((gq%2)*6));
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle='rgba(160,180,220,.5)'; ctx.font='600 10px system-ui,sans-serif';
+    ctx.textAlign='left'; ctx.fillText('updraft', 272, 96);
+
+    /* streamers (step >= 2) */
+    if (st >= 2){
+      var sf = st === 2 ? Math.min(1, f*1.4) : 1;
+      STREAMERS.forEach(function(s, idx){
+        var on = idx === hitIdx;
+        ctx.strokeStyle = on ? 'rgba(255,240,180,'+(0.7+0.3*Math.sin(t*30))+')' : 'rgba(200,180,255,.4)';
+        ctx.lineWidth = on ? 2.5 : 1.5;
+        ctx.beginPath();
+        for (var sgi=0; sgi<3; sgi++){
+          var yy = GROUND_Y - sgi*9*sf;
+          var xx = s.x + (sgi%2 ? 3 : -2);
+          sgi ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy);
+        }
+        ctx.stroke();
+      });
+    }
+
+    /* leader (step >= 1) */
+    if (st >= 1){
+      var lf = st === 1 ? Math.min(1, f*1.05) : 1;
+      var nSeg = Math.min(MAIN.length-1, Math.floor(lf*(MAIN.length-1)));
+      var grow = st === 1 ? (lf*(MAIN.length-1)) % 1 : 1;
+      ctx.strokeStyle='rgba(201,166,255,.85)'; ctx.lineWidth=2; 
+      poly(MAIN, nSeg+1, st===1?grow:0);
+      ctx.lineWidth=1.2; ctx.globalAlpha=0.7;
+      BRANCHES.forEach(function(br){
+        if (nSeg < br.startAt) return;
+        var maxN = Math.min(br.length, nSeg - br.startAt + 1);
+        if (maxN > 1) poly(br, maxN, 0);
+      });
+      ctx.globalAlpha=1;
+    }
+
+    /* return stroke (step >= 3) */
+    if (st >= 3){
+      var rf = st === 3 ? f : 1;
+      var fade = st === 3 ? 1 : Math.max(0, 1 - (t - STARTS[4]) * 0.4);
+      var prog = st === 3 ? Math.min(1, rf*1.6) : 1;
+      var nSeg2 = Math.max(1, Math.floor(prog*(MAIN.length-1)));
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,'+(st===3?1:0.85*fade)+')';
+      ctx.lineWidth = 5; ctx.shadowColor = '#cfe4ff'; ctx.shadowBlur = 18;
+      if (st === 3){
+        var revPts = MAIN.slice().reverse();
+        poly(revPts, nSeg2, (prog*(MAIN.length-1))%1);
+      } else {
+        poly(MAIN, MAIN.length, 0);
+      }
+      ctx.restore();
+      /* flash */
+      var flashA = st === 3 ? Math.min(0.75, f*1.6) : Math.max(0, 0.6*fade);
+      if (st === 3) flashA *= (0.7 + 0.3*Math.sin(t*40));
+      if (flashA > 0.02){ ctx.fillStyle='rgba(220,235,255,'+flashA*0.5+')'; ctx.fillRect(0,0,W,H); }
+      if (st === 3){
+        ctx.fillStyle='rgba(255,255,255,.95)'; ctx.font='bold 12px ui-monospace,monospace'; ctx.textAlign='center';
+        ctx.fillText('30,000 A · 30,000 °C', 395, 240);
+      }
+    }
+
+    /* thunder rings (step 4) */
+    if (st === 4){
+      var age = t - STARTS[4];
+      var delay = distKm/343/8; /* compressed 8× */
+      var sAge = age - delay;
+      if (sAge > 0){
+        for (var ring=0; ring<3; ring++){
+          var ra = (sAge - ring*0.25)*260;
+          if (ra > 0 && ra < 420){
+            ctx.strokeStyle='rgba(150,200,255,'+(0.5*(1-ra/420))+')';
+            ctx.lineWidth=2.5;
+            ctx.beginPath(); ctx.arc(HITX, GROUND_Y, ra, Math.PI, Math.PI*2); ctx.stroke();
+          }
+        }
+        if (sAge < 0.5){
+          ctx.fillStyle='rgba(255,240,200,'+(1-sAge*2)+')';
+          ctx.font='bold 16px system-ui,sans-serif'; ctx.textAlign='center';
+          ctx.fillText('BOOM', HITX, GROUND_Y-30-sAge*80);
+        }
+      }
+      /* timing bar */
+      var bx=60, bw=640, byy=400;
+      ctx.fillStyle='rgba(255,255,255,.06)'; ctx.fillRect(bx,byy-14,bw,30);
+      ctx.fillStyle='rgba(255,213,100,.9)'; ctx.fillRect(bx,byy-14,bw,5);
+      ctx.fillStyle='rgba(230,250,255,.6)'; ctx.font='600 9px system-ui,sans-serif'; ctx.textAlign='left';
+      ctx.fillText('light — instant', bx, byy-3);
+      var sProg = Math.max(0, Math.min(1, sAge/ (distKm/343/8 + 0.001)));
+      var sxp = bx + Math.min(1, sAge*2.2/delay>0?Math.min(1,(sAge/delay))*0+0:0);
+      var sp2 = delay>0? Math.min(1, sAge/delay):1;
+      ctx.fillStyle='rgba(140,200,255,.9)';
+      ctx.fillRect(bx, byy+4, bw*sp2, 5);
+      ctx.beginPath(); ctx.arc(bx+bw*sp2, byy+6.5, 4, 0, Math.PI*2); ctx.fill();
+      ctx.textAlign='right';
+      ctx.fillText('sound — '+(distKm/343).toFixed(1)+' s later ('+(distKm*1000/343).toFixed(1)+' s real)', bx+bw, byy-3);
+    }
+
+    /* step label */
+    ctx.fillStyle='rgba(230,250,255,.5)'; ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='left';
+    ctx.fillText('STEP '+(st+1)+'/5', 12, 20);
+    statusEl.textContent = CAPTIONS[st];
+    stepBtns.forEach(function(b2){
+      var on = +b2.getAttribute('data-s') === st;
+      b2.style.background = on ? 'rgba(45,212,255,.2)' : 'rgba(255,255,255,.06)';
+      b2.style.borderColor = on ? 'var(--accent)' : 'rgba(255,255,255,.15)';
+      b2.style.color = on ? 'var(--accent)' : '#fff';
+    });
+  }
+
+  var last = 0;
+  function tick(now){
+    if (!cv.isConnected) return;
+    if (playing){
+      var dt = last ? Math.min(0.05, (now-last)/1000) : 0.016;
+      last = now;
+      t += dt;
+      if (t > STARTS[4] + 30) t = STARTS[4]; /* loop thunder */
+      render();
+    } else if (dirty){ render(); dirty=false; last = now; }
+    requestAnimationFrame(tick);
+  }
+
+  stepBtns.forEach(function(b3){
+    b3.addEventListener('click', function(){
+      t = STARTS[+b3.getAttribute('data-s')] + DUR[+b3.getAttribute('data-s')]*0.6;
+      playing = true; playBtn.textContent='⏸ Pause'; dirty = true;
+      if (!cv.isConnected) return;
+    });
+  });
+  playBtn.addEventListener('click', function(){
+    playing = !playing;
+    playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+    dirty = true;
+  });
+  replayBtn.addEventListener('click', function(){ t = 0; playing = true; playBtn.textContent='⏸ Pause'; dirty = true; });
+  sDist.addEventListener('input', function(){ dirty = true; });
+
+  render();
+  requestAnimationFrame(tick);
+})();
+</script>

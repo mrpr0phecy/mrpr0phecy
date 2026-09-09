@@ -1,0 +1,200 @@
+<h2 id="sky-title" style="margin-top:0;color:var(--accent);">🌞 Why Is The Sky Blue? — Rayleigh Scattering Lab</h2>
+
+<form aria-describedby="sky-desc" onsubmit="event.preventDefault();">
+  <p id="sky-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Air molecules scatter sunlight in every direction — and short wavelengths scatter about 4× more than long ones.
+    Slide the Sun down and watch the same physics hand the sky back as a sunset.
+  </p>
+
+  <div style="background:#050a12;border:1px solid rgba(45,212,255,.3);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="sky-canvas" width="760" height="430" style="width:100%;height:auto;display:block;background:#03060c;border-radius:6px;" role="img" aria-label="Sunlight beaming through the atmosphere with scattering molecules, next to a panel showing the resulting sky and sun colours"></canvas>
+    <div id="sky-status" style="font-size:0.72rem;color:var(--accent);margin-top:6px;padding:0 4px;min-height:2.6em;font-family:ui-monospace,monospace;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px;">
+    <div>
+      <label for="sky-elev" style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-secondary);margin-bottom:2px;"><span>Sun elevation</span><span id="sky-elev-val" style="font-family:ui-monospace,monospace;color:var(--accent);">25°</span></label>
+      <input type="range" id="sky-elev" min="3" max="90" value="25" style="width:100%;">
+    </div>
+    <div>
+      <label for="sky-clear" style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-secondary);margin-bottom:2px;"><span>Air density (mountain ↔ sea level)</span><span id="sky-clear-val" style="font-family:ui-monospace,monospace;color:var(--accent);">100%</span></label>
+      <input type="range" id="sky-clear" min="40" max="160" value="100" style="width:100%;">
+    </div>
+    <div>
+      <label for="sky-haze" style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-secondary);margin-bottom:2px;"><span>Haze / pollution</span><span id="sky-haze-val" style="font-family:ui-monospace,monospace;color:var(--accent);">0%</span></label>
+      <input type="range" id="sky-haze" min="0" max="100" value="0" style="width:100%;">
+    </div>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="sky-pre" data-e="90" data-h="0" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">☀️ Noon</button>
+    <button type="button" class="sky-pre" data-e="25" data-h="0" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">🌤️ Afternoon</button>
+    <button type="button" class="sky-pre" data-e="8" data-h="0" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">🌅 Golden hour</button>
+    <button type="button" class="sky-pre" data-e="4" data-h="35" style="padding:5px 10px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">🌆 Hazy sunset</button>
+  </div>
+
+  <details style="margin-bottom:6px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.8rem;">📖 The physics &amp; fun comparisons</summary>
+    <div class="small" style="color:var(--text-secondary);font-size:0.78rem;line-height:1.5;margin-top:8px;">
+      <p style="margin:0 0 8px;"><b>Rayleigh scattering</b> is strongest for wavelengths much smaller than the scatterer,
+      scaling as <b>1/λ⁴</b>: blue light at 450 nm is scattered ≈4.4× more strongly than deep red at 650 nm. Look
+      anywhere but at the Sun and you see that scattered light — blue-rich. (The sky isn't violet because the Sun emits
+      less violet and our eyes are barely sensitive to it.) Near the horizon the light has crossed more air and
+      re-scattered, washing the blue toward white.</p>
+      <p style="margin:0;">At sunset the beam crosses up to <b>~38× more atmosphere</b>: the blues are scattered away
+      long before the light reaches you, so the direct beam arrives red-orange and paints the clouds. Clouds are white
+      because their droplets are much larger than any wavelength (Mie scattering — all colours equally). On Mars the
+      thin dusty air does the opposite: butterscotch sky by day, <b>blue glow</b> around the setting Sun. And on the
+      Moon, with no atmosphere at all, the "sky" is black even at noon.</p>
+    </div>
+  </details>
+</form>
+
+<script>
+(function(){
+  'use strict';
+  var cv = document.getElementById('sky-canvas');
+  if (!cv || cv.__skyInit) return;
+  cv.__skyInit = true;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var sE = document.getElementById('sky-elev'), vE = document.getElementById('sky-elev-val');
+  var sC = document.getElementById('sky-clear'), vC = document.getElementById('sky-clear-val');
+  var sH = document.getElementById('sky-haze'), vH = document.getElementById('sky-haze-val');
+  var statusEl = document.getElementById('sky-status');
+
+  function seedRand(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var x=Math.imul(a^a>>>15,1|a); x=x+Math.imul(x^x>>>7,61|x)^x; return ((x^x>>>14)>>>0)/4294967296; }; }
+  var rnd = seedRand(5);
+  var mols = [];
+  for (var i=0;i<230;i++) mols.push({x:rnd()*430, y:40+rnd()*300, r:0.8+rnd()*1.1});
+
+  var LAM = [610, 545, 465];
+  function weights(){
+    return LAM.map(function(l){ return Math.pow(465/l, 4); });
+  }
+
+  function optics(){
+    var elev = +sE.value, k = +sC.value/100, haze = +sH.value/100;
+    var M = 1/Math.max(Math.sin(elev*Math.PI/180), 0.075);
+    var w = weights();
+    var T = w.map(function(wc){ return Math.exp(-k*wc*M); });
+    var sky = w.map(function(wc){ return wc*Math.exp(-k*wc*M); });
+    var mx = Math.max(sky[0], sky[1], sky[2]) || 1;
+    var rgb = sky.map(function(sv){ return Math.round(255*sv/mx); });
+    var hmix = Math.min(0.85, haze*(0.3+0.04*M));
+    rgb = rgb.map(function(c){ return Math.round(c*(1-hmix) + 208*hmix); });
+    var dir = T.map(function(tc){ return Math.round(255*tc); });
+    return {M:M, rgb:rgb, dir:dir, elev:elev, k:k, haze:haze};
+  }
+
+  function zenithRGB(o){
+    var k = o.k, haze = o.haze;
+    var w = weights();
+    var Mz = 1.15;
+    var sky = w.map(function(wc){ return wc*Math.exp(-k*wc*Mz); });
+    var mx = Math.max(sky[0], sky[1], sky[2]) || 1;
+    var rgb = sky.map(function(sv){ return Math.round(255*sv/mx); });
+    var hmix = Math.min(0.8, haze*0.35);
+    rgb = rgb.map(function(c){ return Math.round(c*(1-hmix) + 205*hmix); });
+    return rgb;
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    var o = optics();
+    var elev = o.elev;
+    vE.textContent = elev+'°'; vC.textContent = sC.value+'%'; vH.textContent = sH.value+'%';
+
+    /* ---- left: scene ---- */
+    var horizonRGB = o.rgb, topRGB = zenithRGB(o);
+    var sg = ctx.createLinearGradient(0,36,0,360);
+    sg.addColorStop(0, 'rgb('+topRGB.join(',')+')');
+    sg.addColorStop(1, 'rgb('+horizonRGB.join(',')+')');
+    ctx.fillStyle = sg; ctx.fillRect(0,36,430,324);
+    ctx.fillStyle='#0b1a10'; ctx.fillRect(0,360,430,H-360);
+    ctx.strokeStyle='rgba(120,220,140,.35)'; ctx.beginPath(); ctx.moveTo(0,360); ctx.lineTo(430,360); ctx.stroke();
+    /* ground dark silhouette */
+    ctx.fillStyle='#07120a';
+    ctx.beginPath(); ctx.moveTo(0,360); ctx.lineTo(60,332); ctx.lineTo(140,352); ctx.lineTo(230,326); ctx.lineTo(330,350); ctx.lineTo(430,334); ctx.lineTo(430,360); ctx.closePath(); ctx.fill();
+
+    /* molecules */
+    mols.forEach(function(m){
+      ctx.fillStyle='rgba(220,240,255,.28)';
+      ctx.beginPath(); ctx.arc(m.x,m.y,m.r,0,Math.PI*2); ctx.fill();
+    });
+    if (o.haze > 0){
+      ctx.fillStyle='rgba(200,200,205,'+(o.haze*0.25)+')';
+      for (var hz=0; hz<40; hz++){ ctx.beginPath(); ctx.arc((hz*167)%430, 60+(hz*97)%280, 3.4, 0, Math.PI*2); ctx.fill(); }
+    }
+    /* sun + beam */
+    var sx2 = 380 - 240*Math.cos(elev*Math.PI/180);
+    var sy2 = 348 - 262*Math.sin(elev*Math.PI/180);
+    var beam = ctx.createLinearGradient(sx2, sy2, 300, 356);
+    var bA = Math.min(0.55, 0.12 + (o.dir[0]+o.dir[2])/2/255*0.4);
+    beam.addColorStop(0, 'rgba(255,235,180,'+bA+')');
+    beam.addColorStop(1, 'rgba(255,235,180,0)');
+    ctx.strokeStyle = beam; ctx.lineWidth = 16; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(sx2, sy2); ctx.lineTo(310, 354); ctx.stroke();
+    /* scattered photons along beam */
+    for (var sc2=0; sc2<40; sc2++){
+      var f2 = sc2/40;
+      var px = sx2 + (310-sx2)*f2 + (f2*13)%7-3, py = sy2 + (354-sy2)*f2 + (f2*11)%5-2;
+      ctx.fillStyle = 'rgba('+o.rgb.join(',')+','+(0.25+0.5*f2)+')';
+      ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI*2); ctx.fill();
+    }
+    var sunCore = ctx.createRadialGradient(sx2,sy2,2,sx2,sy2,34);
+    sunCore.addColorStop(0,'rgb(255,255,255)');
+    sunCore.addColorStop(0.35,'rgb('+o.dir.join(',')+')');
+    sunCore.addColorStop(1,'rgba('+o.dir.join(',')+',0)');
+    ctx.fillStyle = sunCore; ctx.beginPath(); ctx.arc(sx2, sy2, 34, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgb('+o.dir.join(',')+')';
+    ctx.beginPath(); ctx.arc(sx2, sy2, 12, 0, Math.PI*2); ctx.fill();
+    /* observer */
+    ctx.font='600 12px system-ui,sans-serif'; ctx.textAlign='center'; ctx.fillStyle='rgba(230,250,255,.8)';
+    ctx.fillText('👁', 330, 350);
+    ctx.font='600 9px ui-monospace,monospace';
+    ctx.fillText('you', 330, 362);
+    ctx.fillStyle='rgba(230,250,255,.5)'; ctx.textAlign='left';
+    ctx.fillText('SCENE — scattering atmosphere (each dot: N₂ / O₂)', 10, 22);
+
+    /* ---- right: what you see ---- */
+    ctx.fillStyle='rgba(255,255,255,.03)'; ctx.fillRect(440,6,314,H-12);
+    var vg = ctx.createLinearGradient(0,60,0,330);
+    vg.addColorStop(0, 'rgb('+topRGB.join(',')+')');
+    vg.addColorStop(1, 'rgb('+horizonRGB.join(',')+')');
+    ctx.fillStyle = vg; ctx.fillRect(452,60,290,240);
+    /* sun disc in view */
+    ctx.fillStyle = 'rgb('+o.dir.join(',')+')';
+    ctx.beginPath(); ctx.arc(597, 150, 22, 0, Math.PI*2); ctx.fill();
+    var glow = ctx.createRadialGradient(597,150,10,597,150,70);
+    glow.addColorStop(0,'rgba('+o.dir.join(',')+',.7)');
+    glow.addColorStop(1,'rgba('+o.dir.join(',')+',0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(597,150,70,0,Math.PI*2); ctx.fill();
+    /* hills in view */
+    ctx.fillStyle='#07120a';
+    ctx.beginPath(); ctx.moveTo(452,300); ctx.lineTo(530,258); ctx.lineTo(600,296); ctx.lineTo(670,262); ctx.lineTo(742,300); ctx.lineTo(742,300); ctx.lineTo(452,300); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.strokeRect(452,60,290,240);
+    ctx.fillStyle='rgba(230,250,255,.55)'; ctx.font='600 9px ui-monospace,monospace'; ctx.textAlign='left';
+    ctx.fillText('WHAT YOU SEE', 452, 52);
+    ctx.fillStyle='rgba(230,250,255,.6)';
+    ctx.fillText('sky: rgb('+o.rgb.join(',')+') · sun: rgb('+o.dir.join(',')+')', 452, H-16);
+
+    statusEl.textContent = elev <= 15
+      ? 'LOW SUN: the beam crosses ~'+o.M.toFixed(0)+'× more air. Blue is scattered away before reaching you, so the surviving beam arrives RED/ORANGE — that colour paints the clouds and horizon. Sunsets explained.'
+      : 'Blue (~465 nm) scatters ~4.4× more than red (Rayleigh 1/λ⁴), so scattered sunlight arriving from all over the sky is blue — while the direct beam stays white-yellow. Try haze: big particles scatter all colours equally → milky sky.';
+  }
+
+  sE.addEventListener('input', render);
+  sC.addEventListener('input', render);
+  sH.addEventListener('input', render);
+  Array.prototype.slice.call(document.querySelectorAll('.sky-pre')).forEach(function(b2){
+    b2.addEventListener('click', function(){
+      sE.value = b2.getAttribute('data-e');
+      sH.value = b2.getAttribute('data-h');
+      render();
+    });
+  });
+
+  render();
+})();
+</script>

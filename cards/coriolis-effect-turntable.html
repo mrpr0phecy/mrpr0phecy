@@ -1,0 +1,255 @@
+<h2 id="cor-title" style="margin-top:0;color:var(--accent);">🌀 The Coriolis Effect — Turntable &amp; Storms</h2>
+
+<form aria-describedby="cor-desc" onsubmit="event.preventDefault();">
+  <p id="cor-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+    Nothing "curves" in the air — but on a rotating planet, straight motion <i>looks</i> curved. Throw a ball across a
+    spinning disk, then watch the same physics organise hurricanes: right-deflected in the north, left in the south,
+    absent at the equator.
+  </p>
+
+  <div style="background:#050a12;border:1px solid rgba(45,212,255,.3);border-radius:8px;padding:8px;margin-bottom:12px;">
+    <canvas id="cor-canvas" width="760" height="430" style="width:100%;height:auto;display:block;background:#04080f;border-radius:6px;cursor:crosshair;touch-action:none;" role="img" aria-label="Left: ball thrown across a spinning turntable curves. Right: air parcels spiralling into a low-pressure storm"></canvas>
+    <div id="cor-status" style="font-size:0.72rem;color:var(--accent);margin-top:6px;padding:0 4px;min-height:2.6em;font-family:ui-monospace,monospace;"></div>
+  </div>
+
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="cor-hem" data-h="1" style="padding:5px 12px;border-radius:5px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.72rem;font-weight:bold;cursor:pointer;">Northern hemisphere</button>
+    <button type="button" class="cor-hem" data-h="-1" style="padding:5px 12px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:0.72rem;cursor:pointer;">Southern hemisphere</button>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="cor-reset" style="padding:6px 14px;border-radius:6px;background:rgba(45,212,255,.2);border:1px solid var(--accent);color:var(--accent);font-size:0.75rem;font-weight:bold;cursor:pointer;">↻ New ball</button>
+    <button type="button" id="cor-play" style="padding:6px 14px;border-radius:6px;background:none;border:1px solid rgba(255,255,255,.2);color:var(--text-secondary);font-size:0.75rem;cursor:pointer;">⏸ Pause</button>
+    <label for="cor-omega" style="display:flex;align-items:center;gap:8px;font-size:0.72rem;color:var(--text-secondary);">
+      <span>Disk spin</span>
+      <input type="range" id="cor-omega" min="0" max="8" value="3" style="width:110px;">
+      <span id="cor-omega-val" style="color:var(--accent);font-family:ui-monospace,monospace;">3 rpm</span>
+    </label>
+  </div>
+
+  <details style="margin-bottom:6px;">
+    <summary style="cursor:pointer;color:var(--accent);font-size:0.8rem;">📖 Key facts &amp; a famous myth</summary>
+    <div class="small" style="color:var(--text-secondary);font-size:0.78rem;line-height:1.5;margin-top:8px;">
+      <p style="margin:0 0 8px;">Earth turns once a day, so any object moving over the ground — artillery shells, long-range
+      rockets, weather systems — is deflected <b>right of its motion in the Northern Hemisphere, left in the Southern</b>,
+      with <b>zero effect at the equator</b> growing to maximum at the poles. The ball on the disk flies perfectly straight
+      through the air; the curve you see is the disk rotating underneath — exactly how "Coriolis force" is a
+      consequence of choosing a rotating viewpoint.</p>
+      <p style="margin:0;">For storms the deflection is everything: air rushing toward a low-pressure centre gets turned
+      aside and settles into rotation — <b>counterclockwise in the north, clockwise in the south</b>. Coriolis is why
+      hurricanes can't form within ~5° of the equator and why trade winds blow steadily from the east.
+      <b>The sink myth:</b> your bathtub's whirlpool direction is set by its shape and leftover motion — the Coriolis
+      effect is millions of times too weak at sink scale.</p>
+    </div>
+  </details>
+</form>
+
+<script>
+(function(){
+  'use strict';
+  var cv = document.getElementById('cor-canvas');
+  if (!cv || cv.__corInit) return;
+  cv.__corInit = true;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var statusEl = document.getElementById('cor-status');
+  var resetBtn = document.getElementById('cor-reset');
+  var playBtn = document.getElementById('cor-play');
+  var sO = document.getElementById('cor-omega'), vO = document.getElementById('cor-omega-val');
+  var hemBtns = Array.prototype.slice.call(document.querySelectorAll('.cor-hem'));
+
+  var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var playing = !(mq && mq.matches), dirty = true;
+  var hem = 1, diskA = 0, t = 0;
+
+  var DCX = 250, DCY = 225, DR = 178;
+  var ball = null;
+  function newBall(){
+    ball = {x:DCX+70, y:DCY-60, vx:0, vy:0, flying:false, hist:[], done:false, doneT:0};
+  }
+  newBall();
+
+  var SCX = 590, SCY = 210;
+  var parcels = [];
+  function newParcel(){
+    var a = Math.random()*Math.PI*2, r = 225+Math.random()*60;
+    parcels.push({x:SCX+Math.cos(a)*r, y:SCY+Math.sin(a)*r*0.82, vx:0, vy:0, life:1});
+  }
+  for (var p0=0; p0<24; p0++) newParcel();
+
+  function omega(){ return (+sO.value/60)*Math.PI*2; }
+
+  function rotPt(x, y, a){
+    var c = Math.cos(a), s = Math.sin(a);
+    return [x*c - y*s, x*s + y*c];
+  }
+
+  var aim = null;
+  cv.addEventListener('pointerdown', function(e){
+    var r2 = cv.getBoundingClientRect();
+    var px = (e.clientX-r2.left)*W/r2.width, py = (e.clientY-r2.top)*H/r2.height;
+    if (px < 430){ aim = {x:px, y:py}; cv.setPointerCapture(e.pointerId); }
+  });
+  cv.addEventListener('pointermove', function(e){
+    if (!aim) return;
+    var r2 = cv.getBoundingClientRect();
+    aim.x = (e.clientX-r2.left)*W/r2.width; aim.y = (e.clientY-r2.top)*H/r2.height;
+  });
+  cv.addEventListener('pointerup', function(){
+    if (aim && ball && !ball.flying){
+      var dx = aim.x-ball.x, dy = aim.y-ball.y, dl = Math.hypot(dx,dy)||1;
+      var sp = Math.min(240, dl*1.9);
+      ball.vx = dx/dl*sp; ball.vy = dy/dl*sp;
+      ball.flying = true; ball.hist = [];
+    }
+    aim = null;
+  });
+
+  function step(dt){
+    t += dt;
+    diskA += omega()*dt;
+    if (ball && ball.flying && !ball.done){
+      ball.x += ball.vx*dt; ball.y += ball.vy*dt;
+      var dxc = ball.x-DCX, dyc = ball.y-DCY;
+      var local = rotPt(dxc, dyc, -diskA);
+      ball.hist.push(local);
+      if (ball.hist.length > 700) ball.hist.shift();
+      if (Math.hypot(dxc, dyc) > DR*1.7){ ball.done = true; }
+    }
+    if (ball && ball.done){
+      ball.doneT += dt;
+      if (ball.doneT > 3) newBall();
+    }
+    var corK = 0.42*hem, pgK = 95, fr = 0.55;
+    for (var i=0;i<parcels.length;i++){
+      var p = parcels[i];
+      var dx = SCX-p.x, dy = SCY-p.y, d = Math.hypot(dx,dy)||1;
+      p.vx += (dx/d)*pgK*dt*0.28;
+      p.vy += (dy/d)*pgK*dt*0.28;
+      p.vx += corK*(-p.vy)*dt*2.2;
+      p.vy += corK*(p.vx)*dt*2.2;
+      p.vx -= p.vx*fr*dt; p.vy -= p.vy*fr*dt;
+      p.x += p.vx*dt; p.y += p.vy*dt;
+      p.life -= dt*0.16;
+      if (d < 22 || p.life <= 0){ parcels.splice(i,1); newParcel(); }
+    }
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    /* ---- turntable panel ---- */
+    ctx.fillStyle='rgba(255,255,255,.03)'; ctx.fillRect(6,6,418,H-12);
+    ctx.fillStyle='rgba(230,250,255,.5)'; ctx.font='600 10px ui-monospace,monospace'; ctx.textAlign='left';
+    ctx.fillText('1 · THROW ACROSS THE SPINNING DISK (drag from anywhere, left panel)', 16, 24);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(DCX,DCY,DR,0,Math.PI*2); ctx.clip();
+    ctx.fillStyle='#0d1b2c'; ctx.fillRect(DCX-DR,DCY-DR,DR*2,DR*2);
+    ctx.strokeStyle='rgba(90,140,200,.35)'; ctx.lineWidth=1;
+    for (var ring=1; ring<=4; ring++){ ctx.beginPath(); ctx.arc(DCX,DCY,DR*ring/4,0,Math.PI*2); ctx.stroke(); }
+    for (var sp2=0; sp2<8; sp2++){
+      var aa = diskA + sp2*Math.PI/4;
+      ctx.beginPath(); ctx.moveTo(DCX,DCY);
+      ctx.lineTo(DCX+Math.cos(aa)*DR, DCY+Math.sin(aa)*DR); ctx.stroke();
+    }
+    if (ball && ball.hist.length > 1){
+      ctx.strokeStyle='rgba(103,232,249,.9)'; ctx.lineWidth=2.4; ctx.beginPath();
+      for (var hi=0; hi<ball.hist.length; hi++){
+        var hp = ball.hist[hi];
+        var wx = DCX + hp[0], wy = DCY + hp[1];
+        hi ? ctx.lineTo(wx,wy) : ctx.moveTo(wx,wy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle='rgba(140,200,255,.6)'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(DCX,DCY,DR,0,Math.PI*2); ctx.stroke();
+    /* camera (inertial) marker */
+    ctx.fillStyle='rgba(255,213,100,.8)';
+    ctx.beginPath(); ctx.moveTo(DCX-7, DCY-DR-14); ctx.lineTo(DCX+7, DCY-DR-14); ctx.lineTo(DCX, DCY-DR-4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(255,213,100,.8)'; ctx.textAlign='center'; ctx.font='600 9px ui-monospace,monospace';
+    ctx.fillText('camera (fixed)', DCX, DCY-DR-20);
+    if (ball){
+      if (!ball.flying && aim){
+        ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.setLineDash([4,4]);
+        ctx.beginPath(); ctx.moveTo(ball.x,ball.y); ctx.lineTo(aim.x,aim.y); ctx.stroke(); ctx.setLineDash([]);
+        arrow(ball.x, ball.y, ball.x+(aim.x-ball.x)*0.4, ball.y+(aim.y-ball.y)*0.4, 'rgba(255,255,255,.8)', 2);
+      }
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, 7, 0, Math.PI*2); ctx.fill();
+      if (ball.flying && !ball.done){
+        ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.moveTo(ball.x, ball.y); ctx.lineTo(ball.x-ball.vx*0.5, ball.y-ball.vy*0.5); ctx.stroke();
+      }
+    }
+    /* ---- storm panel ---- */
+    ctx.fillStyle='rgba(255,255,255,.03)'; ctx.fillRect(434,6,320,H-12);
+    ctx.fillStyle='rgba(230,250,255,.5)'; ctx.textAlign='left';
+    ctx.fillText('2 · SAME PHYSICS: AIR SPIRALLING INTO A LOW', 444, 24);
+    var gr2 = ctx.createRadialGradient(SCX,SCY,4,SCX,SCY,90);
+    gr2.addColorStop(0,'rgba(255,90,90,.35)'); gr2.addColorStop(1,'rgba(255,90,90,0)');
+    ctx.fillStyle=gr2; ctx.beginPath(); ctx.arc(SCX,SCY,90,0,Math.PI*2); ctx.fill();
+    parcels.forEach(function(p){
+      ctx.strokeStyle='rgba(140,210,255,.5)'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(p.x-p.vx*0.14, p.y-p.vy*0.14); ctx.lineTo(p.x,p.y); ctx.stroke();
+      ctx.fillStyle='rgba(190,230,255,.9)';
+      ctx.beginPath(); ctx.arc(p.x,p.y,2.6,0,Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle='#ff6b6b'; ctx.font='bold 22px system-ui,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('L', SCX, SCY+7);
+    ctx.fillStyle='rgba(230,250,255,.5)'; ctx.font='600 9px ui-monospace,monospace';
+    ctx.fillText('low pressure', SCX, SCY+22);
+    /* equator note */
+    ctx.fillStyle='rgba(255,213,100,.75)'; ctx.textAlign='left'; ctx.font='600 9px ui-monospace,monospace';
+    ctx.fillText('equator: no spin possible (needs >5° latitude)', 444, H-16);
+
+    vO.textContent = sO.value+' rpm';
+    statusEl.textContent = hem === 1
+      ? 'NORTHERN HEMISPHERE — moving things deflect RIGHT: the painted path bends clockwise on the disk; storms wind up counterclockwise.'
+      : 'SOUTHERN HEMISPHERE — moving things deflect LEFT: the painted path bends the other way; storms wind up clockwise.';
+    hemBtns.forEach(function(b2){
+      var on = +b2.getAttribute('data-h') === hem;
+      b2.style.background = on ? 'rgba(45,212,255,.2)' : 'rgba(255,255,255,.06)';
+      b2.style.borderColor = on ? 'var(--accent)' : 'rgba(255,255,255,.15)';
+      b2.style.color = on ? 'var(--accent)' : '#fff';
+    });
+    function arrow(x1,y1,x2,y2,color,w2){
+      var an=Math.atan2(y2-y1,x2-x1), hd=7;
+      ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w2;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x2,y2);
+      ctx.lineTo(x2-hd*Math.cos(an-0.45),y2-hd*Math.sin(an-0.45));
+      ctx.lineTo(x2-hd*Math.cos(an+0.45),y2-hd*Math.sin(an+0.45));
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  var last = 0;
+  function tick(now){
+    if (!cv.isConnected) return;
+    if (playing){
+      var dt = last ? Math.min(0.04,(now-last)/1000) : 0.016;
+      last = now;
+      step(dt); render();
+    } else if (dirty){ render(); dirty = false; last = now; }
+    requestAnimationFrame(tick);
+  }
+
+  hemBtns.forEach(function(b3){
+    b3.addEventListener('click', function(){
+      hem = +b3.getAttribute('data-h');
+      if (ball){ newBall(); }
+      dirty = true; if (!playing) render();
+    });
+  });
+  resetBtn.addEventListener('click', function(){ newBall(); dirty = true; if (!playing) render(); });
+  sO.addEventListener('input', function(){ dirty = true; });
+  playBtn.addEventListener('click', function(){
+    playing = !playing;
+    playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+    dirty = true;
+  });
+
+  render();
+  requestAnimationFrame(tick);
+})();
+</script>

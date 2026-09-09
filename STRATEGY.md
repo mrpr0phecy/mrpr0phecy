@@ -23,7 +23,7 @@ That is not a business, it is a set of lottery tickets. The owner's brief was
 explicit: *"if it didn't have to rely on sponsors that may never show up, even
 better."* That is the correct instinct and this document acts on it.
 
-**The strategic error was treating 1211 tools as inventory to sell advertising
+**The strategic error was treating 1222 tools as inventory to sell advertising
 against, when they are a product people would pay to use.**
 
 ### The numbers that prove it
