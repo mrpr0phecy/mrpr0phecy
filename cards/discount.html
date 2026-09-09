@@ -14,8 +14,8 @@
         <div class="helper">
           <span id="dc-price-display">£100.00</span>
           <div class="adjust-buttons">
-            <button type="button" class="adjust-btn minus" onclick="adjustValue('price', -10)">−10</button>
-            <button type="button" class="adjust-btn plus" onclick="adjustValue('price', 10)">+10</button>
+            <button type="button" class="adjust-btn minus" onclick="dcAdjustValue('price', -10)">−10</button>
+            <button type="button" class="adjust-btn plus" onclick="dcAdjustValue('price', 10)">+10</button>
           </div>
         </div>
       </div>
@@ -58,32 +58,32 @@
   <div class="preset-section">
     <h3 class="section-title">Common Discounts</h3>
     <div class="preset-grid">
-      <button type="button" class="preset-btn" onclick="setDiscount(10)">10% Off</button>
-      <button type="button" class="preset-btn" onclick="setDiscount(15)">15% Off</button>
-      <button type="button" class="preset-btn active" onclick="setDiscount(20)">20% Off</button>
-      <button type="button" class="preset-btn" onclick="setDiscount(25)">25% Off</button>
-      <button type="button" class="preset-btn" onclick="setDiscount(30)">30% Off</button>
-      <button type="button" class="preset-btn highlight" onclick="setDiscount(50)">50% Off</button>
-      <button type="button" class="preset-btn" onclick="setDiscount(75)">75% Off</button>
+      <button type="button" class="preset-btn" onclick="dcSetDiscount(10)">10% Off</button>
+      <button type="button" class="preset-btn" onclick="dcSetDiscount(15)">15% Off</button>
+      <button type="button" class="preset-btn active" onclick="dcSetDiscount(20)">20% Off</button>
+      <button type="button" class="preset-btn" onclick="dcSetDiscount(25)">25% Off</button>
+      <button type="button" class="preset-btn" onclick="dcSetDiscount(30)">30% Off</button>
+      <button type="button" class="preset-btn highlight" onclick="dcSetDiscount(50)">50% Off</button>
+      <button type="button" class="preset-btn" onclick="dcSetDiscount(75)">75% Off</button>
     </div>
   </div>
 
   <div class="preset-section">
     <h3 class="section-title">Price Points</h3>
     <div class="price-presets">
-      <button type="button" class="price-preset" onclick="setPrice(9.99)">
+      <button type="button" class="price-preset" onclick="dcSetPrice(9.99)">
         <div class="price-amount">£9.99</div>
         <div class="price-label">Common</div>
       </button>
-      <button type="button" class="price-preset" onclick="setPrice(19.99)">
+      <button type="button" class="price-preset" onclick="dcSetPrice(19.99)">
         <div class="price-amount">£19.99</div>
         <div class="price-label">Mid-range</div>
       </button>
-      <button type="button" class="price-preset" onclick="setPrice(49.99)">
+      <button type="button" class="price-preset" onclick="dcSetPrice(49.99)">
         <div class="price-amount">£49.99</div>
         <div class="price-label">Premium</div>
       </button>
-      <button type="button" class="price-preset active" onclick="setPrice(99.99)">
+      <button type="button" class="price-preset active" onclick="dcSetPrice(99.99)">
         <div class="price-amount">£99.99</div>
         <div class="price-label">Default</div>
       </button>
@@ -91,12 +91,18 @@
   </div>
 
   <div class="actions">
-    <button type="button" class="calculate-btn" onclick="calculate()">Calculate</button>
-    <button type="button" class="compare-btn" onclick="compareDeals()">Compare Deals</button>
-    <button type="button" class="save-btn" onclick="saveDeal()">Save Deal</button>
-    <button type="button" class="reset-btn" onclick="reset()">Reset</button>
+    <button type="button" class="calculate-btn" onclick="dcCalculate()">Calculate</button>
+    <button type="button" class="compare-btn" onclick="dcCompareDeals()">Compare Deals</button>
+    <button type="button" class="save-btn" onclick="dcSaveDeal()">Save Deal</button>
+    <button type="button" class="reset-btn" onclick="dcReset()">Reset</button>
   </div>
 </form>
+
+<!-- Saved Deals -->
+<div id="dc-saved-deals" class="result-section" style="display:none;margin-top:16px;">
+  <h3 class="section-title">💾 Saved Deals</h3>
+  <div id="dc-saved-deals-list"></div>
+</div>
 
 <!-- Results Section -->
 <div class="results">
@@ -240,15 +246,30 @@
 
 <script>
 (function() {
-  const card = document.currentScript.closest('.card');
+  // Scope the card: works inside the index.html '.card' shell, the tool.html
+  // injection container, or as a document-wide fallback (IDs are unique).
+  const card = (document.currentScript &&
+                (document.currentScript.closest('.card') || document.currentScript.parentElement)) || document;
   let dealHistory = [];
-  let savedDeals = JSON.parse(localStorage.getItem('discountDeals') || '[]');
+  let savedDeals = [];
+  try {
+    savedDeals = JSON.parse(localStorage.getItem('discountDeals') || '[]');
+    if (!Array.isArray(savedDeals)) savedDeals = [];
+  } catch (e) {
+    savedDeals = [];
+  }
 
-  // Initialize
-  document.addEventListener('DOMContentLoaded', function() {
+  // Initialize — the shell injects this fragment after DOMContentLoaded has
+  // already fired, so run immediately as well as on the event.
+  function dcInit() {
     initializeInputs();
-    loadSavedDeals();
-  });
+    renderSavedDeals();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', dcInit);
+  } else {
+    dcInit();
+  }
 
   function initializeInputs() {
     // Price input
@@ -328,7 +349,7 @@
     };
   }
 
-  window.calculate = function() {
+  window.dcCalculate = function() {
     const price = parseFloat(card.querySelector('#dc-price').value) || 0;
     const discount = parseFloat(card.querySelector('#dc-discount-input').value) || 0;
     const tax = parseFloat(card.querySelector('#dc-tax-input').value) || 0;
@@ -405,7 +426,7 @@
     }
   }
 
-  window.compareDeals = function() {
+  window.dcCompareDeals = function() {
     const price = parseFloat(card.querySelector('#dc-price').value) || 0;
     const tax = parseFloat(card.querySelector('#dc-tax-input').value) || 0;
 
@@ -438,7 +459,7 @@
     card.querySelector('#discouresults-section').style.display = 'none';
   };
 
-  window.saveDeal = function() {
+  window.dcSaveDeal = function() {
     const price = parseFloat(card.querySelector('#dc-price').value) || 0;
     const discount = parseFloat(card.querySelector('#dc-discount-input').value) || 0;
     const tax = parseFloat(card.querySelector('#dc-tax-input').value) || 0;
@@ -465,19 +486,93 @@
     if (savedDeals.length > 20) {
       savedDeals = savedDeals.slice(-20);
     }
-    
-    localStorage.setItem('discountDeals', JSON.stringify(savedDeals));
+
+    persistDeals();
     showNotification(`Deal "${deal.name}" saved!`, 'success');
-    loadSavedDeals();
+    renderSavedDeals();
   };
 
-  function loadSavedDeals() {
-    // Can be extended to show saved deals in a sidebar or modal
-    console.log('Loaded deals:', savedDeals.length);
+  // Render the saved-deals list (was a TODO stub — deals could be saved but
+  // were never displayed anywhere).
+  function renderSavedDeals() {
+    const section = card.querySelector('#dc-saved-deals');
+    const list = card.querySelector('#dc-saved-deals-list');
+    if (!section || !list) return;
+
+    if (savedDeals.length === 0) {
+      section.style.display = 'none';
+      list.innerHTML = '';
+      return;
+    }
+
+    section.style.display = 'block';
+    list.innerHTML = '';
+
+    savedDeals.slice().reverse().forEach(deal => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;flex-wrap:wrap;';
+
+      const label = document.createElement('div');
+      label.style.cssText = 'flex:1;min-width:140px;';
+      const finalPrice = deal.results ? formatCurrency(deal.results.finalPrice) : formatCurrency(deal.price);
+      label.innerHTML = '<div style="font-weight:600;color:#e6faff;font-size:13px;"></div>' +
+        '<div style="font-size:11px;color:rgba(230,250,255,0.6);">' +
+        formatCurrency(deal.price) + ' − ' + deal.discount + '%' + (deal.tax > 0 ? ' + ' + deal.tax + '% tax' : '') +
+        ' → <span style="color:#39ff14;font-weight:600;">' + finalPrice + '</span></div>';
+      label.querySelector('div').textContent = deal.name || 'Saved deal';
+
+      const loadBtn = document.createElement('button');
+      loadBtn.type = 'button';
+      loadBtn.textContent = 'Load';
+      loadBtn.style.cssText = 'padding:6px 12px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.35);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;min-height:32px;';
+      loadBtn.addEventListener('click', function() { loadDeal(deal.id); });
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.textContent = '✕';
+      delBtn.setAttribute('aria-label', 'Delete ' + (deal.name || 'saved deal'));
+      delBtn.style.cssText = 'padding:6px 10px;background:rgba(255,77,77,0.08);border:1px solid rgba(255,77,77,0.3);border-radius:6px;color:#ff4d4d;cursor:pointer;font-size:12px;min-height:32px;';
+      delBtn.addEventListener('click', function() { deleteDeal(deal.id); });
+
+      row.appendChild(label);
+      row.appendChild(loadBtn);
+      row.appendChild(delBtn);
+      list.appendChild(row);
+    });
+  }
+
+  function persistDeals() {
+    try {
+      localStorage.setItem('discountDeals', JSON.stringify(savedDeals));
+    } catch (e) {
+      showNotification('Could not save deals (storage unavailable).', 'error');
+    }
+  }
+
+  function loadDeal(id) {
+    const deal = savedDeals.find(d => d.id === id);
+    if (!deal) return;
+    card.querySelector('#dc-price').value = deal.price.toFixed(2);
+    card.querySelector('#dc-price-display').textContent = formatCurrency(deal.price);
+    card.querySelector('#dc-discount').value = deal.discount;
+    card.querySelector('#dc-discount-input').value = deal.discount;
+    card.querySelector('#dc-discount-display').textContent = deal.discount + '%';
+    card.querySelector('#dc-tax').value = deal.tax;
+    card.querySelector('#dc-tax-input').value = deal.tax;
+    card.querySelector('#dc-tax-display').textContent = deal.tax + '%';
+    window.dcCalculate();
+    showNotification('Loaded "' + (deal.name || 'deal') + '".', 'info');
+  }
+
+  function deleteDeal(id) {
+    savedDeals = savedDeals.filter(d => d.id !== id);
+    persistDeals();
+    renderSavedDeals();
+    showNotification('Deal deleted.', 'info');
   }
 
   // Helper functions
-  window.adjustValue = function(type, amount) {
+  window.dcAdjustValue = function(type, amount) {
     const input = card.querySelector(`#dc-${type}`);
     const current = parseFloat(input.value) || 0;
     let newValue = current + amount;
@@ -497,14 +592,14 @@
     input.dispatchEvent(new Event('input'));
   };
 
-  window.setPrice = function(price) {
+  window.dcSetPrice = function(price) {
     card.querySelector('#dc-price').value = price.toFixed(2);
     card.querySelector('#dc-price-display').textContent = formatCurrency(price);
     highlightPreset('.price-preset', price);
     card.querySelector('#dc-price').dispatchEvent(new Event('input'));
   };
 
-  window.setDiscount = function(discount) {
+  window.dcSetDiscount = function(discount) {
     card.querySelector('#dc-discount').value = discount;
     card.querySelector('#dc-discount-input').value = discount;
     card.querySelector('#dc-discount-display').textContent = discount + '%';
@@ -522,7 +617,7 @@
     });
   }
 
-  window.reset = function() {
+  window.dcReset = function() {
     card.querySelector('#dc-price').value = '100.00';
     card.querySelector('#dc-discount').value = '20';
     card.querySelector('#dc-discount-input').value = '20';

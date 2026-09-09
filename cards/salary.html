@@ -20,9 +20,7 @@
                     <option value="uk">United Kingdom</option>
                     <option value="us">United States</option>
                     <option value="ca">Canada</option>
-                    <option value="au">Australia</option>
-                    <option value="de">Germany</option>
-                    <option value="fr">France</option>
+                    
                 </select>
             </div>
             
@@ -327,6 +325,12 @@ function scInit() {
         scUpdateTaxBrackets('uk');
     }
     
+    // Refresh the bracket display when the currency symbol changes
+    const currencySelect = document.getElementById('sc-currency');
+    if (currencySelect) {
+        currencySelect.addEventListener('change', () => scUpdateTaxBrackets());
+    }
+
     // Set up chart if available
     if (typeof Chart !== 'undefined') {
         scInitializeChart();
@@ -341,15 +345,16 @@ function scUpdateTaxBrackets(country = null) {
     
     const container = document.getElementById('sc-tax-brackets');
     const brackets = scTaxBrackets[country] || scTaxBrackets.uk;
+    const sym = (document.getElementById('sc-currency') || {}).value || '£';
     
     let html = '';
     brackets.forEach((bracket, index) => {
-        const maxDisplay = bracket.max === Infinity ? 'and above' : `to ${scFormatCurrency(bracket.max, '£')}`;
+        const maxDisplay = bracket.max === Infinity ? 'and above' : `to ${scFormatCurrency(bracket.max, sym)}`;
         html += `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:6px;background:rgba(0,0,0,0.1);border-radius:4px;">
                 <div>
                     <div style="color:var(--accent);font-size:12px;">${bracket.name}</div>
-                    <div style="color:var(--muted);font-size:11px;">${scFormatCurrency(bracket.min, '£')} ${maxDisplay}</div>
+                    <div style="color:var(--muted);font-size:11px;">${scFormatCurrency(bracket.min, sym)} ${maxDisplay}</div>
                 </div>
                 <div style="color:#ffcc00;font-weight:600;font-size:14px;">${bracket.rate}%</div>
             </div>
@@ -488,8 +493,19 @@ function scCalculate() {
             grossAnnual = grossInput;
     }
     
-    // Calculate progressive tax based on brackets
-    const brackets = scTaxBrackets[country] || scTaxBrackets.uk;
+    // Calculate progressive tax based on brackets — with the UK personal
+    // allowance taper: PA shrinks £1 for every £2 earned above £100,000
+    // (previously a £150k UK salary was taxed as if the full PA applied).
+    let brackets = scTaxBrackets[country] || scTaxBrackets.uk;
+    if (country === 'uk' && grossAnnual > 100000) {
+        const pa = Math.max(0, 12570 - (grossAnnual - 100000) / 2);
+        brackets = [
+            { min: 0, max: pa, rate: 0, name: 'Personal Allowance' },
+            { min: pa, max: pa + 37700, rate: 20, name: 'Basic Rate' },
+            { min: pa + 37700, max: 125140, rate: 40, name: 'Higher Rate' },
+            { min: 125140, max: Infinity, rate: 45, name: 'Additional Rate' }
+        ];
+    }
     let totalTax = 0;
     let remainingIncome = grossAnnual;
     
@@ -531,7 +547,7 @@ function scCalculate() {
     const netMonthly = netAnnual / 12;
     const netWeekly = netAnnual / 52;
     const netDaily = netAnnual / 260;
-    const netHourly = grossAnnual / (hoursPerWeek * 52);
+    const netHourly = netAnnual / (hoursPerWeek * 52); // net, not gross
     
     // Display results
     scDisplayResults(
@@ -681,11 +697,186 @@ function scDrawChart(netAnnual, totalTax, nationalInsurance, pension, studentLoa
         ];
         scChart.update();
     } else {
-        // Fallback to manual chart if Chart.js not available
+        // Fallback to manual canvas chart if Chart.js is not available.
+        // (This whole tail was once truncated mid-string, which killed the
+        // entire script block — every button on the card was dead.)
         const canvas = document.getElementById('sc-chart');
+        if (!canvas || !canvas.getContext) return;
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.clientWidth || canvas.parentElement.clientWidth || 600;
+        const h = canvas.clientHeight || 220;
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
         const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Simple text display
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '16px
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+
+        // Stacked share-of-gross bar
+        const parts = [
+            { label: 'Net', value: Math.max(0, netAnnual), color: '#39ff14' },
+            { label: 'Tax', value: Math.max(0, totalTax), color: '#ff4d4d' },
+            { label: 'NI', value: Math.max(0, nationalInsurance), color: '#ffcc00' },
+            { label: 'Pension', value: Math.max(0, pension), color: '#2dd4ff' },
+            { label: 'Student Loan', value: Math.max(0, studentLoan), color: '#9d4edd' },
+            { label: 'Other', value: Math.max(0, otherDeductions), color: '#8a8a8a' }
+        ];
+        const grand = parts.reduce((s, p) => s + p.value, 0) || 1;
+        const barY = 30, barH = Math.min(60, h - 110);
+        let x = 16;
+        const barW = w - 32;
+        parts.forEach(p => {
+            const pw = barW * (p.value / grand);
+            if (pw > 0) {
+                ctx.fillStyle = p.color;
+                ctx.fillRect(x, barY, Math.max(1, pw - 1), barH);
+                x += pw;
+            }
+        });
+
+        // Legend with percentages
+        ctx.font = '12px system-ui, sans-serif';
+        let lx = 16, ly = barY + barH + 24;
+        parts.forEach(p => {
+            const pct = Math.round((p.value / grand) * 100);
+            if (pct <= 0) return;
+            const label = p.label + ' ' + pct + '%';
+            if (lx + ctx.measureText(label).width + 22 > w - 16) { lx = 16; ly += 20; }
+            ctx.fillStyle = p.color;
+            ctx.fillRect(lx, ly - 10, 10, 10);
+            ctx.fillStyle = 'rgba(230,250,255,0.85)';
+            ctx.fillText(label, lx + 14, ly);
+            lx += ctx.measureText(label).width + 30;
+        });
+    }
+}
+
+// Copy the breakdown to the clipboard
+function scCopy() {
+    const results = document.getElementById('sc-results');
+    if (!results || results.style.display === 'none') {
+        scShowMessage('Calculate first, then copy', 'warning');
+        return;
+    }
+    const text = results.textContent.replace(/\s{2,}/g, ' ').trim();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => scShowMessage('Results copied!', 'success'))
+            .catch(() => scLegacyCopy(text));
+    } else {
+        scLegacyCopy(text);
+    }
+}
+
+function scLegacyCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); scShowMessage('Results copied!', 'success'); }
+    catch (e) { scShowMessage('Copy not available', 'error'); }
+    document.body.removeChild(ta);
+}
+
+// Export a plain-text payslip report
+function scExport() {
+    const results = document.getElementById('sc-results');
+    if (!results || results.style.display === 'none') {
+        scShowMessage('Calculate first, then export', 'warning');
+        return;
+    }
+    const currency = document.getElementById('sc-currency').value;
+    const country = document.getElementById('sc-country').value.toUpperCase();
+    const gross = document.getElementById('sc-gross').value;
+    let text = 'SALARY AFTER TAX REPORT\n';
+    text += 'Date: ' + new Date().toLocaleDateString() + '\n';
+    text += 'Country: ' + country + ' · Gross: ' + currency + gross + '\n';
+    text += '='.repeat(50) + '\n\n';
+    text += 'Net annual: ' + document.getElementById('sc-net-annual').textContent + '\n';
+    text += 'Tax paid: ' + document.getElementById('sc-tax-paid').textContent + '\n';
+    text += 'Effective tax rate: ' + document.getElementById('sc-tax-rate').textContent + '\n';
+    text += 'Net monthly: ' + document.getElementById('sc-monthly-net').textContent + '\n\n';
+    text += document.getElementById('sc-breakdown').textContent.replace(/\s{2,}/g, ' ').trim() + '\n';
+    text += '\nEstimate only — check HMRC/IRS/CRA for exact figures.';
+
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'salary-report-' + new Date().toISOString().slice(0, 10) + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    scShowMessage('Report exported!', 'success');
+}
+
+// Print the results
+function scPrint() {
+    const results = document.getElementById('sc-results');
+    if (!results || results.style.display === 'none') {
+        scShowMessage('Calculate first, then print', 'warning');
+        return;
+    }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        scShowMessage('Popup blocked — allow popups to print', 'warning');
+        return;
+    }
+    printWindow.document.write(
+        '<!DOCTYPE html><html><head><title>Salary After Tax</title>' +
+        '<style>body{font-family:Arial,sans-serif;padding:20px;color:#111;}</style>' +
+        '</head><body><h2>Salary After Tax</h2>' + results.innerHTML +
+        '<div style="text-align:center;margin-top:30px;color:#999;font-size:12px;">Salary Calculator — estimate only</div>' +
+        '<scr' + 'ipt>window.onload = function(){ window.print(); };</scr' + 'ipt>' +
+        '</body></html>'
+    );
+    printWindow.document.close();
+}
+
+// Reset calculator (scoped form — cards share one DOM; no blocking confirm)
+function scReset() {
+    const anchor = document.getElementById('sc-gross');
+    const form = anchor && anchor.closest('form');
+    if (form) form.reset();
+
+    document.getElementById('sc-results').style.display = 'none';
+    document.getElementById('sc-breakdown').innerHTML = '';
+
+    const canvas = document.getElementById('sc-chart');
+    if (canvas && canvas.getContext) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+    }
+
+    try { localStorage.removeItem('sc-data'); } catch (e) { /* storage unavailable */ }
+    scUpdateTaxBrackets('uk');
+    scShowMessage('Calculator reset', 'info');
+}
+
+// Save current settings
+function scSave() {
+    scSaveData();
+    scShowMessage('Settings saved!', 'success');
+}
+
+// Toast message
+function scShowMessage(msg, type) {
+    const colors = { success: '#39ff14', warning: '#ffcc00', error: '#ff2d55', info: '#2dd4ff' };
+    const existing = document.querySelector('.sc-msg');
+    if (existing) existing.remove();
+
+    const div = document.createElement('div');
+    div.className = 'sc-msg';
+    div.textContent = msg;
+    div.style.cssText = [
+        'position:fixed', 'top:20px', 'right:20px', 'padding:12px 20px',
+        'background:rgba(0,0,0,0.9)', 'border:1px solid ' + (colors[type] || colors.info),
+        'border-radius:8px', 'color:' + (colors[type] || colors.info),
+        'z-index:10000', 'font-weight:500'
+    ].join(';');
+
+    document.body.appendChild(div);
+    setTimeout(() => { if (div.parentNode) div.remove(); }, 3000);
+}
+</script>

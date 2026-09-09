@@ -1,4 +1,5 @@
 <!-- cards/loan-calculator.html -->
+<div id="lc-scope">
 <h2 id="loan-calculator-title" style="margin-top:0;color:var(--accent);font-size:1.4rem;margin-bottom:8px;">💰 Smart Loan Calculator</h2>
 
 <form aria-describedby="loan-calculator-desc" style="margin-bottom:20px;">
@@ -239,6 +240,7 @@
     </div>
 </div>
 
+</div>
 <script>
 /* loan-calculator.html
    - Advanced loan calculator with amortization and comparison
@@ -248,20 +250,30 @@
 let currentLoanType = 'mortgage';
 let comparisonScenarios = [];
 
-// Initialize
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Smart Loan Calculator ready! 💰');
-    
+// Initialize. The catalogue shell injects cards after DOMContentLoaded has
+// already fired, so run immediately in that case — otherwise auto-calculation
+// never gets wired up on tool.html.
+function lcInit() {
+    const amountEl = document.getElementById('lc-amount');
+    if (!amountEl || amountEl.dataset.lcInit) return; // guard double init
+    amountEl.dataset.lcInit = '1';
+
     // Set up event listeners for auto-calculation
-    document.getElementById('lc-amount').addEventListener('input', () => lcCalculate());
+    amountEl.addEventListener('input', () => lcCalculate());
     document.getElementById('lc-interest').addEventListener('input', () => lcCalculate());
     document.getElementById('lc-term').addEventListener('input', () => lcCalculate());
     document.getElementById('lc-downpayment').addEventListener('input', () => lcCalculate());
     document.getElementById('lc-extra-payment').addEventListener('input', () => lcCalculate());
-    
+
     // Initial calculation
     lcCalculate();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', lcInit);
+} else {
+    lcInit();
+}
 
 // Set loan type
 function lcSetLoanType(type) {
@@ -501,34 +513,36 @@ function lcUpdateDisplay(results) {
     lcUpdateChart(results.amortizationSchedule);
 }
 
-// Update amortization chart
+// Update amortization chart — sample evenly across the WHOLE loan life
+// (previously truncated at month 60, so a 30-year mortgage showed 5 years)
 function lcUpdateChart(schedule) {
     const chartContainer = document.getElementById('lc-chart-container');
-    if (!chartContainer) return;
-    
-    // Take sample points for chart (first 5 years or 60 months)
-    const samplePoints = schedule.slice(0, Math.min(60, schedule.length));
-    const maxPayment = Math.max(...samplePoints.map(p => p.principal + p.interest));
-    
+    if (!chartContainer || !schedule.length) return;
+
+    // Up to 20 evenly spaced sample points
+    const maxBars = 20;
+    const stride = Math.max(1, Math.ceil(schedule.length / maxBars));
+    const samplePoints = schedule.filter((_, i) => i % stride === 0 || i === schedule.length - 1);
+    const maxPayment = Math.max(...samplePoints.map(p => p.principal + p.interest)) || 1;
+
     let chartHTML = '';
-    samplePoints.forEach((payment, index) => {
-        if (index % 3 === 0) { // Show every 3rd month to avoid overcrowding
-            const totalHeight = ((payment.principal + payment.interest) / maxPayment) * 100;
-            const principalHeight = (payment.principal / (payment.principal + payment.interest)) * totalHeight;
-            const interestHeight = totalHeight - principalHeight;
-            
-            chartHTML += `
-                <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
-                    <div style="width:6px;height:${totalHeight}px;display:flex;flex-direction:column;">
-                        <div style="height:${principalHeight}px;background:var(--accent);"></div>
-                        <div style="height:${interestHeight}px;background:#ff2d55;"></div>
-                    </div>
-                    <div style="font-size:9px;color:rgba(230,250,255,0.5);margin-top:4px;">M${index + 1}</div>
+    samplePoints.forEach((payment) => {
+        const totalHeight = ((payment.principal + payment.interest) / maxPayment) * 100;
+        const principalHeight = (payment.principal / (payment.principal + payment.interest)) * totalHeight;
+        const interestHeight = totalHeight - principalHeight;
+        const tip = `Month ${payment.month}: principal $${Math.round(payment.principal).toLocaleString()} · interest $${Math.round(payment.interest).toLocaleString()} · balance $${Math.round(payment.balance).toLocaleString()}`;
+
+        chartHTML += `
+            <div title="${tip}" style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:help;">
+                <div style="width:6px;height:${totalHeight}px;display:flex;flex-direction:column;">
+                    <div style="height:${principalHeight}px;background:var(--accent);"></div>
+                    <div style="height:${interestHeight}px;background:#ff2d55;"></div>
                 </div>
-            `;
-        }
+                <div style="font-size:9px;color:rgba(230,250,255,0.5);margin-top:4px;">M${payment.month}</div>
+            </div>
+        `;
     });
-    
+
     chartContainer.querySelector('div').innerHTML = chartHTML;
 }
 
@@ -546,46 +560,68 @@ function lcToggleChart() {
     }
 }
 
-// Generate savings tips
+// Generate savings tips — each figure is computed from a real simulated
+// scenario (previously hardcoded guesses of 15%/40%/20% of the interest)
 function lcGenerateSavingsTips(results) {
     const tipsContainer = document.getElementById('lc-savings-tips');
     const tipsContent = document.getElementById('lc-tips-content');
-    
+
     if (results.totalInterest === 0) {
         tipsContainer.style.display = 'none';
         return;
     }
-    
+
+    const fmt = (n) => '$' + Math.max(0, Math.round(n)).toLocaleString();
+
+    // Baseline scenario from the current inputs
+    const base = {
+        name: 'Current',
+        amount: parseFloat(document.getElementById('lc-amount').value) || 0,
+        interest: parseFloat(document.getElementById('lc-interest').value) || 0,
+        years: parseInt(document.getElementById('lc-term').value) || 1,
+        downPayment: parseFloat(document.getElementById('lc-downpayment').value) || 0,
+        extraPayment: 0
+    };
+    const baseResult = lcCalculateScenario(base);
+
     let tips = [];
-    
-    // Tip 1: Extra payments
+
+    // Tip 1: Extra payments — simulate +$50/month
     const extraPayment = parseFloat(document.getElementById('lc-extra-payment').value) || 0;
-    if (extraPayment === 0) {
-        const extraTip = `Paying an extra $50/month could save $${Math.round(results.totalInterest * 0.15).toLocaleString()} in interest!`;
-        tips.push(extraTip);
+    const extraActive = document.getElementById('lc-extra-payment-section').style.display === 'block' && extraPayment > 0;
+    if (!extraActive) {
+        const plus50 = lcCalculateScenario({ ...base, extraPayment: 50 });
+        const saved = baseResult.totalInterest - plus50.totalInterest;
+        if (saved > 0) {
+            tips.push(`Paying an extra $50/month could save ${fmt(saved)} in interest!`);
+        }
     }
-    
-    // Tip 2: Shorter term
-    const currentYears = parseInt(document.getElementById('lc-term').value);
+
+    // Tip 2: Shorter term — simulate a 15-year term
+    const currentYears = base.years;
     if (currentYears > 15) {
-        const shorterTermTip = `A 15-year term could save $${Math.round(results.totalInterest * 0.4).toLocaleString()} vs ${currentYears} years.`;
-        tips.push(shorterTermTip);
+        const shorter = lcCalculateScenario({ ...base, years: 15, extraPayment: 0 });
+        const saved = baseResult.totalInterest - shorter.totalInterest;
+        if (saved > 0) {
+            tips.push(`A 15-year term could save ${fmt(saved)} vs ${currentYears} years.`);
+        }
     }
-    
+
     // Tip 3: Down payment
     const downPaymentPercent = parseFloat(document.getElementById('lc-downpayment-percent').value) || 0;
-    if (downPaymentPercent < 20) {
-        const downPaymentTip = `20% down payment avoids PMI insurance and saves money long-term.`;
-        tips.push(downPaymentTip);
+    if (downPaymentPercent < 20 && currentLoanType !== 'personal') {
+        tips.push(`A 20% down payment avoids PMI insurance and saves money long-term.`);
     }
-    
-    // Tip 4: Refinancing
-    const interestRate = parseFloat(document.getElementById('lc-interest').value);
-    if (interestRate > 5) {
-        const refinanceTip = `Refinancing at 1% lower rate could save $${Math.round(results.totalInterest * 0.2).toLocaleString()}.`;
-        tips.push(refinanceTip);
+
+    // Tip 4: Refinancing — simulate a rate 1% lower
+    if (base.interest > 5) {
+        const refi = lcCalculateScenario({ ...base, interest: Math.max(0.1, base.interest - 1), extraPayment: 0 });
+        const saved = baseResult.totalInterest - refi.totalInterest;
+        if (saved > 0) {
+            tips.push(`Refinancing at 1% lower rate could save ${fmt(saved)}.`);
+        }
     }
-    
+
     if (tips.length > 0) {
         tipsContent.innerHTML = tips.map(tip => `<div style="margin-bottom:4px;">• ${tip}</div>`).join('');
         tipsContainer.style.display = 'block';
@@ -751,19 +787,17 @@ function lcCloseComparison() {
     document.getElementById('lc-comparison-modal').style.display = 'none';
 }
 
-// Reset everything
+// Reset everything (no blocking confirm() — the action is fully reversible)
 function lcResetAll() {
-    if (confirm('Reset all loan calculations?')) {
-        lcSetLoanType('mortgage');
-        document.getElementById('lc-extra-payment-section').style.display = 'none';
-        document.getElementById('lc-extra-toggle').innerHTML = 'Add Extra';
-        document.getElementById('lc-extra-toggle').style.background = 'rgba(57,255,20,0.1)';
-        document.getElementById('lc-extra-toggle').style.borderColor = 'rgba(57,255,20,0.3)';
-        document.getElementById('lc-extra-toggle').style.color = '#39ff14';
-        
-        lcCalculate();
-        lcShowNotification('Loan calculator reset', 'info');
-    }
+    lcSetLoanType('mortgage');
+    document.getElementById('lc-extra-payment-section').style.display = 'none';
+    document.getElementById('lc-extra-toggle').innerHTML = 'Add Extra';
+    document.getElementById('lc-extra-toggle').style.background = 'rgba(57,255,20,0.1)';
+    document.getElementById('lc-extra-toggle').style.borderColor = 'rgba(57,255,20,0.3)';
+    document.getElementById('lc-extra-toggle').style.color = '#39ff14';
+
+    lcCalculate();
+    lcShowNotification('Loan calculator reset', 'info');
 }
 
 // Notification system
@@ -819,25 +853,27 @@ if (!document.querySelector('#lc-styles')) {
             from { transform: translateX(0); opacity: 1; }
             to { transform: translateX(100%); opacity: 0; }
         }
-        button:hover {
+        /* Scoped to #lc-scope — unscoped selectors here used to restyle every
+           button/input on the whole page (all cards share one DOM). */
+        #lc-scope button:hover {
             transform: translateY(-1px);
             box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         }
-        button:active {
+        #lc-scope button:active {
             transform: translateY(0);
         }
-        input:focus, select:focus {
+        #lc-scope input:focus, #lc-scope select:focus {
             border-color: var(--accent) !important;
             outline: none;
             box-shadow: 0 0 0 2px rgba(45,212,255,0.1);
         }
-        .loan-type-btn:hover {
+        #lc-scope .loan-type-btn:hover {
             transform: scale(1.05);
         }
-        input[type="range"] {
+        #lc-scope input[type="range"] {
             -webkit-appearance: none;
         }
-        input[type="range"]::-webkit-slider-thumb {
+        #lc-scope input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             width: 16px;
             height: 16px;

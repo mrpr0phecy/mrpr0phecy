@@ -133,7 +133,13 @@
   <!-- Detailed Breakdown -->
   <div id="tc-detailed-breakdown" style="display:none;">
     <div style="padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(45,212,255,0.2);font-family:monospace;white-space:pre-line;">
-      <div style="color:var(--accent);font-weight:600;margin-bottom:8px;">📋 Detailed Split</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
+        <div style="color:var(--accent);font-weight:600;">📋 Detailed Split</div>
+        <button type="button" id="tc-copy-btn" onclick="tcCopySplit()"
+                style="padding:6px 12px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.35);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;min-height:32px;white-space:nowrap;">
+          📋 Copy Split
+        </button>
+      </div>
       <div id="tc-breakdown-text">Enter bill details to see breakdown</div>
     </div>
   </div>
@@ -339,11 +345,15 @@ function tcCalculate() {
     // Calculate
     const tipAmount = bill * (tipPercent / 100);
     let totalAmount = bill + tipAmount;
-    let perPerson = totalAmount / people;
-    
-    // Apply rounding if enabled
+
+    // Round the total first, then split the ROUNDED total so the shares are
+    // consistent with what is actually collected (previously the per-person
+    // figure was rounded from the unrounded total)
     if (tcElements.roundUp.checked) {
         totalAmount = tcRoundIfNeeded(totalAmount, currency);
+    }
+    let perPerson = totalAmount / people;
+    if (tcElements.roundUp.checked) {
         perPerson = tcRoundIfNeeded(perPerson, currency);
     }
     
@@ -383,6 +393,37 @@ function tcUpdateBreakdown(bill, tip, total, perPerson, people, currency) {
     }
     
     tcElements.breakdown.style.display = 'block';
+}
+
+// Copy the split summary to the clipboard (with legacy fallback)
+function tcCopySplit() {
+    if (!window.tcElements || !tcElements.breakdownText) return;
+    const text = tcElements.breakdownText.textContent;
+    if (!text || text.includes('Enter bill details')) return;
+
+    const btn = document.getElementById('tc-copy-btn');
+    const done = () => {
+        if (!btn) return;
+        const original = btn.textContent;
+        btn.textContent = '✅ Copied!';
+        setTimeout(() => { btn.textContent = original; }, 1500);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, () => tcLegacyCopy(text, done));
+    } else {
+        tcLegacyCopy(text, done);
+    }
+}
+
+function tcLegacyCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { /* clipboard unavailable */ }
+    document.body.removeChild(ta);
 }
 
 // Load quick scenario

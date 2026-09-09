@@ -376,58 +376,66 @@ function rcCalculate() {
         return;
     }
     
-    // Calculate with regular contributions if specified
-    let totalContributions = initial;
-    let currentMonthly = monthlyContrib;
-    let totalValueWithContribs = initial;
-    
+    // Implied asset growth rate from the user's initial -> final inputs
+    const impliedGrowth = Math.pow(final / initial, 1 / period) - 1;
+
+    // Project the contribution stream month-by-month at that implied rate.
+    // (The old code earned zero growth on contributions and then multiplied
+    // the whole final value by (invested/initial), double-counting massively.)
+    let totalInvested = initial;
+    let finalValue = final;
+    let contributionTotal = 0;
+
     if (monthlyContrib > 0) {
-        for (let year = 0; year < period; year++) {
-            for (let month = 0; month < 12; month++) {
-                totalContributions += currentMonthly;
-                // Simplified growth calculation for contributions
-                totalValueWithContribs += currentMonthly;
-            }
-            // Increase monthly contribution for next year
-            currentMonthly *= (1 + contribIncrease);
+        const monthsTotal = Math.max(1, Math.round(period * 12));
+        const monthlyGrowth = Math.pow(1 + impliedGrowth, 1 / 12);
+        let value = initial;
+        let currentMonthly = monthlyContrib;
+
+        for (let m = 1; m <= monthsTotal; m++) {
+            value = value * monthlyGrowth + currentMonthly;
+            contributionTotal += currentMonthly;
+            if (m % 12 === 0) currentMonthly *= (1 + contribIncrease);
         }
-        
-        // Adjust final value for contributions
-        final = final * (totalValueWithContribs / initial);
+
+        totalInvested = initial + contributionTotal;
+        finalValue = value;
     }
-    
-    // Calculate basic ROI
-    const profit = final - initial;
-    const roiPercent = (profit / initial) * 100;
-    
-    // Calculate annualized ROI (CAGR)
-    const annualizedROI = (Math.pow(final / initial, 1 / period) - 1) * 100;
-    
+
+    // Calculate basic ROI on the total amount actually invested
+    const profit = finalValue - totalInvested;
+    const roiPercent = (profit / totalInvested) * 100;
+
+    // Annualized ROI = the asset's own CAGR (money already in, per year)
+    const annualizedROI = impliedGrowth * 100;
+
     // Calculate net after fees
-    const feeAmount = final * fees;
-    const netAfterFees = final - feeAmount;
-    const netProfit = netAfterFees - initial;
-    const netROI = (netProfit / initial) * 100;
-    
+    const feeAmount = finalValue * fees;
+    const netAfterFees = finalValue - feeAmount;
+    const netProfit = netAfterFees - totalInvested;
+    const netROI = (netProfit / totalInvested) * 100;
+
     // Calculate real ROI (adjusted for inflation)
     const inflationFactor = Math.pow(1 + inflation, period);
-    const realFinal = final / inflationFactor;
-    const realProfit = realFinal - initial;
-    const realROI = (realProfit / initial) * 100;
-    
+    const realFinal = finalValue / inflationFactor;
+    const realProfit = realFinal - totalInvested;
+    const realROI = (realProfit / totalInvested) * 100;
+
     // Calculate benchmark comparison
     const benchmarkValue = initial * Math.pow(1 + benchmark, period);
     const benchmarkProfit = benchmarkValue - initial;
     const benchmarkROI = (benchmarkProfit / initial) * 100;
-    
+
     // Display results
     rcDisplayResults(
-        roiPercent, annualizedROI, profit, netAfterFees, 
-        realROI, benchmarkROI, currency, initial, final, period
+        roiPercent, annualizedROI, profit, netAfterFees,
+        realROI, benchmarkROI, currency, totalInvested, finalValue, period,
+        contributionTotal
     );
-    
-    // Draw chart
-    rcDrawChart(annualizedROI, benchmark, inflation * 100);
+
+    // Draw chart — benchmark must be a percentage like the other two series
+    // (was passed as a 0-1 fraction, rendering its bar invisible)
+    rcDrawChart(annualizedROI, benchmark * 100, inflation * 100);
     
     // Show comparison analysis
     rcShowComparison(roiPercent, benchmarkROI, inflation * 100, profit, benchmarkProfit, currency);
@@ -442,7 +450,7 @@ function rcCalculate() {
 }
 
 // Display results
-function rcDisplayResults(roiPercent, annualizedROI, profit, netAfterFees, realROI, benchmarkROI, currency, initial, final, period) {
+function rcDisplayResults(roiPercent, annualizedROI, profit, netAfterFees, realROI, benchmarkROI, currency, initial, final, period, contributionTotal = 0) {
     // Update quick stats
     document.getElementById('rc-roi-percent').textContent = roiPercent.toFixed(2) + '%';
     document.getElementById('rc-profit').textContent = rcFormatCurrency(profit, currency);
@@ -453,7 +461,13 @@ function rcDisplayResults(roiPercent, annualizedROI, profit, netAfterFees, realR
     let analysis = 'INVESTMENT PERFORMANCE ANALYSIS\n';
     analysis += '='.repeat(50) + '\n\n';
     
-    analysis += `Initial Investment: ${currency}${initial.toFixed(2)}\n`;
+    if (contributionTotal > 0) {
+        analysis += `Initial Investment: ${currency}${(initial - contributionTotal).toFixed(2)}\n`;
+        analysis += `Contributions Added: ${currency}${contributionTotal.toFixed(2)}\n`;
+        analysis += `Total Invested: ${currency}${initial.toFixed(2)}\n`;
+    } else {
+        analysis += `Initial Investment: ${currency}${initial.toFixed(2)}\n`;
+    }
     analysis += `Final Value: ${currency}${final.toFixed(2)}\n`;
     analysis += `Investment Period: ${period.toFixed(1)} years\n`;
     analysis += '\n' + '='.repeat(50) + '\n\n';

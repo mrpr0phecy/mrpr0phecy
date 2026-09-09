@@ -525,7 +525,7 @@ function inflationCalc() {
   const netGain = realValueWithInvestment - futureValue;
   
   // Calculate rule of 72 (years to halve value)
-  const yearsToHalve = rate > 0 ? 72 / (rate * 100) : Infinity;
+  const yearsToHalve = rate > 0 ? 72 / (rate * 100) : null; // null = no inflation
   
   // Calculate effective annual return needed to maintain value
   const effectiveReturnNeeded = rate * 100; // Simple approximation
@@ -533,7 +533,7 @@ function inflationCalc() {
   // Update dashboard
   document.getElementById('infl-ppl-value').textContent = lossPercent.toFixed(1) + '%';
   document.getElementById('infl-earn-needed').textContent = effectiveReturnNeeded.toFixed(2) + '%';
-  document.getElementById('infl-half-years').textContent = yearsToHalve.toFixed(1) + ' yrs';
+  document.getElementById('infl-half-years').textContent = yearsToHalve === null ? 'Never' : yearsToHalve.toFixed(1) + ' yrs';
   
   // Update main results
   document.getElementById('inflation-res').textContent = symbol + futureValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -790,7 +790,7 @@ function inflUpdateRetirement() {
   
   const futureIncomeNeeded = currentIncome * Math.pow(1 + rate, years);
   const currentYear = new Date().getFullYear();
-  const retirementYear = currentYear + years;
+  const retirementYear = Math.round(currentYear + years);
   
   document.getElementById('infl-years-to-retire').textContent = years + ' years';
   document.getElementById('infl-current-income').textContent = symbol + currentIncome.toLocaleString();
@@ -858,24 +858,28 @@ function inflShareResults() {
   
   const shareText = `📉 With ${rate}% inflation, ${futureValue} in ${years} years will have today's purchasing power (${loss} lost to inflation). Calculate your inflation impact at The Most Useful Site in the World!`;
   
-  // Try Web Share API first
+  const shareBtn = document.querySelector('[onclick="inflShareResults()"]');
+  const copied = () => {
+    if (!shareBtn) return;
+    const original = shareBtn.textContent;
+    shareBtn.textContent = '✅ Copied!';
+    setTimeout(() => { shareBtn.textContent = original; }, 1500);
+  };
+  const copyText = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareText).then(copied, () => {});
+    }
+  };
+
+  // Try Web Share API first (button feedback instead of blocking alert())
   if (navigator.share) {
     navigator.share({
       title: 'My Inflation Impact',
       text: shareText,
       url: window.location.href
-    }).catch(err => {
-      console.log('Share cancelled:', err);
-      // Fallback to clipboard
-      navigator.clipboard.writeText(shareText).then(() => {
-        alert('Results copied to clipboard! 📋');
-      });
-    });
+    }).catch(() => copyText());
   } else {
-    // Fallback to clipboard
-    navigator.clipboard.writeText(shareText).then(() => {
-      alert('Results copied to clipboard! 📋 Share this financial insight!');
-    });
+    copyText();
   }
 }
 
@@ -924,17 +928,19 @@ function inflShowError(message) {
 
 // Reset form
 function inflationReset(btn) {
-  if (confirm("Reset all values to defaults?")) {
-    document.querySelector('form').reset();
-    document.getElementById('infl-currency').value = 'GBP';
-    document.getElementById('infl-retirement-result').style.display = 'none';
-    
-    // Reset chart
-    const noChart = document.getElementById('infl-no-chart');
-    if (noChart) noChart.style.display = 'flex';
-    
-    inflationCalc();
-  }
+  // Scoped form reset — document.querySelector('form') could wipe another
+  // card's form since all tools share one DOM. No confirm(): fully reversible.
+  const form = (btn && btn.closest('form')) || document.getElementById('inflation-amount').closest('form');
+  if (form) form.reset();
+  try { localStorage.removeItem('inflScenario'); } catch (e) { /* storage unavailable */ }
+  document.getElementById('infl-currency').value = 'GBP';
+  document.getElementById('infl-retirement-result').style.display = 'none';
+
+  // Reset chart
+  const noChart = document.getElementById('infl-no-chart');
+  if (noChart) noChart.style.display = 'flex';
+
+  inflationCalc();
 }
 
 // Initialize when DOM is ready

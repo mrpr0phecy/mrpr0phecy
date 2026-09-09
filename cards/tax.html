@@ -267,7 +267,7 @@ function taxFormatCurrencyDecimal(amount) {
 function taxCalculateProgressive(income, bands) {
     let total = 0;
     let remaining = income;
-    
+
     for (let i = bands.length - 1; i >= 0; i--) {
         const band = bands[i];
         if (income > band.min) {
@@ -277,8 +277,40 @@ function taxCalculateProgressive(income, bands) {
         }
         if (remaining <= 0) break;
     }
-    
+
     return Math.round(total);
+}
+
+// Continuous progressive calc: bands = [{ upTo, rate }] measured from £0
+function taxProgressiveBands(income, bands) {
+    let tax = 0;
+    let lower = 0;
+    for (const b of bands) {
+        if (income > lower) {
+            tax += (Math.min(income, b.upTo) - lower) * b.rate;
+            lower = b.upTo;
+        } else break;
+    }
+    return tax;
+}
+
+// Income tax for the selected UK tax code, including the £100k personal
+// allowance taper (previously the tax-code selector was a no-op stub)
+function taxCalculateIncomeTax(taxableIncome, taxCode) {
+    if (taxCode === 'BR') return Math.round(taxableIncome * 0.20);
+    if (taxCode === 'D0') return Math.round(taxableIncome * 0.40);
+    if (taxCode === 'D1') return Math.round(taxableIncome * 0.45);
+
+    // L codes: personal allowance, tapered £1 per £2 of income above £100,000
+    const basePA = taxCode === '1275L' ? 12750 : 12570;
+    const pa = Math.max(0, basePA - Math.max(0, taxableIncome - 100000) / 2);
+    const basicTop = Math.min(pa + 37700, 125140);
+    return Math.round(taxProgressiveBands(taxableIncome, [
+        { upTo: pa, rate: 0 },
+        { upTo: basicTop, rate: 0.20 },
+        { upTo: 125140, rate: 0.40 },
+        { upTo: Infinity, rate: 0.45 }
+    ]));
 }
 
 // Adjust salary with quick buttons
@@ -301,30 +333,47 @@ function taxSetSalary(amount) {
 
 // Main calculation function
 function taxCalculate(btn = null) {
-    const card = btn ? btn.closest('.card') : (document.currentScript?.closest('.card') || document);
-    
+    // Fall back to document — btn.closest('.card') is null on tool.html
+    const card = (btn && btn.closest('.card')) || document;
+
     try {
         // Get inputs
         const grossSalary = parseFloat(card.querySelector('#tax-salary').value) || 0;
         const pensionPercent = parseFloat(card.querySelector('#tax-pension').value) || 0;
-        
+        const taxCode = (card.querySelector('#tax-code') || {}).value || '1257L';
+
         // Validate inputs
         if (grossSalary < 0) {
             throw new Error('Salary must be a positive number');
         }
-        
+
         if (pensionPercent < 0 || pensionPercent > 100) {
             throw new Error('Pension contribution must be between 0% and 100%');
         }
-        
+
+        // Nothing to compute — clear rather than show NaN percentages
+        if (grossSalary === 0) {
+            ['#tax-monthly', '#tax-annual', '#tax-income-tax', '#tax-ni', '#tax-pension-amount'].forEach(sel => {
+                const el = card.querySelector(sel);
+                if (el) el.textContent = '–';
+            });
+            const tot = card.querySelector('#tax-total-deductions');
+            if (tot) tot.textContent = 'Total Deductions: –';
+            ['#tax-pct-takehome', '#tax-pct-tax', '#tax-pct-ni', '#tax-pct-pension'].forEach(sel => {
+                const el = card.querySelector(sel);
+                if (el) el.textContent = '0%';
+            });
+            return;
+        }
+
         // Calculate pension amount
         const pensionAmount = Math.round(grossSalary * (pensionPercent / 100));
-        
+
         // Calculate taxable income (after pension)
         const taxableIncome = Math.max(0, grossSalary - pensionAmount);
-        
-        // Calculate income tax (progressive)
-        const incomeTax = taxCalculateProgressive(taxableIncome, TAX_BANDS);
+
+        // Calculate income tax for the selected tax code (with PA taper)
+        const incomeTax = taxCalculateIncomeTax(taxableIncome, taxCode);
         
         // Calculate National Insurance (progressive)
         const nationalInsurance = taxCalculateProgressive(taxableIncome, NI_BANDS);
@@ -375,25 +424,21 @@ function taxCalculate(btn = null) {
         console.log(`Tax Calculation: Salary=£${grossSalary}, Tax=£${incomeTax}, NI=£${nationalInsurance}, Net=£${netAnnual}`);
         
     } catch (error) {
-        // Show error to user
+        // Show error inline (no blocking alert())
         const monthlyDisplay = card.querySelector('#tax-monthly');
         if (monthlyDisplay) {
-            monthlyDisplay.textContent = 'Error';
+            monthlyDisplay.textContent = error.message;
             monthlyDisplay.style.color = '#ff2d55';
+            monthlyDisplay.style.fontSize = '14px';
         }
-        
+
         console.error('Tax Calculator Error:', error.message);
-        
-        // Optional: Show alert for user
-        if (btn) {
-            alert('Error: ' + error.message);
-        }
     }
 }
 
 // Reset function
 function taxReset(btn) {
-    const card = btn.closest('.card') || document;
+    const card = (btn && btn.closest('.card')) || document;
     
     // Reset inputs
     card.querySelector('#tax-salary').value = 40000;
@@ -424,43 +469,42 @@ function taxReset(btn) {
     console.log('Tax Calculator reset');
 }
 
-// Initialize on load
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-        const card = document.currentScript?.closest('.card') || document;
-        
-        // Set up auto-calculation on input changes
-        const inputs = card.querySelectorAll('#tax-salary, #tax-pension');
-        inputs.forEach(input => {
-            input.addEventListener('input', function() {
-                clearTimeout(this._timer);
-                this._timer = setTimeout(() => {
-                    taxCalculate();
-                }, 300); // Debounce 300ms
-            });
-        });
-        
-        // Set up tax code change
-        const taxCodeSelect = card.querySelector('#tax-code');
-        if (taxCodeSelect) {
-            taxCodeSelect.addEventListener('change', function() {
-                // Note: In a full implementation, tax codes would adjust calculations
+// Initialize on load. The injected path (tool.html / catalogue) must ALSO
+// attach the listeners — previously only the DOMContentLoaded branch did,
+// so auto-calculation silently never worked when the card was injected.
+function taxInit() {
+    const salaryInput = document.querySelector('#tax-salary');
+    if (!salaryInput || salaryInput.dataset.taxInit) return; // guard double init
+    salaryInput.dataset.taxInit = '1';
+
+    // Set up auto-calculation on input changes
+    document.querySelectorAll('#tax-salary, #tax-pension').forEach(input => {
+        input.addEventListener('input', function() {
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => {
                 taxCalculate();
-            });
-        }
-        
-        // Initial calculation
-        setTimeout(() => {
-            taxCalculate();
-        }, 100);
-        
-        console.log('Tax Estimator initialized');
+            }, 300); // Debounce 300ms
+        });
     });
-} else {
-    // Run immediately if already loaded
+
+    // Tax code changes recalculate (codes now genuinely affect the result)
+    const taxCodeSelect = document.querySelector('#tax-code');
+    if (taxCodeSelect) {
+        taxCodeSelect.addEventListener('change', function() {
+            taxCalculate();
+        });
+    }
+
+    // Initial calculation
     setTimeout(() => {
         taxCalculate();
     }, 100);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', taxInit);
+} else {
+    taxInit();
 }
 </script>
 
