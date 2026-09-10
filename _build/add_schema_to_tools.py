@@ -130,7 +130,7 @@ TOOL_SCHEMAS = [
         ],
     },
     {
-        'path': 'cards/audio-bpm-tapper.html',
+        'path': 'cards/bpm-counter.html',
         'slug': 'bpm-tap',
         'title': 'BPM Tapper',
         'description': 'Tap to the rhythm of any track or beat. Calculates exact BPM, musical delay times, and exports the tempo.',
@@ -152,7 +152,7 @@ TOOL_SCHEMAS = [
         ],
     },
     {
-        'path': 'cards/json-beautifier-validator.html',
+        'path': 'cards/json-yaml-diff-validator.html',
         'slug': 'json',
         'title': 'JSON Beautifier & Validator',
         'description': 'Format, minify, validate, and debug JSON payloads with exact syntax error line text. Runs in your browser.',
@@ -174,7 +174,7 @@ TOOL_SCHEMAS = [
         ],
     },
     {
-        'path': 'cards/color-contrast-wcag-simulator.html',
+        'path': 'cards/color-contrast-checker.html',
         'slug': 'color-contrast',
         'title': 'WCAG Contrast Checker',
         'description': 'Test color contrast ratios against WCAG 2.2 accessibility standards (AA / AAA) and preview with vision-impairment simulations.',

@@ -1,104 +1,129 @@
-<h2>🌐 HTTP Status Code Reference</h2>
-<p style="color:rgba(230,250,255,0.7);margin-bottom:16px;">Complete reference of all HTTP status codes with descriptions, causes, and solutions. Search and filter instantly.</p>
+<h2 id="htsc-title" style="margin-top:0;color:var(--accent);">📡 HTTP Status Code Encyclopedia</h2>
 
-<div id="hs-app" style="max-width:700px;margin:0 auto;">
-  <div style="display:flex;gap:8px;margin-bottom:12px;">
-    <input id="hs-search" type="text" placeholder="Search codes (e.g. 404, Not Found, redirect)..." style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+<form aria-describedby="htsc-desc" onsubmit="event.preventDefault();">
+  <p id="htsc-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Look up any HTTP status code, filter by class, and copy a one-line explanation. Covers the registered 1xx–5xx codes developers hit in the wild. Entirely offline.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;margin-bottom:12px;">
+    <div>
+      <label for="htsc-q" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Search code or phrase</label>
+      <input id="htsc-q" type="search" placeholder="404, teapot, unauthorized…" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="htsc-class" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Class</label>
+      <select id="htsc-class" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="all">All classes</option>
+        <option value="1">1xx Informational</option>
+        <option value="2">2xx Success</option>
+        <option value="3">3xx Redirection</option>
+        <option value="4">4xx Client error</option>
+        <option value="5">5xx Server error</option>
+      </select>
+    </div>
   </div>
-
-  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-    <button onclick="window._hsFilter('all')" class="hs-btn" style="padding:6px 12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:#2dd4ff;cursor:pointer;font-size:12px;">All</button>
-    <button onclick="window._hsFilter('1')" class="hs-btn" style="padding:6px 12px;background:rgba(230,250,255,0.05);border:1px solid rgba(230,250,255,0.1);border-radius:6px;color:rgba(230,250,255,0.6);cursor:pointer;font-size:12px;">1xx Info</button>
-    <button onclick="window._hsFilter('2')" class="hs-btn" style="padding:6px 12px;background:rgba(57,255,20,0.05);border:1px solid rgba(57,255,20,0.1);border-radius:6px;color:#39ff14;cursor:pointer;font-size:12px;">2xx Success</button>
-    <button onclick="window._hsFilter('3')" class="hs-btn" style="padding:6px 12px;background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.1);border-radius:6px;color:#2dd4ff;cursor:pointer;font-size:12px;">3xx Redirect</button>
-    <button onclick="window._hsFilter('4')" class="hs-btn" style="padding:6px 12px;background:rgba(255,165,0,0.05);border:1px solid rgba(255,165,0,0.1);border-radius:6px;color:#ffa500;cursor:pointer;font-size:12px;">4xx Client</button>
-    <button onclick="window._hsFilter('5')" class="hs-btn" style="padding:6px 12px;background:rgba(255,77,77,0.05);border:1px solid rgba(255,77,77,0.1);border-radius:6px;color:#ff4d4d;cursor:pointer;font-size:12px;">5xx Server</button>
-  </div>
-
-  <div id="hs-list" style="max-height:500px;overflow-y:auto;"></div>
-</div>
+</form>
+<div id="htsc-count" style="font-size:.78rem;color:var(--text-secondary);margin-bottom:8px;"></div>
+<div id="htsc-list" style="max-height:420px;overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:10px;"></div>
 
 <script>
-(function(){
-  var codes=[
-    {code:100,name:'Continue',desc:'Server received request headers, client should send body',cat:'1'},
-    {code:101,name:'Switching Protocols',desc:'Server is switching protocols as requested',cat:'1'},
-    {code:102,name:'Processing',desc:'Server has received and is processing the request',cat:'1'},
-    {code:103,name:'Early Hints',desc:'Used to return some response headers before final response',cat:'1'},
-    {code:200,name:'OK',desc:'Standard success response',cat:'2'},
-    {code:201,name:'Created',desc:'Request succeeded, new resource created',cat:'2'},
-    {code:202,name:'Accepted',desc:'Request accepted for processing but not completed',cat:'2'},
-    {code:203,name:'Non-Authoritative Info',desc:'Response from a third-party copy',cat:'2'},
-    {code:204,name:'No Content',desc:'Success but no content to return',cat:'2'},
-    {code:205,name:'Reset Content',desc:'Reset the document view',cat:'2'},
-    {code:206,name:'Partial Content',desc:'Partial resource returned (range request)',cat:'2'},
-    {code:300,name:'Multiple Choices',desc:'Multiple options for the resource',cat:'3'},
-    {code:301,name:'Moved Permanently',desc:'Resource permanently moved to new URL',cat:'3'},
-    {code:302,name:'Found',desc:'Resource temporarily moved',cat:'3'},
-    {code:303,name:'See Other',desc:'Redirect to another URL (GET)',cat:'3'},
-    {code:304,name:'Not Modified',desc:'Resource not modified since last request',cat:'3'},
-    {code:307,name:'Temporary Redirect',desc:'Temporary redirect preserving method',cat:'3'},
-    {code:308,name:'Permanent Redirect',desc:'Permanent redirect preserving method',cat:'3'},
-    {code:400,name:'Bad Request',desc:'Server cannot understand the request',cat:'4'},
-    {code:401,name:'Unauthorized',desc:'Authentication required',cat:'4'},
-    {code:403,name:'Forbidden',desc:'Server refuses to authorize the request',cat:'4'},
-    {code:404,name:'Not Found',desc:'Resource not found at the given URL',cat:'4'},
-    {code:405,name:'Method Not Allowed',desc:'HTTP method not allowed for this resource',cat:'4'},
-    {code:406,name:'Not Acceptable',desc:'Resource cannot generate acceptable content',cat:'4'},
-    {code:407,name:'Proxy Auth Required',desc:'Authentication with proxy required',cat:'4'},
-    {code:408,name:'Request Timeout',desc:'Server timed out waiting for request',cat:'4'},
-    {code:409,name:'Conflict',desc:'Request conflicts with current state',cat:'4'},
-    {code:410,name:'Gone',desc:'Resource permanently removed',cat:'4'},
-    {code:411,name:'Length Required',desc:'Content-Length header required',cat:'4'},
-    {code:412,name:'Precondition Failed',desc:'Precondition in headers evaluated to false',cat:'4'},
-    {code:413,name:'Payload Too Large',desc:'Request body exceeds server limit',cat:'4'},
-    {code:414,name:'URI Too Long',desc:'Request URI exceeds server limit',cat:'4'},
-    {code:415,name:'Unsupported Media Type',desc:'Media format not supported',cat:'4'},
-    {code:416,name:'Range Not Satisfiable',desc:'Cannot fulfill range request',cat:'4'},
-    {code:417,name:'Expectation Failed',desc:'Expect header cannot be met',cat:'4'},
-    {code:418,name:"I'm a Teapot",desc:'April Fools joke (RFC 2324)',cat:'4'},
-    {code:421,name:'Misdirected Request',desc:'Request directed at incapable server',cat:'4'},
-    {code:422,name:'Unprocessable Entity',desc:'Well-formed but semantically erroneous',cat:'4'},
-    {code:423,name:'Locked',desc:'Resource is locked',cat:'4'},
-    {code:424,name:'Failed Dependency',desc:'Previous request caused this failure',cat:'4'},
-    {code:425,name:'Too Early',desc:'Risk of replay attack',cat:'4'},
-    {code:426,name:'Upgrade Required',desc:'Client should switch protocols',cat:'4'},
-    {code:428,name:'Precondition Required',desc:'Request must be conditional',cat:'4'},
-    {code:429,name:'Too Many Requests',desc:'Rate limited — slow down',cat:'4'},
-    {code:431,name:'Request Header Too Large',desc:'Headers exceed server limit',cat:'4'},
-    {code:451,name:'Unavailable For Legal Reasons',desc:'Resource blocked for legal reasons',cat:'4'},
-    {code:500,name:'Internal Server Error',desc:'Server encountered an unexpected error',cat:'5'},
-    {code:501,name:'Not Implemented',desc:'Server does not support the functionality',cat:'5'},
-    {code:502,name:'Bad Gateway',desc:'Invalid response from upstream server',cat:'5'},
-    {code:503,name:'Service Unavailable',desc:'Server temporarily overloaded or maintained',cat:'5'},
-    {code:504,name:'Gateway Timeout',desc:'Upstream server timed out',cat:'5'},
-    {code:505,name:'HTTP Version Not Supported',desc:'HTTP version not supported',cat:'5'},
-    {code:506,name:'Variant Also Negotiates',desc:'Content negotiation error',cat:'5'},
-    {code:507,name:'Insufficient Storage',desc:'Server storage full',cat:'5'},
-    {code:508,name:'Loop Detected',desc:'Infinite loop detected',cat:'5'},
-    {code:510,name:'Not Extended',desc:'Further extensions required',cat:'5'},
-    {code:511,name:'Network Auth Required',desc:'Network authentication required',cat:'5'}
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+  var CODES = [
+    [100, 'Continue', 'Client should continue sending the request body.'],
+    [101, 'Switching Protocols', 'Server is switching protocols as requested (Upgrade).'],
+    [102, 'Processing', 'WebDAV: request received, no response yet.'],
+    [103, 'Early Hints', 'Preload hints sent before the final response.'],
+    [200, 'OK', 'Request succeeded. The standard success code.'],
+    [201, 'Created', 'A new resource was created (typical for POST).'],
+    [202, 'Accepted', 'Request accepted for later processing.'],
+    [203, 'Non-Authoritative Information', 'Payload modified by a transforming proxy.'],
+    [204, 'No Content', 'Success, but nothing to return. Used after DELETE.'],
+    [205, 'Reset Content', 'Success; client should reset the document view.'],
+    [206, 'Partial Content', 'Range request succeeded. Used by video/resume downloads.'],
+    [207, 'Multi-Status', 'WebDAV: multiple status codes for a batch.'],
+    [208, 'Already Reported', 'WebDAV: members already listed in a previous response.'],
+    [226, 'IM Used', 'Delta encoding: instance-manipulation applied.'],
+    [300, 'Multiple Choices', 'Several representations; client should pick one.'],
+    [301, 'Moved Permanently', 'Resource has a new permanent URI. Cacheable.'],
+    [302, 'Found', 'Temporarily at another URI. Historically misused for POST→GET.'],
+    [303, 'See Other', 'GET the resource at another URI (PRG pattern).'],
+    [304, 'Not Modified', 'Cached copy is still valid. No body.'],
+    [307, 'Temporary Redirect', 'Repeat the request at another URI, same method.'],
+    [308, 'Permanent Redirect', 'Permanent, method and body must not change.'],
+    [400, 'Bad Request', 'Malformed syntax or invalid request message.'],
+    [401, 'Unauthorized', 'Authentication required or failed. Send WWW-Authenticate.'],
+    [402, 'Payment Required', 'Reserved. Rarely used for paywalls.'],
+    [403, 'Forbidden', 'Authenticated but not allowed. Do not retry as the same user.'],
+    [404, 'Not Found', 'No resource at this URI. Safe to cache for missing pages.'],
+    [405, 'Method Not Allowed', 'HTTP method is not supported. Look at Allow.'],
+    [406, 'Not Acceptable', 'No representation matches Accept headers.'],
+    [407, 'Proxy Authentication Required', 'Authenticate with the proxy first.'],
+    [408, 'Request Timeout', 'Server waited too long for the request.'],
+    [409, 'Conflict', 'State conflict (edit collision, duplicate).'],
+    [410, 'Gone', 'Resource existed, now permanently gone. Stronger than 404.'],
+    [411, 'Length Required', 'Content-Length header is required.'],
+    [412, 'Precondition Failed', 'If-Match / If-Unmodified-Since failed.'],
+    [413, 'Content Too Large', 'Request body exceeds server limits.'],
+    [414, 'URI Too Long', 'Request URI is longer than the server will parse.'],
+    [415, 'Unsupported Media Type', 'Content-Type is not accepted.'],
+    [416, 'Range Not Satisfiable', 'Requested Range is outside the resource.'],
+    [417, 'Expectation Failed', 'Expect header could not be met.'],
+    [418, "I'm a teapot", 'RFC 2324 April Fools. Not a real refusal.'],
+    [421, 'Misdirected Request', 'Request was sent to a server that cannot produce a response.'],
+    [422, 'Unprocessable Content', 'Well-formed but semantically invalid (often JSON APIs).'],
+    [423, 'Locked', 'WebDAV: resource is locked.'],
+    [424, 'Failed Dependency', 'WebDAV: depended-on request failed.'],
+    [425, 'Too Early', 'Risk of replay. Do not process yet.'],
+    [426, 'Upgrade Required', 'Client must switch protocols (e.g. to TLS).'],
+    [428, 'Precondition Required', 'Require If-Match to avoid lost updates.'],
+    [429, 'Too Many Requests', 'Rate limited. Honour Retry-After.'],
+    [431, 'Request Header Fields Too Large', 'Headers as a whole, or one header, too big.'],
+    [451, 'Unavailable For Legal Reasons', 'Blocked by law (censorship, DMCA).'],
+    [500, 'Internal Server Error', 'Generic server failure. The catch-all 5xx.'],
+    [501, 'Not Implemented', 'Method or feature is not supported.'],
+    [502, 'Bad Gateway', 'Upstream proxy got an invalid response.'],
+    [503, 'Service Unavailable', 'Overloaded or down for maintenance. Retry-After.'],
+    [504, 'Gateway Timeout', 'Upstream proxy timed out.'],
+    [505, 'HTTP Version Not Supported', 'Server refuses this HTTP version.'],
+    [506, 'Variant Also Negotiates', 'Transparent content negotiation loop.'],
+    [507, 'Insufficient Storage', 'WebDAV: server cannot store the representation.'],
+    [508, 'Loop Detected', 'WebDAV: infinite loop while processing.'],
+    [510, 'Not Extended', 'Further extensions to the request are required.'],
+    [511, 'Network Authentication Required', 'Captive portal. Client must authenticate to the network.']
   ];
-  var filter='all';
-  function render(){
-    var search=document.getElementById('hs-search').value.toLowerCase();
-    var filtered=codes.filter(function(c){
-      if(filter!=='all'&&c.cat!==filter)return false;
-      if(!search)return true;
-      return c.code.toString().indexOf(search)>=0||c.name.toLowerCase().indexOf(search)>=0||c.desc.toLowerCase().indexOf(search)>=0;
-    });
-    var html='';
-    var colors={'1':'rgba(230,250,255,0.5)','2':'#39ff14','3':'#2dd4ff','4':'#ffa500','5':'#ff4d4d'};
-    filtered.forEach(function(c){
-      html+='<div style="display:flex;gap:12px;padding:10px 12px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px;">'+
-        '<div style="width:50px;font-size:18px;font-weight:700;color:'+colors[c.cat]+';font-family:monospace;">'+c.code+'</div>'+
-        '<div style="flex:1;"><div style="font-weight:600;color:var(--text);">'+c.name+'</div>'+
-        '<div style="font-size:13px;color:rgba(230,250,255,0.5);">'+c.desc+'</div></div></div>';
-    });
-    document.getElementById('hs-list').innerHTML=html||'<div style="text-align:center;padding:40px;color:rgba(230,250,255,0.3);">No matching codes found</div>';
+  var COLORS = { 1: '#91f7ff', 2: '#39ff14', 3: '#ffd700', 4: '#ffb347', 5: '#ff4d4d' };
+
+  function render() {
+    var q = $('htsc-q').value.trim().toLowerCase();
+    var cls = $('htsc-class').value;
+    var html = '';
+    var n = 0;
+    for (var i = 0; i < CODES.length; i++) {
+      var c = CODES[i];
+      var klass = String(c[0])[0];
+      if (cls !== 'all' && klass !== cls) continue;
+      var blob = (c[0] + ' ' + c[1] + ' ' + c[2]).toLowerCase();
+      if (q && blob.indexOf(q) === -1) continue;
+      n++;
+      html += '<button type="button" data-copy="' + c[0] + ' ' + c[1] + '" style="display:block;width:100%;text-align:left;padding:10px 12px;background:transparent;border:0;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer;color:inherit;">' +
+        '<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:800;color:' + (COLORS[klass] || 'var(--accent)') + ';">' + c[0] + '</span> ' +
+        '<strong style="color:var(--text);">' + c[1] + '</strong>' +
+        '<div style="font-size:.78rem;color:var(--text-secondary);margin-top:3px;">' + c[2] + '</div></button>';
+    }
+    $('htsc-count').textContent = n + ' code' + (n === 1 ? '' : 's') + ' · click a row to copy “code phrase”';
+    $('htsc-list').innerHTML = html || '<div style="padding:16px;color:var(--text-secondary);font-size:.82rem;">No matching status codes.</div>';
   }
-  window._hsFilter=function(f){filter=f;render();};
-  document.getElementById('hs-search').addEventListener('input',render);
+  $('htsc-list').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-copy]');
+    if (!btn) return;
+    var text = btn.getAttribute('data-copy');
+    function done() { $('htsc-count').textContent = 'Copied “' + text + '”'; }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done);
+    else done();
+  });
+  $('htsc-q').addEventListener('input', render);
+  $('htsc-class').addEventListener('change', render);
   render();
 })();
 </script>

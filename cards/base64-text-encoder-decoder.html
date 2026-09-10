@@ -34,6 +34,35 @@
   </div>
   <div id="bted-err" style="font-size:0.75rem;color:#ff4081;margin-top:4px;min-height:1em;"></div>
   <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:6px;">Tip: Base64 grows data by ~33%. It is encoding, not encryption — anyone can decode it.</div>
+
+  <!-- File → Base64 Data URL (merged from the retired Base64 Text & File card) -->
+  <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;">
+    <div style="font-size:0.78rem;color:var(--accent);font-weight:700;margin-bottom:8px;">📁 File → Base64 Data URL</div>
+    <div id="bted-dropzone" style="border:2px dashed rgba(45,212,255,0.4);border-radius:10px;padding:18px 14px;text-align:center;background:rgba(0,0,0,0.2);cursor:pointer;margin-bottom:12px;">
+      <div style="font-size:1.5rem;margin-bottom:4px;">📁</div>
+      <div style="font-size:0.8rem;color:var(--text);font-weight:700;margin-bottom:2px;">Drag &amp; drop any file here, or click to browse</div>
+      <div style="font-size:0.72rem;color:var(--text-secondary);">Images, PDFs, audio, icons — processed locally, never uploaded</div>
+      <input type="file" id="bted-file-input" style="display:none;">
+    </div>
+
+    <div id="bted-file-card" style="display:none;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;">
+        <div id="bted-img-container" style="display:none;max-width:90px;max-height:90px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);">
+          <img id="bted-img-preview" src="" alt="Preview of the selected file" style="max-width:90px;max-height:90px;object-fit:contain;display:block;">
+        </div>
+        <div style="flex:1;min-width:140px;">
+          <div id="bted-file-name" style="font-weight:700;font-size:0.8rem;color:var(--text);word-break:break-all;"></div>
+          <div id="bted-file-meta" style="font-size:0.72rem;color:var(--text-secondary);"></div>
+        </div>
+      </div>
+      <label for="bted-data-url" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:3px;">Data URL (ready for &lt;img src="…"&gt; or CSS background)</label>
+      <textarea id="bted-data-url" rows="3" readonly style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;background:rgba(0,0,0,0.35);color:#91f7ff;border:1px solid rgba(45,212,255,0.2);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.72rem;resize:vertical;margin-bottom:8px;"></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <button type="button" id="bted-copy-dataurl" style="padding:6px 12px;background:rgba(45,212,255,0.2);border:1px solid rgba(45,212,255,0.5);border-radius:6px;color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer;">📋 Copy Data URL</button>
+        <button type="button" id="bted-copy-raw" style="padding:6px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:var(--text);font-size:0.75rem;cursor:pointer;">Copy Raw Base64</button>
+      </div>
+    </div>
+  </div>
 </form>
 
 <script>
@@ -74,5 +103,38 @@
   $('bted-copyp').addEventListener('click',function(){ copy($('bted-plain').value,this,'Copy plain'); });
   $('bted-copye').addEventListener('click',function(){ copy($('bted-enc').value,this,'Copy encoded'); });
   stats();
+
+  // ---- File → Data URL mode ----
+  var dz=$('bted-dropzone'), fi=$('bted-file-input'), rawB64='';
+  dz.addEventListener('click',function(){ fi.click(); });
+  dz.addEventListener('dragover',function(e){ e.preventDefault(); dz.style.borderColor='var(--accent)'; });
+  dz.addEventListener('dragleave',function(){ dz.style.borderColor='rgba(45,212,255,0.4)'; });
+  dz.addEventListener('drop',function(e){
+    e.preventDefault(); dz.style.borderColor='rgba(45,212,255,0.4)';
+    if(e.dataTransfer.files.length>0) processFile(e.dataTransfer.files[0]);
+  });
+  fi.addEventListener('change',function(e){ if(e.target.files.length>0) processFile(e.target.files[0]); });
+  function processFile(file){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var dataUrl=String(e.target.result);
+      rawB64=dataUrl.split(',')[1]||'';
+      $('bted-file-card').style.display='block';
+      $('bted-file-name').textContent=file.name;
+      var rawKB=(file.size/1024).toFixed(1), b64KB=(rawB64.length/1024).toFixed(1);
+      $('bted-file-meta').textContent=(file.type||'application/octet-stream')+' · '+rawKB+' KB (raw) → '+b64KB+' KB (Base64 +33%)';
+      if(file.type&&file.type.indexOf('image/')===0){
+        $('bted-img-container').style.display='block';
+        $('bted-img-preview').src=dataUrl;
+      }else{
+        $('bted-img-container').style.display='none';
+        $('bted-img-preview').src='';
+      }
+      $('bted-data-url').value=dataUrl;
+    };
+    reader.readAsDataURL(file);
+  }
+  $('bted-copy-dataurl').addEventListener('click',function(){ copy($('bted-data-url').value,this,'📋 Copy Data URL'); });
+  $('bted-copy-raw').addEventListener('click',function(){ copy(rawB64,this,'Copy Raw Base64'); });
 })();
 </script>

@@ -217,10 +217,16 @@
     <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <h4 style="margin:0;color:var(--accent);font-size:14px;font-weight:600;">📊 Lap Times</h4>
-            <button onclick="timerClearLaps()" 
-                    style="padding:6px 12px;border-radius:6px;border:1px solid rgba(255,77,77,0.2);background:rgba(255,77,77,0.05);color:#ff4d4d;cursor:pointer;font-size:12px;">
-                Clear
-            </button>
+            <div style="display:flex;gap:6px;">
+                <button type="button" id="timer-export-csv"
+                        style="padding:6px 12px;border-radius:6px;border:1px solid rgba(45,212,255,0.25);background:rgba(45,212,255,0.06);color:var(--accent);cursor:pointer;font-size:12px;">
+                    ⬇ CSV
+                </button>
+                <button type="button" onclick="timerClearLaps()" 
+                        style="padding:6px 12px;border-radius:6px;border:1px solid rgba(255,77,77,0.2);background:rgba(255,77,77,0.05);color:#ff4d4d;cursor:pointer;font-size:12px;">
+                    Clear
+                </button>
+            </div>
         </div>
         <div id="timer-lap-times" style="min-height:60px;max-height:200px;overflow-y:auto;color:rgba(var(--text-rgb, 230,250,255),0.8);font-size:13px;">
             <div style="text-align:center;color:rgba(255,255,255,0.3);padding:20px;">
@@ -927,6 +933,32 @@ if (document.readyState === 'loading') {
         console.log('Timer initialized');
     });
 }
+
+// Export recorded lap times as a CSV download (ported from the merged
+// stopwatch-lap-interval-timer card)
+(function() {
+    var btn = document.getElementById('timer-export-csv');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+        if (!timerState || !timerState.lapTimes || timerState.lapTimes.length === 0) {
+            btn.textContent = 'No laps';
+            setTimeout(function() { btn.textContent = '⬇ CSV'; }, 1200);
+            return;
+        }
+        var rows = ['Lap,Split (s),Split,Total (s),Total'];
+        timerState.lapTimes.forEach(function(lap) {
+            rows.push(lap.lap + ',' + lap.time.toFixed(3) + ',' + timerFormatTimeWithMS(lap.time) +
+                      ',' + lap.total.toFixed(3) + ',' + timerFormatTimeWithMS(lap.total));
+        });
+        var blob = new Blob([rows.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'lap-times.csv';
+        a.click();
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    });
+})();
 </script>
 
 <!-- CARD-SPECIFIC STYLES -->
