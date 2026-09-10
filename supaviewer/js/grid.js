@@ -47,6 +47,8 @@
     },
     /* Confirmed grid cells plus names we resolve via the public cap. */
     DESTINATIONS: [
+      { name: 'Natoma', gx: 1002, gy: 1002, note: 'Supadupaman Sapphire — Arena visitor home ❤️' },
+      { name: 'Supadupaman Sapphire Home', note: 'Alias for Natoma — Supadupaman Sapphire' },
       { name: 'Da Boom', gx: 1000, gy: 1000, note: 'Oldest region on Agni' },
       { name: 'Ahern', gx: 997, gy: 1002, note: 'Sansara infohub' },
       { name: 'Dore', note: 'Sansara welcome cluster' },

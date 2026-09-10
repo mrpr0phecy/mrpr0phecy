@@ -760,6 +760,7 @@ const importedSalvageMap = {
   'flue-draft-stove-sizing-calculator': 'Science & Engineering',
   'food-web-ecosystem-lab': 'Interactive Art & Living Worlds',
   'fuel-economy-mpg-converter': 'Productivity & Lifestyle',
+  'second-life-visit-supadupaman': 'Virtual Worlds & Gaming',
   'gallons-litres-pints-converter': 'Science & Engineering',
   'garden-plant-spacing-calculator': 'Home & DIY',
   'gcf-lcm-prime-factor-calculator': 'Mathematics',
