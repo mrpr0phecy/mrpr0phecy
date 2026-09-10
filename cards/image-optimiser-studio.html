@@ -8,7 +8,7 @@
 
 <div id="iopt-drop" tabindex="0" role="button" aria-label="Add image files" style="border:2px dashed rgba(45,212,255,0.35);border-radius:12px;padding:22px;text-align:center;cursor:pointer;background:rgba(45,212,255,0.04);margin-bottom:14px;">
   <div style="font-size:1.05rem;font-weight:700;color:var(--accent);">Drop images here</div>
-  <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px;">or click to choose files · PNG, JPG, WebP, GIF, AVIF · up to 12 at a time</div>
+  <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px;">or click to choose files · PNG, JPG, WebP, GIF, AVIF · up to 12 at a time · or paste (Ctrl+V)</div>
   <input id="iopt-file" type="file" accept="image/*" multiple style="display:none;" />
 </div>
 
@@ -36,6 +36,18 @@
     </div>
     <input id="iopt-quality" type="range" min="20" max="100" value="80" style="width:100%;accent-color:#2dd4ff;" aria-label="Output quality" />
   </div>
+  <div>
+    <label for="iopt-target" style="display:block;font-size:0.78rem;color:var(--text-secondary);margin-bottom:4px;">Target size (KB, optional)</label>
+    <input id="iopt-target" type="number" min="5" placeholder="e.g. 200" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;" />
+  </div>
+</div>
+
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+  <button type="button" data-iopt-pre="800" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.75rem;cursor:pointer;">Email 800px</button>
+  <button type="button" data-iopt-pre="1200" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.75rem;cursor:pointer;">Web 1200px</button>
+  <button type="button" data-iopt-pre="1920" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.75rem;cursor:pointer;">Full HD 1920px</button>
+  <button type="button" data-iopt-pre="1080" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.75rem;cursor:pointer;">Instagram 1080px</button>
+  <button type="button" data-iopt-pre="400" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--text);font-size:0.75rem;cursor:pointer;">Thumbnail 400px</button>
 </div>
 
 <div id="iopt-summary" style="margin-bottom:12px;"></div>
@@ -55,7 +67,7 @@
     (aspect ratio preserved, never upscaled), then re-encoded with <code>canvas.toBlob()</code>. The byte count
     you see is the size of the actual file you would download, not an estimate. WebP encoding is probed at
     start-up; browsers that cannot produce it fall back to JPEG automatically. Transparency only survives in
-    PNG or WebP output &mdash; JPEG fills transparent pixels with the page background. Nothing is uploaded:
+    PNG or WebP output &mdash; JPEG fills transparent pixels with the page background. Re-encoding also strips EXIF metadata (including any GPS location your phone embedded), so the studio doubles as an offline compressor, resizer and metadata scrubber. Nothing is uploaded:
     there is no server here to upload to.
   </p>
 </details>
@@ -110,7 +122,7 @@
     files.forEach(function (f) {
       var url = URL.createObjectURL(f);
       var img = new Image();
-      var item = { id: ++uid, file: f, name: f.name, srcUrl: url, img: img, out: null, error: '' };
+      var item = { id: ++uid, file: f, name: f.name || 'pasted-image.png', srcUrl: url, img: img, out: null, error: '' };
       items.push(item);
       img.onload = function () { process(item); };
       img.onerror = function () { item.error = 'Could not decode that file'; render(); };
@@ -131,22 +143,51 @@
     if (mime === 'image/jpeg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, t.w, t.h); }
     ctx.drawImage(item.img, 0, 0, t.w, t.h);
     var quality = parseInt($('iopt-quality').value, 10) / 100;
-    var done = function (blob) {
+    var target = (parseFloat($('iopt-target').value) || 0) * 1024;
+    var done = function (blob, w, h) {
       if (!blob) { item.error = 'Encoding failed'; render(); return; }
       item.error = '';
-      item.out = { blob: blob, w: t.w, h: t.h, mime: mime };
+      item.out = { blob: blob, w: w || t.w, h: h || t.h, mime: mime };
       render();
     };
-    if (cv.toBlob) cv.toBlob(done, mime, quality);
-    else {
-      try {
-        var data = cv.toDataURL(mime, quality);
-        var bin = atob(data.split(',')[1]);
-        var arr = new Uint8Array(bin.length);
-        for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-        done(new Blob([arr], { type: mime }));
-      } catch (e) { done(null); }
+    var encode = function (c, q) {
+      return new Promise(function (res) {
+        if (c.toBlob) { c.toBlob(function (b) { res(b); }, mime, q); return; }
+        try {
+          var data = c.toDataURL(mime, q);
+          var bin = atob(data.split(',')[1]);
+          var arr = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          res(new Blob([arr], { type: mime }));
+        } catch (e) { res(null); }
+      });
+    };
+    if (!target || mime === 'image/png') {
+      encode(cv, quality).then(function (b) { done(b); });
+      return;
     }
+    // binary search quality to land under the target size
+    var lo = 0.05, hi = 1, best = null;
+    (function step(n) {
+      if (n > 7) {
+        if (best) { done(best); return; }
+        // still too big: downscale once and retry at q=0.6
+        var k = Math.min(1, Math.sqrt(target / (cv.width * cv.height * 0.15)));
+        var c2 = document.createElement('canvas');
+        c2.width = Math.max(1, Math.round(cv.width * k));
+        c2.height = Math.max(1, Math.round(cv.height * k));
+        var c2x = c2.getContext('2d');
+        if (!c2x) { done(null); return; }
+        c2x.drawImage(cv, 0, 0, c2.width, c2.height);
+        encode(c2, 0.6).then(function (b) { done(b, c2.width, c2.height); });
+        return;
+      }
+      var mid = (lo + hi) / 2;
+      encode(cv, mid).then(function (b) {
+        if (b && b.size <= target) { best = b; lo = mid; } else { hi = mid; }
+        step(n + 1);
+      });
+    })(0);
   }
 
   function reprocessAll() {
@@ -281,7 +322,7 @@
   $('iopt-file').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
 
   var timer;
-  ['iopt-maxw', 'iopt-maxh'].forEach(function (id) {
+  ['iopt-maxw', 'iopt-maxh', 'iopt-target'].forEach(function (id) {
     $(id).addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(reprocessAll, 250); });
   });
   $('iopt-format').addEventListener('change', reprocessAll);
@@ -295,6 +336,25 @@
     if (!ready.length) { $('iopt-status').textContent = 'Nothing ready to save yet'; return; }
     ready.forEach(function (it, i) { setTimeout(function () { saveBlob(it.out.blob, outName(it)); }, i * 350); });
     $('iopt-status').textContent = 'Saving ' + ready.length + ' file' + (ready.length === 1 ? '' : 's');
+  });
+
+  Array.prototype.forEach.call(host.querySelectorAll('[data-iopt-pre]'), function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-iopt-pre');
+      $('iopt-maxw').value = v;
+      $('iopt-maxh').value = v;
+      reprocessAll();
+    });
+  });
+  document.addEventListener('paste', function (e) {
+    if (!document.body.contains(drop)) return;
+    var clip = e.clipboardData && e.clipboardData.items;
+    if (!clip) return;
+    var fs = [];
+    for (var i = 0; i < clip.length; i++) {
+      if (clip[i].type.indexOf('image') === 0) fs.push(clip[i].getAsFile());
+    }
+    if (fs.length) addFiles(fs);
   });
 
   $('iopt-clear').addEventListener('click', function () {

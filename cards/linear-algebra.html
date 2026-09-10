@@ -33,6 +33,47 @@ Or for addition (must match A dimensions):
 
   <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
     <div class="field">
+      <label for="la-grid-a-size">Grid entry &mdash; A size</label>
+      <select id="la-grid-a-size" onchange="laGridResize('a')" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+        <option value="2x2">2&times;2</option>
+        <option value="2x3">2&times;3</option>
+        <option value="3x2">3&times;2</option>
+        <option value="3x3" selected>3&times;3</option>
+        <option value="3x4">3&times;4</option>
+        <option value="4x4">4&times;4</option>
+      </select>
+      <div id="la-grid-a" style="display:grid;gap:6px;margin-top:8px;"></div>
+      <div class="hint" style="font-size:12px;color:#64b5f6;margin-top:4px;">Type in the grid to fill Matrix A</div>
+    </div>
+
+    <div class="field">
+      <label for="la-grid-b-size">Grid entry &mdash; B size</label>
+      <select id="la-grid-b-size" onchange="laGridResize('b')" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;">
+        <option value="2x2">2&times;2</option>
+        <option value="2x3">2&times;3</option>
+        <option value="3x2">3&times;2</option>
+        <option value="3x3" selected>3&times;3</option>
+        <option value="3x4">3&times;4</option>
+        <option value="4x4">4&times;4</option>
+      </select>
+      <div id="la-grid-b" style="display:grid;gap:6px;margin-top:8px;"></div>
+      <div class="hint" style="font-size:12px;color:#64b5f6;margin-top:4px;">Type in the grid to fill Matrix B</div>
+    </div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <div style="margin-bottom:8px;font-size:14px;">Quick matrices:</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" onclick="laQuick('identity')" style="padding:6px 10px;background:rgba(100,181,246,0.1);border:1px solid rgba(100,181,246,0.3);border-radius:6px;color:#64b5f6;cursor:pointer;font-size:12px;">Identity &rarr; A</button>
+      <button type="button" onclick="laQuick('zero')" style="padding:6px 10px;background:rgba(100,181,246,0.1);border:1px solid rgba(100,181,246,0.3);border-radius:6px;color:#64b5f6;cursor:pointer;font-size:12px;">Zero &rarr; A</button>
+      <button type="button" onclick="laQuick('rotation')" style="padding:6px 10px;background:rgba(100,181,246,0.1);border:1px solid rgba(100,181,246,0.3);border-radius:6px;color:#64b5f6;cursor:pointer;font-size:12px;">Rotation 90&deg; &rarr; A</button>
+      <button type="button" onclick="laQuick('example1')" style="padding:6px 10px;background:rgba(100,181,246,0.1);border:1px solid rgba(100,181,246,0.3);border-radius:6px;color:#64b5f6;cursor:pointer;font-size:12px;">Example A</button>
+      <button type="button" onclick="laQuick('example2')" style="padding:6px 10px;background:rgba(100,181,246,0.1);border:1px solid rgba(100,181,246,0.3);border-radius:6px;color:#64b5f6;cursor:pointer;font-size:12px;">Example B &rarr; B</button>
+    </div>
+  </div>
+
+  <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px;">
+    <div class="field">
       <label for="la-operation">Operation</label>
       <select id="la-operation" style="width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;font-size:14px;" onchange="laUpdateOperation()">
         <option value="add" selected>➕ Matrix Addition (A + B)</option>
@@ -877,6 +918,8 @@ function laReset(btn) {
   
   // Reset form
   card.querySelector('form').reset();
+  laGridResize('a', true);
+  laGridResize('b', true);
   
   // Reset results
   document.getElementById('linearla-output').value = '';
@@ -1006,4 +1049,76 @@ document.addEventListener('DOMContentLoaded', function() {
   `;
   document.head.appendChild(style);
 });
+
+// Grid entry (ported from matrices) — cells sync into the textareas.
+// Rows/cols come from the size select, so non-square grids stay correct.
+function laGridDims(which) {
+  const sel = document.getElementById(which === 'a' ? 'la-grid-a-size' : 'la-grid-b-size');
+  return sel.value.split('x').map(Number);
+}
+function laGridResize(which, empty) {
+  const dims = laGridDims(which);
+  const rows = dims[0], cols = dims[1];
+  const box = document.getElementById(which === 'a' ? 'la-grid-a' : 'la-grid-b');
+  box.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+  box.innerHTML = '';
+  for (let i = 0; i < rows * cols; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.step = 'any';
+    inp.placeholder = '0';
+    inp.setAttribute('aria-label', 'Entry row ' + (Math.floor(i / cols) + 1) + ' column ' + ((i % cols) + 1));
+    inp.style.cssText = 'width:100%;padding:8px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:inherit;text-align:center;font-size:14px;';
+    inp.addEventListener('input', function () { laGridSync(which); });
+    box.appendChild(inp);
+  }
+  if (empty) {
+    document.getElementById(which === 'a' ? 'la-matrixA' : 'la-matrixB').value = '';
+  } else {
+    laGridSync(which);
+  }
+}
+function laGridSync(which) {
+  const dims = laGridDims(which);
+  const rows = dims[0], cols = dims[1];
+  const cells = document.getElementById(which === 'a' ? 'la-grid-a' : 'la-grid-b').querySelectorAll('input');
+  const lines = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) row.push(cells[r * cols + c].value || '0');
+    lines.push(row.join(' '));
+  }
+  document.getElementById(which === 'a' ? 'la-matrixA' : 'la-matrixB').value = lines.join('\n');
+}
+var LA_QUICK = {
+  identity: { target: 'a', m: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
+  zero: { target: 'a', m: [[0, 0, 0], [0, 0, 0], [0, 0, 0]] },
+  rotation: { target: 'a', m: [[0, -1, 0], [1, 0, 0], [0, 0, 1]] },
+  example1: { target: 'a', m: [[1, 2, 3], [4, 5, 6], [7, 8, 9]] },
+  example2: { target: 'b', m: [[9, 8, 7], [6, 5, 4], [3, 2, 1]] }
+};
+function laQuick(type) {
+  const q = LA_QUICK[type] || LA_QUICK.example1;
+  const which = q.target, matrix = q.m;
+  const rows = matrix.length, cols = matrix[0].length;
+  const sel = document.getElementById(which === 'a' ? 'la-grid-a-size' : 'la-grid-b-size');
+  const key = rows + 'x' + cols;
+  let found = false;
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === key) { sel.value = key; found = true; break; }
+  }
+  if (!found) {
+    document.getElementById(which === 'a' ? 'la-matrixA' : 'la-matrixB').value =
+      matrix.map(function (r) { return r.join(' '); }).join('\n');
+    return;
+  }
+  laGridResize(which);
+  const cells = document.getElementById(which === 'a' ? 'la-grid-a' : 'la-grid-b').querySelectorAll('input');
+  matrix.forEach(function (row, r) {
+    row.forEach(function (v, c) { cells[r * cols + c].value = v; });
+  });
+  laGridSync(which);
+}
+laGridResize('a', true);
+laGridResize('b', true);
 </script>

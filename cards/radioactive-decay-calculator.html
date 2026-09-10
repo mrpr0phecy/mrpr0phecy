@@ -11,6 +11,7 @@
       <label for="rd-isotope-select" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Radioisotope Preset</label>
       <select id="rd-isotope-select" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
         <option value="c14" selected>Carbon-14 (5,730 yrs - Dating)</option>
+        <option value="c14libby">Carbon-14 Libby (5,568 yrs - Conventional)</option>
         <option value="cs137">Cesium-137 (30.17 yrs - Fission)</option>
         <option value="u238">Uranium-238 (4.47B yrs - Earth Age)</option>
         <option value="i131">Iodine-131 (8.02 days - Medicine)</option>
@@ -32,9 +33,23 @@
     </div>
 
     <div>
-      <label for="rd-elapsed-time" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Elapsed Time ($t$ in years)</label>
+      <label id="rd-t-label" for="rd-elapsed-time" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Elapsed Time ($t$ in years)</label>
       <input type="number" id="rd-elapsed-time" value="11460" min="0" step="any" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
     </div>
+
+    <div>
+      <label for="rd-mode" style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Solve For</label>
+      <select id="rd-mode" style="width:100%;padding:6px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);color:#fff;">
+        <option value="remaining" selected>Remaining amount</option>
+        <option value="age">Age from remaining %</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="rd-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+    <button type="button" data-rd-pct="21" title="Remaining 14C: 21%">Shroud of Turin cloth</button>
+    <button type="button" data-rd-pct="52.67" title="Remaining 14C: 52.67%">Ötzi the Iceman</button>
+    <button type="button" data-rd-pct="77.57" title="Remaining 14C: 77.57%">Dead Sea Scrolls</button>
   </div>
 
   <!-- Realtime Decay Canvas -->
@@ -65,12 +80,21 @@
       </div>
     </div>
   </div>
+
+  <div id="rd-dating" style="display:none;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.3);border-radius:12px;padding:14px;margin-bottom:12px;font-size:0.85rem;">
+    <div>Estimated age: <strong id="rd-age" style="color:#ffd700;"></strong></div>
+    <div id="rd-age-c14" style="display:none;margin-top:6px;">
+      Conventional age <strong id="rd-age-bp"></strong> &middot; rough calendar <strong id="rd-age-cal"></strong>
+      <div style="font-size:0.75rem;color:var(--muted);margin-top:6px;line-height:1.5;">Uncalibrated BP clock (before 1950) &mdash; atmospheric &#185;&#8308;C varies (Suess effect, bomb carbon, solar cycles), so a real date needs IntCal calibration. Useful to ~50,000 years.</div>
+    </div>
+  </div>
 </form>
 
 <script>
 (function() {
   const PRESETS = {
     c14: { hl: 5730, defaultT: 11460 },
+    c14libby: { hl: 5568, defaultT: 11136 },
     cs137: { hl: 30.17, defaultT: 60.34 },
     u238: { hl: 4468000000, defaultT: 4468000000 },
     i131: { hl: 8.02 / 365.25, defaultT: 16.04 / 365.25 },
@@ -82,6 +106,13 @@
   const hlIn = document.getElementById('rd-half-life');
   const n0In = document.getElementById('rd-initial-amount');
   const tIn = document.getElementById('rd-elapsed-time');
+  const modeSel = document.getElementById('rd-mode');
+  const tLabel = document.getElementById('rd-t-label');
+  const datingBox = document.getElementById('rd-dating');
+  const ageOut = document.getElementById('rd-age');
+  const ageC14Box = document.getElementById('rd-age-c14');
+  const ageBpOut = document.getElementById('rd-age-bp');
+  const ageCalOut = document.getElementById('rd-age-cal');
   const canvas = document.getElementById('rd-canvas');
   const ctx = canvas.getContext('2d');
 
@@ -95,7 +126,24 @@
   function update() {
     const hl = parseFloat(hlIn.value) || 1;
     const n0 = parseFloat(n0In.value) || 100;
-    const t = parseFloat(tIn.value) || 0;
+    const ageMode = modeSel.value === 'age';
+    let t;
+    if (ageMode) {
+      const frac = parseFloat(tIn.value) / 100;
+      if (!(frac > 0) || frac > 1) {
+        const lambda0 = Math.LN2 / hl;
+        remOut.textContent = '\u2014'; remPctOut.textContent = '\u2014';
+        decOut.textContent = '\u2014'; decPctOut.textContent = '\u2014';
+        hlOut.textContent = '\u2014'; lamOut.textContent = lambda0.toExponential(3) + ' yr\u207B\u00B9';
+        ctx.fillStyle = '#050811'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        datingBox.style.display = ''; ageC14Box.style.display = 'none';
+        ageOut.textContent = 'Enter a remaining value between 0 and 100%.';
+        return;
+      }
+      t = -Math.log(frac) / (Math.LN2 / hl);
+    } else {
+      t = parseFloat(tIn.value) || 0;
+    }
 
     const numHalfLives = t / hl;
     const remainingFrac = Math.pow(0.5, numHalfLives);
@@ -111,6 +159,20 @@
 
     hlOut.textContent = numHalfLives.toFixed(2) + ' t½';
     lamOut.textContent = lambda.toExponential(3) + ' yr⁻¹';
+
+    if (ageMode) {
+      datingBox.style.display = '';
+      ageOut.textContent = t >= 100 ? Math.round(t).toLocaleString('en-GB') + ' years' : t.toFixed(1) + ' years';
+      const isC14 = isoSel.value === 'c14' || isoSel.value === 'c14libby';
+      ageC14Box.style.display = isC14 ? '' : 'none';
+      if (isC14) {
+        ageBpOut.textContent = Math.round(t).toLocaleString('en-GB') + ' BP';
+        const cal = 1950 - t;
+        ageCalOut.textContent = cal >= 0 ? Math.round(cal) + ' CE (uncalibrated)' : Math.round(-cal) + ' BCE (uncalibrated)';
+      }
+    } else {
+      datingBox.style.display = 'none';
+    }
 
     // Canvas Plotting
     const W = canvas.width;
@@ -185,6 +247,31 @@
       tIn.value = PRESETS[val].defaultT;
     }
     update();
+  });
+
+  modeSel.addEventListener('change', () => {
+    const hl = parseFloat(hlIn.value) || 1;
+    if (modeSel.value === 'age') {
+      const t = parseFloat(tIn.value) || 0;
+      tIn.value = (Math.pow(0.5, t / hl) * 100).toFixed(2);
+      tLabel.textContent = 'Remaining (percent of N₀)';
+    } else {
+      const frac = parseFloat(tIn.value) / 100;
+      tIn.value = (frac > 0 && frac <= 1) ? (-Math.log(frac) / (Math.LN2 / hl)).toFixed(1) : 0;
+      tLabel.textContent = 'Elapsed Time ($t$ in years)';
+    }
+    update();
+  });
+
+  document.querySelectorAll('#rd-chips button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      isoSel.value = 'c14';
+      hlIn.value = PRESETS.c14.hl;
+      modeSel.value = 'age';
+      tIn.value = btn.getAttribute('data-rd-pct');
+      tLabel.textContent = 'Remaining (percent of N₀)';
+      update();
+    });
   });
 
   [hlIn, n0In, tIn].forEach(input => input.addEventListener('input', update));

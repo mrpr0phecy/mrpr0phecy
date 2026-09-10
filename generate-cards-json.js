@@ -10,11 +10,11 @@ const outputFile = path.join(cardsDir, 'cards.json');
 const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html'));
 
 const musicList = ['audio-tone-frequency-generator', 'binaural-neuro-tuner', 'bpm-counter', 'capo-calculator', 'carol-karaoke', 'chord-finder', 'chord-progression', 'instrument-care', 'interval-trainer', 'metronome', 'music-quiz', 'music-theory', 'recording-basics', 'rhythm-generator', 'scale-trainer', 'sheet-music', 'song-writer', 'tempo-map', 'transposer', 'tuner', 'youtube-dj'];
-const healthList = ['crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'tdee', 'vo2max', 'waisthip'];
-const financeList = ['fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'creditcard', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'salarycompare', 'savings', 'studentloan', 'subscription', 'tax'];
-const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'element-hall', 'energy-watt-exchange', 'statistics-illusion-gallery', 'thermal-wall-simulator', 'structural-beam-stress', 'pipe-flow-simulator', 'room-acoustics-simulator', 'daylight-room-simulator', 'moisture-capillary-simulator'];
+const healthList = ['crisis-offline-triage', 'bmi', 'bmr', 'bodyfat', 'calorie', 'childgrowth', 'fitnesscore', 'heartrate', 'hydration', 'idealweight', 'leanbodymass', 'macros', 'metabolicage', 'onerepmax', 'sleep', 'steps', 'vo2max', 'waisthip'];
+const financeList = ['fire-financial-independence-calc', 'freelance-rate-calculator', 'smart-contract-gas-estimator', 'break-even', 'budget', 'compoundinterest', 'currency', 'datecalc', 'debtpayoff', 'discount', 'fuelcost', 'grocerybudget', 'inflation', 'investment', 'lease', 'loan', 'meal-cost-calculator', 'mortgage', 'networth', 'rent', 'retirement', 'roi', 'salary', 'savings', 'subscription', 'tax'];
+const museumList = ['bayes-chance-hall', 'constant-treasury', 'deep-time-museum', 'energy-watt-exchange', 'statistics-illusion-gallery', 'thermal-wall-simulator', 'structural-beam-stress', 'pipe-flow-simulator', 'room-acoustics-simulator', 'daylight-room-simulator', 'moisture-capillary-simulator'];
 const slList = ['second-life-surnames-guide', 'raycast-pocket-dungeon', 'polyhedral-dice-3d-roller', 'sl-buildmate', 'sl-events', 'sl-exchange', 'sl-market', 'sl-region-map', 'sl-texture'];
-const mathList = ['mental-math-sprint-trainer', 'function-terrain-3d-explorer', 'klein-bottle-mobius-lab', 'algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'matrices', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
+const mathList = ['mental-math-sprint-trainer', 'function-terrain-3d-explorer', 'klein-bottle-mobius-lab', 'algebra', 'calculus', 'complex-numbers', 'differential-equations', 'discrete-math', 'equation-solver', 'exam-prep-maths', 'exponents', 'formula-library', 'fractions', 'geometry', 'gpa', 'grade', 'graphing-calculator', 'hex-decimal', 'linear-algebra', 'logarithms', 'math-practice', 'math-universe-explorer', 'maths-flashcards', 'maths', 'number-theory', 'percentages', 'probability', 'sequences-series', 'statistics', 'trigonometry'];
 const scienceList = [
   'dna-helix-3d-builder', 'molecule-3d-viewer',
   'van-de-graaff-electrostatic-generator',
@@ -70,7 +70,6 @@ const scienceList = [
   'gyroscopic-precession-dynamics',
   'torsional-vibration-critical-speed',
   'faraday-waves-cymatics-fluid',
-  'periodic-table-explorer',
   'doppler-effect-simulator',
   'special-relativity-calculator',
   'projectile-motion-simulator',
@@ -145,7 +144,7 @@ const writingList = [
   'markdown-to-html-printer',
   'llm-prompt-token-counter',
   'regex-replace-string-transform',
-  'spanish-verb-master', 'french-pronunciation-verbs', 'chinese-tones-pinyin', 'german-cases-gender', 'korean-hangul-trainer', 'multilingual-phrase-matrix', 'japanese-kana-trainer', 'japanese-romaji-converter', 'japanese-numbers-counters', 'japanese-particles-master', 'japanese-jlpt-vocabulary', 'japanese-verb-conjugator', 'japanese-keigo-politeness', 'regex-tester-explainer', 'markdown-live-editor', 'morse-code-translator', 'cognitive-bias-detector', 'business-writing', 'citation', 'cover-letter', 'creative-writing', 'email-templates', 'essay-templates', 'essay', 'grammar-proof', 'kanji-helper', 'languages', 'literature-analysis', 'literature', 'meme-translation', 'plagiarism-check', 'proofreading', 'public-speaking', 'punctuation-guide', 'readability-score', 'readingtime', 'seo-helper', 'seo-writing', 'spelling-check', 'summary-generator', 'translation-helper', 'vocab', 'vocabulary-trainer'];
+  'spanish-verb-master', 'french-pronunciation-verbs', 'chinese-tones-pinyin', 'german-cases-gender', 'korean-hangul-trainer', 'multilingual-phrase-matrix', 'japanese-kana-trainer', 'japanese-romaji-converter', 'japanese-numbers-counters', 'japanese-particles-master', 'japanese-jlpt-vocabulary', 'japanese-verb-conjugator', 'japanese-keigo-politeness', 'markdown-live-editor', 'morse-code-translator', 'cognitive-bias-detector', 'business-writing', 'citation', 'cover-letter', 'creative-writing', 'email-templates', 'essay-templates', 'essay', 'kanji-helper', 'languages', 'literature-analysis', 'literature', 'meme-translation', 'plagiarism-check', 'proofreading', 'public-speaking', 'punctuation-guide', 'readability-score', 'readingtime', 'seo-helper', 'spelling-check', 'summary-generator', 'translation-helper', 'vocabulary-trainer'];
 
 const animeList = [
   'anime-binge-watch-calculator',
@@ -300,7 +299,8 @@ const wellbeingList = [
   'grief-companion',
   'accessible-text-prep',
   'street-sharing-planner',
-  'grounding-breathing-coach'
+  'grounding-breathing-coach',
+  'worry-sorter-3am'
 ];
 
 const saasKillerList = [
@@ -327,7 +327,6 @@ const saasKillerList = [
   'business-model-canvas-builder',
   'markdown-slide-deck-builder',
   // 2026-09-07 — high-intent, private web and content utilities
-  'text-case-slug-converter',
   
   
   
@@ -581,7 +580,6 @@ const imported05a89Map = {
   'boardgame-othello': 'MrProphecy Arcade',
   'boardgame-snakes-ladders': 'MrProphecy Arcade',
   'boardgame-yahtzee': 'MrProphecy Arcade',
-  'case-converter': 'Algorithms & Computer Science',
   'clipboard-history': 'Productivity & Lifestyle',
   'color-contrast-checker': 'Algorithms & Computer Science',
   'cron-expression-builder': 'Algorithms & Computer Science',
@@ -602,7 +600,6 @@ const imported05a89Map = {
   'edu-constellation-map': 'Astronomy & Space',
   'edu-country-data': 'Science & Engineering',
   'edu-dna-translator': 'Science & Engineering',
-  'edu-math-3d': 'Mathematics',
   'edu-music-theory': 'Music & Audio',
   'edu-periodic-table': 'Science & Engineering',
   'edu-rock-identifier': 'Science & Engineering',
@@ -666,7 +663,6 @@ const imported05a89Map = {
   'therapy-third-person-narrator': 'Wellbeing & Community',
   'therapy-uncertainty-tolerance': 'Wellbeing & Community',
   'therapy-values-time-gap': 'Wellbeing & Community',
-  'therapy-worry-sorter': 'Wellbeing & Community',
   'truth-table-generator': 'Algorithms & Computer Science',
   'unicode-converter': 'Algorithms & Computer Science',
   'unix-timestamp-converter': 'Algorithms & Computer Science',
@@ -722,7 +718,6 @@ const importedSalvageMap = {
   'cagr-annual-growth-calculator': 'Finance & Money',
   'calorie-deficit-weight-loss-timeline': 'Health & Fitness',
   'car-ownership-cost-calculator': 'Finance & Money',
-  'carbon-14-dating-calculator': 'Science & Engineering',
   'celsius-fahrenheit-kelvin-converter': 'Science & Engineering',
   'character-limit-platform-counter': 'Writing & Language',
   'climbing-anchor-force-calculator': 'Science & Engineering',
@@ -761,7 +756,6 @@ const importedSalvageMap = {
   'feet-inches-cm-height-converter': 'Science & Engineering',
   'fiscal-quarter-finder': 'Finance & Money',
   'flash-flood-lab': 'Interactive Art & Living Worlds',
-  'flesch-reading-ease': 'Writing & Language',
   'flight-delay-compensation-checker': 'Finance & Money',
   'flue-draft-stove-sizing-calculator': 'Science & Engineering',
   'food-web-ecosystem-lab': 'Interactive Art & Living Worlds',
@@ -772,7 +766,6 @@ const importedSalvageMap = {
   'geodesic-area-parcel-calculator': 'Science & Engineering',
   'gitignore-template-builder': 'Algorithms & Computer Science',
   'golden-ratio-crop-calculator': 'Productivity & Lifestyle',
-  'gps-coordinates-dms-decimal': 'Science & Engineering',
   'great-circle-route-planner': 'Science & Engineering',
   'grid-reference-trainer': 'MrProphecy Arcade',
   'guitar-fret-calculator': 'Music & Audio',
@@ -792,7 +785,6 @@ const importedSalvageMap = {
   'iban-validator-formatter': 'Algorithms & Computer Science',
   'ics-event-builder': 'Algorithms & Computer Science',
   'ieee-754-converter': 'Algorithms & Computer Science',
-  'image-compressor-resizer-offline': 'Productivity & Lifestyle',
   'intermittent-fasting-window-planner': 'Health & Fitness',
   'inventory-reorder-point-planner': 'SaaS & Business Killers',
   'invoice-late-fee-calculator': 'Finance & Money',
@@ -805,9 +797,7 @@ const importedSalvageMap = {
   'json-flatten-unflatten': 'Algorithms & Computer Science',
   'julian-day-date-converter': 'Productivity & Lifestyle',
   'kanban-sprint-flow-board': 'Productivity & Lifestyle',
-  'karvonen-heart-rate-zones': 'Health & Fitness',
   'keyboard-event-key-code-inspector': 'Algorithms & Computer Science',
-  'keyboard-key-tester': 'Algorithms & Computer Science',
   'knots-mph-kph-converter': 'Science & Engineering',
   'koppen-climate-classifier': 'Science & Engineering',
   'late-payment-interest-chaser': 'Finance & Money',
@@ -844,7 +834,6 @@ const importedSalvageMap = {
   'nato-phonetic-speller': 'Writing & Language',
   'nature-id-trainer': 'Science & Engineering',
   'nd-filter-exposure-calculator': 'Productivity & Lifestyle',
-  'nginx-redirect-generator': 'Algorithms & Computer Science',
   'note-frequency-calculator': 'Music & Audio',
   'notice-period-end-date-calculator': 'Finance & Money',
   'number-to-words-cheque-writer': 'Finance & Money',
@@ -866,7 +855,6 @@ const importedSalvageMap = {
   'pregnancy-due-date-calculator': 'Health & Fitness',
   'pregnancy-weight-gain-guide': 'Health & Fitness',
   'prime-factorisation-trainer': 'Mathematics',
-  'prime-number-checker': 'Mathematics',
   'print-dpi-photo-size-calculator': 'Productivity & Lifestyle',
   'pro-rata-salary-calculator': 'Finance & Money',
   'project-profitability-estimator': 'Finance & Money',
@@ -874,7 +862,6 @@ const importedSalvageMap = {
   'protein-daily-intake-calculator': 'Health & Fitness',
   'px-rem-em-unit-converter': 'Algorithms & Computer Science',
   'pythagoras-calculator': 'Mathematics',
-  'pythagoras-triangle-solver': 'Mathematics',
   'qtc-heart-interval-calculator': 'Health & Fitness',
   'quadratic-solver': 'Mathematics',
   'query-string-parser': 'Algorithms & Computer Science',
@@ -934,7 +921,6 @@ const importedSalvageMap = {
   'tectonic-plate-drift-calculator': 'Science & Engineering',
   'tenancy-deposit-calculator': 'Finance & Money',
   'text-case-converter': 'Algorithms & Computer Science',
-  'text-case-converter-toolkit': 'Algorithms & Computer Science',
   'tidal-window-crossing-planner': 'Science & Engineering',
   'timelapse-interval-calculator': 'Productivity & Lifestyle',
   'times-tables-drill-trainer': 'Mathematics',
