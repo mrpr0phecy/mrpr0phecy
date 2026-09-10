@@ -547,10 +547,21 @@ function shGenerateFindings(analysis, platform, contentType) {
     if (analysis.readability < 50) {
         findings += `• [LOW] Improve readability (score: ${analysis.readability}/100, aim for 50+)\n`;
     }
+
+    // Keyword stuffing + first-100-words placement (ported from seo-writing)
+    analysis.keywords.forEach(k => {
+        if (k.count > 0 && k.density > 3) {
+            findings += `• [MEDIUM] "${k.keyword}" density is ${k.density}% (above 3%) — reduce usage to avoid keyword stuffing\n`;
+        }
+        const introWords = (analysis.fullText || '').trim().split(/\s+/).slice(0, 100).join(' ');
+        if (k.count > 0 && !introWords.toLowerCase().includes(k.keyword.toLowerCase())) {
+            findings += `• [LOW] "${k.keyword}" is missing from the first 100 words — move it higher for relevance\n`;
+        }
+    });
     
     findings += `\n🎯 KEYWORD ANALYSIS:\n`;
     analysis.keywords.forEach(k => {
-        const status = k.count > 0 ? '✓' : '✗';
+        const status = k.count > 0 ? (k.density > 3 ? '⚠️' : '✓') : '✗';
         findings += `• ${status} "${k.keyword}": ${k.count} mentions (${k.density}% density)\n`;
     });
     

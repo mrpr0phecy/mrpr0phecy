@@ -196,17 +196,17 @@ TOOL_SCHEMAS = [
         ],
     },
     {
-        'path': 'cards/regex-tester-explainer.html',
-        'slug': 'regex',
-        'title': 'Regex Tester & Explainer',
-        'description': 'Test, debug, and understand regular expressions in real-time. Live match highlighting and plain-English explanation of every group.',
+        'path': 'cards/linux-regex-tester.html',
+        'slug': 'linux-regex-tester',
+        'title': 'Regex Tester & Builder',
+        'description': 'Test regular expressions live: matches highlighted, capture groups extracted, and the equivalent grep/sed/awk command built for you.',
         'application_category': 'DeveloperApplication',
         'application_sub_category': 'Regex Tester',
         'howto_steps': [
             {'name': 'Type or paste a regex', 'text': 'Use the pattern field. The tester shows matches in the test-string panel as you type.'},
             {'name': 'Set the flags', 'text': 'g (global), i (case-insensitive), m (multiline), s (dot-all). Toggle them in the flags row.'},
             {'name': 'Paste the text to test against', 'text': 'Use the test-string panel. Matches are highlighted; groups are labelled.'},
-            {'name': 'Read the explanation', 'text': 'The explainer shows what every part of the regex does, in plain English. Use it to learn a regex you found in someone else\'s code, or to debug your own.'},
+            {'name': 'Copy the Linux command', 'text': 'The builder shows the equivalent grep, sed and awk commands for your pattern. Copy one straight into a terminal.'},
         ],
         'faqs': [
             ('What is a regex?',

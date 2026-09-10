@@ -2,7 +2,7 @@
 
 <form aria-describedby="gclf-desc" onsubmit="event.preventDefault();">
   <p id="gclf-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
-    Find the greatest common factor, least common multiple and prime factorisation of one or more integers. Euclidean algorithm for GCF; trial division up to √n for factors. Integers only, up to 12 digits.
+    Find the greatest common factor, least common multiple and prime factorisation of one or more integers. Enter a single integer to also see whether it is prime and its neighbouring primes. Euclidean algorithm for GCF; trial division up to √n for factors. Integers only, up to 12 digits.
   </p>
   <label for="gclf-in" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Numbers (spaces, commas or ×)</label>
   <input id="gclf-in" type="text" value="48, 180, 84" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
@@ -49,6 +49,23 @@
     if (n > 1) out.push([n, 1]);
     return out;
   }
+  function isPrime(n) {
+    if (n < 2 || Math.floor(n) !== n) return false;
+    if (n % 2 === 0) return n === 2;
+    for (var p = 3; p * p <= n; p += 2) if (n % p === 0) return false;
+    return true;
+  }
+  function nextPrime(n) {
+    var x = Math.floor(n) + 1, guard = 0;
+    if (x < 2) x = 2;
+    while (!isPrime(x) && guard++ < 20000) x++;
+    return guard >= 20000 ? null : x;
+  }
+  function prevPrime(n) {
+    var x = Math.ceil(n) - 1, guard = 0;
+    while (x > 1 && !isPrime(x) && guard++ < 20000) x--;
+    return (guard >= 20000 || x < 2) ? null : x;
+  }
   function pretty(f) {
     if (!f.length) return '—';
     return f.map(function (pair) { return pair[1] === 1 ? String(pair[0]) : pair[0] + '<sup>' + pair[1] + '</sup>'; }).join(' × ');
@@ -79,6 +96,12 @@
       var isPrime = Math.abs(n) > 1 && f.length === 1 && f[0][1] === 1;
       return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.07);"><strong style="color:var(--accent);">' + n + '</strong> = ' + pretty(f) + (isPrime ? ' <span style="color:#39ff14;font-size:.75rem;">prime</span>' : '') + '</div>';
     }).join('');
+    if (nums.length === 1) {
+      var n1 = Math.abs(nums[0]);
+      var nx = nextPrime(n1), pv = n1 <= 2 ? null : prevPrime(n1);
+      var verdict = n1 < 2 ? 'neither prime nor composite' : (isPrime(n1) ? 'prime' : 'composite');
+      html += '<div style="padding:8px 0;"><strong style="color:var(--accent);">' + n1 + '</strong> is <strong>' + verdict + '</strong> · previous prime: <strong>' + (pv === null ? '—' : pv) + '</strong> · next prime: <strong>' + (nx === null ? '—' : nx) + '</strong></div>';
+    }
     $('gclf-facts').innerHTML = html;
   }
   $('gclf-in').addEventListener('input', run);

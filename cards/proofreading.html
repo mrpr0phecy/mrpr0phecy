@@ -585,44 +585,146 @@ function prRunTextAnalysis(text) {
         }
     }
     
-    // Check for common grammar mistakes
-    const grammarPatterns = [
-        {
-            pattern: /\b(your|you're)\b.*\b(you're|your)\b/gi,
-            message: 'Possible your/you\'re confusion',
-            explanation: '"Your" is possessive (your book). "You\'re" is contraction of "you are."'
-        },
-        {
-            pattern: /\b(their|they're|there)\b.*\b(their|they're|there)\b/gi,
-            message: 'Possible their/they\'re/there confusion',
-            explanation: '"Their" is possessive. "They\'re" means "they are." "There" refers to a place.'
-        },
-        {
-            pattern: /\bits\b.*\bit's\b/gi,
-            message: 'Possible its/it\'s confusion',
-            explanation: '"Its" is possessive (its tail). "It\'s" means "it is."'
-        }
+    // Smart grammar checks — context-aware confused words, spelling, and punctuation.
+    // Each rule may set: fix (replacement string), fixFn (match -> replacement),
+    // adjust (match -> custom {pos, len, fix}), test (match, index, text -> bool).
+    const prGrammarRules = [
+        { pattern: /\bits(?=\s+(is|was|has|will|should|not|n't)\b)/gi, fix: 'it\'s',
+          message: 'Possible its/it\'s confusion: did you mean "it\'s"?',
+          explanation: '"Its" is possessive (its tail). "It\'s" means "it is" — use it before a verb.' },
+        { pattern: /\bit's(?=\s+\w+)/gi, fix: 'its',
+          test: (match, offset, fullText) => !/\bit\s*$/i.test(fullText.substring(Math.max(0, offset - 20), offset)),
+          message: 'Possible it\'s/its confusion: did you mean "its"?',
+          explanation: 'Before a noun, the possessive "its" (no apostrophe) is usually right.' },
+        { pattern: /\byour(?=\s+(going|coming|doing|getting|making|taking|having|being|looking|working|trying|not|welcome|right|wrong)\b)/gi, fix: 'you\'re',
+          message: 'Possible your/you\'re confusion: did you mean "you\'re"?',
+          explanation: '"Your" is possessive (your book). "You\'re" means "you are" — use it before a verb.' },
+        { pattern: /\byoure\b/gi, fix: 'you\'re',
+          message: 'Missing apostrophe: did you mean "you\'re"?',
+          explanation: '"You\'re" is a contraction of "you are" and needs an apostrophe.' },
+        { pattern: /\btheir(?=\s+(are|were|have|had)\b)/gi, fix: 'they\'re',
+          message: 'Possible their/they\'re confusion: did you mean "they\'re"?',
+          explanation: '"Their" is possessive. "They\'re" means "they are" — use it before a verb.' },
+        { pattern: /\bthen(?=\s+(more|less|better|worse|rather|other)\b)/gi, fix: 'than',
+          message: 'Possible then/than confusion: did you mean "than"?',
+          explanation: '"Than" compares (bigger than). "Then" sequences events (first this, then that).' },
+        { pattern: /\bseperate\b/gi, fix: 'separate',
+          message: 'Possible misspelling: did you mean "separate"?',
+          explanation: '"Separate" is spelled with "-par-" in the middle.' },
+        { pattern: /\bdefinately\b/gi, fix: 'definitely',
+          message: 'Possible misspelling: did you mean "definitely"?',
+          explanation: '"Definitely" is spelled with "-inite-", not "-ately".' },
+        { pattern: /\brecieve\b/gi, fix: 'receive',
+          message: 'Possible misspelling: did you mean "receive"?',
+          explanation: '"Receive" follows "i before e, except after c".' },
+        { pattern: /\bdont\b/gi, fix: 'don\'t',
+          message: 'Missing apostrophe: did you mean "don\'t"?',
+          explanation: '"Don\'t" is a contraction of "do not" and needs an apostrophe.' },
+        { pattern: /\bdoesnt\b/gi, fix: 'doesn\'t',
+          message: 'Missing apostrophe: did you mean "doesn\'t"?',
+          explanation: '"Doesn\'t" is a contraction of "does not" and needs an apostrophe.' },
+        { pattern: /\bwont\b/gi, fix: 'won\'t',
+          message: 'Missing apostrophe: did you mean "won\'t"?',
+          explanation: '"Won\'t" is a contraction of "will not" and needs an apostrophe.' },
+        { pattern: /\b([a-z]+) \1\b/gi, fixFn: m => m.split(' ')[0],
+          message: 'Repeated word — one can probably be deleted.',
+          explanation: 'Consecutive duplicate words are usually a typo. (Occasionally intentional, as in "had had".)' },
+        { pattern: /(\s|^)i(\s|[.,!?;:])/g,
+          adjust: (m, idx) => ({ pos: idx + m[1].length, len: 1, fix: 'I' }),
+          message: 'The pronoun "I" is always capitalised.',
+          explanation: 'In English the first-person pronoun is written "I", never "i".' },
+        { pattern: /(^|[.!?]\s+)([a-z])/g,
+          adjust: (m, idx) => ({ pos: idx + m[1].length, len: 1, fix: m[2].toUpperCase() }),
+          severity: 'minor',
+          message: 'Sentence should start with a capital letter.',
+          explanation: 'Sentences begin with a capital letter (ignore this for abbreviations like "e.g.").' }
     ];
-    
-    grammarPatterns.forEach(patternObj => {
-        const matches = text.match(patternObj.pattern);
-        if (matches) {
-            matches.forEach(match => {
-                const position = text.indexOf(match);
-                prCurrentSuggestions.push({
-                    type: 'grammar',
-                    category: 'grammar',
-                    severity: 'error',
-                    message: patternObj.message,
-                    context: match,
-                    position: position,
-                    length: match.length,
-                    fix: null,
-                    explanation: patternObj.explanation
-                });
+
+    prGrammarRules.forEach(rule => {
+        let match;
+        while ((match = rule.pattern.exec(text)) !== null) {
+            if (match[0].length === 0) { rule.pattern.lastIndex++; continue; }
+            if (rule.test && !rule.test(match[0], match.index, text)) continue;
+            let pos = match.index, len = match[0].length, fix = null;
+            if (rule.adjust) {
+                const a = rule.adjust(match, match.index);
+                pos = a.pos; len = a.len; fix = a.fix;
+            } else if (rule.fixFn) {
+                fix = rule.fixFn(match[0]);
+            } else if (rule.fix) {
+                fix = rule.fix;
+                if (/^[A-Z]/.test(match[0]) && /^[a-z]/.test(fix)) fix = fix[0].toUpperCase() + fix.slice(1);
+            }
+            prCurrentSuggestions.push({
+                type: 'grammar',
+                category: 'grammar',
+                severity: rule.severity || 'error',
+                message: rule.message,
+                context: match[0].length > 80 ? match[0].slice(0, 80) + '…' : match[0],
+                position: pos,
+                length: len,
+                fix: fix,
+                explanation: rule.explanation
             });
         }
     });
+
+    // Missing end punctuation — multi-word sentences with no terminator
+    {
+        const chunks = text.split(/(?<=[.!?])\s+/);
+        let cursor = 0;
+        chunks.forEach(chunk => {
+            const start = text.indexOf(chunk, cursor);
+            cursor = start + chunk.length;
+            const trimmed = chunk.trim();
+            if (trimmed.length === 0 || !/\s/.test(trimmed)) return;
+            const last = trimmed.slice(-1);
+            if (/[.!?]$/.test(trimmed) || /[,;:—–-]$/.test(last)) return;
+            let endPos = start + chunk.length;
+            while (endPos > start && /\s/.test(text[endPos - 1])) endPos--;
+            prCurrentSuggestions.push({
+                type: 'grammar',
+                category: 'grammar',
+                severity: 'suggestion',
+                message: 'Sentence may be missing end punctuation.',
+                context: trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed,
+                position: endPos,
+                length: 0,
+                fix: '.',
+                explanation: 'Statements end with a full stop, questions with "?", exclamations with "!".'
+            });
+        });
+    }
+
+    // Wordy phrases — concise alternatives with one-click fix
+    {
+        const prWordyPhrases = [
+            { phrase: 'due to the fact that', suggestion: 'because' },
+            { phrase: 'in order to', suggestion: 'to' },
+            { phrase: 'at this point in time', suggestion: 'now' },
+            { phrase: 'in the event that', suggestion: 'if' },
+            { phrase: 'a large number of', suggestion: 'many' }
+        ];
+        prWordyPhrases.forEach(({ phrase, suggestion }) => {
+            const re = new RegExp('\\b' + phrase + '\\b', 'gi');
+            let m;
+            while ((m = re.exec(text)) !== null) {
+                let fix = suggestion;
+                if (/^[A-Z]/.test(m[0])) fix = fix[0].toUpperCase() + fix.slice(1);
+                prCurrentSuggestions.push({
+                    type: 'style',
+                    category: 'style',
+                    severity: 'suggestion',
+                    message: `Wordy phrase: "${m[0]}" — consider "${fix}".`,
+                    context: m[0],
+                    position: m.index,
+                    length: m[0].length,
+                    fix: fix,
+                    explanation: 'Concise wording is clearer and more forceful.'
+                });
+            }
+        });
+    }
 }
 
 // Update statistics display

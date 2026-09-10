@@ -256,35 +256,8 @@ try {
   fail(`could not evaluate salary.html — ${e.message}`);
 }
 
-/* ------------------------------------------------------------------ *
- * salarycompare.html — take-home comparison                           *
- * ------------------------------------------------------------------ */
-
-section('salarycompare.html — income tax, NI & loan thresholds');
-try {
-  const src = fs.readFileSync(path.join(ROOT, 'cards', 'salarycompare.html'), 'utf8');
-  const start = src.indexOf('var PA = 12570');
-  const end = src.indexOf('function money(');
-  if (start === -1 || end === -1) throw new Error('markers not found');
-  const sandbox = { console, Math, Number, Infinity, __exports: {} };
-  vm.createContext(sandbox);
-  vm.runInContext(src.slice(start, end) +
-    '\n__exports.incomeTax = incomeTax; __exports.nationalInsurance = nationalInsurance; __exports.LOANS = LOANS;',
-    sandbox, { filename: 'salarycompare.html' });
-  const sc = sandbox.__exports;
-
-  for (const s of [20000, 60000, 110000, 125140, 150000]) {
-    assertNear(`£${s.toLocaleString()} income tax`, Math.round(sc.incomeTax(s).tax), refIncomeTax(s));
-    assertNear(`£${s.toLocaleString()} employee NI`, Math.round(sc.nationalInsurance(s)), refEmployeeNI(s));
-  }
-  // 2026/27 student loan thresholds, per SLC / Student Finance published tables.
-  const expectedLoans = { '1': 26900, '2': 29385, '4': 33795, '5': 25000, 'pg': 21000 };
-  for (const [k, v] of Object.entries(expectedLoans)) {
-    assertNear(`loan plan ${k} threshold`, sc.LOANS[k].threshold, v, 0);
-  }
-} catch (e) {
-  fail(`could not evaluate salarycompare.html — ${e.message}`);
-}
+/* salarycompare.html was merged into tax.html (student-loan plans + pay-period
+   strip ported; 2024/25 basis retained). No standalone card left to test. */
 
 /* ------------------------------------------------------------------ *
  * compoundinterest.html — growth engine                               *
@@ -718,7 +691,9 @@ section('investment.html — growth across compounding frequencies');
   }
 }
 
-section('creditcard.html — payoff cost is not understated');
+/* NOTE: creditcard.html was merged into debtpayoff.html; the check below now
+   guards the surviving payoff loop. */
+section('debtpayoff.html — payoff cost is not understated');
 {
   /* Regression guard. The old final-month adjustment subtracted the
      overpayment from accrued INTEREST, understating the cost of the debt
@@ -753,11 +728,13 @@ section('creditcard.html — payoff cost is not understated');
     fail('paying more did not reduce total cost — check the payoff loop');
   }
 
-  const txt = fs.readFileSync(path.join(ROOT, 'cards', 'creditcard.html'), 'utf8');
-  if (/totalInterest -= \(remainingBalance \* -1\)/.test(txt)) {
-    fail('creditcard.html still deducts final-month overpayment from interest');
+  const txt = fs.readFileSync(path.join(ROOT, 'cards', 'debtpayoff.html'), 'utf8');
+  if (/totalInterest\s*-=/.test(txt)) {
+    fail('debtpayoff.html deducts overpayment from accrued interest');
+  } else if (/Math\.min\(thisPayment|Math\.min\(payment/i.test(txt)) {
+    pass('debtpayoff.html caps the final payment rather than reducing interest');
   } else {
-    pass('creditcard.html takes a smaller final payment rather than reducing interest');
+    fail('debtpayoff.html payoff loop no longer caps the final payment — check for interest understatement');
   }
 }
 
