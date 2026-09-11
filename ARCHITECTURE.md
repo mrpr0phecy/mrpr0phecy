@@ -74,18 +74,21 @@ establish *which* site first.
 ├── sonicfansite.html       Standalone Sonic fan site (unrelated to A and B)
 ├── beachsimulator.html, citysimulator.html, fightsimulator.html,
 │   aiwalker.html, animation.html, birdapp.html, clock.html,
-│   eternalbeffudlementmachine.html, slideshowtest.html, token.html,
-│   tool.html, indexbeta.html, hokidea.html, supaviewer.html
+│   eternalbeffudlementmachine.html, local-ai.html, slideshowtest.html,
+│   token.html, tool.html, indexbeta.html, hokidea.html, supaviewer.html
 │                           Experiments and one-offs. Not linked from the
 │                           catalogue. Safe to ignore; ask before deleting.
 │                           `supaviewer.html` is SupaViewer, a standalone
 │                           in-browser virtual-world viewer (docs in
 │                           supaviewer/).
+├── local-ai-knowledge.json  Generated public catalogue/docs context for Byte
+├── learning/                Reviewed shared-learning entries for Byte
+│   approved.json, README.md
 │
 ├── manifest.json           PWA manifest
 ├── sw.js                   Service worker — present but NOT registered (§7)
 ├── robots.txt              Allows all, points at the sitemap
-├── sitemap.xml             All 748 pages, generated (§6)
+├── sitemap.xml             All 1197 indexable pages, generated (§6)
 ├── icon-192.png, icon-512.png, icon-maskable-512.png
 ├── logo.png, mrprophecypic.jpg, backgroundpic.jpg
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
@@ -541,8 +544,9 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 748 pages. Build it from git rather than the working
-tree, so a sparse checkout does not silently drop the 1119 cards:
+`sitemap.xml` lists all 1197 indexable pages (including 1119 cards). Build it
+from git rather than the working tree, so a sparse checkout does not silently
+drop the card pages:
 
 ```python
 import subprocess, datetime

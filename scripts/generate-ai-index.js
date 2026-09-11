@@ -105,6 +105,7 @@ function main() {
 - This file: ${SITE}/llms.txt (concise index) and ${SITE}/llms-full.txt (every tool listed)
 - Static, zero-JS HTML directory of all tools: ${SITE}/tools-index.html
 - Programmatic-use guide for agents and developers: ${SITE}/ai.html
+- Browser-local WebGPU AI companion with an animated face: ${SITE}/local-ai.html
 - Any tool, focused standalone page: ${SITE}/tool.html?card=<tool-slug>
 - Search the catalogue: ${SITE}/index.html?q=<query>
 - Open the homepage with one tool already expanded inline:

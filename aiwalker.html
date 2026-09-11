@@ -149,21 +149,6 @@
     <label for="muscleStr">Muscle strength <span id="muscleVal">1.0×</span></label>
     <input type="range" id="muscleStr" min="3" max="20" step="1" value="10">
 
-    <label for="gravity">Gravity <span id="gravVal">1.0×</span></label>
-    <input type="range" id="gravity" min="4" max="30" step="1" value="12">
-
-    <label for="friction">Ground friction <span id="fricVal">Normal</span></label>
-    <input type="range" id="friction" min="1" max="5" step="1" value="3">
-
-    <label for="mutrate">Mutation rate <span id="mutVal">1.0×</span></label>
-    <input type="range" id="mutrate" min="2" max="30" step="1" value="10">
-
-    <label for="airdrag">Air drag <span id="dragVal">Normal</span></label>
-    <input type="range" id="airdrag" min="1" max="5" step="1" value="3">
-
-    <label for="muscleStr">Muscle strength <span id="muscleVal">1.0×</span></label>
-    <input type="range" id="muscleStr" min="3" max="20" step="1" value="10">
-
     <div>
         <button type="button" id="startBtn">Start</button>
         <button type="button" id="pauseBtn" disabled>Pause</button>
@@ -854,37 +839,6 @@ var WalkerSim = (function () {
             }
         }
 
-        // creature against loose props, so bodies can push things
-        if (props) {
-            for (i = 0; i < this.n; i++) {
-                for (var q = 0; q < props.length; q++) {
-                    var pr = props[q];
-                    var pdx = this.px[i] - pr.x, pdy = this.py[i] - pr.y, pdz = this.pz[i] - pr.z;
-                    var pd = Math.sqrt(pdx * pdx + pdy * pdy + pdz * pdz);
-                    var pmin = g.nodes[i].r + pr.r;
-                    if (pd < pmin && pd > 1e-6) {
-                        var pnx = pdx / pd, pny = pdy / pd, pnz = pdz / pd;
-                        var pim = 1 / pr.mass;
-                        var ppush = (pmin - pd) * 420;
-                        this.vx[i] += pnx * ppush * this.im[i] * h;
-                        this.vy[i] += pny * ppush * this.im[i] * h;
-                        this.vz[i] += pnz * ppush * this.im[i] * h;
-                        pr.vx -= pnx * ppush * pim * h;
-                        pr.vy -= pny * ppush * pim * h;
-                        pr.vz -= pnz * ppush * pim * h;
-                        // tangential grip, otherwise limbs slide off instead of shoving
-                        var prv = (this.vx[i] - pr.vx) * pnx + (this.vy[i] - pr.vy) * pny + (this.vz[i] - pr.vz) * pnz;
-                        if (prv < 0) {
-                            var pimp = -prv * 0.55 * Math.min(1, g.nodes[i].fr);
-                            this.vx[i] += pnx * pimp * 0.5; pr.vx -= pnx * pimp * 0.5;
-                            this.vy[i] += pny * pimp * 0.5; pr.vy -= pny * pimp * 0.5;
-                            this.vz[i] += pnz * pimp * 0.5; pr.vz -= pnz * pimp * 0.5;
-                        }
-                    }
-                }
-            }
-        }
-
         // integrate, then resolve the ground
         for (i = 0; i < this.n; i++) {
             this.vy[i] -= GRAVITY * CFG.gravityMul * h;
@@ -1055,14 +1009,20 @@ var WalkerSim = (function () {
     function makePairs(n, round) {
         var out = [];
         if (n < 2) return out;
+
+        // For an odd population the last creature is the bye. Run the circle
+        // method over the remaining even-sized group; the old loop paired the
+        // middle creature with itself when n was 3, 5, ... .
+        var active = n % 2 ? n - 1 : n;
+        if (active < 2) return out;
         var i, k;
         var others = [];
-        for (i = 1; i < n; i++) others.push(i);
-        var span = n - 1;
+        for (i = 1; i < active; i++) others.push(i);
+        var span = active - 1;
         var r = ((round % span) + span) % span;
         var rot = others.slice(r).concat(others.slice(0, r));
         out.push([0, rot[0]]);
-        for (k = 1; k < n / 2; k++) out.push([rot[k], rot[span - k]]);
+        for (k = 1; k < active / 2; k++) out.push([rot[k], rot[span - k]]);
         return out;
     }
 
@@ -1409,6 +1369,7 @@ var WalkerSim = (function () {
         world = {
             key: key, combat: spec.combat, dur: spec.dur, ring: spec.ring, rounds: spec.rounds || 1,
             plank: spec.plank, half: spec.half, tachiai: spec.tachiai || 0,
+            zone: spec.zone || null, props: spec.props || null,
             ground: spec.ground || function () { return 0; },
             label: spec.label, unit: spec.unit
         };
