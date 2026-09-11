@@ -59,6 +59,10 @@ anything money-related.
 regenerated feed/spotlight/weekly pages and OG image, all scheduled in-repo
 for £0/month. The money pages are the destination; this is the traffic.
 
+**[AI-DISCOVERY.md](AI-DISCOVERY.md)** — how every major AI finds the site:
+crawler policy, llms.txt v2 + Markdown versions, the MCP server, IndexNow,
+and the human submission checklist. Gated by `check-ai-discovery.py`.
+
 Background: **[INCOME.md](INCOME.md)** (music routes, audience facts) and
 **[STRATEGY.md](STRATEGY.md)** (the licensing thesis).
 

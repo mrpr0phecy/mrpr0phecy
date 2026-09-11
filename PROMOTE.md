@@ -87,7 +87,7 @@ tier. No AI providers, no paid schedulers.
 * **X/Twitter** — API posting now requires a paid tier; the short template
   fits X, so manual cross-posting from the artifacts is trivial.
 * **LinkedIn** — needs an OAuth app + 60-day token rotation; the Monday
-  template in `copy.py` is written and waiting for when it's worth it.
+  template in `words.py` is written and waiting for when it's worth it.
 * **YouTube Shorts** — a ffmpeg renderer turning picks into vertical clips
   is the obvious next channel; upload API needs an OAuth client.
 * **Embed wall** — sites embedding tools could PR themselves onto a
@@ -97,7 +97,7 @@ tier. No AI providers, no paid schedulers.
 ## Files
 
 * `scripts/promo/` — `catalogue.py` (reads cards.json + listen.html),
-  `pick.py` (deterministic rotation), `copy.py` (templates + D-002 guard),
+  `pick.py` (deterministic rotation), `words.py` (templates + D-002 guard),
   `card.py` (PNG/SVG cards), `post.py` (Bluesky + Mastodon publishers),
   `feeds.py` (RSS), `spotlight.py` (pages + newsletter), `check.py` (health).
 * `promo/queue.json` — human overrides. `promo/week-*.html` — archive.

@@ -33,7 +33,7 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from promo import catalogue, copy as promo_copy, pick  # noqa: E402
+from promo import catalogue, pick, words as promo_copy  # noqa: E402
 
 
 def _http(method: str, url: str, *, headers: dict | None = None,

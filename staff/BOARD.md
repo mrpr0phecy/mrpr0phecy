@@ -9,6 +9,28 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-11 — AI-retrieval surface shipped (owner-directed)
+
+**Branch:** `arena/01a08dc2-mrpr0phecy` · **Requested by:** owner in-session
+(*"retrievable by as many AIs as possible … look up protocols"*). Researched
+llms.txt v2, MCP registries, the ChatGPT App Directory, GEO citation mechanics
+and IndexNow; implemented the static-hostable subset, documented the rest.
+
+**Shipped:** robots.txt allow-all for 22 AI crawlers (matches `.well-known/ai.txt`
+policy), `.nojekyll`, `scripts/build-md.py` (23 Markdown versions, same-URL+.md,
+rel=alternate/describedby), llms.txt generator upgraded to v2 shape + citing
+guide, `mcp/server.py` (zero-dep stdio: search/get/categories/markdown) +
+`server.json` + setup docs, `scripts/promo/indexnow.py` + key file, entity
+`sameAs` on index/about JSON-LD, `ai.html` MCP + citation sections,
+`scripts/check-ai-discovery.py` as verify.sh §13, `AI-DISCOVERY.md` runbook.
+Promo refresh now also regenerates embed catalogue + markdown and pings
+IndexNow. Also renamed `scripts/promo/copy.py` → `words.py` (it shadowed
+stdlib `copy` and broke any importer — found via the IndexNow crash).
+
+**Owner actions left:** Bing Webmaster Tools (~10 min, covers ChatGPT search
++ Copilot); MCP Registry publish + directory claims; ChatGPT App Directory
+submission (biggest audience); weekly citation probes. All in AI-DISCOVERY.md.
+
 ## 2026-09-11 — promo autopilot shipped (owner-directed)
 
 **Branch:** `arena/01a08dc2-mrpr0phecy` · **Requested by:** owner in-session

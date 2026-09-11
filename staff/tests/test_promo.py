@@ -16,7 +16,7 @@ import xml.dom.minidom
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
-from promo import catalogue, check as promo_check, copy as promo_copy, feeds, pick, post, spotlight  # noqa: E402
+from promo import catalogue, check as promo_check, feeds, pick, post, spotlight, words as promo_copy  # noqa: E402
 
 try:
     import PIL  # noqa: F401

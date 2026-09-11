@@ -16,7 +16,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from promo import catalogue, copy as promo_copy, pick  # noqa: E402
+from promo import catalogue, pick, words as promo_copy  # noqa: E402
 
 ROOT = catalogue.ROOT
 

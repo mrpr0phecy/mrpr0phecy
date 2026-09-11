@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """copy.py — post text templates. Pure functions in, tested strings out.
 
-    python3 scripts/promo/copy.py                       # today's posts
-    python3 scripts/promo/copy.py --date 2026-09-20     # any date
+    python3 scripts/promo/words.py                       # today's posts
+    python3 scripts/promo/words.py --date 2026-09-20     # any date
 
 Every template is length-budgeted for its network (Bluesky 300 graphemes,
 Mastodon 500, X 280 — we use the X budget for Bluesky too so one text serves
