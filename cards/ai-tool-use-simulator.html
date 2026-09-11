@@ -1,0 +1,252 @@
+<h2 id="atus-title" style="margin-top:0;color:var(--accent);">🔧 AI Tool-Use Simulator — Function Calling & Byte 2.0 Integration</h2>
+
+<form aria-describedby="atus-desc" onsubmit="event.preventDefault();">
+  <p id="atus-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Byte 2.0's function calling live: model emits <code>```tool {"tool": "open_tool", "params": {...}}```</code> — UI executes with inline preview. Simulate tool-use, test JSON schemas, and see how Byte turns natural language into actionable tool calls with pre-filled inputs.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <label for="atus-input" style="display:block;margin-bottom:6px;font-size:0.78rem;color:var(--text-secondary)">User request (natural language → tool calls)</label>
+      <textarea id="atus-input" rows="3" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-light);background:#070f18;color:var(--text);font-size:0.85rem">Convert 180 lbs to kg and then calculate BMI for 5'11 height. Also generate a QR code for my WiFi.</textarea>
+      
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <select id="atus-mode" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border-light);background:#070f18;color:var(--text);font-size:0.78rem">
+          <option value="auto">Auto — model decides tools</option>
+          <option value="chain">Chain — sequential tool calls</option>
+          <option value="parallel">Parallel — multiple tools at once</option>
+          <option value="validate">Validate — check schema only</option>
+        </select>
+        <button type="button" id="atus-generate" style="padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:rgba(45,212,255,.12);color:var(--accent);font-weight:800">⚡ Generate calls</button>
+      </div>
+
+      <div style="margin-top:10px">
+        <div style="font-size:0.76rem;font-weight:700;color:var(--accent);margin-bottom:6px">Available meta-tools (Byte 2.0)</div>
+        <div style="display:grid;gap:6px">
+          <div style="padding:8px;border-radius:8px;background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.18);font-size:0.70rem">
+            <code style="color:var(--accent)">search_tools(query, intent?, category?, limit?)</code><br>
+            <span style="color:var(--dim)">Hybrid BM25+embed search over 1119 tools</span>
+          </div>
+          <div style="padding:8px;border-radius:8px;background:rgba(57,255,176,.06);border:1px solid rgba(57,255,176,.18);font-size:0.70rem">
+            <code style="color:var(--green)">open_tool(name, inputs?)</code><br>
+            <span style="color:var(--dim)">Open tool with pre-filled inputs via URL or postMessage</span>
+          </div>
+          <div style="padding:8px;border-radius:8px;background:rgba(255,209,102,.06);border:1px solid rgba(255,209,102,.18);font-size:0.70rem">
+            <code style="color:var(--amber)">compare_tools(names)</code><br>
+            <span style="color:var(--dim)">Side-by-side comparison with descriptions & categories</span>
+          </div>
+          <div style="padding:8px;border-radius:8px;background:rgba(157,78,221,.06);border:1px solid rgba(157,78,221,.18);font-size:0.70rem">
+            <code style="color:#9d4edd">create_workflow(goal, steps)</code><br>
+            <span style="color:var(--dim)">Plan multi-step workflow, map each step to tools</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:0.76rem;font-weight:700;color:var(--accent);margin-bottom:6px">Generated tool calls (model output)</div>
+      <pre id="atus-output" style="min-height:180px;max-height:280px;overflow:auto;padding:10px;border-radius:10px;background:#070f18;border:1px solid var(--border-light);color:var(--text);font-size:0.78rem;white-space:pre-wrap"></pre>
+      
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button type="button" id="atus-execute" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--green);background:rgba(57,255,176,.12);color:var(--green);font-weight:700">▶ Execute calls</button>
+        <button type="button" id="atus-copy" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border-light);background:rgba(255,255,255,.04);color:var(--dim);font-size:0.76rem">Copy JSON</button>
+      </div>
+
+      <div id="atus-validation" style="margin-top:8px;padding:8px;border-radius:8px;background:rgba(0,0,0,.18);border:1px solid var(--border-light);font-size:0.70rem;color:var(--text-secondary)">Validation: —</div>
+    </div>
+  </div>
+
+  <div id="atus-results" style="display:grid;gap:8px;margin-top:12px"></div>
+
+  <div style="margin-top:14px;padding:12px;border-radius:10px;background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.18)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--accent);margin-bottom:6px">How Byte 2.0 tool-use works</div>
+    <div style="font-size:0.72rem;color:var(--text-secondary);line-height:1.5">
+      <b>1. System prompt</b> defines meta-tools with JSON schemas and instructs model to emit <code>```tool {...}```</code> fences<br>
+      <b>2. Model</b> (SmolLM2 360M excels at JSON) generates tool calls interleaved with reasoning<br>
+      <b>3. Parser</b> extracts <code>```tool```</code> fences + raw JSON via regex, validates against schema<br>
+      <b>4. Executor</b> runs <code>search_tools</code> via RetrievalEngine (BM25+embed), <code>open_tool</code> via iframe with pre-filled inputs<br>
+      <b>5. UI</b> renders tool cards with open/embed/preview actions, tracks feedback for retrieval weight updates<br>
+      <b>Privacy:</b> All tool execution local — no data leaves browser. Inputs via URL params or postMessage to iframe.
+    </div>
+  </div>
+</form>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const TOOLS = [
+    {name:'stone-pounds-kg-weight-converter', title:'⚖️ Stone, Pounds ⇄ kg', cat:'Science', desc:'Convert body weight', inputs:['weight','unit']},
+    {name:'bmi', title:'⚕️ BMI Calculator', cat:'Health', desc:'Body Mass Index WHO', inputs:['weight','height']},
+    {name:'wifi-qr-generator', title:'📶 Wi-Fi QR Generator', cat:'Productivity', desc:'QR for WiFi network', inputs:['ssid','password','security']},
+    {name:'mortgage', title:'🏠 Mortgage Calculator', cat:'Finance', desc:'monthly repayments, overpayments', inputs:['amount','rate','term']},
+    {name:'budget', title:'💰 Budget Dashboard', cat:'Finance', desc:'track spending', inputs:['income','expenses']},
+    {name:'qr-code-generator', title:'QR Code Generator', cat:'Productivity', desc:'Generate QR codes', inputs:['text','size']},
+    {name:'unit-converter', title:'🔬 Unit Converter', cat:'Science', desc:'length mass temp', inputs:['value','from','to']},
+    {name:'bmi', title:'BMI Calculator', cat:'Health', desc:'BMI WHO classification', inputs:['weight','height']},
+  ];
+
+  function extractNumbers(text){
+    const nums=[...text.matchAll(/(\d+(?:\.\d+)?)\s*(lbs|kg|pounds|kilograms|ft|feet|'|\"|inches|cm|m|years|%|£|\$)?/gi)].map(m=>({value:parseFloat(m[1]), unit:(m[2]||'').toLowerCase()}));
+    return nums;
+  }
+
+  function generateToolCalls(input, mode){
+    const lower=input.toLowerCase();
+    const calls=[];
+    const nums=extractNumbers(input);
+
+    // Intent detection
+    const hasConvert=/(convert|to|⇄|→)/i.test(input);
+    const hasBMI=/(bmi|body mass|weight.*height|height.*weight)/i.test(input);
+    const hasQR=/(qr|wifi|wi-fi|password.*code)/i.test(input);
+    const hasMortgage=/(mortgage|house|loan|repay)/i.test(input);
+    const hasBudget=/(budget|spending|track.*money)/i.test(input);
+
+    if(hasConvert || nums.some(n=>n.unit.includes('lb'))){
+      const weightNum=nums.find(n=> n.unit.includes('lb') || n.unit.includes('pound')) || {value:180};
+      calls.push({tool:'search_tools', params:{query:'weight converter kg lbs', intent:'convert', limit:3}});
+      calls.push({tool:'open_tool', params:{name:'stone-pounds-kg-weight-converter', inputs:{weight: weightNum.value, from:'lbs', to:'kg'}}});
+    }
+    if(hasBMI){
+      const weight=nums.find(n=> n.unit.includes('lb') || n.unit.includes('kg'))?.value || 82;
+      const heightMatch=input.match(/(\d+)'(\d+)|(\d+)\s*(?:ft|feet).*?(\d+)\s*(?:in|inches)|(\d+\.?\d*)\s*(?:cm|m)/i);
+      let height='5\'11';
+      if(heightMatch) height=heightMatch[0];
+      calls.push({tool:'open_tool', params:{name:'bmi', inputs:{weight: weight, height: height, weightUnit: 'kg', heightUnit: 'ft'}}});
+    }
+    if(hasQR){
+      const ssidMatch=input.match(/wifi.*?(?:for\s+)?["']?([a-zA-Z0-9_-]+)["']?/i);
+      calls.push({tool:'open_tool', params:{name:'wifi-qr-generator', inputs:{ssid: ssidMatch?.[1]||'MyWiFi', password:'', security:'WPA'}}});
+    }
+    if(hasMortgage){
+      const amount=nums.find(n=> n.value>1000)?.value || 250000;
+      calls.push({tool:'open_tool', params:{name:'mortgage', inputs:{amount, rate:4.2, term:25}}});
+    }
+    if(hasBudget){
+      calls.push({tool:'open_tool', params:{name:'budget', inputs:{}}});
+    }
+
+    // Fallback: search
+    if(calls.length===0){
+      calls.push({tool:'search_tools', params:{query: input.slice(0,80), limit:5}});
+    }
+
+    // Mode handling
+    if(mode==='parallel'){
+      // Keep all
+    }else if(mode==='chain'){
+      // Chain with dependencies
+      return calls.map((c,i)=> ({...c, _chain: i, _depends: i>0 ? [i-1] : []}));
+    }else if(mode==='validate'){
+      // Just validate
+    }
+
+    // Deduplicate by name
+    const seen=new Set(); const deduped=[];
+    calls.forEach(c=>{
+      if(c.tool==='open_tool'){
+        if(seen.has(c.params.name)) return;
+        seen.add(c.params.name);
+      }
+      deduped.push(c);
+    });
+
+    return deduped;
+  }
+
+  function validateCall(call){
+    const errors=[];
+    if(!call.tool) errors.push('Missing tool');
+    if(!call.params) errors.push('Missing params');
+    if(call.tool==='open_tool' && !call.params.name) errors.push('open_tool needs name');
+    if(call.tool==='search_tools' && !call.params.query) errors.push('search_tools needs query');
+    if(call.tool==='compare_tools' && (!call.params.names || call.params.names.length<2)) errors.push('compare_tools needs 2+ names');
+    // Check tool exists
+    if(call.tool==='open_tool'){
+      const exists=TOOLS.some(t=>t.name===call.params.name || t.name.includes(call.params.name) || call.params.name.includes(t.name));
+      if(!exists) errors.push(`Tool ${call.params.name} not in demo list (but may exist in 1119)`);
+    }
+    return {valid: errors.length===0, errors};
+  }
+
+  function renderOutput(calls){
+    const outputEl=$('atus-output');
+    let text='';
+    text+=`// Generated ${calls.length} tool calls from: "${$('atus-input').value.slice(0,60)}..."\n`;
+    text+=`// Mode: ${$('atus-mode').value} · Numbers extracted: ${JSON.stringify(extractNumbers($('atus-input').value))}\n\n`;
+    calls.forEach((c,i)=>{
+      const validation=validateCall(c);
+      text+=`// Call ${i+1} — ${validation.valid?'✓ valid':'✗ '+validation.errors.join(', ')}\n`;
+      text+=` \`\`\`tool\n${JSON.stringify(c, null, 2)}\n\`\`\`\n\n`;
+    });
+    outputEl.textContent=text;
+
+    // Validation summary
+    const validCount=calls.filter(c=>validateCall(c).valid).length;
+    $('atus-validation').innerHTML=`Validation: ${validCount}/${calls.length} valid · ${calls.length} calls · mode ${$('atus-mode').value} · <span style="color:${validCount===calls.length?'var(--green)':'var(--amber)'}">${validCount===calls.length?'all good ✓':'some issues'}</span>`;
+  }
+
+  function executeCalls(calls){
+    const resultsEl=$('atus-results');
+    resultsEl.replaceChildren();
+    calls.forEach((call, idx)=>{
+      const validation=validateCall(call);
+      const div=document.createElement('div');
+      div.style.cssText=`padding:10px 12px;border-radius:10px;border:1px solid ${validation.valid?'rgba(57,255,176,.24)':'rgba(255,112,141,.24)'};background:${validation.valid?'rgba(57,255,176,.06)':'rgba(255,112,141,.06)'}`;
+      let html=`<div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:0.82rem;color:${validation.valid?'var(--green)':'var(--danger)'}">${idx+1}. ${call.tool}</strong><span style="font-size:0.66rem;color:var(--faint)">${validation.valid?'✓':'✗'} ${validation.errors.join(', ')}</span></div>`;
+      html+=`<div style="font-size:0.72rem;color:var(--dim);margin:4px 0">Params: ${JSON.stringify(call.params).slice(0,200)}</div>`;
+      if(call.tool==='open_tool'){
+        const tool=TOOLS.find(t=>t.name===call.params.name) || {title:call.params.name, name:call.params.name, cat:'Unknown'};
+        const url=`/tool.html?card=${tool.name}&embed=1`;
+        html+=`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><a href="/tool.html?card=${tool.name}" target="_blank" rel="noopener" style="padding:5px 10px;border-radius:8px;background:rgba(45,212,255,.12);border:1px solid var(--accent);color:var(--accent);text-decoration:none;font-size:0.72rem">Open ${tool.title}</a><button type="button" data-preview="${url}" style="padding:5px 10px;border-radius:8px;border:1px solid var(--border-light);background:rgba(255,255,255,.04);color:var(--dim);font-size:0.72rem">Preview</button></div><div class="atus-embed" style="display:none;margin-top:8px;border:1px solid var(--border-light);border-radius:10px;overflow:hidden;height:360px"><iframe loading="lazy" style="width:100%;height:100%;border:0;background:#0a0f14"></iframe></div>`;
+      }else if(call.tool==='search_tools'){
+        const q=call.params.query;
+        const matches=TOOLS.filter(t=> q.toLowerCase().split(/\W+/).some(tok=> t.title.toLowerCase().includes(tok) || t.name.includes(tok))).slice(0,3);
+        html+=`<div style="margin-top:6px;font-size:0.72rem;color:var(--dim)">Search "${q}" → ${matches.length} matches:<br>${matches.map(m=>`• <a href="/tool.html?card=${m.name}" target="_blank" rel="noopener">${m.title}</a> (${m.cat})`).join('<br>')}</div>`;
+      }
+      div.innerHTML=html;
+      resultsEl.append(div);
+      div.querySelectorAll('[data-preview]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const embed=div.querySelector('.atus-embed');
+          const iframe=embed.querySelector('iframe');
+          if(embed.style.display==='none'){
+            iframe.src=btn.dataset.preview;
+            embed.style.display='block';
+            btn.textContent='Hide';
+          }else{
+            embed.style.display='none';
+            iframe.src='about:blank';
+            btn.textContent='Preview';
+          }
+        });
+      });
+    });
+  }
+
+  $('atus-generate').addEventListener('click', ()=>{
+    const input=$('atus-input').value.trim(); if(!input) return;
+    const mode=$('atus-mode').value;
+    const calls=generateToolCalls(input, mode);
+    renderOutput(calls);
+    // Auto-execute if not validate mode
+    if(mode!=='validate') executeCalls(calls);
+  });
+  $('atus-execute').addEventListener('click', ()=>{
+    const text=$('atus-output').textContent;
+    const regex=/```tool\s*\n([\s\S]*?)\n```/g;
+    const calls=[]; let m;
+    while((m=regex.exec(text))!==null){ try{ calls.push(JSON.parse(m[1])); }catch{} }
+    if(calls.length) executeCalls(calls);
+  });
+  $('atus-copy').addEventListener('click', ()=>{
+    const text=$('atus-output').textContent;
+    navigator.clipboard.writeText(text).then(()=>{ $('atus-copy').textContent='Copied!'; setTimeout(()=>$('atus-copy').textContent='Copy JSON', 1200); });
+  });
+
+  // Initial
+  const initialCalls=generateToolCalls($('atus-input').value, 'auto');
+  renderOutput(initialCalls);
+  executeCalls(initialCalls);
+})();
+</script>

@@ -1,0 +1,222 @@
+<h2 id="amvs-title" style="margin-top:0;color:var(--accent);">🧠 Browser Vector Memory — IndexedDB + Semantic Search</h2>
+
+<form aria-describedby="amvs-desc" onsubmit="event.preventDefault();">
+  <p id="amvs-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Byte 2.0's memory system live: 64-dim hash embeddings, L2 normalized, cosine similarity, stored in IndexedDB. Add memories, search semantically, consolidate old conversations — all local, zero cloud, same engine Byte uses for long-term recall.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <label for="amvs-input" style="display:block;margin-bottom:6px;font-size:0.78rem;color:var(--text-secondary)">Add memory (text → 64-dim embedding → IndexedDB)</label>
+      <textarea id="amvs-input" rows="3" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-light);background:#070f18;color:var(--text);font-size:0.84rem" placeholder="e.g. I prefer concise answers in GBP, I'm moving house in March, my mortgage is £250k at 4.2%">I prefer concise answers in GBP. I'm moving house in March. My mortgage is £250k at 4.2% over 25 years. I work as a developer in Luton.</textarea>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button type="button" id="amvs-add" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--accent);background:rgba(45,212,255,.12);color:var(--accent);font-weight:800">+ Add to vector DB</button>
+        <button type="button" id="amvs-clear" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border-light);background:rgba(255,255,255,.04);color:var(--dim);font-size:0.76rem">Clear DB</button>
+      </div>
+      <div id="amvs-status" style="margin-top:8px;padding:8px;border-radius:8px;background:rgba(0,0,0,.18);border:1px solid var(--border-light);font-size:0.70rem;color:var(--text-secondary)">IndexedDB: not initialized</div>
+      
+      <div style="margin-top:12px">
+        <div style="font-size:0.76rem;font-weight:700;color:var(--accent);margin-bottom:6px">Embedding preview (64-dim, L2 norm)</div>
+        <canvas id="amvs-canvas" width="320" height="80" style="width:100%;height:80px;border-radius:8px;border:1px solid var(--border-light);background:#070f18"></canvas>
+        <div id="amvs-emb-stats" style="font-size:0.66rem;color:var(--faint);margin-top:4px"></div>
+      </div>
+    </div>
+    
+    <div>
+      <label for="amvs-query" style="display:block;margin-bottom:6px;font-size:0.78rem;color:var(--text-secondary)">Semantic search (cosine similarity over embeddings)</label>
+      <input id="amvs-query" type="text" value="how much is my mortgage payment" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-light);background:#070f18;color:var(--text);font-size:0.85rem;margin-bottom:8px" placeholder="e.g. how much is my mortgage payment">
+      <button type="button" id="amvs-search" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--accent);background:rgba(45,212,255,.12);color:var(--accent);font-weight:800;margin-bottom:10px">🔍 Semantic search</button>
+      
+      <div id="amvs-results" style="display:grid;gap:6px;max-height:320px;overflow:auto"></div>
+      
+      <div style="margin-top:10px;padding:8px;border-radius:8px;background:rgba(157,78,221,.08);border:1px solid rgba(157,78,221,.18)">
+        <div style="font-size:0.72rem;font-weight:700;color:#9d4edd;margin-bottom:4px">Memory types in Byte 2.0</div>
+        <div style="font-size:0.68rem;color:var(--dim);line-height:1.4">
+          <b>Short-term:</b> Last 100 turns, buffer with summarization when >5000 chars<br>
+          <b>Long-term:</b> This IndexedDB vector store, semantic search via cosine<br>
+          <b>Episodic:</b> Interaction history with timestamps<br>
+          <b>Semantic:</b> Private notes + embeddings (this demo)<br>
+          <b>Consolidation:</b> Old conversations summarized and embedded for long-term recall
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">
+    <div style="padding:8px;border-radius:8px;background:rgba(0,0,0,.18);border:1px solid var(--border-light)"><div style="font-size:0.62rem;color:var(--faint);text-transform:uppercase;letter-spacing:.06em">Memories</div><div id="amvs-count" style="font-size:0.88rem;font-weight:800;color:var(--text)">0</div></div>
+    <div style="padding:8px;border-radius:8px;background:rgba(0,0,0,.18);border:1px solid var(--border-light)"><div style="font-size:0.62rem;color:var(--faint);text-transform:uppercase;letter-spacing:.06em">Avg search</div><div id="amvs-avg" style="font-size:0.88rem;font-weight:800;color:var(--text)">—</div></div>
+    <div style="padding:8px;border-radius:8px;background:rgba(0,0,0,.18);border:1px solid var(--border-light)"><div style="font-size:0.62rem;color:var(--faint);text-transform:uppercase;letter-spacing:.06em">DB size</div><div id="amvs-size" style="font-size:0.88rem;font-weight:800;color:var(--text)">—</div></div>
+  </div>
+</form>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const DB_NAME='byte-vector-memory-demo', STORE='memories';
+  let db=null;
+
+  function tokenize(text){
+    const STOP=new Set(["the","and","for","with","you","your","this","that","from","have","are","was","were","been","will","can","not","but","our","has","had","its","may","all","any","per","via","using","use","into","over","under","about","more","most","some","such","than","then","when","where","what","which","who","how","why","tool","free","online","browser"]);
+    return String(text).toLowerCase().replace(/[^a-z0-9]+/g,' ').split(' ').filter(w=>w.length>1 && w.length<32 && !STOP.has(w));
+  }
+  function hashEmb(tokens, dim=64){
+    const vec=new Array(dim).fill(0); const counts={}; tokens.forEach(t=>counts[t]=(counts[t]||0)+1);
+    for(const [tok,tf] of Object.entries(counts)){
+      let h1=0,h2=0; for(let i=0;i<tok.length;i++){ h1=(h1*31+tok.charCodeAt(i))>>>0; h2=(h2*131+tok.charCodeAt(i))>>>0; }
+      for(let k=0;k<3;k++){ const idx=(h1 + k*h2) % dim; const sign= ((h1>>k)&1)?1:-1; vec[idx]+= sign*(1+Math.log(tf)); }
+    }
+    const norm=Math.sqrt(vec.reduce((s,x)=>s+x*x,0))||1; return vec.map(x=>Math.round((x/norm)*10000)/10000);
+  }
+  function cosine(a,b){ let dot=0; for(let i=0;i<a.length;i++) dot+=a[i]*b[i]; return dot; }
+
+  async function initDB(){
+    return new Promise((res, rej)=>{
+      const req=indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded=e=>{
+        const d=e.target.result;
+        if(!d.objectStoreNames.contains(STORE)){
+          const s=d.createObjectStore(STORE, {keyPath:'id'});
+          s.createIndex('timestamp','timestamp');
+        }
+      };
+      req.onsuccess=e=>{ db=e.target.result; res(db); };
+      req.onerror=e=>rej(e);
+    });
+  }
+
+  async function addMemory(text){
+    await initDB();
+    const tokens=tokenize(text);
+    const emb=hashEmb(tokens, 64);
+    const rec={id: Date.now()+'-'+Math.random().toString(16).slice(2), text: text.slice(0,1000), embedding: emb, tokens, timestamp: Date.now(), tokenCount: tokens.length};
+    return new Promise((res, rej)=>{
+      const tx=db.transaction(STORE,'readwrite');
+      tx.objectStore(STORE).put(rec);
+      tx.oncomplete=()=>res(rec);
+      tx.onerror=e=>rej(e);
+    });
+  }
+
+  async function getAll(){
+    await initDB();
+    return new Promise((res, rej)=>{
+      const tx=db.transaction(STORE,'readonly');
+      const req=tx.objectStore(STORE).getAll();
+      req.onsuccess=()=>res(req.result||[]);
+      req.onerror=e=>rej(e);
+    });
+  }
+
+  async function clearDB(){
+    await initDB();
+    return new Promise((res, rej)=>{
+      const tx=db.transaction(STORE,'readwrite');
+      tx.objectStore(STORE).clear();
+      tx.oncomplete=()=>res();
+      tx.onerror=e=>rej(e);
+    });
+  }
+
+  async function searchMemories(query){
+    await initDB();
+    const start=performance.now();
+    const qTokens=tokenize(query);
+    const qEmb=hashEmb(qTokens, 64);
+    const all=await getAll();
+    const scored=all.map(r=>({ ...r, score: cosine(qEmb, r.embedding||[]) })).sort((a,b)=>b.score-a.score);
+    const time=Math.round(performance.now()-start);
+    return {results: scored, time, qTokens, qEmb};
+  }
+
+  function drawEmbedding(emb){
+    const canvas=$('amvs-canvas'); const ctx=canvas.getContext('2d');
+    const w=canvas.width, h=canvas.height;
+    ctx.clearRect(0,0,w,h);
+    // Background
+    ctx.fillStyle='#070f18'; ctx.fillRect(0,0,w,h);
+    // Bars
+    const barW=w/emb.length;
+    emb.forEach((v,i)=>{
+      const x=i*barW;
+      const bh=Math.abs(v)*(h*0.4);
+      const y=v>=0 ? h*0.5 - bh : h*0.5;
+      ctx.fillStyle= v>=0 ? `rgba(45,212,255,${0.4+Math.abs(v)*0.6})` : `rgba(255,46,99,${0.4+Math.abs(v)*0.6})`;
+      ctx.fillRect(x+1, y, barW-2, bh);
+    });
+    // Center line
+    ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.beginPath(); ctx.moveTo(0,h*0.5); ctx.lineTo(w,h*0.5); ctx.stroke();
+    // Stats
+    const norm=Math.sqrt(emb.reduce((s,x)=>s+x*x,0));
+    const min=Math.min(...emb), max=Math.max(...emb);
+    $('amvs-emb-stats').textContent=`L2 norm ${norm.toFixed(3)} · min ${min.toFixed(3)} max ${max.toFixed(3)} · dim 64 · ${tokenize($('amvs-input').value).length} tokens`;
+  }
+
+  async function refresh(){
+    const all=await getAll().catch(()=>[]);
+    $('amvs-count').textContent=all.length;
+    $('amvs-size').textContent=`${(JSON.stringify(all).length/1024).toFixed(1)} KB`;
+    $('amvs-status').textContent=`IndexedDB ${DB_NAME} · ${all.length} memories · ready`;
+    if(all.length) {
+      const avg=all.reduce((s,r)=>s+r.tokenCount,0)/all.length;
+      $('amvs-avg').textContent=`${avg.toFixed(1)} tokens avg`;
+    }
+  }
+
+  $('amvs-add').addEventListener('click', async ()=>{
+    const text=$('amvs-input').value.trim(); if(!text) return;
+    $('amvs-add').disabled=true; $('amvs-add').textContent='Embedding…';
+    try{
+      const rec=await addMemory(text);
+      drawEmbedding(rec.embedding);
+      await refresh();
+      $('amvs-status').textContent=`Added: "${text.slice(0,50)}..." · ${rec.tokenCount} tokens → 64-dim embedding`;
+      $('amvs-input').value='';
+    }catch(e){
+      $('amvs-status').textContent=`Error: ${e.message}`;
+    }finally{
+      $('amvs-add').disabled=false; $('amvs-add').textContent='+ Add to vector DB';
+    }
+  });
+
+  $('amvs-search').addEventListener('click', async ()=>{
+    const q=$('amvs-query').value.trim(); if(!q) return;
+    $('amvs-search').disabled=true; $('amvs-search').textContent='Searching…';
+    try{
+      const {results, time, qTokens}=await searchMemories(q);
+      const el=$('amvs-results'); el.replaceChildren();
+      results.slice(0,6).forEach((r,i)=>{
+        const div=document.createElement('div');
+        div.style.cssText='padding:8px 10px;border:1px solid var(--border-light);border-radius:8px;background:rgba(0,0,0,.18)';
+        const scoreColor= r.score>0.6 ? 'var(--green)' : r.score>0.3 ? 'var(--accent)' : 'var(--faint)';
+        div.innerHTML=`
+          <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:0.78rem;color:var(--text)">${i+1}. ${r.text.slice(0,80)}${r.text.length>80?'…':''}</span><span style="font-size:0.70rem;color:${scoreColor};font-weight:800">${r.score.toFixed(3)}</span></div>
+          <div style="font-size:0.64rem;color:var(--faint);margin-top:3px">tokens: ${r.tokens.slice(0,6).join(', ')} · ${new Date(r.timestamp).toLocaleTimeString()} · ${r.tokenCount} tokens</div>
+          <div style="margin-top:4px;height:4px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden"><div style="height:100%;width:${Math.max(4, r.score*100)}%;background:${scoreColor}"></div></div>
+        `;
+        el.append(div);
+      });
+      $('amvs-status').textContent=`Search "${q}" → ${results.length} results in ${time}ms · query tokens [${qTokens.join(', ')}] · cosine similarity`;
+      $('amvs-avg').textContent=`${time}ms search`;
+    }catch(e){
+      $('amvs-status').textContent=`Search error: ${e.message}`;
+    }finally{
+      $('amvs-search').disabled=false; $('amvs-search').textContent='🔍 Semantic search';
+    }
+  });
+
+  $('amvs-clear').addEventListener('click', async ()=>{
+    if(!confirm('Clear all vector memories from IndexedDB?')) return;
+    await clearDB(); await refresh(); $('amvs-results').replaceChildren(); $('amvs-status').textContent='Cleared';
+  });
+
+  $('amvs-input').addEventListener('input', ()=>{
+    const tokens=tokenize($('amvs-input').value);
+    if(tokens.length) drawEmbedding(hashEmb(tokens,64));
+  });
+
+  // Init
+  initDB().then(()=>refresh()).catch(e=>{ $('amvs-status').textContent=`DB error: ${e.message}`; });
+  // Initial emb preview
+  drawEmbedding(hashEmb(tokenize($('amvs-input').value),64));
+})();
+</script>
