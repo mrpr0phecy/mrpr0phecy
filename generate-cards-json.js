@@ -176,6 +176,11 @@ const aquariumList = [
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
   'ai-realistic-face-avatar': 'AI & Autonomous Agents',
+  'ai-super-realistic-face-v4': 'AI & Autonomous Agents',
+  'ai-graph-of-thought-lab': 'AI & Autonomous Agents',
+  'ai-buffer-of-thoughts-lab': 'AI & Autonomous Agents',
+  'ai-chain-of-verification-lab': 'AI & Autonomous Agents',
+  'ai-mixture-of-agents-lab': 'AI & Autonomous Agents',
   'geometric-size-illusion-lab': 'Mind-Blowing Demos',
   'joy-spark-micro-celebrations': 'Wellbeing & Community',
   'interactive-wind-chime-sanctuary': 'Interactive Art & Living Worlds',

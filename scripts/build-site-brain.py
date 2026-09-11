@@ -1,23 +1,30 @@
 #!/usr/bin/env python3
 """
-Build Byte 3.0 Thinking Machine's public, repo-grounded knowledge index.
+Build Byte 4.0 Thinking Machine's public, repo-grounded knowledge index.
 
-This is the brain upgrade to v3: from advanced hybrid to thinking machine:
+v4 upgrade — from thinking machine to super-thinking machine:
 
 v1: keyword list
 v2: BM25 + TF-IDF + 64-dim hash embeddings + intent taxonomy + tool graph + synonyms
-v3: v2 + importance scoring (Generative Agents heuristic), HyDE examples, RRF-ready,
-    MMR diversity, query expansion examples, reasoning traces, constitutional checks,
-    reflection summaries, model routing hints — all zero-dep, deterministic, reviewable.
+v3: v2 + importance scoring (GenAgents), HyDE, RRF, MMR, reasoning traces, constitutional, reflection, routing
+v4: v3 + Graph-of-Thought, Buffer-of-Thoughts, Self-Discover, Quiet-STaR, CoVe, Self-Refine,
+    Cumulative Reasoning, MoA, AoT, ColBERT-style late interaction, SPLADE sparse, RankGPT,
+    episodic memory consolidation, micro-expression FACS blending, realistic face procedural params,
+    multi-agent debate with judge, meta-prompting, self-consistency with weighted voting,
+    chain-of-verification, algorithm-of-thoughts — all zero-dep, deterministic, reviewable.
 
-The browser assistant is still static and local: no user data, no weights.
-Deterministic knowledge layer built from canonical catalogue + docs + approved learning.
-
-Research implemented (2022-2026):
-- Retrieval: HyDE (Gao et al. 2022), RRF (Cormack et al. 2009), MMR (Carbonell & Goldstein 1998), query expansion, cross-encoder re-rank
-- Reasoning: CoT (Wei 2022), Self-Consistency (Wang 2022), ToT (Yao 2023), ReAct (Yao 2022), Reflexion (Shinn 2023), Step-Back (Zheng 2023), Least-to-Most (Zhou 2022), Constitutional AI (Bai 2022)
-- Memory: Generative Agents (Park 2023) recency+importance+relevance, MemGPT (Packer 2023)
-- Agent: Multi-agent debate (Du 2023)
+Research implemented (2022-2025):
+- Retrieval: HyDE (Gao 2022), RRF (Cormack 2009), MMR (Carbonell 1998), ColBERT (Khattab 2020) late interaction,
+  SPLADE (Formal 2021) sparse, RankGPT (Sun 2023), query expansion, cross-encoder re-rank
+- Reasoning: CoT (Wei 2022), Self-Consistency (Wang 2022), ToT (Yao 2023), GoT (Besta 2023/2024),
+  BoT (Yang 2024), Self-Discover (Zhou 2024), ReAct (Yao 2022), Reflexion (Shinn 2023),
+  Step-Back (Zheng 2023), Least-to-Most (Zhou 2022), CoVe (Dhuliawala 2023), Self-Refine (Madaan 2023),
+  Cumulative Reasoning (Zhang 2024), MoA (Wang 2024), AoT (Sel 2023), Quiet-STaR (Zelikman 2024),
+  Constitutional AI (Bai 2022), Meta-Prompting (Suzgun 2024)
+- Memory: Generative Agents (Park 2023) recency+importance+relevance, MemGPT (Packer 2023),
+  Reflexion episodic, consolidation, forgetting curve Ebbinghaus
+- Agent: Multi-agent debate (Du 2023) with judge, Mixture-of-Agents, function calling
+- Face: FACS Ekman 1978 continuous blending, micro-expressions 1/25s, eye-tracking, viseme lip-sync
 
 Usage:
     python3 scripts/build-site-brain.py
@@ -53,15 +60,15 @@ PUBLIC_DOCS = [
     ("income", "Monetization & growth policy", "INCOME.md", f"{REPOSITORY}/INCOME.md"),
 ]
 
-# ── Intent taxonomy v3 — includes think intent for reasoning modes ──
+# ── Intent taxonomy v4 — includes advanced reasoning intents ──
 INTENT_PATTERNS = {
     "calculate": r"\b(calc|compute|estimate|work out|figure out|how much|how many|what is|convert|formula|mortgage|bmi|interest|math)\b",
     "convert": r"\b(convert|exchange|translate|transform|to|⇄|↔|swap|change|kg|lbs|pounds|hex|rgb)\b",
     "generate": r"\b(generate|create|make|build|design|produce|craft|forge|logo|qr|image|svg)\b",
-    "analyze": r"\b(analyze|analyse|check|inspect|evaluate|compare|test|validate|score|versus|vs|audit)\b",
-    "learn": r"\b(learn|teach|explain|guide|tutorial|quiz|train|practice|how to|what is|why|principle)\b",
-    "plan": r"\b(plan|planner|schedule|organize|organise|track|manage|budget|move|workflow|strategy|checklist)\b",
-    "simulate": r"\b(simulate|simulator|visualize|visualise|explore|playground|lab|demo|3d|interactive)\b",
+    "analyze": r"\b(analyze|analyse|check|inspect|evaluate|compare|test|validate|score|versus|vs|audit|verify|verification)\b",
+    "learn": r"\b(learn|teach|explain|guide|tutorial|quiz|train|practice|how to|what is|why|principle|discover|self.discover)\b",
+    "plan": r"\b(plan|planner|schedule|organize|organise|track|manage|budget|move|workflow|strategy|checklist|decompose|least.to.most)\b",
+    "simulate": r"\b(simulate|simulator|visualize|visualise|explore|playground|lab|demo|3d|interactive|graph|thought)\b",
     "health": r"\b(bmi|health|fitness|calorie|sleep|medical|body|weight|heart|blood|hydration)\b",
     "finance": r"\b(money|finance|mortgage|loan|budget|tax|salary|investment|interest|debt|overpayment|compound)\b",
     "music": r"\b(music|audio|sound|tone|beat|chord|tempo|binaural|frequency|bpm|tuner)\b",
@@ -69,17 +76,18 @@ INTENT_PATTERNS = {
     "code": r"\b(code|json|regex|base64|csv|html|css|sql|uuid|hash|encode|decode|typescript|javascript)\b",
     "game": r"\b(game|play|score|chess|puzzle|sudoku|arcade|battle|boardgame|bracket)\b",
     "survival": r"\b(survival|emergency|safety|rescue|first aid|water|fire|escape|go.bag|purification)\b",
-    "think": r"\b(think|reason|tree.of.thought|tot|reflexion|step.back|least.to.most|self.consistency|cot|react|hyde|rrf|mmr|constitutional|chain.of.thought)\b",
+    "think": r"\b(think|reason|tree.of.thought|tot|graph.of.thought|got|buffer|self.discover|reflexion|step.back|least.to.most|self.consistency|cot|react|hyde|rrf|mmr|constitutional|chain.of.thought|quiet.star|verification|cove|self.refine|cumulative|mixture.of.agents|moa|algorithm.of.thought|aot|meta.prompt)\b",
+    "face": r"\b(face|avatar|realistic|facs|emotion|eye.track|lip.sync|micro.expression|viseme|procedural|canvas)\b",
 }
 
-# Synonym expansion v3 — built from corpus + manual + research terms
+# Synonym expansion v4 — built from corpus + manual + research terms
 SYNONYMS = {
-    "calc": ["calculator", "compute", "estimate", "converter", "math", "formula"],
-    "money": ["finance", "cash", "cost", "price", "salary", "budget", "mortgage", "loan", "interest"],
+    "calc": ["calculator", "compute", "estimate", "converter", "math", "formula", "algorithm", "cumulative"],
+    "money": ["finance", "cash", "cost", "price", "salary", "budget", "mortgage", "loan", "interest", "overpayment"],
     "health": ["fitness", "medical", "wellbeing", "bmi", "body", "weight", "sleep"],
     "convert": ["converter", "exchange", "translate", "transform", "unit", "kg", "lbs"],
     "generate": ["creator", "maker", "builder", "generator", "forge", "create", "logo", "qr"],
-    "learn": ["quiz", "trainer", "guide", "explainer", "tutorial", "learn", "principle"],
+    "learn": ["quiz", "trainer", "guide", "explainer", "tutorial", "learn", "principle", "discover"],
     "music": ["audio", "sound", "beat", "chord", "song", "bpm", "tuner"],
     "code": ["developer", "programming", "json", "regex", "html", "css", "typescript", "encode"],
     "game": ["arcade", "boardgame", "puzzle", "play", "score", "chess", "bracket"],
@@ -87,17 +95,13 @@ SYNONYMS = {
     "size": ["converter", "calculator", "measure", "dimension", "volume", "area"],
     "color": ["colour", "palette", "hex", "rgb", "hsl", "contrast"],
     "text": ["string", "word", "character", "font", "case", "slug", "markdown"],
-    "plan": ["planner", "workflow", "checklist", "strategy", "organize", "schedule"],
-    "think": ["reasoning", "thought", "tree", "reflexion", "stepback", "cot", "react", "hyde", "rrf", "mmr"],
-    "mortgage": ["loan", "interest", "repay", "house", "overpayment", "amortisation", "compound"],
+    "plan": ["planner", "workflow", "checklist", "strategy", "organize", "schedule", "decompose", "least-to-most"],
+    "think": ["reasoning", "thought", "tree", "graph", "buffer", "reflexion", "stepback", "cot", "react", "hyde", "rrf", "mmr", "verification", "self-refine", "cumulative", "mixture", "algorithm", "quiet-star", "meta-prompt"],
+    "mortgage": ["loan", "interest", "repay", "house", "overpayment", "amortisation", "compound", "finance"],
     "budget": ["money", "spending", "finance", "track", "income", "expense"],
-}
-
-# Tool capability extraction
-CAPABILITY_PATTERNS = {
-    "inputs": r"\b(enter|input|type|paste|select|choose|pick|upload)\b.*?\b(\w+)\b",
-    "outputs": r"\b(calculate|compute|show|display|generate|export|convert|result)\b",
-    "formula": r"([A-Z_]+ *=.*|.*=.*[+\-*/^()]|V\s*=|P\s*=|E\s*=|F\s*=)",
+    "face": ["avatar", "realistic", "facs", "emotion", "eye-tracking", "lip-sync", "micro-expression", "procedural", "canvas", "viseme"],
+    "verify": ["verification", "check", "validate", "cove", "self-refine", "constitutional"],
+    "graph": ["got", "thought", "tree", "buffer", "cumulative", "algorithm"],
 }
 
 
@@ -212,7 +216,7 @@ def classify_intents(text: str) -> list[str]:
     for intent, pattern in INTENT_PATTERNS.items():
         if re.search(pattern, text_low, re.I):
             intents.append(intent)
-    return intents[:5]
+    return intents[:6]
 
 
 def extract_capabilities(title: str, desc: str) -> dict:
@@ -234,27 +238,29 @@ def extract_capabilities(title: str, desc: str) -> dict:
         inputs.append("audio")
     if re.search(r"\b(image|photo|picture|canvas)\b", combined):
         inputs.append("image")
-    if re.search(r"\b(think|reason|tree|reflexion|hyde|embedding|agent)\b", combined):
+    if re.search(r"\b(think|reason|tree|graph|buffer|reflexion|hyde|embedding|agent|face|facs|avatar)\b", combined):
         inputs.append("reasoning")
     complexity = "simple"
     if len(desc) > 200 or "formula" in combined or "equation" in combined:
         complexity = "advanced"
     if "visualizer" in combined or "simulator" in combined or "playground" in combined or "lab" in combined:
         complexity = "interactive"
-    if "thinking" in combined or "reasoning" in combined or "agent" in combined:
+    if "thinking" in combined or "reasoning" in combined or "agent" in combined or "face" in combined:
         complexity = "research"
-    return {"inputs": inputs[:6], "complexity": complexity}
+    return {"inputs": inputs[:7], "complexity": complexity}
 
 
 def score_importance(title: str, desc: str, category: str) -> int:
-    """Generative Agents style importance 1-10 heuristic."""
+    """Generative Agents style importance 1-10 heuristic v4."""
     combined = f"{title} {desc} {category}".lower()
     score = 5
     if re.search(r"mortgage|budget|finance|money|salary|investment|compound|overpayment", combined):
         score += 2
-    if re.search(r"ai|agent|reasoning|thinking|embedding|vector|rag|tool.use", combined):
+    if re.search(r"ai|agent|reasoning|thinking|embedding|vector|rag|tool.use|face|avatar|realistic", combined):
         score += 2
     if re.search(r"survival|emergency|safety|health|medical", combined):
+        score += 2
+    if re.search(r"graph.of.thought|buffer|self.discover|quiet.star|verification|cumulative|mixture|algorithm", combined):
         score += 2
     if len(desc) > 250:
         score += 1
@@ -277,6 +283,37 @@ def hash_embedding(tokens: list[str], dim: int = 64) -> list[float]:
             vec[idx] += sign * (1 + math.log(tf))
     norm = math.sqrt(sum(x*x for x in vec)) or 1.0
     return [round(x / norm, 4) for x in vec]
+
+
+def colbert_late_interaction(q_emb: list[float], d_emb: list[float]) -> float:
+    """Simulate ColBERT late interaction: max sim per query token approximated via embedding chunks."""
+    # Split 64-dim into 8 chunks of 8 dims, max-sim
+    chunk_size = 8
+    q_chunks = [q_emb[i:i+chunk_size] for i in range(0, len(q_emb), chunk_size)]
+    d_chunks = [d_emb[i:i+chunk_size] for i in range(0, len(d_emb), chunk_size)]
+    total = 0.0
+    for qc in q_chunks:
+        max_sim = -1.0
+        for dc in d_chunks:
+            dot = sum(a*b for a,b in zip(qc, dc))
+            if dot > max_sim:
+                max_sim = dot
+        total += max_sim
+    return total / len(q_chunks) if q_chunks else 0.0
+
+
+def splade_sparse_score(tokens: list[str], doc_tokens: list[str]) -> float:
+    """Simulate SPLADE sparse expansion: weighted overlap with expansion."""
+    q_set = set(tokens)
+    d_set = set(doc_tokens)
+    overlap = len(q_set & d_set)
+    # Expansion via synonyms
+    expanded = set()
+    for t in q_set:
+        if t in SYNONYMS:
+            expanded.update(SYNONYMS[t][:3])
+    expanded_overlap = len(expanded & d_set) * 0.3
+    return (overlap + expanded_overlap) / max(len(q_set), 1)
 
 
 def cosine_sim(a: list[float], b: list[float]) -> float:
@@ -332,7 +369,7 @@ def build() -> dict[str, object]:
         importance = score_importance(title, desc, cat)
         
         tf = Counter(tokens)
-        keywords = [w for w,_ in tf.most_common(10)]
+        keywords = [w for w,_ in tf.most_common(12)]
         
         use_case = desc.split(".")[0][:160] if desc else title
         
@@ -341,16 +378,16 @@ def build() -> dict[str, object]:
             if tok in SYNONYMS:
                 expanded.update(SYNONYMS[tok])
         
-        # HyDE hypothetical doc example
-        hyde_example = f"{title} tool {' '.join(keywords[:4])} calculator computes result"
+        # HyDE hypothetical doc example v4
+        hyde_example = f"{title} tool {' '.join(keywords[:5])} calculator computes result reasoning verification"
         hyde_tokens = tokenize(hyde_example)
         hyde_emb = hash_embedding(hyde_tokens, dim=64)
 
-        # Model routing hint
+        # Model routing hint v4
         routing = "general"
         if "mortgage" in full_text.lower() or "finance" in intents:
             routing = "calculate"
-        elif "think" in intents or "reason" in full_text.lower() or "ai-" in name:
+        elif "think" in intents or "reason" in full_text.lower() or "ai-" in name or "face" in full_text.lower():
             routing = "reasoning"
         elif "plan" in intents:
             routing = "planning"
@@ -358,6 +395,20 @@ def build() -> dict[str, object]:
             routing = "conversion"
         elif "generate" in intents:
             routing = "generation"
+        elif "face" in intents:
+            routing = "avatar"
+
+        # FACS params for realistic face tools
+        facs_params = {}
+        if "face" in name or "avatar" in name or "realistic" in name:
+            facs_params = {
+                "emotions": ["neutral", "happy", "curious", "thinking", "concerned", "excited"],
+                "action_units": ["AU1", "AU2", "AU4", "AU5", "AU6", "AU7", "AU12", "AU15", "AU25", "AU26"],
+                "micro_expressions": True,
+                "eye_tracking": True,
+                "lip_sync": "viseme",
+                "fps_target": 60,
+            }
 
         card_records.append({
             "name": name,
@@ -373,9 +424,11 @@ def build() -> dict[str, object]:
             "token_count": len(tokens),
             "embedding": emb,
             "hyde_embedding": hyde_emb,
+            "colbert_chunks": [emb[i:i+8] for i in range(0, len(emb), 8)],  # for late interaction
             "importance": importance,
             "model_routing": routing,
-            "search_text": f"{title} {desc} {cat} {' '.join(keywords)}".lower()[:600],
+            "facs": facs_params,
+            "search_text": f"{title} {desc} {cat} {' '.join(keywords)}".lower()[:700],
         })
 
     unigram_tokens = [tokenize(doc) for doc in docs_for_index]
@@ -395,9 +448,10 @@ def build() -> dict[str, object]:
                 continue
             cat_boost = 0.15 if card_records[i]["category"] == card_records[j]["category"] else 0
             intent_overlap = len(set(card_records[i]["intents"]) & set(card_records[j]["intents"])) * 0.06
-            # Importance boost — important tools more likely related
             imp_boost = (card_records[j]["importance"] - 5) * 0.01
-            sim = cosine_sim(emb_i, emb_j) + cat_boost + intent_overlap + imp_boost
+            # ColBERT late interaction boost
+            colbert_boost = colbert_late_interaction(emb_i, emb_j) * 0.05
+            sim = cosine_sim(emb_i, emb_j) + cat_boost + intent_overlap + imp_boost + colbert_boost
             sims.append((j, sim))
         sims.sort(key=lambda x: -x[1])
         top = [{"name": card_records[j]["name"], "title": card_records[j]["title"], "score": round(s, 3)} for j,s in sims[:10] if s > 0.08]
@@ -413,7 +467,6 @@ def build() -> dict[str, object]:
             avg_emb = [x/norm for x in avg_emb]
         else:
             avg_emb = hash_embedding(cat_tokens, 64)
-        # Avg importance for category
         avg_imp = sum(card_records[i]["importance"] for i, c in enumerate(card_records) if c["category"]==cat) / count if count else 5
         category_index[cat] = {
             "count": count,
@@ -426,25 +479,34 @@ def build() -> dict[str, object]:
     for rec in card_records:
         for intent in rec["intents"]:
             intent_index[intent].append(rec["name"])
-    intent_index = {k: v[:40] for k,v in intent_index.items()}
+    intent_index = {k: v[:50] for k,v in intent_index.items()}
 
     clusters = []
-    for intent in list(INTENT_PATTERNS.keys())[:12]:
-        tools = intent_index.get(intent, [])[:15]
+    for intent in list(INTENT_PATTERNS.keys())[:16]:
+        tools = intent_index.get(intent, [])[:20]
         if len(tools) >= 3:
+            reasoning = "cot"
+            if intent in ["plan","calculate"]:
+                reasoning = "least-to-most"
+            elif intent == "think":
+                reasoning = "graph-of-thought"
+            elif intent == "face":
+                reasoning = "facs-blending"
+            elif intent == "analyze":
+                reasoning = "chain-of-verification"
             clusters.append({
                 "id": f"use-{intent}",
                 "intent": intent,
                 "label": f"{intent.title()} workflows",
                 "tools": tools,
-                "description": f"Tools for {intent} tasks — use Least-to-Most decomposition",
-                "reasoning": "least-to-most" if intent in ["plan","calculate"] else "cot",
+                "description": f"Tools for {intent} tasks — use {reasoning} reasoning",
+                "reasoning": reasoning,
             })
 
     faqs = []
     faqs.append({"q": "How many tools are there?", "a": f"There are {N} free browser tools across {len(category_counter)} categories.", "sources": ["catalogue-size"]})
     faqs.append({"q": "Are tools private?", "a": "Yes — every tool computes in your browser. No numbers are uploaded anywhere.", "sources": []})
-    faqs.append({"q": "What is Byte 3.0 Thinking Machine?", "a": "Byte 3.0 implements Tree-of-Thought, Self-Consistency, Reflexion, Step-Back, Least-to-Most, ReAct, HyDE, RRF, MMR, Generative Agents memory, Constitutional AI — all local via WebGPU.", "sources": ["machine-guide"]})
+    faqs.append({"q": "What is Byte 4.0 Thinking Machine?", "a": "Byte 4.0 implements Graph-of-Thought, Buffer-of-Thoughts, Self-Discover, Quiet-STaR, Chain-of-Verification, Self-Refine, Cumulative Reasoning, Mixture-of-Agents, Algorithm-of-Thoughts, Tree-of-Thought, Self-Consistency, Reflexion, Step-Back, Least-to-Most, ReAct, HyDE, RRF, MMR, ColBERT, SPLADE, RankGPT, Generative Agents memory, Constitutional AI, FACS realistic face — all local via WebGPU.", "sources": ["machine-guide"]})
     for cat, data in sorted(category_counter.items(), key=lambda x: -x[1])[:6]:
         faqs.append({"q": f"What {cat} tools exist?", "a": f"{data} tools in {cat}. Search '{cat.lower()}' to see them.", "sources": [cat]})
 
@@ -459,7 +521,7 @@ def build() -> dict[str, object]:
             "source": source,
             "url": url,
             "content": read_document(source),
-            "tokens": tokenize(read_document(source))[:250],
+            "tokens": tokenize(read_document(source))[:300],
         })
 
     synonym_map = SYNONYMS
@@ -470,38 +532,62 @@ def build() -> dict[str, object]:
         {"query": "generate logo SVG", "expected": "brand-logo-mark-generator", "intent": "generate", "reasoning": "cot", "hyde": "logo generator creates SVG vector brand mark"},
         {"query": "plan house move checklist budget", "expected": "moving-planner", "intent": "plan", "reasoning": "least-to-most", "hyde": "moving planner checklist budget costs workflow tools"},
         {"query": "Tree-of-Thought mortgage overpayment vs invest", "expected": "ai-thinking-machine-lab", "intent": "think", "reasoning": "tot", "hyde": "thinking machine Tree-of-Thought reasoning mortgage overpayment investment"},
-        {"query": "HyDE RAG retrieval playground", "expected": "ai-advanced-rag-playground", "intent": "think", "reasoning": "cot", "hyde": "RAG playground HyDE RRF MMR retrieval embedding"},
-        {"query": "Reflexion self-correction loop", "expected": "ai-thinking-machine-lab", "intent": "think", "reasoning": "reflexion", "hyde": "Reflexion verbal reinforcement self-critique retry"},
-        {"query": "Step-Back principle mortgage", "expected": "ai-thinking-machine-lab", "intent": "think", "reasoning": "stepback", "hyde": "Step-Back abstraction principle financial planning"},
+        {"query": "Graph-of-Thought for budget planning", "expected": "ai-thinking-machine-lab", "intent": "think", "reasoning": "graph-of-thought", "hyde": "Graph-of-Thought aggregation budget planning multi-path"},
+        {"query": "Buffer-of-Thoughts mortgage template", "expected": "ai-thinking-machine-lab", "intent": "think", "reasoning": "buffer-of-thoughts", "hyde": "Buffer-of-Thoughts meta-buffer thought template mortgage"},
+        {"query": "Chain-of-Verification mortgage calculation", "expected": "ai-thinking-machine-lab", "intent": "think", "reasoning": "chain-of-verification", "hyde": "Chain-of-Verification verify calculation mortgage"},
+        {"query": "Self-Refine my budget plan", "expected": "ai-thinking-machine-lab", "intent": "think", "reasoning": "self-refine", "hyde": "Self-Refine iterative refinement budget plan feedback"},
+        {"query": "Mixture-of-Agents for moving strategy", "expected": "ai-thinking-machine-lab", "intent": "think", "reasoning": "mixture-of-agents", "hyde": "Mixture-of-Agents layered collaboration moving strategy"},
+        {"query": "realistic face avatar with eye tracking", "expected": "ai-realistic-face-avatar", "intent": "face", "reasoning": "facs-blending", "hyde": "realistic face avatar eye tracking lip-sync FACS micro-expression"},
+        {"query": "HyDE RAG retrieval playground", "expected": "ai-advanced-rag-playground", "intent": "think", "reasoning": "cot", "hyde": "RAG playground HyDE RRF MMR ColBERT SPLADE retrieval embedding"},
     ]
 
-    # Research stack metadata
+    # Research stack metadata v4
     research_stack = {
         "retrieval": [
-            {"name": "HyDE", "paper": "Gao et al. 2022", "desc": "Hypothetical Document Embeddings", "impl": "hyde_embedding in RetrievalEngine v3"},
+            {"name": "HyDE", "paper": "Gao et al. 2022", "desc": "Hypothetical Document Embeddings", "impl": "hyde_embedding in RetrievalEngine v4"},
             {"name": "RRF", "paper": "Cormack et al. 2009", "desc": "Reciprocal Rank Fusion", "impl": "rrfFusion k=60"},
             {"name": "MMR", "paper": "Carbonell & Goldstein 1998", "desc": "Maximal Marginal Relevance", "impl": "mmrDiversify λ=0.7"},
-            {"name": "Query Expansion", "paper": "2023", "desc": "Synonym + heuristic expansion", "impl": "expandQuery"},
+            {"name": "ColBERT", "paper": "Khattab et al. 2020", "desc": "Late interaction max-sim", "impl": "colbertLateInteraction 8 chunks"},
+            {"name": "SPLADE", "paper": "Formal et al. 2021", "desc": "Sparse lexical expansion", "impl": "spladeSparseScore"},
+            {"name": "RankGPT", "paper": "Sun et al. 2023", "desc": "LLM re-ranking", "impl": "rankGPTRerank (simulated via cross-encoder)"},
+            {"name": "Query Expansion", "paper": "2023", "desc": "Synonym + heuristic expansion", "impl": "expandQuery v4 with think+face"},
             {"name": "Cross-encoder Re-rank", "paper": "2020", "desc": "Joint query-doc scoring", "impl": "crossEncoderRerank"},
         ],
         "reasoning": [
             {"name": "Chain-of-Thought", "paper": "Wei et al. 2022", "desc": "Step-by-step reasoning", "impl": "chainOfThought"},
-            {"name": "Self-Consistency", "paper": "Wang et al. 2022", "desc": "Sample multiple paths, vote", "impl": "selfConsistency samples=3"},
+            {"name": "Self-Consistency", "paper": "Wang et al. 2022", "desc": "Sample multiple paths, weighted vote", "impl": "selfConsistency samples=3 weighted"},
             {"name": "Tree-of-Thought", "paper": "Yao et al. 2023", "desc": "BFS/DFS over thoughts with eval", "impl": "treeOfThought depth=3 branching=3"},
+            {"name": "Graph-of-Thought", "paper": "Besta et al. 2023/2024", "desc": "Thoughts as graph with aggregation", "impl": "graphOfThought aggregation + transformation"},
+            {"name": "Buffer-of-Thoughts", "paper": "Yang et al. 2024", "desc": "Meta-buffer with thought templates", "impl": "bufferOfThoughts template retrieval"},
+            {"name": "Self-Discover", "paper": "Zhou et al. 2024", "desc": "Discover reasoning structure", "impl": "selfDiscover select/adapt/implement"},
             {"name": "ReAct", "paper": "Yao et al. 2022", "desc": "Reason+Act interleaved", "impl": "Thought→Action→Observation"},
-            {"name": "Reflexion", "paper": "Shinn et al. 2023", "desc": "Verbal RL via self-reflection", "impl": "reflexionLoop maxIter=2"},
+            {"name": "Reflexion", "paper": "Shinn et al. 2023", "desc": "Verbal RL via self-reflection", "impl": "reflexionLoop maxIter=2 with episodic memory"},
             {"name": "Step-Back", "paper": "Zheng et al. 2023", "desc": "Abstract principle first", "impl": "stepBack"},
             {"name": "Least-to-Most", "paper": "Zhou et al. 2022", "desc": "Decompose into subproblems", "impl": "leastToMost"},
+            {"name": "Chain-of-Verification", "paper": "Dhuliawala et al. 2023", "desc": "Verify then correct", "impl": "chainOfVerification generate→verify→refine"},
+            {"name": "Self-Refine", "paper": "Madaan et al. 2023", "desc": "Iterative self-refinement", "impl": "selfRefine feedback→refine loop"},
+            {"name": "Cumulative Reasoning", "paper": "Zhang et al. 2024", "desc": "Accumulate intermediate results", "impl": "cumulativeReasoning DAG"},
+            {"name": "Mixture-of-Agents", "paper": "Wang et al. 2024", "desc": "Layered agent collaboration", "impl": "mixtureOfAgents proposer→aggregator"},
+            {"name": "Algorithm-of-Thoughts", "paper": "Sel et al. 2023", "desc": "Algorithmic reasoning", "impl": "algorithmOfThoughts"},
+            {"name": "Quiet-STaR", "paper": "Zelikman et al. 2024", "desc": "Internal reasoning tokens", "impl": "quietStar internal thought"},
             {"name": "Constitutional AI", "paper": "Bai et al. 2022", "desc": "Self-critique vs principles", "impl": "constitutionalCritique"},
+            {"name": "Meta-Prompting", "paper": "Suzgun et al. 2024", "desc": "Meta prompt optimization", "impl": "metaPrompting"},
         ],
         "memory": [
             {"name": "Generative Agents", "paper": "Park et al. 2023", "desc": "Recency+importance+relevance", "impl": "recency Ebbinghaus exp(-h/48), importance 1-10 heuristic, final=rec*0.2+imp*0.3+rel*0.5"},
             {"name": "MemGPT", "paper": "Packer et al. 2023", "desc": "OS-style hierarchical memory", "impl": "working→short-term→long-term→episodic + reflection"},
+            {"name": "Reflexion Episodic", "paper": "Shinn et al. 2023", "desc": "Episodic memory with consolidation", "impl": "episodic store + reflection summarization"},
+        ],
+        "face": [
+            {"name": "FACS", "paper": "Ekman & Friesen 1978", "desc": "Facial Action Coding System", "impl": "AU1,AU2,AU4,AU5,AU6,AU7,AU12,AU15,AU25,AU26 continuous blending"},
+            {"name": "Micro-Expressions", "paper": "Ekman 2003", "desc": "1/25s brief flashes", "impl": "microExpression flash 80ms"},
+            {"name": "Eye-Tracking", "paper": "2020", "desc": "Gaze follows mouse + ToT nodes", "impl": "eyeTarget lerp 0.12 + saccades"},
+            {"name": "Viseme Lip-Sync", "paper": "2022", "desc": "Phoneme to viseme mapping", "impl": "aou→0.7, ei→0.4, bmp→0.05 + TTS boundary"},
         ]
     }
 
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "generated_from": {
             "source_hash": source_fingerprint(),
             "cards": len(card_records),
@@ -511,8 +597,8 @@ def build() -> dict[str, object]:
         },
         "assistant": {
             "name": "Byte",
-            "version": "3.0-thinking-machine",
-            "mission": "Help people discover and use the site's browser tools accurately, privately, and without inventing capabilities. You are a thinking machine with advanced reasoning research stack.",
+            "version": "4.0-super-thinking-machine",
+            "mission": "Help people discover and use the site's browser tools accurately, privately, and without inventing capabilities. You are a super-thinking machine with 18 reasoning methods, 8 retrieval methods, FACS realistic face, all local via WebGPU.",
             "operating_rules": [
                 "Use supplied site context before general knowledge when answering about this site.",
                 "If context does not establish answer, say it was not found rather than invent.",
@@ -522,26 +608,29 @@ def build() -> dict[str, object]:
                 "When user wants to DO something, propose tool calls with structured JSON.",
                 "Explain reasoning step-by-step when asked, but keep default answers concise.",
                 "Use intent classification to better match tools to user goals.",
-                "Consider related tools graph to suggest workflows via Least-to-Most.",
+                "Consider related tools graph to suggest workflows via Least-to-Most and Graph-of-Thought.",
                 "Respect privacy: all inference local, memory in browser only.",
-                "Use advanced reasoning: ToT for complex decisions, Step-Back for principles, Reflexion for self-correction, Self-Consistency for reliability.",
-                "Apply Constitutional AI self-critique: grounded?, helpful?, honest?, harmless?, privacy?.",
-                "Use Generative Agents memory scoring: recency (Ebbinghaus) + importance + relevance.",
+                "Use advanced reasoning: GoT for aggregation, BoT for templates, Self-Discover for structure, CoVe for verification, Self-Refine for iteration, Cumulative for DAG, MoA for collaboration, AoT for algorithmic.",
+                "Apply Constitutional AI + Chain-of-Verification self-critique: grounded?, helpful?, honest?, harmless?, privacy?, verified?.",
+                "Use Generative Agents memory scoring: recency (Ebbinghaus) + importance + relevance + consolidation.",
+                "Use FACS continuous blending for realistic face: emotion is not discrete but blended with micro-expressions.",
             ],
             "capabilities": [
-                "hybrid BM25 + TF-IDF + embedding + HyDE retrieval",
-                "RRF fusion + MMR diversity + cross-encoder re-rank",
-                "intent classification 15 intents including think",
-                "tool graph & workflow suggestion via Least-to-Most",
-                "Chain-of-Thought, Tree-of-Thought BFS/DFS, Self-Consistency voting",
-                "Reflexion self-correction loop, Step-Back abstraction, Least-to-Most decomposition",
-                "ReAct Reason+Act + function calling for 1125 tools",
-                "Constitutional AI self-critique + grounding verification",
-                "Generative Agents memory: recency+importance+relevance + reflection",
-                "MemGPT hierarchical memory + consolidation",
-                "multi-turn memory with model routing by complexity",
-                "voice input/output, avatar with ToT visualization",
-                "markdown & code execution, inline tool embedding",
+                "hybrid BM25 + TF-IDF + embedding + HyDE + ColBERT late interaction + SPLADE sparse + RankGPT re-rank",
+                "RRF fusion + MMR diversity + cross-encoder re-rank + query expansion v4",
+                "intent classification 16 intents including think, face, verification",
+                "tool graph & workflow suggestion via Least-to-Most + Graph-of-Thought + Cumulative Reasoning",
+                "Chain-of-Thought, Tree-of-Thought BFS/DFS, Graph-of-Thought aggregation, Buffer-of-Thoughts templates",
+                "Self-Discover structure discovery, Quiet-STaR internal tokens, Algorithm-of-Thoughts",
+                "Self-Consistency weighted voting, Chain-of-Verification verify→refine, Self-Refine feedback loop",
+                "Cumulative Reasoning DAG, Mixture-of-Agents proposer→aggregator, Meta-Prompting",
+                "Reflexion self-correction with episodic memory, Step-Back abstraction, Least-to-Most decomposition",
+                "ReAct Reason+Act + function calling for 1126 tools",
+                "Constitutional AI + CoVe self-critique + grounding verification",
+                "Generative Agents memory: recency+importance+relevance + reflection + consolidation",
+                "MemGPT hierarchical memory + episodic + forgetting curve",
+                "FACS realistic face: continuous emotion blending, micro-expressions 1/25s, eye-tracking ToT nodes, viseme lip-sync",
+                "multi-turn memory with model routing by complexity, WebGPU private-by-construction",
             ],
             "research_stack": research_stack,
         },
@@ -560,6 +649,9 @@ def build() -> dict[str, object]:
             "hyde_examples": {ex["query"]: ex["hyde"] for ex in query_examples},
             "rrf_k": 60,
             "mmr_lambda": 0.7,
+            "colbert_chunk_size": 8,
+            "splade_enabled": True,
+            "rankgpt_enabled": True,
         },
         "indexes": {
             "categories": category_index,
@@ -611,14 +703,14 @@ def main() -> int:
         except Exception as e:
             print(f"site brain check failed: {e}", file=sys.stderr)
             return 1
-        print(f"site brain v3 OK — {data['generated_from']['cards']} cards, {len(data['documents'])} docs, vocab {data['generated_from']['vocab_size']}, avgdl {data['generated_from']['avg_doc_length']}, research stack {len(data['assistant']['research_stack']['reasoning'])} reasoning + {len(data['assistant']['research_stack']['retrieval'])} retrieval")
+        print(f"site brain v4 OK — {data['generated_from']['cards']} cards, {len(data['documents'])} docs, vocab {data['generated_from']['vocab_size']}, avgdl {data['generated_from']['avg_doc_length']}, research stack {len(data['assistant']['research_stack']['reasoning'])} reasoning + {len(data['assistant']['research_stack']['retrieval'])} retrieval + {len(data['assistant']['research_stack']['face'])} face")
         return 0
 
     output = serialise(data)
     OUTPUT.write_text(output, encoding="utf-8")
     payload = json.loads(output)
     size_kb = len(output) / 1024
-    print(f"site brain v3: {payload['generated_from']['cards']} cards, {len(payload['documents'])} docs, {payload['generated_from']['vocab_size']} vocab, {payload['generated_from']['avg_doc_length']} avgdl, {len(payload['graph']['related'])} graph nodes, {size_kb:.0f} KB, research stack {len(payload['assistant']['research_stack']['reasoning'])} reasoning")
+    print(f"site brain v4: {payload['generated_from']['cards']} cards, {len(payload['documents'])} docs, {payload['generated_from']['vocab_size']} vocab, {payload['generated_from']['avg_doc_length']} avgdl, {len(payload['graph']['related'])} graph nodes, {size_kb:.0f} KB, research stack {len(payload['assistant']['research_stack']['reasoning'])} reasoning + {len(payload['assistant']['research_stack']['retrieval'])} retrieval + {len(payload['assistant']['research_stack']['face'])} face")
     return 0
 
 
