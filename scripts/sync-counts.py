@@ -63,8 +63,9 @@ TARGETS_TOP = [
     # history ("+10 tools, 23 categories, 562 total") and rewriting them
     # would turn the changelog into a lie.
     "about.html", "ai.html", "case-studies.html", "embed.html", "guides.html",
-    "help.html", "legal.html", "new.html", "popular.html", "press.html",
-    "sitemap.html", "tools.html", "tools-index.html", "use-case.html",
+    "help.html", "hire.html", "legal.html", "license.html", "new.html",
+    "popular.html", "press.html", "sitemap.html", "sync.html",
+    "tools.html", "tools-index.html", "use-case.html",
 ]
 TARGETS_GLOB = [
     "guides/*.html", "blog/*.html", "launch/index.html",

@@ -50,9 +50,13 @@ brief, model, key, passing gates and human review.
 
 ## Money & monetisation
 
-**[INCOME.md](INCOME.md)** — what actually earns, the real audience numbers,
-and what was deliberately not built. Read it before adding anything
-money-related.
+**[MONEY.md](MONEY.md)** — the money playbook and runbook: the revenue stack,
+the live pages (`license.html`, `hire.html`, `sync.html`, `embed.html`), payment
+setup, outreach, and the rules that keep it honest. Read it before adding
+anything money-related.
+
+Background: **[INCOME.md](INCOME.md)** (music routes, audience facts) and
+**[STRATEGY.md](STRATEGY.md)** (the licensing thesis).
 
 ## Quick facts
 

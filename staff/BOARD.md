@@ -9,6 +9,34 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-11 — monetisation foundations shipped (owner-directed)
+
+**Branch:** `arena/01a08dc2-mrpr0phecy` · **Requested by:** owner in-session
+(*"work out the money making strategies and then apply liberally … lay the
+foundations here"*, 2026-09-10/11). This is the owner decision that authorises
+the priced offers and the GA-on-new-money-pages below — not a unilateral
+agent call (cf. 2026-09-03 note that licensing pages were owner territory).
+
+**Shipped:** `license.html` (£99/£299/£899 embed licensing), `hire.html`
+(£149 audit / from £495 custom / £1,000 flagship / £79 care), `sync.html`
+(creator £50–500 / commercial £500–5,000+; added to all 10 music navs),
+`embed.html` regenerated from the catalogue via new `scripts/build-embed.py`
+(all 1119, was 532), credited embed snippets + `?embed=1` mode in
+`tool.html`/`index.html`, `scripts/sponsor-slot.py` (single-slot set/clear),
+sponsor starter prices + stale-count fixes, donate/support cross-links,
+help/legal reconciliation (MIT self-host vs hosted-credit terms),
+`MONEY.md` playbook + `launch/embed-outreach.md` kit. Claim:
+`staff/claims/arena%2F01a08dc2-mrpr0phecy.json`.
+
+**Owner actions left:** create Stripe Payment Links per `MONEY.md` §3 (CTAs
+are working `mailto:` until then); send the first 10 outreach emails
+(`launch/embed-outreach.md`); April statutory-update diary. No catalogue,
+analytics-footprint (beyond the 3 new money pages, same tag as
+donate/sponsor), or product-boundary changes beyond the above. `tool.html`,
+cards and `404.html` remain analytics-free.
+
+---
+
 ## 2026-09-08 — @systems — Staff rebuild delivered for review; inherited blockers now visible
 
 **Delivery:** [PR #35](https://github.com/mrpr0phecy/mrpr0phecy/pull/35) from `arena/01a07ea6-mrpr0phecy`. See GitHub for its final merge/check state; this dated entry is not a live deployment status. Research: `staff/RESEARCH.md`. Entry point: `STAFF.md`.
