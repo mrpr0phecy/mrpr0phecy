@@ -162,6 +162,10 @@ Ranked by expected return per hour. Do these in order; stop building and do
 5. **Sync outreach in parallel.** Five emails to indie-game devs / YouTubers /
    small agencies with a 5-track shortlist each. One placement can exceed a
    year of donations.
+6. **Let the autopilot run.** The promo kit (`PROMOTE.md`) posts daily,
+   refreshes the feed/spotlight/weekly pages via one draft PR a week, and
+   keeps the OG image honest. Merging that PR is the cheapest marketing
+   task on this list.
 
 ---
 

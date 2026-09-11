@@ -9,6 +9,31 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-11 — promo autopilot shipped (owner-directed)
+
+**Branch:** `arena/01a08dc2-mrpr0phecy` · **Requested by:** owner in-session
+(*"automate promotion so it was effortless using code on my repo"*).
+Schedules fire on the default branch only, so this activates on merge to
+`main` — no behaviour change until then.
+
+**Shipped:** `scripts/promo/` (deterministic Tool-of-the-Day / Track-of-the-Week
+rotation over the 1119-tool catalogue + 47 listen.html tracks, per-network copy
+templates with D-002 guard, Pillow social cards, urllib-only Bluesky + Mastodon
+publishers that are dry-run by default and idempotent via the live timeline,
+feed.xml + spotlight.html + weekly-archive + newsletter-draft generators,
+`check.py` health checks), `.github/workflows/promo.yml` (daily read-only post
+job; weekly refresh via draft PR `promo/weekly-refresh`, same convention as
+staff maintenance), `staff/tests/test_promo.py` (runs in `verify.sh`),
+`PROMOTE.md` runbook. Also fixes two rotted promo assets the kit takes over:
+`og-tools.png` (advertised "500 tools") and `feed.xml` (claimed 1164 tools,
+Sept 2nd). £0/month; 4 optional secrets to go live.
+
+**Owner actions left:** add the 4 social secrets per `PROMOTE.md` §setup;
+merge the weekly refresh PR (or auto-merge it); optionally point an
+RSS-to-email automation at `/feed.xml` for a zero-effort newsletter. No
+catalogue, analytics-footprint (generated pages carry the same tag as the
+other marketing pages) or product-boundary changes.
+
 ## 2026-09-11 — monetisation foundations shipped (owner-directed)
 
 **Branch:** `arena/01a08dc2-mrpr0phecy` · **Requested by:** owner in-session

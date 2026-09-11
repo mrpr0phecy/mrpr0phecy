@@ -1,0 +1,23 @@
+Subject: 7 free tools + 1 track — week of 2026-09-07
+Week: 2026-W37 · generated 2026-09-11 — paste into your newsletter sender, or ignore if RSS-to-email is on.
+
+Seven free tools from the week of 2026-09-07 — each one runs in your browser with no sign-up:
+
+Mon: MILD Lucid Dream Mantra Lab — Mnemonic Induction of Lucid Dreams (Stanford / Dr. Stephen LaBerge). Primes prospective memory to recognize the dream…
+  https://www.themostusefulsiteintheworld.com/tool.html?card=mild-mnemonic-mantra-engine
+Tue: Gravel & Aggregate Calculator — Calculate how much gravel, slate, chippings, or aggregate you need for driveways, paths, patios, or garden beds.…
+  https://www.themostusefulsiteintheworld.com/tool.html?card=gravel-calculator
+Wed: Tectonic Plate Drift Calculator — The ground under you is moving right now. Pick a place and its tectonic plate and this rotates it about the plate's…
+  https://www.themostusefulsiteintheworld.com/tool.html?card=tectonic-plate-drift-calculator
+Thu: Energy Tariff Comparator — Suppliers advertise the unit rate because it is the flattering number, but the standing charge is paid every single…
+  https://www.themostusefulsiteintheworld.com/tool.html?card=energy-tariff-comparator
+Fri: Weightlifting Sinclair Score — The Sinclair coefficient lets lifters of different bodyweights be compared. Enter sex, bodyweight and total, and this…
+  https://www.themostusefulsiteintheworld.com/tool.html?card=weightlifting-sinclair-score
+Sat: Speed Reading Trainer — Measure your words-per-minute, then train with guided pacing where your eye is told where to look. Includes recall…
+  https://www.themostusefulsiteintheworld.com/tool.html?card=speed-reading-trainer
+Sun: Platform Character Counter — Count characters against the live limits for X/Twitter, SMS, Google titles, Instagram, LinkedIn and more. Everything…
+  https://www.themostusefulsiteintheworld.com/tool.html?card=character-limit-platform-counter
+
+🎬 Track of the week: MrProphecy, Vex, Robin Supercharge + Sashe Silver The Ice Queen Of Vilania - Bumpa Remix — https://www.youtube.com/watch?v=OnGw7Sa9cnY
+
+Run a site or intranet? Every tool embeds with one iframe (free with a credit line): https://www.themostusefulsiteintheworld.com/embed.html

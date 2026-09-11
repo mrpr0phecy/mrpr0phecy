@@ -55,6 +55,10 @@ the live pages (`license.html`, `hire.html`, `sync.html`, `embed.html`), payment
 setup, outreach, and the rules that keep it honest. Read it before adding
 anything money-related.
 
+**[PROMOTE.md](PROMOTE.md)** — the promo autopilot runbook: daily social posts,
+regenerated feed/spotlight/weekly pages and OG image, all scheduled in-repo
+for £0/month. The money pages are the destination; this is the traffic.
+
 Background: **[INCOME.md](INCOME.md)** (music routes, audience facts) and
 **[STRATEGY.md](STRATEGY.md)** (the licensing thesis).
 

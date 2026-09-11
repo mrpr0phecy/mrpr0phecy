@@ -1,0 +1,134 @@
+name: Promo autopilot
+
+# The repo promotes the site by itself. Two jobs, both scheduled:
+#   post     (daily 08:30 UTC)  — Tool of the Day to Bluesky + Mastodon via
+#                                 API. Read-only checkout, never commits.
+#                                 Without secrets it dry-runs and still succeeds.
+#   refresh  (Mon 07:00 UTC)     — regenerates feed.xml, spotlight.html, the
+#                                 weekly archive page, newsletter draft and OG
+#                                 image, rebuilds the sitemap, runs verify.sh,
+#                                 and opens ONE draft PR (promo/weekly-refresh)
+#                                 for human review — same convention as the
+#                                 staff-maintenance workflow.
+# Schedules only fire on the default branch: merging to main activates this.
+# test any branch any time via workflow_dispatch.
+on:
+  schedule:
+    - cron: '30 8 * * *'
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Which job to run'
+        required: true
+        default: both
+        type: choice
+        options: [both, post, refresh]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promo-autopilot
+  cancel-in-progress: false
+
+jobs:
+  post:
+    name: Daily social post
+    if: github.event.schedule == '30 8 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.task != 'refresh')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Pillow (social cards)
+        run: pip install pillow
+      - name: Render today's card
+        run: python3 scripts/promo/card.py --out /tmp/promo-card.png
+      - name: Post Tool of the Day (dry-run without secrets)
+        env:
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          MASTODON_INSTANCE: ${{ secrets.MASTODON_INSTANCE }}
+          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+        run: |
+          python3 scripts/promo/post.py --slot tool --image /tmp/promo-card.png --live | tee /tmp/promo-tool-receipt.json
+          if [ "$(date +%u)" = "1" ]; then
+            python3 scripts/promo/post.py --slot track --live | tee /tmp/promo-track-receipt.json
+          fi
+      - name: Upload card + receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: promo-post-${{ github.run_id }}
+          path: |
+            /tmp/promo-card.png
+            /tmp/promo-*-receipt.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  refresh:
+    name: Weekly refresh PR
+    if: github.event.schedule == '0 7 * * 1' || (github.event_name == 'workflow_dispatch' && github.event.inputs.task != 'post')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only this job can write, and only via one draft PR — never a direct push.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - name: Install Pillow (OG image)
+        run: pip install pillow
+      - name: Regenerate AI index, feed, spotlight, week page, OG image
+        run: |
+          node scripts/generate-ai-index.js
+          python3 scripts/promo/feeds.py
+          python3 scripts/promo/spotlight.py
+          python3 scripts/promo/card.py --og --out og-tools.png
+          python3 scripts/build-sitemap.py
+          python3 scripts/promo/check.py
+      - name: Run the merge gate before proposing
+        run: bash scripts/verify.sh
+      - name: Write PR body
+        run: |
+          {
+            echo "Weekly promo refresh for $(date +%Y-W%V)."
+            echo
+            echo "Regenerated: feed.xml, spotlight.html, the weekly archive page,"
+            echo "newsletter draft, og-tools.png, llms index, sitemap.xml."
+            echo "verify.sh passed on the proposing runner."
+            echo
+            echo "This week's picks:"
+            python3 -c "
+          import datetime, sys; sys.path.insert(0, 'scripts')
+          from promo import pick, catalogue
+          tools = catalogue.load_tools()
+          mon = datetime.date.today() - datetime.timedelta(days=datetime.date.today().isoweekday() - 1)
+          for i in range(7):
+              d = mon + datetime.timedelta(days=i)
+              t = pick.pick_tool(d, tools)
+              print(f'- {d.isoformat()}: {t.get(\"title\") or t[\"name\"]} ({catalogue.tool_url(t[\"name\"])})')
+          "
+          } > /tmp/promo-pr-body.md
+          cat /tmp/promo-pr-body.md
+      - name: Open or update one draft PR
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.repository.default_branch }}
+          branch: promo/weekly-refresh
+          delete-branch: false
+          draft: true
+          commit-message: 'Promo refresh: feed, spotlight, week page, OG image'
+          title: 'Promo refresh: week of ${{ github.event.schedule }}'
+          body-path: /tmp/promo-pr-body.md
