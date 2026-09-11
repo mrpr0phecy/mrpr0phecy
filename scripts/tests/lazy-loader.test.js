@@ -41,17 +41,25 @@ function grab(name) {
   return m[0];
 }
 
-// ---------------------------------------------------------------- card stub
-const STUB = { scrollY: 0, innerHeight: 900, cards: [] };
+// The shipped concurrency cap, read from the real source — not assumed.
+const capMatch = html.match(/const MAX_CONCURRENT_LOADS = (\d+);/);
+assert(capMatch, 'could not read MAX_CONCURRENT_LOADS from index.html');
+const SHIPPED_CAP = parseInt(capMatch[1], 10);
+assert.ok(SHIPPED_CAP >= 1 && SHIPPED_CAP <= 16,
+  `MAX_CONCURRENT_LOADS=${SHIPPED_CAP} is outside sane bounds`);
 
-function makeCard(name, { top, height, hidden }) {
+// ---------------------------------------------------------------- card stub
+const STUB = { innerHeight: 900 };
+
+function makeCard(name, { top, height, width = 300, hidden = false, failed = false, connected = true }) {
   const card = {
     dataset: { name },
     style: { display: hidden ? 'none' : '' },
-    offsetParent: hidden ? null : {},
+    isConnected: connected,
     classes: new Set(),
-    getBoundingClientRect: () => ({ top: top - STUB.scrollY, height }),
+    getBoundingClientRect: () => ({ top, bottom: top + height, height, width }),
   };
+  if (failed) card.dataset.errorReason = 'load';
   card.classList = {
     add: c => card.classes.add(c),
     remove: c => card.classes.delete(c),
@@ -61,96 +69,136 @@ function makeCard(name, { top, height, hidden }) {
 }
 
 // ---------------------------------------------------------------- suite 1
-// scrollFallbackLoader: what it queues, in what order, and what it skips.
+// scrollFallbackLoader: visible-first ordering, the concurrency cap, and what
+// it skips (hidden, zero-rect, failed, finished).
 {
   const queued = [];
+  let errSweeps = 0;
   const loadedCards = new Set();
   const loadingCards = new Set();
 
   const api = run(
-    grab('scrollFallbackLoader') + '\n;({ scrollFallbackLoader });',
+    'let scrollLoadActive = false;\nlet pendingCards = [];\n'
+    + grab('scrollFallbackLoader')
+    + '\n;({ scrollFallbackLoader,'
+    + ' __setPending: v => { pendingCards = v; },'
+    + ' __getPending: () => pendingCards,'
+    + ' __reset: () => { scrollLoadActive = false; } });',
     {
       loadedCards, loadingCards,
       loadCard: (card, name) => queued.push(name),
-      document: {
-        querySelectorAll: sel => {
-          assert.strictEqual(sel, '.card:not(.loaded):not(.loading-fallback)');
-          return STUB.cards.filter(c => !c.classes.has('loaded') && !c.classes.has('loading-fallback'));
-        },
-      },
-      window: { get scrollY() { return STUB.scrollY; }, get innerHeight() { return STUB.innerHeight; } },
+      isCardHidden: card => card.style.display === 'none',
+      retryErroredCards: () => { errSweeps++; },
+      MAX_CONCURRENT_LOADS: SHIPPED_CAP,
+      window: { get innerHeight() { return STUB.innerHeight; } },
     }, 'scrollFallbackLoader');
 
-  // 20 cards, 100px apart. Viewport 900 + 300 margin each side => tops 0..1200
-  // are in view, i.e. 13 cards. The point is 13 > 6: the old code capped at 6.
-  STUB.scrollY = 0;
-  STUB.cards = Array.from({ length: 20 }, (_, i) => makeCard(`c${i}`, { top: i * 100, height: 90, hidden: false }));
-  queued.length = 0;
+  // Visible cards load nearest-to-centre first, capped at MAX_CONCURRENT_LOADS.
+  STUB.innerHeight = 900;
+  api.__setPending(Array.from({ length: 10 },
+    (_, i) => makeCard(`c${i}`, { top: i * 100, height: 90 })));
+  queued.length = 0; errSweeps = 0; api.__reset();
   api.scrollFallbackLoader();
-  assert.strictEqual(queued.length, 13, `expected 13 in-view cards, got ${queued.length}`);
-  assert.ok(queued.length > 6, 'the old 6-card cap is back');
-  console.log(`  ok   no 6-card cap: queued ${queued.length} in-view cards`);
+  assert.strictEqual(queued.length, SHIPPED_CAP,
+    `expected the ${SHIPPED_CAP}-card concurrency cap, got ${queued.length}`);
+  // Nearest to the 450px centre first: c4 (400-490) then c5/c3...
+  assert.strictEqual(queued[0], 'c4', `expected nearest-first, got ${queued.join(',')}`);
+  assert.strictEqual(errSweeps, 1, 'every viewport sweep must also sweep errored cards');
+  console.log(`  ok   nearest-first ordering, capped at ${SHIPPED_CAP}, error sweep wired in`);
 
-  // Nearest-to-viewport first, so a fast scroll fills in what you can see.
-  STUB.scrollY = 1000; STUB.innerHeight = 900;
-  STUB.cards = [
-    makeCard('far', { top: 1000, height: 90, hidden: false }),
-    makeCard('near', { top: 1400, height: 90, hidden: false }),
-    makeCard('mid', { top: 1800, height: 90, hidden: false }),
-  ];
-  queued.length = 0;
+  // Lookahead still fills the pipeline when little is visible.
+  api.__setPending([
+    makeCard('visible', { top: 100, height: 90 }),
+    makeCard('ahead', { top: 1100, height: 90 }),     // inside the +500 lookahead
+    makeCard('far', { top: 90000, height: 90 }),      // beyond it: must wait
+  ]);
+  queued.length = 0; api.__reset();
   api.scrollFallbackLoader();
-  assert.strictEqual(queued[0], 'near', `expected nearest first, got ${queued.join(',')}`);
-  console.log(`  ok   nearest-first ordering: ${queued.join(' -> ')}`);
+  assert.deepStrictEqual(queued, ['visible', 'ahead'],
+    `lookahead wrong, got ${queued.join(',')}`);
+  console.log('  ok   lookahead queued, far cards left pending');
 
-  // Filtered-out cards are display:none; their rect is all zeroes and would
-  // otherwise match the viewport test and load tools the user filtered away.
-  STUB.scrollY = 0; STUB.innerHeight = 900;
-  STUB.cards = [
-    makeCard('shown', { top: 100, height: 90, hidden: false }),
+  // Filtered-out cards are display:none; their rect would otherwise match the
+  // viewport test and load tools the user filtered away.
+  api.__setPending([
+    makeCard('shown', { top: 100, height: 90 }),
     makeCard('hidden', { top: 120, height: 90, hidden: true }),
-  ];
-  queued.length = 0;
+  ]);
+  queued.length = 0; api.__reset();
   api.scrollFallbackLoader();
   assert.deepStrictEqual(queued, ['shown'], `hidden card must not load, got ${queued.join(',')}`);
   console.log('  ok   filtered-out cards skipped');
+
+  // Zero-rect cards (display:none without the flag, detached layout) match
+  // every viewport test — they must be skipped, not loaded.
+  api.__setPending([
+    makeCard('shown', { top: 100, height: 90 }),
+    makeCard('flat', { top: 120, height: 0, width: 0 }),
+  ]);
+  queued.length = 0; api.__reset();
+  api.scrollFallbackLoader();
+  assert.deepStrictEqual(queued, ['shown'], `zero-rect card must not load, got ${queued.join(',')}`);
+  console.log('  ok   zero-rect cards skipped');
+
+  // Failed cards belong to the bounded error sweep, not the bulk loader —
+  // otherwise every scroll refetches a permanently broken card forever.
+  api.__setPending([
+    makeCard('shown', { top: 100, height: 90 }),
+    makeCard('failed', { top: 120, height: 90, failed: true }),
+  ]);
+  queued.length = 0; api.__reset();
+  api.scrollFallbackLoader();
+  assert.deepStrictEqual(queued, ['shown'], `failed card must not reload, got ${queued.join(',')}`);
+  console.log('  ok   failed cards left for the bounded error sweep');
+
+  // Finished cards are pruned so the pending list shrinks over time instead
+  // of re-walking every entry on each scroll.
+  loadedCards.add('done');
+  api.__setPending([
+    makeCard('done', { top: 100, height: 90 }),
+    makeCard('todo', { top: 200, height: 90 }),
+  ]);
+  queued.length = 0; api.__reset();
+  api.scrollFallbackLoader();
+  assert.deepStrictEqual(queued, ['todo']);
+  assert.deepStrictEqual([...api.__getPending().map(c => c.dataset.name)], ['todo'],
+    'finished cards must be pruned from the pending list');
+  loadedCards.clear();
+  console.log('  ok   finished cards pruned from the pending list');
 }
 
 // ---------------------------------------------------------------- suite 2
-// onScrollLazyLoad must be a throttle, not a debounce. A debounce keeps
-// resetting while scroll events arrive, so during continuous scrolling the
-// loader never runs at all — which is exactly when cards get missed.
+// onScrollLazyLoad must coalesce a burst of scroll events into one sweep per
+// frame (rAF throttle), and the sweep must still run after scrolling stops.
 {
+  const rafQueue = [];
   let passes = 0;
-  let timers = [];
-  let clock = 0;
 
   const api = run(
-    'let scrollLoadTimeout = null;\nlet lastScrollLoadRun = 0;\nconst SCROLL_LOAD_INTERVAL = 200;\n'
-    + 'const Date = { now: nowFn };\n'
-    + grab('scrollFallbackLoader') + '\n' + grab('onScrollLazyLoad')
+    'let scrollLoadActive = false;\nlet scrollRafPending = false;\n'
+    + grab('onScrollLoad') + '\n' + grab('onScrollLazyLoad')
     + '\n;({ onScrollLazyLoad });',
     {
-      document: { querySelectorAll: () => { passes++; return []; } },
-      window: { scrollY: 0, innerHeight: 900 },
-      nowFn: () => clock,
-      setTimeout: (fn, ms) => { const id = timers.length; timers.push({ fn, at: clock + ms, id }); return id; },
-      clearTimeout: id => { const t = timers.find(t => t.id === id); if (t) t.cancelled = true; },
+      scrollFallbackLoader: () => { passes++; },
+      requestAnimationFrame: cb => { rafQueue.push(cb); return rafQueue.length; },
     }, 'onScrollLazyLoad');
 
-  const runTimers = () => timers.filter(t => !t.cancelled && t.at <= clock && !t.ran)
-    .forEach(t => { t.ran = true; t.fn(); });
+  const flush = () => { while (rafQueue.length) rafQueue.shift()(); };
 
-  // 1050ms of continuous scrolling, an event every 50ms. Ending off the 200ms
-  // boundary is deliberate, so a trailing pass is required.
-  for (let i = 0; i < 21; i++) { clock += 50; api.onScrollLazyLoad(); runTimers(); }
-  assert.ok(passes >= 4,
-    `expected >=4 passes during continuous scrolling, got ${passes} (debounce behaviour?)`);
-  console.log(`  ok   throttle ran ${passes}x during continuous scrolling (a debounce runs 0)`);
+  // A burst of 21 scroll events coalesces to a single scheduled sweep.
+  for (let i = 0; i < 21; i++) api.onScrollLazyLoad();
+  assert.strictEqual(rafQueue.length, 1,
+    `expected 1 coalesced sweep, got ${rafQueue.length}`);
+  assert.strictEqual(passes, 0, 'sweep must wait for the animation frame');
+  flush();
+  assert.strictEqual(passes, 1, 'expected the sweep to run on the frame');
+  console.log('  ok   scroll burst coalesced into one sweep per frame');
 
-  passes = 0; clock += 500; runTimers();
-  assert.ok(passes >= 1, 'expected a trailing pass after scrolling stops');
-  console.log('  ok   trailing pass fires after scrolling stops');
+  // And scrolling after the frame schedules a fresh sweep (nothing is lost).
+  api.onScrollLazyLoad();
+  flush();
+  assert.strictEqual(passes, 2, 'expected a further sweep after more scrolling');
+  console.log('  ok   further scrolling schedules a fresh sweep');
 }
 
 console.log('\nlazy-loader tests passed');

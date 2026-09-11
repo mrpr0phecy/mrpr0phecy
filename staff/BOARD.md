@@ -9,6 +9,16 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-11 — arena/01a08f3a — Broad repair sweep delivered for review
+
+**Delivery:** PR from `arena/01a08f3a-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence; this entry is the handover context.
+
+**Fixed:** 2026/27 UK tax engines (rUK + Scotland six-band selector, banded NI, threshold student-loan plans) in `cards/tax.html` and `cards/salary.html`; mortgage extra-payment total + total-cost fix; investment compounding fix; debtpayoff snowball/avalanche placebo controls removed and replaced with an honest explainer; estimate/advice caveats on money tools; `index.html` loader hardening (DOM-API error UI, load-vs-render reasons, bounded auto-retry + scroll re-sweep, no inline handlers); press/sponsor/help/legal honesty fixes (analytics claims, dead tags); SEO heads for supadupaman/token/riley; sitemap rebuilt (+supadupaman pages, 1196 URLs); `check-cards.py` ID-guard false-positive fix (catalogue WARN-free, 1119); finance-guard reconciliation incl. D-002/D-007 analytics wording.
+
+**Verified:** `verify.sh` PASSED 12/12; jsdom functional smoke 14/14 against the real card scripts and real error UI (Scotland £50k → £8,982; salary £35k net chain £28,215; mortgage P+I reconciliation; hostile error markup rendered inert); `check-finance.js` 96/100 — the only 4 failures are the pre-existing `embed.html` licence/copy owner-boundary items. Staff `plan` NOT READY solely on those 4 plus pre-existing advisories (8 KNOWN_TRUNCATED cards, product-boundary links, 404/hokidea noindex SEO notes — all deliberately untouched).
+
+**Left for the owner:** embed licence pricing/copy; restoring the 8 truncated cards; product-boundary link policy. No owner decisions were recorded or assumed in this session.
+
 ## 2026-09-08 — @systems — Staff rebuild delivered for review; inherited blockers now visible
 
 **Delivery:** [PR #35](https://github.com/mrpr0phecy/mrpr0phecy/pull/35) from `arena/01a07ea6-mrpr0phecy`. See GitHub for its final merge/check state; this dated entry is not a live deployment status. Research: `staff/RESEARCH.md`. Entry point: `STAFF.md`.

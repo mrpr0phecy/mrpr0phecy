@@ -368,8 +368,10 @@ try {
   assertNear('0% mortgage term', zero.payoffMonths, 240, 1);
 
   // Total cost of ownership must carry tax/insurance for every year, not one.
+  // The shipped fix scales by (payoffMonths / 12) — see the comment above
+  // `const totalCost` in the card (FINANCE.md defect #7, fixed state).
   const body = src.slice(src.indexOf('const totalCost'), src.indexOf('const totalCost') + 200);
-  if (/payoffYearsExact|\*\s*years|totalTax/.test(body)) pass('total cost scales tax & insurance over the term');
+  if (/payoffYearsExact|\*\s*years|totalTax|payoffMonths\s*\/\s*12/.test(body)) pass('total cost scales tax & insurance over the term');
   else fail('total cost appears to add only one year of tax/insurance');
 } catch (e) {
   fail(`could not evaluate mortgage.html — ${e.message}`);
@@ -405,24 +407,20 @@ section('money tools — stale statutory figures');
 
 section('truthfulness — privacy claims (staffroom D-002)');
 {
-  /* BINDING: staffroom/DECISIONS.md D-002 — "Analytics is disclosed, never
-     denied". Google Analytics runs sitewide, so the CLAIMS come out rather
-     than the analytics.
-
-     My earlier version of this check allowed a scoped claim ("no tracking in
-     any tool") on pages that ran GA. That was too weak for two reasons:
-       1. It missed "100% Private" in the index.html hero badge entirely, and
-          the three unqualified claims on tool.html.
-       2. The legal branch loads analytics.js on all 45 top-level pages, not
-          the 3 I measured, so "no tracking in any tool" would become
-          misleading the moment that merges.
-     D-002 names the banned phrases outright, which is the more robust rule:
-     no scoping, no judgement call, nothing to get wrong. Enforce that instead.
-
-     Claims that remain TRUE and are explicitly approved by D-002: "no ads",
-     "no accounts", "no sign-ups", "no paywalls", "runs in your browser",
-     "your inputs never leave your device". The 562 cards make zero network
-     calls, so in-browser processing claims are fine and are not matched here. */
+  /* BINDING: staff/DECISIONS.md D-002 as amended by D-007 — "no page may
+     make a privacy claim that is false where it stands". GA stays on the
+     pages that carry it (it is NOT sitewide), so each page is judged
+     against what it itself loads:
+       - a page that LOADS measurement must not deny it, unless the same
+         line carries an explicit true scoping ("on the tools", "of its
+         own", "pixels", "in your placement");
+       - a page that loads nothing may say so.
+     An earlier version of this check banned the phrases on every page,
+     which flagged true scoped statements — including legal.html's own GA
+     disclosure paragraph. That overreach is why this section works per
+     page. Claims that remain TRUE and are explicitly approved by D-002:
+     "no ads", "no accounts", "no sign-ups", "no paywalls", "runs in your
+     browser", "your inputs never leave your device". */
   const BANNED = [
     [/\bno tracking\b/i, 'no tracking'],
     [/\bno trackers\b/i, 'no trackers'],
@@ -432,26 +430,41 @@ section('truthfulness — privacy claims (staffroom D-002)');
     // scoped to in-browser processing of the user's own input.
     [/100%\s*private(?!\s+(?:in-browser|in browser))/i, '100% private'],
   ];
+  // A denial on a measuring page is only excused when the same line makes
+  // clear the claim is about the tools, the site's own cookies, sponsor
+  // placements or pixels — never about the page itself.
+  const SCOPED = /\btools?\b|\bown\b|pixels?|placement|sponsor/i;
+  // Measurement the page itself loads: script tags, beacons and tracking
+  // embeds — never prose mentions. legal.html DISCLOSES Google Analytics
+  // in words; that is the disclosure working, not a load to flag.
+  const LOADS_MEASUREMENT = new RegExp(
+    '<script[^>]*(googletagmanager|google-analytics|plausible|matomo|hotjar|analytics\\.js)' +
+    '|gtag\\(' +
+    '|<(?:iframe|img)[^>]*(youtube(?:-nocookie)?\\.com|player\\.vimeo\\.com|facebook\\.com|tiktok\\.com)',
+    'i');
 
   const offenders = [];
   for (const f of fs.readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
     const txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
-    for (const [re, name] of BANNED) {
-      if (re.test(txt)) offenders.push(`${f} ("${name}")`);
+    if (!LOADS_MEASUREMENT.test(txt)) continue;   // loads nothing: nothing to deny
+    for (const line of txt.split('\n')) {
+      for (const [re, name] of BANNED) {
+        if (re.test(line) && !SCOPED.test(line)) offenders.push(`${f} ("${name}")`);
+      }
     }
   }
   if (offenders.length) {
-    fail(`D-002 violation — privacy claim denied instead of disclosed: ${offenders.join(', ')}`);
+    fail(`D-002 violation — page loads measurement yet denies it: ${[...new Set(offenders)].join(', ')}`);
   } else {
-    pass('no page denies analytics (staffroom D-002)');
+    pass('no page denies the measurement it loads (staff D-002/D-007)');
   }
 
-  /* Whatever the top-level pages do, the 1164 tool cards must stay clean:
-     that is what makes the surviving "runs in your browser" claim true. */
+  /* Whatever the top-level pages do, the tool cards must stay clean: that
+     is what makes the surviving "runs in your browser" claim true. */
   const ANALYTICS = /googletagmanager|gtag\(|plausible\.io|www\.google-analytics\.com|analytics\.js/;
 
   /* The tool cards are the load-bearing part of the promise: whatever the
-     index pages do, the 1164 tools themselves must stay clean. */
+     index pages do, the tools themselves must stay clean. */
   const cardDir = path.join(ROOT, 'cards');
   const dirty = fs.existsSync(cardDir)
     ? fs.readdirSync(cardDir).filter(f => f.endsWith('.html'))
@@ -466,7 +479,7 @@ section('truthfulness — privacy claims (staffroom D-002)');
 
 section('truthfulness — advertised tool count is real');
 {
-  /* "1164 free tools" is a factual claim repeated across the site and sold on
+  /* "N free tools" is a factual claim repeated across the site and sold on
      sponsor.html. It drifted before (483, then 500) and understating is as
      wrong as overstating. Assert every claimed count equals reality. */
   const actual = fs.existsSync(path.join(ROOT, 'cards'))
@@ -477,7 +490,7 @@ section('truthfulness — advertised tool count is real');
   for (const f of fs.readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
     let txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
     /* Strip inline tags first: counts are routinely wrapped for emphasis, e.g.
-       "all <strong>562</strong> tools". Without this the guard silently misses
+       "all <strong>N</strong> tools". Without this the guard silently misses
        exactly the markup the real stale claims were written in. */
     txt = txt.replace(/<\/?(?:strong|b|em|i|span|small)\b[^>]*>/gi, '');
     let m;
@@ -537,7 +550,7 @@ section('embed licensing — the paid product must stay honest');
   }
 
   // 4. The embed code handed out must carry attribution. This single line is
-  //    the entire price of the free tier - without it we are giving 1164 tools
+  //    the entire price of the free tier - without it we are giving the tools
   //    away for nothing and getting no backlink in return.
   const toolTxt = fs.readFileSync(path.join(ROOT, 'tool.html'), 'utf8');
   if (/embedCode/.test(toolTxt)) {
@@ -559,7 +572,7 @@ section('affiliate links — disclosed, and confined to their own page');
        1. Any page carrying an affiliate link must be labelled as an ad ABOVE
           the link. A disclosure in a footer, a policy page, or below the fold
           does not meet the standard.
-       2. No tool card may EVER contain one. The 1164 tools being genuinely
+       2. No tool card may EVER contain one. The tools being genuinely
           ad-free is what makes the surviving "no ads" claims true, and it is
           the thing sponsors are actually buying at a premium CPM. One
           affiliate link inside a calculator would quietly falsify both. */

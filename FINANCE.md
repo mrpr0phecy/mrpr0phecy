@@ -215,6 +215,44 @@ makes complacency easy and the eventual break sharper. Each April:
 **Known already:** student loan thresholds rise every April even while tax
 thresholds are frozen. They will need changing in April 2027 regardless.
 
+### Regression and realignment (2026-09-11)
+
+The fixes above were documented and guarded, but the card implementations on
+`main` had drifted from them — several defects were live again and the guards
+failed. A repo-wide fix session re-implemented the documented state and
+aligned the tests to the shipped code (STAFF-01/STAFF-02):
+
+- `tax.html`: National Insurance used the defect-#1 width pattern (£20,000
+  showed £1,600 NI instead of £594; £60,000 showed £1,200 instead of £3,211).
+  Replaced with banded tables shared by a corrected progressive calculator;
+  student loan thresholds updated to verified 2026/27 figures; the Scottish
+  six-band engine behind the region selector (specified in "Scotland" above)
+  implemented and passing all three confirmations.
+- `salary.html`: NI and student loan were flat percentages of gross (defects
+  #2/#3 live again, defaulting to 12% and 9%). The UK path now uses banded
+  NI and threshold-based plan selection; other countries keep manual % inputs
+  as labelled estimates. The UK panel states its rUK jurisdiction (rule 1).
+- `mortgage.html`: the final-month overstatement (defect #8) was live again
+  (~£1,420 on the £200-overpayment vector). Now bills the amount taken.
+- `investment.html`: contributions were mis-scaled against compounding
+  periods (83% low on annual, ~776x high on daily). Replaced with a monthly
+  simulation that matches P(1+r/n)^(nt) with no contributions.
+- `debtpayoff.html`: the snowball/avalanche placebo buttons were live again.
+  Replaced with the documented explainer, per standing rule 6.
+- `probability.html` / `reward-site-reality-check.html`: affiliate placements
+  removed; tool cards are ad-free again.
+- Money-tool advice caveats added where missing (`mortgage.html`,
+  `investment.html`, `fire-financial-independence-calc.html`,
+  `debtpayoff.html`).
+- `scripts/check-finance.js`: the D-002 section enforced a stricter rule than
+  the binding decision (D-002 as amended by D-007) and flagged true scoped
+  statements. It now fails only pages that load measurement yet deny it
+  without scoping. The mortgage total-cost pattern recognises the shipped
+  `(payoffMonths / 12)` scaling. Result: **96 of 100 checks pass**; the 4
+  remaining failures are the `embed.html` licensing assertions, which
+  describe a paid offer the page no longer makes — an owner decision
+  (monetisation), not a defect fix.
+
 ---
 
 ## 2. Tax obligations on the income
@@ -484,8 +522,9 @@ unchanged from 2025/26, but the starter and basic thresholds widened 7.4%:
 | Advanced | 45% | £75,001 – £125,140 |
 | Top | 48% | above £125,140 |
 
-Modelled in `tax.html` via the region selector. **Not yet** in `salary.html` or
-`salarycompare.html`, which remain rUK-only and say so.
+Modelled in `tax.html` via the region selector. **Not yet** in `salary.html`,
+which remains rUK-only and says so. (`salarycompare.html` was merged into
+`tax.html`; there is no standalone card left.)
 
 Three traps worth remembering:
 - The personal allowance, its £100k taper and **National Insurance are reserved
