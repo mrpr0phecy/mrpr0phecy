@@ -110,7 +110,10 @@ for f in sorted(on_disk):
                      f"— cards must be fragments")
 
 # ---------------------------------------------------------------- 4. ID scope
-id_re = re.compile(r'id=["\']([^"\']+)["\']', re.I)
+# Only real id attributes count: data-* attributes (data-id) are scoped by
+# convention, and ${...} template literals never appear in the DOM -
+# flagging either buries genuine static duplicates in noise.
+id_re = re.compile(r'(?<![\w-])id=["\']([^"\']+)["\']', re.I)
 seen: dict[str, str] = {}
 for f in sorted(on_disk):
     try:
@@ -120,6 +123,8 @@ for f in sorted(on_disk):
         continue
     for m in id_re.finditer(text):
         iid = m.group(1)
+        if '${' in iid:
+            continue
         if iid in seen and seen[iid] != f:
             warns.append(f"duplicate id '{iid}' in {seen[iid]} and {f}")
         else:

@@ -3,6 +3,7 @@
 <form aria-describedby="investment-desc">
   <p id="investment-desc" class="small" style="color:var(--muted);margin-bottom:20px;">
     <strong style="color:var(--accent)">Watch your money multiply:</strong> Calculate how small investments today can grow into significant wealth over time through compounding.
+    <span style="color:var(--accent);">Illustrative estimates only — not financial advice; markets can fall as well as rise.</span>
   </p>
 
   <!-- VISUAL SLIDER CONTROLS -->
@@ -405,18 +406,16 @@ function calculateInvestment() {
   // Convert annual rate to periodic rate based on compounding frequency
   const periodsPerYear = igCompoundingPeriods[igCompounding];
   const periodicRate = annualRate / 100 / periodsPerYear;
-  const totalPeriods = years * periodsPerYear;
-  
-  // Calculate future value with different compounding formulas
-  let futureValue;
-  
-  if (igCompounding === 'daily') {
-    // Use continuous compounding approximation for daily
-    futureValue = principal * Math.pow(1 + periodicRate, totalPeriods) + 
-                 monthly * periodsPerYear / 12 * ((Math.pow(1 + periodicRate, totalPeriods) - 1) / periodicRate);
-  } else {
-    futureValue = principal * Math.pow(1 + periodicRate, totalPeriods) + 
-                 monthly * periodsPerYear / 12 * ((Math.pow(1 + periodicRate, totalPeriods) - 1) / periodicRate);
+
+  // Monthly simulation: contributions arrive monthly while growth compounds
+  // at the chosen frequency, so each runs on its own clock. (A closed form
+  // that mixed the two clocks mis-scaled contributions — the finance guard
+  // pins the ballparks against P(1+r/n)^(nt).)
+  const monthlyGrowth = Math.pow(1 + periodicRate, periodsPerYear / 12);
+  let futureValue = principal;
+  const totalMonths = Math.round(years * 12);
+  for (let m = 0; m < totalMonths; m++) {
+    futureValue = futureValue * monthlyGrowth + monthly;
   }
   
   // Calculate totals

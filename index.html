@@ -3877,6 +3877,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         INITIAL_STAGGER: 50,    // ms between first-batch fetch starts (was LOAD_DELAY: 100)
         FETCH_TIMEOUT: 15000,   // ms before a card fetch is aborted and its slot freed
         MAX_AUTO_RETRIES: 2,    // silent retries before the card shows its error/Retry UI
+        AUTO_RETRY_LIMIT: 3,    // extra scroll-driven retries per failed card before it rests for a manual Retry
         GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
         GITHUB_PATH: 'cards',
         STICKY_THRESHOLD: 200
@@ -4963,12 +4964,26 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         const sandbox = card.querySelector(`#card-${cardName}`);
         if (!sandbox || !sandbox.querySelector('.card-skeleton')) return;
         const name = card.dataset.displayName || cardName;
-        sandbox.innerHTML = `
-            <div class="cool-loader" role="status">
-                <div class="cool-loader-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-                <div class="cool-loader-text">Loading <strong>${name}</strong><span class="cool-dots"></span></div>
-            </div>
-        `;
+        const loader = document.createElement('div');
+        loader.className = 'cool-loader';
+        loader.setAttribute('role', 'status');
+        const bars = document.createElement('div');
+        bars.className = 'cool-loader-bars';
+        bars.setAttribute('aria-hidden', 'true');
+        for (let bi = 0; bi < 7; bi++) bars.appendChild(document.createElement('i'));
+        const text = document.createElement('div');
+        text.className = 'cool-loader-text';
+        text.textContent = 'Loading ';
+        const strong = document.createElement('strong');
+        strong.textContent = name;
+        const dots = document.createElement('span');
+        dots.className = 'cool-dots';
+        text.appendChild(strong);
+        text.appendChild(dots);
+        loader.appendChild(bars);
+        loader.appendChild(text);
+        sandbox.innerHTML = '';
+        sandbox.appendChild(loader);
     }
 
     async function executeLoadCard(card, cardName) {
@@ -5032,8 +5047,9 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 setTimeout(() => { if (!loadedCards.has(cardName)) scheduleViewportSweep(); }, isAbort ? 250 : 1500);
                 return;
             }
-            showCardError(card, cardName, error);
-            // Do NOT add to loadedCards — allow retry via observer or scroll
+            showCardError(card, cardName, error, 'load');
+            // Do NOT add to loadedCards — retryErroredCards() re-sweeps
+            // visible load failures (bounded); render failures rest.
         } finally {
             loadingCards.delete(cardName);
             card.classList.remove('loading-fallback');
@@ -5141,7 +5157,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             
         } catch (error) {
             console.error(`Error rendering card ${cardName}:`, error);
-            showCardError(card, cardName, error);
+            showCardError(card, cardName, error, 'render');
         }
     }
     
@@ -5276,23 +5292,46 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         }
     }
     
-    function showCardError(card, cardName, error) {
+    function showCardError(card, cardName, error, reason) {
         const cardSandbox = card.querySelector('.card-sandbox');
-        if (cardSandbox) {
-            const displayName = card.dataset.displayName || cardName;
-            cardSandbox.innerHTML = `
-                <div class="card-sandbox-error">
-                    <div>
-                        <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">⚠️</div>
-                        <h3 style="color:#ff4d4d;margin-bottom:12px;">Failed to load ${displayName}</h3>
-                        <div style="font-size:14px;opacity:0.8;max-width:300px;margin:0 auto;">${error.message || 'Unknown error'}</div>
-                        <button onclick="retryLoadCard('${cardName}')" style="margin-top:20px;padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;">Retry</button>
-                    </div>
-                </div>
-            `;
-            card.classList.remove('card-pending');
-            card.classList.add('loaded', 'visible');
-        }
+        if (!cardSandbox) return;
+        reason = reason === 'render' ? 'render' : 'load';
+        // Remember the failure so the viewport sweep can retry visible load
+        // failures (bounded) instead of refetching forever — and so render
+        // failures are never auto-retried. Manual Retry clears this.
+        card.dataset.errorReason = reason;
+        // Built with DOM APIs: displayName comes from cards.json and
+        // error.message from the network — neither may touch innerHTML.
+        const displayName = card.dataset.displayName || cardName;
+        const wrap = document.createElement('div');
+        wrap.className = 'card-sandbox-error';
+        const inner = document.createElement('div');
+        const icon = document.createElement('div');
+        icon.style.cssText = 'font-size:48px;margin-bottom:16px;opacity:0.5;';
+        icon.textContent = '⚠️';
+        const title = document.createElement('h3');
+        title.className = 'card-error-title';
+        title.style.cssText = 'color:#ff4d4d;margin-bottom:12px;';
+        title.textContent = (reason === 'render' ? "Couldn't render " : 'Failed to load ') + displayName;
+        const detail = document.createElement('div');
+        detail.className = 'card-error-detail';
+        detail.style.cssText = 'font-size:14px;opacity:0.8;max-width:300px;margin:0 auto;';
+        detail.textContent = (error && error.message) || 'Unknown error';
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'card-error-retry';
+        retry.style.cssText = 'margin-top:20px;padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;';
+        retry.textContent = 'Retry';
+        retry.addEventListener('click', function () { retryLoadCard(cardName); });
+        inner.appendChild(icon);
+        inner.appendChild(title);
+        inner.appendChild(detail);
+        inner.appendChild(retry);
+        wrap.appendChild(inner);
+        cardSandbox.innerHTML = '';
+        cardSandbox.appendChild(wrap);
+        card.classList.remove('card-pending');
+        card.classList.add('loaded', 'visible');
     }
     
     function retryLoadCard(cardName) {
@@ -5303,7 +5342,32 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             loadedCards.delete(cardName);
             loadingCards.delete(cardName);
             retryCounts.delete(cardName);
+            // A manual retry always fires and restores the auto-retry budget.
+            delete card.dataset.errorReason;
+            card.dataset.autoRetries = '0';
             card.classList.remove('loading-fallback');
+            loadCard(card, cardName);
+        }
+    }
+
+    // Bounded re-sweep of failed cards: visible load failures are retried
+    // (transient network errors self-heal on scroll); render failures and
+    // offscreen cards rest for a manual Retry. Runs with every viewport
+    // sweep, so it fires on scroll, resize, filter and queue-drain.
+    function retryErroredCards() {
+        const limit = CONFIG.AUTO_RETRY_LIMIT;
+        const failed = document.querySelectorAll('.card[data-error-reason="load"]');
+        for (const card of failed) {
+            const used = parseInt(card.dataset.autoRetries || '0', 10);
+            if (used >= limit) continue;
+            const rect = (typeof card.getBoundingClientRect === 'function')
+                ? card.getBoundingClientRect() : null;
+            if (!rect) continue;
+            const inView = rect.bottom >= -300 && rect.top <= window.innerHeight + 300;
+            if (!inView) continue;
+            const cardName = card.dataset.name;
+            if (!cardName || loadedCards.has(cardName) || loadingCards.has(cardName)) continue;
+            card.dataset.autoRetries = String(used + 1);
             loadCard(card, cardName);
         }
     }
@@ -5403,6 +5467,10 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             if (!cardName || loadedCards.has(cardName) || !card.isConnected) continue;
             stillPending.push(card);
             if (loadingCards.has(cardName) || card.classList.contains('loading-fallback')) continue;
+            // Failed cards belong to the bounded retryErroredCards() sweep,
+            // not the bulk loader — otherwise every scroll refetches a
+            // permanently broken card forever.
+            if (card.dataset.errorReason) continue;
             // Hidden by the active filter: skip, but keep it pending.
             if (isCardHidden(card)) continue;
 
@@ -5431,6 +5499,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         });
 
         pendingCards = stillPending;
+        retryErroredCards();
         scrollLoadActive = false;
     }
     
