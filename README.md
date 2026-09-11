@@ -48,6 +48,14 @@ brief, model, key, passing gates and human review.
 [Automation setup](docs/AI-DEVELOPER-SETUP.md) ·
 [Research and rationale](staff/RESEARCH.md)
 
+## Local AI companion
+
+[`local-ai.html`](local-ai.html) is a standalone browser experiment: Byte is an
+animated-face chat companion that can run a small WebGPU language model on the
+visitor's device. The first visit downloads and caches the model; no API key or
+account is needed, and a clearly labelled demo mode keeps the page usable when
+WebGPU is unavailable.
+
 ## Money & monetisation
 
 **[INCOME.md](INCOME.md)** — what actually earns, the real audience numbers,

@@ -74,8 +74,8 @@ establish *which* site first.
 ├── sonicfansite.html       Standalone Sonic fan site (unrelated to A and B)
 ├── beachsimulator.html, citysimulator.html, fightsimulator.html,
 │   aiwalker.html, animation.html, birdapp.html, clock.html,
-│   eternalbeffudlementmachine.html, slideshowtest.html, token.html,
-│   tool.html, indexbeta.html, hokidea.html, supaviewer.html
+│   eternalbeffudlementmachine.html, local-ai.html, slideshowtest.html,
+│   token.html, tool.html, indexbeta.html, hokidea.html, supaviewer.html
 │                           Experiments and one-offs. Not linked from the
 │                           catalogue. Safe to ignore; ask before deleting.
 │                           `supaviewer.html` is SupaViewer, a standalone
