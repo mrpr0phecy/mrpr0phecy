@@ -175,6 +175,12 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'ai-realistic-face-avatar': 'AI & Autonomous Agents',
+  'ai-super-realistic-face-v4': 'AI & Autonomous Agents',
+  'ai-graph-of-thought-lab': 'AI & Autonomous Agents',
+  'ai-buffer-of-thoughts-lab': 'AI & Autonomous Agents',
+  'ai-chain-of-verification-lab': 'AI & Autonomous Agents',
+  'ai-mixture-of-agents-lab': 'AI & Autonomous Agents',
   'geometric-size-illusion-lab': 'Mind-Blowing Demos',
   'joy-spark-micro-celebrations': 'Wellbeing & Community',
   'interactive-wind-chime-sanctuary': 'Interactive Art & Living Worlds',
@@ -467,7 +473,13 @@ const aiList = [
   'ai-few-shot-prompt-synthesizer',
   'ai-hallucination-entropy-gauge',
   'ai-model-cost-latency-matrix',
-  'ai-mcp-protocol-tool-tester'
+  'ai-mcp-protocol-tool-tester',
+  'ai-advanced-rag-playground',
+  'ai-agent-orchestrator',
+  'ai-memory-vector-store',
+  'ai-tool-use-simulator',
+  'ai-reasoning-trace-visualizer',
+  'ai-thinking-machine-lab'
 ];
 
 const astronomyList = [

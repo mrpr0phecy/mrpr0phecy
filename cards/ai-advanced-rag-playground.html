@@ -1,0 +1,171 @@
+<h2 id="aargp-title" style="margin-top:0;color:var(--accent);">🧠 Advanced RAG Playground — BM25 + Embeddings + Re-ranking</h2>
+
+<form aria-describedby="aargp-desc" onsubmit="event.preventDefault();">
+  <p id="aargp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Byte 2.0's retrieval engine live: hybrid BM25 (k1=1.2, b=0.75) + 64-dim hash embeddings + intent classification + synonym expansion + fuzzy. Test with your own documents and queries — same engine that powers Byte 2.0's 1119-tool search.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <label for="aargp-docs" style="display:block;margin-bottom:6px;font-size:0.78rem;color:var(--text-secondary)">Documents (one per line, format: title | content)</label>
+      <textarea id="aargp-docs" rows="8" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-light);background:#070f18;color:var(--text);font-size:0.82rem;font-family:ui-monospace,monospace">Mortgage Calculator | Calculate monthly repayments, total interest, amortisation schedule, overpayments, UK stamp duty
+BMI Calculator | Body Mass Index with WHO classification, health risk bands, imperial and metric
+Logo Generator | 22 hand-drawn icons, SVG/PNG export, gradient, favicon, brand mark forge
+Spanish Verbs | Master ser vs estar, por vs para, conjugations with native audio
+Budget Planner | Track spending, predictive analytics, health score, optimization
+Quantum Tunneling | Nuclear fusion in sun via quantum tunneling, Gamow factor, stellar nucleosynthesis
+Vector Embedding | Cosine similarity, Euclidean, dot product, angular distance for RAG
+Sleep Cycle | Optimal wake-up times based on 90-min cycles, REM, deep sleep</textarea>
+    </div>
+    <div>
+      <label for="aargp-query" style="display:block;margin-bottom:6px;font-size:0.78rem;color:var(--text-secondary)">Query</label>
+      <input id="aargp-query" type="text" value="plan mortgage overpayment strategy" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-light);background:#070f18;color:var(--text);font-size:0.85rem;margin-bottom:10px">
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div><label style="font-size:0.70rem;color:var(--text-secondary)">k1 <span id="aargp-k1v">1.2</span></label><input id="aargp-k1" type="range" min="0.5" max="2.5" step="0.1" value="1.2" style="width:100%"></div>
+        <div><label style="font-size:0.70rem;color:var(--text-secondary)">b <span id="aargp-bv">0.75</span></label><input id="aargp-b" type="range" min="0" max="1" step="0.05" value="0.75" style="width:100%"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <label style="font-size:0.72rem;color:var(--text-secondary)"><input id="aargp-use-bm25" type="checkbox" checked> BM25 40%</label>
+        <label style="font-size:0.72rem;color:var(--text-secondary)"><input id="aargp-use-embed" type="checkbox" checked> Embed 30%</label>
+        <label style="font-size:0.72rem;color:var(--text-secondary)"><input id="aargp-use-intent" type="checkbox" checked> Intent 15%</label>
+        <label style="font-size:0.72rem;color:var(--text-secondary)"><input id="aargp-use-fuzzy" type="checkbox" checked> Fuzzy 10%</label>
+        <label style="font-size:0.72rem;color:var(--text-secondary)"><input id="aargp-use-syn" type="checkbox" checked> Synonyms</label>
+      </div>
+      <button type="button" id="aargp-search" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--accent);background:rgba(45,212,255,.12);color:var(--accent);font-weight:800">🔍 Hybrid Search</button>
+      <div id="aargp-metrics" style="margin-top:10px;padding:8px;border-radius:8px;background:rgba(0,0,0,.2);border:1px solid var(--border-light);font-size:0.70rem;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <div id="aargp-results" style="display:grid;gap:8px"></div>
+
+  <div style="margin-top:14px;padding:12px;border-radius:10px;background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.18)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--accent);margin-bottom:6px">How Byte 2.0 retrieval works</div>
+    <div style="font-size:0.72rem;color:var(--text-secondary);line-height:1.5">
+      <b>BM25:</b> IDF = log((N-df+0.5)/(df+0.5)+1), score = IDF * (tf*(k1+1))/(tf+k1*(1-b+b*dl/avgdl))<br>
+      <b>Embed:</b> 64-dim hash embedding (each token → 3 buckets via md5/sha), L2 normalized, cosine similarity<br>
+      <b>Intent:</b> Regex classifier for 14 intents (calculate, convert, generate, analyze, learn, plan, simulate, code, etc.)<br>
+      <b>Hybrid:</b> final = BM25*0.4 + emb*6*0.3 + intent*4*0.15 + fuzzy*3*0.1 + feedback*0.05 + exact boosts<br>
+      <b>Graph:</b> Related tools via cosine + category/intent boost, top 8 per tool<br>
+      <b>Re-rank:</b> Title exact +5, phrase match +12, intent overlap +0.05 each
+    </div>
+  </div>
+</form>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const STOP = new Set(["the","and","for","with","you","your","this","that","from","have","are","was","were","been","will","can","not","but","our","has","had","its","may","all","any","per","via","using","use","into","over","under","about","more","most","some","such","than","then","when","where","what","which","who","how","why","tool","free","online","browser"]);
+  const SYN = {calc:["calculator","compute"], money:["finance","budget"], convert:["converter","exchange"], generate:["creator","maker","builder"], learn:["quiz","guide"], music:["audio","sound"], code:["programming","json"], time:["date","schedule"]};
+
+  function tokenize(text){
+    return String(text).toLowerCase().replace(/[^a-z0-9]+/g,' ').split(' ').filter(w=>w.length>1 && w.length<32 && !STOP.has(w));
+  }
+  function hashEmb(tokens, dim=64){
+    const vec=new Array(dim).fill(0); const counts={}; tokens.forEach(t=>counts[t]=(counts[t]||0)+1);
+    for(const [tok,tf] of Object.entries(counts)){
+      let h1=0,h2=0; for(let i=0;i<tok.length;i++){ h1=(h1*31+tok.charCodeAt(i))>>>0; h2=(h2*131+tok.charCodeAt(i))>>>0; }
+      for(let k=0;k<3;k++){ const idx=(h1 + k*h2) % dim; const sign= ((h1>>k)&1)?1:-1; vec[idx]+= sign*(1+Math.log(tf)); }
+    }
+    const norm=Math.sqrt(vec.reduce((s,x)=>s+x*x,0))||1; return vec.map(x=>x/norm);
+  }
+  function cosine(a,b){ let dot=0; for(let i=0;i<a.length;i++) dot+=a[i]*b[i]; return dot; }
+  function levenshtein(a,b){
+    const m=a.length,n=b.length; const dp=Array.from({length:m+1},(_,i)=>[i]); for(let j=1;j<=n;j++) dp[0][j]=j;
+    for(let i=1;i<=m;i++) for(let j=1;j<=n;j++) dp[i][j]= a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+    return dp[m][n];
+  }
+
+  let docs=[], inverted={}, idf={}, docLengths=[], avgdl=0;
+
+  function buildIndex(){
+    const raw=$('aargp-docs').value.trim().split('\n').filter(Boolean);
+    docs=raw.map((line, id)=>{
+      const [title, content] = line.includes('|') ? line.split('|').map(s=>s.trim()) : [line.slice(0,40), line];
+      const full=`${title} ${content}`;
+      const tokens=tokenize(full);
+      return {id, title, content, tokens, full, embedding: hashEmb(tokens,64)};
+    });
+    // Inverted
+    inverted={}; const df={};
+    docs.forEach(d=>{
+      const tf={}; d.tokens.forEach(t=>tf[t]=(tf[t]||0)+1);
+      Object.entries(tf).forEach(([term, freq])=>{
+        if(!inverted[term]) inverted[term]=[];
+        inverted[term].push([d.id, freq]);
+        df[term]=(df[term]||0)+1;
+      });
+      docLengths[d.id]=d.tokens.length;
+    });
+    const N=docs.length;
+    idf={}; Object.entries(df).forEach(([term, f])=>{ idf[term]=Math.log((N-f+0.5)/(f+0.5)+1); });
+    avgdl=docLengths.reduce((a,b)=>a+b,0)/N || 1;
+    $('aargp-metrics').innerHTML=`Index: ${N} docs · vocab ${Object.keys(idf).length} · avgdl ${avgdl.toFixed(1)}`;
+  }
+
+  function classifyIntent(q){
+    const patterns={calculate:/(calc|compute|how much|what is|convert)/, convert:/(convert|to|exchange)/, generate:/(generate|create|make|build)/, learn:/(learn|explain|guide|how to)/, plan:/(plan|schedule|organize)/, code:/(code|json|regex|html)/};
+    const intents=[]; for(const [k,pat] of Object.entries(patterns)) if(pat.test(q.toLowerCase())) intents.push(k); return intents;
+  }
+
+  function search(){
+    const query=$('aargp-query').value.trim();
+    if(!query) return;
+    const k1=parseFloat($('aargp-k1').value), b=parseFloat($('aargp-b').value);
+    const useBM25=$('aargp-use-bm25').checked, useEmbed=$('aargp-use-embed').checked, useIntent=$('aargp-use-intent').checked, useFuzzy=$('aargp-use-fuzzy').checked, useSyn=$('aargp-use-syn').checked;
+    const start=performance.now();
+    const rawTokens=tokenize(query);
+    let expanded=[...rawTokens];
+    if(useSyn){ rawTokens.forEach(t=>{ if(SYN[t]) expanded.push(...SYN[t]); }); }
+    expanded=[...new Set(expanded)];
+    const qEmb=hashEmb(rawTokens,64);
+    const qIntents=classifyIntent(query);
+
+    const scored=docs.map(d=>{
+      let bm25=0;
+      if(useBM25){
+        for(const term of expanded){
+          const posting=inverted[term]; if(!posting) continue;
+          const entry=posting.find(p=>p[0]===d.id); if(!entry) continue;
+          const tf=entry[1], termIdf=idf[term]||0;
+          const dl=docLengths[d.id]||avgdl;
+          bm25+= termIdf * (tf*(k1+1)) / (tf + k1*(1-b + b*dl/avgdl));
+        }
+      }
+      let emb=0; if(useEmbed) emb=cosine(qEmb, d.embedding);
+      let intent=0; if(useIntent && qIntents.length){ const overlap=qIntents.filter(i=> (d.title+' '+d.content).toLowerCase().includes(i)).length; intent=overlap/qIntents.length; }
+      let fuzzy=0; if(useFuzzy){ const qlow=query.toLowerCase(); if(d.title.toLowerCase().includes(qlow)) fuzzy=1; else { const dist=levenshtein(qlow, d.title.toLowerCase().slice(0,qlow.length+5)); if(dist<=2) fuzzy=0.8-dist*0.2; } }
+      let final= bm25*0.4 + emb*6*0.3 + intent*4*0.15 + fuzzy*3*0.1;
+      if(d.title.toLowerCase().includes(query.toLowerCase())) final+=2;
+      return {doc:d, bm25, emb, intent, fuzzy, final};
+    });
+    scored.sort((a,b)=>b.final-a.final);
+    const time=Math.round(performance.now()-start);
+
+    const resultsEl=$('aargp-results');
+    resultsEl.replaceChildren();
+    const top=scored.slice(0,6);
+    top.forEach((s,i)=>{
+      const div=document.createElement('div');
+      div.style.cssText='padding:10px 12px;border:1px solid var(--border-light);border-radius:10px;background:rgba(0,0,0,.18)';
+      div.innerHTML=`
+        <div style="display:flex;justify-content:space-between;gap:8px"><strong style="color:var(--accent);font-size:0.85rem">${i+1}. ${s.doc.title}</strong><span style="font-size:0.70rem;color:var(--text-secondary)">final ${s.final.toFixed(2)}</span></div>
+        <div style="font-size:0.74rem;color:var(--dim);margin:4px 0">${s.doc.content.slice(0,140)}</div>
+        <div style="font-size:0.66rem;color:var(--faint);display:flex;gap:8px;flex-wrap:wrap">
+          <span>bm25 ${s.bm25.toFixed(2)}</span><span>emb ${s.emb.toFixed(2)}</span><span>intent ${s.intent.toFixed(2)}</span><span>fuzzy ${s.fuzzy.toFixed(2)}</span>
+          <span>tokens: ${s.doc.tokens.slice(0,6).join(', ')}</span>
+        </div>
+      `;
+      resultsEl.append(div);
+    });
+    $('aargp-metrics').innerHTML=`Query: "${query}" · tokens [${rawTokens.join(', ')}] · expanded [${expanded.join(', ')}] · intents [${qIntents.join(', ')||'none'}] · ${time}ms · k1=${k1} b=${b}`;
+  }
+
+  $('aargp-k1').addEventListener('input', e=>{ $('aargp-k1v').textContent=e.target.value; });
+  $('aargp-b').addEventListener('input', e=>{ $('aargp-bv').textContent=e.target.value; });
+  $('aargp-search').addEventListener('click', ()=>{ buildIndex(); search(); });
+  $('aargp-query').addEventListener('keydown', e=>{ if(e.key==='Enter'){ buildIndex(); search(); } });
+  // Initial
+  buildIndex(); search();
+})();
+</script>

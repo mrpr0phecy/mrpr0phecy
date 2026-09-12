@@ -1,0 +1,180 @@
+<h2 id="aao-title" style="margin-top:0;color:var(--accent);">🤖 AI Agent Orchestrator — Multi-Agent ReAct & Tool-Use</h2>
+
+<form aria-describedby="aao-desc" onsubmit="event.preventDefault();">
+  <p id="aao-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Byte 2.0 agentic loop simulator: Planner → Retriever → Reasoner → Actor → Verifier. Orchestrate multiple specialist agents (researcher, coder, critic, tool-caller) with ReAct (Thought→Action→Observation), function calling, and self-reflection — all local, no API.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <label for="aao-goal" style="display:block;margin-bottom:6px;font-size:0.78rem;color:var(--text-secondary)">Goal (complex task for agents)</label>
+      <textarea id="aao-goal" rows="3" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border-light);background:#070f18;color:var(--text);font-size:0.85rem">Plan a complete house move: calculate moving costs, compare energy tariffs, create a checklist, and estimate new mortgage after sale. Use relevant tools for each step.</textarea>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <select id="aao-strategy" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border-light);background:#070f18;color:var(--text);font-size:0.78rem">
+          <option value="react">ReAct (Reason+Act)</option>
+          <option value="plan">Plan-then-Execute</option>
+          <option value="multi">Multi-Agent Debate</option>
+          <option value="reflect">Self-Reflection (Reflexion)</option>
+        </select>
+        <button type="button" id="aao-run" style="padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:rgba(45,212,255,.12);color:var(--accent);font-weight:800">▶ Run Agents</button>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        <label style="font-size:0.70rem;color:var(--text-secondary)"><input id="aao-verbose" type="checkbox" checked> Verbose traces</label>
+        <label style="font-size:0.70rem;color:var(--text-secondary)"><input id="aao-tools" type="checkbox" checked> Tool-use</label>
+        <label style="font-size:0.70rem;color:var(--text-secondary)"><input id="aao-critic" type="checkbox" checked> Critic agent</label>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--accent);margin-bottom:6px">Agents</div>
+      <div id="aao-agents" style="display:grid;gap:6px;margin-bottom:10px"></div>
+      <div style="font-size:0.70rem;color:var(--text-secondary);padding:8px;border-radius:8px;background:rgba(0,0,0,.18);border:1px solid var(--border-light)" id="aao-metrics">Ready — strategy: ReAct loop with tool calling</div>
+    </div>
+  </div>
+
+  <div id="aao-trace" style="display:grid;gap:8px;max-height:520px;overflow:auto;padding:4px"></div>
+
+  <div style="margin-top:12px;display:flex;gap:8px">
+    <button type="button" id="aao-export" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border-light);background:rgba(255,255,255,.04);color:var(--dim);font-size:0.76rem">Export trace JSON</button>
+    <button type="button" id="aao-clear" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border-light);background:rgba(255,255,255,.04);color:var(--dim);font-size:0.76rem">Clear</button>
+  </div>
+</form>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const TOOLS = [
+    {name:'mortgage', title:'Mortgage Calculator', cat:'Finance', desc:'monthly repayments, interest, overpayments'},
+    {name:'budget', title:'Budget Dashboard', cat:'Finance', desc:'track spending, predictive analytics'},
+    {name:'energy-tariff-comparator', title:'Energy Tariff Comparator', cat:'Finance', desc:'compare gas/electric tariffs'},
+    {name:'moving-planner', title:'Moving Planner', cat:'Home & DIY', desc:'ultimate moving checklist'},
+    {name:'concrete-mix-calculator', title:'Concrete Mix', cat:'Home & DIY', desc:'cement sand gravel'},
+    {name:'inventory-reorder-point-planner', title:'Inventory Planner', cat:'SaaS', desc:'reorder point, EOQ'},
+  ];
+
+  const AGENTS = [
+    {id:'planner', name:'Planner', emoji:'🗺️', role:'Decompose goal into steps, identify dependencies', color:'#2dd4ff'},
+    {id:'researcher', name:'Researcher', emoji:'🔍', role:'Hybrid BM25+embed search over 1119 tools', color:'#39ffb0'},
+    {id:'coder', name:'Actor', emoji:'⚡', role:'Function calling: open_tool, search_tools, create_workflow', color:'#ffd166'},
+    {id:'critic', name:'Critic', emoji:'🧐', role:'Self-critique, verify grounding, check hallucinations', color:'#ff708d'},
+    {id:'memory', name:'Memory', emoji:'🧠', role:'Vector memory (IndexedDB) + private notes', color:'#9d4edd'},
+  ];
+
+  function renderAgents(){
+    const el=$('aao-agents'); el.replaceChildren();
+    AGENTS.forEach(a=>{
+      const div=document.createElement('div');
+      div.style.cssText=`padding:8px 10px;border-radius:10px;border:1px solid ${a.color}44;background:${a.color}11;display:flex;gap:8px;align-items:center`;
+      div.innerHTML=`<span style="font-size:1.1rem">${a.emoji}</span><div><div style="font-size:0.78rem;font-weight:700;color:${a.color}">${a.name}</div><div style="font-size:0.66rem;color:var(--dim)">${a.role}</div></div><span id="aao-status-${a.id}" style="margin-left:auto;font-size:0.60rem;color:var(--faint)">idle</span>`;
+      el.append(div);
+    });
+  }
+
+  function setAgentStatus(id, status){
+    const el=$(`aao-status-${id}`); if(el){ el.textContent=status; el.style.color=status==='active'?'var(--accent)':'var(--faint)'; }
+  }
+
+  function addTraceStep(agentId, type, content){
+    const agent=AGENTS.find(a=>a.id===agentId);
+    const trace=$('aao-trace');
+    const div=document.createElement('div');
+    const typeColors={thought:'#ffd166', action:'#2dd4ff', observation:'#39ffb0', critique:'#ff708d', plan:'#9d4edd'};
+    div.style.cssText=`padding:10px 12px;border-radius:10px;border:1px solid ${agent.color}33;background:rgba(0,0,0,.22)`;
+    div.innerHTML=`
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <span style="font-size:0.9rem">${agent.emoji}</span>
+        <strong style="font-size:0.78rem;color:${agent.color}">${agent.name}</strong>
+        <span style="font-size:0.60rem;padding:2px 6px;border-radius:999px;background:${typeColors[type]||'#fff'}22;color:${typeColors[type]||'#fff'};border:1px solid ${typeColors[type]||'#fff'}44">${type.toUpperCase()}</span>
+        <span style="margin-left:auto;font-size:0.62rem;color:var(--faint)">${new Date().toLocaleTimeString()}</span>
+      </div>
+      <div style="font-size:0.78rem;color:var(--text);white-space:pre-wrap;line-height:1.5">${content}</div>
+    `;
+    trace.append(div);
+    trace.scrollTop=trace.scrollHeight;
+  }
+
+  async function simulate(){
+    const goal=$('aao-goal').value.trim(); if(!goal) return;
+    const strategy=$('aao-strategy').value;
+    const verbose=$('aao-verbose').checked, useTools=$('aao-tools').checked, useCritic=$('aao-critic').checked;
+    $('aao-trace').replaceChildren();
+    $('aao-metrics').textContent=`Running ${strategy} for: "${goal.slice(0,60)}"...`;
+    AGENTS.forEach(a=>setAgentStatus(a.id,'idle'));
+
+    // Step 1: Planner
+    setAgentStatus('planner','active');
+    addTraceStep('planner','plan',`Goal: ${goal}\n\nDecomposed into steps:\n1. Parse goal → intents: [calculate, plan, finance, home]\n2. Identify required tools via hybrid retrieval\n3. Create workflow with dependencies\n4. Execute tools in order\n5. Verify results grounded in tool outputs\n\nStrategy: ${strategy} — ${strategy==='react' ? 'Thought→Action→Observation loop per step' : strategy==='multi' ? 'Agents debate each step, critic selects best' : 'Full plan then execute with reflection'}`);
+
+    await new Promise(r=>setTimeout(r, 600));
+
+    // Step 2: Researcher (retrieval)
+    setAgentStatus('planner','done'); setAgentStatus('researcher','active');
+    const queryTokens=goal.toLowerCase().split(/\W+/).filter(w=>w.length>2);
+    const relevant=TOOLS.filter(t=> queryTokens.some(q=> t.title.toLowerCase().includes(q) || t.desc.includes(q) || t.name.includes(q))).slice(0,4);
+    const searchTrace=`Hybrid BM25+embed search:\nQuery tokens: [${queryTokens.join(', ')}]\nExpanded with synonyms: ${queryTokens.map(t=> t+'→'+(t==='mortgage'?'loan, interest':'')).join(', ')}\n\nTop matches:\n${relevant.map((t,i)=>`${i+1}. ${t.title} (${t.name}) — ${t.desc} — score ${(0.9 - i*0.15).toFixed(2)}`).join('\n')}\n\nTool graph expansion:\n- mortgage related: compoundinterest (0.82), loan (0.78), budget (0.65)\n- moving-planner related: energy-tariff (0.71), concrete-mix (0.12)`;
+    addTraceStep('researcher','thought', searchTrace);
+    await new Promise(r=>setTimeout(r, 500));
+    addTraceStep('researcher','observation', `Retrieved ${relevant.length} tools in 23ms (BM25 40% + embed 30% + intent 15% + fuzzy 10% + feedback 5%)\nReady for actor.`);
+
+    await new Promise(r=>setTimeout(r, 400));
+
+    // Step 3: Actor (tool-use)
+    setAgentStatus('researcher','done'); setAgentStatus('coder','active');
+    if(useTools){
+      for(let i=0;i<relevant.length;i++){
+        const tool=relevant[i];
+        addTraceStep('coder','thought', `Step ${i+1}: Need ${tool.title} for "${goal.split(' ').slice(i*2,i*2+3).join(' ')}..."\nThinking: This step requires ${tool.desc}. I should call open_tool with params extracted from goal.`);
+        await new Promise(r=>setTimeout(r, 350));
+        const params = tool.name==='mortgage' ? {amount:250000, rate:4.2, term:25} : tool.name==='budget' ? {income:3000} : {};
+        addTraceStep('coder','action', `\`\`\`tool\n{"tool": "open_tool", "params": {"name": "${tool.name}", "inputs": ${JSON.stringify(params)}}}\n\`\`\``);
+        await new Promise(r=>setTimeout(r, 300));
+        addTraceStep('coder','observation', `Tool ${tool.name} opened: ${tool.title}\nURL: /tool.html?card=${tool.name}\nInputs pre-filled: ${JSON.stringify(params)}\nResult: simulated success — would render iframe preview in Byte 2.0`);
+      }
+    }else{
+      addTraceStep('coder','action','Tool-use disabled — would normally call search_tools and open_tool here');
+    }
+
+    await new Promise(r=>setTimeout(r, 400));
+
+    // Step 4: Critic
+    if(useCritic){
+      setAgentStatus('coder','done'); setAgentStatus('critic','active');
+      addTraceStep('critic','thought', `Critiquing trace:\n- Are tools grounded? Yes, all from 1119 catalog\n- Hallucination risk? Low — tool names exact match\n- Missing steps? Should add final verification: check total cost vs budget\n- Intent coverage: calculate ✓, plan ✓, finance ✓, home ✓\n- Suggest: Add workflow step for final summary with numbers`);
+      await new Promise(r=>setTimeout(r, 500));
+      addTraceStep('critic','critique', `Self-critique:\n✓ Tools exist and relevant\n✓ No invented capabilities\n⚠ Could improve: Add explicit numbers from mortgage calc (e.g. £250k @4.2% 25yr = £1348/mo)\n✓ Privacy preserved (all local)\n\nRevised plan:\n1. mortgage (calculate repayments)\n2. energy-tariff-comparator (compare new home tariffs)\n3. moving-planner (checklist)\n4. budget (track total move cost)\n5. Final synthesis`);
+    }
+
+    await new Promise(r=>setTimeout(r, 300));
+
+    // Step 5: Memory
+    setAgentStatus('critic','done'); setAgentStatus('memory','active');
+    addTraceStep('memory','thought', `Vector memory search for "${goal.slice(0,40)}":\n- Found 2 past relevant interactions (cosine 0.72, 0.65)\n- Private memory: "Prefer GBP, concise answers" — will use GBP and keep brief\n- Episodic: User previously asked about mortgage overpayment — suggest linking\n\nConsolidation: Adding this workflow to long-term memory (IndexedDB) with embedding`);
+
+    await new Promise(r=>setTimeout(r, 300));
+    setAgentStatus('memory','done');
+    setAgentStatus('planner','done');
+
+    $('aao-metrics').innerHTML=`Done — ${strategy} · ${relevant.length} tools · 5 steps · ${verbose?'verbose traces':'concise'} · <span style="color:var(--green)">grounded ✓</span> · ${useCritic?'critic passed ✓':''}`;
+
+    // Final answer
+    addTraceStep('planner','plan',`✅ **Final Answer (Byte 2.0 style):**
+
+For "${goal}" I'd use this workflow:
+
+${relevant.map((t,i)=>`${i+1}. **${t.title}** — ${t.desc}\n   → ${location.origin}/tool.html?card=${t.name}`).join('\n')}
+
+All tools run locally, private by design. Open them above to execute with your numbers.
+
+**Next:** Want me to open the first tool with your data pre-filled?`);
+  }
+
+  $('aao-run').addEventListener('click', simulate);
+  $('aao-clear').addEventListener('click', ()=>{ $('aao-trace').replaceChildren(); AGENTS.forEach(a=>setAgentStatus(a.id,'idle')); $('aao-metrics').textContent='Cleared — ready'; });
+  $('aao-export').addEventListener('click', ()=>{
+    const trace=[...$('aao-trace').children].map(el=>el.textContent.slice(0,500));
+    const blob=new Blob([JSON.stringify({goal:$('aao-goal').value, strategy:$('aao-strategy').value, trace, timestamp:new Date().toISOString()}, null, 2)], {type:'application/json'});
+    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`agent-trace-${Date.now()}.json`; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+
+  renderAgents();
+})();
+</script>
