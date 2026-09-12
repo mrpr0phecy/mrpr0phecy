@@ -72,7 +72,7 @@ money-related.
 | Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
 | Tool inventory | Derived from `cards/cards.json`; not a growth target |
-| Add a tool | Follow ARCHITECTURE.md; generate the index, sync counts with `scripts/sync-counts.py`, regenerate the sitemap and verify |
+| Add a tool | Follow ARCHITECTURE.md; generate the index, then re-sync the derived artefacts (`scripts/sync-counts.py`, `scripts/build-sitemap.py`, `scripts/build-home-prerender.py`) and verify |
 
 ## Local preview
 

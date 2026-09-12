@@ -47,10 +47,15 @@ An agent once deleted it claiming owner instruction; that was false.
 
 ## Traps you cannot see from the code
 
-**Never hand-edit a tool count or `sitemap.xml`.** Both are generated
-(`scripts/sync-counts.py`, `scripts/build-sitemap.py`); `verify.sh` fails on
-drift. The count appears 49 times across 10 files — editing by hand has failed
-every single time it has been attempted.
+**Never hand-edit a tool count, `sitemap.xml`, or `index.html`'s generated
+first screen.** All of them are produced (`scripts/sync-counts.py`,
+`scripts/build-sitemap.py`, `scripts/build-home-prerender.py`); `verify.sh`
+fails on drift. The count appears 49 times across 10 files — editing by hand
+has failed every single time it has been attempted. The home page's
+`HOME-FAST-PATH` and `HOME-PRERENDER` blocks — the head bootstrap that
+prefetches the first tools, the eight pre-rendered card shells and the
+per-category count badges — are the same kind of artefact. They look like
+hand-written markup and are not.
 
 **`generate-cards-json.js` overwrites the `category` field** from hardcoded
 lists inside the script. Add your slug to the right list *before* running it,
