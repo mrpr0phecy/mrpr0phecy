@@ -4796,22 +4796,34 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 console.warn('Could not load local cards.json, trying GitHub API fallback...', err);
             }
             
-            // 2. Fallback to GitHub API if local fetch failed
+            // 2. Fallback to GitHub API if local fetch failed. The contents
+            // API returns at most 1000 entries per request and the catalogue
+            // is larger than that, so page through until a short page proves
+            // the directory is exhausted (a single request used to silently
+            // truncate the catalogue to its first page).
             if (cardFiles.length === 0) {
                 console.log('Falling back to GitHub API for card list...');
                 const [owner, repo] = CONFIG.GITHUB_REPO.split('/');
-                const url = `https://api.github.com/repos/${owner}/${repo}/contents/${CONFIG.GITHUB_PATH}`;
-                
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`GitHub API error: ${response.status}`);
+                let page = 1;
+                for (;;) {
+                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${CONFIG.GITHUB_PATH}?page=${page}`;
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`GitHub API error: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (!Array.isArray(data) || data.length === 0) break;
+                    data.forEach(item => {
+                        if (item.type === 'file' && item.name.endsWith('.html')) {
+                            cardFiles.push(item.name.replace(/\.html$/, ''));
+                        }
+                    });
+                    // A full 1000-entry page means more may follow; anything
+                    // short ends the directory. The cap is only a guard.
+                    if (data.length < 1000 || page >= 5) break;
+                    page++;
                 }
-                
-                const data = await response.json();
-                cardFiles = data
-                    .filter(item => item.type === 'file' && item.name.endsWith('.html'))
-                    .map(item => item.name.replace(/\.html$/, ''))
-                    .sort();
+                cardFiles.sort();
             }
             
             console.log(`Total active cards: ${cardFiles.length}`);
@@ -4862,14 +4874,25 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
             console.error('Error loading card list:', error);
             const dashboard = document.getElementById('dashboard');
             dashboard.removeAttribute('aria-busy');
-            dashboard.innerHTML = `
-                <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--error);">
-                    <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
-                    <h3 style="color:var(--error);margin-bottom:8px;">Failed to load cards</h3>
-                    <p style="margin-bottom:16px;">${error.message}</p>
-                    <button onclick="location.reload()" style="padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;">Retry</button>
-                </div>
-            `;
+            // Built with DOM APIs: error.message comes from the network and
+            // must not be interpolated into innerHTML.
+            const box = document.createElement('div');
+            box.style.cssText = 'grid-column:1/-1;text-align:center;padding:40px;color:var(--error);';
+            const icon = document.createElement('div');
+            icon.style.cssText = 'font-size:48px;margin-bottom:16px;';
+            icon.textContent = '⚠️';
+            const heading = document.createElement('h3');
+            heading.style.cssText = 'color:var(--error);margin-bottom:8px;';
+            heading.textContent = 'Failed to load cards';
+            const detail = document.createElement('p');
+            detail.style.cssText = 'margin-bottom:16px;';
+            detail.textContent = (error && error.message) || 'Unknown error';
+            const retryBtn = document.createElement('button');
+            retryBtn.style.cssText = 'padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;';
+            retryBtn.textContent = 'Retry';
+            retryBtn.addEventListener('click', () => location.reload());
+            box.append(icon, heading, detail, retryBtn);
+            dashboard.appendChild(box);
             showNotification('Failed to load cards from GitHub', 'error');
         }
     }
@@ -5060,6 +5083,29 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
         }
     }
     
+    // Card scripts are injected long after the host page has finished
+    // loading, so DOMContentLoaded (and window load) never fire again for
+    // them. Rewrite each registration so the handler runs one tick later
+    // instead, checking readyState so this stays correct if a card ever
+    // loads during initial parse.
+    //
+    // The wrapper takes the handler as its argument, so it works for EVERY
+    // handler form — named function, anonymous function and arrow. The old
+    // identifier-only regex matched bare names only; ~140 cards register
+    // arrow/anonymous handlers, which stayed subscribed to a DOMContentLoaded
+    // that never fires: the tool rendered but never initialised (dead
+    // buttons, blank canvases) — while the same tools worked on tool.html,
+    // which re-dispatches DOMContentLoaded (safe there: one card per
+    // document; re-dispatching here would re-run the handlers of every
+    // previously loaded card, so the per-script rewrite is used instead).
+    function transformCardScript(code) {
+        return code
+            .replace(/document\.addEventListener\s*\(\s*(['"])DOMContentLoaded\1\s*,/g,
+                '(document.readyState !== "loading" ? (h => setTimeout(h, 10)) : (h => document.addEventListener("DOMContentLoaded", h)))(')
+            .replace(/window\.addEventListener\s*\(\s*(['"])load\1\s*,/g,
+                '(document.readyState === "complete" ? (h => setTimeout(h, 10)) : (h => window.addEventListener("load", h)))(');
+    }
+
     function renderCardContent(card, cardName, html) {
         const cardSandbox = card.querySelector(`#card-${cardName}`);
         if (!cardSandbox) return;
@@ -5120,13 +5166,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 try {
                     const newScript = document.createElement('script');
                     Array.from(script.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                    let code = script.textContent;
-                    // Execute DOMContentLoaded / load handlers immediately if ready without re-firing document event
-                    code = code.replace(/document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
-                        '(document.readyState !== "loading" ? setTimeout($1, 10) : document.addEventListener("DOMContentLoaded", $1))');
-                    code = code.replace(/window\.addEventListener\s*\(\s*['"]load['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
-                        '(document.readyState !== "loading" ? setTimeout($1, 10) : window.addEventListener("load", $1))');
-                    newScript.textContent = code;
+                    newScript.textContent = transformCardScript(script.textContent);
                     cardSandbox.appendChild(newScript);
                 } catch (scriptErr) {
                     console.warn(`Error running script for ${cardName}:`, scriptErr);
@@ -5745,12 +5785,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
                 try {
                     const newScript = document.createElement('script');
                     Array.from(s.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                    let code = s.textContent;
-                    code = code.replace(/document\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
-                        '(document.readyState !== "loading" ? setTimeout($1, 10) : document.addEventListener("DOMContentLoaded", $1))');
-                    code = code.replace(/window\.addEventListener\s*\(\s*['"]load['"]\s*,\s*([a-zA-Z0-9_$]+)\s*\)/g, 
-                        '(document.readyState !== "loading" ? setTimeout($1, 10) : window.addEventListener("load", $1))');
-                    newScript.textContent = code;
+                    newScript.textContent = transformCardScript(s.textContent);
                     bodyEl.appendChild(newScript);
                 } catch (scriptErr) {
                     console.warn(`Error running script in standalone modal for ${cardName}:`, scriptErr);
