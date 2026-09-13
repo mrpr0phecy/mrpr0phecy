@@ -51,10 +51,13 @@ establish *which* site first.
 │   ├── cards.json          Generated index of all 1128 tools
 │   └── <tool-name>.html    1128 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
-├── ai.html                 Standalone AI system — chat, 18 reasoning methods,
-│                           agents with local tools, retrieval over visitor
-│                           documents, vector memory, optional WebGPU model.
-│                           Its own product: no catalogue branding, no persona
+├── ai.html                 Lantern — standalone AI product. Chat answered on
+│                           the device from the visitor's own documents and
+│                           memory (composed answers are labelled as such),
+│                           real local tools, 18 reasoning methods with visible
+│                           working, a guided tour and lessons, rating-driven
+│                           adaptation, optional WebGPU model. Own name, mark
+│                           and palette: no catalogue data or branding
 ├── agents.html             Machine-use guide for AI agents & developers
 │                           (the former /ai.html; cards and llms.txt link here)
 │

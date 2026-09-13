@@ -105,7 +105,9 @@ function main() {
 - This file: ${SITE}/llms.txt (concise index) and ${SITE}/llms-full.txt (every tool listed)
 - Static, zero-JS HTML directory of all tools: ${SITE}/tools-index.html
 - Programmatic-use guide for agents and developers: ${SITE}/agents.html
-- Standalone browser AI (reasoning methods, retrieval, memory, agents; optional on-device model): ${SITE}/ai.html
+- Lantern — a standalone browser AI, deliberately separate from this catalogue (chat grounded in
+  your own documents, memory that adapts to your ratings, real local tools, lessons, and an optional
+  on-device model): ${SITE}/ai.html
 - Any tool, focused standalone page: ${SITE}/tool.html?card=<tool-slug>
 - Search the catalogue: ${SITE}/index.html?q=<query>
 - Open the homepage with one tool already expanded inline:
@@ -251,7 +253,8 @@ ${sectionsHtml}
       🤖 <strong>AI agents &amp; developers:</strong> the same catalogue is available as
       <a href="cards/cards.json">cards.json</a>, <a href="llms.txt">llms.txt</a> and
       <a href="llms-full.txt">llms-full.txt</a>. See <a href="agents.html">the machine-usage guide</a>;
-      the standalone AI system lives at <a href="ai.html">ai.html</a>.
+      the standalone AI (<strong>Lantern</strong>) lives at <a href="ai.html">ai.html</a> — a separate
+      product that reads no catalogue data.
       Any tool: <code>tool.html?card=&lt;tool-slug&gt;</code>
     </div>
 
