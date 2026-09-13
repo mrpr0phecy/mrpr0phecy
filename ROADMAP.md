@@ -32,8 +32,20 @@ item. This historical list does not override current staff decisions.
 - [ ] Give proven tools crawlable metadata, structured data, breadcrumbs and
   stable deep links while retaining the existing card fragments as the single
   implementation.
-- [ ] Improve catalogue loading by reviewing lazy loading and removing no-op
-  timers. Measure before and after rather than accepting a speculative rewrite.
+- [x] Improve catalogue loading, measured before and after: the first screen no
+  longer waits for `cards/cards.json` (ARCHITECTURE.md §3, "First-screen fast
+  path"; numbers and method in `notes/catalogue.md`). Remaining candidates:
+  - [ ] Move the ~32 KB of CSS that only styles components hidden at load
+    (toolbox, palette/contributions panels, standalone modal, directory view,
+    reader mode) out of the render-blocking `<style>` into an async stylesheet.
+    The rules that *hide* those components must stay critical or they flash on
+    load — verify in a real browser, not blind.
+  - [ ] Drop `id`, `file` and `path` from `cards.json`: all three are derived
+    from `name` in every one of the 1128 entries (~108 KB raw / ~27 KB gzipped
+    of redundant payload). Needs `generate-cards-json.js` and every consumer
+    changed in one go, so it is not a first-screen win any more.
+  - [ ] Decide whether analytics should keep loading during the first screen.
+    Owner call: CONSTRAINTS.md keeps the analytics footprint out of agent hands.
 - [ ] Build one `help.html` covering site mechanics, privacy, money and safety,
   with matching `FAQPage` JSON-LD and client-side search.
 - [ ] Add privacy-conscious usage events for searches, categories and tool

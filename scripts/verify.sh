@@ -20,6 +20,9 @@
 #  12. site brain              — repo-grounded index and grounding regressions
 #  13. staff facility          — configuration and isolated regression tests
 #  14. card name collisions   — scripts/check-card-collisions.py (no cross-card top-level SyntaxError)
+#  15. home first screen      — scripts/build-home-prerender.py --check, plus the
+#                                loader tests in scripts/tests/ that drive the real
+#                                functions out of index.html
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -31,25 +34,25 @@ ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
 note() { printf '  \033[33mNOTE\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAILS=$((FAILS+1)); }
 
-section "1/14 catalogue consistency (check-cards.py)"
+section "1/15 catalogue consistency (check-cards.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-cards.py; then ok "catalogue coherent"; else fail "catalogue incoherent"; fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "2/14 placeholder IDs in *.html"
+section "2/15 placeholder IDs in *.html"
 # Hard placeholders anywhere; YOUR_ only inside URLs/attributes (demo text
 # like 'YOUR_SYSTEM_PROMPT' in the prompt-injection lab is legitimate content).
 PH="dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|(src|href)=['\"][^'\"]*YOUR_"
 HITS=$(grep -rlE "$PH" --include='*.html' --exclude-dir=ai-developer --exclude-dir=.git . 2>/dev/null || true)
 if [ -n "$HITS" ]; then fail "placeholder IDs found: $(echo "$HITS" | tr '\n' ' ')"; else ok "none"; fi
 
-section "3/14 target=_blank links without rel=noopener"
+section "3/15 target=_blank links without rel=noopener"
 BAD=$(grep -rn --include='*.html' --exclude-dir=ai-developer --exclude-dir=.git -E '<a [^>]*target="_blank"' . 2>/dev/null | grep -v 'noopener' || true)
 if [ -n "$BAD" ]; then fail "$(echo "$BAD" | head -5)"; else ok "all covered"; fi
 
-section "4/14 sitemap.xml"
+section "4/15 sitemap.xml"
 if python3 - <<'PY' 2>/dev/null
 import xml.etree.ElementTree as E
 root = E.parse('sitemap.xml').getroot()
@@ -59,10 +62,10 @@ PY
 then ok "parses, entries: $(python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))")"
 else fail "missing or empty"; fi
 
-section "5/14 top-level SEO scan (scan-seo.py)"
+section "5/15 top-level SEO scan (scan-seo.py)"
 if python3 scripts/scan-seo.py; then ok "no missing <title>"; else fail "see warnings above"; fi
 
-section "6/14 sensitive strings in tracked files"
+section "6/15 sensitive strings in tracked files"
 # Patterns are assembled at runtime so this script does not match itself.
 P1="gh""o_"; P2="gh""p_"; P3="github""_pat_"; P4="gh""s_"
 if grep -rnE "$P1|$P2|$P3|$P4" --exclude-dir=.git --exclude-dir=ai-developer . 2>/dev/null | grep -v '^Binary' | head -5 | grep -q .; then
@@ -71,30 +74,30 @@ else
   ok "none"
 fi
 
-section "7/14 git state"
+section "7/15 git state"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   note "uncommitted changes present — commit before pushing"; NOTES=$((NOTES+1))
 else
   ok "working tree clean"
 fi
 
-section "8/14 card JavaScript syntax (check-card-js.py)"
+section "8/15 card JavaScript syntax (check-card-js.py)"
 if command -v node >/dev/null 2>&1; then
   if python3 scripts/check-card-js.py --all; then ok "every card's JS parses"; else fail "a card would be dead in production"; fi
 else
   note "node not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "9/14 tool-count claims (sync-counts.py)"
+section "9/15 tool-count claims (sync-counts.py)"
 if python3 scripts/sync-counts.py --check; then ok "every claim matches the catalogue"; else fail "stale tool counts — run: python3 scripts/sync-counts.py"; fi
 
-section "10/14 sitemap freshness (build-sitemap.py)"
+section "10/15 sitemap freshness (build-sitemap.py)"
 if python3 scripts/build-sitemap.py --check; then ok "sitemap matches tracked indexable pages"; else fail "sitemap stale — run: python3 scripts/build-sitemap.py"; fi
 
-section "11/14 card accessibility (check-a11y.py)"
+section "11/15 card accessibility (check-a11y.py)"
 if python3 scripts/check-a11y.py; then ok "labels resolve, images have alt, _blank is safe"; else fail "accessibility regressions in cards/"; fi
 
-section "12/14 site brain index and grounding"
+section "12/15 site brain index and grounding"
 if python3 scripts/build-site-brain.py --check \
   && python3 scripts/evaluate-site-brain.py; then
   ok "repo-grounded knowledge index and retrieval cases are current"
@@ -102,7 +105,7 @@ else
   fail "site brain stale or retrieval regression — rebuild and inspect learning/evaluation.json"
 fi
 
-section "13/14 staff facility configuration and regression tests"
+section "13/15 staff facility configuration and regression tests"
 if command -v node >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
   if node scripts/ai-developer.js check \
     && node --test scripts/tests/staff-*.test.js \
@@ -115,7 +118,7 @@ else
   fail "Node 22+ and Python 3 are required to verify the staff facility"
 fi
 
-section "14/14 card top-level name collisions (check-card-collisions.py)"
+section "14/15 card top-level name collisions (check-card-collisions.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-card-collisions.py; then
     ok "no cross-card top-level name can throw in the shared DOM"
@@ -124,6 +127,25 @@ if command -v python3 >/dev/null 2>&1; then
   fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
+fi
+
+section "15/15 home page first screen and card loader"
+if python3 scripts/build-home-prerender.py --check; then
+  ok "pre-rendered first screen matches the catalogue"
+else
+  fail "index.html's generated first screen is stale — run: python3 scripts/build-home-prerender.py"
+fi
+# These drive the real loader functions extracted from index.html. lazy-loader
+# was written for the lazy-loading rework but nothing ever ran it — verify.sh
+# only picked up staff-*.test.js, so a card-loader regression could ship green.
+if command -v node >/dev/null 2>&1; then
+  if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js; then
+    ok "card loader and first-screen fast path behave as shipped"
+  else
+    fail "card loader regression — see the failing assertion above"
+  fi
+else
+  note "node not available — card loader tests skipped"; NOTES=$((NOTES+1))
 fi
 
 if [ "$LIVE" = "1" ]; then

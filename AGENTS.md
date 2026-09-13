@@ -4,7 +4,7 @@ Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
 Staff coordination and measured work priorities: [STAFF.md](STAFF.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-09-08. **ARCHITECTURE.md is authoritative if anything here
+Last updated: 2026-09-12. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
 ---
@@ -91,9 +91,11 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 #  - forms: onsubmit="event.preventDefault();"
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
-# bump count in index.html: "Search 500" -> "Search 501"
-python3 - <<'PY'   # regenerate sitemap (ARCHITECTURE.md §6 has the full script)
-PY
+# Re-sync everything derived from the catalogue. Never hand-edit a count, the
+# sitemap, or index.html's generated first screen — verify.sh fails on drift.
+python3 scripts/sync-counts.py            # tool counts across docs and pages
+python3 scripts/build-sitemap.py          # sitemap.xml
+python3 scripts/build-home-prerender.py   # index.html HOME-FAST-PATH/PRERENDER
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
 sleep 50   # Pages deploy latency — then verify live (see §6)
 ```

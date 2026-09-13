@@ -47,7 +47,7 @@ Depending on what you want to do:
 
 | You want to | Read | Edit |
 |---|---|---|
-| Add a new tool | ARCHITECTURE.md §3, §6 | `cards/<slug>.html`, then `node generate-cards-json.js` |
+| Add a new tool | ARCHITECTURE.md §3, §6 | `cards/<slug>.html`, then `node generate-cards-json.js` and the three `scripts/` re-sync commands |
 | Edit a tool | ARCHITECTURE.md §3 (cards) | `cards/<slug>.html` |
 | Improve the catalogue home | ARCHITECTURE.md §6 (SEO) | `index.html` |
 | Edit a music page | ARCHITECTURE.md (hreflang cluster) | `listen.html` and all 12 translated siblings together |
@@ -74,11 +74,15 @@ you'll catch your own mistakes:
 - Filenames have spaces and en-dashes. Quote paths, URL-encode in markup.
 - Commit messages: one line, imperative ("Add ...", "Fix ...", "Update
   ..."). No secrets, no private tokens, no .github_token content.
-- If your change touches the tool count (in either direction), update **all
-  of**: the hero badge in `index.html`, the footer discover pills, the
-  README quick-facts table, the `AGENTS.md` and `INCOME.md` headline
-  numbers, and the ItemList JSON-LD on the top-level discovery pages.
-  The verify script will not catch a stale hero badge.
+- If your change touches the tool count (in either direction), do **not**
+  hand-edit any of the copies. Run `python3 scripts/sync-counts.py`,
+  `python3 scripts/build-sitemap.py` and `python3
+  scripts/build-home-prerender.py`: the hero badge, the footer counts, the
+  README quick-facts table, the `AGENTS.md` and `INCOME.md` headline numbers,
+  the ItemList JSON-LD and the home page's generated first screen are all
+  derived, and `scripts/verify.sh` fails on drift. (This bullet used to list
+  the copies to update by hand — that procedure is what produced nine
+  simultaneous contradictory counts.)
 
 ## Pre-push checklist (use this every time)
 
@@ -86,20 +90,21 @@ you'll catch your own mistakes:
 # 1. The verify script
 bash scripts/verify.sh
 
-# 2. If you added a tool or changed a slug: cards.json must be regenerated
+# 2. If you added a tool, changed a slug or added/removed a top-level page:
+#    regenerate cards.json and everything derived from it. None of these are
+#    hand-edited any more — verify.sh fails on drift.
 node generate-cards-json.js
+python3 scripts/sync-counts.py            # every tool-count claim, all files
+python3 scripts/build-sitemap.py          # sitemap.xml
+python3 scripts/build-home-prerender.py   # index.html's generated first screen
 
-# 3. If you added/changed top-level pages: sitemap must be regenerated
-#    (the script lives in ARCHITECTURE.md §6)
-python3 - <<'PY'
-PY
-
-# 4. If you touched a translated cluster: edit all of them or Google
+# 3. If you touched a translated cluster: edit all of them or Google
 #    treats them as duplicates
 #    (no automated check for this — be careful)
 
-# 5. If you changed the tool count, grep for the old number
-grep -rn "<OLD_COUNT>" *.html
+# 4. Re-run verify: it now checks the artefacts you just regenerated,
+#    including the stale-count grep this list used to do by hand
+bash scripts/verify.sh
 ```
 
 ## After merge

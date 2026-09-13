@@ -105,12 +105,48 @@ establish *which* site first.
 ### How it works
 
 `index.html` fetches `cards/cards.json` at runtime and renders a searchable
-grid. **There are no hardcoded links to individual tools anywhere.** Grepping
-`index.html` for `cards/*.html` returns nothing — this surprises people. A tool
-is discoverable if and only if it appears in `cards.json`.
+grid. **The grid itself is never hardcoded.** A tool is discoverable if and
+only if it appears in `cards.json`.
 
 Each tool opens inside the catalogue shell, which supplies the CSS custom
 properties. That is why cards are fragments rather than whole pages.
+
+### First-screen fast path (generated — do not hand-edit)
+
+`cards.json` is 516 KB raw / ~136 KB gzipped, and it used to gate everything:
+the browser downloaded it, parsed it, built all 1128 placeholders, and only
+then asked for the first tool. On a modelled fast-4G link the first real card
+landed ~870 ms in, behind bytes it did not depend on.
+
+Two generated blocks in `index.html` break that serialisation. Both are written
+by `scripts/build-home-prerender.py` between marker comments, both are derived
+from `cards.json`, and `bash scripts/verify.sh` fails if either drifts:
+
+- **`HOME-FAST-PATH`** (in `<head>`) starts the `cards.json` fetch and the first
+  six card-fragment fetches while the head is still parsing. The responses are
+  parked as promises on `window.__mpFastPath` and consumed exactly once by
+  `takePrefetchedCatalogue()` / `takePrefetchedCard()`, so nothing is
+  downloaded twice and a failed or slow prefetch silently falls back to the
+  loader's own fetch. (This replaced a `<link rel="preload" as="fetch">`:
+  reusing a preload depends on its credentials mode matching the later
+  `fetch()`, and a miss downloads 136 KB twice.)
+- **`HOME-PRERENDER`** (in `#dashboard`) ships the first eight cards as real
+  markup — title, category badge, standalone link — so the first screen paints
+  with the HTML instead of after a JSON round trip, and so a crawler sees real
+  tool links. `adoptPrerenderedCards()` adopts these shells during parse and
+  starts rendering into them; `loadCardList()` keeps them and builds the rest
+  of the catalogue around them, dropping any shell whose tool has gone.
+
+The same script also re-syncs the per-category count badges on the filter pills
+(`updateCategoryCounts()` overwrote them at runtime, so 21 of 27 had silently
+drifted in the HTML that crawlers and no-JS visitors read). `count-all` and
+`heroToolCount` belong to `sync-counts.py` — one number, one owner.
+
+After the first screen's placeholders exist, the build of the remaining ~1120
+yields while the loader pipeline is busy (`FIRST_SCREEN_CHUNKS` /
+`YIELD_FRAME_LIMIT`), so the catalogue tail no longer competes with the tools
+the user is actually looking at. The yield is bounded, so a busy page cannot
+starve the build.
 
 ### Anatomy of a card
 
@@ -156,14 +192,19 @@ Hard rules, learned from breakages:
 # 1. Write the fragment
 vim cards/my-tool.html
 
-# 2. Regenerate the index
+# 2. Add the slug to the right category list in generate-cards-json.js FIRST
+#    (see the warning below), then regenerate the index
 node generate-cards-json.js
 
-# 3. Re-apply the category (see the warning below)
+# 3. Re-sync everything derived from the catalogue. Never hand-edit a count
+#    or the home page's generated first screen — these scripts own them and
+#    verify.sh fails on drift.
+python3 scripts/sync-counts.py
+python3 scripts/build-sitemap.py
+python3 scripts/build-home-prerender.py
 
-# 4. Bump the count in index.html: "Search 1128+ free tools" -> 501+
-
-# 5. Commit, push, wait ~50s, then verify live:
+# 4. Verify, commit, push, wait ~50s, then verify live:
+bash scripts/verify.sh
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
   | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
 ```
@@ -195,23 +236,26 @@ be blank — a common cause of "my tool shows up empty".
 
 ### Categories (1128 tools)
 
+Derived from `cards/cards.json` — regenerate rather than hand-edit.
+
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 126 | Science & Engineering | | 41 | SaaS & Business Killers |
-| 114 | Productivity & Lifestyle | | 11 | Lucid Dreaming & Sleep |
-| 51 | Writing & Language | | 10 | Wellbeing & Community |
-| 35 | Finance & Money | | 10 | Natural Remedies & Herbs |
-| 53 | Sports | | 10 | AI & Autonomous Agents |
-| 32 | Mathematics | | 11 | Astronomy & Space |
-| 23 | Music & Audio | | 10 | Anime & Otaku Culture |
-| 22 | Health & Fitness | | 10 | Aquatics & Fishkeeping |
-| 27 | Home & DIY | | 10 | Birdwatching & Ornithology |
-| 15 | Culinary & Food Science | | 10 | Dogs & Canine Care |
-| 12 | Museum & Collection | | 10 | MrProphecy Arcade |
-| 12 | Interactive Art & Living Worlds | | 9 | Virtual Worlds & Gaming |
-| 14 | Mind-Blowing Demos | | 10 | Survival & Emergency Readiness |
-| 10 | Algorithms & Computer Science | | | |
+| 195 | Science & Engineering | | 29 | Museum & Collection |
+| 142 | Productivity & Lifestyle | | 26 | Wellbeing & Community |
+| 79 | Finance & Money | | 22 | Culinary & Food Science |
+| 67 | Algorithms & Computer Science | | 21 | Virtual Worlds & Gaming |
+| 67 | Writing & Language | | 19 | AI & Autonomous Agents |
+| 54 | Sports | | 17 | Mind-Blowing Demos |
+| 53 | Mathematics | | 12 | Lucid Dreaming & Sleep |
+| 51 | Interactive Art & Living Worlds | | 10 | Anime & Otaku Culture |
+| 44 | SaaS & Business Killers | | 10 | Aquatics & Fishkeeping |
+| 37 | Home & DIY | | 10 | Birdwatching & Ornithology |
+| 35 | Astronomy & Space | | 10 | Dogs & Canine Care |
+| 35 | Music & Audio | | 10 | Natural Remedies & Herbs |
+| 34 | Health & Fitness | | 10 | Survival & Emergency Readiness |
+| 29 | MrProphecy Arcade | | | |
 
+Total: 1128 tools in 27 categories.
 ---
 
 ## 4. Product B — MrProphecy music
@@ -593,7 +637,14 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`generate-cards-json.js` overwrites categories.** See §3.
 
-**`index.html` has no links to cards.** Everything is driven by `cards.json`.
+**`index.html`'s grid is driven by `cards.json` — except its generated first
+screen.** The eight pre-rendered card shells and the six head-bootstrap
+prefetches do carry real card names: they are written by
+`scripts/build-home-prerender.py` between `HOME-FAST-PATH` and `HOME-PRERENDER`
+markers. Never hand-edit inside those markers — the next run overwrites you,
+and `bash scripts/verify.sh` fails until the blocks match the catalogue. The
+same script owns the per-category count badges. Everything below the first
+screen is still purely data-driven.
 
 **ID collisions across cards.** All 1128 share one DOM. See §3.
 

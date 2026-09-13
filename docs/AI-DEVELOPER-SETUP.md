@@ -178,9 +178,11 @@ are intentionally conservative and **not a security proof**.
 3. After approval, copy the accepted fragment to `cards/<slug>.html`; never
    replace/delete an existing tool without the owner. Add the slug to the
    appropriate hardcoded category list in `generate-cards-json.js`.
-4. Run `node generate-cards-json.js`, `python3 scripts/sync-counts.py` and
-   `python3 scripts/build-sitemap.py` after staging new indexable files as
-   required by the sitemap generator.
+4. Run `node generate-cards-json.js`, `python3 scripts/sync-counts.py`,
+   `python3 scripts/build-sitemap.py` (after staging new indexable files, as
+   the sitemap generator requires) and `python3
+   scripts/build-home-prerender.py`, which regenerates the home page's
+   first-screen prefetch list and pre-rendered cards from the catalogue.
 5. Run the full staff audit, `bash scripts/verify.sh`, and actual browser tests.
    Review the diff and use the normal human-reviewed PR process.
 
