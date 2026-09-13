@@ -51,6 +51,12 @@ establish *which* site first.
 │   ├── cards.json          Generated index of all 1128 tools
 │   └── <tool-name>.html    1128 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
+├── ai.html                 Standalone AI system — chat, 18 reasoning methods,
+│                           agents with local tools, retrieval over visitor
+│                           documents, vector memory, optional WebGPU model.
+│                           Its own product: no catalogue branding, no persona
+├── agents.html             Machine-use guide for AI agents & developers
+│                           (the former /ai.html; cards and llms.txt link here)
 │
 ├── listen.html             Product B: music hub — the main entry point
 ├── radio.html              Continuous player — 47 tracks back to back (YPP watch time)
@@ -74,21 +80,27 @@ establish *which* site first.
 ├── sonicfansite.html       Standalone Sonic fan site (unrelated to A and B)
 ├── beachsimulator.html, citysimulator.html, fightsimulator.html,
 │   aiwalker.html, animation.html, birdapp.html, clock.html,
-│   eternalbeffudlementmachine.html, local-ai.html, slideshowtest.html,
+│   eternalbeffudlementmachine.html, local-ai.html, byte-realistic.html,
+│   byte-realistic-v4.html, slideshowtest.html,
 │   token.html, tool.html, indexbeta.html, hokidea.html, supaviewer.html
 │                           Experiments and one-offs. Not linked from the
 │                           catalogue. Safe to ignore; ask before deleting.
+│                           `local-ai.html`, `byte-realistic.html` and
+│                           `byte-realistic-v4.html` are noindex redirect
+│                           stubs pointing at ai.html.
 │                           `supaviewer.html` is SupaViewer, a standalone
 │                           in-browser virtual-world viewer (docs in
 │                           supaviewer/).
-├── local-ai-knowledge.json  Generated public catalogue/docs context for Byte
-├── learning/                Reviewed shared-learning entries for Byte
+├── local-ai-knowledge.json  Generated public catalogue/docs context, consumed
+│                           by agents.html and scripts/evaluate-site-brain.py
+├── learning/                Reviewed shared-learning entries
 │   approved.json, README.md
 │
 ├── manifest.json           PWA manifest
 ├── sw.js                   Service worker — present but NOT registered (§7)
 ├── robots.txt              Allows all, points at the sitemap
-├── sitemap.xml             All 1197 indexable pages, generated (§6)
+├── sitemap.xml             All indexable pages, generated (§6); noindex
+│                           redirect stubs are excluded automatically
 ├── icon-192.png, icon-512.png, icon-maskable-512.png
 ├── logo.png, mrprophecypic.jpg, backgroundpic.jpg
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.

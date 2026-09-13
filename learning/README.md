@@ -1,11 +1,13 @@
-# Byte learning ledger
+# Shared learning ledger
 
-Byte can learn in two deliberately separate ways:
+The site's AI can learn in two deliberately separate ways:
 
 1. **Private memory** stays in the visitor's browser `localStorage` and can be
    deleted there at any time.
 2. **Shared site learning** is reviewed here before it becomes public context.
-   A visitor can export a learning bundle from `local-ai.html`; a maintainer
+   A visitor can export everything the standalone AI at `ai.html` stores
+   (documents, memories, saved tools, templates, settings) as one JSON bundle;
+   a maintainer
    may copy only verified, useful entries into `approved.json` and regenerate
    the index with:
 
@@ -22,7 +24,7 @@ Each approved entry needs this shape for retrieval:
 ```json
 {
   "id": "short-stable-id",
-  "content": "A verified fact or answer pattern Byte may use.",
+  "content": "A verified fact or answer pattern the catalogue brain may use.",
   "source": "URL, issue, or human review note",
   "tags": ["optional", "terms"]
 }

@@ -104,8 +104,8 @@ function main() {
   ${SITE}/cards/cards.json — fields: name, title, description, category, file, path
 - This file: ${SITE}/llms.txt (concise index) and ${SITE}/llms-full.txt (every tool listed)
 - Static, zero-JS HTML directory of all tools: ${SITE}/tools-index.html
-- Programmatic-use guide for agents and developers: ${SITE}/ai.html
-- Browser-local WebGPU AI companion with an animated face: ${SITE}/local-ai.html
+- Programmatic-use guide for agents and developers: ${SITE}/agents.html
+- Standalone browser AI (reasoning methods, retrieval, memory, agents; optional on-device model): ${SITE}/ai.html
 - Any tool, focused standalone page: ${SITE}/tool.html?card=<tool-slug>
 - Search the catalogue: ${SITE}/index.html?q=<query>
 - Open the homepage with one tool already expanded inline:
@@ -250,7 +250,8 @@ ${sectionsHtml}
     <div class="ai-note">
       🤖 <strong>AI agents &amp; developers:</strong> the same catalogue is available as
       <a href="cards/cards.json">cards.json</a>, <a href="llms.txt">llms.txt</a> and
-      <a href="llms-full.txt">llms-full.txt</a>. See <a href="ai.html">the machine-usage guide</a>.
+      <a href="llms-full.txt">llms-full.txt</a>. See <a href="agents.html">the machine-usage guide</a>;
+      the standalone AI system lives at <a href="ai.html">ai.html</a>.
       Any tool: <code>tool.html?card=&lt;tool-slug&gt;</code>
     </div>
 

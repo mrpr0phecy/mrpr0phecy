@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Build Byte 4.0 Thinking Machine's public, repo-grounded knowledge index.
+Build the catalogue brain: a public, repo-grounded knowledge index consumed by
+agents.html (the machine-use guide) and by scripts/evaluate-site-brain.py.
 
 v4 upgrade — from thinking machine to super-thinking machine:
 
@@ -53,7 +54,8 @@ REPOSITORY = "https://github.com/mrpr0phecy/mrpr0phecy/blob/main"
 
 PUBLIC_DOCS = [
     ("readme", "Repository overview", "README.md", f"{REPOSITORY}/README.md"),
-    ("machine-guide", "Machine-use guide", "ai.html", f"{SITE}/ai.html"),
+    ("machine-guide", "Machine-use guide", "agents.html", f"{SITE}/agents.html"),
+    ("standalone-ai", "Standalone AI system", "ai.html", f"{SITE}/ai.html"),
     ("constraints", "Site constraints", "CONSTRAINTS.md", f"{REPOSITORY}/CONSTRAINTS.md"),
     ("architecture", "Site architecture", "ARCHITECTURE.md", f"{REPOSITORY}/ARCHITECTURE.md"),
     ("strategy", "Site strategy", "STRATEGY.md", f"{REPOSITORY}/STRATEGY.md"),
@@ -506,7 +508,7 @@ def build() -> dict[str, object]:
     faqs = []
     faqs.append({"q": "How many tools are there?", "a": f"There are {N} free browser tools across {len(category_counter)} categories.", "sources": ["catalogue-size"]})
     faqs.append({"q": "Are tools private?", "a": "Yes — every tool computes in your browser. No numbers are uploaded anywhere.", "sources": []})
-    faqs.append({"q": "What is Byte 4.0 Thinking Machine?", "a": "Byte 4.0 implements Graph-of-Thought, Buffer-of-Thoughts, Self-Discover, Quiet-STaR, Chain-of-Verification, Self-Refine, Cumulative Reasoning, Mixture-of-Agents, Algorithm-of-Thoughts, Tree-of-Thought, Self-Consistency, Reflexion, Step-Back, Least-to-Most, ReAct, HyDE, RRF, MMR, ColBERT, SPLADE, RankGPT, Generative Agents memory, Constitutional AI, FACS realistic face — all local via WebGPU.", "sources": ["machine-guide"]})
+    faqs.append({"q": "Where do the site's AI features live?", "a": "The standalone AI at ai.html runs entirely in the visitor's browser: 18 reasoning methods (Chain-of-Thought, Tree-of-Thought, Graph-of-Thought, Self-Consistency, Reflexion, ReAct, Chain-of-Verification and more), hybrid retrieval over documents the visitor indexes, vector memory, an agent pipeline with local tools, and an optional on-device WebGPU language model. The machine-use guide for programmatic access is at agents.html.", "sources": ["machine-guide", "standalone-ai"]})
     for cat, data in sorted(category_counter.items(), key=lambda x: -x[1])[:6]:
         faqs.append({"q": f"What {cat} tools exist?", "a": f"{data} tools in {cat}. Search '{cat.lower()}' to see them.", "sources": [cat]})
 
@@ -596,9 +598,9 @@ def build() -> dict[str, object]:
             "vocab_size": len(doc_freq),
         },
         "assistant": {
-            "name": "Byte",
-            "version": "4.0-super-thinking-machine",
-            "mission": "Help people discover and use the site's browser tools accurately, privately, and without inventing capabilities. You are a super-thinking machine with 18 reasoning methods, 8 retrieval methods, FACS realistic face, all local via WebGPU.",
+            "name": "Standalone AI",
+            "version": "1.0-standalone-browser-system",
+            "mission": "Help people discover and use the site's browser tools accurately, privately, and without inventing capabilities. Reasoning, retrieval and memory run in the visitor's browser at ai.html; an optional on-device WebGPU language model can be loaded by the visitor. This brain describes the catalogue, not the AI system itself.",
             "operating_rules": [
                 "Use supplied site context before general knowledge when answering about this site.",
                 "If context does not establish answer, say it was not found rather than invent.",
