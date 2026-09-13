@@ -3865,6 +3865,33 @@ function readHash() {
     const mode = raw.split('?')[0];
     return MODES.includes(mode) ? mode : 'chat';
 }
+/* Deep links such as #reason?method=tot or #knowledge?tab=kb-ground let the
+   catalogue cards drop a visitor straight onto the right pane. */
+function hashParams() {
+    const raw = location.hash.replace(/^#/, '').trim();
+    const query = raw.split('?')[1] || '';
+    const out = {};
+    for (const part of query.split('&')) {
+        const [k, v] = part.split('=');
+        if (k) out[k] = decodeURIComponent(v || '');
+    }
+    return out;
+}
+function applyHashParams() {
+    const p = hashParams();
+    if (p.method && (p.method === 'auto' || METHODS.some((m) => m.id === p.method))) {
+        settings.method = p.method;
+        $('chatMethod').value = p.method;
+        $('tbMethod').value = p.method;
+        reasonMethod = p.method;
+        $('reasonMethodChip').textContent = methodLabel(p.method);
+        $$('#methodGrid [data-method]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.method === p.method)));
+    }
+    if (p.tab) {
+        const tab = document.querySelector(`.tab[data-tab="${CSS.escape(p.tab)}"]`);
+        if (tab) tab.click();
+    }
+}
 
 /* ── tabs ── */
 function wireTabs() {
@@ -5643,6 +5670,7 @@ async function init() {
 
     wire();
     setMode(readHash());
+    applyHashParams();
 
     /* a gentle first-run nudge: nothing is downloaded, nothing is sent */
     const seen = localStorage.getItem('ai.nudge');

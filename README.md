@@ -48,16 +48,26 @@ brief, model, key, passing gates and human review.
 [Automation setup](docs/AI-DEVELOPER-SETUP.md) ·
 [Research and rationale](staff/RESEARCH.md)
 
-## Local AI companion
+## Standalone AI
 
-[`local-ai.html`](local-ai.html) is a standalone browser experiment: Byte is an
-animated-face site companion that can run a WebGPU language model on the
-visitor's device. The checked-in `local-ai-knowledge.json` grounds replies in
-the catalogue and public site guidance; `learning/approved.json` is the
-reviewed shared-learning channel. The first visit downloads and caches the
-model; no API key or account is needed, and a clearly labelled demo mode keeps
-the page usable when WebGPU is unavailable. Private memory stays in the
-visitor's browser, and the live page cannot write back to the repository.
+[`ai.html`](ai.html) is a standalone AI system that runs entirely in the
+visitor's browser: eighteen reasoning methods, hybrid retrieval over documents
+the visitor indexes themselves, vector memory with Generative-Agents scoring,
+an agent pipeline that really executes local tools, prompt-engineering and
+developer instruments, and an optional on-device WebGPU language model
+(web-llm, started only when the visitor asks, then cached by the browser). No
+account and no API key exist, nothing is uploaded, and a clearly labelled
+structural engine keeps the page fully useful when WebGPU is unavailable. The
+page carries no catalogue branding and recommends no tools — it is its own
+product. Private memory stays in the visitor's browser, and the live page
+cannot write back to the repository.
+
+The checked-in `local-ai-knowledge.json` grounds the *catalogue* brain used by
+the machine guide; `learning/approved.json` is the reviewed shared-learning
+channel. The former Byte companion pages (`local-ai.html`,
+`byte-realistic.html`, `byte-realistic-v4.html`) are `noindex` redirect stubs
+to `ai.html`, and the old agent/developer machine guide now lives at
+[`agents.html`](agents.html).
 
 ## Money & monetisation
 
