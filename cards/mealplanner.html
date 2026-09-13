@@ -586,4 +586,179 @@ function mpLoadTemplate(templateName) {
       { day: 'friday', type: 'dinner', name: 'Beef Stir Fry', category: 'meat', prep: 25, calories: 380 }
     ],
     'family': [
-      { day: 'monday', type
+      { day: 'monday', type: 'breakfast', name: 'Porridge with Banana', category: 'vegetarian', prep: 10, calories: 320 },
+      { day: 'monday', type: 'dinner', name: 'Spaghetti Bolognese', category: 'meat', prep: 40, calories: 620 },
+      { day: 'tuesday', type: 'dinner', name: 'Chicken Fajitas', category: 'poultry', prep: 30, calories: 540 },
+      { day: 'wednesday', type: 'dinner', name: 'Fish Fingers and Mash', category: 'fish', prep: 25, calories: 560 },
+      { day: 'thursday', type: 'dinner', name: 'Sausage and Veggie Traybake', category: 'meat', prep: 35, calories: 610 },
+      { day: 'friday', type: 'dinner', name: 'Homemade Pizza Night', category: 'vegetarian', prep: 45, calories: 700 },
+      { day: 'saturday', type: 'lunch', name: 'Jacket Potatoes', category: 'vegetarian', prep: 60, calories: 480 },
+      { day: 'saturday', type: 'dessert', name: 'Apple Crumble', category: 'vegetarian', prep: 50, calories: 380 },
+      { day: 'sunday', type: 'dinner', name: 'Sunday Roast', category: 'meat', prep: 90, calories: 780 }
+    ],
+    'budget': [
+      { day: 'monday', type: 'dinner', name: 'Lentil and Carrot Soup', category: 'vegan', prep: 35, calories: 310 },
+      { day: 'tuesday', type: 'dinner', name: 'Beans on Toast', category: 'vegetarian', prep: 10, calories: 350 },
+      { day: 'wednesday', type: 'dinner', name: 'Egg Fried Rice', category: 'vegetarian', prep: 20, calories: 450 },
+      { day: 'thursday', type: 'dinner', name: 'Tinned Tomato Pasta', category: 'vegan', prep: 20, calories: 430 },
+      { day: 'friday', type: 'dinner', name: 'Potato and Onion Frittata', category: 'vegetarian', prep: 30, calories: 400 },
+      { day: 'saturday', type: 'lunch', name: 'Pea and Ham Soup', category: 'meat', prep: 40, calories: 360 },
+      { day: 'sunday', type: 'dinner', name: 'Vegetable Curry and Rice', category: 'vegan', prep: 35, calories: 480 }
+    ]
+  };
+
+  const template = templates[templateName];
+  if (!template) {
+    mpShowError('That template is not available');
+    return;
+  }
+
+  template.forEach(function (item, index) {
+    if (!mpMealPlan[item.day] || !mpMealPlan[item.day][item.type]) return;
+    mpMealPlan[item.day][item.type].push({
+      id: Date.now() + index,
+      name: item.name,
+      type: item.type,
+      category: item.category,
+      prepTime: item.prep,
+      calories: item.calories,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  Object.keys(mpMealPlan).forEach(day => mpUpdateDayDisplay(day));
+  mpUpdateStatistics();
+  mpSavePlanToStorage();
+  mpShowSuccess(`Loaded the ${templateName.replace(/-/g, ' ')} template`);
+}
+
+// ---- feedback --------------------------------------------------------------
+
+function mpShowHint(message, color) {
+  const hint = document.getElementById('mealplmp-hint');
+  if (!hint) return;
+  hint.textContent = message;
+  hint.style.color = color || 'var(--accent)';
+}
+
+function mpShowSuccess(message) {
+  mpShowHint(message, '#39ff14');
+  const status = document.getElementById('mealplmp-status');
+  if (status) status.textContent = message;
+}
+
+function mpShowError(message) {
+  mpShowHint(message, '#ff4d4d');
+  const status = document.getElementById('mealplmp-status');
+  if (status) status.textContent = message;
+}
+
+// ---- persistence -----------------------------------------------------------
+
+const MP_STORAGE_KEY = 'mp-meal-plan-v1';
+
+function mpSavePlanToStorage() {
+  try {
+    localStorage.setItem(MP_STORAGE_KEY, JSON.stringify(mpMealPlan));
+  } catch (err) {
+    console.warn('Meal planner could not save to localStorage:', err);
+  }
+}
+
+function mpLoadSavedPlan() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(MP_STORAGE_KEY);
+  } catch (err) {
+    return;
+  }
+  if (!saved) return;
+
+  try {
+    const parsed = JSON.parse(saved);
+    Object.keys(mpMealPlan).forEach(function (day) {
+      if (!parsed[day]) return;
+      Object.keys(mpMealPlan[day]).forEach(function (type) {
+        if (Array.isArray(parsed[day][type])) mpMealPlan[day][type] = parsed[day][type];
+      });
+      mpUpdateDayDisplay(day);
+    });
+    mpUpdateStatistics();
+  } catch (err) {
+    console.warn('Saved meal plan could not be read:', err);
+  }
+}
+
+// ---- toolbar buttons -------------------------------------------------------
+
+function mpSavePlan() {
+  mpSavePlanToStorage();
+  mpShowSuccess('Plan saved in this browser');
+}
+
+function mpLoadPlan() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(MP_STORAGE_KEY);
+  } catch (err) {
+    saved = null;
+  }
+  if (!saved) {
+    mpShowError('No saved plan found in this browser yet');
+    return;
+  }
+  mpLoadSavedPlan();
+  mpShowSuccess('Saved plan loaded');
+}
+
+function mpCopyPlan() {
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const lines = ['MEAL PLAN'];
+  let meals = 0;
+
+  days.forEach(function (day) {
+    const dayMeals = [];
+    Object.keys(mpMealPlan[day]).forEach(function (type) {
+      mpMealPlan[day][type].forEach(function (meal) {
+        meals += 1;
+        dayMeals.push(`  ${type}: ${meal.name} (${meal.calories} kcal, ${meal.prepTime} min)`);
+      });
+    });
+    if (dayMeals.length) {
+      lines.push('', day.charAt(0).toUpperCase() + day.slice(1) + ':');
+      dayMeals.forEach(line => lines.push(line));
+    }
+  });
+
+  if (!meals) {
+    mpShowError('Nothing to copy yet \u2014 add a meal first');
+    return;
+  }
+
+  const text = lines.join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => mpShowSuccess('Plan copied to clipboard!'))
+      .catch(() => mpShowError('Copying was blocked by the browser'));
+  } else {
+    mpShowError('Copying is not available in this browser');
+  }
+}
+
+function mpReset() {
+  Object.keys(mpMealPlan).forEach(function (day) {
+    Object.keys(mpMealPlan[day]).forEach(function (type) {
+      mpMealPlan[day][type] = [];
+    });
+    const container = document.getElementById(`mp-${day}-meals`);
+    if (container) mpUpdateDayDisplay(day);
+  });
+
+  mpUpdateStatistics();
+  mpHideShoppingList();
+  mpShowHint('Plan cleared \u2014 anything you saved is still in this browser', 'var(--accent)');
+}
+
+// Boot the planner once the shared DOM is ready
+document.addEventListener('DOMContentLoaded', mpInitializePlanner);
+</script>
