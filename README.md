@@ -48,19 +48,32 @@ brief, model, key, passing gates and human review.
 [Automation setup](docs/AI-DEVELOPER-SETUP.md) ·
 [Research and rationale](staff/RESEARCH.md)
 
-## Standalone AI
+## Lantern — the standalone AI
 
-[`ai.html`](ai.html) is a standalone AI system that runs entirely in the
-visitor's browser: eighteen reasoning methods, hybrid retrieval over documents
-the visitor indexes themselves, vector memory with Generative-Agents scoring,
-an agent pipeline that really executes local tools, prompt-engineering and
-developer instruments, and an optional on-device WebGPU language model
-(web-llm, started only when the visitor asks, then cached by the browser). No
-account and no API key exist, nothing is uploaded, and a clearly labelled
-structural engine keeps the page fully useful when WebGPU is unavailable. The
-page carries no catalogue branding and recommends no tools — it is its own
-product. Private memory stays in the visitor's browser, and the live page
-cannot write back to the repository.
+[`ai.html`](ai.html) is **Lantern**, a standalone AI product that runs entirely
+in the visitor's browser and shares nothing with the catalogue: its own name,
+mark and palette, no catalogue data, no tool recommendations. Type a question
+and it answers — grounded in documents the visitor indexes (answers quote them
+with citations), plus saved memory, plus real local tools that actually execute
+(arithmetic, dates, units, encoding, JSON, regex, hashing). Without a model
+installed the answer is composed on the device from that evidence and is
+**labelled "composed on device"** rather than dressed up as model inference;
+installing the optional on-device WebGPU model (web-llm, started only when the
+visitor asks, then cached by the browser) switches the same interface to
+generated prose.
+
+Interaction is built for people rather than for demos: a two-minute guided
+tour, eight lessons with a glossary explaining how the reasoning methods work,
+plain-language starters, a command palette (`Ctrl/⌘ K`), slash commands,
+keyboard shortcuts, exportable transcripts, and per-answer actions (copy,
+helpful / not helpful with reasons, simpler, deeper, remember, correct,
+re-run). Ratings and corrections are learned locally — they update a visible
+profile that shapes later answers — and the advanced instruments (agent
+pipeline, reasoning lab, prompt studio, saved tools, developer instruments,
+model panel) sit behind an *Advanced* area so the default experience is simply
+chat. Nothing is uploaded, no account or API key exists, and private memory
+stays in the visitor's browser; the live page cannot write back to the
+repository.
 
 The checked-in `local-ai-knowledge.json` grounds the *catalogue* brain used by
 the machine guide; `learning/approved.json` is the reviewed shared-learning
