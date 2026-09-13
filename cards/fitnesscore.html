@@ -28,34 +28,7 @@
                 <label id="fs-gender-label" style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">
                     👤 Gender
                 </label>
-                <div role="group" aria-labelledby="fs-gender-label" style="display:flex;gap:10px;">om:20px;">
-        Calculate your comprehensive fitness score with detailed insights and personalized recommendations.
-        <span style="color:var(--accent);font-weight:500;">Based on scientific health metrics and activity analysis.</span>
-    </p>
-    
-    <!-- Personal Information -->
-    <div style="margin-bottom:24px;">
-        <h3 style="color:var(--accent);margin:0 0 12px 0;font-size:1rem;">👤 Personal Information</h3>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:16px;">
-            <div>
-                <label for="fs-age" style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">
-                    🎂 Age (years)
-                </label>
-                <div style="position:relative;">
-                    <input id="fs-age" type="number" min="1" max="120" value="30" 
-                           style="width:100%;padding:14px;padding-right:40px;border-radius:10px;border:2px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;font-size:1.1rem;" />
-                    <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);color:rgba(230,250,255,0.7);">yrs</div>
-                </div>
-                <div style="margin-top:6px;font-size:0.8rem;color:rgba(230,250,255,0.6);">
-                    <span id="fs-age-range" style="color:#39ff14;">Optimal range: 20-40</span>
-                </div>
-            </div>
-            
-            <div>
-                <label id="fs-gender-label" style="display:block;margin-bottom:8px;color:var(--accent);font-weight:500;">
-                    👤 Gender
-                </label>
-                <div style="display:flex;gap:10px;">
+                <div role="group" aria-labelledby="fs-gender-label" style="display:flex;gap:10px;">
                     <button type="button" onclick="fsSetGender('male')" id="fs-gender-male"
                             style="flex:1;padding:12px;background:rgba(45,212,255,0.2);border:2px solid var(--accent);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">
                         Male
@@ -677,4 +650,89 @@ function fsGenerateRecommendations(totalScore, cardioScore, activityScore, bodyS
     
     // Lifestyle recommendations
     if (lifestyleScore < 60) {
-        recommendations += `<li><strong>
+        recommendations += `<li><strong>Lifestyle:</strong> Prioritise 7-9 hours of sleep and whole-food meals on most days</li>`;
+    }
+
+    if (totalScore >= 85) {
+        recommendations += `<li><strong>Keep Going:</strong> Your numbers are strong \u2014 vary your training to avoid plateaus</li>`;
+    }
+
+    recommendations += '</ul>';
+    document.getElementById('fs-recommendations-content').innerHTML = recommendations;
+}
+
+// Narrative insight panel \u2014 reads the same inputs fsCalculate() uses
+function fsGenerateInsights() {
+    const age = parseInt(document.getElementById('fs-age').value) || 30;
+    const restingHR = parseInt(document.getElementById('fs-resting-hr').value) || 70;
+    const vo2max = parseInt(document.getElementById('fs-vo2max').value) || 40;
+    const height = parseFloat(document.getElementById('fs-height').value) || 0;
+    const weight = parseFloat(document.getElementById('fs-weight').value) || 0;
+    const sleep = document.getElementById('fs-sleep').value;
+    const diet = document.getElementById('fs-diet').value;
+
+    const insights = [];
+
+    // Max heart rate and the zones that follow from it (Tanaka formula)
+    const maxHR = Math.round(208 - 0.7 * age);
+    insights.push(`<li><strong>Estimated max heart rate:</strong> ${maxHR} bpm \u2014 spend most of your week between ${Math.round(maxHR * 0.6)} and ${Math.round(maxHR * 0.8)} bpm.</li>`);
+
+    if (restingHR <= 60) {
+        insights.push('<li><strong>Resting heart rate</strong> sits in the athletic range; recovery capacity looks good.</li>');
+    } else if (restingHR >= 80) {
+        insights.push('<li><strong>Resting heart rate</strong> is high \u2014 more aerobic base work and better sleep usually bring it down.</li>');
+    }
+
+    if (vo2max >= 50) {
+        insights.push('<li><strong>VO\u2082 max</strong> is well above average for most age groups.</li>');
+    } else if (vo2max < 35) {
+        insights.push('<li><strong>VO\u2082 max</strong> is the strongest modifiable predictor of long-term health \u2014 intervals move it fastest.</li>');
+    }
+
+    if (height > 0 && weight > 0) {
+        const bmi = weight / Math.pow(height / 100, 2);
+        insights.push(`<li><strong>BMI:</strong> ${bmi.toFixed(1)} \u2014 a screening number, not a verdict (it cannot see muscle).</li>`);
+    }
+
+    insights.push(`<li><strong>Recovery:</strong> sleep "${sleep}" and diet "${diet}" together drive the lifestyle slice of your score.</li>`);
+
+    document.getElementById('fs-insights-content').innerHTML =
+        `<ul style="margin:0;padding-left:20px;">${insights.join('')}</ul>`;
+}
+
+// Reset every input to its default and hide the results
+function fsReset() {
+    document.getElementById('fs-age').value = '30';
+    document.getElementById('fs-resting-hr').value = '70';
+    document.getElementById('fs-vo2max').value = '40';
+    document.getElementById('fs-height').value = '';
+    document.getElementById('fs-weight').value = '';
+    document.getElementById('fs-sleep').value = 'average';
+    document.getElementById('fs-diet').value = 'average';
+
+    fsSetGender('male');
+    fsSetActivity('sedentary');
+
+    document.getElementById('fs-score-value').textContent = '0';
+    document.getElementById('fs-score-category').textContent = '\u2014';
+    ['fs-cardio', 'fs-activity', 'fs-body', 'fs-lifestyle'].forEach(function (prefix) {
+        const score = document.getElementById(prefix + '-score');
+        const bar = document.getElementById(prefix + '-bar');
+        if (score) score.textContent = '0';
+        if (bar) bar.style.width = '0%';
+    });
+
+    document.getElementById('fs-bmi-result').innerHTML = '';
+    document.getElementById('fs-recommendations').style.display = 'none';
+    document.getElementById('fs-insights').style.display = 'none';
+
+    // Re-sync the slider readouts and their ratings
+    document.getElementById('fs-resting-hr').dispatchEvent(new Event('input'));
+    document.getElementById('fs-vo2max').dispatchEvent(new Event('input'));
+
+    console.log('Fitness Score Analyzer reset');
+}
+
+// Boot once the shared DOM is ready
+document.addEventListener('DOMContentLoaded', fsInitializeSliders);
+</script>

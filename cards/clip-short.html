@@ -313,6 +313,7 @@ let csRecordingInProgress = false;
 let csSourceVideo = null;
 let csSourceVideoURL = null;
 let csIsPlayingSegment = false;
+let csOutputURL = null;
 
 // Initialize
 function csInit() {
@@ -493,6 +494,10 @@ function csResetAll() {
     }
     
     csStopRecording();
+    if (csOutputURL) {
+        URL.revokeObjectURL(csOutputURL);
+        csOutputURL = null;
+    }
     
     // Reset preset buttons
     document.querySelectorAll('.cs-preset-btn').forEach(btn => {
@@ -651,6 +656,8 @@ async function csGenerate() {
         csRecorder.onstop = () => {
             const blob = new Blob(csRecordedBlobs, { type: 'video/webm' });
             const url = URL.createObjectURL(blob);
+            if (csOutputURL) URL.revokeObjectURL(csOutputURL);
+            csOutputURL = url;
             const preview = document.getElementById('clip-preview');
             preview.src = url;
             
@@ -660,4 +667,106 @@ async function csGenerate() {
             document.getElementById('cs-output-aspect').textContent = aspect;
             
             // Show results
-            document
+            document.getElementById('cs-results').style.display = 'block';
+            document.getElementById('cs-status').textContent = 'Complete';
+            document.getElementById('cs-status').style.color = '#39ff14';
+            document.getElementById('cs-hint').textContent = 'Preview it above, then hit "Save Video" to download your short.';
+
+            csRecordingInProgress = false;
+            console.log('\u2705 Short generated: ' + duration.toFixed(1) + 's @ ' + outputWidth + '\u00d7' + outputHeight);
+        };
+
+        // Paint every frame of the segment onto the canvas while the
+        // MediaRecorder captures the canvas stream.
+        const drawFrame = () => {
+            if (csSourceVideo.readyState < 2) return;
+
+            const vw = csSourceVideo.videoWidth || outputWidth;
+            const vh = csSourceVideo.videoHeight || outputHeight;
+            const scale = fitMode === 'contain'
+                ? Math.min(outputWidth / vw, outputHeight / vh)
+                : Math.max(outputWidth / vw, outputHeight / vh);
+            const dw = vw * scale;
+            const dh = vh * scale;
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, outputWidth, outputHeight);
+            ctx.drawImage(csSourceVideo, (outputWidth - dw) / 2, (outputHeight - dh) / 2, dw, dh);
+
+            if (watermarkImg) {
+                const ww = Math.round(outputWidth * 0.18);
+                const wh = Math.round(ww * ((watermarkImg.height || 1) / (watermarkImg.width || 1)));
+                ctx.globalAlpha = 0.85;
+                ctx.drawImage(watermarkImg, outputWidth - ww - 24, outputHeight - wh - 24, ww, wh);
+                ctx.globalAlpha = 1;
+            }
+
+            if (caption) {
+                const fontSize = Math.max(28, Math.round(outputWidth / 14));
+                const y = outputHeight - fontSize * 1.6;
+                ctx.font = '700 ' + fontSize + "px Inter, -apple-system, 'Segoe UI', Roboto, sans-serif";
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.lineWidth = Math.max(3, fontSize / 10);
+                ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+                ctx.strokeText(caption, outputWidth / 2, y, outputWidth * 0.86);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(caption, outputWidth / 2, y, outputWidth * 0.86);
+            }
+        };
+
+        // The recorder captures in real time, so the segment plays through once.
+        csRecorder.start(100);
+        csRecordingInProgress = true;
+        document.getElementById('cs-status').textContent = 'Recording\u2026';
+        await csSourceVideo.play();
+
+        const renderLoop = () => {
+            drawFrame();
+            if (csSourceVideo.currentTime >= end || csSourceVideo.ended || !csRecordingInProgress) {
+                csSourceVideo.pause();
+                if (csRecorder && csRecorder.state !== 'inactive') csRecorder.stop();
+                return;
+            }
+            requestAnimationFrame(renderLoop);
+        };
+        renderLoop();
+    } catch (err) {
+        console.error('Clip generation failed:', err);
+        csStopRecording();
+        csShowError('Could not generate the short: '
+            + ((err && err.message) ? err.message : 'this browser may not support MediaRecorder'));
+    }
+}
+
+// Stop any recording in progress and release the captured stream
+function csStopRecording() {
+    try {
+        if (csRecorder && csRecorder.state !== 'inactive') csRecorder.stop();
+    } catch (e) { /* recorder already inactive */ }
+    csRecorder = null;
+    csRecordedBlobs = [];
+    if (csMediaStream) {
+        csMediaStream.getTracks().forEach(track => track.stop());
+        csMediaStream = null;
+    }
+    if (csSourceVideo && !csSourceVideo.paused) csSourceVideo.pause();
+    csRecordingInProgress = false;
+}
+
+// Save the generated short (wired to #cs-copy-btn in csInit)
+function csSaveVideo() {
+    if (!csOutputURL) {
+        csShowError('Nothing to save yet \u2014 generate a short first');
+        return;
+    }
+    const link = document.createElement('a');
+    link.href = csOutputURL;
+    link.download = 'short-' + Date.now() + '.webm';
+    link.click();
+    console.log('\ud83d\udcbe Short download started');
+}
+
+// Boot the tool once the shared DOM is ready
+document.addEventListener('DOMContentLoaded', csInit);
+</script>

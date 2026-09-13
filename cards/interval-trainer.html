@@ -419,14 +419,16 @@ function drawKeyboard() {
   const interval = intervalDefinitions[itCurrentInterval];
   const availableNotes = notes[itCurrentDifficulty];
   
-  // Pick a random starting note
-  const startIndex = Math.floor(Math.random() * Math.max(1, availableNotes.length - interval.semitones - 1));
+  // Pick a starting note that leaves room for the interval. The easy and
+  // medium note ranges are narrower than some intervals (octave = 12 semitones,
+  // major 6th = 9), and indexing past the end of the range used to leave
+  // endNote undefined — the round then died on "Cannot read properties of
+  // undefined (reading 'replace')". Clamp to the top of the range instead.
+  const lastIndex = Math.max(0, availableNotes.length - 1);
+  const room = lastIndex - interval.semitones;
+  const startIndex = room > 0 ? Math.floor(Math.random() * room) : 0;
   const startNote = availableNotes[startIndex];
-  let endNote = availableNotes[startIndex + interval.semitones];
-  
-  if (!endNote) {
-    endNote = availableNotes[interval.semitones];
-  }
+  let endNote = availableNotes[startIndex + interval.semitones] || availableNotes[lastIndex];
   
   // Create piano visual (simplified)
   const whiteKeys = 14;
@@ -512,8 +514,27 @@ function updateOutput() {
   card.querySelector('#interval-output').value = output;
 }
 
+// The reference chart documents all 8 intervals, but the game only renders the
+// .guess-btn buttons below it. Dealing an interval that has no answer button
+// (major6, minor6, tritone) made roughly 3 rounds in 8 unwinnable, so the pool
+// is derived from the buttons that actually exist.
+const itGuessFallback = ['perfect4', 'perfect5', 'major3', 'minor3', 'octave'];
+
+function itGuessableIntervals() {
+  const card = document.currentScript?.closest('.card') || document;
+  const fromButtons = Array.from(card.querySelectorAll('.guess-btn'))
+    .map(btn => {
+      const match = /guessInterval\(\s*['"]([^'"]+)['"]\s*\)/.exec(btn.getAttribute('onclick') || '');
+      return match ? match[1] : null;
+    })
+    .filter(id => id && intervalDefinitions[id]);
+  return fromButtons.length
+    ? fromButtons
+    : itGuessFallback.filter(id => intervalDefinitions[id]);
+}
+
 function generateRandomInterval() {
-  const intervals = Object.keys(intervalDefinitions);
+  const intervals = itGuessableIntervals();
   const randomInterval = intervals[Math.floor(Math.random() * intervals.length)];
   selectInterval(randomInterval);
   
@@ -648,4 +669,33 @@ function drawProgressChart() {
     bar.style.background = `linear-gradient(to top, ${itCurrentDifficulty === 'easy' ? '#39ff14' : itCurrentDifficulty === 'medium' ? '#ffa500' : '#ff2d55'}, rgba(255,255,255,0.1))`;
     bar.style.borderRadius = '2px 2px 0 0';
     chart.appendChild(bar);
- 
+  });
+}
+
+// Share the session summary — Web Share where available, clipboard otherwise
+function shareProgress() {
+  const card = document.currentScript?.closest('.card') || document;
+  const accuracy = itAttempts ? Math.round((itCorrect / itAttempts) * 100) : 0;
+  const text = `\ud83c\udfb5 Interval Trainer progress
+\ud83c\udfaf Score: ${itScore}
+\ud83d\udd25 Best streak: ${itBestStreak}
+\u2705 Accuracy: ${accuracy}% (${itCorrect}/${itAttempts} attempts)
+\ud83c\udf9a\ufe0f Difficulty: ${itCurrentDifficulty}
+\u2014 The Most Useful Site In The World`;
+
+  const output = card.querySelector('#interval-output');
+  const showInOutput = (message) => {
+    if (!output) return;
+    if (output.tagName === 'TEXTAREA') output.value = message;
+    else output.textContent = message;
+  };
+
+  const copied = () => showInOutput('\ud83d\udce4 Progress copied to your clipboard');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(copied).catch(() => showInOutput(text));
+  } else {
+    showInOutput(text);
+  }
+}
+</script>

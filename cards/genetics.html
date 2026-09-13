@@ -1360,4 +1360,92 @@ function genShareAnalysis() {
   } else if (result.gcPercent) {
     shareText += `GC Analysis: ${result.gcPercent}% GC, Tm=${result.meltingTemp}°C`;
   } else if (result.proteinSequence) {
-   
+    shareText += `Translation: ${String(result.proteinSequence).length} amino acids`;
+  } else {
+    shareText += 'Analysis complete';
+  }
+
+  shareText += '\n\nGenerated with The Most Useful Site In The World';
+
+  if (navigator.share) {
+    navigator.share({ title: 'Genetics analysis', text: shareText })
+      .then(() => genShowMessage('\u2705 Shared', '#39ff14'))
+      .catch(() => genCopyShareText(shareText));
+  } else {
+    genCopyShareText(shareText);
+  }
+}
+
+function genCopyShareText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => genShowMessage('\u2705 Share text copied to clipboard!', '#39ff14'))
+      .catch(() => genShowMessage('\u274c Could not copy the share text', '#ff2d55'));
+  } else {
+    genShowMessage('Sharing is not available in this browser', '#ffa500');
+  }
+}
+
+// Transient feedback line beside the results (#gen-hint)
+let genHintTimer = null;
+
+function genShowMessage(message, color) {
+  const card = document.currentScript?.closest('.card') || document;
+  const hint = card.querySelector('#gen-hint');
+  if (!hint) return;
+  hint.textContent = message;
+  hint.style.color = color || 'var(--accent)';
+  if (genHintTimer) clearTimeout(genHintTimer);
+  genHintTimer = setTimeout(() => { hint.textContent = ''; }, 5000);
+}
+
+// Clear the inputs and results for whichever tool is selected
+function genReset(btn) {
+  const card = document.currentScript?.closest('.card') || document;
+
+  const sequence = card.querySelector('#gen-dna-sequence');
+  if (sequence) sequence.value = '';
+
+  ['gen-parent1-genotype', 'gen-parent2-genotype'].forEach(function (id) {
+    const el = card.querySelector('#' + id);
+    if (el) el.value = '';
+  });
+
+  ['gen-analysis-type', 'gen-output-format', 'gen-cross-type', 'gen-inheritance'].forEach(function (id) {
+    const el = card.querySelector('#' + id);
+    if (el) el.selectedIndex = 0;
+  });
+
+  ['gen-show-steps', 'gen-show-visual'].forEach(function (id) {
+    const el = card.querySelector('#' + id);
+    if (el) el.checked = true;
+  });
+
+  const output = card.querySelector('#gen-output-container');
+  if (output) {
+    output.innerHTML = '';
+    delete output.dataset.genResult;
+  }
+
+  const results = card.querySelector('#gen-results');
+  if (results) results.style.display = 'none';
+
+  genShowMessage('Cleared \u2014 enter your data and run the analysis', '#2dd4ff');
+}
+
+// Cycle to the next tool in the laboratory
+function genShowMoreTools() {
+  const card = document.currentScript?.closest('.card') || document;
+  const tool = card.querySelector('#gen-tool');
+  if (!tool || !tool.options.length) return;
+
+  const next = tool.options[(tool.selectedIndex + 1) % tool.options.length];
+  tool.value = next.value;
+  genUpdateTool();
+  genShowMessage('Switched to ' + next.textContent.trim(), '#2dd4ff');
+  tool.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Boot the laboratory once the shared DOM is ready
+document.addEventListener('DOMContentLoaded', genInit);
+</script>

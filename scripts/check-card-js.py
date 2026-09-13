@@ -12,9 +12,8 @@ standalone scripts — which is exactly how the browser parses them.
 The guard also catches TRUNCATED cards: a file whose <script> block is never
 closed yields no extractable block, so a pure syntax sweep would silently pass
 a completely dead tool. After stripping paired blocks, any leftover <script
-opener is a failure — except the KNOWN_TRUNCATED allowlist below (pre-existing
-breakage, restoration tracked separately). A stray </script> closer with no
-opener is harmless and is NOT flagged.
+opener is a failure — no allowlist, no warnings. A stray </script> closer with
+no opener is harmless and is NOT flagged.
 
 Usage:
     python3 scripts/check-card-js.py           # only cards changed vs HEAD (fast)
@@ -38,22 +37,12 @@ COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 SRC_SCRIPT_RE = re.compile(r"<script\b[^>]*\bsrc=[^>]*>\s*</script\s*>", re.S | re.I)
 LEFTOVER_SCRIPT_RE = re.compile(r"<script\b", re.I)
 
-# LOUD ALLOWLIST — DO NOT EXTEND WITHOUT RESTORING THE TOOL FIRST.
-# These 8 cards are truncated on disk: each has exactly one <script> opener,
-# zero </script> closers, and the file ends mid-JavaScript. They are dead in
-# production (pre-existing breakage, present before the duplicate-merge work).
-# They warn instead of failing so this guard stays green while each awaits a
-# dedicated restoration pass. Any NEW truncation fails the check.
-KNOWN_TRUNCATED = frozenset({
-    "clip-short.html",
-    "electrical-standards.html",
-    "fitnesscore.html",
-    "genetics.html",
-    "interval-trainer.html",
-    "mealplanner.html",
-    "oscilloscope.html",
-    "palette-swapper.html",
-})
+# There is no allowlist here any more. Eight cards (clip-short,
+# electrical-standards, fitnesscore, genetics, interval-trainer, mealplanner,
+# oscilloscope, palette-swapper) used to sit on a KNOWN_TRUNCATED list that
+# downgraded their truncation to a warning; they were restored on 2026-09-13,
+# so an unclosed <script> is now always a hard failure. A card whose script
+# block never closes renders as dead markup with no interactivity at all.
 
 
 def changed_cards() -> list[str]:
@@ -89,7 +78,6 @@ def main() -> int:
 
     tmp = tempfile.mkdtemp(prefix="cardjs-")
     fails: list[str] = []
-    truncated_warn: list[str] = []
     blocks = 0
     try:
         for f in files:
@@ -106,11 +94,8 @@ def main() -> int:
             probe = SRC_SCRIPT_RE.sub("", probe)
             probe = SCRIPT_RE.sub("", probe)
             if LEFTOVER_SCRIPT_RE.search(probe):
-                if f in KNOWN_TRUNCATED:
-                    truncated_warn.append(f)
-                else:
-                    fails.append(f"{f}: UNCLOSED <script> — file ends with "
-                                 "the script block never closed (truncated card)")
+                fails.append(f"{f}: UNCLOSED <script> — file ends with "
+                             "the script block never closed (truncated card)")
                 continue
             for i, m in enumerate(SCRIPT_RE.finditer(text)):
                 src = m.group(1)
@@ -131,9 +116,6 @@ def main() -> int:
 
     scope = "all cards" if full else "changed cards"
     print(f"checked {blocks} script blocks in {len(files)} {scope}")
-    for w in truncated_warn:
-        print(f"  WARN: {w} is on KNOWN_TRUNCATED — still truncated, "
-              f"still dead, still awaiting restoration")
     for fl in fails:
         print(f"  FAIL: {fl}")
     if fails:

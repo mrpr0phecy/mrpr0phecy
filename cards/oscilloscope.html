@@ -411,20 +411,20 @@ const oscState = {
 };
 
 // Canvas and rendering
-let canvas, ctx;
+let oscCanvas, oscCtx;
 let animationId = null;
 let startTime = 0;
 
 // Initialize oscilloscope
 function oscInit() {
-    canvas = document.getElementById('osc-canvas');
-    ctx = canvas.getContext('2d');
+    oscCanvas = document.getElementById('osc-canvas');
+    oscCtx = oscCanvas.getContext('2d');
     
     // Set canvas size for high DPI displays
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvas.clientWidth * dpr;
-    canvas.height = canvas.clientHeight * dpr;
-    ctx.scale(dpr, dpr);
+    oscCanvas.width = oscCanvas.clientWidth * dpr;
+    oscCanvas.height = oscCanvas.clientHeight * dpr;
+    oscCtx.scale(dpr, dpr);
     
     // Start animation loop
     startTime = Date.now();
@@ -444,38 +444,38 @@ function oscAnimate() {
 
 // Draw waveform
 function oscDrawWaveform() {
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+    const width = oscCanvas.clientWidth;
+    const height = oscCanvas.clientHeight;
     
     // Clear canvas
-    ctx.clearRect(0, 0, width, height);
+    oscCtx.clearRect(0, 0, width, height);
     
     // Draw grid
     oscDrawGrid();
     
     // Draw center lines
-    ctx.strokeStyle = 'rgba(45, 212, 255, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 2]);
+    oscCtx.strokeStyle = 'rgba(45, 212, 255, 0.3)';
+    oscCtx.lineWidth = 1;
+    oscCtx.setLineDash([2, 2]);
     
     // Vertical center line
-    ctx.beginPath();
-    ctx.moveTo(width / 2, 0);
-    ctx.lineTo(width / 2, height);
-    ctx.stroke();
+    oscCtx.beginPath();
+    oscCtx.moveTo(width / 2, 0);
+    oscCtx.lineTo(width / 2, height);
+    oscCtx.stroke();
     
     // Horizontal center line
-    ctx.beginPath();
-    ctx.moveTo(0, height / 2);
-    ctx.lineTo(width, height / 2);
-    ctx.stroke();
+    oscCtx.beginPath();
+    oscCtx.moveTo(0, height / 2);
+    oscCtx.lineTo(width, height / 2);
+    oscCtx.stroke();
     
-    ctx.setLineDash([]);
+    oscCtx.setLineDash([]);
     
     // Draw waveform
-    ctx.strokeStyle = '#39ff14';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
+    oscCtx.strokeStyle = '#39ff14';
+    oscCtx.lineWidth = 2;
+    oscCtx.beginPath();
     
     const time = Date.now() - startTime;
     const samples = 800;
@@ -503,13 +503,13 @@ function oscDrawWaveform() {
         const pixelY = height / 2 - (y / oscState.voltsPerDiv) * (height / 8);
         
         if (i === 0) {
-            ctx.moveTo(x, pixelY);
+            oscCtx.moveTo(x, pixelY);
         } else {
-            ctx.lineTo(x, pixelY);
+            oscCtx.lineTo(x, pixelY);
         }
     }
     
-    ctx.stroke();
+    oscCtx.stroke();
     
     // Update measurements
     oscUpdateMeasurements();
@@ -567,31 +567,31 @@ function oscCalculateWaveform(t) {
 
 // Draw grid
 function oscDrawGrid() {
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+    const width = oscCanvas.clientWidth;
+    const height = oscCanvas.clientHeight;
     const divs = 8; // 8 divisions
     
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.lineWidth = 1;
+    oscCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    oscCtx.lineWidth = 1;
     
     // Draw vertical grid lines
     for (let i = 0; i <= divs; i++) {
         const x = (i * width) / divs;
         
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
+        oscCtx.beginPath();
+        oscCtx.moveTo(x, 0);
+        oscCtx.lineTo(x, height);
+        oscCtx.stroke();
     }
     
     // Draw horizontal grid lines
     for (let i = 0; i <= divs; i++) {
         const y = (i * height) / divs;
         
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
+        oscCtx.beginPath();
+        oscCtx.moveTo(0, y);
+        oscCtx.lineTo(width, y);
+        oscCtx.stroke();
     }
 }
 
@@ -857,15 +857,15 @@ function oscCaptureScreenshot() {
     const captureCanvas = document.createElement('canvas');
     const captureCtx = captureCanvas.getContext('2d');
     
-    captureCanvas.width = canvas.width;
-    captureCanvas.height = canvas.height;
+    captureCanvas.width = oscCanvas.width;
+    captureCanvas.height = oscCanvas.height;
     
     // Fill with white background
     captureCtx.fillStyle = '#ffffff';
     captureCtx.fillRect(0, 0, captureCanvas.width, captureCanvas.height);
     
     // Draw the current oscilloscope display
-    captureCtx.drawImage(canvas, 0, 0);
+    captureCtx.drawImage(oscCanvas, 0, 0);
     
     // Convert to data URL
     const dataURL = captureCanvas.toDataURL('image/png');
@@ -937,4 +937,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // Keyboard shortcuts
-    document.addEventListener
+    document.addEventListener('keydown', (e) => {
+        // Never steal keys from a field the visitor is typing into.
+        const t = e.target;
+        if (t && /^(input|textarea|select)$/i.test(t.tagName)) return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+        switch (e.key.toLowerCase()) {
+            case ' ':                 // space: run / freeze toggle
+                e.preventDefault();
+                oscState.frozen ? oscRun() : oscFreeze();
+                break;
+            case 'r':                 // reset to defaults
+                oscReset();
+                break;
+            case 'c':                 // capture a screenshot
+                oscCaptureScreenshot();
+                break;
+            case 'e':                 // export the sample data
+                oscExportData();
+                break;
+            case '1': oscSetWaveform('sine'); break;
+            case '2': oscSetWaveform('square'); break;
+            case '3': oscSetWaveform('triangle'); break;
+            case '4': oscSetWaveform('sawtooth'); break;
+            case '5': oscSetWaveform('noise'); break;
+            default: return;
+        }
+        console.log(`⌨️  Shortcut: ${e.key}`);
+    });
+
+    console.log('✅ Oscilloscope ready — space run/freeze, R reset, C capture, E export, 1-5 waveforms');
+});
+</script>
