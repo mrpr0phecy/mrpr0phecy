@@ -1,0 +1,421 @@
+<h2 id="ilad-title" style="margin-top:0;color:var(--accent);">🏷️ Ingredient Label Allergen Decoder</h2>
+
+<form aria-describedby="ilad-desc" onsubmit="event.preventDefault();">
+  <p id="ilad-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Allergens hide behind nicer names: “caseinate” is milk, “arachis oil” is peanut, “hydrolysed vegetable protein” is
+    often wheat, and E220–E228 are sulphites. Paste an ingredient list — from a packet, a menu, a takeaway website — and
+    this reads it against the 14 allergens that must be declared in UK and EU law (plus the US big nine), matching the
+    plain name, the trade name and the E-number. It runs entirely in your browser: the label never leaves the page.
+  </p>
+
+  <label for="ilad-text" style="display:block;font-size:.75rem;color:var(--text-secondary);margin-bottom:4px;">Paste the ingredient list</label>
+  <textarea id="ilad-text" rows="6" placeholder="Ingredients: wheat flour, water, vegetable oil (rapeseed), sugar, whey powder (milk), emulsifier: E322, raising agents (E500, E341), salt, flavouring. May contain nuts."
+    style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-size:.85rem;line-height:1.5;resize:vertical;"></textarea>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+    <button type="button" id="ilad-sample" style="padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:.78rem;">Load a sample label</button>
+    <button type="button" id="ilad-all" style="padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:.78rem;">Tick all 14</button>
+    <button type="button" id="ilad-none" style="padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:.78rem;">Untick all</button>
+    <button type="button" id="ilad-copy" style="padding:8px 12px;border-radius:8px;border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.12);color:var(--text);cursor:pointer;font-size:.78rem;">Copy report</button>
+  </div>
+
+  <p id="ilad-avoid-label" style="margin:14px 0 6px;font-size:.78rem;font-weight:700;color:var(--accent);">Highlight what you are avoiding</p>
+  <div id="ilad-chips" role="group" aria-labelledby="ilad-avoid-label" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" id="ilad-vegan" style="width:16px;height:16px;accent-color:#2dd4ff;">
+      <label for="ilad-vegan" style="font-size:.78rem;color:var(--text-secondary);">Also flag animal products (vegan scan)</label>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" id="ilad-halal" style="width:16px;height:16px;accent-color:#2dd4ff;">
+      <label for="ilad-halal" style="font-size:.78rem;color:var(--text-secondary);">Also flag possible pork &amp; alcohol</label>
+    </div>
+  </div>
+
+  <div id="ilad-out" style="margin-top:14px;"></div>
+
+  <p style="margin:12px 0 0;font-size:.72rem;color:var(--text-secondary);">
+    This is text matching, not a laboratory and not a legal check. It catches names it knows and misses names it does not,
+    and “may contain” warnings are voluntary in the UK. If the reaction is anaphylaxis, the packet is not the authority —
+    contact the manufacturer, and carry the adrenaline.
+  </p>
+</form>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  var $ = function (id) { return host.querySelector('#' + id); };
+
+  var G = {
+    gluten:     { name: 'Gluten cereals', emoji: '🌾', law: 'UK/EU 14 · US big 9' },
+    milk:       { name: 'Milk', emoji: '🥛', law: 'UK/EU 14 · US big 9' },
+    egg:        { name: 'Egg', emoji: '🥚', law: 'UK/EU 14 · US big 9' },
+    soya:       { name: 'Soya', emoji: '🫘', law: 'UK/EU 14 · US big 9' },
+    peanut:     { name: 'Peanut', emoji: '🥜', law: 'UK/EU 14 · US big 9' },
+    treenut:    { name: 'Tree nuts', emoji: '🌰', law: 'UK/EU 14 · US big 9' },
+    sesame:     { name: 'Sesame', emoji: '🫧', law: 'UK/EU 14 · US big 9 (from 2023)' },
+    fish:       { name: 'Fish', emoji: '🐟', law: 'UK/EU 14 · US big 9' },
+    crustacean: { name: 'Crustaceans', emoji: '🦐', law: 'UK/EU 14 · US big 9' },
+    mollusc:    { name: 'Molluscs', emoji: '🦑', law: 'UK/EU 14' },
+    celery:     { name: 'Celery', emoji: '🥬', law: 'UK/EU 14' },
+    mustard:    { name: 'Mustard', emoji: '🌭', law: 'UK/EU 14' },
+    lupin:      { name: 'Lupin', emoji: '🪻', law: 'UK/EU 14' },
+    sulphite:   { name: 'Sulphites', emoji: '🧪', law: 'UK/EU 14' }
+  };
+  var ORDER = ['gluten','milk','egg','soya','peanut','treenut','sesame','fish','crustacean','mollusc','celery','mustard','lupin','sulphite'];
+
+  // [terms, allergen, note, unless-pattern]
+  var RULES = [
+    [['wheat','wheat flour','wheat starch','wheat protein','wheat germ','durum','semolina','spelt','farro','farina','kamut','einkorn','emmer','bulgur','burghul','couscous','seitan','barley','barley malt','malt','malt extract','malt vinegar','maltodextrin from wheat','rye','triticale','hydrolysed wheat protein','rusk','breadcrumb','breadcrumbs'], 'gluten', 'a gluten-containing cereal'],
+    [['oats','oat','oatmeal','oat bran'], 'gluten', 'oats are naturally gluten-free but are routinely cross-contaminated — only certified “gluten-free oats” are safe on a coeliac diet'],
+    [['milk','milk powder','dried milk','skimmed milk','milk solids','condensed milk','evaporated milk','butter','butterfat','buttermilk','ghee','cream','cheese','mascarpone','ricotta','paneer','quark','kefir','custard','yoghurt','yogurt','curd'], 'milk', 'milk', /(coconut|almond|soya?|oat|rice|hemp|cashew|shea|cocoa|peanut|nut|vegan)/],
+    [['casein','caseinate','sodium caseinate','calcium caseinate','whey','whey powder','whey protein','lactose','lactalbumin','lactoglobulin'], 'milk', 'milk protein or lactose'],
+    [['egg','eggs','egg white','egg yolk','dried egg','albumin','albumen','ovalbumin','ovomucin','ovovitellin','livetin','globulin','vitellin','lysozyme','meringue','nougat'], 'egg', 'egg', /(vegan|no egg|egg[- ]free|plant)/],
+    [['soya','soy','soya bean','soybean','edamame','tofu','bean curd','tempeh','miso','natto','tamari','shoyu','soy sauce','soya sauce','soya flour','soya protein','textured vegetable protein','hydrolysed soya protein','soy protein isolate','soya oil','soybean oil','soya lecithin'], 'soya', 'soya'],
+    [['peanut','peanuts','groundnut','groundnuts','arachis','arachis oil','peanut oil','peanut flour','peanut butter','monkey nut','mandelonas','satay sauce'], 'peanut', 'peanut'],
+    [['almond','brazil nut','cashew','chestnut','hazelnut','filbert','macadamia','pecan','pine nut','pistachio','walnut','nut oil','nut butter','marzipan','praline','gianduja','frangipane','nougat'], 'treenut', 'tree nuts', /(water chestnut)/],
+    [['nuts','tree nuts','mixed nuts'], 'treenut', 'tree nuts — unspecified on the label, ask which', /(no nuts|nut[- ]free|vegan)/],
+    [['sesame','sesame seed','sesame seeds','sesame oil','tahini','tahina','halva','halvah','benne','gomasio'], 'sesame', 'sesame'],
+    [['fish','anchovy','anchovies','sardine','tuna','salmon','cod','haddock','mackerel','trout','sea bass','tilapia','swordfish','fish sauce','nam pla','isinglass','surimi','caviar','roe','fish oil','worcestershire sauce'], 'fish', 'fish'],
+    [['prawn','prawns','shrimp','crab','lobster','crayfish','crawfish','langoustine','scampi','krill'], 'crustacean', 'crustacean shellfish'],
+    [['mussel','clam','oyster','scallop','squid','octopus','cuttlefish','calamari','snail','escargot','whelk','cockle','abalone'], 'mollusc', 'mollusc'],
+    [['celery','celeriac','celery salt','celery seed','celery extract','celery powder'], 'celery', 'celery'],
+    [['mustard','mustard seed','mustard flour','mustard powder','mustard bran','dijon mustard','english mustard','mustard oil','honey mustard'], 'mustard', 'mustard'],
+    [['lupin','lupine','lupini','lupin flour','lupin seeds'], 'lupin', 'lupin'],
+    [['sulphur dioxide','sulfur dioxide','sulphite','sulfite','sodium sulphite','sodium sulfite','sodium bisulphite','sodium bisulfite','sodium metabisulphite','sodium metabisulfite','potassium metabisulphite','potassium metabisulfite','calcium sulphite','calcium sulfite','bisulphite','bisulfite','metabisulphite','metabisulfite','sulphur dioxide and sulphites'], 'sulphite', 'sulphites — declared above 10 mg/kg']
+  ];
+
+  // Ambiguous: worth a question to the maker, not a red flag.
+  var CHECK = [
+    [['starch','modified starch','modified maize starch','food starch'], 'gluten or another source — wheat starch must be declared by name if wheat', /(potato|corn|maize|tapioca|rice|arrowroot|pea|chickpea|gram)/],
+    [['lecithin','emulsifier e322','e322'], 'soya or egg — E322 is usually soya'],
+    [['flavouring','flavourings','natural flavouring','natural flavourings','aroma','spices','spice mix','seasoning'], 'hidden allergens live here in the UK the source only has to be named if it is one of the 14'],
+    [['hydrolysed vegetable protein','hydrolysed plant protein','textured vegetable protein','vegetable protein'], 'often wheat or soya'],
+    [['gelatine','gelatin'], 'animal — usually beef or pork; not vegetarian'],
+    [['stock','stock cube','bouillon','gravy','soup powder','gravy granules'], 'celery, wheat and milk are common in these'],
+    [['seafood','fish stock','shellfish'], 'fish, crustacean or mollusc — unspecified'],
+    [['pesto'], 'usually cheese (milk) and pine nuts or cashews'],
+    [['hummus'], 'usually sesame (tahini)'],
+    [['za\'atar','zaatar','dukkah'], 'usually sesame'],
+    [['rose harissa','harissa'], 'sometimes contains celery or fish sauce'],
+    [['coconut','desiccated coconut'], 'the US FDA counts coconut as a tree nut; UK/EU law does not']
+  ];
+
+  var VEGAN = [
+    ['gelatine','animal setting agent'], ['gelatin','animal setting agent'],
+    ['honey','bee product'], ['beeswax','E901 — beeswax glaze'], ['e901','beeswax'],
+    ['shellac','E904 — insect resin glaze'], ['e904','shellac (insect)'],
+    ['carmine','E120 — crushed cochineal insects'], ['cochineal','E120 — insects'], ['e120','cochineal (insect dye)'],
+    ['isinglass','fish bladder — used to clear beer and wine'],
+    ['rennet','animal stomach enzyme used to make cheese'],
+    ['l-cysteine','E920 — often from hair or feathers'], ['e920','L-cysteine, often animal-derived'],
+    ['lanolin','sheep wool grease — common in vitamin D3'], ['vitamin d3','often from lanolin (sheep wool)'],
+    ['collagen','animal protein'], ['keratin','animal protein'],
+    ['suet','animal fat'], ['lard','pork fat'], ['tallow','animal fat'], ['dripping','animal fat'],
+    ['e542','edible bone phosphate'], ['whey','milk'], ['casein','milk protein'], ['lactose','milk sugar'],
+    ['albumin','usually egg'], ['egg','egg'], ['milk','milk'], ['cream','milk'], ['butter','milk'],
+    ['anchovy','fish'], ['fish sauce','fish'], ['omega 3','usually fish oil'], ['omega-3','usually fish oil'],
+    ['confectioner\'s glaze','shellac — insect'], ['pepperoni','meat'], ['bacon','meat']
+  ];
+
+  var PORK_ALCOHOL = [
+    ['gelatine','may be pork — halal/kosher status depends on the source'], ['gelatin','may be pork'],
+    ['lard','pork fat'], ['pork','pork'], ['bacon','pork'], ['ham','usually pork'], ['pepperoni','usually pork'],
+    ['suet','animal fat — beef or mutton, only halal if slaughtered that way'],
+    ['rennet','may be from a non-halal slaughtered animal'],
+    ['wine','alcohol'], ['sherry','alcohol'], ['mirin','alcohol'], ['sake','alcohol'], ['brandy','alcohol'],
+    ['rum','alcohol'], ['bourbon','alcohol'], ['beer','alcohol'], ['cider','alcohol'], ['vodka','alcohol'],
+    ['alcohol','alcohol'], ['vanilla extract','usually made with alcohol'],
+    ['wine vinegar','made from wine'], ['e120','insect-derived — not accepted by all authorities']
+  ];
+
+  var ADVISORY = [
+    ['may contain', '“May contain” — the maker is telling you they cannot rule out cross-contact. Voluntary, which is why it is usually honest.'],
+    ['may contain traces', '“May contain traces” — cross-contact warning.'],
+    ['produced in a factory', 'Made in a factory that also handles other allergens — shared site.'],
+    ['made in a factory', 'Made in a factory that also handles other allergens — shared site.'],
+    ['produced on a line', 'Shared production line — cross-contact risk.'],
+    ['made on a line', 'Shared production line — cross-contact risk.'],
+    ['shared equipment', 'Shared equipment — cross-contact risk.'],
+    ['not suitable for', '“Not suitable for” — treat as containing that allergen.'],
+    ['may be present', '“May be present” — cross-contact warning.'],
+    ['cannot guarantee', 'The maker cannot guarantee absence — cross-contact warning.']
+  ];
+
+  var SAMPLE = 'Ingredients: wheat flour (with calcium, iron, niacin, thiamin), water, rapeseed oil, sugar, whey powder (milk), ' +
+    'emulsifier: E322, salt, dried skimmed milk, raising agents (E500, E341), flavouring, colour: E120; ' +
+    'may contain nuts and sesame. Allergy advice: for allergens, including cereals containing gluten, see ingredients in bold.';
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function rx(term) {
+    var t = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/['’]/g, "['’]?").replace(/\s+/g, '\\s+');
+    return new RegExp('(^|[^a-z])' + t + '(?![a-z])', 'i');
+  }
+  var ruleRx = RULES.map(function (r) {
+    return { rxs: r[0].map(rx), a: r[1], note: r[2], unless: r[3] || null };
+  });
+  var checkRx = CHECK.map(function (r) {
+    return { rxs: r[0].map(rx), note: r[1], unless: r[2] || null };
+  });
+  var veganRx = VEGAN.map(function (r) { return [rx(r[0]), r[0], r[1]]; });
+  var porkRx = PORK_ALCOHOL.map(function (r) { return [rx(r[0]), r[0], r[1]]; });
+  var adRx = ADVISORY.map(function (r) { return [r[0].toLowerCase(), r[1]]; });
+
+  var selected = {};
+  ORDER.forEach(function (k) { selected[k] = false; });
+
+  function buildChips() {
+    $('ilad-chips').innerHTML = ORDER.map(function (k) {
+      return '<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;cursor:pointer;' +
+        'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);font-size:.74rem;">' +
+        '<input type="checkbox" data-k="' + k + '"' + (selected[k] ? ' checked' : '') +
+        ' style="width:14px;height:14px;accent-color:#2dd4ff;">' + G[k].emoji + ' ' + esc(G[k].name) + '</label>';
+    }).join('');
+    Array.prototype.forEach.call(host.querySelectorAll('#ilad-chips input'), function (cb) {
+      cb.addEventListener('change', function () {
+        selected[cb.getAttribute('data-k')] = cb.checked;
+        render();
+      });
+    });
+  }
+  function setChips(on) {
+    ORDER.forEach(function (k) { selected[k] = on; });
+    buildChips(); render();
+  }
+
+  function report() {
+    var raw = $('ilad-text').value;
+    var text = raw.replace(/\s+/g, ' ').trim();
+    var lower = text.toLowerCase();
+    var chunks = text.split(/[,;•\n\r]+|\.(?=\s*[A-Z])/).map(function (s) { return s.trim(); })
+      .filter(function (s) { return s.length > 1; });
+    if (!chunks.length && text) chunks = [text];
+
+    var hits = [];
+    chunks.forEach(function (ch) {
+      var chLow = ch.toLowerCase();
+      var found = [];
+      ruleRx.forEach(function (r) {
+        if (r.unless && r.unless.test(chLow)) return;
+        for (var i = 0; i < r.rxs.length; i++) {
+          if (r.rxs[i].test(ch)) { found.push({ kind: 'a', key: r.a, note: r.note }); return; }
+        }
+      });
+      checkRx.forEach(function (r) {
+        if (r.unless && r.unless.test(chLow)) return;
+        for (var i = 0; i < r.rxs.length; i++) {
+          if (r.rxs[i].test(ch)) { found.push({ kind: 'c', note: r.note }); return; }
+        }
+      });
+      if ($('ilad-vegan').checked) {
+        for (var v = 0; v < veganRx.length; v++) {
+          if (veganRx[v][0].test(ch)) { found.push({ kind: 'v', name: veganRx[v][1], note: veganRx[v][2] }); break; }
+        }
+      }
+      if ($('ilad-halal').checked) {
+        for (var p = 0; p < porkRx.length; p++) {
+          if (porkRx[p][0].test(ch)) { found.push({ kind: 'p', name: porkRx[p][1], note: porkRx[p][2] }); break; }
+        }
+      }
+      if (found.length) hits.push({ text: ch, found: found });
+    });
+
+    // E-numbers mentioned anywhere in the label
+    var extras = [];
+    var en = lower.match(/e\s?(\d{3}[a-z]?)/g) || [];
+    var seen = {};
+    en.forEach(function (e) {
+      var num = e.replace(/\s+/g, '');
+      if (seen[num]) return; seen[num] = 1;
+      var n = parseInt(num.slice(1), 10);
+      if (n >= 220 && n <= 228) extras.push({ num: num, note: 'sulphites — a declarable allergen', key: 'sulphite' });
+      else if (n === 322) extras.push({ num: num, note: 'lecithin — usually soya, sometimes egg', key: 'soya' });
+      else if (n === 1105) extras.append || extras.push({ num: num, note: 'lysozyme — made from egg', key: 'egg' });
+      else if (n === 120) extras.push({ num: num, note: 'cochineal — insects, not vegan', key: null });
+      else if (n === 901) extras.push({ num: num, note: 'beeswax glaze — not vegan', key: null });
+      else if (n === 904) extras.push({ num: num, note: 'shellac — insect resin, not vegan', key: null });
+      else if (n === 920) extras.push({ num: num, note: 'L-cysteine — often animal-derived', key: null });
+      else if (n === 542) extras.push({ num: num, note: 'edible bone phosphate — not vegan', key: null });
+    });
+
+    var advisories = [];
+    adRx.forEach(function (a) {
+      if (lower.indexOf(a[0]) !== -1) advisories.push(a);
+    });
+
+    return { text: text, chunks: chunks, hits: hits, extras: extras, advisories: advisories };
+  }
+
+  var lastReport = null;
+
+  function badge(label, bg, bd, col) {
+    return '<span style="display:inline-block;margin:2px 4px 2px 0;padding:3px 8px;border-radius:999px;font-size:.68rem;' +
+      'background:' + bg + ';border:1px solid ' + bd + ';color:' + col + ';white-space:nowrap;">' + esc(label) + '</span>';
+  }
+
+  function render() {
+    var r = report();
+    lastReport = r;
+    var out = $('ilad-out');
+
+    if (!r.text) {
+      out.innerHTML = '<p style="margin:0;font-size:.78rem;color:var(--text-secondary);">Paste a list, or load the ' +
+        'sample. This will not fetch a product for you — it reads what you paste.</p>';
+      return;
+    }
+
+    // count allergens found
+    var counts = {};
+    var redCount = 0;
+    r.hits.forEach(function (h) {
+      h.found.forEach(function (f) {
+        if (f.kind === 'a') counts[f.key] = (counts[f.key] || 0) + 1;
+      });
+    });
+    r.extras.forEach(function (e) { if (e.key) counts[e.key] = (counts[e.key] || 0) + 1; });
+    var sel = ORDER.filter(function (k) { return selected[k]; });
+    var anySel = sel.length > 0;
+
+    var summary = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">';
+    summary += '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);">' +
+      '<div style="font-size:.7rem;color:var(--text-secondary);">Ingredients read</div>' +
+      '<div style="font-weight:800;color:var(--accent);margin-top:4px;">' + r.chunks.length + '</div></div>';
+    summary += '<div style="padding:10px;border-radius:10px;background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.3);">' +
+      '<div style="font-size:.7rem;color:var(--text-secondary);">Allergen hits</div>' +
+      '<div style="font-weight:800;color:#ff8f8f;margin-top:4px;">' + r.hits.filter(function (h) { return h.found.some(function (f) { return f.kind === 'a'; }); }).length + '</div></div>';
+    summary += '<div style="padding:10px;border-radius:10px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.3);">' +
+      '<div style="font-size:.7rem;color:var(--text-secondary);">Worth asking about</div>' +
+      '<div style="font-weight:800;color:#ffd700;margin-top:4px;">' + r.hits.filter(function (h) { return h.found.some(function (f) { return f.kind === 'c'; }); }).length + '</div></div>';
+    summary += '<div style="padding:10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);">' +
+      '<div style="font-size:.7rem;color:var(--text-secondary);">Advisory warnings</div>' +
+      '<div style="font-weight:800;color:var(--text);margin-top:4px;">' + r.advisories.length + '</div></div>';
+    summary += '</div>';
+
+    var verdict = '';
+    if (anySel) {
+      var clean = sel.filter(function (k) { return !counts[k]; });
+      var hit = sel.filter(function (k) { return counts[k]; });
+      var bg = hit.length ? 'rgba(255,77,77,.10);border:1px solid rgba(255,77,77,.35)' : 'rgba(57,255,20,.08);border:1px solid rgba(57,255,20,.3)';
+      verdict = '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:' + bg + ';font-size:.84rem;">' +
+        (hit.length
+          ? '<strong style="color:#ff8f8f;">Contains ' + hit.map(function (k) { return G[k].emoji + ' ' + esc(G[k].name); }).join(', ') + '.</strong>'
+          : '<strong style="color:#39ff14;">No ' + sel.map(function (k) { return esc(G[k].name); }).join(', ') + ' found in this text.</strong>') +
+        '<div style="font-size:.74rem;color:var(--text-secondary);margin-top:6px;">' +
+        (clean.length ? 'Clear of: ' + clean.map(function (k) { return esc(G[k].name); }).join(', ') + '. ' : '') +
+        'Still read the packet: “may contain” warnings are voluntary in the UK and this is word matching, not a lab test.</div></div>';
+    } else {
+      verdict = '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,.04);' +
+        'border:1px solid rgba(255,255,255,.12);font-size:.78rem;color:var(--text-secondary);">Tick what you avoid above ' +
+        'to get a plain verdict — everything found is listed below either way.</div>';
+    }
+
+    var listHtml = '';
+    if (r.hits.length) {
+      listHtml = '<div style="display:grid;gap:8px;margin-top:12px;">' + r.hits.map(function (h) {
+        var isRed = h.found.some(function (f) {
+          return f.kind === 'a' && selected[f.key];
+        });
+        var bd = isRed ? '1px solid rgba(255,77,77,.45)' : '1px solid rgba(255,255,255,.10)';
+        var bgg = isRed ? 'rgba(255,77,77,.08)' : 'rgba(255,255,255,.03)';
+        var badges = h.found.map(function (f) {
+          if (f.kind === 'a') {
+            var on = selected[f.key];
+            return badge(G[f.key].emoji + ' ' + G[f.key].name,
+              on ? 'rgba(255,77,77,.18)' : 'rgba(255,255,255,.05)',
+              on ? 'rgba(255,77,77,.5)' : 'rgba(255,255,255,.14)',
+              on ? '#ff8f8f' : 'var(--text-secondary)');
+          }
+          if (f.kind === 'c') return badge('? ' + f.note.split(' — ')[0], 'rgba(255,215,0,.12)', 'rgba(255,215,0,.4)', '#ffd700');
+          if (f.kind === 'v') return badge('🐝 ' + f.name + ' — ' + f.note, 'rgba(157,78,221,.16)', 'rgba(157,78,221,.45)', '#d0a2ff');
+          return badge('🍖 ' + f.name + ' — ' + f.note, 'rgba(255,165,0,.12)', 'rgba(255,165,0,.4)', '#ffc06a');
+        }).join('');
+        // 'c' items already say everything in their badge, so only allergen
+        // notes are spelled out underneath (no duplicated sentences).
+        var notes = h.found.filter(function (f) { return f.kind === 'a'; })
+          .map(function (f) { return f.note; })
+          .filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' · ');
+        return '<div style="padding:10px;border-radius:10px;background:' + bgg + ';border:' + bd + ';">' +
+          '<div style="font-size:.8rem;font-weight:600;">' + esc(h.text) + '</div>' +
+          '<div style="margin-top:6px;">' + badges + '</div>' +
+          (notes ? '<div style="margin-top:5px;font-size:.7rem;color:var(--text-secondary);">' + esc(notes) + '</div>' : '') +
+          '</div>';
+      }).join('') + '</div>';
+    } else {
+      listHtml = '<p style="margin-top:12px;font-size:.8rem;color:var(--text-secondary);">Nothing in this text matches ' +
+        'the allergen names this tool knows. That is not the same as safe — a short list is often a marketing description ' +
+        'rather than a full ingredient declaration.</p>';
+    }
+
+    var extraHtml = '';
+    if (r.extras.length) {
+      extraHtml = '<div style="margin-top:12px;padding:10px;border-radius:10px;background:rgba(255,215,0,.06);' +
+        'border:1px solid rgba(255,215,0,.25);font-size:.78rem;"><strong style="color:#ffd700;">E-numbers spotted</strong>' +
+        '<div style="margin-top:6px;">' + r.extras.map(function (e) {
+          return '<div style="padding:3px 0;">' + badge(e.num.toUpperCase(), 'rgba(255,215,0,.12)', 'rgba(255,215,0,.4)', '#ffd700') +
+            ' <span style="color:var(--text-secondary);">' + esc(e.note) + '</span></div>';
+        }).join('') + '</div></div>';
+    }
+
+    var advHtml = '';
+    if (r.advisories.length) {
+      advHtml = '<div style="margin-top:12px;padding:10px;border-radius:10px;background:rgba(255,77,77,.07);' +
+        'border:1px solid rgba(255,77,77,.28);font-size:.78rem;"><strong style="color:#ff8f8f;">Precautionary wording ' +
+        'on this label</strong><div style="margin-top:6px;">' + r.advisories.map(function (a) {
+          return '<div style="padding:3px 0;color:var(--text-secondary);">“' + esc(a[0]) + '” — ' + esc(a[1]) + '</div>';
+        }).join('') + '</div></div>';
+    }
+
+    out.innerHTML = summary + verdict + listHtml + extraHtml + advHtml;
+  }
+
+  function reportText() {
+    var r = lastReport || report();
+    if (!r.text) return '';
+    var lines = ['ALLERGEN DECODER REPORT', 'Label: ' + r.text.slice(0, 400), ''];
+    r.hits.forEach(function (h) {
+      var tags = h.found.map(function (f) {
+        if (f.kind === 'a') return G[f.key].name + (selected[f.key] ? ' (AVOID)' : '');
+        if (f.kind === 'c') return 'check: ' + f.note;
+        if (f.kind === 'v') return 'animal: ' + f.name;
+        return 'pork/alcohol: ' + f.name;
+      }).join('; ');
+      lines.push('• ' + h.text + '  →  ' + tags);
+    });
+    if (r.extras.length) {
+      lines.push('', 'E-numbers: ' + r.extras.map(function (e) { return e.num.toUpperCase() + ' = ' + e.note; }).join('; '));
+    }
+    if (r.advisories.length) {
+      lines.push('', 'Advisory statements: ' + r.advisories.map(function (a) { return '“' + a[0] + '”'; }).join('; '));
+    }
+    lines.push('', 'Word matching only, not a lab test. Confirm with the manufacturer.');
+    return lines.join('\n');
+  }
+
+  buildChips();
+  $('ilad-text').addEventListener('input', render);
+  $('ilad-vegan').addEventListener('change', render);
+  $('ilad-halal').addEventListener('change', render);
+  $('ilad-sample').addEventListener('click', function () { $('ilad-text').value = SAMPLE; render(); });
+  $('ilad-all').addEventListener('click', function () { setChips(true); });
+  $('ilad-none').addEventListener('click', function () { setChips(false); });
+  $('ilad-copy').addEventListener('click', function () {
+    var text = reportText();
+    if (!text) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
+      else {
+        var ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      $('ilad-copy').textContent = 'Copied ✓';
+      setTimeout(function () { $('ilad-copy').textContent = 'Copy report'; }, 1600);
+    } catch (e) {}
+  });
+
+  render();
+})();
+</script>
