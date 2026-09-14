@@ -1,0 +1,494 @@
+<h2 id="sfve-title" style="margin-top:0;color:var(--accent);">🔒 Secure Vault — Text &amp; File Encryption</h2>
+
+<p id="sfve-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Encrypt a message or a file with AES-256-GCM using a passphrase only you know, then hand over something that is
+  meaningless without it. Password managers charge a subscription to hold notes like these, "secure send" sites
+  charge per transfer and quietly keep a copy, and file-lockers cap the free tier. Here the key is derived on your
+  device from your passphrase, the ciphertext is written straight to your downloads, and the only person who can
+  ever open it is someone holding that passphrase.
+</p>
+
+<style>
+  .sfve-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+  .sfve-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:var(--text);font-size:0.82rem;font-weight:600;cursor:pointer;}
+  .sfve-btn:hover{background:rgba(255,255,255,0.12);}
+  .sfve-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .sfve-btn.active{background:var(--accent);color:#0a0f14;border-color:transparent;}
+  .sfve-go{background:var(--accent);color:#0a0f14;border:none;font-weight:800;}
+  .sfve-lbl{display:block;font-size:0.76rem;color:var(--text-secondary);margin-bottom:4px;}
+  .sfve-in{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;}
+  .sfve-ta{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.82rem;min-height:120px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.5;word-break:break-all;}
+  .sfve-meter{height:6px;border-radius:4px;background:rgba(255,255,255,0.1);overflow:hidden;margin-top:6px;}
+  .sfve-meter > div{height:100%;width:0;transition:width .2s ease;}
+  @media (prefers-reduced-motion: reduce){ .sfve-meter > div{transition:none;} }
+  .sfve-drop{border:2px dashed rgba(45,212,255,0.35);border-radius:12px;padding:18px;text-align:center;cursor:pointer;background:rgba(45,212,255,0.04);}
+  .sfve-out{background:rgba(0,0,0,0.35);border:1px solid var(--border-light);border-radius:8px;padding:10px;font-size:0.76rem;color:var(--text-secondary);word-break:break-word;}
+</style>
+
+<div id="sfve-nocrypto" style="display:none;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,77,77,0.4);background:rgba(255,77,77,0.08);color:#ff9a9a;font-size:0.8rem;margin-bottom:12px;"></div>
+
+<div class="sfve-tabs" role="group" aria-labelledby="sfve-tabs-lbl">
+  <span id="sfve-tabs-lbl" style="display:none;">Vault mode</span>
+  <button type="button" class="sfve-btn active" data-sfve-mode="text">Encrypt text</button>
+  <button type="button" class="sfve-btn" data-sfve-mode="file">Encrypt a file</button>
+  <button type="button" class="sfve-btn" data-sfve-mode="open">Decrypt</button>
+</div>
+
+<div id="sfve-pw-wrap" style="margin-bottom:12px;">
+  <label class="sfve-lbl" for="sfve-pw">Passphrase</label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <input id="sfve-pw" class="sfve-in" type="password" placeholder="Long, strange and memorable" autocomplete="off" spellcheck="false" style="flex:1;min-width:180px;" />
+    <button type="button" id="sfve-show" class="sfve-btn">Show</button>
+    <button type="button" id="sfve-gen" class="sfve-btn">Generate</button>
+  </div>
+  <div class="sfve-meter" aria-hidden="true"><div id="sfve-meter-bar"></div></div>
+  <div id="sfve-meter-text" style="font-size:0.74rem;color:var(--text-secondary);margin-top:4px;"></div>
+</div>
+
+<div id="sfve-text-pane">
+  <label class="sfve-lbl" for="sfve-plain">Message to encrypt</label>
+  <textarea id="sfve-plain" class="sfve-ta" placeholder="Type the thing you want to lock…"></textarea>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">
+    <button type="button" id="sfve-enc-text" class="sfve-btn sfve-go">Encrypt message</button>
+    <button type="button" id="sfve-copy-blob" class="sfve-btn" disabled>Copy ciphertext</button>
+    <button type="button" id="sfve-dl-blob" class="sfve-btn" disabled>⬇ Download .mpvault</button>
+  </div>
+  <label class="sfve-lbl" for="sfve-blob">Ciphertext (safe to paste anywhere — useless without the passphrase)</label>
+  <textarea id="sfve-blob" class="sfve-ta" readonly placeholder="Encrypted output appears here…"></textarea>
+</div>
+
+<div id="sfve-file-pane" style="display:none;">
+  <div id="sfve-drop" class="sfve-drop" tabindex="0" role="button" aria-label="Choose a file to encrypt">
+    <div style="font-weight:700;color:var(--accent);">Drop a file here to encrypt it</div>
+    <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:4px;">or click to browse · any type · nothing is uploaded</div>
+    <input id="sfve-file" type="file" style="display:none;" />
+  </div>
+  <div id="sfve-file-meta" class="sfve-out" style="margin-top:10px;display:none;"></div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">
+    <button type="button" id="sfve-enc-file" class="sfve-btn sfve-go" disabled>Encrypt file</button>
+  </div>
+</div>
+
+<div id="sfve-open-pane" style="display:none;">
+  <div class="sfve-tabs" style="margin-bottom:8px;">
+    <button type="button" class="sfve-btn active" data-sfve-open="paste">Paste ciphertext</button>
+    <button type="button" class="sfve-btn" data-sfve-open="file">Choose .mpvault file</button>
+  </div>
+  <div id="sfve-open-paste">
+    <label class="sfve-lbl" for="sfve-in-blob">Ciphertext to decrypt</label>
+    <textarea id="sfve-in-blob" class="sfve-ta" placeholder="Paste the MPV1:… block (or a whole share-kit email — the tool finds the block for you)"></textarea>
+  </div>
+  <div id="sfve-open-file" style="display:none;">
+    <label class="sfve-lbl" for="sfve-in-file">Encrypted file</label>
+    <input id="sfve-in-file" class="sfve-in" type="file" style="padding:6px;" />
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">
+    <button type="button" id="sfve-dec" class="sfve-btn sfve-go">Decrypt</button>
+    <button type="button" id="sfve-copy-plain" class="sfve-btn" disabled>Copy result</button>
+  </div>
+  <div id="sfve-result" aria-live="polite"></div>
+</div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">What is actually protecting it</summary>
+  <div style="margin-top:8px;">
+    <p style="margin:0 0 8px;">
+      Your passphrase is turned into a key with PBKDF2-HMAC-SHA256 over 310,000 iterations and a fresh 16-byte
+      random salt, then the data is encrypted with AES-256-GCM using a fresh 12-byte random IV. GCM is
+      <em>authenticated</em> encryption: if the passphrase is wrong, or a single byte of the file has been altered,
+      decryption fails outright rather than handing you garbage. That failure is the loud "wrong passphrase" error
+      you get here.
+    </p>
+    <p style="margin:0 0 8px;">
+      The file format is small and deliberate: a magic marker, a version byte, the iteration count, the salt, the
+      IV, then the ciphertext. The <em>filename and MIME type are inside the ciphertext</em>, so a locked file does
+      not leak what it is called. Nothing about the passphrase is stored anywhere — not in the file, not in this
+      page, not in your browser.
+    </p>
+    <p style="margin:0 0 8px;">
+      Three limits worth knowing. A passphrase is only as strong as it is unusual: three random words beats
+      eight characters of cleverness, and the generator here builds the former. There is no recovery path —
+      lose the passphrase and the data is gone, which is the whole point. And this protects the file's contents,
+      not the fact that you encrypted something: if that matters to you, that is a different problem.
+    </p>
+    <p style="margin:0;">
+      Everything runs on your device with the browser's own Web Crypto implementation. The vault needs a secure
+      (https) page to expose those APIs; if you are reading this over plain http, the tool will say so instead of
+      quietly pretending.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  function $(id) { return host.querySelector('#' + id); }
+
+  var MAGIC = 'MPVLT1';
+  var ITER = 310000;
+  var mode = 'text', openKind = 'paste';
+  var pendingFile = null;
+
+  function status(msg, isError) {
+    var el = $('sfve-result');
+    if (!el) return;
+    el.innerHTML = '';
+    var d = document.createElement('div');
+    d.className = 'sfve-out';
+    if (isError) {
+      d.style.borderColor = 'rgba(255,77,77,0.45)';
+      d.style.color = '#ffb3b3';
+    }
+    d.textContent = msg;
+    el.appendChild(d);
+  }
+
+  /* --------------------------------------------------------------- crypto */
+  var subtle = (window.crypto && (window.crypto.subtle || window.crypto.webkitSubtle)) || null;
+
+  function deriveKey(pw, salt) {
+    var enc = new TextEncoder().encode(pw);
+    return subtle.importKey('raw', enc, 'PBKDF2', false, ['deriveKey']).then(function (base) {
+      return subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: ITER, hash: 'SHA-256' },
+        base,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    });
+  }
+
+  function u8(str) { return new TextEncoder().encode(str); }
+  function b64(bytes) {
+    var s = '', chunk = 0x8000;
+    for (var i = 0; i < bytes.length; i += chunk) {
+      s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(s);
+  }
+  function unb64(str) {
+    var clean = String(str || '').replace(/\s+/g, '');
+    var bin = atob(clean);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  // Container: MAGIC(6) | version(1) | iter(4) | salt(16) | iv(12) | ciphertext
+  function pack(salt, iv, cipher) {
+    var buf = new Uint8Array(6 + 1 + 4 + salt.length + iv.length + cipher.length);
+    var o = 0;
+    for (var i = 0; i < 6; i++) buf[o++] = MAGIC.charCodeAt(i);
+    buf[o++] = 1;
+    buf[o++] = (ITER >>> 24) & 255; buf[o++] = (ITER >>> 16) & 255;
+    buf[o++] = (ITER >>> 8) & 255; buf[o++] = ITER & 255;
+    buf.set(salt, o); o += salt.length;
+    buf.set(iv, o); o += iv.length;
+    buf.set(cipher, o);
+    return buf;
+  }
+
+  function unpack(bytes) {
+    if (bytes.length < 6 + 1 + 4 + 16 + 12 + 16) throw new Error('This does not look like a vault file — it is too short.');
+    var magic = '';
+    for (var i = 0; i < 6; i++) magic += String.fromCharCode(bytes[i]);
+    if (magic !== MAGIC) throw new Error('That is not a vault file (wrong marker). Paste the whole MPV1: block, or choose the .mpvault file.');
+    var version = bytes[6];
+    if (version !== 1) throw new Error('Unsupported vault version ' + version + '.');
+    var o = 7;
+    var iter = (bytes[o++] << 24) | (bytes[o++] << 16) | (bytes[o++] << 8) | bytes[o++];
+    var salt = bytes.slice(o, o + 16); o += 16;
+    var iv = bytes.slice(o, o + 12); o += 12;
+    return { iter: iter >>> 0, salt: salt, iv: iv, cipher: bytes.slice(o) };
+  }
+
+  function deriveWith(pw, salt, iter) {
+    var enc = new TextEncoder().encode(pw);
+    return subtle.importKey('raw', enc, 'PBKDF2', false, ['deriveKey']).then(function (base) {
+      return subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' },
+        base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+      );
+    });
+  }
+
+  // Plaintext envelope: [4-byte header length][header JSON][payload bytes]
+  function envelope(meta, payload) {
+    var head = u8(JSON.stringify(meta));
+    var buf = new Uint8Array(4 + head.length + payload.length);
+    buf[0] = (head.length >>> 24) & 255; buf[1] = (head.length >>> 16) & 255;
+    buf[2] = (head.length >>> 8) & 255; buf[3] = head.length & 255;
+    buf.set(head, 4);
+    buf.set(payload, 4 + head.length);
+    return buf;
+  }
+
+  function openEnvelope(bytes) {
+    if (bytes.length < 4) throw new Error('Decrypted data is malformed.');
+    var len = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+    if (len < 0 || len > bytes.length - 4) throw new Error('Decrypted data is malformed.');
+    var head = bytes.slice(4, 4 + len);
+    var payload = bytes.slice(4 + len);
+    var meta = {};
+    try { meta = JSON.parse(new TextDecoder().decode(head)); } catch (e) { meta = {}; }
+    return { meta: meta, payload: payload };
+  }
+
+  function randomBytes(n) {
+    var a = new Uint8Array(n);
+    crypto.getRandomValues(a);
+    return a;
+  }
+
+  /* ------------------------------------------------------------ passphrase */
+  var WORDS = ['anchor', 'basil', 'cinder', 'dovetail', 'ember', 'fjord', 'gimlet', 'hazel', 'inkwell',
+    'juniper', 'kettle', 'lumen', 'marmot', 'nimbus', 'obsidian', 'pepper', 'quartz', 'rivet', 'saffron',
+    'tundra', 'urchin', 'velvet', 'willow', 'xenon', 'yarrow', 'zephyr', 'barley', 'cobalt', 'dagger',
+    'flint', 'glacier', 'harbor', 'ivory', 'jasper', 'kelpie', 'lantern', 'mulberry', 'nettle', 'onyx',
+    'pilgrim', 'quiver', 'raven', 'sable', 'thistle', 'umber', 'verdigris', 'wicker', 'yellow', 'zinnia'];
+
+  function generatePassphrase() {
+    var out = [];
+    for (var i = 0; i < 4; i++) {
+      var buf = new Uint32Array(1);
+      crypto.getRandomValues(buf);
+      out.push(WORDS[buf[0] % WORDS.length]);
+    }
+    return out.join('-') + '-' + (100 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900));
+  }
+
+  function strength(pw) {
+    var score = 0;
+    if (pw.length >= 8) score += 1;
+    if (pw.length >= 14) score += 1;
+    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score += 1;
+    if (/\d/.test(pw)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pw)) score += 1;
+    if (pw.length >= 22) score += 1;
+    return Math.min(5, score);
+  }
+
+  function updateMeter() {
+    var pw = $('sfve-pw').value;
+    var s = pw ? strength(pw) : 0;
+    var pct = [0, 20, 40, 60, 80, 100][s];
+    var colours = ['#ff4d4d', '#ff4d4d', '#ffb84d', '#ffd700', '#9bff5a', '#39ff14'];
+    var labels = ['', 'Very weak — this would fall quickly', 'Weak', 'Fair — add length',
+      'Strong', 'Very strong'];
+    var bar = $('sfve-meter-bar');
+    bar.style.width = pct + '%';
+    bar.style.background = colours[s];
+    $('sfve-meter-text').textContent = pw
+      ? labels[s] + ' · ' + (s >= 4 ? '' : 'three random words beat clever punctuation')
+      : 'The passphrase is the whole lock. Nothing can recover it for you.';
+  }
+
+  /* ------------------------------------------------------------------ flow */
+  function encryptBytes(plainBytes, meta) {
+    var pw = $('sfve-pw').value;
+    if (!pw) return Promise.reject(new Error('Enter a passphrase first.'));
+    var salt = randomBytes(16), iv = randomBytes(12);
+    return deriveKey(pw, salt).then(function (key) {
+      return subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, envelope(meta, plainBytes));
+    }).then(function (cipher) {
+      return new Uint8Array(cipher);
+    }).then(function (cipherBytes) {
+      return pack(salt, iv, cipherBytes);
+    });
+  }
+
+  function decryptBytes(bytes) {
+    var pw = $('sfve-pw').value;
+    if (!pw) return Promise.reject(new Error('Enter the passphrase this was locked with.'));
+    var c = unpack(bytes);
+    return deriveWith(pw, c.salt, c.iter).then(function (key) {
+      return subtle.decrypt({ name: 'AES-GCM', iv: c.iv }, key, c.cipher);
+    }).then(function (plain) {
+      return openEnvelope(new Uint8Array(plain));
+    }, function () {
+      throw new Error('Wrong passphrase, or the data has been altered. Nothing was decrypted.');
+    });
+  }
+
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 6000);
+  }
+
+  function extractBlock(text) {
+    var m = String(text || '').match(/MPV1:[A-Za-z0-9+/=]+/);
+    if (!m) throw new Error('No MPV1: block found in what you pasted.');
+    return m[0].slice(5);
+  }
+
+  /* ----------------------------------------------------------------- wire */
+  function setMode(next) {
+    mode = next;
+    Array.prototype.forEach.call(host.querySelectorAll('[data-sfve-mode]'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-sfve-mode') === next);
+    });
+    $('sfve-text-pane').style.display = next === 'text' ? 'block' : 'none';
+    $('sfve-file-pane').style.display = next === 'file' ? 'block' : 'none';
+    $('sfve-open-pane').style.display = next === 'open' ? 'block' : 'none';
+  }
+  Array.prototype.forEach.call(host.querySelectorAll('[data-sfve-mode]'), function (b) {
+    b.addEventListener('click', function () { setMode(b.getAttribute('data-sfve-mode')); });
+  });
+  function setOpenKind(kind) {
+    openKind = kind;
+    Array.prototype.forEach.call(host.querySelectorAll('[data-sfve-open]'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-sfve-open') === kind);
+    });
+    $('sfve-open-paste').style.display = kind === 'paste' ? 'block' : 'none';
+    $('sfve-open-file').style.display = kind === 'file' ? 'block' : 'none';
+  }
+  Array.prototype.forEach.call(host.querySelectorAll('[data-sfve-open]'), function (b) {
+    b.addEventListener('click', function () { setOpenKind(b.getAttribute('data-sfve-open')); });
+  });
+
+  $('sfve-pw').addEventListener('input', updateMeter);
+  $('sfve-show').addEventListener('click', function () {
+    var f = $('sfve-pw');
+    var show = f.type === 'password';
+    f.type = show ? 'text' : 'password';
+    this.textContent = show ? 'Hide' : 'Show';
+  });
+  $('sfve-gen').addEventListener('click', function () {
+    $('sfve-pw').value = generatePassphrase();
+    $('sfve-pw').type = 'text';
+    $('sfve-show').textContent = 'Hide';
+    updateMeter();
+    status('Passphrase generated — write it down somewhere separate from the file.');
+  });
+
+  $('sfve-enc-text').addEventListener('click', function () {
+    var plain = $('sfve-plain').value;
+    if (!plain) { status('Type something to lock first.', true); return; }
+    if (!subtle) { status('This browser is not exposing Web Crypto (it needs a secure https page).', true); return; }
+    status('Deriving key…');
+    encryptBytes(u8(plain), { n: 'message.txt', t: 'text/plain' }).then(function (bytes) {
+      var text = 'MPV1:' + b64(bytes);
+      $('sfve-blob').value = text;
+      $('sfve-copy-blob').disabled = false;
+      $('sfve-dl-blob').disabled = false;
+      status('Locked ' + plain.length + ' characters into ' + text.length +
+        ' characters of ciphertext. Give someone the passphrase separately — never in the same message.');
+    }).catch(function (err) { status(err.message, true); });
+  });
+
+  $('sfve-copy-blob').addEventListener('click', function () {
+    var text = $('sfve-blob').value;
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { status('Ciphertext copied.'); },
+        function () { status('Clipboard blocked — select the text and copy it manually.', true); });
+    }
+  });
+  $('sfve-dl-blob').addEventListener('click', function () {
+    try {
+      var bytes = unb64(extractBlock($('sfve-blob').value));
+      download(new Blob([bytes], { type: 'application/octet-stream' }), 'message.mpvault');
+      status('Saved as message.mpvault.');
+    } catch (e) { status(e.message, true); }
+  });
+
+  var drop = $('sfve-drop'), fileInput = $('sfve-file');
+  drop.addEventListener('click', function () { fileInput.click(); });
+  drop.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.style.borderColor = 'rgba(45,212,255,0.8)'; });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.style.borderColor = ''; });
+  });
+  drop.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) pickFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', function () {
+    if (fileInput.files && fileInput.files[0]) pickFile(fileInput.files[0]);
+  });
+
+  function pickFile(f) {
+    pendingFile = f;
+    var mb = f.size / 1048576;
+    $('sfve-file-meta').style.display = 'block';
+    $('sfve-file-meta').textContent = f.name + ' · ' + (mb < 1 ? (f.size / 1024).toFixed(0) + ' KB' : mb.toFixed(1) + ' MB') +
+      (mb > 80 ? ' · large files take a while and a lot of memory' : '');
+    $('sfve-enc-file').disabled = false;
+  }
+
+  $('sfve-enc-file').addEventListener('click', function () {
+    if (!pendingFile) return;
+    if (!subtle) { status('This browser is not exposing Web Crypto (it needs a secure https page).', true); return; }
+    status('Reading and encrypting…');
+    pendingFile.arrayBuffer().then(function (ab) {
+      return encryptBytes(new Uint8Array(ab), { n: pendingFile.name, t: pendingFile.type || 'application/octet-stream' });
+    }).then(function (bytes) {
+      download(new Blob([bytes], { type: 'application/octet-stream' }), pendingFile.name + '.mpvault');
+      status('Encrypted ' + (bytes.length / 1024).toFixed(0) + ' KB → ' + pendingFile.name +
+        '.mpvault. The original filename is stored inside the ciphertext.');
+    }).catch(function (err) { status(err.message, true); });
+  });
+
+  $('sfve-dec').addEventListener('click', function () {
+    if (!subtle) { status('This browser is not exposing Web Crypto (it needs a secure https page).', true); return; }
+    var work;
+    if (openKind === 'paste') {
+      try {
+        work = Promise.resolve(unb64(extractBlock($('sfve-in-blob').value)));
+      } catch (e) { status(e.message, true); return; }
+    } else {
+      var f = $('sfve-in-file').files && $('sfve-in-file').files[0];
+      if (!f) { status('Choose the .mpvault file first.', true); return; }
+      work = f.arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
+    }
+    status('Deriving key…');
+    work.then(decryptBytes).then(function (res) {
+      var isText = !res.meta.t || /^text\//.test(res.meta.t) || res.meta.t === 'application/json';
+      $('sfve-copy-plain').disabled = !isText;
+      if (isText) {
+        var text = new TextDecoder().decode(res.payload);
+        $('sfve-result').innerHTML = '';
+        var box = document.createElement('div');
+        box.className = 'sfve-out';
+        box.style.color = 'var(--text)';
+        box.style.fontSize = '0.82rem';
+        box.style.whiteSpace = 'pre-wrap';
+        box.style.maxHeight = '260px';
+        box.style.overflow = 'auto';
+        box.textContent = text;
+        var cap = document.createElement('div');
+        cap.style.cssText = 'font-size:0.74rem;color:var(--text-secondary);margin-top:6px;';
+        cap.textContent = 'Decrypted ' + text.length + ' characters. Authentication passed, so the passphrase is right and nothing was tampered with.';
+        $('sfve-result').appendChild(box);
+        $('sfve-result').appendChild(cap);
+        $('sfve-copy-plain').onclick = function () {
+          if (navigator.clipboard) navigator.clipboard.writeText(text);
+        };
+      } else {
+        download(new Blob([res.payload], { type: res.meta.t || 'application/octet-stream' }),
+          res.meta.n || 'decrypted-file');
+        status('Decrypted ' + (res.payload.length / 1024).toFixed(0) + ' KB → ' +
+          (res.meta.n || 'decrypted-file') + ' (downloading now).');
+      }
+    }).catch(function (err) { status(err.message, true); });
+  });
+
+  if (!subtle) {
+    var box = $('sfve-nocrypto');
+    box.style.display = 'block';
+    box.textContent = 'This page is not in a secure context, so the browser will not expose Web Crypto and the vault cannot run. Open the site over https (or on localhost) and it will work.';
+    ['sfve-enc-text', 'sfve-enc-file', 'sfve-dec', 'sfve-gen'].forEach(function (id) { $(id).disabled = true; });
+  }
+
+  updateMeter();
+  setMode('text');
+  setOpenKind('paste');
+})();
+</script>
