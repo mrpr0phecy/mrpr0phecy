@@ -22,7 +22,8 @@
 #  14. card name collisions   — scripts/check-card-collisions.py (no cross-card top-level SyntaxError)
 #  15. home first screen      — scripts/build-home-prerender.py --check, plus the
 #                                loader tests in scripts/tests/ that drive the real
-#                                functions out of index.html
+#                                functions out of index.html, and the arithmetic
+#                                tests for the 2026-09-14 gap-fill tools
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -139,11 +140,19 @@ fi
 # was written for the lazy-loading rework but nothing ever ran it — verify.sh
 # only picked up staff-*.test.js, so a card-loader regression could ship green.
 if command -v node >/dev/null 2>&1; then
-  if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js; then
-    ok "card loader and first-screen fast path behave as shipped"
-  else
-    fail "card loader regression — see the failing assertion above"
-  fi
+if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js; then
+  ok "card loader and first-screen fast path behave as shipped"
+else
+  fail "card loader regression — see the failing assertion above"
+fi
+# The five gap-fill tools are mostly arithmetic (a childcare cap, a yarn
+# density, a median multiplier). test-card.js only proves they do not throw,
+# so these tests drive the real card source and assert the numbers.
+if node scripts/tests/gap-fill-tools.test.js; then
+  ok "gap-fill tool arithmetic still produces the documented numbers"
+else
+  fail "gap-fill tool regression — a tool's maths changed; see the failing assertion above"
+fi
 else
   note "node not available — card loader tests skipped"; NOTES=$((NOTES+1))
 fi

@@ -175,6 +175,23 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // Added 2026-09-14 — five subject gaps with no existing coverage at all:
+  // no ADHD/neurodivergence tool, no ingredient-allergen decoder, no knitting
+  // or crochet tool, no hearing/tinnitus tool and no childcare-cost tool
+  // existed in the catalogue. Verified zero-coverage before adding.
+  'adhd-time-task-lab': 'Wellbeing & Community',
+  'ingredient-label-allergen-decoder': 'Health & Fitness',
+  'knitting-crochet-yarn-studio': 'Productivity & Lifestyle',
+  'tinnitus-hearing-relief-studio': 'Health & Fitness',
+  'uk-childcare-cost-calculator': 'Finance & Money',
+  // Second batch, same method: subjects verified to have zero coverage before
+  // a line of code was written. No parking-appeal, rail-delay, Gift Aid,
+  // negotiation or LaTeX tool existed anywhere in the catalogue.
+  'uk-parking-appeal-builder': 'Finance & Money',
+  'rail-delay-repay-calculator': 'Finance & Money',
+  'gift-aid-calculator': 'Finance & Money',
+  'negotiation-prep-studio': 'Productivity & Lifestyle',
+  'latex-table-maths-studio': 'Writing & Language',
   // Added 2026-09-14 — five gap-fill tools (no kitchen-conversion, world-clock,
   // event-countdown, group-expense or affordability tool existed in the catalogue).
   'countdown-date-timer': 'Productivity & Lifestyle',
