@@ -1,0 +1,566 @@
+<h2 id="ttss-title" style="margin-top:0;color:var(--accent);">⏱️ Time Tracker &amp; Timesheet Studio</h2>
+
+<p id="ttss-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Run a stopwatch on real work, round it the way your contracts do, and turn the week into a CSV or a printable
+  invoice-ready timesheet. Toggl, Harvest and Hubstaff charge per seat per month and hold your data on their
+  servers; this keeps it in your browser, works with the tab closed, and exports to a spreadsheet any accountant
+  can open. No seat to buy, no cloud, no tracking of you while you track your time.
+</p>
+
+<style>
+  .ttss-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;}
+  .ttss-grid > div{min-width:0;max-width:100%;}
+  .ttss-lbl{display:block;font-size:0.76rem;color:var(--text-secondary);margin-bottom:4px;}
+  .ttss-in{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;}
+  .ttss-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:var(--text);font-size:0.82rem;font-weight:600;cursor:pointer;}
+  .ttss-btn:hover{background:rgba(255,255,255,0.12);}
+  .ttss-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .ttss-go{background:var(--accent);color:#0a0f14;border:none;font-weight:800;}
+  .ttss-clock{font-variant-numeric:tabular-nums;font-size:2rem;font-weight:800;color:var(--accent);line-height:1;}
+  .ttss-stat{border:1px solid var(--border-light);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,0.02);}
+  .ttss-stat b{display:block;font-size:1.05rem;color:var(--text);font-variant-numeric:tabular-nums;}
+  .ttss-stat span{font-size:0.7rem;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-secondary);}
+  .ttss-day{margin-top:12px;border-top:1px solid var(--border-light);padding-top:8px;font-size:0.74rem;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-secondary);}
+  .ttss-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;}
+  .ttss-chart{display:flex;align-items:flex-end;gap:4px;height:70px;margin:10px 0 4px;}
+  .ttss-bar{flex:1;min-width:6px;background:linear-gradient(180deg,var(--accent),rgba(45,212,255,0.25));border-radius:3px 3px 0 0;position:relative;}
+</style>
+
+<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;border:1px solid var(--border-light);border-radius:12px;padding:14px;background:rgba(255,255,255,0.02);margin-bottom:14px;">
+  <div>
+    <div class="ttss-clock" id="ttss-clock" aria-live="off">00:00:00</div>
+    <div id="ttss-running-note" style="font-size:0.76rem;color:var(--text-secondary);margin-top:4px;">Not running.</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    <button type="button" id="ttss-start" class="ttss-btn ttss-go">▶ Start</button>
+    <button type="button" id="ttss-stop" class="ttss-btn" disabled>■ Stop &amp; log</button>
+    <button type="button" id="ttss-discard" class="ttss-btn" disabled>Discard</button>
+  </div>
+</div>
+
+<div class="ttss-grid">
+  <div>
+    <label class="ttss-lbl" for="ttss-project">Project</label>
+    <input id="ttss-project" class="ttss-in" type="text" list="ttss-projects" placeholder="e.g. Acme rebrand" maxlength="60" />
+    <datalist id="ttss-projects"></datalist>
+  </div>
+  <div>
+    <label class="ttss-lbl" for="ttss-task">What you are doing</label>
+    <input id="ttss-task" class="ttss-in" type="text" placeholder="e.g. Homepage wireframes" maxlength="120" />
+  </div>
+  <div>
+    <label class="ttss-lbl" for="ttss-rate">Hourly rate</label>
+    <input id="ttss-rate" class="ttss-in" type="number" min="0" step="1" value="45" />
+  </div>
+  <div>
+    <label class="ttss-lbl" for="ttss-cur">Currency</label>
+    <select id="ttss-cur" class="ttss-in">
+      <option value="£" selected>GBP £</option>
+      <option value="$">USD $</option>
+      <option value="€">EUR €</option>
+      <option value="CA$">CAD $</option>
+      <option value="A$">AUD $</option>
+      <option value="">None</option>
+    </select>
+  </div>
+  <div>
+    <label class="ttss-lbl" for="ttss-round">Round each entry to</label>
+    <select id="ttss-round" class="ttss-in">
+      <option value="0" selected>Exact minutes</option>
+      <option value="6">Nearest 6 minutes (1/10 h)</option>
+      <option value="15">Nearest 15 minutes</option>
+      <option value="30">Nearest 30 minutes</option>
+    </select>
+  </div>
+  <div>
+    <span class="ttss-lbl">Billable</span>
+    <label style="display:flex;gap:6px;align-items:center;font-size:0.84rem;cursor:pointer;margin-top:6px;">
+      <input type="checkbox" id="ttss-billable" checked /> This work is billable
+    </label>
+  </div>
+</div>
+
+<div style="font-size:0.76rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-secondary);margin:14px 0 6px;">Add time by hand</div>
+<div class="ttss-grid">
+  <div>
+    <label class="ttss-lbl" for="ttss-m-date">Date</label>
+    <input id="ttss-m-date" class="ttss-in" type="date" />
+  </div>
+  <div>
+    <label class="ttss-lbl" for="ttss-m-start">Start</label>
+    <input id="ttss-m-start" class="ttss-in" type="time" step="60" value="09:00" />
+  </div>
+  <div>
+    <label class="ttss-lbl" for="ttss-m-end">End</label>
+    <input id="ttss-m-end" class="ttss-in" type="time" step="60" value="10:00" />
+  </div>
+  <div style="display:flex;align-items:flex-end;">
+    <button type="button" id="ttss-m-add" class="ttss-btn">+ Add entry</button>
+  </div>
+</div>
+
+<div style="font-size:0.76rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-secondary);margin:14px 0 6px;">This week</div>
+<div class="ttss-chart" id="ttss-chart" aria-hidden="true"></div>
+<div id="ttss-days" style="font-size:0.7rem;color:var(--text-secondary);display:flex;gap:4px;"></div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:16px 0;">
+  <div class="ttss-stat"><span>Total</span><b id="ttss-s-total">0h 00m</b></div>
+  <div class="ttss-stat"><span>Billable</span><b id="ttss-s-bill">0h 00m</b></div>
+  <div class="ttss-stat"><span>Entries</span><b id="ttss-s-count">0</b></div>
+  <div class="ttss-stat"><span>Value</span><b id="ttss-s-money">—</b></div>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;">
+  <label class="ttss-lbl" for="ttss-filter" style="margin:0;">Show</label>
+  <select id="ttss-filter" class="ttss-in" style="width:auto;min-width:150px;">
+    <option value="all" selected>All entries</option>
+    <option value="week">This week</option>
+    <option value="lastweek">Last week</option>
+    <option value="month">This month</option>
+  </select>
+  <input id="ttss-find" class="ttss-in" type="text" placeholder="Filter by project…" style="width:auto;flex:1;min-width:140px;" />
+  <button type="button" id="ttss-csv" class="ttss-btn ttss-go">⬇ Export CSV</button>
+  <button type="button" id="ttss-print" class="ttss-btn">Print timesheet</button>
+  <button type="button" id="ttss-clear" class="ttss-btn">Delete everything</button>
+  <span id="ttss-status" aria-live="polite" style="font-size:0.78rem;color:var(--text-secondary);"></span>
+</div>
+
+<div id="ttss-list" style="max-height:340px;overflow:auto;"></div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">Where the time lives, and how the maths works</summary>
+  <div style="margin-top:8px;">
+    <p style="margin:0 0 8px;">
+      Entries are kept in this browser's local storage. That means the stopwatch keeps running while the tab is
+      shut and the phone is in your pocket, because only the <em>start time</em> is stored and the elapsed figure is
+      recalculated from the clock — but it also means the data lives on this one device and this one browser.
+      Clearing site data deletes it, so export a CSV before you clear anything, and treat the export as your real
+      record.
+    </p>
+    <p style="margin:0 0 8px;">
+      Rounding is applied per entry, not to the day's total, which is how most agencies bill: six minutes is a
+      tenth of an hour, so "nearest 6" is the same as billing in tenths. A seven-minute call rounds to six, a
+      nine-minute one to twelve. The exact figure is always kept underneath, so switching back to "exact minutes"
+      loses nothing.
+    </p>
+    <p style="margin:0;">
+      The printable timesheet is a plain HTML table with the project, date, description, rounded hours and rate —
+      the format most finance teams expect, and something you can paste into an invoice without re-typing.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  function $(id) { return host.querySelector('#' + id); }
+
+  var KEY = 'ttss-entries-v1';
+  var RUN = 'ttss-running-v1';
+  var entries = [];
+  var running = null;     // { project, task, startedAt, billable, rate }
+  var ticker = 0;
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function isoDay(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function money(n) {
+    var cur = $('ttss-cur').value;
+    var s = (Math.round(n * 100) / 100).toFixed(2);
+    return cur ? cur + s : s;
+  }
+  function fmtDur(ms) {
+    var m = Math.max(0, Math.round(ms / 60000));
+    var h = Math.floor(m / 60);
+    return h + 'h ' + pad(m % 60) + 'm';
+  }
+  function fmtClock(ms) {
+    var s = Math.max(0, Math.floor(ms / 1000));
+    return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor((s % 3600) / 60)) + ':' + pad(s % 60);
+  }
+  function hoursOf(ms) { return ms / 3600000; }
+
+  function roundMs(ms) {
+    var mode = parseInt($('ttss-round').value, 10) || 0;
+    if (!mode) return ms;
+    var mins = ms / 60000;
+    return Math.round(mins / mode) * mode * 60000;
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      entries = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(entries)) entries = [];
+    } catch (e) { entries = []; }
+    try {
+      var rawRun = localStorage.getItem(RUN);
+      running = rawRun ? JSON.parse(rawRun) : null;
+      if (running && !running.startedAt) running = null;
+    } catch (e) { running = null; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(entries)); } catch (e) {}
+    if (running) { try { localStorage.setItem(RUN, JSON.stringify(running)); } catch (e) {} }
+    else { try { localStorage.removeItem(RUN); } catch (e) {} }
+  }
+
+  function projectList() {
+    var seen = {};
+    entries.forEach(function (e) { if (e.project) seen[e.project] = 1; });
+    return Object.keys(seen).sort();
+  }
+
+  function visible() {
+    var mode = $('ttss-filter').value;
+    var find = ($('ttss-find').value || '').trim().toLowerCase();
+    var now = new Date();
+    var out = entries.slice();
+    if (mode === 'week' || mode === 'lastweek' || mode === 'month') {
+      var start = new Date(now);
+      if (mode === 'week' || mode === 'lastweek') {
+        var dow = (now.getDay() + 6) % 7;           // Monday = 0
+        start.setDate(now.getDate() - dow);
+        if (mode === 'lastweek') start.setDate(start.getDate() - 7);
+        var end = new Date(start); end.setDate(start.getDate() + 7);
+        out = out.filter(function (e) {
+          var t = new Date(e.start);
+          return t >= start && t < end;
+        });
+      } else {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        out = out.filter(function (e) { return new Date(e.start) >= start; });
+      }
+    }
+    if (find) {
+      out = out.filter(function (e) {
+        return (e.project || '').toLowerCase().indexOf(find) > -1 ||
+               (e.task || '').toLowerCase().indexOf(find) > -1;
+      });
+    }
+    return out.sort(function (a, b) { return new Date(b.start) - new Date(a.start); });
+  }
+
+  function renderStats(list) {
+    var total = 0, bill = 0, value = 0;
+    list.forEach(function (e) {
+      var ms = roundMs(e.end - e.start);
+      total += ms;
+      if (e.billable) {
+        bill += ms;
+        value += hoursOf(ms) * (e.rate || 0);
+      }
+    });
+    $('ttss-s-total').textContent = fmtDur(total);
+    $('ttss-s-bill').textContent = fmtDur(bill);
+    $('ttss-s-count').textContent = String(list.length);
+    $('ttss-s-money').textContent = $('ttss-cur').value ? money(value) : fmtDur(bill) + ' billable';
+  }
+
+  function renderChart() {
+    var box = $('ttss-chart');
+    var days = $('ttss-days');
+    box.innerHTML = ''; days.innerHTML = '';
+    var now = new Date();
+    var dow = (now.getDay() + 6) % 7;
+    var monday = new Date(now);
+    monday.setDate(now.getDate() - dow);
+    monday.setHours(0, 0, 0, 0);
+    var totals = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(monday); d.setDate(monday.getDate() + i);
+      var next = new Date(d); next.setDate(d.getDate() + 1);
+      var ms = 0;
+      entries.forEach(function (e) {
+        var t = new Date(e.start);
+        if (t >= d && t < next) ms += roundMs(e.end - e.start);
+      });
+      totals.push(ms);
+      var lbl = document.createElement('div');
+      lbl.style.flex = '1';
+      lbl.style.textAlign = 'center';
+      lbl.style.minWidth = '6px';
+      lbl.textContent = ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i];
+      days.appendChild(lbl);
+    }
+    var max = Math.max.apply(null, totals.concat([1]));
+    totals.forEach(function (ms) {
+      var bar = document.createElement('div');
+      bar.className = 'ttss-bar';
+      bar.style.height = Math.max(2, Math.round(ms / max * 100)) + '%';
+      bar.title = fmtDur(ms);
+      box.appendChild(bar);
+    });
+  }
+
+  function renderList() {
+    var list = visible();
+    var box = $('ttss-list');
+    box.innerHTML = '';
+    if (!list.length) {
+      box.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary);padding:12px 0;">No entries yet. Press Start above, or add one by hand.</p>';
+      return;
+    }
+    var day = '';
+    list.forEach(function (e) {
+      var d = new Date(e.start);
+      var key = isoDay(d);
+      if (key !== day) {
+        day = key;
+        var head = document.createElement('div');
+        head.className = 'ttss-day';
+        head.textContent = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+        box.appendChild(head);
+      }
+      var row = document.createElement('div');
+      row.className = 'ttss-row';
+
+      var time = document.createElement('span');
+      time.style.cssText = 'font-variant-numeric:tabular-nums;color:var(--text);min-width:104px;';
+      time.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + '–' +
+        pad(new Date(e.end).getHours()) + ':' + pad(new Date(e.end).getMinutes());
+
+      var proj = document.createElement('span');
+      proj.style.cssText = 'font-weight:700;color:var(--accent);min-width:110px;';
+      proj.textContent = e.project || '(no project)';
+
+      var task = document.createElement('span');
+      task.style.cssText = 'flex:1;min-width:120px;color:var(--text-secondary);';
+      task.textContent = e.task || '';
+
+      var dur = document.createElement('span');
+      dur.style.cssText = 'font-variant-numeric:tabular-nums;min-width:74px;text-align:right;';
+      dur.textContent = fmtDur(roundMs(e.end - e.start));
+
+      var tag = document.createElement('span');
+      tag.style.cssText = 'font-size:0.7rem;padding:2px 7px;border-radius:999px;border:1px solid ' +
+        (e.billable ? 'rgba(57,255,20,0.35)' : 'rgba(255,255,255,0.18)') + ';color:' +
+        (e.billable ? 'var(--success)' : 'var(--text-secondary)') + ';';
+      tag.textContent = e.billable ? 'billable' : 'non-billable';
+
+      var amt = document.createElement('span');
+      amt.style.cssText = 'font-variant-numeric:tabular-nums;min-width:76px;text-align:right;';
+      amt.textContent = e.billable ? money(hoursOf(roundMs(e.end - e.start)) * (e.rate || 0)) : '—';
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'ttss-btn';
+      del.style.cssText = 'padding:3px 8px;font-size:0.72rem;';
+      del.textContent = '✕';
+      del.title = 'Delete this entry';
+      del.setAttribute('aria-label', 'Delete entry for ' + (e.project || 'no project'));
+      del.addEventListener('click', function () {
+        entries = entries.filter(function (x) { return x !== e; });
+        save(); render();
+      });
+
+      row.appendChild(time); row.appendChild(proj); row.appendChild(task);
+      row.appendChild(dur); row.appendChild(tag); row.appendChild(amt); row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  function render() {
+    renderStats(visible());
+    renderChart();
+    renderList();
+    var dl = $('ttss-projects');
+    dl.innerHTML = '';
+    projectList().forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p;
+      dl.appendChild(o);
+    });
+  }
+
+  function tick() {
+    if (running) {
+      $('ttss-clock').textContent = fmtClock(Date.now() - running.startedAt);
+    } else {
+      $('ttss-clock').textContent = '00:00:00';
+    }
+  }
+
+  function setRunUi() {
+    $('ttss-start').disabled = !!running;
+    $('ttss-stop').disabled = !running;
+    $('ttss-discard').disabled = !running;
+    if (running) {
+      $('ttss-start').textContent = '▶ Running…';
+      $('ttss-running-note').textContent = (running.project || 'No project') +
+        (running.task ? ' — ' + running.task : '') + ' · started ' +
+        new Date(running.startedAt).toLocaleTimeString();
+    } else {
+      $('ttss-start').textContent = '▶ Start';
+      $('ttss-running-note').textContent = 'Not running.';
+    }
+    tick();
+  }
+
+  $('ttss-start').addEventListener('click', function () {
+    if (running) return;
+    running = {
+      project: $('ttss-project').value.trim(),
+      task: $('ttss-task').value.trim(),
+      startedAt: Date.now(),
+      billable: $('ttss-billable').checked,
+      rate: parseFloat($('ttss-rate').value) || 0
+    };
+    save(); setRunUi();
+    $('ttss-status').textContent = 'Timer running — it keeps counting with this tab closed.';
+  });
+
+  $('ttss-stop').addEventListener('click', function () {
+    if (!running) return;
+    var ended = Date.now();
+    if (ended - running.startedAt < 1000) {
+      $('ttss-status').textContent = 'That was under a second — nothing logged.';
+    } else {
+      entries.push({
+        start: new Date(running.startedAt).toISOString(),
+        end: new Date(ended).toISOString(),
+        project: running.project,
+        task: running.task,
+        billable: running.billable,
+        rate: running.rate
+      });
+      save();
+      $('ttss-status').textContent = 'Logged ' + fmtDur(roundMs(ended - running.startedAt)) + '.';
+    }
+    running = null;
+    $('ttss-task').value = '';
+    save(); setRunUi(); render();
+  });
+
+  $('ttss-discard').addEventListener('click', function () {
+    running = null;
+    save(); setRunUi();
+    $('ttss-status').textContent = 'Discarded — nothing was logged.';
+  });
+
+  $('ttss-m-add').addEventListener('click', function () {
+    var date = $('ttss-m-date').value;
+    var s = $('ttss-m-start').value;
+    var e = $('ttss-m-end').value;
+    if (!date || !s || !e) { $('ttss-status').textContent = 'Pick a date, a start time and an end time.'; return; }
+    var start = new Date(date + 'T' + s + ':00');
+    var end = new Date(date + 'T' + e + ':00');
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) { $('ttss-status').textContent = 'Those times could not be read.'; return; }
+    if (end <= start) { $('ttss-status').textContent = 'The end time has to be after the start time.'; return; }
+    entries.push({
+      start: start.toISOString(),
+      end: end.toISOString(),
+      project: $('ttss-project').value.trim(),
+      task: $('ttss-task').value.trim(),
+      billable: $('ttss-billable').checked,
+      rate: parseFloat($('ttss-rate').value) || 0
+    });
+    save(); render();
+    $('ttss-status').textContent = 'Added ' + fmtDur(roundMs(end - start)) + ' by hand.';
+  });
+
+  function csvCell(v) {
+    var s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function toCsv(list) {
+    var head = ['Date', 'Start', 'End', 'Project', 'Description', 'Exact hours', 'Rounded hours', 'Billable', 'Rate', 'Amount'];
+    var rows = [head.join(',')];
+    list.slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); }).forEach(function (e) {
+      var s = new Date(e.start), en = new Date(e.end);
+      var exact = hoursOf(e.end - e.start);
+      var rounded = hoursOf(roundMs(e.end - e.start));
+      rows.push([
+        isoDay(s),
+        pad(s.getHours()) + ':' + pad(s.getMinutes()),
+        pad(en.getHours()) + ':' + pad(en.getMinutes()),
+        e.project || '',
+        e.task || '',
+        exact.toFixed(4),
+        rounded.toFixed(4),
+        e.billable ? 'yes' : 'no',
+        (e.rate || 0).toFixed(2),
+        e.billable ? (rounded * (e.rate || 0)).toFixed(2) : '0.00'
+      ].map(csvCell).join(','));
+    });
+    var totalRounded = list.reduce(function (a, e) { return a + hoursOf(roundMs(e.end - e.start)); }, 0);
+    var totalValue = list.reduce(function (a, e) {
+      return e.billable ? a + hoursOf(roundMs(e.end - e.start)) * (e.rate || 0) : a;
+    }, 0);
+    rows.push(['', '', '', 'TOTAL', list.length + ' entries', '', totalRounded.toFixed(4), '', '', totalValue.toFixed(2)].map(csvCell).join(','));
+    return rows.join('\n');
+  }
+
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  $('ttss-csv').addEventListener('click', function () {
+    var list = visible();
+    if (!list.length) { $('ttss-status').textContent = 'Nothing to export yet.'; return; }
+    download(new Blob([toCsv(list)], { type: 'text/csv' }), 'timesheet-' + isoDay(new Date()) + '.csv');
+    $('ttss-status').textContent = 'Exported ' + list.length + ' entries to CSV.';
+  });
+
+  $('ttss-print').addEventListener('click', function () {
+    var list = visible();
+    if (!list.length) { $('ttss-status').textContent = 'Nothing to print yet.'; return; }
+    var rows = list.slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); }).map(function (e) {
+      var s = new Date(e.start);
+      var h = hoursOf(roundMs(e.end - e.start));
+      return '<tr><td>' + isoDay(s) + '</td><td>' + (e.project || '') + '</td><td>' + (e.task || '') +
+        '</td><td class="n">' + h.toFixed(2) + '</td><td class="n">' + (e.rate || 0).toFixed(2) +
+        '</td><td class="n">' + (e.billable ? (h * (e.rate || 0)).toFixed(2) : '0.00') + '</td></tr>';
+    }).join('');
+    var totalH = list.reduce(function (a, e) { return a + hoursOf(roundMs(e.end - e.start)); }, 0);
+    var totalV = list.reduce(function (a, e) {
+      return e.billable ? a + hoursOf(roundMs(e.end - e.start)) * (e.rate || 0) : a;
+    }, 0);
+    var html = '<!doctype html><html><head><meta charset="utf-8"><title>Timesheet</title><style>' +
+      'body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;margin:32px}' +
+      'h1{font-size:20px;margin:0 0 4px}p.meta{margin:0 0 18px;color:#555}' +
+      'table{width:100%;border-collapse:collapse}th{text-align:left;border-bottom:2px solid #111;padding:7px 6px;font-size:12px;letter-spacing:.04em;text-transform:uppercase}' +
+      'td{border-bottom:1px solid #dfe4ea;padding:7px 6px}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}' +
+      'tfoot td{border-top:2px solid #111;font-weight:700;border-bottom:none}' +
+      '@media print{body{margin:0}}</style></head><body>' +
+      '<h1>Timesheet</h1><p class="meta">Generated ' + new Date().toLocaleString() + ' · ' + list.length +
+      ' entries · rounding: ' + ($('ttss-round').value === '0' ? 'exact' : $('ttss-round').value + ' minutes') +
+      ' · currency ' + ($('ttss-cur').value || 'none') + '</p>' +
+      '<table><thead><tr><th>Date</th><th>Project</th><th>Work</th><th class="n">Hours</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead><tbody>' +
+      rows + '</tbody><tfoot><tr><td colspan="3">Total</td><td class="n">' + totalH.toFixed(2) +
+      '</td><td></td><td class="n">' + totalV.toFixed(2) + '</td></tr></tfoot></table></body></html>';
+    var w = window.open('', '_blank');
+    if (!w) { $('ttss-status').textContent = 'Pop-up blocked — allow pop-ups, or export the CSV instead.'; return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(function () { w.print(); }, 350);
+  });
+
+  $('ttss-clear').addEventListener('click', function () {
+    if (!entries.length) return;
+    if (!window.confirm('Delete all ' + entries.length + ' entries? This cannot be undone.')) return;
+    entries = [];
+    save(); render();
+    $('ttss-status').textContent = 'All entries deleted.';
+  });
+
+  ['ttss-filter', 'ttss-find', 'ttss-round', 'ttss-cur'].forEach(function (id) {
+    $(id).addEventListener('input', render);
+    $(id).addEventListener('change', render);
+  });
+
+  (function () {
+    var d = new Date();
+    $('ttss-m-date').value = isoDay(d);
+  })();
+
+  load();
+  setRunUi();
+  render();
+  ticker = setInterval(tick, 1000);
+})();
+</script>

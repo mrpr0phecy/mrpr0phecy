@@ -175,6 +175,17 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-14 — ten free replacements for services that charge a subscription.
+  'screen-recorder-studio': 'SaaS & Business Killers',
+  'photo-watermark-studio': 'SaaS & Business Killers',
+  'barcode-label-studio': 'SaaS & Business Killers',
+  'cookie-consent-banner-builder': 'SaaS & Business Killers',
+  'terms-of-service-generator': 'SaaS & Business Killers',
+  'epub-ebook-builder': 'SaaS & Business Killers',
+  'time-tracker-timesheet-studio': 'SaaS & Business Killers',
+  'secure-file-vault-encryptor': 'SaaS & Business Killers',
+  'gantt-project-timeline-studio': 'SaaS & Business Killers',
+  'linkinbio-page-builder': 'SaaS & Business Killers',
   'ai-realistic-face-avatar': 'AI & Autonomous Agents',
   'ai-super-realistic-face-v4': 'AI & Autonomous Agents',
   'ai-graph-of-thought-lab': 'AI & Autonomous Agents',

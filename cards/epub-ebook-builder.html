@@ -1,0 +1,615 @@
+<h2 id="eebb-title" style="margin-top:0;color:var(--accent);">📚 EPUB &amp; eBook Builder</h2>
+
+<p id="eebb-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Turn a set of chapters into a real EPUB 3 file your reader can actually open — the job Vellum charges a couple of
+  hundred pounds for and Designrr sells as a subscription. Write in plain text with light Markdown, add or generate
+  a cover, then download a valid .epub built on your own machine. No upload, no account, no per-book fee, and no
+  watermark in the file.
+</p>
+
+<style>
+  .eebb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px;}
+  .eebb-grid > div{min-width:0;max-width:100%;}
+  .eebb-lbl{display:block;font-size:0.76rem;color:var(--text-secondary);margin-bottom:4px;}
+  .eebb-in{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;}
+  .eebb-ta{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;min-height:170px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.55;}
+  .eebb-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:var(--text);font-size:0.82rem;font-weight:600;cursor:pointer;}
+  .eebb-btn:hover{background:rgba(255,255,255,0.12);}
+  .eebb-go{background:var(--accent);color:#0a0f14;border:none;font-weight:800;}
+  .eebb-ch{border:1px solid var(--border-light);border-radius:12px;padding:12px;margin-bottom:12px;background:rgba(255,255,255,0.02);}
+  .eebb-cover{width:96px;height:136px;object-fit:cover;border-radius:6px;border:1px solid var(--border-light);background:#060b10;}
+</style>
+
+<div class="eebb-grid">
+  <div>
+    <label class="eebb-lbl" for="eebb-title-in">Book title</label>
+    <input id="eebb-title-in" class="eebb-in" type="text" value="The Quiet Workshop" maxlength="120" />
+  </div>
+  <div>
+    <label class="eebb-lbl" for="eebb-author">Author</label>
+    <input id="eebb-author" class="eebb-in" type="text" value="Your Name" maxlength="80" />
+  </div>
+  <div>
+    <label class="eebb-lbl" for="eebb-lang">Language</label>
+    <input id="eebb-lang" class="eebb-in" type="text" value="en" maxlength="12" />
+  </div>
+  <div>
+    <label class="eebb-lbl" for="eebb-id">Identifier (ISBN or leave blank)</label>
+    <input id="eebb-id" class="eebb-in" type="text" placeholder="auto-generated UUID" maxlength="60" />
+  </div>
+  <div style="grid-column:1 / -1;">
+    <label class="eebb-lbl" for="eebb-desc-in">Short description</label>
+    <input id="eebb-desc-in" class="eebb-in" type="text" value="Notes on making things carefully." maxlength="300" />
+  </div>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:14px;">
+  <div>
+    <img id="eebb-cover-img" class="eebb-cover" alt="Cover preview" src="" />
+  </div>
+  <div style="flex:1;min-width:220px;">
+    <label class="eebb-lbl" for="eebb-cover-file">Cover image (optional — JPG or PNG)</label>
+    <input id="eebb-cover-file" class="eebb-in" type="file" accept="image/*" style="padding:6px;" />
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+      <button type="button" id="eebb-gen-cover" class="eebb-btn">Generate a typographic cover</button>
+      <button type="button" id="eebb-clear-cover" class="eebb-btn">No cover</button>
+    </div>
+  </div>
+</div>
+
+<div style="font-size:0.76rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px;">Chapters</div>
+<div id="eebb-chapters"></div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0 14px;">
+  <button type="button" id="eebb-add" class="eebb-btn">+ Add chapter</button>
+  <button type="button" id="eebb-build" class="eebb-btn eebb-go">⬇ Build &amp; download .epub</button>
+  <button type="button" id="eebb-html" class="eebb-btn">⬇ Download as one HTML file</button>
+  <button type="button" id="eebb-reset" class="eebb-btn">Start over</button>
+  <span id="eebb-status" aria-live="polite" style="font-size:0.78rem;color:var(--text-secondary);"></span>
+</div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">What comes out the other end</summary>
+  <div style="margin-top:8px;">
+    <p style="margin:0 0 8px;">
+      An EPUB is a zip file with a particular shape. The builder writes, in order and uncompressed as the format
+      demands: a <code>mimetype</code> file containing exactly <code>application/epub+zip</code> with no trailing
+      newline; <code>META-INF/container.xml</code> pointing at the package; then <code>content.opf</code> with the
+      Dublin Core metadata and the reading order; <code>nav.xhtml</code> as the EPUB 3 navigation document; a
+      stylesheet; and one XHTML file per chapter. Every entry gets a CRC-32, and the zip is assembled by hand —
+      there is no library here to do it.
+    </p>
+    <p style="margin:0 0 8px;">
+      Chapters are written in a small Markdown subset: <code>#</code>, <code>##</code> and <code>###</code> for
+      headings, <code>-</code> for bullets, <code>1.</code> for numbered lists, <code>&gt;</code> for quotes and
+      <code>---</code> for a scene break. Inline <code>**bold**</code>, <code>*italic*</code> and
+      <code>`code`</code> are supported. Everything else is treated as a paragraph — which is the correct behaviour
+      for prose.
+    </p>
+    <p style="margin:0;">
+      Your text is kept in this browser's local storage as you type, so a refresh does not lose the book. It is
+      cleared by "Start over" and never leaves the device. Amazon's Kindle format needs a conversion step, which
+      free tools do from EPUB; Apple Books, Kobo, Google Play Books and most readers open EPUB directly.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  function $(id) { return host.querySelector('#' + id); }
+  var KEY = 'eebb-book-v1';
+
+  var book = null;
+  var coverData = null;      // { blob, mime, ext, url }
+
+  /* ------------------------------------------------------------ zip writer */
+  var crcTable = null;
+  function crc32(buf) {
+    if (!crcTable) {
+      crcTable = new Uint32Array(256);
+      for (var n = 0; n < 256; n++) {
+        var c = n;
+        for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        crcTable[n] = c >>> 0;
+      }
+    }
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < buf.length; i++) crc = crcTable[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+  function zipStore(files) {
+    var parts = [], central = [], offset = 0;
+    files.forEach(function (f) {
+      var nameBytes = new TextEncoder().encode(f.name);
+      var data = f.data;
+      var crc = crc32(data);
+      var local = new Uint8Array(30 + nameBytes.length);
+      var lv = new DataView(local.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, f.first ? 10 : 20, true);   // mimetype claims v1.0
+      lv.setUint16(6, 0x0800, true);              // UTF-8 names
+      lv.setUint16(8, 0, true);                   // stored
+      lv.setUint16(10, 0, true);
+      lv.setUint16(12, 0x2821, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, data.length, true);
+      lv.setUint32(22, data.length, true);
+      lv.setUint16(26, nameBytes.length, true);
+      lv.setUint16(28, 0, true);
+      local.set(nameBytes, 30);
+      parts.push(local, data);
+
+      var cent = new Uint8Array(46 + nameBytes.length);
+      var cv = new DataView(cent.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, f.first ? 10 : 20, true);
+      cv.setUint16(6, f.first ? 10 : 20, true);
+      cv.setUint16(8, 0x0800, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, 0, true);
+      cv.setUint16(14, 0x2821, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, data.length, true);
+      cv.setUint32(24, data.length, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint32(42, offset, true);
+      cent.set(nameBytes, 46);
+      central.push(cent);
+      offset += local.length + data.length;
+    });
+    var centralSize = central.reduce(function (a, b) { return a + b.length; }, 0);
+    var end = new Uint8Array(22);
+    var ev = new DataView(end.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, centralSize, true);
+    ev.setUint32(16, offset, true);
+    return new Blob(parts.concat(central, [end]), { type: 'application/epub+zip' });
+  }
+
+  /* --------------------------------------------------------- text handling */
+  function xesc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  function inline(s) {
+    var t = xesc(s);
+    // \x60 is a backtick — written as an escape so the literal never appears
+    // inside this regex (it confuses scripts that scan card source).
+    t = t.replace(/\x60([^\x60]+)\x60/g, '<code>$1</code>');
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    return t;
+  }
+  // Light Markdown -> XHTML body fragment.
+  function mdToXhtml(src) {
+    var lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
+    var out = [], para = [], list = null;
+    function flushPara() {
+      if (para.length) { out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; }
+    }
+    function flushList() {
+      if (list) { out.push('<' + list.tag + '>' + list.items.map(function (i) { return '<li>' + inline(i) + '</li>'; }).join('') + '</' + list.tag + '>'); list = null; }
+    }
+    lines.forEach(function (line) {
+      var t = line.trim();
+      if (!t) { flushPara(); flushList(); return; }
+      if (/^---+$/.test(t)) { flushPara(); flushList(); out.push('<hr class="break"/>'); return; }
+      var h = t.match(/^(#{1,3})\s+(.*)$/);
+      if (h) { flushPara(); flushList(); out.push('<h' + h[1].length + '>' + inline(h[2]) + '</h' + h[1].length + '>'); return; }
+      var bq = t.match(/^&gt;\s?(.*)$/) || t.match(/^>\s?(.*)$/);
+      if (bq) { flushPara(); flushList(); out.push('<blockquote><p>' + inline(bq[1]) + '</p></blockquote>'); return; }
+      var ul = t.match(/^[-*]\s+(.*)$/);
+      if (ul) { flushPara(); if (!list || list.tag !== 'ul') { flushList(); list = { tag: 'ul', items: [] }; } list.items.push(ul[1]); return; }
+      var ol = t.match(/^\d+\.\s+(.*)$/);
+      if (ol) { flushPara(); if (!list || list.tag !== 'ol') { flushList(); list = { tag: 'ol', items: [] }; } list.items.push(ol[1]); return; }
+      flushList();
+      para.push(t);
+    });
+    flushPara(); flushList();
+    return out.join('\n  ') || '<p>(This chapter is empty.)</p>';
+  }
+
+  var STYLE = [
+    'body{font-family:Georgia,"Times New Roman",serif;line-height:1.55;margin:0 6%;hyphens:auto;}',
+    'h1{font-size:1.5em;line-height:1.2;margin:1.6em 0 .6em;text-align:left;page-break-after:avoid;}',
+    'h2{font-size:1.2em;margin:1.4em 0 .5em;page-break-after:avoid;}',
+    'h3{font-size:1.05em;margin:1.2em 0 .4em;page-break-after:avoid;}',
+    'p{margin:0 0 .75em;text-align:justify;}',
+    'p.first:first-letter{}',
+    'blockquote{margin:1em 6%;font-style:italic;color:#444;}',
+    'ul,ol{margin:0 0 .8em;padding-left:1.4em;}',
+    'li{margin-bottom:.3em;}',
+    'code{font-family:ui-monospace,Menlo,monospace;font-size:.9em;background:#f2f2f2;padding:0 .2em;}',
+    'hr.break{border:none;text-align:center;margin:1.8em 0;}',
+    'hr.break:after{content:"• • •";letter-spacing:1em;color:#888;}',
+    '.coverpage{text-align:center;margin:0;padding:0;}',
+    '.coverpage img{max-width:100%;max-height:98vh;}',
+    '.titlepage{text-align:center;margin-top:32%;}',
+    '.titlepage h1{font-size:2em;text-align:center;}',
+    '.titlepage p{text-align:center;}'
+  ].join('\n');
+
+  function xhtmlDoc(title, bodyHtml, extraHead) {
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<!DOCTYPE html>\n' +
+      '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">\n' +
+      '<head>\n  <meta charset="utf-8"/>\n  <title>' + xesc(title) + '</title>\n' +
+      '  <link rel="stylesheet" type="text/css" href="style.css"/>\n' +
+      (extraHead || '') +
+      '</head>\n<body>\n  ' + bodyHtml + '\n</body>\n</html>\n';
+  }
+
+  /* ---------------------------------------------------------------- state */
+  function defaultBook() {
+    return {
+      title: 'The Quiet Workshop',
+      author: 'Your Name',
+      lang: 'en',
+      id: '',
+      desc: 'Notes on making things carefully.',
+      chapters: [
+        { title: 'Chapter One', body: '# Chapter One\n\nStart writing here. Blank lines make paragraphs.\n\n- Bullets work\n- So do *italics* and **bold**\n\n---\n\nA line of three dashes is a scene break.' },
+        { title: 'Chapter Two', body: '## Chapter Two\n\n> A quotation looks like this.\n\nNumbered lists too:\n\n1. First\n2. Second' }
+      ]
+    };
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(book)); } catch (e) {}
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return defaultBook();
+      var b = JSON.parse(raw);
+      if (!b || !Array.isArray(b.chapters) || !b.chapters.length) return defaultBook();
+      return b;
+    } catch (e) { return defaultBook(); }
+  }
+
+  function syncFromForm() {
+    book.title = $('eebb-title-in').value;
+    book.author = $('eebb-author').value;
+    book.lang = $('eebb-lang').value;
+    book.id = $('eebb-id').value;
+    book.desc = $('eebb-desc-in').value;
+    save();
+  }
+
+  function renderChapters() {
+    var box = $('eebb-chapters');
+    box.innerHTML = '';
+    book.chapters.forEach(function (ch, i) {
+      var wrap = document.createElement('div');
+      wrap.className = 'eebb-ch';
+
+      var head = document.createElement('div');
+      head.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;';
+
+      var num = document.createElement('span');
+      num.style.cssText = 'font-size:0.72rem;color:var(--text-secondary);min-width:52px;';
+      num.textContent = 'Chapter ' + (i + 1);
+
+      var title = document.createElement('input');
+      title.className = 'eebb-in';
+      title.type = 'text';
+      title.value = ch.title;
+      title.maxLength = 120;
+      title.setAttribute('aria-label', 'Title of chapter ' + (i + 1));
+      title.style.flex = '1';
+      title.style.minWidth = '140px';
+      title.addEventListener('input', function () { ch.title = title.value; save(); });
+
+      var up = document.createElement('button');
+      up.type = 'button'; up.className = 'eebb-btn'; up.textContent = '↑';
+      up.title = 'Move chapter up';
+      up.setAttribute('aria-label', 'Move chapter ' + (i + 1) + ' up');
+      up.style.padding = '5px 9px';
+      up.disabled = i === 0;
+      up.addEventListener('click', function () {
+        if (i === 0) return;
+        var t = book.chapters[i - 1]; book.chapters[i - 1] = book.chapters[i]; book.chapters[i] = t;
+        save(); renderChapters();
+      });
+
+      var down = document.createElement('button');
+      down.type = 'button'; down.className = 'eebb-btn'; down.textContent = '↓';
+      down.title = 'Move chapter down';
+      down.setAttribute('aria-label', 'Move chapter ' + (i + 1) + ' down');
+      down.style.padding = '5px 9px';
+      down.disabled = i === book.chapters.length - 1;
+      down.addEventListener('click', function () {
+        if (i === book.chapters.length - 1) return;
+        var t = book.chapters[i + 1]; book.chapters[i + 1] = book.chapters[i]; book.chapters[i] = t;
+        save(); renderChapters();
+      });
+
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'eebb-btn'; del.textContent = 'Delete';
+      del.style.padding = '5px 9px';
+      del.disabled = book.chapters.length === 1;
+      del.setAttribute('aria-label', 'Delete chapter ' + (i + 1));
+      del.addEventListener('click', function () {
+        if (book.chapters.length === 1) return;
+        book.chapters.splice(i, 1);
+        save(); renderChapters(); updateStatus();
+      });
+
+      head.appendChild(num); head.appendChild(title);
+      head.appendChild(up); head.appendChild(down); head.appendChild(del);
+
+      var ta = document.createElement('textarea');
+      ta.className = 'eebb-ta';
+      ta.value = ch.body;
+      ta.setAttribute('aria-label', 'Text of chapter ' + (i + 1));
+      ta.addEventListener('input', function () { ch.body = ta.value; save(); updateStatus(); });
+
+      wrap.appendChild(head);
+      wrap.appendChild(ta);
+      box.appendChild(wrap);
+    });
+  }
+
+  function words() {
+    return book.chapters.reduce(function (a, c) {
+      return a + String(c.body || '').split(/\s+/).filter(Boolean).length;
+    }, 0);
+  }
+  function updateStatus() {
+    var w = words();
+    $('eebb-status').textContent = book.chapters.length + ' chapter' +
+      (book.chapters.length === 1 ? '' : 's') + ' · about ' + w + ' words · ' +
+      Math.max(1, Math.round(w / 250)) + ' min read · saved in this browser';
+  }
+
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 6000);
+  }
+  function fileSlug() {
+    return (book.title || 'book').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'book';
+  }
+
+  /* ---------------------------------------------------------------- cover */
+  function setCoverFromCanvas(canvas) {
+    canvas.toBlob(function (blob) { acceptCover(blob); }, 'image/jpeg', 0.9);
+  }
+  function acceptCover(blob) {
+    if (coverData && coverData.url) URL.revokeObjectURL(coverData.url);
+    coverData = { blob: blob, mime: 'image/jpeg', ext: 'jpg', url: URL.createObjectURL(blob) };
+    $('eebb-cover-img').src = coverData.url;
+  }
+  function generateCover() {
+    var cv = document.createElement('canvas');
+    cv.width = 600; cv.height = 900;
+    var c = cv.getContext('2d');
+    var g = c.createLinearGradient(0, 0, cv.width, cv.height);
+    g.addColorStop(0, '#0f2027'); g.addColorStop(0.55, '#203a43'); g.addColorStop(1, '#2c5364');
+    c.fillStyle = g; c.fillRect(0, 0, cv.width, cv.height);
+    c.strokeStyle = 'rgba(255,255,255,0.35)';
+    c.lineWidth = 3;
+    c.strokeRect(38, 38, cv.width - 76, cv.height - 76);
+    var title = (book.title || 'Untitled').toUpperCase();
+    c.fillStyle = '#f4f7fb';
+    c.textAlign = 'center';
+    var size = 54;
+    c.font = '700 ' + size + 'px Georgia, serif';
+    while (c.measureText(title).width > cv.width - 130 && size > 22) {
+      size -= 2; c.font = '700 ' + size + 'px Georgia, serif';
+    }
+    // Wrap the title on word boundaries.
+    var wordsArr = title.split(' '), lines = [], line = '';
+    wordsArr.forEach(function (w) {
+      var test = line ? line + ' ' + w : w;
+      if (c.measureText(test).width > cv.width - 130 && line) { lines.push(line); line = w; }
+      else line = test;
+    });
+    if (line) lines.push(line);
+    var y = cv.height * 0.42;
+    lines.forEach(function (l) { c.fillText(l, cv.width / 2, y); y += size * 1.22; });
+    c.fillStyle = 'rgba(255,255,255,0.75)';
+    c.font = '400 28px Georgia, serif';
+    c.fillText(book.author || '', cv.width / 2, cv.height - 130);
+    setCoverFromCanvas(cv);
+  }
+
+  $('eebb-cover-file').addEventListener('change', function () {
+    var f = this.files && this.files[0];
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    var img = new Image();
+    img.onload = function () {
+      var maxW = 1200;
+      var scale = Math.min(1, maxW / img.width);
+      var cv = document.createElement('canvas');
+      cv.width = Math.max(2, Math.round(img.width * scale));
+      cv.height = Math.max(2, Math.round(img.height * scale));
+      var c = cv.getContext('2d');
+      c.fillStyle = '#fff';
+      c.fillRect(0, 0, cv.width, cv.height);
+      c.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      setCoverFromCanvas(cv);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); $('eebb-status').textContent = 'That cover image could not be read.'; };
+    img.src = url;
+  });
+  $('eebb-gen-cover').addEventListener('click', function () {
+    syncFromForm();
+    generateCover();
+    $('eebb-status').textContent = 'Cover generated from the title and author.';
+  });
+  $('eebb-clear-cover').addEventListener('click', function () {
+    if (coverData && coverData.url) URL.revokeObjectURL(coverData.url);
+    coverData = null;
+    $('eebb-cover-img').removeAttribute('src');
+    $('eebb-status').textContent = 'No cover — the book will open on a title page.';
+  });
+
+  /* ---------------------------------------------------------------- build */
+  function buildEpub() {
+    syncFromForm();
+    var enc = new TextEncoder();
+    var files = [];
+    files.push({ name: 'mimetype', data: enc.encode('application/epub+zip'), first: true });
+
+    files.push({ name: 'META-INF/container.xml', data: enc.encode(
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n' +
+      '  <rootfiles>\n' +
+      '    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>\n' +
+      '  </rootfiles>\n' +
+      '</container>\n') });
+
+    var ident = (book.id || '').trim();
+    if (!ident) {
+      ident = 'urn:uuid:' + (crypto.randomUUID ? crypto.randomUUID() :
+        'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (ch) {
+          var r = Math.random() * 16 | 0, v = ch === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        }));
+    }
+    var now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+
+    var manifest = [], spine = [];
+    var hasCover = !!coverData;
+    if (hasCover) {
+      manifest.push('    <item id="cover-image" href="images/cover.' + coverData.ext +
+        '" media-type="' + coverData.mime + '" properties="cover-image"/>');
+      manifest.push('    <item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>');
+      spine.push('    <itemref idref="cover-page"/>');
+    } else {
+      manifest.push('    <item id="title-page" href="title.xhtml" media-type="application/xhtml+xml"/>');
+      spine.push('    <itemref idref="title-page"/>');
+    }
+    manifest.push('    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>');
+    manifest.push('    <item id="css" href="style.css" media-type="text/css"/>');
+
+    var navItems = [];
+    book.chapters.forEach(function (ch, i) {
+      var id = 'ch' + (i + 1);
+      var href = 'chap-' + (i + 1) + '.xhtml';
+      manifest.push('    <item id="' + id + '" href="' + href + '" media-type="application/xhtml+xml"/>');
+      spine.push('    <itemref idref="' + id + '"/>');
+      navItems.push('      <li><a href="' + href + '">' + xesc(ch.title || ('Chapter ' + (i + 1))) + '</a></li>');
+      files.push({
+        name: 'OEBPS/' + href,
+        data: enc.encode(xhtmlDoc(ch.title || ('Chapter ' + (i + 1)),
+          '<h1>' + xesc(ch.title || ('Chapter ' + (i + 1))) + '</h1>\n  ' + mdToXhtml(ch.body)))
+      });
+    });
+
+    var opf = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">\n' +
+      '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n' +
+      '    <dc:identifier id="pub-id">' + xesc(ident) + '</dc:identifier>\n' +
+      '    <dc:title>' + xesc(book.title || 'Untitled') + '</dc:title>\n' +
+      '    <dc:creator>' + xesc(book.author || 'Unknown') + '</dc:creator>\n' +
+      '    <dc:language>' + xesc(book.lang || 'en') + '</dc:language>\n' +
+      (book.desc ? '    <dc:description>' + xesc(book.desc) + '</dc:description>\n' : '') +
+      '    <meta property="dcterms:modified">' + now + '</meta>\n' +
+      '    <meta name="generator" content="The Most Useful Site In The World — EPUB Builder"/>\n' +
+      '  </metadata>\n  <manifest>\n' + manifest.join('\n') + '\n  </manifest>\n' +
+      '  <spine>\n' + spine.join('\n') + '\n  </spine>\n</package>\n';
+    files.push({ name: 'OEBPS/content.opf', data: enc.encode(opf) });
+
+    var nav = xhtmlDoc('Contents',
+      '<nav xmlns:epub="http://www.idpf.org/2007/ops" epub:type="toc" id="toc">\n    <h1>Contents</h1>\n' +
+      '    <ol>\n' + navItems.join('\n') + '\n    </ol>\n  </nav>',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1"/>\n');
+    files.push({ name: 'OEBPS/nav.xhtml', data: enc.encode(nav) });
+    files.push({ name: 'OEBPS/style.css', data: enc.encode(STYLE) });
+
+    if (hasCover) {
+      files.push({
+        name: 'OEBPS/cover.xhtml',
+        data: enc.encode(xhtmlDoc('Cover', '<div class="coverpage"><img src="images/cover.' +
+          coverData.ext + '" alt="Cover"/></div>'))
+      });
+    } else {
+      files.push({
+        name: 'OEBPS/title.xhtml',
+        data: enc.encode(xhtmlDoc('Title', '<div class="titlepage"><h1>' + xesc(book.title || 'Untitled') +
+          '</h1><p>' + xesc(book.author || '') + '</p></div>'))
+      });
+    }
+
+    if (hasCover) {
+      return coverData.blob.arrayBuffer().then(function (ab) {
+        files.push({ name: 'OEBPS/images/cover.' + coverData.ext, data: new Uint8Array(ab) });
+        return zipStore(files);
+      });
+    }
+    return Promise.resolve(zipStore(files));
+  }
+
+  function buildHtml() {
+    syncFromForm();
+    var body = book.chapters.map(function (ch) {
+      return '<section><h1>' + xesc(ch.title) + '</h1>\n' + mdToXhtml(ch.body) + '</section>';
+    }).join('\n<hr/>\n');
+    return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' +
+      xesc(book.title) + '</title>\n<style>\nbody{max-width:44rem;margin:0 auto;padding:40px 20px;' +
+      'font:17px/1.65 Georgia,serif;color:#16202b}\nh1{font-size:1.5rem}\n' + STYLE +
+      '\n</style>\n</head>\n<body>\n<h1>' + xesc(book.title) + '</h1>\n<p><em>' + xesc(book.author) +
+      '</em></p>\n' + body + '\n</body>\n</html>\n';
+  }
+
+  $('eebb-build').addEventListener('click', function () {
+    $('eebb-status').textContent = 'Building…';
+    buildEpub().then(function (blob) {
+      download(blob, fileSlug() + '.epub');
+      $('eebb-status').textContent = 'Built ' + (blob.size / 1024).toFixed(0) +
+        ' KB · ' + book.chapters.length + ' chapters' + (coverData ? ' plus cover' : '') + ' — open it in any EPUB reader.';
+    }).catch(function (err) {
+      $('eebb-status').textContent = 'Build failed: ' + (err && err.message ? err.message : 'unknown error');
+    });
+  });
+
+  $('eebb-html').addEventListener('click', function () {
+    download(new Blob([buildHtml()], { type: 'text/html' }), fileSlug() + '.html');
+    $('eebb-status').textContent = 'Single-page HTML saved — handy for proofreading in a browser.';
+  });
+
+  $('eebb-add').addEventListener('click', function () {
+    book.chapters.push({ title: 'Chapter ' + (book.chapters.length + 1), body: '' });
+    save(); renderChapters(); updateStatus();
+  });
+
+  $('eebb-reset').addEventListener('click', function () {
+    book = defaultBook();
+    save();
+    $('eebb-title-in').value = book.title;
+    $('eebb-author').value = book.author;
+    $('eebb-lang').value = book.lang;
+    $('eebb-id').value = '';
+    $('eebb-desc-in').value = book.desc;
+    if (coverData && coverData.url) URL.revokeObjectURL(coverData.url);
+    coverData = null;
+    $('eebb-cover-img').removeAttribute('src');
+    renderChapters(); updateStatus();
+    $('eebb-status').textContent = 'Started over.';
+  });
+
+  ['eebb-title-in', 'eebb-author', 'eebb-lang', 'eebb-id', 'eebb-desc-in'].forEach(function (id) {
+    $(id).addEventListener('input', function () { syncFromForm(); updateStatus(); });
+  });
+
+  book = load();
+  $('eebb-title-in').value = book.title;
+  $('eebb-author').value = book.author;
+  $('eebb-lang').value = book.lang;
+  $('eebb-id').value = book.id || '';
+  $('eebb-desc-in').value = book.desc || '';
+  renderChapters();
+  updateStatus();
+})();
+</script>

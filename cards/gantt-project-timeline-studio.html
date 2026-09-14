@@ -1,0 +1,525 @@
+<h2 id="gpts-title" style="margin-top:0;color:var(--accent);">📊 Gantt &amp; Timeline Studio</h2>
+
+<p id="gpts-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Draw a real project timeline — tasks, dates, progress, milestones and dependencies — and export it as a clean SVG
+  or a print-resolution PNG. TeamGantt and Microsoft Project charge per user per month for a chart that is, at
+  heart, rectangles on a date axis. This one runs offline, keeps the plan in your browser, and hands you a vector
+  file you can drop into a slide, a proposal or a client update without a subscription or a watermark.
+</p>
+
+<style>
+  .gpts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px;}
+  .gpts-grid > div{min-width:0;max-width:100%;}
+  .gpts-btn{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:var(--text);font-size:0.8rem;font-weight:600;cursor:pointer;}
+  .gpts-btn:hover{background:rgba(255,255,255,0.12);}
+  .gpts-go{background:var(--accent);color:#0a0f14;border:none;font-weight:800;}
+  .gpts-row{display:grid;grid-template-columns:minmax(120px,2fr) repeat(3,minmax(76px,1fr)) minmax(70px,1fr) 30px 30px;gap:6px;align-items:center;margin-bottom:6px;}
+  .gpts-row > *{min-width:0;}
+  .gpts-in{width:100%;box-sizing:border-box;padding:6px 8px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.8rem;}
+  .gpts-head{display:grid;grid-template-columns:minmax(120px,2fr) repeat(3,minmax(76px,1fr)) minmax(70px,1fr) 30px 30px;gap:6px;font-size:0.68rem;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:4px;}
+  .gpts-chart{border:1px solid var(--border-light);border-radius:12px;background:#0b1219;overflow:auto;padding:8px;}
+  .gpts-chart svg{display:block;}
+  @media (max-width:640px){
+    .gpts-row{grid-template-columns:1fr 1fr;}
+    .gpts-head{display:none;}
+  }
+</style>
+
+<div class="gpts-grid">
+  <div>
+    <label class="gpts-btn" style="display:block;text-align:center;" for="gpts-zoom">Scale</label>
+    <select id="gpts-zoom" class="gpts-in">
+      <option value="auto" selected>Auto</option>
+      <option value="day">Days</option>
+      <option value="week">Weeks</option>
+      <option value="month">Months</option>
+    </select>
+  </div>
+  <div>
+    <span style="display:block;font-size:0.76rem;color:var(--text-secondary);margin-bottom:4px;">Show</span>
+    <div role="group" aria-labelledby="gpts-show-lbl" id="gpts-show-lbl" style="font-size:0.8rem;">
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="gpts-deps" checked /> Dependency arrows</label>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="gpts-today" checked /> Today line</label>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="gpts-weekend" checked /> Weekends</label>
+    </div>
+  </div>
+  <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;">
+    <button type="button" id="gpts-add" class="gpts-btn">+ Add task</button>
+    <button type="button" id="gpts-example" class="gpts-btn">Load example</button>
+  </div>
+</div>
+
+<div class="gpts-head" aria-hidden="true">
+  <span>Task</span><span>Start</span><span>End</span><span>% done</span><span>After #</span><span>M</span><span></span>
+</div>
+<div id="gpts-rows"></div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;">
+  <button type="button" id="gpts-svg" class="gpts-btn gpts-go">⬇ Export SVG</button>
+  <button type="button" id="gpts-png" class="gpts-btn">⬇ Export PNG</button>
+  <button type="button" id="gpts-csv" class="gpts-btn">⬇ Export CSV</button>
+  <button type="button" id="gpts-print" class="gpts-btn">Print</button>
+  <button type="button" id="gpts-clear" class="gpts-btn">Clear all</button>
+  <span id="gpts-meta" aria-live="polite" style="font-size:0.76rem;color:var(--text-secondary);"></span>
+</div>
+
+<div class="gpts-chart" id="gpts-chart"></div>
+
+<details style="margin-top:14px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">Importing a plan, and what the arrows mean</summary>
+  <div style="margin-top:8px;">
+    <p style="margin:0 0 8px;">
+      "After #" is the row number of the task that must finish first — arrow tails start at the end of that task and
+      land on the start of this one, drawn as elbows so they never cut through a bar. Tick <em>M</em> on a row with
+      the same start and end date to turn it into a milestone diamond, which is how deadlines and sign-offs are
+      usually shown.
+    </p>
+    <p style="margin:0 0 8px;">
+      You can paste a plan in as CSV instead of typing: one task per line,
+      <code>task, start, end, percent, after, owner</code> — dates as <code>YYYY-MM-DD</code>. The quickest way to
+      start is to export a CSV from any spreadsheet app, or to press <em>Load example</em>, export its CSV and edit
+      that. Rows that cannot be parsed are skipped and reported rather than silently dropped.
+    </p>
+    <p style="margin:0;">
+      The chart itself is generated as SVG markup, so the PNG export is a rasterisation of the same drawing at
+      three times the size — text stays sharp in the SVG at any zoom. The plan is saved in this browser, so it
+      survives a refresh but not a different device; keep the CSV as your portable copy.
+    </p>
+  </div>
+</details>
+
+<details style="margin-top:8px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">Paste CSV to import</summary>
+  <div style="margin-top:8px;">
+    <textarea id="gpts-csv-in" class="gpts-in" style="width:100%;min-height:90px;font-family:ui-monospace,Menlo,monospace;" placeholder="Design review, 2026-09-14, 2026-09-18, 40, , Priya"></textarea>
+    <button type="button" id="gpts-import" class="gpts-btn" style="margin-top:8px;">Import these rows</button>
+  </div>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  function $(id) { return host.querySelector('#' + id); }
+  var KEY = 'gpts-plan-v1';
+
+  var tasks = [];
+  var DAY = 86400000;
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function parseDay(s) {
+    if (!s) return null;
+    var m = String(s).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    var t = new Date(s);
+    return isNaN(t.getTime()) ? null : t;
+  }
+  function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function dur(a, b) { return Math.round((startOfDay(b) - startOfDay(a)) / DAY) + 1; }
+
+  function example() {
+    var m = new Date();
+    var s = new Date(m.getFullYear(), m.getMonth(), 1);
+    function d(n) { return iso(addDays(s, n)); }
+    return [
+      { name: 'Discovery & brief', start: d(0), end: d(4), pct: 100, after: 0, owner: 'Priya', mile: false },
+      { name: 'Design concepts', start: d(5), end: d(12), pct: 70, after: 1, owner: 'Marco', mile: false },
+      { name: 'Design sign-off', start: d(13), end: d(13), pct: 0, after: 2, owner: 'Client', mile: true },
+      { name: 'Build — front end', start: d(14), end: d(26), pct: 25, after: 3, owner: 'Sam', mile: false },
+      { name: 'Build — back end', start: d(14), end: d(30), pct: 15, after: 3, owner: 'Ade', mile: false },
+      { name: 'Content & copy', start: d(16), end: d(24), pct: 10, after: 3, owner: 'Jo', mile: false },
+      { name: 'Test & fix', start: d(31), end: d(38), pct: 0, after: 4, owner: 'Sam', mile: false },
+      { name: 'Launch', start: d(39), end: d(39), pct: 0, after: 7, owner: 'All', mile: true }
+    ];
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var t = JSON.parse(raw);
+        if (Array.isArray(t) && t.length) return t;
+      }
+    } catch (e) {}
+    return example();
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch (e) {}
+  }
+
+  /* ------------------------------------------------------------ task table */
+  function renderRows() {
+    var box = $('gpts-rows');
+    box.innerHTML = '';
+    tasks.forEach(function (t, i) {
+      var row = document.createElement('div');
+      row.className = 'gpts-row';
+
+      var name = document.createElement('input');
+      name.className = 'gpts-in';
+      name.type = 'text';
+      name.value = t.name;
+      name.maxLength = 70;
+      name.setAttribute('aria-label', 'Name of task ' + (i + 1));
+      name.addEventListener('input', function () { t.name = name.value; save(); draw(); });
+
+      var start = document.createElement('input');
+      start.className = 'gpts-in';
+      start.type = 'date';
+      start.value = t.start;
+      start.setAttribute('aria-label', 'Start date of task ' + (i + 1));
+      start.addEventListener('change', function () { t.start = start.value; save(); draw(); });
+
+      var end = document.createElement('input');
+      end.className = 'gpts-in';
+      end.type = 'date';
+      end.value = t.end;
+      end.setAttribute('aria-label', 'End date of task ' + (i + 1));
+      end.addEventListener('change', function () { t.end = end.value; save(); draw(); });
+
+      var pct = document.createElement('input');
+      pct.className = 'gpts-in';
+      pct.type = 'number';
+      pct.min = '0'; pct.max = '100'; pct.step = '5';
+      pct.value = t.pct;
+      pct.setAttribute('aria-label', 'Percent complete for task ' + (i + 1));
+      pct.addEventListener('input', function () { t.pct = Math.max(0, Math.min(100, +pct.value || 0)); save(); draw(); });
+
+      var after = document.createElement('input');
+      after.className = 'gpts-in';
+      after.type = 'number';
+      after.min = '0'; after.step = '1';
+      after.value = t.after || '';
+      after.setAttribute('aria-label', 'Task ' + (i + 1) + ' depends on row number');
+      after.addEventListener('input', function () { t.after = parseInt(after.value, 10) || 0; save(); draw(); });
+
+      var mile = document.createElement('input');
+      mile.type = 'checkbox';
+      mile.checked = !!t.mile;
+      mile.setAttribute('aria-label', 'Task ' + (i + 1) + ' is a milestone');
+      mile.style.justifySelf = 'center';
+      mile.addEventListener('change', function () { t.mile = mile.checked; save(); draw(); });
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'gpts-btn';
+      del.textContent = '✕';
+      del.style.padding = '4px 7px';
+      del.setAttribute('aria-label', 'Delete task ' + (i + 1));
+      del.addEventListener('click', function () {
+        tasks.splice(i, 1);
+        tasks.forEach(function (x) { if (x.after > i + 1) x.after -= 1; });
+        save(); renderRows(); draw();
+      });
+
+      row.appendChild(name); row.appendChild(start); row.appendChild(end);
+      row.appendChild(pct); row.appendChild(after); row.appendChild(mile); row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  /* ---------------------------------------------------------------- drawing */
+  function scaleMode(spanDays) {
+    var z = $('gpts-zoom').value;
+    if (z !== 'auto') return z;
+    if (spanDays <= 50) return 'day';
+    if (spanDays <= 240) return 'week';
+    return 'month';
+  }
+
+  function draw() {
+    var box = $('gpts-chart');
+    var valid = tasks.filter(function (t) { return parseDay(t.start) && parseDay(t.end); });
+    if (!valid.length) {
+      box.innerHTML = '<div style="padding:26px;text-align:center;color:var(--text-secondary);font-size:0.82rem;">Add a task with a start and end date to see the chart.</div>';
+      $('gpts-meta').textContent = '';
+      return;
+    }
+    var minD = null, maxD = null;
+    valid.forEach(function (t) {
+      var s = startOfDay(parseDay(t.start)), e = startOfDay(parseDay(t.end));
+      if (!minD || s < minD) minD = s;
+      if (!maxD || e > maxD) maxD = e;
+    });
+    var from = addDays(minD, -2);
+    var to = addDays(maxD, 3);
+    var span = Math.max(1, Math.round((to - from) / DAY));
+    var mode = scaleMode(span);
+    var pxPerDay = mode === 'day' ? 26 : (mode === 'week' ? 6 : 2.1);
+    var labelW = 178, rowH = 30, headH = 44, padTop = 6;
+    var chartW = Math.round(span * pxPerDay);
+    var width = labelW + chartW + 20;
+    var height = headH + valid.length * rowH + 26;
+
+    function x(d) { return labelW + Math.round((startOfDay(d) - from) / DAY * pxPerDay); }
+
+    var s = [];
+    s.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height +
+      '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Gantt chart of ' +
+      valid.length + ' tasks" style="background:#0b1219">');
+    s.push('<defs><marker id="gpts-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">' +
+      '<path d="M0,0 L7,3 L0,6 z" fill="#5d7d92"/></marker></defs>');
+
+    // gridlines + header by scale
+    var ticks = [];
+    if (mode === 'day') {
+      for (var d0 = new Date(from); d0 <= to; d0 = addDays(d0, 1)) ticks.push(new Date(d0));
+    } else if (mode === 'week') {
+      var dw = new Date(from);
+      dw.setDate(dw.getDate() - ((dw.getDay() + 6) % 7));   // back to Monday
+      for (var w0 = new Date(dw); w0 <= to; w0 = addDays(w0, 7)) ticks.push(new Date(w0));
+    } else {
+      var dm = new Date(from.getFullYear(), from.getMonth(), 1);
+      while (dm <= to) { ticks.push(new Date(dm)); dm = new Date(dm.getFullYear(), dm.getMonth() + 1, 1); }
+    }
+
+    // weekend shading
+    if ($('gpts-weekend').checked && mode === 'day') {
+      for (var ws = new Date(from); ws <= to; ws = addDays(ws, 1)) {
+        var dow = ws.getDay();
+        if (dow === 0 || dow === 6) {
+          s.push('<rect x="' + x(ws) + '" y="' + headH + '" width="' + pxPerDay +
+            '" height="' + (height - headH) + '" fill="rgba(255,255,255,0.035)"/>');
+        }
+      }
+    }
+
+    // month / year band
+    var months = [];
+    var cur = new Date(from.getFullYear(), from.getMonth(), 1);
+    while (cur <= to) {
+      var next = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+      months.push({ start: new Date(cur), end: next });
+      cur = next;
+    }
+    months.forEach(function (m) {
+      var x1 = Math.max(labelW, x(m.start));
+      var x2 = Math.min(labelW + chartW, x(m.end));
+      if (x2 <= x1) return;
+      s.push('<text x="' + (x1 + 5) + '" y="16" fill="#7f97ab" font-size="11" font-family="system-ui,sans-serif">' +
+        esc(m.start.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })) + '</text>');
+      s.push('<line x1="' + x1 + '" y1="22" x2="' + x2 + '" y2="22" stroke="rgba(255,255,255,0.10)"/>');
+    });
+
+    ticks.forEach(function (t) {
+      var tx = x(t);
+      if (tx < labelW || tx > labelW + chartW) return;
+      var label = mode === 'day' ? String(t.getDate())
+        : (mode === 'week' ? t.getDate() + '/' + (t.getMonth() + 1)
+          : t.toLocaleDateString(undefined, { month: 'short' }).charAt(0));
+      s.push('<text x="' + tx + '" y="38" fill="#8fa8bb" font-size="10.5" font-family="system-ui,sans-serif" text-anchor="middle">' + esc(label) + '</text>');
+      s.push('<line x1="' + tx + '" y1="' + headH + '" x2="' + tx + '" y2="' + (height - 22) +
+        '" stroke="rgba(255,255,255,0.06)"/>');
+    });
+    s.push('<line x1="' + labelW + '" y1="' + headH + '" x2="' + (labelW + chartW) + '" y2="' + headH +
+      '" stroke="rgba(255,255,255,0.18)"/>');
+
+    // rows
+    var rects = {};
+    valid.forEach(function (t, i) {
+      var rowNo = tasks.indexOf(t) + 1;      // matches the number shown in the table
+      var y = headH + padTop + i * rowH;
+      var s0 = startOfDay(parseDay(t.start));
+      var e0 = startOfDay(parseDay(t.end));
+      var days = Math.max(1, Math.round((e0 - s0) / DAY) + 1);
+      var bx = x(s0);
+      var bw = Math.max(6, days * pxPerDay);
+      var by = y + 6;
+      var bh = rowH - 14;
+      rects[rowNo] = { x: bx, y: by, w: bw, h: bh, endX: bx + bw, midY: by + bh / 2, start: s0, end: e0 };
+
+      if (i % 2 === 1) {
+        s.push('<rect x="0" y="' + y + '" width="' + width + '" height="' + rowH + '" fill="rgba(255,255,255,0.02)"/>');
+      }
+      s.push('<text x="8" y="' + (y + rowH / 2 + 4) + '" fill="#dbe7f2" font-size="11.5" font-family="system-ui,sans-serif">' +
+        esc(rowNo + '. ' + (t.name || '(unnamed)')) + '</text>');
+
+      if (t.mile || days <= 1) {
+        var cx = bx + bw / 2, cy = by + bh / 2, r = bh / 2 + 2;
+        s.push('<polygon points="' + cx + ',' + (cy - r) + ' ' + (cx + r) + ',' + cy + ' ' + cx + ',' + (cy + r) +
+          ' ' + (cx - r) + ',' + cy + '" fill="#ffd700" stroke="#8a6d00"/>');
+      } else {
+        s.push('<rect x="' + bx + '" y="' + by + '" width="' + bw + '" height="' + bh +
+          '" rx="4" fill="#1c6b85" stroke="#2dd4ff" stroke-opacity="0.55"/>');
+        var pw = Math.round(bw * (Math.max(0, Math.min(100, +t.pct || 0)) / 100));
+        if (pw > 1) {
+          s.push('<rect x="' + bx + '" y="' + by + '" width="' + pw + '" height="' + bh +
+            '" rx="4" fill="#2dd4ff"/>');
+        }
+        s.push('<text x="' + (bx + bw + 6) + '" y="' + (by + bh - 2) + '" fill="#8fa8bb" font-size="10" ' +
+          'font-family="system-ui,sans-serif">' + (Math.max(0, Math.min(100, +t.pct || 0))) + '%</text>');
+      }
+    });
+
+    // dependencies
+    if ($('gpts-deps').checked) {
+      valid.forEach(function (t) {
+        var rowNo = tasks.indexOf(t) + 1;
+        var afterIdx = parseInt(t.after, 10) || 0;
+        if (!afterIdx || afterIdx === rowNo) return;
+        var pre = rects[afterIdx], suc = rects[rowNo];
+        if (!pre || !suc) return;
+        var x1 = pre.endX, y1 = pre.midY;
+        var x2 = suc.x, y2 = suc.midY;
+        var mid = x2 - 10 < x1 + 10 ? Math.max(x1, x2) + 10 : (x1 + 10);
+        s.push('<path d="M' + x1 + ',' + y1 + ' L' + mid + ',' + y1 + ' L' + mid + ',' + y2 + ' L' + x2 + ',' + y2 +
+          '" fill="none" stroke="#5d7d92" stroke-width="1.2" marker-end="url(#gpts-arrow)"/>');
+      });
+    }
+
+    // today
+    if ($('gpts-today').checked) {
+      var today = startOfDay(new Date());
+      if (today >= from && today <= to) {
+        var tx2 = x(today);
+        s.push('<line x1="' + tx2 + '" y1="' + (headH - 4) + '" x2="' + tx2 + '" y2="' + (height - 22) +
+          '" stroke="#ff4d4d" stroke-width="1.4" stroke-dasharray="4 3"/>');
+        s.push('<text x="' + (tx2 + 4) + '" y="' + (headH + 10) + '" fill="#ff8080" font-size="10" ' +
+          'font-family="system-ui,sans-serif">today</text>');
+      }
+    }
+
+    s.push('<text x="8" y="' + (height - 8) + '" fill="#6d8497" font-size="10.5" font-family="system-ui,sans-serif">' +
+      esc(from.toLocaleDateString() + ' → ' + to.toLocaleDateString() + ' · ' + valid.length + ' tasks · scale: ' + mode) +
+      '</text>');
+    s.push('</svg>');
+
+    box.innerHTML = s.join('');
+
+    var done = valid.reduce(function (a, t) { return a + Math.max(0, Math.min(100, +t.pct || 0)); }, 0) / valid.length;
+    var days = dur(minD, maxD);
+    $('gpts-meta').textContent = valid.length + ' tasks · ' + days + ' days · ' +
+      Math.round(done) + '% complete on average · scale ' + mode;
+  }
+
+  function svgMarkup() {
+    var box = $('gpts-chart');
+    var svg = box.querySelector('svg');
+    return svg ? svg.outerHTML : '';
+  }
+
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function toCsv() {
+    var rows = ['task,start,end,percent,after,owner,milestone'];
+    tasks.forEach(function (t) {
+      rows.push([t.name, t.start, t.end, t.pct, t.after || '', t.owner || '', t.mile ? 'yes' : '']
+        .map(function (v) {
+          var s = String(v == null ? '' : v);
+          return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }).join(','));
+    });
+    return rows.join('\n');
+  }
+
+  $('gpts-add').addEventListener('click', function () {
+    var s = new Date();
+    tasks.push({
+      name: 'New task',
+      start: iso(s),
+      end: iso(addDays(s, 4)),
+      pct: 0,
+      after: tasks.length,
+      owner: '',
+      mile: false
+    });
+    save(); renderRows(); draw();
+  });
+  $('gpts-example').addEventListener('click', function () {
+    tasks = example();
+    save(); renderRows(); draw();
+    $('gpts-meta').textContent = 'Example plan loaded — edit it or paste your own CSV in below.';
+  });
+  $('gpts-clear').addEventListener('click', function () {
+    tasks = [];
+    save(); renderRows(); draw();
+  });
+  $('gpts-svg').addEventListener('click', function () {
+    var svg = svgMarkup();
+    if (!svg) { $('gpts-meta').textContent = 'Nothing to export yet.'; return; }
+    download(new Blob([svg], { type: 'image/svg+xml' }), 'gantt-' + iso(new Date()) + '.svg');
+  });
+  $('gpts-png').addEventListener('click', function () {
+    var svg = svgMarkup();
+    if (!svg) { $('gpts-meta').textContent = 'Nothing to export yet.'; return; }
+    var img = new Image();
+    var url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    img.onload = function () {
+      var cv = document.createElement('canvas');
+      cv.width = img.width * 2; cv.height = img.height * 2;
+      var c = cv.getContext('2d');
+      c.fillStyle = '#0b1219';
+      c.fillRect(0, 0, cv.width, cv.height);
+      c.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      cv.toBlob(function (b) {
+        if (b) download(b, 'gantt-' + iso(new Date()) + '@2x.png');
+      }, 'image/png');
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); $('gpts-meta').textContent = 'Could not rasterise the chart.'; };
+    img.src = url;
+  });
+  $('gpts-csv').addEventListener('click', function () {
+    download(new Blob([toCsv()], { type: 'text/csv' }), 'gantt-' + iso(new Date()) + '.csv');
+  });
+  $('gpts-print').addEventListener('click', function () {
+    var svg = svgMarkup();
+    if (!svg) return;
+    var w = window.open('', '_blank');
+    if (!w) { $('gpts-meta').textContent = 'Pop-up blocked — allow pop-ups to print.'; return; }
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Gantt</title>' +
+      '<style>body{margin:0;padding:16px;background:#fff}@page{size:landscape;margin:10mm}</style></head><body>' +
+      svg + '</body></html>');
+    w.document.close();
+    w.focus();
+    setTimeout(function () { w.print(); }, 300);
+  });
+  $('gpts-import').addEventListener('click', function () {
+    var text = $('gpts-csv-in').value || '';
+    var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    var added = 0, skipped = 0;
+    var parsed = [];
+    lines.forEach(function (line, idx) {
+      if (idx === 0 && /^task\s*,/i.test(line)) return;   // header
+      var parts = line.split(',').map(function (p) { return p.trim().replace(/^"|"$/g, ''); });
+      var s = parseDay(parts[1]);
+      var e = parseDay(parts[2] || parts[1]);
+      if (!s || !e) { skipped++; return; }
+      parsed.push({
+        name: parts[0] || 'Task',
+        start: iso(s),
+        end: iso(e),
+        pct: Math.max(0, Math.min(100, parseInt(parts[3], 10) || 0)),
+        after: parseInt(parts[4], 10) || 0,
+        owner: parts[5] || '',
+        mile: /^y/i.test(parts[6] || '')
+      });
+      added++;
+    });
+    if (parsed.length) {
+      tasks = parsed;
+      save(); renderRows(); draw();
+    }
+    $('gpts-meta').textContent = 'Imported ' + added + ' row' + (added === 1 ? '' : 's') +
+      (skipped ? ' · skipped ' + skipped + ' unreadable line' + (skipped === 1 ? '' : 's') : '');
+  });
+
+  ['gpts-zoom', 'gpts-deps', 'gpts-today', 'gpts-weekend'].forEach(function (id) {
+    $(id).addEventListener('change', draw);
+  });
+
+  tasks = load();
+  renderRows();
+  draw();
+})();
+</script>
