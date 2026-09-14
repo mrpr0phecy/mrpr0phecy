@@ -57,7 +57,10 @@ CARDS = os.path.join(ROOT, "cards")
 TARGETS_TOP = [
     "index.html", "404.html", "tool.html", "donate.html", "sponsor.html",
     "README.md", "AGENTS.md", "ARCHITECTURE.md", "AGENT_ACCESS.md", "INCOME.md",
-    "STRATEGY.md", "CONTRIBUTING.md",
+    "STRATEGY.md", "CONTRIBUTING.md", "FINANCE.md",
+    # feed.xml carries the count in the channel <description> (a live claim).
+    # Its <item> entries are dated history and carry <!-- historical-count -->.
+    "feed.xml",
     # Content and AI-facing pages salvaged from arena/01a05fea + 01a078f8.
     # changelog.html is deliberately absent: its entries are past-tense
     # history ("+10 tools, 23 categories, 562 total") and rewriting them
@@ -134,8 +137,13 @@ FILLER = r"(?:[a-z][a-z-]{0,15}[.,]?\s+){0,4}"
 TAG_OR_MARK = r"(?:<\/?[a-z][^>]*>|\*\*|__)"
 BRIDGE = rf"(?:{TAG_OR_MARK})*"
 GAP = rf"{BRIDGE}\s*{FILLER}"
+# The number may be joined to the noun by a hyphen as a compound modifier
+# ("See the full 1164-tool catalogue"), which the word window could not see
+# because a hyphen is neither a tag nor filler. Optional and single, so
+# "2026-09" style strings still cannot reach it.
+HYPHEN = r"[-–]?"
 CLAIM = re.compile(
-    rf"(?<![\d.])({KNOWN_STALE})(\+?)({GAP}){NOUN}\b",
+    rf"(?<![\d.])({KNOWN_STALE})(\+?)({HYPHEN}{GAP}){NOUN}\b",
     re.IGNORECASE,
 )
 
@@ -175,7 +183,23 @@ def true_count() -> int:
     return len([f for f in os.listdir(CARDS) if f.endswith(".html")])
 
 
+# Developer narrative inside a script or style block is not a count claim:
+# "on all 1223 placeholders at once, which alone is 1223 infinite animations"
+# is a measurement recorded at the time, and syncing it would falsify the
+# engineering note it belongs to.
+CODE_BLOCK = re.compile(r"<(script|style)\b[^>]*>.*?</\1>", re.S | re.IGNORECASE)
+
+
+def _in_code(text: str, start: int) -> bool:
+    for m in CODE_BLOCK.finditer(text):
+        if m.start() <= start < m.end():
+            return True
+    return False
+
+
 def _is_exempt(text: str, start: int, end: int) -> bool:
+    if _in_code(text, start):
+        return True
     line_start = text.rfind("\n", 0, start) + 1
     line_end = text.find("\n", end)
     if line_end == -1:
