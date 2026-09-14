@@ -1,0 +1,380 @@
+<h2 id="gwc-title" style="margin-top:0;color:var(--accent);">🌐 World Clock &amp; Time Zone Board</h2>
+
+<p id="gwc-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  A live board of any cities you care about: local time, weekday, date and real UTC offset with daylight saving
+  already applied. Add up to twelve, drag the hour slider to see what <b style="color:var(--text);">one moment</b> looks like
+  everywhere at once, and spot instantly who is asleep. Runs on your device's clock &mdash; no server, no tracking.
+</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;">
+  <label for="gwc-city" style="position:absolute;left:-9999px;">Add a city</label>
+  <select id="gwc-city" style="flex:1 1 220px;min-width:0;max-width:320px;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.85rem;"></select>
+  <button type="button" id="gwc-add" style="padding:9px 15px;border-radius:8px;background:var(--accent,#2dd4ff);color:#071019;border:0;font-weight:800;cursor:pointer;font-size:.85rem;">+ Add city</button>
+  <label for="gwc-tz-search" style="position:absolute;left:-9999px;">Filter the city list</label>
+  <input id="gwc-tz-search" type="search" placeholder="🔎 Filter cities…" autocomplete="off"
+         style="flex:1 1 150px;min-width:0;max-width:220px;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.85rem;" />
+  <button type="button" id="gwc-reset" style="padding:9px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">↺ Default board</button>
+</div>
+
+<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:12px;margin-bottom:14px;">
+  <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
+    <div style="font-size:.85rem;font-weight:800;color:var(--text);">⏱️ Scrub one moment across the world</div>
+    <div style="font-size:.75rem;color:var(--text-secondary);">Device zone: <b id="gwc-local-tz" style="color:var(--text);">—</b></div>
+  </div>
+  <label for="gwc-hour" style="display:block;font-size:.75rem;color:var(--text-secondary);margin-bottom:4px;">
+    Hour of day in <span id="gwc-hour-zone">your</span> time zone
+  </label>
+  <input id="gwc-hour" type="range" min="0" max="23" step="1" value="9"
+         aria-describedby="gwc-hour-now" style="width:100%;accent-color:#2dd4ff;" />
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:6px;">
+    <div id="gwc-hour-now" style="font-size:.95rem;font-weight:800;color:var(--accent);">09:00</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      <button type="button" class="gwc-quick" data-h="0" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.72rem;cursor:pointer;">00:00</button>
+      <button type="button" class="gwc-quick" data-h="9" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.72rem;cursor:pointer;">09:00</button>
+      <button type="button" class="gwc-quick" data-h="15" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.72rem;cursor:pointer;">15:00</button>
+      <button type="button" class="gwc-quick" data-h="20" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.72rem;cursor:pointer;">20:00</button>
+      <button type="button" class="gwc-quick" id="gwc-live" style="padding:5px 10px;border-radius:6px;background:rgba(45,212,255,.12);border:1px solid rgba(45,212,255,.4);color:var(--accent,#2dd4ff);font-size:.72rem;cursor:pointer;">● Live now</button>
+    </div>
+  </div>
+  <div id="gwc-scrub-note" style="font-size:.75rem;color:var(--text-secondary);margin-top:6px;"></div>
+</div>
+
+<div id="gwc-board" role="list" aria-label="World clock board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;"></div>
+<div id="gwc-empty" style="display:none;font-size:.85rem;color:var(--text-secondary);margin-top:10px;">
+  No cities on the board — add one above.
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+  <button type="button" id="gwc-copy" style="padding:8px 13px;border-radius:8px;background:rgba(45,212,255,.12);border:1px solid rgba(45,212,255,.4);color:var(--accent);font-size:.78rem;font-weight:700;cursor:pointer;">📋 Copy board as text</button>
+  <span id="gwc-msg" role="status" aria-live="polite" style="align-self:center;font-size:.78rem;color:#ffb347;"></span>
+</div>
+
+<details style="margin-top:14px;color:rgba(230,250,255,.6);font-size:.8rem;">
+  <summary style="cursor:pointer;">How the times and offsets are calculated</summary>
+  <div style="margin-top:8px;line-height:1.6;">
+    <p style="margin:0 0 8px;">
+      Each city is an IANA time-zone name (the same identifiers your operating system uses). Times are formatted with
+      the browser's own <code>Intl.DateTimeFormat</code> in that zone, so summer time is applied from your system's
+      time-zone database rather than a hardcoded table &mdash; nothing here goes stale when a country changes its clocks.
+    </p>
+    <p style="margin:0 0 8px;">
+      The UTC offset is measured, not assumed: the same instant is rendered in UTC and in the target zone, the
+      difference is taken, and the result is rounded to the minute, which is why half-hour zones such as Kolkata
+      (+05:30) and 45-minute zones such as Kathmandu (+05:45) show correctly.
+    </p>
+    <p style="margin:0;">
+      The scrub slider takes today's date in <i>your</i> zone at the chosen hour and re-renders every city for that
+      single moment, so you can see which side of midnight a call lands on. Your board is remembered in this
+      browser's local storage; no network request is ever made.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'gwc-board-v1';
+  var NS = 'http://www.w3.org/2000/svg';
+  var MAX = 12;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var CITIES = [
+    ['London', 'Europe/London'], ['Dublin', 'Europe/Dublin'], ['Lisbon', 'Europe/Lisbon'],
+    ['Madrid', 'Europe/Madrid'], ['Paris', 'Europe/Paris'], ['Berlin', 'Europe/Berlin'],
+    ['Amsterdam', 'Europe/Amsterdam'], ['Rome', 'Europe/Rome'], ['Athens', 'Europe/Athens'],
+    ['Warsaw', 'Europe/Warsaw'], ['Istanbul', 'Europe/Istanbul'], ['Moscow', 'Europe/Moscow'],
+    ['Reykjavík', 'Atlantic/Reykjavik'], ['New York', 'America/New_York'], ['Chicago', 'America/Chicago'],
+    ['Denver', 'America/Denver'], ['Los Angeles', 'America/Los_Angeles'], ['Toronto', 'America/Toronto'],
+    ['Vancouver', 'America/Vancouver'], ['Mexico City', 'America/Mexico_City'], ['Bogotá', 'America/Bogota'],
+    ['São Paulo', 'America/Sao_Paulo'], ['Buenos Aires', 'America/Argentina/Buenos_Aires'],
+    ['Santiago', 'America/Santiago'], ['Lima', 'America/Lima'], ['Halifax', 'America/Halifax'],
+    ['UTC', 'Etc/UTC'], ['Lagos', 'Africa/Lagos'], ['Cairo', 'Africa/Cairo'], ['Nairobi', 'Africa/Nairobi'],
+    ['Johannesburg', 'Africa/Johannesburg'], ['Casablanca', 'Africa/Casablanca'], ['Accra', 'Africa/Accra'],
+    ['Dubai', 'Asia/Dubai'], ['Riyadh', 'Asia/Riyadh'], ['Doha', 'Asia/Qatar'], ['Tehran', 'Asia/Tehran'],
+    ['Karachi', 'Asia/Karachi'], ['Delhi', 'Asia/Kolkata'], ['Kathmandu', 'Asia/Kathmandu'],
+    ['Dhaka', 'Asia/Dhaka'], ['Colombo', 'Asia/Colombo'], ['Yangon', 'Asia/Yangon'],
+    ['Bangkok', 'Asia/Bangkok'], ['Jakarta', 'Asia/Jakarta'], ['Singapore', 'Asia/Singapore'],
+    ['Kuala Lumpur', 'Asia/Kuala_Lumpur'], ['Manila', 'Asia/Manila'], ['Shanghai', 'Asia/Shanghai'],
+    ['Hong Kong', 'Asia/Hong_Kong'], ['Taipei', 'Asia/Taipei'], ['Seoul', 'Asia/Seoul'],
+    ['Tokyo', 'Asia/Tokyo'], ['Sydney', 'Australia/Sydney'], ['Melbourne', 'Australia/Melbourne'],
+    ['Brisbane', 'Australia/Brisbane'], ['Perth', 'Australia/Perth'], ['Auckland', 'Pacific/Auckland'],
+    ['Honolulu', 'Pacific/Honolulu'], ['Anchorage', 'America/Anchorage']
+  ];
+  var DEFAULTS = ['Europe/London', 'America/New_York', 'Asia/Kolkata', 'Asia/Tokyo', 'Australia/Sydney'];
+
+  var board = [];
+  var scrubHour = 9;
+  var scrubOn = false;
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function nameOf(tz) {
+    for (var i = 0; i < CITIES.length; i++) if (CITIES[i][1] === tz) return CITIES[i][0];
+    return tz.split('/').pop().replace(/_/g, ' ');
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && Array.isArray(s.board)) {
+          board = s.board.filter(function (tz) {
+            return typeof tz === 'string' && CITIES.some(function (c) { return c[1] === tz; });
+          }).slice(0, MAX);
+        }
+        if (s && typeof s.hour === 'number' && s.hour >= 0 && s.hour <= 23) scrubHour = s.hour;
+        scrubOn = false; // always come back live after a reload
+      }
+    } catch (e) { /* ignore */ }
+    if (!board.length) board = DEFAULTS.slice();
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify({ board: board, hour: scrubHour })); } catch (e) { /* ignore */ }
+  }
+
+  function parts(tz, date) {
+    try {
+      var dtf = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz, hour12: false, weekday: 'short', day: '2-digit', month: 'short',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      var map = {};
+      dtf.formatToParts(date).forEach(function (p) { map[p.type] = p.value; });
+      var hour = parseInt(map.hour, 10) % 24;
+      if (!isFinite(hour)) hour = 0;
+      return {
+        hour: hour,
+        minute: parseInt(map.minute, 10) || 0,
+        second: parseInt(map.second, 10) || 0,
+        weekday: map.weekday || '',
+        date: (map.day || '') + ' ' + (map.month || ''),
+        time: pad(hour) + ':' + pad(parseInt(map.minute, 10) || 0)
+      };
+    } catch (e) {
+      return { hour: 0, minute: 0, second: 0, weekday: '', date: '', time: '--:--' };
+    }
+  }
+
+  function offsetMinutes(tz, date) {
+    try {
+      var utc = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Etc/UTC', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      }).formatToParts(date).reduce(function (a, p) { a[p.type] = p.value; return a; }, {});
+      var local = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      }).formatToParts(date).reduce(function (a, p) { a[p.type] = p.value; return a; }, {});
+      var mins = function (o) {
+        return Date.UTC(+o.year, +o.month - 1, +o.day, (+o.hour) % 24, +o.minute);
+      };
+      return Math.round((mins(local) - mins(utc)) / 60000);
+    } catch (e) { return 0; }
+  }
+  function offsetLabel(off) {
+    var sign = off < 0 ? '−' : '+';
+    var a = Math.abs(off);
+    return 'UTC' + sign + pad(Math.floor(a / 60)) + ':' + pad(a % 60);
+  }
+
+  function svgEl(tag, attrs) {
+    var n = document.createElementNS(NS, tag);
+    Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    return n;
+  }
+
+  function dial(hour, minute, second) {
+    var svg = svgEl('svg', { viewBox: '0 0 48 48', width: '48', height: '48', role: 'img' });
+    svg.setAttribute('aria-label', 'Analogue clock face showing ' + pad(hour) + ':' + pad(minute));
+    svg.appendChild(svgEl('circle', { cx: '24', cy: '24', r: '22', fill: 'rgba(0,0,0,.35)', stroke: 'rgba(45,212,255,.35)', 'stroke-width': '1.5' }));
+    for (var i = 0; i < 12; i++) {
+      var a = (i * 30 - 90) * Math.PI / 180;
+      svg.appendChild(svgEl('line', {
+        x1: 24 + Math.cos(a) * 18, y1: 24 + Math.sin(a) * 18,
+        x2: 24 + Math.cos(a) * 21, y2: 24 + Math.sin(a) * 21,
+        stroke: 'rgba(230,250,255,.45)', 'stroke-width': i % 3 === 0 ? '1.8' : '1'
+      }));
+    }
+    var hand = function (angle, len, w, col) {
+      var r = (angle - 90) * Math.PI / 180;
+      return svgEl('line', {
+        x1: '24', y1: '24', x2: 24 + Math.cos(r) * len, y2: 24 + Math.sin(r) * len,
+        stroke: col, 'stroke-width': w, 'stroke-linecap': 'round'
+      });
+    };
+    svg.appendChild(hand(hour * 30 + minute * 0.5, 11, 2.6, '#e6faff'));
+    svg.appendChild(hand(minute * 6, 16, 1.8, '#2dd4ff'));
+    svg.appendChild(hand(second * 6, 18, 0.9, '#ff8f8f'));
+    svg.appendChild(svgEl('circle', { cx: '24', cy: '24', r: '1.6', fill: '#2dd4ff' }));
+    return svg;
+  }
+
+  function isNight(hour) { return hour < 7 || hour >= 22; }
+
+  function render() {
+    var now = new Date();
+    var host = $('gwc-board');
+    host.textContent = '';
+    $('gwc-empty').style.display = board.length ? 'none' : 'block';
+
+    var localTz = 'UTC';
+    try { localTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { /* keep UTC */ }
+    $('gwc-local-tz').textContent = localTz;
+    $('gwc-hour-zone').textContent = nameOf(localTz);
+
+    var scrub = now;
+    if (scrubOn) {
+      try {
+        var here = parts(localTz, now);
+        scrub = new Date(now.getTime() + ((scrubHour - here.hour) * 3600 - here.minute * 60 - here.second) * 1000);
+      } catch (e) { scrub = now; }
+    }
+    var sp = parts(localTz, scrub);
+    $('gwc-hour-now').textContent = scrubOn
+      ? pad(scrubHour) + ':00 ' + sp.weekday + ' in ' + nameOf(localTz)
+      : 'Live — ' + sp.weekday + ' ' + pad(sp.hour) + ':' + pad(sp.minute) + ' in ' + nameOf(localTz);
+    $('gwc-scrub-note').textContent = scrubOn
+      ? 'Held at ' + sp.weekday + ' ' + sp.date + ', ' + pad(scrubHour) + ':00 your time — not the live clock.'
+      : 'Ticking with your device clock. Move the slider to freeze one moment everywhere.';
+
+    board.forEach(function (tz) {
+      var p = parts(tz, scrub);
+      var off = offsetMinutes(tz, scrub);
+      var card = document.createElement('div');
+      card.setAttribute('role', 'listitem');
+      card.setAttribute('data-tz', tz);
+      var night = isNight(p.hour);
+      card.style.cssText = 'background:' + (night ? 'rgba(20,14,40,.55)' : 'rgba(255,255,255,.04)')
+        + ';border:1px solid ' + (night ? 'rgba(160,120,255,.28)' : 'rgba(255,255,255,.10)')
+        + ';border-radius:12px;padding:12px;display:flex;gap:10px;align-items:center;';
+
+      card.appendChild(dial(p.hour, p.minute, p.second));
+
+      var body = document.createElement('div');
+      body.style.cssText = 'flex:1;min-width:0;';
+      var top = document.createElement('div');
+      top.style.cssText = 'display:flex;justify-content:space-between;gap:6px;align-items:baseline;';
+      var nm = document.createElement('div');
+      nm.style.cssText = 'font-weight:800;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      nm.textContent = nameOf(tz);
+      top.appendChild(nm);
+      var off2 = document.createElement('div');
+      off2.style.cssText = 'font-size:.7rem;color:var(--text-secondary);white-space:nowrap;';
+      off2.textContent = offsetLabel(off);
+      top.appendChild(off2);
+      body.appendChild(top);
+
+      var t = document.createElement('div');
+      t.style.cssText = 'font-size:1.5rem;font-weight:800;letter-spacing:.5px;font-variant-numeric:tabular-nums;color:'
+        + (night ? '#c9b6ff' : 'var(--accent,#2dd4ff)');
+      t.textContent = scrubOn ? p.time : (p.time + ':' + pad(p.second));
+      body.appendChild(t);
+
+      var meta = document.createElement('div');
+      meta.style.cssText = 'font-size:.74rem;color:var(--text-secondary);';
+      meta.textContent = (scrubOn ? '' : p.weekday + ' ') + p.date + ' · ' + (night ? '🌙 night' : '☀️ day');
+      body.appendChild(meta);
+      card.appendChild(body);
+
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.textContent = '✕';
+      rm.setAttribute('aria-label', 'Remove ' + nameOf(tz) + ' from the board');
+      rm.style.cssText = 'align-self:flex-start;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--text-secondary);font-size:.7rem;cursor:pointer;';
+      rm.addEventListener('click', function () {
+        board = board.filter(function (x) { return x !== tz; });
+        save(); render();
+      });
+      card.appendChild(rm);
+      host.appendChild(card);
+    });
+  }
+
+  function fillCitySelect() {
+    var q = ($('gwc-tz-search').value || '').trim().toLowerCase();
+    var sel = $('gwc-city');
+    var prev = sel.value;
+    sel.textContent = '';
+    CITIES.forEach(function (c) {
+      if (q && c[0].toLowerCase().indexOf(q) === -1 && c[1].toLowerCase().indexOf(q) === -1) return;
+      var o = document.createElement('option');
+      o.value = c[1];
+      var off = offsetMinutes(c[1], new Date());
+      o.textContent = c[0] + ' — ' + offsetLabel(off);
+      if (c[1] === prev) o.selected = true;
+      sel.appendChild(o);
+    });
+    if (!sel.options.length) {
+      var none = document.createElement('option');
+      none.value = '';
+      none.textContent = 'No match';
+      sel.appendChild(none);
+    }
+  }
+
+  function say(msg) {
+    var box = $('gwc-msg');
+    box.textContent = msg;
+    if (msg) window.setTimeout(function () { if (box.textContent === msg) box.textContent = ''; }, 3500);
+  }
+
+  function copyBoard() {
+    var now = new Date();
+    var lines = ['World clock — ' + now.toUTCString().replace(' GMT', ' UTC'), ''];
+    board.forEach(function (tz) {
+      var p = parts(tz, now);
+      var off = offsetMinutes(tz, now);
+      lines.push('  ' + nameOf(tz) + ' — ' + p.time + ' ' + p.weekday + ' ' + p.date + ' (' + offsetLabel(off) + ')');
+    });
+    var text = lines.join('\n');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { say('Board copied to your clipboard.'); },
+          function () { say('Copy blocked by the browser.'); });
+      } else { window.prompt('Copy this board', text); }
+    } catch (e) { window.prompt('Copy this board', text); }
+  }
+
+  function bind() {
+    $('gwc-add').addEventListener('click', function () {
+      var tz = $('gwc-city').value;
+      if (!tz) { say('Pick a city first.'); return; }
+      if (board.indexOf(tz) !== -1) { say(nameOf(tz) + ' is already on the board.'); return; }
+      if (board.length >= MAX) { say('Board is full — remove a city first (max ' + MAX + ').'); return; }
+      board.push(tz);
+      save(); render(); say(nameOf(tz) + ' added.');
+    });
+    $('gwc-tz-search').addEventListener('input', fillCitySelect);
+    $('gwc-hour').addEventListener('input', function () {
+      scrubHour = parseInt($('gwc-hour').value, 10) || 0;
+      scrubOn = true;
+      save(); render();
+    });
+    Array.prototype.slice.call(document.querySelectorAll('.gwc-quick')).forEach(function (b) {
+      if (b.id !== 'gwc-live' && !b.hasAttribute('data-h')) return;
+      b.addEventListener('click', function () {
+        if (b.id === 'gwc-live') { scrubOn = false; save(); render(); return; }
+        scrubHour = parseInt(b.getAttribute('data-h'), 10) || 0;
+        scrubOn = true;
+        $('gwc-hour').value = String(scrubHour);
+        save(); render();
+      });
+    });
+    $('gwc-reset').addEventListener('click', function () {
+      board = DEFAULTS.slice();
+      scrubHour = 9;
+      $('gwc-hour').value = '9';
+      save(); render(); say('Default board restored.');
+    });
+    $('gwc-copy').addEventListener('click', copyBoard);
+  }
+
+  load();
+  $('gwc-hour').value = String(scrubHour);
+  fillCitySelect();
+  bind();
+  render();
+  window.setInterval(function () {
+    if (document.getElementById('gwc-board')) render();
+  }, 1000);
+})();
+</script>
