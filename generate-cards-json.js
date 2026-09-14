@@ -175,6 +175,7 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'world-map-geography-trainer': 'Science & Engineering',
   // 2026-09-14 — ten free replacements for services that charge a subscription.
   'screen-recorder-studio': 'SaaS & Business Killers',
   'photo-watermark-studio': 'SaaS & Business Killers',
