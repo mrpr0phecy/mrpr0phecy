@@ -255,19 +255,19 @@ Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 195 | Science & Engineering | | 29 | Museum & Collection |
-| 142 | Productivity & Lifestyle | | 26 | Wellbeing & Community |
-| 79 | Finance & Money | | 22 | Culinary & Food Science |
+| 197 | Science & Engineering | | 29 | Museum & Collection |
+| 149 | Productivity & Lifestyle | | 27 | Wellbeing & Community |
+| 81 | Finance & Money | | 23 | Culinary & Food Science |
 | 67 | Algorithms & Computer Science | | 21 | Virtual Worlds & Gaming |
 | 67 | Writing & Language | | 19 | AI & Autonomous Agents |
-| 54 | Sports | | 17 | Mind-Blowing Demos |
-| 53 | Mathematics | | 12 | Lucid Dreaming & Sleep |
-| 51 | Interactive Art & Living Worlds | | 10 | Anime & Otaku Culture |
-| 44 | SaaS & Business Killers | | 10 | Aquatics & Fishkeeping |
+| 54 | Mathematics | | 17 | Mind-Blowing Demos |
+| 54 | SaaS & Business Killers | | 12 | Lucid Dreaming & Sleep |
+| 54 | Sports | | 10 | Anime & Otaku Culture |
+| 51 | Interactive Art & Living Worlds | | 10 | Aquatics & Fishkeeping |
 | 37 | Home & DIY | | 10 | Birdwatching & Ornithology |
-| 35 | Astronomy & Space | | 10 | Dogs & Canine Care |
-| 35 | Music & Audio | | 10 | Natural Remedies & Herbs |
-| 34 | Health & Fitness | | 10 | Survival & Emergency Readiness |
+| 36 | Health & Fitness | | 10 | Dogs & Canine Care |
+| 35 | Astronomy & Space | | 10 | Natural Remedies & Herbs |
+| 35 | Music & Audio | | 10 | Survival & Emergency Readiness |
 | 29 | MrProphecy Arcade | | | |
 
 Total: 1154 tools in 27 categories.
