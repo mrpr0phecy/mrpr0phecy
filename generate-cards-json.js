@@ -175,6 +175,13 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // Added 2026-09-14 — five gap-fill tools (no kitchen-conversion, world-clock,
+  // event-countdown, group-expense or affordability tool existed in the catalogue).
+  'countdown-date-timer': 'Productivity & Lifestyle',
+  'group-expense-splitter': 'Productivity & Lifestyle',
+  'world-clock-timezone-board': 'Productivity & Lifestyle',
+  'kitchen-measurement-converter': 'Culinary & Food Science',
+  'mortgage-affordability-calculator': 'Finance & Money',
   'world-map-geography-trainer': 'Science & Engineering',
   // 2026-09-14 — ten free replacements for services that charge a subscription.
   'screen-recorder-studio': 'SaaS & Business Killers',

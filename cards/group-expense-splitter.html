@@ -1,0 +1,466 @@
+<h2 id="ges-title" style="margin-top:0;color:var(--accent);">🧾 Group Expense Splitter &amp; Settle Up</h2>
+
+<p id="ges-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Shared house, road trip, group holiday or a flat's running costs: log who paid what and who it was for,
+  and this works out everyone's balance and the <b style="color:var(--text);">fewest transfers that settle the whole group</b>.
+  Every amount stays on this device &mdash; no account, no upload, and it still works with the wifi off.
+</p>
+
+<form onsubmit="event.preventDefault();" aria-label="Group expense splitter">
+
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px;">
+    <div style="flex:1 1 260px;min-width:0;">
+      <label for="ges-people" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">People in the group</label>
+      <input id="ges-people" type="text" autocomplete="off" value="Alex, Sam, Jordan, Riley"
+             style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;" />
+    </div>
+    <div>
+      <label for="ges-currency" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Currency</label>
+      <select id="ges-currency" style="padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;">
+        <option value="£" selected>£ GBP</option>
+        <option value="€">€ EUR</option>
+        <option value="$">$ USD</option>
+        <option value="A$">A$ AUD</option>
+        <option value="C$">C$ CAD</option>
+        <option value="kr">kr SEK/NOK/DKK</option>
+        <option value="CHF">CHF</option>
+        <option value="zł">zł PLN</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:12px;margin-bottom:14px;">
+    <div style="font-size:.8rem;font-weight:800;color:var(--text);margin-bottom:8px;">Add an expense</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
+      <div style="flex:1 1 160px;min-width:0;">
+        <label for="ges-e-desc" style="display:block;font-size:.75rem;color:var(--text-secondary);margin-bottom:4px;">What was it for?</label>
+        <input id="ges-e-desc" type="text" autocomplete="off" placeholder="Shopping, taxi, dinner…"
+               style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.85rem;" />
+      </div>
+      <div style="flex:0 1 120px;min-width:96px;">
+        <label for="ges-e-amt" style="display:block;font-size:.75rem;color:var(--text-secondary);margin-bottom:4px;">Amount</label>
+        <input id="ges-e-amt" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"
+               style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.85rem;" />
+      </div>
+      <div style="flex:0 1 150px;min-width:120px;">
+        <label for="ges-e-paid" style="display:block;font-size:.75rem;color:var(--text-secondary);margin-bottom:4px;">Paid by</label>
+        <select id="ges-e-paid" style="width:100%;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.85rem;"></select>
+      </div>
+      <button type="button" id="ges-e-add" style="padding:10px 16px;border-radius:8px;background:var(--accent,#2dd4ff);color:#071019;border:0;font-weight:800;cursor:pointer;font-size:.85rem;">+ Add</button>
+    </div>
+    <fieldset id="ges-e-for-group" style="border:1px solid rgba(255,255,255,.10);border-radius:10px;margin:10px 0 0;padding:8px 10px;">
+      <legend style="font-size:.75rem;color:var(--text-secondary);padding:0 6px;">Split between</legend>
+      <div id="ges-e-for" style="display:flex;flex-wrap:wrap;gap:6px 14px;"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button type="button" id="ges-for-all" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.72rem;cursor:pointer;">Everyone</button>
+        <button type="button" id="ges-for-none" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.72rem;cursor:pointer;">Nobody</button>
+        <button type="button" id="ges-for-others" style="padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.72rem;cursor:pointer;">Everyone except the payer</button>
+      </div>
+    </fieldset>
+    <div id="ges-msg" role="status" aria-live="polite" style="font-size:.78rem;color:#ffb347;margin-top:8px;min-height:1.1em;"></div>
+  </div>
+
+  <div id="ges-stats" style="display:flex;flex-wrap:wrap;gap:8px 18px;font-size:.8rem;color:var(--text-secondary);margin-bottom:12px;">
+    <span>Total <b id="ges-s-total" style="color:var(--text);">0.00</b></span>
+    <span>Expenses <b id="ges-s-count" style="color:var(--text);">0</b></span>
+    <span>Per person (even split) <b id="ges-s-even" style="color:var(--text);">0.00</b></span>
+    <span>Transfers to settle <b id="ges-s-tx" style="color:var(--text);">0</b></span>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;">
+    <section style="flex:1 1 260px;min-width:0;background:#071019;border:1px solid rgba(45,212,255,.25);border-radius:12px;padding:12px;">
+      <h3 style="margin:0 0 8px;font-size:.9rem;color:var(--accent);">💸 Settle up</h3>
+      <p style="margin:0 0 8px;font-size:.75rem;color:var(--text-secondary);">The smallest set of payments that clears every balance.</p>
+      <ol id="ges-plan" style="margin:0;padding-left:1.15em;font-size:.85rem;line-height:1.7;color:var(--text);"></ol>
+      <div id="ges-plan-empty" style="font-size:.8rem;color:var(--text-secondary);">Add an expense to see who owes whom.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+        <button type="button" id="ges-copy" style="padding:8px 13px;border-radius:8px;background:rgba(45,212,255,.12);border:1px solid rgba(45,212,255,.4);color:var(--accent);font-size:.78rem;font-weight:700;cursor:pointer;">📋 Copy summary</button>
+        <button type="button" id="ges-download" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">⬇ Download .csv</button>
+      </div>
+    </section>
+
+    <section style="flex:1 1 240px;min-width:0;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:12px;">
+      <h3 style="margin:0 0 8px;font-size:.9rem;color:var(--text);">⚖️ Balances</h3>
+      <p style="margin:0 0 8px;font-size:.75rem;color:var(--text-secondary);">Green means the group owes them. Red means they owe the group.</p>
+      <div id="ges-balances" style="font-size:.85rem;"></div>
+      <h3 style="margin:14px 0 6px;font-size:.9rem;color:var(--text);">🧾 Expenses</h3>
+      <div id="ges-list" style="max-height:230px;overflow:auto;font-size:.8rem;"></div>
+    </section>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+    <button type="button" id="ges-sample" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">Load a sample trip</button>
+    <button type="button" id="ges-clear" style="padding:8px 13px;border-radius:8px;background:rgba(255,77,77,.10);border:1px solid rgba(255,77,77,.35);color:#ff8f8f;font-size:.78rem;cursor:pointer;">Reset everything</button>
+  </div>
+</form>
+
+<details style="margin-top:14px;color:rgba(230,250,255,.6);font-size:.8rem;">
+  <summary style="cursor:pointer;">How the balances and the settlement plan are worked out</summary>
+  <div style="margin-top:8px;line-height:1.6;">
+    <p style="margin:0 0 8px;">
+      Each expense is divided equally between the people you tick in <b style="color:var(--text);">Split between</b>, so an expense of
+      <span id="ges-x-ex1" style="color:var(--accent);">60.00</span> shared by three people puts 20.00 on each of their ledgers.
+      The payer is credited the full amount. A person's balance is what they paid minus their share of everything:
+      positive means they are out of pocket, negative means they still owe.
+    </p>
+    <p style="margin:0 0 8px;">
+      The settle-up list is produced by repeatedly matching the largest creditor with the largest debtor and moving the
+      smaller of the two amounts across, which always settles <i>n</i> people in at most <i>n</i>&nbsp;&minus;&nbsp;1 transfers.
+      Balances are rounded to whole cents first, so the plan never leaves a stray fraction behind.
+    </p>
+    <p style="margin:0;">
+      Your people and expenses are saved in this browser's local storage so the list survives a refresh. Clearing your
+      browser data removes it &mdash; nothing is uploaded anywhere, and no network request is made.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'ges-store-v1';
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { people: ['Alex', 'Sam', 'Jordan', 'Riley'], currency: '£', expenses: [] };
+
+  function money(n) {
+    var v = Math.round((Number(n) || 0) * 100) / 100;
+    return state.currency + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  function el(tag, text) {
+    var n = document.createElement(tag);
+    if (text !== undefined && text !== null) n.textContent = String(text);
+    return n;
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var s = JSON.parse(raw);
+      if (s && Array.isArray(s.people) && Array.isArray(s.expenses)) {
+        state.people = s.people.filter(function (p) { return typeof p === 'string' && p.trim(); }).slice(0, 24);
+        state.currency = typeof s.currency === 'string' && s.currency ? s.currency.slice(0, 3) : '£';
+        state.expenses = s.expenses.filter(function (e) {
+          return e && typeof e.desc === 'string' && typeof e.amount === 'number' && isFinite(e.amount)
+            && state.people.indexOf(e.paid) !== -1 && Array.isArray(e.forWho);
+        }).slice(0, 500);
+      }
+    } catch (e) { /* corrupt or unavailable storage: start clean */ }
+    if (!state.people.length) state.people = ['Alex', 'Sam', 'Jordan', 'Riley'];
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* private mode: keep working in memory */ }
+  }
+
+  function say(msg) {
+    var box = $('ges-msg');
+    box.textContent = msg || '';
+    if (msg) { window.setTimeout(function () { if (box.textContent === msg) box.textContent = ''; }, 4000); }
+  }
+
+  function parsePeople() {
+    var raw = $('ges-people').value || '';
+    var seen = {};
+    var out = [];
+    raw.split(/[\n,;]+/).forEach(function (chunk) {
+      var name = chunk.trim().replace(/\s+/g, ' ').slice(0, 28);
+      if (!name) return;
+      var k = name.toLowerCase();
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(name);
+    });
+    if (!out.length) { out = ['Alex', 'Sam', 'Jordan', 'Riley']; $('ges-people').value = out.join(', '); }
+    state.people = out.slice(0, 24);
+    // drop expenses referencing people who are no longer in the group
+    state.expenses = state.expenses.filter(function (e) {
+      return state.people.indexOf(e.paid) !== -1;
+    }).map(function (e) {
+      var kept = e.forWho.filter(function (p) { return state.people.indexOf(p) !== -1; });
+      return { desc: e.desc, amount: e.amount, paid: e.paid, forWho: kept.length ? kept : [e.paid] };
+    });
+  }
+
+  function checkedPeople() {
+    return Array.prototype.slice.call($('ges-e-for').querySelectorAll('input[type=checkbox]'))
+      .filter(function (c) { return c.checked; })
+      .map(function (c) { return c.value; });
+  }
+  function setChecked(names) {
+    Array.prototype.slice.call($('ges-e-for').querySelectorAll('input[type=checkbox]')).forEach(function (c) {
+      c.checked = names.indexOf(c.value) !== -1;
+    });
+  }
+
+  function buildControls() {
+    var paidSel = $('ges-e-paid');
+    var prevPaid = paidSel.value;
+    paidSel.textContent = '';
+    state.people.forEach(function (p, i) {
+      var o = el('option', p);
+      o.value = p;
+      if (p === prevPaid || (!prevPaid && i === 0)) o.selected = true;
+      paidSel.appendChild(o);
+    });
+
+    var wrap = $('ges-e-for');
+    var prevChecked = checkedPeople();
+    wrap.textContent = '';
+    state.people.forEach(function (p, i) {
+      var id = 'ges-for-' + i;
+      var lab = el('label');
+      lab.setAttribute('for', id);
+      lab.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:.8rem;color:var(--text);cursor:pointer;';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = id;
+      cb.value = p;
+      cb.style.cssText = 'width:auto;accent-color:#2dd4ff;';
+      cb.checked = prevChecked.length ? prevChecked.indexOf(p) !== -1 : true;
+      lab.appendChild(cb);
+      lab.appendChild(el('span', p));
+      wrap.appendChild(lab);
+    });
+  }
+
+  function netBalances() {
+    var bal = {};
+    state.people.forEach(function (p) { bal[p] = 0; });
+    state.expenses.forEach(function (e) {
+      var who = e.forWho.length ? e.forWho : [e.paid];
+      var share = Math.round((e.amount / who.length) * 100) / 100;
+      bal[e.paid] = Math.round((bal[e.paid] + e.amount) * 100) / 100;
+      who.forEach(function (p) { if (bal[p] !== undefined) bal[p] = Math.round((bal[p] - share) * 100) / 100; });
+    });
+    return bal;
+  }
+
+  function settle(bal) {
+    var owed = [], owe = [];
+    Object.keys(bal).forEach(function (p) {
+      var v = Math.round(bal[p] * 100) / 100;
+      if (v > 0.004) owed.push({ p: p, v: v });
+      else if (v < -0.004) owe.push({ p: p, v: -v });
+    });
+    owed.sort(function (a, b) { return b.v - a.v; });
+    owe.sort(function (a, b) { return b.v - a.v; });
+    var plan = [];
+    while (owed.length && owe.length) {
+      var amt = Math.round(Math.min(owed[0].v, owe[0].v) * 100) / 100;
+      if (amt <= 0) break;
+      plan.push({ from: owe[0].p, to: owed[0].p, amt: amt });
+      owed[0].v = Math.round((owed[0].v - amt) * 100) / 100;
+      owe[0].v = Math.round((owe[0].v - amt) * 100) / 100;
+      if (owed[0].v <= 0.004) owed.shift(); else owed.sort(function (a, b) { return b.v - a.v; });
+      if (owe[0].v <= 0.004) owe.shift(); else owe.sort(function (a, b) { return b.v - a.v; });
+    }
+    return plan;
+  }
+
+  function render() {
+    var cur = state.currency;
+    $('ges-currency').value = cur;
+    var total = state.expenses.reduce(function (a, e) { return a + e.amount; }, 0);
+    $('ges-s-total').textContent = money(total).replace(cur, '');
+    $('ges-s-count').textContent = String(state.expenses.length);
+    $('ges-s-even').textContent = money(state.people.length ? total / state.people.length : 0).replace(cur, '');
+
+    var bal = netBalances();
+    var plan = settle(bal);
+    $('ges-s-tx').textContent = String(plan.length);
+
+    // settle-up plan
+    var ol = $('ges-plan');
+    ol.textContent = '';
+    plan.forEach(function (t) {
+      var li = el('li');
+      li.appendChild(el('b', t.from));
+      li.appendChild(document.createTextNode(' pays '));
+      li.appendChild(el('b', money(t.amt)));
+      li.appendChild(document.createTextNode(' to '));
+      li.appendChild(el('b', t.to));
+      ol.appendChild(li);
+    });
+    $('ges-plan-empty').style.display = plan.length ? 'none' : 'block';
+    $('ges-plan-empty').textContent = state.expenses.length
+      ? 'Everyone is square — nobody owes anybody.'
+      : 'Add an expense to see who owes whom.';
+
+    // balances
+    var bwrap = $('ges-balances');
+    bwrap.textContent = '';
+    var max = Math.max.apply(null, [0.01].concat(Object.keys(bal).map(function (p) { return Math.abs(bal[p]); })));
+    state.people.forEach(function (p) {
+      var v = bal[p] || 0;
+      var row = el('div');
+      row.style.cssText = 'margin-bottom:9px;';
+      var line = el('div');
+      line.style.cssText = 'display:flex;justify-content:space-between;gap:8px;';
+      line.appendChild(el('span', p));
+      var amt = el('span');
+      amt.textContent = (v >= 0 ? '+' : '−') + money(Math.abs(v)).replace(cur, '');
+      amt.style.color = v > 0.004 ? 'var(--success,#39ff14)' : (v < -0.004 ? '#ff8f8f' : 'var(--text-secondary)');
+      line.appendChild(amt);
+      row.appendChild(line);
+      var track = el('div');
+      track.style.cssText = 'height:6px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:3px;';
+      var fill = el('div');
+      fill.style.cssText = 'height:100%;width:' + Math.round((Math.abs(v) / max) * 100) + '%;border-radius:3px;background:'
+        + (v > 0.004 ? 'var(--success,#39ff14)' : (v < -0.004 ? '#ff6b6b' : 'transparent'));
+      track.appendChild(fill);
+      row.appendChild(track);
+      bwrap.appendChild(row);
+    });
+
+    // expense list
+    var list = $('ges-list');
+    list.textContent = '';
+    if (!state.expenses.length) {
+      var none = el('div', 'Nothing logged yet.');
+      none.style.color = 'var(--text-secondary)';
+      list.appendChild(none);
+    } else {
+      state.expenses.slice().reverse().forEach(function (e, idx) {
+        var realIndex = state.expenses.length - 1 - idx;
+        var row = el('div');
+        row.style.cssText = 'display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.07);';
+        var body = el('div');
+        body.style.cssText = 'flex:1;min-width:0;';
+        body.appendChild(el('div', e.desc));
+        var meta = el('div');
+        meta.style.cssText = 'font-size:.72rem;color:var(--text-secondary);';
+        meta.textContent = e.paid + ' paid · split ' + e.forWho.length + ' way' + (e.forWho.length === 1 ? '' : 's')
+          + ' · ' + money(e.amount / e.forWho.length) + ' each';
+        body.appendChild(meta);
+        row.appendChild(body);
+        var amt = el('div');
+        amt.textContent = money(e.amount);
+        amt.style.cssText = 'font-weight:700;color:var(--text);';
+        row.appendChild(amt);
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.textContent = '✕';
+        del.setAttribute('aria-label', 'Delete expense: ' + e.desc);
+        del.style.cssText = 'padding:2px 8px;border-radius:6px;background:rgba(255,77,77,.10);border:1px solid rgba(255,77,77,.3);color:#ff8f8f;font-size:.7rem;cursor:pointer;';
+        del.addEventListener('click', function () {
+          state.expenses.splice(realIndex, 1);
+          save(); render();
+        });
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+    }
+  }
+
+  function addExpense() {
+    var desc = ($('ges-e-desc').value || '').trim().slice(0, 80) || 'Untitled expense';
+    var amount = Math.round(parseFloat($('ges-e-amt').value) * 100) / 100;
+    if (!isFinite(amount) || amount <= 0) { say('Enter an amount greater than zero.'); return; }
+    var paid = $('ges-e-paid').value;
+    if (state.people.indexOf(paid) === -1) { say('Pick who paid.'); return; }
+    var forWho = checkedPeople();
+    if (!forWho.length) { say('Tick at least one person to split it between.'); return; }
+    state.expenses.push({ desc: desc, amount: amount, paid: paid, forWho: forWho });
+    if (state.expenses.length > 500) state.expenses.shift();
+    $('ges-e-desc').value = '';
+    $('ges-e-amt').value = '';
+    save(); render();
+    $('ges-e-desc').focus();
+  }
+
+  function summaryText() {
+    var bal = netBalances();
+    var plan = settle(bal);
+    var lines = ['Group expenses — ' + state.expenses.length + ' item(s), '
+      + money(state.expenses.reduce(function (a, e) { return a + e.amount; }, 0)) + ' total', ''];
+    lines.push('Balances:');
+    state.people.forEach(function (p) {
+      var v = bal[p] || 0;
+      lines.push('  ' + p + ': ' + (v >= 0 ? 'is owed ' : 'owes ') + money(Math.abs(v)));
+    });
+    lines.push('');
+    if (plan.length) {
+      lines.push('To settle up:');
+      plan.forEach(function (t) { lines.push('  ' + t.from + ' → ' + t.to + ': ' + money(t.amt)); });
+    } else {
+      lines.push('Everyone is square.');
+    }
+    return lines.join('\n');
+  }
+
+  function csv() {
+    var esc = function (s) {
+      s = String(s);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    var rows = [['description', 'amount', 'paid_by', 'split_between', 'share_each']];
+    state.expenses.forEach(function (e) {
+      rows.push([e.desc, e.amount.toFixed(2), e.paid, e.forWho.join(' | '), (e.amount / e.forWho.length).toFixed(2)]);
+    });
+    return rows.map(function (r) { return r.map(esc).join(','); }).join('\r\n');
+  }
+
+  function download(name, text) {
+    try {
+      var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    } catch (e) { say('Download blocked by this browser — use Copy summary instead.'); }
+  }
+
+  function bind() {
+    $('ges-e-add').addEventListener('click', addExpense);
+    $('ges-e-amt').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); addExpense(); } });
+    $('ges-e-desc').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); addExpense(); } });
+    $('ges-people').addEventListener('change', function () { parsePeople(); save(); buildControls(); render(); });
+    $('ges-currency').addEventListener('change', function () {
+      state.currency = $('ges-currency').value || '£';
+      save(); render();
+    });
+    $('ges-for-all').addEventListener('click', function () { setChecked(state.people.slice()); });
+    $('ges-for-none').addEventListener('click', function () { setChecked([]); });
+    $('ges-for-others').addEventListener('click', function () {
+      var payer = $('ges-e-paid').value;
+      setChecked(state.people.filter(function (p) { return p !== payer; }));
+    });
+    $('ges-e-paid').addEventListener('change', function () { render(); });
+    $('ges-copy').addEventListener('click', function () {
+      var text = summaryText();
+      var done = function () { say('Summary copied to your clipboard.'); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function () { say('Copy blocked — select the settle-up list instead.'); });
+        } else { say('This browser has no clipboard API — the summary is below.'); window.prompt('Copy this summary', text); }
+      } catch (e) { say('Copy failed — the summary is below.'); window.prompt('Copy this summary', text); }
+    });
+    $('ges-download').addEventListener('click', function () { download('group-expenses.csv', csv()); });
+    $('ges-clear').addEventListener('click', function () {
+      state.expenses = [];
+      save(); render(); say('Expenses cleared. People kept.');
+    });
+    $('ges-sample').addEventListener('click', function () {
+      state.people = ['Alex', 'Sam', 'Jordan', 'Riley'];
+      $('ges-people').value = state.people.join(', ');
+      state.expenses = [
+        { desc: 'Airport taxi', amount: 46.50, paid: 'Alex', forWho: ['Alex', 'Sam', 'Jordan', 'Riley'] },
+        { desc: 'Two nights, cabin', amount: 312.00, paid: 'Sam', forWho: ['Alex', 'Sam', 'Jordan', 'Riley'] },
+        { desc: 'Supermarket run', amount: 68.20, paid: 'Jordan', forWho: ['Alex', 'Sam', 'Jordan'] },
+        { desc: 'Hire car + fuel', amount: 184.00, paid: 'Riley', forWho: ['Alex', 'Sam', 'Jordan', 'Riley'] },
+        { desc: 'Boat trip (3 of us went)', amount: 90.00, paid: 'Alex', forWho: ['Alex', 'Jordan', 'Riley'] }
+      ];
+      buildControls(); save(); render();
+      say('Sample trip loaded — edit anything you like.');
+    });
+  }
+
+  load();
+  buildControls();
+  bind();
+  render();
+})();
+</script>
