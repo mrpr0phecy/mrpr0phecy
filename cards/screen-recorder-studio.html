@@ -1,0 +1,453 @@
+<h2 id="scrs-title" style="margin-top:0;color:var(--accent);">🎥 Screen &amp; Camera Recorder Studio</h2>
+
+<p id="scrs-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Record your screen, your webcam, or your webcam as a picture-in-picture over your screen — free, unlimited and
+  watermark-free. Loom puts recording length and viewer counts behind a plan and Screencastify caps free clips at
+  five minutes; this writes the video file straight from your browser to your own disk. Not one frame is uploaded,
+  because there is no server here to upload it to.
+</p>
+
+<style>
+  .scrs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px;}
+  .scrs-grid > div{min-width:0;max-width:100%;}
+  .scrs-lbl{display:block;font-size:0.76rem;color:var(--text-secondary);margin-bottom:4px;}
+  .scrs-in{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;}
+  .scrs-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:var(--text);font-size:0.82rem;font-weight:600;cursor:pointer;}
+  .scrs-btn:hover{background:rgba(255,255,255,0.12);}
+  .scrs-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .scrs-go{background:var(--accent);color:#0a0f14;border:none;font-weight:800;}
+  .scrs-stop{background:var(--error);color:#fff;border:none;font-weight:800;}
+  .scrs-stage{position:relative;background:#05090d;border:1px solid var(--border-light);border-radius:12px;overflow:hidden;margin-bottom:12px;}
+  .scrs-stage video{display:block;width:100%;max-height:46vh;background:#05090d;}
+  .scrs-empty{padding:34px 16px;text-align:center;color:var(--text-secondary);font-size:0.85rem;}
+  .scrs-rec{position:absolute;top:10px;left:10px;display:none;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(10,15,20,0.78);border:1px solid rgba(255,77,77,0.5);font-size:0.72rem;font-weight:800;color:#ff8080;letter-spacing:0.04em;}
+  .scrs-dot{width:8px;height:8px;border-radius:50%;background:#ff4d4d;}
+  @media (prefers-reduced-motion: reduce){ .scrs-dot{animation:none;} }
+  .scrs-item{border:1px solid var(--border-light);border-radius:10px;padding:10px;margin-bottom:10px;background:rgba(255,255,255,0.02);}
+  .scrs-item video{width:100%;max-width:280px;border-radius:8px;background:#000;display:block;}
+</style>
+
+<div id="scrs-nosupport" style="display:none;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,212,0,0.35);background:rgba(255,212,0,0.07);color:#ffd700;font-size:0.8rem;margin-bottom:12px;"></div>
+
+<div class="scrs-grid">
+  <div>
+    <label class="scrs-lbl" for="scrs-source">Source</label>
+    <select id="scrs-source" class="scrs-in">
+      <option value="screen">Screen / tab / window</option>
+      <option value="camera">Webcam only</option>
+      <option value="both">Screen + webcam (picture-in-picture)</option>
+    </select>
+  </div>
+  <div>
+    <label class="scrs-lbl" for="scrs-quality">Quality</label>
+    <select id="scrs-quality" class="scrs-in">
+      <option value="1000000">Low — 1 Mbps (small files)</option>
+      <option value="2500000" selected>Standard — 2.5 Mbps</option>
+      <option value="5000000">High — 5 Mbps</option>
+      <option value="8000000">Very high — 8 Mbps</option>
+    </select>
+  </div>
+  <div>
+    <span class="scrs-lbl">Audio</span>
+    <div role="group" aria-labelledby="scrs-audio-lbl" id="scrs-audio-lbl" style="display:flex;flex-direction:column;gap:2px;font-size:0.82rem;color:var(--text);">
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="scrs-mic" checked /> Microphone</label>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="scrs-sysaudio" /> System / tab audio</label>
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;">
+  <button type="button" id="scrs-start" class="scrs-btn scrs-go">● Start recording</button>
+  <button type="button" id="scrs-pause" class="scrs-btn" disabled>Pause</button>
+  <button type="button" id="scrs-stop" class="scrs-btn scrs-stop" disabled>■ Stop &amp; save</button>
+  <span id="scrs-clock" aria-live="off" style="font-variant-numeric:tabular-nums;font-weight:800;color:var(--accent);font-size:0.95rem;">00:00</span>
+  <span id="scrs-status" aria-live="polite" style="font-size:0.78rem;color:var(--text-secondary);"></span>
+</div>
+
+<div class="scrs-stage">
+  <video id="scrs-preview" playsinline muted autoplay aria-label="Live recording preview"></video>
+  <div id="scrs-empty" class="scrs-empty">Nothing recording yet — press <strong style="color:var(--accent);">Start recording</strong> and pick what to share.</div>
+  <div id="scrs-rec" class="scrs-rec"><span class="scrs-dot"></span><span>REC</span></div>
+</div>
+
+<div id="scrs-list"></div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">How it works, and what it cannot do</summary>
+  <div style="margin-top:8px;">
+    <p style="margin:0 0 8px;">
+      Everything is done by two browser APIs: <code>getDisplayMedia()</code> (and <code>getUserMedia()</code> for the
+      camera) capture the pixels, and <code>MediaRecorder</code> encodes them into a WebM (or MP4 on Safari) file as
+      they arrive. The finished blob is handed to your browser's downloader with a local <code>blob:</code> URL — the
+      same address space as the rest of this page, never a network request. Nothing is trimmed, transcoded or
+      re-encoded afterwards, so a 20-minute capture finishes the instant you press stop.
+    </p>
+    <p style="margin:0 0 8px;">
+      Recording needs a secure (https) page and a real click — browsers refuse to start it otherwise. Screen capture
+      is not available on most phones, and system audio is only offered when you share a <em>tab</em> (Chrome and
+      Edge) rather than a whole screen; if the box is ticked but silent, that is the browser, not the tool.
+    </p>
+    <p style="margin:0;">
+      Recordings live in this tab's memory until you download them: closing the tab throws them away, so save
+      anything you want to keep. WebM is understood natively by Chrome, Edge, Firefox and VLC, and by QuickTime
+      after a free conversion.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  function $(id) { return host.querySelector('#' + id); }
+
+  var preview = $('scrs-preview');
+  var listEl = $('scrs-list');
+  var clockEl = $('scrs-clock');
+  var statusEl = $('scrs-status');
+  var recBadge = $('scrs-rec');
+  var emptyEl = $('scrs-empty');
+
+  var recorder = null, rafId = 0, timerId = 0;
+  var screenStream = null, camStream = null, micStream = null, finalStream = null;
+  var chunks = [], startedAt = 0, pausedTotal = 0, pausedAt = 0, isPaused = false, take = 0;
+
+  function fmtTime(ms) {
+    var s = Math.max(0, Math.floor(ms / 1000));
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return (h ? h + ':' : '') + p(m) + ':' + p(sec);
+  }
+  function fmtBytes(n) {
+    if (!isFinite(n)) return '—';
+    if (n < 1048576) return (n / 1024).toFixed(0) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+  function status(msg) { statusEl.textContent = msg; }
+  function setChrome(recording) {
+    $('scrs-start').disabled = recording;
+    $('scrs-stop').disabled = !recording;
+    $('scrs-pause').disabled = !recording;
+    recBadge.style.display = recording ? 'flex' : 'none';
+    emptyEl.style.display = recording ? 'none' : 'block';
+    if (!recording) { preview.style.visibility = 'hidden'; } else { preview.style.visibility = 'visible'; }
+  }
+
+  var MIME_CANDIDATES = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=h264,opus',
+    'video/webm',
+    'video/mp4'
+  ];
+  function pickMime() {
+    if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+    for (var i = 0; i < MIME_CANDIDATES.length; i++) {
+      if (MediaRecorder.isTypeSupported(MIME_CANDIDATES[i])) return MIME_CANDIDATES[i];
+    }
+    return '';
+  }
+
+  function releaseAll() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    [screenStream, camStream, micStream].forEach(function (s) {
+      if (!s) return;
+      s.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+    });
+    if (finalStream && finalStream !== screenStream && finalStream !== camStream) {
+      finalStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+    }
+    screenStream = camStream = micStream = finalStream = null;
+    if (preview.srcObject) { preview.srcObject = null; }
+  }
+
+  // Draw the screen frame with the camera inset, into a canvas we record from.
+  function startCompositing() {
+    var canvas = document.createElement('canvas');
+    var screenVideo = document.createElement('video');
+    var camVideo = document.createElement('video');
+    screenVideo.muted = true; camVideo.muted = true;
+    screenVideo.playsInline = true; camVideo.playsInline = true;
+    screenVideo.srcObject = screenStream; camVideo.srcObject = camStream;
+    screenVideo.play(); camVideo.play();
+
+    var w = 1280, h = 720;
+    function sizeCanvas() {
+      var sw = screenVideo.videoWidth || 1280, sh = screenVideo.videoHeight || 720;
+      var scale = Math.min(1, 1280 / sw);
+      w = Math.max(2, Math.round(sw * scale / 2) * 2);
+      h = Math.max(2, Math.round(sh * scale / 2) * 2);
+      canvas.width = w; canvas.height = h;
+    }
+    sizeCanvas();
+    var ctx = canvas.getContext('2d');
+
+    function frame() {
+      if (!recorder || (recorder.state === 'inactive')) { rafId = 0; return; }
+      if (screenVideo.videoWidth && (canvas.width === 0 || Math.abs(canvas.width - w) > 2)) sizeCanvas();
+      if (screenVideo.videoWidth) {
+        ctx.fillStyle = '#05090d';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
+      }
+      if (camVideo.videoWidth) {
+        var pw = Math.round(canvas.width * 0.22);
+        var ph = Math.round(pw * (camVideo.videoHeight / camVideo.videoWidth)) || pw;
+        var pad = Math.round(canvas.width * 0.015);
+        var x = canvas.width - pw - pad, y = canvas.height - ph - pad;
+        ctx.save();
+        ctx.beginPath();
+        var r = Math.round(pw * 0.06);
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + pw, y, x + pw, y + ph, r);
+        ctx.arcTo(x + pw, y + ph, x, y + ph, r);
+        ctx.arcTo(x, y + ph, x, y, r);
+        ctx.arcTo(x, y, x + pw, y, r);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(camVideo, x, y, pw, ph);
+        ctx.restore();
+        ctx.lineWidth = Math.max(2, Math.round(canvas.width * 0.002));
+        ctx.strokeStyle = 'rgba(45,212,255,0.9)';
+        ctx.strokeRect(x, y, pw, ph);
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+    frame();
+    preview.srcObject = canvas.captureStream(30);
+    return canvas.captureStream(30);
+  }
+
+  function addRecording(blob, durationMs) {
+    var url = URL.createObjectURL(blob);
+    var ext = (blob.type.indexOf('mp4') > -1) ? 'mp4' : 'webm';
+    var stamp = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    var fname = 'recording-' + stamp.getFullYear() + p(stamp.getMonth() + 1) + p(stamp.getDate()) +
+                '-' + p(stamp.getHours()) + p(stamp.getMinutes()) + p(stamp.getSeconds()) + '.' + ext;
+    take += 1;
+
+    var item = document.createElement('div');
+    item.className = 'scrs-item';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;';
+
+    var vid = document.createElement('video');
+    vid.controls = true; vid.playsInline = true; vid.preload = 'metadata'; vid.src = url;
+    vid.setAttribute('aria-label', 'Recorded take ' + take);
+
+    var meta = document.createElement('div');
+    meta.style.cssText = 'flex:1;min-width:180px;font-size:0.8rem;color:var(--text-secondary);';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-weight:800;color:var(--text);font-size:0.88rem;';
+    title.textContent = 'Take ' + take + ' · ' + fmtTime(durationMs);
+    var sub = document.createElement('div');
+    sub.textContent = fmtBytes(blob.size) + ' · ' + (blob.type || 'video/webm');
+    meta.appendChild(title);
+    meta.appendChild(sub);
+
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;';
+    var dl = document.createElement('a');
+    dl.className = 'scrs-btn scrs-go';
+    dl.textContent = '⬇ Save file';
+    dl.setAttribute('download', fname);
+    dl.href = url;
+    dl.style.textDecoration = 'none';
+    dl.style.display = 'inline-block';
+
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'scrs-btn';
+    del.textContent = 'Delete';
+    (function (u, node) {
+      del.addEventListener('click', function () {
+        URL.revokeObjectURL(u);
+        if (node.parentNode) node.parentNode.removeChild(node);
+        if (!listEl.children.length) {
+          listEl.innerHTML = '<p class="scrs-empty" style="padding:14px;">No recordings yet.</p>';
+        }
+      });
+    })(url, item);
+
+    actions.appendChild(dl);
+    actions.appendChild(del);
+    meta.appendChild(actions);
+    row.appendChild(vid);
+    row.appendChild(meta);
+    item.appendChild(row);
+    listEl.insertBefore(item, listEl.firstChild);
+  }
+
+  function startTimer() {
+    timerId = setInterval(function () {
+      var now = Date.now();
+      clockEl.textContent = fmtTime(now - startedAt - pausedTotal - (isPaused ? (now - pausedAt) : 0));
+    }, 250);
+  }
+
+  function start() {
+    if (recorder && recorder.state !== 'inactive') return;
+    var source = $('scrs-source').value;
+    var wantMic = $('scrs-mic').checked;
+    var wantSys = $('scrs-sysaudio').checked;
+    var bitrate = parseInt($('scrs-quality').value, 10) || 2500000;
+
+    if (typeof MediaRecorder === 'undefined') {
+      status('This browser has no MediaRecorder — try Chrome, Edge or Firefox.');
+      return;
+    }
+    status('Waiting for you to choose what to share…');
+
+    var tasks = [];
+    if (source === 'screen' || source === 'both') {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        status('This browser cannot capture the screen (common on phones). Choose webcam, or use a desktop browser.');
+        return;
+      }
+      tasks.push(navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 30 } },
+        audio: wantSys
+      }).then(function (s) { screenStream = s; }));
+    }
+    if (source === 'camera' || source === 'both') {
+      tasks.push(navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: source === 'camera' ? wantMic : false
+      }).then(function (s) { camStream = s; }));
+    }
+    if (source === 'screen' && wantMic) {
+      tasks.push(navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) { micStream = s; }));
+    }
+    if (source === 'both' && wantMic) {
+      tasks.push(navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) { micStream = s; }));
+    }
+
+    Promise.all(tasks).then(function () {
+      var videoStream = null;
+      if (source === 'screen') videoStream = screenStream;
+      else if (source === 'camera') videoStream = camStream;
+      else videoStream = null; // composited
+
+      var audioTracks = [];
+      if (screenStream) audioTracks = audioTracks.concat(screenStream.getAudioTracks());
+      if (camStream && source === 'camera') audioTracks = audioTracks.concat(camStream.getAudioTracks());
+      if (micStream) audioTracks = audioTracks.concat(micStream.getAudioTracks());
+
+      if (source === 'both') {
+        finalStream = startCompositing();
+        audioTracks.forEach(function (t) { finalStream.addTrack(t); });
+      } else {
+        finalStream = new MediaStream();
+        videoStream.getVideoTracks().forEach(function (t) { finalStream.addTrack(t); });
+        audioTracks.forEach(function (t) { finalStream.addTrack(t); });
+        preview.srcObject = finalStream;
+      }
+
+      // If the visitor shares the screen and then hits the browser's own
+      // "Stop sharing" bar, finish the file rather than leave it dangling.
+      var tracks = [];
+      if (screenStream) tracks = tracks.concat(screenStream.getVideoTracks());
+      if (camStream) tracks = tracks.concat(camStream.getVideoTracks());
+      tracks.forEach(function (t) {
+        t.addEventListener('ended', function () {
+          if (recorder && recorder.state !== 'inactive') stop();
+        });
+      });
+
+      var opts = { videoBitsPerSecond: bitrate, audioBitsPerSecond: 128000 };
+      var mime = pickMime();
+      if (mime) opts.mimeType = mime;
+      try {
+        recorder = new MediaRecorder(finalStream, opts);
+      } catch (e) {
+        recorder = new MediaRecorder(finalStream);
+      }
+
+      chunks = [];
+      recorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
+      recorder.onstop = function () {
+        var duration = Date.now() - startedAt - pausedTotal;
+        var type = (recorder && recorder.mimeType) ? recorder.mimeType.split(';')[0] : 'video/webm';
+        var blob = new Blob(chunks, { type: type });
+        chunks = [];
+        clearInterval(timerId); timerId = 0;
+        setChrome(false);
+        releaseAll();
+        if (blob.size) {
+          addRecording(blob, duration);
+          status('Saved take — download it before you close this tab.');
+        } else {
+          status('Recording produced no data. Check that you granted permission.');
+        }
+      };
+      recorder.onerror = function (ev) {
+        status('Recorder error: ' + ((ev && ev.error && ev.error.name) || 'unknown'));
+      };
+
+      recorder.start(1000);
+      startedAt = Date.now(); pausedTotal = 0; isPaused = false;
+      setChrome(true);
+      clockEl.textContent = '00:00';
+      startTimer();
+      status('Recording — press Stop & save when you are done.');
+    }).catch(function (err) {
+      releaseAll();
+      var name = (err && err.name) || 'Error';
+      if (name === 'NotAllowedError') status('Permission dismissed — nothing was recorded.');
+      else status('Could not start: ' + name);
+    });
+  }
+
+  function stop() {
+    if (recorder && recorder.state !== 'inactive') {
+      try { recorder.stop(); } catch (e) { releaseAll(); setChrome(false); }
+    }
+  }
+
+  function togglePause() {
+    if (!recorder || recorder.state === 'inactive') return;
+    if (recorder.state === 'paused') {
+      pausedTotal += Date.now() - pausedAt;
+      isPaused = false;
+      recorder.resume();
+      $('scrs-pause').textContent = 'Pause';
+      status('Recording resumed.');
+    } else if (recorder.state === 'recording') {
+      pausedAt = Date.now();
+      isPaused = true;
+      recorder.pause();
+      $('scrs-pause').textContent = 'Resume';
+      status('Paused.');
+    } else {
+      status('This browser cannot pause a recording.');
+    }
+  }
+
+  $('scrs-start').addEventListener('click', start);
+  $('scrs-stop').addEventListener('click', stop);
+  $('scrs-pause').addEventListener('click', togglePause);
+
+  // Adverts-free capability note, only where it is true.
+  (function () {
+    var md = navigator.mediaDevices;
+    var noScreen = typeof MediaRecorder === 'undefined' || !md || !md.getDisplayMedia;
+    if (noScreen) {
+      var box = $('scrs-nosupport');
+      box.style.display = 'block';
+      box.textContent = typeof MediaRecorder === 'undefined'
+        ? 'This browser cannot record media at all (MediaRecorder is missing). Chrome, Edge, Firefox or Safari 14.1+ will work.'
+        : 'This browser cannot capture the screen, so webcam recording is the option that will work here. Desktop Chrome, Edge or Firefox can capture the screen too.';
+      if (!md || !md.getDisplayMedia) {
+        var opt = $('scrs-source').querySelector('option[value="screen"]');
+        if (opt) opt.disabled = true;
+        var opt2 = $('scrs-source').querySelector('option[value="both"]');
+        if (opt2) opt2.disabled = true;
+        $('scrs-source').value = 'camera';
+      }
+    }
+  })();
+
+  setChrome(false);
+  listEl.innerHTML = '<p class="scrs-empty" style="padding:14px;">No recordings yet.</p>';
+})();
+</script>

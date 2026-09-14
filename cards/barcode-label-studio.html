@@ -1,0 +1,498 @@
+<h2 id="bcls-title" style="margin-top:0;color:var(--accent);">🏷️ Barcode &amp; Label Studio</h2>
+
+<p id="bcls-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Produce real, scanner-readable barcodes — Code 128, Code 39, EAN-13, UPC-A and ITF-14 — and download them as
+  vector SVG or a print-resolution PNG. Barcode generator sites charge a subscription for bulk codes, cap how many
+  you may make a day, or quietly put a watermark in the file. The encoding tables here are the published standards,
+  the checksums are calculated for you, and nothing you type is ever sent anywhere.
+</p>
+
+<style>
+  .bcls-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;}
+  .bcls-grid > div{min-width:0;max-width:100%;}
+  .bcls-lbl{display:block;font-size:0.76rem;color:var(--text-secondary);margin-bottom:4px;}
+  .bcls-in{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:0.85rem;}
+  .bcls-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.07);color:var(--text);font-size:0.82rem;font-weight:600;cursor:pointer;}
+  .bcls-btn:hover{background:rgba(255,255,255,0.12);}
+  .bcls-go{background:var(--accent);color:#0a0f14;border:none;font-weight:800;}
+  .bcls-stage{margin-top:12px;padding:16px;border-radius:12px;border:1px solid var(--border-light);background:#fff;display:flex;justify-content:center;align-items:center;min-height:120px;overflow:auto;}
+  .bcls-stage svg{max-width:100%;height:auto;}
+  .bcls-err{margin-top:10px;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,77,77,0.4);background:rgba(255,77,77,0.08);color:#ff9a9a;font-size:0.8rem;display:none;}
+</style>
+
+<div class="bcls-grid">
+  <div style="grid-column:1 / -1;">
+    <label class="bcls-lbl" for="bcls-data">Data to encode</label>
+    <input id="bcls-data" class="bcls-in" type="text" value="MRP-0PHECY-01" maxlength="80" autocomplete="off" spellcheck="false" />
+  </div>
+  <div>
+    <label class="bcls-lbl" for="bcls-symb">Symbology</label>
+    <select id="bcls-symb" class="bcls-in">
+      <option value="c128" selected>Code 128 (auto A/B/C)</option>
+      <option value="c39">Code 39 (alphanumeric)</option>
+      <option value="ean13">EAN-13 (retail product)</option>
+      <option value="upca">UPC-A (US retail)</option>
+      <option value="itf14">ITF-14 (shipping carton)</option>
+    </select>
+  </div>
+  <div>
+    <label class="bcls-lbl" for="bcls-mw">Module width (px)</label>
+    <input id="bcls-mw" class="bcls-in" type="number" min="1" max="12" step="1" value="2" />
+  </div>
+  <div>
+    <label class="bcls-lbl" for="bcls-h">Bar height (px)</label>
+    <input id="bcls-h" class="bcls-in" type="number" min="20" max="400" step="5" value="80" />
+  </div>
+  <div>
+    <label class="bcls-lbl" for="bcls-quiet">Quiet zone (modules)</label>
+    <input id="bcls-quiet" class="bcls-in" type="number" min="0" max="40" step="1" value="10" />
+  </div>
+  <div>
+    <label class="bcls-lbl" for="bcls-fs">Text size (px)</label>
+    <input id="bcls-fs" class="bcls-in" type="number" min="0" max="40" step="1" value="14" />
+  </div>
+  <div>
+    <label class="bcls-lbl" for="bcls-fg">Bar colour</label>
+    <input id="bcls-fg" class="bcls-in" type="color" value="#000000" style="padding:3px;height:38px;" />
+  </div>
+  <div>
+    <label class="bcls-lbl" for="bcls-bg">Background</label>
+    <input id="bcls-bg" class="bcls-in" type="color" value="#ffffff" style="padding:3px;height:38px;" />
+  </div>
+  <div>
+    <span class="bcls-lbl">Options</span>
+    <div role="group" aria-labelledby="bcls-opts-lbl" id="bcls-opts-lbl" style="display:flex;flex-direction:column;gap:2px;font-size:0.82rem;">
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="bcls-autocheck" checked /> Add missing check digit</label>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="bcls-showtext" checked /> Print the number</label>
+      <label id="bcls-mod43-wrap" style="display:none;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" id="bcls-mod43" /> Code 39 mod-43 check</label>
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
+  <button type="button" class="bcls-btn" data-bcls-sample="c128">Sample: Code 128</button>
+  <button type="button" class="bcls-btn" data-bcls-sample="c39">Sample: Code 39</button>
+  <button type="button" class="bcls-btn" data-bcls-sample="ean13">Sample: EAN-13</button>
+  <button type="button" class="bcls-btn" data-bcls-sample="upca">Sample: UPC-A</button>
+  <button type="button" class="bcls-btn" data-bcls-sample="itf14">Sample: ITF-14</button>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;">
+  <button type="button" id="bcls-svg" class="bcls-btn bcls-go">⬇ Download SVG</button>
+  <button type="button" id="bcls-png" class="bcls-btn">⬇ Download PNG (4× print)</button>
+  <button type="button" id="bcls-copy" class="bcls-btn">Copy SVG markup</button>
+  <button type="button" id="bcls-print" class="bcls-btn">Print</button>
+  <span id="bcls-meta" style="font-size:0.76rem;color:var(--text-secondary);"></span>
+</div>
+
+<div class="bcls-stage" id="bcls-stage"></div>
+<div class="bcls-err" id="bcls-err" role="alert"></div>
+
+<details style="margin-top:16px;color:rgba(230,250,255,0.6);font-size:0.8rem;">
+  <summary style="cursor:pointer;">Printing labels that actually scan</summary>
+  <div style="margin-top:8px;">
+    <p style="margin:0 0 8px;">
+      A scanner reads the <em>ratio</em> of bar to space widths, not the pixel size, so the same SVG prints on a
+      sticky label or a pallet card. Two rules matter more than anything else: leave the quiet zone (the blank
+      margin either side — 10 modules is the usual minimum) and never print a barcode in a single colour on a
+      coloured background. Red, orange and pale yellow bars are invisible to a red laser scanner.
+    </p>
+    <p style="margin:0 0 8px;">
+      EAN-13 and UPC-A are fixed-length retail codes: 13 and 12 digits. If you type one fewer, the check digit is
+      calculated and appended; type a full-length code and its check digit is validated, so you will be told if a
+      supplier's number is wrong. ITF-14 is the carton code used on shipping boxes and wants 14 digits. Code 39 is
+      the forgiving one — upper-case letters, digits and <code>- . $ / + %</code> and space — while Code 128 packs
+      the same data into roughly two-thirds of the width by encoding digit pairs together.
+    </p>
+    <p style="margin:0;">
+      The check sums are computed from the published algorithms (mod-103 for Code 128, mod-43 optionally for Code
+      39, mod-10 for the retail codes). A barcode printed at 4× and then shrunk will still scan; one printed at
+      1 px per module on a cheap inkjet may not.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  function $(id) { return host.querySelector('#' + id); }
+
+  /* ---------------------------------------------------------------- tables
+     Code 128: 107 symbols, each 11 modules (the stop symbol is 13).        */
+  var C128 = [
+    '11011001100', '11001101100', '11001100110', '10010011000', '10010001100',
+    '10001001100', '10011001000', '10011000100', '10001100100', '11001001000',
+    '11001000100', '11000100100', '10110011100', '10011011100', '10011001110',
+    '10111001100', '10011101100', '10011100110', '11001110010', '11001011100',
+    '11001001110', '11011100100', '11001110100', '11101101110', '11101001100',
+    '11100101100', '11100100110', '11101100100', '11100110100', '11100110010',
+    '11011011000', '11011000110', '11000110110', '10100011000', '10001011000',
+    '10001000110', '10110001000', '10001101000', '10001100010', '11010001000',
+    '11000101000', '11000100010', '10110111000', '10110001110', '10001101110',
+    '10111011000', '10111000110', '10001110110', '11101110110', '11010001110',
+    '11000101110', '11011101000', '11011100010', '11011101110', '11101011000',
+    '11101000110', '11100010110', '11101101000', '11101100010', '11100011010',
+    '11101111010', '11001000010', '11110001010', '10100110000', '10100001100',
+    '10010110000', '10010000110', '10000101100', '10000100110', '10110010000',
+    '10110000100', '10011010000', '10011000010', '10000110100', '10000110010',
+    '11000010010', '11001010000', '11110111010', '11000010100', '10001111010',
+    '10100111100', '10010111100', '10010011110', '10111100100', '10011110100',
+    '10011110010', '11110100100', '11110010100', '11110010010', '11011011110',
+    '11011110110', '11110110110', '10101111000', '10100011110', '10001011110',
+    '10111101000', '10111100010', '11110101000', '11110100010', '10111011110',
+    '10111101110', '11101011110', '11110101110', '11010000100', '11010010000',
+    '11010011100', '1100011101011'
+  ];
+  /* Code 39: one 15-module pattern per character, stored as the standard
+     decimal form and converted to binary below.                            */
+  var C39 = [
+    20957, 29783, 23639, 30485, 20951, 29813, 23669, 20855, 29789, 23645,
+    29975, 23831, 30533, 22295, 30149, 24005, 21623, 29981, 23837, 22301,
+    30023, 23879, 30545, 22343, 30161, 24017, 21959, 30065, 23921, 22385,
+    29015, 18263, 29141, 17879, 29045, 18293, 17783, 29021, 18269, 17477,
+    17489, 17681, 20753, 35770
+  ];
+  var C39_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%*';
+  // Every Code 39 character is exactly 15 modules; the published decimal for
+  // "*" carries one trailing gap bit, so take the first 15.
+  function c39bits(ch) {
+    var b = C39[C39_CHARS.indexOf(ch)].toString(2);
+    if (b.length < 15) b = ('000000000000000' + b).slice(-15);
+    return b.slice(0, 15);
+  }
+  /* EAN-13 / UPC-A */
+  var EAN_L = ['0001101', '0011001', '0010011', '0111101', '0100011',
+               '0110001', '0101111', '0111011', '0110111', '0001011'];
+  var EAN_G = ['0100111', '0110011', '0011011', '0100001', '0011101',
+               '0111001', '0000101', '0010001', '0001001', '0010111'];
+  var EAN_R = ['1110010', '1100110', '1101100', '1000010', '1011100',
+               '1001110', '1010000', '1000100', '1001000', '1110100'];
+  var EAN13_STRUCT = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG',
+                      'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
+  /* ITF-14 */
+  var ITF = ['00110', '10001', '01001', '11000', '00101',
+             '10100', '01100', '00011', '10010', '01010'];
+
+  var SAMPLES = {
+    c128: 'MRP-0PHECY-01',
+    c39: 'STOCK-A19',
+    ean13: '5012345678900',
+    upca: '03600029145',
+    itf14: '14501234567890'
+  };
+
+  /* ------------------------------------------------------------- encoders */
+  function isDigit(c) { return c >= '0' && c <= '9'; }
+
+  function c128Encode(text) {
+    var vals = [], i = 0, n = text.length;
+    var allDigits = /^\d+$/.test(text);
+    var startC = allDigits && n >= 2 && n % 2 === 0;
+    var set = startC ? 'C' : 'B';
+    vals.push(startC ? 105 : 104);
+    while (i < n) {
+      if (set === 'C') {
+        if (i + 1 < n && isDigit(text[i]) && isDigit(text[i + 1])) {
+          vals.push(parseInt(text.substr(i, 2), 10));
+          i += 2;
+        } else {
+          vals.push(100);            // Code B
+          set = 'B';
+        }
+      } else {
+        var c = text.charCodeAt(i);
+        if (c < 32 || c > 126) {
+          throw new Error('Code 128 here covers keyboard characters (ASCII 32–126). Character "' + text[i] + '" is not one.');
+        }
+        var run = 0;
+        while (i + run < n && isDigit(text[i + run])) run++;
+        if (run >= 4 && Math.floor(run / 2) >= 2) {
+          vals.push(99);             // Code C
+          set = 'C';
+          continue;
+        }
+        vals.push(c - 32);
+        i++;
+      }
+    }
+    var sum = vals[0];
+    for (var k = 1; k < vals.length; k++) sum += vals[k] * k;
+    vals.push(sum % 103);
+    vals.push(106);                  // stop
+    var bits = '';
+    for (var j = 0; j < vals.length; j++) bits += C128[vals[j]];
+    return bits;
+  }
+
+  function c39Encode(raw, mod43) {
+    var text = raw.toUpperCase();
+    if (!/^[0-9A-Z\-\.\ \$\/\+\%]+$/.test(text)) {
+      throw new Error('Code 39 accepts A–Z, 0–9, space and - . $ / + % only.');
+    }
+    if (mod43) {
+      var sum = 0;
+      for (var i = 0; i < text.length; i++) sum += C39_CHARS.indexOf(text[i]);
+      text += C39_CHARS[sum % 43];
+    }
+    var bits = c39bits('*');
+    for (var j = 0; j < text.length; j++) {
+      bits += c39bits(text.charAt(j)) + '0';
+    }
+    bits += c39bits('*');
+    return { bits: bits, text: text };
+  }
+
+  // oddWeight is the multiplier for the 1st, 3rd, 5th… digit: 1 for EAN-13
+  // (weights 1,3,1,3…), 3 for UPC-A (weights 3,1,3,1…).
+  function mod10Check(digits, oddWeight) {
+    var sum = 0;
+    for (var i = 0; i < digits.length; i++) {
+      sum += (+digits[i]) * ((i % 2) === 0 ? oddWeight : (oddWeight === 3 ? 1 : 3));
+    }
+    return String((10 - (sum % 10)) % 10);
+  }
+
+  function ean13Encode(input, auto) {
+    var d = input.replace(/\D/g, '');
+    if (d.length === 12 && auto) d += mod10Check(d, 1);
+    if (d.length !== 13) throw new Error('EAN-13 needs 13 digits (or 12 with the check digit left to us).');
+    if (d[12] !== mod10Check(d.substr(0, 12), 1)) {
+      throw new Error('Check digit mismatch — a valid EAN-13 ending in ' + d.substr(0, 12) + ' ends in ' + mod10Check(d.substr(0, 12), 1) + ', not ' + d[12] + '.');
+    }
+    var struct = EAN13_STRUCT[+d[0]];
+    var bits = '101';
+    for (var i = 1; i <= 6; i++) {
+      var table = struct[i - 1] === 'G' ? EAN_G : EAN_L;
+      bits += table[+d[i]];
+    }
+    bits += '01010';
+    for (var j = 7; j <= 12; j++) bits += EAN_R[+d[j]];
+    return { bits: bits + '101', text: d };
+  }
+
+  function upcaEncode(input, auto) {
+    var d = input.replace(/\D/g, '');
+    if (d.length === 11 && auto) d += mod10Check(d, 3);
+    if (d.length !== 12) throw new Error('UPC-A needs 12 digits (or 11 with the check digit left to us).');
+    if (d[11] !== mod10Check(d.substr(0, 11), 3)) {
+      throw new Error('Check digit mismatch — a valid UPC-A ending in ' + d.substr(0, 11) + ' ends in ' + mod10Check(d.substr(0, 11), 3) + '.');
+    }
+    var bits = '101';
+    for (var i = 0; i < 6; i++) bits += EAN_L[+d[i]];
+    bits += '01010';
+    for (var j = 6; j < 12; j++) bits += EAN_R[+d[j]];
+    return { bits: bits + '101', text: d };
+  }
+
+  function itf14Encode(input, auto) {
+    var d = input.replace(/\D/g, '');
+    if (d.length === 13 && auto) {
+      var sum = 0;
+      for (var i = 0; i < 13; i++) sum += +d[i] * (3 - (i % 2) * 2);
+      d += String(Math.ceil(sum / 10) * 10 - sum);
+    }
+    if (d.length !== 14) throw new Error('ITF-14 needs 14 digits (or 13 with the check digit left to us).');
+    if (d.length % 2) throw new Error('ITF-14 encodes digits in pairs, so it needs an even number of them.');
+    var bits = '1010';
+    for (var p = 0; p < d.length; p += 2) {
+      var a = ITF[+d[p]], b = ITF[+d[p + 1]];
+      for (var k = 0; k < 5; k++) {
+        bits += (a[k] === '1' ? '111' : '1') + (b[k] === '1' ? '000' : '0');
+      }
+    }
+    return { bits: bits + '11101', text: d };
+  }
+
+  function runs(bits) {
+    var out = [], cur = bits.charAt(0), n = 0;
+    for (var i = 0; i < bits.length; i++) {
+      if (bits.charAt(i) === cur) n++;
+      else { out.push({ black: cur === '1', w: n }); cur = bits.charAt(i); n = 1; }
+    }
+    if (n) out.push({ black: cur === '1', w: n });
+    return out;
+  }
+
+  function encode() {
+    var kind = $('bcls-symb').value;
+    var raw = $('bcls-data').value;
+    var auto = $('bcls-autocheck').checked;
+    if (!raw.length) throw new Error('Type something to encode.');
+    if (kind === 'c128') return { bits: c128Encode(raw), text: raw };
+    if (kind === 'c39') return c39Encode(raw, $('bcls-mod43').checked);
+    if (kind === 'ean13') return ean13Encode(raw, auto);
+    if (kind === 'upca') return upcaEncode(raw, auto);
+    return itf14Encode(raw, auto);
+  }
+
+  /* --------------------------------------------------------------- render */
+  function xmlEscape(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function buildSvg(model, scale) {
+    var mw = Math.max(1, +$('bcls-mw').value || 2) * (scale || 1);
+    var bh = Math.max(20, +$('bcls-h').value || 80) * (scale || 1);
+    var quiet = Math.max(0, +$('bcls-quiet').value || 0) * mw;
+    var showText = $('bcls-showtext').checked;
+    var fs = Math.max(0, +$('bcls-fs').value || 0) * (scale || 1);
+    var fg = $('bcls-fg').value, bg = $('bcls-bg').value;
+
+    var bars = model.bars;
+    var modules = 0;
+    bars.forEach(function (b) { modules += b.w; });
+    var width = modules * mw + quiet * 2;
+    var height = bh + (showText && fs ? fs * 1.6 : 0);
+    var textY = bh + fs * 1.15;
+
+    var out = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height +
+      '" viewBox="0 0 ' + width + ' ' + height + '" shape-rendering="crispEdges" role="img" aria-label="Barcode ' +
+      xmlEscape(model.text) + '">';
+    out += '<rect width="' + width + '" height="' + height + '" fill="' + bg + '"/>';
+    out += '<g fill="' + fg + '">';
+    var x = quiet;
+    for (var i = 0; i < bars.length; i++) {
+      if (bars[i].black) {
+        out += '<rect x="' + x + '" y="0" width="' + (bars[i].w * mw) + '" height="' + bh + '"/>';
+      }
+      x += bars[i].w * mw;
+    }
+    out += '</g>';
+    if (showText && fs) {
+      var label = model.text;
+      if (/^(ean13|upca)$/.test($('bcls-symb').value)) {
+        // Retail convention: lead digit sits outside the guard bars.
+        var head = label.charAt(0);
+        var rest = label.slice(1);
+        var half = Math.ceil(rest.length / 2);
+        out += '<text x="' + (quiet * 0.2) + '" y="' + textY + '" font-family="monospace" font-size="' + fs +
+          '" fill="' + fg + '" text-anchor="start">' + xmlEscape(head) + '</text>';
+        out += '<text x="' + (width / 2) + '" y="' + textY + '" font-family="monospace" font-size="' + fs +
+          '" fill="' + fg + '" text-anchor="middle" letter-spacing="' + (fs * 0.18) + '">' +
+          xmlEscape(rest.slice(0, half)) + ' ' + xmlEscape(rest.slice(half)) + '</text>';
+      } else {
+        out += '<text x="' + (width / 2) + '" y="' + textY + '" font-family="monospace" font-size="' + fs +
+          '" fill="' + fg + '" text-anchor="middle" letter-spacing="' + (fs * 0.15) + '">' + xmlEscape(label) + '</text>';
+      }
+    }
+    out += '</svg>';
+    return out;
+  }
+
+  function render() {
+    var err = $('bcls-err');
+    err.style.display = 'none';
+    try {
+      var res = encode();
+      var model = { bars: runs(res.bits), text: res.text };
+      current = model;
+      $('bcls-stage').innerHTML = buildSvg(model, 1);
+      var modules = 0;
+      model.bars.forEach(function (b) { modules += b.w; });
+      var mw = Math.max(1, +$('bcls-mw').value || 2);
+      var mm = (modules + 2 * Math.max(0, +$('bcls-quiet').value || 0)) * mw / 96 * 25.4;
+      $('bcls-meta').textContent = model.bars.length + ' bars · ' + modules + ' modules · ' +
+        mm.toFixed(1) + ' mm wide at screen scale · checksum verified';
+    } catch (e) {
+      current = null;
+      $('bcls-stage').innerHTML = '<span style="color:#888;font-size:0.8rem;">—</span>';
+      $('bcls-meta').textContent = '';
+      err.textContent = e.message;
+      err.style.display = 'block';
+    }
+  }
+
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function safeName() {
+    return ($('bcls-symb').value + '-' + ($('bcls-data').value || 'barcode'))
+      .replace(/[^a-zA-Z0-9\-_.]/g, '_').slice(0, 60);
+  }
+
+  var current = null;
+
+  /* ---------------------------------------------------------------- wire */
+  ['bcls-data', 'bcls-symb', 'bcls-mw', 'bcls-h', 'bcls-quiet', 'bcls-fs',
+   'bcls-fg', 'bcls-bg', 'bcls-autocheck', 'bcls-showtext', 'bcls-mod43'].forEach(function (id) {
+    $(id).addEventListener('input', render);
+    $(id).addEventListener('change', render);
+  });
+
+  function syncOptions() {
+    var is39 = $('bcls-symb').value === 'c39';
+    $('bcls-mod43-wrap').style.display = is39 ? 'flex' : 'none';
+    $('bcls-autocheck').disabled = false;
+  }
+  $('bcls-symb').addEventListener('change', syncOptions);
+  syncOptions();
+
+  Array.prototype.forEach.call(host.querySelectorAll('[data-bcls-sample]'), function (btn) {
+    btn.addEventListener('click', function () {
+      var kind = btn.getAttribute('data-bcls-sample');
+      $('bcls-symb').value = kind;
+      $('bcls-data').value = SAMPLES[kind];
+      render();
+    });
+  });
+
+  $('bcls-svg').addEventListener('click', function () {
+    if (!current) return;
+    download(new Blob([buildSvg(current, 4)], { type: 'image/svg+xml' }), safeName() + '.svg');
+  });
+
+  $('bcls-png').addEventListener('click', function () {
+    if (!current) return;
+    var svg = buildSvg(current, 4);
+    var img = new Image();
+    var url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    img.onload = function () {
+      var cv = document.createElement('canvas');
+      cv.width = img.width || 600;
+      cv.height = img.height || 300;
+      var ctx = cv.getContext('2d');
+      ctx.fillStyle = $('bcls-bg').value;
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      cv.toBlob(function (b) {
+        if (b) download(b, safeName() + '@4x.png');
+      }, 'image/png');
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); };
+    img.src = url;
+  });
+
+  $('bcls-copy').addEventListener('click', function () {
+    if (!current) return;
+    var text = buildSvg(current, 4);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        $('bcls-meta').textContent = 'SVG markup copied — paste it straight into your HTML.';
+      }, function () {});
+    }
+  });
+
+  $('bcls-print').addEventListener('click', function () {
+    if (!current) return;
+    var w = window.open('', '_blank');
+    if (!w) { $('bcls-meta').textContent = 'Pop-up blocked — allow pop-ups to print, or download the SVG instead.'; return; }
+    w.document.write('<!doctype html><title>Barcode</title><body style="margin:0;display:flex;justify-content:center;padding:20px;">' +
+      buildSvg(current, 3) + '</body>');
+    w.document.close();
+    w.focus();
+    setTimeout(function () { w.print(); }, 300);
+  });
+
+  render();
+})();
+</script>
