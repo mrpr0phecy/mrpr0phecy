@@ -274,6 +274,148 @@ test('uk-childcare-cost-calculator: funded hours, both schemes and the caps', ()
   assert.match(t.text('uccc-out'), /capped at £4,000 a year for 2 children/, 'cap scales with children');
 });
 
+// ---------------------------------------------------------------- parking
+test('uk-parking-appeal-builder: deadlines, expected value and the right appeal body', () => {
+  const t = mount('uk-parking-appeal-builder');
+  // Private charge issued 1 Sept 2026: 28-day appeal, 14-day discount.
+  t.set('upab-kind', 'private');
+  t.set('upab-issued', '2026-09-01');
+  t.set('upab-amount', 100);
+  t.set('upab-discount', 60);
+  t.set('upab-win', 40);
+  let out = t.text('upab-out');
+  assert.match(out, /First appeal to the operator due/, 'private route named');
+  assert.match(out, /Tuesday 29 September 2026/, '28 days from issue');
+  assert.match(out, /Tuesday 15 September 2026/, '14 days from issue');
+  expect(t, 'upab-out', 'Expected cost of fighting', '£60', '100 × (1 − 40%)');
+  assert.match(out, /coin flip/, 'a 60-vs-60 expected value is called a draw');
+  assert.match(out, /POPLA ~40%/, 'published win rates quoted');
+
+  // ticking a ground writes it into the letter, and the private letter puts
+  // keeper liability and PoFA in front of the operator
+  const cb = Array.from(t.doc.querySelectorAll('.upab-g'))
+    .find(x => x.getAttribute('data-k') === 'keeper');
+  cb.checked = true;
+  cb.dispatchEvent(new t.window.Event('change', { bubbles: true }));
+  const letter = t.$('upab-letter').value;
+  assert.match(letter, /Protection of Freedoms Act 2012/, 'PoFA cited');
+  assert.match(letter, /no obligation to identify the driver/, 'driver not named');
+  assert.match(letter, /Notice to Keeper/, 'the ground itself is written out');
+
+  // a council PCN escalates by 50% at the Charge Certificate stage.
+  // Switching type loads council defaults, so the fare is re-set explicitly.
+  t.set('upab-kind', 'council');
+  t.set('upab-amount', 100);
+  out = t.text('upab-out');
+  expect(t, 'upab-out', 'If you fight and lose', '£150', 'full amount +50%');
+  assert.match(out, /Charge Certificate/, 'and says why');
+  assert.match(out, /Informal challenge/, 'council informal stage named');
+});
+
+// ---------------------------------------------------------------- rail
+test('rail-delay-repay-calculator: bands for single, return and season tickets', () => {
+  const t = mount('rail-delay-repay-calculator');
+  t.set('rdrc-date', '2026-09-01');
+  t.set('rdrc-delay', 38);
+
+  t.set('rdrc-ticket', 'single'); t.set('rdrc-fare', 42);
+  expect(t, 'rdrc-out', 'Compensation', '£21.00', '50% of a £42 single');
+  expect(t, 'rdrc-out', 'Your band', '30–59 minutes', '38 minutes sits here');
+  assert.match(t.text('rdrc-out'), /29 September/, '28 days from travel');
+
+  t.set('rdrc-ticket', 'return'); t.set('rdrc-fare', 84);
+  expect(t, 'rdrc-out', 'Compensation', '£21.00', '25% of an £84 return');
+
+  t.set('rdrc-ticket', 'week'); t.set('rdrc-fare', 100);
+  expect(t, 'rdrc-out', 'Compensation', '£5.00', '50% of one day of a weekly season');
+
+  t.set('rdrc-delay', 125); t.set('rdrc-ticket', 'return'); t.set('rdrc-fare', 84);
+  expect(t, 'rdrc-out', 'Compensation', '£84.00', '120+ minutes refunds the whole return');
+
+  t.set('rdrc-delay', 7);
+  assert.match(t.text('rdrc-out'), /Nothing to claim at 7 minutes/, 'below the threshold');
+  t.set('rdrc-scheme', 30); t.set('rdrc-delay', 20);
+  assert.match(t.text('rdrc-out'), /starts paying at 30 minutes/, 'DR30 operators');
+});
+
+// ---------------------------------------------------------------- gift aid
+test('gift-aid-calculator: 25p uplift, higher-rate relief and the tax-paid rule', () => {
+  const t = mount('gift-aid-calculator');
+  // £100 a month = £1,200 a year
+  expect(t, 'gaac-out', 'You give a year', '£1,200');
+  expect(t, 'gaac-out', 'Charity claims', '+£300', '25p per £1');
+  expect(t, 'gaac-out', 'Charity receives', '£1,500');
+  expect(t, 'gaac-out', 'You claim back', '£0', 'basic-rate donors get nothing back');
+
+  t.set('gaac-band', 40);
+  expect(t, 'gaac-out', 'You claim back', '£300', '40% − 20% on the £1,500 gross');
+  expect(t, 'gaac-out', 'It really costs you', '£900', '£1,200 less £300');
+
+  t.set('gaac-band', 45);
+  expect(t, 'gaac-out', 'You claim back', '£375', '45% − 20% on the gross');
+
+  // the donor must have paid at least 25% of everything they Gift Aid
+  t.set('gaac-band', 20);
+  t.set('gaac-tax', 100);
+  assert.match(t.text('gaac-out'), /Do not tick the Gift Aid box/, 'shortfall warning');
+  assert.match(t.text('gaac-out'), /short by £200/, 'and by how much');
+  t.set('gaac-tax', 6000);
+  assert.doesNotMatch(t.text('gaac-out'), /Do not tick the Gift Aid box/, 'enough tax paid');
+
+  // GASDS cap: £2,000 top-up ceiling
+  t.set('gaac-small', 12000);
+  assert.match(t.text('gaac-out'), /Small donations scheme: £2,000 a year/, 'capped at £2,000');
+  assert.match(t.text('gaac-out'), /only the first £8,000/, 'and £8,000 of donations');
+});
+
+// ---------------------------------------------------------------- negotiation
+test('negotiation-prep-studio: anchor, zone of agreement and the walk-away warning', () => {
+  const t = mount('negotiation-prep-studio');
+  expect(t, 'ngps-out', 'Your anchor', '£59,800 a year', 'target × 1.15');
+  expect(t, 'ngps-out', 'Zone of agreement', '£46,000 a year – £55,000 a year', 'floor to ceiling');
+  expect(t, 'ngps-out', 'Likely landing point', '£49,000 a year', 'midpoint');
+  const brief = t.$('ngps-brief').value;
+  assert.match(brief, /NEGOTIATION BRIEF — SALARY FOR A NEW ROLE/, 'brief header');
+  assert.match(brief, /My BATNA:/, 'BATNA carried into the brief');
+  assert.match(brief, /Silence after they speak is mine to keep/, 'the tactics are in there');
+
+  // no overlap: floor above their ceiling is not a negotiation
+  t.set('ngps-walk', 60000);
+  assert.match(t.text('ngps-out'), /none/, 'no zone of agreement');
+  assert.match(t.text('ngps-out'), /You cannot win this one by arguing/, 'and says so');
+
+  // they open below your floor → the brief tells you to leave
+  t.set('ngps-walk', 46000);
+  t.set('ngps-their', 40000);
+  assert.match(t.$('ngps-brief').value, /below what I can accept/, 'script for a lowball');
+});
+
+// ---------------------------------------------------------------- latex
+test('latex-table-maths-studio: table generation and correct escaping order', () => {
+  const t = mount('latex-table-maths-studio');
+  const code = t.$('ltms-code').value;
+  assert.match(code, /\\begin\{tabular\}\{@\{\}lrrr@\{\}\}/, 'text left, numeric right');
+  assert.match(code, /\\toprule/, 'booktabs rules');
+  assert.match(code, /\\textbf\{Metric\}/, 'header row boldened');
+  assert.match(code, /\$48\$ & \$51\$/, 'numbers wrapped in maths mode');
+  assert.match(code, /\\midrule/, 'rule under the header');
+
+  // Regression: escaping the backslash first used to corrupt its own braces
+  // ("C:\textbackslash\{\}Users" instead of "C:\textbackslash{}Users").
+  const escaped = t.$('ltms-escaped').value;
+  assert.match(escaped, /C:\\textbackslash\{\}Users/, 'backslashes escaped cleanly');
+  assert.doesNotMatch(escaped, /textbackslash\\\{\\\}/, 'no double-escaped braces');
+  assert.match(escaped, /100\\% of files/, 'percent escaped');
+  assert.match(escaped, /ada\\_lovelace/, 'underscore escaped');
+  assert.match(escaped, /\\textasciitilde\{\}2hrs/, 'tilde escaped');
+
+  t.set('ltms-in', 'Name\tScore\nAda\t93\nAlan\t88');
+  t.check && t.check('ltms-header', true);
+  const two = t.$('ltms-code').value;
+  assert.match(two, /@\{\}lr@\{\}/, 'two columns, second one numeric');
+  assert.match(two, /\\textbf\{Name\}/, 'header taken from the first row');
+});
+
 // ---------------------------------------------------------------- runner
 let failed = 0;
 for (const { name, fn } of tests) {

@@ -184,6 +184,14 @@ const categoryMap = {
   'knitting-crochet-yarn-studio': 'Productivity & Lifestyle',
   'tinnitus-hearing-relief-studio': 'Health & Fitness',
   'uk-childcare-cost-calculator': 'Finance & Money',
+  // Second batch, same method: subjects verified to have zero coverage before
+  // a line of code was written. No parking-appeal, rail-delay, Gift Aid,
+  // negotiation or LaTeX tool existed anywhere in the catalogue.
+  'uk-parking-appeal-builder': 'Finance & Money',
+  'rail-delay-repay-calculator': 'Finance & Money',
+  'gift-aid-calculator': 'Finance & Money',
+  'negotiation-prep-studio': 'Productivity & Lifestyle',
+  'latex-table-maths-studio': 'Writing & Language',
   // Added 2026-09-14 — five gap-fill tools (no kitchen-conversion, world-clock,
   // event-countdown, group-expense or affordability tool existed in the catalogue).
   'countdown-date-timer': 'Productivity & Lifestyle',
