@@ -9,6 +9,59 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (10) — arena/01a0a723 — the monitor's first catch: two policy files that were never deployed
+
+**Commission:** the same session as (9), continuing the production-operations
+work after the first two PRs landed.
+
+**Correction to (9):** the monitor was wired to `workflow_run` on GitHub's
+dynamic *pages build and deployment* workflow. That trigger never fires —
+GitHub's own Pages workflow is not chainable — so the monitor only ran on its
+six-hour schedule and a bad deploy could sit live for up to six hours. It now
+runs on every push to `main`, waits 45 s for Pages, then probes the whole
+standing contract with about a minute of mismatch retries for propagation.
+Every run therefore covers the full contract, so any passing run may close the
+alert issue.
+
+**The catch:** extending the monitor to probe the machine-readable surface the
+site advertises (`llms.txt`, `llms-full.txt`, `feed.xml`, `related.json`,
+`.well-known/*`) produced two 404s in production: `.well-known/ai.txt` and
+`.well-known/security.txt`. Both were tracked, in the sitemap, and linked from
+`about.html`, `press.html`, `changelog.html` and `sitemap.html` — and never
+deployed, because Pages ran the repository through Jekyll, which skips every
+path beginning with `.` or `_`. `ARCHITECTURE.md`'s promise that "what is
+committed is what is served" had been false for those files since they were
+added, and no existing gate could see it: `verify.sh` checks paths on disk, not
+paths in production.
+
+**Landed:**
+- `.nojekyll` at the root — disables the hidden build step, so the deployed tree
+  is the committed tree. Side effect, documented: `_build/*.py` is now served.
+- `scripts/check-production.js` — both `.well-known` files plus `llms.txt`,
+  `llms-full.txt`, `feed.xml` and `related.json` are compared byte-for-byte on
+  every run; a probed file missing from the repository is a failure, not a quiet
+  warning; `local-ai-knowledge.json` is deliberately not probed (4.4 MB).
+- `docs/OPERATIONS.md`, `ARCHITECTURE.md`, `notes/operations.md` — the published
+  surface, the trigger correction and the incident note.
+
+**Validation (real evidence, not intent):**
+- Check-run annotations on temporary CI run `35032966565` named both 404s and
+  their status codes; the temporary probe workflow and script were deleted
+  before the PR.
+- `bash scripts/verify.sh` → `VERIFY PASSED`; section 20 is now 21 checks
+  (probe-list rot and table escaping included).
+- The monitor's push run on merge commit `b0c6bb9` (run `35033837502`) is
+  **success** with *Fail the run when the contract is broken* **skipped** — the
+  deployed site, `.well-known` included, now matches the repository byte for
+  byte. That run is the live deploy check.
+- The alert job's write permission is proven the hard way: the run created the
+  `ops:production-alert` label with `GITHUB_TOKEN` at 22:48:44Z.
+
+**Next:** the alert issue's create/comment/close calls still have not run
+against a real incident. The permission behind them is proven, detection is
+proven, and an alert job that fails is red on its own — but nobody should read
+this entry as "alerting has been tested end to end".
+
 ## 2026-09-15 (9) — arena/01a0a723 — production contract monitor, runbook and rollback
 
 **Commission:** owner asked for the repository to run like operational
