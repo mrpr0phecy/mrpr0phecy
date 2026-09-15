@@ -73,6 +73,14 @@ establish *which* site first.
 ├── support.html            Direct support / PayPal — music side
 ├── donate.html             Wikipedia-style appeal — tools side
 ├── sponsor.html            Sponsorship / advertising enquiries
+├── embed.html              Embed catalogue + licensing funnel + MUS1 key
+│                           activation (§6b). GA + funnel events.
+├── embed-finance.html      GENERATED licence landing page for the finance
+│                           vertical (§6b) — scripts/build-embed-landing.py;
+│                           never hand-edit, verify.sh fails on drift.
+├── licence-admin.html      OWNER console: issues signed MUS1 keys offline.
+│                           noindex, no analytics; private key stays in the
+│                           owner's browser (§6b).
 ├── mpnews.html             Music news page
 ├── opensourcenews.html     Open Source News — live global broadcast from open RSS feeds (see §9)
 │
@@ -633,6 +641,37 @@ open('sitemap.xml','w').write(
 ```
 
 Note the `%20` escaping: some filenames in `images/` contain spaces.
+
+### §6b. Embed licensing — the funnel, the keys, the guards
+
+The licence product (STRATEGY.md is the business case) is fully static. The
+moving parts:
+
+- **`embed.html#pricing`** — the tiers: free-forever (credit line stays),
+  £99/yr single tool, £299/yr category, £899/yr white-label. Tier CTAs are
+  pre-filled `mailto:` enquiries; GA records `embed_copy`, `pricing_view`,
+  `licence_enquiry`, `licence_key_valid/invalid` (GA is already allowed on this
+  page). `embed.html?cat=<category>&tool=<slug>` deep-links into the catalogue
+  filter — that is what the landing page links to.
+- **The credit line is the price of the free tier.** Every snippet built by
+  `embed.html` or `tool.html` carries a `[data-mus-credit]` element linking
+  back to the tool. `scripts/check-finance.js` FAILS if either page stops
+  emitting it — that is deliberate, do not weaken the check.
+- **MUS1 licence keys** — `MUS1.<payload>.<signature>`, ECDSA P-256/SHA-256
+  over `{v,d,t,e}` (domain, tier, expiry). CLI + library:
+  `scripts/licence-keys.mjs` (`keygen|pubkey|sign|verify`). Browser issuer:
+  `licence-admin.html` (owner-only, noindex, no analytics, private key in
+  localStorage). A buyer pastes their key at `embed.html#activate`; snippets
+  then embed a verifier that removes the credit line only on the licensed
+  domain before expiry. Tamper-evident, not DRM. The owner must paste their
+  PUBLIC JWK into `embed.html`'s `mus-licence-pubkey` meta once — until then
+  activation is switched off and everything is the free credited tier.
+- **`embed-finance.html`** — generated licence landing page for the finance
+  vertical (`scripts/build-embed-landing.py`, `--check` in verify.sh). Counts,
+  featured tools and the statutory-check figure are derived from
+  `cards/cards.json` and `check-finance.js` at build time; never hand-edit.
+- **Guards** — verify.sh §16 runs `check-finance.js` (maths + funnel honesty),
+  §17 runs the licence-key tests and the landing-page freshness check.
 
 ---
 

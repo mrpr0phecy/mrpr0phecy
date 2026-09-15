@@ -137,8 +137,11 @@ at a moment when traffic is the thing collapsing.
 
 ## Ranked, by expected return per hour of effort
 
-1. **Embed licensing (`embed.html`)** — built. Recurring, traffic-independent,
-   defensible, and priced well under a market that already exists.
+1. **Embed licensing (`embed.html`)** — built and automated (2026-09-15):
+   tiers live on the page, every snippet carries the credit line, buyers
+   self-serve a signed licence key (`MUS1`), and the finance vertical has its
+   own landing page. Recurring, traffic-independent, defensible, and priced
+   well under a market that already exists.
 2. **Content ID + distribution** — unchanged from `INCOME.md`. Still the best
    effort-to-return ratio in the music half, still switched off.
 3. **YouTube Partner Programme** — unchanged. Deadline **1 Feb 2027**.
@@ -153,20 +156,35 @@ at a moment when traffic is the thing collapsing.
 
 ## What to do next, in order
 
-1. **Get the first licensee.** Ten emails to UK mortgage brokers and small
-   accountancy practices with a link to a working embed on their own staging
-   site beats any amount of further building. This is the only item that
-   converts the work into money.
-2. **Instrument the funnel.** `embed.html` needs to be measurable: how many
-   people press Embed, how many reach the licence page. Without that the
-   pricing cannot be tuned.
-3. **Prove the maintenance claim publicly.** A short changelog of statutory
-   updates ("2026/27 bands applied 6 April") is the single most persuasive
-   asset for a buyer deciding whether to trust an unknown supplier.
-4. **Consider a second vertical page.** The finance category is the highest-CPC
-   vertical in existence — mortgage/insurance/tax keywords are where the money
-   is. A page targeting "free mortgage calculator for your website" is the
-   obvious SEO entry point into the licence funnel.
+Landed 2026-09-15 (this section is the live version of the plan above):
+
+- ~~Instrument the funnel~~ — done. `embed.html` fires `embed_copy`,
+  `pricing_view`, `licence_enquiry` and `licence_key_valid/invalid` into the
+  GA property already on that page; tier CTAs are pre-filled mailto enquiries.
+- ~~Embed licensing fulfilment~~ — done. Signed `MUS1` keys, issued from
+  `licence-admin.html` (or `scripts/licence-keys.mjs`), verified client-side;
+  buyers self-serve at `embed.html#activate`. No server, no database.
+- ~~Second vertical page~~ — done: `embed-finance.html`, generated from the
+  catalogue by `scripts/build-embed-landing.py` so counts and the statutory-
+  check claim cannot drift.
+
+What remains, in order:
+
+1. **Get the first licensee.** STILL the only item that converts the work into
+   money. The manual part is now as small as it can be: the outreach kit with
+   fill-in-the-blank emails is at `launch/licence-outreach.md`, the tier CTAs
+   on `embed.html` open pre-filled enquiries, and issuing the key after payment
+   is a 30-second job in `licence-admin.html`. Ten emails to UK mortgage
+   brokers and small accountancy practices beats any amount of further building.
+2. **Wire the licence emails to a payment link.** The one gap left: checkout
+   is still "email me". A Stripe/Gumroad payment link pasted into the tier CTAs
+   makes the funnel fully self-serve. Owner decision (which processor).
+3. **Watch the funnel numbers, then tune pricing.** `pricing_view` vs
+   `embed_copy` vs `licence_enquiry` ratios say whether £99/£299/£899 is the
+   right shape. Decide with data after ~4 weeks of traffic.
+4. **Prove the maintenance claim on a cadence.** The changelog exists and the
+   landing page points at it; what makes it persuasive is a dated entry every
+   April when the statutory figures move.
 
 ---
 

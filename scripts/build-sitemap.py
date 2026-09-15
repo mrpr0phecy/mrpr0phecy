@@ -38,6 +38,8 @@ PRIORITY = {
     "music.html": ("0.9", "weekly"),
     "index.html": ("0.9", "daily"),
     "youtubepromo2.html": ("0.7", "monthly"),
+    # The licence-funnel landing page: commercial intent, follows the catalogue.
+    "embed-finance.html": ("0.6", "weekly"),
 }
 
 NOINDEX = re.compile(

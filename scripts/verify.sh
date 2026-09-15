@@ -23,6 +23,11 @@
 #  15. home first screen      — scripts/build-home-prerender.py --check, plus the
 #                                loader tests in scripts/tests/ that drive the real
 #                                functions out of index.html
+#  16. finance & licence      — scripts/check-finance.js: statutory maths AND the
+#      honesty                  honesty of the embed-licensing funnel (prices,
+#                               credit line, disclaimers, D-002 privacy claims)
+#  17. licence keys + finance — scripts/tests/licence-keys.test.js and
+#      landing                  scripts/build-embed-landing.py --check
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -34,25 +39,25 @@ ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
 note() { printf '  \033[33mNOTE\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAILS=$((FAILS+1)); }
 
-section "1/15 catalogue consistency (check-cards.py)"
+section "1/17 catalogue consistency (check-cards.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-cards.py; then ok "catalogue coherent"; else fail "catalogue incoherent"; fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "2/15 placeholder IDs in *.html"
+section "2/17 placeholder IDs in *.html"
 # Hard placeholders anywhere; YOUR_ only inside URLs/attributes (demo text
 # like 'YOUR_SYSTEM_PROMPT' in the prompt-injection lab is legitimate content).
 PH="dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|(src|href)=['\"][^'\"]*YOUR_"
 HITS=$(grep -rlE "$PH" --include='*.html' --exclude-dir=ai-developer --exclude-dir=.git . 2>/dev/null || true)
 if [ -n "$HITS" ]; then fail "placeholder IDs found: $(echo "$HITS" | tr '\n' ' ')"; else ok "none"; fi
 
-section "3/15 target=_blank links without rel=noopener"
+section "3/17 target=_blank links without rel=noopener"
 BAD=$(grep -rn --include='*.html' --exclude-dir=ai-developer --exclude-dir=.git -E '<a [^>]*target="_blank"' . 2>/dev/null | grep -v 'noopener' || true)
 if [ -n "$BAD" ]; then fail "$(echo "$BAD" | head -5)"; else ok "all covered"; fi
 
-section "4/15 sitemap.xml"
+section "4/17 sitemap.xml"
 if python3 - <<'PY' 2>/dev/null
 import xml.etree.ElementTree as E
 root = E.parse('sitemap.xml').getroot()
@@ -62,10 +67,10 @@ PY
 then ok "parses, entries: $(python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))")"
 else fail "missing or empty"; fi
 
-section "5/15 top-level SEO scan (scan-seo.py)"
+section "5/17 top-level SEO scan (scan-seo.py)"
 if python3 scripts/scan-seo.py; then ok "no missing <title>"; else fail "see warnings above"; fi
 
-section "6/15 sensitive strings in tracked files"
+section "6/17 sensitive strings in tracked files"
 # Patterns are assembled at runtime so this script does not match itself.
 P1="gh""o_"; P2="gh""p_"; P3="github""_pat_"; P4="gh""s_"
 if grep -rnE "$P1|$P2|$P3|$P4" --exclude-dir=.git --exclude-dir=ai-developer . 2>/dev/null | grep -v '^Binary' | head -5 | grep -q .; then
@@ -74,30 +79,30 @@ else
   ok "none"
 fi
 
-section "7/15 git state"
+section "7/17 git state"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   note "uncommitted changes present — commit before pushing"; NOTES=$((NOTES+1))
 else
   ok "working tree clean"
 fi
 
-section "8/15 card JavaScript syntax (check-card-js.py)"
+section "8/17 card JavaScript syntax (check-card-js.py)"
 if command -v node >/dev/null 2>&1; then
   if python3 scripts/check-card-js.py --all; then ok "every card's JS parses"; else fail "a card would be dead in production"; fi
 else
   note "node not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "9/15 tool-count claims (sync-counts.py)"
+section "9/17 tool-count claims (sync-counts.py)"
 if python3 scripts/sync-counts.py --check; then ok "every claim matches the catalogue"; else fail "stale tool counts — run: python3 scripts/sync-counts.py"; fi
 
-section "10/15 sitemap freshness (build-sitemap.py)"
+section "10/17 sitemap freshness (build-sitemap.py)"
 if python3 scripts/build-sitemap.py --check; then ok "sitemap matches tracked indexable pages"; else fail "sitemap stale — run: python3 scripts/build-sitemap.py"; fi
 
-section "11/15 card accessibility (check-a11y.py)"
+section "11/17 card accessibility (check-a11y.py)"
 if python3 scripts/check-a11y.py; then ok "labels resolve, images have alt, _blank is safe"; else fail "accessibility regressions in cards/"; fi
 
-section "12/15 site brain index and grounding"
+section "12/17 site brain index and grounding"
 if python3 scripts/build-site-brain.py --check \
   && python3 scripts/evaluate-site-brain.py; then
   ok "repo-grounded knowledge index and retrieval cases are current"
@@ -105,7 +110,7 @@ else
   fail "site brain stale or retrieval regression — rebuild and inspect learning/evaluation.json"
 fi
 
-section "13/15 staff facility configuration and regression tests"
+section "13/17 staff facility configuration and regression tests"
 if command -v node >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
   if node scripts/ai-developer.js check \
     && node --test scripts/tests/staff-*.test.js \
@@ -118,7 +123,7 @@ else
   fail "Node 22+ and Python 3 are required to verify the staff facility"
 fi
 
-section "14/15 card top-level name collisions (check-card-collisions.py)"
+section "14/17 card top-level name collisions (check-card-collisions.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-card-collisions.py; then
     ok "no cross-card top-level name can throw in the shared DOM"
@@ -129,7 +134,7 @@ else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "15/15 home page first screen and card loader"
+section "15/17 home page first screen and card loader"
 if python3 scripts/build-home-prerender.py --check; then
   ok "pre-rendered first screen matches the catalogue"
 else
@@ -146,6 +151,33 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   note "node not available — card loader tests skipped"; NOTES=$((NOTES+1))
+fi
+
+section "16/17 finance & licence honesty (check-finance.js)"
+if command -v node >/dev/null 2>&1; then
+  if node scripts/check-finance.js; then
+    ok "statutory maths and the embed-licensing funnel are honest"
+  else
+    fail "finance/licence regression — a calculator or the paid product has drifted"
+  fi
+else
+  note "node not available — skipped"; NOTES=$((NOTES+1))
+fi
+
+section "17/17 licence keys + finance landing page"
+if command -v node >/dev/null 2>&1; then
+  if node scripts/tests/licence-keys.test.js >/dev/null 2>&1; then
+    ok "licence keys sign, verify and refuse tampering"
+  else
+    fail "licence key regression — run: node scripts/tests/licence-keys.test.js"
+  fi
+else
+  note "node not available — licence key tests skipped"; NOTES=$((NOTES+1))
+fi
+if python3 scripts/build-embed-landing.py --check >/dev/null 2>&1; then
+  ok "embed-finance.html matches the catalogue and the finance checks"
+else
+  fail "embed-finance.html stale — run: python3 scripts/build-embed-landing.py"
 fi
 
 if [ "$LIVE" = "1" ]; then
