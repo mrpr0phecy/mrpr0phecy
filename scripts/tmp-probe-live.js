@@ -32,10 +32,10 @@ rootFiles.forEach(function (rel) {
 wellKnown.forEach(function (rel) { paths.push(rel); });
 buildFiles.forEach(function (rel) { paths.push(rel); });
 paths.push('index.html', 'tool.html', 'listen.html', '404.html', 'about.html', 'press.html', 'changelog.html', 'sitemap.html');
-paths.push('cards/mortgage-calculator.html', 'tools/mortgage.html', 'cards/cards.json');
+paths.push('cards/mortgage.html', 'tools/mortgage.html', 'cards/cards.json');
 paths.push('this-path-does-not-exist-9f3a2b.html');
 
-async function probe(rel) {
+async function once(rel) {
   const url = ORIGIN + '/' + rel;
   const started = Date.now();
   try {
@@ -57,6 +57,17 @@ async function probe(rel) {
   } catch (error) {
     return { rel: rel, status: 'ERROR', type: String(error && error.name), bytes: 0, sha: '-', ms: Date.now() - started, bytes_repo: null };
   }
+}
+
+// The deployment this run is checking may still be in flight, so a non-200 is
+// only believed after three attempts, 20 s apart.
+async function probe(rel) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const result = await once(rel);
+    if (result.status === 200 || attempt === 3) return result;
+    await new Promise(function (resolve) { setTimeout(resolve, 20000); });
+  }
+  return once(rel);
 }
 
 (async function main() {
