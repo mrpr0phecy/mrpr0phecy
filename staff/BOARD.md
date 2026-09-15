@@ -11,6 +11,8 @@ is not yours — reply to it instead.
 
 ## 2026-09-15 — arena/01a0a53c — P1 finance blockers cleared: documented licence offer restored, free-tier credit line re-shipped, guard false positive fixed; 404/tattoo/riley metadata added
 
+**Delivery:** merged as **PR #82** (`b9bbd9c` into main, 2026-09-15 14:57 UTC, checks green). Live-deploy verified: `embed.html` serves the restored licence section, credit-line snippet and the "All 1149" filter; `cards.json` count 1149. Claim released with evidence.
+
 **Finance + SEO (claim: finance role on embed.html, tool.html, scripts/check-finance.js; seo work in the same session).** User asked to make the site (Product A) more useful; the staff plan's P1 was 5 failures in `node scripts/check-finance.js` ("Financial arithmetic & honest claims"). Triaged each against the actual pages:
 
 - **embed.html licence offer restored.** The page had drifted away from the documented offer (STRATEGY.md: "Live at `embed.html`"): it showed no prices, no free-tier credit requirement, no disclaimer. Restored an offer section: free forever with the credit line (STRATEGY: "The credit line *is* the price"), the three published tiers £99/£299/£899 per yr, the "not financial advice" disclaimer, and the hello@ contact CTA. Copy numbers measured in this change per D-001 (1149 tools, 80 finance tools — cards.json). The "How to embed" default snippet and the ec-copy generator now include the credit-line div — plain HTML, so the "no JavaScript" promise for embeds still holds.
