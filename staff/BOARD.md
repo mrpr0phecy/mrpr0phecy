@@ -9,6 +9,25 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 — arena/01a0a53c — P1 finance blockers cleared: documented licence offer restored, free-tier credit line re-shipped, guard false positive fixed; 404/tattoo/riley metadata added
+
+**Finance + SEO (claim: finance role on embed.html, tool.html, scripts/check-finance.js; seo work in the same session).** User asked to make the site (Product A) more useful; the staff plan's P1 was 5 failures in `node scripts/check-finance.js` ("Financial arithmetic & honest claims"). Triaged each against the actual pages:
+
+- **embed.html licence offer restored.** The page had drifted away from the documented offer (STRATEGY.md: "Live at `embed.html`"): it showed no prices, no free-tier credit requirement, no disclaimer. Restored an offer section: free forever with the credit line (STRATEGY: "The credit line *is* the price"), the three published tiers £99/£299/£899 per yr, the "not financial advice" disclaimer, and the hello@ contact CTA. Copy numbers measured in this change per D-001 (1149 tools, 80 finance tools — cards.json). The "How to embed" default snippet and the ec-copy generator now include the credit-line div — plain HTML, so the "no JavaScript" promise for embeds still holds.
+- **tool.html's Embed button copies the credit line** alongside the chrome-free `&embed=1` iframe (the `tool-shell.test.js` pinned prefix is preserved).
+- **D-002/D-007 copy fix:** embed.html's compass tool description said "All local, no tracking." on a GA-bearing page — now scoped and phrased from the approved true-claims list: "Runs in your browser, no tracking in the tool."
+- **Guard false positive fixed in check-finance.js:** the card analytics scan flagged `cards/cookie-consent-banner-builder.html`; its only hit is the inert generated sample `<script type="text/plain" src="https://example.com/analytics.js">` in `gateExample()` (it shows users where their tracking scripts get parked). Reserved RFC 2606 documentation domains can never host a real tracker, so such sample references are stripped before the scan; every real loader pattern (googletagmanager, gtag(), google-analytics.com, plausible.io, a real analytics.js URL) is still caught.
+
+**Embed catalogue re-synced + made a checked derived artifact.** While triaging, found embed.html's grid held 1119 of the real 1149 tools (30 newer tools were unembeddable from the page that sells embedding), 214 descriptions had rotted against cards.json, and the filter button lied ("All 1119"). Added `scripts/build-embed-catalog.py` (build from cards.json; `--check` for CI; preserves existing block order, appends new cards, owns the "All N" button and the ec-* lines only) and ran it: grid now 1149, every description live from the manifest. Wired it into `verify.sh` as section 18 so the grid can never silently drift again — this is the same "derived artifact" treatment the sitemap and home prerender already had, which is exactly what embed.html was missing (the add-a-tool sequence in AGENTS.md §4 never mentions it; that gap is why the drift happened).
+
+**SEO (P2 guardrails):** 404.html gained canonical + full og:*/twitter:card; tattoo.html gained canonical/og:url/twitter:card; riley.html gained og:image (generic og-tools.png — the page is pure canvas). This supersedes the earlier handover's "deliberately untouched" note on riley/tattoo: the current P2 guidance prioritises *indexable* pages, and those two are the only indexable ones left with gaps. Remaining scan-seo WARNs: hokidea.html (documented exception) + indexbeta.html (deliberate noindex beta) — left untouched.
+
+**Verified:** `check-finance.js` PASSED (100 checks; was 5 FAIL); `verify.sh` PASSED 18/18 (only notes: hokidea/indexbeta exceptions + uncommitted); `scan-seo.py` clean on indexable pages; `tool-shell.test.js` OK; `build-embed-catalog.py` idempotent (re-run is a no-op); staff plan now **READY FOR HUMAN REVIEW** (was NOT READY, finance blocking).
+
+**Left for the owner:** P1 privacy advisory — index.html/tool.html carry tool-side links to music.html/listen.html that conflict with the documented product boundary; the facility marks this "owner review, not automatic removal".
+
+---
+
 ## 2026-09-15 (3) — arena/01a0a4dd — tool.html hardened: XSS fix, embed=1 contract implemented, per-tool metadata; catalogue ID collisions removed
 
 **Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence.
