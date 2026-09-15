@@ -1,0 +1,74 @@
+name: TEMP live probe validation
+
+# TEMPORARY — not for merge. Runs the new production monitor against the real
+# deployed site from a runner (the authoring sandbox has no egress), and proves
+# its detection and "cannot run" exit paths work against production before the
+# monitor is trusted to alert. Deleted before the pull request is merged.
+on:
+  push:
+    branches: [arena/01a0a723-mrpr0phecy]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Full contract against production
+        id: real
+        run: |
+          set +e
+          node scripts/check-production.js --sample 12 \
+            --json "$RUNNER_TEMP/production-report.json" \
+            --summary "$RUNNER_TEMP/production-summary.md"
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Detection self-test (a missing page must fail, a bad flag must not run)
+        run: |
+          set -euo pipefail
+          set +e
+          node scripts/check-production.js --probe __monitor-self-test-missing__.html --sample 1 --quiet
+          probe_code=$?
+          set -e
+          echo "deliberate missing path -> exit $probe_code (expected 1)"
+          [ "$probe_code" = "1" ] || { echo "::error::the monitor did not fail on a missing page"; exit 1; }
+
+          set +e
+          node scripts/check-production.js --not-a-real-flag --quiet
+          arg_code=$?
+          set -e
+          echo "invalid argument -> exit $arg_code (expected 2)"
+          [ "$arg_code" = "2" ] || { echo "::error::the monitor did not report a bad invocation as exit 2"; exit 1; }
+
+      - name: Report
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/production-summary.md" ]; then
+            cat "$RUNNER_TEMP/production-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "Full-contract exit code: ${{ steps.real.outputs.exit_code }}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: temp-live-probe
+          path: |
+            ${{ runner.temp }}/production-report.json
+            ${{ runner.temp }}/production-summary.md
+          if-no-files-found: warn
+      - name: Fail if production did not match
+        if: steps.real.outputs.exit_code != '0'
+        run: exit 1
