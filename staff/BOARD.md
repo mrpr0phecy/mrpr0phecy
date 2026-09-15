@@ -9,6 +9,75 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (5) — arena/01a0a58d — implemented every staff-side plan item: deep links, dead-URL fix, guide repairs, trust surfaces, growth pack
+
+**Delivery:** second commit on `arena/01a0a58d-mrpr0phecy` (PR #83; see
+GitHub for merge/check state). Owner said "do everything you can" — this is
+everything the plan allows without owner decisions. Claim scope: index.html,
+tool.html, about.html, guides/, blog/, staff/.
+
+**Landed:**
+- **Phantom deep links implemented (P1-U2/P1-R1):** llms.txt + agents.html
+  advertised `index.html?q=` and `index.html?expand=` but index.html had no
+  query handling at all (verified: no location.search/URLSearchParams). Added
+  `parseIndexDeepLink` (pure, charset-validated slugs) + `applyIndexDeepLink`
+  (never throws; expand reuses the real click handler via data-name match;
+  no HTML sink), hooked after `buildPlaceholders`. Pinned by new
+  `scripts/tests/index-deeplink.test.js` (11 vectors incl. hostile slugs +
+  static guards), wired into `verify.sh`, `node --check` clean. Needs one
+  real-browser pass (no browser in sandbox) — the one honest gap.
+- **27 dead structured-data URLs fixed (P1-R1):** index.html's ItemList
+  pointed every category at `tool.html?tool=<frag>` — tool.html only reads
+  `card`/`embed`/`t`, so all 27 were dead (and malformed: raw `&`). Now
+  `tools-index.html#<slug>` with every anchor verified present.
+- **Guide tool blocks repaired (P1-R4):** color/json/passwords/regex guides
+  showed "Writing & Language" tools; image.html (about formats) showed art
+  toys. All five rebuilt from cards.json with genuinely relevant tools (30
+  slugs verified), headers corrected, modified dates bumped to 2026-09-15.
+- **Trust surfaces (P1-R5):** about.html — category count 23→27 (verified
+  27 in cards.json; sync-counts doesn't manage category counts), "clearly
+  marked" overclaim reworded, "everything works offline" scoped to the
+  labelled exceptions, visible last-updated, new methodology section (100
+  finance checks, egress scan, derived counts, 17 verify sections — all
+  measured) + corrections policy, JSON-LD expanded (Person sameAs: verified
+  YouTube/SoundCloud/Instagram/TikTok/GitHub; dateModified; publisher).
+- **D-002 copy fixes (P3-T1):** 3 card descriptions reworded to blessed
+  terms (compass/time-tracker/world-clock "no tracking" tails) +
+  cards.json/ai-index/site-brain regenerated + 1 hand line in embed.html.
+  check-finance: **5→3 of 100 failing**; remaining 3 are the licensing
+  assertions (owner monetisation decision, must stay failing). The
+  cookie-consent "analytics" FAIL was a false positive (inert
+  `type="text/plain"` sample pointing at example.com) — checker now strips
+  the exact placeholder URL, with rationale in code.
+- **CTR + disclosure:** index meta/OG descriptions rewritten (blessed terms
+  only, no numbers to drift); index footer gains an analytics disclosure.
+- **`staff/GROWTH-PACK.md` (new, PROPOSAL):** embed terms (exact snippet,
+  £99/£299/£899 terms, changelog format, disclaimer), funnel spec within
+  D-007, first-licensee 10-email pack, sync-page draft, vertical-page draft,
+  resource outreach pack, digital-PR one-pager. Nothing live until O-3/O-4.
+- **P3-T1 boundaries review (recorded):** 5 music-link WARNs (index/tool/
+  donate incl. footer spotlight) left untouched for owner review per policy;
+  press.html "no analytics" (3, all scoped+disclosed), sponsor.html "no
+  tracking pixels" (sponsor's pixels, scoped), "100% private in-browser X"
+  (checker-blessed scoping, check-finance.js L429) all reviewed-clean;
+  about/embed WARNs fixed above. GA footprint (43 vs D-007's ~14) stays open
+  as P0-M3.
+- **P0-M2 partial:** no external network in sandbox (PageSpeed API http=000),
+  so field/lab numbers need an online run — owner paste or next online
+  session: PageSpeed Insights (mobile+desktop) on index/tool shell/one guide/
+  listen. Static payload baseline recorded: index 268KB (110KB JS + 99KB
+  CSS inline), cards.json 526KB, embed 774KB, tools-index 371KB.
+
+**Verified:** full `verify.sh` PASSED (17/17 + new deeplink test); `git diff
+--check` clean; JSON-LD blocks re-validated; all 30 guide slugs + 27 anchors
+verified against shipped files. Process note: parallel same-file edits race
+in this environment (one clobbers another) — all edits above were applied
+and re-verified sequentially.
+
+**Left for the owner:** O-1…O-9 stand (GROWTH-PACK makes O-3 a signature and
+O-4 a send); one browser pass of `?q=`/`?expand=`; PageSpeed numbers when
+convenient; sync.html build approval (draft in pack).
+
 ## 2026-09-15 (4) — arena/01a0a58d — staff plan rebased to the excellence standard (rank/useful/design/money/popular)
 
 **Delivery:** docs-only change on `arena/01a0a58d-mrpr0phecy` (see GitHub for

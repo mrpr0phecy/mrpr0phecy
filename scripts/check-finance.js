@@ -468,7 +468,15 @@ section('truthfulness — privacy claims (staffroom D-002)');
   const cardDir = path.join(ROOT, 'cards');
   const dirty = fs.existsSync(cardDir)
     ? fs.readdirSync(cardDir).filter(f => f.endsWith('.html'))
-        .filter(f => ANALYTICS.test(fs.readFileSync(path.join(cardDir, f), 'utf8')))
+        .filter(f => {
+          // The cookie-consent builder shows an inert documentation sample
+          // (<script type="text/plain"> pointing at the RFC-reserved
+          // example.com/analytics.js) for users to copy. That is prose about
+          // analytics, not an analytics load. Strip the exact placeholder URL
+          // before testing; any real analytics load still fails this guard.
+          const body = fs.readFileSync(path.join(cardDir, f), 'utf8').split('example.com/analytics.js').join('');
+          return ANALYTICS.test(body);
+        })
     : [];
   if (dirty.length) {
     fail(`tool cards must contain no analytics, found in: ${dirty.slice(0, 5).join(', ')}`);
