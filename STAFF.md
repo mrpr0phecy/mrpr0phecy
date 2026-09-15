@@ -27,6 +27,7 @@ report: it is work the staff system is supposed to make visible.
 | The operating plan, stage gates and 90-day sequence | [staff/OPERATING-PLAN.md](staff/OPERATING-PLAN.md) |
 | The measurable standard (rank, useful, design, money, popular) | [staff/EXCELLENCE.md](staff/EXCELLENCE.md) |
 | The measurement contract and scoreboard | [staff/scoreboard.json](staff/scoreboard.json) |
+| The current three-question owner critical path | [staff/OWNER-PACKET.md](staff/OWNER-PACKET.md) |
 | Actual branch evidence | `python3 staff/scan.py --fetch --mine` or [generated snapshot](staff/BRANCHES.md) |
 | Why this system was rebuilt and what research is trustworthy | [staff/RESEARCH.md](staff/RESEARCH.md) |
 | Automation setup, permissions and failure recovery | [docs/AI-DEVELOPER-SETUP.md](docs/AI-DEVELOPER-SETUP.md) |

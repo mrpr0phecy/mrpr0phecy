@@ -496,3 +496,16 @@ focus-not-obscured and non-drag checks. The owner critical path is deliberately
 limited to O-1, O-2 and O-13 before commercial asks. Evidence and source limits:
 `staff/RESEARCH.md` §8. Validation: `bash scripts/verify.sh` passed 19/19;
 staff tests 36/36; scoreboard 5 groups / 25 metrics / one-item ladder.
+
+### 2026-09-15 — The plan now chooses one action, not just lists findings
+
+The strengthened decision contract is now connected to the actual AI Developer
+report. A full run with passing scoreboard evidence names exactly one primary
+outcome gap; today that is the first decision-grade evidence packet. Hard audit
+blockers override it automatically, supporting warnings remain visible, and
+aggregate `verify.sh` warnings no longer create duplicate work when a specialist
+check already owns them. `staff/OWNER-PACKET.md` turns O-1/O-2/O-13 into three
+bounded decisions with a copy-and-return response, no credential request, a
+no-recording task-study protocol and explicit analytics options. Validation:
+`plan` surfaced the P0 packet ahead of advisory noise; `verify.sh` passed 19/19;
+staff regression suite passed 39/39.
