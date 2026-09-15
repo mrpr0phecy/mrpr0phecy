@@ -9,6 +9,53 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (9) — arena/01a0a723 — production contract monitor, runbook and rollback
+
+**Commission:** owner asked for the repository to run like operational
+excellence. The audit found the gap was not in the repository: `verify.sh` and
+its 19 sections are green, and every gate reads the working tree. Nothing asked
+the *deployed* site whether it still matched the checkout, so a skipped, partial
+or stale deploy was invisible, and there was no triage, rollback or recovery
+path documented anywhere.
+
+**Landed:**
+- `scripts/check-production.js` — the production contract monitor. Probes the
+  live origin from the repository's own facts (`CNAME`, `cards/cards.json`,
+  `sitemap.xml`): byte-identity for the critical files and a seeded card sample,
+  live catalogue count/duplicate-slug integrity, sitemap URL-set equality, the
+  custom 404 and the https upgrade. Runner TTFB is recorded as diagnostic
+  evidence only; field performance stays with CrUX on the scoreboard.
+- `.github/workflows/production-monitor.yml` — runs after every Pages
+  deployment (against the deployed commit and the files that deployment
+  changed) and every six hours; keeps exactly one `Production monitor:` alert
+  issue open, closes it on the next passing full run. Read-only except the
+  alert job's `issues: write`.
+- `docs/OPERATIONS.md` — severity ladder, failure-to-action triage table,
+  rollback and fix-forward rules, post-incident "leave a gate behind" rule, and
+  the honest unknowns (no availability percentage, no failover, no on-call).
+- `scripts/rollback.sh` — guarded recovery: plan by default, refuses dirty
+  trees, never pushes `main`, proves the revert with `verify.sh` before opening
+  a PR.
+- `scripts/tests/production-monitor.test.js` + `verify.sh` section 20 — the
+  monitor's failure modes are pinned offline against a local fixture server, so
+  a monitor that quietly stopped detecting drift fails the gate.
+- `staff/scoreboard.json` operations group: production contract, deploy
+  freshness and response budget as `measured-by-gates`; availability and
+  time-to-restore honestly `not-measured`.
+
+**Validation (real evidence, not intent):**
+- `bash scripts/verify.sh` → `VERIFY PASSED` with section 20 green (18 checks).
+- The monitor ran against the live domain from a throwaway CI job before this
+  entry: full contract exit `0`, ≥15 checks, no failures, no skips; a
+  deliberately drifted local `index.html` produced exit `1` naming that file
+  (byte-identity is not vacuous); a missing page exited `1`; a bad flag exited
+  `2`. The temporary validation workflow was deleted before the PR.
+- Deliberately **not** claimed: availability percentages, time-to-restore
+  figures, or that any of this replaces field measurement.
+
+**Next:** the alert-issue create/close path is exercised by the first real
+incident; the workflow and monitor are otherwise proven.
+
 ## 2026-09-15 (8) — arena/01a0a68f — evidence-led operating plan and measurement contract
 
 **Commission:** owner asked for deeper research into high-end web practice and a
