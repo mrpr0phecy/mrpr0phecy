@@ -18,6 +18,7 @@ guessing during an incident.
 | | |
 |---|---|
 | Serving model | Static files on GitHub Pages, branch `main`, path `/` |
+| Published surface | **Every tracked file, at its own path.** `.nojekyll` disables the Jekyll build that used to drop dot- and underscore-paths |
 | Deploy | `git push` → Pages builds → live in 30–60 s (no build step) |
 | Rollback | `git revert` + push, or re-run the Pages deployment |
 | State | None on the server. No database, no runtime, no sessions |
@@ -101,6 +102,7 @@ The monitor names each failure by surface. Find it here.
 | `unreachable: timed out` / `NETWORK` on **everything** | GitHub Pages or DNS outage — not your commit | Check <https://www.githubstatus.com>. If Pages is down, do **not** revert anything; comment the status link on the issue and wait. |
 | `live bytes differ from the repository` on a **file you just changed** | Deploy still propagating, or the deploy failed | The push run already waits 45 s and then retries mismatches for ~60 s. If it still differs, look at Actions → *pages build and deployment*: a failed deploy is re-run, a partial one is re-run, and a commit that should never have shipped is reverted. |
 | `live bytes differ` on files from a **recent merged PR** | The push never deployed (branch protection, failed build, wrong branch) | Re-run the deployment from `main`. Only revert if the content itself is wrong. |
+| `expected 200, received 404` on a file that **is in the repository** | Committed but never published — a build exclusion, not a deploy lag | `git ls-files <path>` to confirm it is tracked, then check that `.nojekyll` still exists at the root: paths beginning with `.` or `_` are dropped by Jekyll when it does not (2026-09-15: `.well-known/*` had been 404 since the day it was added). Re-run the deployment afterwards. |
 | `live bytes differ` on **everything** | Live site is serving an older commit | Find the commit that is live (`git log` on the files that differ), compare with `main`, re-run the deployment. |
 | `catalogue integrity: live catalogue has N cards, repository has M` | A truncated or partially deployed `cards/cards.json` | Re-run the deployment; if it persists, revert the commit that touched the catalogue. Never hand-edit `cards.json` — regenerate it (`node generate-cards-json.js --check` first). |
 | `duplicate slugs on the live site` | Two card files claim one slug | Fix in the repository: `python3 scripts/check-card-collisions.py`, rename the duplicate, regenerate derived artefacts, push. |
