@@ -20,15 +20,25 @@ item. This historical list does not override current staff decisions.
   through again. Follow-on for the owner: decide C-vs-A classification for
   cards that send typed text to APIs by design (spelling-check, languages,
   plant-encyclopedia).
-- [ ] **Resolve broken label associations.** Some `<label for="…">` values
-  target button groups rather than form controls. Convert them to real radio
-  inputs or use `aria-labelledby`.
-- [ ] **Add risk notices at shell level.** Maintain one mapping used by both
-  `index.html` and `tool.html` for medical, financial, engineering and legal
-  tools, rather than hand-writing inconsistent warnings inside cards.
-- [ ] **Strengthen automated checks.** Detect card JavaScript syntax errors,
-  empty cards, broken internal links, input-egress network calls and catalogue
-  metadata/count drift in `scripts/verify.sh`.
+- [x] **Resolve broken label associations.** Landed 2026-09-15: the one
+  remaining case (`grief-companion`'s energy buttons) now uses a labelled
+  group with `aria-pressed` state instead of a `<label for>` pointing at a
+  div. `check-a11y.py` guards regressions.
+- [x] **Add risk notices at shell level.** Landed 2026-09-15: one shared
+  mapping (`risk-notices.js`) drives a `role="note"` notice above the tool in
+  BOTH `index.html` and `tool.html` — financial, medical, emergency, legal
+  and DIY/structural kinds. `scripts/tests/risk-notices.test.js` fails if a
+  mapped category or slug disappears from the catalogue. Existing in-card
+  caveats stay (belt and braces).
+- [x] **Strengthen automated checks.** Landed in two steps (2026-09-15):
+  syntax errors — `check-card-js.py` (pre-existing); input-egress network
+  calls — markup-aware `check-egress.py` in verify.sh; catalogue
+  metadata/count drift — `generate-cards-json.js --check` +
+  `generate-ai-index.js --check` + `sync-counts.py --check`; broken internal
+  links — new zero-tolerance `check-links.py`. Honest limitation: "empty
+  cards" cannot be detected statically (many tools render everything from
+  JS), so the proxy is the existing blank-title/description FAIL in
+  `check-cards.py`.
 
 ## Next — make the existing catalogue easier to find and use
 

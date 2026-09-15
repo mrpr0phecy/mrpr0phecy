@@ -9,6 +9,25 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (2) — arena/01a0a4dd — ROADMAP "Now" section completed: shell risk notices, link gate, drift gate, a11y + 404 fixes
+
+**Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Follows the same session's qrtool work (entry below). Claim released with evidence.
+
+**Landed:**
+- **Shell-level risk notices (ROADMAP Now-3):** one shared mapping, `risk-notices.js`, drives a `role="note"` notice above the tool in BOTH `index.html` (hooked in `renderCardContent`, so prerendered, lazy-loaded and `?expand=` cards all get it) and `tool.html`. Kinds: financial (Finance & Money category), medical (Health & Fitness / Wellbeing & Community / Natural Remedies & Herbs), emergency (Survival & Emergency Readiness, mentions 999), legal (12 curated slugs — small claims, tenancy deposit, SAR, NDA/contracts, redundancy…), DIY/structural (9 curated Home & DIY slugs). Existing in-card caveats deliberately untouched. Loaded `defer` on index.html (non-blocking); optional at both call sites so cards still render if the file ever fails.
+- **`scripts/check-links.py` (ROADMAP Now-4):** zero-tolerance internal-link gate — every href/src in real markup (script bodies excluded, same DOM-aware split as check-egress) must resolve to a shipped file; card fragments resolve against the site root because that is where they render. It found 51 broken references; all fixed: `blog/how-mortgage-payments-work.html` → `../feed.xml`; `guides/index.html`'s entire nav was written as if the page lived at repo root (26 root links + 12 guide links repaired); `launch/index.html` and `sitemap.html` pointed at 7 nonexistent `launch/*.html` pages whose content ships as `.md` (both now link the real files); `bpm-counter`/`chord-finder` "Stream music" links used `../music.html`, which only worked via the URL spec's root-clamping accident (now root-relative).
+- **Catalogue drift gate:** `generate-cards-json.js --check` rebuilds the manifest from card files and fails on any divergence (drift injection tested both ways); wired into verify.sh section 1 alongside the `generate-ai-index.js --check` from the previous PR.
+- **Broken label association (ROADMAP Now-2):** `grief-companion`'s energy picker — `<label for>` targeting a button-group div replaced with a labelled `role="group"` and `aria-pressed` state kept in sync by the existing click handler (no behaviour change).
+- **404.html (STAFF-04):** render-blocking Google Fonts import removed; system font stack per the documented convention. index.html's deliberate non-blocking Inter load is untouched.
+
+**Honest limitation:** static "empty card" detection is not possible on this corpus (the shortest-markup cards are JS-rendered board games that work fine), so the blank-title/description FAIL in `check-cards.py` remains the correct proxy; ROADMAP notes this.
+
+**Verified:** full `verify.sh` PASSED (17 sections incl. the new links + risk-notice gates); `node --check` clean on every real inline script block of index.html/tool.html (JSON-LD blocks excluded as data, not code); risk-notices test pins mapping contract, DOM contract (role/note, data-risk-kind, aria-hidden icon, prepend) and bidirectional catalogue drift guards.
+
+**Left for the owner:** notice wording/tone and the kind assignments (financial/medical/emergency/legal/DIY) are editorial policy — trivial to adjust in one file; whether `launch/` should remain publicly linked from `sitemap.html` at all (links now resolve to raw `.md`) ties into the standing "experiments/legacy directories" decision.
+
+---
+
 ## 2026-09-15 — arena/01a0a4dd — qrtool made local-only; egress gate wired into verify
 
 **Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence; this entry is the handover context.

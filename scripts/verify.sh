@@ -15,6 +15,8 @@
 #   7. git state              — uncommitted changes reported (not failed)
 #   8. card JavaScript        — scripts/check-card-js.py (needs node)
 #   9. tool-count claims      — scripts/sync-counts.py --check, plus
+#                               generate-cards-json.js --check (cards.json must
+#                               match the card files) and
 #                               scripts/generate-ai-index.js --check so the
 #                               llms.txt / llms-full.txt / tools-index.html
 #                               machine indexes cannot drift from cards.json
@@ -30,6 +32,10 @@
 #                               card must be a reviewed, classified exception, and
 #                               the QR generator must stay fully local (functional
 #                               tests in scripts/tests/qrtool-local.test.js)
+#  17. internal links         — scripts/check-links.py: every href/src in real
+#                               markup resolves to a file that exists, plus the
+#                               risk-notice mapping contract
+#                               (scripts/tests/risk-notices.test.js)
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -46,6 +52,15 @@ if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-cards.py; then ok "catalogue coherent"; else fail "catalogue incoherent"; fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
+fi
+if command -v node >/dev/null 2>&1; then
+  if node generate-cards-json.js --check; then
+    ok "cards.json matches the card files"
+  else
+    fail "catalogue metadata drift — run: node generate-cards-json.js"
+  fi
+else
+  note "node not available — catalogue drift check skipped"; NOTES=$((NOTES+1))
 fi
 
 section "2/15 placeholder IDs in *.html"
@@ -180,8 +195,24 @@ if command -v node >/dev/null 2>&1; then
   else
     fail "qrtool regression — it must stay 100% on-device"
   fi
+  if node scripts/tests/risk-notices.test.js; then
+    ok "risk-notice mapping matches the catalogue and its DOM contract"
+  else
+    fail "risk-notice regression — see scripts/tests/risk-notices.test.js"
+  fi
 else
-  note "node not available — qrtool tests skipped"; NOTES=$((NOTES+1))
+  note "node not available — qrtool/risk-notice tests skipped"; NOTES=$((NOTES+1))
+fi
+
+section "17/17 internal links (check-links.py)"
+if command -v python3 >/dev/null 2>&1; then
+  if python3 scripts/check-links.py; then
+    ok "every internal href/src resolves to a shipped file"
+  else
+    fail "broken internal links — visitors would hit 404s"
+  fi
+else
+  note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
 if [ "$LIVE" = "1" ]; then
