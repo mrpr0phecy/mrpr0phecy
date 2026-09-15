@@ -2,8 +2,9 @@
 
 Owner-led product ideas, not the current operational work queue. Coordinate
 implementation through [STAFF.md](STAFF.md); current measured blockers and
-owner dependencies are in [staff/OPEN.md](staff/OPEN.md) and the generated
-staff report. Prefer one small, reviewable change at a time.
+owner dependencies are in [staff/OPEN.md](staff/OPEN.md) (rebaselined
+2026-09-15 with the P0/P1/P2/P3 queue and the nine explicit owner asks) and
+the generated staff report, judged against [staff/EXCELLENCE.md](staff/EXCELLENCE.md). Prefer one small, reviewable change at a time.
 
 The ideas below were last reviewed on 2026-09-04; some implementations have
 since landed. Recheck the actual code and GitHub evidence before claiming an

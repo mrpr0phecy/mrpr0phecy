@@ -9,6 +9,57 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (4) — arena/01a0a58d — staff plan rebased to the excellence standard (rank/useful/design/money/popular)
+
+**Delivery:** docs-only change on `arena/01a0a58d-mrpr0phecy` (see GitHub for
+merge/check state). Claim scope: staff/OPEN.md, staff/EXCELLENCE.md,
+staff/BOARD.md, STAFF.md, ROADMAP.md.
+
+**What changed and why:** the owner asked for deep research into what the
+highest-end specialists require, and for the staff plan to be improved until
+it is genuinely excellent — financially viable, brilliant at usefulness, more
+popular, and ranking first on Google. Three findings drove the rewrite:
+(1) the old queue (STAFF-01…07, baselined 2026-09-08) is stale — STAFF-01/02
+are resolved and verify is 17/17 green; (2) current specialist consensus is
+unambiguous — content quality + intent match first, E-E-A-T and backlinks
+next, Core Web Vitals as tie-breaker, thin programmatic pages down 50–80%
+since the March 2026 enforcement while interactive tools survive and earn AI
+citations; (3) the site's two growth engines are switched off — `embed.html`
+ships bare iframes with no attribution and no licensing offer, and no Search
+Console/Bing verification exists, so every SEO decision is currently a guess.
+
+**Landed:**
+- **`staff/EXCELLENCE.md` (new):** the measurable perfection standard — the
+  honest "#1 on Google" thesis (positions 1–3 across hundreds of long-tail
+  queries + AI citations), CWV thresholds (LCP ≤2.5s, INP ≤200ms, CLS ≤0.1 at
+  p75 field), YMYL/E-E-A-T bar, Awwwards weights (Design 40 / Usability 30 /
+  Creativity 20 / Content 10), WCAG 2.2 AA + 44px targets, the STRATEGY.md
+  revenue ranking reaffirmed with never-dos, legitimate-growth loops only,
+  and a scoreboard where every metric names its instrument (D-001: "not yet
+  measured" is valid, inventing is a violation).
+- **`staff/OPEN.md` (rewritten, rebaselined at `9d5d775`):** P0 measure-first
+  (Search Console + Bing + YPP hours + GA read; PageSpeed/axe baselines;
+  analytics-footprint reconciliation — GA is now on 43 pages vs D-007's ~14,
+  flagged as P0-M3 for an owner ruling, not an accusation), P1-R rank
+  (CTR pass, prerendered static pages for the top 10–25 proven tools only,
+  category hubs, quality-gated guides engine, E-E-A-T surfaces, translated
+  cluster enrich-or-consolidate, index hygiene), P1-U usefulness (finance
+  method extended to health/legal, findability, sw.js + egress rulings),
+  P1-M money (YPP to 1 Feb 2027, Content ID + per-payer W-8BENs, licensing
+  pack ready for one signature, sync page, honest sponsorship pricing),
+  P2-D design, P2-P popularity, P3-T tech debt, and **nine explicit owner
+  asks (O-1…O-9)** with the reason and cost of each.
+- **Pointers:** STAFF.md coordination table links EXCELLENCE.md; ROADMAP.md
+  points at the rebaselined queue. No code, no counts, no sitemap touched.
+
+**Verified:** docs-only; `git diff --check` clean; all new cross-links
+resolve to shipped files; no published number changed (1149/27/1228
+re-verified against cards/cards.json and sitemap.xml during research).
+
+**Left for the owner:** the nine asks in OPEN.md — O-1 (Search Console/Bing/
+YPP/GA hour) unblocks all evidence-based SEO; O-3 (embed terms signature) is
+the single highest-leverage decision (revenue + backlink engine together).
+
 ## 2026-09-15 (3) — arena/01a0a4dd — tool.html hardened: XSS fix, embed=1 contract implemented, per-tool metadata; catalogue ID collisions removed
 
 **Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence.
