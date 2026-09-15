@@ -179,3 +179,48 @@ position 1 in general — it means positions 1–3 for hundreds of specific
 long-tail queries plus AI citations, which the evidence says is winnable for
 interactive tools. No source consulted promises #1 for anything; all agree on
 the inputs above.
+
+## 7. Source-quality correction and operating implications (2026-09-15)
+
+A second pass deliberately separated **primary guidance**, **specialist
+heuristics** and **unverified industry claims**. The first pass contained useful
+hypotheses but repeated several precise numbers from vendor blogs and SEO
+commentary as if they were universal facts. Those numbers are not a safe basis
+for a staff target. They remain historical context, not site evidence.
+
+### What the primary sources actually support
+
+| Evidence | What it supports here | What it does not support |
+|---|---|---|
+| [Google Search Essentials](https://developers.google.com/search/docs/essentials) | Helpful, reliable, people-first content; crawlable links; relevant words in prominent places; technical and spam-policy compliance | A guaranteed position, a universal CTR or a ranking formula based on one engagement metric |
+| [Google helpful-content self-assessment](https://developers.google.com/search/docs/fundamentals/creating-helpful-content) | Original information, complete answers, clear sourcing, experience, trust, and “would I bookmark/share this?” as review questions | Treating an author badge, schema or word count as a substitute for real usefulness |
+| [Google generative Search guidance](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide) | Generative features use core Search systems; unique, non-commodity content and clear technical structure matter; Search Console is the measurement path | A special AI markup, an “AEO/GEO” shortcut, or `llms.txt` as a ranking lever |
+| [web.dev Web Vitals](https://web.dev/articles/vitals) | LCP ≤ 2.5s, INP ≤ 200ms and CLS ≤ 0.1 at p75, segmented by mobile and desktop | Lab scores as proof of field performance or CWV as the whole ranking strategy |
+| [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/#target-size-minimum) | A testable accessibility baseline that improves use across devices; Success Criterion 2.5.8 is AA and sets a 24 by 24 CSS-pixel minimum for pointer targets, subject to its spacing, equivalent, inline, user-agent-control and essential exceptions | Claiming full conformance from a static grep or treating 44px as the WCAG AA requirement (44px is our ergonomic internal bar) |
+| [Awwwards evaluation](https://www.awwwards.com/about-evaluation/) | High-end design review weights Design 40%, Usability 30%, Creativity 20%, Content 10% — fundamentals before spectacle | An award score as evidence of task success or a reason to add motion to a utility page |
+| [Baymard UX principles](https://baymard.com/learn/ux-design-principles) | UX is iterative audience research → testing → implementation; homepage clarity, consistency, accessibility, mobile and clear paths matter | E-commerce-specific percentages being portable to this static tool catalogue |
+| [NN/g qualitative vs quantitative guidance](https://www.nngroup.com/articles/5-test-users-qual-quant/) | Small qualitative rounds are for discovering problems; quantitative rates need larger defensible samples and confidence intervals | “Five users prove a 90% conversion rate” or any other population claim from a tiny sample |
+
+### Corrections to the plan
+
+1. **No NavBoost mythology.** Search satisfaction is a product goal, and pogo-
+   sticking or quick returns are useful UX symptoms to investigate. The staff
+   must not claim access to a secret “good click / bad click” formula or set a
+   dwell-time target as if Google published one. We measure task completion,
+   search performance and field experience separately.
+2. **No unsourced universal percentages.** Claims such as “60% of searches are
+   zero-click”, “AIO reduces clicks by X”, “mentions correlate Y with
+   citations”, “digital PR earns Z times more links” and “accessibility lifts
+   conversion by N%” are not site baselines. If a future decision needs one,
+   cite the exact study, population and date; otherwise write `not-measured`.
+3. **No AI-search theatre.** There is no special markup or separate AI ranking
+   trick to implement. The site should make its tools, methodology and first-
+   hand usefulness easy for both people and crawlers to understand.
+4. **No award-led product drift.** Awwwards is a design-quality lens; the
+   product scorecard remains task success, correctness, trust, field experience
+   and contribution margin.
+5. **No metric soup.** The new [scoreboard](scoreboard.json) names the
+   instrument, cadence, owner, decision use and guardrail for each metric. The
+   [operating plan](OPERATING-PLAN.md) turns it into stage gates and a 90-day
+   sequence. A missing owner-side instrument is an explicit blocker, not a
+   fabricated baseline.

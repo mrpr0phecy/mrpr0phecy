@@ -1,8 +1,9 @@
 # NORTH-STAR — the ethos this staff serves
 
 Written 2026-09-15 from the deep-research pass in
-[RESEARCH.md §6](RESEARCH.md) (award juries, 2026 ranking evidence, AI-search
-survival data, monetisation practice). This file is the **why**; the queue is
+[RESEARCH.md §6–7](RESEARCH.md) (award juries, primary Search guidance,
+accessibility, UX research, monetisation practice). This file is the **why**;
+the queue is
 [OPEN.md](OPEN.md), the measurable bar is [EXCELLENCE.md](EXCELLENCE.md), the
 binding law stays in [DECISIONS.md](DECISIONS.md) and
 [CONSTRAINTS.md](../CONSTRAINTS.md). If this file ever conflicts with those,
@@ -23,14 +24,14 @@ performance budgets, accessibility-minded interaction. Creativity is a tool,
 not a costume. The money pages win on plainspoken trust, not decoration.
 
 **2. Useful.** The product promise is "finish the task, trust the result" —
-and usefulness is now the ranking strategy, not just the product strategy.
-Google's March 2026 enforcement stripped 50–80% of traffic from thin
-programmatic sites while pages with real utility kept ranking *and* started
-earning AI citations. Interactive tools are among the most resilient formats
-in AI-era search because a summary can describe a calculator but cannot
-replace using one. Every indexable URL must pass the test Google has applied
-since 2023: *does this page genuinely help the user, or does it exist
-primarily to capture search traffic?*
+and usefulness is both the product strategy and the search strategy. Google’s
+current Search Essentials and generative Search guidance support helpful,
+reliable, people-first, non-commodity content with clear technical structure;
+they do not promise a ranking position or a special AI shortcut. Interactive
+tools can create a real reason to visit, but only when the result is correct,
+understandable and accessible. Every indexable URL must pass the test: *does
+this page genuinely help the user, or does it exist primarily to capture
+search traffic?*
 
 **3. Profitable.** At least one revenue line must be traffic-independent and
 recurring, so a search downturn wounds but never kills. Today that is embed
@@ -41,13 +42,13 @@ ticket. Measurement is the teeth: price from data, never from hope. And the
 never-dos stand: no display ads on tools, no paywalls on tools, no
 lead-capture in embeds, no crypto promotion, no manufactured engagement.
 
-**4. Famous.** Positions 1–3 for hundreds of specific long-tail queries with
-clear intent, plus citations inside AI answers for the same queries — that is
-what "first on Google" realistically means, and it is winnable from here.
-Fame compounds through legitimate loops only: embeds that link back, topical
-authority that ranks, a YouTube flywheel, outreach that offers genuine value,
-an owned audience no algorithm can take away, and word of mouth by design. No
-growth hacks, ever — they violate platform ToS and risk the channel.
+**4. Famous.** Earn top visibility for proven, specific task queries and
+citations where the site is genuinely useful; nobody can promise first place in
+general. Fame compounds through legitimate loops only: embeds that link back
+when the owner approves the terms, topical authority, a YouTube flywheel,
+outreach that offers genuine value, an owned audience where the value exchange
+is clear, and word of mouth by design. No growth hacks, ever — they violate
+platform terms and risk the channel.
 
 ## The ten laws
 
@@ -60,22 +61,22 @@ growth hacks, ever — they violate platform ToS and risk the channel.
 3. **The click must be the product.** Publish nothing an AI answers for free.
    Every page carries a Click Gap — a tool, live data, proprietary numbers,
    or a human story a summary cannot replace.
-4. **Be the terminal click.** NavBoost rewards the result users settle on:
-   match intent exactly, answer above the fold, satisfy fast. Pogo-sticking
-   is a demotion signal; bounce-back is the enemy.
-5. **Be an entity, not a keyword.** Machines must resolve the site and its
-   author as real nodes: stable `@id`s, sameAs ladders, corroborating
-   profiles, consistent identity everywhere. Branded mentions now outrank raw
-   backlinks for AI visibility.
+4. **Satisfy the task.** Match intent exactly, show the useful surface above
+   the fold, respond quickly and help the visitor recover. A return to Search is
+   a UX symptom to investigate, not a secret ranking formula to manipulate.
+5. **Be an entity, not a keyword.** Machines should be able to resolve the site
+   and its author as real nodes: stable `@id`s, accurate sameAs links,
+   corroborating profiles and consistent identity everywhere. Entity work is a
+   trust practice, not a guaranteed AI-visibility lever.
 6. **Maintenance is the product.** Statutory figures every April, tested
    arithmetic on every deploy, visible updated dates, a public changelog. The
    licence buyer rents the guarantee that the number is right.
 7. **Earn every link.** Editorial links through utility, data and service —
-   resource pages, digital PR from original findings, journalist sourcing
-   answered within the hour. Never bought, never exchanged, never begged.
-8. **Own the audience.** Search and social are rented land: 60% of searches
-   now end without a click. Build direct relationships (newsletter, return
-   visits, bookmarks) that survive any algorithm change.
+   resource pages, original findings and genuine expert help. Never bought,
+   never exchanged, never begged and never measured by a made-up multiplier.
+8. **Own the audience carefully.** Search and social are rented land, but an
+   audience relationship still needs consent, useful value and a privacy-safe
+   instrument. Build direct relationships only when the exchange is worth it.
 9. **Measure, don't theatre.** Lab scores don't rank you; field data does.
    Every metric names its instrument; every optimisation ships with
    before/after evidence. A standard that can't be updated from evidence is

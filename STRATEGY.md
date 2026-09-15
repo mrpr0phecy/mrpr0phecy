@@ -99,8 +99,9 @@ maintained correctness**, and it is genuinely defensible:
   **60% marginal rate**; modelling the basic-rate band as a fixed £50,270
   ceiling instead of a £37,700 width gets this wrong. That exact bug was found
   in `tax.html` and `salarycompare.html` — and it is in commercial products too.
-- `check-finance.js` runs **116 assertions** on every deploy. If a change breaks
-  a tax computation the build fails.
+- `check-finance.js` runs the current sourced finance suite on every deploy. Its
+  check count is output by the command and must not be copied into static copy
+  without re-deriving it.
 
 A buyer is renting the guarantee that the number is right in April. That is why
 it is priced annually and why it is not a one-off sale.
@@ -111,27 +112,26 @@ it is priced annually and why it is not a one-off sale.
 
 This is not a small consideration — it may be the most important one here.
 
-**60% of Google searches now end without a click.** AI Overviews appear on
-47–64% of queries and cut position-1 CTR by **34–58%**. Publishers of
-informational content report 20–40% traffic declines; some far worse.
-Google's March 2026 scaled-content enforcement stripped 50–80% of traffic from
-thin programmatic sites.
+Search behaviour and generative features are changing, but this document
+must not turn vendor estimates into site facts. Google’s official generative
+Search guidance says these features are rooted in the same core Search systems,
+and recommends helpful, reliable, non-commodity content, clear technical
+structure and Search Console measurement. It does not promise a click rate,
+traffic change or special AI ranking shortcut.
 
-**A site whose only income is advertising against pageviews is exposed to all of
-that.** Sponsorship CPM is priced on traffic; traffic is structurally declining
-for exactly this content type.
+**A site whose only income is advertising against pageviews is exposed to any
+change in traffic.** Sponsorship CPM is priced on attention; licensing is
+priced on a business need and can therefore diversify the risk. That is the
+strategic reason for testing a maintained embed product — not a prediction that
+search traffic will collapse or that interactive tools automatically rank.
 
-The consistent finding across every source is that **interactive tools and
-calculators are among the most resilient formats**, because an AI summary cannot
-replace a thing you use — it can only describe it. And the clicks that do survive
-convert *better*: post-AI-Overview referrals show ~23% higher conversion and
-lower bounce.
-
-The licensing model is more resilient still, because **it does not depend on our
-traffic at all.** A broker paying £299/year does so because they need the
-calculator, regardless of where we rank. This is the single strongest argument
-for the change: it converts a traffic-dependent business into a product business
-at a moment when traffic is the thing collapsing.
+Interactive tools create a defensible **click gap** when the visitor must use
+the calculator, inspect current data or verify a result. They still need correct
+maths, useful explanatory copy, accessibility, performance and a clear route to
+the task. The licensing model is more traffic-independent because a broker
+paying for a maintained embed does so because they need the product, regardless
+of where our public page ranks. That is a hypothesis to validate with real buyer
+conversations, not a guaranteed conversion.
 
 ---
 

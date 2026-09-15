@@ -9,6 +9,57 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (8) — arena/01a0a68f — evidence-led operating plan and measurement contract
+
+**Commission:** owner asked for deeper research into high-end web practice and a
+staff plan that improves usefulness, popularity, search visibility and financial
+viability without sacrificing honesty. This entry is the follow-through on the
+existing north-star work, not a claim that the site now ranks first or has
+revenue it has not measured.
+
+**Research correction:** added a primary-source quality pass to
+`staff/RESEARCH.md §7`. Google Search Essentials, Google’s generative Search
+and helpful-content guidance, web.dev Web Vitals, W3C WCAG 2.2, Awwwards’ own
+evaluation system, Baymard’s UX research process and NN/g’s qualitative versus
+quantitative testing distinction now outrank vendor SEO statistics. Unsupported
+universal numbers (zero-click share, click-loss percentages, entity
+correlations, PR multipliers, conversion lifts and secret click formulas) are
+no longer used as staff targets. The plan treats them as hypotheses unless a
+named study or site instrument exists.
+
+**Landed:**
+- `staff/OPERATING-PLAN.md`: stage gates from baseline → task repair → earned
+  visibility → sustainable commercial loop, a 90-day sequence, experiment
+  contract, contribution-margin model, readiness/done criteria and operating
+  cadence. It makes the owner's next actions explicit without pretending staff
+  can recruit users, send outreach or change prices.
+- `staff/scoreboard.json` + `scripts/check-scoreboard.py`: 2 separate product
+  north stars, 5 metric groups, 23 metrics, named instruments/cadences/owners,
+  guardrails and explicit `not-measured` states. It is a measurement contract,
+  not a fake analytics feed; the checker rejects duplicate/incomplete metrics
+  and invented numeric baselines.
+- `@insight` / `measurement` profile added to `scripts/ai-staff.json`, with a
+  blocking `scoreboard` audit in `scripts/ai-audits.json`. The facility now has
+  10 responsibility profiles and 15 owned checks; it still has one deterministic
+  runner, not ten live agents.
+- `EXCELLENCE.md`, `NORTH-STAR.md`, `OPEN.md`, `STRATEGY.md`, `STAFF.md`,
+  `AGENTS.md` and `staff/README.md` aligned to the primary-source hierarchy,
+  the new plan and the real roster. `verify.sh` now includes the measurement
+  contract as section 19 and staff-system pins cover 10/15.
+
+**Owner-side remains owner-side:** Search Console/CrUX/analytics access,
+moderated-study approval, commercial terms and outreach, music records,
+translated routes and other policy decisions remain in `OPEN.md`; no owner
+approval or metric baseline was inferred here.
+
+**Verification after the edits:** `node --test scripts/tests/staff-system.test.js`
+passed all 36 tests; `node scripts/ai-developer.js check`,
+`python3 scripts/check-scoreboard.py`, `node scripts/design-audit.js --strict`
+and `bash scripts/verify.sh` passed. The full gate reports one existing advisory
+(orphan `embed.html`) and expected metadata warnings for noindex legacy pages;
+it is otherwise green at 19/19. The site-brain artifact was regenerated after
+the documentation source hash changed.
+
 ## 2026-09-15 (7) — arena/01a0a58d — north-star overhaul: research, ethos, queue, roster (+@growth)
 
 **Commission:** owner asked for deep research into what top specialists
