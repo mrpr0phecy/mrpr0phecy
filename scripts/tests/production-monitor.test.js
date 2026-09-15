@@ -368,8 +368,11 @@ async function main() {
       const workflowPath = path.resolve(__dirname, '..', '..', '.github', 'workflows', 'production-monitor.yml');
       const workflow = fs.readFileSync(workflowPath, 'utf8');
       assert.ok(workflow.includes('node scripts/check-production.js'), 'workflow must run the monitor');
-      assert.ok(/workflows: \["pages build and deployment"\]/.test(workflow), 'workflow must follow the Pages deployment');
+      // workflow_run on the dynamic "pages build and deployment" workflow was
+      // verified not to fire (2026-09-15), so the push event is the trigger.
+      assert.ok(/^on:\n  push:\n    branches: \[main\]$/m.test(workflow), 'workflow must run on every push to main');
       assert.ok(/schedule:/.test(workflow), 'workflow must keep a standing schedule');
+      assert.ok(/sleep 45/.test(workflow), 'push runs must allow the deployment to land before probing');
       assert.ok(!/pull_request/.test(workflow), 'the monitor must never probe production from a pull request');
       // Count permission entries, not prose: the header comment explains the
       // permissions too, and only the alert job may actually hold them.

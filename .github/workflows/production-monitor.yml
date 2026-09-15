@@ -6,15 +6,20 @@ name: Production monitor
 # when it stops matching.
 #
 # Three narrow triggers:
+#   push (main)      — a new commit is live a minute later, so the deploy is
+#                      checked against the commit it was built from, plus the
+#                      files that commit changed. (workflow_run on the dynamic
+#                      "pages build and deployment" workflow was tried first and
+#                      never fires — verified 2026-09-15 — so the push event is
+#                      the reliable signal.)
 #   schedule         — standing watch, four times a day
-#   workflow_run     — straight after a Pages deployment on main, checking the
-#                      files that deployment changed (so a bad deploy is caught
-#                      in minutes, and a failed Pages job is investigated too)
 #   workflow_dispatch — by hand, after a manual rebuild or during an incident
 #
 # It needs no secrets beyond the workflow token: `contents: read` to compare
 # against the repository, and `issues: write` for the single alert issue.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       base:
@@ -27,10 +32,6 @@ on:
         default: '6'
   schedule:
     - cron: '17 */6 * * *'
-  workflow_run:
-    workflows: ["pages build and deployment"]
-    types: [completed]
-    branches: [main]
 
 permissions:
   contents: read
@@ -45,8 +46,6 @@ jobs:
     name: Probe the live site
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # A deployment from any other branch is none of this monitor's business.
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main'
     permissions:
       contents: read
     outputs:
@@ -55,8 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # For a deployment run, check out the commit that was deployed.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          # The commit this push created; HEAD^ lets the run describe what changed.
           fetch-depth: 2
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -67,7 +65,7 @@ jobs:
         run: |
           set -euo pipefail
           : > "$RUNNER_TEMP/changed.z"
-          if [ "${{ github.event_name }}" = "workflow_run" ] && git rev-parse --verify -q HEAD^ >/dev/null 2>&1; then
+          if git rev-parse --verify -q HEAD^ >/dev/null 2>&1; then
             git diff --name-only -z --diff-filter=ACMR HEAD^ HEAD -- '*.html' '*.json' '*.xml' '*.txt' > "$RUNNER_TEMP/changed.z"
           fi
           count=0
@@ -85,11 +83,19 @@ jobs:
           SAMPLE: ${{ inputs.sample || '6' }}
         run: |
           set -euo pipefail
+          # Pages takes 30–60s from push to live. Waiting once here keeps the
+          # monitor's own retries (below) for genuine propagation races instead
+          # of the ordinary deploy delay, and a failed deploy still shows up as
+          # drift rather than as noise.
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "Allowing the Pages deployment to land before probing…"
+            sleep 45
+          fi
           args=(--sample "$SAMPLE" --json "$RUNNER_TEMP/production-report.json" --summary "$RUNNER_TEMP/production-summary.md")
           if [ -n "$BASE" ]; then args+=(--base "$BASE"); fi
-          # Post-deploy runs allow the CDN a few seconds to catch up before
-          # reporting a byte mismatch, so a fast propagation is not an alert.
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then args+=(--retry-mismatch 3 --retry-delay 5000); fi
+          # Post-push runs allow the CDN and every edge a generous catch-up
+          # window before calling a byte difference a stale deploy.
+          if [ "${{ github.event_name }}" = "push" ]; then args+=(--retry-mismatch 6 --retry-delay 10000); fi
           while IFS= read -r -d '' file; do
             [ -f "$file" ] || continue
             [ "$(wc -c < "$file")" -lt 2000000 ] || continue
@@ -163,10 +169,9 @@ jobs:
             --search "in:title \"$TITLE_PREFIX\"" --json number --jq '.[0].number // empty')
 
           if [ "$EXIT_CODE" = "0" ]; then
-            # Only a full contract run may clear the alert: a post-deploy run
-            # checks just the files that deployment changed, so it cannot prove
-            # the rest of the site recovered.
-            if [ -n "$existing" ] && [ "$EVENT_NAME" != "workflow_run" ]; then
+            # Every run checks the whole standing contract (the changed-file
+            # comparisons are additional), so a passing run may close the alert.
+            if [ -n "$existing" ]; then
               printf 'Recovered. The full production contract holds again — see %s\n' "$RUN_URL" \
                 | gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file -
               gh issue close "$existing" --repo "$GITHUB_REPOSITORY" --reason completed

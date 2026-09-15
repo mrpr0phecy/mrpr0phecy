@@ -39,8 +39,9 @@ not permission to change the other.
 | Instrument | Watches | Cadence | Where the result lives |
 |---|---|---|---|
 | `scripts/verify.sh` | The repository: catalogue, links, egress, accessibility, counts, derived artefacts | Every push/PR (`.github/workflows/agent-guardrails.yml`) | CI run + local terminal |
-| **Production monitor** (`scripts/check-production.js`) | **The deployed site**: availability, byte-identity with this repo, catalogue/sitemap integrity, https upgrade, custom 404 | Every 6 h **and immediately after each Pages deployment** (`.github/workflows/production-monitor.yml`) | `ops:production-alert` issue + run artifact + step summary |
+| **Production monitor** (`scripts/check-production.js`) | **The deployed site**: availability, byte-identity with this repo, catalogue/sitemap integrity, https upgrade, custom 404 | Every six hours **and on every push to `main`** — the push run waits 45 s for Pages and then probes (`.github/workflows/production-monitor.yml`) | `Production monitor:` alert issue + run artifact + step summary |
 | Pages build status | Whether the deploy itself succeeded | Per push | Actions → *pages build and deployment* |
+| Pages deployment history | Which commit is live right now | Per push | Actions → *pages build and deployment* → the environment URL shown on the run |
 | AI Developer facility | Catalogue audits, counts, drift between docs and reality | Mon & Thu 06:00 UTC | `ai-developer/reports/` artifact |
 | Search Console / CrUX / bookkeeping | Field performance, index coverage, money | Owner-side, monthly | `staff/BOARD.md` via the owner (P0-M1) |
 
@@ -83,10 +84,9 @@ Opened automatically by the production monitor, and only ever one at a time
   ```bash
   node scripts/check-production.js --json /tmp/report.json --summary /tmp/summary.md
   ```
-- **Closed automatically** by the next *full* contract run that passes (the
-  schedule or a manual dispatch — a post-deploy run only checks the files that
-  deployment changed, so it is not allowed to declare recovery). Closing is
-  evidence; do not close an alert by hand without a passing run.
+- **Closed automatically** by the next run that passes. Every run checks the
+  whole standing contract (changed-file comparisons are additional to it), so a
+  green run is real evidence. Do not close an alert by hand without one.
 
 If you are working an incident, keep the issue current: what you observed, what
 you changed, what you saw afterwards. The issue *is* the record — the repository
@@ -99,7 +99,7 @@ The monitor names each failure by surface. Find it here.
 | Finding | Most likely cause | Do this |
 |---|---|---|
 | `unreachable: timed out` / `NETWORK` on **everything** | GitHub Pages or DNS outage — not your commit | Check <https://www.githubstatus.com>. If Pages is down, do **not** revert anything; comment the status link on the issue and wait. |
-| `live bytes differ from the repository` on a **file you just changed** | Deploy still propagating, or the deploy failed | Look at Actions → *pages build and deployment*. Green deploy + propagation → wait for the post-deploy run (it retries mismatches for ~15 s). Failed deploy → re-run it. |
+| `live bytes differ from the repository` on a **file you just changed** | Deploy still propagating, or the deploy failed | The push run already waits 45 s and then retries mismatches for ~60 s. If it still differs, look at Actions → *pages build and deployment*: a failed deploy is re-run, a partial one is re-run, and a commit that should never have shipped is reverted. |
 | `live bytes differ` on files from a **recent merged PR** | The push never deployed (branch protection, failed build, wrong branch) | Re-run the deployment from `main`. Only revert if the content itself is wrong. |
 | `live bytes differ` on **everything** | Live site is serving an older commit | Find the commit that is live (`git log` on the files that differ), compare with `main`, re-run the deployment. |
 | `catalogue integrity: live catalogue has N cards, repository has M` | A truncated or partially deployed `cards/cards.json` | Re-run the deployment; if it persists, revert the commit that touched the catalogue. Never hand-edit `cards.json` — regenerate it (`node generate-cards-json.js --check` first). |
@@ -147,7 +147,7 @@ git revert --no-edit <bad-sha>       # one commit, one revert
 git push origin main                 # Pages deploys in 30–60 s
 ```
 
-Then wait for the post-deploy monitor run (or run the monitor by hand) before
+Then wait for the monitor's push run (or run the monitor by hand) before
 declaring recovery. On the default branch, prefer the PR route above unless the
 site is down; the PR route leaves the review trail.
 
@@ -161,7 +161,7 @@ site is down; the PR route leaves the review trail.
 
 ## 7. Verify recovery
 
-1. The monitor run must pass — either wait for the post-deploy run or:
+1. The monitor run must pass — either wait for the run triggered by your push or:
    ```bash
    node scripts/check-production.js --json /tmp/report.json --summary /tmp/summary.md
    ```
