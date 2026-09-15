@@ -66,6 +66,10 @@ function buildFixtureRepo(root) {
   write('related.json', JSON.stringify({ 'index.html': [] }));
   write('.well-known/ai.txt', 'User-agent: *\nAllow: /\n');
   write('.well-known/security.txt', 'Contact: mailto:security@example.com\nExpires: 2027-01-01T00:00:00Z\n');
+  // A filename carrying URL-meaning characters, mirroring staff/claims (the
+  // branch slash is stored as a literal %2F). The monitor must request it
+  // encoded and still match retries back to the repository path (issue #91).
+  write('staff/claims/arena%2Ffixture-branch.json', JSON.stringify({ branch: 'arena/fixture-branch' }));
   return root;
 }
 
@@ -127,6 +131,11 @@ function startServer(root, fault) {
     }
     if (rel === 'cards/cards.json' && fault === 'catch-up' && hits < 3) {
       body = Buffer.from(JSON.stringify(CARDS.slice(0, 3)));
+    }
+    // The encoded-path file goes stale-then-fresh under the same fault, so
+    // the retry loop has to resolve it through the percent-decoding.
+    if (rel === 'staff/claims/arena%2Ffixture-branch.json' && fault === 'catch-up' && hits < 3) {
+      body = Buffer.from('{"stale":true}');
     }
     send(200, body);
   });
@@ -301,6 +310,49 @@ async function main() {
       }
     });
 
+    await check('filenames with URL-meaning characters are requested encoded (issue #91)', async () => {
+      const encoded = 'staff/claims/arena%2Ffixture-branch.json';
+      // Unit level: % and spaces are escaped, slashes stay slashes, and
+      // probe query strings pass through untouched.
+      assert.strictEqual(monitor.encodeRelUrl(encoded), 'staff/claims/arena%252Ffixture-branch.json');
+      assert.strictEqual(monitor.encodeRelUrl('cards/my tool.html'), 'cards/my%20tool.html');
+      assert.strictEqual(monitor.encodeRelUrl('tool.html?card=x&embed=1'), 'tool.html?card=x&embed=1');
+      // End to end: the fixture server decodes once, exactly like Pages, so
+      // an unencoded request would 404 on the phantom nested path.
+      const server = await startServer(fixtureRoot, 'none');
+      try {
+        const report = await run(fixtureRoot, server.base, { extraFiles: [encoded] });
+        assert.ok(report.checks.some(c => c.surface === encoded && c.ok), details(report));
+        assert.strictEqual(report.summary.status, 'pass', details(report));
+      } finally {
+        await server.close();
+      }
+    });
+
+    await check('--retry-mismatch settles encoded paths against the repository', async () => {
+      const encoded = 'staff/claims/arena%2Ffixture-branch.json';
+      const settledServer = await startServer(fixtureRoot, 'catch-up');
+      try {
+        const settled = await run(fixtureRoot, settledServer.base,
+          { extraFiles: [encoded], retryMismatch: 3, retries: 0 });
+        assert.ok(settled.checks.some(c => c.surface === encoded && c.ok), details(settled));
+        assert.strictEqual(settled.summary.status, 'pass', details(settled));
+      } finally {
+        await settledServer.close();
+      }
+      // A fresh server restarts the stale window: without retries the same
+      // bytes must still fail rather than pass by accident.
+      const staleServer = await startServer(fixtureRoot, 'catch-up');
+      try {
+        const unretried = await run(fixtureRoot, staleServer.base,
+          { extraFiles: [encoded], retryMismatch: 0, retries: 0 });
+        assert.ok(failureSurfaces(unretried).includes(encoded),
+          `stale encoded bytes must fail without retries: ${details(unretried)}`);
+      } finally {
+        await staleServer.close();
+      }
+    });
+
     await check('unreachable origin fails availability without throwing', async () => {
       // Nothing is listening on this port: the monitor must report, not crash.
       const report = await run(fixtureRoot, 'http://127.0.0.1:1');
@@ -450,7 +502,7 @@ async function main() {
       assert.ok(rows[0].includes('line one line two \\| end'), 'newlines collapse and pipes escape in a detail');
     });
 
-    console.log(`\nproduction-monitor: ${passed} checks passed — stale deploys, truncated catalogues, broken 404s, slow origins and unreachable hosts all fail; healthy sites pass; skips stay visible.`);
+    console.log(`\nproduction-monitor: ${passed} checks passed — stale deploys, truncated catalogues, broken 404s, slow origins and unreachable hosts all fail; URL-meaning filenames probe correctly; healthy sites pass; skips stay visible.`);
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }
