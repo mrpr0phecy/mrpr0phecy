@@ -140,8 +140,9 @@ section "13/15 staff facility configuration and regression tests"
 if command -v node >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
   if node scripts/ai-developer.js check \
     && node --test scripts/tests/staff-*.test.js \
-    && python3 -m unittest discover -s staff/tests -p 'test_*.py'; then
-    ok "staff gates, safe fixes, draft quarantine, reports and coordination tested"
+    && python3 -m unittest discover -s staff/tests -p 'test_*.py' \
+    && python3 scripts/check-growth.py; then
+    ok "staff gates, safe fixes, draft quarantine, reports, coordination and growth surfaces tested"
   else
     fail "staff facility regression — inspect the failing test"
   fi

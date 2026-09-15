@@ -61,8 +61,10 @@ function candidate() {
 
 // Configuration is executable policy, not an unused second roster.
 test('real staff configuration has one owner for every executable check', () => {
-  assert.equal(REAL.staff.members.length, 8);
-  assert.equal(REAL.audits.length, 13);
+  assert.equal(REAL.staff.members.length, 9);
+  assert.equal(REAL.audits.length, 14);
+  assert.ok(REAL.staff.members.some(m => m.id === 'growth'));
+  assert.ok(REAL.audits.some(a => a.id === 'growth' && a.owner === 'growth'));
   assert.deepEqual(workflowIntegrity(ROOT), []);
 });
 test('configuration rejects duplicate staff ids, orphan checks and unsupported execution', () => {

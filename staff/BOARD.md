@@ -9,6 +9,61 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (7) — arena/01a0a58d — north-star overhaul: research, ethos, queue, roster (+@growth)
+
+**Commission:** owner asked for deep research into what top specialists
+require, a perfected staff plan (viable, brilliant, popular, first on
+Google), and staff/rules reshaped to that ethos. This is that turn. Second
+commit series on `arena/01a0a58d-mrpr0phecy` (PR #83); `verify.sh` PASSED,
+pushed; claim released after push.
+
+**Research (staff/RESEARCH.md §6):** 11 queries across award juries
+(Awwwards 40/30/20/10, SOTY 2025 Lando Norris/OFF+BRAND), NavBoost
+(good/bad/lastLongest clicks, ~13-month window, DOJ + leak confirmed),
+zero-click/AI survival (60% zero-click, −34–58% top clicks, +35% for cited
+brands, branded queries resist erosion), March 2026 aftermath ("the company
+that owns the thing", sitewide weakest-link demotion, Wise/Zapier/Canva
+survival pattern), entity SEO (mentions 0.664 vs backlinks 0.218 for AIO
+citation), CWV (150ms competitive INP), digital PR (data studies 3–5×,
+first-hour +60%), and the money stack (ads as one layer, newsletter
+$50–100 CPMs, digital products ~100% margin). Standing correction recorded:
+"first on Google" = positions 1–3 for hundreds of long-tails + AI
+citations; no source promises #1, all agree on the inputs.
+
+**New doctrine (staff/NORTH-STAR.md):** mission in one sentence
+(brilliant, useful, profitable, famous), four pillars, ten laws
+(usefulness-first, honesty-as-brand, click-gap, terminal-click, entity,
+maintenance-as-product, earned links, owned audience, measure-don't-theatre,
+staff-prepare-owner-signs), never-do reminder. Binding law unchanged —
+DECISIONS/CONSTRAINTS/AGENTS still win conflicts.
+
+**Queue (staff/OPEN.md):** P1-R1 upgraded to NavBoost doctrine; new P1-R8
+entity authority, P1-R9 field-data watch (CrUX API, zero new tracking); new
+P1-U5 explainable/shareable results; new P1-M6 stack proposals, P1-M7 link
+the offer; new P2-D4 award-readiness path; P2-P2 upgraded to a real outreach
+engine (Connectively/Featured/Qwoted, data-study cadence); new P2-P4 owned
+audience; P3-T3 INP ≤150ms target; new P3-T5 third-party diet. Owner asks
+extended O-10 (entity identity), O-11 (newsletter provider), O-12 (award
+submission). Tier-2 states updated (pilot/sync/YMYL shipped on this branch,
+unmerged).
+
+**Roster (scripts/ai-staff.json v2, still v2 — enforced):** mission
+sharpened, product success lines rewritten to outcomes, new usefulness-first
+guardrail, new 9th profile `@growth` (Audience & Revenue Engineer) owning
+the money pages + GROWTH-PACK. New executable check `scripts/check-growth.py`
+(money pages exist/resolve, conversion routes, dark-pattern scan,
+listen→sync edge) registered in ai-audits.json as 14th audit and wired into
+`verify.sh` §13. First run's honest finding: **embed.html is genuinely
+orphaned — no hub links to the licensing page** (warning, queued as P1-M7,
+not silently fixed here). `staff-system.test.js` roster pins updated 8→9 /
+13→14 plus growth-identity assertions. Note: claim scope widened in practice
+to `scripts/verify.sh` + `scripts/tests/staff-system.test.js` (required
+wiring/pins for the reshape).
+
+**Still owner-side:** O-1..O-12, P0-M3 ruling, finance 3/100 trio, live
+terms/pricing/funnel, browser passes. Next staff turn with no owner input:
+P1-M7 (link the offer) + P1-U5 pilot shareability — both unblocked.
+
 ## 2026-09-15 (6) — arena/01a0a58d — Tier-2 delivered: tools/ pilot, category blurbs, sync page, YMYL suite, guide backlinks
 
 **Delivery:** third commit on `arena/01a0a58d-mrpr0phecy` (PR #83). Owner

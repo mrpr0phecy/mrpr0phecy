@@ -20,7 +20,13 @@ tools are among the most resilient formats in AI-era search**, because an AI
 summary can describe a calculator but cannot replace using one. Thin
 programmatic pages lost 50–80% of traffic in Google's March 2026
 scaled-content enforcement; pages with real utility kept ranking and started
-earning AI citations as well.
+earning AI citations as well. Three structural facts shape everything below:
+**60% of searches now end without a click** (AI Overviews cut position-1
+clicks ~34–58% on informational queries — but cited brands gain ~35% more
+clicks and surviving clicks convert ~23% better); **March 2026 applies a
+sitewide weakest-link demotion** (thin pages don't just fail, they drag the
+whole domain down); and **Google rewards "the company that owns the thing"**
+(first-party tools, data and authority over aggregators and affiliates).
 
 The plan therefore has exactly one SEO thesis: **every indexable URL must
 pass the test Google has applied since 2023 — does this page genuinely help
@@ -119,6 +125,12 @@ is the **LCP risk** — the fast-path prerender exists; keep it under budget
 (OPEN.md P3-T3). Unreserved image/ad slots are the **CLS risk** — dimensions
 or reserved space everywhere, no late-injected chrome above content.
 
+Competitive target: **INP ≤ 150ms at p75** (Google's bar is 200ms; top sites
+clear 150). Optimise at template level, fix order TTFB → LCP → INP → CLS,
+and judge on field data only — allow weeks after deploying before declaring
+a fix (28-day rolling window). Off-site CrUX/API monitoring adds no on-page
+tracking (OPEN.md P1-R9).
+
 ### 1e. Technical SEO checklist (unindexed pages can't rank)
 
 - Crawlability: `robots.txt` + `sitemap.xml` accurate and submitted (Search
@@ -163,6 +175,50 @@ Sharp, honest titles (query + differentiator: "Free · No sign-up · Runs in
 browser"), meta descriptions that promise the task outcome, favicons/OG
 images that survive a tab strip. Then satisfy intent fast — bounce-back to
 the SERP is the engagement signal that kills you.
+
+### 1h. NavBoost — be the terminal click
+
+Confirmed by DOJ testimony and the 2024 API leak: Google re-ranks on click
+classifications aggregated over roughly **13 months**. goodClicks (clicked
+and stayed), badClicks (pogo-sticked back within seconds — a demotion
+signal), lastLongestClicks (the final, longest-dwell click of the session —
+the strongest positive signal). There is no standalone "dwell time score";
+dwell is the *input to the classification*. Implications:
+
+- **Intent match is everything.** A clickbait title with disappointing
+  content earns badClicks; a slow page earns them before content is even
+  seen. Match the query, answer above the fold, load fast.
+- **Optimise the stay, not just the click.** Task completion on-page, worked
+  examples, related tools that continue the session — every second of
+  satisfied dwell compounds over the 13-month window.
+- **KPIs:** CTR above SERP average for the position; engagement rate > 60%;
+  average engagement time > 2 minutes on long-form; scroll depth with 50%+
+  reaching 75% of content. Signals accumulate over months — judge quarterly,
+  not weekly.
+
+### 1i. Entity SEO — be a node, not a keyword
+
+AI surfaces cite entities they have confidence in, and confidence is graph
+traversal: schema → Wikidata/Wikipedia/LinkedIn/registries → corroborating
+mentions. **Branded web mentions correlate 0.664 with AI Overview citations
+vs 0.218 for traditional backlinks** — entity signals now outrank link
+signals for AI visibility. The stack:
+
+- **On-site:** stable `@id` URIs for Organization + Person, sameAs ladders
+  to authoritative profiles (identical name/photo/role everywhere — any
+  drift weakens resolution), connected `@graph` (Organization ↔ WebSite ↔
+  WebPage ↔ Person), `about`/`mentions` with entity intent (generic valid
+  schema with no entity properties is practically useless), one-sentence
+  entity definitions reused verbatim everywhere.
+- **Off-site:** Wikidata item where notability allows (far more accessible
+  than Wikipedia; a company with a site + independent coverage qualifies),
+  Crunchbase/LinkedIn/company registries, consistent NAP, third-party
+  corroboration through press and data studies. Expect 3–6 months to initial
+  recognition, 6–12 to measurable citation impact.
+- **Author entities are assets, not attributes.** YMYL content without an
+  attributable, verifiable author carries structurally lower E-E-A-T weight.
+  Measure: Knowledge Graph Search API resolution, LLM bio consistency,
+  sameAs coherence, citation rate in-field.
 
 ## 2. Useful — the brilliance standard
 
@@ -253,6 +309,16 @@ promotion (criminal-exposure risk per FINANCE.md §3; page kept, unpromoted,
 per CONSTRAINTS.md), view-bots/hidden players/fake engagement (channel
 termination risk).
 
+**Stack doctrine (new):** display advertising is one layer, never the
+strategy — publishers who treat it as the complete plan underperform those
+who stack it under higher-margin channels. For this site the stack layers as
+licensing (recurring, traffic-independent) → distribution/Content ID →
+sponsorship priced from reality → sync → owned-audience sponsorships (niche
+newsletter CPMs run $50–100+) → digital products (near-100% margin,
+fulfilment-free) → donations. Affiliate stays contained under strict
+relevance + disclosure rules. New layers ship as owner-signed proposals
+(OPEN.md P1-M6), never as staff improvisation.
+
 **Measurement is the standard's teeth:** every money page measurable within
 the D-007 analytics footprint (no expansion without the owner); funnel
 events for Embed→licence page, sponsor enquiries, donation clicks, YouTube
@@ -279,9 +345,22 @@ only, each compounding:
 4. **Outreach with something to offer.** Resource pages (.ac.uk, .org.uk,
    libraries, charities), "free for your website" vertical pages, digital PR
    from original data — all offering genuine value, never begging links.
-5. **Word of mouth by design.** Shareable results (thisorthat top-5),
-   bookmarkable stable tool URLs, honest CTAs. A tool worth linking is the
-   only growth hack that compounds.
+   Run the journalist layer too: Connectively/Featured/Qwoted with
+   first-hour responses (60%+ higher placement), #journorequest on X, and a
+   quarterly data-study cadence — consistent data PR earns 3–5× the
+   high-authority links of outreach alone. Cold converts 1–3%, warm 15–30%:
+   relationships first, pitches second.
+5. **Owned audience.** Email is the relationship no algorithm can take:
+   engaged subscribers outperform larger anonymous audiences, sponsor the
+   newsletter at premium CPMs, and become first-party data. The signup must
+   earn its place with an honest value prop — never a dark pattern.
+6. **Word of mouth by design.** Shareable results (thisorthat top-5),
+   bookmarkable stable tool URLs, explainable numbers ("why this number"),
+   honest CTAs. A tool worth linking is the only growth hack that compounds.
+7. **Brand as moat.** Branded queries resist AI-Overview erosion far better
+   than generic ones — even brand-plus-category queries decline less. Every
+   citation, mention and share that carries the name builds the two-tier
+   internet's upper tier. Be cited, be named, be searched.
 
 ## 6. Scoreboard — how perfect is measured
 
@@ -293,7 +372,11 @@ measured" is a valid current value; inventing one is a D-001 violation.
 | Positions 1–3 for target long-tail queries | Search Console (needs setup) | Monthly | Growing set; top 10–25 tools first |
 | Clicks + CTR per target query | Search Console | Monthly | CTR above SERP average for the position |
 | Index coverage (submitted vs indexed) | Search Console + `build-sitemap.py --check` | Monthly | 100% of intended URLs indexed, 0 thin indexed |
-| CWV pass (LCP/INP/CLS, mobile + desktop) | CrUX via PageSpeed Insights | Monthly | All three green at p75, both devices |
+| CWV pass (LCP/INP/CLS, mobile + desktop) | CrUX via PageSpeed Insights | Monthly | All three green at p75, both devices; INP ≤ 150ms competitive target |
+| AI citations + branded mentions | Manual prompt panel + Search Console impressions/AIO views | Monthly | Cited for target queries; brand-mention volume rising |
+| Branded search volume | Search Console | Monthly | Rising (the AI-erosion moat) |
+| Referring domains (earned) | Search Console links + backlink index | Monthly | Rising; editorial/data-driven only |
+| Entity resolution | KG Search API + LLM bio test + sameAs audit | Quarterly | Brand + author resolve as nodes |
 | Task success (find tool → get result) | Manual + (if owner approves) privacy-safe events; never input values | Per change | No regressions; faster over time |
 | Finance suite green | `node scripts/check-finance.js` | Every push | 100% (triage stale vs real, never hide) |
 | Verify green | `bash scripts/verify.sh` | Every push | 17/17 |
@@ -301,7 +384,10 @@ measured" is a valid current value; inventing one is a D-001 violation.
 | Embed funnel (views → copies → licence page) | GA on `embed.html` (within D-007) | Monthly | Baseline then improve |
 | YPP watch hours | YouTube Studio (owner) | Monthly to 1 Feb 2027 | 4,000h or 10M Shorts views |
 | Sponsorship/sync pipeline | Inbox (human) | Monthly | Real numbers quoted, honest pricing |
+| Licence revenue (recurring) | Bookkeeping sheet (FINANCE.md §2) | Monthly | First £, then renewal rate |
+| Newsletter subs + sponsor £ | Provider dashboard (owner) | Monthly | Growing list, honest CPMs |
 | Donations | PayPal + GA clicks | Quarterly | Tracked; effort capped |
+| Growth surfaces clean | `python3 scripts/check-growth.py` | Every push | Exit 0, warnings tracked in OPEN.md |
 
 Review this file when Google updates guidance materially, when a target is
 hit (set the next one), or when evidence contradicts it — a standard that

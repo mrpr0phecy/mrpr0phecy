@@ -7,8 +7,9 @@ portal. This system helps their maintainers do better work.
 
 ## The operating loop
 
-1. **Understand:** read `ARCHITECTURE.md`, `CONSTRAINTS.md`, `DECISIONS.md` and
-   the newest entries on `BOARD.md`. `RESEARCH.md` explains the staff rebuild.
+1. **Understand:** read `NORTH-STAR.md` (the ethos), `ARCHITECTURE.md`,
+   `CONSTRAINTS.md`, `DECISIONS.md` and the newest entries on `BOARD.md`.
+   `RESEARCH.md` explains the staff rebuild and the evidence behind the plan.
 2. **Measure:** run `node scripts/ai-developer.js plan`. Read the report's
    evidence and limitations, not just its colour. No provider key is needed.
 3. **Coordinate:** refresh branch evidence when online, then claim a small
@@ -94,8 +95,8 @@ parallel roster hidden in an unused config or separate staffroom.
 
 Meet the current profiles with `node scripts/ai-developer.js staff`. The
 profiles cover delivery, catalogue/discovery, tool reliability, privacy,
-visual design/accessibility, search/content, the listener experience and
-financial correctness. A role name is neither a permission nor a claim that
+visual design/accessibility, search/content, the listener experience,
+financial correctness, and audience/revenue growth. A role name is neither a permission nor a claim that
 an autonomous worker is active. Do not sign with a model name.
 
 ## Evidence, gates and automation

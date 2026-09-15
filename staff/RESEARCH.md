@@ -129,3 +129,53 @@ The result should be judged by whether the next maintainer can identify the
 right problem, reproduce it, avoid collisions, preserve owner constraints and
 hand off verified work — not by how many staff titles or generated tools it
 can display.
+
+## 6. North-star research baseline (2026-09-15)
+
+Second research pass, commissioned by the owner ("make it financially viable,
+brilliant at usefulness, popular, first on Google"). Findings operationalised
+in NORTH-STAR.md, OPEN.md and EXCELLENCE.md §§0–1/4–6. Key sources:
+
+- **Award juries:** Awwwards scores Design 40 / Usability 30 / Creativity 20 /
+  Content 10; most entries fail on usability. SOTY 2025: Lando Norris site by
+  OFF+BRAND. Winners pair expressive visuals with hierarchy, semantics,
+  responsive behaviour and performance budgets. (utsubo.com, futurists.in,
+  sliderrevolution.com, bmgmediaco.com)
+- **NavBoost:** goodClicks/badClicks/lastLongestClicks over ~13 months,
+  confirmed by DOJ testimony + 2024 API leak; terminal click is the strongest
+  positive signal; pogo-sticking demotes. (navboost.com, lawrencehitches.com,
+  seo-kreativ.de)
+- **Zero-click/AI:** 60% of searches end without a click; AIO cuts top clicks
+  34–58% but cited brands gain ~35% and surviving clicks convert ~23% better;
+  branded queries resist erosion. (searchenginejournal.com, clickrank.ai,
+  ailabsaudit.com, almcorp.com)
+- **March 2026:** aggregators/thin affiliates/templated pages crushed;
+  winners are brand-owned media, government domains and first-hand
+  authorities — "the company that owns the thing"; sitewide weakest-link
+  demotion for thin sets. Survivors (Wise, Zapier, Canva) share data an LLM
+  can't reconstruct. (neuronwriter.com, heroicrankings.com, resollm.ai,
+  madx.digital)
+- **Entity SEO:** branded mentions correlate 0.664 with AIO citations vs
+  0.218 for backlinks; stack is stable `@id` + sameAs ladder + Wikidata +
+  corroboration; 3–6 months to recognition. (jottler.co, mediaofficers.com,
+  seo-kreativ.de, muratulusoy.de, leadgen-economy.com)
+- **CWV:** LCP ≤ 2.5s / INP ≤ 200ms / CLS ≤ 0.1 at p75 field data, 28-day
+  rolling; competitive INP target 150ms; fix order TTFB → LCP → INP → CLS at
+  template level. (digitalapplied.com, webhelpagency.com, seo-kreativ.de,
+  nitropack.io)
+- **Links/PR:** digital PR + data studies are best-in-class (3–5× links);
+  journalist sourcing via Connectively/Qwoted/Featured with first-hour
+  responses (+60% placement); cold 1–3%, warm 15–30%; PBNs penalised, link
+  exchanges violate spam policy. (digitalapplied.com, webtonic.io, w3era.com,
+  editorial.link, brandmentions.link)
+- **Money stack:** display ads are one layer, never the strategy; premium
+  networks need 25–50K sessions (Raptive/Mediavine) at $15–50 RPM; niche
+  newsletter CPMs $50–100+; digital products near-100% margin; email lists
+  are first-party data assets. (clickio.com, ecommerceparadise.com,
+  networksolutions.com, newormedia.com, flexoffers.com, INMA)
+
+Standing correction to earlier guidance: "first on Google" never meant
+position 1 in general — it means positions 1–3 for hundreds of specific
+long-tail queries plus AI citations, which the evidence says is winnable for
+interactive tools. No source consulted promises #1 for anything; all agree on
+the inputs above.
