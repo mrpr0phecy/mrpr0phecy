@@ -11,10 +11,15 @@ item. This historical list does not override current staff decisions.
 
 ## Now — safety and correctness
 
-- [ ] **Make `qrtool` local-only.** Replace its third-party QR generation with
-  the vendored `qrcode-generator` implementation already used by
-  `wifi-qr-generator.html`, retaining the logo overlay. Audit other cards for
-  silent input egress at the same time.
+- [x] **Make `qrtool` local-only.** Landed 2026-09-15: the third-party QR API
+  calls are replaced with the vendored `qrcode-generator` implementation used
+  by `wifi-qr-generator.html`, the logo overlay is retained (error correction
+  auto-raised to High), and the egress audit is enforced by a markup-aware
+  `scripts/check-egress.py` gate in `verify.sh` — `fetch(variable)` and
+  friends now require classification, so silent input egress cannot slip
+  through again. Follow-on for the owner: decide C-vs-A classification for
+  cards that send typed text to APIs by design (spelling-check, languages,
+  plant-encyclopedia).
 - [ ] **Resolve broken label associations.** Some `<label for="…">` values
   target button groups rather than form controls. Convert them to real radio
   inputs or use `aria-labelledby`.

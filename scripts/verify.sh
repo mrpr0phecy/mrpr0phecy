@@ -14,7 +14,10 @@
 #   6. secret scan            — no obvious GitHub tokens in tracked files
 #   7. git state              — uncommitted changes reported (not failed)
 #   8. card JavaScript        — scripts/check-card-js.py (needs node)
-#   9. tool-count claims      — scripts/sync-counts.py --check
+#   9. tool-count claims      — scripts/sync-counts.py --check, plus
+#                               scripts/generate-ai-index.js --check so the
+#                               llms.txt / llms-full.txt / tools-index.html
+#                               machine indexes cannot drift from cards.json
 #  10. sitemap freshness      — scripts/build-sitemap.py --check
 #  11. card accessibility     — scripts/check-a11y.py
 #  12. site brain              — repo-grounded index and grounding regressions
@@ -23,6 +26,10 @@
 #  15. home first screen      — scripts/build-home-prerender.py --check, plus the
 #                                loader tests in scripts/tests/ that drive the real
 #                                functions out of index.html
+#  16. input egress           — scripts/check-egress.py: every network-touching
+#                               card must be a reviewed, classified exception, and
+#                               the QR generator must stay fully local (functional
+#                               tests in scripts/tests/qrtool-local.test.js)
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -90,6 +97,15 @@ fi
 
 section "9/15 tool-count claims (sync-counts.py)"
 if python3 scripts/sync-counts.py --check; then ok "every claim matches the catalogue"; else fail "stale tool counts — run: python3 scripts/sync-counts.py"; fi
+if command -v node >/dev/null 2>&1; then
+  if node scripts/generate-ai-index.js --check; then
+    ok "machine indexes (llms.txt, llms-full.txt, tools-index.html) match the catalogue"
+  else
+    fail "machine indexes stale — run: node scripts/generate-ai-index.js"
+  fi
+else
+  note "node not available — machine index check skipped"; NOTES=$((NOTES+1))
+fi
 
 section "10/15 sitemap freshness (build-sitemap.py)"
 if python3 scripts/build-sitemap.py --check; then ok "sitemap matches tracked indexable pages"; else fail "sitemap stale — run: python3 scripts/build-sitemap.py"; fi
@@ -146,6 +162,26 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   note "node not available — card loader tests skipped"; NOTES=$((NOTES+1))
+fi
+
+section "16/16 input egress and the local QR generator"
+if command -v python3 >/dev/null 2>&1; then
+  if python3 scripts/check-egress.py; then
+    ok "every network-touching card is a classified, reviewed exception"
+  else
+    fail "unclassified card egress — see scripts/check-egress.py header"
+  fi
+else
+  note "python3 not available — skipped"; NOTES=$((NOTES+1))
+fi
+if command -v node >/dev/null 2>&1; then
+  if node scripts/tests/qrtool-local.test.js; then
+    ok "QR generator renders locally (matrix, SVG, PDF, ZIP) with no egress"
+  else
+    fail "qrtool regression — it must stay 100% on-device"
+  fi
+else
+  note "node not available — qrtool tests skipped"; NOTES=$((NOTES+1))
 fi
 
 if [ "$LIVE" = "1" ]; then

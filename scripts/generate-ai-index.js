@@ -64,6 +64,7 @@ const slugCat = c => c.toLowerCase()
   .replace(/^-+|-+$/g, '');
 
 function main() {
+  const CHECK = process.argv[2] === '--check';
   const cards = JSON.parse(fs.readFileSync(CARDS_JSON, 'utf8'));
   if (!Array.isArray(cards) || cards.length === 0) {
     console.error('cards/cards.json missing or empty — run generate-cards-json.js first.');
@@ -136,7 +137,6 @@ ${catLines.join('\n')}
 See llms-full.txt: ${SITE}/llms-full.txt — every tool with its URL and a
 one-line description, grouped by category.
 `;
-  fs.writeFileSync(path.join(ROOT, 'llms.txt'), llms);
 
   // ---------- 2. llms-full.txt ----------
   const sections = ordered.map(cat => {
@@ -155,7 +155,6 @@ one-line description, grouped by category.
 
 ${sections.join('\n\n')}
 `;
-  fs.writeFileSync(path.join(ROOT, 'llms-full.txt'), llmsFull);
 
   // ---------- 3. tools-index.html (static, zero JS) ----------
   const today = new Date().toISOString().slice(0, 10);
@@ -264,7 +263,37 @@ ${sectionsHtml}
 </body>
 </html>
 `;
-  fs.writeFileSync(path.join(ROOT, 'tools-index.html'), html);
+  // The footer carries the build date, so a freshness check must compare
+  // modulo it (a stale-but-otherwise-identical file is still stale, but a
+  // date-only difference is not drift).
+  const stripDate = s => s.replace(/generated \d{4}-\d{2}-\d{2}/, 'generated X');
+  const targets = [
+    ['llms.txt', path.join(ROOT, 'llms.txt'), llms, false],
+    ['llms-full.txt', path.join(ROOT, 'llms-full.txt'), llmsFull, false],
+    ['tools-index.html', path.join(ROOT, 'tools-index.html'), html, true],
+  ];
+
+  if (CHECK) {
+    let stale = 0;
+    for (const [name, file, want, dated] of targets) {
+      let got;
+      try { got = fs.readFileSync(file, 'utf8'); } catch { got = null; }
+      const matches = got !== null &&
+        (dated ? stripDate(got) === stripDate(want) : got === want);
+      if (!matches) {
+        console.error(`STALE: ${name} does not match cards/cards.json`);
+        stale += 1;
+      }
+    }
+    if (stale) {
+      console.error(`run: node scripts/generate-ai-index.js (${stale} file(s) stale)`);
+      process.exit(1);
+    }
+    console.log('ai indexes OK — llms.txt, llms-full.txt and tools-index.html match the catalogue');
+    return;
+  }
+
+  for (const [, file, content] of targets) fs.writeFileSync(file, content);
 
   console.log(`✔ llms.txt         (${llms.length} bytes)`);
   console.log(`✔ llms-full.txt    (${llmsFull.length} bytes) — ${total} tools`);

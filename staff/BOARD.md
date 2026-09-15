@@ -9,6 +9,22 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 — arena/01a0a4dd — qrtool made local-only; egress gate wired into verify
+
+**Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence; this entry is the handover context.
+
+**Fixed (ROADMAP "Now" item 1):** `qrtool` no longer sends anything anywhere — the vendored `qrcode-generator` copy from `wifi-qr-generator.html` renders on-device (URL/text/Wi-Fi/vCard/email/SMS, custom colours, quiet zone, logo overlay with ECC auto-raised to High and shown honestly in the stats). While localising, the tool's fake/broken paths were repaired: SVG download used to emit a "QR Code" *text placeholder* and is now real vector art from the matrix; PDF and JPEG buttons called **undefined functions** (`generatePDF`, `convertToJPEG`) and silently threw — PDF is now a minimal valid DCTDecode document, JPEG straight off the canvas; batch "Download as ZIP" claimed to need JSZip — now a store-only ZIP written in-card (CRC32-verified, cross-validated with Python `zipfile`); the embed button pointed at a non-existent `cards/advanced-qr-generator.html`; vCard generation crashed on a missing `qr-affiliate` element; the fabricated "scan tracking" section (a `/qr/<id>` route that does not exist, with hardcoded "Scans: 0") is removed; QR *content* is no longer written to localStorage (only tab + styling, which now actually restore into the inputs).
+
+**Egress enforcement:** `check-egress.py` is markup-aware — `<script src="https://…">` inside a JS *string* no longer counts (fixes the standing `cookie-consent-banner-builder` false positive), while `fetch(variable)`, `sendBeacon`, `WebSocket`, `EventSource`, `importScripts` and dynamic remote `.src=`/`.href=` now require classification (the `fetch(variable)` gap is exactly how qrtool's qrserver posts slipped past the old literal-URL regex). New class **L** (verified local-only `data:`/`blob:` fetches) with `thumbnail-generator` as its first member; `languages` classified C per the `spelling-check` precedent, both already carrying visible warnings. Wired into `verify.sh` section 16 together with a zero-dependency functional test (`scripts/tests/qrtool-local.test.js`: finder-pattern fidelity, SVG module-count parity, PDF xref/`/Length` validation, ZIP structural walk, CRC32 check vector, and a no-egress scan of the shipped script).
+
+**Catalogue drift found and fixed:** the checked-in `llms.txt`, `llms-full.txt` and `tools-index.html` were stale (claimed 1128 tools vs the real 1149; per-category counts wrong) — regenerated, and `generate-ai-index.js --check` added to `verify.sh` section 9 so machine indexes cannot drift from `cards.json` again.
+
+**Verified:** full `verify.sh` PASSED (16 sections); `check-cards`/`check-a11y`/`check-card-collisions`/`check-card-js` clean across 1149 cards; no browser was installable in this sandbox (CDN blocked), so the engine is validated vm-side against the real shipped script plus independent Python ZIP validation — a real-browser pass of `tool.html?card=qrtool` is the one remaining nice-to-have.
+
+**Left for the owner:** C-vs-A classification policy for cards that send typed text to third-party APIs by design (`spelling-check`, `languages`, `plant-encyclopedia`); vestigial KNOWN entries `currency` and `ai-mcp-protocol-tool-tester` (both make no network calls today) can be pruned or kept as documentation.
+
+---
+
 ## 2026-09-11 — arena/01a08f3a — Broad repair sweep delivered for review
 
 **Delivery:** PR from `arena/01a08f3a-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence; this entry is the handover context.
