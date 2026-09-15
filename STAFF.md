@@ -24,6 +24,7 @@ report: it is work the staff system is supposed to make visible.
 | Binding owner decisions | [staff/DECISIONS.md](staff/DECISIONS.md) |
 | Session context and announcements | [staff/BOARD.md](staff/BOARD.md) |
 | Human work queue and owner dependencies | [staff/OPEN.md](staff/OPEN.md) |
+| The measurable standard (rank, useful, design, money, popular) | [staff/EXCELLENCE.md](staff/EXCELLENCE.md) |
 | Actual branch evidence | `python3 staff/scan.py --fetch --mine` or [generated snapshot](staff/BRANCHES.md) |
 | Why this system was rebuilt | [staff/RESEARCH.md](staff/RESEARCH.md) |
 | Automation setup, permissions and failure recovery | [docs/AI-DEVELOPER-SETUP.md](docs/AI-DEVELOPER-SETUP.md) |

@@ -9,6 +9,223 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (7) — arena/01a0a58d — north-star overhaul: research, ethos, queue, roster (+@growth)
+
+**Commission:** owner asked for deep research into what top specialists
+require, a perfected staff plan (viable, brilliant, popular, first on
+Google), and staff/rules reshaped to that ethos. This is that turn. Second
+commit series on `arena/01a0a58d-mrpr0phecy` (PR #83); `verify.sh` PASSED,
+pushed; claim released after push.
+
+**Research (staff/RESEARCH.md §6):** 11 queries across award juries
+(Awwwards 40/30/20/10, SOTY 2025 Lando Norris/OFF+BRAND), NavBoost
+(good/bad/lastLongest clicks, ~13-month window, DOJ + leak confirmed),
+zero-click/AI survival (60% zero-click, −34–58% top clicks, +35% for cited
+brands, branded queries resist erosion), March 2026 aftermath ("the company
+that owns the thing", sitewide weakest-link demotion, Wise/Zapier/Canva
+survival pattern), entity SEO (mentions 0.664 vs backlinks 0.218 for AIO
+citation), CWV (150ms competitive INP), digital PR (data studies 3–5×,
+first-hour +60%), and the money stack (ads as one layer, newsletter
+$50–100 CPMs, digital products ~100% margin). Standing correction recorded:
+"first on Google" = positions 1–3 for hundreds of long-tails + AI
+citations; no source promises #1, all agree on the inputs.
+
+**New doctrine (staff/NORTH-STAR.md):** mission in one sentence
+(brilliant, useful, profitable, famous), four pillars, ten laws
+(usefulness-first, honesty-as-brand, click-gap, terminal-click, entity,
+maintenance-as-product, earned links, owned audience, measure-don't-theatre,
+staff-prepare-owner-signs), never-do reminder. Binding law unchanged —
+DECISIONS/CONSTRAINTS/AGENTS still win conflicts.
+
+**Queue (staff/OPEN.md):** P1-R1 upgraded to NavBoost doctrine; new P1-R8
+entity authority, P1-R9 field-data watch (CrUX API, zero new tracking); new
+P1-U5 explainable/shareable results; new P1-M6 stack proposals, P1-M7 link
+the offer; new P2-D4 award-readiness path; P2-P2 upgraded to a real outreach
+engine (Connectively/Featured/Qwoted, data-study cadence); new P2-P4 owned
+audience; P3-T3 INP ≤150ms target; new P3-T5 third-party diet. Owner asks
+extended O-10 (entity identity), O-11 (newsletter provider), O-12 (award
+submission). Tier-2 states updated (pilot/sync/YMYL shipped on this branch,
+unmerged).
+
+**Roster (scripts/ai-staff.json v2, still v2 — enforced):** mission
+sharpened, product success lines rewritten to outcomes, new usefulness-first
+guardrail, new 9th profile `@growth` (Audience & Revenue Engineer) owning
+the money pages + GROWTH-PACK. New executable check `scripts/check-growth.py`
+(money pages exist/resolve, conversion routes, dark-pattern scan,
+listen→sync edge) registered in ai-audits.json as 14th audit and wired into
+`verify.sh` §13. First run's honest finding: **embed.html is genuinely
+orphaned — no hub links to the licensing page** (warning, queued as P1-M7,
+not silently fixed here). `staff-system.test.js` roster pins updated 8→9 /
+13→14 plus growth-identity assertions. Note: claim scope widened in practice
+to `scripts/verify.sh` + `scripts/tests/staff-system.test.js` (required
+wiring/pins for the reshape).
+
+**Still owner-side:** O-1..O-12, P0-M3 ruling, finance 3/100 trio, live
+terms/pricing/funnel, browser passes. Next staff turn with no owner input:
+P1-M7 (link the offer) + P1-U5 pilot shareability — both unblocked.
+
+## 2026-09-15 (6) — arena/01a0a58d — Tier-2 delivered: tools/ pilot, category blurbs, sync page, YMYL suite, guide backlinks
+
+**Delivery:** third commit on `arena/01a0a58d-mrpr0phecy` (PR #83). Owner
+said "do everything you can" a second time — Tier-2 is the staff-side
+remainder: everything below the owner-approval line. `verify.sh` PASSED,
+pushed; claim released after push.
+
+**Landed:**
+- **tools/ pilot, 3 pages (P1-R2):** hand-written `tools/mortgage.html`,
+  `tools/bmi.html`, `tools/compound-interest.html` — live tool via the
+  `tool.html?card=<slug>&embed=1` contract + `tmusitw:height` resize,
+  WebApplication + FAQPage + BreadcrumbList JSON-LD, 400+ words unique
+  copy each, worked examples with independently verified numbers, advice
+  caveats, byline + date. No analytics on new pages (D-007; P0-M3 still
+  open). Pinned by `scripts/tests/tool-pages.test.js` (embed contract,
+  catalogue resolution, metadata, JSON-LD, copy bar, no-GA), wired into
+  `verify.sh`; `sync-counts.py` now covers `tools/*.html`.
+- **27 category blurbs (P1-U1):** `generate-ai-index.js` gained a
+  `CAT_BLURB` map; `tools-index.html` sections carry unique crawlable
+  descriptions. Regenerated, `--check` passes.
+- **sync.html (Product B):** one-stop sync-licensing page in listen.html's
+  visual language, draft ranges + deal-grid + FAQ + mailto CTA. No tool
+  links, no analytics. listen.html footer now links it. Sitemap: 1232.
+- **YMYL suite (P1-U1):** new `scripts/check-ymyl.js` — 14 WHO boundary
+  vectors executed against the real `bmiGetCategory`, formula/conversion
+  pins, caveat guards; deposit-cap rule pinned to source with independent
+  vectors (£1k/mo→£1,153.85, £5k/mo→£6,923.08, £50k boundary), England
+  scoping + remedy guards. Wired into `verify.sh`.
+- **Card→guide backlinks:** one contextual link added to each pilot card
+  (`cards/mortgage.html`, `cards/bmi.html`, `cards/compoundinterest.html`).
+  Note: the compound card's catalogue name is `compoundinterest`
+  (no hyphen) — the tools/ embed already used the right slug; verified,
+  no bug.
+- **False alarm logged:** `?card=compound-interest` never shipped — the
+  page used `compoundinterest` from the start. The test's catalogue
+  check covers this class of error.
+
+**Still owner-side (unchanged):** O-1..O-9, P0-M3 analytics ruling,
+check-finance 3/100 trio, live licensing/pricing/funnel, vertical page
+(draft only), canonical unification for pilot tools, one real-browser
+pass of `?q=`/`?expand=`.
+
+## 2026-09-15 (5) — arena/01a0a58d — implemented every staff-side plan item: deep links, dead-URL fix, guide repairs, trust surfaces, growth pack
+
+**Delivery:** second commit on `arena/01a0a58d-mrpr0phecy` (PR #83; see
+GitHub for merge/check state). Owner said "do everything you can" — this is
+everything the plan allows without owner decisions. Claim scope: index.html,
+tool.html, about.html, guides/, blog/, staff/.
+
+**Landed:**
+- **Phantom deep links implemented (P1-U2/P1-R1):** llms.txt + agents.html
+  advertised `index.html?q=` and `index.html?expand=` but index.html had no
+  query handling at all (verified: no location.search/URLSearchParams). Added
+  `parseIndexDeepLink` (pure, charset-validated slugs) + `applyIndexDeepLink`
+  (never throws; expand reuses the real click handler via data-name match;
+  no HTML sink), hooked after `buildPlaceholders`. Pinned by new
+  `scripts/tests/index-deeplink.test.js` (11 vectors incl. hostile slugs +
+  static guards), wired into `verify.sh`, `node --check` clean. Needs one
+  real-browser pass (no browser in sandbox) — the one honest gap.
+- **27 dead structured-data URLs fixed (P1-R1):** index.html's ItemList
+  pointed every category at `tool.html?tool=<frag>` — tool.html only reads
+  `card`/`embed`/`t`, so all 27 were dead (and malformed: raw `&`). Now
+  `tools-index.html#<slug>` with every anchor verified present.
+- **Guide tool blocks repaired (P1-R4):** color/json/passwords/regex guides
+  showed "Writing & Language" tools; image.html (about formats) showed art
+  toys. All five rebuilt from cards.json with genuinely relevant tools (30
+  slugs verified), headers corrected, modified dates bumped to 2026-09-15.
+- **Trust surfaces (P1-R5):** about.html — category count 23→27 (verified
+  27 in cards.json; sync-counts doesn't manage category counts), "clearly
+  marked" overclaim reworded, "everything works offline" scoped to the
+  labelled exceptions, visible last-updated, new methodology section (100
+  finance checks, egress scan, derived counts, 17 verify sections — all
+  measured) + corrections policy, JSON-LD expanded (Person sameAs: verified
+  YouTube/SoundCloud/Instagram/TikTok/GitHub; dateModified; publisher).
+- **D-002 copy fixes (P3-T1):** 3 card descriptions reworded to blessed
+  terms (compass/time-tracker/world-clock "no tracking" tails) +
+  cards.json/ai-index/site-brain regenerated + 1 hand line in embed.html.
+  check-finance: **5→3 of 100 failing**; remaining 3 are the licensing
+  assertions (owner monetisation decision, must stay failing). The
+  cookie-consent "analytics" FAIL was a false positive (inert
+  `type="text/plain"` sample pointing at example.com) — checker now strips
+  the exact placeholder URL, with rationale in code.
+- **CTR + disclosure:** index meta/OG descriptions rewritten (blessed terms
+  only, no numbers to drift); index footer gains an analytics disclosure.
+- **`staff/GROWTH-PACK.md` (new, PROPOSAL):** embed terms (exact snippet,
+  £99/£299/£899 terms, changelog format, disclaimer), funnel spec within
+  D-007, first-licensee 10-email pack, sync-page draft, vertical-page draft,
+  resource outreach pack, digital-PR one-pager. Nothing live until O-3/O-4.
+- **P3-T1 boundaries review (recorded):** 5 music-link WARNs (index/tool/
+  donate incl. footer spotlight) left untouched for owner review per policy;
+  press.html "no analytics" (3, all scoped+disclosed), sponsor.html "no
+  tracking pixels" (sponsor's pixels, scoped), "100% private in-browser X"
+  (checker-blessed scoping, check-finance.js L429) all reviewed-clean;
+  about/embed WARNs fixed above. GA footprint (43 vs D-007's ~14) stays open
+  as P0-M3.
+- **P0-M2 partial:** no external network in sandbox (PageSpeed API http=000),
+  so field/lab numbers need an online run — owner paste or next online
+  session: PageSpeed Insights (mobile+desktop) on index/tool shell/one guide/
+  listen. Static payload baseline recorded: index 268KB (110KB JS + 99KB
+  CSS inline), cards.json 526KB, embed 774KB, tools-index 371KB.
+
+**Verified:** full `verify.sh` PASSED (17/17 + new deeplink test); `git diff
+--check` clean; JSON-LD blocks re-validated; all 30 guide slugs + 27 anchors
+verified against shipped files. Process note: parallel same-file edits race
+in this environment (one clobbers another) — all edits above were applied
+and re-verified sequentially.
+
+**Left for the owner:** O-1…O-9 stand (GROWTH-PACK makes O-3 a signature and
+O-4 a send); one browser pass of `?q=`/`?expand=`; PageSpeed numbers when
+convenient; sync.html build approval (draft in pack).
+
+## 2026-09-15 (4) — arena/01a0a58d — staff plan rebased to the excellence standard (rank/useful/design/money/popular)
+
+**Delivery:** docs-only change on `arena/01a0a58d-mrpr0phecy` (see GitHub for
+merge/check state). Claim scope: staff/OPEN.md, staff/EXCELLENCE.md,
+staff/BOARD.md, STAFF.md, ROADMAP.md.
+
+**What changed and why:** the owner asked for deep research into what the
+highest-end specialists require, and for the staff plan to be improved until
+it is genuinely excellent — financially viable, brilliant at usefulness, more
+popular, and ranking first on Google. Three findings drove the rewrite:
+(1) the old queue (STAFF-01…07, baselined 2026-09-08) is stale — STAFF-01/02
+are resolved and verify is 17/17 green; (2) current specialist consensus is
+unambiguous — content quality + intent match first, E-E-A-T and backlinks
+next, Core Web Vitals as tie-breaker, thin programmatic pages down 50–80%
+since the March 2026 enforcement while interactive tools survive and earn AI
+citations; (3) the site's two growth engines are switched off — `embed.html`
+ships bare iframes with no attribution and no licensing offer, and no Search
+Console/Bing verification exists, so every SEO decision is currently a guess.
+
+**Landed:**
+- **`staff/EXCELLENCE.md` (new):** the measurable perfection standard — the
+  honest "#1 on Google" thesis (positions 1–3 across hundreds of long-tail
+  queries + AI citations), CWV thresholds (LCP ≤2.5s, INP ≤200ms, CLS ≤0.1 at
+  p75 field), YMYL/E-E-A-T bar, Awwwards weights (Design 40 / Usability 30 /
+  Creativity 20 / Content 10), WCAG 2.2 AA + 44px targets, the STRATEGY.md
+  revenue ranking reaffirmed with never-dos, legitimate-growth loops only,
+  and a scoreboard where every metric names its instrument (D-001: "not yet
+  measured" is valid, inventing is a violation).
+- **`staff/OPEN.md` (rewritten, rebaselined at `9d5d775`):** P0 measure-first
+  (Search Console + Bing + YPP hours + GA read; PageSpeed/axe baselines;
+  analytics-footprint reconciliation — GA is now on 43 pages vs D-007's ~14,
+  flagged as P0-M3 for an owner ruling, not an accusation), P1-R rank
+  (CTR pass, prerendered static pages for the top 10–25 proven tools only,
+  category hubs, quality-gated guides engine, E-E-A-T surfaces, translated
+  cluster enrich-or-consolidate, index hygiene), P1-U usefulness (finance
+  method extended to health/legal, findability, sw.js + egress rulings),
+  P1-M money (YPP to 1 Feb 2027, Content ID + per-payer W-8BENs, licensing
+  pack ready for one signature, sync page, honest sponsorship pricing),
+  P2-D design, P2-P popularity, P3-T tech debt, and **nine explicit owner
+  asks (O-1…O-9)** with the reason and cost of each.
+- **Pointers:** STAFF.md coordination table links EXCELLENCE.md; ROADMAP.md
+  points at the rebaselined queue. No code, no counts, no sitemap touched.
+
+**Verified:** docs-only; `git diff --check` clean; all new cross-links
+resolve to shipped files; no published number changed (1149/27/1228
+re-verified against cards/cards.json and sitemap.xml during research).
+
+**Left for the owner:** the nine asks in OPEN.md — O-1 (Search Console/Bing/
+YPP/GA hour) unblocks all evidence-based SEO; O-3 (embed terms signature) is
+the single highest-leverage decision (revenue + backlink engine together).
+
 ## 2026-09-15 — arena/01a0a53c — P1 finance blockers cleared: documented licence offer restored, free-tier credit line re-shipped, guard false positive fixed; 404/tattoo/riley metadata added
 
 **Delivery:** merged as **PR #82** (`b9bbd9c` into main, 2026-09-15 14:57 UTC, checks green). Live-deploy verified: `embed.html` serves the restored licence section, credit-line snippet and the "All 1149" filter; `cards.json` count 1149. Claim released with evidence.

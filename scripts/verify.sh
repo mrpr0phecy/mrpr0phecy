@@ -145,8 +145,9 @@ section "13/15 staff facility configuration and regression tests"
 if command -v node >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
   if node scripts/ai-developer.js check \
     && node --test scripts/tests/staff-*.test.js \
-    && python3 -m unittest discover -s staff/tests -p 'test_*.py'; then
-    ok "staff gates, safe fixes, draft quarantine, reports and coordination tested"
+    && python3 -m unittest discover -s staff/tests -p 'test_*.py' \
+    && python3 scripts/check-growth.py; then
+    ok "staff gates, safe fixes, draft quarantine, reports, coordination and growth surfaces tested"
   else
     fail "staff facility regression — inspect the failing test"
   fi
@@ -210,8 +211,23 @@ if command -v node >/dev/null 2>&1; then
   else
     fail "tool.html shell regression — see scripts/tests/tool-shell.test.js"
   fi
+  if node scripts/tests/index-deeplink.test.js; then
+    ok "index.html deep links: ?q=/?expand= parse safely and stay hooked"
+  else
+    fail "index deep-link regression — see scripts/tests/index-deeplink.test.js"
+  fi
+  if node scripts/tests/tool-pages.test.js; then
+    ok "tools/ pages: live embed, valid JSON-LD, copy bar, no analytics"
+  else
+    fail "tool page regression — see scripts/tests/tool-pages.test.js"
+  fi
+  if node scripts/check-ymyl.js; then
+    ok "YMYL checks: BMI WHO bands + deposit cap rule + caveats"
+  else
+    fail "YMYL regression — see scripts/check-ymyl.js"
+  fi
 else
-  note "node not available — qrtool/risk-notice/tool-shell tests skipped"; NOTES=$((NOTES+1))
+  note "node not available — qrtool/risk-notice/tool-shell/deeplink tests skipped"; NOTES=$((NOTES+1))
 fi
 
 section "17/17 internal links (check-links.py)"
