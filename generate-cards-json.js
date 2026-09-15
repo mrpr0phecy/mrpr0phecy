@@ -1089,5 +1089,35 @@ const manifest = files.map(file => {
   };
 });
 
-fs.writeFileSync(outputFile, JSON.stringify(manifest, null, 2));
+// --check: rebuild the manifest from the card files and verify the checked-in
+// cards/cards.json still matches (drift gate for verify.sh). No writes.
+const CHECK = process.argv.includes('--check');
+const serialized = JSON.stringify(manifest, null, 2);
+
+if (CHECK) {
+  let onDisk = null;
+  try { onDisk = fs.readFileSync(outputFile, 'utf8'); } catch (e) { onDisk = null; }
+  if (onDisk !== serialized) {
+    const disk = onDisk !== null ? JSON.parse(onDisk) : [];
+    const byName = new Map(disk.map(c => [c.name, c]));
+    let shown = 0;
+    for (const c of manifest) {
+      const d = byName.get(c.name);
+      const differs = !d || JSON.stringify(d) !== JSON.stringify(c);
+      if (differs && shown < 10) {
+        console.error(`DRIFT: ${c.name} — ${d ? 'content differs' : 'missing from cards.json'}`);
+        shown += 1;
+      }
+    }
+    if (disk.length !== manifest.length) {
+      console.error(`DRIFT: entry count — cards.json has ${disk.length}, files produce ${manifest.length}`);
+    }
+    console.error('catalogue stale — run: node generate-cards-json.js');
+    process.exit(1);
+  }
+  console.log(`catalogue OK — cards.json matches all ${manifest.length} card files`);
+  process.exit(0);
+}
+
+fs.writeFileSync(outputFile, serialized);
 console.log(`✅ cards.json updated with ${manifest.length} cards`);

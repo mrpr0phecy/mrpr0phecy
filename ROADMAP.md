@@ -11,19 +11,34 @@ item. This historical list does not override current staff decisions.
 
 ## Now — safety and correctness
 
-- [ ] **Make `qrtool` local-only.** Replace its third-party QR generation with
-  the vendored `qrcode-generator` implementation already used by
-  `wifi-qr-generator.html`, retaining the logo overlay. Audit other cards for
-  silent input egress at the same time.
-- [ ] **Resolve broken label associations.** Some `<label for="…">` values
-  target button groups rather than form controls. Convert them to real radio
-  inputs or use `aria-labelledby`.
-- [ ] **Add risk notices at shell level.** Maintain one mapping used by both
-  `index.html` and `tool.html` for medical, financial, engineering and legal
-  tools, rather than hand-writing inconsistent warnings inside cards.
-- [ ] **Strengthen automated checks.** Detect card JavaScript syntax errors,
-  empty cards, broken internal links, input-egress network calls and catalogue
-  metadata/count drift in `scripts/verify.sh`.
+- [x] **Make `qrtool` local-only.** Landed 2026-09-15: the third-party QR API
+  calls are replaced with the vendored `qrcode-generator` implementation used
+  by `wifi-qr-generator.html`, the logo overlay is retained (error correction
+  auto-raised to High), and the egress audit is enforced by a markup-aware
+  `scripts/check-egress.py` gate in `verify.sh` — `fetch(variable)` and
+  friends now require classification, so silent input egress cannot slip
+  through again. Follow-on for the owner: decide C-vs-A classification for
+  cards that send typed text to APIs by design (spelling-check, languages,
+  plant-encyclopedia).
+- [x] **Resolve broken label associations.** Landed 2026-09-15: the one
+  remaining case (`grief-companion`'s energy buttons) now uses a labelled
+  group with `aria-pressed` state instead of a `<label for>` pointing at a
+  div. `check-a11y.py` guards regressions.
+- [x] **Add risk notices at shell level.** Landed 2026-09-15: one shared
+  mapping (`risk-notices.js`) drives a `role="note"` notice above the tool in
+  BOTH `index.html` and `tool.html` — financial, medical, emergency, legal
+  and DIY/structural kinds. `scripts/tests/risk-notices.test.js` fails if a
+  mapped category or slug disappears from the catalogue. Existing in-card
+  caveats stay (belt and braces).
+- [x] **Strengthen automated checks.** Landed in two steps (2026-09-15):
+  syntax errors — `check-card-js.py` (pre-existing); input-egress network
+  calls — markup-aware `check-egress.py` in verify.sh; catalogue
+  metadata/count drift — `generate-cards-json.js --check` +
+  `generate-ai-index.js --check` + `sync-counts.py --check`; broken internal
+  links — new zero-tolerance `check-links.py`. Honest limitation: "empty
+  cards" cannot be detected statically (many tools render everything from
+  JS), so the proxy is the existing blank-title/description FAIL in
+  `check-cards.py`.
 
 ## Next — make the existing catalogue easier to find and use
 
@@ -31,7 +46,11 @@ item. This historical list does not override current staff decisions.
   improving; do not optimise around adding more tools for its own sake.
 - [ ] Give proven tools crawlable metadata, structured data, breadcrumbs and
   stable deep links while retaining the existing card fragments as the single
-  implementation.
+  implementation. Partial, 2026-09-15: every `tool.html?card=<slug>` deep link
+  now updates its own description, social-card tags, canonical URL and JSON-LD
+  (WebApplication + BreadcrumbList) client-side once the catalogue resolves the
+  tool; pinned by `scripts/tests/tool-shell.test.js`. Choosing WHICH tools get
+  further bespoke work still needs the Search Console data above (owner).
 - [x] Improve catalogue loading, measured before and after: the first screen no
   longer waits for `cards/cards.json` (ARCHITECTURE.md §3, "First-screen fast
   path"; numbers and method in `notes/catalogue.md`). Remaining candidates:
@@ -46,8 +65,11 @@ item. This historical list does not override current staff decisions.
     changed in one go, so it is not a first-screen win any more.
   - [ ] Decide whether analytics should keep loading during the first screen.
     Owner call: CONSTRAINTS.md keeps the analytics footprint out of agent hands.
-- [ ] Build one `help.html` covering site mechanics, privacy, money and safety,
-  with matching `FAQPage` JSON-LD and client-side search.
+- [x] Build one `help.html` covering site mechanics, privacy, money and safety,
+  with matching `FAQPage` JSON-LD and client-side search. Verified shipped
+  2026-09-15 (the box was never ticked): `help.html` has the `FAQPage` JSON-LD
+  block, a client-side FAQ filter with match counts, and `help.html?q=<query>`
+  deep links.
 - [ ] Add privacy-conscious usage events for searches, categories and tool
   opens. Never record values entered into tools.
 

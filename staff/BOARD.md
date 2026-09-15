@@ -9,6 +9,58 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (3) — arena/01a0a4dd — tool.html hardened: XSS fix, embed=1 contract implemented, per-tool metadata; catalogue ID collisions removed
+
+**Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence.
+
+**Landed:**
+- **Security fix (XSS):** `tool.html`'s load-failure path interpolated the raw `?card=` parameter and the network error message straight into `innerHTML` — attacker-influenceable (crafted `tool.html?card=<img src=x onerror=…>` links render markup on the site's origin). The error UI is now built with DOM APIs + `textContent` in a testable `toolBuildError()`, and `scripts/tests/tool-shell.test.js` proves hostile strings land only in text nodes, never attributes.
+- **The documented `embed=1` contract now exists:** `llms.txt` and `agents.html` have advertised `tool.html?card=<slug>&embed=1` as chrome-free with height postMessage — but the page never implemented either (it even embedded without `&embed=1`). Implemented exactly as documented: `body.embed-mode` strips nav/footer/resource/related/badge chrome (risk notice and tool stay), and the frame posts `{ type: "tmusitw:height", card, height }` on load, on resize and via a debounced MutationObserver (tools expand after their scripts paint). The in-page Embed button now copies the `&embed=1` iframe snippet at the documented 520 height.
+- **Per-tool crawlable metadata (ROADMAP Next-2, partial):** once the catalogue resolves the tool, `toolUpdateMetadata()` updates the description, og/twitter tags, canonical deep link and injects WebApplication + BreadcrumbList JSON-LD (Tools → Category → Tool) client-side; card fragments remain the single implementation. Tested against a stub head including URL-encoding of `Finance & Money`.
+- **Catalogue ID collisions removed:** the four standing `check-cards.py` WARNs (percentage-calculator ⇄ percentage-change-calculator on `pct-go`/`pct-out`; unit-converter-math ⇄ unit-converter on `uc-go`) were real shared-DOM hazards — with both cards open, `getElementById` wires the first card's elements. Renamed to `pcc-*` / `ucm-*` (markup + scripts; both cards functionally re-verified by running their real scripts in a DOM stub — 10 m → 32.808399 ft). **The catalogue is now WARN-free.**
+- **ROADMAP book-keeping:** Next-4 (`help.html` with FAQPage JSON-LD + client-side search) verified as already shipped and ticked — it has the JSON-LD block, a live FAQ filter with match counts and `?q=` deep links; only the box was unticked.
+
+**Verified:** `verify.sh` PASSED (17/17, incl. the new tool-shell test in section 16); `node --check` clean on tool.html's real inline script; catalogue WARN-free; check-links/egress/prerender/loader suites all green.
+
+**Left for the owner:** the 27 pre-existing SEO WARNs on deliberate noindex/scratch pages (riley/tattoo advisories included) remain deliberately untouched per the previous handover; Next-2's "which tools deserve bespoke pages" still needs Search Console data.
+
+---
+
+## 2026-09-15 (2) — arena/01a0a4dd — ROADMAP "Now" section completed: shell risk notices, link gate, drift gate, a11y + 404 fixes
+
+**Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Follows the same session's qrtool work (entry below). Claim released with evidence.
+
+**Landed:**
+- **Shell-level risk notices (ROADMAP Now-3):** one shared mapping, `risk-notices.js`, drives a `role="note"` notice above the tool in BOTH `index.html` (hooked in `renderCardContent`, so prerendered, lazy-loaded and `?expand=` cards all get it) and `tool.html`. Kinds: financial (Finance & Money category), medical (Health & Fitness / Wellbeing & Community / Natural Remedies & Herbs), emergency (Survival & Emergency Readiness, mentions 999), legal (12 curated slugs — small claims, tenancy deposit, SAR, NDA/contracts, redundancy…), DIY/structural (9 curated Home & DIY slugs). Existing in-card caveats deliberately untouched. Loaded `defer` on index.html (non-blocking); optional at both call sites so cards still render if the file ever fails.
+- **`scripts/check-links.py` (ROADMAP Now-4):** zero-tolerance internal-link gate — every href/src in real markup (script bodies excluded, same DOM-aware split as check-egress) must resolve to a shipped file; card fragments resolve against the site root because that is where they render. It found 51 broken references; all fixed: `blog/how-mortgage-payments-work.html` → `../feed.xml`; `guides/index.html`'s entire nav was written as if the page lived at repo root (26 root links + 12 guide links repaired); `launch/index.html` and `sitemap.html` pointed at 7 nonexistent `launch/*.html` pages whose content ships as `.md` (both now link the real files); `bpm-counter`/`chord-finder` "Stream music" links used `../music.html`, which only worked via the URL spec's root-clamping accident (now root-relative).
+- **Catalogue drift gate:** `generate-cards-json.js --check` rebuilds the manifest from card files and fails on any divergence (drift injection tested both ways); wired into verify.sh section 1 alongside the `generate-ai-index.js --check` from the previous PR.
+- **Broken label association (ROADMAP Now-2):** `grief-companion`'s energy picker — `<label for>` targeting a button-group div replaced with a labelled `role="group"` and `aria-pressed` state kept in sync by the existing click handler (no behaviour change).
+- **404.html (STAFF-04):** render-blocking Google Fonts import removed; system font stack per the documented convention. index.html's deliberate non-blocking Inter load is untouched.
+
+**Honest limitation:** static "empty card" detection is not possible on this corpus (the shortest-markup cards are JS-rendered board games that work fine), so the blank-title/description FAIL in `check-cards.py` remains the correct proxy; ROADMAP notes this.
+
+**Verified:** full `verify.sh` PASSED (17 sections incl. the new links + risk-notice gates); `node --check` clean on every real inline script block of index.html/tool.html (JSON-LD blocks excluded as data, not code); risk-notices test pins mapping contract, DOM contract (role/note, data-risk-kind, aria-hidden icon, prepend) and bidirectional catalogue drift guards.
+
+**Left for the owner:** notice wording/tone and the kind assignments (financial/medical/emergency/legal/DIY) are editorial policy — trivial to adjust in one file; whether `launch/` should remain publicly linked from `sitemap.html` at all (links now resolve to raw `.md`) ties into the standing "experiments/legacy directories" decision.
+
+---
+
+## 2026-09-15 — arena/01a0a4dd — qrtool made local-only; egress gate wired into verify
+
+**Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence; this entry is the handover context.
+
+**Fixed (ROADMAP "Now" item 1):** `qrtool` no longer sends anything anywhere — the vendored `qrcode-generator` copy from `wifi-qr-generator.html` renders on-device (URL/text/Wi-Fi/vCard/email/SMS, custom colours, quiet zone, logo overlay with ECC auto-raised to High and shown honestly in the stats). While localising, the tool's fake/broken paths were repaired: SVG download used to emit a "QR Code" *text placeholder* and is now real vector art from the matrix; PDF and JPEG buttons called **undefined functions** (`generatePDF`, `convertToJPEG`) and silently threw — PDF is now a minimal valid DCTDecode document, JPEG straight off the canvas; batch "Download as ZIP" claimed to need JSZip — now a store-only ZIP written in-card (CRC32-verified, cross-validated with Python `zipfile`); the embed button pointed at a non-existent `cards/advanced-qr-generator.html`; vCard generation crashed on a missing `qr-affiliate` element; the fabricated "scan tracking" section (a `/qr/<id>` route that does not exist, with hardcoded "Scans: 0") is removed; QR *content* is no longer written to localStorage (only tab + styling, which now actually restore into the inputs).
+
+**Egress enforcement:** `check-egress.py` is markup-aware — `<script src="https://…">` inside a JS *string* no longer counts (fixes the standing `cookie-consent-banner-builder` false positive), while `fetch(variable)`, `sendBeacon`, `WebSocket`, `EventSource`, `importScripts` and dynamic remote `.src=`/`.href=` now require classification (the `fetch(variable)` gap is exactly how qrtool's qrserver posts slipped past the old literal-URL regex). New class **L** (verified local-only `data:`/`blob:` fetches) with `thumbnail-generator` as its first member; `languages` classified C per the `spelling-check` precedent, both already carrying visible warnings. Wired into `verify.sh` section 16 together with a zero-dependency functional test (`scripts/tests/qrtool-local.test.js`: finder-pattern fidelity, SVG module-count parity, PDF xref/`/Length` validation, ZIP structural walk, CRC32 check vector, and a no-egress scan of the shipped script).
+
+**Catalogue drift found and fixed:** the checked-in `llms.txt`, `llms-full.txt` and `tools-index.html` were stale (claimed 1128 tools vs the real 1149; per-category counts wrong) — regenerated, and `generate-ai-index.js --check` added to `verify.sh` section 9 so machine indexes cannot drift from `cards.json` again.
+
+**Verified:** full `verify.sh` PASSED (16 sections); `check-cards`/`check-a11y`/`check-card-collisions`/`check-card-js` clean across 1149 cards; no browser was installable in this sandbox (CDN blocked), so the engine is validated vm-side against the real shipped script plus independent Python ZIP validation — a real-browser pass of `tool.html?card=qrtool` is the one remaining nice-to-have.
+
+**Left for the owner:** C-vs-A classification policy for cards that send typed text to third-party APIs by design (`spelling-check`, `languages`, `plant-encyclopedia`); vestigial KNOWN entries `currency` and `ai-mcp-protocol-tool-tester` (both make no network calls today) can be pruned or kept as documentation.
+
+---
+
 ## 2026-09-11 — arena/01a08f3a — Broad repair sweep delivered for review
 
 **Delivery:** PR from `arena/01a08f3a-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence; this entry is the handover context.
