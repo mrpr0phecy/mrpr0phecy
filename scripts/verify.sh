@@ -210,6 +210,16 @@ if command -v node >/dev/null 2>&1; then
   else
     fail "index deep-link regression — see scripts/tests/index-deeplink.test.js"
   fi
+  if node scripts/tests/tool-pages.test.js; then
+    ok "tools/ pages: live embed, valid JSON-LD, copy bar, no analytics"
+  else
+    fail "tool page regression — see scripts/tests/tool-pages.test.js"
+  fi
+  if node scripts/check-ymyl.js; then
+    ok "YMYL checks: BMI WHO bands + deposit cap rule + caveats"
+  else
+    fail "YMYL regression — see scripts/check-ymyl.js"
+  fi
 else
   note "node not available — qrtool/risk-notice/tool-shell/deeplink tests skipped"; NOTES=$((NOTES+1))
 fi

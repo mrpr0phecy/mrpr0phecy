@@ -67,7 +67,7 @@ TARGETS_TOP = [
     "sitemap.html", "tools.html", "tools-index.html", "use-case.html",
 ]
 TARGETS_GLOB = [
-    "guides/*.html", "blog/*.html", "launch/index.html",
+    "guides/*.html", "blog/*.html", "launch/index.html", "tools/*.html",
 ]
 # Anything matching these globs is excluded from rewriting: board records
 # (BRANCHES.md, BOARD.md, DECISIONS.md) document dated events; the changelog

@@ -54,6 +54,38 @@ const CATEGORY_ORDER = [
   ['Museum & Collection', '🏛️'],
 ];
 
+// One-line hub descriptions for tools-index.html sections. Plain, honest,
+// no counts (those render dynamically). Reviewed 2026-09-15.
+const CAT_BLURB = {
+  'Home & DIY': 'Paint, tiling, concrete, timber and wiring maths for real projects.',
+  'Wellbeing & Community': 'Breathing, grounding, grief support and everyday kindness tools.',
+  'MrProphecy Arcade': 'Rhythm taps, lyric scrambles and beat games from the music side.',
+  'AI & Autonomous Agents': 'Prompt builders, simulators and agent-pattern playgrounds.',
+  'Astronomy & Space': 'Star charts, lunar phases, telescope maths and orbital toys.',
+  'Dogs & Canine Care': 'Feeding, training and health planners for good dogs.',
+  'Birdwatching & Ornithology': 'Identification helpers, logs and migration trackers.',
+  'Natural Remedies & Herbs': 'Herb references and remedy notes, with folklore flagged as folklore.',
+  'Lucid Dreaming & Sleep': 'Dream journals, reality checks and sleep-cycle planners.',
+  'Culinary & Food Science': 'Scaling, timings, temperatures and ABV maths for cooks.',
+  'Interactive Art & Living Worlds': 'Generative toys, ecosystems and things that grow on screen.',
+  'Mind-Blowing Demos': 'The showpieces: physics, fractals and beautiful machinery.',
+  'Algorithms & Computer Science': 'Regex, JSON, encodings, hashes and CS visualisers.',
+  'SaaS & Business Killers': 'The tools subscriptions charge for: invoices, CSVs, favicons, mockups.',
+  'Survival & Emergency Readiness': 'Checklists, pack planners and first-principles readiness.',
+  'Aquatics & Fishkeeping': 'Tank volumes, CO2, dosing and water-parameter maths.',
+  'Anime & Otaku Culture': 'Trackers, quizzes and collection tools for fans.',
+  'Finance & Money': 'Tax, mortgages, loans and investing, tested against the statute every April.',
+  'Science & Engineering': 'Unit converters, calculators and references that show their working.',
+  'Mathematics': 'Step-by-step solvers, plotters and number toys.',
+  'Music & Audio': 'Tuners, tempo tools, theory trainers and mix helpers.',
+  'Health & Fitness': 'BMI, body composition, pace and training planners: screening, not diagnosis.',
+  'Sports': 'Scores, fixtures, fantasy helpers and pub-quiz ammunition.',
+  'Writing & Language': 'Outlines, translators, counters and Japanese study aids.',
+  'Productivity & Lifestyle': 'Passwords, timers, comparators and everyday decision tools.',
+  'Virtual Worlds & Gaming': 'Simulators, board games and tiny worlds to get lost in.',
+  'Museum & Collection': 'Catalogue and curate anything you collect.',
+};
+
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -169,8 +201,12 @@ ${sections.join('\n\n')}
           <span>${esc((c.description || 'Free browser tool.').replace(/\s+/g, ' ').trim())}</span>
         </li>`;
     }).join('\n');
+    // One honest line per category: turns the directory from a link farm
+    // into 27 genuinely useful hub sections (P1-R3). Counts stay dynamic.
+    const blurb = CAT_BLURB[cat] || 'Free browser tools. No sign-up, no ads.';
     return `    <section class="cat" id="${slugCat(cat)}">
       <h2>${emojiFor(cat)} ${esc(cat)} <span class="count">${byCat.get(cat).length} tools</span></h2>
+      <p class="cat-blurb">${esc(blurb)}</p>
       <ul>
 ${items}
       </ul>
@@ -222,6 +258,7 @@ ${items}
     section.cat { margin-bottom: 30px; scroll-margin-top: 16px; }
     h2 { font-size: 1.05rem; margin-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 8px; }
     h2 .count { font-size: 0.72rem; font-weight: 600; color: #2dd4ff; background: rgba(45, 212, 255, 0.1); border: 1px solid rgba(45, 212, 255, 0.25); padding: 2px 9px; border-radius: 999px; vertical-align: middle; margin-left: 8px; }
+    p.cat-blurb { font-size: 0.85rem; color: rgba(230, 250, 255, 0.65); margin: 0 0 10px; }
     ul { list-style: none; }
     li { padding: 9px 0 9px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
     li a { color: #fff; font-weight: 600; font-size: 0.92rem; text-decoration: none; }

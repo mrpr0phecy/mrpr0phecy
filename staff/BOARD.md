@@ -9,6 +9,48 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (6) — arena/01a0a58d — Tier-2 delivered: tools/ pilot, category blurbs, sync page, YMYL suite, guide backlinks
+
+**Delivery:** third commit on `arena/01a0a58d-mrpr0phecy` (PR #83). Owner
+said "do everything you can" a second time — Tier-2 is the staff-side
+remainder: everything below the owner-approval line. `verify.sh` PASSED,
+pushed; claim released after push.
+
+**Landed:**
+- **tools/ pilot, 3 pages (P1-R2):** hand-written `tools/mortgage.html`,
+  `tools/bmi.html`, `tools/compound-interest.html` — live tool via the
+  `tool.html?card=<slug>&embed=1` contract + `tmusitw:height` resize,
+  WebApplication + FAQPage + BreadcrumbList JSON-LD, 400+ words unique
+  copy each, worked examples with independently verified numbers, advice
+  caveats, byline + date. No analytics on new pages (D-007; P0-M3 still
+  open). Pinned by `scripts/tests/tool-pages.test.js` (embed contract,
+  catalogue resolution, metadata, JSON-LD, copy bar, no-GA), wired into
+  `verify.sh`; `sync-counts.py` now covers `tools/*.html`.
+- **27 category blurbs (P1-U1):** `generate-ai-index.js` gained a
+  `CAT_BLURB` map; `tools-index.html` sections carry unique crawlable
+  descriptions. Regenerated, `--check` passes.
+- **sync.html (Product B):** one-stop sync-licensing page in listen.html's
+  visual language, draft ranges + deal-grid + FAQ + mailto CTA. No tool
+  links, no analytics. listen.html footer now links it. Sitemap: 1232.
+- **YMYL suite (P1-U1):** new `scripts/check-ymyl.js` — 14 WHO boundary
+  vectors executed against the real `bmiGetCategory`, formula/conversion
+  pins, caveat guards; deposit-cap rule pinned to source with independent
+  vectors (£1k/mo→£1,153.85, £5k/mo→£6,923.08, £50k boundary), England
+  scoping + remedy guards. Wired into `verify.sh`.
+- **Card→guide backlinks:** one contextual link added to each pilot card
+  (`cards/mortgage.html`, `cards/bmi.html`, `cards/compoundinterest.html`).
+  Note: the compound card's catalogue name is `compoundinterest`
+  (no hyphen) — the tools/ embed already used the right slug; verified,
+  no bug.
+- **False alarm logged:** `?card=compound-interest` never shipped — the
+  page used `compoundinterest` from the start. The test's catalogue
+  check covers this class of error.
+
+**Still owner-side (unchanged):** O-1..O-9, P0-M3 analytics ruling,
+check-finance 3/100 trio, live licensing/pricing/funnel, vertical page
+(draft only), canonical unification for pilot tools, one real-browser
+pass of `?q=`/`?expand=`.
+
 ## 2026-09-15 (5) — arena/01a0a58d — implemented every staff-side plan item: deep links, dead-URL fix, guide repairs, trust surfaces, growth pack
 
 **Delivery:** second commit on `arena/01a0a58d-mrpr0phecy` (PR #83; see
