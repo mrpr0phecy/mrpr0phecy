@@ -96,6 +96,7 @@ node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
 python3 scripts/sync-counts.py            # tool counts across docs and pages
 python3 scripts/build-sitemap.py          # sitemap.xml
 python3 scripts/build-home-prerender.py   # index.html HOME-FAST-PATH/PRERENDER
+python3 scripts/build-embed-catalog.py    # embed.html grid + "All N" button
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
 sleep 50   # Pages deploy latency — then verify live (see §6)
 ```

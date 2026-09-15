@@ -36,6 +36,11 @@
 #                               markup resolves to a file that exists, plus the
 #                               risk-notice mapping contract
 #                               (scripts/tests/risk-notices.test.js)
+#  18. embed catalogue        — scripts/build-embed-catalog.py --check: the
+#                               embed.html grid must hold every card in
+#                               cards.json with live descriptions and the true
+#                               "All N" count (it is a derived artifact, like
+#                               the sitemap)
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -215,6 +220,17 @@ if command -v python3 >/dev/null 2>&1; then
     ok "every internal href/src resolves to a shipped file"
   else
     fail "broken internal links — visitors would hit 404s"
+  fi
+else
+  note "python3 not available — skipped"; NOTES=$((NOTES+1))
+fi
+
+section "18/18 embed catalogue (build-embed-catalog.py)"
+if command -v python3 >/dev/null 2>&1; then
+  if python3 scripts/build-embed-catalog.py --check; then
+    ok "embed.html grid matches the catalogue (every tool, live descriptions, true count)"
+  else
+    fail "embed.html grid has drifted from cards.json — run: python3 scripts/build-embed-catalog.py"
   fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))

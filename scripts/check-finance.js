@@ -460,15 +460,27 @@ section('truthfulness — privacy claims (staffroom D-002)');
   }
 
   /* Whatever the top-level pages do, the tool cards must stay clean: that
-     is what makes the surviving "runs in your browser" claim true. */
+     is what makes the surviving "runs in your browser" claim true
+     (D-007: tool.html, 404.html, the tool cards and standalone
+     experiments stay free of GA). */
   const ANALYTICS = /googletagmanager|gtag\(|plausible\.io|www\.google-analytics\.com|analytics\.js/;
 
-  /* The tool cards are the load-bearing part of the promise: whatever the
-     index pages do, the tools themselves must stay clean. */
+  /* Reserved documentation domains (RFC 2606: example.com/org/net) can never
+     serve a real tracker, so a reference to one is sample text, not a load.
+     Evidence: cards/cookie-consent-banner-builder.html's gateExample()
+     template generates an INERT sample —
+     <script type="text/plain" src="https://example.com/analytics.js"> —
+     to show users where their tracking scripts get parked after consent.
+     The card itself loads nothing. Stripping those sample references keeps
+     this guard sensitive to real loaders (googletagmanager, gtag(),
+     google-analytics.com, plausible.io, any real analytics.js URL) instead
+     of noisy; a guard people learn to ignore is worse than a noisy one. */
+  const SAMPLE_TRACKER_REFS = /https?:\/\/(?:example\.(?:com|org|net)|localhost)[^"'\s<>]*analytics\.js/gi;
+
   const cardDir = path.join(ROOT, 'cards');
   const dirty = fs.existsSync(cardDir)
     ? fs.readdirSync(cardDir).filter(f => f.endsWith('.html'))
-        .filter(f => ANALYTICS.test(fs.readFileSync(path.join(cardDir, f), 'utf8')))
+        .filter(f => ANALYTICS.test(fs.readFileSync(path.join(cardDir, f), 'utf8').replace(SAMPLE_TRACKER_REFS, '')))
     : [];
   if (dirty.length) {
     fail(`tool cards must contain no analytics, found in: ${dirty.slice(0, 5).join(', ')}`);
