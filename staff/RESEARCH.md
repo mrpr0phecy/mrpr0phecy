@@ -224,3 +224,48 @@ for a staff target. They remain historical context, not site evidence.
    [operating plan](OPERATING-PLAN.md) turns it into stage gates and a 90-day
    sequence. A missing owner-side instrument is an explicit blocker, not a
    fabricated baseline.
+
+## 8. Deep-research refinement: from a comprehensive plan to a deciding system (2026-09-15)
+
+A further pass asked a harder question: not “does the plan mention every good
+practice?”, but “can a small team consistently decide what *not* to do, and can
+the business survive the work it chooses?” The earlier plan was broad and
+well-sourced, but it still left four execution risks: an undifferentiated queue,
+owner-decision overload, gross-revenue optimism, and visual quality that could
+be asserted without a comprehension check.
+
+### Additional evidence applied
+
+| Evidence | Operating implication | Boundary |
+|---|---|---|
+| Google’s [SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide) says there is no secret that automatically ranks a site first; useful content, descriptive URLs/titles, crawlability and long-term Search Console maintenance are the work | Build a portfolio of proven task intents and make each winning page genuinely complete; do not target the subjective phrase “most useful site in the world” as if it were a controllable ranking contract | Technical SEO makes useful work understandable; it cannot guarantee position 1 |
+| NN/g’s [search guidance](https://www.nngroup.com/articles/search-visible-and-simple/) treats search as a lifeline, says the homepage should expose a real input, and reports that many users abandon after the first failed query | Measure first-query success; support short vocabulary, synonyms, typo tolerance and a useful zero-results recovery before adding advanced controls | The old study supplies a robust design hypothesis, not this site’s conversion baseline |
+| NN/g’s [UX research guide](https://www.nngroup.com/articles/ux-research-cheat-sheet/) recommends research throughout discovery, exploration, test and listening; if only one activity is possible on an existing system, qualitative think-aloud testing is the priority | Keep small iterative task rounds in the critical path and use analytics to identify *what*, sessions to learn *why* | Qualitative sessions discover problems; they do not produce population rates |
+| W3C’s [WCAG 2.2 additions](https://www.w3.org/WAI/standards-guidelines/wcag/new-in-22/) add AA requirements for focus not being entirely obscured, non-drag alternatives and target size | Template reviews now inspect sticky layers hiding focus, any drag-only interaction, and pointer spacing as well as contrast and keyboard reachability | Automated scans remain incomplete; 44px is the site’s internal ergonomic bar, not the text of SC 2.5.8 |
+| web.dev’s [business-impact collection](https://web.dev/case-studies/vitals-business-impact) links performance work with business outcomes across multiple named case studies and recommends starting on a high-traffic or conversion-significant page | Treat speed as both task quality and an economic hypothesis; start with a proven task/money surface and compare before/after rather than applying a borrowed uplift | Case-study correlations and uplifts are not forecasts for this site |
+| UK local-government business guidance distinguishes cash from profit and recommends break-even, profit-and-loss and cash-flow forecasts ([South Tyneside](https://www.southtyneside.gov.uk/article/4708/Overview), [Birmingham](https://www.birmingham.gov.uk/info/50162/business_advice/1506/starting_a_business/5)) | Track collected cash, full costs, break-even and forward obligations separately; value maintainer time and reserve annual-license maintenance before calling cash “profit” | These are planning disciplines, not accounting or tax advice |
+| Stripe’s [recurring-revenue guide](https://stripe.com/resources/more/how-to-use-monthly-recurring-revenue-mrr-and-annual-recurring-revenue-arr-to-guide-growth) separates new, expansion, contraction and churn and explains that recurring revenue remains conditional on retained customers and contracts | Review embed licences as dated cohorts through paid and renewed, with support burden and reason lost, rather than presenting annualised revenue as assured cash | Stripe is a vendor source; use the framework as a hypothesis and owner bookkeeping as evidence |
+
+### Concrete corrections made
+
+1. `scoreboard.json` version 2 now contains a machine-checked decision ladder:
+   hard gates, one primary item per session, evidence-first selection and
+   explicit tie-breakers. It rejects fake precision from speculative RICE
+   inputs while still forcing a rational choice.
+2. The operating plan now treats build effort **plus recurring maintenance and
+   support** as the denominator. A reusable improvement can beat a one-off page;
+   a safety repair always beats both.
+3. Commercial review now distinguishes unit contribution, payback, whole-site
+   operating contribution and concentration. Renewal cash is tied to an ongoing
+   promise, not booked mentally as cost-free profit.
+4. The first owner packet is limited to three critical-path decisions. The
+   staff prepare a recommendation and consequence of silence; they do not hand
+   the owner thirteen vague tasks at once.
+5. “Award-level” visual work now needs a comprehension/desirability check in
+   addition to jury criteria, automated accessibility checks and browser
+   evidence. Beauty that hides the job is a regression.
+
+The resulting plan is intentionally not “perfect forever”. It is falsifiable:
+each claim names evidence, each commercial line can be killed, and the standard
+changes when measured users, accounts or primary guidance contradict it. That
+is a stronger form of excellence than a longer checklist.

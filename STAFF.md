@@ -34,7 +34,9 @@ report: it is work the staff system is supposed to make visible.
 The ten staff entries are **responsibility profiles**, not ten independent
 live agents. One deterministic runner executes their checks. Human contributors
 and assigned agent sessions do implementation and review. The measurement
-profile keeps the scoreboard honest; no profile can grant itself owner approval,
+profile keeps the scoreboard honest and enforces one primary item per session,
+hard safety gates, evidence-first tie-breakers and whole-site contribution
+measurement; no profile can grant itself owner approval,
 change analytics policy, publish generated code or silently merge a proposal.
 
 Architecture and protected surfaces remain governed by

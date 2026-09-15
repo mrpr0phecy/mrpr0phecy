@@ -482,3 +482,17 @@ owner said it in your session, and even then you mark it *provisional* until
 @manager countersigns. Today proved why.
 
 ---
+
+### 2026-09-15 — Staff plan now enforces choice and whole-site viability
+
+Deep-research refinement completed on `arena/01a0a6bb-mrpr0phecy`. The plan now
+has a machine-checked one-primary-item decision ladder: hard safety/correctness/
+privacy/accessibility gates first, then measured task value, evidence strength,
+maintainer-hour cost, reusable leverage and reversibility. Financial review now
+separates unit contribution, payback, whole-site operating contribution and
+customer/channel concentration; gross revenue cannot masquerade as profit.
+High-end UX guidance added first-query search success, five-second comprehension,
+focus-not-obscured and non-drag checks. The owner critical path is deliberately
+limited to O-1, O-2 and O-13 before commercial asks. Evidence and source limits:
+`staff/RESEARCH.md` §8. Validation: `bash scripts/verify.sh` passed 19/19;
+staff tests 36/36; scoreboard 5 groups / 25 metrics / one-item ladder.

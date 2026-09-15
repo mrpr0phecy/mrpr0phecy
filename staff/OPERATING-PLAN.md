@@ -64,6 +64,30 @@ Before promising improvement, collect the smallest useful baseline:
 The baseline is a dated evidence packet, not a dashboard theatre exercise. If a
 source is unavailable, say so and keep the decision open.
 
+### Gate 0.5 — choose, do not average
+
+**Owner:** `measurement` proposes; `delivery` enforces the work-in-progress
+limit; the relevant domain reviewer can veto on a hard gate.
+
+A long queue is not a strategy. Apply the machine-checked decision ladder in
+`scoreboard.json` before every claim:
+
+1. hard gates first: credible harm, material correctness, privacy,
+   accessibility and binding owner decisions are pass/fail, never points;
+2. then prefer a measured broken top task or shared blocker;
+3. then the largest observed findability, comprehension, accessibility or
+   performance barrier;
+4. then the smallest test that resolves an expensive uncertainty about user
+   value, distribution or willingness to pay;
+5. scale only a loop already shown to work without unacceptable maintenance.
+
+**One session has one primary work item.** Do not manufacture a RICE score from
+unknown reach or impact. For ties, choose stronger first-party evidence, higher
+expected user value per *maintainer hour* (build + recurring support), reusable
+leverage and reversibility. Record why the winner beat the runner-up. This keeps
+an exciting redesign, SEO idea or revenue page from displacing a less glamorous
+failure that actually prevents task completion.
+
 ### Gate 1 — repair the highest-value task
 
 **Owner:** `reliability`, `measurement`, `visual-design` and the relevant domain
@@ -122,17 +146,29 @@ Use this order:
 4. **Donations and relevant affiliate links:** keep them contained and honest;
    never make them the reason a tool exists.
 
-For each offer calculate:
+For each offer calculate with actual collected cash and an explicit value for
+maintainer time:
 
 ```text
-contribution margin = collected revenue - direct fulfilment cost - support time
-break-even units     = fixed monthly cost / contribution margin per unit
+unit contribution   = collected revenue - transaction/fulfilment cost - support time value
+break-even units    = fixed monthly cost / positive unit contribution
+payback period      = acquisition + setup cost / monthly contribution from the cohort
+portfolio contribution = all collected revenue - all cash costs - valued maintainer time
 ```
 
+Review the offer as a cohort, not a flattering average: lead → qualified reply →
+paid → renewed/cancelled, with support hours and reason lost. Annual cash is not
+all immediately spendable profit; reserve the expected maintenance and refund/
+remedy burden. Before scaling, check concentration by customer, channel and
+product line so one licence, Google or YouTube is not mistaken for a resilient
+business. A new revenue line must have a named owner, fulfilment promise,
+support boundary, cancellation/remedy path and kill rule.
+
 The input values belong in the owner’s bookkeeping, not in invented public
-copy. A commercial experiment fails if it increases support or trust damage
-faster than it increases contribution margin. “More traffic” alone is not a
-business case.
+copy. A commercial experiment fails if it increases support, concentration or
+trust damage faster than it increases whole-site operating contribution.
+“More traffic” alone is not a business case, and gross revenue is never called
+profit.
 
 ## Research and experimentation protocol
 
@@ -167,6 +203,13 @@ Rules:
 ## 90-day sequence
 
 ### Days 1–7: measure and remove ambiguity
+
+**Critical path:** ask the owner for O-1 (evidence), O-2 (analytics ruling) and
+O-13 (task-study method) first. Do not present all thirteen decisions as one
+undifferentiated homework list. The next owner packet contains at most three
+questions, each with a recommended option, consequence of no decision and the
+smallest signature/ruling required. O-3/O-4 commercial asks follow once the
+baseline and terms packet are ready.
 
 - Owner completes Search Console/Bing/analytics and YouTube reads in P0-M1.
 - Record the performance/accessibility baseline in `BOARD.md`.
@@ -251,6 +294,9 @@ never means deployed, approved, profitable or ranked.
 Current reference set: Google [Search Essentials](https://developers.google.com/search/docs/essentials),
 Google’s [generative Search guidance](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide),
 Google’s [helpful-content self-assessment](https://developers.google.com/search/docs/fundamentals/creating-helpful-content),
+Google’s [SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide),
+NN/g’s [search guidance](https://www.nngroup.com/articles/search-visible-and-simple/)
+and [UX research guide](https://www.nngroup.com/articles/ux-research-cheat-sheet/),
 web.dev [Web Vitals](https://web.dev/articles/vitals), W3C
 [WCAG 2.2](https://www.w3.org/TR/WCAG22/), Awwwards’ official
 [evaluation system](https://www.awwwards.com/about-evaluation/), Baymard’s
