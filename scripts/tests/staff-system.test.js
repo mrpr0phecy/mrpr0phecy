@@ -8,7 +8,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
 const { loadDefinitions, validateDefinitions, workflowIntegrity, parseOptions, resolveFocus } = require('../staff/config');
-const { auditOne, runCommand, runFacility, transactionalCountFix, hash, redactor } = require('../staff/engine');
+const { auditOne, runCommand, runFacility, transactionalCountFix, measurementGapPlan, makePlan, hash, redactor } = require('../staff/engine');
 const { validateDraft, callProvider, generateDrafts } = require('../staff/drafts');
 const { renderHtml, renderMarkdown, writeReports, FILTER_SCRIPT } = require('../staff/report');
 const { failedReport } = require('../ai-developer');
@@ -130,6 +130,36 @@ test('advisory warnings create assigned work without masquerading as failures', 
   const root = fixture(t);
   const r = await facility(root, opts('plan'), cmd => cmd[0] === 'bash' ? ok() : ok('WARN: incomplete metadata'));
   assert.equal(r.exitCode, 0); assert.equal(r.report.audits[0].status, 'warning'); assert.equal(r.report.plan[0].owner, 'catalogue'); assert.equal(r.report.plan[0].status, 'review');
+});
+test('the full plan names one evidence-led primary action without hiding audit findings', () => {
+  const score = { ...definition('scoreboard', 'measurement'), status: 'passed', gate: 'blocking', evidence: [], error: null };
+  const warning = { ...definition('seo', 'seo'), status: 'warning', gate: 'blocking', evidence: ['WARN: fixture metadata'], error: null };
+  const tasks = makePlan([score, warning], { root: ROOT, coverage: 'full' });
+  assert.equal(tasks.filter(task => task.primary).length, 1);
+  assert.equal(tasks.find(task => task.primary).id, 'outcome:first-evidence-packet');
+  assert.ok(tasks.some(task => task.id === 'audit:seo'));
+  assert.match(renderMarkdown({
+    gate: { ready: true, proposeChanges: false }, mission: 'Test', generatedAt: new Date(0).toISOString(),
+    repository: {}, mode: 'plan', coverage: 'full', audits: [], verification: null, plan: tasks,
+    fix: { status: 'not-requested', reason: 'test' }, generation: { status: 'not-requested', reason: 'test', drafts: [], errors: [] },
+    limitations: [], errors: [],
+  }), /### PRIMARY · P0/);
+  assert.equal(measurementGapPlan(ROOT, [score], 'partial'), null);
+});
+test('an aggregate verification warning does not duplicate an owned specialist finding', () => {
+  const seo = { ...definition('seo', 'seo'), status: 'warning', evidence: ['WARN: missing description'], output: 'WARN: missing description', error: null };
+  const verify = { ...definition('repo-verify', 'delivery'), status: 'warning', evidence: ['WARN: missing description'], output: 'WARN: missing description', error: null };
+  const tasks = makePlan([seo, verify]);
+  assert.ok(tasks.some(task => task.id === 'audit:seo'));
+  assert.ok(!tasks.some(task => task.id === 'audit:repo-verify'));
+});
+test('a hard blocker overrides the outcome gap as the sole primary action', () => {
+  const score = { ...definition('scoreboard', 'measurement'), status: 'passed', gate: 'blocking', evidence: [], error: null };
+  const failure = { ...definition('egress', 'privacy'), status: 'failed', gate: 'blocking', priority: 'P1', evidence: ['FAIL: fixture leak'], error: null };
+  const tasks = makePlan([score, failure], { root: ROOT, coverage: 'full' });
+  assert.equal(tasks.filter(task => task.primary).length, 1);
+  assert.equal(tasks.find(task => task.primary).id, 'audit:egress');
+  assert.ok(tasks.some(task => task.id === 'outcome:first-evidence-packet'));
 });
 test('timeout, signal, missing executable and sparse skips never count as passes', async () => {
   for (const raw of [{ ...ok(), exitCode: null, error: 'ETIMEDOUT' }, { ...ok(), signal: 'SIGKILL' }, { ...ok(), exitCode: null, error: 'ENOENT' }, ok('cards/ not on disk (sparse checkout) — skipped')]) {

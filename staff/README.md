@@ -12,6 +12,9 @@ portal. This system helps their maintainers do better work.
    `RESEARCH.md` explains the staff rebuild and the evidence behind the plan.
 2. **Measure:** run `node scripts/ai-developer.js plan`. Read the report's
    evidence and limitations, not just its colour. No provider key is needed.
+   When static gates pass but the north stars remain unmeasured, the report
+   names one primary outcome gap and routes the owner to `OWNER-PACKET.md`;
+   minor audit warnings do not silently displace the evidence critical path.
 3. **Coordinate:** refresh branch evidence when online, then claim a small
    scope on the session's existing branch. The scanner never checks out,
    creates or pushes a branch.

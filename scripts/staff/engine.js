@@ -129,14 +129,48 @@ async function transactionalCountFix({ root, plan, validate }) {
   }
 }
 
-function makePlan(results) {
-  return results.filter(r => !gatePassed(r) || r.status === 'warning').map(r => ({
+function measurementGapPlan(root, results, coverage) {
+  if (!root || coverage !== 'full' || !results.some(r => r.id === 'scoreboard' && gatePassed(r))) return null;
+  try {
+    const scoreboard = JSON.parse(fs.readFileSync(path.join(root, 'staff/scoreboard.json'), 'utf8'));
+    const gaps = scoreboard.northStars.filter(row => row.status !== 'measured-by-gates');
+    if (!gaps.length) return null;
+    return {
+      id: 'outcome:first-evidence-packet', title: 'Establish the first decision-grade evidence packet',
+      owner: 'measurement', product: 'shared', priority: 'P0', status: 'review', outcomeGap: true,
+      action: 'Complete staff/OWNER-PACKET.md: obtain O-1 evidence, the O-2 analytics ruling and the O-13 privacy-safe task-study approval before choosing an SEO, redesign or revenue scale-up.',
+      evidence: gaps.map(row => `${row.product} north star is ${row.status}: ${row.metric}`),
+      acceptance: [
+        'Each requested instrument is dated and marked measured, unavailable or owner-deferred; no credentials or tool input values are stored.',
+        'The next implementation brief names one observed task, one primary metric, guardrails and why it outranks the runner-up.',
+      ],
+    };
+  } catch { return null; } // The scoreboard audit owns malformed/missing-file evidence.
+}
+
+function makePlan(results, context = {}) {
+  const findings = results.filter(r => !gatePassed(r) || r.status === 'warning').filter(r => {
+    if (r.id !== 'repo-verify' || r.status !== 'warning' || !r.evidence.length) return true;
+    // verify.sh aggregates checks already shown above. Keep its evidence in the
+    // audit trail, but do not create a duplicate task when every warning is
+    // already present in a specialist check.
+    return !r.evidence.every(line => results.some(other => other !== r && String(other.output || '').includes(line.trim())));
+  });
+  const tasks = findings.map(r => ({
     id: `audit:${r.id}`, title: r.title, owner: r.owner, product: r.product,
     priority: r.status === 'warning' && r.priority === 'P0' ? 'P2' : r.priority,
     status: r.gate === 'blocking' && !gatePassed(r) ? 'blocking' : 'review',
     action: r.remediation, evidence: r.evidence.length ? r.evidence : [r.error || r.status],
     acceptance: [r.command.join(' ') + ' exits 0', 'Review the actual behaviour; static checks are not a complete certification.'],
-  })).sort((a, b) => a.priority.localeCompare(b.priority) || Number(b.status === 'blocking') - Number(a.status === 'blocking') || a.id.localeCompare(b.id));
+  }));
+  const gap = measurementGapPlan(context.root, results, context.coverage);
+  if (gap) tasks.push(gap);
+  tasks.sort((a, b) => a.priority.localeCompare(b.priority) || Number(b.status === 'blocking') - Number(a.status === 'blocking') || a.id.localeCompare(b.id));
+  // Hard blockers always win. Otherwise the first evidence-led outcome gap is
+  // the sole recommendation; the remaining cards are visible supporting work.
+  const primary = tasks.find(task => task.status === 'blocking') || tasks.find(task => task.outcomeGap) || tasks[0];
+  if (primary) primary.primary = true;
+  return tasks;
 }
 
 async function runFacility({ root, definitions, options, env = process.env, execute = runCommand, providerCall, onProgress = () => {} }) {
@@ -219,7 +253,7 @@ async function runFacility({ root, definitions, options, env = process.env, exec
     try { report.finalRepository = snapshot(root); } catch (error) { report.errors.push(redact(error.message)); }
   }
   const allResults = [...report.audits, report.verification];
-  report.plan = makePlan(allResults);
+  report.plan = makePlan(allResults, { root, coverage: report.coverage });
   report.gate.blockers = blockers(allResults).map(r => r.id);
   const operationFailed = ['blocked', 'rolled-back', 'rollback-conflict'].includes(report.fix.status) || ['failed', 'blocked'].includes(report.generation.status);
   report.gate.ready = report.coverage === 'full' && report.audits.length === audits.length && !report.gate.blockers.length && !report.errors.length && !operationFailed;
@@ -232,4 +266,4 @@ async function runFacility({ root, definitions, options, env = process.env, exec
   return { report: safe, exitCode };
 }
 
-module.exports = { runFacility, auditOne, runCommand, snapshot, inventory, transactionalCountFix, makePlan, blockers, gatePassed, hash, redactor };
+module.exports = { runFacility, auditOne, runCommand, snapshot, inventory, transactionalCountFix, measurementGapPlan, makePlan, blockers, gatePassed, hash, redactor };

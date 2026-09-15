@@ -38,8 +38,8 @@ def main() -> int:
     except (OSError, json.JSONDecodeError) as exc:
         fail(f"cannot read JSON: {exc}")
 
-    if data.get("version") != 1:
-        fail("staff/scoreboard.json must use version 1")
+    if data.get("version") != 2:
+        fail("staff/scoreboard.json must use version 2")
     non_empty(data.get("updated"), "updated")
     non_empty(data.get("purpose"), "purpose")
 
@@ -57,6 +57,18 @@ def main() -> int:
             fail(f"northStars[{index}] has unsupported status {row['status']!r}")
         if row["owner"] not in owners:
             fail(f"northStars[{index}] has unknown owner {row['owner']!r}")
+
+    decision_rules = data.get("decisionRules")
+    if not isinstance(decision_rules, dict):
+        fail("decisionRules must be an object")
+    if decision_rules.get("workInProgressLimitPerSession") != 1:
+        fail("decisionRules must keep one primary work item per session")
+    for key, minimum in (("hardGates", 3), ("selectionOrder", 5), ("tieBreakers", 3)):
+        values = decision_rules.get(key)
+        if not isinstance(values, list) or len(values) < minimum:
+            fail(f"decisionRules.{key} must contain at least {minimum} rules")
+        for index, value in enumerate(values):
+            non_empty(value, f"decisionRules.{key}[{index}]")
 
     groups = data.get("metricGroups")
     if not isinstance(groups, list) or len(groups) < 5:
@@ -110,7 +122,7 @@ def main() -> int:
 
     print(
         f"scoreboard OK — {len(groups)} metric groups, {len(metrics)} metrics, "
-        f"{len(rules)} experiment rules; no invented baselines"
+        f"{len(rules)} experiment rules, one-item decision ladder; no invented baselines"
     )
     return 0
 

@@ -482,3 +482,30 @@ owner said it in your session, and even then you mark it *provisional* until
 @manager countersigns. Today proved why.
 
 ---
+
+### 2026-09-15 — Staff plan now enforces choice and whole-site viability
+
+Deep-research refinement completed on `arena/01a0a6bb-mrpr0phecy`. The plan now
+has a machine-checked one-primary-item decision ladder: hard safety/correctness/
+privacy/accessibility gates first, then measured task value, evidence strength,
+maintainer-hour cost, reusable leverage and reversibility. Financial review now
+separates unit contribution, payback, whole-site operating contribution and
+customer/channel concentration; gross revenue cannot masquerade as profit.
+High-end UX guidance added first-query search success, five-second comprehension,
+focus-not-obscured and non-drag checks. The owner critical path is deliberately
+limited to O-1, O-2 and O-13 before commercial asks. Evidence and source limits:
+`staff/RESEARCH.md` §8. Validation: `bash scripts/verify.sh` passed 19/19;
+staff tests 36/36; scoreboard 5 groups / 25 metrics / one-item ladder.
+
+### 2026-09-15 — The plan now chooses one action, not just lists findings
+
+The strengthened decision contract is now connected to the actual AI Developer
+report. A full run with passing scoreboard evidence names exactly one primary
+outcome gap; today that is the first decision-grade evidence packet. Hard audit
+blockers override it automatically, supporting warnings remain visible, and
+aggregate `verify.sh` warnings no longer create duplicate work when a specialist
+check already owns them. `staff/OWNER-PACKET.md` turns O-1/O-2/O-13 into three
+bounded decisions with a copy-and-return response, no credential request, a
+no-recording task-study protocol and explicit analytics options. Validation:
+`plan` surfaced the P0 packet ahead of advisory noise; `verify.sh` passed 19/19;
+staff regression suite passed 39/39.

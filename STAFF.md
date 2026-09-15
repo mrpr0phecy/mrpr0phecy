@@ -27,6 +27,7 @@ report: it is work the staff system is supposed to make visible.
 | The operating plan, stage gates and 90-day sequence | [staff/OPERATING-PLAN.md](staff/OPERATING-PLAN.md) |
 | The measurable standard (rank, useful, design, money, popular) | [staff/EXCELLENCE.md](staff/EXCELLENCE.md) |
 | The measurement contract and scoreboard | [staff/scoreboard.json](staff/scoreboard.json) |
+| The current three-question owner critical path | [staff/OWNER-PACKET.md](staff/OWNER-PACKET.md) |
 | Actual branch evidence | `python3 staff/scan.py --fetch --mine` or [generated snapshot](staff/BRANCHES.md) |
 | Why this system was rebuilt and what research is trustworthy | [staff/RESEARCH.md](staff/RESEARCH.md) |
 | Automation setup, permissions and failure recovery | [docs/AI-DEVELOPER-SETUP.md](docs/AI-DEVELOPER-SETUP.md) |
@@ -34,7 +35,9 @@ report: it is work the staff system is supposed to make visible.
 The ten staff entries are **responsibility profiles**, not ten independent
 live agents. One deterministic runner executes their checks. Human contributors
 and assigned agent sessions do implementation and review. The measurement
-profile keeps the scoreboard honest; no profile can grant itself owner approval,
+profile keeps the scoreboard honest and enforces one primary item per session,
+hard safety gates, evidence-first tie-breakers and whole-site contribution
+measurement; no profile can grant itself owner approval,
 change analytics policy, publish generated code or silently merge a proposal.
 
 Architecture and protected surfaces remain governed by

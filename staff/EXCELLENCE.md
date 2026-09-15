@@ -240,7 +240,10 @@ The product promise is "finish the task, trust the result". Perfect means:
    user promise and the licence buyer's compliance story.
 6. **Findable on-site.** Catalogue search, category hubs, related tools,
    `help.html` with `?q=` deep links, sitemap page — a lost user is a failed
-   tool, whatever the code quality.
+   tool, whatever the code quality. Search stays a visible type-in field, works
+   with short plain-language queries, tolerates synonyms/misspellings, ranks the
+   best answer first and offers recovery when nothing matches. Measure first-
+   query success; do not make users learn advanced syntax.
 
 ## 3. Design — the award-level standard
 
@@ -264,7 +267,15 @@ and accessibility-minded interaction. Creativity is a tool, not a costume.
   spacing, equivalent, inline, user-agent-control and essential exceptions;
   this site uses 44×44 as an internal ergonomic bar on conversion paths. Static
   guards (`check-a11y.py`, `design-audit`) never replace manual keyboard,
-  contrast and 360–390px browser evidence.
+  contrast and 360–390px browser evidence. Template walkthroughs also prove
+  focused controls are not hidden by sticky layers, drag actions have a
+  non-drag pointer alternative, and help/error content remains available when
+  it is needed — WCAG 2.2 details that a generic “keyboard works” claim misses.
+- **Perceived quality is tested, not asserted.** For major visual work, run an
+  unmoderated five-second comprehension check (what is this, what can I do,
+  what should I trust?) and a moderated preference/desirability comparison
+  against the current surface. A jury score or stakeholder taste cannot waive
+  task clarity.
 - **Performance is design.** A beautiful page that loads in 8 seconds wins
   nothing. Budgets: §1d thresholds + first-screen payload budgets (OPEN.md
   P3-T3). Motion supports the story (transitions, reveals, feedback) and
@@ -278,7 +289,10 @@ and accessibility-minded interaction. Creativity is a tool, not a costume.
 
 Nothing here is passive (INCOME.md's honest headline stands). The standard is
 a portfolio where **at least one line is traffic-independent and recurring**,
-so a search downturn wounds but never kills.
+so a search downturn wounds but never kills. Financial viability means positive
+whole-site operating contribution after cash costs and valued maintainer time,
+not gross sales; resilience means customer/channel concentration is visible and
+renewal maintenance is funded before annual cash is treated as spendable.
 
 Ranked by expected return per hour (per STRATEGY.md, reaffirmed):
 
@@ -363,7 +377,7 @@ only, each compounding:
 ## 6. Scoreboard — how perfect is measured
 
 The canonical scorecard is [`scoreboard.json`](scoreboard.json), checked by
-`scripts/check-scoreboard.py`. It covers 23 metrics across usefulness,
+`scripts/check-scoreboard.py`. It covers 25 metrics across usefulness,
 discoverability, experience, trust and viability. Each row names an owner,
 instrument, cadence, direction, decision use and guardrail; the current state
 may honestly be `not-measured` or `owner-measurement-required`.
