@@ -46,7 +46,11 @@ item. This historical list does not override current staff decisions.
   improving; do not optimise around adding more tools for its own sake.
 - [ ] Give proven tools crawlable metadata, structured data, breadcrumbs and
   stable deep links while retaining the existing card fragments as the single
-  implementation.
+  implementation. Partial, 2026-09-15: every `tool.html?card=<slug>` deep link
+  now updates its own description, social-card tags, canonical URL and JSON-LD
+  (WebApplication + BreadcrumbList) client-side once the catalogue resolves the
+  tool; pinned by `scripts/tests/tool-shell.test.js`. Choosing WHICH tools get
+  further bespoke work still needs the Search Console data above (owner).
 - [x] Improve catalogue loading, measured before and after: the first screen no
   longer waits for `cards/cards.json` (ARCHITECTURE.md §3, "First-screen fast
   path"; numbers and method in `notes/catalogue.md`). Remaining candidates:
@@ -61,8 +65,11 @@ item. This historical list does not override current staff decisions.
     changed in one go, so it is not a first-screen win any more.
   - [ ] Decide whether analytics should keep loading during the first screen.
     Owner call: CONSTRAINTS.md keeps the analytics footprint out of agent hands.
-- [ ] Build one `help.html` covering site mechanics, privacy, money and safety,
-  with matching `FAQPage` JSON-LD and client-side search.
+- [x] Build one `help.html` covering site mechanics, privacy, money and safety,
+  with matching `FAQPage` JSON-LD and client-side search. Verified shipped
+  2026-09-15 (the box was never ticked): `help.html` has the `FAQPage` JSON-LD
+  block, a client-side FAQ filter with match counts, and `help.html?q=<query>`
+  deep links.
 - [ ] Add privacy-conscious usage events for searches, categories and tool
   opens. Never record values entered into tools.
 

@@ -200,8 +200,13 @@ if command -v node >/dev/null 2>&1; then
   else
     fail "risk-notice regression — see scripts/tests/risk-notices.test.js"
   fi
+  if node scripts/tests/tool-shell.test.js; then
+    ok "tool.html shell: embed contract honoured, error path inert, metadata set"
+  else
+    fail "tool.html shell regression — see scripts/tests/tool-shell.test.js"
+  fi
 else
-  note "node not available — qrtool/risk-notice tests skipped"; NOTES=$((NOTES+1))
+  note "node not available — qrtool/risk-notice/tool-shell tests skipped"; NOTES=$((NOTES+1))
 fi
 
 section "17/17 internal links (check-links.py)"

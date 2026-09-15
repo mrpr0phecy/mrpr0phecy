@@ -9,6 +9,23 @@ is not yours — reply to it instead.
 
 <!-- NEW ENTRIES BELOW -->
 
+## 2026-09-15 (3) — arena/01a0a4dd — tool.html hardened: XSS fix, embed=1 contract implemented, per-tool metadata; catalogue ID collisions removed
+
+**Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Claim released with evidence.
+
+**Landed:**
+- **Security fix (XSS):** `tool.html`'s load-failure path interpolated the raw `?card=` parameter and the network error message straight into `innerHTML` — attacker-influenceable (crafted `tool.html?card=<img src=x onerror=…>` links render markup on the site's origin). The error UI is now built with DOM APIs + `textContent` in a testable `toolBuildError()`, and `scripts/tests/tool-shell.test.js` proves hostile strings land only in text nodes, never attributes.
+- **The documented `embed=1` contract now exists:** `llms.txt` and `agents.html` have advertised `tool.html?card=<slug>&embed=1` as chrome-free with height postMessage — but the page never implemented either (it even embedded without `&embed=1`). Implemented exactly as documented: `body.embed-mode` strips nav/footer/resource/related/badge chrome (risk notice and tool stay), and the frame posts `{ type: "tmusitw:height", card, height }` on load, on resize and via a debounced MutationObserver (tools expand after their scripts paint). The in-page Embed button now copies the `&embed=1` iframe snippet at the documented 520 height.
+- **Per-tool crawlable metadata (ROADMAP Next-2, partial):** once the catalogue resolves the tool, `toolUpdateMetadata()` updates the description, og/twitter tags, canonical deep link and injects WebApplication + BreadcrumbList JSON-LD (Tools → Category → Tool) client-side; card fragments remain the single implementation. Tested against a stub head including URL-encoding of `Finance & Money`.
+- **Catalogue ID collisions removed:** the four standing `check-cards.py` WARNs (percentage-calculator ⇄ percentage-change-calculator on `pct-go`/`pct-out`; unit-converter-math ⇄ unit-converter on `uc-go`) were real shared-DOM hazards — with both cards open, `getElementById` wires the first card's elements. Renamed to `pcc-*` / `ucm-*` (markup + scripts; both cards functionally re-verified by running their real scripts in a DOM stub — 10 m → 32.808399 ft). **The catalogue is now WARN-free.**
+- **ROADMAP book-keeping:** Next-4 (`help.html` with FAQPage JSON-LD + client-side search) verified as already shipped and ticked — it has the JSON-LD block, a live FAQ filter with match counts and `?q=` deep links; only the box was unticked.
+
+**Verified:** `verify.sh` PASSED (17/17, incl. the new tool-shell test in section 16); `node --check` clean on tool.html's real inline script; catalogue WARN-free; check-links/egress/prerender/loader suites all green.
+
+**Left for the owner:** the 27 pre-existing SEO WARNs on deliberate noindex/scratch pages (riley/tattoo advisories included) remain deliberately untouched per the previous handover; Next-2's "which tools deserve bespoke pages" still needs Search Console data.
+
+---
+
 ## 2026-09-15 (2) — arena/01a0a4dd — ROADMAP "Now" section completed: shell risk notices, link gate, drift gate, a11y + 404 fixes
 
 **Delivery:** PR from `arena/01a0a4dd-mrpr0phecy` (see GitHub for merge/check state). Follows the same session's qrtool work (entry below). Claim released with evidence.
