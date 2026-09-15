@@ -95,9 +95,13 @@ parallel roster hidden in an unused config or separate staffroom.
 
 Meet the current profiles with `node scripts/ai-developer.js staff`. The
 profiles cover delivery, catalogue/discovery, tool reliability, privacy,
-visual design/accessibility, search/content, the listener experience,
-financial correctness, and audience/revenue growth. A role name is neither a permission nor a claim that
-an autonomous worker is active. Do not sign with a model name.
+visual design/accessibility, search/content, user research/measurement, the
+listener experience, financial correctness, and audience/revenue growth. A role
+name is neither a permission nor a claim that an autonomous worker is active.
+Do not sign with a model name. The measurement profile maintains the
+machine-checked [scoreboard](scoreboard.json) and the stage-gated
+[operating plan](OPERATING-PLAN.md); it does not create analytics or invent
+baselines.
 
 ## Evidence, gates and automation
 

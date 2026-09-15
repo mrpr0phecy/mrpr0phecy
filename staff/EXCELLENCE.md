@@ -8,41 +8,38 @@ override [DECISIONS.md](DECISIONS.md), [CONSTRAINTS.md](../CONSTRAINTS.md) or
 [ARCHITECTURE.md](../ARCHITECTURE.md) — where they conflict, those win and
 this file gets fixed.
 
-## 0. The honest headline about "first on Google"
+## 0. The honest headline about “first on Google”
 
-Nobody ranks first on Google *in general*. What the best tool sites actually
-achieve is **position 1–3 for hundreds of specific long-tail queries with
-clear intent** ("UK take-home pay calculator", "BMI calculator NHS formula",
-"split test significance calculator") — plus citations inside AI answers for
-the same queries. That is the target below, and it is realistic for this
-site for one structural reason the research keeps confirming: **interactive
-tools are among the most resilient formats in AI-era search**, because an AI
-summary can describe a calculator but cannot replace using one. Thin
-programmatic pages lost 50–80% of traffic in Google's March 2026
-scaled-content enforcement; pages with real utility kept ranking and started
-earning AI citations as well. Three structural facts shape everything below:
-**60% of searches now end without a click** (AI Overviews cut position-1
-clicks ~34–58% on informational queries — but cited brands gain ~35% more
-clicks and surviving clicks convert ~23% better); **March 2026 applies a
-sitewide weakest-link demotion** (thin pages don't just fail, they drag the
-whole domain down); and **Google rewards "the company that owns the thing"**
-(first-party tools, data and authority over aggregators and affiliates).
+Nobody can promise first place on Google in general. The defensible objective is
+**top visibility for proven, specific task intents**: positions 1–3 where the
+site has genuinely earned relevance, strong task satisfaction and trust, plus
+visibility in generative Search features when Search Console reports it. That
+is a goal to work toward, not a guarantee or a current result.
 
-The plan therefore has exactly one SEO thesis: **every indexable URL must
-pass the test Google has applied since 2023 — does this page genuinely help
-the user, or does it exist primarily to capture search traffic?** Everything
-below is that thesis, operationalised.
+Google’s [Search Essentials](https://developers.google.com/search/docs/essentials)
+prioritise helpful, reliable, people-first content, crawlable links, honest
+relevance and spam-policy compliance. Google’s current generative Search guide
+says those same core Search systems underpin AI features; it does **not** offer a
+special AI markup or shortcut. Interactive tools are valuable here because the
+visitor can complete a task on the page, but “interactive” is not a waiver for
+thin copy, inaccurate results or poor UX.
+
+The plan therefore has one SEO thesis: **every indexable URL must genuinely help
+the visitor, or be consolidated/noindexed.** The measurable product outcome is
+successful, trusted task completion; search visibility and revenue are measured
+as separate supporting outcomes. See [scoreboard.json](scoreboard.json) and the
+[operating plan](OPERATING-PLAN.md) for instruments, targets and unknowns.
 
 Useful background already in the repo: [STRATEGY.md](../STRATEGY.md) (why
-traffic-independent revenue matters as search changes),
-[INCOME.md](../INCOME.md) (music income), [FINANCE.md](../FINANCE.md)
-(correctness + obligations).
+traffic-independent revenue matters), [INCOME.md](../INCOME.md) (music income),
+[FINANCE.md](../FINANCE.md) (correctness + obligations) and the source-quality
+notes in [RESEARCH.md §7](RESEARCH.md).
 
 ## 1. Rank — the #1 standard
 
-Ranked by impact, per every 2026 source: content quality + intent match first,
-E-E-A-T and backlinks next, Core Web Vitals as the tie-breaker when content
-is close.
+Ranked by impact: task/intention fit and content quality first; trust,
+technical structure and earned distribution next; field experience protects
+the result. No third-party score or secret ranking formula is treated as proof.
 
 ### 1a. Content quality and intent match (top factor)
 
@@ -52,10 +49,11 @@ is close.
 - **Topical depth over page count.** One resource that answers the full
   question set (tool + how-to + worked example + FAQ + sources) beats five
   thin pages. Never publish a page whose unique value fits in one sentence.
-- **Long-tail and question queries first.** New sites win on specific,
-  low-competition queries (roughly 90–400 searches/month to start) and
-  "People Also Ask" questions — a good answer there can outrank the #2 result
-  for the head term. Head terms ("mortgage calculator") are a year-2 fight.
+- **Proven task intents first.** Start with the queries and tasks Search Console
+  and moderated research actually reveal. Long-tail and question queries are
+  useful entry points, but do not invent a search-volume range or treat a
+  keyword tool as demand evidence. Head terms remain a later ambition, not a
+  reason to publish shallow variants.
 - **Freshness is maintenance, not date-swapping.** Statutory figures every
   April (already guarded by `check-finance.js`), visible "last updated" dates
   on guides/YMYL pages, meaningful refreshes only.
@@ -67,9 +65,9 @@ is close.
 ### 1b. E-E-A-T, and YMYL where it applies (high impact)
 
 Finance, health, legal and safety tools are **Your Money or Your Life**:
-Google's strictest bar, where wrong answers cause real harm and Trust is the
-pinnacle signal — experience, expertise and authority count for nothing on an
-inaccurate page.
+wrong answers can cause real harm, so trust is the priority. Google’s guidance
+says trust is the most important part of E-E-A-T; experience, expertise and
+authority cannot rescue an inaccurate page.
 
 - **Trust first:** every factual claim traceable to a source that can be
   re-run (already D-001 for counts; extend to formulas: HMRC manuals, NHS
@@ -107,10 +105,9 @@ inaccurate page.
 
 ### 1d. Core Web Vitals (real signal, tie-breaker)
 
-Google's thresholds, unchanged into 2026, measured at the **75th percentile
-of real Chrome users (CrUX field data, 28-day rolling)** — lab scores don't
-rank you. Mobile is graded separately and is far harder to pass (~50% of
-origins pass all three on mobile).
+Per [web.dev](https://web.dev/articles/vitals), the thresholds are measured at
+the **75th percentile of real users**, segmented by mobile and desktop. Lab
+scores diagnose causes; they do not replace field evidence.
 
 | Metric | Good | Poor | What it measures |
 |---|---|---|---|
@@ -125,8 +122,8 @@ is the **LCP risk** — the fast-path prerender exists; keep it under budget
 (OPEN.md P3-T3). Unreserved image/ad slots are the **CLS risk** — dimensions
 or reserved space everywhere, no late-injected chrome above content.
 
-Competitive target: **INP ≤ 150ms at p75** (Google's bar is 200ms; top sites
-clear 150). Optimise at template level, fix order TTFB → LCP → INP → CLS,
+Internal stretch target: **INP ≤ 150ms at p75**; Google’s published good
+threshold is 200ms. Optimise at template level, fix order TTFB → LCP → INP → CLS,
 and judge on field data only — allow weeks after deploying before declaring
 a fix (28-day rolling window). Off-site CrUX/API monitoring adds no on-page
 tracking (OPEN.md P1-R9).
@@ -136,12 +133,12 @@ tracking (OPEN.md P1-R9).
 - Crawlability: `robots.txt` + `sitemap.xml` accurate and submitted (Search
   Console + Bing Webmaster Tools — both free, ~10 minutes each, still undone:
   OPEN.md P0-M1). Canonicals valid, no accidental noindex on money pages.
-- **Per-tool indexability is the structural gap.** Today all 1149 tools share
-  `tool.html?card=<slug>` with client-side metadata: Google *can* render JS,
-  but social/AI crawlers largely don't, and query-param URLs with thin unique
-  text are exactly the pattern the March 2026 enforcement hit. Fix: build-time
-  prerendered static pages for the top 10–25 proven tools with unique content
-  (spec in OPEN.md P1-R2), card fragments remaining the single implementation.
+- **Per-tool indexability is the structural gap.** Today all tools share
+  `tool.html?card=<slug>` with client-side metadata. A build-time page is worth
+  doing only for the top 10–25 proven tools, and only when each page has unique,
+  useful content (spec in OPEN.md P1-R2); the card fragment remains the single
+  implementation. This is a crawlability and user-experience improvement, not
+  a promise that static HTML alone earns rankings.
 - Structured data: WebSite + CollectionPage + ItemList (shipped on index),
   WebApplication + BreadcrumbList per tool (shipped client-side), FAQPage on
   `help.html` (shipped), Article on guides/blog, Person/Organization on
@@ -153,56 +150,55 @@ tracking (OPEN.md P1-R9).
   localisation or consolidate — thin translations are a scaled-content risk,
   not an asset. Owner decision (OPEN.md P1-R6).
 
-### 1f. AI-search visibility (GEO) — the second surface
+### 1f. Generative Search visibility — the second surface
 
-AI Overviews appear on roughly half of queries and cut position-1 clicks by
-over half on informational pages — but the clicks that survive convert ~23%
-better, and utility pages get *cited*, not just clicked. Optimise for both
-surfaces at once:
+Generative Search visibility is a second surface, not a separate optimisation
+industry. Measure it through Search Console when the report is available and
+optimise the same useful page for people first:
 
 - Clear structure: direct answer first, then depth. Q&A formatting, stats,
-  comparison tables, cited sources — these are the citation signals.
-- Schema coverage (§1e) does double duty for organic rank and AI citation.
-- Cut or rebuild pages an AI answers for free (pure definitions); double down
-  on task pages (calculators, live data, generators) where the click is the
-  product.
-- `llms.txt` / `llms-full.txt` / `tools-index.html` (shipped, drift-gated)
-  already make the catalogue machine-readable — keep them exact.
+  comparison tables and cited sources can make information easier for people and
+  parsers to understand; they are not citation guarantees.
+- Structured data helps systems understand a page when it accurately describes
+  visible content; it is not a ranking guarantee.
+- Cut or rebuild commodity definitions that add no first-hand value; prioritise
+  task pages where the visitor must use the tool, inspect current data or see a
+  tested result.
+- `llms.txt` / `llms-full.txt` / `tools-index.html` remain useful repository
+  navigation and catalogue artefacts. Google’s current guidance does not treat
+  an AI-only text file as a ranking lever; drift-gate them for accuracy, not
+  because they promise citations.
 
-### 1g. CTR and engagement (NavBoost uses click data)
+### 1g. Search result clarity and satisfaction
 
 Sharp, honest titles (query + differentiator: "Free · No sign-up · Runs in
 browser"), meta descriptions that promise the task outcome, favicons/OG
-images that survive a tab strip. Then satisfy intent fast — bounce-back to
-the SERP is the engagement signal that kills you.
+images that survive a tab strip. Then satisfy intent fast. A return to the
+SERP is a useful UX symptom to investigate, not a published Google formula or
+a standalone target.
 
-### 1h. NavBoost — be the terminal click
+### 1h. Satisfaction and task completion — be the useful final destination
 
-Confirmed by DOJ testimony and the 2024 API leak: Google re-ranks on click
-classifications aggregated over roughly **13 months**. goodClicks (clicked
-and stayed), badClicks (pogo-sticked back within seconds — a demotion
-signal), lastLongestClicks (the final, longest-dwell click of the session —
-the strongest positive signal). There is no standalone "dwell time score";
-dwell is the *input to the classification*. Implications:
+Do not claim access to a secret click-classification or dwell-time formula.
+Search-result clicks, returns and engagement are useful symptoms to investigate,
+not standalone ranking targets. Improve the underlying experience:
 
-- **Intent match is everything.** A clickbait title with disappointing
-  content earns badClicks; a slow page earns them before content is even
-  seen. Match the query, answer above the fold, load fast.
-- **Optimise the stay, not just the click.** Task completion on-page, worked
-  examples, related tools that continue the session — every second of
-  satisfied dwell compounds over the 13-month window.
-- **KPIs:** CTR above SERP average for the position; engagement rate > 60%;
-  average engagement time > 2 minutes on long-form; scroll depth with 50%+
-  reaching 75% of content. Signals accumulate over months — judge quarterly,
-  not weekly.
+- match the title and description to the actual task;
+- show the usable tool and the important answer quickly;
+- prevent wrong inputs, explain errors and make the result easy to verify;
+- give the visitor a clear next step only when it is genuinely relevant.
+
+The scoreboard separates Search Console performance from moderated task success,
+field experience and correctness. A click is not a win if the visitor cannot
+finish the task.
+
 
 ### 1i. Entity SEO — be a node, not a keyword
 
-AI surfaces cite entities they have confidence in, and confidence is graph
-traversal: schema → Wikidata/Wikipedia/LinkedIn/registries → corroborating
-mentions. **Branded web mentions correlate 0.664 with AI Overview citations
-vs 0.218 for traditional backlinks** — entity signals now outrank link
-signals for AI visibility. The stack:
+AI systems need to resolve what a page and its publisher are about. Consistent
+identity, accurate Organization/Person relationships, useful source pages and
+independent corroboration are sensible trust work; no universal correlation
+coefficient or knowledge-graph result is a site baseline. The stack:
 
 - **On-site:** stable `@id` URIs for Organization + Person, sameAs ladders
   to authoritative profiles (identical name/photo/role everywhere — any
@@ -210,15 +206,15 @@ signals for AI visibility. The stack:
   WebPage ↔ Person), `about`/`mentions` with entity intent (generic valid
   schema with no entity properties is practically useless), one-sentence
   entity definitions reused verbatim everywhere.
-- **Off-site:** Wikidata item where notability allows (far more accessible
-  than Wikipedia; a company with a site + independent coverage qualifies),
-  Crunchbase/LinkedIn/company registries, consistent NAP, third-party
-  corroboration through press and data studies. Expect 3–6 months to initial
-  recognition, 6–12 to measurable citation impact.
-- **Author entities are assets, not attributes.** YMYL content without an
-  attributable, verifiable author carries structurally lower E-E-A-T weight.
-  Measure: Knowledge Graph Search API resolution, LLM bio consistency,
-  sameAs coherence, citation rate in-field.
+- **Off-site:** Wikidata item where notability allows, relevant company or
+  creator profiles, consistent identity and third-party corroboration through
+  press or original data studies. Timing and knowledge-graph resolution are
+  uncertain; measure them when the owner can supply a real instrument.
+- **Author entities are assets, not attributes.** YMYL content should have an
+  attributable, verifiable author and clear sourcing. Where the owner can
+  supply instruments, record identity-profile consistency and external
+  resolution/citation observations; do not treat them as guaranteed ranking
+  levers.
 
 ## 2. Useful — the brilliance standard
 
@@ -259,14 +255,15 @@ and accessibility-minded interaction. Creativity is a tool, not a costume.
   Guarded by `design-audit.js --strict`.
 - **Usability is 30% of the score.** Intuitive navigation, frictionless flows,
   mobile-first (designed for the phone, not squeezed from desktop),
-  thumb-zone targets **44×44px minimum** on conversion paths (WCAG 2.2
-  requires 24×24; 44 is the conversion standard), visible focus everywhere,
-  keyboard-complete task paths.
-- **Accessibility is conversion.** WCAG 2.2 AA per template (4.5:1 body
-  contrast, 3:1 large text, 200% resize without breakage, no colour-only
-  meaning, alt text, captions/transcripts, reduced-motion path). Accessible
-  sites convert ~15% better — this is revenue work, not compliance theatre.
-  Static guards (`check-a11y.py`, design-audit) never replace keyboard,
+  thumb-zone targets **44×44px minimum** on conversion paths, visible focus
+  everywhere and keyboard-complete task paths.
+- **Accessibility is product quality.** Apply WCAG 2.2 AA per template (4.5:1
+  body contrast, 3:1 large text, 200% resize without breakage, no colour-only
+  meaning, alt text, captions/transcripts and a reduced-motion path). Success
+  Criterion 2.5.8 sets a 24×24 CSS-pixel pointer-target minimum subject to its
+  spacing, equivalent, inline, user-agent-control and essential exceptions;
+  this site uses 44×44 as an internal ergonomic bar on conversion paths. Static
+  guards (`check-a11y.py`, `design-audit`) never replace manual keyboard,
   contrast and 360–390px browser evidence.
 - **Performance is design.** A beautiful page that loads in 8 seconds wins
   nothing. Budgets: §1d thresholds + first-screen payload budgets (OPEN.md
@@ -285,21 +282,25 @@ so a search downturn wounds but never kills.
 
 Ranked by expected return per hour (per STRATEGY.md, reaffirmed):
 
-1. **Embed licensing** — recurring, traffic-independent, priced under an
-   existing market (£99 single / £299 category / £899 white-label). Status:
-   page ships no offer; proposal + funnel spec ready in OPEN.md P1-M3 for one
-   owner signature. First licensee comes from ten emails, not ten pages.
-2. **Content ID + distribution** — best effort-to-return in music, still off.
-3. **YouTube Partner Programme** — 1,360 subs clears the hard gate; watch
-   hours decide. **Deadline 1 Feb 2027.** Owner checks Studio (OPEN.md P0-M1).
+1. **Embed licensing** — recurring and traffic-independent, with the proposed
+   £99 single / £299 category / £899 white-label tiers documented in
+   STRATEGY.md. Terms, support cost and the first buyer still require owner
+   action; the first licensee will come from a real conversation, not more
+   speculative pages.
+2. **Content ID + distribution** — a candidate music route, still off until
+   rights, provider terms and net contribution are evidenced.
+3. **YouTube Partner Programme** — eligibility and revenue remain owner-side
+   checks; subscriber/watch-hour status and policy review are not inferred here
+   (OPEN.md P0-M1).
 4. **Sponsorship** — second string for tools, priced from real GA numbers,
    cross-selling licensing to CPM-shy enquirers. House rules stay
    (labelled slot, 5% rule, no crypto speculation — which is also why token
    promotion stays off).
-5. **Sync licensing** — best £/hour, most underused asset (100% rights,
-   one-conversation clearance, £50–£5,000+ per placement). Needs the dedicated
-   page (OPEN.md P1-M4).
-6. **Donations** — real but small (0.01–0.1% conversion); don't over-optimise.
+5. **Sync licensing** — a potentially high-value music route when rights are
+   fully cleared. Needs the dedicated page, rights inventory and buyer evidence
+   (OPEN.md P1-M4); no placement price or conversion rate is assumed.
+6. **Donations** — an optional support route; measure net contribution and
+   supporter experience before deciding whether to optimise it.
 7. **Affiliate (`freecash.html`)** — contained, not a growth line.
 
 Never, reaffirmed: display ads on tools (destroys the differentiator for
@@ -309,15 +310,13 @@ promotion (criminal-exposure risk per FINANCE.md §3; page kept, unpromoted,
 per CONSTRAINTS.md), view-bots/hidden players/fake engagement (channel
 termination risk).
 
-**Stack doctrine (new):** display advertising is one layer, never the
-strategy — publishers who treat it as the complete plan underperform those
-who stack it under higher-margin channels. For this site the stack layers as
-licensing (recurring, traffic-independent) → distribution/Content ID →
-sponsorship priced from reality → sync → owned-audience sponsorships (niche
-newsletter CPMs run $50–100+) → digital products (near-100% margin,
-fulfilment-free) → donations. Affiliate stays contained under strict
-relevance + disclosure rules. New layers ship as owner-signed proposals
-(OPEN.md P1-M6), never as staff improvisation.
+**Stack doctrine:** licensing (recurring, traffic-independent) → distribution/
+Content ID → sponsorship priced from reality → sync → optional owned-audience
+sponsorships → digital products → donations. Each layer needs its own cost,
+privacy, fulfilment and contribution-margin evidence; industry CPMs or “near-
+100% margin” slogans are not this site’s baseline. Affiliate stays contained
+under strict relevance + disclosure rules. New layers ship as owner-signed
+proposals (OPEN.md P1-M6), never as staff improvisation.
 
 **Measurement is the standard's teeth:** every money page measurable within
 the D-007 analytics footprint (no expansion without the owner); funnel
@@ -334,61 +333,54 @@ only, each compounding:
 
 1. **Embeds → backlinks → rank → traffic → embeds.** The master loop; gated
    on the attribution decision (§1c).
-2. **Topical authority → long-tail rank.** Guides + blog answering real
-   questions (spec: OPEN.md P1-R4), each post pointing at its tool, each tool
-   pointing back. 12 guides + 3 posts today; quality-gated growth from Search
-   Console queries, never filler.
-3. **YouTube flywheel.** 233 videos + 46 Shorts exist; `radio.html` (lean-back
-   sessions) and `thisorthat.html` (watch-to-play) convert site visits into
-   legitimate watch hours toward YPP. Keep making music — the next 233 videos
-   matter more than any page.
+2. **Topical authority → qualified discovery.** Guides and blog posts answer
+   real questions (spec: OPEN.md P1-R4), each with a useful route to its tool
+   and back. Expand from Search Console queries and moderated research, never
+   from a filler quota or assumed search volume.
+3. **YouTube flywheel.** Existing music surfaces such as `radio.html` and
+   `thisorthat.html` should support intentional listening and verified outbound
+   destinations. Measure qualified starts, listening completion and owner-side
+   channel evidence; never infer watch hours or manufacture engagement.
 4. **Outreach with something to offer.** Resource pages (.ac.uk, .org.uk,
    libraries, charities), "free for your website" vertical pages, digital PR
    from original data — all offering genuine value, never begging links.
-   Run the journalist layer too: Connectively/Featured/Qwoted with
-   first-hour responses (60%+ higher placement), #journorequest on X, and a
-   quarterly data-study cadence — consistent data PR earns 3–5× the
-   high-authority links of outreach alone. Cold converts 1–3%, warm 15–30%:
-   relationships first, pitches second.
-5. **Owned audience.** Email is the relationship no algorithm can take:
-   engaged subscribers outperform larger anonymous audiences, sponsor the
-   newsletter at premium CPMs, and become first-party data. The signup must
-   earn its place with an honest value prop — never a dark pattern.
+   Run the journalist layer too: relevant source requests, a quarterly data-
+   study cadence and relationships built around something genuinely useful.
+   Do not publish placement or conversion percentages without a named study;
+   relationships and editorial quality matter more than a quota.
+5. **Owned audience.** Email can create a direct relationship that search does
+   not control, but it is a product decision, not a free growth hack. The signup
+   must earn its place with an honest value proposition, explicit consent,
+   useful issues and a privacy review — never a dark pattern.
 6. **Word of mouth by design.** Shareable results (thisorthat top-5),
    bookmarkable stable tool URLs, explainable numbers ("why this number"),
    honest CTAs. A tool worth linking is the only growth hack that compounds.
-7. **Brand as moat.** Branded queries resist AI-Overview erosion far better
-   than generic ones — even brand-plus-category queries decline less. Every
-   citation, mention and share that carries the name builds the two-tier
-   internet's upper tier. Be cited, be named, be searched.
+7. **Brand as trust.** Consistent names, accurate identity and genuinely useful
+   work make the site easier to recognise and recommend. Track branded queries
+   and qualified mentions as evidence, not as a guaranteed moat. Be useful,
+   be named, be worth citing.
 
 ## 6. Scoreboard — how perfect is measured
 
-No metric here is invented: every row names its instrument. "Not yet
-measured" is a valid current value; inventing one is a D-001 violation.
+The canonical scorecard is [`scoreboard.json`](scoreboard.json), checked by
+`scripts/check-scoreboard.py`. It covers 23 metrics across usefulness,
+discoverability, experience, trust and viability. Each row names an owner,
+instrument, cadence, direction, decision use and guardrail; the current state
+may honestly be `not-measured` or `owner-measurement-required`.
 
-| Metric | Instrument | Cadence | Target |
-|---|---|---|---|
-| Positions 1–3 for target long-tail queries | Search Console (needs setup) | Monthly | Growing set; top 10–25 tools first |
-| Clicks + CTR per target query | Search Console | Monthly | CTR above SERP average for the position |
-| Index coverage (submitted vs indexed) | Search Console + `build-sitemap.py --check` | Monthly | 100% of intended URLs indexed, 0 thin indexed |
-| CWV pass (LCP/INP/CLS, mobile + desktop) | CrUX via PageSpeed Insights | Monthly | All three green at p75, both devices; INP ≤ 150ms competitive target |
-| AI citations + branded mentions | Manual prompt panel + Search Console impressions/AIO views | Monthly | Cited for target queries; brand-mention volume rising |
-| Branded search volume | Search Console | Monthly | Rising (the AI-erosion moat) |
-| Referring domains (earned) | Search Console links + backlink index | Monthly | Rising; editorial/data-driven only |
-| Entity resolution | KG Search API + LLM bio test + sameAs audit | Quarterly | Brand + author resolve as nodes |
-| Task success (find tool → get result) | Manual + (if owner approves) privacy-safe events; never input values | Per change | No regressions; faster over time |
-| Finance suite green | `node scripts/check-finance.js` | Every push | 100% (triage stale vs real, never hide) |
-| Verify green | `bash scripts/verify.sh` | Every push | 17/17 |
-| WCAG 2.2 AA per template + keyboard paths | axe/Lighthouse + manual browser pass | Per change | Pass, with evidence |
-| Embed funnel (views → copies → licence page) | GA on `embed.html` (within D-007) | Monthly | Baseline then improve |
-| YPP watch hours | YouTube Studio (owner) | Monthly to 1 Feb 2027 | 4,000h or 10M Shorts views |
-| Sponsorship/sync pipeline | Inbox (human) | Monthly | Real numbers quoted, honest pricing |
-| Licence revenue (recurring) | Bookkeeping sheet (FINANCE.md §2) | Monthly | First £, then renewal rate |
-| Newsletter subs + sponsor £ | Provider dashboard (owner) | Monthly | Growing list, honest CPMs |
-| Donations | PayPal + GA clicks | Quarterly | Tracked; effort capped |
-| Growth surfaces clean | `python3 scripts/check-growth.py` | Every push | Exit 0, warnings tracked in OPEN.md |
+The non-negotiable release gates are:
 
-Review this file when Google updates guidance materially, when a target is
-hit (set the next one), or when evidence contradicts it — a standard that
-can't be updated from evidence is a superstition.
+- `node scripts/check-finance.js` and the applicable YMYL suite pass;
+- `bash scripts/verify.sh` passes, including catalogue, links, egress,
+  accessibility and measurement-contract checks;
+- no known critical keyboard, privacy, correctness, security or product-boundary
+  regression ships;
+- touched interactions have browser evidence at narrow mobile and desktop
+  widths, with reduced motion considered;
+- Search Console, CrUX, bookkeeping or usability claims cite their instrument
+  and date, or explicitly say the evidence is not available.
+
+Review the standard when Google or a primary source changes guidance, when an
+owner instrument becomes available, when a target is reached, or when evidence
+contradicts it. A standard that cannot be updated from evidence is a
+superstition.

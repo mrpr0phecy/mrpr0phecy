@@ -36,11 +36,14 @@
 #                               markup resolves to a file that exists, plus the
 #                               risk-notice mapping contract
 #                               (scripts/tests/risk-notices.test.js)
-#  18. embed catalogue        — scripts/build-embed-catalog.py --check: the
+#   18. embed catalogue        — scripts/build-embed-catalog.py --check: the
 #                               embed.html grid must hold every card in
 #                               cards.json with live descriptions and the true
 #                               "All N" count (it is a derived artifact, like
 #                               the sitemap)
+#   19. measurement contract   — staff/scoreboard.json has separate product
+#                               outcomes, named instruments, guardrails and no
+#                               invented baselines
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -52,7 +55,7 @@ ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
 note() { printf '  \033[33mNOTE\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAILS=$((FAILS+1)); }
 
-section "1/15 catalogue consistency (check-cards.py)"
+section "1/19 catalogue consistency (check-cards.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-cards.py; then ok "catalogue coherent"; else fail "catalogue incoherent"; fi
 else
@@ -68,18 +71,18 @@ else
   note "node not available — catalogue drift check skipped"; NOTES=$((NOTES+1))
 fi
 
-section "2/15 placeholder IDs in *.html"
+section "2/19 placeholder IDs in *.html"
 # Hard placeholders anywhere; YOUR_ only inside URLs/attributes (demo text
 # like 'YOUR_SYSTEM_PROMPT' in the prompt-injection lab is legitimate content).
 PH="dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|(src|href)=['\"][^'\"]*YOUR_"
 HITS=$(grep -rlE "$PH" --include='*.html' --exclude-dir=ai-developer --exclude-dir=.git . 2>/dev/null || true)
 if [ -n "$HITS" ]; then fail "placeholder IDs found: $(echo "$HITS" | tr '\n' ' ')"; else ok "none"; fi
 
-section "3/15 target=_blank links without rel=noopener"
+section "3/19 target=_blank links without rel=noopener"
 BAD=$(grep -rn --include='*.html' --exclude-dir=ai-developer --exclude-dir=.git -E '<a [^>]*target="_blank"' . 2>/dev/null | grep -v 'noopener' || true)
 if [ -n "$BAD" ]; then fail "$(echo "$BAD" | head -5)"; else ok "all covered"; fi
 
-section "4/15 sitemap.xml"
+section "4/19 sitemap.xml"
 if python3 - <<'PY' 2>/dev/null
 import xml.etree.ElementTree as E
 root = E.parse('sitemap.xml').getroot()
@@ -89,10 +92,10 @@ PY
 then ok "parses, entries: $(python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))")"
 else fail "missing or empty"; fi
 
-section "5/15 top-level SEO scan (scan-seo.py)"
+section "5/19 top-level SEO scan (scan-seo.py)"
 if python3 scripts/scan-seo.py; then ok "no missing <title>"; else fail "see warnings above"; fi
 
-section "6/15 sensitive strings in tracked files"
+section "6/19 sensitive strings in tracked files"
 # Patterns are assembled at runtime so this script does not match itself.
 P1="gh""o_"; P2="gh""p_"; P3="github""_pat_"; P4="gh""s_"
 if grep -rnE "$P1|$P2|$P3|$P4" --exclude-dir=.git --exclude-dir=ai-developer . 2>/dev/null | grep -v '^Binary' | head -5 | grep -q .; then
@@ -101,21 +104,21 @@ else
   ok "none"
 fi
 
-section "7/15 git state"
+section "7/19 git state"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   note "uncommitted changes present — commit before pushing"; NOTES=$((NOTES+1))
 else
   ok "working tree clean"
 fi
 
-section "8/15 card JavaScript syntax (check-card-js.py)"
+section "8/19 card JavaScript syntax (check-card-js.py)"
 if command -v node >/dev/null 2>&1; then
   if python3 scripts/check-card-js.py --all; then ok "every card's JS parses"; else fail "a card would be dead in production"; fi
 else
   note "node not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "9/15 tool-count claims (sync-counts.py)"
+section "9/19 tool-count claims (sync-counts.py)"
 if python3 scripts/sync-counts.py --check; then ok "every claim matches the catalogue"; else fail "stale tool counts — run: python3 scripts/sync-counts.py"; fi
 if command -v node >/dev/null 2>&1; then
   if node scripts/generate-ai-index.js --check; then
@@ -127,13 +130,13 @@ else
   note "node not available — machine index check skipped"; NOTES=$((NOTES+1))
 fi
 
-section "10/15 sitemap freshness (build-sitemap.py)"
+section "10/19 sitemap freshness (build-sitemap.py)"
 if python3 scripts/build-sitemap.py --check; then ok "sitemap matches tracked indexable pages"; else fail "sitemap stale — run: python3 scripts/build-sitemap.py"; fi
 
-section "11/15 card accessibility (check-a11y.py)"
+section "11/19 card accessibility (check-a11y.py)"
 if python3 scripts/check-a11y.py; then ok "labels resolve, images have alt, _blank is safe"; else fail "accessibility regressions in cards/"; fi
 
-section "12/15 site brain index and grounding"
+section "12/19 site brain index and grounding"
 if python3 scripts/build-site-brain.py --check \
   && python3 scripts/evaluate-site-brain.py; then
   ok "repo-grounded knowledge index and retrieval cases are current"
@@ -141,13 +144,14 @@ else
   fail "site brain stale or retrieval regression — rebuild and inspect learning/evaluation.json"
 fi
 
-section "13/15 staff facility configuration and regression tests"
+section "13/19 staff facility configuration and regression tests"
 if command -v node >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
   if node scripts/ai-developer.js check \
     && node --test scripts/tests/staff-*.test.js \
     && python3 -m unittest discover -s staff/tests -p 'test_*.py' \
-    && python3 scripts/check-growth.py; then
-    ok "staff gates, safe fixes, draft quarantine, reports, coordination and growth surfaces tested"
+    && python3 scripts/check-growth.py \
+    && python3 scripts/check-scoreboard.py; then
+    ok "staff gates, measurement contract, safe fixes, draft quarantine, reports, coordination and growth surfaces tested"
   else
     fail "staff facility regression — inspect the failing test"
   fi
@@ -155,7 +159,7 @@ else
   fail "Node 22+ and Python 3 are required to verify the staff facility"
 fi
 
-section "14/15 card top-level name collisions (check-card-collisions.py)"
+section "14/19 card top-level name collisions (check-card-collisions.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-card-collisions.py; then
     ok "no cross-card top-level name can throw in the shared DOM"
@@ -166,7 +170,7 @@ else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "15/15 home page first screen and card loader"
+section "15/19 home page first screen and card loader"
 if python3 scripts/build-home-prerender.py --check; then
   ok "pre-rendered first screen matches the catalogue"
 else
@@ -185,7 +189,7 @@ else
   note "node not available — card loader tests skipped"; NOTES=$((NOTES+1))
 fi
 
-section "16/16 input egress and the local QR generator"
+section "16/19 input egress and the local QR generator"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-egress.py; then
     ok "every network-touching card is a classified, reviewed exception"
@@ -230,7 +234,7 @@ else
   note "node not available — qrtool/risk-notice/tool-shell/deeplink tests skipped"; NOTES=$((NOTES+1))
 fi
 
-section "17/17 internal links (check-links.py)"
+section "17/19 internal links (check-links.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/check-links.py; then
     ok "every internal href/src resolves to a shipped file"
@@ -241,12 +245,23 @@ else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "18/18 embed catalogue (build-embed-catalog.py)"
+section "18/19 embed catalogue (build-embed-catalog.py)"
 if command -v python3 >/dev/null 2>&1; then
   if python3 scripts/build-embed-catalog.py --check; then
     ok "embed.html grid matches the catalogue (every tool, live descriptions, true count)"
   else
     fail "embed.html grid has drifted from cards.json — run: python3 scripts/build-embed-catalog.py"
+  fi
+else
+  note "python3 not available — skipped"; NOTES=$((NOTES+1))
+fi
+
+section "19/19 measurement contract"
+if command -v python3 >/dev/null 2>&1; then
+  if python3 scripts/check-scoreboard.py; then
+    ok "scoreboard names instruments, guardrails and honest unknowns"
+  else
+    fail "measurement contract is incomplete — inspect staff/scoreboard.json"
   fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))

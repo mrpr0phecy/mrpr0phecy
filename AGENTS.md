@@ -192,13 +192,16 @@ python3 staff/scan.py --mine         # cached refs + staged/unstaged/untracked p
 # Use --fetch explicitly when a current remote snapshot is needed.
 ```
 
-The eight entries in `scripts/ai-staff.json` are **responsibility profiles,
+The ten entries in `scripts/ai-staff.json` are **responsibility profiles,
 not independently running agents**. They cover delivery, catalogue/discovery,
-reliability, privacy, visual design/accessibility, SEO/content, music and
-financial correctness. `scripts/ai-audits.json` owns executable check definitions;
+reliability, privacy, visual design/accessibility, SEO/content,
+research/measurement, music, financial correctness and growth.
+`scripts/ai-audits.json` owns executable check definitions;
 `scripts/ai-config.json` owns validated limits. No duplicate prose roster.
-The Visual Design Expert still protects ARCHITECTURE.md §5's two design
-languages; static checks never substitute for browser geometry/contrast tests.
+The measurement profile maintains `staff/scoreboard.json` and the operating
+plan; it may record `not-measured` but may not invent a baseline. The Visual
+Design Expert still protects ARCHITECTURE.md §5's two design languages; static
+checks never substitute for browser geometry/contrast tests.
 
 Operational runs write `ai-developer/reports/latest.html` (offline dashboard),
 `latest.json` (structured evidence) and `latest.md` (handoff). Reports/drafts
