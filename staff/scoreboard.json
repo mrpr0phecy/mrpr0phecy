@@ -339,6 +339,69 @@
           "guardrail": true
         }
       ]
+    },
+    {
+      "id": "operations",
+      "name": "Operational — the live site matches what we shipped",
+      "product": "shared",
+      "owner": "reliability",
+      "metrics": [
+        {
+          "id": "production-contract",
+          "name": "Production contract compliance",
+          "unit": "monitor runs whose checks all pass, per run and per week",
+          "source": "scripts/check-production.js via .github/workflows/production-monitor.yml: byte-identity with the repository, live catalogue and sitemap integrity, custom 404, https upgrade and apex host.",
+          "cadence": "Every six hours and after every Pages deployment",
+          "status": "measured-by-gates",
+          "direction": "higher",
+          "decision": "A failed run opens one ops:production-alert issue; recovery is a revert or a deployment re-run, never an edit to live state (docs/OPERATIONS.md).",
+          "guardrail": true
+        },
+        {
+          "id": "deploy-freshness",
+          "name": "Deploy freshness",
+          "unit": "deployment runs where the changed files already match the live bytes",
+          "source": "The post-deploy production monitor run, checked against the exact commit Pages deployed.",
+          "cadence": "Per deployment",
+          "status": "measured-by-gates",
+          "direction": "higher",
+          "decision": "A stale or partial deploy is treated as an incident, not as propagation noise, once the retry window has passed.",
+          "guardrail": true
+        },
+        {
+          "id": "live-response-budget",
+          "name": "Live server response time",
+          "unit": "milliseconds per probe from the CI runner, warning bar 3000 ms",
+          "source": "Production monitor evidence. Runner TTFB is diagnostic: field performance stays with CrUX (lcp-p75, inp-p75, cls-p75) and is never inferred from this number.",
+          "cadence": "Every monitor run",
+          "status": "measured-by-gates",
+          "direction": "lower",
+          "decision": "Investigate only if the warning repeats or CrUX agrees; a single slow runner measurement changes nothing.",
+          "guardrail": false
+        },
+        {
+          "id": "time-to-restore",
+          "name": "Time to restore service",
+          "unit": "minutes from the alert issue opening to the passing full run that closes it",
+          "source": "ops:production-alert issue timeline (opened/closed timestamps). Derived from the record of real incidents; not an SLA and not a promise of response time.",
+          "cadence": "Per incident",
+          "status": "not-measured",
+          "direction": "lower",
+          "decision": "Use the first incidents to decide whether the six-hourly cadence, the runbook or the recovery script is the limiting factor.",
+          "guardrail": false
+        },
+        {
+          "id": "availability",
+          "name": "Availability",
+          "unit": "unknown — four probe runs a day cannot honestly report an uptime percentage",
+          "source": "Would need a higher-frequency external instrument; GitHub Pages' own status history is third-party. Recorded as not-measured rather than guessed.",
+          "cadence": "Revisit if an instrument is adopted",
+          "status": "not-measured",
+          "direction": "higher",
+          "decision": "Do not publish an availability figure, and do not add a paid monitor without the owner's decision.",
+          "guardrail": false
+        }
+      ]
     }
   ],
   "experimentRules": [

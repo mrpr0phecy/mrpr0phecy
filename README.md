@@ -96,6 +96,7 @@ money-related.
 | Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
 | Tool inventory | Derived from `cards/cards.json`; not a growth target |
 | Add a tool | Follow ARCHITECTURE.md; generate the index, then re-sync the derived artefacts (`scripts/sync-counts.py`, `scripts/build-sitemap.py`, `scripts/build-home-prerender.py`) and verify |
+| Operations | **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — triage, rollback and fix-forward. `node scripts/check-production.js` checks the *live* site against this repository; it also runs after every deploy and every 6 hours, raising one alert issue that closes itself on recovery |
 
 ## Local preview
 

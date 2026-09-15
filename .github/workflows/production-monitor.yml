@@ -1,0 +1,209 @@
+name: Production monitor
+
+# Closes the loop the other gates cannot: every check in `verify.sh` reads the
+# working tree, so none of them can tell whether the *deployed* site matches it.
+# This workflow asks the live site instead, and raises exactly one alert issue
+# when it stops matching.
+#
+# Three narrow triggers:
+#   schedule         — standing watch, four times a day
+#   workflow_run     — straight after a Pages deployment on main, checking the
+#                      files that deployment changed (so a bad deploy is caught
+#                      in minutes, and a failed Pages job is investigated too)
+#   workflow_dispatch — by hand, after a manual rebuild or during an incident
+#
+# It needs no secrets beyond the workflow token: `contents: read` to compare
+# against the repository, and `issues: write` for the single alert issue.
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Origin to probe (default: https:// + CNAME)'
+        required: false
+        default: ''
+      sample:
+        description: 'Catalogue cards to verify byte-for-byte'
+        required: false
+        default: '6'
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_run:
+    workflows: ["pages build and deployment"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One probe at a time; a deployment check must never race the scheduled watch.
+concurrency:
+  group: production-monitor
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe the live site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A deployment from any other branch is none of this monitor's business.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main'
+    permissions:
+      contents: read
+    outputs:
+      exit_code: ${{ steps.monitor.outputs.exit_code }}
+      changed: ${{ steps.changed.outputs.count }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # For a deployment run, check out the commit that was deployed.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - name: Work out what this deployment changed
+        id: changed
+        run: |
+          set -euo pipefail
+          : > "$RUNNER_TEMP/changed.z"
+          if [ "${{ github.event_name }}" = "workflow_run" ] && git rev-parse --verify -q HEAD^ >/dev/null 2>&1; then
+            git diff --name-only -z --diff-filter=ACMR HEAD^ HEAD -- '*.html' '*.json' '*.xml' '*.txt' > "$RUNNER_TEMP/changed.z"
+          fi
+          count=0
+          while IFS= read -r -d '' file; do
+            [ -f "$file" ] || continue
+            [ "$(wc -c < "$file")" -lt 2000000 ] || continue
+            count=$((count + 1))
+          done < "$RUNNER_TEMP/changed.z"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Deployment-run files to verify in addition to the standing contract: $count"
+      - name: Run the production contract monitor
+        id: monitor
+        env:
+          BASE: ${{ inputs.base || '' }}
+          SAMPLE: ${{ inputs.sample || '6' }}
+        run: |
+          set -euo pipefail
+          args=(--sample "$SAMPLE" --json "$RUNNER_TEMP/production-report.json" --summary "$RUNNER_TEMP/production-summary.md")
+          if [ -n "$BASE" ]; then args+=(--base "$BASE"); fi
+          # Post-deploy runs allow the CDN a few seconds to catch up before
+          # reporting a byte mismatch, so a fast propagation is not an alert.
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then args+=(--retry-mismatch 3 --retry-delay 5000); fi
+          while IFS= read -r -d '' file; do
+            [ -f "$file" ] || continue
+            [ "$(wc -c < "$file")" -lt 2000000 ] || continue
+            args+=(--compare "$file")
+          done < "$RUNNER_TEMP/changed.z"
+          set +e
+          node scripts/check-production.js "${args[@]}"
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          case "$code" in
+            0) echo "Production contract holds." ;;
+            1) echo "::error::The live site does not match this repository. See docs/OPERATIONS.md." ;;
+            2) echo "::error::The monitor itself could not run (arguments or repository)." ;;
+          esac
+      - name: Publish the evidence
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/production-summary.md" ]; then
+            cat "$RUNNER_TEMP/production-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The monitor produced no report — see the job log above." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: production-report
+          path: |
+            ${{ runner.temp }}/production-report.json
+            ${{ runner.temp }}/production-summary.md
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Fail the run when the contract is broken
+        if: steps.monitor.outputs.exit_code != '0'
+        run: |
+          echo "Production contract broken (exit ${{ steps.monitor.outputs.exit_code }})." >&2
+          exit 1
+
+  alert:
+    name: Raise or clear the production alert
+    needs: probe
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        continue-on-error: true
+        with:
+          name: production-report
+          path: production-report
+      - name: Open, update or close the single alert issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXIT_CODE: ${{ needs.probe.outputs.exit_code }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LABEL: ops:production-alert
+          TITLE_PREFIX: 'Production monitor:'
+        run: |
+          set -euo pipefail
+          # The label is a convenience for humans; identification comes from the
+          # title prefix plus the marker comment in the body, so alerting still
+          # works if the token cannot create labels.
+          gh label create "$LABEL" --repo "$GITHUB_REPOSITORY" \
+            --color B60205 --description "The live site does not match this repository (production monitor)" \
+            2>/dev/null || true
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "in:title \"$TITLE_PREFIX\"" --json number --jq '.[0].number // empty')
+
+          if [ "$EXIT_CODE" = "0" ]; then
+            # Only a full contract run may clear the alert: a post-deploy run
+            # checks just the files that deployment changed, so it cannot prove
+            # the rest of the site recovered.
+            if [ -n "$existing" ] && [ "$EVENT_NAME" != "workflow_run" ]; then
+              printf 'Recovered. The full production contract holds again — see %s\n' "$RUN_URL" \
+                | gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file -
+              gh issue close "$existing" --repo "$GITHUB_REPOSITORY" --reason completed
+              echo "Alert issue #$existing closed after recovery."
+            else
+              echo "Contract holds; nothing to change."
+            fi
+            exit 0
+          fi
+
+          case "$EXIT_CODE" in
+            1) headline="the live site does not match this repository" ;;
+            2) headline="the monitor could not run" ;;
+            *) headline="the monitor failed unexpectedly" ;;
+          esac
+
+          {
+            printf '<!-- ops:production-alert -->\n'
+            printf 'The [production contract monitor](%s) reported a problem.\n\n' "$RUN_URL"
+            printf '**%s** (exit code `%s`, trigger `%s`).\n\n' "$headline" "$EXIT_CODE" "$EVENT_NAME"
+            printf 'Runbook: [docs/OPERATIONS.md](https://github.com/%s/blob/main/docs/OPERATIONS.md) — the failure name in the table below maps to a fix there.\n\n' "$GITHUB_REPOSITORY"
+            if [ -f production-report/production-summary.md ]; then
+              cat production-report/production-summary.md
+            else
+              printf 'No report artifact was produced; read the job log at the link above.\n'
+            fi
+            printf '\nReproduce locally:\n\n```bash\nnode scripts/check-production.js --json /tmp/report.json\n```\n'
+          } > "$RUNNER_TEMP/body.md"
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+            echo "Updated alert issue #$existing."
+          else
+            url=$(gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE_PREFIX $headline" --body-file "$RUNNER_TEMP/body.md")
+            echo "Opened $url"
+            # Best effort: the issue is the signal, the label is the filter.
+            gh issue edit "${url##*/}" --repo "$GITHUB_REPOSITORY" --add-label "$LABEL" 2>/dev/null \
+              || echo "note: could not add $LABEL (create the label once, or ignore)"
+          fi
