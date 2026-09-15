@@ -15,6 +15,30 @@ notes.
 
 ## Field notes
 
+### 2026-09-15 — Jekyll was silently dropping two advertised files
+
+**Context:** The production monitor was extended to probe the machine-facing
+surface the site advertises. The first run of that probe — a temporary workflow,
+since deleted — came back with two 404s.
+
+**Finding:** `.well-known/ai.txt` and `.well-known/security.txt` were tracked, in
+the sitemap, and linked from `about.html`, `press.html`, `changelog.html` and
+`sitemap.html` — and were not deployed. GitHub Pages was building the repository
+with Jekyll, which skips paths beginning with `.` or `_`, so `ARCHITECTURE.md`'s
+promise that "what is committed is what is served" had quietly been false for
+those files. `_build/*.py` was unpublished for the same reason (nothing links to
+it, so it stays where it is).
+
+**Evidence:** Check-run annotations on run 35032966565 named both files and their
+404s; `git ls-files .well-known` listed them the whole time. The repository's own
+link checker cannot see this class of fault — it checks paths on disk, not paths
+in production.
+
+**Follow-up:** `.nojekyll` now disables the hidden build step, so the deployed
+tree is the committed tree. `scripts/check-production.js` compares both files
+byte-for-byte on every run, and the offline suite fails if `.nojekyll` or any
+probed file disappears.
+
 ### 2026-09-15 — Production drift now has an instrument
 
 **Context:** Every gate in the repository read the working tree. Nothing asked

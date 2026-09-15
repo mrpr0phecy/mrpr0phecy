@@ -35,7 +35,12 @@ establish *which* site first.
 
 - **Live:** <https://www.themostusefulsiteintheworld.com>
 - **Hosting:** GitHub Pages, served straight from `main`. There is no build
-  step, no bundler, no CI, no framework. What is committed is what is served.
+  step, no bundler, no framework, and `.nojekyll` is what keeps that literally
+  true: without it Pages runs the repository through Jekyll, which silently
+  drops every path beginning with `.` or `_` — that is how `.well-known/ai.txt`
+  and `.well-known/security.txt` came to be 404 in production while four pages
+  linked to them (`notes/operations.md`, 2026-09-15). Every tracked file is
+  served at its own path.
 - **Custom domain:** the `CNAME` file. Deleting it breaks the domain.
 - **Deploy latency:** roughly 30–60 seconds after a push. Always verify live
   with `curl` rather than assuming.
@@ -750,8 +755,10 @@ node scripts/check-production.js            # full contract against the live sit
 node scripts/check-production.js --sample 12 --json /tmp/report.json
 ```
 
-It runs by itself after every Pages deployment and every six hours
-(`.github/workflows/production-monitor.yml`), and its failure modes are pinned
+It runs by itself on every push to `main` — waiting 45 s for Pages and then
+retrying mismatches for about a minute, so propagation is not an alarm — and
+every six hours (`.github/workflows/production-monitor.yml`), and its failure
+modes are pinned
 offline by `scripts/tests/production-monitor.test.js` (section 20 of
 `verify.sh`). What to do when it fails is in
 [docs/OPERATIONS.md](docs/OPERATIONS.md) — triage table, rollback, fix-forward.

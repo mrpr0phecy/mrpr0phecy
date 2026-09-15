@@ -58,6 +58,14 @@ function buildFixtureRepo(root) {
     ...CARDS.map(card => `https://fixture.example.com/cards/${card.file}`),
   ]));
   write('tools/bmi.html', '<!DOCTYPE html><html><body><h1>Fixture BMI page</h1></body></html>');
+  // The machine-readable surface the real site advertises, including the
+  // dot-directory that GitHub Pages' Jekyll build used to drop.
+  write('llms.txt', '# Fixture\n\nMachine-readable summary of the fixture.\n');
+  write('llms-full.txt', '# Fixture, in full\n\nEverything the short one leaves out.\n');
+  write('feed.xml', '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Fixture</title></channel></rss>');
+  write('related.json', JSON.stringify({ 'index.html': [] }));
+  write('.well-known/ai.txt', 'User-agent: *\nAllow: /\n');
+  write('.well-known/security.txt', 'Contact: mailto:security@example.com\nExpires: 2027-01-01T00:00:00Z\n');
   return root;
 }
 
@@ -177,7 +185,8 @@ async function main() {
       try {
         const report = await run(fixtureRoot, server.base);
         assert.strictEqual(report.summary.status, 'pass', details(report));
-        assert.strictEqual(report.summary.failed, 0);
+        assert.strictEqual(report.summary.failed, 0, details(report));
+        assert.strictEqual(report.summary.warned, 0, details(report));
         assert.ok(report.summary.skipped >= 2, 'https and apex checks must be reported as skipped');
         assert.strictEqual(report.summary.passed, report.summary.checks - report.summary.skipped,
           'skipped checks must not count as passes');
@@ -392,6 +401,53 @@ async function main() {
       } finally {
         await server.close();
       }
+    });
+
+    await check('a probed file that vanishes from the repository fails loudly', async () => {
+      const rel = 'llms.txt';
+      const full = path.join(fixtureRoot, rel);
+      const body = fs.readFileSync(full);
+      fs.rmSync(full);
+      try {
+        const server = await startServer(fixtureRoot, 'none');
+        try {
+          const report = await run(fixtureRoot, server.base);
+          assert.strictEqual(report.summary.status, 'fail');
+          assert.ok(report.checks.some(c => c.surface === rel && c.severity === 'fail' && /repository file .* is missing/.test(c.detail)),
+            details(report));
+        } finally {
+          await server.close();
+        }
+      } finally {
+        fs.writeFileSync(full, body);
+      }
+    });
+
+    await check('the probed surface cannot rot: every advertised file is still in the repository', async () => {
+      const repoRoot = path.join(__dirname, '..', '..');
+      assert.ok(fs.existsSync(path.join(repoRoot, '.nojekyll')),
+        '.nojekyll is missing — without it Pages runs the repository through Jekyll, which drops dot- and underscore-paths (that is how .well-known/ai.txt was 404 in production)');
+      for (const rel of monitor.criticalFiles()) {
+        assert.ok(fs.existsSync(path.join(repoRoot, rel)),
+          `${rel} is probed by the monitor but is not in the repository`);
+      }
+    });
+
+    await check('a pipe or a newline in a finding cannot break the issue body table', async () => {
+      const report = {
+        base: 'https://example.test',
+        repoUrl: 'fixture/repo',
+        generatedAt: '2026-09-15T00:00:00Z',
+        commit: 'fixture-sha',
+        sample: { seed: 7, cards: [] },
+        summary: { status: 'fail', warned: false, checks: 1, passed: 0, failed: 1, warned: 0, skipped: 0, slowestTtfbMs: null },
+        checks: [{ ok: false, severity: 'fail', surface: 'cards/a|b.html', detail: 'line one\nline two | end' }],
+      };
+      const markdown = monitor.renderMarkdown(report);
+      const rows = markdown.split('\n').filter(line => line.startsWith('| FAIL |'));
+      assert.strictEqual(rows.length, 1, 'a newline in a detail must not split the table row');
+      assert.ok(rows[0].includes('cards/a\\|b.html'), 'pipes in a surface must be escaped');
+      assert.ok(rows[0].includes('line one line two \\| end'), 'newlines collapse and pipes escape in a detail');
     });
 
     console.log(`\nproduction-monitor: ${passed} checks passed — stale deploys, truncated catalogues, broken 404s, slow origins and unreachable hosts all fail; healthy sites pass; skips stay visible.`);

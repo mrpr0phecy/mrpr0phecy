@@ -53,8 +53,15 @@ const DEFAULT_SAMPLE = 6;
 const MAX_REDIRECTS = 5;
 
 // Files whose live bytes must equal the repository bytes. These are the pages a
-// visitor is most likely to meet first, plus every file the site's own
-// correctness depends on (catalogue, sitemap, robots, 404, PWA manifest).
+// visitor is most likely to meet first, every file the site's own correctness
+// depends on (catalogue, sitemap, robots, 404, PWA manifest), and the
+// machine-readable surface the site advertises to crawlers and agents.
+//
+// The last two earn their place from a real incident: GitHub Pages used to
+// build this repository with Jekyll, which silently drops paths beginning with
+// "." or "_", so `.well-known/ai.txt` and `.well-known/security.txt` were 404
+// in production while four pages linked to them. `.nojekyll` disables that
+// hidden build step; these checks keep their absence loud.
 const CRITICAL_FILES = [
   'index.html',
   'tool.html',
@@ -64,7 +71,18 @@ const CRITICAL_FILES = [
   'sitemap.xml',
   'manifest.json',
   'cards/cards.json',
+  'llms.txt',
+  'llms-full.txt',
+  'feed.xml',
+  'related.json',
+  '.well-known/ai.txt',
+  '.well-known/security.txt',
 ];
+
+// Exposed so the offline suite can prove every probed file still exists.
+function criticalFiles() {
+  return [...CRITICAL_FILES];
+}
 
 function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
@@ -365,7 +383,11 @@ async function checkFile(ctx, rel) {
   const url = `${ctx.base}/${rel}`;
   const repoPath = path.join(ctx.root, rel);
   if (!fs.existsSync(repoPath)) {
-    return makeCheck('integrity', rel, ctx.strict ? 'fail' : 'warn', false,
+    // A file the monitor was told to verify but cannot find in the repository
+    // is a contract failure, never a quiet warning: this is the exact shape of
+    // the .well-known incident, where the probe list and the repository had
+    // silently stopped agreeing.
+    return makeCheck('integrity', rel, 'fail', false,
       `repository file ${rel} is missing, so the live copy cannot be verified`, { url });
   }
   const repoBody = fs.readFileSync(repoPath);
@@ -805,6 +827,7 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   runChecks,
+  criticalFiles,
   renderMarkdown,
   renderConsole,
   writeReport,
