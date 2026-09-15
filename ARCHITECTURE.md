@@ -739,7 +739,23 @@ expected elements exist.
 
 ### Verify after pushing
 
-Pages takes 30–60s. Do not trust a green push:
+Pages takes 30–60s. Do not trust a green push. The **production monitor**
+(`scripts/check-production.js`) does this loop properly: it compares the
+deployed bytes with this repository, parses the live catalogue and sitemap,
+checks the custom 404 and the https upgrade, and raises one alert issue when
+anything stops matching.
+
+```bash
+node scripts/check-production.js            # full contract against the live site
+node scripts/check-production.js --sample 12 --json /tmp/report.json
+```
+
+It runs by itself after every Pages deployment and every six hours
+(`.github/workflows/production-monitor.yml`), and its failure modes are pinned
+offline by `scripts/tests/production-monitor.test.js` (section 20 of
+`verify.sh`). What to do when it fails is in
+[docs/OPERATIONS.md](docs/OPERATIONS.md) — triage table, rollback, fix-forward.
+Keep the manual probes for the case where the monitor itself cannot run:
 
 ```bash
 sleep 50

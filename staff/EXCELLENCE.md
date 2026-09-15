@@ -377,8 +377,11 @@ only, each compounding:
 ## 6. Scoreboard — how perfect is measured
 
 The canonical scorecard is [`scoreboard.json`](scoreboard.json), checked by
-`scripts/check-scoreboard.py`. It covers 25 metrics across usefulness,
-discoverability, experience, trust and viability. Each row names an owner,
+`scripts/check-scoreboard.py`. It covers 30 metrics across usefulness,
+discoverability, experience, trust, viability and operations — the last of which
+records the production contract, deploy freshness and response budget as
+measured-by-gates, and availability and time-to-restore honestly as
+`not-measured` until real incidents and a real instrument exist. Each row names an owner,
 instrument, cadence, direction, decision use and guardrail; the current state
 may honestly be `not-measured` or `owner-measurement-required`.
 
@@ -387,6 +390,9 @@ The non-negotiable release gates are:
 - `node scripts/check-finance.js` and the applicable YMYL suite pass;
 - `bash scripts/verify.sh` passes, including catalogue, links, egress,
   accessibility and measurement-contract checks;
+- the live site still matches what was shipped: the production monitor holds
+  within a deployment cycle, or the `ops:production-alert` issue names the
+  failure and its owner ([OPERATIONS.md](../docs/OPERATIONS.md));
 - no known critical keyboard, privacy, correctness, security or product-boundary
   regression ships;
 - touched interactions have browser evidence at narrow mobile and desktop

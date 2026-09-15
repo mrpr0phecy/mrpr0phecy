@@ -125,13 +125,20 @@ Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 ```bash
 bash scripts/verify.sh             # cards index, placeholders, noopener, sitemap, SEO
 sleep 50                           # Pages is NOT instant
+node scripts/check-production.js   # the LIVE site vs this repository
 curl -s -o /dev/null -w '%{http_code}\n' https://www.themostusefulsiteintheworld.com/listen.html
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
   | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
 ```
 
-Expect `200` and a count matching `cards/`. A green push is not proof of a
-live deploy.
+Expect `200`, a count matching `cards/`, and `check-production.js` exiting `0`.
+A green push is not proof of a live deploy. That monitor also runs by itself
+after every Pages deployment and every six hours
+(`.github/workflows/production-monitor.yml`); when it fails it opens one
+`ops:production-alert` issue, and recovery is a revert or a deployment re-run —
+never an edit to live state. Read **[docs/OPERATIONS.md](docs/OPERATIONS.md)**
+before touching a production problem; it is short, and it is the difference
+between a five-minute recovery and an hour of guessing.
 
 ## 7. Finishing a session — land it on main
 
