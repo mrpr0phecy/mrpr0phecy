@@ -61,8 +61,12 @@ establish *which* site first.
 │                           memory (composed answers are labelled as such),
 │                           real local tools, 18 reasoning methods with visible
 │                           working, a guided tour and lessons, rating-driven
-│                           adaptation, optional WebGPU model. Own name, mark
-│                           and palette: no catalogue data or branding
+│                           adaptation, optional WebGPU model, and a duty of
+│                           care that surfaces verified UK emergency help when
+│                           the visitor's own words describe a dangerous
+│                           situation (never from indexed documents; switch off
+│                           with /duty off). Own name, mark and palette: no
+│                           catalogue data or branding
 ├── agents.html             Machine-use guide for AI agents & developers
 │                           (the former /ai.html; cards and llms.txt link here)
 │
@@ -1002,6 +1006,97 @@ Also in this pass: a responsive hardening of `index.html` — the sticky search 
 **Fixed 2026-09-07 — whole cards spinning.** Card fragments share one DOM, and six of them defined a global `.loading` CSS class (notably `censorship-monitor`'s `animation: spin`). The catalogue shell also used `class="loading"` on unloaded card placeholders, so injected card styles made entire cards rotate. The shell now uses `card-pending`, censorship-monitor's live spinner is scoped to `.censor-loading`, and the five dead `.loading` rules (dog-photo-viewer, microbiology, sheet-music, transformer-calculator, youtube-dj) were deleted. Lesson: never use a bare generic class name for shell chrome — any card can hijack it.
 
 **Redesigned 2026-09-07 — aurora glass homepage.** Dramatic pure-CSS overhaul of `index.html` chrome: two slowly drifting aurora background layers, frosted-glass hero panel with an animated sheen title, glass search/dock/category/toolbar pills, smoked-glass cards with neon hover glow, and matching directory/footer/sticky/modal treatments. No IDs, classes or JS behaviour changed — search, filters, lazy-load, toolbox and modal all work as before. Cards deliberately have no per-card `backdrop-filter` (perf with hundreds of cards); translucency carries the effect. `prefers-reduced-motion` freezes all of it via the existing global kill-switch.
+
+**Added 2026-09-16 — Lantern: a measured quality gate, and a duty of care.**
+
+Three things, all in service of the same rule: *nothing about Lantern's ability
+is asserted that has not been measured on the shipped page.*
+
+1. **`scripts/lantern-core.js`** — a loader that extracts the inline engine out
+   of `ai.html` and runs it in Node against stub browser globals. It
+   reimplements nothing: a test or benchmark that uses it is driving the same
+   tokeniser, chunker, retrieval stack, tools and guards the visitor's browser
+   runs. If `ai.html` is restructured, the loader fails loudly rather than
+   silently measuring a copy. `opts.transform` exists only so a benchmark can
+   flip one shipped switch off and measure what it was worth (see `--ablate`).
+
+2. **`scripts/evaluate-lantern.js`** — the quality gate, with **24 floors**.
+   Fixtures live in `scripts/tests/fixtures/`: `lantern-corpus.json` (28
+   documents, one-fact-per-line *and* prose shapes, because both are real),
+   `lantern-queries.json` (162 labelled queries across lexical / morphological /
+   paraphrase / distractor / multi-answer) and `lantern-duty.json`. It exits
+   non-zero below any floor, so a retrieval regression cannot ship green.
+   Retrieval is scored at a fixed **character budget** as well as at fixed *k*:
+   recall@k systematically favours large chunks, so chunk size can only be
+   chosen honestly against recall@budget.
+
+3. **`scripts/tests/lantern-core.test.js`** — the structural contracts the
+   floors cannot express: the chunker must terminate on hostile input and must
+   not lose a single token (the `end - 1` fallback that used to hang it is a
+   regression, not a quirk); `safeEval` must refuse to be a code-execution
+   hole; month-end date arithmetic must clamp (31 Jan + 1 month = 28 Feb, and
+   29 Feb in a leap year) rather than overflow into the wrong month; the guard
+   must stay silent on ordinary questions; and every entry in the duty registry
+   must be internally consistent, with every contact populated and every phone
+   number matching a real UK format.
+
+**The duty of care** (`DUTIES`, `dutyOfCare`, `dutyBlock` in `ai.html`) is the
+part of Lantern that says something nobody asked for. When a visitor's own
+message describes a dangerous *situation* — a gas smell, a child not waking, a
+throat closing, a dog that ate a box of paracetamol, a bank account being
+drained — a notice is placed above the answer with what to do now and who to
+call. Measured on the fixture: **fires on 51 of 51 real situations, silent on
+51 of 51 benign questions** that share their vocabulary.
+
+The design rules, all of which are tested:
+
+- **It reads only the visitor's message and their own memories — never the
+  retrieved corpus.** Indexed documents are other people's text; a first-aid
+  leaflet in the knowledge base is not an emergency happening to the visitor.
+  `dutyOfCare.length` is pinned at ≤ 2 so a corpus parameter cannot be added by
+  accident, and the test passes a fake corpus to prove it changes nothing.
+- **A pattern must be a situation, not a topic: a subject and a tense.** The
+  first version matched topic nouns and scored a 14% false-positive rate —
+  "FAST test", "phishing", "burgled", "priority debts", "power cut" fired on
+  training slides, thriller plots, student essays and checklists. Rewritten to
+  require *who it is happening to, and now*, it went to 0%. A notice that
+  cries wolf on a homework question teaches people to ignore the one that
+  matters.
+- **Every contact is a real, published UK number with a verification date**
+  (`DUTY_VERIFIED`), and the notice names its jurisdiction. An emergency number
+  with neither is a rumour. `pet-emergency` therefore ships **no phone number
+  at all** — there is no national animal-poison line published the way 999 or
+  0800 111 999 are, and inventing a plausible one would be the single worst
+  thing this layer could do. The test asserts that stays true.
+- **It never diagnoses, never assumes, and never edits the answer.** The notice
+  shows the phrase it matched and says plainly that this is a pattern match on
+  the visitor's words. It is capped at **two** notices however many duties
+  fire, because a wall of helplines is unreadable at 3am.
+- **It can be switched off**: `/duty off`, `/duty list`, `/duty reset`, plus a
+  per-duty dismissal that persists. A safety feature the visitor cannot leave
+  is not a service.
+
+Because the layer never sees the corpus, it is also checked against text it was
+*never shown*: the 162 retrieval-fixture questions (0 unexpected fires, floor 0)
+and every line of the corpus fixture (0.4%, ceiling 2% — a pasted gas-safety
+leaflet firing the gas notice is on-topic rather than absurd, and this is the
+cheap direction of error). Both are floors now, so "0% false positives" is not
+merely a statement about the registry's own fixture.
+
+Also fixed while measuring: `normaliseUnit` could not resolve plurals or the
+British `-re` spelling, so **"convert 5 kilometres to miles" threw
+`Unknown unit`** — the single most likely unit question from a UK visitor was
+the one that failed. It now tries the obvious singularisations and the
+`-re`/`-er` split, but only accepts a candidate that resolves to a unit already
+in `UNIT_TABLE`, so a typo still fails loudly instead of being converted as
+something else.
+
+**Gotcha worth remembering:** `ai.html` is one of the seven documents the site
+brain indexes (`source_fingerprint()` in `scripts/build-site-brain.py`), so
+**any edit to `ai.html` invalidates `local-ai-knowledge.json`** and section 12
+of `verify.sh` will fail until you rebuild it. Run `python3
+scripts/build-site-brain.py`. The rebuild is deterministic and touches only the
+source hash and the category tokens derived from the page's visible text.
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —

@@ -11,6 +11,7 @@
 // Run with: node scripts/tests/risk-notices.test.js
 'use strict';
 const fs = require('fs');
+const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
@@ -105,5 +106,37 @@ for (const slug of Object.keys(R.toolKinds)) {
 for (const want of ['Finance & Money', 'Health & Fitness']) {
   assert(categories.has(want), `expected category missing from catalogue: ${want}`);
 }
+
+// ---- 4. published helpline numbers ----------------------------------------
+// A wrong emergency number is the one defect on this site that can hurt
+// someone directly: the card renders, looks authoritative, and the person in
+// danger does not reach the service. personal-safety-awareness-planner shipped
+// 0800 2000 247 for the National Domestic Abuse Helpline; the published number
+// (Refuge, via gov.uk) is 0808 2000 247. Scan every tracked page and script so
+// a correction cannot be reintroduced by a copy-paste.
+const WRONG_NUMBERS = [
+  // [wrong, correct, service]
+  ['0800 2000 247', '0808 2000 247', 'National Domestic Abuse Helpline'],
+];
+const REPO_ROOT = path.join(__dirname, '..', '..');
+const SKIP_DIRS = new Set(['.git', 'node_modules', '.github']);
+function* walk(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name)) yield* walk(full); }
+    else if (/\.(html|js|json)$/.test(e.name)) yield full;
+  }
+}
+let scanned = 0;
+for (const file of walk(REPO_ROOT)) {
+  scanned++;
+  if (file === __filename) continue; // this guard's own table contains the string
+  const text = fs.readFileSync(file, 'utf8');
+  for (const [wrong, correct, service] of WRONG_NUMBERS) {
+    assert(!text.includes(wrong),
+      `${path.relative(REPO_ROOT, file)}: ships ${wrong} for the ${service} — the published number is ${correct}`);
+  }
+}
+assert(scanned > 500, `helpline scan covered only ${scanned} files — the walk is broken, not the site`);
 
 console.log('risk-notices: mapping, DOM and drift guards all OK');
