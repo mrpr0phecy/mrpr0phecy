@@ -1,0 +1,24 @@
+<h2 id="lthp-title" style="margin-top:0;color:var(--accent,#2dd4ff);">LUFS Target &amp; Headroom Planner</h2>
+<p id="lthp-desc" class="description" style="color:var(--text-secondary);line-height:1.6;">Use measured integrated LUFS and true peak to plan a gain change and see whether your chosen peak ceiling permits it.</p>
+<form id="lthp-form" aria-describedby="lthp-desc" onsubmit="event.preventDefault();">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin:16px 0;"><div><label for="lthp-current" style="display:block;margin-bottom:6px;">Measured integrated LUFS</label><input id="lthp-current" type="number" value="-18" min="-70" max="0" step="any" required style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text,#e6faff);border:1px solid var(--border-light,#38505c);font-size:16px;"></div><div><label for="lthp-peak" style="display:block;margin-bottom:6px;">Measured true peak (dBTP)</label><input id="lthp-peak" type="number" value="-3" min="-70" max="12" step="any" required style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text,#e6faff);border:1px solid var(--border-light,#38505c);font-size:16px;"></div><div><label for="lthp-target" style="display:block;margin-bottom:6px;">Desired integrated LUFS</label><input id="lthp-target" type="number" value="-14" min="-70" max="0" step="any" required style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text,#e6faff);border:1px solid var(--border-light,#38505c);font-size:16px;"></div><div><label for="lthp-ceiling" style="display:block;margin-bottom:6px;">True-peak ceiling (dBTP)</label><input id="lthp-ceiling" type="number" value="-1" min="-24" max="0" step="any" required style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text,#e6faff);border:1px solid var(--border-light,#38505c);font-size:16px;"></div></div>
+</form>
+<pre id="lthp-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:var(--bg-secondary,#141e28);border:1px solid var(--border-light,#38505c);border-radius:10px;line-height:1.7;font-size:14px;"></pre>
+<p style="color:var(--text-secondary);font-size:0.85rem;line-height:1.6;">Enter measurements from a trusted whole-track LUFS/true-peak meter. This tool does not measure audio or apply a limiter. Constant gain shifts LUFS and true peak by approximately the same dB amount; gating can change the result. Targets are your choice, not a universal platform requirement. Re-measure after processing.</p>
+<script>
+(function() {
+  'use strict';
+  const el = key => document.getElementById('lthp-' + key);
+  const result = el('result');
+  const num = key => Number(el(key).value);
+  const db = x => x > 0 ? (20 * Math.log10(x)).toFixed(2) + ' dB' : '−∞ dB';
+  const valid = () => el('form').checkValidity();
+  
+  function update(){
+    if(!valid()){result.textContent='Complete all four measurements within the displayed input limits.';return;}
+    const gain=num('target')-num('current'), predicted=num('peak')+gain, safe=num('ceiling')-num('peak'), applied=Math.min(gain,safe);
+    result.textContent='Requested gain: '+gain.toFixed(2)+' dB\nPredicted true peak: '+predicted.toFixed(2)+' dBTP\nMaximum gain allowed by ceiling: '+safe.toFixed(2)+' dB\nGain-only recommendation: '+applied.toFixed(2)+' dB\nEstimated resulting loudness: '+(num('current')+applied).toFixed(2)+' LUFS\n'+(predicted>num('ceiling') ? 'Target exceeds ceiling by '+(predicted-num('ceiling')).toFixed(2)+' dB. Accept a quieter result or manage dynamics and re-measure; limiter settings cannot be inferred from these two readings.' : 'Target fits the chosen ceiling using gain alone (estimate).');
+  }
+  el('form').addEventListener('input',update);update();
+})();
+</script>
