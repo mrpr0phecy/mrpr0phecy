@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 1149 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 1152 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -53,8 +53,8 @@ establish *which* site first.
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
 ├── cards/
-│   ├── cards.json          Generated index of all 1149 tools
-│   └── <tool-name>.html    1149 tool fragments (NOT full documents)
+│   ├── cards.json          Generated index of all 1152 tools
+│   └── <tool-name>.html    1152 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
 ├── ai.html                 Lantern — standalone AI product. Chat answered on
 │                           the device from the visitor's own documents and
@@ -195,7 +195,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 1149 cards.** They share one
+2. **Element IDs must be globally unique across all 1152 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -254,7 +254,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (1149 tools)
+### Categories (1152 tools)
 
 Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
@@ -275,7 +275,7 @@ Derived from `cards/cards.json` — regenerate rather than hand-edit.
 | 34 | Health & Fitness | | 10 | Survival & Emergency Readiness |
 | 29 | MrProphecy Arcade | | | |
 
-Total: 1149 tools in 27 categories.
+Total: 1152 tools in 27 categories.
 ---
 
 ## 4. Product B — MrProphecy music
@@ -608,7 +608,7 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 1197 indexable pages (including 1149 cards). Build it
+`sitemap.xml` lists all 1197 indexable pages (including 1152 cards). Build it
 from git rather than the working tree, so a sparse checkout does not silently
 drop the card pages:
 
@@ -666,7 +666,7 @@ and `bash scripts/verify.sh` fails until the blocks match the catalogue. The
 same script owns the per-category count badges. Everything below the first
 screen is still purely data-driven.
 
-**ID collisions across cards.** All 1149 share one DOM. See §3.
+**ID collisions across cards.** All 1152 share one DOM. See §3.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -703,7 +703,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 1149 cards):
+# Music work (skip images and the 1152 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):

@@ -240,7 +240,11 @@ const categoryMap = {
   'equalizer-frequency-masking-allocator': 'Music & Audio',
   'reverb-pre-delay-decay-calculator': 'Music & Audio',
   'trap-drill-hihat-roll-pattern-generator': 'Music & Audio',
-  'lofi-saturation-bitcrush-texture-lab': 'Music & Audio'
+  'lofi-saturation-bitcrush-texture-lab': 'Music & Audio',
+  // 2026-09-16 — three high-intent gap fills (SDLT, stopwatch, rent-vs-buy)
+  'uk-stamp-duty-calculator': 'Finance & Money',
+  'stopwatch-precision-timer': 'Productivity & Lifestyle',
+  'rent-vs-buy-calculator': 'Finance & Money'
 };
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
