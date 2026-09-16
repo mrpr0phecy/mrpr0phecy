@@ -258,7 +258,13 @@ const categoryMap = {
   'daily-writing-streak': 'Writing & Language',
   'rules-of-thumb': 'Productivity & Lifestyle',
   'business-name-generator': 'SaaS & Business Killers',
-  'signature-pad': 'SaaS & Business Killers'
+  'signature-pad': 'SaaS & Business Killers',
+  // 2026-09-16 — five anti-hunger / anti-poverty tools (owner-requested set).
+  'penny-meals-survival-planner': 'Culinary & Food Science',
+  'micro-garden-food-planner': 'Home & DIY',
+  'leftover-rescue-kitchen': 'Culinary & Food Science',
+  'zero-capital-income-starter': 'Finance & Money',
+  'hard-times-help-navigator': 'Wellbeing & Community'
 };
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
