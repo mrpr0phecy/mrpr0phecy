@@ -244,7 +244,21 @@ const categoryMap = {
   // 2026-09-16 — three high-intent gap fills (SDLT, stopwatch, rent-vs-buy)
   'uk-stamp-duty-calculator': 'Finance & Money',
   'stopwatch-precision-timer': 'Productivity & Lifestyle',
-  'rent-vs-buy-calculator': 'Finance & Money'
+  'rent-vs-buy-calculator': 'Finance & Money',
+  // 2026-09-16 — ten tools inspired by the "365 REALLY useful websites" list.
+  // Each one replaces a named site (thistothat, animatedknots, ripetrack,
+  // printablepaper, bubbl.us, wordle.net, 750words, rulesofthumb,
+  // nameideasgenerator, adobe sign) with a local, offline version.
+  'adhesive-selector': 'Home & DIY',
+  'knot-tying-guide': 'Survival & Emergency Readiness',
+  'seasonal-produce-calendar': 'Culinary & Food Science',
+  'printable-paper-generator': 'Productivity & Lifestyle',
+  'mind-map-studio': 'Productivity & Lifestyle',
+  'word-cloud-generator': 'Writing & Language',
+  'daily-writing-streak': 'Writing & Language',
+  'rules-of-thumb': 'Productivity & Lifestyle',
+  'business-name-generator': 'SaaS & Business Killers',
+  'signature-pad': 'SaaS & Business Killers'
 };
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone

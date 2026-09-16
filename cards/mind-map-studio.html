@@ -1,0 +1,676 @@
+<h2 id="mmap-title" style="margin-top:0;color:var(--accent);">🧠 Mind Map Studio</h2>
+
+<p id="mmap-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  A proper mind map in the browser: <b style="color:var(--text);">Tab</b> for a child, <b style="color:var(--text);">Enter</b>
+  for a sibling, drag to rearrange, collapse branches you are not working on, and export as an image, a
+  Markdown outline or a JSON file you can load back in later. Everything is drawn and saved on your own
+  device — no account, no server, no upload.
+</p>
+
+<form onsubmit="event.preventDefault();" aria-label="Mind map controls">
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+    <button type="button" id="mmap-child" title="Add a child of the selected node (Tab)" style="padding:8px 13px;border-radius:8px;background:var(--accent,#2dd4ff);color:#071019;border:0;font-weight:800;font-size:.78rem;cursor:pointer;">＋ Child</button>
+    <button type="button" id="mmap-sib" title="Add a sibling of the selected node (Enter)" style="padding:8px 13px;border-radius:8px;background:rgba(45,212,255,.14);border:1px solid rgba(45,212,255,.4);color:var(--accent);font-size:.78rem;font-weight:700;cursor:pointer;">＋ Sibling</button>
+    <button type="button" id="mmap-del" title="Delete the selected node and its branch" style="padding:8px 13px;border-radius:8px;background:rgba(255,77,77,.10);border:1px solid rgba(255,77,77,.35);color:#ff8f8f;font-size:.78rem;cursor:pointer;">🗑 Delete</button>
+    <button type="button" id="mmap-arrange" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">↕ Auto-arrange</button>
+    <button type="button" id="mmap-fit" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">⤢ Fit</button>
+    <button type="button" id="mmap-reset" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">🔄 Reset to sample</button>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+    <button type="button" id="mmap-png" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">🖼 PNG image</button>
+    <button type="button" id="mmap-md" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">📝 Markdown outline</button>
+    <button type="button" id="mmap-save" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">💾 Save .json</button>
+    <button type="button" id="mmap-load" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">📂 Load .json</button>
+    <input id="mmap-file" type="file" accept=".json,application/json" style="display:none;" />
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px;">
+    <div style="flex:1 1 260px;min-width:0;">
+      <label for="mmap-text" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Edit the selected node (Enter = new sibling · Ctrl+Enter = new child)</label>
+      <input id="mmap-text" type="text" autocomplete="off" placeholder="Select a bubble and type here"
+             style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.9rem;" />
+    </div>
+    <div style="flex:0 1 150px;min-width:120px;">
+      <label for="mmap-colour" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Branch colour</label>
+      <select id="mmap-colour" style="width:100%;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;"></select>
+    </div>
+  </div>
+
+  <div id="mmap-stage" style="position:relative;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:radial-gradient(circle at 30% 20%, rgba(45,212,255,.07), rgba(0,0,0,.30) 60%);overflow:hidden;">
+    <svg id="mmap-svg" viewBox="0 0 900 520" role="application" aria-label="Mind map canvas"
+         style="display:block;width:100%;height:520px;touch-action:none;cursor:grab;"></svg>
+    <div id="mmap-hint" style="position:absolute;left:10px;bottom:8px;font-size:.7rem;color:var(--text-secondary);pointer-events:none;opacity:.75;">
+      Drag a bubble to move it · drag the background to pan · Ctrl (⌘) + scroll to zoom · double-click to rename
+    </div>
+  </div>
+
+  <div id="mmap-stats" style="font-size:.78rem;color:var(--text-secondary);margin-top:10px;"></div>
+  <div id="mmap-msg" role="status" aria-live="polite" style="font-size:.78rem;color:#ffb347;margin-top:4px;min-height:1.1em;"></div>
+</form>
+
+<details style="margin-top:14px;color:rgba(230,250,255,.6);font-size:.8rem;">
+  <summary style="cursor:pointer;">Keyboard, export formats and where your map is kept</summary>
+  <div style="margin-top:8px;line-height:1.6;">
+    <p style="margin:0 0 8px;">
+      <b style="color:var(--text);">Keyboard:</b> click the map first (or press Tab to focus it) — the shortcuts
+      only listen while the map has focus, so the rest of the page keeps working normally. Then, with a bubble
+      selected, <b style="color:var(--text);">Tab</b> adds a
+      child, <b style="color:var(--text);">Enter</b> adds a sibling, <b style="color:var(--text);">Delete</b> or
+      <b style="color:var(--text);">Backspace</b> removes it (not on the root), and the arrow keys move the
+      selection up, down, out to the parent and in to the first child. Typing in the box above renames as you go.
+    </p>
+    <p style="margin:0 0 8px;">
+      <b style="color:var(--text);">Exports:</b> PNG is rendered from the map at twice the on-screen resolution
+      with a transparent background. Markdown gives you the map as nested bullet points, ready to paste into
+      notes or a document. The .json file is the whole map — save it and load it back with
+      <b style="color:var(--text);">Load .json</b> to carry on where you left off.
+    </p>
+    <p style="margin:0;">
+      The map autosaves to this browser's local storage, so a refresh will not lose it. Clearing your browser
+      data does. Nothing is uploaded and no network request is made: loading a .json file reads it from your
+      own disk, and the PNG is generated on the device.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var STORE = 'mmap-mindmap-v1';
+
+  var PALETTE = [
+    { id: 'cyan', label: 'Cyan', c: '#2dd4ff' },
+    { id: 'green', label: 'Green', c: '#39ff14' },
+    { id: 'amber', label: 'Amber', c: '#ffb347' },
+    { id: 'pink', label: 'Pink', c: '#ff5fa2' },
+    { id: 'violet', label: 'Violet', c: '#a78bfa' },
+    { id: 'slate', label: 'Slate', c: '#94a3b8' }
+  ];
+
+  var ROW = 54;           // vertical slot per leaf
+  var COL_GAP = 62;       // horizontal gap between columns
+  var PAD = 16;
+
+  var svg = $('mmap-svg');
+  var measurer = document.createElement('canvas').getContext('2d');
+  var state = null;
+  var seq = 1;
+  var view = { x: 0, y: 0, k: 1 };
+  var drag = null;
+
+  // ------------------------------------------------------------------ model
+  function colourOf(hex) {
+    for (var i = 0; i < PALETTE.length; i++) { if (PALETTE[i].c === hex) { return PALETTE[i]; } }
+    return PALETTE[0];
+  }
+
+  function blank() {
+    return {
+      root: 'n1', selected: 'n1',
+      nodes: {
+        n1: { id: 'n1', text: 'Plan a weekend away', parent: null, colour: '#2dd4ff', collapsed: false, pin: null }
+      }
+    };
+  }
+
+  function sample() {
+    var s = {
+      root: 'n1', selected: 'n1',
+      nodes: {
+        n1: { id: 'n1', text: 'Plan a weekend away', parent: null, colour: '#2dd4ff', collapsed: false, pin: null }
+      }
+    };
+    var add = function (parent, text, colour) {
+      var id = 'n' + (++seq);
+      s.nodes[id] = { id: id, text: text, parent: parent, colour: colour, collapsed: false, pin: null };
+      return id;
+    };
+    var travel = add('n1', 'Getting there', '#39ff14');
+    add(travel, 'Train vs car — cost and time');
+    add(travel, 'Book tickets 8 weeks early');
+    var stay = add('n1', 'Where to stay', '#ffb347');
+    add(stay, 'Budget: £120 a night');
+    add(stay, 'Within walking distance of the station');
+    var food = add('n1', 'Food', '#ff5fa2');
+    add(food, 'One proper dinner out');
+    add(food, 'Market for breakfast supplies');
+    var walk = add('n1', 'What to do', '#a78bfa');
+    add(walk, 'Long walk on Saturday');
+    add(walk, 'Book the museum slot');
+    return s;
+  }
+
+  function node(id) { return state.nodes[id]; }
+  function kids(id) {
+    var out = [];
+    Object.keys(state.nodes).forEach(function (k) { if (state.nodes[k].parent === id) { out.push(k); } });
+    return out;
+  }
+  function visibleKids(id) {
+    return node(id).collapsed ? [] : kids(id);
+  }
+
+  function save() {
+    try { window.localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* private mode */ }
+  }
+
+  function load() {
+    try {
+      var raw = window.localStorage.getItem(STORE);
+      if (!raw) { return null; }
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.nodes || !parsed.nodes[parsed.root]) { return null; }
+      return parsed;
+    } catch (e) { return null; }
+  }
+
+  // ----------------------------------------------------------------- measure
+  function fontSpec(bold) {
+    return (bold ? '600 ' : '') + '13px system-ui, -apple-system, "Segoe UI", sans-serif';
+  }
+
+  function wrap(text, maxW) {
+    measurer.font = fontSpec(false);
+    var words = String(text || '').split(/\s+/).filter(Boolean);
+    if (!words.length) { return ['(empty)']; }
+    var lines = [];
+    var line = '';
+    words.forEach(function (w) {
+      var test = line ? line + ' ' + w : w;
+      if (measurer.measureText(test).width <= maxW || !line) { line = test; }
+      else { lines.push(line); line = w; }
+    });
+    if (line) { lines.push(line); }
+    return lines.slice(0, 4);
+  }
+
+  function measure(n) {
+    var lines = wrap(n.text, 168);
+    var widest = 0;
+    measurer.font = fontSpec(false);
+    lines.forEach(function (l) { widest = Math.max(widest, measurer.measureText(l).width); });
+    n.lines = lines;
+    n.w = Math.max(96, Math.min(210, widest + 26));
+    n.h = lines.length * 16 + 16;
+  }
+
+  // ------------------------------------------------------------------ layout
+  function layout() {
+    Object.keys(state.nodes).forEach(function (id) { measure(state.nodes[id]); });
+
+    // column x positions by depth
+    var depthOf = {};
+    var maxW = {};
+    (function walk(id, d) {
+      depthOf[id] = d;
+      maxW[d] = Math.max(maxW[d] || 0, state.nodes[id].w);
+      visibleKids(id).forEach(function (c) { walk(c, d + 1); });
+    })(state.root, 0);
+
+    var colX = [];
+    var x = PAD;
+    for (var d = 0; d <= Object.keys(maxW).length; d++) {
+      colX[d] = x;
+      x += (maxW[d] || 120) + COL_GAP;
+    }
+
+    var slot = 0;
+    (function place(id) {
+      var n = state.nodes[id];
+      var ch = visibleKids(id);
+      if (!ch.length) {
+        n.y = PAD + slot * ROW;
+        slot += 1;
+      } else {
+        ch.forEach(place);
+        var first = state.nodes[ch[0]];
+        var last = state.nodes[ch[ch.length - 1]];
+        n.y = (first.y + last.y) / 2;
+      }
+      n.x = colX[depthOf[id]];
+      if (n.pin) { n.x = n.pin.x; n.y = n.pin.y; }
+    })(state.root);
+  }
+
+  // ------------------------------------------------------------------ render
+  function el(name, attrs) {
+    var e = document.createElementNS(SVGNS, name);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    return e;
+  }
+
+  function render() {
+    layout();
+    while (svg.firstChild) { svg.removeChild(svg.firstChild); }
+
+    var vp = el('g', { transform: 'translate(' + view.x + ',' + view.y + ') scale(' + view.k + ')' });
+    svg.appendChild(vp);
+
+    var edgeLayer = el('g', {});
+    var nodeLayer = el('g', {});
+    vp.appendChild(edgeLayer);
+    vp.appendChild(nodeLayer);
+
+    Object.keys(state.nodes).forEach(function (id) {
+      var n = state.nodes[id];
+      visibleKids(id).forEach(function (cid) {
+        var c = state.nodes[cid];
+        var x1 = n.x + n.w, y1 = n.y + n.h / 2;
+        var x2 = c.x, y2 = c.y + c.h / 2;
+        var mx = (x1 + x2) / 2;
+        edgeLayer.appendChild(el('path', {
+          d: 'M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2,
+          fill: 'none', stroke: c.colour, 'stroke-width': 2, 'stroke-opacity': 0.55
+        }));
+      });
+    });
+
+    Object.keys(state.nodes).forEach(function (id) {
+      var n = state.nodes[id];
+      var selected = id === state.selected;
+      var g = el('g', { 'data-id': id, style: 'cursor:pointer;' });
+      g.appendChild(el('rect', {
+        x: n.x, y: n.y, width: n.w, height: n.h, rx: 10, ry: 10,
+        fill: selected ? 'rgba(45,212,255,.16)' : 'rgba(6,14,22,.92)',
+        stroke: selected ? '#ffffff' : n.colour,
+        'stroke-width': selected ? 2.4 : 1.4,
+        'stroke-opacity': selected ? 0.9 : 0.75
+      }));
+      n.lines.forEach(function (lineText, i) {
+        var t = el('text', {
+          x: n.x + 13, y: n.y + 22 + i * 16,
+          fill: '#e8f6ff', 'font-size': 13,
+          'font-family': 'system-ui, -apple-system, "Segoe UI", sans-serif',
+          'font-weight': id === state.root ? 600 : 400
+        });
+        t.textContent = lineText;
+        g.appendChild(t);
+      });
+
+      var ch = kids(id);
+      if (ch.length) {
+        var cx = n.x + n.w, cy = n.y + n.h / 2;
+        g.appendChild(el('circle', { cx: cx, cy: cy, r: 7, fill: '#071019', stroke: n.colour, 'stroke-width': 1.6 }));
+        var sign = el('text', {
+          x: cx, y: cy + 3.6, fill: n.colour, 'font-size': 11, 'text-anchor': 'middle',
+          'font-family': 'system-ui, sans-serif', 'font-weight': 700, 'pointer-events': 'none'
+        });
+        sign.textContent = n.collapsed ? '+' : '−';
+        g.appendChild(sign);
+      }
+
+      g.addEventListener('mousedown', function (ev) { startNodeDrag(ev, id); });
+      g.addEventListener('dblclick', function () { select(id); $('mmap-text').focus(); $('mmap-text').select(); });
+      nodeLayer.appendChild(g);
+    });
+
+    var count = Object.keys(state.nodes).length;
+    var depth = (function () {
+      var max = 0;
+      (function walk(id, d) {
+        max = Math.max(max, d);
+        kids(id).forEach(function (c) { walk(c, d + 1); });
+      })(state.root, 0);
+      return max;
+    })();
+    $('mmap-stats').textContent = count + ' bubbles · ' + (depth + 1) + ' levels deep · zoom ' +
+      Math.round(view.k * 100) + '%';
+  }
+
+  // ------------------------------------------------------------ interactions
+  function select(id) {
+    if (!state.nodes[id]) { return; }
+    state.selected = id;
+    $('mmap-text').value = state.nodes[id].text;
+    var sel = $('mmap-colour');
+    sel.value = colourOf(state.nodes[id].colour).id;
+    render();
+    save();
+  }
+
+  function addChild() {
+    var parent = state.selected;
+    var p = node(parent);
+    var colour = parent === state.root ? PALETTE[(kids(state.root).length) % PALETTE.length].c : p.colour;
+    var id = 'n' + (Date.now().toString(36)) + (Math.floor(Math.random() * 900 + 100));
+    state.nodes[id] = { id: id, text: 'New idea', parent: parent, colour: colour, collapsed: false, pin: null };
+    if (p.collapsed) { p.collapsed = false; }
+    select(id);
+    var t = $('mmap-text');
+    t.focus();
+    t.select();
+  }
+
+  function addSibling() {
+    var cur = node(state.selected);
+    if (!cur.parent) { addChild(); return; }
+    var id = 'n' + (Date.now().toString(36)) + (Math.floor(Math.random() * 900 + 100));
+    state.nodes[id] = { id: id, text: 'New idea', parent: cur.parent, colour: cur.colour, collapsed: false, pin: null };
+    select(id);
+    var t = $('mmap-text');
+    t.focus();
+    t.select();
+  }
+
+  function removeNode() {
+    var id = state.selected;
+    if (id === state.root) { msg('The centre bubble cannot be deleted — rename it instead.'); return; }
+    var parent = node(id).parent;
+    var doomed = [];
+    (function collect(n) { doomed.push(n); kids(n).forEach(collect); })(id);
+    doomed.forEach(function (d) { delete state.nodes[d]; });
+    select(parent);
+  }
+
+  function moveSelection(dir) {
+    var id = state.selected;
+    var n = node(id);
+    var sibs = n.parent ? kids(n.parent) : [];
+    var idx = sibs.indexOf(id);
+    if (dir === 'up' && idx > 0) { select(sibs[idx - 1]); }
+    else if (dir === 'down' && idx >= 0 && idx < sibs.length - 1) { select(sibs[idx + 1]); }
+    else if (dir === 'in' && visibleKids(id).length) { select(visibleKids(id)[0]); }
+    else if (dir === 'out' && n.parent) { select(n.parent); }
+  }
+
+  function fit() {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    Object.keys(state.nodes).forEach(function (id) {
+      var n = state.nodes[id];
+      minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h);
+    });
+    var vbW = 900, vbH = 520;
+    var w = maxX - minX + 40, h = maxY - minY + 40;
+    view.k = Math.min(1.6, Math.max(0.25, Math.min(vbW / w, vbH / h)));
+    view.x = (vbW - w * view.k) / 2 - (minX - 20) * view.k;
+    view.y = (vbH - h * view.k) / 2 - (minY - 20) * view.k;
+    render();
+  }
+
+  function svgPoint(ev) {
+    var r = svg.getBoundingClientRect();
+    var px = (ev.clientX - r.left) * (900 / r.width);
+    var py = (ev.clientY - r.top) * (520 / r.height);
+    return { x: (px - view.x) / view.k, y: (py - view.y) / view.k };
+  }
+
+  function startNodeDrag(ev, id) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    select(id);
+    var p = svgPoint(ev);
+    var n = node(id);
+    drag = {
+      id: id,
+      dx: p.x - n.x,
+      dy: p.y - n.y,
+      moved: false
+    };
+    svg.style.cursor = 'grabbing';
+  }
+
+  function onMove(ev) {
+    if (!drag) { return; }
+    var p = svgPoint(ev);
+    var n = node(drag.id);
+    var nx = p.x - drag.dx;
+    var ny = p.y - drag.dy;
+    if (Math.abs(nx - n.x) > 2 || Math.abs(ny - n.y) > 2) { drag.moved = true; }
+    n.pin = { x: nx, y: ny };
+    n.x = nx; n.y = ny;
+    render();
+  }
+
+  function onUp() {
+    if (drag) {
+      if (drag.moved) { save(); }
+      drag = null;
+      svg.style.cursor = 'grab';
+    }
+  }
+
+  function onBackgroundDown(ev) {
+    if (ev.target.closest && ev.target.closest('[data-id]')) { return; }
+    drag = { pan: true, sx: ev.clientX, sy: ev.clientY, ox: view.x, oy: view.y };
+    svg.style.cursor = 'grabbing';
+  }
+
+  function onPanMove(ev) {
+    if (!drag || !drag.pan) { return; }
+    var r = svg.getBoundingClientRect();
+    view.x = drag.ox + (ev.clientX - drag.sx) * (900 / r.width);
+    view.y = drag.oy + (ev.clientY - drag.sy) * (520 / r.height);
+    render();
+  }
+
+  svg.addEventListener('mousedown', onBackgroundDown);
+  window.addEventListener('mousemove', function (ev) {
+    if (drag && drag.pan) { onPanMove(ev); } else { onMove(ev); }
+  });
+  window.addEventListener('mouseup', onUp);
+
+  svg.addEventListener('wheel', function (ev) {
+    // Only zoom on a deliberate ctrl/⌘ + wheel. A bare wheel over the map must
+    // still scroll the page — cards share one document with 1,161 others.
+    if (!ev.ctrlKey && !ev.metaKey) { return; }
+    ev.preventDefault();
+    var r = svg.getBoundingClientRect();
+    var px = (ev.clientX - r.left) * (900 / r.width);
+    var py = (ev.clientY - r.top) * (520 / r.height);
+    var factor = ev.deltaY < 0 ? 1.12 : 0.89;
+    var k = Math.min(2.5, Math.max(0.25, view.k * factor));
+    view.x = px - (px - view.x) * (k / view.k);
+    view.y = py - (py - view.y) * (k / view.k);
+    view.k = k;
+    render();
+  }, { passive: false });
+
+  // --------------------------------------------------------------- exporting
+  function msg(text) { $('mmap-msg').textContent = text || ''; }
+
+  function serialise(scaleFactor) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    Object.keys(state.nodes).forEach(function (id) {
+      var n = state.nodes[id];
+      minX = Math.min(minX, n.x - 10); minY = Math.min(minY, n.y - 10);
+      maxX = Math.max(maxX, n.x + n.w + 20); maxY = Math.max(maxY, n.y + n.h + 10);
+    });
+    var w = Math.ceil(maxX - minX), h = Math.ceil(maxY - minY);
+    var s = '<svg xmlns="' + SVGNS + '" width="' + (w * scaleFactor) + '" height="' + (h * scaleFactor) +
+            '" viewBox="' + minX + ' ' + minY + ' ' + w + ' ' + h + '">';
+    s += '<rect x="' + minX + '" y="' + minY + '" width="' + w + '" height="' + h + '" fill="none"/>';
+    Object.keys(state.nodes).forEach(function (id) {
+      var n = state.nodes[id];
+      visibleKids(id).forEach(function (cid) {
+        var c = state.nodes[cid];
+        var x1 = n.x + n.w, y1 = n.y + n.h / 2, x2 = c.x, y2 = c.y + c.h / 2, mx = (x1 + x2) / 2;
+        s += '<path d="M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2 +
+             '" fill="none" stroke="' + c.colour + '" stroke-width="2" stroke-opacity="0.55"/>';
+      });
+    });
+    Object.keys(state.nodes).forEach(function (id) {
+      var n = state.nodes[id];
+      var esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+      s += '<rect x="' + n.x + '" y="' + n.y + '" width="' + n.w + '" height="' + n.h +
+           '" rx="10" ry="10" fill="rgba(8,17,26,0.94)" stroke="' + n.colour + '" stroke-width="1.4"/>';
+      n.lines.forEach(function (lineText, i) {
+        s += '<text x="' + (n.x + 13) + '" y="' + (n.y + 22 + i * 16) + '" fill="#e8f6ff" font-size="13" font-family="system-ui, -apple-system, sans-serif"' +
+             (id === state.root ? ' font-weight="600"' : '') + '>' + esc(lineText) + '</text>';
+      });
+    });
+    s += '</svg>';
+    return s;
+  }
+
+  function download(name, blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function markdown() {
+    var out = [];
+    (function walk(id, depth) {
+      out.push(new Array(depth + 1).join('  ') + '- ' + state.nodes[id].text);
+      kids(id).forEach(function (c) { walk(c, depth + 1); });
+    })(state.root, 0);
+    return out.join('\n') + '\n';
+  }
+
+  // -------------------------------------------------------------------- bind
+  function buildColours() {
+    var sel = $('mmap-colour');
+    PALETTE.forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.label;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function () {
+      var id = state.selected;
+      var hex = colourOf(PALETTE.filter(function (p) { return p.id === sel.value; })[0].c).c;
+      (function paint(n) {
+        state.nodes[n].colour = hex;
+        kids(n).forEach(paint);
+      })(id);
+      render(); save();
+    });
+  }
+
+  function bind() {
+    $('mmap-child').addEventListener('click', addChild);
+    $('mmap-sib').addEventListener('click', addSibling);
+    $('mmap-del').addEventListener('click', removeNode);
+    $('mmap-arrange').addEventListener('click', function () {
+      Object.keys(state.nodes).forEach(function (id) { state.nodes[id].pin = null; });
+      render(); fit(); save();
+    });
+    $('mmap-fit').addEventListener('click', fit);
+    $('mmap-reset').addEventListener('click', function () {
+      state = sample(); select(state.root); fit(); save(); msg('Sample map loaded.');
+    });
+
+    $('mmap-text').addEventListener('input', function () {
+      var n = node(state.selected);
+      if (!n) { return; }
+      n.text = $('mmap-text').value;
+      render(); save();
+    });
+    $('mmap-text').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        if (ev.ctrlKey || ev.metaKey) { addChild(); } else { addSibling(); }
+      } else if (ev.key === 'Tab') {
+        ev.preventDefault();
+        addChild();
+      }
+    });
+
+    // Scoped to the map's own stage, never to the window: every card shares one
+    // document, so a global Tab/Enter handler would break keyboard navigation
+    // for the whole site. Focus the map (Tab to it) to use the shortcuts.
+    var stage = $('mmap-stage');
+    stage.setAttribute('tabindex', '0');
+    stage.setAttribute('role', 'group');
+    stage.setAttribute('aria-label', 'Mind map canvas — use Tab for a child, Enter for a sibling');
+    stage.addEventListener('keydown', function (ev) {
+      if (document.activeElement === $('mmap-text')) { return; }
+      if (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)) { return; }
+      var tag = ev.target && ev.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') { return; }
+      if (ev.key === 'Tab') { ev.preventDefault(); addChild(); }
+      else if (ev.key === 'Enter') { ev.preventDefault(); addSibling(); }
+      else if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); removeNode(); }
+      else if (ev.key === 'ArrowUp') { ev.preventDefault(); moveSelection('up'); }
+      else if (ev.key === 'ArrowDown') { ev.preventDefault(); moveSelection('down'); }
+      else if (ev.key === 'ArrowRight') { ev.preventDefault(); moveSelection('in'); }
+      else if (ev.key === 'ArrowLeft') { ev.preventDefault(); moveSelection('out'); }
+    });
+
+    $('mmap-png').addEventListener('click', function () {
+      msg('');
+      try {
+        var svgText = serialise(2);
+        var img = new Image();
+        var blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        img.onload = function () {
+          var c = document.createElement('canvas');
+          c.width = img.width; c.height = img.height;
+          var cx = c.getContext('2d');
+          cx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(url);
+          c.toBlob(function (pb) {
+            if (!pb) { msg('This browser would not render the image. Export Markdown instead.'); return; }
+            download('mind-map.png', pb);
+            msg('PNG exported.');
+          }, 'image/png');
+        };
+        img.onerror = function () {
+          URL.revokeObjectURL(url);
+          msg('This browser blocked the image export — use Markdown or .json instead.');
+        };
+        img.src = url;
+      } catch (e) { msg('Image export failed — use Markdown or .json instead.'); }
+    });
+
+    $('mmap-md').addEventListener('click', function () {
+      download('mind-map.md', new Blob([markdown()], { type: 'text/markdown' }));
+      msg('Markdown outline saved.');
+    });
+
+    $('mmap-save').addEventListener('click', function () {
+      download('mind-map.json', new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }));
+      msg('Map saved as .json — load it back any time.');
+    });
+
+    $('mmap-load').addEventListener('click', function () { $('mmap-file').click(); });
+    $('mmap-file').addEventListener('change', function (ev) {
+      var f = ev.target.files && ev.target.files[0];
+      if (!f) { return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          var parsed = JSON.parse(String(reader.result));
+          if (!parsed || !parsed.nodes || !parsed.nodes[parsed.root]) { throw new Error('bad file'); }
+          state = parsed;
+          Object.keys(state.nodes).forEach(function (id) {
+            var n = state.nodes[id];
+            if (!n.colour) { n.colour = '#2dd4ff'; }
+            if (typeof n.collapsed !== 'boolean') { n.collapsed = false; }
+            if (!n.pin) { n.pin = null; }
+            var m = /^n(\d+)$/.exec(id);
+            if (m) { seq = Math.max(seq, parseInt(m[1], 10)); }
+          });
+          if (!state.nodes[state.selected]) { state.selected = state.root; }
+          select(state.selected); fit(); save();
+          msg('Loaded ' + Object.keys(state.nodes).length + ' bubbles from ' + f.name + '.');
+        } catch (e) {
+          msg('That file could not be read as a mind map — it should be a .json exported from here.');
+        }
+        $('mmap-file').value = '';
+      };
+      reader.readAsText(f);
+    });
+  }
+
+  // -------------------------------------------------------------------- boot
+  buildColours();
+  state = load() || sample();
+  if (!state.nodes[state.selected]) { state.selected = state.root; }
+  select(state.root);
+  fit();
+  bind();
+})();
+</script>

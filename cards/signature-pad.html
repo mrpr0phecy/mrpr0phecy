@@ -1,0 +1,447 @@
+<h2 id="sgnp-title" style="margin-top:0;color:var(--accent);">✒️ Signature Pad — Draw or Type, Save as PNG or SVG</h2>
+
+<p id="sgnp-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Sign with a mouse, a finger or a stylus — the line thickens as you slow down, the way a real pen does —
+  or type your name and get a script version. Save it as a transparent PNG to drop into a document, or as a
+  vector SVG that stays sharp at any size. Everything is drawn and exported on your device: your signature
+  is never uploaded, and nothing leaves the browser.
+</p>
+
+<form onsubmit="event.preventDefault();" aria-label="Signature pad">
+
+  <div style="display:flex;flex-wrap:wrap;gap:9px;margin-bottom:12px;">
+    <button type="button" id="sgnp-draw-mode" style="padding:9px 15px;border-radius:8px;background:var(--accent,#2dd4ff);color:#071019;border:0;font-weight:800;font-size:.82rem;cursor:pointer;">✍️ Draw it</button>
+    <button type="button" id="sgnp-type-mode" style="padding:9px 15px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.82rem;cursor:pointer;">⌨️ Type it</button>
+  </div>
+
+  <div id="sgnp-draw-controls" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px;">
+    <div style="flex:0 1 130px;min-width:110px;">
+      <label for="sgnp-colour" style="display:block;font-size:.75rem;color:var(--text-secondary);margin-bottom:3px;">Ink</label>
+      <select id="sgnp-colour" style="width:100%;padding:8px 9px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.85rem;">
+        <option value="#0b1a24" selected>Blue-black ink</option>
+        <option value="#000000">Black</option>
+        <option value="#1d4ed8">Royal blue</option>
+        <option value="#b91c1c">Red</option>
+        <option value="#065f46">Green</option>
+      </select>
+    </div>
+    <div style="flex:0 1 140px;min-width:120px;">
+      <label for="sgnp-width" style="display:block;font-size:.75rem;color:var(--text-secondary);margin-bottom:3px;">Nib: <span id="sgnp-width-val">3</span> px</label>
+      <input id="sgnp-width" type="range" min="1" max="9" step="0.5" value="3" style="width:100%;accent-color:var(--accent);" />
+    </div>
+    <div style="flex:0 1 auto;">
+      <button type="button" id="sgnp-undo" style="padding:9px 14px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.82rem;cursor:pointer;">↩ Undo stroke</button>
+    </div>
+    <div style="flex:0 1 auto;">
+      <button type="button" id="sgnp-clear" style="padding:9px 14px;border-radius:8px;background:rgba(255,77,77,.10);border:1px solid rgba(255,77,77,.35);color:#ff8f8f;font-size:.82rem;cursor:pointer;">🗑 Clear</button>
+    </div>
+  </div>
+
+  <div id="sgnp-type-controls" style="display:none;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px;">
+    <div style="flex:1 1 220px;min-width:0;">
+      <label for="sgnp-name" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Type your name</label>
+      <input id="sgnp-name" type="text" autocomplete="off" placeholder="Alex Johnson"
+             style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.9rem;" />
+    </div>
+    <div style="flex:0 1 175px;min-width:150px;">
+      <label for="sgnp-font" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Script style</label>
+      <select id="sgnp-font" style="width:100%;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.85rem;">
+        <option value="'Segoe Script','Brush Script MT','Snell Roundhand',cursive" selected>Flowing script</option>
+        <option value="'Brush Script MT','Segoe Script',cursive">Brush script</option>
+        <option value="'Snell Roundhand','Segoe Script',cursive">Copperplate</option>
+        <option value="Georgia,'Times New Roman',serif">Classic serif</option>
+        <option value="system-ui,-apple-system,'Segoe UI',sans-serif">Plain sans</option>
+      </select>
+    </div>
+    <div style="flex:0 1 130px;min-width:110px;">
+      <label for="sgnp-slant" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Slant: <span id="sgnp-slant-val">0</span>°</label>
+      <input id="sgnp-slant" type="range" min="-14" max="14" step="1" value="0" style="width:100%;accent-color:var(--accent);" />
+    </div>
+  </div>
+
+  <label id="sgnp-guide-wrap" style="display:inline-flex;align-items:center;gap:7px;margin-bottom:8px;font-size:.8rem;color:var(--text-secondary);cursor:pointer;">
+    <input id="sgnp-guide" type="checkbox" checked style="accent-color:var(--accent);margin:0;" />
+    Show the signing line and date
+  </label>
+
+  <div id="sgnp-stage" style="position:relative;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:
+      linear-gradient(rgba(255,255,255,.96), rgba(255,255,255,.96));overflow:hidden;touch-action:none;">
+    <canvas id="sgnp-canvas" role="img" aria-label="Signature drawing area"
+            style="display:block;width:100%;height:260px;cursor:crosshair;"></canvas>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+    <button type="button" id="sgnp-png" style="padding:9px 15px;border-radius:8px;background:var(--accent,#2dd4ff);color:#071019;border:0;font-weight:800;font-size:.82rem;cursor:pointer;">⬇ PNG (transparent)</button>
+    <button type="button" id="sgnp-svg" style="padding:9px 14px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.82rem;cursor:pointer;">⬇ SVG (vector)</button>
+    <button type="button" id="sgnp-copy" style="padding:9px 14px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.82rem;cursor:pointer;">📋 Copy to clipboard</button>
+  </div>
+  <div id="sgnp-msg" role="status" aria-live="polite" style="font-size:.78rem;color:#ffb347;margin-top:8px;min-height:1.1em;"></div>
+</form>
+
+<details style="margin-top:14px;color:rgba(230,250,255,.6);font-size:.8rem;">
+  <summary style="cursor:pointer;">Which format to use, and the limits of a signature on a screen</summary>
+  <div style="margin-top:8px;line-height:1.6;">
+    <p style="margin:0 0 8px;">
+      <b style="color:var(--text);">PNG</b> is exported at three times the on-screen size with a transparent
+      background, so it drops straight onto a document, a letter or a slide with no white box around it.
+      <b style="color:var(--text);">SVG</b> is vector: infinitely scalable, a couple of kilobytes, and it will
+      look sharp on a printed contract. Use PNG for pasting into documents, SVG for anything that will be
+      printed or placed by a designer.
+    </p>
+    <p style="margin:0 0 8px;">
+      The typed option uses fonts that exist on your own computer, so a signature created here may render
+      slightly differently on a machine with different fonts — export an SVG and the shapes are converted to
+      paths only if your browser keeps them as outlines, so for a guaranteed identical result use a drawn
+      signature, or embed the font in the receiving document.
+    </p>
+    <p style="margin:0;">
+      <b style="color:var(--text);">On the law:</b> in the UK and most of Europe a simple electronic signature
+      is valid for the great majority of everyday contracts — tenancy agreements, employment contracts,
+      invoices, delivery notes. Land and some other transactions require a formal process, and every
+      jurisdiction is different, so check what applies where you are. This tool draws an image of your
+      signature; it does not verify identity and it is not a cryptographic digital signature. Nothing you draw
+      is uploaded, stored anywhere but this page, or sent over the network.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('sgnp-canvas');
+  var ctx = canvas.getContext('2d');
+
+  var W = 760, H = 260;
+  var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  var strokes = [];        // [{points:[{x,y,w}], colour, width}]
+  var current = null;
+  var mode = 'draw';
+  var drawing = false;
+
+  function setupCanvas() {
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function colour() { return $('sgnp-colour').value; }
+  function baseWidth() { return parseFloat($('sgnp-width').value); }
+
+  // ------------------------------------------------------------------ drawing
+  function drawBackground() {
+    ctx.clearRect(0, 0, W, H);
+    if ($('sgnp-guide').checked) {
+      var lineY = H - 74;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(15,40,55,.35)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(46, lineY);
+      ctx.lineTo(W - 46, lineY);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(15,40,55,.5)';
+      ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.fillText('Signature', 46, lineY + 18);
+      var today = new Date();
+      var label = 'Date: ' + today.getDate() + '/' + (today.getMonth() + 1) + '/' + today.getFullYear();
+      ctx.fillText(label, W - 46 - ctx.measureText(label).width, lineY + 18);
+      ctx.restore();
+    }
+  }
+
+  function strokePath(points, c, widthFactor) {
+    if (!points.length) { return; }
+    ctx.save();
+    ctx.strokeStyle = c;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (points.length === 1) {
+      ctx.beginPath();
+      ctx.fillStyle = c;
+      ctx.arc(points[0].x, points[0].y, Math.max(0.6, points[0].w / 2), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+    // variable width: draw each segment with its own width
+    for (var i = 1; i < points.length; i++) {
+      var p0 = points[i - 1], p1 = points[i];
+      ctx.beginPath();
+      ctx.lineWidth = Math.max(0.5, ((p0.w + p1.w) / 2) * (widthFactor || 1));
+      ctx.moveTo(p0.x, p0.y);
+      var mx = (p0.x + p1.x) / 2;
+      var my = (p0.y + p1.y) / 2;
+      ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function redraw() {
+    drawBackground();
+    if (mode === 'type') { drawTyped(); return; }
+    strokes.forEach(function (s) { strokePath(s.points, s.colour, 1); });
+    if (current && current.points.length) { strokePath(current.points, current.colour, 1); }
+  }
+
+  function drawTyped() {
+    var name = ($('sgnp-name').value || '').trim();
+    if (!name) {
+      ctx.fillStyle = 'rgba(15,40,55,.35)';
+      ctx.font = 'italic 18px system-ui, sans-serif';
+      ctx.fillText('Type your name above', 46, H / 2 - 6);
+      return;
+    }
+    var slant = parseInt($('sgnp-slant').value, 10) || 0;
+    var font = $('sgnp-font').value;
+    ctx.save();
+    ctx.fillStyle = colour();
+    ctx.textBaseline = 'alphabetic';
+    ctx.translate(46, H / 2 + 14);
+    ctx.transform(1, 0, Math.tan(slant * Math.PI / 180), 1, 0, 0);
+    var size = 62;
+    ctx.font = size + 'px ' + font;
+    while (ctx.measureText(name).width > W - 110 && size > 16) {
+      size -= 2;
+      ctx.font = size + 'px ' + font;
+    }
+    ctx.fillText(name, 0, 0);
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------- pointers
+  function pointFrom(ev) {
+    var r = canvas.getBoundingClientRect();
+    return {
+      x: (ev.clientX - r.left) * (W / r.width),
+      y: (ev.clientY - r.top) * (H / r.height)
+    };
+  }
+
+  function speedWidth(prev, p) {
+    var dist = Math.sqrt(Math.pow(p.x - prev.x, 2) + Math.pow(p.y - prev.y, 2));
+    var base = baseWidth();
+    // fast movement = thinner line, as with a real pen
+    var w = base * (1.25 - Math.min(1, dist / 26) * 0.62);
+    return Math.max(base * 0.45, Math.min(base * 1.5, w));
+  }
+
+  function start(ev) {
+    if (mode !== 'draw') { return; }
+    ev.preventDefault();
+    canvas.setPointerCapture && ev.pointerId !== undefined && canvas.setPointerCapture(ev.pointerId);
+    drawing = true;
+    var p = pointFrom(ev);
+    current = { points: [{ x: p.x, y: p.y, w: baseWidth() }], colour: colour(), width: baseWidth() };
+    redraw();
+  }
+
+  function move(ev) {
+    if (!drawing || !current) { return; }
+    ev.preventDefault();
+    var p = pointFrom(ev);
+    var pts = current.points;
+    var last = pts[pts.length - 1];
+    var dist = Math.sqrt(Math.pow(p.x - last.x, 2) + Math.pow(p.y - last.y, 2));
+    if (dist < 1.2) { return; }
+    var w = speedWidth(last, p);
+    pts.push({ x: p.x, y: p.y, w: w });
+    redraw();
+  }
+
+  function end() {
+    if (!drawing) { return; }
+    drawing = false;
+    if (current && current.points.length) { strokes.push(current); }
+    current = null;
+    redraw();
+  }
+
+  canvas.addEventListener('pointerdown', start);
+  canvas.addEventListener('pointermove', move);
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+  canvas.addEventListener('pointerleave', end);
+  canvas.addEventListener('touchstart', function (ev) { ev.preventDefault(); }, { passive: false });
+
+  // ----------------------------------------------------------------- exports
+  function exportCanvas(scale) {
+    var c = document.createElement('canvas');
+    c.width = Math.round(W * scale);
+    c.height = Math.round(H * scale);
+    var cx = c.getContext('2d');
+    cx.setTransform(scale, 0, 0, scale, 0, 0);
+    var oldCtx = ctx;
+    // temporarily redirect the drawing helpers at the export context
+    var saved = { ctx: null };
+    saved.ctx = oldCtx;
+    (function () {
+      var prevDpr = dpr;
+      void prevDpr;
+      if (mode === 'type') {
+        var name = ($('sgnp-name').value || '').trim();
+        if (!name) { return; }
+        var slant = parseInt($('sgnp-slant').value, 10) || 0;
+        cx.save();
+        cx.fillStyle = colour();
+        cx.translate(46, H / 2 + 14);
+        cx.transform(1, 0, Math.tan(slant * Math.PI / 180), 1, 0, 0);
+        var size = 62;
+        cx.font = size + 'px ' + $('sgnp-font').value;
+        while (cx.measureText(name).width > W - 110 && size > 16) {
+          size -= 2;
+          cx.font = size + 'px ' + $('sgnp-font').value;
+        }
+        cx.fillText(name, 0, 0);
+        cx.restore();
+        return;
+      }
+      strokes.forEach(function (s) { drawOn(cx, s.points, s.colour); });
+    })();
+    void saved;
+    return c;
+  }
+
+  function drawOn(cx, points, c) {
+    if (!points.length) { return; }
+    cx.save();
+    cx.strokeStyle = c;
+    cx.lineCap = 'round';
+    cx.lineJoin = 'round';
+    if (points.length === 1) {
+      cx.beginPath();
+      cx.fillStyle = c;
+      cx.arc(points[0].x, points[0].y, Math.max(0.6, points[0].w / 2), 0, Math.PI * 2);
+      cx.fill();
+      cx.restore();
+      return;
+    }
+    for (var i = 1; i < points.length; i++) {
+      var p0 = points[i - 1], p1 = points[i];
+      cx.beginPath();
+      cx.lineWidth = Math.max(0.5, (p0.w + p1.w) / 2);
+      cx.moveTo(p0.x, p0.y);
+      var mx = (p0.x + p1.x) / 2;
+      var my = (p0.y + p1.y) / 2;
+      cx.quadraticCurveTo(p0.x, p0.y, mx, my);
+      cx.lineTo(p1.x, p1.y);
+      cx.stroke();
+    }
+    cx.restore();
+  }
+
+  function svgString() {
+    var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'];
+    if (mode === 'type') {
+      var name = ($('sgnp-name').value || '').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      var slant = parseInt($('sgnp-slant').value, 10) || 0;
+      out.push('<g transform="translate(46,' + (H / 2 + 14) + ') matrix(1,0,' + Math.tan(slant * Math.PI / 180).toFixed(4) + ',1,0,0)">' +
+        '<text x="0" y="0" font-size="62" fill="' + colour() + '" font-family=' +
+        JSON.stringify($('sgnp-font').value) + '>' + name + '</text></g>');
+    } else {
+      strokes.forEach(function (s) {
+        if (s.points.length === 1) {
+          out.push('<circle cx="' + s.points[0].x.toFixed(1) + '" cy="' + s.points[0].y.toFixed(1) +
+            '" r="' + Math.max(0.6, s.points[0].w / 2).toFixed(2) + '" fill="' + s.colour + '"/>');
+          return;
+        }
+        for (var i = 1; i < s.points.length; i++) {
+          var p0 = s.points[i - 1], p1 = s.points[i];
+          var w = ((p0.w + p1.w) / 2).toFixed(2);
+          out.push('<path d="M' + p0.x.toFixed(1) + ',' + p0.y.toFixed(1) +
+            ' Q' + p0.x.toFixed(1) + ',' + p0.y.toFixed(1) + ' ' + ((p0.x + p1.x) / 2).toFixed(1) + ',' + ((p0.y + p1.y) / 2).toFixed(1) +
+            ' L' + p1.x.toFixed(1) + ',' + p1.y.toFixed(1) + '" stroke="' + s.colour + '" stroke-width="' + w +
+            '" stroke-linecap="round" fill="none"/>');
+        }
+      });
+    }
+    out.push('</svg>');
+    return out.join('');
+  }
+
+  function download(name, blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function isEmpty() {
+    if (mode === 'type') { return !($('sgnp-name').value || '').trim(); }
+    return strokes.length === 0;
+  }
+
+  function msg(t) { $('sgnp-msg').textContent = t || ''; }
+
+  // --------------------------------------------------------------------- bind
+  function setMode(next) {
+    mode = next;
+    $('sgnp-draw-controls').style.display = next === 'draw' ? 'flex' : 'none';
+    $('sgnp-type-controls').style.display = next === 'type' ? 'flex' : 'none';
+    $('sgnp-draw-mode').style.background = next === 'draw' ? 'var(--accent,#2dd4ff)' : 'rgba(255,255,255,.07)';
+    $('sgnp-draw-mode').style.color = next === 'draw' ? '#071019' : 'var(--text-secondary)';
+    $('sgnp-draw-mode').style.border = next === 'draw' ? '0' : '1px solid rgba(255,255,255,.15)';
+    $('sgnp-type-mode').style.background = next === 'type' ? 'var(--accent,#2dd4ff)' : 'rgba(255,255,255,.07)';
+    $('sgnp-type-mode').style.color = next === 'type' ? '#071019' : 'var(--text-secondary)';
+    $('sgnp-type-mode').style.border = next === 'type' ? '0' : '1px solid rgba(255,255,255,.15)';
+    redraw();
+  }
+
+  function bind() {
+    $('sgnp-draw-mode').addEventListener('click', function () { setMode('draw'); });
+    $('sgnp-type-mode').addEventListener('click', function () { setMode('type'); });
+
+    $('sgnp-undo').addEventListener('click', function () { strokes.pop(); redraw(); msg(''); });
+    $('sgnp-clear').addEventListener('click', function () { strokes = []; redraw(); msg(''); });
+    $('sgnp-colour').addEventListener('change', redraw);
+    $('sgnp-guide').addEventListener('change', redraw);
+    $('sgnp-width').addEventListener('input', function () { $('sgnp-width-val').textContent = $('sgnp-width').value; });
+    $('sgnp-slant').addEventListener('input', function () { $('sgnp-slant-val').textContent = $('sgnp-slant').value; redraw(); });
+    $('sgnp-font').addEventListener('change', redraw);
+    $('sgnp-name').addEventListener('input', redraw);
+
+    $('sgnp-png').addEventListener('click', function () {
+      if (isEmpty()) { msg(mode === 'type' ? 'Type a name first.' : 'Draw your signature first.'); return; }
+      try {
+        var c = exportCanvas(3);
+        c.toBlob(function (blob) {
+          if (!blob) { msg('This browser would not export the PNG.'); return; }
+          download('signature.png', blob);
+          msg('PNG saved at 3× resolution with a transparent background.');
+        }, 'image/png');
+      } catch (e) { msg('Export failed on this browser.'); }
+    });
+
+    $('sgnp-svg').addEventListener('click', function () {
+      if (isEmpty()) { msg(mode === 'type' ? 'Type a name first.' : 'Draw your signature first.'); return; }
+      download('signature.svg', new Blob([svgString()], { type: 'image/svg+xml' }));
+      msg('SVG saved — scalable and editable as vector.');
+    });
+
+    $('sgnp-copy').addEventListener('click', function () {
+      if (isEmpty()) { msg(mode === 'type' ? 'Type a name first.' : 'Draw your signature first.'); return; }
+      try {
+        if (!(navigator.clipboard && window.ClipboardItem)) { msg('This browser cannot copy images — use PNG or SVG download.'); return; }
+        var c = exportCanvas(3);
+        c.toBlob(function (blob) {
+          if (!blob) { msg('Copy failed — download the PNG instead.'); return; }
+          navigator.clipboard.write([new window.ClipboardItem({ 'image/png': blob })])
+            .then(function () { msg('Copied — paste it straight into a document.'); },
+                  function () { msg('The browser refused the clipboard — download the PNG instead.'); });
+        }, 'image/png');
+      } catch (e) { msg('Copy failed — download the PNG instead.'); }
+    });
+  }
+
+  setupCanvas();
+  bind();
+  redraw();
+})();
+</script>
