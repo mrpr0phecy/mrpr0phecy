@@ -264,7 +264,14 @@ const categoryMap = {
   'micro-garden-food-planner': 'Home & DIY',
   'leftover-rescue-kitchen': 'Culinary & Food Science',
   'zero-capital-income-starter': 'Finance & Money',
-  'hard-times-help-navigator': 'Wellbeing & Community'
+  'hard-times-help-navigator': 'Wellbeing & Community',
+  // 2026-09-16 — second anti-hunger / anti-poverty set (owner-requested): parcel
+  // stretching, street buying clubs, community fridges, payday triage, hardship letters.
+  'food-parcel-stretcher': 'Culinary & Food Science',
+  'bulk-buy-coop-splitter': 'Wellbeing & Community',
+  'community-fridge-starter-kit': 'Wellbeing & Community',
+  'payday-stretch-triage': 'Finance & Money',
+  'hardship-letter-writer': 'Finance & Money'
 };
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
