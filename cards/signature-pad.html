@@ -187,29 +187,38 @@
     if (current && current.points.length) { strokePath(current.points, current.colour, 1); }
   }
 
+  // One implementation, used both on screen and by the exporter, so a typed
+  // signature cannot drift between what you see and what you save.
+  function typedName() { return ($('sgnp-name').value || '').trim(); }
+  function typedFont(size) { return size + 'px ' + $('sgnp-font').value; }
+  function typedSlant() { return parseInt($('sgnp-slant').value, 10) || 0; }
+
+  function drawTypedOn(cx) {
+    var name = typedName();
+    cx.save();
+    cx.fillStyle = colour();
+    cx.textBaseline = 'alphabetic';
+    cx.translate(46, H / 2 + 14);
+    cx.transform(1, 0, Math.tan(typedSlant() * Math.PI / 180), 1, 0, 0);
+    var size = 62;
+    cx.font = typedFont(size);
+    while (cx.measureText(name).width > W - 110 && size > 16) {
+      size -= 2;
+      cx.font = typedFont(size);
+    }
+    cx.fillText(name, 0, 0);
+    cx.restore();
+  }
+
   function drawTyped() {
-    var name = ($('sgnp-name').value || '').trim();
+    var name = typedName();
     if (!name) {
       ctx.fillStyle = 'rgba(15,40,55,.35)';
       ctx.font = 'italic 18px system-ui, sans-serif';
       ctx.fillText('Type your name above', 46, H / 2 - 6);
       return;
     }
-    var slant = parseInt($('sgnp-slant').value, 10) || 0;
-    var font = $('sgnp-font').value;
-    ctx.save();
-    ctx.fillStyle = colour();
-    ctx.textBaseline = 'alphabetic';
-    ctx.translate(46, H / 2 + 14);
-    ctx.transform(1, 0, Math.tan(slant * Math.PI / 180), 1, 0, 0);
-    var size = 62;
-    ctx.font = size + 'px ' + font;
-    while (ctx.measureText(name).width > W - 110 && size > 16) {
-      size -= 2;
-      ctx.font = size + 'px ' + font;
-    }
-    ctx.fillText(name, 0, 0);
-    ctx.restore();
+    drawTypedOn(ctx);
   }
 
   // ---------------------------------------------------------------- pointers
@@ -274,34 +283,12 @@
     c.height = Math.round(H * scale);
     var cx = c.getContext('2d');
     cx.setTransform(scale, 0, 0, scale, 0, 0);
-    var oldCtx = ctx;
-    // temporarily redirect the drawing helpers at the export context
-    var saved = { ctx: null };
-    saved.ctx = oldCtx;
-    (function () {
-      var prevDpr = dpr;
-      void prevDpr;
-      if (mode === 'type') {
-        var name = ($('sgnp-name').value || '').trim();
-        if (!name) { return; }
-        var slant = parseInt($('sgnp-slant').value, 10) || 0;
-        cx.save();
-        cx.fillStyle = colour();
-        cx.translate(46, H / 2 + 14);
-        cx.transform(1, 0, Math.tan(slant * Math.PI / 180), 1, 0, 0);
-        var size = 62;
-        cx.font = size + 'px ' + $('sgnp-font').value;
-        while (cx.measureText(name).width > W - 110 && size > 16) {
-          size -= 2;
-          cx.font = size + 'px ' + $('sgnp-font').value;
-        }
-        cx.fillText(name, 0, 0);
-        cx.restore();
-        return;
-      }
+    if (mode === 'type') {
+      if (!typedName()) { return c; }
+      drawTypedOn(cx);
+    } else {
       strokes.forEach(function (s) { drawOn(cx, s.points, s.colour); });
-    })();
-    void saved;
+    }
     return c;
   }
 
@@ -336,9 +323,8 @@
   function svgString() {
     var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'];
     if (mode === 'type') {
-      var name = ($('sgnp-name').value || '').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      var slant = parseInt($('sgnp-slant').value, 10) || 0;
-      out.push('<g transform="translate(46,' + (H / 2 + 14) + ') matrix(1,0,' + Math.tan(slant * Math.PI / 180).toFixed(4) + ',1,0,0)">' +
+      var name = typedName().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      out.push('<g transform="translate(46,' + (H / 2 + 14) + ') matrix(1,0,' + Math.tan(typedSlant() * Math.PI / 180).toFixed(4) + ',1,0,0)">' +
         '<text x="0" y="0" font-size="62" fill="' + colour() + '" font-family=' +
         JSON.stringify($('sgnp-font').value) + '>' + name + '</text></g>');
     } else {
