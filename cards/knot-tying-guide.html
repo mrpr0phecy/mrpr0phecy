@@ -1,0 +1,651 @@
+<h2 id="knt-title" style="margin-top:0;color:var(--accent);">🪢 Knot Tying Guide — 18 Knots Worth Knowing</h2>
+
+<p id="knt-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Every knot you actually need, with a diagram, step-by-step tying instructions, what it is for, how much
+  rope strength it costs you and whether it jams solid afterwards. Filter by job, search by name, or take
+  the knot of the day. Works with the wifi off — nothing leaves the device.
+</p>
+
+<form onsubmit="event.preventDefault();" aria-label="Knot guide filters">
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px;">
+    <div style="flex:1 1 200px;min-width:0;">
+      <label for="knt-search" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Search by name, use or alias</label>
+      <input id="knt-search" type="search" autocomplete="off" placeholder="bowline, tarp, fishing…"
+             style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;" />
+    </div>
+    <div style="flex:0 1 190px;min-width:150px;">
+      <label for="knt-type" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">What job is it for?</label>
+      <select id="knt-type" style="width:100%;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;">
+        <option value="all">Everything</option>
+        <option value="stopper">Stopper — stop a rope running through</option>
+        <option value="loop">Loop — a fixed loop in a rope</option>
+        <option value="bend">Bend — join two ropes</option>
+        <option value="hitch">Hitch — tie to a post, rail or ring</option>
+        <option value="friction">Friction / adjustable — grip a rope</option>
+        <option value="binding">Binding — hold a bundle together</option>
+      </select>
+    </div>
+    <div style="flex:0 1 170px;min-width:140px;">
+      <label for="knt-level" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Difficulty</label>
+      <select id="knt-level" style="width:100%;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;">
+        <option value="all">Any</option>
+        <option value="1">Easy only</option>
+        <option value="2">Up to moderate</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="knt-chips" role="group" aria-labelledby="knt-chips-label" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:6px;"></div>
+  <div id="knt-chips-label" style="font-size:.72rem;color:var(--text-secondary);margin-bottom:14px;">Jump straight to a knot</div>
+</form>
+
+<div id="knt-count" style="font-size:.78rem;color:var(--text-secondary);margin-bottom:10px;"></div>
+
+<div id="knt-list" style="display:grid;gap:12px;"></div>
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
+  <button type="button" id="knt-copy" style="padding:8px 13px;border-radius:8px;background:rgba(45,212,255,.12);border:1px solid rgba(45,212,255,.4);color:var(--accent);font-size:.78rem;font-weight:700;cursor:pointer;">📋 Copy shown knots as text</button>
+  <button type="button" id="knt-random" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">🎲 Surprise me</button>
+</div>
+
+<details style="margin-top:14px;color:rgba(230,250,255,.6);font-size:.8rem;">
+  <summary style="cursor:pointer;">Reading the strength figures, and the limits of a screen</summary>
+  <div style="margin-top:8px;line-height:1.6;">
+    <p style="margin:0 0 8px;">
+      "Strength" is the share of the rope's own breaking strength typically left after the knot is tied —
+      every knot weakens rope, because the sharp bend on the inside of the first curve takes the load first.
+      Figures are the usual range quoted in rigging and climbing references for a properly dressed and
+      set knot in good rope; a sloppy knot, shock loading, a knot tied in old, wet or frozen rope, or one
+      tied in slippery modern fibres (Dyneema and Spectra need knot-specific care) can all do far worse.
+    </p>
+    <p style="margin:0 0 8px;">
+      The diagrams are schematic: they show the geometry and the order the rope passes through itself, not
+      the exact lay of a dressed knot. Learn the shape, then practise with a piece of rope in your hands —
+      a knot is a skill in your fingers, not a picture in your head.
+    </p>
+    <p style="margin:0;">
+      <b style="color:var(--text);">Nothing here qualifies you for life-critical use.</b> Climbing, sailing
+      aloft, rescue, arboriculture and lifting overhead loads each need training with an instructor and
+      equipment rated for the job. Use this for tarps, tents, boats' mooring lines, garden jobs,
+      parcels, craft and general camp craft — and get taught properly for the rest.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------------------------------------------------------------- diagrams
+  // Rope is drawn as a wide dark stroke under a narrower pale one. Anything in
+  // `back` is drawn before the post/spar, `front` after it, so the rope visibly
+  // passes behind and in front of what it is tied to.
+  function wrap(cx, cy, rx, ry) {
+    return 'M' + (cx - rx) + ',' + cy +
+           ' A' + rx + ',' + ry + ' 0 1 0 ' + (cx + rx) + ',' + cy +
+           ' A' + rx + ',' + ry + ' 0 1 0 ' + (cx - rx) + ',' + cy;
+  }
+  function crossV(cx, y1, y2) { return 'M' + cx + ',' + y1 + ' L' + cx + ',' + y2; }
+  function crossH(x1, x2, cy) { return 'M' + x1 + ',' + cy + ' L' + x2 + ',' + cy; }
+
+  var POST = { x: 150, y: 8, w: 26, h: 144 };          // vertical post / ring post
+  var BAR = { x: 34, y: 28, w: 168, h: 18 };          // horizontal spar / rail
+  function postRect() { return { x: POST.x, y: POST.y, w: POST.w, h: POST.h, r: 10 }; }
+  function barRect() { return { x: BAR.x, y: BAR.y, w: BAR.w, h: BAR.h, r: 9 }; }
+
+  var KNOTS = [
+    {
+      id: 'overhand', name: 'Overhand knot', emoji: '🪢', type: 'stopper', level: 1,
+      aka: 'Thumb knot, simple knot', strength: '≈50%', jams: 'Jams tight — fine at the end of a rope',
+      uses: 'Stopper at the end of a rope · the half of a reef knot · the start of dozens of others',
+      steps: [
+        'Form a loop by crossing the working end over the standing part.',
+        'Take the working end and push it down through the loop from the front.',
+        'Pull both ends to close it into a simple overhand knot.'
+      ],
+      tip: 'The simplest knot there is and the one every other knot is built from. As a stopper it is small and jams hard — use a figure-eight when you might need to undo it.',
+      diagram: {
+        back: ['M40,150 C44,110 60,74 100,66 C142,58 172,86 160,112 C151,131 118,138 104,120 C93,106 100,90 116,90'],
+        front: ['M116,90 C142,90 170,112 196,146']
+      }
+    },
+    {
+      id: 'figure-eight', name: 'Figure-eight knot', emoji: '➰', type: 'stopper', level: 1,
+      aka: 'Savoy knot, Flemish knot', strength: '≈55–60%', jams: 'Stays undoable — the knot to use as a stopper',
+      uses: 'Stopper that can be undone · the basis of the figure-eight family · keeping a line from running out of a block',
+      steps: [
+        'Form a loop, crossing the working end over the standing part.',
+        'Take the working end around behind the standing part — this extra turn is what makes it an eight.',
+        'Bring the end back and push it down through the original loop.',
+        'Pull tight: you should see two parallel strands in the shape of a figure 8.'
+      ],
+      tip: 'Bigger, kinder version of the overhand. It does not jam, which is exactly why climbers, sailors and anglers use it as their standard stopper.',
+      diagram: {
+        back: ['M34,152 C38,112 58,72 100,62 C142,52 174,80 162,108 C153,128 118,136 106,118 C98,104 110,90 126,92 C146,95 158,74 142,60 C122,42 86,50 76,72'],
+        front: ['M76,72 C68,90 74,110 94,116 C112,121 128,112 132,96']
+      }
+    },
+    {
+      id: 'strangle', name: 'Double overhand knot', emoji: '🪢', type: 'binding', level: 1,
+      aka: 'Strangle knot, barrel knot (single)', strength: '≈60–65%', jams: 'Jams very tight — intended to',
+      uses: 'Whipping the end of a rope · backing up other knots · the barrel of a fisherman’s knot · closing a parcel string',
+      steps: [
+        'Tie an overhand knot but do not pull it fully tight.',
+        'Pass the working end through the loop one more time — two turns, not one.',
+        'Wet it if you are using natural fibre, then pull hard on both ends.'
+      ],
+      tip: 'Two turns of overhand instead of one. It bites hard and stays put: the classic way to finish a rope end before you tape or whip it.',
+      diagram: {
+        back: ['M36,152 C40,112 60,70 102,60 C146,50 178,78 166,106 C157,127 120,134 108,116 C100,103 112,88 128,90 C152,93 166,72 148,56 C128,38 92,46 82,66 C74,82 80,98 98,104'],
+        front: ['M98,104 C118,110 134,100 138,84']
+      }
+    },
+    {
+      id: 'reef', name: 'Reef knot', emoji: '🎀', type: 'binding', level: 1,
+      aka: 'Square knot', strength: 'Not for load — it can capsize and slip', jams: 'Comes apart easily, sometimes when you do not want it to',
+      uses: 'Tying a parcel · reefing a sail · bandaging · joining two ends of the same cord around something',
+      steps: [
+        'Left over right, then under: a single throw.',
+        'Now right over left, then under — the second throw must be the mirror of the first.',
+        'Pull both ends: the two loops should lie flat and symmetrical.'
+      ],
+      tip: 'Only ever a binding knot. If the two throws are not exact mirrors you get a granny knot, which slips and rolls. For joining two ropes, use a sheet bend or a double fisherman’s instead.',
+      diagram: {
+        back: ['M16,60 C48,60 66,80 94,80 C122,80 134,60 158,60 C178,60 194,56 208,50'],
+        front: ['M16,104 C48,104 66,86 94,86 C122,86 134,104 158,104 C178,104 194,108 208,114']
+      }
+    },
+    {
+      id: 'sheet-bend', name: 'Sheet bend', emoji: '🔗', type: 'bend', level: 1,
+      aka: 'Bend, weaver’s knot', strength: '≈55%', jams: 'Usually comes apart — watch it under load',
+      uses: 'Joining two ropes, especially different thicknesses · extending a line · joining a rope to a tarp corner loop',
+      steps: [
+        'Make a bight (a U-turn) in the thicker rope, holding it in one hand.',
+        'Pass the second rope up through the bight from below.',
+        'Take it around behind both legs of the bight and back under itself.',
+        'Pull tight, keeping the two tails on the same side of the knot.'
+      ],
+      tip: 'Two tails on the same side, or it can slip. If the ropes differ a lot in size, or the load will be left unattended, double it (below) or use a double fisherman’s.',
+      diagram: {
+        back: ['M14,128 C34,128 42,74 64,74 C86,74 94,128 114,128 C140,128 166,128 196,128'],
+        front: ['M208,92 C182,92 168,84 150,64 C132,41 102,42 94,62 C86,83 104,102 124,96 C146,90 168,78 194,74']
+      }
+    },
+    {
+      id: 'double-sheet-bend', name: 'Double sheet bend', emoji: '🔗', type: 'bend', level: 2,
+      aka: 'Double bend', strength: '≈60%', jams: 'Fair — can usually be worked loose',
+      uses: 'Joining slippery or unequal ropes · any bend left under load for a while',
+      steps: [
+        'Tie a sheet bend, but before finishing, take the working end around the bight one extra full turn.',
+        'Bring the end back under both turns to lock it off.',
+        'Set it by pulling hard on all four parts.'
+      ],
+      tip: 'The extra turn costs nothing and turns a knot that sometimes slips into one that rarely does. This is the version to reach for with modern slippery cord.',
+      diagram: {
+        back: ['M14,132 C34,132 42,76 64,76 C86,76 94,132 116,132 C142,132 168,132 200,132'],
+        front: ['M208,88 C180,88 166,80 148,60 C130,38 98,38 90,58 C82,80 100,98 120,92 C140,86 162,74 190,70',
+                'M120,92 C104,104 88,98 84,84 C80,68 92,56 108,58']
+      }
+    },
+    {
+      id: 'bowline', name: 'Bowline', emoji: '⭕', type: 'loop', level: 2,
+      aka: 'King of knots', strength: '≈60–70%', jams: 'Rarely jams — undoes easily even after heavy load',
+      uses: 'A loop that will not slip closed · mooring a boat · rescue loop · tying a tarp loop',
+      steps: [
+        'Form a small loop ("the rabbit hole") in the standing part, with the working end coming up through it.',
+        'Bring the working end around behind the standing part ("around the tree").',
+        'Take it back down through the small loop ("back into the hole").',
+        'Pull the standing part to set: the loop stays a fixed size no matter how hard you pull.'
+      ],
+      tip: 'The loop neither jams nor slips shut, and it undoes in seconds even after a hard load. Finish it with a stopper knot or a tuck if it will be left in a critical place, and never use one knot alone where a life depends on it.',
+      diagram: {
+        back: ['M56,12 L56,152'],
+        front: ['M56,12 C96,22 130,44 136,76 C142,110 112,132 82,126 C66,123 58,112 60,100 C62,88 74,84 80,94 C86,104 76,114 62,110',
+                'M38,52 C50,40 76,44 78,58 C80,72 64,80 50,72']
+      }
+    },
+    {
+      id: 'fig8-bight', name: 'Figure-eight on a bight', emoji: '➰', type: 'loop', level: 2,
+      aka: 'Figure-eight loop', strength: '≈55–60%', jams: 'Can be tight after loading, but workable',
+      uses: 'A strong fixed loop tied anywhere in a rope · clipping into an anchor · a handle loop',
+      steps: [
+        'Take a bight of rope and treat it as if it were one end.',
+        'Tie a figure-eight knot with that doubled rope: loop it, around behind, then back down through.',
+        'Dress it so the two strands run parallel, and pull the loop to size.'
+      ],
+      tip: 'Bulkier than a bowline but stronger and easier to check at a glance — a loop of a figure-eight is unmistakable from ten paces away. That is why it is the standard tie-in loop in climbing.',
+      diagram: {
+        back: ['M34,150 C38,110 58,72 100,62 C142,52 174,80 162,108 C154,128 120,136 108,118 C100,104 112,90 128,92 C148,95 160,74 144,60 C124,42 88,50 78,72'],
+        front: ['M78,72 C70,90 78,120 108,130 C142,141 170,120 168,98 C167,82 156,74 144,76']
+      }
+    },
+    {
+      id: 'alpine', name: 'Alpine butterfly', emoji: '🦋', type: 'loop', level: 3,
+      aka: 'Butterfly loop, midline knot', strength: '≈65%', jams: 'No — unties easily, even iced up',
+      uses: 'A loop in the middle of a rope · clipping in on a glacier · isolating a damaged section · tying off a guy line mid-run',
+      steps: [
+        'Drape a bight of rope over your hand.',
+        'Twist the bight towards you so it crosses itself, making two lobes.',
+        'Fold the upper lobe down behind and push it through the lower loop from front to back.',
+        'Pull the two standing ends apart: a fixed loop appears in the middle, pulling sideways to the rope.'
+      ],
+      tip: 'The rare knot that can be loaded from either end or from the loop itself, and still comes undone afterwards. Worth the ten minutes it takes to learn if you ever rope up.',
+      diagram: {
+        back: ['M18,150 C48,144 64,120 60,96 C56,70 78,50 104,54 C130,58 142,80 132,100'],
+        front: ['M132,100 C122,120 96,124 84,112 C68,96 62,62 82,44 C104,24 140,28 152,50 C164,72 150,96 126,100 C110,102 98,92 96,78',
+                'M96,78 C92,60 106,46 124,50']
+      }
+    },
+    {
+      id: 'fishermans', name: 'Double fisherman’s knot', emoji: '🎣', type: 'bend', level: 2,
+      aka: 'Grapevine knot', strength: '≈65–70%', jams: 'Jams permanently — cut it if you need it apart',
+      uses: 'Joining two ropes permanently · slings and prusik loops · fishing leaders',
+      steps: [
+        'Lay the two rope ends alongside each other, overlapping by 20–30 cm, pointing opposite ways.',
+        'With the first end, tie a double overhand knot around the other rope — two turns, then back through.',
+        'Repeat with the second end around the first rope.',
+        'Pull the two standing parts: the knots slide together and lock.'
+      ],
+      tip: 'The strongest practical way to join two ropes of similar size, and the standard for making a closed sling. Leave generous tails — at least ten rope diameters.',
+      diagram: {
+        back: ['M62,18 L62,142', 'M158,18 L158,142', 'M62,18 C88,0 132,0 158,18', 'M62,142 C88,160 132,160 158,142'],
+        front: ['M46,36 C76,32 76,48 46,46', 'M46,46 C76,44 76,60 46,58', 'M46,56 C76,56 76,72 46,70',
+                'M46,92 C76,88 76,104 46,102', 'M46,102 C76,100 76,116 46,114', 'M46,112 C76,112 76,128 46,126',
+                'M142,36 C172,32 172,48 142,46', 'M142,46 C172,44 172,60 142,58', 'M142,56 C172,56 172,72 142,70',
+                'M142,92 C172,88 172,104 142,102', 'M142,102 C172,100 172,116 142,114', 'M142,112 C172,112 172,128 142,126']
+      }
+    },
+    {
+      id: 'clove', name: 'Clove hitch', emoji: '🎋', type: 'hitch', level: 1,
+      aka: 'Builder’s hitch', strength: '≈60–75%, but it can slip under a changing load', jams: 'Comes apart easily',
+      uses: 'Tying to a post, rail or stake · starting and finishing a lashing · mooring a small boat temporarily',
+      steps: [
+        'Pass the working end around the post and bring it back over the standing part.',
+        'Take it around the post a second time in the same direction.',
+        'Tuck the end under the second turn — under the diagonal, not the wraps — and pull tight.'
+      ],
+      tip: 'Fast, adjustable and works on a rail you cannot reach the end of. It needs a constant load: if the load surges or changes direction it can work loose, so back it up with two half hitches if it matters.',
+      diagram: {
+        back: ['M18,42 C58,36 96,40 132,52', 'M170,104 C186,112 192,128 186,146'],
+        post: postRect(),
+        front: [wrap(163, 54, 34, 14), crossH(148, 178, 54),
+                wrap(163, 100, 34, 14), crossH(148, 178, 100),
+                'M134,66 C146,78 152,86 158,92']
+      }
+    },
+    {
+      id: 'two-half-hitches', name: 'Two half hitches', emoji: '🎋', type: 'hitch', level: 1,
+      aka: 'Half hitches', strength: '≈60–65%', jams: 'Can bind, but usually undoable',
+      uses: 'Securing a rope to a ring, rail or post · backing up a clove hitch · tying a boat to a cleat with a round turn first',
+      steps: [
+        'Take the working end around the post or through the ring.',
+        'Bring it back over its own standing part and pass it through the loop — one half hitch.',
+        'Repeat: make a second half hitch in the same direction, further along.',
+        'Slide both up against the post and pull hard.'
+      ],
+      tip: 'Two half hitches only grip when they are pulled up tight against the object. Under a surging or sideways load they creep — back them up with a third turn, or use a round turn and two half hitches on a bollard.',
+      diagram: {
+        back: ['M18,58 C56,52 96,50 130,56'],
+        post: postRect(),
+        front: [wrap(163, 58, 34, 14), crossH(148, 178, 58),
+                'M172,64 C192,74 200,92 192,106',
+                wrap(120, 108, 30, 13), crossH(106, 134, 108),
+                'M134,116 C154,128 160,142 154,154']
+      }
+    },
+    {
+      id: 'tautline', name: 'Taut-line hitch', emoji: '⛺', type: 'friction', level: 2,
+      aka: 'Tent-line hitch, adjustable hitch, midshipman’s hitch', strength: '≈55%', jams: 'No — slides when you want it to',
+      uses: 'Tent and tarp guy lines · anything you need to tighten again after the rope stretches',
+      steps: [
+        'Pass the working end around the anchor and back along the standing part.',
+        'Wrap it twice around the standing part, working back towards the anchor.',
+        'Take a third wrap on the far side, outside the first two.',
+        'Pull the standing part to tension, then slide the hitch along to tighten the line.'
+      ],
+      tip: 'The whole point is that it grips under load and slides when you push it. Wrap towards the anchor or it will not hold at all — that is the mistake everyone makes the first time.',
+      diagram: {
+        guide: ['M60,8 L60,154'],
+        back: ['M18,40 C38,28 54,24 74,28'],
+        front: [wrap(60, 62, 22, 12), crossH(48, 72, 62),
+                wrap(60, 82, 22, 12), crossH(48, 72, 82),
+                wrap(60, 102, 22, 12), crossH(48, 72, 102),
+                'M74,110 C92,122 104,138 106,152']
+      }
+    },
+    {
+      id: 'rolling', name: 'Rolling hitch', emoji: '🎋', type: 'friction', level: 2,
+      aka: 'Magnus hitch', strength: '≈60%', jams: 'No — designed to be shifted',
+      uses: 'Taking a sideways pull on a rope · relieving a loaded line · a temporary guy that must not slide along the rope',
+      steps: [
+        'Pass the working end around the post or rope twice in the same direction.',
+        'On the second turn take a "riding turn": cross back over the first wrap so it jams against itself.',
+        'Bring the end back and tuck it under the riding turn.',
+        'Pull in the direction of the load to set.'
+      ],
+      tip: 'It holds a pull along the rope rather than across it — that sideways grip is what makes it different from a clove hitch. Pull it at the wrong angle and it will simply roll away.',
+      diagram: {
+        back: ['M18,44 C56,38 98,42 130,52'],
+        post: postRect(),
+        front: [wrap(163, 52, 34, 14), crossH(148, 178, 52),
+                wrap(163, 86, 34, 14), crossH(148, 178, 86),
+                'M132,64 C144,74 152,84 160,92',
+                'M176,96 C192,108 196,128 188,148']
+      }
+    },
+    {
+      id: 'prusik', name: 'Prusik hitch', emoji: '🧗', type: 'friction', level: 2,
+      aka: 'Prusik loop', strength: 'Grips by friction — it is the loop that limits the load', jams: 'No — slide it by hand when unloaded',
+      uses: 'Climbing a rope · an adjustable tarp ridge line · a progress-capture loop · iced-up guy lines',
+      steps: [
+        'Take a closed loop of thinner cord and lay it behind the main rope.',
+        'Pass one end of the loop over the rope and back through the other end — repeat for two or three wraps.',
+        'Each wrap must lie neatly beside the last, never crossing.',
+        'Pull on the loop to set it: it grips under load and slides when you push the wraps together.'
+      ],
+      tip: 'Cord diameter matters more than technique: use cord noticeably thinner than the main rope (roughly two-thirds) so the wraps bite. It slides on Dyneema and other slippery ropes far too easily for anything critical.',
+      diagram: {
+        guide: ['M110,4 L110,156'],
+        back: [],
+        front: [wrap(110, 46, 24, 13), crossH(96, 124, 46),
+                wrap(110, 68, 24, 13), crossH(96, 124, 68),
+                wrap(110, 90, 24, 13), crossH(96, 124, 90),
+                'M88,96 C66,118 66,146 96,152 C126,158 144,138 138,116 C134,102 122,96 112,98']
+      }
+    },
+    {
+      id: 'timber', name: 'Timber hitch', emoji: '🪵', type: 'hitch', level: 1,
+      aka: 'Lumberman’s knot', strength: '≈75–85% of the rope', jams: 'Comes apart the moment the load is off',
+      uses: 'Dragging or hoisting timber, poles and pipes · bundling for a tow',
+      steps: [
+        'Pass the working end around the spar.',
+        'Bring it back and take a turn around its own standing part.',
+        'Then take two or three turns around the working end itself, tightening away from the load.',
+        'Pull: the turns jam against the spar, and the harder the pull the tighter it grips.'
+      ],
+      tip: 'The classic hauling hitch — it bites under load and falls apart when you stop pulling, so you can unhook without walking back along the log. Add a half hitch partway along if you are hoisting it upright.',
+      diagram: {
+        back: ['M20,140 C40,110 62,86 88,74'],
+        bar: barRect(),
+        front: [wrap(96, 37, 14, 26), crossV(96, 30, 44),
+                'M104,44 C118,58 128,74 134,92',
+                wrap(126, 108, 17, 16), 'M136,120 C150,132 160,142 168,150']
+      }
+    },
+    {
+      id: 'constrictor', name: 'Constrictor knot', emoji: '📦', type: 'binding', level: 2,
+      aka: 'Constrictor hitch', strength: 'Very strong as a binding', jams: 'Yes — it is meant to be cut off',
+      uses: 'Sealing a bag or parcel · whipping a rope end temporarily · holding a whipping while it sets · bundling cable',
+      steps: [
+        'Pass the working end around the object and cross the two ends over the front.',
+        'Take the working end around the back, crossing over the standing part.',
+        'Bring the end up and tuck it under the crossing strand at the front, between the two wraps.',
+        'Pull both ends hard: it tightens onto the object and will not slacken.'
+      ],
+      tip: 'The tightest binding knot there is — in string or cable ties it can cut in. It strangles whatever it is tied around, so never use it on anything living or anything you want to keep.',
+      diagram: {
+        bar: barRect(),
+        back: ['M62,112 C88,134 132,134 158,112'],
+        front: [wrap(78, 37, 14, 26), crossV(78, 30, 44),
+                wrap(158, 37, 14, 26), crossV(158, 30, 44),
+                'M158,110 C136,92 88,92 64,110']
+      }
+    },
+    {
+      id: 'truckers', name: 'Trucker’s hitch', emoji: '🚚', type: 'friction', level: 3,
+      aka: 'Wagoner’s hitch, dolly hitch', strength: 'Depends on the loop knot used', jams: 'No — that is the point',
+      uses: 'Cinching a load down hard on a trailer or roof rack · tightening a ridge line · any rope that must go really tight',
+      steps: [
+        'Tie a loop (an alpine butterfly or a figure-eight on a bight) in the standing part, partway along.',
+        'Pass the working end around the anchor or through the load, then up and through that loop.',
+        'Pull down hard — you now have roughly a 2:1 mechanical advantage.',
+        'Hold the tension and lock it off with two half hitches around the standing part below the loop.'
+      ],
+      tip: 'The only knot here that multiplies your pulling force. Use a bowline loop for big loads (it costs less strength) and an alpine butterfly if you might need to load the loop from either side.',
+      diagram: {
+        bar: barRect(),
+        back: ['M22,150 C34,110 44,70 52,44'],
+        front: [wrap(60, 37, 14, 26), crossV(60, 30, 44),
+                'M66,46 C80,70 92,92 104,104',
+                wrap(112, 108, 30, 14), crossH(98, 126, 108),
+                'M104,116 C126,128 142,140 154,150']
+      }
+    }
+  ];
+
+  var TYPE_LABEL = {
+    stopper: 'Stopper', loop: 'Loop', bend: 'Bend', hitch: 'Hitch',
+    friction: 'Friction / adjustable', binding: 'Binding'
+  };
+
+  // ---------------------------------------------------------------- rendering
+  function ropePath(d, stroke, width) {
+    return '<path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="' + width +
+           '" stroke-linecap="round" stroke-linejoin="round"/>';
+  }
+
+  function layer(paths, strokeWidth) {
+    var out = '';
+    paths.forEach(function (d) {
+      out += ropePath(d, 'rgba(0,0,0,.55)', strokeWidth + 5);
+    });
+    paths.forEach(function (d) {
+      out += ropePath(d, '#e3c07a', strokeWidth);
+    });
+    return out;
+  }
+
+  function diagramSvg(k) {
+    var dia = k.diagram || {};
+    var s = '<svg viewBox="0 0 220 165" role="img" aria-label="Diagram of the ' +
+      k.name.replace(/"/g, '') + '" style="width:100%;height:auto;max-height:220px;display:block;background:rgba(0,0,0,.25);border-radius:10px;">';
+    s += layer(dia.guide || [], 7);
+    s += layer(dia.back || [], 9);
+    if (dia.bar) {
+      s += '<rect x="' + dia.bar.x + '" y="' + dia.bar.y + '" width="' + dia.bar.w + '" height="' + dia.bar.h +
+           '" rx="' + dia.bar.r + '" fill="#5b6b74" stroke="rgba(0,0,0,.5)" stroke-width="2"/>';
+    }
+    if (dia.post) {
+      s += '<rect x="' + dia.post.x + '" y="' + dia.post.y + '" width="' + dia.post.w + '" height="' + dia.post.h +
+           '" rx="' + dia.post.r + '" fill="#5b6b74" stroke="rgba(0,0,0,.5)" stroke-width="2"/>';
+    }
+    s += layer(dia.front || [], 9);
+    s += '</svg>';
+    return s;
+  }
+
+  function field(label, value, colour) {
+    var p = document.createElement('p');
+    p.setAttribute('style', 'margin:0 0 4px;font-size:.78rem;color:var(--text-secondary);');
+    p.textContent = label + ': ';
+    var b = document.createElement('b');
+    b.setAttribute('style', 'color:' + (colour || 'var(--text)') + ';');
+    b.textContent = value;
+    p.appendChild(b);
+    return p;
+  }
+
+  function knotCard(k) {
+    var sec = document.createElement('section');
+    sec.setAttribute('style', 'border:1px solid rgba(255,255,255,.10);border-radius:12px;background:rgba(255,255,255,.03);overflow:hidden;');
+
+    var head = document.createElement('div');
+    head.setAttribute('style', 'display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between;padding:11px 13px;border-bottom:1px solid rgba(255,255,255,.08);');
+    var h3 = document.createElement('h3');
+    h3.setAttribute('style', 'margin:0;font-size:1rem;color:var(--accent);');
+    h3.textContent = k.emoji + ' ' + k.name;
+    head.appendChild(h3);
+    var badge = document.createElement('span');
+    badge.setAttribute('style', 'font-size:.7rem;padding:3px 9px;border-radius:999px;background:rgba(45,212,255,.12);border:1px solid rgba(45,212,255,.35);color:var(--accent);white-space:nowrap;');
+    badge.textContent = TYPE_LABEL[k.type];
+    head.appendChild(badge);
+    sec.appendChild(head);
+
+    var body = document.createElement('div');
+    body.setAttribute('style', 'display:flex;flex-wrap:wrap;gap:14px;padding:12px 13px;');
+
+    var diag = document.createElement('div');
+    diag.setAttribute('style', 'flex:1 1 220px;min-width:0;');
+    diag.innerHTML = diagramSvg(k);
+    var dots = '';
+    for (var i = 0; i < k.level; i++) { dots += '●'; }
+    for (var j = k.level; j < 3; j++) { dots += '○'; }
+    var lvl = document.createElement('p');
+    lvl.setAttribute('style', 'margin:6px 0 0;font-size:.72rem;color:var(--text-secondary);text-align:center;');
+    lvl.textContent = 'Difficulty ' + dots;
+    diag.appendChild(lvl);
+    body.appendChild(diag);
+
+    var info = document.createElement('div');
+    info.setAttribute('style', 'flex:1 1 300px;min-width:0;');
+
+    var aka = document.createElement('p');
+    aka.setAttribute('style', 'margin:0 0 8px;font-size:.76rem;color:var(--text-secondary);font-style:italic;');
+    aka.textContent = 'Also called: ' + k.aka;
+    info.appendChild(aka);
+
+    info.appendChild(field('Use it for', k.uses));
+    info.appendChild(field('Leaves you', k.strength));
+    info.appendChild(field('After load', k.jams, /jam|cut|perman/i.test(k.jams) ? '#ffb347' : 'var(--text)'));
+
+    var stepsTitle = document.createElement('div');
+    stepsTitle.setAttribute('style', 'margin:10px 0 5px;font-size:.82rem;color:var(--text);font-weight:800;');
+    stepsTitle.textContent = 'How to tie it';
+    info.appendChild(stepsTitle);
+
+    var ol = document.createElement('ol');
+    ol.setAttribute('style', 'margin:0;padding-left:1.15em;font-size:.82rem;line-height:1.65;color:var(--text);');
+    k.steps.forEach(function (st) {
+      var li = document.createElement('li');
+      li.textContent = st;
+      ol.appendChild(li);
+    });
+    info.appendChild(ol);
+
+    var tip = document.createElement('p');
+    tip.setAttribute('style', 'margin:9px 0 0;font-size:.78rem;line-height:1.55;color:rgba(230,250,255,.75);border-left:2px solid rgba(45,212,255,.5);padding-left:9px;');
+    tip.textContent = '💡 ' + k.tip;
+    info.appendChild(tip);
+
+    body.appendChild(info);
+    sec.appendChild(body);
+    return sec;
+  }
+
+  function visible() {
+    var q = ($('knt-search').value || '').toLowerCase().trim();
+    var t = $('knt-type').value;
+    var lvl = $('knt-level').value;
+    return KNOTS.filter(function (k) {
+      if (t !== 'all' && k.type !== t) { return false; }
+      if (lvl !== 'all' && k.level > parseInt(lvl, 10)) { return false; }
+      if (!q) { return true; }
+      var hay = (k.name + ' ' + k.aka + ' ' + k.uses + ' ' + k.tip + ' ' + TYPE_LABEL[k.type]).toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+  }
+
+  function render() {
+    var rows = visible();
+    var host = $('knt-list');
+    host.innerHTML = '';
+    $('knt-count').textContent = rows.length === KNOTS.length
+      ? KNOTS.length + ' knots.'
+      : rows.length + ' of ' + KNOTS.length + ' knots shown.';
+    if (rows.length === 0) {
+      var empty = document.createElement('p');
+      empty.setAttribute('style', 'font-size:.85rem;color:var(--text-secondary);padding:14px;border:1px dashed rgba(255,255,255,.18);border-radius:10px;');
+      empty.textContent = 'Nothing matches that. Try a shorter search or set the job back to “Everything”.';
+      host.appendChild(empty);
+      return;
+    }
+    rows.forEach(function (k) { host.appendChild(knotCard(k)); });
+  }
+
+  function buildChips() {
+    var host = $('knt-chips');
+    host.innerHTML = '';
+    KNOTS.forEach(function (k) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = k.emoji + ' ' + k.name;
+      b.setAttribute('style', 'padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);color:var(--text-secondary);font-size:.74rem;cursor:pointer;');
+      b.addEventListener('click', function () {
+        $('knt-search').value = '';
+        $('knt-type').value = 'all';
+        $('knt-level').value = 'all';
+        render();
+        var cards = $('knt-list').children;
+        var idx = visible().indexOf(k);
+        if (cards[idx] && cards[idx].scrollIntoView) {
+          cards[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+      host.appendChild(b);
+    });
+  }
+
+  function textDump() {
+    var lines = ['Knots — from The Most Useful Site In The World', ''];
+    visible().forEach(function (k) {
+      lines.push(k.name + '  (' + TYPE_LABEL[k.type] + ')');
+      lines.push('  Also called: ' + k.aka);
+      lines.push('  Use it for: ' + k.uses);
+      lines.push('  Leaves you: ' + k.strength);
+      lines.push('  After load: ' + k.jams);
+      lines.push('  How to tie:');
+      k.steps.forEach(function (st, i) { lines.push('    ' + (i + 1) + '. ' + st); });
+      lines.push('  Tip: ' + k.tip);
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  function knotOfTheDay() {
+    var now = new Date();
+    var day = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+    return KNOTS[day % KNOTS.length];
+  }
+
+  function bind() {
+    ['knt-search', 'knt-type', 'knt-level'].forEach(function (id) {
+      $(id).addEventListener('input', render);
+      $(id).addEventListener('change', render);
+    });
+    $('knt-copy').addEventListener('click', function () {
+      var text = textDump();
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text);
+          return;
+        }
+      } catch (e) { /* fall through to prompt */ }
+      window.prompt('Copy the knot notes', text);
+    });
+    $('knt-random').addEventListener('click', function () {
+      var k = KNOTS[Math.floor(Math.random() * KNOTS.length)];
+      $('knt-search').value = '';
+      $('knt-type').value = 'all';
+      $('knt-level').value = 'all';
+      render();
+      var idx = visible().indexOf(k);
+      var cards = $('knt-list').children;
+      if (cards[idx] && cards[idx].scrollIntoView) {
+        cards[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+
+  buildChips();
+  bind();
+  render();
+
+  var today = knotOfTheDay();
+  var note = document.createElement('p');
+  note.setAttribute('style', 'margin:0 0 12px;font-size:.8rem;color:var(--accent);');
+  note.textContent = '📅 Knot of the day: ' + today.name + ' — ' + today.uses.split(' · ')[0] + '.';
+  $('knt-count').parentNode.insertBefore(note, $('knt-count'));
+})();
+</script>
