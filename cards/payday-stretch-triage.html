@@ -1,0 +1,313 @@
+<h2 id="pdst-title" style="margin-top:0;color:var(--accent);">🛟 Payday Stretch: Make Your Last Pounds Last</h2>
+
+<form aria-describedby="pdst-desc" onsubmit="event.preventDefault();">
+  <p id="pdst-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Broke before payday? Enter what you have left and what is due, and get a day-by-day survival
+    budget that protects rent, heat and food first — and tells you honestly which bills can be
+    paused or negotiated.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="pdst-cur" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Currency</label>
+      <input id="pdst-cur" type="text" value="£" maxlength="3" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pdst-cash" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cash left (all accounts)</label>
+      <input id="pdst-cash" type="number" min="0" step="0.5" value="120" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pdst-days" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Days until payday</label>
+      <input id="pdst-days" type="number" min="1" max="60" step="1" value="12" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pdst-adults" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Adults to feed</label>
+      <input id="pdst-adults" type="number" min="1" max="12" step="1" value="2" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pdst-kids" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Children to feed</label>
+      <input id="pdst-kids" type="number" min="0" max="12" step="1" value="1" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pdst-region" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Region (for advice wording)</label>
+      <select id="pdst-region" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;">
+        <option value="uk">UK</option>
+        <option value="us">USA</option>
+        <option value="other">Elsewhere</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="font-size:0.85rem;font-weight:700;margin-bottom:6px;">🧾 Bills due before payday (add every one — the triage sorts them)</div>
+  <div id="pdst-bills" style="display:grid;gap:6px;margin-bottom:8px;"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" id="pdst-add" style="padding:9px 14px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">＋ Add a bill</button>
+    <button type="button" id="pdst-sample" style="padding:9px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">Use an example set</button>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button type="button" id="pdst-go" style="flex:1;min-width:200px;padding:12px;background:linear-gradient(135deg,rgba(45,212,255,0.25),rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.5);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">🛟 Build my survival budget</button>
+    <button type="button" id="pdst-save" style="padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">💾 Save</button>
+    <button type="button" id="pdst-load" style="padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">📂 Load</button>
+  </div>
+</form>
+
+<div id="pdst-out" aria-live="polite" style="margin-top:16px;"></div>
+
+<div style="margin-top:10px;font-size:0.74rem;color:var(--text-secondary);line-height:1.5;">
+  ⚠️ This is budgeting guidance, not financial or legal advice — and it never replaces free debt
+  advice (UK: Citizens Advice, StepChange, National Debtline · US: NFCC members · elsewhere: a
+  non-profit credit counsellor). If you are choosing between heating and eating, get human help today.
+  Runs offline · your entries stay in this browser.
+</div>
+
+<script>
+(function(){
+'use strict';
+/* Payday Stretch. Crisis cash allocator: priority triage + daily allowance. No globals. */
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function money(n, cur){ var v = Math.round(n*100)/100; return cur + v.toFixed(2); }
+
+var CATS = [
+  ['rent',     '🏠 Rent / mortgage', 'priority', 'Missing rent risks eviction; mortgage arrears risk repossession. Pay in full if at all possible.'],
+  ['energy',   '🔥 Energy / heating', 'priority', 'Heat and light are essential, especially with kids. Suppliers must offer payment plans — ask.'],
+  ['water',    '🚰 Water', 'priority', 'Can usually be reduced to a token plan, but don’t ignore it — arrears follow you.'],
+  ['council',  '🏛️ Council tax / rates / HOA', 'priority', 'Enforced fast and hard (court, bailiffs). Always priority. Ask about reductions/exemptions.'],
+  ['court',    '⚖️ Court fines / child support', 'priority', 'Non-payment can mean court action. Pay, or contact them before it’s late.'],
+  ['food',     '🍲 Food (already owed)', 'priority', 'Food for the stretch is budgeted separately below — this row is for food debts, e.g. a shop tab.'],
+  ['transport','🚌 Transport to work/school', 'essential', 'If you can’t get to work you lose the next payday too. Protect the cheapest way there.'],
+  ['phone',    '📱 Phone / internet', 'essential', 'Needed for job hunting, banking and support. Downgrade to the cheapest plan instead of cancelling.'],
+  ['childcare','🧒 Childcare', 'essential', 'Losing childcare can cost a job. Talk to the provider early — many hold places briefly.'],
+  ['insure',   '🛡️ Essential insurance', 'essential', 'Car insurance if you drive to work, basic contents. Never drive uninsured.'],
+  ['unsecured','💳 Credit cards / loans (min.)', 'pausable', 'Minimum payments CAN be missed in a crisis — fees and credit damage, but no bailiffs tomorrow. Pay minimums only after priorities.'],
+  ['bnpl',     '🛍️ Buy-now-pay-later / catalogues', 'pausable', 'Pause these first. Late fees sting, but nobody loses a home over them.'],
+  ['subs',     '📺 Subscriptions / gym / extras', 'pausable', 'Cancel or pause today. Every one of these is food money wearing a costume.'],
+  ['other',    '📦 Other', 'pausable', 'If it isn’t housing, heat, food, work or court-ordered, it waits until after payday.']
+];
+var SAVE_KEY = 'pdst-save-v1';
+var billsBox = $('pdst-bills');
+
+function catLabel(v){ for (var i = 0; i < CATS.length; i++) if (CATS[i][0] === v) return CATS[i][1]; return v; }
+function catInfo(v){ for (var i = 0; i < CATS.length; i++) if (CATS[i][0] === v) return CATS[i]; return CATS[CATS.length-1]; }
+
+function billRow(name, amount, cat){
+  var row = document.createElement('div');
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 110px 1fr 40px;gap:8px;align-items:center;';
+  if (window.innerWidth < 560) row.style.gridTemplateColumns = '1fr 90px';
+  var nm = document.createElement('input');
+  nm.type = 'text'; nm.value = name || ''; nm.placeholder = 'Bill name (e.g. Electric)';
+  nm.setAttribute('aria-label', 'Bill name'); nm.className = 'pdst-bname';
+  nm.style.cssText = 'padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;';
+  var am = document.createElement('input');
+  am.type = 'number'; am.min = '0'; am.step = '0.5'; am.value = (amount === undefined ? '' : amount);
+  am.placeholder = 'Amount'; am.setAttribute('aria-label', 'Bill amount'); am.className = 'pdst-bamt';
+  am.style.cssText = 'padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;';
+  var ct = document.createElement('select');
+  ct.className = 'pdst-bcat'; ct.setAttribute('aria-label', 'Bill category');
+  ct.style.cssText = 'padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;';
+  CATS.forEach(function(c){
+    var o = document.createElement('option'); o.value = c[0]; o.textContent = c[1];
+    if (c[0] === cat) o.selected = true;
+    ct.appendChild(o);
+  });
+  var x = document.createElement('button');
+  x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Remove bill');
+  x.style.cssText = 'padding:9px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;';
+  x.addEventListener('click', function(){ row.remove(); });
+  row.appendChild(nm); row.appendChild(am); row.appendChild(ct); row.appendChild(x);
+  billsBox.appendChild(row);
+}
+$('pdst-add').addEventListener('click', function(){ billRow('', '', 'other'); });
+$('pdst-sample').addEventListener('click', function(){
+  billsBox.innerHTML = '';
+  billRow('Rent', 95, 'rent'); billRow('Electric top-up', 30, 'energy');
+  billRow('Bus fare (2 wks)', 28, 'transport'); billRow('Credit card minimum', 45, 'unsecured');
+  billRow('Streaming + gym', 24, 'subs');
+});
+
+function copyText(t, btn){
+  function done(){ var o = btn.textContent; btn.textContent = '✓ Copied'; setTimeout(function(){ btn.textContent = o; }, 1600); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done, function(){ fallback(); });
+  } else fallback();
+  function fallback(){
+    var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta);
+    ta.select(); try { document.execCommand('copy'); done(); } catch(e){} document.body.removeChild(ta);
+  }
+}
+
+function readBills(){
+  var n = billsBox.querySelectorAll('.pdst-bname'), a = billsBox.querySelectorAll('.pdst-bamt'), c = billsBox.querySelectorAll('.pdst-bcat');
+  var out = [];
+  for (var i = 0; i < n.length; i++){
+    var amt = parseFloat(a[i].value);
+    if (!isFinite(amt) || amt <= 0) continue;
+    out.push({ name: n[i].value.trim() || ('Bill ' + (i + 1)), amt: amt, cat: c[i].value });
+  }
+  return out;
+}
+
+function build(){
+  var cur = $('pdst-cur').value || '£';
+  var cash = Math.max(0, parseFloat($('pdst-cash').value) || 0);
+  var days = Math.max(1, Math.min(60, Math.round(parseFloat($('pdst-days').value) || 1)));
+  var adults = Math.max(1, Math.round(parseFloat($('pdst-adults').value) || 1));
+  var kids = Math.max(0, Math.round(parseFloat($('pdst-kids').value) || 0));
+  var region = $('pdst-region').value;
+  var bills = readBills();
+
+  var pri = [], ess = [], pau = [];
+  bills.forEach(function(b){
+    var info = catInfo(b.cat);
+    if (info[2] === 'priority') pri.push(b);
+    else if (info[2] === 'essential') ess.push(b);
+    else pau.push(b);
+  });
+  function sum(arr){ return arr.reduce(function(a, b){ return a + b.amt; }, 0); }
+  var priTot = sum(pri), essTot = sum(ess), pauTot = sum(pau);
+
+  /* Food floor: rock-bottom credible cooking cost per mouth per day */
+  var mouths = adults + kids * 0.6;
+  var foodPerDay = mouths * (region === 'us' ? 2.5 : region === 'uk' ? 2.0 : 2.0);
+  var foodTot = foodPerDay * days;
+
+  var afterPri = cash - priTot;
+  var afterEss = afterPri - essTot;
+  var afterFood = afterEss - foodTot;
+  var leftForPausable = afterFood;
+
+  var h = '';
+  /* Verdict */
+  var v;
+  if (afterFood >= 0 && pauTot <= afterFood + 0.001){
+    v = ['✅ GOOD NEWS — the stretch works.', 'After priorities, essentials and food (' + money(foodTot, cur) + ' for ' + days + ' days), you still have <b>' + money(leftForPausable, cur) + '</b>. Pay the pausables below in order, keep a <b>' + money(Math.min(leftForPausable, foodPerDay * 2), cur) + '</b> buffer for surprises, and protect the daily food allowance fiercely.', 'rgba(57,255,20,0.4)'];
+  } else if (afterFood >= 0){
+    v = ['⚠️ TIGHT BUT SURVIVABLE — pause the bottom list.', 'Priorities + essentials + food fit inside your cash with <b>' + money(leftForPausable, cur) + '</b> left — but the pausable bills want ' + money(pauTot, cur) + '. Pause all of them (details below), keep the leftover as your buffer, and you reach payday fed and housed.', 'rgba(255,215,0,0.45)'];
+  } else if (afterEss >= 0){
+    v = ['🔴 FOOD GAP — the plan needs help.', 'After priorities and essentials you have <b>' + money(afterEss, cur) + '</b> for food but need ~' + money(foodTot, cur) + '. Shortfall: <b>' + money(-afterFood, cur) + '</b>. Pause everything pausable NOW, then work the gap-fillers below (food aid, the exact top-ups) — a gap under ' + money(foodPerDay * 3, cur) + ' is very closable.', 'rgba(255,120,60,0.5)'];
+  } else {
+    v = ['🚨 PRIORITY SHORTFALL — act today, not payday-eve.', 'Your cash (' + money(cash, cur) + ') does not cover priority + essential bills (' + money(priTot + essTot, cur) + '). Shortfall: <b>' + money(-afterEss, cur) + '</b> before food. Do the three emergency moves below TODAY — suppliers and landlords deal far better with early contact than silence.', 'rgba(255,80,80,0.5)'];
+  }
+  h += '<div style="background:rgba(255,255,255,0.03);border:1px solid ' + v[2] + ';border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:0.86rem;line-height:1.6;"><b>' + v[0] + '</b><br/>' + v[1] + '</div>';
+
+  /* Allocation table */
+  h += '<div style="font-weight:700;margin-bottom:8px;">💧 Where every penny goes (in this order)</div>';
+  h += '<div style="display:grid;gap:6px;margin-bottom:14px;font-size:0.84rem;">';
+  function row(n, what, amt, note){
+    h += '<div style="display:flex;justify-content:space-between;gap:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;"><span><b>' + n + '. ' + esc(what) + '</b><br/><span style="font-size:0.78rem;color:var(--text-secondary);">' + esc(note) + '</span></span><b style="white-space:nowrap;">' + money(amt, cur) + '</b></div>';
+  }
+  row(1, 'Priority bills (housing, heat, court)', priTot, pri.length ? pri.map(function(b){ return b.name + ' ' + money(b.amt, cur); }).join(' · ') : 'none listed');
+  row(2, 'Essentials (work transport, phone, childcare)', essTot, ess.length ? ess.map(function(b){ return b.name + ' ' + money(b.amt, cur); }).join(' · ') : 'none listed');
+  row(3, 'Food — ' + money(foodPerDay, cur) + ' a day for ' + days + ' days', foodTot, 'Rock-bottom home-cooking floor for ' + mouths.toFixed(1) + ' mouths. This is rice, oats, lentils, potatoes territory — it works.');
+  row(4, 'Pausables — pay only what is left', Math.min(Math.max(leftForPausable, 0), pauTot), pau.length ? 'Paused for now: ' + pau.map(function(b){ return b.name; }).join(', ') : 'none listed — good.');
+  h += '</div>';
+
+  /* Daily allowance */
+  h += '<div style="font-weight:700;margin-bottom:8px;">📅 Your daily food allowance: ' + money(foodPerDay, cur) + ' a day</div>';
+  h += '<div style="font-size:0.83rem;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.3);border-radius:8px;padding:10px 12px;margin-bottom:14px;line-height:1.7;">' +
+    'Take it out in <b>cash per day</b> (or one shop every 2–3 days with a list). When today’s money is gone, the kitchen is closed — no “borrowing from tomorrow”. ' +
+    'Shop once with the cheapest staples first: rice, oats, pasta, lentils, potatoes, onions, carrots, tinned tomatoes, eggs. ' +
+    'One pot cooking, no waste, no takeaways until payday. Kids eat the same food — just more of it.</div>';
+
+  /* Pause playbook */
+  if (pau.length){
+    h += '<div style="font-weight:700;margin-bottom:8px;">⏸️ How to pause each bill without making it worse</div>';
+    h += '<div style="display:grid;gap:6px;margin-bottom:14px;">';
+    pau.forEach(function(b){
+      var advice = 'Contact them BEFORE the due date, say the words below, and ask for the arrangement in writing (text/email counts).';
+      if (b.cat === 'unsecured') advice = 'Pay £1/$1 token or nothing; call and say “I’m in financial difficulty, please freeze interest and charges for 30 days while I get debt advice.” They must treat you fairly — log the call.';
+      else if (b.cat === 'bnpl') advice = 'Miss it deliberately rather than missing food. Expect a late fee; pay the oldest one first after payday. Turn off all one-click buying now.';
+      else if (b.cat === 'subs') advice = 'Cancel in the app right now — not “after payday”. You can resubscribe; you cannot un-spend it.';
+      h += '<div style="font-size:0.83rem;background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.3);border-radius:8px;padding:8px 10px;"><b>' + esc(b.name) + '</b> (' + money(b.amt, cur) + ', ' + esc(catLabel(b.cat)) + ')<br/><span style="color:var(--text-secondary);">' + esc(advice) + '</span></div>';
+    });
+    h += '</div>';
+  }
+
+  /* Emergency moves / gap fillers */
+  h += '<div style="font-weight:700;margin-bottom:8px;">🆘 ' + (afterFood < 0 ? 'Close the gap (do these in order)' : 'Stretch further + never again') + '</div>';
+  var moves = region === 'us' ? [
+    'Call 211 (or visit 211.org) — one call finds food pantries, utility help and emergency cash near you.',
+    'Food pantries + community fridges: take what you need this week; pride is expensive, hunger is worse.',
+    'Call each priority creditor TODAY with the hardship script — early contact unlocks plans silence never gets.',
+    'Sell one thing fast (marketplace apps, same-day pickup) — pick the thing you’d miss least.',
+    'After payday: automate a tiny buffer ($10–20/paycheck) into a separate account. This page exists so you never meet it twice.'
+  ] : region === 'uk' ? [
+    'Food banks (Trussell + independents — most need a referral: GP, school, Citizens Advice or council can issue one same-day), community fridges and Olio/Too Good To Go.',
+    'Council Household Support Fund / crisis grant — every English council has one; Scotland/Wales/NI have equivalents. Ask for “emergency food and energy help”.',
+    'Call each priority creditor TODAY with the hardship script — early contact unlocks plans silence never gets.',
+    'Check benefits you’re missing (Universal Credit, Council Tax Reduction, Healthy Start, free school meals) — billions go unclaimed.',
+    'After payday: automate a tiny buffer (£10–20/payday) into a separate account. This page exists so you never meet it twice.'
+  ] : [
+    'Food banks, faith kitchens, gurdwaras (free meal for anyone), community fridges — search “free food [your town]” and go today.',
+    'Ask your municipality about emergency hardship funds — most cities have one, most people never ask.',
+    'Call each priority creditor TODAY with the hardship script — early contact unlocks plans silence never gets.',
+    'Sell one thing fast or pick up one day of casual work — a single day’s pay often closes a food gap completely.',
+    'After payday: automate a tiny buffer into a separate account. This page exists so you never meet it twice.'
+  ];
+  h += '<div style="display:grid;gap:6px;margin-bottom:14px;">';
+  moves.forEach(function(mv, i){
+    h += '<div style="font-size:0.83rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;"><b>' + (i + 1) + '.</b> ' + esc(mv) + '</div>';
+  });
+  h += '</div>';
+
+  /* Phone script */
+  h += '<details style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;margin-bottom:14px;"><summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--accent);">📞 The 30-second hardship phone script (works on landlords, suppliers, lenders)</summary>' +
+    '<div style="font-size:0.83rem;line-height:1.7;margin-top:8px;white-space:pre-wrap;" id="pdst-script"></div>' +
+    '<button type="button" id="pdst-copyscript" style="margin-top:8px;padding:9px 14px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">📋 Copy script</button></details>';
+
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+  h += '<button type="button" id="pdst-copy" style="flex:1;min-width:200px;padding:11px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:var(--success);cursor:pointer;font-weight:700;">📋 Copy my survival plan</button>';
+  h += '<button type="button" id="pdst-print" style="padding:11px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">🖨️ Print</button></div>';
+
+  $('pdst-out').innerHTML = h;
+
+  var script = '“Hello, my name is [NAME], account [NUMBER]. I’m calling because I’m in financial difficulty until payday on [DATE]. I want to pay you — I’m asking for a short arrangement: [pause for 2 weeks / token payment of ' + money(1, cur) + ' / payment plan]. I’m getting free debt advice. Can you freeze interest and charges while we sort this, and confirm what we agree by text or email?”\n\nIf they say no: “Please log that I’ve told you I’m in financial difficulty, and tell me how to make a formal complaint.” (That sentence changes the conversation.)';
+  $('pdst-script').textContent = script;
+  $('pdst-copyscript').addEventListener('click', function(){ copyText(script, $('pdst-copyscript')); });
+
+  var plain = 'MY PAYDAY STRETCH PLAN — ' + money(cash, cur) + ' for ' + days + ' days\n\n' +
+    '1. PRIORITY BILLS (' + money(priTot, cur) + '): ' + (pri.map(function(b){ return b.name + ' ' + money(b.amt, cur); }).join('; ') || 'none') + '\n' +
+    '2. ESSENTIALS (' + money(essTot, cur) + '): ' + (ess.map(function(b){ return b.name + ' ' + money(b.amt, cur); }).join('; ') || 'none') + '\n' +
+    '3. FOOD: ' + money(foodPerDay, cur) + ' A DAY x ' + days + ' = ' + money(foodTot, cur) + '\n' +
+    '4. PAUSED: ' + (pau.map(function(b){ return b.name + ' ' + money(b.amt, cur); }).join('; ') || 'none') + '\n\n' +
+    'RULE: cash per day, list-only shopping, kitchen closed when today\'s money is gone.\n' +
+    'SCRIPT: call every creditor BEFORE the due date, say “I\'m in financial difficulty”, ask for the arrangement in writing.';
+  $('pdst-copy').addEventListener('click', function(){ copyText(plain, $('pdst-copy')); });
+  $('pdst-print').addEventListener('click', function(){ window.print(); });
+}
+
+function snapshot(){
+  var s = { cur: $('pdst-cur').value, cash: $('pdst-cash').value, days: $('pdst-days').value,
+    ad: $('pdst-adults').value, kids: $('pdst-kids').value, region: $('pdst-region').value, b: [] };
+  var n = billsBox.querySelectorAll('.pdst-bname'), a = billsBox.querySelectorAll('.pdst-bamt'), c = billsBox.querySelectorAll('.pdst-bcat');
+  for (var i = 0; i < n.length; i++) s.b.push([n[i].value, a[i].value, c[i].value]);
+  return s;
+}
+function restore(s){
+  if (!s) return false;
+  $('pdst-cur').value = s.cur || '£'; $('pdst-cash').value = s.cash || 0;
+  $('pdst-days').value = s.days || 1; $('pdst-adults').value = s.ad || 1;
+  $('pdst-kids').value = s.kids || 0; $('pdst-region').value = s.region || 'uk';
+  billsBox.innerHTML = '';
+  (s.b || []).forEach(function(b){ billRow(b[0], b[1], b[2]); });
+  return true;
+}
+
+$('pdst-go').addEventListener('click', build);
+$('pdst-save').addEventListener('click', function(){
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); $('pdst-save').textContent = '✓ Saved'; }
+  catch(e){ $('pdst-save').textContent = '✕ No storage'; }
+  setTimeout(function(){ $('pdst-save').textContent = '💾 Save'; }, 1600);
+});
+$('pdst-load').addEventListener('click', function(){
+  try {
+    var s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (restore(s)){ build(); $('pdst-load').textContent = '✓ Loaded'; }
+    else $('pdst-load').textContent = '✕ Nothing saved';
+  } catch(e){ $('pdst-load').textContent = '✕ Nothing saved'; }
+  setTimeout(function(){ $('pdst-load').textContent = '📂 Load'; }, 1600);
+});
+})();
+</script>
