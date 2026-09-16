@@ -676,6 +676,13 @@ files reported broken locally are present and serving 200 in production.
 **Filenames contain spaces and en-dashes.** e.g. `images/SOSMrWolfs 21.jpg`,
 `images/carling academy, bristol.jpg`. Quote paths; URL-encode in HTML and XML.
 
+**A literal `%` in a filename is served doubly-encoded.** `staff/claims/`
+files store the branch slash as `%2F`, so the published URL is
+`…/arena%252F01a0…json` — requesting it with a single `%2F` decodes to a
+slash before routing and 404s on a file that exists (issue #91). Any tooling
+that turns repo paths into URLs must encode each path segment; see
+`encodeRelUrl()` in `scripts/check-production.js`.
+
 **`guide.txt` is stale.** 69 KB of historical notes. This document supersedes it.
 
 **`hokidea.html`** is a 145-byte scratch file with no `<title>` and no `lang`.

@@ -1,7 +1,7 @@
 # OPEN — human work queue
 
 Rebaselined 2026-09-15 against commit `9d5d77558d9e5c6e6e5169644afb8a7f348a5b88`
-(1149 cards, catalogue WARN-free; the current 19-section `verify.sh` gate is
+(1149 cards, catalogue WARN-free; the current 20-section `verify.sh` gate is
 kept green). This is a
 prioritisation aid, **not** a claim that an agent is currently working.
 File-scope claims under `claims/` show reservations; fresh

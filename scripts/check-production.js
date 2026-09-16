@@ -249,6 +249,22 @@ function sampleCards(cards, count, seed) {
 
 // --------------------------------------------------------------------- http
 
+// Repo paths become request URLs segment by segment. A raw join breaks the
+// moment a filename contains a character with URL meaning: staff/claims files
+// carry a literal %2F (the branch slash, escaped for the filesystem), and the
+// serving stack decodes an unencoded %2F into a real slash before routing —
+// so the monitor asked for a nested path that never existed and reported 404
+// on a file that was published all along (2026-09-15, issue #91). Encoding
+// each segment leaves slashes as slashes while escaping %, spaces and the
+// rest. Query strings on probe paths (?card=…&embed=1) are preserved as-is,
+// never encoded.
+function encodeRelUrl(rel) {
+  const queryIndex = rel.indexOf('?');
+  const pathPart = queryIndex === -1 ? rel : rel.slice(0, queryIndex);
+  const queryPart = queryIndex === -1 ? '' : rel.slice(queryIndex);
+  return pathPart.split('/').map(segment => encodeURIComponent(segment)).join('/') + queryPart;
+}
+
 async function httpGet(url, { timeoutMs, allowHttp, maxRedirects = MAX_REDIRECTS }) {
   const started = Date.now();
   const chain = [];
@@ -333,7 +349,16 @@ async function getWithRetries(url, options) {
 // runs pass --retry-mismatch <n> and this helper settles the question.
 async function fetchBody(ctx, url) {
   let response = await getWithRetries(url, ctx);
-  const repoPath = path.join(ctx.root, new URL(url).pathname.replace(/^\/+/, '').split('?')[0]);
+  // The request URL is percent-encoded (see encodeRelUrl), so decode it back
+  // before mapping to a repository path — otherwise the retry loop below can
+  // never find files whose names contain %, spaces or similar.
+  let repoRel = new URL(url).pathname.replace(/^\/+/, '').split('?')[0];
+  try {
+    repoRel = decodeURIComponent(repoRel);
+  } catch {
+    repoRel = new URL(url).pathname.replace(/^\/+/, '').split('?')[0];
+  }
+  const repoPath = path.join(ctx.root, repoRel);
   if (!fs.existsSync(repoPath)) return response;
   const repoHash = sha256(fs.readFileSync(repoPath));
   for (let attempt = 0; attempt < (ctx.retryMismatch || 0); attempt += 1) {
@@ -380,7 +405,7 @@ function contentTypeExpectedFor(rel) {
 }
 
 async function checkFile(ctx, rel) {
-  const url = `${ctx.base}/${rel}`;
+  const url = `${ctx.base}/${encodeRelUrl(rel)}`;
   const repoPath = path.join(ctx.root, rel);
   if (!fs.existsSync(repoPath)) {
     // A file the monitor was told to verify but cannot find in the repository
@@ -451,7 +476,7 @@ async function checkFile(ctx, rel) {
 }
 
 async function checkProbe(ctx, rel, { expect }) {
-  const url = `${ctx.base}/${rel.replace(/^\/+/, '')}`;
+  const url = `${ctx.base}/${encodeRelUrl(rel.replace(/^\/+/, ''))}`;
   let response;
   try {
     response = await fetchBody(ctx, url);
@@ -826,6 +851,7 @@ if (require.main === module) {
 
 module.exports = {
   parseArgs,
+  encodeRelUrl,
   runChecks,
   criticalFiles,
   renderMarkdown,
