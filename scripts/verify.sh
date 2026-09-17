@@ -25,6 +25,7 @@
 #  12. site brain              — repo-grounded index and grounding regressions
 #  13. staff facility          — configuration and isolated regression tests
 #  14. card name collisions   — scripts/check-card-collisions.py (no cross-card top-level SyntaxError)
+#                               + scripts/check-card-css-leaks.py (no fragment CSS restyles the host grid)
 #  15. home first screen      — scripts/build-home-prerender.py --check, plus the
 #                                loader tests in scripts/tests/ that drive the real
 #                                functions out of home-app.js (lazy-loader,
@@ -180,6 +181,17 @@ if command -v python3 >/dev/null 2>&1; then
   fi
 else
   note "python3 not available — skipped"; NOTES=$((NOTES+1))
+fi
+
+# A card's <style> must not restyle the host shell. A bare `.card {…}` or
+# `body {…}` in a fragment repaints all ~1,200 cards on index.html the moment
+# it scrolls in — the "grid suddenly looks broken / cards vanish" report.
+if command -v python3 >/dev/null 2>&1; then
+  if python3 scripts/check-card-css-leaks.py; then
+    ok "no card CSS leaks onto the host grid"
+  else
+    fail "card CSS restyles the shared page — run: python3 scripts/scope-card-css.py <slug>"
+  fi
 fi
 
 section "15/21 home page first screen and card loader"

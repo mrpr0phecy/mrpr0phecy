@@ -1161,6 +1161,29 @@
         }).catch(err => console.warn('Description enrichment failed; search stays title-only', err));
     }
 
+    // Kicks enrichCatalogueDescriptions() off the critical path. Search focus
+    // wins over idle so a visitor who types straight away still gets
+    // full-text results as soon as the file lands (title matches show
+    // immediately either way — see applyFiltersCore).
+    let enrichmentScheduled = false;
+    function scheduleDescriptionEnrichment() {
+        if (enrichmentScheduled) return;
+        enrichmentScheduled = true;
+        let fired = false;
+        const go = () => { if (fired) return; fired = true; enrichCatalogueDescriptions(); };
+        ['mainSearchInput', 'stickySearchInput'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('focus', go, { once: true, passive: true });
+        });
+        // A deep link with ?q= searches before anyone can focus anything.
+        if (currentSearchQuery && currentSearchQuery.trim()) { go(); return; }
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(go, { timeout: 6000 });
+        } else {
+            setTimeout(go, 2500);
+        }
+    }
+
     // The generated HOME-PRERENDER block already holds the first screen's cards
     // as real markup. Adopting them instead of waiting for the catalogue index
     // to rebuild them is what lets the fragments the head bootstrap fetched
@@ -1317,8 +1340,11 @@
             applyIndexDeepLink();
             // The grid now runs on the lite tier; bring descriptions into
             // search in the background. A no-op when the full tier was the
-            // data source (descriptions already present).
-            enrichCatalogueDescriptions();
+            // data source (descriptions already present). Deferred: the
+            // 548 KB full tier no longer competes with the first screen's
+            // fragments — it starts when the browser is idle, or the instant
+            // the visitor reaches for the search box, whichever is first.
+            scheduleDescriptionEnrichment();
 
         } catch (error) {
             console.error('Error loading card list:', error);
@@ -2539,9 +2565,14 @@
                 .slice(0, 6)
                 .map(c => `tool.html?card=${encodeURIComponent(c.dataset.name)}`);
             if (visible.length === 0) return;
+            // No cards.json here: the head bootstrap already downloads it
+            // once at low priority; listing it again was a second 548 KB
+            // fetch on every filter change. (Same for tools-index.html,
+            // which used to sit in the static rules — 390 KB nobody on the
+            // home page asked for.)
             const rules = {
                 prerender: [{ where: { href_matches: "*/tool.html?card=*" }, eagerness: "moderate" }],
-                prefetch: [{ urls: ["cards/cards.json", ...visible] }]
+                prefetch: [{ urls: visible }]
             };
             // Update only if changed to avoid re-parse churn
             const newText = JSON.stringify(rules);
@@ -2561,10 +2592,10 @@
         const doRegister = () => {
             navigator.serviceWorker.register(swUrl, { type: 'module' }).then(reg => {
                 console.log('[SW] registered', reg.scope);
-                // Warm cache with the catalogue tiers (lite = grid, full = search)
-                if (reg.active) {
-                    reg.active.postMessage({ type: 'WARM_CACHE', urls: ['cards/cards-lite.json', 'cards/cards.json'] });
-                }
+                // No WARM_CACHE here any more: both catalogue tiers are
+                // already fetched by the page itself and land in the SW
+                // cache through the fetch handler. Warming them was a
+                // second (and for cards.json, third) full download.
             }).catch(err => {
                 // Fallback to classic SW
                 navigator.serviceWorker.register(swUrl).catch(()=>{});
