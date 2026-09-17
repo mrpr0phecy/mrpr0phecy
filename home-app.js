@@ -1402,10 +1402,14 @@
     
     const loadQueue = [];
     let activeLoads = 0;
-    // Four concurrent fetch/render jobs are enough to cover the visible
-    // one-column viewport while leaving the main thread responsive for the
-    // interactive tools themselves (especially canvas-heavy cards).
-    const MAX_CONCURRENT_LOADS = 4;
+    // Six concurrent fetch/render jobs: the grid is one card per row, so a
+    // 900px viewport plus the 600px observer look-ahead wants ~5 tools in
+    // flight to stay ahead of a scroll. Four kept a free slot rare enough that
+    // the viewport sweep spent most of its time measuring cards it could
+    // not start. The sweep now only measures when a slot is free, so the extra
+    // two jobs are the ones that actually fill the screen — the main thread
+    // does less work per frame than it did with four.
+    const MAX_CONCURRENT_LOADS = 6;
     const retryCounts = new Map();
 
     // A card hidden by the current search/category filter must never take a
@@ -1990,6 +1994,18 @@
         if (scrollLoadActive) return;
         scrollLoadActive = true;
 
+        // Measuring is only worth doing when a load slot is actually free.
+        // getBoundingClientRect() forces layout, and with the one-column grid
+        // that is ~1,190 forced layout reads per scroll frame — measured at
+        // 71,404 reads over 60 frames of a fast scroll, of which exactly 4
+        // could ever start a load, because MAX_CONCURRENT_LOADS slots were
+        // already busy. That work ran on the very frames the user was
+        // scrolling and waiting for cards.
+        //
+        // Nothing is lost by skipping it: the walk below still prunes finished
+        // cards, and processLoadQueue() re-sweeps the moment a slot frees up.
+        const canStart = activeLoads < MAX_CONCURRENT_LOADS;
+
         // The observer has a generous look-ahead for smooth scrolling, but
         // this fallback always gives cards actually on screen first priority.
         // That prevents a fast jump from waiting behind a queue of cards above
@@ -2009,6 +2025,10 @@
             // time instead of re-walking all 1200+ entries on every scroll.
             if (!cardName || loadedCards.has(cardName) || !card.isConnected) continue;
             stillPending.push(card);
+            // Every load slot is busy: this sweep cannot start anything, so
+            // the rest of the per-card work (and the layout reads it costs) is
+            // skipped. See canStart above.
+            if (!canStart) continue;
             if (loadingCards.has(cardName) || card.classList.contains('loading-fallback')) continue;
             // Failed cards belong to the bounded retryErroredCards() sweep,
             // not the bulk loader — otherwise every scroll refetches a
@@ -2555,6 +2575,21 @@
     }
 
     // Modern: Update speculation rules based on visible cards (eagerness)
+    // Rewriting the <script type="speculationrules"> element re-evaluates the
+    // rules, and every listed URL is then prefetched. Typing in the search box
+    // changes the visible-card list on every keystroke, so updating the rules
+    // there meant six fresh tool.html prefetches per character — bandwidth
+    // taken from the results the visitor is waiting for. The rules are now
+    // refreshed once the typing stops.
+    let speculationRulesTimer = null;
+    function scheduleSpeculationRulesUpdate() {
+        if (speculationRulesTimer) clearTimeout(speculationRulesTimer);
+        speculationRulesTimer = setTimeout(() => {
+            speculationRulesTimer = null;
+            updateSpeculationRules();
+        }, 700);
+    }
+
     function updateSpeculationRules() {
         const rulesEl = document.getElementById('speculation-rules');
         if (!rulesEl || !('supports' in HTMLScriptElement) ) return;
@@ -2570,8 +2605,15 @@
             // fetch on every filter change. (Same for tools-index.html,
             // which used to sit in the static rules — 390 KB nobody on the
             // home page asked for.)
+            //
+            // "conservative", not "moderate": a prerender runs the whole
+            // standalone page (its scripts included, and they fetch the full
+            // catalogue). At moderate eagerness a mouse crossing the grid
+            // started those page loads while the visitor was still waiting for
+            // the grid's own cards. Conservative still prerenders on the way
+            // into a click, without speculating on hover.
             const rules = {
-                prerender: [{ where: { href_matches: "*/tool.html?card=*" }, eagerness: "moderate" }],
+                prerender: [{ where: { href_matches: "*/tool.html?card=*" }, eagerness: "conservative" }],
                 prefetch: [{ urls: visible }]
             };
             // Update only if changed to avoid re-parse churn
@@ -2850,15 +2892,15 @@
                     assignVTNames();
                     document.__vtRunning = false;
                 });
-                // Update speculation rules after VT
-                postTask(() => updateSpeculationRules());
+                // Update speculation rules after VT (debounced: see above)
+                postTask(() => scheduleSpeculationRulesUpdate());
                 return;
             } catch (e) {
                 document.__vtRunning = false;
             }
         }
         applyFiltersCore();
-        postTask(() => { assignVTNames(); updateSpeculationRules(); });
+        postTask(() => { assignVTNames(); scheduleSpeculationRulesUpdate(); });
     }
 
     // Chunked render: appending all 1223 directory rows at once blocked the

@@ -22,19 +22,41 @@
 // priority and the fetch handler caches that copy, so precaching it (with
 // cache:'reload', bypassing the HTTP cache) was a second full download on
 // every install.
-const CACHE_VERSION = 'v4-2026-09-17';
+// v5: "stale while revalidate" still meant a returning visitor rendered the
+// PREVIOUS catalogue on their first visit after every deploy — every tool
+// added since their last visit was simply absent from the grid until they
+// came back a second time. The catalogue, card fragments and first-party
+// code now use freshFast(): the cached copy may answer instantly only while
+// it is inside GitHub Pages' own 10-minute freshness window, and after that
+// the network decides, with the cached copy as a safety net if the network
+// is slow or gone. Nobody runs yesterday's tool list any more, and repeat
+// visits inside the window are still served from cache with no request at
+// all. The precache list is also trimmed to the two URLs the fetch handler
+// actually reads out of STATIC_CACHE: home-app.js, risk-notices.js and both
+// fonts were precached with cache:'reload' (bypassing the HTTP cache) and
+// then served from RUNTIME_CACHE, so every install downloaded ~133 KB of
+// fonts and the app script a second time, in the background, while the
+// visitor was still waiting for the first screen's tools.
+const CACHE_VERSION = 'v5-2026-09-17';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
+// Only what the fetch handler serves out of STATIC_CACHE: index.html (the
+// offline navigation fallback) and the lite catalogue (the grid). Anything
+// else cached here would never be read — the handler would keep serving the
+// RUNTIME_CACHE copy — and precaching it costs a second download per install.
 const PRECACHE_URLS = [
     './index.html',
-    './cards/cards-lite.json',
-    './home-app.js',
-    './fonts/inter-latin.woff2',
-    './fonts/inter-latin-ext.woff2',
-    './risk-notices.js'
+    './cards/cards-lite.json'
 ];
+
+// GitHub Pages serves max-age=600, so a copy younger than this is exactly as
+// fresh as the browser's own HTTP cache entry.
+const FRESH_WINDOW_MS = 10 * 60 * 1000;
+// If the network has not answered by then, a cached copy wins: a slow origin
+// must not hold the grid hostage.
+const NETWORK_PATIENCE_MS = 2500;
 
 // Install — precache critical assets
 self.addEventListener('install', (event) => {
@@ -101,18 +123,19 @@ self.addEventListener('fetch', (event) => {
     // Only handle same-origin GET
     if (req.method !== 'GET' || url.origin !== self.location.origin) return;
 
-    // Catalogue tiers (lite = grid, full = search) — stale-while-revalidate,
-    // always fresh in background. Both must track their deploy or a new tool
-    // stays invisible (lite) or its description search miss (full).
+    // Catalogue tiers (lite = grid, full = search). These decide which tools
+    // exist, so they must never be answered from a copy that predates the
+    // deploy: freshFast() only lets the cache answer inside the server's own
+    // freshness window.
     if (url.pathname.endsWith('cards/cards-lite.json') || url.pathname.endsWith('cards/cards.json')) {
-        event.respondWith(staleWhileRevalidate(req, STATIC_CACHE));
+        event.respondWith(freshFast(req, STATIC_CACHE));
         return;
     }
 
-    // Card fragments: cards/*.html — serve from cache instantly, refresh in
-    // the background so a fixed tool is current on the next visit.
+    // Card fragments: cards/*.html — same policy, so a fixed tool is the one
+    // the visitor actually sees rather than the one before the fix.
     if (url.pathname.includes('/cards/') && url.pathname.endsWith('.html')) {
-        event.respondWith(staleWhileRevalidate(req, CARDS_CACHE));
+        event.respondWith(freshFast(req, CARDS_CACHE));
         return;
     }
 
@@ -122,10 +145,13 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Scripts / styles / JSON: stale-while-revalidate — never pin code to
-    // the version a visitor first saw (see v4 note above).
+    // Scripts / styles / JSON: freshFast — never pin code to the version a
+    // visitor first saw (v4 note), and never serve the version from before the
+    // deploy either (v5 note). Inside the 10-minute window a repeat visit
+    // still costs no request at all; home-app.js and risk-notices.js are
+    // small enough that revalidating them is noise.
     if (/\.(js|css|json)$/.test(url.pathname)) {
-        event.respondWith(staleWhileRevalidate(req, RUNTIME_CACHE));
+        event.respondWith(freshFast(req, RUNTIME_CACHE));
         return;
     }
 
@@ -202,6 +228,52 @@ async function networkFirst(request, cacheName) {
         const cached = await cache.match(request);
         return cached || new Response('Offline', { status: 503 });
     }
+}
+
+// How old the stored copy is, in ms. GitHub Pages sends Date (and Age when a
+// CDN answered), which is enough to know whether the entry is still inside the
+// freshness window the origin itself advertised.
+function ageOf(response) {
+    const date = Date.parse(response.headers.get('date') || '');
+    if (!Number.isFinite(date)) return Infinity;   // unknown age: treat as stale
+    const age = parseInt(response.headers.get('age') || '0', 10) || 0;
+    return Math.max(0, Date.now() - date - age * 1000);
+}
+
+// Network-first, with the cache allowed to answer instantly only while the
+// stored copy is inside GitHub Pages' own freshness window (max-age=600).
+// After that the network decides; if it is slower than NETWORK_PATIENCE_MS or
+// fails, the cached copy is served and the fetch keeps running to refresh the
+// cache for next time.
+//
+// This replaces stale-while-revalidate for the catalogue, the card fragments
+// and first-party code. SWR always handed over the cached copy first, so a
+// returning visitor rebuilt the grid from the catalogue that predated the
+// deploy — every tool added since their last visit was missing until they
+// happened to load the page a second time.
+async function freshFast(request, cacheName) {
+    const cache = await caches.open(cacheName);
+    const cached = await cache.match(request);
+    const network = fetch(request)
+        .then((res) => {
+            // 200 only: a 206 or an opaque response cannot be stored, and
+            // cache.put() would reject.
+            if (res && res.status === 200) cache.put(request, res.clone()).catch(() => {});
+            return res;
+        })
+        .catch(() => null);
+
+    if (!cached) {
+        const net = await network;
+        return net || new Response('Offline', { status: 503, statusText: 'Offline' });
+    }
+    if (ageOf(cached) < FRESH_WINDOW_MS) return cached;
+
+    const winner = await Promise.race([
+        network,
+        new Promise((resolve) => setTimeout(() => resolve(null), NETWORK_PATIENCE_MS))
+    ]);
+    return winner || cached;
 }
 
 async function staleWhileRevalidate(request, cacheName) {

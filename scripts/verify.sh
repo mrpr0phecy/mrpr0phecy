@@ -29,7 +29,9 @@
 #  15. home first screen      — scripts/build-home-prerender.py --check, plus the
 #                                loader tests in scripts/tests/ that drive the real
 #                                functions out of home-app.js (lazy-loader,
-#                                home-fast-path, lite-tier)
+#                                home-fast-path, lite-tier) and sw.js's fetch
+#                                handler (service-worker: a stale cached
+#                                catalogue must never beat the deployed one)
 #  16. input egress           — scripts/check-egress.py: every network-touching
 #                               card must be a reviewed, classified exception, and
 #                               the QR generator must stay fully local (functional
@@ -206,8 +208,8 @@ fi
 # staff-*.test.js, so a card-loader regression could ship green.
 if command -v node >/dev/null 2>&1; then
   if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js \
-    && node scripts/tests/lite-tier.test.js; then
-    ok "card loader, first-screen fast path and two-tier catalogue behave as shipped"
+    && node scripts/tests/lite-tier.test.js && node scripts/tests/service-worker.test.js; then
+    ok "card loader, first-screen fast path, two-tier catalogue and cache policy behave as shipped"
   else
     fail "card loader regression — see the failing assertion above"
   fi

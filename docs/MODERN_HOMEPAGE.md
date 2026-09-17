@@ -54,21 +54,41 @@ This document describes the modernization of `index.html` using cutting-edge bro
 ### 5. Speculation Rules API (Chrome 108+)
 - `<script type="speculationrules">` prerenders likely next tools:
   ```json
-  { "prerender": [{ "where": { "selector_matches": ".card a.card-maximize-btn" }, "eagerness": "moderate" }], "prefetch": [{ "urls": ["cards/cards.json"] }] }
+  { "prerender": [{ "where": { "href_matches": "*/tool.html?card=*" }, "eagerness": "conservative" }] }
   ```
-- JS dynamically updates rules based on first 6 visible cards after filter (`updateSpeculationRules()`)
+- JS dynamically updates rules based on first 6 visible cards after filter
+  (`updateSpeculationRules()`, debounced 700 ms by
+  `scheduleSpeculationRulesUpdate()` — the rules are prefetch URLs, so
+  rewriting them on every keystroke queued six tool-page fetches per
+  character). `eagerness: "conservative"` is deliberate: a prerender runs the
+  whole standalone page, scripts and all, so at `"moderate"` a mouse crossing
+  the grid started page loads while the grid was still fetching cards.
 - Uses `postTask` / `requestIdleCallback` to avoid main-thread churn
 
-### 6. Service Worker + Cache API (Baseline)
-- New `sw.js` (module + classic fallback):
-  - `STATIC_CACHE` (v3): precaches `index.html`, `cards-lite.json`, `cards.json`, `home-app.js`, `fonts/inter-latin.woff2`, `fonts/inter-latin-ext.woff2`, `risk-notices.js` — trimmed in v3: `tools-index.html`/`og-tools.png` moved to runtime caching (~110 KB gz of background bandwidth per install), `./` dropped as a duplicate of `./index.html` (the navigate fallback chain still covers offline `/`)
-  - `CARDS_CACHE`: cache-first for `cards/*.html` with 1h max-age
-  - `RUNTIME_CACHE`: stale-while-revalidate for other assets
-  - Both catalogue tiers: stale-while-revalidate, always fresh in background
-  - Navigation preload enabled
-  - `WARM_CACHE` message from page to warm both catalogue tiers
+### 6. Service Worker + Cache API
+- `sw.js` (module + classic fallback), now **v5**:
+  - `STATIC_CACHE`: precaches exactly `index.html` + `cards-lite.json` — the
+    two URLs the fetch handler reads out of it. Everything else used to be
+    precached with `cache: 'reload'` (bypassing the HTTP cache) and then served
+    from a different cache, so every install re-downloaded `home-app.js`,
+    `risk-notices.js` and both fonts (~133 KB) in the background while the
+    first screen's tools were still arriving.
+  - `FRESH_WINDOW_MS` (10 min, GitHub Pages' own `max-age`): inside it, the
+    cached copy answers instantly and refreshes in the background;
+    `freshFast()` sends the catalogue tiers, `cards/*.html` and first-party
+    `.js`/`.css` to the network once the copy is older, falling back to the
+    cache if the origin takes longer than `NETWORK_PATIENCE_MS` (2.5 s) or is
+    unreachable. This replaced stale-while-revalidate, which always served the
+    previous deploy's copy first — new tools were missing from the grid until
+    the visitor loaded the page a second time.
+  - Binaries (fonts/images) stay cache-first; navigations stay network-first
+    with the cached `index.html` as the offline fallback; navigation preload
+    enabled. The `WARM_CACHE` message is gone (both tiers are fetched by the
+    page itself and land in the cache through the fetch handler).
 - Registration via `registerServiceWorker()` using `requestIdleCallback` / `scheduler.postTask` / `load` fallback
 - Handles offline fallback to cached `index.html`
+- `scripts/tests/service-worker.test.js` drives the shipped handler in
+  `verify.sh` §15 — a stale catalogue beating the deployed one fails the gate
 
 ### 7. CSS @property (Baseline 2023)
 - Typed custom properties for animatable glows:
@@ -170,7 +190,11 @@ and the 141 KB `cards.json` no longer blocks the grid.
   analytics event can be lost), but the ~28 KB `gtag.js` fetch + execution
   no longer competes with the first screen's bandwidth and main thread
   (`requestIdleCallback`, 4 s timeout, `load` fallback).
-- **SW v3**: see the precache trim above.
+- **SW v4/v5**: v4 made first-party JS/JSON stale-while-revalidate so a
+  deploy could not serve a new page against an old app script; v5 replaced SWR
+  for the catalogue, fragments and code with the windowed `freshFast()` policy
+  above (SWR was one deploy behind on the first visit after every release) and
+  trimmed the precache to what `STATIC_CACHE` actually serves.
 
 ## Preserved Contracts
 - `HOME-FAST-PATH:BEGIN/END` and `HOME-PRERENDER:BEGIN/END` markers untouched — `build-home-prerender.py --check` still passes
@@ -183,7 +207,7 @@ and the 141 KB `cards.json` no longer blocks the grid.
 - `index.html`: +~800 lines of modern CSS + ~200 lines JS helpers, popover attributes, speculation rules, import map, manifest link; app script moved out to `home-app.js`, preload for `cards.json` removed
 - `home-app.js`: new — the homepage application (was inline in `index.html`), now owns the two-tier catalogue load + `enrichCatalogueDescriptions()`
 - `cards/cards-lite.json`: new — generated critical-path tier
-- `sw.js`: v2 — precaches both tiers + `home-app.js`, SWR for both tiers
+- `sw.js`: v5 — catalogue/fragments/first-party code via `freshFast()` (cached copy answers only inside the 10-minute window), precache trimmed to `index.html` + `cards-lite.json`
 - `manifest.tools.json`: new, PWA manifest for tools
 - `generate-cards-json.js`: also emits + `--check`s `cards-lite.json`
 - `scripts/build-home-prerender.py`: two-tier bootstrap, `MARKUP = 12`

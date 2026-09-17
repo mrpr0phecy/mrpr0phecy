@@ -192,6 +192,26 @@ yields while the loader pipeline is busy (`FIRST_SCREEN_CHUNKS` /
 the user is actually looking at. The yield is bounded, so a busy page cannot
 starve the build.
 
+### What the loader is allowed to do per frame
+
+Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.js`:
+
+- **`MAX_CONCURRENT_LOADS = 6`** fetch/render jobs. The grid is one card per
+  row, so a 900px viewport plus the observer's 600px look-ahead wants ~5 tools
+  in flight to stay ahead of a scroll. Four kept a free slot rare enough that
+  the fallback sweep spent its time measuring cards it could not start.
+- **The viewport sweep only measures when a slot is free.** `scrollFallbackLoader()`
+  walks the pending list to prune finished cards, but every
+  `getBoundingClientRect()` in that walk forces layout: with the whole
+  catalogue pending that was **1,190 reads per scroll frame** (measured —
+  71,404 over 60 frames of fast scrolling) while all four slots were busy, so
+  none of the cards it found could start. It now skips the measuring pass when
+  `activeLoads >= MAX_CONCURRENT_LOADS`; the walk still prunes, the errored-card
+  retry still runs, and `processLoadQueue()` re-sweeps the moment a slot frees.
+
+The IntersectionObserver stays the primary trigger — it knows what entered the
+viewport without asking the layout engine about 1,194 elements.
+
 ### Anatomy of a card
 
 A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
@@ -678,7 +698,27 @@ HTML is what makes a static site serve stale pages for days after a deploy. It
 also adds precache entries individually rather than via `cache.addAll()`,
 because `addAll()` is atomic — a single 404 aborts the whole install and the
 worker never activates. The previous version had four 404s in its precache list
-and could never have installed. Bump `CACHE_NAME` on any change.
+and could never have installed. Bump `CACHE_VERSION` on any change.
+
+**The catalogue may never come from a stale cache.** The catalogue decides
+which tools exist, so a cached copy that predates the deploy renders a grid
+with tools missing — the visitor has no way to tell that from a bug. `sw.js`
+therefore routes the catalogue tiers, the card fragments and first-party
+code through `freshFast()`: the cached copy answers instantly only while it is
+inside GitHub Pages' own 10-minute freshness window, after which the network
+decides, with the cache as the fallback if the origin is slower than
+`NETWORK_PATIENCE_MS` (2.5s) or unreachable. This replaced
+stale-while-revalidate, which always handed over the previous deploy's copy and
+only refreshed the cache for the *next* visit — so every newly added tool was
+missing until the visitor happened to load the page twice.
+`scripts/tests/service-worker.test.js` drives the shipped handler and fails if
+a stale catalogue beats the deployed one.
+
+**The precache list must only contain what the fetch handler reads from that
+cache.** Entries are fetched with `cache: 'reload'` (bypassing the HTTP cache)
+on install, so a URL that the handler serves out of `RUNTIME_CACHE` or
+`CARDS_CACHE` is downloaded a second time per install — while the visitor is
+still waiting for the first screen. The service-worker test asserts the list.
 
 **`generate-cards-json.js` overwrites categories.** See §3.
 
@@ -1285,9 +1325,13 @@ geometric sums, convergence detection, both lease verdict branches).
 - **`viewport-fit=cover` on 1/42 pages, `color-scheme` on 0/42.** Worth adding
   to the full-bleed dark pages for notched phones and native dark scrollbars,
   but it changes layout, so it wants visual testing rather than a blind sweep.
-- **`sw.js` is still unregistered** — see the open question below. For a site of
-  644 offline-first tools it is a large caching win (network-first for HTML,
-  cache-first for cards), but it must be rolled out carefully.
+- **`sw.js`** — registered from `initApp()` and governed by the §7 rules. The
+  catalogue, card fragments and first-party code go through `freshFast()` (the
+  cache may answer only inside GitHub Pages' 10-minute window; after that the
+  network decides), binaries stay cache-first, HTML stays network-first, and
+  the precache list holds only what the fetch handler reads from it.
+  `scripts/tests/service-worker.test.js` drives the shipped handler in
+  `verify.sh` §15.
 - **8 pages use `i.ytimg.com/vi/<id>/maxresdefault.jpg` as their og:image**
   (both ids verified live today). Fine while the videos exist; if one is ever
   deleted the share card silently breaks.
@@ -1304,6 +1348,14 @@ geometric sums, convergence detection, both lease verdict branches).
 - The 12 language pages are thin and machine-translated. Thin translated pages
   can attract a manual action from Google. Either enrich them with genuinely
   localised content or consider consolidating.
-- `sw.js` is correct but unregistered — enable it or delete it.
+- **Element selectors and shared class names inside cards still leak.** All
+  1,194 cards share one document, so a card's bare `button { … }`, `input { … }`
+  or `h2 { … }` rule applies to every other card and to the page chrome, and
+  107 class names (`.actions` in 99 cards, `.row`, `.active`, `.field`, …) are
+  defined by more than one card with different meanings. `check-card-css-leaks.py`
+  fails on host classes and script-injected styles (the damage class that made
+  cards disappear); it does not yet police element selectors or cross-card
+  collisions. Fixing those means scoping ~100 cards — the same shape of
+  mechanical change as P3-T2, so it needs an owner call before staff start.
 - Legacy directories `substitutions/`, `system/`, `digitaldetoxcardshtml/` and
   the duplicate CV files look like dead weight. Confirm before removing.
