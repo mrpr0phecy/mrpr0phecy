@@ -6,7 +6,9 @@
    - Uses Cache API + Navigation Preload if available
 */
 
-const CACHE_VERSION = 'v1-2026-09-17';
+// v2: home app externalized to home-app.js; catalogue split into a lite
+// critical-path tier (cards-lite.json) plus the full background tier.
+const CACHE_VERSION = 'v2-2026-09-17';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -14,7 +16,9 @@ const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 const PRECACHE_URLS = [
     './',
     './index.html',
+    './cards/cards-lite.json',
     './cards/cards.json',
+    './home-app.js',
     './tools-index.html',
     './risk-notices.js',
     './og-tools.png'
@@ -85,8 +89,10 @@ self.addEventListener('fetch', (event) => {
     // Only handle same-origin GET
     if (req.method !== 'GET' || url.origin !== self.location.origin) return;
 
-    // cards.json — stale-while-revalidate, always fresh in background
-    if (url.pathname.endsWith('cards/cards.json')) {
+    // Catalogue tiers (lite = grid, full = search) — stale-while-revalidate,
+    // always fresh in background. Both must track their deploy or a new tool
+    // stays invisible (lite) or its description search miss (full).
+    if (url.pathname.endsWith('cards/cards-lite.json') || url.pathname.endsWith('cards/cards.json')) {
         event.respondWith(staleWhileRevalidate(req, STATIC_CACHE));
         return;
     }

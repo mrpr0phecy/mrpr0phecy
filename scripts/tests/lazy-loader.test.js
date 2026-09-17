@@ -1,7 +1,8 @@
-// Tests the REAL lazy-loading functions extracted out of index.html.
+// Tests the REAL lazy-loading functions extracted out of home-app.js (the
+// externalised homepage application that index.html loads with `defer`).
 //
 // These drive the shipped source with DOM stubs rather than reimplementing it,
-// so a change to index.html that breaks the loader breaks this test. Run with:
+// so a change to home-app.js that breaks the loader breaks this test. Run with:
 //
 //   node scripts/tests/lazy-loader.test.js
 //
@@ -11,8 +12,8 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const INDEX = path.join(__dirname, '..', '..', 'index.html');
-const html = fs.readFileSync(INDEX, 'utf8');
+const APP = path.join(__dirname, '..', '..', 'home-app.js');
+const html = fs.readFileSync(APP, 'utf8');
 
 // A Proxy whose unknown identifiers resolve to a no-op, contextified so it can
 // be used as a vm global. That lets the extracted functions run without
@@ -37,13 +38,13 @@ function run(src, obj, name) {
 
 function grab(name) {
   const m = html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}\\n`));
-  assert(m, `could not extract ${name}() from index.html — has it been renamed?`);
+  assert(m, `could not extract ${name}() from home-app.js — has it been renamed?`);
   return m[0];
 }
 
 // The shipped concurrency cap, read from the real source — not assumed.
 const capMatch = html.match(/const MAX_CONCURRENT_LOADS = (\d+);/);
-assert(capMatch, 'could not read MAX_CONCURRENT_LOADS from index.html');
+assert(capMatch, 'could not read MAX_CONCURRENT_LOADS from home-app.js');
 const SHIPPED_CAP = parseInt(capMatch[1], 10);
 assert.ok(SHIPPED_CAP >= 1 && SHIPPED_CAP <= 16,
   `MAX_CONCURRENT_LOADS=${SHIPPED_CAP} is outside sane bounds`);
