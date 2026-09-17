@@ -1,26 +1,31 @@
-// Tests the REAL first-screen fast-path functions extracted out of index.html,
-// the same way scripts/tests/lazy-loader.test.js does: drive the shipped source
-// with stubs instead of reimplementing it, so a change to index.html that breaks
-// the fast path breaks this test. Run with:
+// Tests the REAL first-screen fast-path functions: the loader side is
+// extracted out of home-app.js (the externalised homepage application), the
+// same way scripts/tests/lazy-loader.test.js does, and the cross-artifact
+// invariants are read straight out of index.html's generated blocks — drive
+// the shipped source with stubs instead of reimplementing it, so a change
+// that breaks the fast path breaks this test. Run with:
 //
 //   node scripts/tests/home-fast-path.test.js
 //
 // Zero dependencies (node only). No browser required.
 //
-// What the fast path is: <head> starts the catalogue fetch and the first few
-// card-fragment fetches while the document is still parsing, and #dashboard
-// ships those first cards as generated markup. Both halves are consumed exactly
-// once by the loader. These tests hold the two invariants that make that safe:
-// nothing is downloaded twice, and no card is ever built twice into the shared
-// DOM (ARCHITECTURE.md §7's duplicate-id trap).
+// What the fast path is: <head> starts both catalogue-tier fetches (lite
+// critical path, full background) and the first few card-fragment fetches
+// while the document is still parsing, and #dashboard ships those first
+// cards as generated markup. Both halves are consumed exactly once by the
+// loader. These tests hold the two invariants that make that safe: nothing
+// is downloaded twice, and no card is ever built twice into the shared DOM
+// (ARCHITECTURE.md §7's duplicate-id trap).
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
 const INDEX = path.join(__dirname, '..', '..', 'index.html');
+const APP = path.join(__dirname, '..', '..', 'home-app.js');
 const CARDS = path.join(__dirname, '..', '..', 'cards', 'cards.json');
 const html = fs.readFileSync(INDEX, 'utf8');
+const app = fs.readFileSync(APP, 'utf8');
 
 function context(obj) {
   const proxy = new Proxy(obj, {
@@ -38,8 +43,8 @@ function run(src, obj, name) {
 }
 
 function grab(name) {
-  const m = html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}\\n`));
-  assert(m, `could not extract ${name}() from index.html — has it been renamed?`);
+  const m = app.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}\\n`));
+  assert(m, `could not extract ${name}() from home-app.js — has it been renamed?`);
   return m[0];
 }
 
@@ -263,7 +268,7 @@ function shell(name) {
 
   // Descriptions used to be copied into a data-desc attribute on all 1128
   // cards: ~190 KB of catalogue text written into the DOM during the build.
-  assert.ok(!/card\.dataset\.desc\s*=/.test(html),
+  assert.ok(!/card\.dataset\.desc\s*=/.test(app),
     'createPlaceholder is writing data-desc again — that duplicates the catalogue into the DOM');
   console.log('  ok   no data-desc duplication of the catalogue');
 }

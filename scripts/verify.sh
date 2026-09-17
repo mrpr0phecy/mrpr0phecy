@@ -27,7 +27,8 @@
 #  14. card name collisions   — scripts/check-card-collisions.py (no cross-card top-level SyntaxError)
 #  15. home first screen      — scripts/build-home-prerender.py --check, plus the
 #                                loader tests in scripts/tests/ that drive the real
-#                                functions out of index.html
+#                                functions out of home-app.js (lazy-loader,
+#                                home-fast-path, lite-tier)
 #  16. input egress           — scripts/check-egress.py: every network-touching
 #                               card must be a reviewed, classified exception, and
 #                               the QR generator must stay fully local (functional
@@ -187,12 +188,14 @@ if python3 scripts/build-home-prerender.py --check; then
 else
   fail "index.html's generated first screen is stale — run: python3 scripts/build-home-prerender.py"
 fi
-# These drive the real loader functions extracted from index.html. lazy-loader
-# was written for the lazy-loading rework but nothing ever ran it — verify.sh
-# only picked up staff-*.test.js, so a card-loader regression could ship green.
+# These drive the real loader functions extracted from home-app.js (the
+# externalised homepage application). lazy-loader was written for the
+# lazy-loading rework but nothing ever ran it — verify.sh only picked up
+# staff-*.test.js, so a card-loader regression could ship green.
 if command -v node >/dev/null 2>&1; then
-  if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js; then
-    ok "card loader and first-screen fast path behave as shipped"
+  if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js \
+    && node scripts/tests/lite-tier.test.js; then
+    ok "card loader, first-screen fast path and two-tier catalogue behave as shipped"
   else
     fail "card loader regression — see the failing assertion above"
   fi

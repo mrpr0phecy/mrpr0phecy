@@ -1,5 +1,6 @@
 // Drives the REAL showCardError / retryLoadCard / retryErroredCards out of
-// index.html against a minimal DOM stub.
+// home-app.js (the externalised homepage application) against a minimal DOM
+// stub.
 //
 // These test the shipped loader design: DOM-API error UI, load-vs-render
 // reasons, manual retry that always fires, and a bounded scroll-driven
@@ -10,7 +11,7 @@ const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
 
-const html = fs.readFileSync('index.html', 'utf8');
+const html = fs.readFileSync('home-app.js', 'utf8');
 const grab = name => {
   const m = html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}\\n`));
   assert(m, `could not extract ${name}`);
@@ -18,7 +19,7 @@ const grab = name => {
 };
 // The shipped auto-retry budget, read from the real CONFIG — not assumed.
 const limitMatch = html.match(/AUTO_RETRY_LIMIT:\s*(\d+)/);
-assert(limitMatch, 'could not read CONFIG.AUTO_RETRY_LIMIT from index.html');
+assert(limitMatch, 'could not read CONFIG.AUTO_RETRY_LIMIT from home-app.js');
 const SHIPPED_LIMIT = parseInt(limitMatch[1], 10);
 assert.ok(SHIPPED_LIMIT >= 1 && SHIPPED_LIMIT <= 10,
   `AUTO_RETRY_LIMIT=${SHIPPED_LIMIT} is outside sane bounds`);
@@ -105,7 +106,7 @@ vm.createContext(sandbox);
 // globalThis propagating back through the Proxy sandbox.
 const api = vm.runInContext(
   src + '\n;({ showCardError, retryLoadCard, retryErroredCards });',
-  sandbox, { filename: 'index.html(extracted)' });
+  sandbox, { filename: 'home-app.js(extracted)' });
 assert.strictEqual(typeof api.showCardError, 'function', 'extraction failed');
 assert.strictEqual(typeof api.retryErroredCards, 'function', 'extraction failed');
 

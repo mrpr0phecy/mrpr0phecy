@@ -1,5 +1,6 @@
-// Drives the REAL deep-link parser shipped inside index.html (?q= search
-// pre-fill, ?expand= open-one-tool-inline) in a vm sandbox. Zero dependencies.
+// Drives the REAL deep-link parser shipped inside home-app.js (the externalised
+// homepage application; index.html loads it with `defer`) — ?q= search
+// pre-fill, ?expand= open-one-tool-inline — in a vm sandbox. Zero dependencies.
 //
 // Why this exists:
 //   * llms.txt and agents.html advertise index.html?q=<query> and
@@ -16,15 +17,15 @@ const vm = require('vm');
 const assert = require('assert');
 
 const NL = String.fromCharCode(10);
-const html = fs.readFileSync('index.html', 'utf8');
+const html = fs.readFileSync('home-app.js', 'utf8');
 // Extract a top-level 4-space-indented function by its closing line.
 // (Deliberately backslash-free: plain indexOf slicing, no regex escapes.)
 const grab = name => {
   const start = html.indexOf('function ' + name + '(');
-  assert(start !== -1, 'could not find ' + name + ' in index.html');
+  assert(start !== -1, 'could not find ' + name + ' in home-app.js');
   const endMark = NL + '    }' + NL;
   const end = html.indexOf(endMark, start);
-  assert(end !== -1, 'could not find end of ' + name + ' in index.html');
+  assert(end !== -1, 'could not find end of ' + name + ' in home-app.js');
   return html.slice(start, end + endMark.length);
 };
 

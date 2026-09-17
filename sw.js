@@ -6,18 +6,24 @@
    - Uses Cache API + Navigation Preload if available
 */
 
-const CACHE_VERSION = 'v1-2026-09-17';
+// v3: Inter self-hosted (fonts/ in the precache); precache trimmed —
+// tools-index.html and og-tools.png moved to runtime caching (they cost
+// ~110 KB of background bandwidth on EVERY install/reactivation, and the
+// navigate fallback chain already covers the index offline), './' removed
+// as a duplicate of './index.html'.
+const CACHE_VERSION = 'v3-2026-09-17';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
-    './',
     './index.html',
+    './cards/cards-lite.json',
     './cards/cards.json',
-    './tools-index.html',
-    './risk-notices.js',
-    './og-tools.png'
+    './home-app.js',
+    './fonts/inter-latin.woff2',
+    './fonts/inter-latin-ext.woff2',
+    './risk-notices.js'
 ];
 
 // Install — precache critical assets
@@ -85,8 +91,10 @@ self.addEventListener('fetch', (event) => {
     // Only handle same-origin GET
     if (req.method !== 'GET' || url.origin !== self.location.origin) return;
 
-    // cards.json — stale-while-revalidate, always fresh in background
-    if (url.pathname.endsWith('cards/cards.json')) {
+    // Catalogue tiers (lite = grid, full = search) — stale-while-revalidate,
+    // always fresh in background. Both must track their deploy or a new tool
+    // stays invisible (lite) or its description search miss (full).
+    if (url.pathname.endsWith('cards/cards-lite.json') || url.pathname.endsWith('cards/cards.json')) {
         event.respondWith(staleWhileRevalidate(req, STATIC_CACHE));
         return;
     }

@@ -6,6 +6,13 @@ const path = require('path');
 
 const cardsDir = path.join(__dirname, 'cards');
 const outputFile = path.join(cardsDir, 'cards.json');
+// Two-tier catalogue: cards.json is the full index (title, description,
+// category, ...); cards-lite.json holds name/title/category only — small
+// enough to be the home page's critical path. The grid builds from the lite
+// file; search fetches the full file in the background. Short keys because
+// it is machine-only (generated here, consumed by index.html). Compact by
+// design: no indent, no whitespace.
+const liteOutputFile = path.join(cardsDir, 'cards-lite.json');
 
 const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html'));
 
@@ -1167,10 +1174,18 @@ const manifest = files.map(file => {
 // cards/cards.json still matches (drift gate for verify.sh). No writes.
 const CHECK = process.argv.includes('--check');
 const serialized = JSON.stringify(manifest, null, 2);
+const liteManifest = manifest.map(m => ({ n: m.name, t: m.title, c: m.category }));
+const liteSerialized = JSON.stringify(liteManifest);
 
 if (CHECK) {
   let onDisk = null;
   try { onDisk = fs.readFileSync(outputFile, 'utf8'); } catch (e) { onDisk = null; }
+  let liteOnDisk = null;
+  try { liteOnDisk = fs.readFileSync(liteOutputFile, 'utf8'); } catch (e) { liteOnDisk = null; }
+  if (liteOnDisk !== liteSerialized) {
+    console.error('DRIFT: cards/cards-lite.json is stale or missing — run: node generate-cards-json.js');
+    process.exit(1);
+  }
   if (onDisk !== serialized) {
     const disk = onDisk !== null ? JSON.parse(onDisk) : [];
     const byName = new Map(disk.map(c => [c.name, c]));
@@ -1194,4 +1209,6 @@ if (CHECK) {
 }
 
 fs.writeFileSync(outputFile, serialized);
+fs.writeFileSync(liteOutputFile, liteSerialized);
 console.log(`✅ cards.json updated with ${manifest.length} cards`);
+console.log(`✅ cards-lite.json updated — ${(liteSerialized.length / 1024).toFixed(0)} KB compact (name/title/category only)`);
