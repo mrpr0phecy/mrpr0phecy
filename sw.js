@@ -11,7 +11,18 @@
 // ~110 KB of background bandwidth on EVERY install/reactivation, and the
 // navigate fallback chain already covers the index offline), './' removed
 // as a duplicate of './index.html'.
-const CACHE_VERSION = 'v3-2026-09-17';
+// v4: first-party JS/JSON are stale-while-revalidate, not cache-first.
+// Cache-first with no expiry pinned home-app.js (and risk-notices.js) to
+// whatever version a visitor first saw: every later deploy shipped a new
+// index.html against the OLD app script until someone bumped this
+// constant — tools "went missing" for returning visitors while the site
+// looked fine in a fresh profile. Card fragments are stale-while-revalidate
+// too (instant from cache, refreshed for next time). The full 548 KB
+// cards.json left the precache: the page already downloads it once at low
+// priority and the fetch handler caches that copy, so precaching it (with
+// cache:'reload', bypassing the HTTP cache) was a second full download on
+// every install.
+const CACHE_VERSION = 'v4-2026-09-17';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -19,7 +30,6 @@ const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 const PRECACHE_URLS = [
     './index.html',
     './cards/cards-lite.json',
-    './cards/cards.json',
     './home-app.js',
     './fonts/inter-latin.woff2',
     './fonts/inter-latin-ext.woff2',
@@ -99,9 +109,10 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Card fragments: cards/*.html — cache-first, network fallback, cache for 1h
+    // Card fragments: cards/*.html — serve from cache instantly, refresh in
+    // the background so a fixed tool is current on the next visit.
     if (url.pathname.includes('/cards/') && url.pathname.endsWith('.html')) {
-        event.respondWith(cacheFirst(req, CARDS_CACHE, 60 * 60 * 1000));
+        event.respondWith(staleWhileRevalidate(req, CARDS_CACHE));
         return;
     }
 
@@ -111,8 +122,15 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Static assets: js, css, png, json
-    if (/\.(js|css|png|jpg|jpeg|webp|svg|json|woff2?)$/.test(url.pathname)) {
+    // Scripts / styles / JSON: stale-while-revalidate — never pin code to
+    // the version a visitor first saw (see v4 note above).
+    if (/\.(js|css|json)$/.test(url.pathname)) {
+        event.respondWith(staleWhileRevalidate(req, RUNTIME_CACHE));
+        return;
+    }
+
+    // Immutable-ish binaries: images and fonts — cache-first.
+    if (/\.(png|jpg|jpeg|webp|svg|ico|woff2?)$/.test(url.pathname)) {
         event.respondWith(cacheFirst(req, RUNTIME_CACHE));
         return;
     }

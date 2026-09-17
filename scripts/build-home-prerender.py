@@ -119,24 +119,25 @@ def fast_path_block(catalogue: list[dict]) -> str:
        the catalogue index and the fragments behind the pre-rendered cards in
        #dashboard are already in flight long before the deferred app script
        even exists — the first tools no longer wait for any JSON.
-       Two catalogue tiers fly: the ~110 KB lite index (name/title/category)
-       at high priority builds the rest of the grid, and the ~548 KB full
-       index (adds descriptions) at low priority feeds search in the
-       background. Each response is a promise consumed exactly once
-       (takePrefetchedCard / __mpFastPath.json / __mpFastPath.full), which is
-       why this replaced a <link rel="preload" as="fetch">: reusing a preload
-       depends on its credentials mode matching the later fetch(), and a miss
-       downloads the file twice. Failure here is silent — the loader fetches
-       for itself. */
+       Only the ~110 KB lite index (name/title/category) flies here, at high
+       priority, alongside the first fragments: it is what builds the grid.
+       The ~548 KB full index (adds descriptions) is NOT started here any
+       more — only search needs it, and on a phone connection it used to
+       share the pipe with the very fragments the visitor was waiting to
+       see. home-app.js fetches it after the grid is built, when the browser
+       is idle or the moment the search box gets focus (whichever is first).
+       Each response is a promise consumed exactly once (takePrefetchedCard /
+       __mpFastPath.json), which is why this replaced a <link rel="preload"
+       as="fetch">: reusing a preload depends on its credentials mode
+       matching the later fetch(), and a miss downloads the file twice.
+       Failure here is silent — the loader fetches for itself. */
     (() => {{
         const FIRST_SCREEN = {js_array(names)};
         try {{
             const fp = window.__mpFastPath = {{ json: null, full: null, cards: new Map() }};
             const opts = {{ credentials: 'same-origin', priority: 'high' }};
-            const low = {{ credentials: 'same-origin', priority: 'low' }};
             const asText = p => p.then(r => (r && r.ok ? r.text() : null)).catch(() => null);
             fp.json = asText(fetch('cards/cards-lite.json', opts));
-            fp.full = asText(fetch('cards/cards.json', low));
             FIRST_SCREEN.forEach(name => fp.cards.set(name, asText(fetch('cards/' + name + '.html', opts))));
         }} catch (err) {{ /* no fetch (file://) or blocked: loader falls back */ }}
     }})();
