@@ -266,7 +266,7 @@ def main() -> int:
 
     if current == expected:
         print(f"HOME PRERENDER OK — first {MARKUP} shells, {FETCH} bootstrap fetches "
-              f"and {len(counts) - 1} category counts match cards.json")
+              f"and {len(counts)} category counts match cards.json")
         return 0
 
     stale = [label for label, markers in (("HOME-FAST-PATH", FAST_PATH), ("HOME-PRERENDER", PRERENDER))

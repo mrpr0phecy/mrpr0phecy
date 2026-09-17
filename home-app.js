@@ -113,7 +113,7 @@
         
         // Sync search inputs. NOTE: no performSearch() here — the debounced
         // 'input' listeners in setupEventListeners() already fire the search.
-        // Calling it here as well ran the full 1223-card filter pass twice
+        // Calling it here as well ran the full 1194-card filter pass twice
         // per keystroke (once instantly, once debounced).
         if (mainSearchInput && stickySearchInput) {
             mainSearchInput.addEventListener('input', (e) => {
@@ -915,7 +915,7 @@
         card.dataset.displayName = displayName;
         card.dataset.category = category;
         // No data-desc: every description was being copied into a DOM attribute
-        // as well, which duplicated ~190 KB of catalogue text into 1128
+        // as well, which duplicated ~190 KB of catalogue text into 1194
         // attribute writes during the build. cardsMetaMap is the single source
         // and is always populated before a placeholder exists (see applyFilters).
 
@@ -1319,7 +1319,7 @@
             }
             
             // Create card placeholders in batches across frames.
-            // Building all 1165 at once blocked the main thread for seconds and
+            // Building all 1194 at once blocked the main thread for seconds and
             // left the page unresponsive; the first batch now paints almost
             // immediately and the rest stream in.
             initIntersectionObserver();
@@ -1461,7 +1461,7 @@
     }
 
     // The animated waveform is now shown only on cards genuinely fetching —
-    // at most MAX_CONCURRENT_LOADS at a time — instead of on all 1165
+    // at most MAX_CONCURRENT_LOADS at a time — instead of on all 1194
     // placeholders simultaneously.
     function showActiveLoader(card, cardName) {
         const sandbox = card.querySelector(`#card-${cardName}`);
@@ -1976,7 +1976,7 @@
     // Driven by scroll, throttled to one pass per frame. This replaces a
     // setInterval that re-queried every unloaded card and called
     // getBoundingClientRect() in a loop every 3 seconds whether or not the
-    // user had moved — forced synchronous layout, 1165 times, forever.
+    // user had moved — forced synchronous layout, 1194 times, forever.
     function onScrollLoad() {
         if (scrollRafPending) return;
         scrollRafPending = true;
@@ -2022,7 +2022,7 @@
             const card = pendingCards[i];
             const cardName = card.dataset.name;
             // Prune finished cards so the list — and this loop — shrinks over
-            // time instead of re-walking all 1200+ entries on every scroll.
+            // time instead of re-walking all 1194 entries on every scroll.
             if (!cardName || loadedCards.has(cardName) || !card.isConnected) continue;
             stillPending.push(card);
             // Every load slot is busy: this sweep cannot start anything, so
@@ -2822,7 +2822,7 @@
             }
         });
 
-        // Rebuilding the (usually hidden) 1223-node directory list on every
+        // Rebuilding the (usually hidden) 1194-node directory list on every
         // keystroke was the biggest filter jank. Only rebuild it when it is
         // actually on screen; otherwise just remember the match list.
         lastMatchedNames = matchedNames;
@@ -2903,11 +2903,11 @@
         postTask(() => { assignVTNames(); scheduleSpeculationRulesUpdate(); });
     }
 
-    // Chunked render: appending all 1223 directory rows at once blocked the
+    // Chunked render: appending all 1194 directory rows at once blocked the
     // main thread for ~1s. Batches of 200 across frames keep the view switch
     // instant, and the token drops stale passes if filters change mid-render.
     // "View Card" clicks are handled by one delegated listener (attached in
-    // setupEventListeners), not 1223 individual addEventListener calls.
+    // setupEventListeners), not 1194 individual addEventListener calls.
     let directoryRenderToken = 0;
     const DIRECTORY_CHUNK = 200;
     function renderDirectoryList(names) {
@@ -3004,7 +3004,7 @@
     
     // ===== SITE STATS (footer + hero counters) =====
     // O(1): this runs after every single card render, so it must not scan
-    // the DOM or the 1223-entry catalogue. loadedCards is the source of
+    // the DOM or the 1194-entry catalogue. loadedCards is the source of
     // truth; category counts are computed once in updateCategoryCounts().
     function updateSiteStats() {
         const total = allCards.length;
@@ -3105,7 +3105,7 @@
     // already exist and their fragments are usually already downloaded by the
     // head bootstrap. Adopting them here — instead of on DOMContentLoaded, and
     // instead of after cards.json — removes the serialisation the home page
-    // used to have: HTML -> 136 KB catalogue index -> 1128 placeholders ->
+    // used to have: HTML -> 136 KB catalogue index -> 1194 placeholders ->
     // first fragment fetch. initApp() still runs on DOMContentLoaded and owns
     // everything else; loadCardList() keeps these shells and builds around them.
     adoptPrerenderedCards();
