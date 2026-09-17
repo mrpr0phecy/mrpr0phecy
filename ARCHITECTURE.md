@@ -575,8 +575,10 @@ reserved for subscribe actions so the primary CTA is unmistakable.
 - **Respect `prefers-reduced-motion`** — kill animations and smooth scrolling.
 - **Keyboard reachable**, visible focus, real `aria-label`s on icon-only
   controls, one `<h1>` per page and a sensible heading order.
-- **System font stack** (`Inter`, `system-ui`, `-apple-system`, `Segoe UI`).
-  No webfont downloads.
+- **System font stack** (`Inter`, `system-ui`, `-apple-system`, `Segoe UI`)
+  with graceful fallback. Webfonts must be self-hosted: the home page ships
+  the Inter variable woff2 in `fonts/` (preloaded, `unicode-range` subsets,
+  SIL OFL — see `fonts/OFL.txt`). No third-party font CDNs on that page.
 - `loading="lazy"` on below-the-fold images.
 - Every `target="_blank"` needs `rel="noopener noreferrer"`.
 
@@ -669,10 +671,9 @@ Note the `%20` escaping: some filenames in `images/` contain spaces.
 
 Each of these has already cost someone real time.
 
-**`sw.js` is not registered.** No page calls
-`navigator.serviceWorker.register()`. The file is kept correct so that enabling
-it is a one-line change, but right now it does nothing. Before enabling it,
-understand: it uses **network-first for HTML** deliberately. Cache-first on
+**`sw.js` registration traps** (resolved — `home-app.js` registers it from
+`initApp()`; these constraints still govern edits to it): it uses
+**network-first for HTML** deliberately. Cache-first on
 HTML is what makes a static site serve stale pages for days after a deploy. It
 also adds precache entries individually rather than via `cache.addAll()`,
 because `addAll()` is atomic — a single 404 aborts the whole install and the
@@ -681,8 +682,8 @@ and could never have installed. Bump `CACHE_NAME` on any change.
 
 **`generate-cards-json.js` overwrites categories.** See §3.
 
-**`index.html`'s grid is driven by `cards.json` — except its generated first
-screen.** The eight pre-rendered card shells and the six head-bootstrap
+**`index.html`'s grid is driven by the catalogue — except its generated first
+screen.** The twelve pre-rendered card shells and the six head-bootstrap
 prefetches do carry real card names: they are written by
 `scripts/build-home-prerender.py` between `HOME-FAST-PATH` and `HOME-PRERENDER`
 markers. Never hand-edit inside those markers — the next run overwrites you,

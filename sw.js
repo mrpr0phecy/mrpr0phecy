@@ -6,22 +6,24 @@
    - Uses Cache API + Navigation Preload if available
 */
 
-// v2: home app externalized to home-app.js; catalogue split into a lite
-// critical-path tier (cards-lite.json) plus the full background tier.
-const CACHE_VERSION = 'v2-2026-09-17';
+// v3: Inter self-hosted (fonts/ in the precache); precache trimmed —
+// tools-index.html and og-tools.png moved to runtime caching (they cost
+// ~110 KB of background bandwidth on EVERY install/reactivation, and the
+// navigate fallback chain already covers the index offline), './' removed
+// as a duplicate of './index.html'.
+const CACHE_VERSION = 'v3-2026-09-17';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
-    './',
     './index.html',
     './cards/cards-lite.json',
     './cards/cards.json',
     './home-app.js',
-    './tools-index.html',
-    './risk-notices.js',
-    './og-tools.png'
+    './fonts/inter-latin.woff2',
+    './fonts/inter-latin-ext.woff2',
+    './risk-notices.js'
 ];
 
 // Install — precache critical assets

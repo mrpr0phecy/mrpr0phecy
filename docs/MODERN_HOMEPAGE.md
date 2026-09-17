@@ -61,7 +61,7 @@ This document describes the modernization of `index.html` using cutting-edge bro
 
 ### 6. Service Worker + Cache API (Baseline)
 - New `sw.js` (module + classic fallback):
-  - `STATIC_CACHE`: precaches `/`, `index.html`, `cards-lite.json`, `cards.json`, `home-app.js`, `tools-index.html`, `risk-notices.js`
+  - `STATIC_CACHE` (v3): precaches `index.html`, `cards-lite.json`, `cards.json`, `home-app.js`, `fonts/inter-latin.woff2`, `fonts/inter-latin-ext.woff2`, `risk-notices.js` — trimmed in v3: `tools-index.html`/`og-tools.png` moved to runtime caching (~110 KB gz of background bandwidth per install), `./` dropped as a duplicate of `./index.html` (the navigate fallback chain still covers offline `/`)
   - `CARDS_CACHE`: cache-first for `cards/*.html` with 1h max-age
   - `RUNTIME_CACHE`: stale-while-revalidate for other assets
   - Both catalogue tiers: stale-while-revalidate, always fresh in background
@@ -157,6 +157,20 @@ so a regression in the shipped loader still fails `verify.sh`.
 
 Net first-visit critical path (gzip proxy for brotli): **~200 KB → ~93 KB**,
 and the 141 KB `cards.json` no longer blocks the grid.
+
+### 14. Follow-up wins (2026-09)
+- **Inter self-hosted**: `fonts/inter-latin.woff2` (48 KB, `preload` in
+  `<head>`, downloads in parallel with the HTML) +
+  `fonts/inter-latin-ext.woff2` (85 KB, fetched only when a glyph needs it —
+  `unicode-range`). Replaces the serial chain head → Google CSS → woff2
+  (~1 RTT + 48 KB behind the head; ~700 ms of font-swap delay on slow 4G).
+  `font-display: swap` keeps first paint on the system stack. SIL OFL 1.1,
+  licence in `fonts/OFL.txt`.
+- **gtag deferred to idle**: the `dataLayer` shim runs immediately (no
+  analytics event can be lost), but the ~28 KB `gtag.js` fetch + execution
+  no longer competes with the first screen's bandwidth and main thread
+  (`requestIdleCallback`, 4 s timeout, `load` fallback).
+- **SW v3**: see the precache trim above.
 
 ## Preserved Contracts
 - `HOME-FAST-PATH:BEGIN/END` and `HOME-PRERENDER:BEGIN/END` markers untouched — `build-home-prerender.py --check` still passes
