@@ -22,6 +22,11 @@
 // priority and the fetch handler caches that copy, so precaching it (with
 // cache:'reload', bypassing the HTTP cache) was a second full download on
 // every install.
+// v6: the main page's 118 KB inline stylesheet is now two cached files
+// (home.css render-blocking, home-deferred.css applied after first paint), and
+// index.html references its stylesheets and scripts with ?v=N so a page can
+// never be served against another deploy's CSS or JS. The version here must
+// match those query strings — scripts/check-critical-css.py fails if it drifts.
 // v5: "stale while revalidate" still meant a returning visitor rendered the
 // PREVIOUS catalogue on their first visit after every deploy — every tool
 // added since their last visit was simply absent from the grid until they
@@ -37,7 +42,7 @@
 // then served from RUNTIME_CACHE, so every install downloaded ~133 KB of
 // fonts and the app script a second time, in the background, while the
 // visitor was still waiting for the first screen's tools.
-const CACHE_VERSION = 'v5-2026-09-17';
+const CACHE_VERSION = 'v6-2026-09-17';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -46,10 +51,38 @@ const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 // offline navigation fallback) and the lite catalogue (the grid). Anything
 // else cached here would never be read — the handler would keep serving the
 // RUNTIME_CACHE copy — and precaching it costs a second download per install.
+//
+// These two are fetched with cache:'reload', so they are always a fresh
+// download at install time.
 const PRECACHE_URLS = [
     './index.html',
     './cards/cards-lite.json'
 ];
+
+// The page's own code and stylesheets, cached in the same store the fetch
+// handler serves them from — WITHOUT cache:'reload'. They are the reason a
+// first visit followed by an offline visit used to render an unstyled page
+// with no cards: the browser fetched them before the worker controlled the
+// page, so nothing had stored them for the worker to serve.
+//
+// Two details make this free rather than another ~260 KB per install:
+//   * the URLs carry ?v=, derived from CACHE_VERSION, so a new deploy is a new
+//     URL — there is no such thing as a stale entry under them, which is the
+//     only reason cache:'reload' exists above; and
+//   * because the URL is fresh, the browser's HTTP cache cannot hold a wrong
+//     copy either, so the precache reuses the response the page just fetched
+//     instead of downloading it a second time.
+// Bump CACHE_VERSION (and the ?v= with it — scripts/check-critical-css.py
+// compares the two) or a deploy serves the previous version's code.
+const PAGE_VERSION = CACHE_VERSION.split('-')[0].replace(/^v/, '');
+const PRECACHE_ASSETS = [
+    `./home.css?v=${PAGE_VERSION}`,
+    `./home-deferred.css?v=${PAGE_VERSION}`,
+    `./home-app.js?v=${PAGE_VERSION}`,
+    `./risk-notices.js?v=${PAGE_VERSION}`
+];
+// Pathnames the handler must serve from STATIC_CACHE, where they are precached.
+const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/home-app.js', '/risk-notices.js'];
 
 // GitHub Pages serves max-age=600, so a copy younger than this is exactly as
 // fresh as the browser's own HTTP cache entry.
@@ -72,6 +105,11 @@ self.addEventListener('install', (event) => {
                 for (const url of PRECACHE_URLS) {
                     try { await cache.add(new Request(url, { cache: 'reload' })); } catch {}
                 }
+            }
+            // Page code and stylesheets: no 'reload', so these come from the
+            // HTTP cache entry the page itself just created.
+            for (const url of PRECACHE_ASSETS) {
+                try { await cache.add(url); } catch { /* dev / partial deploy */ }
             }
             // Enable navigation preload if available
             if ('navigationPreload' in self.registration) {
@@ -142,6 +180,15 @@ self.addEventListener('fetch', (event) => {
     // Tool standalone: tool.html?card=*
     if (url.pathname.endsWith('tool.html')) {
         event.respondWith(networkFirst(req, RUNTIME_CACHE));
+        return;
+    }
+
+    // The page's own code and stylesheets: precached, and served from the same
+    // STATIC_CACHE they are precached into — otherwise a worker that has never
+    // fetched them (first visit, before it controlled anything) answers an
+    // offline navigation with a styled, script-less page.
+    if (PAGE_ASSET_PATHS.includes(url.pathname)) {
+        event.respondWith(freshFast(req, STATIC_CACHE));
         return;
     }
 

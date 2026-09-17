@@ -212,6 +212,70 @@ Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.j
 The IntersectionObserver stays the primary trigger — it knows what entered the
 viewport without asking the layout engine about 1,194 elements.
 
+### The main page's `<head>` is a budget
+
+`index.html`'s head was 132,210 bytes — 71% of the document — mostly the inline
+stylesheet. It is now ~15 KB, and the rule that keeps it that way is: **bytes in
+the document cost every visitor on every navigation, so rationale lives in this
+file, not in HTML comments.** A measured example: the HTML comments alone were
+2,664 bytes gzip (19% of what the page sent). The surviving comments are
+one-liners that point here. What lives here instead:
+
+- **Why the catalogue is fetched by the head bootstrap, not `<link rel="preload">`.**
+  The bootstrap's `fetch()` is same-origin; a preload whose credentials mode
+  does not match the later `fetch()` downloads the file twice on a miss.
+- **Why `home-app.js` is external and deferred.** It parses in parallel with the
+  HTML instead of waiting for the whole document, and it is cached separately, so
+  a revalidated page stops re-sending ~125 KB of JS with it. `defer` executes it
+  right after DOM parse — the same timing it had inline at the end of `<body>`.
+- **Why gtag loads at idle.** Its ~28 KB script used to be requested the moment
+  the head's end parsed, while the first cards were still rendering. The
+  `dataLayer` shim is in place immediately, so every `gtag()` call queues and
+  nothing is lost; `page_view` lands a beat later.
+- **Why Inter is self-hosted and preloaded.** The old chain was
+  head → Google CSS (1 RTT) → woff2 (1 RTT) → ~700 ms of font-swap delay on slow
+  4G. `unicode-range` keeps the latin-ext file unfetched unless a glyph needs it,
+  and `font-display: swap` paints in the system stack meanwhile.
+- **Why the speculation rules are `conservative`.** A prerender runs the whole
+  standalone page (its scripts fetch the full catalogue), so hovering across the
+  grid used to start page loads mid-fetch of the grid's own cards.
+- **Why the first 12 shells are pre-rendered markup.** They paint titles, badges
+  and standalone links with the HTML; `adoptPrerenderedCards()` adopts them
+  instead of rebuilding them, and the head bootstrap already has their fragments
+  in flight. In gzip terms the twelve shells cost ~1.5 KB and remove a full
+  round-trip of empty grey boxes.
+
+### Where the main page's CSS lives
+
+`index.html` used to carry ~118 KB of CSS inline in one `<style>` block. That
+made the first paint wait for every byte of it, on every visit, and re-sent
+~19 KB gzip of identical CSS on every navigation. The sheet is now two cached
+files:
+
+| file | contents | how it is loaded |
+| --- | --- | --- |
+| `home.css` | first-paint rules: base tokens, command bar, hero, search, filters, grid, card shells, skeletons, cool loader, risk notices, card footer | render-blocking `<link>` (unstyled first paint is worse than one RTT that overlaps the HTML download) |
+| `home-deferred.css` | rules for containers that are **hidden at first paint**: palette/contributions panels, toolbox and its grid/list modes, the directory view, the maximise modal, the no-results state, the footer and its music spotlight | `media="print"` + `onload` swap, so it is fetched alongside `home.css` but applied only after the first paint; `<noscript>` link for JS-less readers |
+
+Three properties make the split safe, and `scripts/check-critical-css.py`
+(verify §15) fails the build if any of them is broken:
+
+1. **The rules that hide those containers stay in `home.css`.** `.panel`,
+   `.toolbox`, `#directoryView { display: none }` and the modal's
+   `pointer-events: none` are the mechanism, not styling — a late stylesheet
+   must never be what decides whether a container is visible.
+2. **No deferred selector may mention anything else.** The guard's rule is
+   containment, not a sample: every selector in the deferred file must target
+   one of the hidden containers, so moving a `.card` or `.main-header` rule
+   there fails loudly.
+3. **`home.css` carries the tokens and keyframes it uses**, and the deferred
+   file may only lean on what `home.css` defines (it always loads first).
+
+`index.html` links both (and its scripts) with `?v=N`, and `N` must equal
+`CACHE_VERSION` in `sw.js` — the same deploy-consistency rule the service
+worker enforces for its own caches, since a page from one deploy must never run
+against another deploy's CSS or JS.
+
 ### Anatomy of a card
 
 A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
@@ -698,7 +762,10 @@ HTML is what makes a static site serve stale pages for days after a deploy. It
 also adds precache entries individually rather than via `cache.addAll()`,
 because `addAll()` is atomic — a single 404 aborts the whole install and the
 worker never activates. The previous version had four 404s in its precache list
-and could never have installed. Bump `CACHE_VERSION` on any change.
+and could never have installed. Bump `CACHE_VERSION` on any change, and bump it
+**together with** the `?v=` on `index.html`'s stylesheet and script references —
+`scripts/check-critical-css.py` compares the two, because a page from one deploy
+must never be served against another deploy's `home.css` or `home-app.js`.
 
 **The catalogue may never come from a stale cache.** The catalogue decides
 which tools exist, so a cached copy that predates the deploy renders a grid
@@ -719,6 +786,24 @@ cache.** Entries are fetched with `cache: 'reload'` (bypassing the HTTP cache)
 on install, so a URL that the handler serves out of `RUNTIME_CACHE` or
 `CARDS_CACHE` is downloaded a second time per install — while the visitor is
 still waiting for the first screen. The service-worker test asserts the list.
+
+**The page's own code needs a second, differently-fetched precache list.**
+`index.html`, `home.css`, `home-deferred.css`, `home-app.js` and
+`risk-notices.js` are fetched by a first visit *before* the worker controls
+anything, so the worker's caches never saw them; the next visit offline then
+served the cached `index.html` and 503'd its own stylesheet and script — an
+unstyled page with no cards. Those four assets are therefore precached into
+`STATIC_CACHE`, which is also the cache the fetch handler serves them from
+(they are the only two lists that may name the same URL).
+
+They are precached **without** `cache: 'reload'`, which is safe and free
+because their URLs carry `?v=${PAGE_VERSION}`, derived from `CACHE_VERSION`:
+a new deploy is a new URL, so no entry under them can be stale — and because
+the URL is new, the HTTP cache cannot hold a wrong copy either, so the
+precache reuses the response the page just downloaded instead of fetching
+~260 KB a second time. Bump `CACHE_VERSION` (and, with it, the `?v=` that
+`scripts/check-critical-css.py` compares) or a deploy quietly precaches the
+previous version's code.
 
 **`generate-cards-json.js` overwrites categories.** See §3.
 

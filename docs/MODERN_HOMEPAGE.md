@@ -85,6 +85,14 @@ This document describes the modernization of `index.html` using cutting-edge bro
     with the cached `index.html` as the offline fallback; navigation preload
     enabled. The `WARM_CACHE` message is gone (both tiers are fetched by the
     page itself and land in the cache through the fetch handler).
+  - The page's own assets (`home.css`, `home-deferred.css`, `home-app.js`,
+    `risk-notices.js`) are precached into `STATIC_CACHE` — the cache the
+    handler serves them from — using `?v=${PAGE_VERSION}` URLs derived from
+    `CACHE_VERSION`. They are precached without `cache: 'reload'` because a
+    versioned URL cannot be stale, so the precache reuses what the page just
+    fetched. Without this, a first visit followed by an offline visit rendered
+    the cached HTML with no styles and no app script (the worker had never
+    fetched either).
 - Registration via `registerServiceWorker()` using `requestIdleCallback` / `scheduler.postTask` / `load` fallback
 - Handles offline fallback to cached `index.html`
 - `scripts/tests/service-worker.test.js` drives the shipped handler in
@@ -145,9 +153,38 @@ This document describes the modernization of `index.html` using cutting-edge bro
 - **fetchpriority**: `high` for the lite catalogue + first-screen fragments, `low` for the full catalogue (background description feed) and the SW
 - **modulepreload** for SW; the app script is an external `defer` file (downloads in parallel with the HTML)
 - **content-visibility** + `contain-intrinsic-size` for 1194 cards
-- **Early hints**: `<link rel="expect" href="#dashboard" blocking="render">`
+- **No render-blocking "expect" link**: the old
+  `<link rel="expect" href="#dashboard" blocking="render">` held the first paint
+  until `#dashboard` was parsed — 29,885 bytes (16% of the document) after the
+  stylesheet — to guarantee a container that JS fills 100+ ms later anyway.
+  Removed; nothing above the grid depends on the grid existing at first paint.
 - **Import Map**: for future ESM (`idb`, `fuse`)
 - **Decoding hints**: prepared for `decoding="async"` on images
+
+### 12b. Split, cached stylesheet (2026-09)
+
+`index.html` used to inline the whole sheet: ~118 KB raw / ~19 KB gzip of CSS
+inside the document, re-transferred on every navigation and required in full
+before the first paint. It is now two cached files:
+
+- **`home.css`** (~82 KB raw / ~15 KB gzip) — every rule the first paint can
+  show; linked **render-blocking** (an unstyled first paint is worse than one
+  RTT that overlaps the HTML download) and cached across visits.
+- **`home-deferred.css`** (~39 KB raw / ~6 KB gzip) — the rules for containers
+  that are hidden until asked for: palette/contributions panels, toolbox and
+  its grid/list modes, the directory view, the maximise modal, the no-results
+  state, the footer and its music spotlight. Loaded with
+  `media="print"` + `onload="this.media='all'"` (plus a `<noscript>` link), so
+  it is fetched in parallel but can never delay the first paint.
+
+`index.html` drops from 184,886 B / 32,803 B gzip to ~67 KB / ~14 KB gzip;
+first paint is ~14 KB of HTML plus ~15 KB of CSS fetched in parallel, and
+repeat visits re-send only the HTML. Both stylesheets and `home-app.js` /
+`risk-notices.js` are referenced with `?v=N`, where `N` is `CACHE_VERSION` in
+`sw.js` — a page must never run against another deploy's assets.
+`scripts/check-critical-css.py` (verify §15) enforces the split: >4 KB inline
+blocks fail, every deferred selector must target a hidden container, and the
+rules that hide those containers must stay in `home.css`.
 
 ### 13. Two-tier catalogue + externalised app (2026-09)
 The single 516 KB `cards.json` was the critical path: the grid waited on its
@@ -207,7 +244,8 @@ and the 141 KB `cards.json` no longer blocks the grid.
 - `index.html`: +~800 lines of modern CSS + ~200 lines JS helpers, popover attributes, speculation rules, import map, manifest link; app script moved out to `home-app.js`, preload for `cards.json` removed
 - `home-app.js`: new — the homepage application (was inline in `index.html`), now owns the two-tier catalogue load + `enrichCatalogueDescriptions()`
 - `cards/cards-lite.json`: new — generated critical-path tier
-- `sw.js`: v5 — catalogue/fragments/first-party code via `freshFast()` (cached copy answers only inside the 10-minute window), precache trimmed to `index.html` + `cards-lite.json`
+- `sw.js`: v6 — catalogue/fragments/first-party code via `freshFast()` (cached copy answers only inside the 10-minute window), precache trimmed to `index.html` + `cards-lite.json`; version shared with the `?v=` on the page's stylesheets and scripts
+- `home.css` / `home-deferred.css`: new — the split of the old inline `<style>` block (see §12b)
 - `manifest.tools.json`: new, PWA manifest for tools
 - `generate-cards-json.js`: also emits + `--check`s `cards-lite.json`
 - `scripts/build-home-prerender.py`: two-tier bootstrap, `MARKUP = 12`

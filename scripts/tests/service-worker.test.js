@@ -188,6 +188,49 @@ const body = (res) => res.text();
     console.log('  ok   fonts stay cache-first');
   }
 
+  // ------------------------------------------------------- offline page assets
+  // A first visit fetches home.css / home-app.js before the worker controls
+  // anything, so nothing had stored them: the next visit offline served the
+  // cached index.html and then 503'd its own stylesheet and script — an
+  // unstyled page with no cards. They are precached into the store the handler
+  // serves them from, and an offline request must find them there.
+  {
+    const version = CACHE_VERSION.split('-')[0].replace(/^v/, '');
+    const w = makeWorker();
+    for (const [name, text] of [['/home.css', 'CACHED CSS'], ['/home-deferred.css', 'CACHED DEFERRED CSS'],
+                                ['/home-app.js', 'CACHED APP'], ['/risk-notices.js', 'CACHED NOTICES']]) {
+      await w.put(STATIC, `${name}?v=${version}`, text, 0);
+    }
+    w.setNetwork(() => Promise.reject(new Error('offline')));
+    for (const [name, text] of [['/home.css', 'CACHED CSS'], ['/home-deferred.css', 'CACHED DEFERRED CSS'],
+                                ['/home-app.js', 'CACHED APP'], ['/risk-notices.js', 'CACHED NOTICES']]) {
+      const res = await w.dispatch(`${name}?v=${version}`);
+      assert.strictEqual(res.status, 200, `${name} must be served offline from the precache`);
+      assert.strictEqual(await body(res), text, `${name} offline body came from the wrong store`);
+    }
+    console.log('  ok   offline: the page\'s own CSS and scripts come from the precache');
+  }
+
+  // The precache list and the route must stay in step: every pathname in
+  // PAGE_ASSET_PATHS has a precache entry built from CACHE_VERSION, exists in
+  // the repository, and is routed through STATIC_CACHE.
+  {
+    const paths = [...((SRC.match(/const PAGE_ASSET_PATHS = \[([^\]]*)\]/) || [])[1] || '')
+      .matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    assert.strictEqual(paths.length, 4, `expected 4 page assets, found ${paths.length}`);
+    assert.ok(SRC.includes("const PAGE_VERSION = CACHE_VERSION.split('-')[0]"),
+      'PAGE_VERSION must be derived from CACHE_VERSION, or a deploy serves the old version');
+    for (const name of paths) {
+      assert.ok(SRC.includes(`\`./${name.slice(1)}?v=\${PAGE_VERSION}\``),
+        `${name} is routed through STATIC_CACHE but not precached into it`);
+      const file = name.replace(/^\//, '');
+      assert.ok(fs.existsSync(file), `${name} is precached but is not in the repository`);
+    }
+    assert.ok(/PAGE_ASSET_PATHS\.includes\(url\.pathname\)/.test(SRC),
+      'the fetch handler must branch on PAGE_ASSET_PATHS');
+    console.log(`  ok   page assets are precached, routed and versioned (${paths.join(', ')})`);
+  }
+
   // ------------------------------------------------------------- precache
   // Every precache entry is fetched with cache:'reload' (bypassing the HTTP
   // cache) on install, so an entry the fetch handler never reads out of this

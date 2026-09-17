@@ -109,6 +109,16 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
 
     <li>
       <time>17 Sept 2026</time>
+      <h2>The home page stops re-downloading its own stylesheet on every visit <span class="tag fix">Fix</span></h2>
+      <p>The entire look of the home page lived inside the page itself: about 118 KB of styling that every visit downloaded again, and that the browser had to receive in full before it could paint anything at all. It is now two ordinary cached files. The part the first screen needs (~82 KB) still arrives before anything is painted, and the part nothing can see yet — the palette and contributions panels, the toolbox, the grid/list modes, the directory view, the maximise window, the "no results" box and the footer — is fetched alongside it but applied only after the first paint.</p>
+      <p>What you should notice: the page paints noticeably sooner on a slow connection, repeat visits re-send about 14 KB instead of 33 KB, and the very first frame is no longer gated on a render-blocking hint that waited for the tool grid's empty container to be parsed — 30 KB of markup (16% of the page) after the styles.</p>
+      <p>Both files, and the page's own script, are now requested with a version tag that is kept in step with the service worker, so a page can never end up running against a previous deploy's styles or code. A new check fails the build if a first-paint rule is ever moved into the deferred file, if the rules that keep those panels hidden move out of it, or if the whole sheet is inlined again.</p>
+      <p>Offline visits got the same treatment: the page's styles and script are now saved as part of the offline copy, so a page opened without a connection still looks and works like the page — before, the saved page came up without its styling or its card loader.</p>
+      <p>The rest of the page was audited for the same reason. Long explanations that used to sit in HTML comments — invisible to you, but compressed into every single download — moved into the project's architecture notes, and a render-blocking hint that made the browser wait for the tool grid's empty container before drawing anything was removed. The document itself is now about 64 KB instead of 185 KB.</p>
+    </li>
+
+    <li>
+      <time>17 Sept 2026</time>
       <h2>New tools appear on the first visit; scrolling stops measuring 1,190 cards a frame <span class="tag fix">Fix</span> <span class="tag tools">Tooling</span></h2>
       <p>The service worker used to hand back the copy of the tool list it already had, and refresh it in the background for <em>next</em> time. So every batch of new tools went live on the site while a returning visitor's grid still showed the list from their previous visit — and only a second visit fixed it. The tool list, the card files and the home page's own script are now only served from cache while they are inside the ten-minute window GitHub Pages itself allows; after that the live copy wins, and the cache is only the fallback if the network is slow or gone.</p>
       <p>Five more tools were injecting mobile rules meant for <em>this</em> page's grid (<code>.dashboard .card</code>) from their own script — rules the pre-ship check could not see, because it only read <code>&lt;style&gt;</code> blocks. Those rules are gone, and the check now reads styles injected from script too.</p>

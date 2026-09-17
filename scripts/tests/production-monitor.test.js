@@ -43,6 +43,9 @@ function buildFixtureRepo(root) {
   };
   write('CNAME', 'fixture.example.com');
   write('index.html', '<!DOCTYPE html><html><body><h1>Fixture home</h1></body></html>');
+  // The real page's stylesheets are probed for byte equality too.
+  write('home.css', 'body { color: #e6faff; }\n');
+  write('home-deferred.css', '.palette-panel { right: 16px; }\n');
   write('tool.html', '<!DOCTYPE html><html><body><h1>Fixture tool shell</h1></body></html>');
   write('listen.html', '<!DOCTYPE html><html><body><h1>Fixture music</h1></body></html>');
   write('manifest.json', JSON.stringify({ name: 'Fixture', start_url: '/' }));
